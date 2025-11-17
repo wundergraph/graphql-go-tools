@@ -1372,7 +1372,7 @@ func (p *Planner[T]) debugPrintQueryPlan(operation *ast.Document) {
 	if p.hasFederationRoot && p.dataSourcePlannerConfig.HasRequiredFields() { // IsRepresentationsQuery
 		args = append(args, "Representations:\n")
 		for _, cfg := range p.dataSourcePlannerConfig.RequiredFields {
-			key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, cfg.FieldName == "")
+			key, report := plan.QueryPlanRequiredFieldsFragment(cfg.TypeName, cfg.FieldName, cfg.SelectionSet)
 			if report.HasErrors() {
 				continue
 			}
@@ -1407,7 +1407,7 @@ func (p *Planner[T]) generateQueryPlansForFetchConfiguration(operation *ast.Docu
 	if p.hasFederationRoot && p.dataSourcePlannerConfig.HasRequiredFields() { // IsRepresentationsQuery
 		representations = make([]resolve.Representation, len(p.dataSourcePlannerConfig.RequiredFields))
 		for i, cfg := range p.dataSourcePlannerConfig.RequiredFields {
-			fragmentAst, report := plan.QueryPlanRequiredFieldsFragment(cfg.FieldName, cfg.TypeName, cfg.SelectionSet)
+			fragmentAst, report := plan.QueryPlanRequiredFieldsFragment(cfg.TypeName, cfg.FieldName, cfg.SelectionSet)
 			if report.HasErrors() {
 				p.stopWithError(errors.WithStack(fmt.Errorf("generateQueryPlansForFetchConfiguration: failed to build fragment for required fields: %w", report)))
 				return
@@ -1446,7 +1446,7 @@ func (p *Planner[T]) printOperation() (operationBytes []byte, variablesBytes []b
 	// create empty operation and definition documents
 	definition, err := p.config.UpstreamSchema()
 	if err != nil {
-		p.stopWithError(errors.WithStack(fmt.Errorf("printOperation: failed to read upstream schema: %w", err)))
+		p.stopWithError(errors.WithStack(fmt.Errorf("printOperation planner id: %d: failed to read upstream schema: %w", p.id, err)))
 		return nil, nil
 	}
 
@@ -1457,7 +1457,7 @@ func (p *Planner[T]) printOperation() (operationBytes []byte, variablesBytes []b
 	// normalize upstream operation
 	kit.normalizer.NormalizeOperation(p.upstreamOperation, definition, kit.report)
 	if kit.report.HasErrors() {
-		p.stopWithError(errors.WithStack(fmt.Errorf("printOperation: normalization failed: %w", kit.report)))
+		p.stopWithError(errors.WithStack(fmt.Errorf("printOperation planner id: %d: normalization failed: %w", p.id, kit.report)))
 		return nil, nil
 	}
 
@@ -1468,7 +1468,7 @@ func (p *Planner[T]) printOperation() (operationBytes []byte, variablesBytes []b
 
 	kit.validator.Validate(p.upstreamOperation, definition, kit.report)
 	if kit.report.HasErrors() {
-		p.stopWithError(errors.WithStack(fmt.Errorf("printOperation: validation failed: %w", kit.report)))
+		p.stopWithError(errors.WithStack(fmt.Errorf("printOperation planner id: %d: validation failed: %w", p.id, kit.report)))
 		return nil, nil
 	}
 
@@ -1478,7 +1478,7 @@ func (p *Planner[T]) printOperation() (operationBytes []byte, variablesBytes []b
 	// print upstream operation
 	err = kit.printer.Print(p.upstreamOperation, kit.buf)
 	if err != nil {
-		p.stopWithError(errors.WithStack(fmt.Errorf("printOperation: failed to print: %w", err)))
+		p.stopWithError(errors.WithStack(fmt.Errorf("printOperation planner id: %d: failed to print: %w", p.id, err)))
 		return nil, nil
 	}
 
@@ -1493,7 +1493,7 @@ func (p *Planner[T]) printOperation() (operationBytes []byte, variablesBytes []b
 			Pretty:  false,
 		}, kit.buf)
 		if err != nil {
-			p.stopWithError(errors.WithStack(fmt.Errorf("printOperation: failed to minify: %w", err)))
+			p.stopWithError(errors.WithStack(fmt.Errorf("printOperation planner id: %d: failed to minify: %w", p.id, err)))
 			return nil, nil
 		}
 		if madeReplacements && kit.buf.Len() < len(rawOperationBytes) {

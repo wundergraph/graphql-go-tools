@@ -1,0 +1,39 @@
+"""
+Fetches a user by their unique identifier.
+This operation returns detailed user information including profile data.
+"""
+query GetUser($id: ID!) {
+  user(id: $id) {
+    id
+    name
+    email
+  }
+}
+
+"Creates a new user account with the provided information"
+mutation CreateUser($input: UserInput!) {
+  createUser(input: $input) {
+    id
+    name
+  }
+}
+
+"""
+Subscribes to real-time user updates.
+Receives notifications when user data changes.
+"""
+subscription UserUpdated($userId: ID!) {
+  userUpdated(userId: $userId) {
+    id
+    name
+    status
+  }
+}
+
+# Operation without description for backward compatibility
+query GetAllUsers {
+  users {
+    id
+    name
+  }
+}

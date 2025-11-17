@@ -129,12 +129,12 @@ func TestNewProtoCompilerRecursiveType(t *testing.T) {
 	require.Equal(t, 1, len(compiler.doc.Messages))
 	require.Equal(t, "RecursiveMessage", compiler.doc.Messages[0].Name)
 	require.Equal(t, 2, len(compiler.doc.Messages[0].Fields))
-	require.Equal(t, "nested", compiler.doc.Messages[0].Fields[1].Name)
-	require.Equal(t, "RecursiveMessage", compiler.doc.Messages[0].Fields[1].ResolveUnderlyingMessage(compiler.doc).Name)
-	require.Equal(t, 2, len(compiler.doc.Messages[0].Fields[1].ResolveUnderlyingMessage(compiler.doc).Fields))
-	require.Equal(t, "id", compiler.doc.Messages[0].Fields[1].ResolveUnderlyingMessage(compiler.doc).Fields[0].Name)
-	require.Equal(t, "nested", compiler.doc.Messages[0].Fields[1].ResolveUnderlyingMessage(compiler.doc).Fields[1].Name)
-	require.Equal(t, "RecursiveMessage", compiler.doc.Messages[0].Fields[1].ResolveUnderlyingMessage(compiler.doc).Fields[1].ResolveUnderlyingMessage(compiler.doc).Name)
+	require.Equal(t, "nested", compiler.doc.Messages[0].GetField("nested").Name)
+	require.Equal(t, "RecursiveMessage", compiler.doc.Messages[0].GetField("nested").ResolveUnderlyingMessage(compiler.doc).Name)
+	require.Equal(t, 2, len(compiler.doc.Messages[0].GetField("nested").ResolveUnderlyingMessage(compiler.doc).Fields))
+	require.Equal(t, "id", compiler.doc.Messages[0].GetField("nested").ResolveUnderlyingMessage(compiler.doc).GetField("id").Name)
+	require.Equal(t, "nested", compiler.doc.Messages[0].GetField("nested").ResolveUnderlyingMessage(compiler.doc).GetField("nested").Name)
+	require.Equal(t, "RecursiveMessage", compiler.doc.Messages[0].GetField("nested").ResolveUnderlyingMessage(compiler.doc).GetField("nested").ResolveUnderlyingMessage(compiler.doc).Name)
 }
 
 func TestNewProtoCompilerNestedRecursiveType(t *testing.T) {
@@ -162,30 +162,30 @@ message RecursiveMessage {
 
 	require.Equal(t, "NestedRecursiveMessage", compiler.doc.Messages[0].Name)
 	require.Equal(t, 2, len(compiler.doc.Messages[0].Fields))
-	require.Equal(t, "id", compiler.doc.Messages[0].Fields[0].Name)
-	require.Equal(t, "nested", compiler.doc.Messages[0].Fields[1].Name)
+	require.Equal(t, "id", compiler.doc.Messages[0].GetField("id").Name)
+	require.Equal(t, "nested", compiler.doc.Messages[0].GetField("nested").Name)
 
-	nested := compiler.doc.Messages[0].Fields[1].ResolveUnderlyingMessage(compiler.doc)
+	nested := compiler.doc.Messages[0].GetField("nested").ResolveUnderlyingMessage(compiler.doc)
 	require.Equal(t, "RecursiveMessage", nested.Name)
 
 	require.Equal(t, 2, len(nested.Fields))
-	require.Equal(t, "id", nested.Fields[0].Name)
-	require.Equal(t, "nested", nested.Fields[1].Name)
+	require.Equal(t, "id", nested.GetField("id").Name)
+	require.Equal(t, "nested", nested.GetField("nested").Name)
 
-	nested = nested.Fields[1].ResolveUnderlyingMessage(compiler.doc)
+	nested = nested.GetField("nested").ResolveUnderlyingMessage(compiler.doc)
 	require.Equal(t, "NestedRecursiveMessage", nested.Name)
 
 	require.Equal(t, 2, len(nested.Fields))
-	require.Equal(t, "id", nested.Fields[0].Name)
-	require.Equal(t, "nested", nested.Fields[1].Name)
+	require.Equal(t, "id", nested.GetField("id").Name)
+	require.Equal(t, "nested", nested.GetField("nested").Name)
 
-	nested = nested.Fields[1].ResolveUnderlyingMessage(compiler.doc)
+	nested = nested.GetField("nested").ResolveUnderlyingMessage(compiler.doc)
 	require.Equal(t, "RecursiveMessage", nested.Name)
 
 	require.Equal(t, 2, len(nested.Fields))
-	require.Equal(t, "id", nested.Fields[0].Name)
-	require.Equal(t, "nested", nested.Fields[1].Name)
-	require.Equal(t, "NestedRecursiveMessage", nested.Fields[1].ResolveUnderlyingMessage(compiler.doc).Name)
+	require.Equal(t, "id", nested.GetField("id").Name)
+	require.Equal(t, "nested", nested.GetField("nested").Name)
+	require.Equal(t, "NestedRecursiveMessage", nested.GetField("nested").ResolveUnderlyingMessage(compiler.doc).Name)
 }
 
 // TestBuildProtoMessage tests the ability to build a protobuf message
@@ -209,23 +209,23 @@ func TestBuildProtoMessage(t *testing.T) {
 					Name: "LookupProductByIdRequest",
 					Fields: []RPCField{
 						{
-							Name:     "inputs",
-							TypeName: string(DataTypeMessage),
-							Repeated: true,
-							JSONPath: "representations", // Path to extract data from GraphQL variables
+							Name:          "inputs",
+							ProtoTypeName: DataTypeMessage,
+							Repeated:      true,
+							JSONPath:      "representations", // Path to extract data from GraphQL variables
 							Message: &RPCMessage{
 								Name: "LookupProductByIdInput",
 								Fields: []RPCField{
 									{
-										Name:     "key",
-										TypeName: string(DataTypeMessage),
+										Name:          "key",
+										ProtoTypeName: DataTypeMessage,
 										Message: &RPCMessage{
 											Name: "ProductByIdKey",
 											Fields: []RPCField{
 												{
-													Name:     "id",
-													TypeName: string(DataTypeString),
-													JSONPath: "id", // Extract 'id' from each representation
+													Name:          "id",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "id", // Extract 'id' from each representation
 												},
 											},
 										},
@@ -240,33 +240,33 @@ func TestBuildProtoMessage(t *testing.T) {
 					Name: "LookupProductByIdResponse",
 					Fields: []RPCField{
 						{
-							Name:     "results",
-							TypeName: string(DataTypeMessage),
-							Repeated: true,
-							JSONPath: "results",
+							Name:          "results",
+							ProtoTypeName: DataTypeMessage,
+							Repeated:      true,
+							JSONPath:      "results",
 							Message: &RPCMessage{
 								Name: "LookupProductByIdResult",
 								Fields: []RPCField{
 									{
-										Name:     "product",
-										TypeName: string(DataTypeMessage),
+										Name:          "product",
+										ProtoTypeName: DataTypeMessage,
 										Message: &RPCMessage{
 											Name: "Product",
 											Fields: []RPCField{
 												{
-													Name:     "id",
-													TypeName: string(DataTypeString),
-													JSONPath: "id",
+													Name:          "id",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "id",
 												},
 												{
-													Name:     "name",
-													TypeName: string(DataTypeString),
-													JSONPath: "name",
+													Name:          "name",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "name",
 												},
 												{
-													Name:     "price",
-													TypeName: string(DataTypeDouble),
-													JSONPath: "price",
+													Name:          "price",
+													ProtoTypeName: DataTypeDouble,
+													JSONPath:      "price",
 												},
 											},
 										},
@@ -285,13 +285,18 @@ func TestBuildProtoMessage(t *testing.T) {
 
 	// Compile the execution plan with the variables
 	// This should build a protobuf message ready to be sent to the gRPC service
-	invocations, err := compiler.Compile(executionPlan, gjson.ParseBytes(variables))
-	if err != nil {
-		t.Fatalf("failed to compile proto: %v", err)
-	}
+	graph := NewDependencyGraph(executionPlan)
+	fetches := make([]FetchItem, 0, len(executionPlan.Calls))
+	err = graph.TopologicalSortResolve(func(nodes []FetchItem) error {
+		fetches = append(fetches, nodes...)
+		return nil
+	})
 
-	require.Equal(t, 1, len(invocations))
+	require.NoError(t, err)
 
+	serviceCalls, err := compiler.CompileFetches(graph, fetches, gjson.ParseBytes(variables))
+	require.NoError(t, err)
+	require.Equal(t, 1, len(serviceCalls))
 }
 
 func TestCompileNestedLists(t *testing.T) {
@@ -307,47 +312,47 @@ func TestCompileNestedLists(t *testing.T) {
 					Name: "QueryCalculateTotalsRequest",
 					Fields: []RPCField{
 						{
-							Name:     "orders",
-							TypeName: string(DataTypeMessage),
-							JSONPath: "orders",
-							Repeated: true,
+							Name:          "orders",
+							ProtoTypeName: DataTypeMessage,
+							JSONPath:      "orders",
+							Repeated:      true,
 							Message: &RPCMessage{
 								Name: "OrderInput",
 								Fields: []RPCField{
 									{
-										Name:     "order_id",
-										TypeName: string(DataTypeString),
-										JSONPath: "orderId",
+										Name:          "order_id",
+										ProtoTypeName: DataTypeString,
+										JSONPath:      "orderId",
 									},
 									{
-										Name:     "customer_name",
-										TypeName: string(DataTypeString),
-										JSONPath: "customerName",
+										Name:          "customer_name",
+										ProtoTypeName: DataTypeString,
+										JSONPath:      "customerName",
 									},
 									{
-										Name:     "lines",
-										TypeName: string(DataTypeMessage),
-										JSONPath: "lines",
-										Repeated: true,
+										Name:          "lines",
+										ProtoTypeName: DataTypeMessage,
+										JSONPath:      "lines",
+										Repeated:      true,
 										Message: &RPCMessage{
 											Name: "OrderLineInput",
 											Fields: []RPCField{
 												{
-													Name:     "product_id",
-													TypeName: string(DataTypeString),
-													JSONPath: "productId",
+													Name:          "product_id",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "productId",
 												},
 												{
-													Name:     "quantity",
-													TypeName: string(DataTypeInt32),
-													JSONPath: "quantity",
+													Name:          "quantity",
+													ProtoTypeName: DataTypeInt32,
+													JSONPath:      "quantity",
 												},
 												{
-													Name:       "modifiers",
-													TypeName:   string(DataTypeString),
-													JSONPath:   "modifiers",
-													Optional:   true,
-													IsListType: true,
+													Name:          "modifiers",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "modifiers",
+													Optional:      true,
+													IsListType:    true,
 													ListMetadata: &ListMetadata{
 														NestingLevel: 1,
 														LevelInfo: []LevelInfo{
@@ -369,27 +374,27 @@ func TestCompileNestedLists(t *testing.T) {
 					Name: "QueryCalculateTotalsResponse",
 					Fields: []RPCField{
 						{
-							Name:     "calculate_totals",
-							TypeName: string(DataTypeMessage),
-							JSONPath: "calculateTotals",
-							Repeated: true,
+							Name:          "calculate_totals",
+							ProtoTypeName: DataTypeMessage,
+							JSONPath:      "calculateTotals",
+							Repeated:      true,
 							Message: &RPCMessage{
 								Name: "Order",
 								Fields: []RPCField{
 									{
-										Name:     "order_id",
-										TypeName: string(DataTypeString),
-										JSONPath: "orderId",
+										Name:          "order_id",
+										ProtoTypeName: DataTypeString,
+										JSONPath:      "orderId",
 									},
 									{
-										Name:     "customer_name",
-										TypeName: string(DataTypeString),
-										JSONPath: "customerName",
+										Name:          "customer_name",
+										ProtoTypeName: DataTypeString,
+										JSONPath:      "customerName",
 									},
 									{
-										Name:     "total_items",
-										TypeName: string(DataTypeInt32),
-										JSONPath: "totalItems",
+										Name:          "total_items",
+										ProtoTypeName: DataTypeInt32,
+										JSONPath:      "totalItems",
 									},
 								},
 							},
@@ -400,11 +405,21 @@ func TestCompileNestedLists(t *testing.T) {
 		},
 	}
 
-	invocations, err := compiler.Compile(plan, gjson.ParseBytes([]byte(`{"orders":[{"orderId":"123","customerName":"John Doe","lines":[{"productId":"123","quantity":1, "modifiers":["modifier1", "modifier2"]}]}]}`)))
-	require.NoError(t, err)
-	require.Equal(t, 1, len(invocations))
+	graph := NewDependencyGraph(plan)
+	fetches := make([]FetchItem, 0, len(plan.Calls))
 
-	proto := invocations[0].Input.ProtoReflect()
+	err = graph.TopologicalSortResolve(func(nodes []FetchItem) error {
+		fetches = append(fetches, nodes...)
+		return nil
+	})
+
+	require.NoError(t, err)
+
+	serviceCalls, err := compiler.CompileFetches(graph, fetches, gjson.ParseBytes([]byte(`{"orders":[{"orderId":"123","customerName":"John Doe","lines":[{"productId":"123","quantity":1, "modifiers":["modifier1", "modifier2"]}]}]}`)))
+	require.NoError(t, err)
+	require.Equal(t, 1, len(serviceCalls))
+
+	proto := serviceCalls[0].Input
 
 	msgDesc := proto.Descriptor()
 

@@ -3,6 +3,7 @@ package plan
 import (
 	"fmt"
 	"io"
+	"slices"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
@@ -50,18 +51,19 @@ type NodeSelectionResult struct {
 }
 
 func NewNodeSelectionBuilder(config *Configuration) *NodeSelectionBuilder {
-	nodeSelectionsWalker := astvisitor.NewWalker(48)
+	nodeSelectionsWalker := astvisitor.NewWalkerWithID(48, "NodeSelectionsWalker")
 	nodeSelectionVisitor := &nodeSelectionVisitor{
 		walker:                        &nodeSelectionsWalker,
 		addTypenameInNestedSelections: config.ValidateRequiredExternalFields,
+		newFieldRefs:                  make(map[int]struct{}),
 	}
 
-	nodeSelectionsWalker.RegisterEnterDocumentVisitor(nodeSelectionVisitor)
+	nodeSelectionsWalker.RegisterDocumentVisitor(nodeSelectionVisitor)
 	nodeSelectionsWalker.RegisterFieldVisitor(nodeSelectionVisitor)
 	nodeSelectionsWalker.RegisterEnterOperationVisitor(nodeSelectionVisitor)
 	nodeSelectionsWalker.RegisterSelectionSetVisitor(nodeSelectionVisitor)
 
-	nodeResolvableWalker := astvisitor.NewWalker(32)
+	nodeResolvableWalker := astvisitor.NewWalkerWithID(32, "NodeResolvableWalker")
 	nodeResolvableVisitor := &nodesResolvableVisitor{
 		walker: &nodeResolvableWalker,
 	}
@@ -83,10 +85,11 @@ func (p *NodeSelectionBuilder) SetOperationName(name string) {
 
 func (p *NodeSelectionBuilder) ResetSkipFieldRefs() {
 	p.nodeSelectionsVisitor.skipFieldsRefs = nil
+	p.nodeSelectionsVisitor.newFieldRefs = make(map[int]struct{})
 }
 
 func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, report *operationreport.Report) (out *NodeSelectionResult) {
-	dsFilter := NewDataSourceFilter(operation, definition, report)
+	dsFilter := NewDataSourceFilter(operation, definition, report, p.config.DataSources, p.nodeSelectionsVisitor.newFieldRefs)
 
 	if p.config.Debug.PrintNodeSuggestions {
 		dsFilter.EnableSelectionReasons()
@@ -101,7 +104,7 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 
 	// set initial suggestions and used data sources
 	p.nodeSelectionsVisitor.dataSources, p.nodeSelectionsVisitor.nodeSuggestions =
-		dsFilter.FilterDataSources(p.config.DataSources, nil, nil, nil)
+		dsFilter.FilterDataSources(nil, nil)
 	if report.HasErrors() {
 		return
 	}
@@ -122,9 +125,9 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 	}
 
 	i := 1
+	hasUnresolvedFields := false
 	// secondary runs to add path for the new required fields
-	for p.nodeSelectionsVisitor.shouldRevisit() {
-
+	for p.nodeSelectionsVisitor.hasNewFields || hasUnresolvedFields {
 		// when we have rewritten a field old node suggestion are not make sense anymore
 		// so we are removing child nodes of the rewritten fields
 		for _, fieldRef := range p.nodeSelectionsVisitor.rewrittenFieldRefs {
@@ -136,7 +139,7 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 		if p.nodeSelectionsVisitor.hasNewFields {
 			// update suggestions for the new required fields
 			p.nodeSelectionsVisitor.dataSources, p.nodeSelectionsVisitor.nodeSuggestions =
-				dsFilter.FilterDataSources(p.config.DataSources, p.nodeSelectionsVisitor.nodeSuggestions, p.nodeSelectionsVisitor.fieldLandedTo, p.nodeSelectionsVisitor.fieldRefDependsOn)
+				dsFilter.FilterDataSources(p.nodeSelectionsVisitor.fieldLandedTo, p.nodeSelectionsVisitor.fieldRefDependsOn)
 			if report.HasErrors() {
 				return
 			}
@@ -164,15 +167,19 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 		i++
 
 		if resolvableReport := p.isResolvable(operation, definition, p.nodeSelectionsVisitor.nodeSuggestions); resolvableReport.HasErrors() {
-			p.nodeSelectionsVisitor.hasUnresolvedFields = true
+			hasUnresolvedFields = true
 
 			if i > 100 {
 				report.AddInternalError(fmt.Errorf("could not resolve a field: %v", resolvableReport))
 				return
 			}
+
+			continue
+		} else {
+			hasUnresolvedFields = false
 		}
 
-		// TODO: what logic should be here?
+		// if we have revisited operation more than 100 times, we have a bug
 		if i > 100 {
 			report.AddInternalError(fmt.Errorf("something went wrong"))
 			return
@@ -182,8 +189,8 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 	if i == 1 {
 		// if we have not revisited the operation, we need to check if it is resolvable
 		if resolvableReport := p.isResolvable(operation, definition, p.nodeSelectionsVisitor.nodeSuggestions); resolvableReport.HasErrors() {
-			p.nodeSelectionsVisitor.hasUnresolvedFields = true
 			report.AddInternalError(fmt.Errorf("could not resolve a field: %v", resolvableReport))
+			return
 		}
 	}
 
@@ -211,21 +218,27 @@ func (p *NodeSelectionBuilder) printOperation(operation *ast.Document) {
 
 	if p.config.Debug.PrintOperationEnableASTRefs {
 		pp, _ = astprinter.PrintStringIndentDebug(operation, "  ", func(fieldRef int, out io.Writer) {
-			if p.nodeSelectionsVisitor.nodeSuggestions == nil {
-				return
-			}
-
-			treeNodeId := TreeNodeID(fieldRef)
-			node, ok := p.nodeSelectionsVisitor.nodeSuggestions.responseTree.Find(treeNodeId)
-			if !ok {
-				return
-			}
-
-			items := node.GetData()
-			for _, id := range items {
-				if p.nodeSelectionsVisitor.nodeSuggestions.items[id].Selected {
-					fmt.Fprintf(out, "  %s", p.nodeSelectionsVisitor.nodeSuggestions.items[id].StringShort())
+			if p.config.Debug.PrintNodeSuggestions {
+				if p.nodeSelectionsVisitor.nodeSuggestions == nil {
+					return
 				}
+
+				treeNodeId := TreeNodeID(fieldRef)
+				node, ok := p.nodeSelectionsVisitor.nodeSuggestions.responseTree.Find(treeNodeId)
+				if !ok {
+					return
+				}
+
+				items := node.GetData()
+				for _, id := range items {
+					if p.nodeSelectionsVisitor.nodeSuggestions.items[id].Selected {
+						_, _ = fmt.Fprintf(out, "  %s", p.nodeSelectionsVisitor.nodeSuggestions.items[id].StringShort())
+					}
+				}
+			}
+
+			if slices.Contains(p.nodeSelectionsVisitor.skipFieldsRefs, fieldRef) {
+				_, _ = fmt.Fprintf(out, "  (skip)")
 			}
 		})
 	} else {

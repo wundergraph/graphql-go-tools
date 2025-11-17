@@ -54,23 +54,24 @@ func TestEntityLookup(t *testing.T) {
 					{
 						ServiceName: "Products",
 						MethodName:  "LookupProductById",
+						Kind:        CallKindEntity,
 						// Define the structure of the request message
 						Request: RPCMessage{
 							Name: "LookupProductByIdRequest",
 							Fields: []RPCField{
 								{
-									Name:     "keys",
-									TypeName: string(DataTypeMessage),
-									Repeated: true,
-									JSONPath: "representations",
+									Name:          "keys",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
 									Message: &RPCMessage{
 										Name:        "LookupProductByIdKey",
 										MemberTypes: []string{"Product"},
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 										},
 									},
@@ -82,33 +83,33 @@ func TestEntityLookup(t *testing.T) {
 							Name: "LookupProductByIdResponse",
 							Fields: []RPCField{
 								{
-									Name:     "result",
-									TypeName: string(DataTypeMessage),
-									Repeated: true,
-									JSONPath: "_entities",
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
 									Message: &RPCMessage{
 										Name: "Product",
 										Fields: []RPCField{
 											{
-												Name:        "__typename",
-												TypeName:    string(DataTypeString),
-												JSONPath:    "__typename",
-												StaticValue: "Product",
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "Product",
 											},
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 											{
-												Name:     "price",
-												TypeName: string(DataTypeDouble),
-												JSONPath: "price",
+												Name:          "price",
+												ProtoTypeName: DataTypeDouble,
+												JSONPath:      "price",
 											},
 										},
 									},
@@ -138,22 +139,23 @@ func TestEntityLookup(t *testing.T) {
 					{
 						ServiceName: "Products",
 						MethodName:  "LookupProductById",
+						Kind:        CallKindEntity,
 						Request: RPCMessage{
 							Name: "LookupProductByIdRequest",
 							Fields: []RPCField{
 								{
-									Name:     "keys",
-									TypeName: string(DataTypeMessage),
-									Repeated: true,
-									JSONPath: "representations",
+									Name:          "keys",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
 									Message: &RPCMessage{
 										Name:        "LookupProductByIdKey",
 										MemberTypes: []string{"Product"},
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 										},
 									},
@@ -164,34 +166,34 @@ func TestEntityLookup(t *testing.T) {
 							Name: "LookupProductByIdResponse",
 							Fields: []RPCField{
 								{
-									Name:     "result",
-									TypeName: string(DataTypeMessage),
-									Repeated: true,
-									JSONPath: "_entities",
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
 									Message: &RPCMessage{
 										Name: "Product",
 										Fields: []RPCField{
 											{
-												Name:        "__typename",
-												TypeName:    string(DataTypeString),
-												JSONPath:    "__typename",
-												StaticValue: "Product",
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "Product",
 											},
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 
 											{
-												Name:     "price",
-												TypeName: string(DataTypeDouble),
-												JSONPath: "price",
+												Name:          "price",
+												ProtoTypeName: DataTypeDouble,
+												JSONPath:      "price",
 											},
 										},
 									},
@@ -202,22 +204,23 @@ func TestEntityLookup(t *testing.T) {
 					{
 						ServiceName: "Products",
 						MethodName:  "LookupStorageById",
+						Kind:        CallKindEntity,
 						Request: RPCMessage{
 							Name: "LookupStorageByIdRequest",
 							Fields: []RPCField{
 								{
-									Name:     "keys",
-									TypeName: string(DataTypeMessage),
-									Repeated: true,
-									JSONPath: "representations",
+									Name:          "keys",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
 									Message: &RPCMessage{
 										Name:        "LookupStorageByIdKey",
 										MemberTypes: []string{"Storage"},
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 										},
 									},
@@ -228,33 +231,33 @@ func TestEntityLookup(t *testing.T) {
 							Name: "LookupStorageByIdResponse",
 							Fields: []RPCField{
 								{
-									Name:     "result",
-									TypeName: string(DataTypeMessage),
-									Repeated: true,
-									JSONPath: "_entities",
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
 									Message: &RPCMessage{
 										Name: "Storage",
 										Fields: []RPCField{
 											{
-												Name:        "__typename",
-												TypeName:    string(DataTypeString),
-												JSONPath:    "__typename",
-												StaticValue: "Storage",
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "Storage",
 											},
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 											{
-												Name:     "location",
-												TypeName: string(DataTypeString),
-												JSONPath: "location",
+												Name:          "location",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "location",
 											},
 										},
 									},
@@ -265,195 +268,6 @@ func TestEntityLookup(t *testing.T) {
 				},
 			},
 		},
-
-		// TODO implement multiple entity lookup types
-		// 		{
-		// 			name: "Should create an execution plan for an entity lookup multiple types",
-		// 			query: `
-		// query EntityLookup($representations: [_Any!]!) {
-		// 	_entities(representations: $representations) {
-		// 		... on Product {
-		// 			id
-		// 			name
-		// 			price
-		// 		}
-		// 		... on Storage {
-		// 			id
-		// 			name
-		// 			location
-		// 		}
-		// 	}
-		// }
-		// `,
-		// 			expectedPlan: &RPCExecutionPlan{
-		// 				Groups: []RPCCallGroup{
-		// 					{
-		// 						Calls: []RPCCall{
-		// 							{
-		// 								ServiceName: "Products",
-		// 								MethodName:  "LookupProductById",
-		// 								// Define the structure of the request message
-		// 								Request: RPCMessage{
-		// 									Name: "LookupProductByIdRequest",
-		// 									Fields: []RPCField{
-		// 										{
-		// 											Name:     "inputs",
-		// 											TypeName: string(DataTypeMessage),
-		// 											Repeated: true,
-		// 											JSONPath: "representations", // Path to extract data from GraphQL variables
-		//
-
-		// 											Message: &RPCMessage{
-		// 												Name: "LookupProductByIdInput",
-		// 												Fields: []RPCField{
-		// 													{
-		// 														Name:     "key",
-		// 														TypeName: string(DataTypeMessage),
-		//
-
-		// 														Message: &RPCMessage{
-		// 															Name: "ProductByIdKey",
-		// 															Fields: []RPCField{
-		// 																{
-		// 																	Name:     "id",
-		// 																	TypeName: string(DataTypeString),
-		// 																	JSONPath: "id", // Extract 'id' from each representation
-		//
-
-		// 																},
-		// 															},
-		// 														},
-		// 													},
-		// 												},
-		// 											},
-		// 										},
-		// 									},
-		// 								},
-		// 								// Define the structure of the response message
-		// 								Response: RPCMessage{
-		// 									Name: "LookupProductByIdResponse",
-		// 									Fields: []RPCField{
-		// 										{
-		// 											Name:     "results",
-		// 											TypeName: string(DataTypeMessage),
-		// 											Repeated: true,
-		//
-
-		// 											JSONPath: "results",
-		// 											Message: &RPCMessage{
-		// 												Name: "LookupProductByIdResult",
-		// 												Fields: []RPCField{
-		// 													{
-		// 														Name:     "product",
-		// 														TypeName: string(DataTypeMessage),
-		//
-
-		// 														Message: &RPCMessage{
-		// 															Name: "Product",
-		// 															Fields: []RPCField{
-		// 																{
-		// 																	Name:     "id",
-		// 																	TypeName: string(DataTypeString),
-		// 																	JSONPath: "id",
-		// 																},
-		// 																{
-		// 																	Name:     "name",
-		// 																	TypeName: string(DataTypeString),
-		// 																	JSONPath: "name",
-		// 																},
-		// 																{
-		// 																	Name:     "price",
-		// 																	TypeName: string(DataTypeFloat),
-		// 																	JSONPath: "price",
-		// 																},
-		// 															},
-		// 														},
-		// 													},
-		// 												},
-		// 											},
-		// 										},
-		// 									},
-		// 								},
-		// 							},
-		// 							{
-		// 								ServiceName: "Products",
-		// 								MethodName:  "LookupStorageById",
-		// 								Request: RPCMessage{
-		// 									Name: "LookupStorageByIdRequest",
-		// 									Fields: []RPCField{
-		// 										{
-		// 											Name:     "inputs",
-		// 											TypeName: string(DataTypeMessage),
-		// 											Repeated: true,
-		// 											JSONPath: "representations",
-		// 											Message: &RPCMessage{
-		// 												Name: "LookupStorageByIdInput",
-		// 												Fields: []RPCField{
-		// 													{
-		// 														Name:     "key",
-		// 														TypeName: string(DataTypeMessage),
-		// 														Message: &RPCMessage{
-		// 															Name: "StorageByIdKey",
-		// 															Fields: []RPCField{
-		// 																{
-		// 																	Name:     "id",
-		// 																	TypeName: string(DataTypeString),
-		// 																	JSONPath: "id",
-		// 																},
-		// 															},
-		// 														},
-		// 													},
-		// 												},
-		// 											},
-		// 										},
-		// 									},
-		// 								},
-		// 								Response: RPCMessage{
-		// 									Name: "LookupStorageByIdResponse",
-		// 									Fields: []RPCField{
-		// 										{
-		// 											Name:     "results",
-		// 											TypeName: string(DataTypeMessage),
-		// 											Repeated: true,
-		// 											JSONPath: "results",
-		// 											Message: &RPCMessage{
-		// 												Name: "LookupStorageByIdResult",
-		// 												Fields: []RPCField{
-		// 													{
-		// 														Name:     "storage",
-		// 														TypeName: string(DataTypeMessage),
-		// 														Message: &RPCMessage{
-		// 															Name: "Storage",
-		// 															Fields: []RPCField{
-		// 																{
-		// 																	Name:     "id",
-		// 																	TypeName: string(DataTypeString),
-		// 																	JSONPath: "id",
-		// 																},
-		// 																{
-		// 																	Name:     "name",
-		// 																	TypeName: string(DataTypeString),
-		// 																	JSONPath: "name",
-		// 																},
-		// 																{
-		// 																	Name:     "location",
-		// 																	TypeName: string(DataTypeString),
-		// 																	JSONPath: "location",
-		// 																},
-		// 															},
-		// 														},
-		// 													},
-		// 												},
-		// 											},
-		// 										},
-		// 									},
-		// 								},
-		// 							},
-		// 						},
-		// 					},
-		// 				},
-		// 			},
-		// 		},
 	}
 
 	for _, tt := range tests {
@@ -468,7 +282,11 @@ func TestEntityLookup(t *testing.T) {
 				t.Fatalf("failed to parse query: %s", report.Error())
 			}
 
-			planner := NewPlanner("Products", tt.mapping, tt.federationConfigs)
+			planner, err := NewPlanner("Products", tt.mapping, tt.federationConfigs)
+			if err != nil {
+				t.Fatalf("failed to create planner %s", err)
+			}
+
 			plan, err := planner.PlanOperation(&queryDoc, &schemaDoc)
 			if err != nil {
 				t.Fatalf("failed to plan operation: %s", err)
@@ -531,23 +349,24 @@ func TestEntityKeys(t *testing.T) {
 					{
 						ServiceName: "Products",
 						MethodName:  "LookupUserById",
+						Kind:        CallKindEntity,
 						// Define the structure of the request message
 						Request: RPCMessage{
 							Name: "LookupUserByIdRequest",
 							Fields: []RPCField{
 								{
-									Name:     "keys",
-									TypeName: string(DataTypeMessage),
-									Repeated: true,
-									JSONPath: "representations",
+									Name:          "keys",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
 									Message: &RPCMessage{
 										Name:        "LookupUserByIdKey",
 										MemberTypes: []string{"User"},
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 										},
 									},
@@ -559,28 +378,28 @@ func TestEntityKeys(t *testing.T) {
 							Name: "LookupUserByIdResponse",
 							Fields: []RPCField{
 								{
-									Name:     "result",
-									TypeName: string(DataTypeMessage),
-									Repeated: true,
-									JSONPath: "_entities",
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
 									Message: &RPCMessage{
 										Name: "User",
 										Fields: []RPCField{
 											{
-												Name:        "__typename",
-												TypeName:    string(DataTypeString),
-												JSONPath:    "__typename",
-												StaticValue: "User",
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "User",
 											},
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 										},
 									},
@@ -640,35 +459,36 @@ func TestEntityKeys(t *testing.T) {
 					{
 						ServiceName: "Products",
 						MethodName:  "LookupUserByIdAndAddress",
+						Kind:        CallKindEntity,
 						// Define the structure of the request message
 						Request: RPCMessage{
 							Name: "LookupUserByIdAndAddressRequest",
 							Fields: []RPCField{
 								{
-									Name:     "keys",
-									TypeName: string(DataTypeMessage),
-									Repeated: true,
-									JSONPath: "representations",
+									Name:          "keys",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
 									Message: &RPCMessage{
 										Name:        "LookupUserByIdAndAddressKey",
 										MemberTypes: []string{"User"},
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "address",
-												TypeName: string(DataTypeMessage),
-												JSONPath: "address",
+												Name:          "address",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "address",
 												Message: &RPCMessage{
 													Name: "Address",
 													Fields: []RPCField{
 														{
-															Name:     "id",
-															TypeName: string(DataTypeString),
-															JSONPath: "id",
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
 														},
 													},
 												},
@@ -683,28 +503,28 @@ func TestEntityKeys(t *testing.T) {
 							Name: "LookupUserByIdAndAddressResponse",
 							Fields: []RPCField{
 								{
-									Name:     "result",
-									TypeName: string(DataTypeMessage),
-									Repeated: true,
-									JSONPath: "_entities",
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
 									Message: &RPCMessage{
 										Name: "User",
 										Fields: []RPCField{
 											{
-												Name:        "__typename",
-												TypeName:    string(DataTypeString),
-												JSONPath:    "__typename",
-												StaticValue: "User",
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "User",
 											},
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 										},
 									},
@@ -753,27 +573,28 @@ func TestEntityKeys(t *testing.T) {
 					{
 						ServiceName: "Products",
 						MethodName:  "LookupUserByIdAndName",
+						Kind:        CallKindEntity,
 						Request: RPCMessage{
 							Name: "LookupUserByIdAndNameRequest",
 							Fields: []RPCField{
 								{
-									Name:     "keys",
-									TypeName: string(DataTypeMessage),
-									Repeated: true,
-									JSONPath: "representations",
+									Name:          "keys",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
 									Message: &RPCMessage{
 										Name:        "LookupUserByIdAndNameKey",
 										MemberTypes: []string{"User"},
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 										},
 									},
@@ -784,28 +605,28 @@ func TestEntityKeys(t *testing.T) {
 							Name: "LookupUserByIdAndNameResponse",
 							Fields: []RPCField{
 								{
-									Name:     "result",
-									TypeName: string(DataTypeMessage),
-									Repeated: true,
-									JSONPath: "_entities",
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
 									Message: &RPCMessage{
 										Name: "User",
 										Fields: []RPCField{
 											{
-												Name:        "__typename",
-												TypeName:    string(DataTypeString),
-												JSONPath:    "__typename",
-												StaticValue: "User",
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "User",
 											},
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 										},
 									},
@@ -854,27 +675,28 @@ func TestEntityKeys(t *testing.T) {
 					{
 						ServiceName: "Products",
 						MethodName:  "LookupUserByIdAndName",
+						Kind:        CallKindEntity,
 						Request: RPCMessage{
 							Name: "LookupUserByIdAndNameRequest",
 							Fields: []RPCField{
 								{
-									Name:     "keys",
-									TypeName: string(DataTypeMessage),
-									Repeated: true,
-									JSONPath: "representations",
+									Name:          "keys",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
 									Message: &RPCMessage{
 										Name:        "LookupUserByIdAndNameKey",
 										MemberTypes: []string{"User"},
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 										},
 									},
@@ -885,28 +707,28 @@ func TestEntityKeys(t *testing.T) {
 							Name: "LookupUserByIdAndNameResponse",
 							Fields: []RPCField{
 								{
-									Name:     "result",
-									TypeName: string(DataTypeMessage),
-									Repeated: true,
-									JSONPath: "_entities",
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
 									Message: &RPCMessage{
 										Name: "User",
 										Fields: []RPCField{
 											{
-												Name:        "__typename",
-												TypeName:    string(DataTypeString),
-												JSONPath:    "__typename",
-												StaticValue: "User",
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "User",
 											},
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 										},
 									},
@@ -961,39 +783,40 @@ func TestEntityKeys(t *testing.T) {
 					{
 						ServiceName: "Products",
 						MethodName:  "LookupUserByIdAndNameAndAddress",
+						Kind:        CallKindEntity,
 						Request: RPCMessage{
 							Name: "LookupUserByIdAndNameAndAddressRequest",
 							Fields: []RPCField{
 								{
-									Name:     "keys",
-									TypeName: string(DataTypeMessage),
-									Repeated: true,
-									JSONPath: "representations",
+									Name:          "keys",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
 									Message: &RPCMessage{
 										Name:        "LookupUserByIdAndNameAndAddressKey",
 										MemberTypes: []string{"User"},
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 											{
-												Name:     "address",
-												TypeName: string(DataTypeMessage),
-												JSONPath: "address",
+												Name:          "address",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "address",
 												Message: &RPCMessage{
 													Name: "Address",
 													Fields: []RPCField{
 														{
-															Name:     "id",
-															TypeName: string(DataTypeString),
-															JSONPath: "id",
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
 														},
 													},
 												},
@@ -1007,28 +830,28 @@ func TestEntityKeys(t *testing.T) {
 							Name: "LookupUserByIdAndNameAndAddressResponse",
 							Fields: []RPCField{
 								{
-									Name:     "result",
-									TypeName: string(DataTypeMessage),
-									Repeated: true,
-									JSONPath: "_entities",
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
 									Message: &RPCMessage{
 										Name: "User",
 										Fields: []RPCField{
 											{
-												Name:        "__typename",
-												TypeName:    string(DataTypeString),
-												JSONPath:    "__typename",
-												StaticValue: "User",
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "User",
 											},
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 										},
 									},
@@ -1043,6 +866,460 @@ func TestEntityKeys(t *testing.T) {
 
 	for _, tt := range tests {
 		runFederationTest(t, tt)
+	}
+}
+
+func TestEntityLookupWithFieldResolvers(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name              string
+		query             string
+		expectedPlan      *RPCExecutionPlan
+		mapping           *GRPCMapping
+		federationConfigs plan.FederationFieldConfigurations
+	}{
+
+		{
+			name:    "Should create an execution plan for an entity lookup with a field resolver",
+			query:   `query EntityLookup($representations: [_Any!]!, $input: ShippingEstimateInput!) { _entities(representations: $representations) { ... on Product { __typename id name price shippingEstimate(input: $input) } } }`,
+			mapping: testMapping(),
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "id",
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "LookupProductById",
+						Kind:        CallKindEntity,
+						Request: RPCMessage{
+							Name: "LookupProductByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "keys",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name:        "LookupProductByIdKey",
+										MemberTypes: []string{"Product"},
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "LookupProductByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
+									Message: &RPCMessage{
+										Name: "Product",
+										Fields: []RPCField{
+											{
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "Product",
+											},
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+											},
+
+											{
+												Name:          "price",
+												ProtoTypeName: DataTypeDouble,
+												JSONPath:      "price",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ServiceName:    "Products",
+						MethodName:     "ResolveProductShippingEstimate",
+						Kind:           CallKindResolve,
+						DependentCalls: []int{0},
+						ResponsePath:   buildPath("_entities.shippingEstimate"),
+						Request: RPCMessage{
+							Name: "ResolveProductShippingEstimateRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveProductShippingEstimateContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("result.id"),
+											},
+											{
+												Name:          "price",
+												ProtoTypeName: DataTypeDouble,
+												JSONPath:      "price",
+												ResolvePath:   buildPath("result.price"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "",
+									Message: &RPCMessage{
+										Name: "ResolveProductShippingEstimateArgs",
+										Fields: []RPCField{
+											{
+												Name:          "input",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "input",
+												Message: &RPCMessage{
+													Name: "ShippingEstimateInput",
+													Fields: []RPCField{
+														{
+															Name:          "destination",
+															ProtoTypeName: DataTypeEnum,
+															JSONPath:      "destination",
+															EnumName:      "ShippingDestination",
+														},
+														{
+															Name:          "weight",
+															ProtoTypeName: DataTypeDouble,
+															JSONPath:      "weight",
+														},
+														{
+															Name:          "expedited",
+															ProtoTypeName: DataTypeBool,
+															JSONPath:      "expedited",
+															Optional:      true,
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveProductShippingEstimateResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveProductShippingEstimateResult",
+										Fields: []RPCField{
+											{
+												Name:          "shipping_estimate",
+												ProtoTypeName: DataTypeDouble,
+												JSONPath:      "shippingEstimate",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:    "Should create an execution plan for multiple entity lookups with field resolvers",
+			query:   `query MultiEntityLookup($representations: [_Any!]!, $input: ShippingEstimateInput!) { _entities(representations: $representations) { ... on Storage { __typename id name location } ... on Product { __typename id name price shippingEstimate(input: $input) } } }`,
+			mapping: testMapping(),
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Product",
+					SelectionSet: "id",
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "LookupStorageById",
+						Kind:        CallKindEntity,
+						Request: RPCMessage{
+							Name: "LookupStorageByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "keys",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name:        "LookupStorageByIdKey",
+										MemberTypes: []string{"Storage"},
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "LookupStorageByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
+									Message: &RPCMessage{
+										Name: "Storage",
+										Fields: []RPCField{
+											{
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "Storage",
+											},
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+											},
+											{
+												Name:          "location",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "location",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ServiceName: "Products",
+						MethodName:  "LookupProductById",
+						Kind:        CallKindEntity,
+						Request: RPCMessage{
+							Name: "LookupProductByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "keys",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name:        "LookupProductByIdKey",
+										MemberTypes: []string{"Product"},
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "LookupProductByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
+									Message: &RPCMessage{
+										Name: "Product",
+										Fields: []RPCField{
+											{
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "Product",
+											},
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+											},
+											{
+												Name:          "price",
+												ProtoTypeName: DataTypeDouble,
+												JSONPath:      "price",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ServiceName:    "Products",
+						MethodName:     "ResolveProductShippingEstimate",
+						Kind:           CallKindResolve,
+						DependentCalls: []int{1},
+						ResponsePath:   buildPath("_entities.shippingEstimate"),
+						Request: RPCMessage{
+							Name: "ResolveProductShippingEstimateRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveProductShippingEstimateContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("result.id"),
+											},
+											{
+												Name:          "price",
+												ProtoTypeName: DataTypeDouble,
+												JSONPath:      "price",
+												ResolvePath:   buildPath("result.price"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "",
+									Message: &RPCMessage{
+										Name: "ResolveProductShippingEstimateArgs",
+										Fields: []RPCField{
+											{
+												Name:          "input",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "input",
+												Message: &RPCMessage{
+													Name: "ShippingEstimateInput",
+													Fields: []RPCField{
+														{
+															Name:          "destination",
+															ProtoTypeName: DataTypeEnum,
+															JSONPath:      "destination",
+															EnumName:      "ShippingDestination",
+														},
+														{
+															Name:          "weight",
+															ProtoTypeName: DataTypeDouble,
+															JSONPath:      "weight",
+														},
+														{
+															Name:          "expedited",
+															ProtoTypeName: DataTypeBool,
+															JSONPath:      "expedited",
+															Optional:      true,
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveProductShippingEstimateResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveProductShippingEstimateResult",
+										Fields: []RPCField{
+											{
+												Name:          "shipping_estimate",
+												ProtoTypeName: DataTypeDouble,
+												JSONPath:      "shippingEstimate",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			// Parse the GraphQL schema
+			schemaDoc := grpctest.MustGraphQLSchema(t)
+
+			// Parse the GraphQL query
+			queryDoc, report := astparser.ParseGraphqlDocumentString(tt.query)
+			if report.HasErrors() {
+				t.Fatalf("failed to parse query: %s", report.Error())
+			}
+
+			planner, err := NewPlanner("Products", tt.mapping, tt.federationConfigs)
+			if err != nil {
+				t.Fatalf("failed to create planner: %s", err)
+			}
+			plan, err := planner.PlanOperation(&queryDoc, &schemaDoc)
+			if err != nil {
+				t.Fatalf("failed to plan operation: %s", err)
+			}
+
+			diff := cmp.Diff(tt.expectedPlan, plan)
+			if diff != "" {
+				t.Fatalf("execution plan mismatch: %s", diff)
+			}
+		})
 	}
 }
 
@@ -1080,7 +1357,10 @@ func runFederationTest(t *testing.T, tt struct {
 			t.Fatalf("failed to validate query: %s", report.Error())
 		}
 
-		planner := NewPlanner("Products", tt.mapping, tt.federationConfigs)
+		planner, err := NewPlanner("Products", tt.mapping, tt.federationConfigs)
+		if err != nil {
+			t.Fatalf("failed to create planner: %s", err)
+		}
 		plan, err := planner.PlanOperation(&operation, &definition)
 		if err != nil {
 			t.Fatalf("failed to plan operation: %s", err)

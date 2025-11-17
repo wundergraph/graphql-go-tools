@@ -1,5 +1,40 @@
 # Changelog
 
+## [2.0.0-rc.238](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.237...v2.0.0-rc.238) (2025-11-17)
+
+
+### Bug Fixes
+
+* add ability to exclude introspection queries from complexity limits ([#1342](https://github.com/wundergraph/graphql-go-tools/issues/1342)) ([19c8693](https://github.com/wundergraph/graphql-go-tools/commit/19c86930482956b2d5f96f2feae6d015d1052ef4))
+
+## [2.0.0-rc.237](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.236...v2.0.0-rc.237) (2025-10-31)
+
+
+### Features
+
+* add support for field resolvers ([#1323](https://github.com/wundergraph/graphql-go-tools/issues/1323)) ([0e3c00f](https://github.com/wundergraph/graphql-go-tools/commit/0e3c00f7498c95ba979fe0a96fd1072deb9a2895))
+
+## [2.0.0-rc.236](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.235...v2.0.0-rc.236) (2025-10-31)
+
+
+### Bug Fixes
+
+* fix conflict of rewriter and required fields ([#1338](https://github.com/wundergraph/graphql-go-tools/issues/1338)) ([03189bc](https://github.com/wundergraph/graphql-go-tools/commit/03189bc270a551c2875b3b01dbc11d166d703e4a))
+
+## [2.0.0-rc.235](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.234...v2.0.0-rc.235) (2025-10-29)
+
+
+### Bug Fixes
+
+* improve query planning time ([#1326](https://github.com/wundergraph/graphql-go-tools/issues/1326)) ([373cf2a](https://github.com/wundergraph/graphql-go-tools/commit/373cf2abf1459ded5997e5a84d1a282dc544844c))
+
+## [2.0.0-rc.234](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.233...v2.0.0-rc.234) (2025-10-24)
+
+
+### Features
+
+* september 2025 spec description support for `OperationDocument` and `Fragment` ([#1331](https://github.com/wundergraph/graphql-go-tools/issues/1331)) ([aedaf71](https://github.com/wundergraph/graphql-go-tools/commit/aedaf7183888ee0ccd76e3baaddf44dde03df701))
+
 ## [2.0.0-rc.233](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.232...v2.0.0-rc.233) (2025-10-23)
 
 

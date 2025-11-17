@@ -11,13 +11,16 @@ import (
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/wundergraph/astjson"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
 
 // Standard GraphQL response paths
-var (
-	entityPath = "_entities" // Path for federated entities in response
-	dataPath   = "data"      // Standard GraphQL data wrapper
-	errorsPath = "errors"    // Standard GraphQL errors array
+const (
+	entityPath          = "_entities" // Path for federated entities in response
+	dataPath            = "data"      // Standard GraphQL data wrapper
+	errorsPath          = "errors"    // Standard GraphQL errors array
+	resolveResponsePath = "result"    // Path for resolve response
 )
 
 // entityIndex represents the mapping between representation order and result order
@@ -186,11 +189,11 @@ func (j *jsonBuilder) mergeValues(left *astjson.Value, right *astjson.Value) (*a
 // This function ensures that entities are placed in the correct positions in the final response
 // array based on their original representation order, which is critical for GraphQL federation.
 func (j *jsonBuilder) mergeEntities(left *astjson.Value, right *astjson.Value) (*astjson.Value, error) {
-	root := astjson.Arena{}
+	arena := astjson.Arena{}
 
 	// Create the response structure with _entities array
-	entities := root.NewObject()
-	entities.Set(entityPath, root.NewArray())
+	entities := arena.NewObject()
+	entities.Set(entityPath, arena.NewArray())
 	arr := entities.Get(entityPath)
 
 	// Extract entity arrays from both responses
@@ -215,6 +218,98 @@ func (j *jsonBuilder) mergeEntities(left *astjson.Value, right *astjson.Value) (
 	}
 
 	return entities, nil
+}
+
+// mergeWithPath merges a JSON value with a resolved value by its path.
+func (j *jsonBuilder) mergeWithPath(base *astjson.Value, resolved *astjson.Value, path ast.Path) error {
+	if len(path) == 0 {
+		return errors.New("path is empty")
+	}
+
+	resolvedValues := resolved.GetArray(resolveResponsePath)
+
+	searchPath := path[:len(path)-1]
+	elementName := path[len(path)-1].FieldName.String()
+
+	responseValues := make([]*astjson.Value, 0, len(resolvedValues))
+
+	// We retrieve a flat list of all the values that we need to merge with the resolved values.
+	current := base
+	current = current.Get(searchPath[0].FieldName.String())
+	switch current.Type() {
+	case astjson.TypeArray:
+		arr := current.GetArray()
+		values, err := j.flattenList(arr, searchPath[1:])
+		if err != nil {
+			return err
+		}
+		responseValues = append(responseValues, values...)
+	default:
+		values, err := j.flattenObject(current, searchPath[1:])
+		if err != nil {
+			return err
+		}
+		responseValues = append(responseValues, values...)
+	}
+
+	if len(resolvedValues) != len(responseValues) {
+		return fmt.Errorf("length of values doesn't match the length of the result array, expected %d, got %d", len(resolvedValues), len(responseValues))
+	}
+
+	for i := range responseValues {
+		responseValues[i].Set(elementName, resolvedValues[i].Get(elementName))
+	}
+
+	return nil
+}
+
+// flattenObject flattens a JSON object into a list of values.
+// This is needed because we want to get the values from the object by its path to merge them with the response values.
+func (j *jsonBuilder) flattenObject(value *astjson.Value, path ast.Path) ([]*astjson.Value, error) {
+	if path.Len() == 0 {
+		return []*astjson.Value{value}, nil
+	}
+
+	segment := path[0]
+	current := value.Get(segment.FieldName.String())
+	result := make([]*astjson.Value, 0)
+	switch current.Type() {
+	case astjson.TypeObject:
+		values, err := j.flattenObject(current, path[1:])
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, values...)
+	case astjson.TypeArray:
+		values, err := j.flattenList(current.GetArray(), path[1:])
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, values...)
+	default:
+		return nil, fmt.Errorf("expected array or object, got %s", current.Type())
+	}
+
+	return result, nil
+}
+
+// flattenList flattens a list of JSON values into a list of values.
+// This is needed because we want to get the values from the list by its path to merge them with the response values.
+func (j *jsonBuilder) flattenList(items []*astjson.Value, path ast.Path) ([]*astjson.Value, error) {
+	if path.Len() == 0 {
+		return items, nil
+	}
+
+	result := make([]*astjson.Value, 0)
+	for _, item := range items {
+		values, err := j.flattenObject(item, path)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, values...)
+	}
+
+	return result, nil
 }
 
 // marshalResponseJSON converts a protobuf message into a GraphQL-compatible JSON response.
@@ -424,7 +519,7 @@ func (j *jsonBuilder) traverseList(level int, arena *astjson.Arena, current *ast
 			return arena.NewNull(), nil
 		}
 
-		return arena.NewArray(), fmt.Errorf("cannot add null item to response for non nullable list")
+		return arena.NewArray(), errors.New("cannot add null item to response for non nullable list")
 	}
 
 	// The actual list is always at field number 1 in the wrapper
@@ -530,7 +625,7 @@ func (j *jsonBuilder) setJSONValue(arena *astjson.Arena, root *astjson.Value, na
 		}
 
 		// Look up the GraphQL enum value mapping
-		graphqlValue, ok := j.mapping.ResolveEnumValue(string(enumDesc.Name()), string(enumValueDesc.Name()))
+		graphqlValue, ok := j.mapping.FindEnumValueMapping(string(enumDesc.Name()), string(enumValueDesc.Name()))
 		if !ok {
 			// No mapping found - set to null
 			root.Set(name, arena.NewNull())
@@ -579,7 +674,7 @@ func (j *jsonBuilder) setArrayItem(index int, arena *astjson.Arena, array *astjs
 		}
 
 		// Look up GraphQL enum mapping
-		graphqlValue, ok := j.mapping.ResolveEnumValue(string(enumDesc.Name()), string(enumValueDesc.Name()))
+		graphqlValue, ok := j.mapping.FindEnumValueMapping(string(enumDesc.Name()), string(enumValueDesc.Name()))
 		if !ok {
 			// No mapping found - use null
 			array.SetArrayItem(index, arena.NewNull())
