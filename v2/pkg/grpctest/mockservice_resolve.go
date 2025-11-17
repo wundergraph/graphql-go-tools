@@ -4,8 +4,9 @@ import (
 	context "context"
 	"fmt"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/productv1"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/productv1"
 )
 
 // ResolveProductMascotRecommendation implements productv1.ProductServiceServer.

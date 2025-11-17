@@ -3,8 +3,9 @@ package grpctest
 import (
 	"fmt"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/productv1"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/productv1"
 )
 
 // Helper function to create subcategories for a category
