@@ -1007,6 +1007,12 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				"meowVolume": {
 					TargetName: "meow_volume",
 				},
+				"owner": {
+					TargetName: "owner",
+				},
+				"breed": {
+					TargetName: "breed",
+				},
 			},
 			"Dog": {
 				"id": {
@@ -1020,6 +1026,87 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"barkVolume": {
 					TargetName: "bark_volume",
+				},
+				"owner": {
+					TargetName: "owner",
+				},
+				"breed": {
+					TargetName: "breed",
+				},
+			},
+			"Owner": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"contact": {
+					TargetName: "contact",
+				},
+			},
+			"ContactInfo": {
+				"email": {
+					TargetName: "email",
+				},
+				"phone": {
+					TargetName: "phone",
+				},
+				"address": {
+					TargetName: "address",
+				},
+			},
+			"Address": {
+				"street": {
+					TargetName: "street",
+				},
+				"city": {
+					TargetName: "city",
+				},
+				"country": {
+					TargetName: "country",
+				},
+				"zipCode": {
+					TargetName: "zip_code",
+				},
+			},
+			"CatBreed": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"origin": {
+					TargetName: "origin",
+				},
+				"characteristics": {
+					TargetName: "characteristics",
+				},
+			},
+			"DogBreed": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"origin": {
+					TargetName: "origin",
+				},
+				"characteristics": {
+					TargetName: "characteristics",
+				},
+			},
+			"BreedCharacteristics": {
+				"size": {
+					TargetName: "size",
+				},
+				"temperament": {
+					TargetName: "temperament",
+				},
+				"lifespan": {
+					TargetName: "lifespan",
 				},
 			},
 			"ActionSuccess": {

@@ -169,6 +169,8 @@ type Cat implements Animal {
   name: String!
   kind: String!
   meowVolume: Int!
+  owner: Owner!
+  breed: CatBreed!
 }
 
 type Dog implements Animal {
@@ -176,6 +178,47 @@ type Dog implements Animal {
   name: String!
   kind: String!
   barkVolume: Int!
+  owner: Owner!
+  breed: DogBreed!
+}
+
+type Owner {
+  id: ID!
+  name: String!
+  contact: ContactInfo!
+}
+
+type ContactInfo {
+  email: String!
+  phone: String!
+  address: Address
+}
+
+type Address {
+  street: String!
+  city: String!
+  country: String!
+  zipCode: String!
+}
+
+type CatBreed {
+  id: ID!
+  name: String!
+  origin: String!
+  characteristics: BreedCharacteristics!
+}
+
+type DogBreed {
+  id: ID!
+  name: String!
+  origin: String!
+  characteristics: BreedCharacteristics!
+}
+
+type BreedCharacteristics {
+  size: String!
+  temperament: String!
+  lifespan: String!
 }
 
 # Union Types for Testing

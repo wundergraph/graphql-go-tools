@@ -4446,6 +4446,99 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 				require.Empty(t, errData)
 			},
 		},
+		{
+			name:  "Query with nested field resolver returning interface with deeply nested fields",
+			query: "query TestContainersWithInterface($includeExtended: Boolean!) { testContainers { id name details(includeExtended: $includeExtended) { id summary pet { ... on Cat { id name owner { name contact { email } } breed { name characteristics { temperament } } } ... on Dog { id name owner { name contact { phone } } breed { origin characteristics { size } } } } } } }",
+			vars:  `{"variables":{"includeExtended":false}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				containers, ok := data["testContainers"].([]interface{})
+				require.True(t, ok, "testContainers should be an array")
+				require.NotEmpty(t, containers, "testContainers should not be empty")
+				require.Len(t, containers, 3, "Should return 3 test containers")
+
+				// Based on mockservice_resolve.go implementation:
+				// - Even indices (0, 2) return Cat with owner and breed details
+				// - Odd indices (1) return Dog with owner and breed details
+				for i, container := range containers {
+					container, ok := container.(map[string]interface{})
+					require.True(t, ok, "container should be an object")
+					require.NotEmpty(t, container["id"])
+					require.NotEmpty(t, container["name"])
+					require.NotEmpty(t, container["details"])
+
+					details, ok := container["details"].(map[string]interface{})
+					require.True(t, ok, "details should be an object")
+					require.NotEmpty(t, details["id"])
+					require.NotEmpty(t, details["summary"])
+					require.NotEmpty(t, details["pet"])
+
+					pet, ok := details["pet"].(map[string]interface{})
+					require.True(t, ok, "pet should be an object")
+					require.NotEmpty(t, pet["id"])
+					require.NotEmpty(t, pet["name"])
+
+					// Validate owner exists
+					owner, ok := pet["owner"].(map[string]interface{})
+					require.True(t, ok, "owner should be an object")
+					require.NotEmpty(t, owner["name"])
+
+					// Validate contact exists
+					contact, ok := owner["contact"].(map[string]interface{})
+					require.True(t, ok, "contact should be an object")
+
+					// Validate breed exists
+					breed, ok := pet["breed"].(map[string]interface{})
+					require.True(t, ok, "breed should be an object")
+
+					// Validate characteristics exists
+					characteristics, ok := breed["characteristics"].(map[string]interface{})
+					require.True(t, ok, "characteristics should be an object")
+
+					if i%2 == 0 {
+						// Should be Cat
+						require.Contains(t, pet["name"], "TestCat", "Cat name should contain 'TestCat'")
+						require.Contains(t, owner["name"], "OwnerTestCat", "Cat owner name should contain 'OwnerTestCat'")
+
+						// Cat should have email in contact
+						require.NotEmpty(t, contact["email"], "Cat owner should have email")
+						require.Equal(t, "owner-test-cat@example.com", contact["email"], "Cat owner email should match")
+						require.Empty(t, contact["phone"], "Cat query should not have phone")
+
+						// Cat breed should have name and temperament in characteristics
+						require.NotEmpty(t, breed["name"], "Cat breed should have name")
+						require.Contains(t, breed["name"], "BreedTestCat", "Cat breed name should contain 'BreedTestCat'")
+						require.Empty(t, breed["origin"], "Cat query should not have breed origin")
+
+						require.NotEmpty(t, characteristics["temperament"], "Cat breed should have temperament")
+						require.Equal(t, "Curious", characteristics["temperament"], "Cat breed temperament should be 'Curious'")
+						require.Empty(t, characteristics["size"], "Cat query should not have breed size")
+					} else {
+						// Should be Dog
+						require.Contains(t, pet["name"], "TestDog", "Dog name should contain 'TestDog'")
+						require.Contains(t, owner["name"], "OwnerTestDog", "Dog owner name should contain 'OwnerTestDog'")
+
+						// Dog should have phone in contact
+						require.NotEmpty(t, contact["phone"], "Dog owner should have phone")
+						require.Equal(t, "555-666-7777", contact["phone"], "Dog owner phone should match")
+						require.Empty(t, contact["email"], "Dog query should not have email")
+
+						// Dog breed should have origin and size in characteristics
+						require.NotEmpty(t, breed["origin"], "Dog breed should have origin")
+						require.Equal(t, "England", breed["origin"], "Dog breed origin should be 'England'")
+						require.Empty(t, breed["name"], "Dog query should not have breed name")
+
+						require.NotEmpty(t, characteristics["size"], "Dog breed should have size")
+						require.Equal(t, "Medium", characteristics["size"], "Dog breed size should be 'Medium'")
+						require.Empty(t, characteristics["temperament"], "Dog query should not have breed temperament")
+					}
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
 	}
 
 	for _, tc := range testCases {

@@ -1276,6 +1276,8 @@ message Cat {
   string name = 2;
   string kind = 3;
   int32 meow_volume = 4;
+  Owner owner = 5;
+  CatBreed breed = 6;
 }
 
 message Dog {
@@ -1283,6 +1285,47 @@ message Dog {
   string name = 2;
   string kind = 3;
   int32 bark_volume = 4;
+  Owner owner = 5;
+  DogBreed breed = 6;
+}
+
+message Owner {
+  string id = 1;
+  string name = 2;
+  ContactInfo contact = 3;
+}
+
+message ContactInfo {
+  string email = 1;
+  string phone = 2;
+  Address address = 3;
+}
+
+message Address {
+  string street = 1;
+  string city = 2;
+  string country = 3;
+  string zip_code = 4;
+}
+
+message CatBreed {
+  string id = 1;
+  string name = 2;
+  string origin = 3;
+  BreedCharacteristics characteristics = 4;
+}
+
+message DogBreed {
+  string id = 1;
+  string name = 2;
+  string origin = 3;
+  BreedCharacteristics characteristics = 4;
+}
+
+message BreedCharacteristics {
+  string size = 1;
+  string temperament = 2;
+  string lifespan = 3;
 }
 
 message ActionSuccess {
