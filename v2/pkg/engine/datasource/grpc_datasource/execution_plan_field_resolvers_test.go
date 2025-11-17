@@ -1120,7 +1120,7 @@ func TestExecutionPlanFieldResolvers_WithCompositeTypes(t *testing.T) {
 	}{
 		{
 			name:  "Should create an execution plan for a query with interface type",
-			query: "query CategoriesWithNestedResolvers($includeValue: Boolean!) { categories { mascot(includeVolume: $includeVolume) { ... on Cat { name  } ... on Dog { name } } } }",
+			query: "query CategoriesWithNestedResolvers($includeVolume: Boolean!) { categories { mascot(includeVolume: $includeVolume) { ... on Cat { name  } ... on Dog { name } } } }",
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
