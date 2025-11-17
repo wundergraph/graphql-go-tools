@@ -109,6 +109,12 @@ func WithRequestTraceOptions(options resolve.TraceOptions) ExecutionOptions {
 	}
 }
 
+func WithSubgraphHeadersBuilder(builder resolve.SubgraphHeadersBuilder) ExecutionOptions {
+	return func(ctx *internalExecutionContext) {
+		ctx.resolveContext.SubgraphHeadersBuilder = builder
+	}
+}
+
 func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engineConfig Configuration, resolverOptions resolve.ResolverOptions) (*ExecutionEngine, error) {
 	executionPlanCache, err := lru.New(1024)
 	if err != nil {

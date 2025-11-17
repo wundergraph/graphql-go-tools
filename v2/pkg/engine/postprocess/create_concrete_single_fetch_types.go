@@ -51,16 +51,8 @@ func (d *createConcreteSingleFetchTypes) traverseSingleFetch(fetch *resolve.Sing
 		return d.createEntityBatchFetch(fetch)
 	case fetch.RequiresEntityFetch:
 		return d.createEntityFetch(fetch)
-	case fetch.RequiresParallelListItemFetch:
-		return d.createParallelListItemFetch(fetch)
 	default:
 		return fetch
-	}
-}
-
-func (d *createConcreteSingleFetchTypes) createParallelListItemFetch(fetch *resolve.SingleFetch) resolve.Fetch {
-	return &resolve.ParallelListItemFetch{
-		Fetch: fetch,
 	}
 }
 
@@ -106,6 +98,7 @@ func (d *createConcreteSingleFetchTypes) createEntityBatchFetch(fetch *resolve.S
 		},
 		DataSource:     fetch.DataSource,
 		PostProcessing: fetch.PostProcessing,
+		Caching:        fetch.Caching,
 	}
 }
 
@@ -139,5 +132,6 @@ func (d *createConcreteSingleFetchTypes) createEntityFetch(fetch *resolve.Single
 		},
 		DataSource:     fetch.DataSource,
 		PostProcessing: fetch.PostProcessing,
+		Caching:        fetch.Caching,
 	}
 }

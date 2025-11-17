@@ -45,6 +45,10 @@ func (g *GraphQLHTTPRequestHandler) handleHTTP(w http.ResponseWriter, r *http.Re
 		opts = append(opts, engine.WithRequestTraceOptions(tracingOpts))
 	}
 
+	if g.subgraphHeadersBuilder != nil {
+		opts = append(opts, engine.WithSubgraphHeadersBuilder(g.subgraphHeadersBuilder))
+	}
+
 	buf := bytes.NewBuffer(make([]byte, 0, 4096))
 	resultWriter := graphql.NewEngineResultWriterFromBuffer(buf)
 	if err = g.engine.Execute(r.Context(), &gqlRequest, &resultWriter, opts...); err != nil {

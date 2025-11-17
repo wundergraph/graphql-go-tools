@@ -5,6 +5,7 @@ import (
 
 	"github.com/gobwas/ws"
 	log "github.com/jensneuse/abstractlogger"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 
 	"github.com/wundergraph/graphql-go-tools/execution/engine"
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
@@ -20,22 +21,25 @@ func NewGraphqlHTTPHandler(
 	upgrader *ws.HTTPUpgrader,
 	logger log.Logger,
 	enableART bool,
+	subgraphHeadersBuilder resolve.SubgraphHeadersBuilder,
 ) http.Handler {
 	return &GraphQLHTTPRequestHandler{
-		schema:     schema,
-		engine:     engine,
-		wsUpgrader: upgrader,
-		log:        logger,
-		enableART:  enableART,
+		schema:                 schema,
+		engine:                 engine,
+		wsUpgrader:             upgrader,
+		log:                    logger,
+		enableART:              enableART,
+		subgraphHeadersBuilder: subgraphHeadersBuilder,
 	}
 }
 
 type GraphQLHTTPRequestHandler struct {
-	log        log.Logger
-	wsUpgrader *ws.HTTPUpgrader
-	engine     *engine.ExecutionEngine
-	schema     *graphql.Schema
-	enableART  bool
+	log                    log.Logger
+	wsUpgrader             *ws.HTTPUpgrader
+	engine                 *engine.ExecutionEngine
+	schema                 *graphql.Schema
+	enableART              bool
+	subgraphHeadersBuilder resolve.SubgraphHeadersBuilder
 }
 
 func (g *GraphQLHTTPRequestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

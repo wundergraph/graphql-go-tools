@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
@@ -12,7 +13,6 @@ type FetchKind int
 
 const (
 	FetchKindSingle FetchKind = iota + 1
-	FetchKindParallelListItem
 	FetchKindEntity
 	FetchKindEntityBatch
 )
@@ -160,12 +160,14 @@ func (*SingleFetch) FetchKind() FetchKind {
 type BatchEntityFetch struct {
 	FetchDependencies
 
-	Input                BatchInput
-	DataSource           DataSource
-	PostProcessing       PostProcessingConfiguration
-	DataSourceIdentifier []byte
-	Trace                *DataSourceLoadTrace
-	Info                 *FetchInfo
+	Input                  BatchInput
+	DataSource             DataSource
+	PostProcessing         PostProcessingConfiguration
+	DataSourceIdentifier   []byte
+	Trace                  *DataSourceLoadTrace
+	Info                   *FetchInfo
+	CoordinateDependencies []FetchDependency
+	Caching                FetchCacheConfiguration
 }
 
 func (b *BatchEntityFetch) Dependencies() *FetchDependencies {
@@ -200,12 +202,14 @@ func (*BatchEntityFetch) FetchKind() FetchKind {
 type EntityFetch struct {
 	FetchDependencies
 
-	Input                EntityInput
-	DataSource           DataSource
-	PostProcessing       PostProcessingConfiguration
-	DataSourceIdentifier []byte
-	Trace                *DataSourceLoadTrace
-	Info                 *FetchInfo
+	CoordinateDependencies []FetchDependency
+	Input                  EntityInput
+	DataSource             DataSource
+	PostProcessing         PostProcessingConfiguration
+	DataSourceIdentifier   []byte
+	Trace                  *DataSourceLoadTrace
+	Info                   *FetchInfo
+	Caching                FetchCacheConfiguration
 }
 
 func (e *EntityFetch) Dependencies() *FetchDependencies {
@@ -225,27 +229,6 @@ type EntityInput struct {
 
 func (*EntityFetch) FetchKind() FetchKind {
 	return FetchKindEntity
-}
-
-// The ParallelListItemFetch can be used to make nested parallel fetches within a list
-// Usually, you want to batch fetches within a list, which is the default behavior of SingleFetch
-// However, if the data source does not support batching, you can use this fetch to make parallel fetches within a list
-type ParallelListItemFetch struct {
-	Fetch  *SingleFetch
-	Traces []*SingleFetch
-	Trace  *DataSourceLoadTrace
-}
-
-func (p *ParallelListItemFetch) Dependencies() *FetchDependencies {
-	return &p.Fetch.FetchDependencies
-}
-
-func (p *ParallelListItemFetch) FetchInfo() *FetchInfo {
-	return p.Fetch.Info
-}
-
-func (*ParallelListItemFetch) FetchKind() FetchKind {
-	return FetchKindParallelListItem
 }
 
 type QueryPlan struct {
@@ -272,12 +255,6 @@ type FetchConfiguration struct {
 	Variables  Variables
 	DataSource DataSource
 
-	// RequiresParallelListItemFetch indicates that the single fetches should be executed without batching.
-	// If we have multiple fetches attached to the object, then after post-processing of a plan
-	// we will get ParallelListItemFetch instead of ParallelFetch.
-	// Happens only for objects under the array path and used only for the introspection.
-	RequiresParallelListItemFetch bool
-
 	// RequiresEntityFetch will be set to true if the fetch is an entity fetch on an object.
 	// After post-processing, we will get EntityFetch.
 	RequiresEntityFetch bool
@@ -297,8 +274,16 @@ type FetchConfiguration struct {
 
 	QueryPlan *QueryPlan
 
+	// CoordinateDependencies contain a list of GraphCoordinates (typeName+fieldName)
+	// and which fields from other fetches they depend on.
+	// This information is useful to understand why a fetch depends on other fetches,
+	// and how multiple dependencies lead to a chain of fetches
+	CoordinateDependencies []FetchDependency
+
 	// OperationName is non-empty when the operation name is propagated to the upstream subgraph fetch.
 	OperationName string
+
+	Caching FetchCacheConfiguration
 }
 
 func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
@@ -313,9 +298,6 @@ func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
 
 	// Note: we do not compare datasources, as they will always be a different instance.
 
-	if fc.RequiresParallelListItemFetch != other.RequiresParallelListItemFetch {
-		return false
-	}
 	if fc.RequiresEntityFetch != other.RequiresEntityFetch {
 		return false
 	}
@@ -330,6 +312,23 @@ func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
 	}
 
 	return true
+}
+
+type FetchCacheConfiguration struct {
+	// Enabled indicates if caching is enabled for this fetch
+	Enabled bool
+	// CacheName is the name of the cache to use for this fetch
+	CacheName string
+	// TTL is the time to live which will be set for new cache entries
+	TTL time.Duration
+	// CacheKeyTemplate can be used to render a cache key for the fetch.
+	// In case of a root fetch, the variables will be one or more field arguments
+	// For entity fetches, the variables will be a single Object Variable with @key and @requires fields
+	CacheKeyTemplate CacheKeyTemplate
+	// IncludeSubgraphHeaderPrefix indicates if cache keys should be prefixed with the subgraph header hash.
+	// The prefix format is "id:cacheKey" where id is the hash from HeadersForSubgraph.
+	// Defaults to true.
+	IncludeSubgraphHeaderPrefix bool
 }
 
 // FetchDependency explains how a GraphCoordinate depends on other GraphCoordinates from other fetches
@@ -394,6 +393,7 @@ type FetchInfo struct {
 	// with the request to the subgraph as part of the "fetch_reason" extension.
 	// Specifically, it is created only for fields stored in the DataSource.RequireFetchReasons().
 	PropagatedFetchReasons []FetchReason
+	ProvidesData           *Object
 }
 
 type GraphCoordinate struct {
@@ -505,5 +505,4 @@ var (
 	_ Fetch = (*SingleFetch)(nil)
 	_ Fetch = (*BatchEntityFetch)(nil)
 	_ Fetch = (*EntityFetch)(nil)
-	_ Fetch = (*ParallelListItemFetch)(nil)
 )
