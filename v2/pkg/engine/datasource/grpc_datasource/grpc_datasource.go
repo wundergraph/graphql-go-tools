@@ -14,6 +14,7 @@ import (
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/tidwall/gjson"
+	"github.com/wundergraph/go-arena"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 
@@ -47,7 +48,7 @@ type DataSource struct {
 	federationConfigs plan.FederationFieldConfigurations
 	disabled          bool
 
-	pool *resolve.ArenaPool
+	pool *arena.Pool
 }
 
 type ProtoConfig struct {
@@ -83,7 +84,7 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 		mapping:           config.Mapping,
 		federationConfigs: config.FederationConfigs,
 		disabled:          config.Disabled,
-		pool:              resolve.NewArenaPool(),
+		pool:              arena.NewArenaPool(),
 	}, nil
 }
 
@@ -98,7 +99,7 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 	variables := gjson.Parse(unsafebytes.BytesToString(input)).Get("body.variables")
 
 	var (
-		poolItems []*resolve.ArenaPoolItem
+		poolItems []*arena.PoolItem
 	)
 	defer func() {
 		d.pool.ReleaseMany(poolItems)
@@ -190,7 +191,7 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 	return value.MarshalTo(nil), err
 }
 
-func (d *DataSource) acquirePoolItem(input []byte, index int) *resolve.ArenaPoolItem {
+func (d *DataSource) acquirePoolItem(input []byte, index int) *arena.PoolItem {
 	keyGen := xxhash.New()
 	_, _ = keyGen.Write(input)
 	var b [8]byte
