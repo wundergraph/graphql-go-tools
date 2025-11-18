@@ -74,14 +74,14 @@ type Resolver struct {
 	// maxSubscriptionFetchTimeout defines the maximum time a subscription fetch can take before it is considered timed out
 	maxSubscriptionFetchTimeout time.Duration
 
-	// resolveArenaPool is the arena pool dedicated for Loader & Resolvable
-	// ArenaPool automatically adjusts arena buffer sizes per workload
-	// resolving & response buffering are very different tasks
-	// as such, it was best to have two arena pools in terms of memory usage
-	// A single pool for both was much less efficient
-	resolveArenaPool *ArenaPool
+	// resolveArenaPool is the arena pool dedicated for Loader & Resolvable.
+	// ArenaPool automatically adjusts arena buffer sizes per workload.
+	// Resolving & response buffering are very different tasks;
+	// as such, it was best to have two arena pools in terms of memory usage.
+	// A single pool for both was much less efficient.
+	resolveArenaPool *arena.Pool
 	// responseBufferPool is the arena pool dedicated for response buffering before sending to the client
-	responseBufferPool *ArenaPool
+	responseBufferPool *arena.Pool
 
 	// subgraphRequestSingleFlight is used to de-duplicate subgraph requests
 	subgraphRequestSingleFlight *SubgraphRequestSingleFlight
@@ -240,8 +240,8 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		allowedErrorFields:           allowedErrorFields,
 		heartbeatInterval:            options.SubscriptionHeartbeatInterval,
 		maxSubscriptionFetchTimeout:  options.MaxSubscriptionFetchTimeout,
-		resolveArenaPool:             NewArenaPool(),
-		responseBufferPool:           NewArenaPool(),
+		resolveArenaPool:             arena.NewArenaPool(),
+		responseBufferPool:           arena.NewArenaPool(),
 		subgraphRequestSingleFlight:  NewSingleFlight(8),
 		inboundRequestSingleFlight:   NewRequestSingleFlight(8),
 	}
@@ -273,7 +273,7 @@ func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{
 			apolloRouterCompatibilitySubrequestHTTPError: options.ApolloRouterCompatibilitySubrequestHTTPError,
 			propagateFetchReasons:                        options.PropagateFetchReasons,
 			validateRequiredExternalFields:               options.ValidateRequiredExternalFields,
-			sf:                                           sf,
+			singleFlight:                                 sf,
 			jsonArena:                                    a,
 		},
 	}

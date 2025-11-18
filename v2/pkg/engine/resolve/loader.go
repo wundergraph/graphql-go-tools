@@ -181,9 +181,10 @@ type Loader struct {
 	// If you're not doing this, you will see segfaults
 	// Example of correct usage in func "mergeResult"
 	jsonArena arena.Arena
-	// sf is the SubgraphRequestSingleFlight object shared across all client requests
-	// it's thread safe and can be used to de-duplicate subgraph requests
-	sf *SubgraphRequestSingleFlight
+
+	// singleFlight is the SubgraphRequestSingleFlight object shared across all client requests.
+	// It's thread safe and can be used to de-duplicate subgraph requests.
+	singleFlight *SubgraphRequestSingleFlight
 }
 
 func (l *Loader) Free() {
@@ -1662,7 +1663,7 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 		return l.loadByContextDirect(ctx, source, headers, input, res)
 	}
 
-	item, shared := l.sf.GetOrCreateItem(fetchItem, input, extraKey)
+	item, shared := l.singleFlight.GetOrCreateItem(fetchItem, input, extraKey)
 	if res.singleFlightStats != nil {
 		res.singleFlightStats.used = true
 		res.singleFlightStats.shared = shared
@@ -1686,7 +1687,7 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 	// helps the http client to create buffers at the right size
 	ctx = httpclient.WithHTTPClientSizeHint(ctx, item.sizeHint)
 
-	defer l.sf.Finish(item)
+	defer l.singleFlight.Finish(item)
 
 	// Perform the actual load
 	err := l.loadByContextDirect(ctx, source, headers, input, res)
