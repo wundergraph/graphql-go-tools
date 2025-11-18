@@ -1891,7 +1891,10 @@ func (l *Loader) compactJSON(data []byte) ([]byte, error) {
 		return nil, err
 	}
 	out := dst.Bytes()
-	// don't use arena here or segfault
+	// Don't use arena here to avoid segfaults.
+	// If we're not keeping the result long-term on the arena,
+	// we just parse and re-marshal it to deduplicate object keys.
+	// This is not a hot path so it's fine.
 	// it's also not a hot path and not important to optimize
 	// arena requires the parsed content to be on the arena as well
 	v, err := astjson.ParseBytes(out)
