@@ -46,9 +46,9 @@ func (s *MockService) QueryCategoriesByKind(ctx context.Context, in *productv1.Q
 	// Create 3 categories of the requested kind
 	for i := 1; i <= 3; i++ {
 
-		subcategoties := make([]*productv1.Subcategory, 0, i)
+		subcategories := make([]*productv1.Subcategory, 0, i)
 		for j := 1; j <= i; j++ {
-			subcategoties = append(subcategoties, &productv1.Subcategory{
+			subcategories = append(subcategories, &productv1.Subcategory{
 				Id:          fmt.Sprintf("%s-subcategory-%d", kind.String(), j),
 				Name:        fmt.Sprintf("%s Subcategory %d", kind.String(), j),
 				Description: &wrapperspb.StringValue{Value: fmt.Sprintf("%s Subcategory %d", kind.String(), j)},
@@ -62,7 +62,7 @@ func (s *MockService) QueryCategoriesByKind(ctx context.Context, in *productv1.Q
 			Kind: kind,
 			Subcategories: &productv1.ListOfSubcategory{
 				List: &productv1.ListOfSubcategory_List{
-					Items: subcategoties,
+					Items: subcategories,
 				},
 			},
 		})
