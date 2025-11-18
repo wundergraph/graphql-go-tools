@@ -70,7 +70,7 @@ func TestSelectObjectAndIndex(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			response, err := astjson.ParseBytesWithoutCache([]byte(tt.responseJSON))
+			response, err := astjson.ParseBytes([]byte(tt.responseJSON))
 			assert.NoError(t, err, "Failed to parse response JSON")
 
 			// Convert path elements to astjson.Value slice
@@ -94,7 +94,7 @@ func TestSelectObjectAndIndex(t *testing.T) {
 				assert.Nil(t, entity, "Expected nil entity")
 			} else {
 				assert.NotNil(t, entity, "Expected non-nil entity")
-				expectedEntity, err := astjson.ParseBytesWithoutCache([]byte(tt.expectedEntity))
+				expectedEntity, err := astjson.ParseBytes([]byte(tt.expectedEntity))
 				assert.NoError(t, err, "Failed to parse expected entity JSON")
 
 				// Compare JSON representations
@@ -320,10 +320,10 @@ func TestGetTaintedIndices(t *testing.T) {
 			}
 			mockFetch := &mockFetchWithInfo{info: fetchInfo}
 
-			response, err := astjson.ParseBytesWithoutCache([]byte(tt.responseJSON))
+			response, err := astjson.ParseBytes([]byte(tt.responseJSON))
 			assert.NoError(t, err, "Failed to parse response JSON")
 
-			errors, err := astjson.ParseBytesWithoutCache([]byte(tt.errorsJSON))
+			errors, err := astjson.ParseBytes([]byte(tt.errorsJSON))
 			assert.NoError(t, err, "Failed to parse errors JSON")
 
 			indices := getTaintedIndices(mockFetch, response, errors)
