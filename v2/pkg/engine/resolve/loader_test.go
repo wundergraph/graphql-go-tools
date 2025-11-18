@@ -1463,7 +1463,7 @@ func TestRewriteErrorPaths(t *testing.T) {
 			},
 			expectedErrors: []*astjson.Value{
 				mp(`{"message": "nested", "path": ["user", "profile", "address", "street"]}`),
-				mp(`{"message": "index", "path": ["user", "profile", "reviews", "1", "body"]}`),
+				mp(`{"message": "index", "path": ["user", "profile", "reviews", 1, "body"]}`),
 			},
 		},
 		{

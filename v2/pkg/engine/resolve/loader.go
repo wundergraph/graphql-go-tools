@@ -922,28 +922,21 @@ func rewriteErrorPaths(a arena.Arena, fetchItem *FetchItem, values []*astjson.Va
 				unsafebytes.BytesToString(item.GetStringBytes()) != "_entities" {
 				continue
 			}
-			// rewrite the path to pathPrefix + pathItems after _entities
-			newPath := make([]string, 0, len(pathPrefix)+len(pathItems)-i)
-			newPath = append(newPath, pathPrefix...)
+			arr := astjson.ArrayValue(a)
+			for j := range pathPrefix {
+				astjson.AppendToArray(arr, astjson.StringValue(a, pathPrefix[j]))
+			}
 			for j := i + 1; j < len(pathItems); j++ {
 				// If the item after _entities is an index (number), we should ignore it.
 				if j == i+1 && pathItems[j].Type() == astjson.TypeNumber {
 					continue
 				}
 				switch pathItems[j].Type() {
-				case astjson.TypeString:
-					newPath = append(newPath, unsafebytes.BytesToString(pathItems[j].GetStringBytes()))
-				case astjson.TypeNumber:
-					newPath = append(newPath, strconv.Itoa(pathItems[j].GetInt()))
-				default:
+				case astjson.TypeString, astjson.TypeNumber:
+					astjson.AppendToArray(arr, pathItems[j])
 				}
 			}
-			newPathJSON, _ := json.Marshal(newPath)
-			pathBytes, err := astjson.ParseBytesWithArena(a, newPathJSON)
-			if err != nil {
-				continue
-			}
-			value.Set(a, "path", pathBytes)
+			value.Set(a, "path", arr)
 			break
 		}
 	}
