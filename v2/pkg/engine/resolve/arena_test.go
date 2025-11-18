@@ -14,8 +14,8 @@ func TestNewArenaPool(t *testing.T) {
 	pool := NewArenaPool()
 
 	require.NotNil(t, pool, "NewArenaPool returned nil")
-	assert.Equal(t, 0, len(pool.pool), "expected empty pool")
-	assert.Equal(t, 0, len(pool.sizes), "expected empty sizes map")
+	assert.Len(t, pool.pool, 0, "expected empty pool")
+	assert.Len(t, pool.sizes, 0, "expected empty sizes map")
 }
 
 func TestArenaPool_Acquire_EmptyPool(t *testing.T) {
@@ -31,7 +31,7 @@ func TestArenaPool_Acquire_EmptyPool(t *testing.T) {
 	_, err := buf.WriteString("test")
 	assert.NoError(t, err)
 
-	assert.Equal(t, 0, len(pool.pool), "pool should still be empty")
+	assert.Len(t, pool.pool, 0, "pool should still be empty")
 }
 
 func TestArenaPool_ReleaseAndAcquire(t *testing.T) {
@@ -50,7 +50,7 @@ func TestArenaPool_ReleaseAndAcquire(t *testing.T) {
 	pool.Release(item1)
 
 	// Pool should have one item
-	assert.Equal(t, 1, len(pool.pool), "expected pool to have 1 item")
+	assert.Len(t, pool.pool, 1, "expected pool to have 1 item")
 
 	// Acquire from pool
 	item2 := pool.Acquire(id)
@@ -58,7 +58,7 @@ func TestArenaPool_ReleaseAndAcquire(t *testing.T) {
 	require.NotNil(t, item2, "Acquire returned nil")
 
 	// Pool should be empty again
-	assert.Equal(t, 0, len(pool.pool), "expected empty pool after acquire")
+	assert.Len(t, pool.pool, 0, "expected empty pool after acquire")
 
 	// The acquired arena should be reset and usable
 	buf2 := arena.NewArenaBuffer(item2.Arena)
@@ -92,7 +92,7 @@ func TestArenaPool_Acquire_ProvesBugFix(t *testing.T) {
 	}
 
 	// Pool should have all items
-	assert.Equal(t, numItems, len(pool.pool), "expected items in pool")
+	assert.Len(t, pool.pool, numItems, "expected items in pool")
 
 	// Clear every other item to simulate partial GC
 	for i := 0; i < numItems; i += 2 {
@@ -121,7 +121,7 @@ func TestArenaPool_Acquire_ProvesBugFix(t *testing.T) {
 	}
 
 	// Pool should be empty
-	assert.Equal(t, 0, len(pool.pool), "expected empty pool")
+	assert.Len(t, pool.pool, 0, "expected empty pool")
 }
 
 func TestArenaPool_Release_PeakTracking(t *testing.T) {
@@ -197,7 +197,7 @@ func TestArenaPool_MultipleItemsInPool(t *testing.T) {
 	}
 
 	// Should have all items in pool
-	assert.Equal(t, numItems, len(pool.pool), "expected items in pool")
+	assert.Len(t, pool.pool, numItems, "expected items in pool")
 
 	// Acquire all back
 	acquired := 0
