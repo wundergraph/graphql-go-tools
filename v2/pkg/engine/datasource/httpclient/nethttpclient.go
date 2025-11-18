@@ -298,6 +298,17 @@ func DoMultipartForm(
 
 	var tempFiles []*os.File
 
+	defer func() {
+		for _, file := range tempFiles {
+			if err := file.Close(); err != nil {
+				continue
+			}
+			if err = os.Remove(file.Name()); err != nil {
+				continue
+			}
+		}
+	}()
+
 	fileMap := bytes.NewBuffer(nil)
 	fileMap.WriteString("{")
 	hasWrittenFileName := false
@@ -307,15 +318,13 @@ func DoMultipartForm(
 			fileMap.WriteString(",")
 		}
 		hasWrittenFileName = true
-
 		_, _ = fmt.Fprintf(fileMap, `"%d":["%s"]`, i, file.variablePath)
-
 		key := fmt.Sprintf("%d", i)
 		temporaryFile, err := os.Open(file.Path())
-		tempFiles = append(tempFiles, temporaryFile)
 		if err != nil {
 			return nil, err
 		}
+		tempFiles = append(tempFiles, temporaryFile)
 		formValues[key] = bufio.NewReader(temporaryFile)
 	}
 	fileMap.WriteString("}")
@@ -327,15 +336,7 @@ func DoMultipartForm(
 	}
 
 	defer func() {
-		multipartBody.Close()
-		for _, file := range tempFiles {
-			if err := file.Close(); err != nil {
-				return
-			}
-			if err = os.Remove(file.Name()); err != nil {
-				return
-			}
-		}
+		_ = multipartBody.Close()
 	}()
 
 	return makeHTTPRequest(client, ctx, baseHeaders, url, method, headers, queryParams, multipartBody, enableTrace, contentType, 0)
