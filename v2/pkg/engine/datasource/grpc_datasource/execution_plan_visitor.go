@@ -56,7 +56,7 @@ type rpcPlanVisitor struct {
 
 	parentCallID           int
 	fieldResolverAncestors stack[int]
-	resolvedFields         []resolvedField
+	resolverFields         []resolverField
 
 	fieldPath ast.Path
 }
@@ -77,7 +77,7 @@ func newRPCPlanVisitor(config rpcPlanVisitorConfig) *rpcPlanVisitor {
 		subgraphName:           cases.Title(language.Und, cases.NoLower).String(config.subgraphName),
 		mapping:                config.mapping,
 		operationFieldRef:      ast.InvalidRef,
-		resolvedFields:         make([]resolvedField, 0),
+		resolverFields:         make([]resolverField, 0),
 		parentCallID:           ast.InvalidRef,
 		fieldResolverAncestors: newStack[int](0),
 		fieldPath:              make(ast.Path, 0),
@@ -112,18 +112,18 @@ func (r *rpcPlanVisitor) EnterDocument(operation *ast.Document, definition *ast.
 
 // LeaveDocument implements astvisitor.DocumentVisitor.
 func (r *rpcPlanVisitor) LeaveDocument(_, _ *ast.Document) {
-	if len(r.resolvedFields) == 0 {
+	if len(r.resolverFields) == 0 {
 		return
 	}
 
-	calls, err := r.planCtx.createResolverRPCCalls(r.subgraphName, r.resolvedFields)
+	calls, err := r.planCtx.createResolverRPCCalls(r.subgraphName, r.resolverFields)
 	if err != nil {
 		r.walker.StopWithInternalErr(err)
 		return
 	}
 
 	r.plan.Calls = append(r.plan.Calls, calls...)
-	r.resolvedFields = nil
+	r.resolverFields = nil
 }
 
 // EnterOperationDefinition implements astvisitor.EnterOperationDefinitionVisitor.
@@ -202,14 +202,14 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 			return
 		}
 
-		resolvedFieldAncestor := r.fieldResolverAncestors.peek()
+		resolverFieldAncestor := r.fieldResolverAncestors.peek()
 		if compositType := r.planCtx.getCompositeType(r.walker.EnclosingTypeDefinition); compositType != OneOfTypeNone {
 			memberTypes, err := r.planCtx.getMemberTypes(r.walker.EnclosingTypeDefinition)
 			if err != nil {
 				r.walker.StopWithInternalErr(err)
 				return
 			}
-			resolvedField := &r.resolvedFields[resolvedFieldAncestor]
+			resolvedField := &r.resolverFields[resolverFieldAncestor]
 			resolvedField.memberTypes = memberTypes
 			resolvedField.fieldsSelectionSetRef = ast.InvalidRef
 
@@ -217,8 +217,7 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 			return
 		}
 
-		// TODO: handle nested resolved fields.
-		r.resolvedFields[resolvedFieldAncestor].fieldsSelectionSetRef = ref
+		r.resolverFields[resolverFieldAncestor].fieldsSelectionSetRef = ref
 		return
 	}
 
@@ -444,7 +443,7 @@ func (r *rpcPlanVisitor) enterFieldResolver(ref int, fieldDefRef int) {
 	// We need to make sure to handle a hierarchy of arguments in order to perform parallel calls in order to retrieve the data.
 	fieldArgs := r.operation.FieldArguments(ref)
 	// We don't want to add fields from the selection set to the actual call
-	resolvedField := resolvedField{
+	resolvedField := resolverField{
 		callerRef:              r.parentCallID,
 		parentTypeNode:         r.walker.EnclosingTypeDefinition,
 		fieldRef:               ref,
@@ -457,8 +456,8 @@ func (r *rpcPlanVisitor) enterFieldResolver(ref int, fieldDefRef int) {
 		return
 	}
 
-	r.resolvedFields = append(r.resolvedFields, resolvedField)
-	r.fieldResolverAncestors.push(len(r.resolvedFields) - 1)
+	r.resolverFields = append(r.resolverFields, resolvedField)
+	r.fieldResolverAncestors.push(len(r.resolverFields) - 1)
 	r.fieldPath = r.fieldPath.WithFieldNameItem(r.operation.FieldNameBytes(ref))
 
 	// In case of nested fields with arguments, we need to increment the related call ID.

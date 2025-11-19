@@ -52,7 +52,7 @@ type rpcPlanVisitorFederation struct {
 
 	parentCallID           int
 	fieldResolverAncestors stack[int]
-	resolvedFields         []resolvedField
+	resolvedFields         []resolverField
 
 	fieldPath ast.Path
 }
@@ -69,7 +69,7 @@ func newRPCPlanVisitorFederation(config rpcPlanVisitorConfig) *rpcPlanVisitorFed
 			entityInlineFragmentRef: ast.InvalidRef,
 		},
 		federationConfigData:   parseFederationConfigData(config.federationConfigs),
-		resolvedFields:         make([]resolvedField, 0),
+		resolvedFields:         make([]resolverField, 0),
 		fieldResolverAncestors: newStack[int](0),
 		parentCallID:           ast.InvalidRef,
 		fieldPath:              ast.Path{}.WithFieldNameItem([]byte("result")),
@@ -407,7 +407,7 @@ func (r *rpcPlanVisitorFederation) enterFieldResolver(ref int, fieldDefRef int) 
 	// We need to make sure to handle a hierarchy of arguments in order to perform parallel calls in order to retrieve the data.
 	fieldArgs := r.operation.FieldArguments(ref)
 	// We don't want to add fields from the selection set to the actual call
-	resolvedField := resolvedField{
+	resolvedField := resolverField{
 		callerRef:              r.parentCallID,
 		parentTypeNode:         r.walker.EnclosingTypeDefinition,
 		fieldRef:               ref,
