@@ -123,7 +123,7 @@ func (s *MockService) QueryFilterCategories(ctx context.Context, in *productv1.Q
 		page := int(pagination.GetPage())
 		perPage := int(pagination.GetPerPage())
 
-		if page > 0 && perPage > 0 && len(categories) > perPage {
+		if page > 0 && perPage > 0 {
 			startIdx := (page - 1) * perPage
 			endIdx := startIdx + perPage
 
