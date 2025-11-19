@@ -91,10 +91,11 @@ func convertNestedUserInputsToUsers(nestedInputs *productv1.ListOfListOfUserInpu
 		}
 	}
 
-	results := make([]*productv1.ListOfUser, len(nestedInputs.List.Items))
-	for i, userList := range nestedInputs.List.Items {
-		users := make([]*productv1.User, len(userList.List.Items))
-		for j, userInput := range userList.List.Items {
+	results := make([]*productv1.ListOfUser, len(nestedInputs.GetList().GetItems()))
+	for i, userList := range nestedInputs.GetList().GetItems() {
+		userListItems := userList.GetList().GetItems()
+		users := make([]*productv1.User, len(userListItems))
+		for j, userInput := range userListItems {
 			users[j] = &productv1.User{
 				Id:   fmt.Sprintf("nested-user-%d-%d", i, j),
 				Name: userInput.GetName(),
@@ -124,9 +125,10 @@ func convertNestedCategoryInputsToCategories(nestedInputs *productv1.ListOfListO
 	}
 
 	results := make([]*productv1.ListOfCategory, len(nestedInputs.List.Items))
-	for i, categoryList := range nestedInputs.List.Items {
-		categories := make([]*productv1.Category, len(categoryList.List.Items))
-		for j, categoryInput := range categoryList.List.Items {
+	for i, categoryList := range nestedInputs.GetList().GetItems() {
+		categoryListItems := categoryList.GetList().GetItems()
+		categories := make([]*productv1.Category, len(categoryListItems))
+		for j, categoryInput := range categoryListItems {
 			categories[j] = &productv1.Category{
 				Id:            fmt.Sprintf("nested-cat-%d-%d", i, j),
 				Name:          categoryInput.GetName(),
