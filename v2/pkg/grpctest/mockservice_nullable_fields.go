@@ -1,7 +1,7 @@
 package grpctest
 
 import (
-	context "context"
+	"context"
 	"fmt"
 	"math"
 	"math/rand"
