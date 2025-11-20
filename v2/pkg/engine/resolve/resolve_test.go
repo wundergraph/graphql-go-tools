@@ -5755,7 +5755,9 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		messagesToSendFromOtherSources := int32(100)
 
 		firstMessageArrived := make(chan bool, 1)
-		hookCompleted := make(chan bool, 1)
+		completionWg := sync.WaitGroup{}
+		completionWg.Add(2) // Wait for both the fakeStream and the hook goroutine to complete
+
 		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
 			if counter == 0 {
 				select {
@@ -5764,10 +5766,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 				}
 			}
 			if counter == int(messagesToSendFromOtherSources)-1 {
-				select {
-				case hookCompleted <- true:
-				case <-time.After(defaultTimeout):
-				}
+				completionWg.Done()
 			}
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == int(messagesToSendFromOtherSources)-1
 		}, 1*time.Millisecond, func(input []byte) {
@@ -5778,13 +5777,13 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 			// start a go routine to send the updates after the source started emitting messages
 			go func() {
+				defer completionWg.Done()
 				// Wait for the first message to arrive before sending updates
 				select {
 				case <-firstMessageArrived:
 					for i := 1; i < int(messagesToSendFromHook); i++ {
 						ctx.Updater([]byte(fmt.Sprintf(`{"data":{"counter":%d}}`, i+20000)))
 					}
-					hookCompleted <- true
 				case <-time.After(defaultTimeout):
 					// if the first message did not arrive, do not send any updates
 					return
@@ -5806,11 +5805,23 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
 		assert.NoError(t, err)
 
+		// Wait for both the hook goroutine and the fakeStream to complete
+		done := make(chan struct{})
+		go func() {
+			completionWg.Wait()
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(defaultTimeout * 2):
+			t.Fatal("timed out waiting for completion")
+		}
+
 		recorder.AwaitComplete(t, defaultTimeout*2)
 
 		var messagesHeartbeat int32
 		for _, m := range recorder.Messages() {
-			if m == "{}" {
+			if m == "heartbeat" {
 				messagesHeartbeat++
 			}
 		}
