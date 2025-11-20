@@ -5549,10 +5549,9 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		// this message must come first on the first recorder to be added to the trigger.
 		subscriptionOnStartFn := func(ctx StartupHookContext, input []byte) (err error) {
 			defer startupHookWaitGroup.Done()
-			if executed.Load() {
+			if !executed.CompareAndSwap(false, true) {
 				return
 			}
-			executed.Store(true)
 			ctx.Updater([]byte(`{"data":{"counter":1000}}`))
 			return nil
 		}

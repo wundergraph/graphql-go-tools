@@ -2007,7 +2007,7 @@ func (s *SubscriptionSource) UniqueRequestID(ctx *resolve.Context, input []byte,
 }
 
 // SubscriptionOnStart is called when a subscription is started.
-// Each hook is called in a separate goroutine.
+// Hooks are invoked sequentially, short-circuiting on the first error.
 func (s *SubscriptionSource) SubscriptionOnStart(ctx resolve.StartupHookContext, input []byte) error {
 	for _, fn := range s.subscriptionOnStartFns {
 		err := fn(ctx, input)
