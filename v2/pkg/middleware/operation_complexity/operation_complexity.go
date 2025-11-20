@@ -52,9 +52,8 @@ var (
 )
 
 const (
-	skipIntrospection = true
-	__schemaLiteral   = "__schema"
-	__typeLiteral     = "__type"
+	__schemaLiteral = "__schema"
+	__typeLiteral   = "__type"
 )
 
 type OperationComplexityEstimator struct {
@@ -62,12 +61,12 @@ type OperationComplexityEstimator struct {
 	visitor *complexityVisitor
 }
 
-func NewOperationComplexityEstimator() *OperationComplexityEstimator {
-
+func NewOperationComplexityEstimator(skipIntrospection bool) *OperationComplexityEstimator {
 	walker := astvisitor.NewWalker(48)
 	visitor := &complexityVisitor{
-		Walker:      &walker,
-		multipliers: make([]multiplier, 0, 16),
+		Walker:            &walker,
+		multipliers:       make([]multiplier, 0, 16),
+		skipIntrospection: skipIntrospection,
 	}
 
 	walker.RegisterEnterDocumentVisitor(visitor)
@@ -116,8 +115,9 @@ func (n *OperationComplexityEstimator) Do(operation, definition *ast.Document, r
 	return globalResult, n.visitor.calculatedRootFieldStats
 }
 
+// Deprecated: use NewOperationComplexityEstimator.
 func CalculateOperationComplexity(operation, definition *ast.Document, report *operationreport.Report) (OperationStats, []RootFieldStats) {
-	estimator := NewOperationComplexityEstimator()
+	estimator := NewOperationComplexityEstimator(false)
 	return estimator.Do(operation, definition, report)
 }
 
@@ -141,6 +141,9 @@ type complexityVisitor struct {
 	currentRootFieldSelectionSetDepth    int
 
 	calculatedRootFieldStats []RootFieldStats
+
+	// Enforces to ignore introspection queries in calculations.
+	skipIntrospection bool
 }
 
 type multiplier struct {
@@ -202,7 +205,7 @@ func (c *complexityVisitor) EnterField(ref int) {
 	}
 
 	typeName, fieldName, alias := c.extractFieldRelatedNames(ref, definition)
-	if skipIntrospection && (fieldName == __schemaLiteral || fieldName == __typeLiteral) {
+	if c.skipIntrospection && (fieldName == __schemaLiteral || fieldName == __typeLiteral) {
 		c.SkipNode()
 		return
 	}
