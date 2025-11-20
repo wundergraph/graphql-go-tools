@@ -88,12 +88,6 @@ func (c *subscriptionClient) SubscribeAsync(ctx *resolve.Context, id uint64, opt
 		return c.subscribeSSE(ctx.Context(), c.engineCtx, options, updater)
 	}
 
-	if strings.HasPrefix(options.URL, "https") {
-		options.URL = "wss" + options.URL[5:]
-	} else if strings.HasPrefix(options.URL, "http") {
-		options.URL = "ws" + options.URL[4:]
-	}
-
 	return c.asyncSubscribeWS(ctx.Context(), c.engineCtx, id, options, updater)
 }
 
@@ -504,7 +498,7 @@ func (c *subscriptionClient) newWSConnectionHandler(requestContext, engineContex
 	// Any failure will be stored here, needed for deferred body closer.
 	var err error
 
-	conn, subProtocol, err := c.wsDial(requestContext, options)
+	conn, subProtocol, err := c.dial(requestContext, options)
 	if err != nil {
 		return nil, err
 	}
@@ -570,6 +564,12 @@ func (c *subscriptionClient) wsDial(ctx context.Context, options GraphQLSubscrip
 		subProtocols = []string{options.WsSubProtocol}
 	}
 
+	if strings.HasPrefix(options.URL, "https") {
+		options.URL = "wss" + options.URL[5:]
+	} else if strings.HasPrefix(options.URL, "http") {
+		options.URL = "ws" + options.URL[4:]
+	}
+
 	dialer := ws.Dialer{
 		Timeout:   10 * time.Second,
 		Protocols: subProtocols,
@@ -606,6 +606,12 @@ func (c *subscriptionClient) dial(ctx context.Context, options GraphQLSubscripti
 	subProtocols := []string{ProtocolGraphQLTWS, ProtocolGraphQLWS}
 	if options.WsSubProtocol != "" && options.WsSubProtocol != "auto" {
 		subProtocols = []string{options.WsSubProtocol}
+	}
+
+	if strings.HasPrefix(options.URL, "https") {
+		options.URL = "wss" + options.URL[5:]
+	} else if strings.HasPrefix(options.URL, "http") {
+		options.URL = "ws" + options.URL[4:]
 	}
 
 	clientTrace := &httptrace.ClientTrace{
