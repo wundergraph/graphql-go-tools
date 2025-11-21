@@ -1133,8 +1133,8 @@ func (r *rpcPlanningContext) buildCompositeField(inlineFragmentNode ast.Node, fr
 	result := make([]RPCField, 0, len(fieldRefs))
 
 	for _, fieldRef := range fieldRefs {
-		fieldDef, found := r.fieldDefinitionForType(r.operation.FieldNameString(fieldRef), fragmentSelection.typeName)
-		if !found {
+		fieldDef := r.fieldDefinitionForType(r.operation.FieldNameString(fieldRef), fragmentSelection.typeName)
+		if fieldDef == ast.InvalidRef {
 			return nil, fmt.Errorf("unable to build composite field: field definition not found for field %s", r.operation.FieldNameString(fieldRef))
 		}
 
@@ -1162,13 +1162,18 @@ func (r *rpcPlanningContext) buildCompositeField(inlineFragmentNode ast.Node, fr
 	return result, nil
 }
 
-func (r *rpcPlanningContext) fieldDefinitionForType(fieldName, typeName string) (ref int, exists bool) {
+func (r *rpcPlanningContext) fieldDefinitionForType(fieldName, typeName string) int {
 	node, found := r.definition.NodeByNameStr(typeName)
 	if !found {
-		return ast.InvalidRef, false
+		return ast.InvalidRef
 	}
 
-	return r.definition.NodeFieldDefinitionByName(node, unsafebytes.StringToBytes(fieldName))
+	if ref, found := r.definition.NodeFieldDefinitionByName(node, unsafebytes.StringToBytes(fieldName)); found {
+		return ref
+	}
+
+	return ast.InvalidRef
+
 }
 
 // createResolverRPCCalls creates a new call for each resolved field.
