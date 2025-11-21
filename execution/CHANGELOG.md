@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.1](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.6.0...execution/v1.6.1) (2025-11-21)
+
+
+### Bug Fixes
+
+* add ability to exclude introspection queries from complexity limits ([#1342](https://github.com/wundergraph/graphql-go-tools/issues/1342)) ([19c8693](https://github.com/wundergraph/graphql-go-tools/commit/19c86930482956b2d5f96f2feae6d015d1052ef4))
+
 ## [1.6.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.5.0...execution/v1.6.0) (2025-10-21)
 
 
