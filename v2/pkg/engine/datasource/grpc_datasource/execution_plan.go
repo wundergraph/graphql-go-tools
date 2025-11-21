@@ -1133,7 +1133,7 @@ func (r *rpcPlanningContext) buildCompositeField(inlineFragmentNode ast.Node, fr
 	result := make([]RPCField, 0, len(fieldRefs))
 
 	for _, fieldRef := range fieldRefs {
-		fieldDef := r.fieldDefinitionForType(r.operation.FieldNameString(fieldRef), fragmentSelection.typeName)
+		fieldDef := r.fieldDefinitionRefForType(r.operation.FieldNameString(fieldRef), fragmentSelection.typeName)
 		if fieldDef == ast.InvalidRef {
 			return nil, fmt.Errorf("unable to build composite field: field definition not found for field %s", r.operation.FieldNameString(fieldRef))
 		}
@@ -1162,7 +1162,7 @@ func (r *rpcPlanningContext) buildCompositeField(inlineFragmentNode ast.Node, fr
 	return result, nil
 }
 
-func (r *rpcPlanningContext) fieldDefinitionForType(fieldName, typeName string) int {
+func (r *rpcPlanningContext) fieldDefinitionRefForType(fieldName, typeName string) int {
 	node, found := r.definition.NodeByNameStr(typeName)
 	if !found {
 		return ast.InvalidRef
