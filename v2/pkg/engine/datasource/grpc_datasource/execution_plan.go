@@ -849,7 +849,8 @@ func (r *rpcPlanningContext) isFieldResolver(fieldRef int, isRootField bool) boo
 	return len(r.operation.FieldArguments(fieldRef)) > 0
 }
 
-// getCompositeType returns the most recent composite type from the type definitions.
+// getCompositeType checks whether the node is an interface or union type.
+// It returns OneOfTypeNone for non-composite types.
 func (r *rpcPlanningContext) getCompositeType(node ast.Node) OneOfType {
 	switch node.Kind {
 	case ast.NodeKindInterfaceTypeDefinition:
