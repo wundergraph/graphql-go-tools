@@ -212,6 +212,18 @@ func (d *Document) SelectionSetHasFieldSelectionWithExactName(set int, name []by
 	return false, InvalidRef
 }
 
+// SelectionSetFieldRefs returns a list of field refs in the selection set.
+// It traverses through the field selections of the selection set and returns the actual field refs.
+func (d *Document) SelectionSetFieldRefs(set int) (refs []int) {
+	for _, selectionRef := range d.SelectionSets[set].SelectionRefs {
+		if d.Selections[selectionRef].Kind == SelectionKindField {
+			refs = append(refs, d.Selections[selectionRef].Ref)
+		}
+	}
+	return
+}
+
+// SelectionSetFieldSelections returns a list of field selection refs in the selection set.
 func (d *Document) SelectionSetFieldSelections(set int) (refs []int) {
 	for _, selectionRef := range d.SelectionSets[set].SelectionRefs {
 		if d.Selections[selectionRef].Kind == SelectionKindField {

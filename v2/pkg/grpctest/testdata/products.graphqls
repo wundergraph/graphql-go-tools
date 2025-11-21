@@ -5,6 +5,16 @@ type Product @key(fields: "id") {
   price: Float!
   shippingEstimate(input: ShippingEstimateInput!): Float! @connect__fieldResolver(context: "id price")
   recommendedCategory(maxPrice: Int!): Category @connect__fieldResolver(context: "id name price")
+  mascotRecommendation(includeDetails: Boolean!): Animal @connect__fieldResolver(context: "id name")
+  stockStatus(checkAvailability: Boolean!): ActionResult! @connect__fieldResolver(context: "id name price")
+  productDetails(includeExtended: Boolean!): ProductDetails @connect__fieldResolver(context: "id name price")
+}
+
+type ProductDetails {
+  id: ID!
+  description: String!
+  reviewSummary: ActionResult!
+  recommendedPet: Animal!
 }
 
 type Storage @key(fields: "id") {
@@ -118,6 +128,8 @@ type Category {
   subcategories: [Subcategory!]
   popularityScore(threshold: Int): Int @connect__fieldResolver(context: "id")
   categoryMetrics(metricType: String!): CategoryMetrics @connect__fieldResolver(context: "id name")
+  mascot(includeVolume: Boolean!): Animal @connect__fieldResolver(context: "id kind")
+  categoryStatus(checkHealth: Boolean!): ActionResult! @connect__fieldResolver(context: "id name")
 }
 
 type Subcategory {
@@ -134,6 +146,9 @@ type CategoryMetrics {
   value: Float!
   timestamp: String!
   categoryId: ID!
+  normalizedScore(baseline: Float!): Float! @connect__fieldResolver(context: "id value metricType")
+  # This will currently not generate a resolver as it is missing arguments.
+  relatedCategory: Category @connect__fieldResolver(context: "categoryId") 
 }
 
 enum CategoryKind {
@@ -154,6 +169,8 @@ type Cat implements Animal {
   name: String!
   kind: String!
   meowVolume: Int!
+  owner: Owner!
+  breed: CatBreed!
 }
 
 type Dog implements Animal {
@@ -161,6 +178,47 @@ type Dog implements Animal {
   name: String!
   kind: String!
   barkVolume: Int!
+  owner: Owner!
+  breed: DogBreed!
+}
+
+type Owner {
+  id: ID!
+  name: String!
+  contact: ContactInfo!
+}
+
+type ContactInfo {
+  email: String!
+  phone: String!
+  address: Address
+}
+
+type Address {
+  street: String!
+  city: String!
+  country: String!
+  zipCode: String!
+}
+
+type CatBreed {
+  id: ID!
+  name: String!
+  origin: String!
+  characteristics: BreedCharacteristics!
+}
+
+type DogBreed {
+  id: ID!
+  name: String!
+  origin: String!
+  characteristics: BreedCharacteristics!
+}
+
+type BreedCharacteristics {
+  size: String!
+  temperament: String!
+  lifespan: String!
 }
 
 # Union Types for Testing
@@ -179,6 +237,21 @@ type ActionSuccess {
 type ActionError {
   message: String!
   code: String!
+}
+
+# Test container type for testing field resolvers with interface and union returns
+type TestContainer {
+  id: ID!
+  name: String!
+  description: String
+  details(includeExtended: Boolean!): TestDetails @connect__fieldResolver(context: "id name")
+}
+
+type TestDetails {
+  id: ID!
+  summary: String!
+  pet: Animal!
+  status: ActionResult!
 }
 
 # Input types for union operations
@@ -413,6 +486,10 @@ type Query {
   
   # Bulk search operations for blog posts
   bulkSearchBlogPosts(filters: [BlogPostFilter!]): [BlogPost!]!
+  
+  # Test container queries (testing field resolvers with interface and union returns)
+  testContainer(id: ID!): TestContainer!
+  testContainers: [TestContainer!]!
 }
 
 input UserInput {

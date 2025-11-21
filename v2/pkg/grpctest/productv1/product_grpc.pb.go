@@ -19,57 +19,66 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ProductService_LookupProductById_FullMethodName                 = "/productv1.ProductService/LookupProductById"
-	ProductService_LookupStorageById_FullMethodName                 = "/productv1.ProductService/LookupStorageById"
-	ProductService_LookupWarehouseById_FullMethodName               = "/productv1.ProductService/LookupWarehouseById"
-	ProductService_MutationBulkCreateAuthors_FullMethodName         = "/productv1.ProductService/MutationBulkCreateAuthors"
-	ProductService_MutationBulkCreateBlogPosts_FullMethodName       = "/productv1.ProductService/MutationBulkCreateBlogPosts"
-	ProductService_MutationBulkUpdateAuthors_FullMethodName         = "/productv1.ProductService/MutationBulkUpdateAuthors"
-	ProductService_MutationBulkUpdateBlogPosts_FullMethodName       = "/productv1.ProductService/MutationBulkUpdateBlogPosts"
-	ProductService_MutationCreateAuthor_FullMethodName              = "/productv1.ProductService/MutationCreateAuthor"
-	ProductService_MutationCreateBlogPost_FullMethodName            = "/productv1.ProductService/MutationCreateBlogPost"
-	ProductService_MutationCreateNullableFieldsType_FullMethodName  = "/productv1.ProductService/MutationCreateNullableFieldsType"
-	ProductService_MutationCreateUser_FullMethodName                = "/productv1.ProductService/MutationCreateUser"
-	ProductService_MutationPerformAction_FullMethodName             = "/productv1.ProductService/MutationPerformAction"
-	ProductService_MutationUpdateAuthor_FullMethodName              = "/productv1.ProductService/MutationUpdateAuthor"
-	ProductService_MutationUpdateBlogPost_FullMethodName            = "/productv1.ProductService/MutationUpdateBlogPost"
-	ProductService_MutationUpdateNullableFieldsType_FullMethodName  = "/productv1.ProductService/MutationUpdateNullableFieldsType"
-	ProductService_QueryAllAuthors_FullMethodName                   = "/productv1.ProductService/QueryAllAuthors"
-	ProductService_QueryAllBlogPosts_FullMethodName                 = "/productv1.ProductService/QueryAllBlogPosts"
-	ProductService_QueryAllNullableFieldsTypes_FullMethodName       = "/productv1.ProductService/QueryAllNullableFieldsTypes"
-	ProductService_QueryAllPets_FullMethodName                      = "/productv1.ProductService/QueryAllPets"
-	ProductService_QueryAuthor_FullMethodName                       = "/productv1.ProductService/QueryAuthor"
-	ProductService_QueryAuthorById_FullMethodName                   = "/productv1.ProductService/QueryAuthorById"
-	ProductService_QueryAuthorsWithFilter_FullMethodName            = "/productv1.ProductService/QueryAuthorsWithFilter"
-	ProductService_QueryBlogPost_FullMethodName                     = "/productv1.ProductService/QueryBlogPost"
-	ProductService_QueryBlogPostById_FullMethodName                 = "/productv1.ProductService/QueryBlogPostById"
-	ProductService_QueryBlogPostsWithFilter_FullMethodName          = "/productv1.ProductService/QueryBlogPostsWithFilter"
-	ProductService_QueryBulkSearchAuthors_FullMethodName            = "/productv1.ProductService/QueryBulkSearchAuthors"
-	ProductService_QueryBulkSearchBlogPosts_FullMethodName          = "/productv1.ProductService/QueryBulkSearchBlogPosts"
-	ProductService_QueryCalculateTotals_FullMethodName              = "/productv1.ProductService/QueryCalculateTotals"
-	ProductService_QueryCategories_FullMethodName                   = "/productv1.ProductService/QueryCategories"
-	ProductService_QueryCategoriesByKind_FullMethodName             = "/productv1.ProductService/QueryCategoriesByKind"
-	ProductService_QueryCategoriesByKinds_FullMethodName            = "/productv1.ProductService/QueryCategoriesByKinds"
-	ProductService_QueryComplexFilterType_FullMethodName            = "/productv1.ProductService/QueryComplexFilterType"
-	ProductService_QueryFilterCategories_FullMethodName             = "/productv1.ProductService/QueryFilterCategories"
-	ProductService_QueryNestedType_FullMethodName                   = "/productv1.ProductService/QueryNestedType"
-	ProductService_QueryNullableFieldsType_FullMethodName           = "/productv1.ProductService/QueryNullableFieldsType"
-	ProductService_QueryNullableFieldsTypeById_FullMethodName       = "/productv1.ProductService/QueryNullableFieldsTypeById"
-	ProductService_QueryNullableFieldsTypeWithFilter_FullMethodName = "/productv1.ProductService/QueryNullableFieldsTypeWithFilter"
-	ProductService_QueryRandomPet_FullMethodName                    = "/productv1.ProductService/QueryRandomPet"
-	ProductService_QueryRandomSearchResult_FullMethodName           = "/productv1.ProductService/QueryRandomSearchResult"
-	ProductService_QueryRecursiveType_FullMethodName                = "/productv1.ProductService/QueryRecursiveType"
-	ProductService_QuerySearch_FullMethodName                       = "/productv1.ProductService/QuerySearch"
-	ProductService_QueryTypeFilterWithArguments_FullMethodName      = "/productv1.ProductService/QueryTypeFilterWithArguments"
-	ProductService_QueryTypeWithMultipleFilterFields_FullMethodName = "/productv1.ProductService/QueryTypeWithMultipleFilterFields"
-	ProductService_QueryUser_FullMethodName                         = "/productv1.ProductService/QueryUser"
-	ProductService_QueryUsers_FullMethodName                        = "/productv1.ProductService/QueryUsers"
-	ProductService_ResolveCategoryCategoryMetrics_FullMethodName    = "/productv1.ProductService/ResolveCategoryCategoryMetrics"
-	ProductService_ResolveCategoryPopularityScore_FullMethodName    = "/productv1.ProductService/ResolveCategoryPopularityScore"
-	ProductService_ResolveCategoryProductCount_FullMethodName       = "/productv1.ProductService/ResolveCategoryProductCount"
-	ProductService_ResolveProductRecommendedCategory_FullMethodName = "/productv1.ProductService/ResolveProductRecommendedCategory"
-	ProductService_ResolveProductShippingEstimate_FullMethodName    = "/productv1.ProductService/ResolveProductShippingEstimate"
-	ProductService_ResolveSubcategoryItemCount_FullMethodName       = "/productv1.ProductService/ResolveSubcategoryItemCount"
+	ProductService_LookupProductById_FullMethodName                     = "/productv1.ProductService/LookupProductById"
+	ProductService_LookupStorageById_FullMethodName                     = "/productv1.ProductService/LookupStorageById"
+	ProductService_LookupWarehouseById_FullMethodName                   = "/productv1.ProductService/LookupWarehouseById"
+	ProductService_MutationBulkCreateAuthors_FullMethodName             = "/productv1.ProductService/MutationBulkCreateAuthors"
+	ProductService_MutationBulkCreateBlogPosts_FullMethodName           = "/productv1.ProductService/MutationBulkCreateBlogPosts"
+	ProductService_MutationBulkUpdateAuthors_FullMethodName             = "/productv1.ProductService/MutationBulkUpdateAuthors"
+	ProductService_MutationBulkUpdateBlogPosts_FullMethodName           = "/productv1.ProductService/MutationBulkUpdateBlogPosts"
+	ProductService_MutationCreateAuthor_FullMethodName                  = "/productv1.ProductService/MutationCreateAuthor"
+	ProductService_MutationCreateBlogPost_FullMethodName                = "/productv1.ProductService/MutationCreateBlogPost"
+	ProductService_MutationCreateNullableFieldsType_FullMethodName      = "/productv1.ProductService/MutationCreateNullableFieldsType"
+	ProductService_MutationCreateUser_FullMethodName                    = "/productv1.ProductService/MutationCreateUser"
+	ProductService_MutationPerformAction_FullMethodName                 = "/productv1.ProductService/MutationPerformAction"
+	ProductService_MutationUpdateAuthor_FullMethodName                  = "/productv1.ProductService/MutationUpdateAuthor"
+	ProductService_MutationUpdateBlogPost_FullMethodName                = "/productv1.ProductService/MutationUpdateBlogPost"
+	ProductService_MutationUpdateNullableFieldsType_FullMethodName      = "/productv1.ProductService/MutationUpdateNullableFieldsType"
+	ProductService_QueryAllAuthors_FullMethodName                       = "/productv1.ProductService/QueryAllAuthors"
+	ProductService_QueryAllBlogPosts_FullMethodName                     = "/productv1.ProductService/QueryAllBlogPosts"
+	ProductService_QueryAllNullableFieldsTypes_FullMethodName           = "/productv1.ProductService/QueryAllNullableFieldsTypes"
+	ProductService_QueryAllPets_FullMethodName                          = "/productv1.ProductService/QueryAllPets"
+	ProductService_QueryAuthor_FullMethodName                           = "/productv1.ProductService/QueryAuthor"
+	ProductService_QueryAuthorById_FullMethodName                       = "/productv1.ProductService/QueryAuthorById"
+	ProductService_QueryAuthorsWithFilter_FullMethodName                = "/productv1.ProductService/QueryAuthorsWithFilter"
+	ProductService_QueryBlogPost_FullMethodName                         = "/productv1.ProductService/QueryBlogPost"
+	ProductService_QueryBlogPostById_FullMethodName                     = "/productv1.ProductService/QueryBlogPostById"
+	ProductService_QueryBlogPostsWithFilter_FullMethodName              = "/productv1.ProductService/QueryBlogPostsWithFilter"
+	ProductService_QueryBulkSearchAuthors_FullMethodName                = "/productv1.ProductService/QueryBulkSearchAuthors"
+	ProductService_QueryBulkSearchBlogPosts_FullMethodName              = "/productv1.ProductService/QueryBulkSearchBlogPosts"
+	ProductService_QueryCalculateTotals_FullMethodName                  = "/productv1.ProductService/QueryCalculateTotals"
+	ProductService_QueryCategories_FullMethodName                       = "/productv1.ProductService/QueryCategories"
+	ProductService_QueryCategoriesByKind_FullMethodName                 = "/productv1.ProductService/QueryCategoriesByKind"
+	ProductService_QueryCategoriesByKinds_FullMethodName                = "/productv1.ProductService/QueryCategoriesByKinds"
+	ProductService_QueryComplexFilterType_FullMethodName                = "/productv1.ProductService/QueryComplexFilterType"
+	ProductService_QueryFilterCategories_FullMethodName                 = "/productv1.ProductService/QueryFilterCategories"
+	ProductService_QueryNestedType_FullMethodName                       = "/productv1.ProductService/QueryNestedType"
+	ProductService_QueryNullableFieldsType_FullMethodName               = "/productv1.ProductService/QueryNullableFieldsType"
+	ProductService_QueryNullableFieldsTypeById_FullMethodName           = "/productv1.ProductService/QueryNullableFieldsTypeById"
+	ProductService_QueryNullableFieldsTypeWithFilter_FullMethodName     = "/productv1.ProductService/QueryNullableFieldsTypeWithFilter"
+	ProductService_QueryRandomPet_FullMethodName                        = "/productv1.ProductService/QueryRandomPet"
+	ProductService_QueryRandomSearchResult_FullMethodName               = "/productv1.ProductService/QueryRandomSearchResult"
+	ProductService_QueryRecursiveType_FullMethodName                    = "/productv1.ProductService/QueryRecursiveType"
+	ProductService_QuerySearch_FullMethodName                           = "/productv1.ProductService/QuerySearch"
+	ProductService_QueryTestContainer_FullMethodName                    = "/productv1.ProductService/QueryTestContainer"
+	ProductService_QueryTestContainers_FullMethodName                   = "/productv1.ProductService/QueryTestContainers"
+	ProductService_QueryTypeFilterWithArguments_FullMethodName          = "/productv1.ProductService/QueryTypeFilterWithArguments"
+	ProductService_QueryTypeWithMultipleFilterFields_FullMethodName     = "/productv1.ProductService/QueryTypeWithMultipleFilterFields"
+	ProductService_QueryUser_FullMethodName                             = "/productv1.ProductService/QueryUser"
+	ProductService_QueryUsers_FullMethodName                            = "/productv1.ProductService/QueryUsers"
+	ProductService_ResolveCategoryCategoryMetrics_FullMethodName        = "/productv1.ProductService/ResolveCategoryCategoryMetrics"
+	ProductService_ResolveCategoryCategoryStatus_FullMethodName         = "/productv1.ProductService/ResolveCategoryCategoryStatus"
+	ProductService_ResolveCategoryMascot_FullMethodName                 = "/productv1.ProductService/ResolveCategoryMascot"
+	ProductService_ResolveCategoryMetricsNormalizedScore_FullMethodName = "/productv1.ProductService/ResolveCategoryMetricsNormalizedScore"
+	ProductService_ResolveCategoryPopularityScore_FullMethodName        = "/productv1.ProductService/ResolveCategoryPopularityScore"
+	ProductService_ResolveCategoryProductCount_FullMethodName           = "/productv1.ProductService/ResolveCategoryProductCount"
+	ProductService_ResolveProductMascotRecommendation_FullMethodName    = "/productv1.ProductService/ResolveProductMascotRecommendation"
+	ProductService_ResolveProductProductDetails_FullMethodName          = "/productv1.ProductService/ResolveProductProductDetails"
+	ProductService_ResolveProductRecommendedCategory_FullMethodName     = "/productv1.ProductService/ResolveProductRecommendedCategory"
+	ProductService_ResolveProductShippingEstimate_FullMethodName        = "/productv1.ProductService/ResolveProductShippingEstimate"
+	ProductService_ResolveProductStockStatus_FullMethodName             = "/productv1.ProductService/ResolveProductStockStatus"
+	ProductService_ResolveSubcategoryItemCount_FullMethodName           = "/productv1.ProductService/ResolveSubcategoryItemCount"
+	ProductService_ResolveTestContainerDetails_FullMethodName           = "/productv1.ProductService/ResolveTestContainerDetails"
 )
 
 // ProductServiceClient is the client API for ProductService service.
@@ -122,16 +131,25 @@ type ProductServiceClient interface {
 	QueryRandomSearchResult(ctx context.Context, in *QueryRandomSearchResultRequest, opts ...grpc.CallOption) (*QueryRandomSearchResultResponse, error)
 	QueryRecursiveType(ctx context.Context, in *QueryRecursiveTypeRequest, opts ...grpc.CallOption) (*QueryRecursiveTypeResponse, error)
 	QuerySearch(ctx context.Context, in *QuerySearchRequest, opts ...grpc.CallOption) (*QuerySearchResponse, error)
+	QueryTestContainer(ctx context.Context, in *QueryTestContainerRequest, opts ...grpc.CallOption) (*QueryTestContainerResponse, error)
+	QueryTestContainers(ctx context.Context, in *QueryTestContainersRequest, opts ...grpc.CallOption) (*QueryTestContainersResponse, error)
 	QueryTypeFilterWithArguments(ctx context.Context, in *QueryTypeFilterWithArgumentsRequest, opts ...grpc.CallOption) (*QueryTypeFilterWithArgumentsResponse, error)
 	QueryTypeWithMultipleFilterFields(ctx context.Context, in *QueryTypeWithMultipleFilterFieldsRequest, opts ...grpc.CallOption) (*QueryTypeWithMultipleFilterFieldsResponse, error)
 	QueryUser(ctx context.Context, in *QueryUserRequest, opts ...grpc.CallOption) (*QueryUserResponse, error)
 	QueryUsers(ctx context.Context, in *QueryUsersRequest, opts ...grpc.CallOption) (*QueryUsersResponse, error)
 	ResolveCategoryCategoryMetrics(ctx context.Context, in *ResolveCategoryCategoryMetricsRequest, opts ...grpc.CallOption) (*ResolveCategoryCategoryMetricsResponse, error)
+	ResolveCategoryCategoryStatus(ctx context.Context, in *ResolveCategoryCategoryStatusRequest, opts ...grpc.CallOption) (*ResolveCategoryCategoryStatusResponse, error)
+	ResolveCategoryMascot(ctx context.Context, in *ResolveCategoryMascotRequest, opts ...grpc.CallOption) (*ResolveCategoryMascotResponse, error)
+	ResolveCategoryMetricsNormalizedScore(ctx context.Context, in *ResolveCategoryMetricsNormalizedScoreRequest, opts ...grpc.CallOption) (*ResolveCategoryMetricsNormalizedScoreResponse, error)
 	ResolveCategoryPopularityScore(ctx context.Context, in *ResolveCategoryPopularityScoreRequest, opts ...grpc.CallOption) (*ResolveCategoryPopularityScoreResponse, error)
 	ResolveCategoryProductCount(ctx context.Context, in *ResolveCategoryProductCountRequest, opts ...grpc.CallOption) (*ResolveCategoryProductCountResponse, error)
+	ResolveProductMascotRecommendation(ctx context.Context, in *ResolveProductMascotRecommendationRequest, opts ...grpc.CallOption) (*ResolveProductMascotRecommendationResponse, error)
+	ResolveProductProductDetails(ctx context.Context, in *ResolveProductProductDetailsRequest, opts ...grpc.CallOption) (*ResolveProductProductDetailsResponse, error)
 	ResolveProductRecommendedCategory(ctx context.Context, in *ResolveProductRecommendedCategoryRequest, opts ...grpc.CallOption) (*ResolveProductRecommendedCategoryResponse, error)
 	ResolveProductShippingEstimate(ctx context.Context, in *ResolveProductShippingEstimateRequest, opts ...grpc.CallOption) (*ResolveProductShippingEstimateResponse, error)
+	ResolveProductStockStatus(ctx context.Context, in *ResolveProductStockStatusRequest, opts ...grpc.CallOption) (*ResolveProductStockStatusResponse, error)
 	ResolveSubcategoryItemCount(ctx context.Context, in *ResolveSubcategoryItemCountRequest, opts ...grpc.CallOption) (*ResolveSubcategoryItemCountResponse, error)
+	ResolveTestContainerDetails(ctx context.Context, in *ResolveTestContainerDetailsRequest, opts ...grpc.CallOption) (*ResolveTestContainerDetailsResponse, error)
 }
 
 type productServiceClient struct {
@@ -552,6 +570,26 @@ func (c *productServiceClient) QuerySearch(ctx context.Context, in *QuerySearchR
 	return out, nil
 }
 
+func (c *productServiceClient) QueryTestContainer(ctx context.Context, in *QueryTestContainerRequest, opts ...grpc.CallOption) (*QueryTestContainerResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryTestContainerResponse)
+	err := c.cc.Invoke(ctx, ProductService_QueryTestContainer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) QueryTestContainers(ctx context.Context, in *QueryTestContainersRequest, opts ...grpc.CallOption) (*QueryTestContainersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryTestContainersResponse)
+	err := c.cc.Invoke(ctx, ProductService_QueryTestContainers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *productServiceClient) QueryTypeFilterWithArguments(ctx context.Context, in *QueryTypeFilterWithArgumentsRequest, opts ...grpc.CallOption) (*QueryTypeFilterWithArgumentsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(QueryTypeFilterWithArgumentsResponse)
@@ -602,6 +640,36 @@ func (c *productServiceClient) ResolveCategoryCategoryMetrics(ctx context.Contex
 	return out, nil
 }
 
+func (c *productServiceClient) ResolveCategoryCategoryStatus(ctx context.Context, in *ResolveCategoryCategoryStatusRequest, opts ...grpc.CallOption) (*ResolveCategoryCategoryStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveCategoryCategoryStatusResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveCategoryCategoryStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) ResolveCategoryMascot(ctx context.Context, in *ResolveCategoryMascotRequest, opts ...grpc.CallOption) (*ResolveCategoryMascotResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveCategoryMascotResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveCategoryMascot_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) ResolveCategoryMetricsNormalizedScore(ctx context.Context, in *ResolveCategoryMetricsNormalizedScoreRequest, opts ...grpc.CallOption) (*ResolveCategoryMetricsNormalizedScoreResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveCategoryMetricsNormalizedScoreResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveCategoryMetricsNormalizedScore_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *productServiceClient) ResolveCategoryPopularityScore(ctx context.Context, in *ResolveCategoryPopularityScoreRequest, opts ...grpc.CallOption) (*ResolveCategoryPopularityScoreResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ResolveCategoryPopularityScoreResponse)
@@ -616,6 +684,26 @@ func (c *productServiceClient) ResolveCategoryProductCount(ctx context.Context, 
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ResolveCategoryProductCountResponse)
 	err := c.cc.Invoke(ctx, ProductService_ResolveCategoryProductCount_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) ResolveProductMascotRecommendation(ctx context.Context, in *ResolveProductMascotRecommendationRequest, opts ...grpc.CallOption) (*ResolveProductMascotRecommendationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveProductMascotRecommendationResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveProductMascotRecommendation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) ResolveProductProductDetails(ctx context.Context, in *ResolveProductProductDetailsRequest, opts ...grpc.CallOption) (*ResolveProductProductDetailsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveProductProductDetailsResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveProductProductDetails_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -642,10 +730,30 @@ func (c *productServiceClient) ResolveProductShippingEstimate(ctx context.Contex
 	return out, nil
 }
 
+func (c *productServiceClient) ResolveProductStockStatus(ctx context.Context, in *ResolveProductStockStatusRequest, opts ...grpc.CallOption) (*ResolveProductStockStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveProductStockStatusResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveProductStockStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *productServiceClient) ResolveSubcategoryItemCount(ctx context.Context, in *ResolveSubcategoryItemCountRequest, opts ...grpc.CallOption) (*ResolveSubcategoryItemCountResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ResolveSubcategoryItemCountResponse)
 	err := c.cc.Invoke(ctx, ProductService_ResolveSubcategoryItemCount_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) ResolveTestContainerDetails(ctx context.Context, in *ResolveTestContainerDetailsRequest, opts ...grpc.CallOption) (*ResolveTestContainerDetailsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveTestContainerDetailsResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveTestContainerDetails_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -702,16 +810,25 @@ type ProductServiceServer interface {
 	QueryRandomSearchResult(context.Context, *QueryRandomSearchResultRequest) (*QueryRandomSearchResultResponse, error)
 	QueryRecursiveType(context.Context, *QueryRecursiveTypeRequest) (*QueryRecursiveTypeResponse, error)
 	QuerySearch(context.Context, *QuerySearchRequest) (*QuerySearchResponse, error)
+	QueryTestContainer(context.Context, *QueryTestContainerRequest) (*QueryTestContainerResponse, error)
+	QueryTestContainers(context.Context, *QueryTestContainersRequest) (*QueryTestContainersResponse, error)
 	QueryTypeFilterWithArguments(context.Context, *QueryTypeFilterWithArgumentsRequest) (*QueryTypeFilterWithArgumentsResponse, error)
 	QueryTypeWithMultipleFilterFields(context.Context, *QueryTypeWithMultipleFilterFieldsRequest) (*QueryTypeWithMultipleFilterFieldsResponse, error)
 	QueryUser(context.Context, *QueryUserRequest) (*QueryUserResponse, error)
 	QueryUsers(context.Context, *QueryUsersRequest) (*QueryUsersResponse, error)
 	ResolveCategoryCategoryMetrics(context.Context, *ResolveCategoryCategoryMetricsRequest) (*ResolveCategoryCategoryMetricsResponse, error)
+	ResolveCategoryCategoryStatus(context.Context, *ResolveCategoryCategoryStatusRequest) (*ResolveCategoryCategoryStatusResponse, error)
+	ResolveCategoryMascot(context.Context, *ResolveCategoryMascotRequest) (*ResolveCategoryMascotResponse, error)
+	ResolveCategoryMetricsNormalizedScore(context.Context, *ResolveCategoryMetricsNormalizedScoreRequest) (*ResolveCategoryMetricsNormalizedScoreResponse, error)
 	ResolveCategoryPopularityScore(context.Context, *ResolveCategoryPopularityScoreRequest) (*ResolveCategoryPopularityScoreResponse, error)
 	ResolveCategoryProductCount(context.Context, *ResolveCategoryProductCountRequest) (*ResolveCategoryProductCountResponse, error)
+	ResolveProductMascotRecommendation(context.Context, *ResolveProductMascotRecommendationRequest) (*ResolveProductMascotRecommendationResponse, error)
+	ResolveProductProductDetails(context.Context, *ResolveProductProductDetailsRequest) (*ResolveProductProductDetailsResponse, error)
 	ResolveProductRecommendedCategory(context.Context, *ResolveProductRecommendedCategoryRequest) (*ResolveProductRecommendedCategoryResponse, error)
 	ResolveProductShippingEstimate(context.Context, *ResolveProductShippingEstimateRequest) (*ResolveProductShippingEstimateResponse, error)
+	ResolveProductStockStatus(context.Context, *ResolveProductStockStatusRequest) (*ResolveProductStockStatusResponse, error)
 	ResolveSubcategoryItemCount(context.Context, *ResolveSubcategoryItemCountRequest) (*ResolveSubcategoryItemCountResponse, error)
+	ResolveTestContainerDetails(context.Context, *ResolveTestContainerDetailsRequest) (*ResolveTestContainerDetailsResponse, error)
 	mustEmbedUnimplementedProductServiceServer()
 }
 
@@ -845,6 +962,12 @@ func (UnimplementedProductServiceServer) QueryRecursiveType(context.Context, *Qu
 func (UnimplementedProductServiceServer) QuerySearch(context.Context, *QuerySearchRequest) (*QuerySearchResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method QuerySearch not implemented")
 }
+func (UnimplementedProductServiceServer) QueryTestContainer(context.Context, *QueryTestContainerRequest) (*QueryTestContainerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method QueryTestContainer not implemented")
+}
+func (UnimplementedProductServiceServer) QueryTestContainers(context.Context, *QueryTestContainersRequest) (*QueryTestContainersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method QueryTestContainers not implemented")
+}
 func (UnimplementedProductServiceServer) QueryTypeFilterWithArguments(context.Context, *QueryTypeFilterWithArgumentsRequest) (*QueryTypeFilterWithArgumentsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method QueryTypeFilterWithArguments not implemented")
 }
@@ -860,11 +983,26 @@ func (UnimplementedProductServiceServer) QueryUsers(context.Context, *QueryUsers
 func (UnimplementedProductServiceServer) ResolveCategoryCategoryMetrics(context.Context, *ResolveCategoryCategoryMetricsRequest) (*ResolveCategoryCategoryMetricsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResolveCategoryCategoryMetrics not implemented")
 }
+func (UnimplementedProductServiceServer) ResolveCategoryCategoryStatus(context.Context, *ResolveCategoryCategoryStatusRequest) (*ResolveCategoryCategoryStatusResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResolveCategoryCategoryStatus not implemented")
+}
+func (UnimplementedProductServiceServer) ResolveCategoryMascot(context.Context, *ResolveCategoryMascotRequest) (*ResolveCategoryMascotResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResolveCategoryMascot not implemented")
+}
+func (UnimplementedProductServiceServer) ResolveCategoryMetricsNormalizedScore(context.Context, *ResolveCategoryMetricsNormalizedScoreRequest) (*ResolveCategoryMetricsNormalizedScoreResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResolveCategoryMetricsNormalizedScore not implemented")
+}
 func (UnimplementedProductServiceServer) ResolveCategoryPopularityScore(context.Context, *ResolveCategoryPopularityScoreRequest) (*ResolveCategoryPopularityScoreResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResolveCategoryPopularityScore not implemented")
 }
 func (UnimplementedProductServiceServer) ResolveCategoryProductCount(context.Context, *ResolveCategoryProductCountRequest) (*ResolveCategoryProductCountResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResolveCategoryProductCount not implemented")
+}
+func (UnimplementedProductServiceServer) ResolveProductMascotRecommendation(context.Context, *ResolveProductMascotRecommendationRequest) (*ResolveProductMascotRecommendationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResolveProductMascotRecommendation not implemented")
+}
+func (UnimplementedProductServiceServer) ResolveProductProductDetails(context.Context, *ResolveProductProductDetailsRequest) (*ResolveProductProductDetailsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResolveProductProductDetails not implemented")
 }
 func (UnimplementedProductServiceServer) ResolveProductRecommendedCategory(context.Context, *ResolveProductRecommendedCategoryRequest) (*ResolveProductRecommendedCategoryResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResolveProductRecommendedCategory not implemented")
@@ -872,8 +1010,14 @@ func (UnimplementedProductServiceServer) ResolveProductRecommendedCategory(conte
 func (UnimplementedProductServiceServer) ResolveProductShippingEstimate(context.Context, *ResolveProductShippingEstimateRequest) (*ResolveProductShippingEstimateResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResolveProductShippingEstimate not implemented")
 }
+func (UnimplementedProductServiceServer) ResolveProductStockStatus(context.Context, *ResolveProductStockStatusRequest) (*ResolveProductStockStatusResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResolveProductStockStatus not implemented")
+}
 func (UnimplementedProductServiceServer) ResolveSubcategoryItemCount(context.Context, *ResolveSubcategoryItemCountRequest) (*ResolveSubcategoryItemCountResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResolveSubcategoryItemCount not implemented")
+}
+func (UnimplementedProductServiceServer) ResolveTestContainerDetails(context.Context, *ResolveTestContainerDetailsRequest) (*ResolveTestContainerDetailsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResolveTestContainerDetails not implemented")
 }
 func (UnimplementedProductServiceServer) mustEmbedUnimplementedProductServiceServer() {}
 func (UnimplementedProductServiceServer) testEmbeddedByValue()                        {}
@@ -1634,6 +1778,42 @@ func _ProductService_QuerySearch_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_QueryTestContainer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryTestContainerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).QueryTestContainer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_QueryTestContainer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).QueryTestContainer(ctx, req.(*QueryTestContainerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_QueryTestContainers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryTestContainersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).QueryTestContainers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_QueryTestContainers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).QueryTestContainers(ctx, req.(*QueryTestContainersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProductService_QueryTypeFilterWithArguments_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(QueryTypeFilterWithArgumentsRequest)
 	if err := dec(in); err != nil {
@@ -1724,6 +1904,60 @@ func _ProductService_ResolveCategoryCategoryMetrics_Handler(srv interface{}, ctx
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_ResolveCategoryCategoryStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveCategoryCategoryStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveCategoryCategoryStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveCategoryCategoryStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveCategoryCategoryStatus(ctx, req.(*ResolveCategoryCategoryStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_ResolveCategoryMascot_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveCategoryMascotRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveCategoryMascot(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveCategoryMascot_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveCategoryMascot(ctx, req.(*ResolveCategoryMascotRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_ResolveCategoryMetricsNormalizedScore_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveCategoryMetricsNormalizedScoreRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveCategoryMetricsNormalizedScore(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveCategoryMetricsNormalizedScore_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveCategoryMetricsNormalizedScore(ctx, req.(*ResolveCategoryMetricsNormalizedScoreRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProductService_ResolveCategoryPopularityScore_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ResolveCategoryPopularityScoreRequest)
 	if err := dec(in); err != nil {
@@ -1756,6 +1990,42 @@ func _ProductService_ResolveCategoryProductCount_Handler(srv interface{}, ctx co
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProductServiceServer).ResolveCategoryProductCount(ctx, req.(*ResolveCategoryProductCountRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_ResolveProductMascotRecommendation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveProductMascotRecommendationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveProductMascotRecommendation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveProductMascotRecommendation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveProductMascotRecommendation(ctx, req.(*ResolveProductMascotRecommendationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_ResolveProductProductDetails_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveProductProductDetailsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveProductProductDetails(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveProductProductDetails_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveProductProductDetails(ctx, req.(*ResolveProductProductDetailsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1796,6 +2066,24 @@ func _ProductService_ResolveProductShippingEstimate_Handler(srv interface{}, ctx
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_ResolveProductStockStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveProductStockStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveProductStockStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveProductStockStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveProductStockStatus(ctx, req.(*ResolveProductStockStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProductService_ResolveSubcategoryItemCount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ResolveSubcategoryItemCountRequest)
 	if err := dec(in); err != nil {
@@ -1810,6 +2098,24 @@ func _ProductService_ResolveSubcategoryItemCount_Handler(srv interface{}, ctx co
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProductServiceServer).ResolveSubcategoryItemCount(ctx, req.(*ResolveSubcategoryItemCountRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_ResolveTestContainerDetails_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveTestContainerDetailsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveTestContainerDetails(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveTestContainerDetails_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveTestContainerDetails(ctx, req.(*ResolveTestContainerDetailsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1986,6 +2292,14 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ProductService_QuerySearch_Handler,
 		},
 		{
+			MethodName: "QueryTestContainer",
+			Handler:    _ProductService_QueryTestContainer_Handler,
+		},
+		{
+			MethodName: "QueryTestContainers",
+			Handler:    _ProductService_QueryTestContainers_Handler,
+		},
+		{
 			MethodName: "QueryTypeFilterWithArguments",
 			Handler:    _ProductService_QueryTypeFilterWithArguments_Handler,
 		},
@@ -2006,12 +2320,32 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ProductService_ResolveCategoryCategoryMetrics_Handler,
 		},
 		{
+			MethodName: "ResolveCategoryCategoryStatus",
+			Handler:    _ProductService_ResolveCategoryCategoryStatus_Handler,
+		},
+		{
+			MethodName: "ResolveCategoryMascot",
+			Handler:    _ProductService_ResolveCategoryMascot_Handler,
+		},
+		{
+			MethodName: "ResolveCategoryMetricsNormalizedScore",
+			Handler:    _ProductService_ResolveCategoryMetricsNormalizedScore_Handler,
+		},
+		{
 			MethodName: "ResolveCategoryPopularityScore",
 			Handler:    _ProductService_ResolveCategoryPopularityScore_Handler,
 		},
 		{
 			MethodName: "ResolveCategoryProductCount",
 			Handler:    _ProductService_ResolveCategoryProductCount_Handler,
+		},
+		{
+			MethodName: "ResolveProductMascotRecommendation",
+			Handler:    _ProductService_ResolveProductMascotRecommendation_Handler,
+		},
+		{
+			MethodName: "ResolveProductProductDetails",
+			Handler:    _ProductService_ResolveProductProductDetails_Handler,
 		},
 		{
 			MethodName: "ResolveProductRecommendedCategory",
@@ -2022,8 +2356,16 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ProductService_ResolveProductShippingEstimate_Handler,
 		},
 		{
+			MethodName: "ResolveProductStockStatus",
+			Handler:    _ProductService_ResolveProductStockStatus_Handler,
+		},
+		{
 			MethodName: "ResolveSubcategoryItemCount",
 			Handler:    _ProductService_ResolveSubcategoryItemCount_Handler,
+		},
+		{
+			MethodName: "ResolveTestContainerDetails",
+			Handler:    _ProductService_ResolveTestContainerDetails_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
