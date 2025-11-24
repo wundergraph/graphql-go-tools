@@ -1048,6 +1048,7 @@ func (r *rpcPlanningContext) buildFieldResolverTypeMessage(typeName string, reso
 		Name: typeName,
 	}
 
+	// If the resolved field returns a composite type we need to handle the selection set for the inline fragment.
 	if len(resolverField.fragmentSelections) > 0 {
 		message.FieldSelectionSet = make(RPCFieldSelectionSet, len(resolverField.fragmentSelections))
 		message.OneOfType = resolverField.fragmentType
@@ -1070,10 +1071,13 @@ func (r *rpcPlanningContext) buildFieldResolverTypeMessage(typeName string, reso
 		return message, nil
 	}
 
+	// field resolvers which return a non scalar type must have a selection set.
+	// If we don't have a selection set we return an error.
 	if resolverField.fieldsSelectionSetRef == ast.InvalidRef {
 		return nil, errors.New("unable to resolve required fields: no fields selection set found")
 	}
 
+	// If the resolved field does not return a composite type we handle the selection set for the required field.
 	parentTypeNode, found := r.definition.NodeByNameStr(typeName)
 	if !found {
 		return nil, fmt.Errorf("parent type node not found for type %s", typeName)
