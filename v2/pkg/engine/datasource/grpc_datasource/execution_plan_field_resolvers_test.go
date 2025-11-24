@@ -2194,6 +2194,7 @@ func TestExecutionPlanFieldResolvers_WithCompositeTypes(t *testing.T) {
 }
 
 func TestExecutionPlanFieldResolvers_CustomSchemas(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		operation     string
@@ -2379,7 +2380,6 @@ func TestExecutionPlanFieldResolvers_CustomSchemas(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-
 		operation := unsafeparser.ParseGraphqlDocumentString(tt.operation)
 
 		t.Run(tt.name, func(t *testing.T) {
