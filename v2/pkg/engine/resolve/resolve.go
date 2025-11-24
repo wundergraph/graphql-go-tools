@@ -387,6 +387,15 @@ type trigger struct {
 	subscriptions map[*Context]*sub
 	// initialized is set to true when the trigger is started and initialized
 	initialized bool
+	updater     *subscriptionUpdater
+}
+
+func (t *trigger) subscriptionIds() map[context.Context]SubscriptionIdentifier {
+	subs := make(map[context.Context]SubscriptionIdentifier, len(t.subscriptions))
+	for ctx, sub := range t.subscriptions {
+		subs[ctx.Context()] = sub.id
+	}
+	return subs
 }
 
 // workItem is used to encapsulate a function that needs to be
@@ -603,6 +612,8 @@ func (r *Resolver) handleEvent(event subscriptionEvent) {
 		r.handleCompleteSubscription(event.id)
 	case subscriptionEventKindRemoveClient:
 		r.handleRemoveClient(event.id.ConnectionID)
+	case subscriptionEventKindUpdateSubscription:
+		r.handleUpdateSubscription(event.triggerID, event.data, event.id)
 	case subscriptionEventKindTriggerUpdate:
 		r.handleTriggerUpdate(event.triggerID, event.data)
 	case subscriptionEventKindTriggerComplete:
@@ -677,6 +688,36 @@ func (r *Resolver) handleTriggerComplete(triggerID uint64) {
 	r.completeTrigger(triggerID)
 }
 
+type StartupHookContext struct {
+	Context context.Context
+	Updater func(data []byte)
+}
+
+func (r *Resolver) executeStartupHooks(add *addSubscription, updater *subscriptionUpdater) error {
+	hook, ok := add.resolve.Trigger.Source.(HookableSubscriptionDataSource)
+	if ok {
+		hookCtx := StartupHookContext{
+			Context: add.ctx.Context(),
+			Updater: func(data []byte) {
+				// Writing on the updater channel is safe but has to happen outside of the event loop
+				// to respect order and not block the event loop
+				updater.UpdateSubscription(add.id, data)
+			},
+		}
+
+		err := hook.SubscriptionOnStart(hookCtx, add.input)
+		if err != nil {
+			if r.options.Debug {
+				fmt.Printf("resolver:trigger:subscription:startup:failed:%d\n", add.id.SubscriptionID)
+			}
+			r.asyncErrorWriter.WriteError(add.ctx, err, add.resolve.Response, add.writer)
+			_ = r.AsyncUnsubscribeSubscription(add.id)
+			return err
+		}
+	}
+	return nil
+}
+
 func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription) {
 	var (
 		err error
@@ -704,13 +745,23 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 
 	trig, ok := r.triggers[triggerID]
 	if ok {
-		trig.subscriptions[add.ctx] = s
 		if r.reporter != nil {
 			r.reporter.SubscriptionCountInc(1)
 		}
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:added:%d:%d\n", triggerID, add.id.SubscriptionID)
 		}
+		// Execute the startup hooks in a separate goroutine to avoid blocking the event loop
+		s.workChan <- workItem{
+			fn: func() {
+				_ = r.executeStartupHooks(add, trig.updater)
+				// if the startup hooks return an error, we don't have to do anything else
+			},
+			final: false,
+		}
+		// After the startup hooks are executed, we can add the subscription to the subscriptions registry
+		// so that it can start receive events
+		trig.subscriptions[add.ctx] = s
 		return
 	}
 
@@ -729,9 +780,11 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		id:            triggerID,
 		subscriptions: make(map[*Context]*sub),
 		cancel:        cancel,
+		updater:       updater,
 	}
 	r.triggers[triggerID] = trig
 	trig.subscriptions[add.ctx] = s
+	updater.subsFn = trig.subscriptionIds
 
 	if r.reporter != nil {
 		r.reporter.SubscriptionCountInc(1)
@@ -751,10 +804,17 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:start:%d\n", triggerID)
 		}
+
+		// This is blocking so the startup hook can decide if a subscription should be started or not by returning an error
+		err = r.executeStartupHooks(add, trig.updater)
+		if err != nil {
+			return
+		}
+
 		if asyncDataSource != nil {
-			err = asyncDataSource.AsyncStart(cloneCtx, triggerID, add.headers, add.input, updater)
+			err = asyncDataSource.AsyncStart(cloneCtx, triggerID, add.headers, add.input, trig.updater)
 		} else {
-			err = add.resolve.Trigger.Source.Start(cloneCtx, add.headers, add.input, updater)
+			err = add.resolve.Trigger.Source.Start(cloneCtx, add.headers, add.input, trig.updater)
 		}
 		if err != nil {
 			if r.options.Debug {
@@ -875,32 +935,54 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 	}
 
 	for c, s := range trig.subscriptions {
-		c, s := c, s
-		if err := c.ctx.Err(); err != nil {
-			continue // no need to schedule an event update when the client already disconnected
-		}
-		skip, err := s.resolve.Filter.SkipEvent(c, data, r.triggerUpdateBuf)
-		if err != nil {
-			r.asyncErrorWriter.WriteError(c, err, s.resolve.Response, s.writer)
+		r.sendUpdateToSubscription(data, c, s)
+	}
+}
+
+func (r *Resolver) handleUpdateSubscription(id uint64, data []byte, subIdentifier SubscriptionIdentifier) {
+	trig, ok := r.triggers[id]
+	if !ok {
+		return
+	}
+
+	if r.options.Debug {
+		fmt.Printf("resolver:trigger:subscription:update:%d:%d,%d\n", id, subIdentifier.ConnectionID, subIdentifier.SubscriptionID)
+	}
+
+	for c, s := range trig.subscriptions {
+		if s.id != subIdentifier {
 			continue
 		}
-		if skip {
-			continue
-		}
+		r.sendUpdateToSubscription(data, c, s)
+		break
+	}
+}
 
-		fn := func() {
-			r.executeSubscriptionUpdate(c, s, data)
-		}
+func (r *Resolver) sendUpdateToSubscription(data []byte, c *Context, s *sub) {
+	if err := c.ctx.Err(); err != nil {
+		return // no need to schedule an event update when the client already disconnected
+	}
+	skip, err := s.resolve.Filter.SkipEvent(c, data, r.triggerUpdateBuf)
+	if err != nil {
+		r.asyncErrorWriter.WriteError(c, err, s.resolve.Response, s.writer)
+		return
+	}
+	if skip {
+		return
+	}
 
-		select {
-		case <-r.ctx.Done():
-			// Skip sending all events if the resolver is shutting down
-			return
-		case <-c.ctx.Done():
-			// Skip sending the event if the client disconnected
-		case s.workChan <- workItem{fn, false}:
-			// Send the event to the subscription worker
-		}
+	fn := func() {
+		r.executeSubscriptionUpdate(c, s, data)
+	}
+
+	select {
+	case <-r.ctx.Done():
+		// Skip sending all events if the resolver is shutting down
+		return
+	case <-c.ctx.Done():
+		// Skip sending the event if the client disconnected
+	case s.workChan <- workItem{fn, false}:
+		// Send the event to the subscription worker
 	}
 }
 
@@ -1310,6 +1392,7 @@ type subscriptionUpdater struct {
 	triggerID uint64
 	ch        chan subscriptionEvent
 	ctx       context.Context
+	subsFn    func() map[context.Context]SubscriptionIdentifier
 }
 
 func (s *subscriptionUpdater) Update(data []byte) {
@@ -1327,6 +1410,28 @@ func (s *subscriptionUpdater) Update(data []byte) {
 		data:      data,
 	}:
 	}
+}
+
+func (s *subscriptionUpdater) UpdateSubscription(id SubscriptionIdentifier, data []byte) {
+	if s.debug {
+		fmt.Printf("resolver:subscription_updater:update:%d\n", s.triggerID)
+	}
+
+	select {
+	case <-s.ctx.Done():
+		// Skip sending events if trigger is already done
+		return
+	case s.ch <- subscriptionEvent{
+		triggerID: s.triggerID,
+		kind:      subscriptionEventKindUpdateSubscription,
+		data:      data,
+		id:        id,
+	}:
+	}
+}
+
+func (s *subscriptionUpdater) Subscriptions() map[context.Context]SubscriptionIdentifier {
+	return s.subsFn()
 }
 
 func (s *subscriptionUpdater) Complete() {
@@ -1374,6 +1479,30 @@ func (s *subscriptionUpdater) Close(kind SubscriptionCloseKind) {
 	}
 }
 
+func (s *subscriptionUpdater) CloseSubscription(kind SubscriptionCloseKind, id SubscriptionIdentifier) {
+	if s.debug {
+		fmt.Printf("resolver:subscription_updater:close:%d\n", s.triggerID)
+	}
+
+	select {
+	case <-s.ctx.Done():
+		// Skip sending events if trigger is already done
+		if s.debug {
+			fmt.Printf("resolver:subscription_updater:close:skip:%d\n", s.triggerID)
+		}
+		return
+	case s.ch <- subscriptionEvent{
+		triggerID: s.triggerID,
+		kind:      subscriptionEventKindRemoveSubscription,
+		closeKind: kind,
+		id:        id,
+	}:
+		if s.debug {
+			fmt.Printf("resolver:subscription_updater:close:sent_event:%d\n", s.triggerID)
+		}
+	}
+}
+
 type subscriptionEvent struct {
 	triggerID       uint64
 	id              SubscriptionIdentifier
@@ -1406,13 +1535,20 @@ const (
 	subscriptionEventKindRemoveClient
 	subscriptionEventKindTriggerInitialized
 	subscriptionEventKindTriggerClose
+	subscriptionEventKindUpdateSubscription
 )
 
 type SubscriptionUpdater interface {
 	// Update sends an update to the client. It is not guaranteed that the update is sent immediately.
 	Update(data []byte)
+	// UpdateSubscription sends an update to a single subscription. It is not guaranteed that the update is sent immediately.
+	UpdateSubscription(id SubscriptionIdentifier, data []byte)
 	// Complete also takes care of cleaning up the trigger and all subscriptions. No more updates should be sent after calling Complete.
 	Complete()
 	// Close closes the subscription and cleans up the trigger and all subscriptions. No more updates should be sent after calling Close.
 	Close(kind SubscriptionCloseKind)
+	// CloseSubscription closes a single subscription. No more updates should be sent to that subscription after calling CloseSubscription.
+	CloseSubscription(kind SubscriptionCloseKind, id SubscriptionIdentifier)
+	// Subscriptions return all the subscriptions associated to this Updater
+	Subscriptions() map[context.Context]SubscriptionIdentifier
 }

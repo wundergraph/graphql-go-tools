@@ -4005,7 +4005,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Trigger: resolve.GraphQLSubscriptionTrigger{
 					Input: []byte(`{"url":"wss://swapi.com/graphql","body":{"query":"subscription{remainingJedis}"}}`),
 					Source: &SubscriptionSource{
-						NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, ctx),
+						client: NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, ctx),
 					},
 					PostProcessing: DefaultPostProcessingConfiguration,
 					SourceName:     "ds-id",
@@ -8242,7 +8242,6 @@ func (f *FailingSubscriptionClient) SubscribeAsync(ctx *resolve.Context, id uint
 }
 
 func (f *FailingSubscriptionClient) Unsubscribe(id uint64) {
-
 }
 
 func (f *FailingSubscriptionClient) Subscribe(ctx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
@@ -8269,6 +8268,19 @@ func (t *testSubscriptionUpdaterChan) Heartbeat() {
 
 func (t *testSubscriptionUpdaterChan) Update(data []byte) {
 	t.updates <- string(data)
+}
+
+// empty method to satisfy the interface, not used in this tests
+func (t *testSubscriptionUpdaterChan) UpdateSubscription(id resolve.SubscriptionIdentifier, data []byte) {
+}
+
+// empty method to satisfy the interface, not used in this tests
+func (t *testSubscriptionUpdaterChan) CloseSubscription(kind resolve.SubscriptionCloseKind, id resolve.SubscriptionIdentifier) {
+}
+
+// empty method to satisfy the interface, not used in this tests
+func (t *testSubscriptionUpdaterChan) Subscriptions() map[context.Context]resolve.SubscriptionIdentifier {
+	return make(map[context.Context]resolve.SubscriptionIdentifier)
 }
 
 func (t *testSubscriptionUpdaterChan) Complete() {
@@ -8394,6 +8406,19 @@ func (t *testSubscriptionUpdater) Close(kind resolve.SubscriptionCloseKind) {
 	t.mux.Lock()
 	defer t.mux.Unlock()
 	t.closed = true
+}
+
+// empty method to satisfy the interface, not used in this tests
+func (t *testSubscriptionUpdater) CloseSubscription(kind resolve.SubscriptionCloseKind, id resolve.SubscriptionIdentifier) {
+}
+
+// empty method to satisfy the interface, not used in this tests
+func (t *testSubscriptionUpdater) Subscriptions() map[context.Context]resolve.SubscriptionIdentifier {
+	return make(map[context.Context]resolve.SubscriptionIdentifier)
+}
+
+// empty method to satisfy the interface, not used in this tests
+func (t *testSubscriptionUpdater) UpdateSubscription(id resolve.SubscriptionIdentifier, data []byte) {
 }
 
 func TestSubscriptionSource_Start(t *testing.T) {
@@ -8968,6 +8993,60 @@ func TestSanitizeKey(t *testing.T) {
 			assert.Equal(t, test.expected, sanitizeKey(test.input))
 		})
 	}
+}
+
+func TestSubscriptionSource_SubscriptionOnStart(t *testing.T) {
+
+	t.Run("SubscriptionOnStart calls subscriptionOnStartFns", func(t *testing.T) {
+		ctx := resolve.StartupHookContext{
+			Context: context.Background(),
+			Updater: func(data []byte) {},
+		}
+
+		type fnData struct {
+			ctx   resolve.StartupHookContext
+			input []byte
+		}
+
+		startFnCalled := make(chan fnData, 1)
+		subscriptionSource := SubscriptionSource{
+			subscriptionOnStartFns: []SubscriptionOnStartFn{
+				func(ctx resolve.StartupHookContext, input []byte) error {
+					startFnCalled <- fnData{ctx, input}
+					return nil
+				},
+			},
+		}
+
+		err := subscriptionSource.SubscriptionOnStart(ctx, []byte(`{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`))
+		require.NoError(t, err)
+		var called fnData
+		select {
+		case called = <-startFnCalled:
+		case <-time.After(1 * time.Second):
+			t.Fatal("SubscriptionOnStartFn was not called")
+		}
+		assert.Equal(t, []byte(`{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`), called.input)
+	})
+
+	t.Run("SubscriptionOnStart calls subscriptionOnStartFns and returns error if one of the functions returns an error", func(t *testing.T) {
+		ctx := resolve.StartupHookContext{
+			Context: context.Background(),
+			Updater: func(data []byte) {},
+		}
+
+		subscriptionSource := SubscriptionSource{
+			subscriptionOnStartFns: []SubscriptionOnStartFn{
+				func(ctx resolve.StartupHookContext, input []byte) error {
+					return errors.New("test error")
+				},
+			},
+		}
+
+		err := subscriptionSource.SubscriptionOnStart(ctx, []byte(`{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`))
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "test error")
+	})
 }
 
 const interfaceSelectionSchema = `
