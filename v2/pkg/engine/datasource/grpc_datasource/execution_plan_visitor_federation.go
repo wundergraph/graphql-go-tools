@@ -208,7 +208,6 @@ func (r *rpcPlanVisitorFederation) EnterSelectionSet(ref int) {
 			return
 		}
 
-		// TODO: handle nested resolved fields.
 		r.resolvedFields[resolvedFieldAncestor].fieldsSelectionSetRef = ref
 		return
 	}

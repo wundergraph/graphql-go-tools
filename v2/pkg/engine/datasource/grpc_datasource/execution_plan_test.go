@@ -20,22 +20,20 @@ type testCase struct {
 	expectedError string
 }
 
-func runTest(t *testing.T, testCase testCase) {
-	// Parse the GraphQL schema
-	schemaDoc := grpctest.MustGraphQLSchema(t)
+type testConfig struct {
+	subgraphName string
+	mapping      *GRPCMapping
+	schemaDoc    ast.Document
+	operationDoc ast.Document
+}
 
-	// Parse the GraphQL query
-	queryDoc, report := astparser.ParseGraphqlDocumentString(testCase.query)
-	if report.HasErrors() {
-		t.Fatalf("failed to parse query: %s", report.Error())
-	}
-
+func runTestWithConfig(t *testing.T, testCase testCase, testConfig testConfig) {
 	rpcPlanVisitor := newRPCPlanVisitor(rpcPlanVisitorConfig{
-		subgraphName: "Products",
-		mapping:      testMapping(),
+		subgraphName: testConfig.subgraphName,
+		mapping:      testConfig.mapping,
 	})
 
-	plan, err := rpcPlanVisitor.PlanOperation(&queryDoc, &schemaDoc)
+	plan, err := rpcPlanVisitor.PlanOperation(&testConfig.operationDoc, &testConfig.schemaDoc)
 
 	if err != nil {
 		require.NotEmpty(t, testCase.expectedError, "expected error to be empty, got: %s", err.Error())
@@ -48,6 +46,24 @@ func runTest(t *testing.T, testCase testCase) {
 	if diff != "" {
 		t.Fatalf("execution plan mismatch: %s", diff)
 	}
+}
+
+func runTest(t *testing.T, testCase testCase) {
+	// Parse the GraphQL schema
+	schemaDoc := grpctest.MustGraphQLSchema(t)
+
+	// Parse the GraphQL query
+	queryDoc, report := astparser.ParseGraphqlDocumentString(testCase.query)
+	if report.HasErrors() {
+		t.Fatalf("failed to parse query: %s", report.Error())
+	}
+
+	runTestWithConfig(t, testCase, testConfig{
+		subgraphName: "Products",
+		mapping:      testMapping(),
+		schemaDoc:    schemaDoc,
+		operationDoc: queryDoc,
+	})
 }
 
 // buildPath builds a path from a string which is a dot-separated list of field names.

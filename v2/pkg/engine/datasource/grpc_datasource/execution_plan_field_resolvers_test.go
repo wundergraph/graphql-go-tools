@@ -2,6 +2,11 @@ package grpcdatasource
 
 import (
 	"testing"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 func TestExecutionPlanFieldResolvers(t *testing.T) {
@@ -2185,5 +2190,316 @@ func TestExecutionPlanFieldResolvers_WithCompositeTypes(t *testing.T) {
 				expectedError: tt.expectedError,
 			})
 		})
+	}
+}
+
+func TestExecutionPlanFieldResolvers_CustomSchemas(t *testing.T) {
+	tests := []struct {
+		name          string
+		operation     string
+		schema        ast.Document
+		subgraphName  string
+		mapping       *GRPCMapping
+		expectedPlan  *RPCExecutionPlan
+		expectedError string
+	}{
+		{
+			name:         "Should not include nested resolvers in composite type selection set when building the execution plan",
+			subgraphName: "Foo",
+			operation: `
+			query FooQuery($foo: String!, $baz: String!) { 
+				foo { 
+					fooResolver(foo: $foo) { 
+						... on Baz { 
+							bazResolver(baz: $baz) 
+						}
+					}
+				}
+			}`,
+			schema:  schemaWithNestedResolverAndCompositeType(t),
+			mapping: mappingWithNestedResolverAndCompositeType(t),
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Foo",
+						MethodName:  "QueryFoo",
+						Request: RPCMessage{
+							Name: "QueryFooRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryFooResponse",
+							Fields: []RPCField{
+								{
+									Name:          "foo",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "foo",
+									Message: &RPCMessage{
+										Name:   "Foo",
+										Fields: RPCFields{},
+									},
+								},
+							},
+						},
+					},
+					{
+						Kind:           CallKindResolve,
+						DependentCalls: []int{0},
+						ResponsePath:   buildPath("foo.fooResolver"),
+						ServiceName:    "Foo",
+						MethodName:     "ResolveFooFooResolver",
+						Request: RPCMessage{
+							Name: "ResolveFooFooResolverRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveFooFooResolverContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("foo.id"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveFooFooResolverArgs",
+										Fields: []RPCField{
+											{
+												Name:          "foo",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "foo",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveFooFooResolverResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "result",
+									Message: &RPCMessage{
+										Name: "ResolveFooFooResolverResult",
+										Fields: RPCFields{
+											{
+												Name:          "foo_resolver",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "fooResolver",
+												Message: &RPCMessage{
+													Name:              "Bar",
+													FieldSelectionSet: RPCFieldSelectionSet{"Baz": {}},
+													OneOfType:         OneOfTypeInterface,
+													MemberTypes:       []string{"Baz"},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						Kind:           CallKindResolve,
+						DependentCalls: []int{1},
+						ResponsePath:   buildPath("foo.fooResolver.bazResolver"),
+						ServiceName:    "Foo",
+						MethodName:     "ResolveBazBazResolver",
+						Request: RPCMessage{
+							Name: "ResolveBazBazResolverRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveBazBazResolverContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("foo.fooResolver.id"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveBazBazResolverArgs",
+										Fields: []RPCField{
+											{
+												Name:          "baz",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "baz",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveBazBazResolverResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "result",
+									Message: &RPCMessage{
+										Name: "ResolveBazBazResolverResult",
+										Fields: RPCFields{
+											{
+												Name:          "baz_resolver",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "bazResolver",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+
+		operation := unsafeparser.ParseGraphqlDocumentString(tt.operation)
+
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			runTestWithConfig(t, testCase{
+				expectedPlan:  tt.expectedPlan,
+				expectedError: tt.expectedError,
+			}, testConfig{
+				subgraphName: tt.subgraphName,
+				mapping:      tt.mapping,
+				schemaDoc:    tt.schema,
+				operationDoc: operation,
+			})
+		})
+	}
+}
+
+func schemaWithNestedResolverAndCompositeType(t *testing.T) ast.Document {
+	schema := `
+
+scalar connect__FieldSet
+directive @connect__fieldResolver(context: connect__FieldSet!) on FIELD_DEFINITION
+
+schema {
+  query: Query
+}
+
+type Foo {
+  id: ID!
+  fooResolver(foo: String!): Bar! @connect__fieldResolver(context: "id")
+}
+
+interface Bar {
+	id: ID!
+}
+
+type Baz implements Bar {
+  id: ID!
+  bazResolver(baz: String!): String! @connect__fieldResolver(context: "id")
+}
+
+type Query {
+	foo: Foo!
+}`
+	doc := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(schema)
+
+	report := &operationreport.Report{}
+	astvalidation.DefaultDefinitionValidator().Validate(&doc, report)
+	if report.HasErrors() {
+		t.Fatalf("failed to validate schema: %s", report.Error())
+	}
+
+	return doc
+}
+
+func mappingWithNestedResolverAndCompositeType(_ *testing.T) *GRPCMapping {
+	return &GRPCMapping{
+		Service: "Foo",
+		QueryRPCs: RPCConfigMap[RPCConfig]{
+			"foo": {
+				RPC:      "QueryFoo",
+				Request:  "QueryFooRequest",
+				Response: "QueryFooResponse",
+			},
+		},
+		Fields: map[string]FieldMap{
+			"Query": {
+				"foo": {
+					TargetName: "foo",
+				},
+			},
+			"Foo": {
+				"id": {
+					TargetName: "id",
+				},
+				"fooResolver": {
+					TargetName: "foo_resolver",
+				},
+			},
+			"Baz": {
+				"id": {
+					TargetName: "id",
+				},
+				"bazResolver": {
+					TargetName: "baz_resolver",
+				},
+			},
+			"Bar": {
+				"id": {
+					TargetName: "id",
+				},
+			},
+		},
+		ResolveRPCs: RPCConfigMap[ResolveRPCMapping]{
+			"Foo": {
+				"fooResolver": {
+					FieldMappingData: FieldMapData{
+						TargetName: "foo_resolver",
+						ArgumentMappings: FieldArgumentMap{
+							"foo": "foo",
+						},
+					},
+					RPC:      "ResolveFooFooResolver",
+					Request:  "ResolveFooFooResolverRequest",
+					Response: "ResolveFooFooResolverResponse",
+				},
+			},
+			"Baz": {
+				"bazResolver": {
+					FieldMappingData: FieldMapData{
+						TargetName: "baz_resolver",
+						ArgumentMappings: FieldArgumentMap{
+							"baz": "baz",
+						},
+					},
+					RPC:      "ResolveBazBazResolver",
+					Request:  "ResolveBazBazResolverRequest",
+					Response: "ResolveBazBazResolverResponse",
+				},
+			},
+		},
 	}
 }

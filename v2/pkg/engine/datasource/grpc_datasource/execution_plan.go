@@ -760,7 +760,7 @@ func (r *rpcPlanningContext) buildFieldMessage(fieldTypeNode ast.Node, fieldRef 
 			return nil, fmt.Errorf("unable to resolve type node for inline fragment %s", typeName)
 		}
 
-		fields, err := r.buildCompositeField(inlineFragmentTypeNode, fragmentSelection{
+		fields, err := r.buildCompositeFields(inlineFragmentTypeNode, fragmentSelection{
 			typeName:        typeName,
 			selectionSetRef: selectionSetRef,
 		})
@@ -777,6 +777,10 @@ func (r *rpcPlanningContext) buildFieldMessage(fieldTypeNode ast.Node, fieldRef 
 	}
 
 	for _, fieldRef := range fieldRefs {
+		if r.isFieldResolver(fieldRef, false) {
+			continue
+		}
+
 		field, err := r.buildRequiredField(fieldTypeNode, fieldRef)
 		if err != nil {
 			return nil, err
@@ -1055,7 +1059,7 @@ func (r *rpcPlanningContext) buildFieldResolverTypeMessage(typeName string, reso
 				return nil, fmt.Errorf("unable to build composite field: underlying fragment type node not found for type %s", fragmentSelection.typeName)
 			}
 
-			fields, err := r.buildCompositeField(inlineFragmentTypeNode, fragmentSelection)
+			fields, err := r.buildCompositeFields(inlineFragmentTypeNode, fragmentSelection)
 			if err != nil {
 				return nil, err
 			}
@@ -1129,11 +1133,17 @@ func (r *rpcPlanningContext) buildRequiredField(typeNode ast.Node, fieldRef int)
 	return field, nil
 }
 
-func (r *rpcPlanningContext) buildCompositeField(inlineFragmentNode ast.Node, fragmentSelection fragmentSelection) ([]RPCField, error) {
+// buildCompositeFields creates fields for a given inline fragment node and its selection set.
+// It returns a list of fields that have been composed from the inputs.
+func (r *rpcPlanningContext) buildCompositeFields(inlineFragmentNode ast.Node, fragmentSelection fragmentSelection) ([]RPCField, error) {
 	fieldRefs := r.operation.SelectionSetFieldRefs(fragmentSelection.selectionSetRef)
 	result := make([]RPCField, 0, len(fieldRefs))
 
 	for _, fieldRef := range fieldRefs {
+		if r.isFieldResolver(fieldRef, false) {
+			continue
+		}
+
 		fieldDef := r.fieldDefinitionRefForType(r.operation.FieldNameString(fieldRef), fragmentSelection.typeName)
 		if fieldDef == ast.InvalidRef {
 			return nil, fmt.Errorf("unable to build composite field: field definition not found for field %s", r.operation.FieldNameString(fieldRef))
