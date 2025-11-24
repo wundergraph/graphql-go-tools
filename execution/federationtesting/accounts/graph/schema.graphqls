@@ -11,6 +11,7 @@ type Query {
     cds: [CD]
     otherInterfaces: [SomeInterface]
     someNestedInterfaces: [SomeNestedInterface]
+    productA: ProductA
 }
 
 type Cat {
@@ -181,4 +182,24 @@ type CDerObj {
     first: String!
     middle: String!
     last: String!
+}
+
+interface Base {
+    category: Category
+}
+type Category {
+    id: ID!
+    owner: Owner
+}
+type Owner {
+    name: String!
+}
+
+type ProductA implements Base {
+    id: ID!
+    category: Category
+}
+type ProductB implements Base {
+    id: ID!
+    category: Category
 }
