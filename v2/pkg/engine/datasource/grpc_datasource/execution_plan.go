@@ -716,10 +716,12 @@ func (r *rpcPlanningContext) buildInputMessageField(typeRef int, fieldName, json
 	return field, nil
 }
 
+// buildFieldMessage builds a message from a field definition.
+// It handles complex and composite types.
 func (r *rpcPlanningContext) buildFieldMessage(fieldTypeNode ast.Node, fieldRef int) (*RPCMessage, error) {
 	field := r.operation.Fields[fieldRef]
 	if !field.HasSelections {
-		return nil, nil
+		return nil, fmt.Errorf("unable to build field message: field %s has no selections", r.operation.FieldAliasOrNameString(fieldRef))
 	}
 
 	fieldRefs := make([]int, 0)
