@@ -1157,7 +1157,7 @@ func (r *rpcPlanningContext) buildCompositeFields(inlineFragmentNode ast.Node, f
 		if field.ProtoTypeName == DataTypeMessage && r.operation.FieldHasSelections(fieldRef) {
 			fieldTypeNode, found := r.definition.ResolveNodeFromTypeRef(r.definition.FieldDefinitionType(fieldDef))
 			if !found {
-				return nil, fmt.Errorf("unable to build required field: unable to resolve field type node for field %s", r.operation.FieldNameString(fieldRef))
+				return nil, fmt.Errorf("unable to build composite field: unable to resolve field type node for field %s", r.operation.FieldNameString(fieldRef))
 			}
 
 			message, err := r.buildFieldMessage(fieldTypeNode, fieldRef)
