@@ -77,15 +77,15 @@ func (s *SubgraphRequestSingleFlight) GetOrCreateItem(fetchItem *FetchItem, inpu
 	// Get shard based on sfKey for items
 	shard := s.shardFor(sfKey)
 
-	if existing, ok := shard.items.Load(sfKey); ok {
-		return existing.(*SingleFlightItem), true
-	}
-
 	item = &SingleFlightItem{
 		// empty chan to indicate to all followers when we're done (close)
 		loaded:   make(chan struct{}),
 		SFKey:    sfKey,
 		FetchKey: fetchKey,
+	}
+
+	if existing, ok := shard.items.LoadOrStore(sfKey, item); ok {
+		return existing.(*SingleFlightItem), true
 	}
 	// Read size hint from the same shard (both items and sizes use the same shard now)
 	if sizeValue, ok := shard.sizes.Load(fetchKey); ok {
@@ -97,10 +97,6 @@ func (s *SubgraphRequestSingleFlight) GetOrCreateItem(fetchItem *FetchItem, inpu
 		size.mu.Unlock()
 	}
 
-	actual, loaded := shard.items.LoadOrStore(sfKey, item)
-	if loaded {
-		return actual.(*SingleFlightItem), true
-	}
 	return item, false
 }
 
@@ -108,18 +104,14 @@ func (s *SubgraphRequestSingleFlight) GetOrCreateItem(fetchItem *FetchItem, inpu
 // trigger all followers to look at the err & response of the item
 // and to update the size estimates
 func (s *SubgraphRequestSingleFlight) Finish(item *SingleFlightItem) {
-	sfKey := item.SFKey
-	fetchKey := item.FetchKey
+	shard := s.shardFor(item.SFKey)
+	shard.items.Delete(item.SFKey)
 	close(item.loaded)
-	// Update sizes in the same shard as the item (using sfKey to get the shard)
-	shard := s.shardFor(sfKey)
 
-	shard.items.Delete(sfKey)
-
-	sizeValue, ok := shard.sizes.Load(fetchKey)
+	sizeValue, ok := shard.sizes.Load(item.FetchKey)
 	if !ok {
 		newSize := &fetchSize{}
-		sizeValue, _ = shard.sizes.LoadOrStore(fetchKey, newSize)
+		sizeValue, _ = shard.sizes.LoadOrStore(item.FetchKey, newSize)
 	}
 	size := sizeValue.(*fetchSize)
 	size.mu.Lock()

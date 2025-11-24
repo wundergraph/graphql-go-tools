@@ -300,12 +300,8 @@ func DoMultipartForm(
 
 	defer func() {
 		for _, file := range tempFiles {
-			if err := file.Close(); err != nil {
-				continue
-			}
-			if err = os.Remove(file.Name()); err != nil {
-				continue
-			}
+			_ = file.Close()
+			_ = os.Remove(file.Name())
 		}
 	}()
 

@@ -73,18 +73,19 @@ func (r *InboundRequestSingleFlight) GetOrCreate(ctx *Context, response *GraphQL
 	shard := r.shardFor(key)
 	req, shared := shard.m.Load(key)
 	if shared {
-		req := req.(*InflightRequest)
-		req.Mu.Lock()
-		req.HasFollowers = true
-		req.Mu.Unlock()
+		inflightRequest := req.(*InflightRequest)
+		inflightRequest.Mu.Lock()
+		inflightRequest.HasFollowers = true
+		inflightRequest.Mu.Unlock()
 		select {
-		case <-req.Done:
-			if req.Err != nil {
-				return nil, req.Err
+		case <-inflightRequest.Done:
+			if inflightRequest.Err != nil {
+				return nil, inflightRequest.Err
 			}
-			return req, nil
+			return inflightRequest, nil
 		case <-ctx.ctx.Done():
-			return nil, ctx.ctx.Err()
+			inflightRequest.Err = ctx.ctx.Err()
+			return nil, inflightRequest.Err
 		}
 	}
 
