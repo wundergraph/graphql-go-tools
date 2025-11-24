@@ -4975,7 +4975,6 @@ type messageFunc func(counter int) (message string, done bool)
 var fakeStreamRequestId atomic.Int32
 
 type _fakeStream struct {
-	uniqueRequestFn       func(ctx *Context, input []byte, xxh *xxhash.Digest) (err error)
 	messageFunc           messageFunc
 	onStart               func(input []byte)
 	delay                 time.Duration
@@ -5711,9 +5710,6 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		}
 
 		fakeStream := createFakeStream(messageFn, time.Millisecond, onStartFn, subscriptionOnStartFn)
-		fakeStream.uniqueRequestFn = func(ctx *Context, input []byte, xxh *xxhash.Digest) (err error) {
-			return nil
-		}
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
@@ -5813,10 +5809,6 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		}
 
 		fakeStream := createFakeStream(messageFn, 1*time.Millisecond, onStartFn, subscriptionOnStartFn)
-		fakeStream.uniqueRequestFn = func(ctx *Context, input []byte, xxh *xxhash.Digest) (err error) {
-			_, err = xxh.WriteString("unique")
-			return
-		}
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
@@ -5994,14 +5986,6 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		}, func(ctx StartupHookContext, input []byte) (err error) {
 			return nil
 		})
-		fakeStream.uniqueRequestFn = func(ctx *Context, input []byte, xxh *xxhash.Digest) (err error) {
-			_, err = xxh.WriteString("unique")
-			if err != nil {
-				return
-			}
-			_, err = xxh.Write(input)
-			return err
-		}
 
 		resolver1, plan1, recorder1, id1 := setup(c, fakeStream)
 		_, _, recorder2, id2 := setup(c, fakeStream)
