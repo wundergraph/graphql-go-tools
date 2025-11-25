@@ -381,21 +381,24 @@ func (r *rpcPlanVisitorFederation) EnterField(ref int) {
 // LeaveField implements astvisitor.FieldVisitor.
 func (r *rpcPlanVisitorFederation) LeaveField(ref int) {
 	r.fieldPath = r.fieldPath.RemoveLastItem()
-	r.fieldResolverAncestors.pop()
-	// If we are not in the operation field, we can increment the response field index.
-	if !r.walker.InRootField() {
-		// If the field has arguments, we need to decrement the related call ID.
-		// This is because we can also have nested arguments, which require the underlying field to be resolved
-		// by values provided by the parent call.
-		if r.operation.FieldHasArguments(ref) {
-			r.parentCallID--
-		}
 
-		r.planInfo.currentResponseFieldIndex++
+	inRootField := r.walker.InRootField()
+	if inRootField {
 		return
 	}
 
-	r.planInfo.currentResponseFieldIndex = 0
+	if r.planCtx.isFieldResolver(ref, inRootField) {
+		// Pop the field resolver ancestor only when leaving a field resolver field.
+		r.fieldResolverAncestors.pop()
+
+		// If the field has arguments, we need to decrement the related call ID.
+		// This is because we can also have nested arguments, which require the underlying field to be resolved
+		// by values provided by the parent call.
+		r.parentCallID--
+	}
+
+	// If we are not in the operation field, we can increment the response field index.
+	r.planInfo.currentResponseFieldIndex++
 }
 
 // enterFieldResolver enters a field resolver.

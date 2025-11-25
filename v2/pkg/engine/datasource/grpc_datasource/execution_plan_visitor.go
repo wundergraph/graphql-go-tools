@@ -409,23 +409,34 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 // LeaveField implements astvisitor.FieldVisitor.
 func (r *rpcPlanVisitor) LeaveField(ref int) {
 	r.fieldPath = r.fieldPath.RemoveLastItem()
-	r.fieldResolverAncestors.pop()
+	inRootField := r.walker.InRootField()
 
-	// If we are not in the operation field, we can increment the response field index.
-	if !r.walker.InRootField() {
-		// If the field has arguments, we need to decrement the related call ID.
-		// This is because we can also have nested arguments, which require the underlying field to be resolved
-		// by values provided by the parent call.
-		if r.operation.FieldHasArguments(ref) {
-			r.parentCallID--
-		}
-
-		r.planInfo.currentResponseFieldIndex++
+	if inRootField {
+		// When leaving a root field, this indicates that we are done with the current call.
+		// We need to add the current call to the plan and reset the current call.
+		r.finalizeCall()
+		// RPC call is done, we can return.
 		return
 	}
 
+	if r.planCtx.isFieldResolver(ref, inRootField) {
+		// Pop the field resolver ancestor only when leaving a field resolver field.
+		r.fieldResolverAncestors.pop()
+
+		// If the field has arguments, we need to decrement the related call ID.
+		// This is because we can also have nested arguments, which require the underlying field to be resolved
+		// by values provided by the parent call.
+		r.parentCallID--
+	}
+
+	// If we are not in the operation field, we can increment the response field index.
+	r.planInfo.currentResponseFieldIndex++
+}
+
+// finalizeCall finalizes the current call and resets the current call.
+func (r *rpcPlanVisitor) finalizeCall() {
 	r.plan.Calls[r.currentCallID] = *r.currentCall
-	r.currentCall = &RPCCall{}
+	r.currentCall = nil
 
 	r.currentCallID++
 	if r.currentCallID < len(r.operationFieldRefs) {
