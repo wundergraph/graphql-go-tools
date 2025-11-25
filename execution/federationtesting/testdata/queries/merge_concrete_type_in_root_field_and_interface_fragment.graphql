@@ -1,0 +1,27 @@
+query MergeConcreteTypeInRootFieldAndInterfaceFragment {
+    productA {
+        category {
+            id
+        }
+        ... on Base {
+            ...ProductDetail
+        }
+    }
+}
+
+fragment ProductDetail on Base {
+    ... on ProductB {
+        category {
+            displayOwner: owner {
+                name
+            }
+        }
+    }
+    ... on ProductA {
+        category {
+            displayOwner: owner {
+                name
+            }
+        }
+    }
+}
