@@ -412,8 +412,8 @@ func (r *rpcPlanVisitor) LeaveField(ref int) {
 	inRootField := r.walker.InRootField()
 
 	if inRootField {
-		// When leaving a root field, this indicates that we are done with the current call.
-		// We need to add the current call to the plan and reset the current call.
+		// Leaving a root field means the current RPC call is complete.
+		// Add the current call to the plan and reset the call state.
 		r.finalizeCall()
 		// RPC call is done, we can return.
 		return
