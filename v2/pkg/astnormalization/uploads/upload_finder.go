@@ -31,9 +31,16 @@ type UploadFinder struct {
 }
 
 type UploadPathMapping struct {
-	VariableName       string // is a variable name holding the direct or nested value of type Upload, example "f"
-	OriginalUploadPath string // is a path relative to variables which have an Upload type, example "variables.f"
-	NewUploadPath      string // if variable was used in the inline object like this `arg: {f: $f}` this field will hold the new extracted path, example "variables.a.f", if it is an empty, there was no change in the path
+	// Variable name holding the direct or nested value of type Upload. Example: "f"
+	VariableName string
+
+	// Path relative to variables that have Upload type. Example: "variables.f"
+	OriginalUploadPath string
+
+	// If a variable was used in the inline object like this `arg: {f: $f}` this field will hold
+	// the new extracted path. Example: "variables.a.f".
+	// If it is empty, there was no change in the path.
+	NewUploadPath string
 }
 
 func NewUploadFinder() *UploadFinder {
