@@ -346,7 +346,7 @@ func (r *rpcPlanVisitorFederation) EnterField(ref int) {
 	// prevent duplicate fields
 	fieldAlias := r.operation.FieldAliasString(ref)
 	if r.planInfo.currentResponseMessage.Fields.Exists(fieldName, fieldAlias) {
-		r.fieldPath = r.fieldPath.WithFieldNameItem([]byte{})
+		r.walker.SkipNode()
 		return
 	}
 
