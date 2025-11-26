@@ -1183,18 +1183,18 @@ func (r *Resolver) AsyncUnsubscribeClient(connectionID int64) error {
 // the generated has is the unique triggerID
 // the headers must be forwarded to the DataSource to create the trigger
 func (r *Resolver) prepareTrigger(ctx *Context, sourceName string, input []byte) (headers http.Header, triggerID uint64) {
+	keyGen := pool.Hash64.Get()
+	_, _ = keyGen.Write(input)
 	if ctx.SubgraphHeadersBuilder != nil {
-		header, headerHash := ctx.SubgraphHeadersBuilder.HeadersForSubgraph(sourceName)
-		keyGen := pool.Hash64.Get()
-		_, _ = keyGen.Write(input)
+		var headersHash uint64
+		headers, headersHash = ctx.SubgraphHeadersBuilder.HeadersForSubgraph(sourceName)
 		var b [8]byte
-		binary.LittleEndian.PutUint64(b[:], headerHash)
+		binary.LittleEndian.PutUint64(b[:], headersHash)
 		_, _ = keyGen.Write(b[:])
-		triggerID = keyGen.Sum64()
-		pool.Hash64.Put(keyGen)
-		return header, triggerID
 	}
-	return nil, 0
+	triggerID = keyGen.Sum64()
+	pool.Hash64.Put(keyGen)
+	return headers, triggerID
 }
 
 func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer SubscriptionResponseWriter) error {
