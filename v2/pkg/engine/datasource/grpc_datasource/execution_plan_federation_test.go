@@ -862,6 +862,127 @@ func TestEntityKeys(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:  "Should create an execution plan for an entity lookup with a key field and nested field",
+			query: `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on User { __typename id  name address { street } } } }`,
+			schema: testFederationSchemaString(`
+			type Query {
+				_entities(representations: [_Any!]!): [_Entity]!
+			}
+			type User @key(fields: "id") {
+				id: ID!
+				name: String!
+				address: Address!
+			}
+			
+			type Address {
+				id: ID!
+				street: String!
+			}
+			`, []string{"User"}),
+			mapping: &GRPCMapping{
+				Service: "Products",
+				EntityRPCs: map[string][]EntityRPCConfig{
+					"User": {
+						{
+							Key: "id",
+							RPCConfig: RPCConfig{
+								RPC:      "LookupUserById",
+								Request:  "LookupUserByIdRequest",
+								Response: "LookupUserByIdResponse",
+							},
+						},
+					},
+				},
+			},
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "User",
+					SelectionSet: "id",
+				},
+			},
+
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "LookupUserById",
+						Kind:        CallKindEntity,
+						// Define the structure of the request message
+						Request: RPCMessage{
+							Name: "LookupUserByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "keys",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name:        "LookupUserByIdKey",
+										MemberTypes: []string{"User"},
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+										},
+									},
+								},
+							},
+						},
+						// Define the structure of the response message
+						Response: RPCMessage{
+							Name: "LookupUserByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
+									Message: &RPCMessage{
+										Name: "User",
+										Fields: []RPCField{
+											{
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "User",
+											},
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+											},
+											{
+												Name:          "address",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "address",
+												Message: &RPCMessage{
+													Name: "Address",
+													Fields: []RPCField{
+														{
+															Name:          "street",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "street",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

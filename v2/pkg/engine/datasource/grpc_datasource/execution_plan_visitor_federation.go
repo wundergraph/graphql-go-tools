@@ -221,13 +221,15 @@ func (r *rpcPlanVisitorFederation) EnterSelectionSet(ref int) {
 		r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message = r.planCtx.newMessageFromSelectionSet(r.walker.EnclosingTypeDefinition, ref)
 	}
 
-	if r.IsEntityInlineFragment(r.walker.Ancestor()) {
-		r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message.AppendTypeNameField(r.entityInfo.typeName)
-	}
-
 	// Add the current response message to the ancestors and set the current response message to the current field message
 	r.planInfo.responseMessageAncestors = append(r.planInfo.responseMessageAncestors, r.planInfo.currentResponseMessage)
 	r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message
+
+	// Ensure that the entity inline fragment message has a typename field,
+	// to map the json data after receiving the response.
+	if r.IsEntityInlineFragment(r.walker.Ancestor()) {
+		r.planInfo.currentResponseMessage.AppendTypeNameField(r.entityInfo.typeName)
+	}
 
 	// Check if the ancestor type is a composite type (interface or union)
 	// and set the oneof type and member types.
@@ -243,7 +245,8 @@ func (r *rpcPlanVisitorFederation) EnterSelectionSet(ref int) {
 	// when leaving the selection set.
 	r.planInfo.responseFieldIndexAncestors = append(r.planInfo.responseFieldIndexAncestors, r.planInfo.currentResponseFieldIndex)
 
-	r.planInfo.currentResponseFieldIndex = 0 // reset the field index for the current selection set
+	// Reset the field index for the current selection set to the length of the current response message fields.
+	r.planInfo.currentResponseFieldIndex = len(r.planInfo.currentResponseMessage.Fields)
 }
 
 func (r *rpcPlanVisitorFederation) handleCompositeType(node ast.Node) error {
