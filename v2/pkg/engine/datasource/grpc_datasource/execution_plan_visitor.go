@@ -428,6 +428,9 @@ func (r *rpcPlanVisitor) LeaveField(ref int) {
 		// This is because we can also have nested arguments, which require the underlying field to be resolved
 		// by values provided by the parent call.
 		r.parentCallID--
+
+		// We handle field resolvers differently, so we don't want to increment the response field index.
+		return
 	}
 
 	// If we are not in the operation field, we can increment the response field index.

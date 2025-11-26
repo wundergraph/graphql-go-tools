@@ -19,7 +19,7 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 	}{
 		{
 			name:  "Should create an execution plan for a query with a field resolver",
-			query: "query CategoriesWithFieldResolvers($whoop: ProductCountFilter) { categories { id name kind productCount(filters: $whoop) } }",
+			query: "query CategoriesWithFieldResolvers($whoop: ProductCountFilter) { categories { id productCount(filters: $whoop) name kind } }",
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
@@ -908,7 +908,7 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 	}{
 		{
 			name:  "Should create an execution plan for a query with nested field resolvers",
-			query: "query CategoriesWithNestedResolvers($metricType: String, $baseline: Float!) { categories { categoryMetrics(metricType: $metricType) { id metricType value normalizedScore(baseline: $baseline) } } }",
+			query: "query CategoriesWithNestedResolvers($metricType: String, $baseline: Float!) { categories { categoryMetrics(metricType: $metricType) { id normalizedScore(baseline: $baseline) metricType value } } }",
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
