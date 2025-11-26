@@ -3,12 +3,12 @@ package resolve
 import (
 	"context"
 	"io"
+	"net/http"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -71,12 +71,7 @@ type FakeSource struct {
 	interval time.Duration
 }
 
-func (f *FakeSource) UniqueRequestID(ctx *Context, input []byte, xxh *xxhash.Digest) (err error) {
-	_, err = xxh.Write(input)
-	return err
-}
-
-func (f *FakeSource) Start(ctx *Context, input []byte, updater SubscriptionUpdater) error {
+func (f *FakeSource) Start(ctx *Context, headers http.Header, input []byte, updater SubscriptionUpdater) error {
 	go func() {
 		for i, u := range f.updates {
 			updater.Update([]byte(u))
