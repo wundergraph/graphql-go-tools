@@ -862,6 +862,127 @@ func TestEntityKeys(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:  "Should create an execution plan for an entity lookup with a key field and nested field",
+			query: `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on User { __typename id  name address { street } } } }`,
+			schema: testFederationSchemaString(`
+			type Query {
+				_entities(representations: [_Any!]!): [_Entity]!
+			}
+			type User @key(fields: "id") {
+				id: ID!
+				name: String!
+				address: Address!
+			}
+			
+			type Address {
+				id: ID!
+				street: String!
+			}
+			`, []string{"User"}),
+			mapping: &GRPCMapping{
+				Service: "Products",
+				EntityRPCs: map[string][]EntityRPCConfig{
+					"User": {
+						{
+							Key: "id",
+							RPCConfig: RPCConfig{
+								RPC:      "LookupUserById",
+								Request:  "LookupUserByIdRequest",
+								Response: "LookupUserByIdResponse",
+							},
+						},
+					},
+				},
+			},
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "User",
+					SelectionSet: "id",
+				},
+			},
+
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "LookupUserById",
+						Kind:        CallKindEntity,
+						// Define the structure of the request message
+						Request: RPCMessage{
+							Name: "LookupUserByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "keys",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name:        "LookupUserByIdKey",
+										MemberTypes: []string{"User"},
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+										},
+									},
+								},
+							},
+						},
+						// Define the structure of the response message
+						Response: RPCMessage{
+							Name: "LookupUserByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
+									Message: &RPCMessage{
+										Name: "User",
+										Fields: []RPCField{
+											{
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "User",
+											},
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+											},
+											{
+												Name:          "address",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "address",
+												Message: &RPCMessage{
+													Name: "Address",
+													Fields: []RPCField{
+														{
+															Name:          "street",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "street",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1282,6 +1403,649 @@ func TestEntityLookupWithFieldResolvers(t *testing.T) {
 												Name:          "shipping_estimate",
 												ProtoTypeName: DataTypeDouble,
 												JSONPath:      "shippingEstimate",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			// Parse the GraphQL schema
+			schemaDoc := grpctest.MustGraphQLSchema(t)
+
+			// Parse the GraphQL query
+			queryDoc, report := astparser.ParseGraphqlDocumentString(tt.query)
+			if report.HasErrors() {
+				t.Fatalf("failed to parse query: %s", report.Error())
+			}
+
+			planner, err := NewPlanner("Products", tt.mapping, tt.federationConfigs)
+			if err != nil {
+				t.Fatalf("failed to create planner: %s", err)
+			}
+			plan, err := planner.PlanOperation(&queryDoc, &schemaDoc)
+			if err != nil {
+				t.Fatalf("failed to plan operation: %s", err)
+			}
+
+			diff := cmp.Diff(tt.expectedPlan, plan)
+			if diff != "" {
+				t.Fatalf("execution plan mismatch: %s", diff)
+			}
+		})
+	}
+}
+
+func TestEntityLookupWithFieldResolvers_WithCompositeTypes(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name              string
+		query             string
+		expectedPlan      *RPCExecutionPlan
+		mapping           *GRPCMapping
+		federationConfigs plan.FederationFieldConfigurations
+	}{
+		{
+			name:    "Should create an execution plan for an entity lookup with a field resolver returning interface type",
+			query:   `query EntityLookupWithInterface($representations: [_Any!]!, $includeDetails: Boolean!) { _entities(representations: $representations) { ... on Product { __typename id name mascotRecommendation(includeDetails: $includeDetails) { ... on Cat { name meowVolume } ... on Dog { name barkVolume } } } } }`,
+			mapping: testMapping(),
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "id",
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "LookupProductById",
+						Kind:        CallKindEntity,
+						Request: RPCMessage{
+							Name: "LookupProductByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "keys",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name:        "LookupProductByIdKey",
+										MemberTypes: []string{"Product"},
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "LookupProductByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
+									Message: &RPCMessage{
+										Name: "Product",
+										Fields: []RPCField{
+											{
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "Product",
+											},
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ServiceName:    "Products",
+						MethodName:     "ResolveProductMascotRecommendation",
+						Kind:           CallKindResolve,
+						DependentCalls: []int{0},
+						ResponsePath:   buildPath("_entities.mascotRecommendation"),
+						Request: RPCMessage{
+							Name: "ResolveProductMascotRecommendationRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveProductMascotRecommendationContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("result.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("result.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "",
+									Message: &RPCMessage{
+										Name: "ResolveProductMascotRecommendationArgs",
+										Fields: []RPCField{
+											{
+												Name:          "include_details",
+												ProtoTypeName: DataTypeBool,
+												JSONPath:      "includeDetails",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveProductMascotRecommendationResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveProductMascotRecommendationResult",
+										Fields: []RPCField{
+											{
+												Name:          "mascot_recommendation",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "mascotRecommendation",
+												Optional:      true,
+												Message: &RPCMessage{
+													Name:        "Animal",
+													OneOfType:   OneOfTypeInterface,
+													MemberTypes: []string{"Cat", "Dog"},
+													FieldSelectionSet: RPCFieldSelectionSet{
+														"Cat": {
+															{
+																Name:          "name",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "name",
+															},
+															{
+																Name:          "meow_volume",
+																ProtoTypeName: DataTypeInt32,
+																JSONPath:      "meowVolume",
+															},
+														},
+														"Dog": {
+															{
+																Name:          "name",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "name",
+															},
+															{
+																Name:          "bark_volume",
+																ProtoTypeName: DataTypeInt32,
+																JSONPath:      "barkVolume",
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:    "Should create an execution plan for an entity lookup with a field resolver returning union type",
+			query:   `query EntityLookupWithUnion($representations: [_Any!]!, $checkAvailability: Boolean!) { _entities(representations: $representations) { ... on Product { __typename id name stockStatus(checkAvailability: $checkAvailability) { ... on ActionSuccess { message timestamp } ... on ActionError { message code } } } } }`,
+			mapping: testMapping(),
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "id",
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "LookupProductById",
+						Kind:        CallKindEntity,
+						Request: RPCMessage{
+							Name: "LookupProductByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "keys",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name:        "LookupProductByIdKey",
+										MemberTypes: []string{"Product"},
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "LookupProductByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
+									Message: &RPCMessage{
+										Name: "Product",
+										Fields: []RPCField{
+											{
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "Product",
+											},
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ServiceName:    "Products",
+						MethodName:     "ResolveProductStockStatus",
+						Kind:           CallKindResolve,
+						DependentCalls: []int{0},
+						ResponsePath:   buildPath("_entities.stockStatus"),
+						Request: RPCMessage{
+							Name: "ResolveProductStockStatusRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveProductStockStatusContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("result.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("result.name"),
+											},
+											{
+												Name:          "price",
+												ProtoTypeName: DataTypeDouble,
+												JSONPath:      "price",
+												ResolvePath:   buildPath("result.price"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "",
+									Message: &RPCMessage{
+										Name: "ResolveProductStockStatusArgs",
+										Fields: []RPCField{
+											{
+												Name:          "check_availability",
+												ProtoTypeName: DataTypeBool,
+												JSONPath:      "checkAvailability",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveProductStockStatusResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveProductStockStatusResult",
+										Fields: []RPCField{
+											{
+												Name:          "stock_status",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "stockStatus",
+												Message: &RPCMessage{
+													Name:        "ActionResult",
+													OneOfType:   OneOfTypeUnion,
+													MemberTypes: []string{"ActionSuccess", "ActionError"},
+													FieldSelectionSet: RPCFieldSelectionSet{
+														"ActionSuccess": {
+															{
+																Name:          "message",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "message",
+															},
+															{
+																Name:          "timestamp",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "timestamp",
+															},
+														},
+														"ActionError": {
+															{
+																Name:          "message",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "message",
+															},
+															{
+																Name:          "code",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "code",
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:    "Should create an execution plan for an entity lookup with a field resolver returning nested composite types",
+			query:   `query EntityLookupWithNested($representations: [_Any!]!, $includeExtended: Boolean!) { _entities(representations: $representations) { ... on Product { __typename id name price productDetails(includeExtended: $includeExtended) { id description recommendedPet { ... on Cat { name meowVolume } ... on Dog { name barkVolume } } reviewSummary { ... on ActionSuccess { message timestamp } ... on ActionError { message code } } } } } }`,
+			mapping: testMapping(),
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "id",
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "LookupProductById",
+						Kind:        CallKindEntity,
+						Request: RPCMessage{
+							Name: "LookupProductByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "keys",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name:        "LookupProductByIdKey",
+										MemberTypes: []string{"Product"},
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "LookupProductByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
+									Message: &RPCMessage{
+										Name: "Product",
+										Fields: []RPCField{
+											{
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "Product",
+											},
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+											},
+											{
+												Name:          "price",
+												ProtoTypeName: DataTypeDouble,
+												JSONPath:      "price",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ServiceName:    "Products",
+						MethodName:     "ResolveProductProductDetails",
+						Kind:           CallKindResolve,
+						DependentCalls: []int{0},
+						ResponsePath:   buildPath("_entities.productDetails"),
+						Request: RPCMessage{
+							Name: "ResolveProductProductDetailsRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveProductProductDetailsContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("result.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("result.name"),
+											},
+											{
+												Name:          "price",
+												ProtoTypeName: DataTypeDouble,
+												JSONPath:      "price",
+												ResolvePath:   buildPath("result.price"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "",
+									Message: &RPCMessage{
+										Name: "ResolveProductProductDetailsArgs",
+										Fields: []RPCField{
+											{
+												Name:          "include_extended",
+												ProtoTypeName: DataTypeBool,
+												JSONPath:      "includeExtended",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveProductProductDetailsResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveProductProductDetailsResult",
+										Fields: []RPCField{
+											{
+												Name:          "product_details",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "productDetails",
+												Optional:      true,
+												Message: &RPCMessage{
+													Name: "ProductDetails",
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+														{
+															Name:          "description",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "description",
+														},
+														{
+															Name:          "recommended_pet",
+															ProtoTypeName: DataTypeMessage,
+															JSONPath:      "recommendedPet",
+															Message: &RPCMessage{
+																Name:        "Animal",
+																OneOfType:   OneOfTypeInterface,
+																MemberTypes: []string{"Cat", "Dog"},
+																FieldSelectionSet: RPCFieldSelectionSet{
+																	"Cat": {
+																		{
+																			Name:          "name",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "name",
+																		},
+																		{
+																			Name:          "meow_volume",
+																			ProtoTypeName: DataTypeInt32,
+																			JSONPath:      "meowVolume",
+																		},
+																	},
+																	"Dog": {
+																		{
+																			Name:          "name",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "name",
+																		},
+																		{
+																			Name:          "bark_volume",
+																			ProtoTypeName: DataTypeInt32,
+																			JSONPath:      "barkVolume",
+																		},
+																	},
+																},
+															},
+														},
+														{
+															Name:          "review_summary",
+															ProtoTypeName: DataTypeMessage,
+															JSONPath:      "reviewSummary",
+															Message: &RPCMessage{
+																Name:        "ActionResult",
+																OneOfType:   OneOfTypeUnion,
+																MemberTypes: []string{"ActionSuccess", "ActionError"},
+																FieldSelectionSet: RPCFieldSelectionSet{
+																	"ActionSuccess": {
+																		{
+																			Name:          "message",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "message",
+																		},
+																		{
+																			Name:          "timestamp",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "timestamp",
+																		},
+																	},
+																	"ActionError": {
+																		{
+																			Name:          "message",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "message",
+																		},
+																		{
+																			Name:          "code",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "code",
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
 											},
 										},
 									},

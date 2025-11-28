@@ -3758,6 +3758,307 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 	}
 }
 
+func Test_DataSource_Load_WithEntity_Calls_WithCompositeTypes(t *testing.T) {
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
+
+	type graphqlError struct {
+		Message string `json:"message"`
+	}
+	type graphqlResponse struct {
+		Data   map[string]interface{} `json:"data"`
+		Errors []graphqlError         `json:"errors,omitempty"`
+	}
+
+	testCases := []struct {
+		name              string
+		query             string
+		vars              string
+		federationConfigs plan.FederationFieldConfigurations
+		validate          func(t *testing.T, data map[string]interface{})
+		validateError     func(t *testing.T, errData []graphqlError)
+	}{
+		{
+			name:  "Query Product with field resolver returning interface type",
+			query: `query($representations: [_Any!]!, $includeDetails: Boolean!) { _entities(representations: $representations) { ...on Product { __typename id name mascotRecommendation(includeDetails: $includeDetails) { ... on Cat { __typename name meowVolume } ... on Dog { __typename name barkVolume } } } } }`,
+			vars: `{
+				"variables": {
+					"representations": [
+						{"__typename":"Product","id":"1"},
+						{"__typename":"Product","id":"2"},
+						{"__typename":"Product","id":"3"}
+					],
+					"includeDetails": true
+				}
+			}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "id",
+				},
+			},
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				entities, ok := data["_entities"].([]interface{})
+				require.True(t, ok, "_entities should be an array")
+				require.NotEmpty(t, entities, "_entities should not be empty")
+				require.Len(t, entities, 3, "Should return 3 entities")
+
+				for index, entity := range entities {
+					entity, ok := entity.(map[string]interface{})
+					require.True(t, ok, "entity should be an object")
+					productID := index + 1
+
+					require.Equal(t, fmt.Sprintf("%d", productID), entity["id"])
+					require.Equal(t, fmt.Sprintf("Product %d", productID), entity["name"])
+
+					mascot, ok := entity["mascotRecommendation"].(map[string]interface{})
+					require.True(t, ok, "mascotRecommendation should be an object")
+
+					// Alternates between Cat and Dog based on index
+					if index%2 == 0 {
+						// Should be Cat
+						typename, ok := mascot["__typename"].(string)
+						require.True(t, ok, "__typename should be present")
+						require.Equal(t, "Cat", typename)
+
+						require.Contains(t, mascot, "name")
+						require.Contains(t, mascot["name"], "MascotCat")
+
+						// Validate meowVolume field
+						require.Contains(t, mascot, "meowVolume")
+						meowVolume, ok := mascot["meowVolume"].(float64)
+						require.True(t, ok, "meowVolume should be a number")
+						require.Greater(t, meowVolume, float64(0), "meowVolume should be greater than 0")
+					} else {
+						// Should be Dog
+						typename, ok := mascot["__typename"].(string)
+						require.True(t, ok, "__typename should be present")
+						require.Equal(t, "Dog", typename)
+
+						require.Contains(t, mascot, "name")
+						require.Contains(t, mascot["name"], "MascotDog")
+
+						// Validate barkVolume field
+						require.Contains(t, mascot, "barkVolume")
+						barkVolume, ok := mascot["barkVolume"].(float64)
+						require.True(t, ok, "barkVolume should be a number")
+						require.Greater(t, barkVolume, float64(0), "barkVolume should be greater than 0")
+					}
+				}
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			name:  "Query Product with field resolver returning union type",
+			query: `query($representations: [_Any!]!, $checkAvailability: Boolean!) { _entities(representations: $representations) { ...on Product { __typename id name stockStatus(checkAvailability: $checkAvailability) { ... on ActionSuccess { __typename message timestamp } ... on ActionError { __typename message code } } } } }`,
+			vars: `{
+				"variables": {
+					"representations": [
+						{"__typename":"Product","id":"1"},
+						{"__typename":"Product","id":"2"},
+						{"__typename":"Product","id":"3"}
+					],
+					"checkAvailability": false
+				}
+			}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "id",
+				},
+			},
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				entities, ok := data["_entities"].([]interface{})
+				require.True(t, ok, "_entities should be an array")
+				require.NotEmpty(t, entities, "_entities should not be empty")
+				require.Len(t, entities, 3, "Should return 3 entities")
+
+				for index, entity := range entities {
+					entity, ok := entity.(map[string]interface{})
+					require.True(t, ok, "entity should be an object")
+					productID := index + 1
+
+					require.Equal(t, fmt.Sprintf("%d", productID), entity["id"])
+					require.Equal(t, fmt.Sprintf("Product %d", productID), entity["name"])
+
+					stockStatus, ok := entity["stockStatus"].(map[string]interface{})
+					require.True(t, ok, "stockStatus should be an object")
+
+					// With checkAvailability: false, all should be success
+					typename, ok := stockStatus["__typename"].(string)
+					require.True(t, ok, "__typename should be present")
+					require.Equal(t, "ActionSuccess", typename)
+
+					require.Contains(t, stockStatus, "message")
+					require.Contains(t, stockStatus, "timestamp")
+
+					message, ok := stockStatus["message"].(string)
+					require.True(t, ok, "message should be a string")
+					require.Contains(t, message, "in stock and available")
+
+					timestamp, ok := stockStatus["timestamp"].(string)
+					require.True(t, ok, "timestamp should be a string")
+					require.NotEmpty(t, timestamp)
+				}
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			name:  "Query Product with field resolver returning nested composite types",
+			query: `query($representations: [_Any!]!, $includeExtended: Boolean!) { _entities(representations: $representations) { ...on Product { __typename id name price productDetails(includeExtended: $includeExtended) { id description recommendedPet { __typename ... on Cat { name meowVolume } ... on Dog { name barkVolume } } reviewSummary { __typename ... on ActionSuccess { message timestamp } ... on ActionError { message code } } } } } }`,
+			vars: `{
+				"variables": {
+					"representations": [
+						{"__typename":"Product","id":"1"},
+						{"__typename":"Product","id":"2"}
+					],
+					"includeExtended": false
+				}
+			}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "id",
+				},
+			},
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				entities, ok := data["_entities"].([]interface{})
+				require.True(t, ok, "_entities should be an array")
+				require.NotEmpty(t, entities, "_entities should not be empty")
+				require.Len(t, entities, 2, "Should return 2 entities")
+
+				for index, entity := range entities {
+					entity, ok := entity.(map[string]interface{})
+					require.True(t, ok, "entity should be an object")
+					productID := index + 1
+
+					require.Equal(t, fmt.Sprintf("%d", productID), entity["id"])
+					require.Equal(t, fmt.Sprintf("Product %d", productID), entity["name"])
+
+					details, ok := entity["productDetails"].(map[string]interface{})
+					require.True(t, ok, "productDetails should be an object")
+
+					require.Contains(t, details, "id")
+					require.Contains(t, details, "description")
+					require.Contains(t, details["description"], "Standard details")
+
+					// Check recommendedPet (interface)
+					pet, ok := details["recommendedPet"].(map[string]interface{})
+					require.True(t, ok, "recommendedPet should be an object")
+
+					// Alternates between Cat and Dog
+					if index%2 == 0 {
+						// Should be Cat
+						petTypename, ok := pet["__typename"].(string)
+						require.True(t, ok, "pet __typename should be present")
+						require.Equal(t, "Cat", petTypename)
+
+						require.Contains(t, pet, "name")
+						require.Contains(t, pet["name"], "RecommendedCat")
+
+						// Validate meowVolume field
+						require.Contains(t, pet, "meowVolume")
+						meowVolume, ok := pet["meowVolume"].(float64)
+						require.True(t, ok, "meowVolume should be a number")
+						require.Greater(t, meowVolume, float64(0), "meowVolume should be greater than 0")
+					} else {
+						// Should be Dog
+						petTypename, ok := pet["__typename"].(string)
+						require.True(t, ok, "pet __typename should be present")
+						require.Equal(t, "Dog", petTypename)
+
+						require.Contains(t, pet, "name")
+						require.Contains(t, pet["name"], "RecommendedDog")
+
+						// Validate barkVolume field
+						require.Contains(t, pet, "barkVolume")
+						barkVolume, ok := pet["barkVolume"].(float64)
+						require.True(t, ok, "barkVolume should be a number")
+						require.Greater(t, barkVolume, float64(0), "barkVolume should be greater than 0")
+					}
+
+					// Check reviewSummary (union)
+					reviewSummary, ok := details["reviewSummary"].(map[string]interface{})
+					require.True(t, ok, "reviewSummary should be an object")
+
+					// With includeExtended: false and low prices, should be success
+					reviewTypename, ok := reviewSummary["__typename"].(string)
+					require.True(t, ok, "reviewSummary __typename should be present")
+					require.Equal(t, "ActionSuccess", reviewTypename)
+
+					require.Contains(t, reviewSummary, "message")
+					require.Contains(t, reviewSummary, "timestamp")
+
+					message, ok := reviewSummary["message"].(string)
+					require.True(t, ok, "message should be a string")
+					require.Contains(t, message, "positive reviews")
+
+					timestamp, ok := reviewSummary["timestamp"].(string)
+					require.True(t, ok, "timestamp should be a string")
+					require.NotEmpty(t, timestamp)
+				}
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Parse the GraphQL schema
+			schemaDoc := grpctest.MustGraphQLSchema(t)
+
+			// Parse the GraphQL query
+			queryDoc, report := astparser.ParseGraphqlDocumentString(tc.query)
+			if report.HasErrors() {
+				t.Fatalf("failed to parse query: %s", report.Error())
+			}
+
+			compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+			if err != nil {
+				t.Fatalf("failed to compile proto: %v", err)
+			}
+
+			// Create the datasource
+			ds, err := NewDataSource(conn, DataSourceConfig{
+				Operation:         &queryDoc,
+				Definition:        &schemaDoc,
+				SubgraphName:      "Products",
+				Mapping:           testMapping(),
+				Compiler:          compiler,
+				FederationConfigs: tc.federationConfigs,
+			})
+			require.NoError(t, err)
+
+			// Execute the query through our datasource
+			output := new(bytes.Buffer)
+			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
+			err = ds.Load(context.Background(), []byte(input), output)
+			require.NoError(t, err)
+
+			// Parse the response
+			var resp graphqlResponse
+
+			err = json.Unmarshal(output.Bytes(), &resp)
+			require.NoError(t, err, "Failed to unmarshal response")
+
+			tc.validate(t, resp.Data)
+			tc.validateError(t, resp.Errors)
+		})
+	}
+}
+
 func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 	conn, cleanup := setupTestGRPCServer(t)
 	t.Cleanup(cleanup)
@@ -3892,6 +4193,346 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 					require.True(t, ok, "category should be an object")
 					require.NotEmpty(t, category["valueScore"])
 					require.Empty(t, category["nullScore"])
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with field resolvers and Interface type",
+			query: "query CategoriesWithInterfaceType($includeVolume: Boolean!) { categories { kind mascot(includeVolume: $includeVolume) { ... on Cat { name } ... on Dog { name } } } }",
+			vars:  `{"variables":{"includeVolume":true}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.NotEmpty(t, categories, "categories should not be empty")
+
+				for _, category := range categories {
+					category, ok := category.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["kind"])
+					if category["kind"] == "OTHER" {
+						require.Empty(t, category["mascot"])
+						continue
+					}
+
+					require.NotEmpty(t, category["mascot"])
+					mascot, ok := category["mascot"].(map[string]interface{})
+					require.True(t, ok, "mascot should be an object")
+					require.NotEmpty(t, mascot["name"])
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with field resolvers and Union type",
+			query: "query CategoriesWithUnionType($checkHealth: Boolean!) { categories { id name categoryStatus(checkHealth: $checkHealth) { ... on ActionSuccess { message timestamp } ... on ActionError { message code } } } }",
+			vars:  `{"variables":{"checkHealth":true}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.NotEmpty(t, categories, "categories should not be empty")
+				require.Len(t, categories, 4, "Should return 4 categories")
+
+				// Based on mockservice.go implementation:
+				// - If checkHealth && i%3 == 0, returns ActionError
+				// - Otherwise, returns ActionSuccess
+				for i, category := range categories {
+					category, ok := category.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["id"])
+					require.NotEmpty(t, category["name"])
+					require.NotEmpty(t, category["categoryStatus"])
+
+					categoryStatus, ok := category["categoryStatus"].(map[string]interface{})
+					require.True(t, ok, "categoryStatus should be an object")
+
+					if i%3 == 0 {
+						// Should be ActionError
+						require.NotEmpty(t, categoryStatus["message"], "ActionError should have message")
+						require.NotEmpty(t, categoryStatus["code"], "ActionError should have code")
+						require.Empty(t, categoryStatus["timestamp"], "ActionError should not have timestamp")
+						require.Contains(t, categoryStatus["message"], "Health check failed", "ActionError message should contain 'Health check failed'")
+						require.Equal(t, "HEALTH_CHECK_FAILED", categoryStatus["code"], "ActionError code should be HEALTH_CHECK_FAILED")
+					} else {
+						// Should be ActionSuccess
+						require.NotEmpty(t, categoryStatus["message"], "ActionSuccess should have message")
+						require.NotEmpty(t, categoryStatus["timestamp"], "ActionSuccess should have timestamp")
+						require.Empty(t, categoryStatus["code"], "ActionSuccess should not have code")
+						require.Contains(t, categoryStatus["message"], "is healthy", "ActionSuccess message should contain 'is healthy'")
+						require.Equal(t, "2024-01-01T00:00:00Z", categoryStatus["timestamp"], "ActionSuccess timestamp should match")
+					}
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with nested field resolver returning interface type",
+			query: "query TestContainersWithInterface($includeExtended: Boolean!) { testContainers { id name details(includeExtended: $includeExtended) { id summary pet { ... on Cat { name meowVolume } ... on Dog { name barkVolume } } } } }",
+			vars:  `{"variables":{"includeExtended":false}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				containers, ok := data["testContainers"].([]interface{})
+				require.True(t, ok, "testContainers should be an array")
+				require.NotEmpty(t, containers, "testContainers should not be empty")
+				require.Len(t, containers, 3, "Should return 3 test containers")
+
+				// Based on mockservice.go implementation:
+				// - Even indices (0, 2) return Cat
+				// - Odd indices (1) return Dog
+				for i, container := range containers {
+					container, ok := container.(map[string]interface{})
+					require.True(t, ok, "container should be an object")
+					require.NotEmpty(t, container["id"])
+					require.NotEmpty(t, container["name"])
+					require.NotEmpty(t, container["details"])
+
+					details, ok := container["details"].(map[string]interface{})
+					require.True(t, ok, "details should be an object")
+					require.NotEmpty(t, details["id"])
+					require.NotEmpty(t, details["summary"])
+					require.NotEmpty(t, details["pet"])
+
+					pet, ok := details["pet"].(map[string]interface{})
+					require.True(t, ok, "pet should be an object")
+					require.NotEmpty(t, pet["name"])
+
+					if i%2 == 0 {
+						// Should be Cat
+						require.NotEmpty(t, pet["meowVolume"], "Cat should have meowVolume")
+						require.Empty(t, pet["barkVolume"], "Cat should not have barkVolume")
+						require.Contains(t, pet["name"], "TestCat", "Cat name should contain 'TestCat'")
+					} else {
+						// Should be Dog
+						require.NotEmpty(t, pet["barkVolume"], "Dog should have barkVolume")
+						require.Empty(t, pet["meowVolume"], "Dog should not have meowVolume")
+						require.Contains(t, pet["name"], "TestDog", "Dog name should contain 'TestDog'")
+					}
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with nested field resolver returning union type",
+			query: "query TestContainersWithUnion($includeExtended: Boolean!) { testContainers { id name details(includeExtended: $includeExtended) { id summary status { ... on ActionSuccess { message timestamp } ... on ActionError { message code } } } } }",
+			vars:  `{"variables":{"includeExtended":true}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				containers, ok := data["testContainers"].([]interface{})
+				require.True(t, ok, "testContainers should be an array")
+				require.NotEmpty(t, containers, "testContainers should not be empty")
+				require.Len(t, containers, 3, "Should return 3 test containers")
+
+				// Based on mockservice.go implementation:
+				// - When includeExtended=true && i%3 == 0, returns ActionError
+				// - Otherwise, returns ActionSuccess
+				for i, container := range containers {
+					container, ok := container.(map[string]interface{})
+					require.True(t, ok, "container should be an object")
+					require.NotEmpty(t, container["id"])
+					require.NotEmpty(t, container["name"])
+					require.NotEmpty(t, container["details"])
+
+					details, ok := container["details"].(map[string]interface{})
+					require.True(t, ok, "details should be an object")
+					require.NotEmpty(t, details["id"])
+					require.NotEmpty(t, details["summary"])
+					require.Contains(t, details["summary"], "Extended summary", "Summary should contain 'Extended summary'")
+					require.NotEmpty(t, details["status"])
+
+					status, ok := details["status"].(map[string]interface{})
+					require.True(t, ok, "status should be an object")
+
+					if i%3 == 0 {
+						// Should be ActionError
+						require.NotEmpty(t, status["message"], "ActionError should have message")
+						require.NotEmpty(t, status["code"], "ActionError should have code")
+						require.Empty(t, status["timestamp"], "ActionError should not have timestamp")
+						require.Contains(t, status["message"], "Extended check failed", "ActionError message should contain 'Extended check failed'")
+						require.Equal(t, "EXTENDED_CHECK_FAILED", status["code"], "ActionError code should be EXTENDED_CHECK_FAILED")
+					} else {
+						// Should be ActionSuccess
+						require.NotEmpty(t, status["message"], "ActionSuccess should have message")
+						require.NotEmpty(t, status["timestamp"], "ActionSuccess should have timestamp")
+						require.Empty(t, status["code"], "ActionSuccess should not have code")
+						require.Contains(t, status["message"], "details loaded successfully", "ActionSuccess message should contain 'details loaded successfully'")
+						require.Equal(t, "2024-01-01T12:00:00Z", status["timestamp"], "ActionSuccess timestamp should match")
+					}
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with nested field resolver returning both interface and union types",
+			query: "query TestContainersWithBoth($includeExtended: Boolean!) { testContainers { id name details(includeExtended: $includeExtended) { id summary pet { ... on Cat { name meowVolume } ... on Dog { name barkVolume } } status { ... on ActionSuccess { message timestamp } ... on ActionError { message code } } } } }",
+			vars:  `{"variables":{"includeExtended":true}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				containers, ok := data["testContainers"].([]interface{})
+				require.True(t, ok, "testContainers should be an array")
+				require.NotEmpty(t, containers, "testContainers should not be empty")
+				require.Len(t, containers, 3, "Should return 3 test containers")
+
+				// Validate both pet (interface) and status (union) fields
+				for i, container := range containers {
+					container, ok := container.(map[string]interface{})
+					require.True(t, ok, "container should be an object")
+					require.NotEmpty(t, container["id"])
+					require.NotEmpty(t, container["name"])
+					require.NotEmpty(t, container["details"])
+
+					details, ok := container["details"].(map[string]interface{})
+					require.True(t, ok, "details should be an object")
+					require.NotEmpty(t, details["id"])
+					require.NotEmpty(t, details["summary"])
+					require.NotEmpty(t, details["pet"])
+					require.NotEmpty(t, details["status"])
+
+					// Validate pet (Animal interface)
+					pet, ok := details["pet"].(map[string]interface{})
+					require.True(t, ok, "pet should be an object")
+					require.NotEmpty(t, pet["name"])
+
+					if i%2 == 0 {
+						// Should be Cat
+						require.NotEmpty(t, pet["meowVolume"], "Cat should have meowVolume")
+						require.Empty(t, pet["barkVolume"], "Cat should not have barkVolume")
+						require.Contains(t, pet["name"], "TestCat", "Cat name should contain 'TestCat'")
+					} else {
+						// Should be Dog
+						require.NotEmpty(t, pet["barkVolume"], "Dog should have barkVolume")
+						require.Empty(t, pet["meowVolume"], "Dog should not have meowVolume")
+						require.Contains(t, pet["name"], "TestDog", "Dog name should contain 'TestDog'")
+					}
+
+					// Validate status (ActionResult union)
+					status, ok := details["status"].(map[string]interface{})
+					require.True(t, ok, "status should be an object")
+
+					if i%3 == 0 {
+						// Should be ActionError
+						require.NotEmpty(t, status["message"], "ActionError should have message")
+						require.NotEmpty(t, status["code"], "ActionError should have code")
+						require.Empty(t, status["timestamp"], "ActionError should not have timestamp")
+						require.Contains(t, status["message"], "Extended check failed", "ActionError message should contain 'Extended check failed'")
+						require.Equal(t, "EXTENDED_CHECK_FAILED", status["code"], "ActionError code should be EXTENDED_CHECK_FAILED")
+					} else {
+						// Should be ActionSuccess
+						require.NotEmpty(t, status["message"], "ActionSuccess should have message")
+						require.NotEmpty(t, status["timestamp"], "ActionSuccess should have timestamp")
+						require.Empty(t, status["code"], "ActionSuccess should not have code")
+						require.Contains(t, status["message"], "details loaded successfully", "ActionSuccess message should contain 'details loaded successfully'")
+						require.Equal(t, "2024-01-01T12:00:00Z", status["timestamp"], "ActionSuccess timestamp should match")
+					}
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with nested field resolver returning interface with deeply nested fields",
+			query: "query TestContainersWithInterface($includeExtended: Boolean!) { testContainers { id name details(includeExtended: $includeExtended) { id summary pet { ... on Cat { id name owner { name contact { email } } breed { name characteristics { temperament } } } ... on Dog { id name owner { name contact { phone } } breed { origin characteristics { size } } } } } } }",
+			vars:  `{"variables":{"includeExtended":false}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				containers, ok := data["testContainers"].([]interface{})
+				require.True(t, ok, "testContainers should be an array")
+				require.NotEmpty(t, containers, "testContainers should not be empty")
+				require.Len(t, containers, 3, "Should return 3 test containers")
+
+				// Based on mockservice_resolve.go implementation:
+				// - Even indices (0, 2) return Cat with owner and breed details
+				// - Odd indices (1) return Dog with owner and breed details
+				for i, container := range containers {
+					container, ok := container.(map[string]interface{})
+					require.True(t, ok, "container should be an object")
+					require.NotEmpty(t, container["id"])
+					require.NotEmpty(t, container["name"])
+					require.NotEmpty(t, container["details"])
+
+					details, ok := container["details"].(map[string]interface{})
+					require.True(t, ok, "details should be an object")
+					require.NotEmpty(t, details["id"])
+					require.NotEmpty(t, details["summary"])
+					require.NotEmpty(t, details["pet"])
+
+					pet, ok := details["pet"].(map[string]interface{})
+					require.True(t, ok, "pet should be an object")
+					require.NotEmpty(t, pet["id"])
+					require.NotEmpty(t, pet["name"])
+
+					// Validate owner exists
+					owner, ok := pet["owner"].(map[string]interface{})
+					require.True(t, ok, "owner should be an object")
+					require.NotEmpty(t, owner["name"])
+
+					// Validate contact exists
+					contact, ok := owner["contact"].(map[string]interface{})
+					require.True(t, ok, "contact should be an object")
+
+					// Validate breed exists
+					breed, ok := pet["breed"].(map[string]interface{})
+					require.True(t, ok, "breed should be an object")
+
+					// Validate characteristics exists
+					characteristics, ok := breed["characteristics"].(map[string]interface{})
+					require.True(t, ok, "characteristics should be an object")
+
+					if i%2 == 0 {
+						// Should be Cat
+						require.Contains(t, pet["name"], "TestCat", "Cat name should contain 'TestCat'")
+						require.Contains(t, owner["name"], "OwnerTestCat", "Cat owner name should contain 'OwnerTestCat'")
+
+						// Cat should have email in contact
+						require.NotEmpty(t, contact["email"], "Cat owner should have email")
+						require.Equal(t, "owner-test-cat@example.com", contact["email"], "Cat owner email should match")
+						require.Empty(t, contact["phone"], "Cat query should not have phone")
+
+						// Cat breed should have name and temperament in characteristics
+						require.NotEmpty(t, breed["name"], "Cat breed should have name")
+						require.Contains(t, breed["name"], "BreedTestCat", "Cat breed name should contain 'BreedTestCat'")
+						require.Empty(t, breed["origin"], "Cat query should not have breed origin")
+
+						require.NotEmpty(t, characteristics["temperament"], "Cat breed should have temperament")
+						require.Equal(t, "Curious", characteristics["temperament"], "Cat breed temperament should be 'Curious'")
+						require.Empty(t, characteristics["size"], "Cat query should not have breed size")
+					} else {
+						// Should be Dog
+						require.Contains(t, pet["name"], "TestDog", "Dog name should contain 'TestDog'")
+						require.Contains(t, owner["name"], "OwnerTestDog", "Dog owner name should contain 'OwnerTestDog'")
+
+						// Dog should have phone in contact
+						require.NotEmpty(t, contact["phone"], "Dog owner should have phone")
+						require.Equal(t, "555-666-7777", contact["phone"], "Dog owner phone should match")
+						require.Empty(t, contact["email"], "Dog query should not have email")
+
+						// Dog breed should have origin and size in characteristics
+						require.NotEmpty(t, breed["origin"], "Dog breed should have origin")
+						require.Equal(t, "England", breed["origin"], "Dog breed origin should be 'England'")
+						require.Empty(t, breed["name"], "Dog query should not have breed name")
+
+						require.NotEmpty(t, characteristics["size"], "Dog breed should have size")
+						require.Equal(t, "Medium", characteristics["size"], "Dog breed size should be 'Medium'")
+						require.Empty(t, characteristics["temperament"], "Dog query should not have breed temperament")
+					}
 				}
 			},
 			validateError: func(t *testing.T, errData []graphqlError) {
