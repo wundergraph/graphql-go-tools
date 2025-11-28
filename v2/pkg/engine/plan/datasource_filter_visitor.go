@@ -442,14 +442,24 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 			continue
 		}
 
-		// Select node based on a check for selected parent of a current node or its duplicates
-		if f.checkNodes(itemIDs, f.checkNodeParent, nil) {
+		// Select a node based on a check for the selected parent of a current node or its duplicates
+		if f.checkNodes(itemIDs, f.checkNodeParent, func(i int) (skip bool) {
+			if f.nodes.items[i].IsLeaf {
+				return false
+			}
+
+			if !f.nodes.items[i].IsRootNode {
+				return false
+			}
+
+			return !f.couldProvideChildFields(i)
+		}) {
 			continue
 		}
 
 		// we are checking if we have selected any child fields on the same datasource
-		// it means that child was unique, so we could select parent of such child
-		if f.checkNodes(itemIDs, f.checkNodeChilds, func(i int) bool {
+		// it means that the child was unique, so we could select the parent of such a child
+		if f.checkNodes(itemIDs, f.checkNodeChilds, func(i int) (skip bool) {
 			// do not evaluate childs for the leaf nodes
 			return f.nodes.items[i].IsLeaf
 		}) {
@@ -457,25 +467,25 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 		}
 
 		// we are checking if we have selected any sibling fields on the same datasource
-		// if sibling is selected on the same datasource, we could select current node
-		if f.checkNodes(itemIDs, f.checkNodeSiblings, func(i int) bool {
-			// we skip non leaf nodes which could not provide any child selections
+		// if a sibling is selected on the same datasource, we could select a current node
+		if f.checkNodes(itemIDs, f.checkNodeSiblings, func(i int) (skip bool) {
+			// we skip non-leaf nodes which could not provide any child selections
 			if !f.nodes.items[i].IsLeaf && !f.couldProvideChildFields(i) {
 				return true
 			}
 
-			// we should not select a __typename field based on a siblings, unless it is on a root query type
+			// we should not select a __typename field based on a sibling, unless it is on a root query type
 			return f.nodes.items[i].isTypeName && !IsMutationOrQueryRootType(f.nodes.items[i].TypeName)
 		}) {
 			continue
 		}
 
-		// if after all checks node was not selected
+		// if after all checks node was not selected,
 		// we need a couple more checks
 
 		// 1. Lookup in duplicates for root nodes with enabled reference resolver
 		// in case current node suggestion is an entity root node, and it contains a key with disabled resolver
-		// we could not select such node, because we could not jump to the subgraph which do not have reference resolver,
+		// we could not select such a node, because we could not jump to the subgraph which do not have a reference resolver,
 		// so we need to find a possible duplicate which has enabled entity resolver
 		// The tricky part here is to check that the parent node could provide keys for the current node
 
@@ -492,17 +502,17 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 					return true
 				}
 
-				// when node is a root query node we will not have parent
-				// so we need to check if parent node id is not a root of a tree
+				// when a node is a root query node, we will not have a parent
+				// so we need to check if the parent node id is not a root of a tree
 				if treeNode.GetParentID() != treeRootID {
-					// we need to check if the node with enabled resolver could actually get a key from the parent node
+					// we need to check if the node with the enabled resolver could actually get a key from the parent node
 					if !f.isSelectedParentCouldProvideKeysForCurrentNode(i) {
 						return true
 					}
 				}
 
-				// if node is not a leaf we need to check if it is possible to get any fields (not counting __typename) from this datasource
-				// it may be the case that all fields belongs to different datasource, but this node could serve as the connection point
+				// if node is not a leaf, we need to check if it is possible to get any fields (not counting __typename) from this datasource
+				// it may be the case that all fields belong to different datasource, but this node could serve as the connection point
 				// to the other datasources, so we check if parent could provide a key
 				// and that we could provide a key to the next childs
 				if f.nodes.items[i].IsLeaf {
@@ -882,7 +892,7 @@ func (f *DataSourceFilter) selectWithExternalCheck(i int, reason string) (nodeIs
 func (f *DataSourceFilter) couldProvideChildFields(i int) bool {
 	nodesIds := f.nodes.childNodesOnSameSource(i)
 
-	hasFields := false
+	hasSelectableFields := false
 	for _, i := range nodesIds {
 		if f.nodes.items[i].isTypeName {
 			// we have to omit __typename field
@@ -894,10 +904,20 @@ func (f *DataSourceFilter) couldProvideChildFields(i int) bool {
 			continue
 		}
 
-		hasFields = true
+		if f.nodes.items[i].IsLeaf {
+			// when the node is a leaf, it could be selected
+			hasSelectableFields = true
+			break
+		}
+
+		// for non-leaf nodes, we need to check again if they could provide any child fields
+		if f.couldProvideChildFields(i) {
+			hasSelectableFields = true
+			break
+		}
 	}
 
-	return hasFields
+	return hasSelectableFields
 }
 
 func (f *DataSourceFilter) childsHasOnlyTypename(i int) (hasOnlyTypename bool) {
