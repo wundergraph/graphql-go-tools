@@ -2377,6 +2377,121 @@ func TestExecutionPlanFieldResolvers_CustomSchemas(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:         "Should correctly include typename field when providing empty selection set",
+			subgraphName: "Foo",
+			operation: `
+			query FooQuery($foo: String!, $baz: String!) { 
+				foo { 
+					fooResolver(foo: $foo) { 
+						__typename
+					}
+				}
+			}`,
+			schema:  schemaWithNestedResolverAndCompositeType(t),
+			mapping: mappingWithNestedResolverAndCompositeType(t),
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Foo",
+						MethodName:  "QueryFoo",
+						Request: RPCMessage{
+							Name: "QueryFooRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryFooResponse",
+							Fields: []RPCField{
+								{
+									Name:          "foo",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "foo",
+									Message: &RPCMessage{
+										Name:   "Foo",
+										Fields: RPCFields{},
+									},
+								},
+							},
+						},
+					},
+					{
+						Kind:           CallKindResolve,
+						DependentCalls: []int{0},
+						ResponsePath:   buildPath("foo.fooResolver"),
+						ServiceName:    "Foo",
+						MethodName:     "ResolveFooFooResolver",
+						Request: RPCMessage{
+							Name: "ResolveFooFooResolverRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveFooFooResolverContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("foo.id"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveFooFooResolverArgs",
+										Fields: []RPCField{
+											{
+												Name:          "foo",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "foo",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveFooFooResolverResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "result",
+									Message: &RPCMessage{
+										Name: "ResolveFooFooResolverResult",
+										Fields: RPCFields{
+											{
+												Name:          "foo_resolver",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "fooResolver",
+												Message: &RPCMessage{
+													Name:        "Bar",
+													OneOfType:   OneOfTypeInterface,
+													MemberTypes: []string{"Baz"},
+													Fields: RPCFields{
+														{
+															Name:          "__typename",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "__typename",
+															StaticValue:   "Bar",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

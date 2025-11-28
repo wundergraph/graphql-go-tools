@@ -826,6 +826,7 @@ type fragmentSelection struct {
 // It appends the inline fragment selections to the resolved field and sets the fragment type.
 func (r *rpcPlanningContext) enterResolverCompositeSelectionSet(oneOfType OneOfType, selectionSetRef int, resolvedField *resolverField) {
 	resolvedField.fieldsSelectionSetRef = ast.InvalidRef
+	resolvedField.fragmentType = oneOfType
 
 	// In case of an interface we can select individual fields from the interface without having to use an inline fragment.
 	if len(r.operation.SelectionSetFieldRefs(selectionSetRef)) > 0 {
@@ -849,8 +850,6 @@ func (r *rpcPlanningContext) enterResolverCompositeSelectionSet(oneOfType OneOfT
 			selectionSetRef: inlinFragSelectionSetRef,
 		})
 	}
-
-	resolvedField.fragmentType = oneOfType
 }
 
 // isFieldResolver checks if a field is a field resolver.
@@ -1054,7 +1053,9 @@ type resolveRPCCallConfig struct {
 // When a field resolver returns a complex or composite type, we need to build a message for the type.
 func (r *rpcPlanningContext) buildFieldResolverTypeMessage(typeName string, resolverField *resolverField) (*RPCMessage, error) {
 	message := &RPCMessage{
-		Name: typeName,
+		Name:        typeName,
+		OneOfType:   resolverField.fragmentType,
+		MemberTypes: resolverField.memberTypes,
 	}
 
 	// field resolvers which return a non scalar type must have a selection set.
@@ -1066,8 +1067,6 @@ func (r *rpcPlanningContext) buildFieldResolverTypeMessage(typeName string, reso
 	// If the resolved field returns a composite type we need to handle the selection set for the inline fragment.
 	if len(resolverField.fragmentSelections) > 0 {
 		message.FieldSelectionSet = make(RPCFieldSelectionSet, len(resolverField.fragmentSelections))
-		message.OneOfType = resolverField.fragmentType
-		message.MemberTypes = resolverField.memberTypes
 
 		for _, fragmentSelection := range resolverField.fragmentSelections {
 			inlineFragmentTypeNode, found := r.definition.NodeByNameStr(fragmentSelection.typeName)
