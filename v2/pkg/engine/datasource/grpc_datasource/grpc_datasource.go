@@ -149,9 +149,8 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 		}
 
 		if err := errGrp.Wait(); err != nil {
-			out.Write(builder.writeErrorBytes(err))
 			failed = true
-			return nil
+			return err
 		}
 
 		for _, result := range results {
@@ -169,7 +168,8 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 
 		return nil
 	}); err != nil || failed {
-		return err
+		out.Write(builder.writeErrorBytes(err))
+		return nil
 	}
 
 	data := builder.toDataObject(root)

@@ -825,6 +825,13 @@ type fragmentSelection struct {
 // enterResolverCompositeSelectionSet handles logic when entering a composite selection set for a given field resolver.
 // It appends the inline fragment selections to the resolved field and sets the fragment type.
 func (r *rpcPlanningContext) enterResolverCompositeSelectionSet(oneOfType OneOfType, selectionSetRef int, resolvedField *resolverField) {
+	resolvedField.fieldsSelectionSetRef = ast.InvalidRef
+
+	// In case of an interface we can select individual fields from the interface without having to use an inline fragment.
+	if len(r.operation.SelectionSetFieldRefs(selectionSetRef)) > 0 {
+		resolvedField.fieldsSelectionSetRef = selectionSetRef
+	}
+
 	inlineFragSelections := r.operation.SelectionSetInlineFragmentSelections(selectionSetRef)
 	if len(inlineFragSelections) == 0 {
 		return
@@ -1050,6 +1057,12 @@ func (r *rpcPlanningContext) buildFieldResolverTypeMessage(typeName string, reso
 		Name: typeName,
 	}
 
+	// field resolvers which return a non scalar type must have a selection set.
+	// If we don't have a selection set we return an error.
+	if len(resolverField.fragmentSelections) == 0 && resolverField.fieldsSelectionSetRef == ast.InvalidRef {
+		return nil, errors.New("unable to resolve required fields: no fields selection set found")
+	}
+
 	// If the resolved field returns a composite type we need to handle the selection set for the inline fragment.
 	if len(resolverField.fragmentSelections) > 0 {
 		message.FieldSelectionSet = make(RPCFieldSelectionSet, len(resolverField.fragmentSelections))
@@ -1069,14 +1082,10 @@ func (r *rpcPlanningContext) buildFieldResolverTypeMessage(typeName string, reso
 
 			message.FieldSelectionSet[fragmentSelection.typeName] = fields
 		}
-
-		return message, nil
 	}
 
-	// field resolvers which return a non scalar type must have a selection set.
-	// If we don't have a selection set we return an error.
 	if resolverField.fieldsSelectionSetRef == ast.InvalidRef {
-		return nil, errors.New("unable to resolve required fields: no fields selection set found")
+		return message, nil
 	}
 
 	// If the resolved field does not return a composite type we handle the selection set for the required field.
