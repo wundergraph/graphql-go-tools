@@ -1124,7 +1124,7 @@ func (r *rpcPlanningContext) buildRequiredField(typeNode ast.Node, fieldRef int)
 		return RPCField{}, fmt.Errorf("unable to build required field: field definition not found for field %s", fieldName)
 	}
 
-	field, err := r.buildField(typeNode, fieldDef, r.operation.FieldNameString(fieldRef), "")
+	field, err := r.buildField(typeNode, fieldDef, r.operation.FieldNameString(fieldRef), r.operation.FieldAliasString(fieldRef))
 	if err != nil {
 		return RPCField{}, err
 	}
@@ -1163,7 +1163,7 @@ func (r *rpcPlanningContext) buildCompositeFields(inlineFragmentNode ast.Node, f
 			return nil, fmt.Errorf("unable to build composite field: field definition not found for field %s", r.operation.FieldNameString(fieldRef))
 		}
 
-		field, err := r.buildField(inlineFragmentNode, fieldDef, r.operation.FieldNameString(fieldRef), "")
+		field, err := r.buildField(inlineFragmentNode, fieldDef, r.operation.FieldNameString(fieldRef), r.operation.FieldAliasString(fieldRef))
 		if err != nil {
 			return nil, err
 		}
