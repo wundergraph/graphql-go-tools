@@ -604,7 +604,9 @@ func (p *RPCCompiler) buildProtoMessageWithContext(inputMessage Message, rpcMess
 		val := contextList.NewElement()
 		valMsg := val.Message()
 		for fieldName, value := range data {
-			p.setMessageValue(valMsg, fieldName, value)
+			if err := p.setMessageValue(valMsg, fieldName, value); err != nil {
+				return nil, err
+			}
 		}
 
 		contextList.Append(val)
@@ -626,7 +628,9 @@ func (p *RPCCompiler) buildProtoMessageWithContext(inputMessage Message, rpcMess
 		return nil, err
 	}
 	// Set the args field
-	p.setMessageValue(rootMessage, argsRPCField.Name, protoref.ValueOfMessage(args))
+	if err := p.setMessageValue(rootMessage, argsRPCField.Name, protoref.ValueOfMessage(args)); err != nil {
+		return nil, err
+	}
 
 	return rootMessage, nil
 }
