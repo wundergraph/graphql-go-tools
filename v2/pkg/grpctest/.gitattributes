@@ -1,2 +1,2 @@
 # Don't show diffs for generated files in github.
-productv1/**/*.pb.go linguist-generated=true
+productv1/*.pb.go linguist-generated=true
