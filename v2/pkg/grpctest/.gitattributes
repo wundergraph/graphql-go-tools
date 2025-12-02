@@ -1,0 +1,2 @@
+# Don't show diffs for generated files in github.
+*.pb.go linguist-generated=true
