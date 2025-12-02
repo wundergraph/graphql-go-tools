@@ -696,7 +696,7 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 			},
 		},
 		{
-			name:  "Should create an execution plan for a query a field resolver with a message type and and aliases",
+			name:  "Should create an execution plan for a query with a field resolver with a message type and aliases",
 			query: "query CategoriesWithNullableTypes($metricType: String) { categories { categoryMetrics(metricType: $metricType) { myId: id myMetricType: metricType myValue: value } } }",
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
