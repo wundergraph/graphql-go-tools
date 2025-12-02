@@ -2507,7 +2507,7 @@ func TestExecutionPlanFieldResolvers_CustomSchemas(t *testing.T) {
 			name:         "Should correctly include typename field when providing empty selection set",
 			subgraphName: "Foo",
 			operation: `
-			query FooQuery($foo: String!, $baz: String!) { 
+			query FooQuery($foo: String!) { 
 				foo { 
 					fooResolver(foo: $foo) { 
 						__typename
