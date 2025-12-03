@@ -200,10 +200,7 @@ func (r *rpcPlanVisitorFederation) EnterSelectionSet(ref int) {
 				return
 			}
 			resolvedField := &r.resolvedFields[resolvedFieldAncestor]
-
 			resolvedField.memberTypes = memberTypes
-			resolvedField.fieldsSelectionSetRef = ast.InvalidRef
-
 			r.planCtx.enterResolverCompositeSelectionSet(compositType, ref, resolvedField)
 			return
 		}
