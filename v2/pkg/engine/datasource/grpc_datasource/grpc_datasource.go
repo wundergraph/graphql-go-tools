@@ -102,8 +102,6 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 	defer arena.Reset()
 	root := arena.NewObject()
 
-	failed := false
-
 	if err := d.graph.TopologicalSortResolve(func(nodes []FetchItem) error {
 		serviceCalls, err := d.rc.CompileFetches(d.graph, nodes, variables)
 		if err != nil {
@@ -149,7 +147,6 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 		}
 
 		if err := errGrp.Wait(); err != nil {
-			failed = true
 			return err
 		}
 
@@ -161,13 +158,12 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 				root, err = builder.mergeValues(root, result.response)
 			}
 			if err != nil {
-				out.Write(builder.writeErrorBytes(err))
 				return err
 			}
 		}
 
 		return nil
-	}); err != nil || failed {
+	}); err != nil {
 		out.Write(builder.writeErrorBytes(err))
 		return nil
 	}
