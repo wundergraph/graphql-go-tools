@@ -2,6 +2,11 @@ package grpcdatasource
 
 import (
 	"testing"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 func TestExecutionPlanFieldResolvers(t *testing.T) {
@@ -14,7 +19,7 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 	}{
 		{
 			name:  "Should create an execution plan for a query with a field resolver",
-			query: "query CategoriesWithFieldResolvers($whoop: ProductCountFilter) { categories { id name kind productCount(filters: $whoop) } }",
+			query: "query CategoriesWithFieldResolvers($whoop: ProductCountFilter) { categories { id productCount(filters: $whoop) name kind } }",
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
@@ -691,6 +696,132 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 			},
 		},
 		{
+			name:  "Should create an execution plan for a query with a field resolver with a message type and aliases",
+			query: "query CategoriesWithNullableTypes($metricType: String) { categories { categoryMetrics(metricType: $metricType) { myId: id myMetricType: metricType myValue: value } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryCategories",
+						Request: RPCMessage{
+							Name: "QueryCategoriesRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "categories",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "categories",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name:   "Category",
+										Fields: []RPCField{},
+									},
+								},
+							},
+						},
+					},
+					{
+						DependentCalls: []int{0},
+						Kind:           CallKindResolve,
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryCategoryMetrics",
+						ResponsePath:   buildPath("categories.categoryMetrics"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryCategoryMetricsRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryCategoryMetricsContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("categories.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("categories.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "",
+									Message: &RPCMessage{
+										Name: "ResolveCategoryCategoryMetricsArgs",
+										Fields: []RPCField{
+											{
+												Name:          "metric_type",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "metricType",
+												Optional:      false,
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryCategoryMetricsResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryCategoryMetricsResult",
+										Fields: []RPCField{
+											{
+												Name:          "category_metrics",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "categoryMetrics",
+												Optional:      true,
+												Message: &RPCMessage{
+													Name: "CategoryMetrics",
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+															Alias:         "myId",
+														},
+														{
+															Name:          "metric_type",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "metricType",
+															Alias:         "myMetricType",
+														},
+														{
+															Name:          "value",
+															ProtoTypeName: DataTypeDouble,
+															JSONPath:      "value",
+															Alias:         "myValue",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
 			name:  "Should create an execution plan for a query with nullable types",
 			query: "query CategoriesWithNullableTypes($threshold: Int, $metricType: String) { categories { popularityScore(threshold: $threshold) categoryMetrics(metricType: $metricType) { id metricType value } } }",
 			expectedPlan: &RPCExecutionPlan{
@@ -890,5 +1021,1726 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 				expectedError: tt.expectedError,
 			})
 		})
+	}
+}
+
+func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name          string
+		query         string
+		expectedPlan  *RPCExecutionPlan
+		expectedError string
+	}{
+		{
+			name:  "Should create an execution plan for a query with nested field resolvers",
+			query: "query CategoriesWithNestedResolvers($metricType: String, $baseline: Float!) { categories { categoryMetrics(metricType: $metricType) { id normalizedScore(baseline: $baseline) metricType value } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryCategories",
+						Request: RPCMessage{
+							Name: "QueryCategoriesRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "categories",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "categories",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name:   "Category",
+										Fields: []RPCField{},
+									},
+								},
+							},
+						},
+					},
+					{
+						DependentCalls: []int{0},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryCategoryMetrics",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.categoryMetrics"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryCategoryMetricsRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryCategoryMetricsContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("categories.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("categories.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryCategoryMetricsArgs",
+										Fields: []RPCField{
+											{
+												Name:          "metric_type",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "metricType",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryCategoryMetricsResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryCategoryMetricsResult",
+										Fields: []RPCField{
+											{
+												Name:          "category_metrics",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "categoryMetrics",
+												Optional:      true,
+												Message: &RPCMessage{
+													Name: "CategoryMetrics",
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+														{
+															Name:          "metric_type",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "metricType",
+														},
+														{
+															Name:          "value",
+															ProtoTypeName: DataTypeDouble,
+															JSONPath:      "value",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						DependentCalls: []int{1},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryMetricsNormalizedScore",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.categoryMetrics.normalizedScore"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryMetricsNormalizedScoreRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryMetricsNormalizedScoreContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("categories.categoryMetrics.id"),
+											},
+											{
+												Name:          "value",
+												ProtoTypeName: DataTypeDouble,
+												JSONPath:      "value",
+												ResolvePath:   buildPath("categories.categoryMetrics.value"),
+											},
+											{
+												Name:          "metric_type",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "metricType",
+												ResolvePath:   buildPath("categories.categoryMetrics.metricType"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryMetricsNormalizedScoreArgs",
+										Fields: []RPCField{
+											{
+												Name:          "baseline",
+												ProtoTypeName: DataTypeDouble,
+												JSONPath:      "baseline",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryMetricsNormalizedScoreResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryMetricsNormalizedScoreResult",
+										Fields: []RPCField{
+											{
+												Name:          "normalized_score",
+												ProtoTypeName: DataTypeDouble,
+												JSONPath:      "normalizedScore",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			runTest(t, testCase{
+				query:         tt.query,
+				expectedPlan:  tt.expectedPlan,
+				expectedError: tt.expectedError,
+			})
+		})
+	}
+}
+
+func TestExecutionPlanFieldResolvers_WithCompositeTypes(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name          string
+		query         string
+		expectedPlan  *RPCExecutionPlan
+		expectedError string
+	}{
+		{
+			name:  "Should create an execution plan for a query with interface type",
+			query: "query CategoriesWithNestedResolvers($includeVolume: Boolean!) { categories { mascot(includeVolume: $includeVolume) { ... on Cat { name } ... on Dog { name } } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryCategories",
+						Request: RPCMessage{
+							Name: "QueryCategoriesRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "categories",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "categories",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name:   "Category",
+										Fields: []RPCField{},
+									},
+								},
+							},
+						},
+					},
+					{
+						DependentCalls: []int{0},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryMascot",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.mascot"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryMascotRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryMascotContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("categories.id"),
+											},
+											{
+												Name:          "kind",
+												ProtoTypeName: DataTypeEnum,
+												JSONPath:      "kind",
+												EnumName:      "CategoryKind",
+												ResolvePath:   buildPath("categories.kind"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryMascotArgs",
+										Fields: []RPCField{
+											{
+												Name:          "include_volume",
+												ProtoTypeName: DataTypeBool,
+												JSONPath:      "includeVolume",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryMascotResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryMascotResult",
+										Fields: []RPCField{
+											{
+												Name:          "mascot",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "mascot",
+												Optional:      true,
+												Message: &RPCMessage{
+													Name:        "Animal",
+													OneOfType:   OneOfTypeInterface,
+													MemberTypes: []string{"Cat", "Dog"},
+													FieldSelectionSet: RPCFieldSelectionSet{
+														"Cat": {
+															{
+																Name:          "name",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "name",
+															},
+														},
+														"Dog": {
+															{
+																Name:          "name",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "name",
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query with union type",
+			query: "query CategoriesWithUnionResolver($checkHealth: Boolean!) { categories { categoryStatus(checkHealth: $checkHealth) { ... on ActionSuccess { message timestamp } ... on ActionError { message code } } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryCategories",
+						Request: RPCMessage{
+							Name: "QueryCategoriesRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "categories",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "categories",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name:   "Category",
+										Fields: []RPCField{},
+									},
+								},
+							},
+						},
+					},
+					{
+						DependentCalls: []int{0},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryCategoryStatus",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.categoryStatus"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryCategoryStatusRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryCategoryStatusContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("categories.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("categories.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryCategoryStatusArgs",
+										Fields: []RPCField{
+											{
+												Name:          "check_health",
+												ProtoTypeName: DataTypeBool,
+												JSONPath:      "checkHealth",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryCategoryStatusResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryCategoryStatusResult",
+										Fields: []RPCField{
+											{
+												Name:          "category_status",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "categoryStatus",
+												Message: &RPCMessage{
+													Name:        "ActionResult",
+													OneOfType:   OneOfTypeUnion,
+													MemberTypes: []string{"ActionSuccess", "ActionError"},
+													FieldSelectionSet: RPCFieldSelectionSet{
+														"ActionSuccess": {
+															{
+																Name:          "message",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "message",
+															},
+															{
+																Name:          "timestamp",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "timestamp",
+															},
+														},
+														"ActionError": {
+															{
+																Name:          "message",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "message",
+															},
+															{
+																Name:          "code",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "code",
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query with nested interface type",
+			query: "query TestContainersWithInterface($includeExtended: Boolean!) { testContainers { id name details(includeExtended: $includeExtended) { id summary pet { ... on Cat { name meowVolume } ... on Dog { name barkVolume } } } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryTestContainers",
+						Request: RPCMessage{
+							Name: "QueryTestContainersRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryTestContainersResponse",
+							Fields: []RPCField{
+								{
+									Name:          "test_containers",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "testContainers",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "TestContainer",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						DependentCalls: []int{0},
+						ServiceName:    "Products",
+						MethodName:     "ResolveTestContainerDetails",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("testContainers.details"),
+						Request: RPCMessage{
+							Name: "ResolveTestContainerDetailsRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveTestContainerDetailsContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("test_containers.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("test_containers.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveTestContainerDetailsArgs",
+										Fields: []RPCField{
+											{
+												Name:          "include_extended",
+												ProtoTypeName: DataTypeBool,
+												JSONPath:      "includeExtended",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveTestContainerDetailsResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveTestContainerDetailsResult",
+										Fields: []RPCField{
+											{
+												Name:          "details",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "details",
+												Optional:      true,
+												Message: &RPCMessage{
+													Name: "TestDetails",
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+														{
+															Name:          "summary",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "summary",
+														},
+														{
+															Name:          "pet",
+															ProtoTypeName: DataTypeMessage,
+															JSONPath:      "pet",
+															Message: &RPCMessage{
+																Name:        "Animal",
+																OneOfType:   OneOfTypeInterface,
+																MemberTypes: []string{"Cat", "Dog"},
+																FieldSelectionSet: RPCFieldSelectionSet{
+																	"Cat": {
+																		{
+																			Name:          "name",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "name",
+																		},
+																		{
+																			Name:          "meow_volume",
+																			ProtoTypeName: DataTypeInt32,
+																			JSONPath:      "meowVolume",
+																		},
+																	},
+																	"Dog": {
+																		{
+																			Name:          "name",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "name",
+																		},
+																		{
+																			Name:          "bark_volume",
+																			ProtoTypeName: DataTypeInt32,
+																			JSONPath:      "barkVolume",
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query with nested union type",
+			query: "query TestContainersWithUnion($includeExtended: Boolean!) { testContainers { id name details(includeExtended: $includeExtended) { id summary status { ... on ActionSuccess { message timestamp } ... on ActionError { message code } } } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryTestContainers",
+						Request: RPCMessage{
+							Name: "QueryTestContainersRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryTestContainersResponse",
+							Fields: []RPCField{
+								{
+									Name:          "test_containers",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "testContainers",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "TestContainer",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						DependentCalls: []int{0},
+						ServiceName:    "Products",
+						MethodName:     "ResolveTestContainerDetails",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("testContainers.details"),
+						Request: RPCMessage{
+							Name: "ResolveTestContainerDetailsRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveTestContainerDetailsContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("test_containers.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("test_containers.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveTestContainerDetailsArgs",
+										Fields: []RPCField{
+											{
+												Name:          "include_extended",
+												ProtoTypeName: DataTypeBool,
+												JSONPath:      "includeExtended",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveTestContainerDetailsResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveTestContainerDetailsResult",
+										Fields: []RPCField{
+											{
+												Name:          "details",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "details",
+												Optional:      true,
+												Message: &RPCMessage{
+													Name: "TestDetails",
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+														{
+															Name:          "summary",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "summary",
+														},
+														{
+															Name:          "status",
+															ProtoTypeName: DataTypeMessage,
+															JSONPath:      "status",
+															Message: &RPCMessage{
+																Name:        "ActionResult",
+																OneOfType:   OneOfTypeUnion,
+																MemberTypes: []string{"ActionSuccess", "ActionError"},
+																FieldSelectionSet: RPCFieldSelectionSet{
+																	"ActionSuccess": {
+																		{
+																			Name:          "message",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "message",
+																		},
+																		{
+																			Name:          "timestamp",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "timestamp",
+																		},
+																	},
+																	"ActionError": {
+																		{
+																			Name:          "message",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "message",
+																		},
+																		{
+																			Name:          "code",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "code",
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query with both nested interface and union types",
+			query: "query TestContainersWithBoth($includeExtended: Boolean!) { testContainers { id name details(includeExtended: $includeExtended) { id summary pet { ... on Cat { name meowVolume } ... on Dog { name barkVolume } } status { ... on ActionSuccess { message timestamp } ... on ActionError { message code } } } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryTestContainers",
+						Request: RPCMessage{
+							Name: "QueryTestContainersRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryTestContainersResponse",
+							Fields: []RPCField{
+								{
+									Name:          "test_containers",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "testContainers",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "TestContainer",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						DependentCalls: []int{0},
+						ServiceName:    "Products",
+						MethodName:     "ResolveTestContainerDetails",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("testContainers.details"),
+						Request: RPCMessage{
+							Name: "ResolveTestContainerDetailsRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveTestContainerDetailsContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("test_containers.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("test_containers.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveTestContainerDetailsArgs",
+										Fields: []RPCField{
+											{
+												Name:          "include_extended",
+												ProtoTypeName: DataTypeBool,
+												JSONPath:      "includeExtended",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveTestContainerDetailsResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveTestContainerDetailsResult",
+										Fields: []RPCField{
+											{
+												Name:          "details",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "details",
+												Optional:      true,
+												Message: &RPCMessage{
+													Name: "TestDetails",
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+														{
+															Name:          "summary",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "summary",
+														},
+														{
+															Name:          "pet",
+															ProtoTypeName: DataTypeMessage,
+															JSONPath:      "pet",
+															Message: &RPCMessage{
+																Name:        "Animal",
+																OneOfType:   OneOfTypeInterface,
+																MemberTypes: []string{"Cat", "Dog"},
+																FieldSelectionSet: RPCFieldSelectionSet{
+																	"Cat": {
+																		{
+																			Name:          "name",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "name",
+																		},
+																		{
+																			Name:          "meow_volume",
+																			ProtoTypeName: DataTypeInt32,
+																			JSONPath:      "meowVolume",
+																		},
+																	},
+																	"Dog": {
+																		{
+																			Name:          "name",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "name",
+																		},
+																		{
+																			Name:          "bark_volume",
+																			ProtoTypeName: DataTypeInt32,
+																			JSONPath:      "barkVolume",
+																		},
+																	},
+																},
+															},
+														},
+														{
+															Name:          "status",
+															ProtoTypeName: DataTypeMessage,
+															JSONPath:      "status",
+															Message: &RPCMessage{
+																Name:        "ActionResult",
+																OneOfType:   OneOfTypeUnion,
+																MemberTypes: []string{"ActionSuccess", "ActionError"},
+																FieldSelectionSet: RPCFieldSelectionSet{
+																	"ActionSuccess": {
+																		{
+																			Name:          "message",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "message",
+																		},
+																		{
+																			Name:          "timestamp",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "timestamp",
+																		},
+																	},
+																	"ActionError": {
+																		{
+																			Name:          "message",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "message",
+																		},
+																		{
+																			Name:          "code",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "code",
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query with nested selection in an interface with inline fragments",
+			query: "query TestContainersWithInterface($includeExtended: Boolean!) { testContainers { id name details(includeExtended: $includeExtended) { id summary pet { ... on Cat { id name owner { name contact { email } } breed { name characteristics { temperament } } } ... on Dog { id name owner { name contact { phone } } breed { origin characteristics { size } } } } } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryTestContainers",
+						Request: RPCMessage{
+							Name: "QueryTestContainersRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryTestContainersResponse",
+							Fields: []RPCField{
+								{
+									Name:          "test_containers",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "testContainers",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "TestContainer",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						DependentCalls: []int{0},
+						ServiceName:    "Products",
+						MethodName:     "ResolveTestContainerDetails",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("testContainers.details"),
+						Request: RPCMessage{
+							Name: "ResolveTestContainerDetailsRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveTestContainerDetailsContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("test_containers.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("test_containers.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveTestContainerDetailsArgs",
+										Fields: []RPCField{
+											{
+												Name:          "include_extended",
+												ProtoTypeName: DataTypeBool,
+												JSONPath:      "includeExtended",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveTestContainerDetailsResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveTestContainerDetailsResult",
+										Fields: []RPCField{
+											{
+												Name:          "details",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "details",
+												Optional:      true,
+												Message: &RPCMessage{
+													Name: "TestDetails",
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+														{
+															Name:          "summary",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "summary",
+														},
+														{
+															Name:          "pet",
+															ProtoTypeName: DataTypeMessage,
+															JSONPath:      "pet",
+															Message: &RPCMessage{
+																Name:        "Animal",
+																OneOfType:   OneOfTypeInterface,
+																MemberTypes: []string{"Cat", "Dog"},
+																FieldSelectionSet: RPCFieldSelectionSet{
+																	"Cat": {
+																		{
+																			Name:          "id",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "id",
+																		},
+																		{
+																			Name:          "name",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "name",
+																		},
+																		{
+																			Name:          "owner",
+																			ProtoTypeName: DataTypeMessage,
+																			JSONPath:      "owner",
+																			Message: &RPCMessage{
+																				Name: "Owner",
+																				Fields: []RPCField{
+																					{
+																						Name:          "name",
+																						ProtoTypeName: DataTypeString,
+																						JSONPath:      "name",
+																					},
+																					{
+																						Name:          "contact",
+																						ProtoTypeName: DataTypeMessage,
+																						JSONPath:      "contact",
+																						Message: &RPCMessage{
+																							Name: "ContactInfo",
+																							Fields: []RPCField{
+																								{
+																									Name:          "email",
+																									ProtoTypeName: DataTypeString,
+																									JSONPath:      "email",
+																								},
+																							},
+																						},
+																					},
+																				},
+																			},
+																		},
+																		{
+																			Name:          "breed",
+																			ProtoTypeName: DataTypeMessage,
+																			JSONPath:      "breed",
+																			Message: &RPCMessage{
+																				Name: "CatBreed",
+																				Fields: []RPCField{
+																					{
+																						Name:          "name",
+																						ProtoTypeName: DataTypeString,
+																						JSONPath:      "name",
+																					},
+																					{
+																						Name:          "characteristics",
+																						ProtoTypeName: DataTypeMessage,
+																						JSONPath:      "characteristics",
+																						Message: &RPCMessage{
+																							Name: "BreedCharacteristics",
+																							Fields: []RPCField{
+																								{
+																									Name:          "temperament",
+																									ProtoTypeName: DataTypeString,
+																									JSONPath:      "temperament",
+																								},
+																							},
+																						},
+																					},
+																				},
+																			},
+																		},
+																	},
+																	"Dog": {
+																		{
+																			Name:          "id",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "id",
+																		},
+																		{
+																			Name:          "name",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "name",
+																		},
+																		{
+																			Name:          "owner",
+																			ProtoTypeName: DataTypeMessage,
+																			JSONPath:      "owner",
+																			Message: &RPCMessage{
+																				Name: "Owner",
+																				Fields: []RPCField{
+																					{
+																						Name:          "name",
+																						ProtoTypeName: DataTypeString,
+																						JSONPath:      "name",
+																					},
+																					{
+																						Name:          "contact",
+																						ProtoTypeName: DataTypeMessage,
+																						JSONPath:      "contact",
+																						Message: &RPCMessage{
+																							Name: "ContactInfo",
+																							Fields: []RPCField{
+																								{
+																									Name:          "phone",
+																									ProtoTypeName: DataTypeString,
+																									JSONPath:      "phone",
+																								},
+																							},
+																						},
+																					},
+																				},
+																			},
+																		},
+																		{
+																			Name:          "breed",
+																			ProtoTypeName: DataTypeMessage,
+																			JSONPath:      "breed",
+																			Message: &RPCMessage{
+																				Name: "DogBreed",
+																				Fields: []RPCField{
+																					{
+																						Name:          "origin",
+																						ProtoTypeName: DataTypeString,
+																						JSONPath:      "origin",
+																					},
+																					{
+																						Name:          "characteristics",
+																						ProtoTypeName: DataTypeMessage,
+																						JSONPath:      "characteristics",
+																						Message: &RPCMessage{
+																							Name: "BreedCharacteristics",
+																							Fields: []RPCField{
+																								{
+																									Name:          "size",
+																									ProtoTypeName: DataTypeString,
+																									JSONPath:      "size",
+																								},
+																							},
+																						},
+																					},
+																				},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			runTest(t, testCase{
+				query:         tt.query,
+				expectedPlan:  tt.expectedPlan,
+				expectedError: tt.expectedError,
+			})
+		})
+	}
+}
+
+func TestExecutionPlanFieldResolvers_CustomSchemas(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name          string
+		operation     string
+		schema        ast.Document
+		subgraphName  string
+		mapping       *GRPCMapping
+		expectedPlan  *RPCExecutionPlan
+		expectedError string
+	}{
+		{
+			name:         "Should not include nested resolvers in composite type selection set when building the execution plan",
+			subgraphName: "Foo",
+			operation: `
+			query FooQuery($foo: String!, $baz: String!) { 
+				foo { 
+					fooResolver(foo: $foo) { 
+						... on Baz { 
+							bazResolver(baz: $baz) 
+						}
+					}
+				}
+			}`,
+			schema:  schemaWithNestedResolverAndCompositeType(t),
+			mapping: mappingWithNestedResolverAndCompositeType(t),
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Foo",
+						MethodName:  "QueryFoo",
+						Request: RPCMessage{
+							Name: "QueryFooRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryFooResponse",
+							Fields: []RPCField{
+								{
+									Name:          "foo",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "foo",
+									Message: &RPCMessage{
+										Name:   "Foo",
+										Fields: RPCFields{},
+									},
+								},
+							},
+						},
+					},
+					{
+						Kind:           CallKindResolve,
+						DependentCalls: []int{0},
+						ResponsePath:   buildPath("foo.fooResolver"),
+						ServiceName:    "Foo",
+						MethodName:     "ResolveFooFooResolver",
+						Request: RPCMessage{
+							Name: "ResolveFooFooResolverRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveFooFooResolverContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("foo.id"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveFooFooResolverArgs",
+										Fields: []RPCField{
+											{
+												Name:          "foo",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "foo",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveFooFooResolverResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "result",
+									Message: &RPCMessage{
+										Name: "ResolveFooFooResolverResult",
+										Fields: RPCFields{
+											{
+												Name:          "foo_resolver",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "fooResolver",
+												Message: &RPCMessage{
+													Name:              "Bar",
+													FieldSelectionSet: RPCFieldSelectionSet{"Baz": {}},
+													OneOfType:         OneOfTypeInterface,
+													MemberTypes:       []string{"Baz"},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						Kind:           CallKindResolve,
+						DependentCalls: []int{1},
+						ResponsePath:   buildPath("foo.fooResolver.bazResolver"),
+						ServiceName:    "Foo",
+						MethodName:     "ResolveBazBazResolver",
+						Request: RPCMessage{
+							Name: "ResolveBazBazResolverRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveBazBazResolverContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("foo.fooResolver.id"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveBazBazResolverArgs",
+										Fields: []RPCField{
+											{
+												Name:          "baz",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "baz",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveBazBazResolverResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "result",
+									Message: &RPCMessage{
+										Name: "ResolveBazBazResolverResult",
+										Fields: RPCFields{
+											{
+												Name:          "baz_resolver",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "bazResolver",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:         "Should correctly include typename field when providing empty selection set",
+			subgraphName: "Foo",
+			operation: `
+			query FooQuery($foo: String!) { 
+				foo { 
+					fooResolver(foo: $foo) { 
+						__typename
+					}
+				}
+			}`,
+			schema:  schemaWithNestedResolverAndCompositeType(t),
+			mapping: mappingWithNestedResolverAndCompositeType(t),
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Foo",
+						MethodName:  "QueryFoo",
+						Request: RPCMessage{
+							Name: "QueryFooRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryFooResponse",
+							Fields: []RPCField{
+								{
+									Name:          "foo",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "foo",
+									Message: &RPCMessage{
+										Name:   "Foo",
+										Fields: RPCFields{},
+									},
+								},
+							},
+						},
+					},
+					{
+						Kind:           CallKindResolve,
+						DependentCalls: []int{0},
+						ResponsePath:   buildPath("foo.fooResolver"),
+						ServiceName:    "Foo",
+						MethodName:     "ResolveFooFooResolver",
+						Request: RPCMessage{
+							Name: "ResolveFooFooResolverRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveFooFooResolverContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("foo.id"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveFooFooResolverArgs",
+										Fields: []RPCField{
+											{
+												Name:          "foo",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "foo",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveFooFooResolverResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "result",
+									Message: &RPCMessage{
+										Name: "ResolveFooFooResolverResult",
+										Fields: RPCFields{
+											{
+												Name:          "foo_resolver",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "fooResolver",
+												Message: &RPCMessage{
+													Name:        "Bar",
+													OneOfType:   OneOfTypeInterface,
+													MemberTypes: []string{"Baz"},
+													Fields: RPCFields{
+														{
+															Name:          "__typename",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "__typename",
+															StaticValue:   "Bar",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		operation := unsafeparser.ParseGraphqlDocumentString(tt.operation)
+
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			runTestWithConfig(t, testCase{
+				expectedPlan:  tt.expectedPlan,
+				expectedError: tt.expectedError,
+			}, testConfig{
+				subgraphName: tt.subgraphName,
+				mapping:      tt.mapping,
+				schemaDoc:    tt.schema,
+				operationDoc: operation,
+			})
+		})
+	}
+}
+
+func schemaWithNestedResolverAndCompositeType(t *testing.T) ast.Document {
+	schema := `
+
+scalar connect__FieldSet
+directive @connect__fieldResolver(context: connect__FieldSet!) on FIELD_DEFINITION
+
+schema {
+  query: Query
+}
+
+type Foo {
+  id: ID!
+  fooResolver(foo: String!): Bar! @connect__fieldResolver(context: "id")
+}
+
+interface Bar {
+	id: ID!
+}
+
+type Baz implements Bar {
+  id: ID!
+  bazResolver(baz: String!): String! @connect__fieldResolver(context: "id")
+}
+
+type Query {
+	foo: Foo!
+}`
+	doc := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(schema)
+
+	report := &operationreport.Report{}
+	astvalidation.DefaultDefinitionValidator().Validate(&doc, report)
+	if report.HasErrors() {
+		t.Fatalf("failed to validate schema: %s", report.Error())
+	}
+
+	return doc
+}
+
+func mappingWithNestedResolverAndCompositeType(_ *testing.T) *GRPCMapping {
+	return &GRPCMapping{
+		Service: "Foo",
+		QueryRPCs: RPCConfigMap[RPCConfig]{
+			"foo": {
+				RPC:      "QueryFoo",
+				Request:  "QueryFooRequest",
+				Response: "QueryFooResponse",
+			},
+		},
+		Fields: map[string]FieldMap{
+			"Query": {
+				"foo": {
+					TargetName: "foo",
+				},
+			},
+			"Foo": {
+				"id": {
+					TargetName: "id",
+				},
+				"fooResolver": {
+					TargetName: "foo_resolver",
+				},
+			},
+			"Baz": {
+				"id": {
+					TargetName: "id",
+				},
+				"bazResolver": {
+					TargetName: "baz_resolver",
+				},
+			},
+			"Bar": {
+				"id": {
+					TargetName: "id",
+				},
+			},
+		},
+		ResolveRPCs: RPCConfigMap[ResolveRPCMapping]{
+			"Foo": {
+				"fooResolver": {
+					FieldMappingData: FieldMapData{
+						TargetName: "foo_resolver",
+						ArgumentMappings: FieldArgumentMap{
+							"foo": "foo",
+						},
+					},
+					RPC:      "ResolveFooFooResolver",
+					Request:  "ResolveFooFooResolverRequest",
+					Response: "ResolveFooFooResolverResponse",
+				},
+			},
+			"Baz": {
+				"bazResolver": {
+					FieldMappingData: FieldMapData{
+						TargetName: "baz_resolver",
+						ArgumentMappings: FieldArgumentMap{
+							"baz": "baz",
+						},
+					},
+					RPC:      "ResolveBazBazResolver",
+					Request:  "ResolveBazBazResolverRequest",
+					Response: "ResolveBazBazResolverResponse",
+				},
+			},
+		},
 	}
 }

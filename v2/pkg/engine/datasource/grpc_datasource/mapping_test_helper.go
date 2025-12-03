@@ -154,6 +154,16 @@ func testMapping() *GRPCMapping {
 				Request:  "QueryBulkSearchBlogPostsRequest",
 				Response: "QueryBulkSearchBlogPostsResponse",
 			},
+			"testContainer": {
+				RPC:      "QueryTestContainer",
+				Request:  "QueryTestContainerRequest",
+				Response: "QueryTestContainerResponse",
+			},
+			"testContainers": {
+				RPC:      "QueryTestContainers",
+				Request:  "QueryTestContainersRequest",
+				Response: "QueryTestContainersResponse",
+			},
 		},
 		MutationRPCs: RPCConfigMap[RPCConfig]{
 			"createUser": {
@@ -253,6 +263,41 @@ func testMapping() *GRPCMapping {
 					Request:  "ResolveCategoryCategoryMetricsRequest",
 					Response: "ResolveCategoryCategoryMetricsResponse",
 				},
+				"mascot": {
+					FieldMappingData: FieldMapData{
+						TargetName: "mascot",
+						ArgumentMappings: FieldArgumentMap{
+							"includeVolume": "include_volume",
+						},
+					},
+					RPC:      "ResolveCategoryMascot",
+					Request:  "ResolveCategoryMascotRequest",
+					Response: "ResolveCategoryMascotResponse",
+				},
+				"categoryStatus": {
+					FieldMappingData: FieldMapData{
+						TargetName: "category_status",
+						ArgumentMappings: FieldArgumentMap{
+							"checkHealth": "check_health",
+						},
+					},
+					RPC:      "ResolveCategoryCategoryStatus",
+					Request:  "ResolveCategoryCategoryStatusRequest",
+					Response: "ResolveCategoryCategoryStatusResponse",
+				},
+			},
+			"CategoryMetrics": {
+				"normalizedScore": {
+					FieldMappingData: FieldMapData{
+						TargetName: "normalized_score",
+						ArgumentMappings: FieldArgumentMap{
+							"baseline": "baseline",
+						},
+					},
+					RPC:      "ResolveCategoryMetricsNormalizedScore",
+					Request:  "ResolveCategoryMetricsNormalizedScoreRequest",
+					Response: "ResolveCategoryMetricsNormalizedScoreResponse",
+				},
 			},
 			"Product": {
 				"shippingEstimate": {
@@ -277,6 +322,39 @@ func testMapping() *GRPCMapping {
 					Request:  "ResolveProductRecommendedCategoryRequest",
 					Response: "ResolveProductRecommendedCategoryResponse",
 				},
+				"mascotRecommendation": {
+					FieldMappingData: FieldMapData{
+						TargetName: "mascot_recommendation",
+						ArgumentMappings: FieldArgumentMap{
+							"includeDetails": "include_details",
+						},
+					},
+					RPC:      "ResolveProductMascotRecommendation",
+					Request:  "ResolveProductMascotRecommendationRequest",
+					Response: "ResolveProductMascotRecommendationResponse",
+				},
+				"stockStatus": {
+					FieldMappingData: FieldMapData{
+						TargetName: "stock_status",
+						ArgumentMappings: FieldArgumentMap{
+							"checkAvailability": "check_availability",
+						},
+					},
+					RPC:      "ResolveProductStockStatus",
+					Request:  "ResolveProductStockStatusRequest",
+					Response: "ResolveProductStockStatusResponse",
+				},
+				"productDetails": {
+					FieldMappingData: FieldMapData{
+						TargetName: "product_details",
+						ArgumentMappings: FieldArgumentMap{
+							"includeExtended": "include_extended",
+						},
+					},
+					RPC:      "ResolveProductProductDetails",
+					Request:  "ResolveProductProductDetailsRequest",
+					Response: "ResolveProductProductDetailsResponse",
+				},
 			},
 			"Subcategory": {
 				"itemCount": {
@@ -289,6 +367,19 @@ func testMapping() *GRPCMapping {
 					RPC:      "ResolveSubcategoryItemCount",
 					Request:  "ResolveSubcategoryItemCountRequest",
 					Response: "ResolveSubcategoryItemCountResponse",
+				},
+			},
+			"TestContainer": {
+				"details": {
+					FieldMappingData: FieldMapData{
+						TargetName: "details",
+						ArgumentMappings: FieldArgumentMap{
+							"includeExtended": "include_extended",
+						},
+					},
+					RPC:      "ResolveTestContainerDetails",
+					Request:  "ResolveTestContainerDetailsRequest",
+					Response: "ResolveTestContainerDetailsResponse",
 				},
 			},
 		},
@@ -481,6 +572,15 @@ func testMapping() *GRPCMapping {
 						"filters": "filters",
 					},
 				},
+				"testContainer": {
+					TargetName: "test_container",
+					ArgumentMappings: FieldArgumentMap{
+						"id": "id",
+					},
+				},
+				"testContainers": {
+					TargetName: "test_containers",
+				},
 			},
 			"Mutation": {
 				"createUser": {
@@ -580,6 +680,38 @@ func testMapping() *GRPCMapping {
 					ArgumentMappings: FieldArgumentMap{
 						"maxPrice": "max_price",
 					},
+				},
+				"mascotRecommendation": {
+					TargetName: "mascot_recommendation",
+					ArgumentMappings: FieldArgumentMap{
+						"includeDetails": "include_details",
+					},
+				},
+				"stockStatus": {
+					TargetName: "stock_status",
+					ArgumentMappings: FieldArgumentMap{
+						"checkAvailability": "check_availability",
+					},
+				},
+				"productDetails": {
+					TargetName: "product_details",
+					ArgumentMappings: FieldArgumentMap{
+						"includeExtended": "include_extended",
+					},
+				},
+			},
+			"ProductDetails": {
+				"id": {
+					TargetName: "id",
+				},
+				"description": {
+					TargetName: "description",
+				},
+				"reviewSummary": {
+					TargetName: "review_summary",
+				},
+				"recommendedPet": {
+					TargetName: "recommended_pet",
 				},
 			},
 			"Storage": {
@@ -796,6 +928,18 @@ func testMapping() *GRPCMapping {
 						"metricType": "metric_type",
 					},
 				},
+				"mascot": {
+					TargetName: "mascot",
+					ArgumentMappings: FieldArgumentMap{
+						"includeVolume": "include_volume",
+					},
+				},
+				"categoryStatus": {
+					TargetName: "category_status",
+					ArgumentMappings: FieldArgumentMap{
+						"checkHealth": "check_health",
+					},
+				},
 			},
 			"Subcategory": {
 				"id": {
@@ -833,6 +977,15 @@ func testMapping() *GRPCMapping {
 				"categoryId": {
 					TargetName: "category_id",
 				},
+				"normalizedScore": {
+					TargetName: "normalized_score",
+					ArgumentMappings: FieldArgumentMap{
+						"baseline": "baseline",
+					},
+				},
+				"relatedCategory": {
+					TargetName: "related_category",
+				},
 			},
 			"Cat": {
 				"id": {
@@ -847,6 +1000,12 @@ func testMapping() *GRPCMapping {
 				"meowVolume": {
 					TargetName: "meow_volume",
 				},
+				"owner": {
+					TargetName: "owner",
+				},
+				"breed": {
+					TargetName: "breed",
+				},
 			},
 			"Dog": {
 				"id": {
@@ -860,6 +1019,87 @@ func testMapping() *GRPCMapping {
 				},
 				"barkVolume": {
 					TargetName: "bark_volume",
+				},
+				"owner": {
+					TargetName: "owner",
+				},
+				"breed": {
+					TargetName: "breed",
+				},
+			},
+			"Owner": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"contact": {
+					TargetName: "contact",
+				},
+			},
+			"ContactInfo": {
+				"email": {
+					TargetName: "email",
+				},
+				"phone": {
+					TargetName: "phone",
+				},
+				"address": {
+					TargetName: "address",
+				},
+			},
+			"Address": {
+				"street": {
+					TargetName: "street",
+				},
+				"city": {
+					TargetName: "city",
+				},
+				"country": {
+					TargetName: "country",
+				},
+				"zipCode": {
+					TargetName: "zip_code",
+				},
+			},
+			"CatBreed": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"origin": {
+					TargetName: "origin",
+				},
+				"characteristics": {
+					TargetName: "characteristics",
+				},
+			},
+			"DogBreed": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"origin": {
+					TargetName: "origin",
+				},
+				"characteristics": {
+					TargetName: "characteristics",
+				},
+			},
+			"BreedCharacteristics": {
+				"size": {
+					TargetName: "size",
+				},
+				"temperament": {
+					TargetName: "temperament",
+				},
+				"lifespan": {
+					TargetName: "lifespan",
 				},
 			},
 			"ActionSuccess": {
@@ -876,6 +1116,37 @@ func testMapping() *GRPCMapping {
 				},
 				"code": {
 					TargetName: "code",
+				},
+			},
+			"TestContainer": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"description": {
+					TargetName: "description",
+				},
+				"details": {
+					TargetName: "details",
+					ArgumentMappings: FieldArgumentMap{
+						"includeExtended": "include_extended",
+					},
+				},
+			},
+			"TestDetails": {
+				"id": {
+					TargetName: "id",
+				},
+				"summary": {
+					TargetName: "summary",
+				},
+				"pet": {
+					TargetName: "pet",
+				},
+				"status": {
+					TargetName: "status",
 				},
 			},
 			"SearchInput": {
@@ -1224,4 +1495,5 @@ func testMapping() *GRPCMapping {
 			},
 		},
 	}
+
 }
