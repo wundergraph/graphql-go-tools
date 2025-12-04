@@ -7,8 +7,14 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
+
+type requiredFieldVisitorConfig struct {
+	// includeMemberType indicates if the member type should be included in the message.
+	includeMemberType bool
+	// skipFieldResolvers indicates if the field resolvers should be skipped.
+	skipFieldResolvers bool
+}
 
 // requiredFieldsVisitor is a visitor that visits the required fields of a message.
 type requiredFieldsVisitor struct {
@@ -22,6 +28,8 @@ type requiredFieldsVisitor struct {
 	planCtx *rpcPlanningContext
 
 	messageAncestors []*RPCMessage
+
+	skipFieldResolvers bool
 }
 
 // newRequiredFieldsVisitor creates a new requiredFieldsVisitor.
@@ -42,20 +50,30 @@ func newRequiredFieldsVisitor(walker *astvisitor.Walker, message *RPCMessage, pl
 	return visitor
 }
 
-// visitRequiredFields visits the required fields of a message.
+// visitWithDefaults visits the required fields of a message.
 // It creates a new document with the required fields and walks it.
 // To achieve that we create a fragment with the required fields and walk it.
-func (r *requiredFieldsVisitor) visitRequiredFields(definition *ast.Document, typeName, requiredFields string) error {
-	return r.visitWithMemberTypes(definition, typeName, requiredFields, []string{typeName})
+func (r *requiredFieldsVisitor) visitWithDefaults(definition *ast.Document, typeName, requiredFields string) error {
+	return r.visit(definition, typeName, requiredFields, requiredFieldVisitorConfig{
+		includeMemberType:  true,
+		skipFieldResolvers: false,
+	})
 }
 
-func (r *requiredFieldsVisitor) visitWithMemberTypes(definition *ast.Document, typeName, requiredFields string, memberTypes []string) error {
+// visit visits the required fields of a message.
+// The function can be provided with options to customize the visitor.
+func (r *requiredFieldsVisitor) visit(definition *ast.Document, typeName, requiredFields string, options requiredFieldVisitorConfig) error {
 	doc, report := plan.RequiredFieldsFragment(typeName, requiredFields, false)
 	if report.HasErrors() {
 		return report
 	}
 
-	r.message.MemberTypes = memberTypes
+	if options.includeMemberType {
+		r.message.MemberTypes = []string{typeName}
+	}
+
+	r.skipFieldResolvers = options.skipFieldResolvers
+
 	r.walker.Walk(doc, definition, report)
 	if report.HasErrors() {
 		return report
@@ -124,9 +142,12 @@ func (r *requiredFieldsVisitor) EnterField(ref int) {
 
 	fd, ok := r.walker.FieldDefinition(ref)
 	if !ok {
-		r.walker.Report.AddExternalError(operationreport.ExternalError{
-			Message: fmt.Sprintf("Field %s not found in definition %s", fieldName, r.walker.EnclosingTypeDefinition.NameString(r.definition)),
-		})
+		r.walker.StopWithInternalErr(fmt.Errorf("RequiredFieldsVisitor: field definition not found for field %s", fieldName))
+		return
+	}
+
+	if r.planCtx.isFieldResolver(ref, r.walker.InRootField()) && r.skipFieldResolvers {
+		r.walker.SkipNode()
 		return
 	}
 

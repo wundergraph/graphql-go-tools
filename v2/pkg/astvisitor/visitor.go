@@ -4032,6 +4032,7 @@ func (w *Walker) FieldDefinitionDirectiveArgumentValueByName(field int, directiv
 }
 
 // InRootField returns true if the current field is a root field.
+// This helper function can be used in EnterField and LeaveField.
 func (w *Walker) InRootField() bool {
 	return w.CurrentKind == ast.NodeKindField &&
 		len(w.Ancestors) == 2 &&

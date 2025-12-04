@@ -115,8 +115,6 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 
 	root := astjson.ObjectValue(nil)
 
-	failed := false
-
 	if err := d.graph.TopologicalSortResolve(func(nodes []FetchItem) error {
 		serviceCalls, err := d.rc.CompileFetches(d.graph, nodes, variables)
 		if err != nil {
@@ -164,9 +162,7 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 		}
 
 		if err := errGrp.Wait(); err != nil {
-			data = builder.writeErrorBytes(err)
-			failed = true
-			return nil
+			return err
 		}
 
 		for _, result := range results {
@@ -177,14 +173,13 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 				root, err = builder.mergeValues(root, result.response)
 			}
 			if err != nil {
-				data = builder.writeErrorBytes(err)
 				return err
 			}
 		}
 
 		return nil
-	}); err != nil || failed {
-		return data, err
+	}); err != nil {
+		return builder.writeErrorBytes(err),nil
 	}
 
 	value := builder.toDataObject(root)
