@@ -69,6 +69,86 @@ func fakeDataSourceWithInputCheck(t TestingTB, input []byte, data []byte) *_fake
 	}
 }
 
+type blockingDataSource struct {
+	data        []byte
+	ready       chan struct{}
+	release     chan struct{}
+	readyOnce   sync.Once
+	releaseOnce sync.Once
+}
+
+func newBlockingDataSource(data []byte) *blockingDataSource {
+	return &blockingDataSource{
+		data:    data,
+		ready:   make(chan struct{}),
+		release: make(chan struct{}),
+	}
+}
+
+func (f *blockingDataSource) waitForRelease() {
+	f.readyOnce.Do(func() {
+		close(f.ready)
+	})
+	<-f.release
+}
+
+func (f *blockingDataSource) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
+	f.waitForRelease()
+	return f.data, nil
+}
+
+func (f *blockingDataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
+	f.waitForRelease()
+	return f.data, nil
+}
+
+func (f *blockingDataSource) Ready() <-chan struct{} {
+	return f.ready
+}
+
+func (f *blockingDataSource) Release() {
+	f.releaseOnce.Do(func() {
+		close(f.release)
+	})
+}
+
+type blockingWriter struct {
+	buf         bytes.Buffer
+	ready       chan struct{}
+	release     chan struct{}
+	readyOnce   sync.Once
+	releaseOnce sync.Once
+}
+
+func newBlockingWriter() *blockingWriter {
+	return &blockingWriter{
+		ready:   make(chan struct{}),
+		release: make(chan struct{}),
+	}
+}
+
+func (w *blockingWriter) Write(p []byte) (int, error) {
+	w.readyOnce.Do(func() {
+		close(w.ready)
+	})
+	<-w.release
+	return w.buf.Write(p)
+}
+
+func (w *blockingWriter) Ready() <-chan struct{} {
+	return w.ready
+}
+
+func (w *blockingWriter) Release() {
+	w.releaseOnce.Do(func() {
+		close(w.release)
+	})
+}
+
+func (w *blockingWriter) String() string {
+	return w.buf.String()
+}
+
 type TestErrorWriter struct {
 }
 
@@ -4440,6 +4520,124 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{ctx: context.Background(), ExecutionOptions: ExecutionOptions{SkipLoader: true}}, `{"data":null}`
 	}))
+}
+
+func TestResolver_ArenaResolveGraphQLResponse_RequestDeduplication(t *testing.T) {
+	rCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	r := newResolver(rCtx)
+
+	ds := newBlockingDataSource([]byte(`{"value":"slow"}`))
+	defer ds.Release()
+
+	response := &GraphQLResponse{
+		Info: &GraphQLResponseInfo{
+			OperationType: ast.OperationTypeQuery,
+		},
+		Fetches: Single(&SingleFetch{
+			FetchConfiguration: FetchConfiguration{
+				DataSource: ds,
+			},
+		}),
+		Data: &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("value"),
+					Value: &String{
+						Path:     []string{"value"},
+						Nullable: false,
+					},
+				},
+			},
+		},
+	}
+
+	ctxTemplate := Context{
+		ctx: context.Background(),
+		Request: Request{
+			ID: 42,
+		},
+		VariablesHash: 1337,
+	}
+
+	const requestCount = 3
+
+	type result struct {
+		info   *GraphQLResolveInfo
+		output string
+		err    error
+	}
+
+	results := make([]result, requestCount)
+
+	var wg sync.WaitGroup
+	wg.Add(requestCount)
+
+	leaderWriter := newBlockingWriter()
+
+	go func() {
+		defer wg.Done()
+		ctx := ctxTemplate
+		info, err := r.ArenaResolveGraphQLResponse(&ctx, response, leaderWriter)
+		results[0] = result{info: info, output: leaderWriter.String(), err: err}
+	}()
+
+	select {
+	case <-ds.Ready():
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for leader data source load")
+	}
+
+	startFollowers := make(chan struct{})
+	followersEntered := make(chan struct{}, requestCount-1)
+
+	for i := 1; i < requestCount; i++ {
+		go func(i int) {
+			defer wg.Done()
+			ctx := ctxTemplate
+			<-startFollowers
+			followersEntered <- struct{}{}
+			buf := &bytes.Buffer{}
+			info, err := r.ArenaResolveGraphQLResponse(&ctx, response, buf)
+			results[i] = result{info: info, output: buf.String(), err: err}
+		}(i)
+	}
+
+	close(startFollowers)
+
+	for i := 1; i < requestCount; i++ {
+		select {
+		case <-followersEntered:
+		case <-time.After(time.Second):
+			t.Fatalf("timeout waiting for follower %d to start", i)
+		}
+	}
+
+	ds.Release()
+
+	select {
+	case <-leaderWriter.Ready():
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for leader to start writing response")
+	}
+
+	leaderWriter.Release()
+	wg.Wait()
+
+	for _, res := range results {
+		require.NoError(t, res.err)
+		require.NotNil(t, res.info)
+	}
+
+	assert.False(t, results[0].info.ResolveDeduplicated)
+
+	expectedOutput := results[0].output
+	require.NotEmpty(t, expectedOutput)
+
+	for i := 1; i < requestCount; i++ {
+		assert.True(t, results[i].info.ResolveDeduplicated)
+		assert.Equal(t, expectedOutput, results[i].output)
+	}
 }
 
 func TestResolver_ApolloCompatibilityMode_FetchError(t *testing.T) {
