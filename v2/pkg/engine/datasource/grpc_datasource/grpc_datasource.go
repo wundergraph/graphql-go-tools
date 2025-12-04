@@ -179,7 +179,7 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 
 		return nil
 	}); err != nil {
-		return builder.writeErrorBytes(err),nil
+		return builder.writeErrorBytes(err), nil
 	}
 
 	value := builder.toDataObject(root)
