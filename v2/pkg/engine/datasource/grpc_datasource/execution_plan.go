@@ -779,11 +779,16 @@ func (r *rpcPlanningContext) buildFieldMessage(fieldTypeNode ast.Node, fieldRef 
 	}
 
 	for _, fieldRef := range fieldRefs {
-		if r.isFieldResolver(fieldRef, false) {
+		fieldDefRef, found := r.definition.NodeFieldDefinitionByName(fieldTypeNode, r.operation.FieldNameBytes(fieldRef))
+		if !found {
+			return nil, fmt.Errorf("unable to build required field: field definition not found for field %s", r.operation.FieldNameString(fieldRef))
+		}
+
+		if r.isFieldResolver(fieldDefRef, false) {
 			continue
 		}
 
-		field, err := r.buildRequiredField(fieldTypeNode, fieldRef)
+		field, err := r.buildRequiredField(fieldTypeNode, fieldRef, fieldDefRef)
 		if err != nil {
 			return nil, err
 		}
@@ -853,12 +858,12 @@ func (r *rpcPlanningContext) enterResolverCompositeSelectionSet(oneOfType OneOfT
 }
 
 // isFieldResolver checks if a field is a field resolver.
-func (r *rpcPlanningContext) isFieldResolver(fieldRef int, isRootField bool) bool {
-	if isRootField {
+func (r *rpcPlanningContext) isFieldResolver(fieldDefRef int, isRootField bool) bool {
+	if isRootField || fieldDefRef == ast.InvalidRef {
 		return false
 	}
 
-	return len(r.operation.FieldArguments(fieldRef)) > 0
+	return r.definition.FieldDefinitionHasArgumentsDefinitions(fieldDefRef)
 }
 
 // getCompositeType checks whether the node is an interface or union type.
@@ -1097,7 +1102,12 @@ func (r *rpcPlanningContext) buildFieldResolverTypeMessage(typeName string, reso
 	message.Fields = make(RPCFields, 0, len(fieldRefs))
 
 	for _, fieldRef := range fieldRefs {
-		if r.isFieldResolver(fieldRef, false) {
+		fieldDefRef, found := r.definition.NodeFieldDefinitionByName(parentTypeNode, r.operation.FieldNameBytes(fieldRef))
+		if !found {
+			return nil, fmt.Errorf("unable to build required field: field definition not found for field %s", r.operation.FieldNameString(fieldRef))
+		}
+
+		if r.isFieldResolver(fieldDefRef, false) {
 			continue
 		}
 
@@ -1105,7 +1115,7 @@ func (r *rpcPlanningContext) buildFieldResolverTypeMessage(typeName string, reso
 			continue
 		}
 
-		field, err := r.buildRequiredField(parentTypeNode, fieldRef)
+		field, err := r.buildRequiredField(parentTypeNode, fieldRef, fieldDefRef)
 		if err != nil {
 			return nil, err
 		}
@@ -1117,23 +1127,17 @@ func (r *rpcPlanningContext) buildFieldResolverTypeMessage(typeName string, reso
 	return message, nil
 }
 
-func (r *rpcPlanningContext) buildRequiredField(typeNode ast.Node, fieldRef int) (RPCField, error) {
-	fieldName := r.operation.FieldNameString(fieldRef)
-	fieldDef, found := r.definition.NodeFieldDefinitionByName(typeNode, r.operation.FieldNameBytes(fieldRef))
-	if !found {
-		return RPCField{}, fmt.Errorf("unable to build required field: field definition not found for field %s", fieldName)
-	}
-
-	field, err := r.buildField(typeNode, fieldDef, r.operation.FieldNameString(fieldRef), r.operation.FieldAliasString(fieldRef))
+func (r *rpcPlanningContext) buildRequiredField(typeNode ast.Node, fieldRef, fieldDefinitionRef int) (RPCField, error) {
+	field, err := r.buildField(typeNode, fieldDefinitionRef, r.operation.FieldNameString(fieldRef), r.operation.FieldAliasString(fieldRef))
 	if err != nil {
 		return RPCField{}, err
 	}
 
 	// If the field is a message type and has selections, we need to build a nested message.
 	if field.ProtoTypeName == DataTypeMessage && r.operation.FieldHasSelections(fieldRef) {
-		fieldTypeNode, found := r.definition.ResolveNodeFromTypeRef(r.definition.FieldDefinitionType(fieldDef))
+		fieldTypeNode, found := r.definition.ResolveNodeFromTypeRef(r.definition.FieldDefinitionType(fieldDefinitionRef))
 		if !found {
-			return RPCField{}, fmt.Errorf("unable to build required field: unable to resolve field type node for field %s", fieldName)
+			return RPCField{}, fmt.Errorf("unable to build required field: unable to resolve field type node for field %s", r.operation.FieldNameString(fieldRef))
 		}
 
 		message, err := r.buildFieldMessage(fieldTypeNode, fieldRef)
@@ -1154,22 +1158,22 @@ func (r *rpcPlanningContext) buildCompositeFields(inlineFragmentNode ast.Node, f
 	result := make([]RPCField, 0, len(fieldRefs))
 
 	for _, fieldRef := range fieldRefs {
-		if r.isFieldResolver(fieldRef, false) {
-			continue
-		}
-
-		fieldDef := r.fieldDefinitionRefForType(r.operation.FieldNameString(fieldRef), fragmentSelection.typeName)
-		if fieldDef == ast.InvalidRef {
+		fieldDefRef := r.fieldDefinitionRefForType(r.operation.FieldNameString(fieldRef), fragmentSelection.typeName)
+		if fieldDefRef == ast.InvalidRef {
 			return nil, fmt.Errorf("unable to build composite field: field definition not found for field %s", r.operation.FieldNameString(fieldRef))
 		}
 
-		field, err := r.buildField(inlineFragmentNode, fieldDef, r.operation.FieldNameString(fieldRef), r.operation.FieldAliasString(fieldRef))
+		if r.isFieldResolver(fieldDefRef, false) {
+			continue
+		}
+
+		field, err := r.buildField(inlineFragmentNode, fieldDefRef, r.operation.FieldNameString(fieldRef), r.operation.FieldAliasString(fieldRef))
 		if err != nil {
 			return nil, err
 		}
 
 		if field.ProtoTypeName == DataTypeMessage && r.operation.FieldHasSelections(fieldRef) {
-			fieldTypeNode, found := r.definition.ResolveNodeFromTypeRef(r.definition.FieldDefinitionType(fieldDef))
+			fieldTypeNode, found := r.definition.ResolveNodeFromTypeRef(r.definition.FieldDefinitionType(fieldDefRef))
 			if !found {
 				return nil, fmt.Errorf("unable to build composite field: unable to resolve field type node for field %s", r.operation.FieldNameString(fieldRef))
 			}
@@ -1256,15 +1260,17 @@ func (r *rpcPlanningContext) createResolverRPCCalls(subgraphName string, resolve
 			contextMessage.Fields[i] = field
 		}
 
-		fieldArgsMessage.Fields = make(RPCFields, len(resolvedField.fieldArguments))
-		for i := range resolvedField.fieldArguments {
-			field, err := r.createRPCFieldFromFieldArgument(resolvedField.fieldArguments[i])
+		if argLen := len(resolvedField.fieldArguments); argLen > 0 {
+			fieldArgsMessage.Fields = make(RPCFields, argLen)
+			for i := range resolvedField.fieldArguments {
+				field, err := r.createRPCFieldFromFieldArgument(resolvedField.fieldArguments[i])
 
-			if err != nil {
-				return nil, err
+				if err != nil {
+					return nil, err
+				}
+
+				fieldArgsMessage.Fields[i] = field
 			}
-
-			fieldArgsMessage.Fields[i] = field
 		}
 
 		calls = append(calls, call)
