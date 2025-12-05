@@ -4539,6 +4539,33 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 				require.Empty(t, errData)
 			},
 		},
+		{
+			name:  "Query with field resolver without parentheses (nullable parameter)",
+			query: "query CategoriesWithFieldResolverNoParens { categories { id name popularityScore } }",
+			vars:  `{"variables":{}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.NotEmpty(t, categories, "categories should not be empty")
+				require.Len(t, categories, 4, "Should return 4 categories")
+
+				for _, category := range categories {
+					category, ok := category.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["id"])
+					require.NotEmpty(t, category["name"])
+					// popularityScore should return 50 when called without threshold
+					// Based on mockservice implementation: threshold defaults to 0, which is <= 50, so returns baseScore of 50
+					require.NotEmpty(t, category["popularityScore"], "popularityScore should not be empty when called without parameters")
+					require.Equal(t, float64(50), category["popularityScore"], "popularityScore should be 50 when threshold is not provided")
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
 	}
 
 	for _, tc := range testCases {
