@@ -2618,6 +2618,114 @@ func TestExecutionPlanFieldResolvers_CustomSchemas(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:         "Should correctly create a resolve call for a resolver with an optional argument",
+			subgraphName: "Foo",
+			operation: `
+			query FooQuery { 
+				foo { 
+					fooResolverOptionalArgument { 
+						__typename
+					}
+				}
+			}`,
+			schema:  schemaWithNestedResolverAndCompositeType(t),
+			mapping: mappingWithNestedResolverAndCompositeType(t),
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Foo",
+						MethodName:  "QueryFoo",
+						Request: RPCMessage{
+							Name: "QueryFooRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryFooResponse",
+							Fields: []RPCField{
+								{
+									Name:          "foo",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "foo",
+									Message: &RPCMessage{
+										Name:   "Foo",
+										Fields: RPCFields{},
+									},
+								},
+							},
+						},
+					},
+					{
+						Kind:           CallKindResolve,
+						DependentCalls: []int{0},
+						ResponsePath:   buildPath("foo.fooResolverOptionalArgument"),
+						ServiceName:    "Foo",
+						MethodName:     "ResolveFooFooResolverOptionalArgument",
+						Request: RPCMessage{
+							Name: "ResolveFooFooResolverOptionalArgumentRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveFooFooResolverOptionalArgumentContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("foo.id"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveFooFooResolverOptionalArgumentArgs",
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveFooFooResolverOptionalArgumentResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "result",
+									Message: &RPCMessage{
+										Name: "ResolveFooFooResolverOptionalArgumentResult",
+										Fields: RPCFields{
+											{
+												Name:          "foo_resolver_optional_argument",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "fooResolverOptionalArgument",
+												Message: &RPCMessage{
+													Name:        "Bar",
+													OneOfType:   OneOfTypeInterface,
+													MemberTypes: []string{"Baz"},
+													Fields: RPCFields{
+														{
+															Name:          "__typename",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "__typename",
+															StaticValue:   "Bar",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2651,6 +2759,7 @@ schema {
 type Foo {
   id: ID!
   fooResolver(foo: String!): Bar! @connect__fieldResolver(context: "id")
+  fooResolverOptionalArgument(foo: String): Bar! @connect__fieldResolver(context: "id")
 }
 
 interface Bar {
@@ -2726,6 +2835,17 @@ func mappingWithNestedResolverAndCompositeType(_ *testing.T) *GRPCMapping {
 					RPC:      "ResolveFooFooResolver",
 					Request:  "ResolveFooFooResolverRequest",
 					Response: "ResolveFooFooResolverResponse",
+				},
+				"fooResolverOptionalArgument": {
+					FieldMappingData: FieldMapData{
+						TargetName: "foo_resolver_optional_argument",
+						ArgumentMappings: FieldArgumentMap{
+							"foo": "foo",
+						},
+					},
+					RPC:      "ResolveFooFooResolverOptionalArgument",
+					Request:  "ResolveFooFooResolverOptionalArgumentRequest",
+					Response: "ResolveFooFooResolverOptionalArgumentResponse",
 				},
 			},
 			"Baz": {

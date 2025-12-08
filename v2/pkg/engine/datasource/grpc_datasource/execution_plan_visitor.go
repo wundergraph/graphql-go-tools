@@ -358,7 +358,7 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 
 	// If the field is a field resolver, we need to handle it later in a separate resolver call.
 	// We only store the information about the field and create the call later.
-	if r.planCtx.isFieldResolver(ref, inRootField) {
+	if r.planCtx.isFieldResolver(fieldDefRef, inRootField) {
 		r.enterFieldResolver(ref, fieldDefRef)
 		return
 	}
@@ -418,7 +418,15 @@ func (r *rpcPlanVisitor) LeaveField(ref int) {
 		return
 	}
 
-	if r.planCtx.isFieldResolver(ref, inRootField) {
+	fieldDefRef, ok := r.walker.FieldDefinition(ref)
+	if !ok {
+		r.walker.Report.AddExternalError(operationreport.ExternalError{
+			Message: fmt.Sprintf("Field %s not found in definition %s", r.operation.FieldNameString(ref), r.walker.EnclosingTypeDefinition.NameString(r.definition)),
+		})
+		return
+	}
+
+	if r.planCtx.isFieldResolver(fieldDefRef, inRootField) {
 		// Pop the field resolver ancestor only when leaving a field resolver field.
 		r.fieldResolverAncestors.pop()
 
