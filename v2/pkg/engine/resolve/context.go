@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/wundergraph/astjson"
@@ -31,7 +32,7 @@ type Context struct {
 	rateLimiter   RateLimiter
 	fieldRenderer FieldValueRenderer
 
-	subgraphErrors error
+	subgraphErrors map[string]error
 }
 
 type ExecutionOptions struct {
@@ -138,11 +139,29 @@ func (c *Context) SetRateLimiter(limiter RateLimiter) {
 }
 
 func (c *Context) SubgraphErrors() error {
-	return c.subgraphErrors
+	if len(c.subgraphErrors) == 0 {
+		return nil
+	}
+
+	// Ensure the errors are appended in an idempotent order
+	keys := make([]string, 0, len(c.subgraphErrors))
+	for k := range c.subgraphErrors {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var joined error
+	for _, k := range keys {
+		joined = errors.Join(joined, c.subgraphErrors[k])
+	}
+	return joined
 }
 
-func (c *Context) appendSubgraphErrors(errs ...error) {
-	c.subgraphErrors = errors.Join(c.subgraphErrors, errors.Join(errs...))
+func (c *Context) appendSubgraphErrors(ds DataSourceInfo, errs ...error) {
+	if c.subgraphErrors == nil {
+		c.subgraphErrors = make(map[string]error)
+	}
+	c.subgraphErrors[ds.Name] = errors.Join(c.subgraphErrors[ds.Name], errors.Join(errs...))
 }
 
 type Request struct {
@@ -155,7 +174,8 @@ func NewContext(ctx context.Context) *Context {
 		panic("nil context.Context")
 	}
 	return &Context{
-		ctx: ctx,
+		ctx:            ctx,
+		subgraphErrors: make(map[string]error),
 	}
 }
 

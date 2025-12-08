@@ -212,9 +212,10 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(1), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(0), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 
+				expectedSubgraph := "users"
 				var subgraphError *SubgraphError
-				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "users", subgraphError.DataSourceInfo.Name)
+				require.ErrorAs(t, resolveCtx.subgraphErrors[expectedSubgraph], &subgraphError)
+				require.Equal(t, expectedSubgraph, subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "query", subgraphError.Path)
 				require.Equal(t, "Not allowed to fetch from users Subgraph", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -243,9 +244,10 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(1), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(0), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 
+				expectedSubgraph := "users"
 				var subgraphError *SubgraphError
-				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "users", subgraphError.DataSourceInfo.Name)
+				require.ErrorAs(t, resolveCtx.subgraphErrors[expectedSubgraph], &subgraphError)
+				require.Equal(t, expectedSubgraph, subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "query", subgraphError.Path)
 				require.Equal(t, "", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -276,12 +278,14 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(2), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 
+				expectedSubgraph := "products"
+
 				require.NotEmpty(t, resolveCtx.subgraphErrors)
-				require.EqualError(t, resolveCtx.subgraphErrors, "Failed to fetch from Subgraph 'products' at Path: 'query.me.reviews.@.product', Reason: Not allowed to fetch from products Subgraph.")
+				require.EqualError(t, resolveCtx.subgraphErrors[expectedSubgraph], "Failed to fetch from Subgraph 'products' at Path: 'query.me.reviews.@.product', Reason: Not allowed to fetch from products Subgraph.")
 
 				var subgraphError *SubgraphError
-				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "products", subgraphError.DataSourceInfo.Name)
+				require.ErrorAs(t, resolveCtx.subgraphErrors[expectedSubgraph], &subgraphError)
+				require.Equal(t, expectedSubgraph, subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "query.me.reviews.@.product", subgraphError.Path)
 				require.Equal(t, "Not allowed to fetch from products Subgraph", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -310,9 +314,11 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(2), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 
+				expectedSubgraph := "products"
+
 				var subgraphError *SubgraphError
-				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "products", subgraphError.DataSourceInfo.Name)
+				require.ErrorAs(t, resolveCtx.subgraphErrors[expectedSubgraph], &subgraphError)
+				require.Equal(t, expectedSubgraph, subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "Query.me.reviews.product.data.name", subgraphError.Path)
 				require.Equal(t, "Not allowed to fetch name on Product", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -343,9 +349,10 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(2), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 
+				expectedSubgraph := "products"
 				var subgraphError *SubgraphError
-				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "products", subgraphError.DataSourceInfo.Name)
+				require.ErrorAs(t, resolveCtx.subgraphErrors[expectedSubgraph], &subgraphError)
+				require.Equal(t, expectedSubgraph, subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "query.me.reviews.@.product", subgraphError.Path)
 				require.Equal(t, "Not allowed to fetch from products Subgraph", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -387,9 +394,10 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(2), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 
+				expectedSubgraph := "reviews"
 				var subgraphError *SubgraphError
-				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "reviews", subgraphError.DataSourceInfo.Name)
+				require.ErrorAs(t, resolveCtx.subgraphErrors[expectedSubgraph], &subgraphError)
+				require.Equal(t, expectedSubgraph, subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "Query.me.reviews.body", subgraphError.Path)
 				require.Equal(t, "Not allowed to fetch body on Review", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -416,9 +424,10 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(2), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 
+				expectedSubgraph := "reviews"
 				var subgraphError *SubgraphError
-				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "reviews", subgraphError.DataSourceInfo.Name)
+				require.ErrorAs(t, resolveCtx.subgraphErrors[expectedSubgraph], &subgraphError)
+				require.Equal(t, expectedSubgraph, subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "Query.me.reviews.body", subgraphError.Path)
 				require.Equal(t, "", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -447,9 +456,10 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(2), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 
+				expectedSubgraph := "products"
 				var subgraphError *SubgraphError
-				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "products", subgraphError.DataSourceInfo.Name)
+				require.ErrorAs(t, resolveCtx.subgraphErrors[expectedSubgraph], &subgraphError)
+				require.Equal(t, expectedSubgraph, subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "query.me.reviews.@.product", subgraphError.Path)
 				require.Equal(t, "Not allowed to fetch name on Product", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -478,9 +488,10 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(2), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 
+				expectedSubgraph := "products"
 				var subgraphError *SubgraphError
-				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "products", subgraphError.DataSourceInfo.Name)
+				require.ErrorAs(t, resolveCtx.subgraphErrors[expectedSubgraph], &subgraphError)
+				require.Equal(t, expectedSubgraph, subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "Query.me.reviews.product.data.name", subgraphError.Path)
 				require.Equal(t, "Not allowed to fetch name on Product", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
