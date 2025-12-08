@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.0.0-rc.240](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.239...v2.0.0-rc.240) (2025-12-08)
+
+
+### Features
+
+* add composite type support for field resolvers ([#1341](https://github.com/wundergraph/graphql-go-tools/issues/1341)) ([701ea8d](https://github.com/wundergraph/graphql-go-tools/commit/701ea8d7d14b94b2767380bead8126d330dfb85e))
+* allow empty arguments for field resolvers ([#1350](https://github.com/wundergraph/graphql-go-tools/issues/1350)) ([5db8c5a](https://github.com/wundergraph/graphql-go-tools/commit/5db8c5a168b3fe5f8d937ddafbdbe8b04c587e73))
+
 ## [2.0.0-rc.239](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.238...v2.0.0-rc.239) (2025-11-21)
 
 
