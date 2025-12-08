@@ -1,9 +1,11 @@
 package resolve
 
 import (
+	"encoding/binary"
 	"sync"
 
 	"github.com/cespare/xxhash/v2"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
 // SubgraphRequestSingleFlight is a sharded, goroutine safe single flight implementation to de-duplicate subgraph requests
@@ -11,7 +13,6 @@ import (
 // In addition to single flight, it provides size hints to create right-sized buffers for subgraph requests
 type SubgraphRequestSingleFlight struct {
 	shards []singleFlightShard
-	xxPool *sync.Pool
 }
 
 type singleFlightShard struct {
@@ -55,11 +56,6 @@ func NewSingleFlight(shardCount int) *SubgraphRequestSingleFlight {
 	}
 	s := &SubgraphRequestSingleFlight{
 		shards: make([]singleFlightShard, shardCount),
-		xxPool: &sync.Pool{
-			New: func() any {
-				return xxhash.New()
-			},
-		},
 	}
 	return s
 }
@@ -136,19 +132,17 @@ func (s *SubgraphRequestSingleFlight) shardFor(key uint64) *singleFlightShard {
 }
 
 func (s *SubgraphRequestSingleFlight) computeKeys(fetchItem *FetchItem, input []byte, extraKey uint64) (sfKey, fetchKey uint64) {
-	h := s.xxPool.Get().(*xxhash.Digest)
-	sfKey = s.computeSFKey(fetchItem, input, extraKey)
+	h := pool.Hash64.Get()
+	sfKey = s.computeSFKey(h, fetchItem, input, extraKey)
 	h.Reset()
-	fetchKey = s.computeFetchKey(fetchItem)
-	h.Reset()
-	s.xxPool.Put(h)
+	fetchKey = s.computeFetchKey(h, fetchItem)
+	pool.Hash64.Put(h)
 	return sfKey, fetchKey
 }
 
 // computeSFKey returns a key that 100% uniquely identifies a fetch with no collision.
 // Two sfKey values are only the same when the fetches are 100% equal.
-func (s *SubgraphRequestSingleFlight) computeSFKey(fetchItem *FetchItem, input []byte, extraKey uint64) uint64 {
-	h := s.xxPool.Get().(*xxhash.Digest)
+func (s *SubgraphRequestSingleFlight) computeSFKey(h *xxhash.Digest, fetchItem *FetchItem, input []byte, extraKey uint64) uint64 {
 	if fetchItem != nil && fetchItem.Fetch != nil {
 		info := fetchItem.Fetch.FetchInfo()
 		if info != nil {
@@ -157,15 +151,19 @@ func (s *SubgraphRequestSingleFlight) computeSFKey(fetchItem *FetchItem, input [
 		}
 	}
 	_, _ = h.Write(input)
-	return h.Sum64() + extraKey // extraKey in this case is the pre-generated hash for the headers
+	if extraKey != 0 {
+		// include pre-computed headers hash to avoid collisions
+		var buf [8]byte
+		binary.LittleEndian.PutUint64(buf[0:8], extraKey)
+		_, _ = h.Write(buf[:])
+	}
+	return h.Sum64()
 }
 
 // computeFetchKey is a less robust key compared to sfKey.
 // The purpose is to create a key from the DataSourceID and root fields to have less cardinality.
 // The goal is to get an estimate buffer size for similar fetches; hashing headers or the body is not needed.
-func (s *SubgraphRequestSingleFlight) computeFetchKey(fetchItem *FetchItem) uint64 {
-	h := s.xxPool.Get().(*xxhash.Digest)
-	defer s.xxPool.Put(h)
+func (s *SubgraphRequestSingleFlight) computeFetchKey(h *xxhash.Digest, fetchItem *FetchItem) uint64 {
 	if fetchItem == nil || fetchItem.Fetch == nil {
 		return 0
 	}

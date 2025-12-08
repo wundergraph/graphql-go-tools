@@ -4,7 +4,7 @@ import (
 	"encoding/binary"
 	"sync"
 
-	"github.com/cespare/xxhash/v2"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
 // InboundRequestSingleFlight is a sharded goroutine safe single flight implementation to de-couple inbound requests
@@ -68,34 +68,39 @@ func (r *InboundRequestSingleFlight) GetOrCreate(ctx *Context, response *GraphQL
 		hh = ctx.SubgraphHeadersBuilder.HashAll()
 	}
 	binary.LittleEndian.PutUint64(b[16:24], hh)
-	key := xxhash.Sum64(b[:])
+	h := pool.Hash64.Get()
+	_, _ = h.Write(b[:])
+	key := h.Sum64()
+	pool.Hash64.Put(h)
 
 	shard := r.shardFor(key)
-	req, shared := shard.m.Load(key)
-	if shared {
-		inflightRequest := req.(*InflightRequest)
-		inflightRequest.Mu.Lock()
-		inflightRequest.HasFollowers = true
-		inflightRequest.Mu.Unlock()
-		select {
-		case <-inflightRequest.Done:
-			if inflightRequest.Err != nil {
-				return nil, inflightRequest.Err
-			}
-			return inflightRequest, nil
-		case <-ctx.ctx.Done():
-			inflightRequest.Err = ctx.ctx.Err()
-			return nil, inflightRequest.Err
-		}
-	}
 
-	value := &InflightRequest{
+	//fmt.Printf("key: %d shard: %d\n", key, key%uint64(len(r.shards)))
+
+	request := &InflightRequest{
 		Done: make(chan struct{}),
 		ID:   key,
 	}
 
-	shard.m.Store(key, value)
-	return value, nil
+	inflight, shared := shard.m.LoadOrStore(key, request)
+	if shared {
+		request = inflight.(*InflightRequest)
+		request.Mu.Lock()
+		request.HasFollowers = true
+		request.Mu.Unlock()
+		select {
+		case <-request.Done:
+			if request.Err != nil {
+				return nil, request.Err
+			}
+			return request, nil
+		case <-ctx.ctx.Done():
+			request.Err = ctx.ctx.Err()
+			return nil, request.Err
+		}
+	}
+
+	return request, nil
 }
 
 func (r *InboundRequestSingleFlight) FinishOk(req *InflightRequest, data []byte) {
