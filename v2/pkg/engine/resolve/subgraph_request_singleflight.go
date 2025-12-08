@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/cespare/xxhash/v2"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
