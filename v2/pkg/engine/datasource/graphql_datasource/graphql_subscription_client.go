@@ -9,13 +9,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"net"
 	"net/http"
 	"net/http/httptrace"
-	"net/textproto"
-	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -295,27 +291,6 @@ func (c *subscriptionClient) Subscribe(ctx *resolve.Context, options GraphQLSubs
 	return c.subscribeWS(ctx.Context(), c.engineCtx, options, updater)
 }
 
-var (
-	withSSE           = []byte(`sse:true`)
-	withSSEMethodPost = []byte(`sse_method_post:true`)
-)
-
-func (c *subscriptionClient) UniqueRequestID(ctx *resolve.Context, options GraphQLSubscriptionOptions, hash *xxhash.Digest) (err error) {
-	if options.UseSSE {
-		_, err = hash.Write(withSSE)
-		if err != nil {
-			return err
-		}
-	}
-	if options.SSEMethodPost {
-		_, err = hash.Write(withSSEMethodPost)
-		if err != nil {
-			return err
-		}
-	}
-	return c.requestHash(ctx, options, hash)
-}
-
 func (c *subscriptionClient) subscribeSSE(requestContext, engineContext context.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
 	options.readTimeout = c.readTimeout
 	if c.streamingClient == nil {
@@ -406,89 +381,6 @@ func (c *subscriptionClient) asyncSubscribeWS(requestContext, engineContext cont
 	conn.id, conn.fd = id, fd
 	// submit the connection to the netPoll run loop
 	c.netPollState.addConn <- conn
-	return nil
-}
-
-// generateHandlerIDHash generates a Hash based on: URL and Headers to uniquely identify Upgrade Requests
-func (c *subscriptionClient) requestHash(ctx *resolve.Context, options GraphQLSubscriptionOptions, xxh *xxhash.Digest) (err error) {
-	if _, err = xxh.WriteString(options.URL); err != nil {
-		return err
-	}
-	if err := options.Header.Write(xxh); err != nil {
-		return err
-	}
-	// Make sure any header that will be forwarded to the subgraph
-	// is hashed to create the handlerID, this way requests with
-	// different headers will use separate connections.
-	for _, headerName := range options.ForwardedClientHeaderNames {
-		if _, err = xxh.WriteString(headerName); err != nil {
-			return err
-		}
-		for _, val := range ctx.Request.Header[textproto.CanonicalMIMEHeaderKey(headerName)] {
-			if _, err = xxh.WriteString(val); err != nil {
-				return err
-			}
-		}
-	}
-
-	// Sort header names for deterministic hashing since looping through maps
-	// results in a non-deterministic order of elements
-	headerKeys := slices.Sorted(maps.Keys(ctx.Request.Header))
-
-	for _, headerRegexp := range options.ForwardedClientHeaderRegularExpressions {
-		// Write header pattern
-		if _, err = xxh.WriteString(headerRegexp.Pattern.String()); err != nil {
-			return err
-		}
-
-		// Write negate match
-		if _, err = xxh.WriteString(strconv.FormatBool(headerRegexp.NegateMatch)); err != nil {
-			return err
-		}
-
-		for _, headerName := range headerKeys {
-			values := ctx.Request.Header[headerName]
-			result := headerRegexp.Pattern.MatchString(headerName)
-			if headerRegexp.NegateMatch {
-				result = !result
-			}
-			if result {
-				for _, val := range values {
-					if _, err = xxh.WriteString(val); err != nil {
-						return err
-					}
-				}
-			}
-		}
-	}
-	if len(ctx.InitialPayload) > 0 {
-		if _, err = xxh.Write(ctx.InitialPayload); err != nil {
-			return err
-		}
-	}
-	if options.Body.Extensions != nil {
-		if _, err = xxh.Write(options.Body.Extensions); err != nil {
-			return err
-		}
-	}
-	if options.Body.Query != "" {
-		_, err = xxh.WriteString(options.Body.Query)
-		if err != nil {
-			return err
-		}
-	}
-	if options.Body.Variables != nil {
-		_, err = xxh.Write(options.Body.Variables)
-		if err != nil {
-			return err
-		}
-	}
-	if options.Body.OperationName != "" {
-		_, err = xxh.WriteString(options.Body.OperationName)
-		if err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
