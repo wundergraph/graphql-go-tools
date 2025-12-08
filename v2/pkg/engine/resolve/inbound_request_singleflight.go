@@ -75,8 +75,6 @@ func (r *InboundRequestSingleFlight) GetOrCreate(ctx *Context, response *GraphQL
 
 	shard := r.shardFor(key)
 
-	//fmt.Printf("key: %d shard: %d\n", key, key%uint64(len(r.shards)))
-
 	request := &InflightRequest{
 		Done: make(chan struct{}),
 		ID:   key,
