@@ -210,6 +210,13 @@ func (c *Context) clone(ctx context.Context) *Context {
 		}
 	}
 
+	if c.subgraphErrors != nil {
+		cpy.subgraphErrors = make(map[string]error, len(c.subgraphErrors))
+		for k, v := range c.subgraphErrors {
+			cpy.subgraphErrors[k] = v
+		}
+	}
+
 	return &cpy
 }
 
