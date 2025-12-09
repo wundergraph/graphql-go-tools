@@ -158,9 +158,6 @@ func (c *Context) SubgraphErrors() error {
 }
 
 func (c *Context) appendSubgraphErrors(ds DataSourceInfo, errs ...error) {
-	if c.subgraphErrors == nil {
-		c.subgraphErrors = make(map[string]error)
-	}
 	c.subgraphErrors[ds.Name] = errors.Join(c.subgraphErrors[ds.Name], errors.Join(errs...))
 }
 
