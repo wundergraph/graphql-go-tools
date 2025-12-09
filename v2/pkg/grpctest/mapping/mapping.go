@@ -161,6 +161,16 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				Request:  "QueryBulkSearchBlogPostsRequest",
 				Response: "QueryBulkSearchBlogPostsResponse",
 			},
+			"testContainer": {
+				RPC:      "QueryTestContainer",
+				Request:  "QueryTestContainerRequest",
+				Response: "QueryTestContainerResponse",
+			},
+			"testContainers": {
+				RPC:      "QueryTestContainers",
+				Request:  "QueryTestContainersRequest",
+				Response: "QueryTestContainersResponse",
+			},
 		},
 		MutationRPCs: grpcdatasource.RPCConfigMap[grpcdatasource.RPCConfig]{
 			"createUser": {
@@ -260,6 +270,41 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					Request:  "ResolveCategoryCategoryMetricsRequest",
 					Response: "ResolveCategoryCategoryMetricsResponse",
 				},
+				"mascot": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName: "mascot",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{
+							"includeVolume": "include_volume",
+						},
+					},
+					RPC:      "ResolveCategoryMascot",
+					Request:  "ResolveCategoryMascotRequest",
+					Response: "ResolveCategoryMascotResponse",
+				},
+				"categoryStatus": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName: "category_status",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{
+							"checkHealth": "check_health",
+						},
+					},
+					RPC:      "ResolveCategoryCategoryStatus",
+					Request:  "ResolveCategoryCategoryStatusRequest",
+					Response: "ResolveCategoryCategoryStatusResponse",
+				},
+			},
+			"CategoryMetrics": {
+				"normalizedScore": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName: "normalized_score",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{
+							"baseline": "baseline",
+						},
+					},
+					RPC:      "ResolveCategoryMetricsNormalizedScore",
+					Request:  "ResolveCategoryMetricsNormalizedScoreRequest",
+					Response: "ResolveCategoryMetricsNormalizedScoreResponse",
+				},
 			},
 			"Product": {
 				"shippingEstimate": {
@@ -284,6 +329,39 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					Request:  "ResolveProductRecommendedCategoryRequest",
 					Response: "ResolveProductRecommendedCategoryResponse",
 				},
+				"mascotRecommendation": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName: "mascot_recommendation",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{
+							"includeDetails": "include_details",
+						},
+					},
+					RPC:      "ResolveProductMascotRecommendation",
+					Request:  "ResolveProductMascotRecommendationRequest",
+					Response: "ResolveProductMascotRecommendationResponse",
+				},
+				"stockStatus": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName: "stock_status",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{
+							"checkAvailability": "check_availability",
+						},
+					},
+					RPC:      "ResolveProductStockStatus",
+					Request:  "ResolveProductStockStatusRequest",
+					Response: "ResolveProductStockStatusResponse",
+				},
+				"productDetails": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName: "product_details",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{
+							"includeExtended": "include_extended",
+						},
+					},
+					RPC:      "ResolveProductProductDetails",
+					Request:  "ResolveProductProductDetailsRequest",
+					Response: "ResolveProductProductDetailsResponse",
+				},
 			},
 			"Subcategory": {
 				"itemCount": {
@@ -296,6 +374,19 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					RPC:      "ResolveSubcategoryItemCount",
 					Request:  "ResolveSubcategoryItemCountRequest",
 					Response: "ResolveSubcategoryItemCountResponse",
+				},
+			},
+			"TestContainer": {
+				"details": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName: "details",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{
+							"includeExtended": "include_extended",
+						},
+					},
+					RPC:      "ResolveTestContainerDetails",
+					Request:  "ResolveTestContainerDetailsRequest",
+					Response: "ResolveTestContainerDetailsResponse",
 				},
 			},
 		},
@@ -488,6 +579,15 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 						"filters": "filters",
 					},
 				},
+				"testContainer": {
+					TargetName: "test_container",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"id": "id",
+					},
+				},
+				"testContainers": {
+					TargetName: "test_containers",
+				},
 			},
 			"Mutation": {
 				"createUser": {
@@ -587,6 +687,38 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"maxPrice": "max_price",
 					},
+				},
+				"mascotRecommendation": {
+					TargetName: "mascot_recommendation",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"includeDetails": "include_details",
+					},
+				},
+				"stockStatus": {
+					TargetName: "stock_status",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"checkAvailability": "check_availability",
+					},
+				},
+				"productDetails": {
+					TargetName: "product_details",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"includeExtended": "include_extended",
+					},
+				},
+			},
+			"ProductDetails": {
+				"id": {
+					TargetName: "id",
+				},
+				"description": {
+					TargetName: "description",
+				},
+				"reviewSummary": {
+					TargetName: "review_summary",
+				},
+				"recommendedPet": {
+					TargetName: "recommended_pet",
 				},
 			},
 			"Storage": {
@@ -803,6 +935,18 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 						"metricType": "metric_type",
 					},
 				},
+				"mascot": {
+					TargetName: "mascot",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"includeVolume": "include_volume",
+					},
+				},
+				"categoryStatus": {
+					TargetName: "category_status",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"checkHealth": "check_health",
+					},
+				},
 			},
 			"Subcategory": {
 				"id": {
@@ -840,6 +984,15 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				"categoryId": {
 					TargetName: "category_id",
 				},
+				"normalizedScore": {
+					TargetName: "normalized_score",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"baseline": "baseline",
+					},
+				},
+				"relatedCategory": {
+					TargetName: "related_category",
+				},
 			},
 			"Cat": {
 				"id": {
@@ -854,6 +1007,12 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				"meowVolume": {
 					TargetName: "meow_volume",
 				},
+				"owner": {
+					TargetName: "owner",
+				},
+				"breed": {
+					TargetName: "breed",
+				},
 			},
 			"Dog": {
 				"id": {
@@ -867,6 +1026,87 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"barkVolume": {
 					TargetName: "bark_volume",
+				},
+				"owner": {
+					TargetName: "owner",
+				},
+				"breed": {
+					TargetName: "breed",
+				},
+			},
+			"Owner": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"contact": {
+					TargetName: "contact",
+				},
+			},
+			"ContactInfo": {
+				"email": {
+					TargetName: "email",
+				},
+				"phone": {
+					TargetName: "phone",
+				},
+				"address": {
+					TargetName: "address",
+				},
+			},
+			"Address": {
+				"street": {
+					TargetName: "street",
+				},
+				"city": {
+					TargetName: "city",
+				},
+				"country": {
+					TargetName: "country",
+				},
+				"zipCode": {
+					TargetName: "zip_code",
+				},
+			},
+			"CatBreed": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"origin": {
+					TargetName: "origin",
+				},
+				"characteristics": {
+					TargetName: "characteristics",
+				},
+			},
+			"DogBreed": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"origin": {
+					TargetName: "origin",
+				},
+				"characteristics": {
+					TargetName: "characteristics",
+				},
+			},
+			"BreedCharacteristics": {
+				"size": {
+					TargetName: "size",
+				},
+				"temperament": {
+					TargetName: "temperament",
+				},
+				"lifespan": {
+					TargetName: "lifespan",
 				},
 			},
 			"ActionSuccess": {
@@ -883,6 +1123,37 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"code": {
 					TargetName: "code",
+				},
+			},
+			"TestContainer": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"description": {
+					TargetName: "description",
+				},
+				"details": {
+					TargetName: "details",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"includeExtended": "include_extended",
+					},
+				},
+			},
+			"TestDetails": {
+				"id": {
+					TargetName: "id",
+				},
+				"summary": {
+					TargetName: "summary",
+				},
+				"pet": {
+					TargetName: "pet",
+				},
+				"status": {
+					TargetName: "status",
 				},
 			},
 			"SearchInput": {

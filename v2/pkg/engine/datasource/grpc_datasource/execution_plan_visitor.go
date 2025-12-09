@@ -54,9 +54,9 @@ type rpcPlanVisitor struct {
 	currentCall        *RPCCall
 	currentCallID      int
 
-	parentCallID       int
-	resolvedFieldIndex int
-	resolvedFields     []resolvedField
+	parentCallID           int
+	fieldResolverAncestors stack[int]
+	resolverFields         []resolverField
 
 	fieldPath ast.Path
 }
@@ -72,15 +72,15 @@ type rpcPlanVisitorConfig struct {
 func newRPCPlanVisitor(config rpcPlanVisitorConfig) *rpcPlanVisitor {
 	walker := astvisitor.NewWalker(48)
 	visitor := &rpcPlanVisitor{
-		walker:             &walker,
-		plan:               &RPCExecutionPlan{},
-		subgraphName:       cases.Title(language.Und, cases.NoLower).String(config.subgraphName),
-		mapping:            config.mapping,
-		operationFieldRef:  ast.InvalidRef,
-		resolvedFields:     make([]resolvedField, 0),
-		parentCallID:       ast.InvalidRef,
-		resolvedFieldIndex: ast.InvalidRef,
-		fieldPath:          make(ast.Path, 0),
+		walker:                 &walker,
+		plan:                   &RPCExecutionPlan{},
+		subgraphName:           cases.Title(language.Und, cases.NoLower).String(config.subgraphName),
+		mapping:                config.mapping,
+		operationFieldRef:      ast.InvalidRef,
+		resolverFields:         make([]resolverField, 0),
+		parentCallID:           ast.InvalidRef,
+		fieldResolverAncestors: newStack[int](0),
+		fieldPath:              make(ast.Path, 0),
 	}
 
 	walker.RegisterDocumentVisitor(visitor)
@@ -112,18 +112,18 @@ func (r *rpcPlanVisitor) EnterDocument(operation *ast.Document, definition *ast.
 
 // LeaveDocument implements astvisitor.DocumentVisitor.
 func (r *rpcPlanVisitor) LeaveDocument(_, _ *ast.Document) {
-	if len(r.resolvedFields) == 0 {
+	if len(r.resolverFields) == 0 {
 		return
 	}
 
-	calls, err := r.planCtx.createResolverRPCCalls(r.subgraphName, r.resolvedFields)
+	calls, err := r.planCtx.createResolverRPCCalls(r.subgraphName, r.resolverFields)
 	if err != nil {
 		r.walker.StopWithInternalErr(err)
 		return
 	}
 
 	r.plan.Calls = append(r.plan.Calls, calls...)
-	r.resolvedFields = nil
+	r.resolverFields = nil
 }
 
 // EnterOperationDefinition implements astvisitor.EnterOperationDefinitionVisitor.
@@ -197,10 +197,25 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 	}
 
 	// If we are inside of a resolved field that selects multiple fields, we get all the fields from the input and pass them to the required fields visitor.
-	if r.resolvedFieldIndex != ast.InvalidRef {
-		// TODO: handle nested resolved fields.
-		r.resolvedFields[r.resolvedFieldIndex].fieldsSelectionSetRef = ref
-		r.walker.SkipNode()
+	if r.fieldResolverAncestors.len() > 0 {
+		if r.walker.Ancestor().Kind == ast.NodeKindInlineFragment {
+			return
+		}
+
+		resolverFieldAncestor := r.fieldResolverAncestors.peek()
+		if compositType := r.planCtx.getCompositeType(r.walker.EnclosingTypeDefinition); compositType != OneOfTypeNone {
+			memberTypes, err := r.planCtx.getMemberTypes(r.walker.EnclosingTypeDefinition)
+			if err != nil {
+				r.walker.StopWithInternalErr(err)
+				return
+			}
+			resolvedField := &r.resolverFields[resolverFieldAncestor]
+			resolvedField.memberTypes = memberTypes
+			r.planCtx.enterResolverCompositeSelectionSet(compositType, ref, resolvedField)
+			return
+		}
+
+		r.resolverFields[resolverFieldAncestor].fieldsSelectionSetRef = ref
 		return
 	}
 
@@ -333,13 +348,7 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 		return
 	}
 
-	// prevent duplicate fields
-	fieldAlias := r.operation.FieldAliasString(ref)
-	if r.planInfo.currentResponseMessage.Fields.Exists(fieldName, fieldAlias) {
-		return
-	}
-
-	fd, ok := r.walker.FieldDefinition(ref)
+	fieldDefRef, ok := r.walker.FieldDefinition(ref)
 	if !ok {
 		r.walker.Report.AddExternalError(operationreport.ExternalError{
 			Message: fmt.Sprintf("Field %s not found in definition %s", r.operation.FieldNameString(ref), r.walker.EnclosingTypeDefinition.NameString(r.definition)),
@@ -347,34 +356,28 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 		return
 	}
 
-	// Field arguments for non root types will be handled as resolver calls.
-	// We need to make sure to handle a hierarchy of arguments in order to perform parallel calls in order to retrieve the data.
-	// TODO: this needs to be available for both visitors and added to the plancontext
-	if fieldArgs := r.operation.FieldArguments(ref); !inRootField && len(fieldArgs) > 0 {
-		// We don't want to add fields from the selection set to the actual call
-		resolvedField := resolvedField{
-			callerRef:              r.parentCallID,
-			parentTypeRef:          r.walker.EnclosingTypeDefinition.Ref,
-			fieldRef:               ref,
-			responsePath:           r.walker.Path[1:].WithoutInlineFragmentNames().WithFieldNameItem(r.operation.FieldAliasOrNameBytes(ref)),
-			fieldDefinitionTypeRef: r.definition.FieldDefinitionType(fd),
-		}
-
-		if err := r.planCtx.setResolvedField(r.walker, fd, fieldArgs, r.fieldPath, &resolvedField); err != nil {
-			r.walker.StopWithInternalErr(err)
-			return
-		}
-
-		r.resolvedFields = append(r.resolvedFields, resolvedField)
-		r.resolvedFieldIndex = len(r.resolvedFields) - 1
-		r.fieldPath = r.fieldPath.WithFieldNameItem(r.operation.FieldNameBytes(ref))
-
-		// In case of nested fields with arguments, we need to increment the related call ID.
-		r.parentCallID++
+	// If the field is a field resolver, we need to handle it later in a separate resolver call.
+	// We only store the information about the field and create the call later.
+	if r.planCtx.isFieldResolver(fieldDefRef, inRootField) {
+		r.enterFieldResolver(ref, fieldDefRef)
 		return
 	}
 
-	field, err := r.planCtx.buildField(r.walker.EnclosingTypeDefinition, fd, fieldName, fieldAlias)
+	// Check if the field is inside of a resolver call.
+	if r.fieldResolverAncestors.len() > 0 {
+		// We don't want to call LeaveField here because we ignore the field entirely.
+		r.walker.SkipNode()
+		return
+	}
+
+	// prevent duplicate fields
+	fieldAlias := r.operation.FieldAliasString(ref)
+	if r.planInfo.currentResponseMessage.Fields.Exists(fieldName, fieldAlias) {
+		r.walker.SkipNode()
+		return
+	}
+
+	field, err := r.planCtx.buildField(r.walker.EnclosingTypeDefinition, fieldDefRef, fieldName, fieldAlias)
 	if err != nil {
 		r.walker.StopWithInternalErr(err)
 		return
@@ -405,23 +408,45 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 // LeaveField implements astvisitor.FieldVisitor.
 func (r *rpcPlanVisitor) LeaveField(ref int) {
 	r.fieldPath = r.fieldPath.RemoveLastItem()
-	r.resolvedFieldIndex = ast.InvalidRef
+	inRootField := r.walker.InRootField()
 
-	// If we are not in the operation field, we can increment the response field index.
-	if !r.walker.InRootField() {
-		// If the field has arguments, we need to decrement the related call ID.
-		// This is because we can also have nested arguments, which require the underlying field to be resolved
-		// by values provided by the parent call.
-		if r.operation.FieldHasArguments(ref) {
-			r.parentCallID--
-		}
-
-		r.planInfo.currentResponseFieldIndex++
+	if inRootField {
+		// Leaving a root field means the current RPC call is complete.
+		// Add the current call to the plan and reset the call state.
+		r.finalizeCall()
+		// RPC call is done, we can return.
 		return
 	}
 
+	fieldDefRef, ok := r.walker.FieldDefinition(ref)
+	if !ok {
+		r.walker.Report.AddExternalError(operationreport.ExternalError{
+			Message: fmt.Sprintf("Field %s not found in definition %s", r.operation.FieldNameString(ref), r.walker.EnclosingTypeDefinition.NameString(r.definition)),
+		})
+		return
+	}
+
+	if r.planCtx.isFieldResolver(fieldDefRef, inRootField) {
+		// Pop the field resolver ancestor only when leaving a field resolver field.
+		r.fieldResolverAncestors.pop()
+
+		// If the field has arguments, we need to decrement the related call ID.
+		// This is because we can also have nested arguments, which require the underlying field to be resolved
+		// by values provided by the parent call.
+		r.parentCallID--
+
+		// We handle field resolvers differently, so we don't want to increment the response field index.
+		return
+	}
+
+	// If we are not in the operation field, we can increment the response field index.
+	r.planInfo.currentResponseFieldIndex++
+}
+
+// finalizeCall finalizes the current call and resets the current call.
+func (r *rpcPlanVisitor) finalizeCall() {
 	r.plan.Calls[r.currentCallID] = *r.currentCall
-	r.currentCall = &RPCCall{}
+	r.currentCall = nil
 
 	r.currentCallID++
 	if r.currentCallID < len(r.operationFieldRefs) {
@@ -429,4 +454,33 @@ func (r *rpcPlanVisitor) LeaveField(ref int) {
 	}
 
 	r.planInfo.currentResponseFieldIndex = 0
+}
+
+// enterFieldResolver enters a field resolver.
+// ref is the field reference in the operation document.
+// fieldDefRef is the field definition reference in the definition document.
+func (r *rpcPlanVisitor) enterFieldResolver(ref int, fieldDefRef int) {
+	// Field arguments for non root types will be handled as resolver calls.
+	// We need to make sure to handle a hierarchy of arguments in order to perform parallel calls in order to retrieve the data.
+	fieldArgs := r.operation.FieldArguments(ref)
+	// We don't want to add fields from the selection set to the actual call
+	resolvedField := resolverField{
+		callerRef:              r.parentCallID,
+		parentTypeNode:         r.walker.EnclosingTypeDefinition,
+		fieldRef:               ref,
+		responsePath:           r.walker.Path[1:].WithoutInlineFragmentNames().WithFieldNameItem(r.operation.FieldAliasOrNameBytes(ref)),
+		fieldDefinitionTypeRef: r.definition.FieldDefinitionType(fieldDefRef),
+	}
+
+	if err := r.planCtx.setResolvedField(r.walker, fieldDefRef, fieldArgs, r.fieldPath, &resolvedField); err != nil {
+		r.walker.StopWithInternalErr(err)
+		return
+	}
+
+	r.resolverFields = append(r.resolverFields, resolvedField)
+	r.fieldResolverAncestors.push(len(r.resolverFields) - 1)
+	r.fieldPath = r.fieldPath.WithFieldNameItem(r.operation.FieldNameBytes(ref))
+
+	// In case of nested fields with arguments, we need to increment the related call ID.
+	r.parentCallID++
 }

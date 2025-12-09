@@ -51,16 +51,25 @@ service ProductService {
   rpc QueryRandomSearchResult(QueryRandomSearchResultRequest) returns (QueryRandomSearchResultResponse) {}
   rpc QueryRecursiveType(QueryRecursiveTypeRequest) returns (QueryRecursiveTypeResponse) {}
   rpc QuerySearch(QuerySearchRequest) returns (QuerySearchResponse) {}
+  rpc QueryTestContainer(QueryTestContainerRequest) returns (QueryTestContainerResponse) {}
+  rpc QueryTestContainers(QueryTestContainersRequest) returns (QueryTestContainersResponse) {}
   rpc QueryTypeFilterWithArguments(QueryTypeFilterWithArgumentsRequest) returns (QueryTypeFilterWithArgumentsResponse) {}
   rpc QueryTypeWithMultipleFilterFields(QueryTypeWithMultipleFilterFieldsRequest) returns (QueryTypeWithMultipleFilterFieldsResponse) {}
   rpc QueryUser(QueryUserRequest) returns (QueryUserResponse) {}
   rpc QueryUsers(QueryUsersRequest) returns (QueryUsersResponse) {}
   rpc ResolveCategoryCategoryMetrics(ResolveCategoryCategoryMetricsRequest) returns (ResolveCategoryCategoryMetricsResponse) {}
+  rpc ResolveCategoryCategoryStatus(ResolveCategoryCategoryStatusRequest) returns (ResolveCategoryCategoryStatusResponse) {}
+  rpc ResolveCategoryMascot(ResolveCategoryMascotRequest) returns (ResolveCategoryMascotResponse) {}
+  rpc ResolveCategoryMetricsNormalizedScore(ResolveCategoryMetricsNormalizedScoreRequest) returns (ResolveCategoryMetricsNormalizedScoreResponse) {}
   rpc ResolveCategoryPopularityScore(ResolveCategoryPopularityScoreRequest) returns (ResolveCategoryPopularityScoreResponse) {}
   rpc ResolveCategoryProductCount(ResolveCategoryProductCountRequest) returns (ResolveCategoryProductCountResponse) {}
+  rpc ResolveProductMascotRecommendation(ResolveProductMascotRecommendationRequest) returns (ResolveProductMascotRecommendationResponse) {}
+  rpc ResolveProductProductDetails(ResolveProductProductDetailsRequest) returns (ResolveProductProductDetailsResponse) {}
   rpc ResolveProductRecommendedCategory(ResolveProductRecommendedCategoryRequest) returns (ResolveProductRecommendedCategoryResponse) {}
   rpc ResolveProductShippingEstimate(ResolveProductShippingEstimateRequest) returns (ResolveProductShippingEstimateResponse) {}
+  rpc ResolveProductStockStatus(ResolveProductStockStatusRequest) returns (ResolveProductStockStatusResponse) {}
   rpc ResolveSubcategoryItemCount(ResolveSubcategoryItemCountRequest) returns (ResolveSubcategoryItemCountResponse) {}
+  rpc ResolveTestContainerDetails(ResolveTestContainerDetailsRequest) returns (ResolveTestContainerDetailsResponse) {}
 }
 
 // Wrapper message for a list of AuthorFilter.
@@ -533,6 +542,21 @@ message QueryBulkSearchBlogPostsRequest {
 message QueryBulkSearchBlogPostsResponse {
   repeated BlogPost bulk_search_blog_posts = 1;
 }
+// Request message for testContainer operation.
+message QueryTestContainerRequest {
+  string id = 1;
+}
+// Response message for testContainer operation.
+message QueryTestContainerResponse {
+  TestContainer test_container = 1;
+}
+// Request message for testContainers operation.
+message QueryTestContainersRequest {
+}
+// Response message for testContainers operation.
+message QueryTestContainersResponse {
+  repeated TestContainer test_containers = 1;
+}
 // Request message for createUser operation.
 message MutationCreateUserRequest {
   UserInput input = 1;
@@ -681,6 +705,80 @@ message ResolveProductRecommendedCategoryResponse {
   repeated ResolveProductRecommendedCategoryResult result = 1;
 }
 
+message ResolveProductMascotRecommendationArgs {
+  bool include_details = 1;
+}
+
+message ResolveProductMascotRecommendationContext {
+  string id = 1;
+  string name = 2;
+}
+
+message ResolveProductMascotRecommendationRequest {
+  // context provides the resolver context for the field mascotRecommendation of type Product.
+  repeated ResolveProductMascotRecommendationContext context = 1;
+  // field_args provides the arguments for the resolver field mascotRecommendation of type Product.
+  ResolveProductMascotRecommendationArgs field_args = 2;
+}
+
+message ResolveProductMascotRecommendationResult {
+  Animal mascot_recommendation = 1;
+}
+
+message ResolveProductMascotRecommendationResponse {
+  repeated ResolveProductMascotRecommendationResult result = 1;
+}
+
+message ResolveProductStockStatusArgs {
+  bool check_availability = 1;
+}
+
+message ResolveProductStockStatusContext {
+  string id = 1;
+  string name = 2;
+  double price = 3;
+}
+
+message ResolveProductStockStatusRequest {
+  // context provides the resolver context for the field stockStatus of type Product.
+  repeated ResolveProductStockStatusContext context = 1;
+  // field_args provides the arguments for the resolver field stockStatus of type Product.
+  ResolveProductStockStatusArgs field_args = 2;
+}
+
+message ResolveProductStockStatusResult {
+  ActionResult stock_status = 1;
+}
+
+message ResolveProductStockStatusResponse {
+  repeated ResolveProductStockStatusResult result = 1;
+}
+
+message ResolveProductProductDetailsArgs {
+  bool include_extended = 1;
+}
+
+message ResolveProductProductDetailsContext {
+  string id = 1;
+  string name = 2;
+  double price = 3;
+}
+
+message ResolveProductProductDetailsRequest {
+  // context provides the resolver context for the field productDetails of type Product.
+  repeated ResolveProductProductDetailsContext context = 1;
+  // field_args provides the arguments for the resolver field productDetails of type Product.
+  ResolveProductProductDetailsArgs field_args = 2;
+}
+
+message ResolveProductProductDetailsResult {
+  ProductDetails product_details = 1;
+}
+
+message ResolveProductProductDetailsResponse {
+  repeated ResolveProductProductDetailsResult result = 1;
+}
+
 message ResolveCategoryProductCountArgs {
   ProductCountFilter filters = 1;
 }
@@ -752,6 +850,54 @@ message ResolveCategoryCategoryMetricsResponse {
   repeated ResolveCategoryCategoryMetricsResult result = 1;
 }
 
+message ResolveCategoryMascotArgs {
+  bool include_volume = 1;
+}
+
+message ResolveCategoryMascotContext {
+  string id = 1;
+  CategoryKind kind = 2;
+}
+
+message ResolveCategoryMascotRequest {
+  // context provides the resolver context for the field mascot of type Category.
+  repeated ResolveCategoryMascotContext context = 1;
+  // field_args provides the arguments for the resolver field mascot of type Category.
+  ResolveCategoryMascotArgs field_args = 2;
+}
+
+message ResolveCategoryMascotResult {
+  Animal mascot = 1;
+}
+
+message ResolveCategoryMascotResponse {
+  repeated ResolveCategoryMascotResult result = 1;
+}
+
+message ResolveCategoryCategoryStatusArgs {
+  bool check_health = 1;
+}
+
+message ResolveCategoryCategoryStatusContext {
+  string id = 1;
+  string name = 2;
+}
+
+message ResolveCategoryCategoryStatusRequest {
+  // context provides the resolver context for the field categoryStatus of type Category.
+  repeated ResolveCategoryCategoryStatusContext context = 1;
+  // field_args provides the arguments for the resolver field categoryStatus of type Category.
+  ResolveCategoryCategoryStatusArgs field_args = 2;
+}
+
+message ResolveCategoryCategoryStatusResult {
+  ActionResult category_status = 1;
+}
+
+message ResolveCategoryCategoryStatusResponse {
+  repeated ResolveCategoryCategoryStatusResult result = 1;
+}
+
 message ResolveSubcategoryItemCountArgs {
   SubcategoryItemFilter filters = 1;
 }
@@ -773,6 +919,55 @@ message ResolveSubcategoryItemCountResult {
 
 message ResolveSubcategoryItemCountResponse {
   repeated ResolveSubcategoryItemCountResult result = 1;
+}
+
+message ResolveCategoryMetricsNormalizedScoreArgs {
+  double baseline = 1;
+}
+
+message ResolveCategoryMetricsNormalizedScoreContext {
+  string id = 1;
+  string metricType = 2;
+  double value = 3;
+}
+
+message ResolveCategoryMetricsNormalizedScoreRequest {
+  // context provides the resolver context for the field normalizedScore of type CategoryMetrics.
+  repeated ResolveCategoryMetricsNormalizedScoreContext context = 1;
+  // field_args provides the arguments for the resolver field normalizedScore of type CategoryMetrics.
+  ResolveCategoryMetricsNormalizedScoreArgs field_args = 2;
+}
+
+message ResolveCategoryMetricsNormalizedScoreResult {
+  double normalized_score = 1;
+}
+
+message ResolveCategoryMetricsNormalizedScoreResponse {
+  repeated ResolveCategoryMetricsNormalizedScoreResult result = 1;
+}
+
+message ResolveTestContainerDetailsArgs {
+  bool include_extended = 1;
+}
+
+message ResolveTestContainerDetailsContext {
+  string id = 1;
+  string name = 2;
+}
+
+message ResolveTestContainerDetailsRequest {
+  // context provides the resolver context for the field details of type TestContainer.
+  repeated ResolveTestContainerDetailsContext context = 1;
+  // field_args provides the arguments for the resolver field details of type TestContainer.
+  ResolveTestContainerDetailsArgs field_args = 2;
+}
+
+message ResolveTestContainerDetailsResult {
+  TestDetails details = 1;
+}
+
+message ResolveTestContainerDetailsResponse {
+  repeated ResolveTestContainerDetailsResult result = 1;
 }
 
 message Product {
@@ -946,6 +1141,12 @@ message AuthorFilter {
   google.protobuf.Int32Value skill_count = 3;
 }
 
+message TestContainer {
+  string id = 1;
+  string name = 2;
+  google.protobuf.StringValue description = 3;
+}
+
 message UserInput {
   string name = 1;
 }
@@ -1004,6 +1205,13 @@ message AuthorInput {
   ListOfListOfUserInput project_teams = 10;
 }
 
+message ProductDetails {
+  string id = 1;
+  string description = 2;
+  ActionResult review_summary = 3;
+  Animal recommended_pet = 4;
+}
+
 message NestedTypeB {
   string id = 1;
   string name = 2;
@@ -1052,6 +1260,7 @@ message CategoryMetrics {
   double value = 3;
   string timestamp = 4;
   string category_id = 5;
+  Category related_category = 6;
 }
 
 enum CategoryKind {
@@ -1067,6 +1276,8 @@ message Cat {
   string name = 2;
   string kind = 3;
   int32 meow_volume = 4;
+  Owner owner = 5;
+  CatBreed breed = 6;
 }
 
 message Dog {
@@ -1074,6 +1285,47 @@ message Dog {
   string name = 2;
   string kind = 3;
   int32 bark_volume = 4;
+  Owner owner = 5;
+  DogBreed breed = 6;
+}
+
+message Owner {
+  string id = 1;
+  string name = 2;
+  ContactInfo contact = 3;
+}
+
+message ContactInfo {
+  string email = 1;
+  string phone = 2;
+  Address address = 3;
+}
+
+message Address {
+  string street = 1;
+  string city = 2;
+  string country = 3;
+  string zip_code = 4;
+}
+
+message CatBreed {
+  string id = 1;
+  string name = 2;
+  string origin = 3;
+  BreedCharacteristics characteristics = 4;
+}
+
+message DogBreed {
+  string id = 1;
+  string name = 2;
+  string origin = 3;
+  BreedCharacteristics characteristics = 4;
+}
+
+message BreedCharacteristics {
+  string size = 1;
+  string temperament = 2;
+  string lifespan = 3;
 }
 
 message ActionSuccess {
@@ -1084,6 +1336,13 @@ message ActionSuccess {
 message ActionError {
   string message = 1;
   string code = 2;
+}
+
+message TestDetails {
+  string id = 1;
+  string summary = 2;
+  Animal pet = 3;
+  ActionResult status = 4;
 }
 
 message CategoryInput {

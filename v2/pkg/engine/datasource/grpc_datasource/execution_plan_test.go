@@ -1,7 +1,6 @@
 package grpcdatasource
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -9,9 +8,10 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
 )
 
 type testCase struct {
@@ -20,22 +20,20 @@ type testCase struct {
 	expectedError string
 }
 
-func runTest(t *testing.T, testCase testCase) {
-	// Parse the GraphQL schema
-	schemaDoc := grpctest.MustGraphQLSchema(t)
+type testConfig struct {
+	subgraphName string
+	mapping      *GRPCMapping
+	schemaDoc    ast.Document
+	operationDoc ast.Document
+}
 
-	// Parse the GraphQL query
-	queryDoc, report := astparser.ParseGraphqlDocumentString(testCase.query)
-	if report.HasErrors() {
-		t.Fatalf("failed to parse query: %s", report.Error())
-	}
-
+func runTestWithConfig(t *testing.T, testCase testCase, testConfig testConfig) {
 	rpcPlanVisitor := newRPCPlanVisitor(rpcPlanVisitorConfig{
-		subgraphName: "Products",
-		mapping:      testMapping(),
+		subgraphName: testConfig.subgraphName,
+		mapping:      testConfig.mapping,
 	})
 
-	plan, err := rpcPlanVisitor.PlanOperation(&queryDoc, &schemaDoc)
+	plan, err := rpcPlanVisitor.PlanOperation(&testConfig.operationDoc, &testConfig.schemaDoc)
 
 	if err != nil {
 		require.NotEmpty(t, testCase.expectedError, "expected error to be empty, got: %s", err.Error())
@@ -48,6 +46,24 @@ func runTest(t *testing.T, testCase testCase) {
 	if diff != "" {
 		t.Fatalf("execution plan mismatch: %s", diff)
 	}
+}
+
+func runTest(t *testing.T, testCase testCase) {
+	// Parse the GraphQL schema
+	schemaDoc := grpctest.MustGraphQLSchema(t)
+
+	// Parse the GraphQL query
+	queryDoc, report := astparser.ParseGraphqlDocumentString(testCase.query)
+	if report.HasErrors() {
+		t.Fatalf("failed to parse query: %s", report.Error())
+	}
+
+	runTestWithConfig(t, testCase, testConfig{
+		subgraphName: "Products",
+		mapping:      testMapping(),
+		schemaDoc:    schemaDoc,
+		operationDoc: queryDoc,
+	})
 }
 
 // buildPath builds a path from a string which is a dot-separated list of field names.
@@ -86,7 +102,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 	}{
 		{
 			name:    "Should include typename when requested",
-			query:   `query UsersWithTypename { users { __typename id name } }`,
+			query:   `query UsersWithTypename { users { __typename id __typename name } }`,
 			mapping: testMapping(),
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
@@ -1139,6 +1155,137 @@ func TestQueryExecutionPlans(t *testing.T) {
 	}
 }
 
+func TestQueryExecutionPlans_WithConfig(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name          string
+		operation     string
+		schema        ast.Document
+		subgraphName  string
+		mapping       *GRPCMapping
+		expectedPlan  *RPCExecutionPlan
+		expectedError string
+	}{
+		{
+			name: "Should create an execution plan for a query with duplicated and nested fields",
+			operation: `
+			query DuplicatedAndNestedFieldsQuery {
+				users {
+					__typename
+					id
+					__typename
+					name
+					address {
+						street
+					}
+				}
+			}`,
+			schema: testSchema(t, `
+			type Query {
+				users: [User!]!
+			}
+
+			type User {
+				id: ID!
+				name: String!
+				address: Address!
+			}
+
+			type Address {
+				street: String!
+			}`),
+			subgraphName: "Products",
+			mapping: &GRPCMapping{
+				Service: "Products",
+				QueryRPCs: map[string]RPCConfig{
+					"users": {
+						RPC:      "QueryUsers",
+						Request:  "QueryUsersRequest",
+						Response: "QueryUsersResponse",
+					},
+				},
+				// No need to define fields as we don't have camel case in any of them.
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryUsers",
+						Request: RPCMessage{
+							Name: "QueryUsersRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryUsersResponse",
+							Fields: []RPCField{
+								{
+									Name:          "users",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "users",
+									Message: &RPCMessage{
+										Name: "User",
+										Fields: []RPCField{
+											{
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "User",
+											},
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+											},
+											{
+												Name:          "address",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "address",
+												Message: &RPCMessage{
+													Name: "Address",
+													Fields: []RPCField{
+														{
+															Name:          "street",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "street",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			runTestWithConfig(t, testCase{
+
+				query:         tt.operation,
+				expectedPlan:  tt.expectedPlan,
+				expectedError: tt.expectedError,
+			}, testConfig{
+				subgraphName: tt.subgraphName,
+				mapping:      tt.mapping,
+				schemaDoc:    tt.schema,
+				operationDoc: unsafeparser.ParseGraphqlDocumentString(tt.operation),
+			})
+		})
+	}
+}
+
 func TestProductExecutionPlan(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -1349,53 +1496,12 @@ func TestProductExecutionPlan(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			report := &operationreport.Report{}
-			// Parse the GraphQL schema
-			schemaDoc := grpctest.MustGraphQLSchema(t)
 
-			astvalidation.DefaultDefinitionValidator().Validate(&schemaDoc, report)
-			if report.HasErrors() {
-				t.Fatalf("failed to validate schema: %s", report.Error())
-			}
-
-			// Parse the GraphQL query
-			queryDoc, queryReport := astparser.ParseGraphqlDocumentString(tt.query)
-			if queryReport.HasErrors() {
-				t.Fatalf("failed to parse query: %s", queryReport.Error())
-			}
-
-			astvalidation.DefaultOperationValidator().Validate(&queryDoc, &schemaDoc, report)
-			if report.HasErrors() {
-				t.Fatalf("failed to validate query: %s", report.Error())
-			}
-
-			planner, err := NewPlanner("Products", testMapping(), nil)
-			if err != nil {
-				t.Fatalf("failed to create planner: %s", err)
-			}
-			outPlan, err := planner.PlanOperation(&queryDoc, &schemaDoc)
-			if err != nil {
-				t.Fatalf("failed to plan operation: %s", err)
-			}
-
-			if tt.expectedError != "" {
-				if err == nil {
-					t.Fatalf("expected error, got nil")
-				}
-				if !strings.Contains(err.Error(), tt.expectedError) {
-					t.Fatalf("expected error to contain %q, got %q", tt.expectedError, err.Error())
-				}
-				return
-			}
-
-			if err != nil {
-				t.Fatalf("unexpected error: %s", err)
-			}
-
-			diff := cmp.Diff(tt.expectedPlan, outPlan)
-			if diff != "" {
-				t.Fatalf("execution plan mismatch: %s", diff)
-			}
+			runTest(t, testCase{
+				query:         tt.query,
+				expectedPlan:  tt.expectedPlan,
+				expectedError: tt.expectedError,
+			})
 		})
 	}
 }
@@ -2459,55 +2565,34 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			report := &operationreport.Report{}
-			// Parse the GraphQL schema
-			schemaDoc := grpctest.MustGraphQLSchema(t)
 
-			astvalidation.DefaultDefinitionValidator().Validate(&schemaDoc, report)
-			if report.HasErrors() {
-				t.Fatalf("failed to validate schema: %s", report.Error())
-			}
-
-			// Parse the GraphQL query
-			queryDoc, queryReport := astparser.ParseGraphqlDocumentString(tt.query)
-			if queryReport.HasErrors() {
-				t.Fatalf("failed to parse query: %s", queryReport.Error())
-			}
-
-			astvalidation.DefaultOperationValidator().Validate(&queryDoc, &schemaDoc, report)
-			if report.HasErrors() {
-				t.Fatalf("failed to validate query: %s", report.Error())
-			}
-
-			planner, err := NewPlanner("Products", testMapping(), nil)
-			if err != nil {
-				t.Fatalf("failed to create planner: %s", err)
-			}
-
-			outPlan, err := planner.PlanOperation(&queryDoc, &schemaDoc)
-			if err != nil {
-				t.Fatalf("failed to plan operation: %s", err)
-			}
-
-			if tt.expectedError != "" {
-				if err == nil {
-					t.Fatalf("expected error, got nil")
-				}
-				if !strings.Contains(err.Error(), tt.expectedError) {
-					t.Fatalf("expected error to contain %q, got %q", tt.expectedError, err.Error())
-				}
-				return
-			}
-
-			if err != nil {
-				t.Fatalf("unexpected error: %s", err)
-			}
-
-			diff := cmp.Diff(tt.expectedPlan, outPlan)
-			if diff != "" {
-				t.Fatalf("execution plan mismatch: %s", diff)
-			}
+			runTest(t, testCase{
+				query:         tt.query,
+				expectedPlan:  tt.expectedPlan,
+				expectedError: tt.expectedError,
+			})
 		})
 	}
+
+}
+
+func testSchema(t *testing.T, schema string) ast.Document {
+	t.Helper()
+
+	doc, report := astparser.ParseGraphqlDocumentString(schema)
+	if report.HasErrors() {
+		t.Fatalf("failed to parse schema: %s", report.Error())
+	}
+
+	if err := asttransform.MergeDefinitionWithBaseSchema(&doc); err != nil {
+		t.Fatalf("failed to merge schema: %s", err)
+	}
+
+	astvalidation.DefaultDefinitionValidator().Validate(&doc, &report)
+	if report.HasErrors() {
+		t.Fatalf("failed to validate schema: %s", report.Error())
+	}
+
+	return doc
 
 }
