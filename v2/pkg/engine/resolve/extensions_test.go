@@ -19,7 +19,9 @@ func TestExtensions(t *testing.T) {
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
-		return res, &Context{ctx: context.Background(), Variables: nil, authorizer: authorizer},
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.authorizer = authorizer
+		return res, resolveCtx,
 			`{"errors":[{"message":"Unauthorized request to Subgraph 'users' at Path 'query', Reason: test.","extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Failed to fetch from Subgraph 'reviews' at Path 'query.me'.","extensions":{"errors":[{"message":"Failed to render Fetch Input","path":["me"]}]}},{"message":"Failed to fetch from Subgraph 'products' at Path 'query.me.reviews.@.product'.","extensions":{"errors":[{"message":"Failed to render Fetch Input","path":["me","reviews","@","product"]}]}}],"data":{"me":null}}`,
 			func(t *testing.T) {}
 	}))
@@ -44,7 +46,11 @@ func TestExtensions(t *testing.T) {
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
-		return res, &Context{ctx: context.Background(), Variables: nil, authorizer: authorizer, rateLimiter: limiter, RateLimitOptions: RateLimitOptions{Enable: true, IncludeStatsInResponseExtension: true}},
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.authorizer = authorizer
+		resolveCtx.rateLimiter = limiter
+		resolveCtx.RateLimitOptions = RateLimitOptions{Enable: true, IncludeStatsInResponseExtension: true}
+		return res, resolveCtx,
 			`{"errors":[{"message":"Unauthorized request to Subgraph 'users' at Path 'query', Reason: test.","extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Failed to fetch from Subgraph 'reviews' at Path 'query.me'.","extensions":{"errors":[{"message":"Failed to render Fetch Input","path":["me"]}]}},{"message":"Failed to fetch from Subgraph 'products' at Path 'query.me.reviews.@.product'.","extensions":{"errors":[{"message":"Failed to render Fetch Input","path":["me","reviews","@","product"]}]}}],"data":{"me":null},"extensions":{"authorization":{"missingScopes":[["read:users"]]},"rateLimit":{"Policy":"policy","Allowed":0,"Used":0}}}`,
 			func(t *testing.T) {}
 	}))
@@ -69,7 +75,11 @@ func TestExtensions(t *testing.T) {
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
-		return res, &Context{ctx: context.Background(), Variables: nil, authorizer: authorizer, rateLimiter: limiter, RateLimitOptions: RateLimitOptions{Enable: true, IncludeStatsInResponseExtension: true}},
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.authorizer = authorizer
+		resolveCtx.rateLimiter = limiter
+		resolveCtx.RateLimitOptions = RateLimitOptions{Enable: true, IncludeStatsInResponseExtension: true}
+		return res, resolveCtx,
 			`{"errors":[{"message":"Unauthorized request to Subgraph 'users' at Path 'query', Reason: test.","extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Failed to fetch from Subgraph 'reviews' at Path 'query.me'.","extensions":{"errors":[{"message":"Failed to render Fetch Input","path":["me"]}]}},{"message":"Failed to fetch from Subgraph 'products' at Path 'query.me.reviews.@.product'.","extensions":{"errors":[{"message":"Failed to render Fetch Input","path":["me","reviews","@","product"]}]}}],"data":{"me":null},"extensions":{"authorization":{"missingScopes":[["read:users"]]},"rateLimit":{"Policy":"policy","Allowed":0,"Used":0}}}`,
 			func(t *testing.T) {}
 	}))
@@ -91,7 +101,11 @@ func TestExtensions(t *testing.T) {
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
-		return res, &Context{ctx: context.Background(), Variables: nil, authorizer: authorizer, rateLimiter: limiter, RateLimitOptions: RateLimitOptions{Enable: true, IncludeStatsInResponseExtension: true}},
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.authorizer = authorizer
+		resolveCtx.rateLimiter = limiter
+		resolveCtx.RateLimitOptions = RateLimitOptions{Enable: true, IncludeStatsInResponseExtension: true}
+		return res, resolveCtx,
 			`{"errors":[{"message":"Rate limit exceeded for Subgraph 'users' at Path 'query', Reason: rate limit exceeded."},{"message":"Failed to fetch from Subgraph 'reviews' at Path 'query.me'.","extensions":{"errors":[{"message":"Failed to render Fetch Input","path":["me"]}]}},{"message":"Failed to fetch from Subgraph 'products' at Path 'query.me.reviews.@.product'.","extensions":{"errors":[{"message":"Failed to render Fetch Input","path":["me","reviews","@","product"]}]}}],"data":{"me":null},"extensions":{"rateLimit":{"Policy":"policy","Allowed":0,"Used":1}}}`,
 			func(t *testing.T) {}
 	}))
@@ -116,7 +130,11 @@ func TestExtensions(t *testing.T) {
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
-		ctx = &Context{ctx: context.Background(), Variables: nil, authorizer: authorizer, rateLimiter: limiter, RateLimitOptions: RateLimitOptions{Enable: true, IncludeStatsInResponseExtension: true}, TracingOptions: TraceOptions{Enable: true, IncludeTraceOutputInResponseExtensions: true, EnablePredictableDebugTimings: true, Debug: true}}
+		ctx = NewContext(context.Background())
+		ctx.authorizer = authorizer
+		ctx.rateLimiter = limiter
+		ctx.RateLimitOptions = RateLimitOptions{Enable: true, IncludeStatsInResponseExtension: true}
+		ctx.TracingOptions = TraceOptions{Enable: true, IncludeTraceOutputInResponseExtensions: true, EnablePredictableDebugTimings: true, Debug: true}
 		ctx.ctx = SetTraceStart(ctx.ctx, true)
 
 		return res, ctx,

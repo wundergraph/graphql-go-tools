@@ -56,10 +56,8 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 				pair.WriteErr([]byte("errorMessage"), nil, nil, nil)
 				return writeGraphqlResponse(pair, w, false)
 			})
-		resolveCtx := Context{
-			ctx:         context.Background(),
-			LoaderHooks: NewTestLoaderHooks(),
-		}
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.LoaderHooks = NewTestLoaderHooks()
 		return &GraphQLResponse{
 				Info: &GraphQLResponseInfo{
 					OperationType: ast.OperationTypeQuery,
@@ -88,7 +86,7 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 						},
 					},
 				},
-			}, &resolveCtx, `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at Path 'query'.","extensions":{"errors":[{"message":"errorMessage"}]}}],"data":{"name":null}}`,
+			}, resolveCtx, `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at Path 'query'.","extensions":{"errors":[{"message":"errorMessage"}]}}],"data":{"name":null}}`,
 			func(t *testing.T) {
 				loaderHooks := resolveCtx.LoaderHooks.(*TestLoaderHooks)
 
@@ -130,10 +128,8 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 				pair.WriteErr([]byte("errorMessage"), nil, nil, nil)
 				return writeGraphqlResponse(pair, w, false)
 			})
-		resolveCtx := &Context{
-			ctx:         context.Background(),
-			LoaderHooks: NewTestLoaderHooks(),
-		}
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.LoaderHooks = NewTestLoaderHooks()
 		resp := &GraphQLResponse{
 			Info: &GraphQLResponseInfo{
 				OperationType: ast.OperationTypeQuery,
@@ -198,10 +194,8 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 				pair.WriteErr([]byte("errorMessage"), nil, nil, nil)
 				return writeGraphqlResponse(pair, w, false)
 			})
-		resolveCtx := &Context{
-			ctx:         context.Background(),
-			LoaderHooks: NewTestLoaderHooks(),
-		}
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.LoaderHooks = NewTestLoaderHooks()
 		return &GraphQLResponse{
 				Info: &GraphQLResponseInfo{
 					OperationType: ast.OperationTypeQuery,
@@ -263,10 +257,8 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 				pair.WriteErr([]byte("errorMessage"), nil, nil, nil)
 				return writeGraphqlResponse(pair, w, false)
 			})
-		resolveCtx := Context{
-			ctx:         context.Background(),
-			LoaderHooks: NewTestLoaderHooks(),
-		}
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.LoaderHooks = NewTestLoaderHooks()
 		return &GraphQLResponse{
 				Info: &GraphQLResponseInfo{
 					OperationType: ast.OperationTypeQuery,
@@ -297,7 +289,7 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 						},
 					},
 				},
-			}, &resolveCtx, `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at Path 'query'.","extensions":{"errors":[{"message":"errorMessage"}]}}],"data":{"name":null}}`,
+			}, resolveCtx, `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at Path 'query'.","extensions":{"errors":[{"message":"errorMessage"}]}}],"data":{"name":null}}`,
 			func(t *testing.T) {
 				loaderHooks := resolveCtx.LoaderHooks.(*TestLoaderHooks)
 
@@ -329,10 +321,8 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 				pair.WriteErr([]byte("errorMessage2"), nil, nil, []byte("{\"code\":\"BAD_USER_INPUT\"}"))
 				return writeGraphqlResponse(pair, w, false)
 			})
-		resolveCtx := Context{
-			ctx:         context.Background(),
-			LoaderHooks: NewTestLoaderHooks(),
-		}
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.LoaderHooks = NewTestLoaderHooks()
 		return &GraphQLResponse{
 				Info: &GraphQLResponseInfo{
 					OperationType: ast.OperationTypeQuery,
@@ -361,7 +351,7 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 						},
 					},
 				},
-			}, &resolveCtx, `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at Path 'query'.","extensions":{"errors":[{"message":"errorMessage"},{"message":"errorMessage2"}]}}],"data":{"name":null}}`,
+			}, resolveCtx, `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at Path 'query'.","extensions":{"errors":[{"message":"errorMessage"},{"message":"errorMessage2"}]}}],"data":{"name":null}}`,
 			func(t *testing.T) {
 				loaderHooks := resolveCtx.LoaderHooks.(*TestLoaderHooks)
 
@@ -420,7 +410,7 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"errorMessage2","extensions":{"code":"BAD_USER_INPUT"}}],"data":{"name":null}}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"errorMessage2","extensions":{"code":"BAD_USER_INPUT"}}],"data":{"name":null}}`
 	}))
 
 	t.Run("Propagate all extension fields from subgraph errors when allow all option is enabled", testFnSubgraphErrorsWithAllowAllExtensionFields(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
@@ -458,7 +448,7 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED","foo":"bar"}},{"message":"errorMessage2","extensions":{"code":"BAD_USER_INPUT"}}],"data":{"name":null}}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED","foo":"bar"}},{"message":"errorMessage2","extensions":{"code":"BAD_USER_INPUT"}}],"data":{"name":null}}`
 	}))
 
 	t.Run("Include datasource name as serviceName extension field", testFnSubgraphErrorsWithExtensionFieldServiceName(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
@@ -496,7 +486,7 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED","serviceName":"Users"}},{"message":"errorMessage2","extensions":{"code":"BAD_USER_INPUT","serviceName":"Users"}}],"data":{"name":null}}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED","serviceName":"Users"}},{"message":"errorMessage2","extensions":{"code":"BAD_USER_INPUT","serviceName":"Users"}}],"data":{"name":null}}`
 	}))
 
 	t.Run("Include datasource name as serviceName when extensions is null", testFnSubgraphErrorsWithExtensionFieldServiceName(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
@@ -534,7 +524,7 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"errorMessage","extensions":{"code":"DOWNSTREAM_SERVICE_ERROR","serviceName":"Users"}},{"message":"errorMessage2","extensions":{"code":"DOWNSTREAM_SERVICE_ERROR","serviceName":"Users"}}],"data":{"name":null}}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"errorMessage","extensions":{"code":"DOWNSTREAM_SERVICE_ERROR","serviceName":"Users"}},{"message":"errorMessage2","extensions":{"code":"DOWNSTREAM_SERVICE_ERROR","serviceName":"Users"}}],"data":{"name":null}}`
 	}))
 
 	t.Run("Include datasource name as serviceName when extensions is an empty object", testFnSubgraphErrorsWithExtensionFieldServiceName(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
@@ -572,7 +562,7 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"errorMessage","extensions":{"code":"DOWNSTREAM_SERVICE_ERROR","serviceName":"Users"}},{"message":"errorMessage2","extensions":{"code":"DOWNSTREAM_SERVICE_ERROR","serviceName":"Users"}}],"data":{"name":null}}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"errorMessage","extensions":{"code":"DOWNSTREAM_SERVICE_ERROR","serviceName":"Users"}},{"message":"errorMessage2","extensions":{"code":"DOWNSTREAM_SERVICE_ERROR","serviceName":"Users"}}],"data":{"name":null}}`
 	}))
 
 	t.Run("Fallback to default extension code value when no code field was set", testFnSubgraphErrorsWithExtensionDefaultCode(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
@@ -610,7 +600,7 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"errorMessage2","extensions":{"code":"DOWNSTREAM_SERVICE_ERROR"}}],"data":{"name":null}}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"errorMessage2","extensions":{"code":"DOWNSTREAM_SERVICE_ERROR"}}],"data":{"name":null}}`
 	}))
 
 	t.Run("Fallback to default extension code value when extensions is null", testFnSubgraphErrorsWithExtensionDefaultCode(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
@@ -648,7 +638,7 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"errorMessage","extensions":{"code":"DOWNSTREAM_SERVICE_ERROR"}},{"message":"errorMessage2","extensions":{"code":"DOWNSTREAM_SERVICE_ERROR"}}],"data":{"name":null}}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"errorMessage","extensions":{"code":"DOWNSTREAM_SERVICE_ERROR"}},{"message":"errorMessage2","extensions":{"code":"DOWNSTREAM_SERVICE_ERROR"}}],"data":{"name":null}}`
 	}))
 
 	t.Run("Fallback to default extension code value when extensions is an empty object", testFnSubgraphErrorsWithExtensionDefaultCode(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
@@ -686,7 +676,7 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"errorMessage","extensions":{"code":"DOWNSTREAM_SERVICE_ERROR"}},{"message":"errorMessage2","extensions":{"code":"DOWNSTREAM_SERVICE_ERROR"}}],"data":{"name":null}}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"errorMessage","extensions":{"code":"DOWNSTREAM_SERVICE_ERROR"}},{"message":"errorMessage2","extensions":{"code":"DOWNSTREAM_SERVICE_ERROR"}}],"data":{"name":null}}`
 	}))
 
 }

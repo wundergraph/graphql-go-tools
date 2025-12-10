@@ -64,7 +64,8 @@ func TestAuthorization(t *testing.T) {
 		})
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
-		resolveCtx := &Context{ctx: context.Background(), Variables: nil, authorizer: authorizer}
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.authorizer = authorizer
 
 		return res, resolveCtx,
 			`{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Fedora"}}]}}}`,
@@ -72,7 +73,7 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(2), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 
-				require.Nil(t, resolveCtx.subgraphErrors)
+				require.Len(t, resolveCtx.subgraphErrors, 0)
 			}
 	}))
 	t.Run("validate authorizer args", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
@@ -109,7 +110,9 @@ func TestAuthorization(t *testing.T) {
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
-		return res, &Context{ctx: context.Background(), Variables: nil, authorizer: authorizer},
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.authorizer = authorizer
+		return res, resolveCtx,
 			`{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Fedora"}}]}}}`,
 			func(t *testing.T) {
 				assert.Equal(t, int64(2), authorizer.(*testAuthorizer).preFetchCalls.Load())
@@ -131,7 +134,8 @@ func TestAuthorization(t *testing.T) {
 		})
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
-		resolveCtx := &Context{ctx: context.Background(), Variables: nil, authorizer: authorizer}
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.authorizer = authorizer
 
 		return res, resolveCtx,
 			`{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Fedora"}}]}}}`,
@@ -139,7 +143,7 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(2), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 
-				require.Nil(t, resolveCtx.subgraphErrors)
+				require.Len(t, resolveCtx.subgraphErrors, 0)
 			}
 	}))
 	t.Run("disallow field with extension", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
@@ -159,7 +163,8 @@ func TestAuthorization(t *testing.T) {
 		authorizer.(*testAuthorizer).responseExtension = []byte(`{"missingScopes":["id"]}`)
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
-		resolveCtx := &Context{ctx: context.Background(), Variables: nil, authorizer: authorizer}
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.authorizer = authorizer
 
 		return res, resolveCtx,
 			`{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Fedora"}}]}},"extensions":{"authorization":{"missingScopes":["id"]}}}`,
@@ -167,7 +172,7 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(2), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 
-				require.Nil(t, resolveCtx.subgraphErrors)
+				require.Len(t, resolveCtx.subgraphErrors, 0)
 			}
 	}))
 	t.Run("no authorization rules/checks", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
@@ -179,7 +184,8 @@ func TestAuthorization(t *testing.T) {
 		})
 
 		res := generateTestFederationGraphQLResponseWithoutAuthorizationRules(t, ctrl)
-		resolveCtx := &Context{ctx: context.Background(), Variables: nil, authorizer: authorizer}
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.authorizer = authorizer
 
 		return res, resolveCtx,
 			`{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Fedora"}}]}}}`,
@@ -187,7 +193,7 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(0), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(0), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 
-				require.Nil(t, resolveCtx.subgraphErrors)
+				require.Len(t, resolveCtx.subgraphErrors, 0)
 			}
 	}))
 	t.Run("disallow root fetch", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
@@ -204,7 +210,8 @@ func TestAuthorization(t *testing.T) {
 		})
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
-		resolveCtx := &Context{ctx: context.Background(), Variables: nil, authorizer: authorizer}
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.authorizer = authorizer
 
 		return res, resolveCtx,
 			`{"errors":[{"message":"Unauthorized request to Subgraph 'users' at Path 'query', Reason: Not allowed to fetch from users Subgraph.","extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Failed to fetch from Subgraph 'reviews' at Path 'query.me'.","extensions":{"errors":[{"message":"Failed to render Fetch Input","path":["me"]}]}},{"message":"Failed to fetch from Subgraph 'products' at Path 'query.me.reviews.@.product'.","extensions":{"errors":[{"message":"Failed to render Fetch Input","path":["me","reviews","@","product"]}]}}],"data":{"me":null}}`,
@@ -212,9 +219,10 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(1), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(0), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 
+				expectedSubgraph := "users"
 				var subgraphError *SubgraphError
-				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "users", subgraphError.DataSourceInfo.Name)
+				require.ErrorAs(t, resolveCtx.subgraphErrors[expectedSubgraph], &subgraphError)
+				require.Equal(t, expectedSubgraph, subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "query", subgraphError.Path)
 				require.Equal(t, "Not allowed to fetch from users Subgraph", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -235,7 +243,8 @@ func TestAuthorization(t *testing.T) {
 		})
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
-		resolveCtx := &Context{ctx: context.Background(), Variables: nil, authorizer: authorizer}
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.authorizer = authorizer
 
 		return res, resolveCtx,
 			`{"errors":[{"message":"Unauthorized request to Subgraph 'users' at Path 'query'.","extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Failed to fetch from Subgraph 'reviews' at Path 'query.me'.","extensions":{"errors":[{"message":"Failed to render Fetch Input","path":["me"]}]}},{"message":"Failed to fetch from Subgraph 'products' at Path 'query.me.reviews.@.product'.","extensions":{"errors":[{"message":"Failed to render Fetch Input","path":["me","reviews","@","product"]}]}}],"data":{"me":null}}`,
@@ -243,9 +252,10 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(1), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(0), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 
+				expectedSubgraph := "users"
 				var subgraphError *SubgraphError
-				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "users", subgraphError.DataSourceInfo.Name)
+				require.ErrorAs(t, resolveCtx.subgraphErrors[expectedSubgraph], &subgraphError)
+				require.Equal(t, expectedSubgraph, subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "query", subgraphError.Path)
 				require.Equal(t, "", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -268,20 +278,23 @@ func TestAuthorization(t *testing.T) {
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
-		resolveCtx := Context{ctx: context.Background(), Variables: nil, authorizer: authorizer}
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.authorizer = authorizer
 
-		return res, &resolveCtx,
+		return res, resolveCtx,
 			`{"errors":[{"message":"Unauthorized request to Subgraph 'products' at Path 'query.me.reviews.@.product', Reason: Not allowed to fetch from products Subgraph.","extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`,
 			func(t *testing.T) {
 				assert.Equal(t, int64(2), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 
+				expectedSubgraph := "products"
+
 				require.NotEmpty(t, resolveCtx.subgraphErrors)
-				require.EqualError(t, resolveCtx.subgraphErrors, "Failed to fetch from Subgraph 'products' at Path: 'query.me.reviews.@.product', Reason: Not allowed to fetch from products Subgraph.")
+				require.EqualError(t, resolveCtx.subgraphErrors[expectedSubgraph], "Failed to fetch from Subgraph 'products' at Path: 'query.me.reviews.@.product', Reason: Not allowed to fetch from products Subgraph.")
 
 				var subgraphError *SubgraphError
-				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "products", subgraphError.DataSourceInfo.Name)
+				require.ErrorAs(t, resolveCtx.subgraphErrors[expectedSubgraph], &subgraphError)
+				require.Equal(t, expectedSubgraph, subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "query.me.reviews.@.product", subgraphError.Path)
 				require.Equal(t, "Not allowed to fetch from products Subgraph", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -302,7 +315,8 @@ func TestAuthorization(t *testing.T) {
 		})
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
-		resolveCtx := &Context{ctx: context.Background(), Variables: nil, authorizer: authorizer}
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.authorizer = authorizer
 
 		return res, resolveCtx,
 			`{"errors":[{"message":"Unauthorized to load field 'Query.me.reviews.product.data.name', Reason: Not allowed to fetch name on Product.","path":["me","reviews",0,"product","data","name"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Unauthorized to load field 'Query.me.reviews.product.data.name', Reason: Not allowed to fetch name on Product.","path":["me","reviews",1,"product","data","name"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`,
@@ -310,9 +324,11 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(2), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 
+				expectedSubgraph := "products"
+
 				var subgraphError *SubgraphError
-				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "products", subgraphError.DataSourceInfo.Name)
+				require.ErrorAs(t, resolveCtx.subgraphErrors[expectedSubgraph], &subgraphError)
+				require.Equal(t, expectedSubgraph, subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "Query.me.reviews.product.data.name", subgraphError.Path)
 				require.Equal(t, "Not allowed to fetch name on Product", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -335,7 +351,8 @@ func TestAuthorization(t *testing.T) {
 		})
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
-		resolveCtx := &Context{ctx: context.Background(), Variables: nil, authorizer: authorizer}
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.authorizer = authorizer
 
 		return res, resolveCtx,
 			`{"errors":[{"message":"Unauthorized request to Subgraph 'products' at Path 'query.me.reviews.@.product', Reason: Not allowed to fetch from products Subgraph.","extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`,
@@ -343,9 +360,10 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(2), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 
+				expectedSubgraph := "products"
 				var subgraphError *SubgraphError
-				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "products", subgraphError.DataSourceInfo.Name)
+				require.ErrorAs(t, resolveCtx.subgraphErrors[expectedSubgraph], &subgraphError)
+				require.Equal(t, expectedSubgraph, subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "query.me.reviews.@.product", subgraphError.Path)
 				require.Equal(t, "Not allowed to fetch from products Subgraph", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -362,8 +380,9 @@ func TestAuthorization(t *testing.T) {
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
-		return res, Context{ctx: context.Background(), Variables: nil, authorizer: authorizer},
-			``
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.authorizer = authorizer
+		return res, *resolveCtx, ``
 	}))
 	t.Run("disallow nullable field", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
 
@@ -379,7 +398,8 @@ func TestAuthorization(t *testing.T) {
 		})
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
-		resolveCtx := &Context{ctx: context.Background(), Variables: nil, authorizer: authorizer}
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.authorizer = authorizer
 
 		return res, resolveCtx,
 			`{"errors":[{"message":"Unauthorized to load field 'Query.me.reviews.body', Reason: Not allowed to fetch body on Review.","path":["me","reviews",0,"body"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Unauthorized to load field 'Query.me.reviews.body', Reason: Not allowed to fetch body on Review.","path":["me","reviews",1,"body"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":null,"product":{"upc":"top-1","name":"Trilby"}},{"body":null,"product":{"upc":"top-2","name":"Fedora"}}]}}}`,
@@ -387,9 +407,10 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(2), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 
+				expectedSubgraph := "reviews"
 				var subgraphError *SubgraphError
-				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "reviews", subgraphError.DataSourceInfo.Name)
+				require.ErrorAs(t, resolveCtx.subgraphErrors[expectedSubgraph], &subgraphError)
+				require.Equal(t, expectedSubgraph, subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "Query.me.reviews.body", subgraphError.Path)
 				require.Equal(t, "Not allowed to fetch body on Review", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -408,7 +429,8 @@ func TestAuthorization(t *testing.T) {
 		})
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
-		resolveCtx := &Context{ctx: context.Background(), Variables: nil, authorizer: authorizer}
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.authorizer = authorizer
 
 		return res, resolveCtx,
 			`{"errors":[{"message":"Unauthorized to load field 'Query.me.reviews.body'.","path":["me","reviews",0,"body"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Unauthorized to load field 'Query.me.reviews.body'.","path":["me","reviews",1,"body"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":null,"product":{"upc":"top-1","name":"Trilby"}},{"body":null,"product":{"upc":"top-2","name":"Fedora"}}]}}}`,
@@ -416,9 +438,10 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(2), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 
+				expectedSubgraph := "reviews"
 				var subgraphError *SubgraphError
-				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "reviews", subgraphError.DataSourceInfo.Name)
+				require.ErrorAs(t, resolveCtx.subgraphErrors[expectedSubgraph], &subgraphError)
+				require.Equal(t, expectedSubgraph, subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "Query.me.reviews.body", subgraphError.Path)
 				require.Equal(t, "", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -439,7 +462,8 @@ func TestAuthorization(t *testing.T) {
 		})
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
-		resolveCtx := &Context{ctx: context.Background(), Variables: nil, authorizer: authorizer}
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.authorizer = authorizer
 
 		return res, resolveCtx,
 			`{"errors":[{"message":"Unauthorized request to Subgraph 'products' at Path 'query.me.reviews.@.product', Reason: Not allowed to fetch name on Product.","extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`,
@@ -447,9 +471,10 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(2), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 
+				expectedSubgraph := "products"
 				var subgraphError *SubgraphError
-				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "products", subgraphError.DataSourceInfo.Name)
+				require.ErrorAs(t, resolveCtx.subgraphErrors[expectedSubgraph], &subgraphError)
+				require.Equal(t, expectedSubgraph, subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "query.me.reviews.@.product", subgraphError.Path)
 				require.Equal(t, "Not allowed to fetch name on Product", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -470,7 +495,8 @@ func TestAuthorization(t *testing.T) {
 		})
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
-		resolveCtx := &Context{ctx: context.Background(), Variables: nil, authorizer: authorizer}
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.authorizer = authorizer
 
 		return res, resolveCtx,
 			`{"errors":[{"message":"Unauthorized to load field 'Query.me.reviews.product.data.name', Reason: Not allowed to fetch name on Product.","path":["me","reviews",0,"product","data","name"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Unauthorized to load field 'Query.me.reviews.product.data.name', Reason: Not allowed to fetch name on Product.","path":["me","reviews",1,"product","data","name"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`,
@@ -478,9 +504,10 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(2), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 
+				expectedSubgraph := "products"
 				var subgraphError *SubgraphError
-				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "products", subgraphError.DataSourceInfo.Name)
+				require.ErrorAs(t, resolveCtx.subgraphErrors[expectedSubgraph], &subgraphError)
+				require.Equal(t, expectedSubgraph, subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "Query.me.reviews.product.data.name", subgraphError.Path)
 				require.Equal(t, "Not allowed to fetch name on Product", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -502,7 +529,9 @@ func TestAuthorization(t *testing.T) {
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
-		return res, Context{ctx: context.Background(), Variables: nil, authorizer: authorizer},
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.authorizer = authorizer
+		return res, *resolveCtx,
 			`{"errors":[{"message":"Unauthorized to load field 'Query.me.reviews.product.data.name', Reason: Not allowed to fetch name on Product.","path":["me","reviews",0,"product","data","name"]},{"message":"Unauthorized to load field 'Query.me.reviews.product.data.name', Reason: Not allowed to fetch name on Product.","path":["me","reviews",1,"product","data","name"]}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`
 	}))
 }

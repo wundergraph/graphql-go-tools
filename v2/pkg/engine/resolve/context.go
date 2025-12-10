@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/wundergraph/astjson"
@@ -13,6 +14,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 )
 
+// Context should not ever be initialized directly, and should be initialized via the NewContext function
 type Context struct {
 	ctx              context.Context
 	Variables        *astjson.Value
@@ -31,7 +33,7 @@ type Context struct {
 	rateLimiter   RateLimiter
 	fieldRenderer FieldValueRenderer
 
-	subgraphErrors error
+	subgraphErrors map[string]error
 }
 
 type ExecutionOptions struct {
@@ -138,11 +140,26 @@ func (c *Context) SetRateLimiter(limiter RateLimiter) {
 }
 
 func (c *Context) SubgraphErrors() error {
-	return c.subgraphErrors
+	if len(c.subgraphErrors) == 0 {
+		return nil
+	}
+
+	// Ensure the errors are appended in an idempotent order
+	keys := make([]string, 0, len(c.subgraphErrors))
+	for k := range c.subgraphErrors {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var joined error
+	for _, k := range keys {
+		joined = errors.Join(joined, c.subgraphErrors[k])
+	}
+	return joined
 }
 
-func (c *Context) appendSubgraphErrors(errs ...error) {
-	c.subgraphErrors = errors.Join(c.subgraphErrors, errors.Join(errs...))
+func (c *Context) appendSubgraphErrors(ds DataSourceInfo, errs ...error) {
+	c.subgraphErrors[ds.Name] = errors.Join(c.subgraphErrors[ds.Name], errors.Join(errs...))
 }
 
 type Request struct {
@@ -155,7 +172,8 @@ func NewContext(ctx context.Context) *Context {
 		panic("nil context.Context")
 	}
 	return &Context{
-		ctx: ctx,
+		ctx:            ctx,
+		subgraphErrors: make(map[string]error),
 	}
 }
 
@@ -187,6 +205,13 @@ func (c *Context) clone(ctx context.Context) *Context {
 		cpy.RemapVariables = make(map[string]string, len(c.RemapVariables))
 		for k, v := range c.RemapVariables {
 			cpy.RemapVariables[k] = v
+		}
+	}
+
+	if c.subgraphErrors != nil {
+		cpy.subgraphErrors = make(map[string]error, len(c.subgraphErrors))
+		for k, v := range c.subgraphErrors {
+			cpy.subgraphErrors[k] = v
 		}
 	}
 
