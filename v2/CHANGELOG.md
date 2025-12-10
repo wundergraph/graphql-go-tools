@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.241](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.240...v2.0.0-rc.241) (2025-12-10)
+
+
+### Bug Fixes
+
+* group subgraph errors by subgraph name ([#1351](https://github.com/wundergraph/graphql-go-tools/issues/1351)) ([d65d348](https://github.com/wundergraph/graphql-go-tools/commit/d65d3482f4e2fcbfeb05c194bf4141223411dfb4))
+
 ## [2.0.0-rc.240](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.239...v2.0.0-rc.240) (2025-12-08)
 
 
