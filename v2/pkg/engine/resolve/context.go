@@ -14,6 +14,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 )
 
+// Context should not ever be initialized directly, and should be initialized via the NewContext function
 type Context struct {
 	ctx              context.Context
 	Variables        *astjson.Value
