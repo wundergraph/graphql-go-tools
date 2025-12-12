@@ -284,9 +284,7 @@ func TestLoader_LoadGraphQLResponseData(t *testing.T) {
 			},
 		},
 	}
-	ctx := &Context{
-		ctx: context.Background(),
-	}
+	ctx := NewContext(context.Background())
 	resolvable := NewResolvable(nil, ResolvableOptions{})
 	loader := &Loader{}
 	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
@@ -373,9 +371,7 @@ func TestLoader_MergeErrorDifferingTypes(t *testing.T) {
 			},
 		},
 	}
-	ctx := &Context{
-		ctx: context.Background(),
-	}
+	ctx := NewContext(context.Background())
 	resolvable := NewResolvable(nil, ResolvableOptions{})
 	loader := &Loader{}
 	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
@@ -464,9 +460,7 @@ func TestLoader_MergeErrorDifferingArrayLength(t *testing.T) {
 			},
 		},
 	}
-	ctx := &Context{
-		ctx: context.Background(),
-	}
+	ctx := NewContext(context.Background())
 	resolvable := NewResolvable(nil, ResolvableOptions{})
 	loader := &Loader{}
 	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
@@ -745,10 +739,8 @@ func TestLoader_LoadGraphQLResponseDataWithExtensions(t *testing.T) {
 			},
 		},
 	}
-	ctx := &Context{
-		ctx:        context.Background(),
-		Extensions: []byte(`{"foo":"bar"}`),
-	}
+	ctx := NewContext(context.Background())
+	ctx.Extensions = []byte(`{"foo":"bar"}`)
 	resolvable := NewResolvable(nil, ResolvableOptions{})
 	loader := &Loader{}
 	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
@@ -1021,9 +1013,7 @@ func BenchmarkLoader_LoadGraphQLResponseData(b *testing.B) {
 			},
 		},
 	}
-	ctx := &Context{
-		ctx: context.Background(),
-	}
+	ctx := NewContext(context.Background())
 	resolvable := NewResolvable(nil, ResolvableOptions{})
 	loader := &Loader{}
 	expected := `{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}}`
@@ -1116,14 +1106,12 @@ func TestLoader_RedactHeaders(t *testing.T) {
 		},
 	}
 
-	ctx := &Context{
-		ctx: context.Background(),
-		Request: Request{
-			Header: http.Header{"Authorization": []string{"value"}},
-		},
-		TracingOptions: TraceOptions{
-			Enable: true,
-		},
+	ctx := NewContext(context.Background())
+	ctx.Request = Request{
+		Header: http.Header{"Authorization": []string{"value"}},
+	}
+	ctx.TracingOptions = TraceOptions{
+		Enable: true,
 	}
 	resolvable := NewResolvable(nil, ResolvableOptions{})
 	loader := &Loader{}
@@ -1418,9 +1406,7 @@ func TestLoader_InvalidBatchItemCount(t *testing.T) {
 			},
 		},
 	}
-	ctx := &Context{
-		ctx: context.Background(),
-	}
+	ctx := NewContext(context.Background())
 	resolvable := NewResolvable(nil, ResolvableOptions{})
 	loader := &Loader{}
 	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
