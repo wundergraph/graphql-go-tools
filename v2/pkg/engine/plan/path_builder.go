@@ -113,8 +113,8 @@ func (p *PathBuilder) CreatePlanningPaths(operation, definition *ast.Document, r
 	// remove unnecessary fragment paths
 	hasRemovedPaths := p.removeUnnecessaryFragmentPaths()
 	if hasRemovedPaths && p.config.Debug.PrintPlanningPaths {
-		debugMessage("Paths after removing unnecessary fragment paths:")
-		p.printPlanningPaths(i + 1)
+		debugMessage("Final paths after removing unnecessary fragment paths:")
+		p.printPlanningPaths(i)
 	}
 
 	return p.visitor.planners
