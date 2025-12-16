@@ -136,13 +136,13 @@ func (p *PathBuilder) removeUnnecessaryFragmentPaths() (hasRemovedPaths bool) {
 
 func (p *PathBuilder) printRevisitInfo() {
 	if p.visitor.shouldRevisit() {
-		fmt.Println("\tshould revisit")
+		fmt.Println("  should revisit")
 	}
 	if p.visitor.hasMissingPaths() {
-		fmt.Println("\thas missing paths")
+		fmt.Println("  has missing paths")
 	}
 	if p.visitor.hasFieldsWaitingForDependency() {
-		fmt.Println("\thas fields waiting for dependency")
+		fmt.Println("  has fields waiting for dependency")
 	}
 
 	p.printMissingPaths()
@@ -150,26 +150,26 @@ func (p *PathBuilder) printRevisitInfo() {
 
 func (p *PathBuilder) printPlanningPaths(run int) {
 	for i, planner := range p.visitor.planners {
-		fmt.Printf("\n\tRun #%d. Planner ID %d\n", run, i)
-		fmt.Printf("\t\tParent = %s\n", planner.ParentPath())
+		fmt.Printf("\nRun #%d. Planner ID %d\n", run, i)
+		fmt.Printf("  ParentPath: %s\n", planner.ParentPath())
 		ds := planner.DataSourceConfiguration()
-		fmt.Printf("\t\tDatasource ID = %s, name = %s, hash = %d\n", ds.Id(), ds.Name(), ds.Hash())
+		fmt.Printf("  Datasource ID: %s, name: %s, hash: %d\n", ds.Id(), ds.Name(), ds.Hash())
 		if len(planner.ObjectFetchConfiguration().dependsOnFetchIDs) > 0 {
-			fmt.Printf("\t\tDepends on planner IDs: %v\n", planner.ObjectFetchConfiguration().dependsOnFetchIDs)
+			fmt.Printf("  Depends on planner IDs: %v\n", planner.ObjectFetchConfiguration().dependsOnFetchIDs)
 		}
 
 		requiredFields := planner.RequiredFields()
 		if requiredFields != nil && len(*requiredFields) > 0 {
-			fmt.Println("\t\tRequired fields:")
+			fmt.Println("  Required fields:")
 			for _, field := range *requiredFields {
 				if field.FieldName != "" {
-					fmt.Printf("\t\t\trequired by %s: %s\n", field.FieldName, field)
+					fmt.Printf("    required by %s: %s\n", field.FieldName, field)
 					continue
 				}
-				fmt.Println("\t\t\tkey:", field)
+				fmt.Println("    key:", field)
 			}
 		}
-		fmt.Println("\t\tPaths:")
+		fmt.Println("  Paths:")
 		planner.ForEachPath(func(path *pathConfiguration) (shouldBreak bool) {
 			fmt.Println(path.String())
 			return false
@@ -180,9 +180,9 @@ func (p *PathBuilder) printPlanningPaths(run int) {
 
 func (p *PathBuilder) printMissingPaths() {
 	if p.visitor.hasMissingPaths() {
-		fmt.Printf("\n\tMissing paths:\n")
+		fmt.Printf("\n  Missing paths:\n")
 		for path := range p.visitor.missingPathTracker {
-			fmt.Printf("\t\t%v\n", path)
+			fmt.Printf("    %v\n", path)
 		}
 	}
 }
