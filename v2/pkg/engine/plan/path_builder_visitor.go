@@ -1232,13 +1232,12 @@ func (c *pathBuilderVisitor) handleMissingPath(planned bool, typeName string, fi
 		if planned {
 			// __typename field on a union could not have a suggestion
 			return
-		} else {
-			if c.plannerConfiguration.Debug.PrintPlanningPaths {
-				fmt.Println("Adding potentially missing path", currentPath)
-			}
-
-			c.potentiallyMissingPathTracker[currentPath] = struct{}{}
 		}
+
+		if c.plannerConfiguration.Debug.PrintPlanningPaths {
+			fmt.Println("Found potentially missing path", currentPath)
+		}
+		c.potentiallyMissingPathTracker[currentPath] = struct{}{}
 	}
 
 	allSuggestionsPlanned := true
