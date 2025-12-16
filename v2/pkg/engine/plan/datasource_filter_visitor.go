@@ -650,6 +650,10 @@ func (f *DataSourceFilter) findPossibleParents(i int) (parentIds []int) {
 
 	parentIdx, _ := f.nodes.parentNodeOnSameSource(i)
 	for parentIdx != -1 {
+		if f.nodes.items[parentIdx].IsExternal && !f.nodes.items[i].IsProvided {
+			break
+		}
+
 		nodesIdsToSelect = append(nodesIdsToSelect, parentIdx)
 
 		// for the parent node we are checking if it is a root node and has enabled entity resolver.
