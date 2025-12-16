@@ -163,10 +163,10 @@ func (p *PathBuilder) printPlanningPaths(run int) {
 			fmt.Println("\t\tRequired fields:")
 			for _, field := range *requiredFields {
 				if field.FieldName != "" {
-					fmt.Printf("\t\trequired by %s: %s\n", field.FieldName, field)
+					fmt.Printf("\t\t\trequired by %s: %s\n", field.FieldName, field)
 					continue
 				}
-				fmt.Println("\t\t\tkey", field)
+				fmt.Println("\t\t\tkey:", field)
 			}
 		}
 		fmt.Println("\t\tPaths:")
