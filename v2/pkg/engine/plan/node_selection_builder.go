@@ -96,7 +96,7 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 	}
 
 	if p.config.Debug.PrintOperationTransformations {
-		debugMessage("Initial operation:")
+		debugMessage("SelectNodes. Initial operation:\n===========")
 		p.printOperation(operation)
 	}
 
@@ -120,7 +120,7 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 	}
 
 	if p.config.Debug.PrintOperationTransformations {
-		debugMessage("Select nodes initial run - operation:")
+		debugMessage("Selected nodes on run #1 for operation:")
 		p.printOperation(operation)
 	}
 
@@ -146,11 +146,11 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 		}
 
 		if p.config.Debug.PrintOperationTransformations || p.config.Debug.PrintNodeSuggestions {
-			debugMessage(fmt.Sprintf("Select nodes run #%d", i))
+			debugMessage(fmt.Sprintf("Selected nodes on additional run #%d.", i+1))
 		}
 
 		if p.config.Debug.PrintNodeSuggestions {
-			p.nodeSelectionsVisitor.nodeSuggestions.printNodesWithFilter("\nRecalculated node suggestions:\n", p.config.Debug.PrintNodeSuggestionsFilterNotSelected)
+			p.nodeSelectionsVisitor.nodeSuggestions.printNodesWithFilter("\nUpdated node suggestions:\n", p.config.Debug.PrintNodeSuggestionsFilterNotSelected)
 		}
 
 		p.nodeSelectionsWalker.Walk(operation, definition, report)
@@ -159,8 +159,7 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 		}
 
 		if p.config.Debug.PrintOperationTransformations {
-			debugMessage("Operation with new required fields:")
-			debugMessage(fmt.Sprintf("Has new fields: %v", p.nodeSelectionsVisitor.hasNewFields))
+			debugMessage(fmt.Sprintf("Operation with new required fields (has new fields: %v):", p.nodeSelectionsVisitor.hasNewFields))
 			p.printOperation(operation)
 		}
 

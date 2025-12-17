@@ -263,6 +263,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			engineConf.plannerConfig.Debug = plan.DebugConfiguration{
 				// PrintOperationTransformations: true,
 				// PrintPlanningPaths:            true,
+				// PrintNodeSuggestions:          true,
 				// PrintQueryPlans:               true,
 				// ConfigurationVisitor:          true,
 				// PlanningVisitor:               true,

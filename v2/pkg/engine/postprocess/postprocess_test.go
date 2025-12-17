@@ -16,14 +16,14 @@ import (
 func TestProcess_ExtractFetches(t *testing.T) {
 	type TestCase struct {
 		name     string
-		pre      plan.Plan
+		plan     plan.Plan
 		expected plan.Plan
 	}
 
 	cases := []TestCase{
 		{
 			name: "1",
-			pre: &plan.SynchronousResponsePlan{
+			plan: &plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
 					RawFetches: []*resolve.FetchItem{
 						{Fetch: &resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}}},
@@ -64,7 +64,7 @@ func TestProcess_ExtractFetches(t *testing.T) {
 		},
 		{
 			name: "2",
-			pre: &plan.SynchronousResponsePlan{
+			plan: &plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
 					RawFetches: []*resolve.FetchItem{
 						{
@@ -161,7 +161,7 @@ func TestProcess_ExtractFetches(t *testing.T) {
 		},
 		{
 			name: "3",
-			pre: &plan.SynchronousResponsePlan{
+			plan: &plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
 					RawFetches: []*resolve.FetchItem{
 						{
@@ -274,7 +274,7 @@ func TestProcess_ExtractFetches(t *testing.T) {
 		},
 		{
 			name: "4",
-			pre: &plan.SynchronousResponsePlan{
+			plan: &plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
 					RawFetches: []*resolve.FetchItem{
 						{
@@ -368,9 +368,9 @@ func TestProcess_ExtractFetches(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			actual := processor.Process(c.pre)
+			processor.Process(c.plan)
 
-			if !assert.Equal(t, c.expected, actual) {
+			if !assert.Equal(t, c.expected, c.plan) {
 				formatterConfig := map[reflect.Type]interface{}{
 					reflect.TypeOf([]byte{}): func(b []byte) string { return fmt.Sprintf(`"%s"`, string(b)) },
 				}
@@ -381,7 +381,7 @@ func TestProcess_ExtractFetches(t *testing.T) {
 					Formatter:         formatterConfig,
 				}
 
-				if diff := prettyCfg.Compare(c.expected, actual); diff != "" {
+				if diff := prettyCfg.Compare(c.expected, c.plan); diff != "" {
 					t.Errorf("Plan does not match(-want +got)\n%s", diff)
 				}
 			}
@@ -392,14 +392,14 @@ func TestProcess_ExtractFetches(t *testing.T) {
 func TestProcess_ExtractServiceNames(t *testing.T) {
 	type TestCase struct {
 		name     string
-		pre      plan.Plan
+		plan     plan.Plan
 		expected plan.Plan
 	}
 
 	cases := []TestCase{
 		{
 			name: "Collect all service names",
-			pre: &plan.SynchronousResponsePlan{
+			plan: &plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
 					RawFetches: []*resolve.FetchItem{
 						{
@@ -533,7 +533,7 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 		},
 		{
 			name: "Deduplicate the same service names",
-			pre: &plan.SynchronousResponsePlan{
+			plan: &plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
 					RawFetches: []*resolve.FetchItem{
 						{
@@ -679,9 +679,9 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			actual := processor.Process(c.pre)
+			processor.Process(c.plan)
 
-			if !assert.Equal(t, c.expected, actual) {
+			if !assert.Equal(t, c.expected, c.plan) {
 				formatterConfig := map[reflect.Type]interface{}{
 					reflect.TypeOf([]byte{}): func(b []byte) string { return fmt.Sprintf(`"%s"`, string(b)) },
 				}
@@ -692,7 +692,7 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 					Formatter:         formatterConfig,
 				}
 
-				if diff := prettyCfg.Compare(c.expected, actual); diff != "" {
+				if diff := prettyCfg.Compare(c.expected, c.plan); diff != "" {
 					t.Errorf("Plan does not match(-want +got)\n%s", diff)
 				}
 			}

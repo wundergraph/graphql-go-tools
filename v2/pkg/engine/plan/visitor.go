@@ -1315,6 +1315,7 @@ func (v *Visitor) configureObjectFetch(config *objectFetchConfiguration) {
 	v.response.RawFetches = append(v.response.RawFetches, fetchItem)
 }
 
+// configureFetch builds and assembles all fields of resolve.SingleFetch.
 func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external resolve.FetchConfiguration) *resolve.SingleFetch {
 	dataSourceType := reflect.TypeOf(external.DataSource).String()
 	dataSourceType = strings.TrimPrefix(dataSourceType, "*")
