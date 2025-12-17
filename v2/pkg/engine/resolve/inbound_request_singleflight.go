@@ -8,6 +8,8 @@ import (
 )
 
 // InboundRequestSingleFlight is a sharded goroutine safe single flight implementation to de-couple inbound requests
+// to the GraphQL engine. Contrary to SubgraphRequestSingleFlight, this is not per-subgraph
+// but global for all inbound requests.
 // It's taking into consideration the normalized operation hash, variables hash and headers hash
 // making it robust against collisions
 // for scalability, you can add more shards in case the mutexes are a bottleneck
@@ -19,7 +21,7 @@ type requestShard struct {
 	m sync.Map
 }
 
-const defaultRequestSingleFlightShardCount = 4
+const defaultRequestSingleFlightShardCount = 8
 
 // NewRequestSingleFlight creates a InboundRequestSingleFlight with the provided
 // number of shards. If shardCount <= 0, the default of 4 is used.

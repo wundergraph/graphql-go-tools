@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"runtime"
 	"time"
 
 	"github.com/buger/jsonparser"
@@ -185,6 +186,15 @@ type ResolverOptions struct {
 	PropagateFetchReasons bool
 
 	ValidateRequiredExternalFields bool
+
+	// SubgraphRequestDeduplicationShardCount defines the number of shards to use for subgraph request deduplication
+	SubgraphRequestDeduplicationShardCount int
+	// InboundRequestDeduplicationShardCount defines the number of shards to use for inbound request deduplication
+	InboundRequestDeduplicationShardCount int
+	// SetDeduplicationShardCountToGOMAXPROCS sets SubgraphRequestDeduplicationShardCount and InboundRequestDeduplicationShardCount to runtime.GOMAXPROCS(0)
+	// and will override any values set for those options
+	// using runtime.GOMAXPROCS(0) allows the deduplication to scale with the CPU resources available to the process
+	SetDeduplicationShardCountToGOMAXPROCS bool
 }
 
 // New returns a new Resolver. ctx.Done() is used to cancel all active subscriptions and streams.
@@ -226,6 +236,29 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		allowedErrorFields[field] = struct{}{}
 	}
 
+	if options.SubgraphRequestDeduplicationShardCount <= 0 {
+		options.SubgraphRequestDeduplicationShardCount = 8
+	}
+
+	if options.SubgraphRequestDeduplicationShardCount <= 0 {
+		options.InboundRequestDeduplicationShardCount = 8
+	}
+
+	if options.SetDeduplicationShardCountToGOMAXPROCS {
+		/*
+			runtime.GOMAXPROCS(0) returns the current value without changing it
+			This is the effective CPU limit for Go scheduling
+			Since Go 1.20+, this respects:
+				- cgroup CPU quotas (Docker, Kubernetes)
+				- cpuset constraints
+
+			Setting shard counts to GOMAXPROCS helps allows us to scale deduplication across available CPU resources
+		*/
+		n := runtime.GOMAXPROCS(0)
+		options.SubgraphRequestDeduplicationShardCount = n
+		options.InboundRequestDeduplicationShardCount = n
+	}
+
 	resolver := &Resolver{
 		ctx:                          ctx,
 		options:                      options,
@@ -242,8 +275,8 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		maxSubscriptionFetchTimeout:  options.MaxSubscriptionFetchTimeout,
 		resolveArenaPool:             arena.NewArenaPool(),
 		responseBufferPool:           arena.NewArenaPool(),
-		subgraphRequestSingleFlight:  NewSingleFlight(8),
-		inboundRequestSingleFlight:   NewRequestSingleFlight(8),
+		subgraphRequestSingleFlight:  NewSingleFlight(options.SubgraphRequestDeduplicationShardCount),
+		inboundRequestSingleFlight:   NewRequestSingleFlight(options.InboundRequestDeduplicationShardCount),
 	}
 	resolver.maxConcurrency = make(chan struct{}, options.MaxConcurrency)
 	for i := 0; i < options.MaxConcurrency; i++ {
