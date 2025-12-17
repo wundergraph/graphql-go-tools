@@ -4075,7 +4075,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 }
 
 // testFnArena is a helper function for testing ArenaResolveGraphQLResponse
-func testFnArena(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string)) func(t *testing.T) {
+func testFnArena(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string)) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Helper()
 
@@ -4096,7 +4096,7 @@ func testFnArena(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLRe
 		}
 
 		buf := &bytes.Buffer{}
-		_, err := r.ArenaResolveGraphQLResponse(&ctx, node, buf)
+		_, err := r.ArenaResolveGraphQLResponse(ctx, node, buf)
 		assert.NoError(t, err)
 		assert.Equal(t, expectedOutput, buf.String())
 		ctrl.Finish()
@@ -4105,15 +4105,17 @@ func testFnArena(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLRe
 
 func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 
-	t.Run("empty graphql response", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("empty graphql response", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string) {
+		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Data: &Object{
 				Nullable: true,
 			},
-		}, Context{ctx: context.Background()}, `{"data":{}}`
+		}, resolveCtx, `{"data":{}}`
 	}))
 
-	t.Run("simple data source", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("simple data source", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string) {
+		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
 				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true}`)},
@@ -4150,10 +4152,11 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"user":{"id":"1","name":"Jens","registered":true}}}`
+		}, resolveCtx, `{"data":{"user":{"id":"1","name":"Jens","registered":true}}}`
 	}))
 
-	t.Run("array of strings", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("array of strings", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string) {
+		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
 				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"strings": ["Alex", "true", "123"]}`)},
@@ -4171,10 +4174,11 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"strings":["Alex","true","123"]}}`
+		}, resolveCtx, `{"data":{"strings":["Alex","true","123"]}}`
 	}))
 
-	t.Run("array of objects", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("array of objects", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string) {
+		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
 				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"friends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}]}`)},
@@ -4207,10 +4211,11 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"friends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}]}}`
+		}, resolveCtx, `{"data":{"friends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}]}}`
 	}))
 
-	t.Run("nested objects", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("nested objects", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string) {
+		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
 				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":"1","name":"Jens","pet":{"name":"Barky","kind":"Dog"}}`)},
@@ -4262,10 +4267,11 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"user":{"id":"1","name":"Jens","pet":{"name":"Barky","kind":"Dog"}}}}`
+		}, resolveCtx, `{"data":{"user":{"id":"1","name":"Jens","pet":{"name":"Barky","kind":"Dog"}}}}`
 	}))
 
-	t.Run("scalar types", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("scalar types", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string) {
+		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
 				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"int": 12345, "float": 3.5, "str":"value", "bool": true}`)},
@@ -4302,10 +4308,11 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"int":12345,"float":3.5,"str":"value","bool":true}}`
+		}, resolveCtx, `{"data":{"int":12345,"float":3.5,"str":"value","bool":true}}`
 	}))
 
-	t.Run("null field", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("null field", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string) {
+		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Data: &Object{
 				Fields: []*Field{
@@ -4315,10 +4322,11 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"foo":null}}`
+		}, resolveCtx, `{"data":{"foo":null}}`
 	}))
 
-	t.Run("__typename field", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("__typename field", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string) {
+		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
 				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":1,"name":"Jannik","__typename":"User"}`)},
@@ -4356,10 +4364,11 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"user":{"id":1,"name":"Jannik","__typename":"User"}}}`
+		}, resolveCtx, `{"data":{"user":{"id":1,"name":"Jannik","__typename":"User"}}}`
 	}))
 
-	t.Run("multiple fetches", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("multiple fetches", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string) {
+		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
 				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"user1":{"id":1,"name":"User1"},"user2":{"id":2,"name":"User2"}}`)},
@@ -4412,16 +4421,18 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"user1":{"id":1,"name":"User1"},"user2":{"id":2,"name":"User2"}}}`
+		}, resolveCtx, `{"data":{"user1":{"id":1,"name":"User1"},"user2":{"id":2,"name":"User2"}}}`
 	}))
 
-	t.Run("with variables", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("with variables", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any(), []byte(`{"id":1}`)).
 			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 				return []byte(`{"name":"Jens"}`), nil
 			})
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.Variables = astjson.MustParseBytes([]byte(`{"id":1}`))
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
 				FetchConfiguration: FetchConfiguration{DataSource: mockDataSource},
@@ -4456,16 +4467,17 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background(), Variables: astjson.MustParseBytes([]byte(`{"id":1}`))}, `{"data":{"name":"Jens"}}`
+		}, resolveCtx, `{"data":{"name":"Jens"}}`
 	}))
 
-	t.Run("error handling", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("error handling", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.Any()).
 			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 				return nil, errors.New("data source error")
 			})
+		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
 				FetchConfiguration: FetchConfiguration{DataSource: mockDataSource},
@@ -4481,10 +4493,11 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Failed to fetch from Subgraph."}],"data":null}`
+		}, resolveCtx, `{"errors":[{"message":"Failed to fetch from Subgraph."}],"data":null}`
 	}))
 
-	t.Run("bigint handling", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("bigint handling", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string) {
+		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
 				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"n": 12345, "ns_small": "12346", "ns_big": "1152921504606846976"}`)},
@@ -4514,10 +4527,12 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"n":12345,"ns_small":"12346","ns_big":"1152921504606846976"}}`
+		}, resolveCtx, `{"data":{"n":12345,"ns_small":"12346","ns_big":"1152921504606846976"}}`
 	}))
 
-	t.Run("skip loader", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("skip loader", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string) {
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.ExecutionOptions = ExecutionOptions{SkipLoader: true}
 		return &GraphQLResponse{
 			Data: &Object{
 				Fields: []*Field{
@@ -4527,7 +4542,7 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background(), ExecutionOptions: ExecutionOptions{SkipLoader: true}}, `{"data":null}`
+		}, resolveCtx, `{"data":null}`
 	}))
 }
 
@@ -4561,13 +4576,10 @@ func TestResolver_ArenaResolveGraphQLResponse_RequestDeduplication(t *testing.T)
 		},
 	}
 
-	ctxTemplate := Context{
-		ctx: context.Background(),
-		Request: Request{
-			ID: 42,
-		},
-		VariablesHash: 1337,
-	}
+	ctxTemplateBase := NewContext(context.Background())
+	ctxTemplateBase.Request.ID = 42
+	ctxTemplateBase.VariablesHash = 1337
+	ctxTemplate := *ctxTemplateBase
 
 	const requestCount = 3
 
