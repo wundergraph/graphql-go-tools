@@ -80,12 +80,12 @@ func (v *Visitor) debugOnEnterNode(kind ast.NodeKind, ref int) {
 	case ast.NodeKindField:
 		fieldName := v.Operation.FieldNameString(ref)
 		fullPath := v.currentFullPath(false)
-		v.debugPrint("EnterField : ", fieldName, " ref: ", ref, " path: ", fullPath)
+		v.debugPrint("EnterField:", fieldName, " ref:", ref, " path:", fullPath)
 	case ast.NodeKindInlineFragment:
 		fragmentTypeCondition := v.Operation.InlineFragmentTypeConditionNameString(ref)
-		v.debugPrint("EnterInlineFragment : ", fragmentTypeCondition, " ref: ", ref)
+		v.debugPrint("EnterInlineFragment:", fragmentTypeCondition, " ref:", ref)
 	case ast.NodeKindSelectionSet:
-		v.debugPrint("EnterSelectionSet", " ref: ", ref)
+		v.debugPrint("EnterSelectionSet", " ref:", ref)
 	}
 }
 
@@ -98,12 +98,12 @@ func (v *Visitor) debugOnLeaveNode(kind ast.NodeKind, ref int) {
 	case ast.NodeKindField:
 		fieldName := v.Operation.FieldNameString(ref)
 		fullPath := v.currentFullPath(false)
-		v.debugPrint("LeaveField : ", fieldName, " ref: ", ref, " path: ", fullPath)
+		v.debugPrint("LeaveField:", fieldName, " ref:", ref, " path:", fullPath)
 	case ast.NodeKindInlineFragment:
 		fragmentTypeCondition := v.Operation.InlineFragmentTypeConditionNameString(ref)
-		v.debugPrint("LeaveInlineFragment : ", fragmentTypeCondition, " ref: ", ref)
+		v.debugPrint("LeaveInlineFragment:", fragmentTypeCondition, " ref:", ref)
 	case ast.NodeKindSelectionSet:
-		v.debugPrint("LeaveSelectionSet", " ref: ", ref)
+		v.debugPrint("LeaveSelectionSet", " ref:", ref)
 	}
 }
 
