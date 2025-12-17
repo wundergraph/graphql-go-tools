@@ -196,6 +196,9 @@ func (c *Context) SubgraphErrors() error {
 }
 
 func (c *Context) appendSubgraphErrors(ds DataSourceInfo, errs ...error) {
+	if c.subgraphErrors == nil {
+		c.subgraphErrors = make(map[string]error)
+	}
 	c.subgraphErrors[ds.Name] = errors.Join(c.subgraphErrors[ds.Name], errors.Join(errs...))
 }
 
@@ -209,8 +212,7 @@ func NewContext(ctx context.Context) *Context {
 		panic("nil context.Context")
 	}
 	return &Context{
-		ctx:            ctx,
-		subgraphErrors: make(map[string]error),
+		ctx: ctx,
 	}
 }
 
