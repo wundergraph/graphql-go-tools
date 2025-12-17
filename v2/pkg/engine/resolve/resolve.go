@@ -1218,7 +1218,7 @@ func (r *Resolver) AsyncUnsubscribeClient(connectionID int64) error {
 }
 
 // prepareTrigger safely gets the headers for the trigger Subgraph and computes the hash across headers and input
-// the generated has is the unique triggerID
+// the generated hash is the unique triggerID
 // the headers must be forwarded to the DataSource to create the trigger
 func (r *Resolver) prepareTrigger(ctx *Context, sourceName string, input []byte) (headers http.Header, triggerID uint64) {
 	keyGen := pool.Hash64.Get()
@@ -1226,9 +1226,11 @@ func (r *Resolver) prepareTrigger(ctx *Context, sourceName string, input []byte)
 	if ctx.SubgraphHeadersBuilder != nil {
 		var headersHash uint64
 		headers, headersHash = ctx.SubgraphHeadersBuilder.HeadersForSubgraph(sourceName)
-		var b [8]byte
-		binary.LittleEndian.PutUint64(b[:], headersHash)
-		_, _ = keyGen.Write(b[:])
+		if headersHash != 0 {
+			var b [8]byte
+			binary.LittleEndian.PutUint64(b[:], headersHash)
+			_, _ = keyGen.Write(b[:])
+		}
 	}
 	triggerID = keyGen.Sum64()
 	pool.Hash64.Put(keyGen)
