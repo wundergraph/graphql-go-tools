@@ -142,6 +142,9 @@ func (f *DataSourceFilter) applyLandedTo(landedTo map[int]DSHash) {
 
 }
 
+// collectNodes collects and organizes information about
+// which data sources (subgraphs) can resolve each field and
+// builds a "jump graph" to enable navigation between data sources using federation @key directives.
 func (f *DataSourceFilter) collectNodes() {
 	if f.nodesCollector == nil {
 		f.nodesCollector = &nodesCollector{

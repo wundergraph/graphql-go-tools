@@ -10,8 +10,8 @@ import (
 )
 
 // nodeSelectionVisitor walks through the operation multiple times to rewrite it
-// to be able to resolve fields from different datasources.
-// This visitor might add required fields and rewrite abstract selection if necessary.
+// to be able to resolve fields from different data sources.
+// If necessary, this visitor might add required fields and rewrite abstract selections.
 //
 // This visitor will walk the operation again if it has:
 //   - added new required fields to the operation,
@@ -220,7 +220,7 @@ func (c *nodeSelectionVisitor) handleEnterField(fieldRef int, handleRequires boo
 	fieldAliasOrName := c.operation.FieldAliasOrNameString(fieldRef)
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
 
-	c.debugPrint("EnterField ref:", fieldRef, "fieldName:", fieldName, "typeName:", typeName)
+	c.debugPrint("EnterField ref:", fieldRef, "fieldName:", fieldName, "typeName:", typeName, "requires:", handleRequires)
 
 	parentPath := c.walker.Path.DotDelimitedString()
 	currentPath := parentPath + "." + fieldAliasOrName
