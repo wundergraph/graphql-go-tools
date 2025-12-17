@@ -240,7 +240,7 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		options.SubgraphRequestDeduplicationShardCount = 8
 	}
 
-	if options.SubgraphRequestDeduplicationShardCount <= 0 {
+	if options.InboundRequestDeduplicationShardCount <= 0 {
 		options.InboundRequestDeduplicationShardCount = 8
 	}
 
