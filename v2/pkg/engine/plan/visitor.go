@@ -57,13 +57,18 @@ type Visitor struct {
 	pathCache                    map[astvisitor.VisitorKind]map[int]string
 
 	// plannerFields maps plannerID to fieldRefs planned on this planner.
+	// It is available just before the LeaveField.
 	plannerFields map[int][]int
 
 	// fieldPlanners maps fieldRef to the plannerIDs where it was planned on.
+	// It is available just before the LeaveField.
 	fieldPlanners map[int][]int
 
 	// fieldEnclosingTypeNames maps fieldRef to the enclosing type name.
 	fieldEnclosingTypeNames map[int]string
+
+	// costCalculator calculates IBM static costs during AST traversal
+	costCalculator *CostCalculator
 }
 
 type indirectInterfaceField struct {
@@ -399,6 +404,9 @@ func (v *Visitor) EnterField(ref int) {
 	*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
 
 	v.mapFieldConfig(ref)
+
+	// Enter cost calculation for this field (skeleton node, actual costs calculated in LeaveField)
+	v.enterFieldCost(ref)
 }
 
 func (v *Visitor) mapFieldConfig(ref int) {
@@ -409,6 +417,97 @@ func (v *Visitor) mapFieldConfig(ref int) {
 		return
 	}
 	v.fieldConfigs[ref] = fieldConfig
+}
+
+// enterFieldCost creates a skeleton cost node when entering a field.
+// Actual cost calculation is deferred to leaveFieldCost when fieldPlanners data is available.
+func (v *Visitor) enterFieldCost(ref int) {
+	if v.costCalculator == nil || !v.costCalculator.IsEnabled() {
+		return
+	}
+
+	typeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
+	fieldName := v.Operation.FieldNameUnsafeString(ref)
+
+	// Check if the field returns a list type
+	fieldDefinition, ok := v.Walker.FieldDefinition(ref)
+	if !ok {
+		return
+	}
+	fieldDefinitionTypeRef := v.Definition.FieldDefinitionType(fieldDefinition)
+	isListType := v.Definition.TypeIsList(fieldDefinitionTypeRef)
+
+	// Extract arguments for cost calculation
+	arguments := v.costFieldArguments(ref)
+
+	// Create skeleton node - dsHashes will be filled in leaveFieldCost
+	v.costCalculator.EnterField(ref, typeName, fieldName, isListType, arguments)
+}
+
+// leaveFieldCost calculates costs and pops from the cost stack.
+// Called in LeaveField because fieldPlanners is populated by AllowVisitor on LeaveField.
+func (v *Visitor) leaveFieldCost(ref int) {
+	if v.costCalculator == nil || !v.costCalculator.IsEnabled() {
+		return
+	}
+
+	// Now fieldPlanners is populated, get the data source hashes
+	dsHashes := v.getFieldDataSourceHashes(ref)
+
+	v.costCalculator.LeaveField(ref, dsHashes)
+}
+
+// getFieldDataSourceHashes returns all data source hashes for the field.
+// A field can be planned on multiple data sources in federation scenarios.
+func (v *Visitor) getFieldDataSourceHashes(ref int) []DSHash {
+	plannerIDs, ok := v.fieldPlanners[ref]
+	if !ok || len(plannerIDs) == 0 {
+		return nil
+	}
+
+	dsHashes := make([]DSHash, 0, len(plannerIDs))
+	for _, plannerID := range plannerIDs {
+		if plannerID >= 0 && plannerID < len(v.planners) {
+			dsHash := v.planners[plannerID].DataSourceConfiguration().Hash()
+			dsHashes = append(dsHashes, dsHash)
+		}
+	}
+	return dsHashes
+}
+
+// costFieldArguments extracts arguments from a field for cost calculation
+func (v *Visitor) costFieldArguments(ref int) []CostFieldArgument {
+	argRefs := v.Operation.FieldArguments(ref)
+	if len(argRefs) == 0 {
+		return nil
+	}
+
+	arguments := make([]CostFieldArgument, 0, len(argRefs))
+	for _, argRef := range argRefs {
+		argName := v.Operation.ArgumentNameString(argRef)
+		argValue := v.Operation.ArgumentValue(argRef)
+
+		arg := CostFieldArgument{
+			Name: argName,
+		}
+
+		// Extract integer value if present (for multipliers like "first", "limit")
+		if argValue.Kind == ast.ValueKindInteger {
+			arg.IntValue = int(v.Operation.IntValueAsInt(argValue.Ref))
+		}
+
+		arguments = append(arguments, arg)
+	}
+
+	return arguments
+}
+
+// GetTotalCost returns the total calculated cost for the query
+func (v *Visitor) GetTotalCost() int {
+	if v.costCalculator == nil {
+		return 0
+	}
+	return v.costCalculator.GetTotalCost()
 }
 
 func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *resolve.FieldInfo {
@@ -619,6 +718,10 @@ func (v *Visitor) LeaveField(ref int) {
 		// from the stack of the current objects
 		return
 	}
+
+	// Calculate costs and pop from cost stack
+	// This is done in LeaveField because fieldPlanners is populated by AllowVisitor on LeaveField
+	v.leaveFieldCost(ref)
 
 	if v.currentFields[len(v.currentFields)-1].popOnField == ref {
 		v.currentFields = v.currentFields[:len(v.currentFields)-1]

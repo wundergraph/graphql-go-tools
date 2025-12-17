@@ -59,10 +59,21 @@ func NewPlanner(config Configuration) (*Planner, error) {
 	// planning
 
 	planningWalker := astvisitor.NewWalkerWithID(48, "PlanningWalker")
+
+	// Initialize cost calculator and configure from data sources
+	costCalc := NewCostCalculator()
+	for _, ds := range config.DataSources {
+		if costConfig := ds.GetCostConfig(); costConfig != nil {
+			costCalc.SetDataSourceCostConfig(ds.Hash(), costConfig)
+			costCalc.Enable()
+		}
+	}
+
 	planningVisitor := &Visitor{
 		Walker:                       &planningWalker,
 		fieldConfigs:                 map[int]*FieldConfiguration{},
 		disableResolveFieldPositions: config.DisableResolveFieldPositions,
+		costCalculator:               costCalc,
 	}
 
 	p := &Planner{

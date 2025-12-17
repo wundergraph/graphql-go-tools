@@ -261,13 +261,13 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			engineConf.SetCustomResolveMap(testCase.customResolveMap)
 
 			engineConf.plannerConfig.Debug = plan.DebugConfiguration{
-				// PrintOperationTransformations: true,
-				// PrintPlanningPaths:            true,
-				// PrintNodeSuggestions:          true,
-				// PrintQueryPlans:               true,
-				// ConfigurationVisitor:          true,
-				// PlanningVisitor:               true,
-				// DatasourceVisitor:             true,
+				PrintOperationTransformations: true,
+				PrintPlanningPaths:            true,
+				PrintNodeSuggestions:          true,
+				PrintQueryPlans:               true,
+				ConfigurationVisitor:          true,
+				PlanningVisitor:               true,
+				DatasourceVisitor:             true,
 			}
 
 			ctx, cancel := context.WithCancel(context.Background())
