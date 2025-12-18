@@ -954,6 +954,7 @@ func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
 		deletedEntries := 0
 		locationsArrayLength := len(locationsArray)
 
+		// We loop on a clone since we delete elements inline
 		for i, loc := range locationsClone {
 			line := loc.Get("line")
 			column := loc.Get("column")
