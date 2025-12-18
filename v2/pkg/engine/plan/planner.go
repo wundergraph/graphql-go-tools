@@ -62,6 +62,7 @@ func NewPlanner(config Configuration) (*Planner, error) {
 
 	// Initialize cost calculator and configure from data sources
 	costCalc := NewCostCalculator()
+	costCalc.Enable()
 	for _, ds := range config.DataSources {
 		if costConfig := ds.GetCostConfig(); costConfig != nil {
 			costCalc.SetDataSourceCostConfig(ds.Hash(), costConfig)

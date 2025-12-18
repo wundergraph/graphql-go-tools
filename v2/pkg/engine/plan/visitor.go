@@ -440,21 +440,10 @@ func (v *Visitor) enterFieldCost(ref int) {
 	// Extract arguments for cost calculation
 	arguments := v.costFieldArguments(ref)
 
+	// directives := v.costFieldDirectives(ref)
+
 	// Create skeleton node - dsHashes will be filled in leaveFieldCost
 	v.costCalculator.EnterField(ref, typeName, fieldName, isListType, arguments)
-}
-
-// leaveFieldCost calculates costs and pops from the cost stack.
-// Called in LeaveField because fieldPlanners is populated by AllowVisitor on LeaveField.
-func (v *Visitor) leaveFieldCost(ref int) {
-	if v.costCalculator == nil || !v.costCalculator.IsEnabled() {
-		return
-	}
-
-	// Now fieldPlanners is populated, get the data source hashes
-	dsHashes := v.getFieldDataSourceHashes(ref)
-
-	v.costCalculator.LeaveField(ref, dsHashes)
 }
 
 // getFieldDataSourceHashes returns all data source hashes for the field.
@@ -476,6 +465,7 @@ func (v *Visitor) getFieldDataSourceHashes(ref int) []DSHash {
 }
 
 // costFieldArguments extracts arguments from a field for cost calculation
+// costFieldArguments extracts arguments from a field for cost calculation
 func (v *Visitor) costFieldArguments(ref int) map[string]int {
 	argRefs := v.Operation.FieldArguments(ref)
 	if len(argRefs) == 0 {
@@ -487,14 +477,38 @@ func (v *Visitor) costFieldArguments(ref int) map[string]int {
 		argName := v.Operation.ArgumentNameString(argRef)
 		argValue := v.Operation.ArgumentValue(argRef)
 
+		fmt.Printf("costFieldArguments: argName=%s, argValue=%v\n", argName, argValue)
 		// Extract integer value if present (for multipliers like "first", "limit")
 		if argValue.Kind == ast.ValueKindInteger {
 			arguments[argName] = int(v.Operation.IntValueAsInt(argValue.Ref))
+		}
+		if argValue.Kind == ast.ValueKindVariable {
 		}
 	}
 
 	return arguments
 }
+
+// func (v *Visitor) costFieldDirectives(ref int) map[string]int {
+// 	refs := v.Operation.FieldDirectives(ref)
+// 	if len(refs) == 0 {
+// 		return nil
+// 	}
+//
+// 	arguments := make(map[string]int, len(refs))
+// 	for _, dirRef := range refs {
+// 		dirName := v.Operation.DirectiveName(dirRef)
+// 		dirArgsRef := v.Operation.DirectiveArgumentSet(dirRef)
+//
+// 		fmt.Printf("costFieldDirectives: dirName=%s, dirArgsRef=%v\n", dirName, dirArgsRef)
+// 		// Extract integer value if present (for multipliers like "first", "limit")
+// 		if dirArgsRef.Kind == ast.ValueKindInteger {
+// 			arguments[dirName] = int(v.Operation.IntValueAsInt(dirArgsRef.Ref))
+// 		}
+// 	}
+//
+// 	return arguments
+// }
 
 // GetTotalCost returns the total calculated cost for the query
 func (v *Visitor) GetTotalCost() int {
@@ -715,7 +729,10 @@ func (v *Visitor) LeaveField(ref int) {
 
 	// Calculate costs and pop from cost stack
 	// This is done in LeaveField because fieldPlanners is populated by AllowVisitor on LeaveField
-	v.leaveFieldCost(ref)
+	if v.costCalculator != nil && v.costCalculator.IsEnabled() {
+		dsHashes := v.getFieldDataSourceHashes(ref)
+		v.costCalculator.LeaveField(ref, dsHashes)
+	}
 
 	if v.currentFields[len(v.currentFields)-1].popOnField == ref {
 		v.currentFields = v.currentFields[:len(v.currentFields)-1]

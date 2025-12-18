@@ -416,6 +416,10 @@ func (c *CostCalculator) calculateNodeCosts(node *CostTreeNode) {
 	}
 
 	fieldCostConfig := config.GetFieldCostConfig(typeName, fieldName)
+	if fieldCostConfig == nil {
+		node.Multiplier = 1
+		return
+	}
 	node.Multiplier = 0
 	for _, slicingArg := range fieldCostConfig.SlicingArguments {
 		if argValue, ok := node.arguments[slicingArg]; ok && argValue > 0 {

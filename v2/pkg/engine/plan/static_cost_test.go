@@ -280,6 +280,7 @@ func TestCostCalculator_ListSizeAssumedSize(t *testing.T) {
 	// multiplier should be 50 (assumed size)
 	tree := calc.GetTree()
 	assert.Equal(t, 50, tree.Root.Children[0].Multiplier)
+	assert.Equal(t, 51, calc.GetTotalCost())
 }
 
 func TestCostCalculator_ListSizeSlicingArg(t *testing.T) {
