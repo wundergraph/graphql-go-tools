@@ -938,12 +938,12 @@ func (l *Loader) optionallyOmitErrorFields(values []*astjson.Value) {
 func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
 	for _, value := range values {
 		// If the flag is set, delete all locations
-		if !value.Exists("locations") || l.omitSubgraphErrorLocations {
-			value.Del("locations")
+		if !value.Exists(locationsField) || l.omitSubgraphErrorLocations {
+			value.Del(locationsField)
 			continue
 		}
 
-		locations := value.Get("locations")
+		locations := value.Get(locationsField)
 		if locations.Type() != astjson.TypeArray {
 			continue
 		}
@@ -977,7 +977,7 @@ func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
 
 		// If all locations were invalid, delete the locations field
 		if locationsArrayLength == deletedEntries {
-			value.Del("locations")
+			value.Del(locationsField)
 		}
 	}
 }
