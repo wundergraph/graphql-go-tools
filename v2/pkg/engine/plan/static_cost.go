@@ -47,11 +47,10 @@ type FieldCostConfig struct {
 
 // DataSourceCostConfig holds all cost configurations for a data source
 type DataSourceCostConfig struct {
-	// Defaults overrides the global defaults for this data source
-	Defaults *CostDefaults
-
 	// FieldConfig maps "TypeName.FieldName" to cost config
 	FieldConfig map[string]*FieldCostConfig
+
+	// Object Weights include all object, scalar and enum definitions.
 
 	// ScalarWeights maps scalar type name to weight
 	ScalarWeights map[string]int
@@ -69,6 +68,15 @@ func NewDataSourceCostConfig() *DataSourceCostConfig {
 	}
 }
 
+func (c *DataSourceCostConfig) GetFieldCostConfig(typeName, fieldName string) *FieldCostConfig {
+	if c == nil {
+		return nil
+	}
+
+	key := typeName + "." + fieldName
+	return c.FieldConfig[key]
+}
+
 // GetFieldCost returns the cost for a field, falling back to defaults
 func (c *DataSourceCostConfig) GetFieldCost(typeName, fieldName string) int {
 	if c == nil {
@@ -80,9 +88,6 @@ func (c *DataSourceCostConfig) GetFieldCost(typeName, fieldName string) int {
 		return fc.Weight
 	}
 
-	if c.Defaults != nil {
-		return c.Defaults.FieldCost
-	}
 	return StaticCostDefaults.FieldCost
 }
 
@@ -126,9 +131,6 @@ func (c *DataSourceCostConfig) GetArgumentCost(typeName, fieldName, argName stri
 		}
 	}
 
-	if c.Defaults != nil {
-		return c.Defaults.ArgumentCost
-	}
 	return StaticCostDefaults.ArgumentCost
 }
 
@@ -142,9 +144,6 @@ func (c *DataSourceCostConfig) GetScalarCost(scalarName string) int {
 		return cost
 	}
 
-	if c.Defaults != nil {
-		return c.Defaults.ScalarCost
-	}
 	return StaticCostDefaults.ScalarCost
 }
 
@@ -158,22 +157,7 @@ func (c *DataSourceCostConfig) GetEnumCost(enumName string) int {
 		return cost
 	}
 
-	if c.Defaults != nil {
-		return c.Defaults.EnumCost
-	}
 	return StaticCostDefaults.EnumCost
-}
-
-// GetListCost returns the default list cost
-func (c *DataSourceCostConfig) GetListCost() int {
-	if c == nil {
-		return 0
-	}
-
-	if c.Defaults != nil {
-		return c.Defaults.ListCost
-	}
-	return StaticCostDefaults.ListCost
 }
 
 // GetObjectCost returns the default object cost
@@ -182,13 +166,15 @@ func (c *DataSourceCostConfig) GetObjectCost() int {
 		return 0
 	}
 
-	if c.Defaults != nil {
-		return c.Defaults.ObjectCost
-	}
 	return StaticCostDefaults.ObjectCost
 }
 
+func (c *DataSourceCostConfig) GetDefaultListCost() int {
+	return 10
+}
+
 // CostTreeNode represents a node in the cost calculation tree
+// Based on IBM GraphQL Cost Specification: https://ibm.github.io/graphql-specs/cost-spec.html
 type CostTreeNode struct {
 	// FieldRef is the AST field reference
 	FieldRef int
@@ -200,48 +186,45 @@ type CostTreeNode struct {
 	FieldName string
 
 	// DataSourceHashes identifies which data sources this field is resolved from
-	// A field can be planned on multiple data sources in federation scenarios
 	DataSourceHashes []DSHash
 
-	// FieldCost is the base cost of this field (aggregated from all data sources)
+	// FieldCost is the weight of this field from @cost directive
 	FieldCost int
 
-	// ArgumentsCost is the total cost of all arguments (aggregated from all data sources)
+	// ArgumentsCost is the sum of argument weights and input fields used on each directive
 	ArgumentsCost int
 
-	// TypeCost is the cost based on return type (scalar/enum/object)
-	TypeCost int
+	DirectivesCost int
 
-	// Multiplier is applied to child costs (e.g., from "first" or "limit" arguments)
+	// Multiplier is the list size multiplier from @listSize directive
+	// Applied to children costs for list fields
 	Multiplier int
 
 	// Children contains child field costs
 	Children []*CostTreeNode
 
-	// Parent points to the parent node
-	Parent *CostTreeNode
-
 	// isListType and arguments are stored temporarily for deferred cost calculation
 	isListType bool
-	arguments  []CostFieldArgument
+	arguments  map[string]int
 }
 
 // TotalCost calculates the total cost of this node and all descendants
+// Per IBM spec: total = field_weight + argument_weights + (children_total * multiplier)
 func (n *CostTreeNode) TotalCost() int {
 	if n == nil {
 		return 0
 	}
 
-	// Base cost for this field
-	cost := n.FieldCost + n.ArgumentsCost + n.TypeCost
+	// TODO: negative sum should be rounded up to zero
+	cost := n.FieldCost + n.ArgumentsCost + n.DirectivesCost
 
-	// Sum children costs
+	// Sum children (fields) costs
 	var childrenCost int
 	for _, child := range n.Children {
 		childrenCost += child.TotalCost()
 	}
 
-	// Apply multiplier to children cost
+	// Apply multiplier to children cost (for list fields)
 	multiplier := n.Multiplier
 	if multiplier == 0 {
 		multiplier = 1
@@ -349,7 +332,7 @@ func (c *CostCalculator) CurrentNode() *CostTreeNode {
 // EnterField is called when entering a field during AST traversal.
 // It creates a skeleton node and pushes it onto the stack.
 // The actual cost calculation happens in LeaveField when fieldPlanners data is available.
-func (c *CostCalculator) EnterField(fieldRef int, typeName, fieldName string, isListType bool, arguments []CostFieldArgument) {
+func (c *CostCalculator) EnterField(fieldRef int, typeName, fieldName string, isListType bool, arguments map[string]int) {
 	if !c.enabled {
 		return
 	}
@@ -367,7 +350,6 @@ func (c *CostCalculator) EnterField(fieldRef int, typeName, fieldName string, is
 	// Attach to parent
 	parent := c.CurrentNode()
 	if parent != nil {
-		node.Parent = parent
 		parent.Children = append(parent.Children, node)
 	}
 
@@ -401,85 +383,55 @@ func (c *CostCalculator) LeaveField(fieldRef int, dsHashes []DSHash) {
 }
 
 // calculateNodeCosts fills in the cost values for a node based on its data sources
+// calculateNodeCosts implements IBM GraphQL Cost Specification
+// See: https://ibm.github.io/graphql-specs/cost-spec.html#sec-Field-Cost
 func (c *CostCalculator) calculateNodeCosts(node *CostTreeNode) {
-	dsHashes := node.DataSourceHashes
 	typeName := node.TypeName
 	fieldName := node.FieldName
-	arguments := node.arguments
-	isListType := node.isListType
 
-	// Aggregate costs from all data sources this field is planned on
-	// We sum the costs because each data source will be queried
-	for _, dsHash := range dsHashes {
-		config := c.getCostConfig(dsHash)
-
-		node.FieldCost += config.GetFieldCost(typeName, fieldName)
-
-		// Calculate argument costs for this data source
-		for _, arg := range arguments {
-			node.ArgumentsCost += config.GetArgumentCost(typeName, fieldName, arg.Name)
-		}
-
-		// Calculate multiplier from @listSize directive
-		c.calculateListMultiplier(node, config, typeName, fieldName, arguments)
-
-		// Add list cost if this is a list type (only once, take highest)
-		if isListType {
-			listCost := config.GetListCost()
-			if listCost > node.TypeCost {
-				node.TypeCost = listCost
-			}
-		}
+	// Get the cost config (use first data source config, or default)
+	var config *DataSourceCostConfig
+	if len(node.DataSourceHashes) > 0 {
+		config = c.getCostConfig(node.DataSourceHashes[0])
+	} else {
+		config = c.getDefaultCostConfig()
 	}
 
-	// If no data sources, use default config
-	if len(dsHashes) == 0 {
-		config := c.getDefaultCostConfig()
-		node.FieldCost = config.GetFieldCost(typeName, fieldName)
+	node.FieldCost = config.GetFieldCost(typeName, fieldName)
 
-		for _, arg := range arguments {
-			node.ArgumentsCost += config.GetArgumentCost(typeName, fieldName, arg.Name)
-		}
-
-		c.calculateListMultiplier(node, config, typeName, fieldName, arguments)
-
-		if isListType {
-			node.TypeCost = config.GetListCost()
-		}
+	for argName := range node.arguments {
+		node.ArgumentsCost += config.GetArgumentCost(typeName, fieldName, argName)
+		// TODO: arguments should include costs of input object fields
 	}
-}
 
-// calculateListMultiplier calculates the list multiplier based on @listSize directive
-func (c *CostCalculator) calculateListMultiplier(node *CostTreeNode, config *DataSourceCostConfig, typeName, fieldName string, arguments []CostFieldArgument) {
-	slicingArguments := config.GetSlicingArguments(typeName, fieldName)
-	assumedSize := config.GetAssumedListSize(typeName, fieldName)
+	// TODO: Directives Cost should includes the weights of all its arguments
 
-	// If no list size config, nothing to do
-	if len(slicingArguments) == 0 && assumedSize == 0 {
+	// TODO: arguments, directives and fields of input object are mutually recursive,
+	// we should recurse on them and sum all of possible values.
+
+	// Compute multiplier
+	if !node.isListType {
+		node.Multiplier = 1
 		return
 	}
 
-	// Check if any slicing argument is provided
-	slicingArgFound := false
-	for _, arg := range arguments {
-		for _, slicingArg := range slicingArguments {
-			if arg.Name == slicingArg && arg.IntValue > 0 {
-				// Use the highest multiplier
-				if arg.IntValue > node.Multiplier {
-					node.Multiplier = arg.IntValue
-				}
-				slicingArgFound = true
+	fieldCostConfig := config.GetFieldCostConfig(typeName, fieldName)
+	node.Multiplier = 0
+	for _, slicingArg := range fieldCostConfig.SlicingArguments {
+		if argValue, ok := node.arguments[slicingArg]; ok && argValue > 0 {
+			if argValue > node.Multiplier {
+				node.Multiplier = argValue
 			}
 		}
 	}
-
-	// If no slicing argument found, use assumed size
-	if !slicingArgFound && assumedSize > 0 {
-		if assumedSize > node.Multiplier {
-			node.Multiplier = assumedSize
-		}
+	if node.Multiplier == 0 && fieldCostConfig.AssumedSize > 0 {
+		node.Multiplier = fieldCostConfig.AssumedSize
+		return
 	}
+	node.Multiplier = config.GetDefaultListCost()
+
 }
+
 
 // GetTree returns the cost tree
 func (c *CostCalculator) GetTree() *CostTree {

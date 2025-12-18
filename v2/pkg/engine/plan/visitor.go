@@ -476,27 +476,21 @@ func (v *Visitor) getFieldDataSourceHashes(ref int) []DSHash {
 }
 
 // costFieldArguments extracts arguments from a field for cost calculation
-func (v *Visitor) costFieldArguments(ref int) []CostFieldArgument {
+func (v *Visitor) costFieldArguments(ref int) map[string]int {
 	argRefs := v.Operation.FieldArguments(ref)
 	if len(argRefs) == 0 {
 		return nil
 	}
 
-	arguments := make([]CostFieldArgument, 0, len(argRefs))
+	arguments := make(map[string]int, len(argRefs))
 	for _, argRef := range argRefs {
 		argName := v.Operation.ArgumentNameString(argRef)
 		argValue := v.Operation.ArgumentValue(argRef)
 
-		arg := CostFieldArgument{
-			Name: argName,
-		}
-
 		// Extract integer value if present (for multipliers like "first", "limit")
 		if argValue.Kind == ast.ValueKindInteger {
-			arg.IntValue = int(v.Operation.IntValueAsInt(argValue.Ref))
+			arguments[argName] = int(v.Operation.IntValueAsInt(argValue.Ref))
 		}
-
-		arguments = append(arguments, arg)
 	}
 
 	return arguments

@@ -44,12 +44,9 @@ func TestDataSourceCostConfig_GetFieldCost(t *testing.T) {
 	cost = config.GetFieldCost("Query", "users")
 	assert.Equal(t, 5, cost)
 
-	// Test with custom defaults
-	config.Defaults = &CostDefaults{
-		FieldCost: 2,
-	}
+	// Test with defaults
 	cost = config.GetFieldCost("Query", "posts")
-	assert.Equal(t, 2, cost)
+	assert.Equal(t, 1, cost)
 }
 
 func TestDataSourceCostConfig_GetSlicingArguments(t *testing.T) {
@@ -92,21 +89,18 @@ func TestCostTreeNode_TotalCost(t *testing.T) {
 		FieldName:  "users",
 		FieldCost:  1,
 		Multiplier: 10, // "first: 10"
-		Parent:     root,
 	}
 	root.Children = append(root.Children, users)
 
 	name := &CostTreeNode{
 		FieldName: "name",
 		FieldCost: 1,
-		Parent:    users,
 	}
 	users.Children = append(users.Children, name)
 
 	email := &CostTreeNode{
 		FieldName: "email",
 		FieldCost: 1,
-		Parent:    users,
 	}
 	users.Children = append(users.Children, email)
 
@@ -129,9 +123,7 @@ func TestCostCalculator_BasicFlow(t *testing.T) {
 	calc.SetDataSourceCostConfig(testDSHash1, config)
 
 	// Simulate entering and leaving fields (two-phase: Enter creates skeleton, Leave calculates costs)
-	calc.EnterField(1, "Query", "users", true, []CostFieldArgument{
-		{Name: "first", IntValue: 10},
-	})
+	calc.EnterField(1, "Query", "users", true, map[string]int{"first":10})
 	calc.EnterField(2, "User", "name", false, nil)
 	calc.LeaveField(2, []DSHash{testDSHash1})
 	calc.EnterField(3, "User", "email", false, nil)
@@ -144,8 +136,8 @@ func TestCostCalculator_BasicFlow(t *testing.T) {
 	assert.True(t, tree.Total > 0)
 
 	totalCost := calc.GetTotalCost()
-	// users: 2 (field) + 10 (list) + (1 + 1) * 10 = 12 + 20 = 32
-	assert.Equal(t, 32, totalCost)
+	// Per IBM spec: users weight=2 + (name(1) + email(1)) * 10 = 2 + 20 = 22
+	assert.Equal(t, 22, totalCost)
 }
 
 func TestCostCalculator_Disabled(t *testing.T) {
@@ -163,7 +155,7 @@ func TestCostCalculator_MultipleDataSources(t *testing.T) {
 	calc := NewCostCalculator()
 	calc.Enable()
 
-	// Configure two different data sources with different costs
+	// Configure two different data sources with different weights
 	config1 := NewDataSourceCostConfig()
 	config1.FieldConfig["User.name"] = &FieldCostConfig{
 		Weight: 2,
@@ -176,13 +168,13 @@ func TestCostCalculator_MultipleDataSources(t *testing.T) {
 	}
 	calc.SetDataSourceCostConfig(testDSHash2, config2)
 
-	// Field planned on both data sources - costs should be aggregated
+	// Field planned on multiple data sources - per IBM spec, use first data source's weight
 	calc.EnterField(1, "User", "name", false, nil)
 	calc.LeaveField(1, []DSHash{testDSHash1, testDSHash2})
 
 	totalCost := calc.GetTotalCost()
-	// Weight from subgraph1 (2) + cost from subgraph2 (3) = 5
-	assert.Equal(t, 5, totalCost)
+	// Per IBM spec: field is resolved once, using first data source weight = 2
+	assert.Equal(t, 2, totalCost)
 }
 
 func TestCostCalculator_NoDataSource(t *testing.T) {
@@ -191,9 +183,6 @@ func TestCostCalculator_NoDataSource(t *testing.T) {
 
 	// Set default config
 	defaultConfig := NewDataSourceCostConfig()
-	defaultConfig.Defaults = &CostDefaults{
-		FieldCost: 2,
-	}
 	calc.SetDefaultCostConfig(defaultConfig)
 
 	// Field with no data source - should use default config
@@ -201,7 +190,7 @@ func TestCostCalculator_NoDataSource(t *testing.T) {
 	calc.LeaveField(1, nil)
 
 	totalCost := calc.GetTotalCost()
-	assert.Equal(t, 2, totalCost)
+	assert.Equal(t, 1, totalCost)
 }
 
 func TestCostTree_Calculate(t *testing.T) {
@@ -231,7 +220,6 @@ func TestNilCostConfig(t *testing.T) {
 	assert.Equal(t, 0, config.GetArgumentCost("Type", "field", "arg"))
 	assert.Equal(t, 0, config.GetScalarCost("String"))
 	assert.Equal(t, 0, config.GetEnumCost("Status"))
-	assert.Equal(t, 0, config.GetListCost())
 	assert.Equal(t, 0, config.GetObjectCost())
 
 	assert.Nil(t, config.GetSlicingArguments("Type", "field"))
@@ -308,9 +296,7 @@ func TestCostCalculator_ListSizeSlicingArg(t *testing.T) {
 	calc.SetDataSourceCostConfig(testDSHash1, config)
 
 	// Enter field with "first: 10" argument
-	calc.EnterField(1, "Query", "users", true, []CostFieldArgument{
-		{Name: "first", IntValue: 10},
-	})
+	calc.EnterField(1, "Query", "users", true, map[string]int{"first":10})
 	calc.LeaveField(1, []DSHash{testDSHash1})
 
 	// multiplier should be 10 (from slicing arg), not 50
