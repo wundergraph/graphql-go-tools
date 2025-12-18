@@ -936,11 +936,37 @@ func (l *Loader) optionallyOmitErrorFields(values []*astjson.Value) {
 
 // optionallyOmitErrorLocations removes the "locations" object from all values.
 func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
-	if !l.omitSubgraphErrorLocations {
-		return
-	}
 	for _, value := range values {
-		if value.Exists("locations") {
+		if !value.Exists("locations") {
+			continue
+		}
+
+		// If the flag is set, delete all locations
+		if l.omitSubgraphErrorLocations {
+			value.Del("locations")
+			continue
+		}
+
+		// Parse locations into typed structure for validation
+		locationsJSON := value.Get("locations").MarshalTo(nil)
+		var parsedLocations []ValidationLocation
+		if err := json.Unmarshal(locationsJSON, &parsedLocations); err != nil {
+			// If we can't parse, skip validation, since it will be handled in the current flow
+			continue
+		}
+
+		// Check if all locations are invalid (line <= 0 or column <= 0)
+		allInvalid := true
+		for _, loc := range parsedLocations {
+			if loc.Line > 0 || loc.Column > 0 {
+				allInvalid = false
+				break
+			}
+		}
+
+		// Only delete locations field if ALL locations are invalid
+		// Otherwise keep locations as is, to error out later
+		if allInvalid {
 			value.Del("locations")
 		}
 	}
