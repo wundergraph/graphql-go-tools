@@ -19,13 +19,6 @@ type Location struct {
 	Column uint32 `json:"column"`
 }
 
-// ValidationLocation We define a separate type for validation to avoid confusion with the Location type in GraphQLError
-// where the attributes adhere to the spec
-type ValidationLocation struct {
-	Line   int32 `json:"line"`
-	Column int32 `json:"column"`
-}
-
 type SubgraphError struct {
 	DataSourceInfo DataSourceInfo
 	Path           string

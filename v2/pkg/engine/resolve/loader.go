@@ -937,37 +937,55 @@ func (l *Loader) optionallyOmitErrorFields(values []*astjson.Value) {
 // optionallyOmitErrorLocations removes the "locations" object from all values.
 func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
 	for _, value := range values {
-		if !value.Exists("locations") {
-			continue
-		}
-
 		// If the flag is set, delete all locations
-		if l.omitSubgraphErrorLocations {
+		if !value.Exists("locations") || l.omitSubgraphErrorLocations {
 			value.Del("locations")
 			continue
 		}
 
-		// Parse locations into typed structure for validation
-		locationsJSON := value.Get("locations").MarshalTo(nil)
-		var parsedLocations []ValidationLocation
-		if err := json.Unmarshal(locationsJSON, &parsedLocations); err != nil {
-			// If we can't parse, skip validation, since it will be handled in the current flow
+		// Filter out invalid location entries (line <= 0 or column <= 0)
+		locations := value.Get("locations")
+		if locations.Type() != astjson.TypeArray {
 			continue
 		}
 
-		// Check if all locations are invalid (line <= 0 or column <= 0)
-		allInvalid := true
-		for _, loc := range parsedLocations {
-			if loc.Line > 0 || loc.Column > 0 {
-				allInvalid = false
-				break
+		locationsArray := locations.GetArray()
+		validLocations := make([]*astjson.Value, 0, len(locationsArray))
+
+		for _, loc := range locationsArray {
+			line := loc.Get("line")
+			column := loc.Get("column")
+
+			// Skip invalid locations: nil values or values <= 0
+			if line == nil || column == nil {
+				continue
+			}
+
+			lineInt := line.GetInt()
+			columnInt := column.GetInt()
+
+			// Keep location only if both line and column are > 0
+			if lineInt > 0 && columnInt > 0 {
+				validLocations = append(validLocations, loc)
 			}
 		}
 
-		// Only delete locations field if ALL locations are invalid
-		// Otherwise keep locations as is, to error out later
-		if allInvalid {
+		// If all locations were invalid, delete the locations field
+		if len(validLocations) == 0 {
 			value.Del("locations")
+		} else if len(validLocations) < len(locationsArray) {
+			// Some locations were invalid - rebuild the array with only valid ones
+			newLocations := astjson.MustParseBytes([]byte(`[]`))
+
+			start := time.Now()
+			for i, validLoc := range validLocations {
+				newLocations.SetArrayItem(i, validLoc)
+			}
+			elapsed := time.Since(start)
+
+			fmt.Println(elapsed)
+
+			value.Set("locations", newLocations)
 		}
 	}
 }
