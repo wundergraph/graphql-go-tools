@@ -943,49 +943,40 @@ func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
 			continue
 		}
 
-		// Filter out invalid location entries (line <= 0 or column <= 0)
 		locations := value.Get("locations")
 		if locations.Type() != astjson.TypeArray {
 			continue
 		}
 
 		locationsArray := locations.GetArray()
-		validLocations := make([]*astjson.Value, 0, len(locationsArray))
+		locationsClone := slices.Clone(locationsArray)
 
-		for _, loc := range locationsArray {
+		deletedEntries := 0
+		locationsArrayLength := len(locationsArray)
+
+		for i, loc := range locationsClone {
 			line := loc.Get("line")
 			column := loc.Get("column")
 
 			// Skip invalid locations: nil values or values <= 0
 			if line == nil || column == nil {
+				locations.Del(strconv.Itoa(i - deletedEntries))
+				deletedEntries++
 				continue
 			}
 
-			lineInt := line.GetInt()
-			columnInt := column.GetInt()
-
 			// Keep location only if both line and column are > 0
-			if lineInt > 0 && columnInt > 0 {
-				validLocations = append(validLocations, loc)
+			// In case it is not an int, 0 will be returned which is invalid anyway
+			isValid := line.GetInt() > 0 && column.GetInt() > 0
+			if !isValid {
+				locations.Del(strconv.Itoa(i - deletedEntries))
+				deletedEntries++
 			}
 		}
 
 		// If all locations were invalid, delete the locations field
-		if len(validLocations) == 0 {
+		if locationsArrayLength == deletedEntries {
 			value.Del("locations")
-		} else if len(validLocations) < len(locationsArray) {
-			// Some locations were invalid - rebuild the array with only valid ones
-			newLocations := astjson.MustParseBytes([]byte(`[]`))
-
-			start := time.Now()
-			for i, validLoc := range validLocations {
-				newLocations.SetArrayItem(i, validLoc)
-			}
-			elapsed := time.Since(start)
-
-			fmt.Println(elapsed)
-
-			value.Set("locations", newLocations)
 		}
 	}
 }

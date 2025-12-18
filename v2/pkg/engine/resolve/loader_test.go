@@ -1569,6 +1569,80 @@ func TestLoader_OptionallyOmitErrorLocations(t *testing.T) {
 			]`,
 		},
 		{
+			name:                       "no locations field with omit flag true - calls Del safely",
+			omitSubgraphErrorLocations: true,
+			inputJSON: `[
+				{
+					"message": "Field error",
+					"path": ["field"]
+				}
+			]`,
+			expectedJSON: `[
+				{
+					"message": "Field error",
+					"path": ["field"]
+				}
+			]`,
+		},
+		{
+			name:                       "empty object with no locations - safe to call Del",
+			omitSubgraphErrorLocations: false,
+			inputJSON: `[
+				{
+					"message": "Error"
+				}
+			]`,
+			expectedJSON: `[
+				{
+					"message": "Error"
+				}
+			]`,
+		},
+		{
+			name:                       "empty object with omit flag - safe to call Del",
+			omitSubgraphErrorLocations: true,
+			inputJSON: `[
+				{
+					"message": "Error"
+				}
+			]`,
+			expectedJSON: `[
+				{
+					"message": "Error"
+				}
+			]`,
+		},
+		{
+			name:                       "multiple errors without locations field",
+			omitSubgraphErrorLocations: false,
+			inputJSON: `[
+				{
+					"message": "Error 1",
+					"path": ["field1"]
+				},
+				{
+					"message": "Error 2",
+					"extensions": {"code": "SOME_ERROR"}
+				},
+				{
+					"message": "Error 3"
+				}
+			]`,
+			expectedJSON: `[
+				{
+					"message": "Error 1",
+					"path": ["field1"]
+				},
+				{
+					"message": "Error 2",
+					"extensions": {"code": "SOME_ERROR"}
+				},
+				{
+					"message": "Error 3"
+				}
+			]`,
+		},
+		{
 			name:                       "all valid locations - unchanged",
 			omitSubgraphErrorLocations: false,
 			inputJSON: `[
@@ -1849,6 +1923,154 @@ func TestLoader_OptionallyOmitErrorLocations(t *testing.T) {
 				{
 					"message": "Field error",
 					"path": ["field"]
+				}
+			]`,
+		},
+		{
+			name:                       "large dataset - alternating valid and invalid locations",
+			omitSubgraphErrorLocations: false,
+			inputJSON: `[
+				{
+					"message": "Complex error",
+					"locations": [
+						{"line": 1, "column": 5},
+						{"line": 0, "column": 10},
+						{"line": 3, "column": 15},
+						{"line": -1, "column": 20},
+						{"line": 5, "column": 25},
+						{"line": 6, "column": 0},
+						{"line": 7, "column": 30},
+						{"line": 8, "column": -5},
+						{"line": 9, "column": 35}
+					],
+					"path": ["field"]
+				}
+			]`,
+			expectedJSON: `[
+				{
+					"message": "Complex error",
+					"locations": [
+						{"line": 1, "column": 5},
+						{"line": 3, "column": 15},
+						{"line": 5, "column": 25},
+						{"line": 7, "column": 30},
+						{"line": 9, "column": 35}
+					],
+					"path": ["field"]
+				}
+			]`,
+		},
+		{
+			name:                       "large dataset - consecutive invalid entries at start and end",
+			omitSubgraphErrorLocations: false,
+			inputJSON: `[
+				{
+					"message": "Edge case error",
+					"locations": [
+						{"line": 0, "column": 1},
+						{"line": -1, "column": 2},
+						{"line": 0, "column": 0},
+						{"line": 4, "column": 10},
+						{"line": 5, "column": 20},
+						{"line": 6, "column": 30},
+						{"line": 7, "column": 40},
+						{"column": 50},
+						{"line": 9},
+						{"line": -5, "column": -10}
+					],
+					"path": ["field"]
+				}
+			]`,
+			expectedJSON: `[
+				{
+					"message": "Edge case error",
+					"locations": [
+						{"line": 4, "column": 10},
+						{"line": 5, "column": 20},
+						{"line": 6, "column": 30},
+						{"line": 7, "column": 40}
+					],
+					"path": ["field"]
+				}
+			]`,
+		},
+		{
+			name:                       "large dataset - mixed types and values across multiple errors",
+			omitSubgraphErrorLocations: false,
+			inputJSON: `[
+				{
+					"message": "Error 1",
+					"locations": [
+						{"line": 1, "column": 1},
+						{"line": 2, "column": 0},
+						{"line": 3, "column": 3},
+						{"line": "invalid", "column": 4},
+						{"line": 5, "column": 5}
+					],
+					"path": ["field1"]
+				},
+				{
+					"message": "Error 2",
+					"locations": [
+						{"line": 10, "column": 10},
+						{"line": 0, "column": 20},
+						{"line": 30, "column": 30},
+						{"line": 40, "column": "bad"},
+						{"line": 50, "column": 50},
+						{"line": -1, "column": 60}
+					],
+					"path": ["field2"]
+				},
+				{
+					"message": "Error 3",
+					"locations": [
+						{"column": 100},
+						{"line": 200},
+						{"line": 0, "column": 0}
+					],
+					"path": ["field3"]
+				},
+				{
+					"message": "Error 4",
+					"locations": [
+						{"line": 100, "column": 100},
+						{"line": 200, "column": 200},
+						{"line": 300, "column": 300}
+					],
+					"path": ["field4"]
+				}
+			]`,
+			expectedJSON: `[
+				{
+					"message": "Error 1",
+					"locations": [
+						{"line": 1, "column": 1},
+						{"line": 3, "column": 3},
+						{"line": 5, "column": 5}
+					],
+					"path": ["field1"]
+				},
+				{
+					"message": "Error 2",
+					"locations": [
+						{"line": 10, "column": 10},
+						{"line": 30, "column": 30},
+						{"line": 50, "column": 50}
+					],
+					"path": ["field2"]
+				},
+				{
+					"message": "Error 3",
+					"path": ["field3"]
+				},
+				{
+					"message": "Error 4",
+					"locations": [
+						{"line": 100, "column": 100},
+						{"line": 200, "column": 200},
+						{"line": 300, "column": 300}
+					],
+					"path": ["field4"]
 				}
 			]`,
 		},
