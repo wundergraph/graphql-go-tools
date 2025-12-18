@@ -943,31 +943,29 @@ func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
 			continue
 		}
 
-		locations := value.Get(locationsField)
-		locationsArray := locations.GetArray()
-		if len(locationsArray) == 0 {
-			continue
-		}
+		// Create a new array via astjson we can append to the valid types
+		arena := astjson.Arena{}
+		validLocations := arena.NewArray()
+		validIndex := 0
 
-		locationsClone := slices.Clone(locationsArray)
-		deletedEntries := 0
-
-		// We loop on a clone since we delete elements inline
-		for i, loc := range locationsClone {
+		// GetArray will return nil if not an array which will not be ranged over
+		allLocations := value.Get(locationsField)
+		for _, loc := range allLocations.GetArray() {
 			line := loc.Get("line")
 			column := loc.Get("column")
 
-			// Keep location only if both line and column are > 0
+			// Keep location only if both line and column are > 0 (spec says 0 is invalid)
 			// In case it is not an int, 0 will be returned which is invalid anyway
-			isValid := line.GetInt() > 0 && column.GetInt() > 0
-			if !isValid {
-				locations.Del(strconv.Itoa(i - deletedEntries))
-				deletedEntries++
+			if line.GetInt() > 0 && column.GetInt() > 0 {
+				validLocations.SetArrayItem(validIndex, loc)
+				validIndex++
 			}
 		}
 
 		// If all locations were invalid, delete the locations field
-		if len(locations.GetArray()) == 0 {
+		if len(validLocations.GetArray()) > 0 {
+			value.Set(locationsField, validLocations)
+		} else {
 			value.Del(locationsField)
 		}
 	}

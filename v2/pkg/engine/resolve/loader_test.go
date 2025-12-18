@@ -1843,7 +1843,7 @@ func TestLoader_OptionallyOmitErrorLocations(t *testing.T) {
 			]`,
 		},
 		{
-			name:                       "locations is not an array - unchanged",
+			name:                       "locations is not an array - removes locations field",
 			omitSubgraphErrorLocations: false,
 			inputJSON: `[
 				{
@@ -1855,7 +1855,6 @@ func TestLoader_OptionallyOmitErrorLocations(t *testing.T) {
 			expectedJSON: `[
 				{
 					"message": "Field error",
-					"locations": "invalid",
 					"path": ["field"]
 				}
 			]`,
