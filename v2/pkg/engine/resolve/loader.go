@@ -944,27 +944,18 @@ func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
 		}
 
 		locations := value.Get(locationsField)
-		if locations.Type() != astjson.TypeArray {
+		locationsArray := locations.GetArray()
+		if len(locationsArray) == 0 {
 			continue
 		}
 
-		locationsArray := locations.GetArray()
 		locationsClone := slices.Clone(locationsArray)
-
 		deletedEntries := 0
-		locationsArrayLength := len(locationsArray)
 
 		// We loop on a clone since we delete elements inline
 		for i, loc := range locationsClone {
 			line := loc.Get("line")
 			column := loc.Get("column")
-
-			// Skip invalid locations: nil values or values <= 0
-			if line == nil || column == nil {
-				locations.Del(strconv.Itoa(i - deletedEntries))
-				deletedEntries++
-				continue
-			}
 
 			// Keep location only if both line and column are > 0
 			// In case it is not an int, 0 will be returned which is invalid anyway
@@ -976,7 +967,7 @@ func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
 		}
 
 		// If all locations were invalid, delete the locations field
-		if locationsArrayLength == deletedEntries {
+		if len(locations.GetArray()) == 0 {
 			value.Del(locationsField)
 		}
 	}
