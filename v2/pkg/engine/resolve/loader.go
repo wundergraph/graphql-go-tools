@@ -936,12 +936,38 @@ func (l *Loader) optionallyOmitErrorFields(values []*astjson.Value) {
 
 // optionallyOmitErrorLocations removes the "locations" object from all values.
 func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
-	if !l.omitSubgraphErrorLocations {
-		return
-	}
+	arena := astjson.Arena{}
+
 	for _, value := range values {
-		if value.Exists("locations") {
-			value.Del("locations")
+		// If the flag is set, delete all locations
+		if !value.Exists(locationsField) || l.omitSubgraphErrorLocations {
+			value.Del(locationsField)
+			continue
+		}
+
+		// Create a new array via astjson we can append to the valid types
+		validLocations := arena.NewArray()
+		validIndex := 0
+
+		// GetArray will return nil if not an array which will not be ranged over
+		allLocations := value.Get(locationsField)
+		for _, loc := range allLocations.GetArray() {
+			line := loc.Get("line")
+			column := loc.Get("column")
+
+			// Keep location only if both line and column are > 0 (spec says 0 is invalid)
+			// In case it is not an int, 0 will be returned which is invalid anyway
+			if line.GetInt() > 0 && column.GetInt() > 0 {
+				validLocations.SetArrayItem(validIndex, loc)
+				validIndex++
+			}
+		}
+
+		// If all locations were invalid, delete the locations field
+		if len(validLocations.GetArray()) > 0 {
+			value.Set(locationsField, validLocations)
+		} else {
+			value.Del(locationsField)
 		}
 	}
 }

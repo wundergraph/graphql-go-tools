@@ -201,7 +201,7 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 	}
 
 	if !options.OmitSubgraphErrorLocations {
-		allowedErrorFields["locations"] = struct{}{}
+		allowedErrorFields[locationsField] = struct{}{}
 	}
 
 	for _, field := range options.AllowedSubgraphErrorFields {
