@@ -936,6 +936,8 @@ func (l *Loader) optionallyOmitErrorFields(values []*astjson.Value) {
 
 // optionallyOmitErrorLocations removes the "locations" object from all values.
 func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
+	arena := astjson.Arena{}
+
 	for _, value := range values {
 		// If the flag is set, delete all locations
 		if !value.Exists(locationsField) || l.omitSubgraphErrorLocations {
@@ -944,7 +946,6 @@ func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
 		}
 
 		// Create a new array via astjson we can append to the valid types
-		arena := astjson.Arena{}
 		validLocations := arena.NewArray()
 		validIndex := 0
 
