@@ -12,6 +12,8 @@ var (
 	lBrack                    = []byte("[")
 	rBrack                    = []byte("]")
 	comma                     = []byte(",")
+	pipe                      = []byte("|")
+	dot                       = []byte(".")
 	colon                     = []byte(":")
 	quote                     = []byte("\"")
 	null                      = []byte("null")
