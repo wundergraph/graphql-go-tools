@@ -428,22 +428,22 @@ func (v *Visitor) enterFieldCost(ref int) {
 
 	typeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
 	fieldName := v.Operation.FieldNameUnsafeString(ref)
+	coord := FieldCoordinate{typeName, fieldName}
 
-	// Check if the field returns a list type
 	fieldDefinition, ok := v.Walker.FieldDefinition(ref)
 	if !ok {
 		return
 	}
 	fieldDefinitionTypeRef := v.Definition.FieldDefinitionType(fieldDefinition)
 	isListType := v.Definition.TypeIsList(fieldDefinitionTypeRef)
+	namedTypeName := v.Definition.ResolveTypeNameString(fieldDefinitionTypeRef)
 
-	// Extract arguments for cost calculation
 	arguments := v.costFieldArguments(ref)
 
 	// directives := v.costFieldDirectives(ref)
 
 	// Create skeleton node - dsHashes will be filled in leaveFieldCost
-	v.costCalculator.EnterField(ref, typeName, fieldName, isListType, arguments)
+	v.costCalculator.EnterField(ref, coord, namedTypeName, isListType, arguments)
 }
 
 // getFieldDataSourceHashes returns all data source hashes for the field.
@@ -465,25 +465,58 @@ func (v *Visitor) getFieldDataSourceHashes(ref int) []DSHash {
 }
 
 // costFieldArguments extracts arguments from a field for cost calculation
-// costFieldArguments extracts arguments from a field for cost calculation
-func (v *Visitor) costFieldArguments(ref int) map[string]int {
+func (v *Visitor) costFieldArguments(ref int) map[string]ArgumentInfo {
 	argRefs := v.Operation.FieldArguments(ref)
 	if len(argRefs) == 0 {
 		return nil
 	}
 
-	arguments := make(map[string]int, len(argRefs))
+	arguments := make(map[string]ArgumentInfo, len(argRefs))
 	for _, argRef := range argRefs {
 		argName := v.Operation.ArgumentNameString(argRef)
 		argValue := v.Operation.ArgumentValue(argRef)
+		argInfo := ArgumentInfo{}
 
 		fmt.Printf("costFieldArguments: argName=%s, argValue=%v\n", argName, argValue)
-		// Extract integer value if present (for multipliers like "first", "limit")
-		if argValue.Kind == ast.ValueKindInteger {
-			arguments[argName] = int(v.Operation.IntValueAsInt(argValue.Ref))
+		val, err := v.Operation.PrintValueBytes(argValue, nil)
+		if err != nil {
+			panic(err)
 		}
-		if argValue.Kind == ast.ValueKindVariable {
+		fmt.Printf("value = %s\n", val)
+		switch argValue.Kind {
+		case ast.ValueKindBoolean, ast.ValueKindEnum, ast.ValueKindString, ast.ValueKindFloat:
+			argInfo.isScalar = true
+		case ast.ValueKindNull:
+			continue
+		case ast.ValueKindInteger:
+			// Extract integer value if present (for multipliers like "first", "limit")
+			argInfo.intValue = int(v.Operation.IntValueAsInt(argValue.Ref))
+			argInfo.isScalar = true
+		case ast.ValueKindVariable:
+			// TODO: we need to analyze variables that contains input object fields.
+			// If these fields has weight attached, use them for calculation.
+			// Variables are not inlined at this stage, so we need to inspect them via AST.
+			argInfo.isInputObject = true
+			variableValue := v.Operation.VariableValueNameString(argValue.Ref)
+			if !v.Operation.OperationDefinitionHasVariableDefinition(v.operationDefinition, variableValue) {
+				continue // omit optional argument when variable is not defined
+			}
+			variableDefinition, exists := v.Operation.VariableDefinitionByNameAndOperation(v.operationDefinition, v.Operation.VariableValueNameBytes(argValue.Ref))
+			if !exists {
+				break
+			}
+			// variableTypeRef := v.Operation.VariableDefinitions[variableDefinition].Type
+			argInfo.typeName = v.Operation.ResolveTypeNameString(v.Operation.VariableDefinitions[variableDefinition].Type)
+
+		case ast.ValueKindList:
+			// should we do something? is it possible at all?
+			continue
+		default:
+			fmt.Printf("unhandled case: %v\n", argValue.Kind)
+			continue
 		}
+
+		arguments[argName] = argInfo
 	}
 
 	return arguments

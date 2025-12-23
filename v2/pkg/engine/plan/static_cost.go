@@ -1,70 +1,77 @@
 package plan
 
 // StaticCostDefaults contains default cost values when no specific costs are configured
-var StaticCostDefaults = CostDefaults{
-	FieldCost:    1,
-	ArgumentCost: 0,
-	ScalarCost:   0,
-	EnumCost:     0,
-	ObjectCost:   1,
-	ListCost:     10, // The assumed maximum size of a list for fields that return lists.
+var StaticCostDefaults = WeightDefaults{
+	Field:  1,
+	Scalar: 0,
+	Enum:   0,
+	Object: 1,
+	List:   10, // The assumed maximum size of a list for fields that return lists.
 }
 
-// CostDefaults defines default cost values for different GraphQL elements
-type CostDefaults struct {
-	FieldCost    int
-	ArgumentCost int
-	ScalarCost   int
-	EnumCost     int
-	ObjectCost   int
-	ListCost     int
+// WeightDefaults defines default cost values for different GraphQL elements
+type WeightDefaults struct {
+	Field  int
+	Scalar int
+	Enum   int
+	Object int
+	List   int
 }
 
-// FieldCostConfig defines cost configuration for a specific field
-// Includes @listSize directive fields for list cost calculation
+// FieldCostConfig defines cost configuration for a specific field of an object or input object.
+// Includes @listSize directive fields for objects.
 type FieldCostConfig struct {
 	Weight int
 
-	// ArgumentWeights maps argument name to its weight/cost
+	// ArgumentWeights maps an argument name to its weight.
+	// Location: ARGUMENT_DEFINITION
 	ArgumentWeights map[string]int
 
-	// AssumedSize is the default assumed size when no slicing argument is provided (from @listSize)
-	// If 0, the global default list cost is used
+	// Fields below are defined only on FIELD_DEFINITION from the @listSize directive.
+
+	// AssumedSize is the default assumed size when no slicing argument is provided.
+	// If 0, the global default list cost is used.
 	AssumedSize int
 
 	// SlicingArguments are argument names that control list size (e.g., "first", "last", "limit")
-	// The value of these arguments will be used as the multiplier (from @listSize)
+	// The value of these arguments will be used as the multiplier.
 	SlicingArguments []string
 
-	// SizedFields are field names that return the actual size of the list (from @listSize)
-	// These can be used for more accurate, actual cost estimation
+	// SizedFields are field names that return the actual size of the list.
+	// These can be used for more accurate, actual cost estimation.
 	SizedFields []string
 
-	// RequireOneSlicingArgument if true, at least one slicing argument must be provided (from @listSize)
-	// If false and no slicing argument is provided, AssumedSize is used
+	// RequireOneSlicingArgument if true, at least one slicing argument must be provided.
+	// If false and no slicing argument is provided, AssumedSize is used.
 	RequireOneSlicingArgument bool
 }
 
-// DataSourceCostConfig holds all cost configurations for a data source
+// DataSourceCostConfig holds all cost configurations for a data source.
+// This data is passed from the composition.
 type DataSourceCostConfig struct {
-	// FieldConfig maps "TypeName.FieldName" to cost config
-	FieldConfig map[string]*FieldCostConfig
+	// Fields maps field coordinate to its cost config.
+	// Location: FIELD_DEFINITION, INPUT_FIELD_DEFINITION
+	Fields map[FieldCoordinate]*FieldCostConfig
 
-	// Object Weights include all object, scalar and enum definitions.
+	// Types maps TypeName to the weight of the object, scalar or enum definition.
+	// If TypeName is not present, the default value for Enums and Scalars is 0, otherwise 1.
+	// Weight assigned to the field or argument definitions overrides the weight of type definition.
+	// Location: ENUM, OBJECT, SCALAR
+	Types map[string]int
 
-	// ScalarWeights maps scalar type name to weight
-	ScalarWeights map[string]int
-
-	// EnumWeights maps enum type name to weight
-	EnumWeights map[string]int
+	// Arguments on directives is a special case. They use a special kind of coordinate:
+	// directive name + argument name. That should be the key mapped to the weight.
+	//
+	// Directives can be used on [input] object fields and arguments of fields. This creates
+	// mutual recursion between them that complicates cost calculation.
+	// We avoid them intentionally in the first iteration.
 }
 
 // NewDataSourceCostConfig creates a new cost config with defaults
 func NewDataSourceCostConfig() *DataSourceCostConfig {
 	return &DataSourceCostConfig{
-		FieldConfig:   make(map[string]*FieldCostConfig),
-		ScalarWeights: make(map[string]int),
-		EnumWeights:   make(map[string]int),
+		Fields: make(map[FieldCoordinate]*FieldCostConfig),
+		Types:  make(map[string]int),
 	}
 }
 
@@ -72,101 +79,40 @@ func (c *DataSourceCostConfig) GetFieldCostConfig(typeName, fieldName string) *F
 	if c == nil {
 		return nil
 	}
-
-	key := typeName + "." + fieldName
-	return c.FieldConfig[key]
+	return c.Fields[FieldCoordinate{typeName, fieldName}]
 }
 
-// GetFieldCost returns the cost for a field, falling back to defaults
-func (c *DataSourceCostConfig) GetFieldCost(typeName, fieldName string) int {
+// ScalarWeight returns the cost for a scalar type
+func (c *DataSourceCostConfig) ScalarWeight(scalarName string) int {
 	if c == nil {
 		return 0
 	}
-
-	key := typeName + "." + fieldName
-	if fc, ok := c.FieldConfig[key]; ok {
-		return fc.Weight
-	}
-
-	return StaticCostDefaults.FieldCost
-}
-
-// GetSlicingArguments returns the slicing argument names for a field
-// These are arguments that control list size (e.g., "first", "last", "limit")
-func (c *DataSourceCostConfig) GetSlicingArguments(typeName, fieldName string) []string {
-	if c == nil {
-		return nil
-	}
-
-	key := typeName + "." + fieldName
-	if fc, ok := c.FieldConfig[key]; ok {
-		return fc.SlicingArguments
-	}
-	return nil
-}
-
-// GetAssumedListSize returns the assumed list size for a field when no slicing argument is provided
-func (c *DataSourceCostConfig) GetAssumedListSize(typeName, fieldName string) int {
-	if c == nil {
-		return 0
-	}
-
-	key := typeName + "." + fieldName
-	if fc, ok := c.FieldConfig[key]; ok {
-		return fc.AssumedSize
-	}
-	return 0
-}
-
-// GetArgumentCost returns the cost for an argument, falling back to defaults
-func (c *DataSourceCostConfig) GetArgumentCost(typeName, fieldName, argName string) int {
-	if c == nil {
-		return 0
-	}
-
-	key := typeName + "." + fieldName
-	if fc, ok := c.FieldConfig[key]; ok && fc.ArgumentWeights != nil {
-		if weight, ok := fc.ArgumentWeights[argName]; ok {
-			return weight
-		}
-	}
-
-	return StaticCostDefaults.ArgumentCost
-}
-
-// GetScalarCost returns the cost for a scalar type
-func (c *DataSourceCostConfig) GetScalarCost(scalarName string) int {
-	if c == nil {
-		return 0
-	}
-
-	if cost, ok := c.ScalarWeights[scalarName]; ok {
+	if cost, ok := c.Types[scalarName]; ok {
 		return cost
 	}
-
-	return StaticCostDefaults.ScalarCost
+	return StaticCostDefaults.Scalar
 }
 
-// GetEnumCost returns the cost for an enum type
-func (c *DataSourceCostConfig) GetEnumCost(enumName string) int {
+// EnumWeight returns the cost for an enum type
+func (c *DataSourceCostConfig) EnumWeight(enumName string) int {
 	if c == nil {
 		return 0
 	}
-
-	if cost, ok := c.EnumWeights[enumName]; ok {
+	if cost, ok := c.Types[enumName]; ok {
 		return cost
 	}
-
-	return StaticCostDefaults.EnumCost
+	return StaticCostDefaults.Enum
 }
 
-// GetObjectCost returns the default object cost
-func (c *DataSourceCostConfig) GetObjectCost() int {
+// ObjectWeight returns the default object cost
+func (c *DataSourceCostConfig) ObjectWeight(name string) int {
 	if c == nil {
 		return 0
 	}
-
-	return StaticCostDefaults.ObjectCost
+	if cost, ok := c.Types[name]; ok {
+		return cost
+	}
+	return StaticCostDefaults.Object
 }
 
 func (c *DataSourceCostConfig) GetDefaultListCost() int {
@@ -176,17 +122,14 @@ func (c *DataSourceCostConfig) GetDefaultListCost() int {
 // CostTreeNode represents a node in the cost calculation tree
 // Based on IBM GraphQL Cost Specification: https://ibm.github.io/graphql-specs/cost-spec.html
 type CostTreeNode struct {
-	// FieldRef is the AST field reference
-	FieldRef int
+	// fieldRef is the AST field reference
+	fieldRef int
 
-	// TypeName is the enclosing type name
-	TypeName string
+	// Enclosing type name and field name
+	fieldCoord FieldCoordinate
 
-	// FieldName is the field name
-	FieldName string
-
-	// DataSourceHashes identifies which data sources this field is resolved from
-	DataSourceHashes []DSHash
+	// dataSourceHashes identifies which data sources this field is resolved from
+	dataSourceHashes []DSHash
 
 	// FieldCost is the weight of this field from @cost directive
 	FieldCost int
@@ -200,12 +143,42 @@ type CostTreeNode struct {
 	// Applied to children costs for list fields
 	Multiplier int
 
-	// Children contains child field costs
+	// Children contain child field costs
 	Children []*CostTreeNode
 
-	// isListType and arguments are stored temporarily for deferred cost calculation
+	// The data below is stored for deferred cost calculation.
+
+	// What is the name of an unwrapped (named) type that is returned by this field?
+	fieldTypeName string
+
 	isListType bool
-	arguments  map[string]int
+
+	// arguments contain the values of arguments passed to the field
+	arguments map[string]ArgumentInfo
+}
+
+type ArgumentInfo struct {
+	intValue int
+
+	// The name of an unwrapped type.
+	typeName string
+
+	// isInputObject is true for an input object passed to the argument,
+	// otherwise the argument is Scalar or Enum.
+	isInputObject bool
+
+	// If argument is passed an input object, we want to gather counts
+	// for all the field coordinates with non-null values used in the argument.
+	//
+	// For example, for
+	//    "input A { x: Int, rec: A! }"
+	// following value is passed:
+	//    { x: 1, rec: { x: 2, rec: { x: 3 } } },
+	// then coordCounts will be:
+	//    { {"A", "rec"}: 2, {"A", "x"}: 3 }
+	//
+	coordCounts map[FieldCoordinate]int
+	isScalar    bool
 }
 
 // TotalCost calculates the total cost of this node and all descendants
@@ -269,7 +242,7 @@ type CostCalculator struct {
 func NewCostCalculator() *CostCalculator {
 	tree := &CostTree{
 		Root: &CostTreeNode{
-			FieldName:  "_root",
+			fieldCoord: FieldCoordinate{"_none", "_root"},
 			Multiplier: 1,
 		},
 	}
@@ -332,19 +305,20 @@ func (c *CostCalculator) CurrentNode() *CostTreeNode {
 // EnterField is called when entering a field during AST traversal.
 // It creates a skeleton node and pushes it onto the stack.
 // The actual cost calculation happens in LeaveField when fieldPlanners data is available.
-func (c *CostCalculator) EnterField(fieldRef int, typeName, fieldName string, isListType bool, arguments map[string]int) {
+func (c *CostCalculator) EnterField(fieldRef int, coord FieldCoordinate, namedTypeName string,
+	isListType bool, arguments map[string]ArgumentInfo) {
 	if !c.enabled {
 		return
 	}
 
-	// Create skeleton cost node - costs will be calculated in LeaveField
+	// Create skeleton cost node. Costs will be calculated in LeaveField
 	node := &CostTreeNode{
-		FieldRef:   fieldRef,
-		TypeName:   typeName,
-		FieldName:  fieldName,
-		Multiplier: 1,
-		isListType: isListType,
-		arguments:  arguments,
+		fieldRef:      fieldRef,
+		fieldCoord:    coord,
+		Multiplier:    1,
+		fieldTypeName: namedTypeName,
+		isListType:    isListType,
+		arguments:     arguments,
 	}
 
 	// Attach to parent
@@ -370,12 +344,12 @@ func (c *CostCalculator) LeaveField(fieldRef int, dsHashes []DSHash) {
 	}
 
 	current := c.stack[len(c.stack)-1]
-	if current.FieldRef != fieldRef {
+	if current.fieldRef != fieldRef {
 		return
 	}
 
 	// Now calculate costs with the data source information
-	current.DataSourceHashes = dsHashes
+	current.dataSourceHashes = dsHashes
 	c.calculateNodeCosts(current)
 
 	// Pop from stack
@@ -386,28 +360,32 @@ func (c *CostCalculator) LeaveField(fieldRef int, dsHashes []DSHash) {
 // calculateNodeCosts implements IBM GraphQL Cost Specification
 // See: https://ibm.github.io/graphql-specs/cost-spec.html#sec-Field-Cost
 func (c *CostCalculator) calculateNodeCosts(node *CostTreeNode) {
-	typeName := node.TypeName
-	fieldName := node.FieldName
-
 	// Get the cost config (use first data source config, or default)
 	var config *DataSourceCostConfig
-	if len(node.DataSourceHashes) > 0 {
-		config = c.getCostConfig(node.DataSourceHashes[0])
+	if len(node.dataSourceHashes) > 0 {
+		config = c.getCostConfig(node.dataSourceHashes[0])
 	} else {
 		config = c.getDefaultCostConfig()
 	}
 
-	node.FieldCost = config.GetFieldCost(typeName, fieldName)
-
-	for argName := range node.arguments {
-		node.ArgumentsCost += config.GetArgumentCost(typeName, fieldName, argName)
-		// TODO: arguments should include costs of input object fields
+	fieldConfig := config.Fields[node.fieldCoord]
+	if fieldConfig != nil {
+		node.FieldCost = fieldConfig.Weight
+	} else {
+		// use the weight of the type returned by this field
+		if typeWeight, ok := config.Types[node.fieldTypeName]; ok {
+			node.FieldCost = typeWeight
+		}
 	}
 
-	// TODO: Directives Cost should includes the weights of all its arguments
-
-	// TODO: arguments, directives and fields of input object are mutually recursive,
-	// we should recurse on them and sum all of possible values.
+	// TODO: check how we fill node.arguments
+	for argName := range node.arguments {
+		weight, ok := fieldConfig.ArgumentWeights[argName]
+		if ok {
+			node.ArgumentsCost += weight
+		}
+		// TODO: arguments should include costs of input object fields
+	}
 
 	// Compute multiplier
 	if !node.isListType {
@@ -415,27 +393,24 @@ func (c *CostCalculator) calculateNodeCosts(node *CostTreeNode) {
 		return
 	}
 
-	fieldCostConfig := config.GetFieldCostConfig(typeName, fieldName)
-	if fieldCostConfig == nil {
+	if fieldConfig == nil {
 		node.Multiplier = 1
 		return
 	}
 	node.Multiplier = 0
-	for _, slicingArg := range fieldCostConfig.SlicingArguments {
-		if argValue, ok := node.arguments[slicingArg]; ok && argValue > 0 {
-			if argValue > node.Multiplier {
-				node.Multiplier = argValue
-			}
+	for _, slicingArg := range fieldConfig.SlicingArguments {
+		argInfo, ok := node.arguments[slicingArg]
+		if ok && argInfo.isScalar && argInfo.intValue > node.Multiplier{
+				node.Multiplier = argInfo.intValue
 		}
 	}
-	if node.Multiplier == 0 && fieldCostConfig.AssumedSize > 0 {
-		node.Multiplier = fieldCostConfig.AssumedSize
+	if node.Multiplier == 0 && fieldConfig.AssumedSize > 0 {
+		node.Multiplier = fieldConfig.AssumedSize
 		return
 	}
-	node.Multiplier = config.GetDefaultListCost()
+	node.Multiplier = StaticCostDefaults.List
 
 }
-
 
 // GetTree returns the cost tree
 func (c *CostCalculator) GetTree() *CostTree {

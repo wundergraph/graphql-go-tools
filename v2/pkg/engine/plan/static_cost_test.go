@@ -14,18 +14,17 @@ const (
 
 func TestCostDefaults(t *testing.T) {
 	// Test that defaults are set correctly
-	assert.Equal(t, 1, StaticCostDefaults.FieldCost)
-	assert.Equal(t, 0, StaticCostDefaults.ArgumentCost)
-	assert.Equal(t, 0, StaticCostDefaults.ScalarCost)
-	assert.Equal(t, 0, StaticCostDefaults.EnumCost)
-	assert.Equal(t, 1, StaticCostDefaults.ObjectCost)
-	assert.Equal(t, 10, StaticCostDefaults.ListCost)
+	assert.Equal(t, 1, StaticCostDefaults.Field)
+	assert.Equal(t, 0, StaticCostDefaults.Scalar)
+	assert.Equal(t, 0, StaticCostDefaults.Enum)
+	assert.Equal(t, 1, StaticCostDefaults.Object)
+	assert.Equal(t, 10, StaticCostDefaults.List)
 }
 
 func TestNewDataSourceCostConfig(t *testing.T) {
 	config := NewDataSourceCostConfig()
 
-	assert.NotNil(t, config.FieldConfig)
+	assert.NotNil(t, config.Fields)
 	assert.NotNil(t, config.ScalarWeights)
 	assert.NotNil(t, config.EnumWeights)
 }
@@ -35,10 +34,10 @@ func TestDataSourceCostConfig_GetFieldCost(t *testing.T) {
 
 	// Test default cost
 	cost := config.GetFieldCost("Query", "users")
-	assert.Equal(t, StaticCostDefaults.FieldCost, cost)
+	assert.Equal(t, StaticCostDefaults.Field, cost)
 
 	// Test custom cost
-	config.FieldConfig["Query.users"] = &FieldCostConfig{
+	config.Fields["Query.users"] = &FieldCostConfig{
 		Weight: 5,
 	}
 	cost = config.GetFieldCost("Query", "users")
@@ -57,7 +56,7 @@ func TestDataSourceCostConfig_GetSlicingArguments(t *testing.T) {
 	assert.Nil(t, args)
 
 	// Test with list size config
-	config.FieldConfig["Query.users"] = &FieldCostConfig{
+	config.Fields["Query.users"] = &FieldCostConfig{
 		Weight:                    1,
 		AssumedSize:               100,
 		SlicingArguments:          []string{"first", "last"},
@@ -116,14 +115,14 @@ func TestCostCalculator_BasicFlow(t *testing.T) {
 	calc.Enable()
 
 	config := NewDataSourceCostConfig()
-	config.FieldConfig["Query.users"] = &FieldCostConfig{
+	config.Fields["Query.users"] = &FieldCostConfig{
 		Weight:           2,
 		SlicingArguments: []string{"first"},
 	}
 	calc.SetDataSourceCostConfig(testDSHash1, config)
 
 	// Simulate entering and leaving fields (two-phase: Enter creates skeleton, Leave calculates costs)
-	calc.EnterField(1, "Query", "users", true, map[string]int{"first":10})
+	calc.EnterField(1, "Query", "users", true, map[string]int{"first": 10})
 	calc.EnterField(2, "User", "name", false, nil)
 	calc.LeaveField(2, []DSHash{testDSHash1})
 	calc.EnterField(3, "User", "email", false, nil)
@@ -157,13 +156,13 @@ func TestCostCalculator_MultipleDataSources(t *testing.T) {
 
 	// Configure two different data sources with different weights
 	config1 := NewDataSourceCostConfig()
-	config1.FieldConfig["User.name"] = &FieldCostConfig{
+	config1.Fields["User.name"] = &FieldCostConfig{
 		Weight: 2,
 	}
 	calc.SetDataSourceCostConfig(testDSHash1, config1)
 
 	config2 := NewDataSourceCostConfig()
-	config2.FieldConfig["User.name"] = &FieldCostConfig{
+	config2.Fields["User.name"] = &FieldCostConfig{
 		Weight: 3,
 	}
 	calc.SetDataSourceCostConfig(testDSHash2, config2)
@@ -218,9 +217,9 @@ func TestNilCostConfig(t *testing.T) {
 	// All methods should handle nil gracefully
 	assert.Equal(t, 0, config.GetFieldCost("Type", "field"))
 	assert.Equal(t, 0, config.GetArgumentCost("Type", "field", "arg"))
-	assert.Equal(t, 0, config.GetScalarCost("String"))
-	assert.Equal(t, 0, config.GetEnumCost("Status"))
-	assert.Equal(t, 0, config.GetObjectCost())
+	assert.Equal(t, 0, config.ScalarWeight("String"))
+	assert.Equal(t, 0, config.EnumWeight("Status"))
+	assert.Equal(t, 0, config.ObjectWeight())
 
 	assert.Nil(t, config.GetSlicingArguments("Type", "field"))
 	assert.Equal(t, 0, config.GetAssumedListSize("Type", "field"))
@@ -233,7 +232,7 @@ func TestCostCalculator_TwoPhaseFlow(t *testing.T) {
 	calc.Enable()
 
 	config := NewDataSourceCostConfig()
-	config.FieldConfig["Query.users"] = &FieldCostConfig{
+	config.Fields["Query.users"] = &FieldCostConfig{
 		Weight: 5,
 	}
 	calc.SetDataSourceCostConfig(testDSHash1, config)
@@ -261,7 +260,7 @@ func TestCostCalculator_ListSizeAssumedSize(t *testing.T) {
 	calc.Enable()
 
 	config := NewDataSourceCostConfig()
-	config.FieldConfig["Query.users"] = &FieldCostConfig{
+	config.Fields["Query.users"] = &FieldCostConfig{
 		Weight:           1,
 		AssumedSize:      50, // Assume 50 items if no slicing arg
 		SlicingArguments: []string{"first", "last"},
@@ -289,7 +288,7 @@ func TestCostCalculator_ListSizeSlicingArg(t *testing.T) {
 	calc.Enable()
 
 	config := NewDataSourceCostConfig()
-	config.FieldConfig["Query.users"] = &FieldCostConfig{
+	config.Fields["Query.users"] = &FieldCostConfig{
 		Weight:           1,
 		AssumedSize:      50, // This should NOT be used
 		SlicingArguments: []string{"first", "last"},
@@ -297,7 +296,7 @@ func TestCostCalculator_ListSizeSlicingArg(t *testing.T) {
 	calc.SetDataSourceCostConfig(testDSHash1, config)
 
 	// Enter field with "first: 10" argument
-	calc.EnterField(1, "Query", "users", true, map[string]int{"first":10})
+	calc.EnterField(1, "Query", "users", true, map[string]int{"first": 10})
 	calc.LeaveField(1, []DSHash{testDSHash1})
 
 	// multiplier should be 10 (from slicing arg), not 50
