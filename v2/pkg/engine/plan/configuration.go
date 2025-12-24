@@ -46,6 +46,8 @@ type Configuration struct {
 	// entity.
 	// This option requires BuildFetchReasons set to true.
 	ValidateRequiredExternalFields bool
+
+	ComputeStaticCost bool
 }
 
 type DebugConfiguration struct {

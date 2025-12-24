@@ -61,12 +61,13 @@ func NewPlanner(config Configuration) (*Planner, error) {
 	planningWalker := astvisitor.NewWalkerWithID(48, "PlanningWalker")
 
 	// Initialize cost calculator and configure from data sources
-	costCalc := NewCostCalculator()
-	costCalc.Enable()
-	for _, ds := range config.DataSources {
-		if costConfig := ds.GetCostConfig(); costConfig != nil {
-			costCalc.SetDataSourceCostConfig(ds.Hash(), costConfig)
-			costCalc.Enable()
+	var costCalc *CostCalculator
+	if config.ComputeStaticCost {
+		costCalc = NewCostCalculator()
+		for _, ds := range config.DataSources {
+			if costConfig := ds.GetCostConfig(); costConfig != nil {
+				costCalc.SetDataSourceCostConfig(ds.Hash(), costConfig)
+			}
 		}
 	}
 
@@ -167,6 +168,10 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	p.planningVisitor.fieldRefDependsOnFieldRefs = selectionsConfig.fieldRefDependsOn
 	p.planningVisitor.fieldDependencyKind = selectionsConfig.fieldDependencyKind
 	p.planningVisitor.fieldRefDependants = inverseMap(selectionsConfig.fieldRefDependsOn)
+	// if p.config.ComputeStaticCost {
+	// 	p.planningVisitor.costCalculator = NewCostCalculator()
+	// 	p.planningVisitor.costCalculator.Enable()
+	// }
 
 	p.planningWalker.ResetVisitors()
 	p.planningWalker.SetVisitorFilter(p.planningVisitor)
@@ -211,6 +216,11 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	p.planningWalker.Walk(operation, definition, report)
 	if report.HasErrors() {
 		return
+	}
+
+	if p.config.ComputeStaticCost {
+		cost := p.planningVisitor.costCalculator.GetTotalCost()
+		p.planningVisitor.plan.SetStaticCost(cost)
 	}
 
 	return p.planningVisitor.plan

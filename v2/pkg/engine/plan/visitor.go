@@ -422,7 +422,7 @@ func (v *Visitor) mapFieldConfig(ref int) {
 // enterFieldCost creates a skeleton cost node when entering a field.
 // Actual cost calculation is deferred to leaveFieldCost when fieldPlanners data is available.
 func (v *Visitor) enterFieldCost(ref int) {
-	if v.costCalculator == nil || !v.costCalculator.IsEnabled() {
+	if v.costCalculator == nil {
 		return
 	}
 
@@ -545,14 +545,6 @@ func (v *Visitor) extractFieldArguments(ref int) map[string]ArgumentInfo {
 //
 // 	return arguments
 // }
-
-// GetTotalCost returns the total calculated cost for the query
-func (v *Visitor) GetTotalCost() int {
-	if v.costCalculator == nil {
-		return 0
-	}
-	return v.costCalculator.GetTotalCost()
-}
 
 func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *resolve.FieldInfo {
 	if v.Config.DisableIncludeInfo {
@@ -765,7 +757,7 @@ func (v *Visitor) LeaveField(ref int) {
 
 	// Calculate costs and pop from cost stack
 	// This is done in LeaveField because fieldPlanners is populated by AllowVisitor on LeaveField
-	if v.costCalculator != nil && v.costCalculator.IsEnabled() {
+	if v.costCalculator != nil {
 		dsHashes := v.getFieldDataSourceHashes(ref)
 		v.costCalculator.LeaveField(ref, dsHashes)
 	}

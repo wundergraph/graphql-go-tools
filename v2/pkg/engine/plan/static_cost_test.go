@@ -1,4 +1,6 @@
-// package plan
+package plan
+
+// Tests below are commented out during development
 //
 // import (
 // 	"testing"

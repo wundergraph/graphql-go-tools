@@ -225,9 +225,6 @@ type CostCalculator struct {
 
 	// defaultConfig is used when no data source specific config exists
 	defaultConfig *DataSourceCostConfig
-
-	// enabled controls whether cost calculation is active
-	enabled bool
 }
 
 // NewCostCalculator creates a new cost calculator
@@ -242,16 +239,10 @@ func NewCostCalculator() *CostCalculator {
 		stack:       make([]*CostTreeNode, 0, 16),
 		costConfigs: make(map[DSHash]*DataSourceCostConfig),
 		tree:        tree,
-		enabled:     false,
 	}
 	c.stack = append(c.stack, c.tree.Root)
 
 	return &c
-}
-
-// Enable activates cost calculation
-func (c *CostCalculator) Enable() {
-	c.enabled = true
 }
 
 // SetDataSourceCostConfig sets the cost config for a specific data source
@@ -281,11 +272,6 @@ func (c *CostCalculator) SetDataSourceCostConfig(dsHash DSHash, config *DataSour
 // 	return &DataSourceCostConfig{}
 // }
 
-// IsEnabled returns whether cost calculation is enabled
-func (c *CostCalculator) IsEnabled() bool {
-	return c.enabled
-}
-
 // CurrentNode returns the current node on the stack
 func (c *CostCalculator) CurrentNode() *CostTreeNode {
 	if len(c.stack) == 0 {
@@ -299,9 +285,6 @@ func (c *CostCalculator) CurrentNode() *CostTreeNode {
 // The actual cost calculation happens in LeaveField when fieldPlanners data is available.
 func (c *CostCalculator) EnterField(fieldRef int, coord FieldCoordinate, namedTypeName string,
 	isListType bool, arguments map[string]ArgumentInfo) {
-	if !c.enabled {
-		return
-	}
 
 	// Create skeleton cost node. Costs will be calculated in LeaveField
 	node := &CostTreeNode{
@@ -326,10 +309,6 @@ func (c *CostCalculator) EnterField(fieldRef int, coord FieldCoordinate, namedTy
 // LeaveField is called when leaving a field during AST traversal.
 // This is where we calculate costs because fieldPlanners data is now available.
 func (c *CostCalculator) LeaveField(fieldRef int, dsHashes []DSHash) {
-	if !c.enabled {
-		return
-	}
-
 	// Find the current node (should match fieldRef)
 	if len(c.stack) <= 1 { // Keep root on stack
 		return

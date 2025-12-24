@@ -201,17 +201,19 @@ func TestWithAdditionalHttpHeaders(t *testing.T) {
 }
 
 type ExecutionEngineTestCase struct {
-	schema               *graphql.Schema
-	operation            func(t *testing.T) graphql.Request
-	dataSources          []plan.DataSource
-	fields               plan.FieldConfigurations
-	engineOptions        []ExecutionOptions
+	schema           *graphql.Schema
+	operation        func(t *testing.T) graphql.Request
+	dataSources      []plan.DataSource
+	fields           plan.FieldConfigurations
+	engineOptions    []ExecutionOptions
+	customResolveMap map[string]resolve.CustomResolve
+	skipReason       string
+	indentJSON       bool
+
 	expectedResponse     string
 	expectedJSONResponse string
 	expectedFixture      string
-	customResolveMap     map[string]resolve.CustomResolve
-	skipReason           string
-	indentJSON           bool
+	expectedStaticCost   int
 }
 
 type _executionTestOptions struct {
@@ -220,6 +222,7 @@ type _executionTestOptions struct {
 	apolloRouterCompatibilitySubrequestHTTPError bool
 	propagateFetchReasons                        bool
 	validateRequiredExternalFields               bool
+	computeStaticCost                            bool
 }
 
 type executionTestOptions func(*_executionTestOptions)
@@ -244,6 +247,12 @@ func validateRequiredExternalFields() executionTestOptions {
 	}
 }
 
+func computeStaticCost() executionTestOptions {
+	return func(options *_executionTestOptions) {
+		options.computeStaticCost = true
+	}
+}
+
 func TestExecutionEngine_Execute(t *testing.T) {
 	run := func(testCase ExecutionEngineTestCase, withError bool, expectedErrorMessage string, options ...executionTestOptions) func(t *testing.T) {
 		t.Helper()
@@ -264,9 +273,9 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				PrintOperationTransformations: true,
 				PrintPlanningPaths:            true,
 				// PrintNodeSuggestions:          true,
-				PrintQueryPlans:               true,
-				ConfigurationVisitor:          true,
-				PlanningVisitor:               true,
+				PrintQueryPlans:      true,
+				ConfigurationVisitor: true,
+				PlanningVisitor:      true,
 				// DatasourceVisitor:             true,
 			}
 
@@ -278,13 +287,15 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			}
 			engineConf.plannerConfig.BuildFetchReasons = opts.propagateFetchReasons
 			engineConf.plannerConfig.ValidateRequiredExternalFields = opts.validateRequiredExternalFields
-			engine, err := NewExecutionEngine(ctx, abstractlogger.Noop{}, engineConf, resolve.ResolverOptions{
+			engineConf.plannerConfig.ComputeStaticCost = opts.computeStaticCost
+			resolveOpts := resolve.ResolverOptions{
 				MaxConcurrency:    1024,
 				ResolvableOptions: opts.resolvableOptions,
 				ApolloRouterCompatibilitySubrequestHTTPError: opts.apolloRouterCompatibilitySubrequestHTTPError,
 				PropagateFetchReasons:                        opts.propagateFetchReasons,
 				ValidateRequiredExternalFields:               opts.validateRequiredExternalFields,
-			})
+			}
+			engine, err := NewExecutionEngine(ctx, abstractlogger.Noop{}, engineConf, resolveOpts)
 			require.NoError(t, err)
 
 			operation := testCase.operation(t)
@@ -312,6 +323,12 @@ func TestExecutionEngine_Execute(t *testing.T) {
 
 			if testCase.expectedResponse != "" {
 				assert.Equal(t, testCase.expectedResponse, actualResponse)
+			}
+
+			if testCase.expectedStaticCost != 0 {
+				lastPlan := engine.lastPlan
+				assert.NotNil(t, lastPlan)
+				assert.Equal(t, testCase.expectedStaticCost, lastPlan.GetStaticCost())
 			}
 
 			if withError {
