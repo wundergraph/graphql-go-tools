@@ -438,7 +438,7 @@ func (v *Visitor) enterFieldCost(ref int) {
 	isListType := v.Definition.TypeIsList(fieldDefinitionTypeRef)
 	namedTypeName := v.Definition.ResolveTypeNameString(fieldDefinitionTypeRef)
 
-	arguments := v.costFieldArguments(ref)
+	arguments := v.extractFieldArguments(ref)
 
 	// directives := v.costFieldDirectives(ref)
 
@@ -464,8 +464,8 @@ func (v *Visitor) getFieldDataSourceHashes(ref int) []DSHash {
 	return dsHashes
 }
 
-// costFieldArguments extracts arguments from a field for cost calculation
-func (v *Visitor) costFieldArguments(ref int) map[string]ArgumentInfo {
+// extractFieldArguments extracts arguments from a field for cost calculation
+func (v *Visitor) extractFieldArguments(ref int) map[string]ArgumentInfo {
 	argRefs := v.Operation.FieldArguments(ref)
 	if len(argRefs) == 0 {
 		return nil
@@ -477,7 +477,7 @@ func (v *Visitor) costFieldArguments(ref int) map[string]ArgumentInfo {
 		argValue := v.Operation.ArgumentValue(argRef)
 		argInfo := ArgumentInfo{}
 
-		fmt.Printf("costFieldArguments: argName=%s, argValue=%v\n", argName, argValue)
+		fmt.Printf("extractFieldArguments: argName=%s, argValue=%v\n", argName, argValue)
 		val, err := v.Operation.PrintValueBytes(argValue, nil)
 		if err != nil {
 			panic(err)
@@ -486,16 +486,15 @@ func (v *Visitor) costFieldArguments(ref int) map[string]ArgumentInfo {
 		switch argValue.Kind {
 		case ast.ValueKindBoolean, ast.ValueKindEnum, ast.ValueKindString, ast.ValueKindFloat:
 			argInfo.isScalar = true
+			argInfo.typeName = v.Operation.TypeNameString(argValue.Ref)
 		case ast.ValueKindNull:
 			continue
 		case ast.ValueKindInteger:
 			// Extract integer value if present (for multipliers like "first", "limit")
 			argInfo.intValue = int(v.Operation.IntValueAsInt(argValue.Ref))
 			argInfo.isScalar = true
+			argInfo.typeName = v.Operation.TypeNameString(argValue.Ref)
 		case ast.ValueKindVariable:
-			// TODO: we need to analyze variables that contains input object fields.
-			// If these fields has weight attached, use them for calculation.
-			// Variables are not inlined at this stage, so we need to inspect them via AST.
 			argInfo.isInputObject = true
 			variableValue := v.Operation.VariableValueNameString(argValue.Ref)
 			if !v.Operation.OperationDefinitionHasVariableDefinition(v.operationDefinition, variableValue) {
@@ -507,10 +506,14 @@ func (v *Visitor) costFieldArguments(ref int) map[string]ArgumentInfo {
 			}
 			// variableTypeRef := v.Operation.VariableDefinitions[variableDefinition].Type
 			argInfo.typeName = v.Operation.ResolveTypeNameString(v.Operation.VariableDefinitions[variableDefinition].Type)
+			// TODO: we need to analyze variables that contains input object fields.
+			// If these fields has weight attached, use them for calculation.
+			// Variables are not inlined at this stage, so we need to inspect them via AST.
 
 		case ast.ValueKindList:
-			// should we do something? is it possible at all?
-			continue
+			unwrappedTypeRef := v.Operation.ResolveUnderlyingType(argValue.Ref)
+			argInfo.typeName = v.Operation.TypeNameString(unwrappedTypeRef)
+			// how to figure out if the unwrapped is scalar?
 		default:
 			fmt.Printf("unhandled case: %v\n", argValue.Kind)
 			continue

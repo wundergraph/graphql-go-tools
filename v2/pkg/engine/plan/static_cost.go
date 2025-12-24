@@ -1,5 +1,7 @@
 package plan
 
+import "fmt"
+
 // StaticCostDefaults contains default cost values when no specific costs are configured
 var StaticCostDefaults = WeightDefaults{
 	Field:  1,
@@ -75,13 +77,6 @@ func NewDataSourceCostConfig() *DataSourceCostConfig {
 	}
 }
 
-func (c *DataSourceCostConfig) GetFieldCostConfig(typeName, fieldName string) *FieldCostConfig {
-	if c == nil {
-		return nil
-	}
-	return c.Fields[FieldCoordinate{typeName, fieldName}]
-}
-
 // ScalarWeight returns the cost for a scalar type
 func (c *DataSourceCostConfig) ScalarWeight(scalarName string) int {
 	if c == nil {
@@ -113,10 +108,6 @@ func (c *DataSourceCostConfig) ObjectWeight(name string) int {
 		return cost
 	}
 	return StaticCostDefaults.Object
-}
-
-func (c *DataSourceCostConfig) GetDefaultListCost() int {
-	return 10
 }
 
 // CostTreeNode represents a node in the cost calculation tree
@@ -163,10 +154,6 @@ type ArgumentInfo struct {
 	// The name of an unwrapped type.
 	typeName string
 
-	// isInputObject is true for an input object passed to the argument,
-	// otherwise the argument is Scalar or Enum.
-	isInputObject bool
-
 	// If argument is passed an input object, we want to gather counts
 	// for all the field coordinates with non-null values used in the argument.
 	//
@@ -178,7 +165,12 @@ type ArgumentInfo struct {
 	//    { {"A", "rec"}: 2, {"A", "x"}: 3 }
 	//
 	coordCounts map[FieldCoordinate]int
-	isScalar    bool
+
+	// isInputObject is true for an input object passed to the argument,
+	// otherwise the argument is Scalar or Enum.
+	isInputObject bool
+
+	isScalar bool
 }
 
 // TotalCost calculates the total cost of this node and all descendants
@@ -267,27 +259,27 @@ func (c *CostCalculator) SetDataSourceCostConfig(dsHash DSHash, config *DataSour
 	c.costConfigs[dsHash] = config
 }
 
-// SetDefaultCostConfig sets the default cost config
-func (c *CostCalculator) SetDefaultCostConfig(config *DataSourceCostConfig) {
-	c.defaultConfig = config
-}
+// // SetDefaultCostConfig sets the default cost config
+// func (c *CostCalculator) SetDefaultCostConfig(config *DataSourceCostConfig) {
+// 	c.defaultConfig = config
+// }
 
-// getCostConfig returns the cost config for a specific data source hash
-func (c *CostCalculator) getCostConfig(dsHash DSHash) *DataSourceCostConfig {
-	if config, ok := c.costConfigs[dsHash]; ok {
-		return config
-	}
-	return c.getDefaultCostConfig()
-}
+// // getCostConfig returns the cost config for a specific data source hash
+// func (c *CostCalculator) getCostConfig(dsHash DSHash) *DataSourceCostConfig {
+// 	if config, ok := c.costConfigs[dsHash]; ok {
+// 		return config
+// 	}
+// 	return c.getDefaultCostConfig()
+// }
 
-// getDefaultCostConfig returns the default cost config when no specific data source is available
-func (c *CostCalculator) getDefaultCostConfig() *DataSourceCostConfig {
-	if c.defaultConfig != nil {
-		return c.defaultConfig
-	}
-	// Return a dummy config with defaults
-	return &DataSourceCostConfig{}
-}
+// // getDefaultCostConfig returns the default cost config when no specific data source is available
+// func (c *CostCalculator) getDefaultCostConfig() *DataSourceCostConfig {
+// 	if c.defaultConfig != nil {
+// 		return c.defaultConfig
+// 	}
+// 	// Return a dummy config with defaults
+// 	return &DataSourceCostConfig{}
+// }
 
 // IsEnabled returns whether cost calculation is enabled
 func (c *CostCalculator) IsEnabled() bool {
@@ -356,59 +348,69 @@ func (c *CostCalculator) LeaveField(fieldRef int, dsHashes []DSHash) {
 	c.stack = c.stack[:len(c.stack)-1]
 }
 
-// calculateNodeCosts fills in the cost values for a node based on its data sources
-// calculateNodeCosts implements IBM GraphQL Cost Specification
+// calculateNodeCosts fills in the cost values for a node based on its data sources.
+// It implements IBM GraphQL Cost Specification.
 // See: https://ibm.github.io/graphql-specs/cost-spec.html#sec-Field-Cost
 func (c *CostCalculator) calculateNodeCosts(node *CostTreeNode) {
-	// Get the cost config (use first data source config, or default)
-	var config *DataSourceCostConfig
-	if len(node.dataSourceHashes) > 0 {
-		config = c.getCostConfig(node.dataSourceHashes[0])
-	} else {
-		config = c.getDefaultCostConfig()
-	}
-
-	fieldConfig := config.Fields[node.fieldCoord]
-	if fieldConfig != nil {
-		node.FieldCost = fieldConfig.Weight
-	} else {
-		// use the weight of the type returned by this field
-		if typeWeight, ok := config.Types[node.fieldTypeName]; ok {
-			node.FieldCost = typeWeight
-		}
-	}
-
-	// TODO: check how we fill node.arguments
-	for argName := range node.arguments {
-		weight, ok := fieldConfig.ArgumentWeights[argName]
-		if ok {
-			node.ArgumentsCost += weight
-		}
-		// TODO: arguments should include costs of input object fields
-	}
-
-	// Compute multiplier
-	if !node.isListType {
-		node.Multiplier = 1
+	// For every data source we get different weights.
+	// For this node we sum weights of the field and its arguments.
+	// For the multiplier we pick the maximum.
+	if len(node.dataSourceHashes) <= 0 {
+		// no data source is responsible for this field
 		return
 	}
 
-	if fieldConfig == nil {
-		node.Multiplier = 1
-		return
-	}
 	node.Multiplier = 0
-	for _, slicingArg := range fieldConfig.SlicingArguments {
-		argInfo, ok := node.arguments[slicingArg]
-		if ok && argInfo.isScalar && argInfo.intValue > node.Multiplier{
-				node.Multiplier = argInfo.intValue
+
+	for _, dsHash := range node.dataSourceHashes {
+		config, ok := c.costConfigs[dsHash]
+		if !ok {
+			fmt.Printf("WARNING: no cost config for data source %v\n", dsHash)
+			continue
+		}
+
+		fieldConfig := config.Fields[node.fieldCoord]
+		if fieldConfig != nil {
+			node.FieldCost = fieldConfig.Weight
+		} else {
+			// use the weight of the type returned by this field
+			if typeWeight, ok := config.Types[node.fieldTypeName]; ok {
+				node.FieldCost = typeWeight
+			}
+		}
+
+		for argName := range node.arguments {
+			weight, ok := fieldConfig.ArgumentWeights[argName]
+			if ok {
+				node.ArgumentsCost += weight
+			}
+			// TODO: arguments should include costs of input object fields
+		}
+
+		// Compute multiplier as the maximum of data sources.
+		if !node.isListType {
+			node.Multiplier = 1
+			continue
+		}
+
+		if fieldConfig == nil {
+			node.Multiplier = 1
+			continue
+		}
+		multiplier := -1
+		for _, slicingArg := range fieldConfig.SlicingArguments {
+			argInfo, ok := node.arguments[slicingArg]
+			if ok && argInfo.isScalar && argInfo.intValue > 0 && argInfo.intValue > multiplier {
+				multiplier = argInfo.intValue
+			}
+		}
+		if multiplier == -1 && fieldConfig.AssumedSize > 0 {
+			multiplier = fieldConfig.AssumedSize
+		}
+		if multiplier > node.Multiplier {
+			node.Multiplier = multiplier
 		}
 	}
-	if node.Multiplier == 0 && fieldConfig.AssumedSize > 0 {
-		node.Multiplier = fieldConfig.AssumedSize
-		return
-	}
-	node.Multiplier = StaticCostDefaults.List
 
 }
 
@@ -422,11 +424,4 @@ func (c *CostCalculator) GetTree() *CostTree {
 func (c *CostCalculator) GetTotalCost() int {
 	c.tree.Calculate()
 	return c.tree.Total
-}
-
-// CostFieldArgument represents a parsed field argument for cost calculation
-type CostFieldArgument struct {
-	Name     string
-	IntValue int
-	// Add other value types as needed
 }
