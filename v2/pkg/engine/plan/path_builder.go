@@ -71,7 +71,7 @@ func (p *PathBuilder) CreatePlanningPaths(operation, definition *ast.Document, r
 	// - walker.Stop was called and visiting was halted
 
 	if p.config.Debug.PrintPlanningPaths {
-		fmt.Printf("\nPlanned paths on initial run #1:\n")
+		fmt.Printf("\nPath builder initial run #1:\n")
 		p.printRevisitInfo()
 		p.printPlanningPaths(1)
 	}
@@ -89,7 +89,7 @@ func (p *PathBuilder) CreatePlanningPaths(operation, definition *ast.Document, r
 		p.visitor.populateMissingPaths()
 
 		if p.config.Debug.PrintPlanningPaths {
-			fmt.Printf("\nPlanned paths on run #%d:\n", i+1)
+			fmt.Printf("\nPath builder run #%d:\n", i+1)
 			p.printRevisitInfo()
 			p.printPlanningPaths(i + 1)
 		}
@@ -136,19 +136,22 @@ func (p *PathBuilder) removeUnnecessaryFragmentPaths() (hasRemovedPaths bool) {
 
 func (p *PathBuilder) printRevisitInfo() {
 	if p.visitor.shouldRevisit() {
-		fmt.Println("  should revisit")
+		fmt.Println("  Will revisit")
 	}
-	if p.visitor.hasMissingPaths() {
-		fmt.Println("  has missing paths")
-	}
-	if p.visitor.hasFieldsWaitingForDependency() {
-		fmt.Println("  has fields waiting for dependency")
-	}
-
 	p.printMissingPaths()
+
+	if p.visitor.hasFieldsWaitingForDependency() {
+		fmt.Println("\n  Fields waiting for dependency:")
+
+		for fieldKey, deps := range p.visitor.fieldDependsOn {
+			fmt.Printf("    Field ref: %d ds: %d depends on fields: %v\n", fieldKey.fieldRef, fieldKey.dsHash, deps)
+		}
+	}
 }
 
 func (p *PathBuilder) printPlanningPaths(run int) {
+	fmt.Println("\nPaths per planner:")
+
 	for i, planner := range p.visitor.planners {
 		fmt.Printf("\nRun #%d. Planner ID %d\n", run, i)
 		fmt.Printf("  ParentPath: %s\n", planner.ParentPath())
