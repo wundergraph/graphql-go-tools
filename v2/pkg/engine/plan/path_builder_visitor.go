@@ -593,19 +593,6 @@ func (c *pathBuilderVisitor) LeaveField(ref int) {
 	})
 }
 
-type currentFieldInfo struct {
-	fieldRef            int
-	typeName            string
-	fieldName           string
-	currentPath         string
-	parentPath          string
-	precedingParentPath string
-	suggestion          *NodeSuggestion
-	ds                  DataSource
-	shareable           bool
-	defferID            string
-}
-
 func (c *pathBuilderVisitor) handlePlanningField(field *currentFieldInfo) {
 	plannedOnPlannerIds := c.fieldsPlannedOn[field.fieldRef]
 
@@ -1329,11 +1316,6 @@ func (c *pathBuilderVisitor) handleMissingPath(planned bool, field *currentField
 	if allSuggestionsPlanned {
 		// all suggestions were planned, so we should not record a missing path
 		return
-	}
-
-	// todo: cleanup
-	if !field.shareable {
-		c.walker.SkipNode()
 	}
 }
 

@@ -598,11 +598,12 @@ func (f *treeBuilderVisitor) collectFieldInfo(fieldRef int) {
 		parentPathWithoutFragment:   parentPathWithoutFragment,
 		currentPathWithoutFragments: currentPathWithoutFragments,
 		isTypeName:                  isTypeName,
-		deferInfo:                   f.deferInfo(ref),
+		enclosingTypeDefinition:     f.walker.EnclosingTypeDefinition,
+		deferInfo:                   f.deferInfo(fieldRef),
 	}
 }
 
-func (f *fieldInfoVisitor) deferInfo(fieldRef int) *DeferInfo {
+func (f *treeBuilderVisitor) deferInfo(fieldRef int) *DeferInfo {
 	deferDirectiveRef, exists := f.operation.Fields[fieldRef].Directives.HasDirectiveByNameBytes(f.operation, literal.DEFER_INTERNAL)
 	if !exists {
 		return nil
