@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.242](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.241...v2.0.0-rc.242) (2025-12-19)
+
+
+### Bug Fixes
+
+* skip invalid locations ([#1357](https://github.com/wundergraph/graphql-go-tools/issues/1357)) ([5154906](https://github.com/wundergraph/graphql-go-tools/commit/515490670712e61910e346c6d43b500a5b90c6a2))
+
 ## [2.0.0-rc.241](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.240...v2.0.0-rc.241) (2025-12-10)
 
 
