@@ -4,20 +4,18 @@ import "fmt"
 
 // StaticCostDefaults contains default cost values when no specific costs are configured
 var StaticCostDefaults = WeightDefaults{
-	Field:  1,
-	Scalar: 0,
-	Enum:   0,
-	Object: 1,
-	List:   10, // The assumed maximum size of a list for fields that return lists.
+	Field:      1,
+	EnumScalar: 0,
+	Object:     1,
+	List:       10, // The assumed maximum size of a list for fields that return lists.
 }
 
 // WeightDefaults defines default cost values for different GraphQL elements
 type WeightDefaults struct {
-	Field  int
-	Scalar int
-	Enum   int
-	Object int
-	List   int
+	Field      int
+	EnumScalar int
+	Object     int
+	List       int
 }
 
 // FieldCostConfig defines cost configuration for a specific field of an object or input object.
@@ -51,7 +49,7 @@ type FieldCostConfig struct {
 // DataSourceCostConfig holds all cost configurations for a data source.
 // This data is passed from the composition.
 type DataSourceCostConfig struct {
-	// Fields maps field coordinate to its cost config.
+	// Fields maps field coordinate to its cost config. Cannot be on fields of interfaces.
 	// Location: FIELD_DEFINITION, INPUT_FIELD_DEFINITION
 	Fields map[FieldCoordinate]*FieldCostConfig
 
@@ -65,7 +63,7 @@ type DataSourceCostConfig struct {
 	// directive name + argument name. That should be the key mapped to the weight.
 	//
 	// Directives can be used on [input] object fields and arguments of fields. This creates
-	// mutual recursion between them that complicates cost calculation.
+	// mutual recursion between them; it complicates cost calculation.
 	// We avoid them intentionally in the first iteration.
 }
 
@@ -77,26 +75,15 @@ func NewDataSourceCostConfig() *DataSourceCostConfig {
 	}
 }
 
-// ScalarWeight returns the cost for a scalar type
-func (c *DataSourceCostConfig) ScalarWeight(scalarName string) int {
-	if c == nil {
-		return 0
-	}
-	if cost, ok := c.Types[scalarName]; ok {
-		return cost
-	}
-	return StaticCostDefaults.Scalar
-}
-
-// EnumWeight returns the cost for an enum type
-func (c *DataSourceCostConfig) EnumWeight(enumName string) int {
+// EnumScalarWeight returns the cost for an enum or scalar types
+func (c *DataSourceCostConfig) EnumScalarWeight(enumName string) int {
 	if c == nil {
 		return 0
 	}
 	if cost, ok := c.Types[enumName]; ok {
 		return cost
 	}
-	return StaticCostDefaults.Enum
+	return StaticCostDefaults.EnumScalar
 }
 
 // ObjectWeight returns the default object cost
@@ -119,33 +106,40 @@ type CostTreeNode struct {
 	// Enclosing type name and field name
 	fieldCoord FieldCoordinate
 
-	// dataSourceHashes identifies which data sources this field is resolved from
+	// dataSourceHashes identifies which data sources resolve this field.
 	dataSourceHashes []DSHash
 
 	// FieldCost is the weight of this field from @cost directive
 	FieldCost int
 
-	// ArgumentsCost is the sum of argument weights and input fields used on each directive
+	// ArgumentsCost is the sum of argument weights and input fields used on this field.
 	ArgumentsCost int
 
+	// Weights on directives ignored for now.
 	DirectivesCost int
 
-	// Multiplier is the list size multiplier from @listSize directive
+	// multiplier is the list size multiplier from @listSize directive
 	// Applied to children costs for list fields
-	Multiplier int
+	multiplier int
 
 	// Children contain child field costs
 	Children []*CostTreeNode
 
 	// The data below is stored for deferred cost calculation.
-
-	// What is the name of an unwrapped (named) type that is returned by this field?
+	// We populate these fields in EnterField and use them as a source of truth in LeaveField.
+	//
+	// fieldTypeName contains the name of an unwrapped (named) type that is returned by this field.
 	fieldTypeName string
 
-	isListType bool
+	// implementTypeNames contains the names of all types that implement this interface/union field.
+	implementingTypeNames []string
 
-	// arguments contain the values of arguments passed to the field
+	// arguments contain the values of arguments passed to the field.
 	arguments map[string]ArgumentInfo
+
+	isListType     bool
+	isSimpleType   bool
+	isAbstractType bool
 }
 
 type ArgumentInfo struct {
@@ -180,9 +174,6 @@ func (n *CostTreeNode) TotalCost() int {
 		return 0
 	}
 
-	// TODO: negative sum should be rounded up to zero
-	cost := n.FieldCost + n.ArgumentsCost + n.DirectivesCost
-
 	// Sum children (fields) costs
 	var childrenCost int
 	for _, child := range n.Children {
@@ -190,11 +181,12 @@ func (n *CostTreeNode) TotalCost() int {
 	}
 
 	// Apply multiplier to children cost (for list fields)
-	multiplier := n.Multiplier
+	multiplier := n.multiplier
 	if multiplier == 0 {
 		multiplier = 1
 	}
-	cost += childrenCost * multiplier
+	// TODO: negative sum should be rounded up to zero
+	cost := n.ArgumentsCost + n.DirectivesCost + (n.FieldCost+childrenCost)*multiplier
 
 	return cost
 }
@@ -232,7 +224,7 @@ func NewCostCalculator() *CostCalculator {
 	tree := &CostTree{
 		Root: &CostTreeNode{
 			fieldCoord: FieldCoordinate{"_none", "_root"},
-			Multiplier: 1,
+			multiplier: 1,
 		},
 	}
 	c := CostCalculator{
@@ -250,28 +242,6 @@ func (c *CostCalculator) SetDataSourceCostConfig(dsHash DSHash, config *DataSour
 	c.costConfigs[dsHash] = config
 }
 
-// // SetDefaultCostConfig sets the default cost config
-// func (c *CostCalculator) SetDefaultCostConfig(config *DataSourceCostConfig) {
-// 	c.defaultConfig = config
-// }
-
-// // getCostConfig returns the cost config for a specific data source hash
-// func (c *CostCalculator) getCostConfig(dsHash DSHash) *DataSourceCostConfig {
-// 	if config, ok := c.costConfigs[dsHash]; ok {
-// 		return config
-// 	}
-// 	return c.getDefaultCostConfig()
-// }
-
-// // getDefaultCostConfig returns the default cost config when no specific data source is available
-// func (c *CostCalculator) getDefaultCostConfig() *DataSourceCostConfig {
-// 	if c.defaultConfig != nil {
-// 		return c.defaultConfig
-// 	}
-// 	// Return a dummy config with defaults
-// 	return &DataSourceCostConfig{}
-// }
-
 // CurrentNode returns the current node on the stack
 func (c *CostCalculator) CurrentNode() *CostTreeNode {
 	if len(c.stack) == 0 {
@@ -283,26 +253,13 @@ func (c *CostCalculator) CurrentNode() *CostTreeNode {
 // EnterField is called when entering a field during AST traversal.
 // It creates a skeleton node and pushes it onto the stack.
 // The actual cost calculation happens in LeaveField when fieldPlanners data is available.
-func (c *CostCalculator) EnterField(fieldRef int, coord FieldCoordinate, namedTypeName string,
-	isListType bool, arguments map[string]ArgumentInfo) {
-
-	// Create skeleton cost node. Costs will be calculated in LeaveField
-	node := &CostTreeNode{
-		fieldRef:      fieldRef,
-		fieldCoord:    coord,
-		Multiplier:    1,
-		fieldTypeName: namedTypeName,
-		isListType:    isListType,
-		arguments:     arguments,
-	}
-
+func (c *CostCalculator) EnterField(node *CostTreeNode) {
 	// Attach to parent
 	parent := c.CurrentNode()
 	if parent != nil {
 		parent.Children = append(parent.Children, node)
 	}
 
-	// Push onto stack
 	c.stack = append(c.stack, node)
 }
 
@@ -319,11 +276,9 @@ func (c *CostCalculator) LeaveField(fieldRef int, dsHashes []DSHash) {
 		return
 	}
 
-	// Now calculate costs with the data source information
 	current.dataSourceHashes = dsHashes
 	c.calculateNodeCosts(current)
 
-	// Pop from stack
 	c.stack = c.stack[:len(c.stack)-1]
 }
 
@@ -339,7 +294,7 @@ func (c *CostCalculator) calculateNodeCosts(node *CostTreeNode) {
 		return
 	}
 
-	node.Multiplier = 0
+	node.multiplier = 0
 
 	for _, dsHash := range node.dataSourceHashes {
 		config, ok := c.costConfigs[dsHash]
@@ -348,34 +303,35 @@ func (c *CostCalculator) calculateNodeCosts(node *CostTreeNode) {
 			continue
 		}
 
+		// TODO: handle abstract types
+
 		fieldConfig := config.Fields[node.fieldCoord]
 		if fieldConfig != nil {
-			node.FieldCost = fieldConfig.Weight
+			node.FieldCost += fieldConfig.Weight
+			for argName := range node.arguments {
+				weight, ok := fieldConfig.ArgumentWeights[argName]
+				if ok {
+					node.ArgumentsCost += weight
+				}
+				// What to do if the argument definition itself does not have weight attached,
+				// but the type of the argument does have weight attached to it?
+				// TODO: arguments should include costs of input object fields
+			}
 		} else {
 			// use the weight of the type returned by this field
-			if typeWeight, ok := config.Types[node.fieldTypeName]; ok {
-				node.FieldCost = typeWeight
+			if node.isSimpleType {
+				node.FieldCost += config.EnumScalarWeight(node.fieldTypeName)
+			} else {
+				node.FieldCost += config.ObjectWeight(node.fieldTypeName)
 			}
-		}
-
-		for argName := range node.arguments {
-			weight, ok := fieldConfig.ArgumentWeights[argName]
-			if ok {
-				node.ArgumentsCost += weight
-			}
-			// TODO: arguments should include costs of input object fields
 		}
 
 		// Compute multiplier as the maximum of data sources.
-		if !node.isListType {
-			node.Multiplier = 1
+		if !node.isListType || fieldConfig == nil {
+			node.multiplier = 1
 			continue
 		}
 
-		if fieldConfig == nil {
-			node.Multiplier = 1
-			continue
-		}
 		multiplier := -1
 		for _, slicingArg := range fieldConfig.SlicingArguments {
 			argInfo, ok := node.arguments[slicingArg]
@@ -386,8 +342,8 @@ func (c *CostCalculator) calculateNodeCosts(node *CostTreeNode) {
 		if multiplier == -1 && fieldConfig.AssumedSize > 0 {
 			multiplier = fieldConfig.AssumedSize
 		}
-		if multiplier > node.Multiplier {
-			node.Multiplier = multiplier
+		if multiplier > node.multiplier {
+			node.multiplier = multiplier
 		}
 	}
 

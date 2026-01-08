@@ -168,10 +168,6 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	p.planningVisitor.fieldRefDependsOnFieldRefs = selectionsConfig.fieldRefDependsOn
 	p.planningVisitor.fieldDependencyKind = selectionsConfig.fieldDependencyKind
 	p.planningVisitor.fieldRefDependants = inverseMap(selectionsConfig.fieldRefDependsOn)
-	// if p.config.ComputeStaticCost {
-	// 	p.planningVisitor.costCalculator = NewCostCalculator()
-	// 	p.planningVisitor.costCalculator.Enable()
-	// }
 
 	p.planningWalker.ResetVisitors()
 	p.planningWalker.SetVisitorFilter(p.planningVisitor)
@@ -212,7 +208,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		}
 	}
 
-	// create raw execution plan
+	// create a raw execution plan
 	p.planningWalker.Walk(operation, definition, report)
 	if report.HasErrors() {
 		return

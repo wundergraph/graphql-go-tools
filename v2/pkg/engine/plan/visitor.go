@@ -436,14 +436,49 @@ func (v *Visitor) enterFieldCost(ref int) {
 	}
 	fieldDefinitionTypeRef := v.Definition.FieldDefinitionType(fieldDefinition)
 	isListType := v.Definition.TypeIsList(fieldDefinitionTypeRef)
-	namedTypeName := v.Definition.ResolveTypeNameString(fieldDefinitionTypeRef)
+	isSimpleType := v.Definition.TypeIsEnum(fieldDefinitionTypeRef, v.Definition) || v.Definition.TypeIsScalar(fieldDefinitionTypeRef, v.Definition)
+	unwrappedTypeName := v.Definition.ResolveTypeNameString(fieldDefinitionTypeRef)
 
 	arguments := v.extractFieldArguments(ref)
 
-	// directives := v.costFieldDirectives(ref)
+	// Check and push through if the unwrapped type of this field is interface or union.
+	unwrappedTypeNode, exists := v.Definition.NodeByNameStr(unwrappedTypeName)
+	var implementingTypeNames []string
+	var isAbstractType bool
+	if exists {
+		if unwrappedTypeNode.Kind == ast.NodeKindInterfaceTypeDefinition {
+			impl, ok := v.Definition.InterfaceTypeDefinitionImplementedByObjectWithNames(unwrappedTypeNode.Ref)
+			if ok {
+				implementingTypeNames = append(implementingTypeNames, impl...)
+				isAbstractType = true
+			}
+		}
+		if unwrappedTypeNode.Kind == ast.NodeKindUnionTypeDefinition {
+			impl, ok := v.Definition.UnionTypeDefinitionMemberTypeNames(unwrappedTypeNode.Ref)
+			if ok {
+				implementingTypeNames = append(implementingTypeNames, impl...)
+				isAbstractType = true
+			}
+		}
+	}
+
+	if len(implementingTypeNames) > 0 {
+		fmt.Printf("enterFieldCost: field %s.%s is interface or union, implementingTypeNames=%v\n", typeName, fieldName, implementingTypeNames)
+	}
 
 	// Create skeleton node - dsHashes will be filled in leaveFieldCost
-	v.costCalculator.EnterField(ref, coord, namedTypeName, isListType, arguments)
+	node := CostTreeNode{
+		fieldRef:              ref,
+		fieldCoord:            coord,
+		multiplier:            1,
+		fieldTypeName:         unwrappedTypeName,
+		implementingTypeNames: implementingTypeNames,
+		isListType:            isListType,
+		isSimpleType:          isSimpleType,
+		isAbstractType:        isAbstractType,
+		arguments:             arguments,
+	}
+	v.costCalculator.EnterField(&node)
 }
 
 // getFieldDataSourceHashes returns all data source hashes for the field.
@@ -488,6 +523,7 @@ func (v *Visitor) extractFieldArguments(ref int) map[string]ArgumentInfo {
 			argInfo.isScalar = true
 			argInfo.typeName = v.Operation.TypeNameString(argValue.Ref)
 		case ast.ValueKindNull:
+			// Ignore any nulls
 			continue
 		case ast.ValueKindInteger:
 			// Extract integer value if present (for multipliers like "first", "limit")
@@ -524,27 +560,6 @@ func (v *Visitor) extractFieldArguments(ref int) map[string]ArgumentInfo {
 
 	return arguments
 }
-
-// func (v *Visitor) costFieldDirectives(ref int) map[string]int {
-// 	refs := v.Operation.FieldDirectives(ref)
-// 	if len(refs) == 0 {
-// 		return nil
-// 	}
-//
-// 	arguments := make(map[string]int, len(refs))
-// 	for _, dirRef := range refs {
-// 		dirName := v.Operation.DirectiveName(dirRef)
-// 		dirArgsRef := v.Operation.DirectiveArgumentSet(dirRef)
-//
-// 		fmt.Printf("costFieldDirectives: dirName=%s, dirArgsRef=%v\n", dirName, dirArgsRef)
-// 		// Extract integer value if present (for multipliers like "first", "limit")
-// 		if dirArgsRef.Kind == ast.ValueKindInteger {
-// 			arguments[dirName] = int(v.Operation.IntValueAsInt(dirArgsRef.Ref))
-// 		}
-// 	}
-//
-// 	return arguments
-// }
 
 func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *resolve.FieldInfo {
 	if v.Config.DisableIncludeInfo {
@@ -755,8 +770,8 @@ func (v *Visitor) LeaveField(ref int) {
 		return
 	}
 
-	// Calculate costs and pop from cost stack
-	// This is done in LeaveField because fieldPlanners is populated by AllowVisitor on LeaveField
+	// Calculate costs and pop from cost stack.
+	// This is done in LeaveField because fieldPlanners is available in LeaveField only.
 	if v.costCalculator != nil {
 		dsHashes := v.getFieldDataSourceHashes(ref)
 		v.costCalculator.LeaveField(ref, dsHashes)
