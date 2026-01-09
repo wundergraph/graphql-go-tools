@@ -421,16 +421,15 @@ func (v *Visitor) mapFieldConfig(ref int) {
 
 // enterFieldCost creates a skeleton cost node when entering a field.
 // Actual cost calculation is deferred to leaveFieldCost when fieldPlanners data is available.
-func (v *Visitor) enterFieldCost(ref int) {
+func (v *Visitor) enterFieldCost(fieldRef int) {
 	if v.costCalculator == nil {
 		return
 	}
 
 	typeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
-	fieldName := v.Operation.FieldNameUnsafeString(ref)
-	coord := FieldCoordinate{typeName, fieldName}
+	fieldName := v.Operation.FieldNameUnsafeString(fieldRef)
 
-	fieldDefinition, ok := v.Walker.FieldDefinition(ref)
+	fieldDefinition, ok := v.Walker.FieldDefinition(fieldRef)
 	if !ok {
 		return
 	}
@@ -439,7 +438,7 @@ func (v *Visitor) enterFieldCost(ref int) {
 	isSimpleType := v.Definition.TypeIsEnum(fieldDefinitionTypeRef, v.Definition) || v.Definition.TypeIsScalar(fieldDefinitionTypeRef, v.Definition)
 	unwrappedTypeName := v.Definition.ResolveTypeNameString(fieldDefinitionTypeRef)
 
-	arguments := v.extractFieldArguments(ref)
+	arguments := v.extractFieldArguments(fieldRef)
 
 	// Check and push through if the unwrapped type of this field is interface or union.
 	unwrappedTypeNode, exists := v.Definition.NodeByNameStr(unwrappedTypeName)
@@ -463,20 +462,24 @@ func (v *Visitor) enterFieldCost(ref int) {
 	}
 
 	if len(implementingTypeNames) > 0 {
-		fmt.Printf("enterFieldCost: field %s.%s is interface or union, implementingTypeNames=%v\n", typeName, fieldName, implementingTypeNames)
+		fmt.Printf("enterFieldCost: field %s.%s is interface or union, implementing types: %v\n", typeName, fieldName, implementingTypeNames)
 	}
 
-	// Create skeleton node - dsHashes will be filled in leaveFieldCost
+	isEnclosingTypeAbstract := v.Walker.EnclosingTypeDefinition.Kind == ast.NodeKindInterfaceTypeDefinition ||
+		v.Walker.EnclosingTypeDefinition.Kind == ast.NodeKindUnionTypeDefinition
+	fmt.Printf("EnclosingType Kind = %v for %s.%s\n", v.Walker.EnclosingTypeDefinition.Kind, typeName, fieldName)
+	// Create a skeleton node. dataSourceHashes will be filled in leaveFieldCost
 	node := CostTreeNode{
-		fieldRef:              ref,
-		fieldCoord:            coord,
-		multiplier:            1,
-		fieldTypeName:         unwrappedTypeName,
-		implementingTypeNames: implementingTypeNames,
-		isListType:            isListType,
-		isSimpleType:          isSimpleType,
-		isAbstractType:        isAbstractType,
-		arguments:             arguments,
+		fieldRef:                fieldRef,
+		fieldCoord:              FieldCoordinate{typeName, fieldName},
+		multiplier:              1,
+		fieldTypeName:           unwrappedTypeName,
+		implementingTypeNames:   implementingTypeNames,
+		isListType:              isListType,
+		isSimpleType:            isSimpleType,
+		isAbstractType:          isAbstractType,
+		isEnclosingTypeAbstract: isEnclosingTypeAbstract,
+		arguments:               arguments,
 	}
 	v.costCalculator.EnterField(&node)
 }
@@ -500,8 +503,10 @@ func (v *Visitor) getFieldDataSourceHashes(ref int) []DSHash {
 }
 
 // extractFieldArguments extracts arguments from a field for cost calculation
-func (v *Visitor) extractFieldArguments(ref int) map[string]ArgumentInfo {
-	argRefs := v.Operation.FieldArguments(ref)
+// This implementation does not go deep for input objects yet.
+// It should return unwrapped type names for arguments and that is it for now.
+func (v *Visitor) extractFieldArguments(fieldRef int) map[string]ArgumentInfo {
+	argRefs := v.Operation.FieldArguments(fieldRef)
 	if len(argRefs) == 0 {
 		return nil
 	}
@@ -520,7 +525,7 @@ func (v *Visitor) extractFieldArguments(ref int) map[string]ArgumentInfo {
 		fmt.Printf("value = %s\n", val)
 		switch argValue.Kind {
 		case ast.ValueKindBoolean, ast.ValueKindEnum, ast.ValueKindString, ast.ValueKindFloat:
-			argInfo.isScalar = true
+			argInfo.isSimple = true
 			argInfo.typeName = v.Operation.TypeNameString(argValue.Ref)
 		case ast.ValueKindNull:
 			// Ignore any nulls
@@ -528,20 +533,20 @@ func (v *Visitor) extractFieldArguments(ref int) map[string]ArgumentInfo {
 		case ast.ValueKindInteger:
 			// Extract integer value if present (for multipliers like "first", "limit")
 			argInfo.intValue = int(v.Operation.IntValueAsInt(argValue.Ref))
-			argInfo.isScalar = true
+			argInfo.isSimple = true
 			argInfo.typeName = v.Operation.TypeNameString(argValue.Ref)
 		case ast.ValueKindVariable:
 			argInfo.isInputObject = true
 			variableValue := v.Operation.VariableValueNameString(argValue.Ref)
 			if !v.Operation.OperationDefinitionHasVariableDefinition(v.operationDefinition, variableValue) {
-				continue // omit optional argument when variable is not defined
+				continue // omit optional argument when the variable is not defined
 			}
 			variableDefinition, exists := v.Operation.VariableDefinitionByNameAndOperation(v.operationDefinition, v.Operation.VariableValueNameBytes(argValue.Ref))
 			if !exists {
 				break
 			}
-			// variableTypeRef := v.Operation.VariableDefinitions[variableDefinition].Type
-			argInfo.typeName = v.Operation.ResolveTypeNameString(v.Operation.VariableDefinitions[variableDefinition].Type)
+			variableTypeRef := v.Operation.VariableDefinitions[variableDefinition].Type
+			argInfo.typeName = v.Operation.ResolveTypeNameString(variableTypeRef)
 			// TODO: we need to analyze variables that contains input object fields.
 			// If these fields has weight attached, use them for calculation.
 			// Variables are not inlined at this stage, so we need to inspect them via AST.
@@ -549,9 +554,8 @@ func (v *Visitor) extractFieldArguments(ref int) map[string]ArgumentInfo {
 		case ast.ValueKindList:
 			unwrappedTypeRef := v.Operation.ResolveUnderlyingType(argValue.Ref)
 			argInfo.typeName = v.Operation.TypeNameString(unwrappedTypeRef)
-			// how to figure out if the unwrapped is scalar?
 		default:
-			fmt.Printf("unhandled case: %v\n", argValue.Kind)
+			fmt.Printf("unhandled argument type: %v\n", argValue.Kind)
 			continue
 		}
 
@@ -770,11 +774,9 @@ func (v *Visitor) LeaveField(ref int) {
 		return
 	}
 
-	// Calculate costs and pop from cost stack.
-	// This is done in LeaveField because fieldPlanners is available in LeaveField only.
+	// This is done in LeaveField because fieldPlanners become available before LeaveField.
 	if v.costCalculator != nil {
-		dsHashes := v.getFieldDataSourceHashes(ref)
-		v.costCalculator.LeaveField(ref, dsHashes)
+		v.costCalculator.LeaveField(ref, v.getFieldDataSourceHashes(ref))
 	}
 
 	if v.currentFields[len(v.currentFields)-1].popOnField == ref {

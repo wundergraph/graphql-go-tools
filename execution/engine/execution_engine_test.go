@@ -5580,34 +5580,35 @@ func TestExecutionEngine_Execute(t *testing.T) {
 		})
 		costConfig := &plan.DataSourceCostConfig{
 			Fields: map[plan.FieldCoordinate]*plan.FieldCostConfig{
-				{TypeName: "Query", FieldName: "hero"}:   {Weight: 2},
-				{TypeName: "Human", FieldName: "name"}:   {Weight: 7},
-				{TypeName: "Human", FieldName: "height"}: {Weight: 3},
-				{TypeName: "Droid", FieldName: "name"}:   {Weight: 17},
+				{TypeName: "Query", FieldName: "droid"}: {
+					ArgumentWeights: map[string]int{"id": 1},
+					HasWeight:       false,
+				},
+				{TypeName: "Query", FieldName: "hero"}:   {HasWeight: true, Weight: 2},
+				{TypeName: "Human", FieldName: "height"}: {HasWeight: true, Weight: 3},
+				{TypeName: "Human", FieldName: "name"}:   {HasWeight: true, Weight: 7},
+				{TypeName: "Droid", FieldName: "name"}:   {HasWeight: true, Weight: 17},
 			},
 			Types: map[string]int{
 				"Human": 13,
 			},
 		}
 
-		t.Run("droid simple fields", runWithoutError(
+		t.Run("droid with weighted plain fields and an argument", runWithoutError(
 			ExecutionEngineTestCase{
 				schema: graphql.StarwarsSchema(t),
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
-						Query: ` 
-							{
-								droid(id: "R2D2") {
-									name
-									primaryFunction
-								}
+						Query: `{
+							droid(id: "R2D2") {
+								name
+								primaryFunction
 							}
-						`,
+						}`,
 					}
 				},
 				dataSources: []plan.DataSource{
-					mustGraphqlDataSourceConfiguration(t,
-						"id",
+					mustGraphqlDataSourceConfiguration(t, "id",
 						mustFactory(t,
 							testNetHttpClient(t, roundTripperTestCase{
 								expectedHost:     "example.com",
@@ -5617,11 +5618,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 								sendStatusCode:   200,
 							}),
 						),
-						&plan.DataSourceMetadata{
-							RootNodes:  rootNodes,
-							ChildNodes: childNodes,
-							CostConfig: costConfig,
-						},
+						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: costConfig},
 						customConfig,
 					),
 				},
@@ -5639,7 +5636,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					},
 				},
 				expectedResponse:   `{"data":{"droid":{"name":"R2D2","primaryFunction":"no"}}}`,
-				expectedStaticCost: 18, // droid (1) + droid.name (17)
+				expectedStaticCost: 19, // Query.droid (1) + Query.droid.id (1) + droid.name (17)
 			},
 			computeStaticCost(),
 		))
@@ -5660,8 +5657,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					}
 				},
 				dataSources: []plan.DataSource{
-					mustGraphqlDataSourceConfiguration(t,
-						"id",
+					mustGraphqlDataSourceConfiguration(t, "id",
 						mustFactory(t,
 							testNetHttpClient(t, roundTripperTestCase{
 								expectedHost:     "example.com",
@@ -5671,83 +5667,61 @@ func TestExecutionEngine_Execute(t *testing.T) {
 								sendStatusCode:   200,
 							}),
 						),
-						&plan.DataSourceMetadata{
-							RootNodes:  rootNodes,
-							ChildNodes: childNodes,
-							CostConfig: costConfig,
-						},
+						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: costConfig},
 						customConfig,
 					),
 				},
-				fields:             []plan.FieldConfiguration{},
 				expectedResponse:   `{"data":{"hero":{"name":"Luke Skywalker","height":"12"}}}`,
-				expectedStaticCost: 5, // hero (2) + hero.height (3)
-				// But should be:         hero (2) + hero.height (3) + droid.name (17=max(7, 17))
+				expectedStaticCost: 22, // Query.hero (2) + Human.height (3) + Droid.name (17=max(7, 17))
 			},
 			computeStaticCost(),
 		))
 
-		t.Run("query with list field and slicing argument", func(t *testing.T) {
-			// Schema: Query.users(first: Int) returns [User]
-			// Cost calculation (IBM spec):
-			// - Query.users: weight = 2 (custom)
-			// - "first: 5" slicing argument -> multiplier = 5
-			// - User.id: weight = 0
-			// - User.name: weight = 0
-			// Total = 2 + (0 + 0) * 5 = 2
-
-			schema, err := graphql.NewSchemaFromString(`
-				type Query {
-					users(first: Int): [User!]
-				}
-				type User {
-					id: ID!
-					name: String!
-				}
-			`)
-			require.NoError(t, err)
-
-			dsCfg, err := plan.NewDataSourceConfiguration[staticdatasource.Configuration](
-				"users-ds",
-				&staticdatasource.Factory[staticdatasource.Configuration]{},
-				&plan.DataSourceMetadata{
-					RootNodes: []plan.TypeField{
-						{TypeName: "Query", FieldNames: []string{"users"}},
-					},
-					ChildNodes: []plan.TypeField{
-						{TypeName: "User", FieldNames: []string{"id", "name"}},
-					},
-					CostConfig: &plan.DataSourceCostConfig{
-						Fields: map[plan.FieldCoordinate]*plan.FieldCostConfig{
-							{TypeName: "Query", FieldName: "users"}: {
-								Weight:           2,
-								SlicingArguments: []string{"first"},
-								AssumedSize:      10,
-							},
-							{TypeName: "User", FieldName: "id"}:   {Weight: 0},
-							{TypeName: "User", FieldName: "name"}: {Weight: 0},
-						},
-						Types: map[string]int{},
-					},
-				},
-				staticdatasource.Configuration{
-					Data: `{"users": [{"id": "1", "name": "Alice"}, {"id": "2", "name": "Bob"}]}`,
-				},
-			)
-			require.NoError(t, err)
-
-			t.Run("run", runWithoutError(ExecutionEngineTestCase{
-				schema: schema,
+		t.Run("hero with 1 expected friend", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: graphql.StarwarsSchema(t),
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
-						Query: `{ users(first: 5) { id name } }`,
+						Query: `{ 
+							hero {
+								friends {
+									...on Droid {
+										name
+										primaryFunction
+									}
+									...on Human {
+										name
+										height
+									}
+								}
+							}
+						}`,
 					}
 				},
-				dataSources:          []plan.DataSource{dsCfg},
-				expectedJSONResponse: `{"data":{"users":[{"id":"1","name":"Alice"},{"id":"2","name":"Bob"}]}}`,
-				expectedStaticCost:   2,
-			}, computeStaticCost()))
-		})
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com",
+								expectedPath: "/",
+								expectedBody: "",
+								sendResponseBody: `{"data":{"hero":{"__typename":"Human","friends":[
+									{"__typename":"Human","name":"Luke Skywalker","height":"12"},
+									{"__typename":"Droid","name":"R2DO","primaryFunction":"joke"}
+								]}}}`,
+								sendStatusCode: 200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				expectedResponse:   `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
+				expectedStaticCost: 42, // Query.hero(2)+Human(13=max(13,0))+Human.name(7)+Human.height(3)+Droid.name(17)
+			},
+			computeStaticCost(),
+		))
+
 	})
 }
 
