@@ -4,10 +4,12 @@ import (
 	"encoding/binary"
 	"sync"
 
-	"github.com/cespare/xxhash/v2"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
 // InboundRequestSingleFlight is a sharded goroutine safe single flight implementation to de-couple inbound requests
+// to the GraphQL engine. Contrary to SubgraphRequestSingleFlight, this is not per-subgraph
+// but global for all inbound requests.
 // It's taking into consideration the normalized operation hash, variables hash and headers hash
 // making it robust against collisions
 // for scalability, you can add more shards in case the mutexes are a bottleneck
@@ -16,11 +18,10 @@ type InboundRequestSingleFlight struct {
 }
 
 type requestShard struct {
-	mu sync.Mutex
-	m  map[uint64]*InflightRequest
+	m sync.Map
 }
 
-const defaultRequestSingleFlightShardCount = 4
+const defaultRequestSingleFlightShardCount = 8
 
 // NewRequestSingleFlight creates a InboundRequestSingleFlight with the provided
 // number of shards. If shardCount <= 0, the default of 4 is used.
@@ -31,20 +32,17 @@ func NewRequestSingleFlight(shardCount int) *InboundRequestSingleFlight {
 	r := &InboundRequestSingleFlight{
 		shards: make([]requestShard, shardCount),
 	}
-	for i := range r.shards {
-		r.shards[i] = requestShard{
-			m: make(map[uint64]*InflightRequest),
-		}
-	}
 	return r
 }
 
 type InflightRequest struct {
-	Done         chan struct{}
-	Data         []byte
-	Err          error
-	ID           uint64
+	Done chan struct{}
+	Data []byte
+	Err  error
+	ID   uint64
+
 	HasFollowers bool
+	Mu           sync.Mutex
 }
 
 // GetOrCreate creates a new InflightRequest or returns an existing (shared) one
@@ -72,33 +70,37 @@ func (r *InboundRequestSingleFlight) GetOrCreate(ctx *Context, response *GraphQL
 		hh = ctx.SubgraphHeadersBuilder.HashAll()
 	}
 	binary.LittleEndian.PutUint64(b[16:24], hh)
-	key := xxhash.Sum64(b[:])
+	h := pool.Hash64.Get()
+	_, _ = h.Write(b[:])
+	key := h.Sum64()
+	pool.Hash64.Put(h)
 
 	shard := r.shardFor(key)
-	shard.mu.Lock()
-	req, shared := shard.m[key]
-	if shared {
-		req.HasFollowers = true
-		shard.mu.Unlock()
-		select {
-		case <-req.Done:
-			if req.Err != nil {
-				return nil, req.Err
-			}
-			return req, nil
-		case <-ctx.ctx.Done():
-			return nil, ctx.ctx.Err()
-		}
-	}
 
-	req = &InflightRequest{
+	request := &InflightRequest{
 		Done: make(chan struct{}),
 		ID:   key,
 	}
 
-	shard.m[key] = req
-	shard.mu.Unlock()
-	return req, nil
+	inflight, shared := shard.m.LoadOrStore(key, request)
+	if shared {
+		request = inflight.(*InflightRequest)
+		request.Mu.Lock()
+		request.HasFollowers = true
+		request.Mu.Unlock()
+		select {
+		case <-request.Done:
+			if request.Err != nil {
+				return nil, request.Err
+			}
+			return request, nil
+		case <-ctx.ctx.Done():
+			request.Err = ctx.ctx.Err()
+			return nil, request.Err
+		}
+	}
+
+	return request, nil
 }
 
 func (r *InboundRequestSingleFlight) FinishOk(req *InflightRequest, data []byte) {
@@ -106,10 +108,10 @@ func (r *InboundRequestSingleFlight) FinishOk(req *InflightRequest, data []byte)
 		return
 	}
 	shard := r.shardFor(req.ID)
-	shard.mu.Lock()
-	delete(shard.m, req.ID)
+	shard.m.Delete(req.ID)
+	req.Mu.Lock()
 	hasFollowers := req.HasFollowers
-	shard.mu.Unlock()
+	req.Mu.Unlock()
 	if hasFollowers {
 		// optimization to only copy when we actually have to
 		req.Data = make([]byte, len(data))
@@ -123,9 +125,7 @@ func (r *InboundRequestSingleFlight) FinishErr(req *InflightRequest, err error) 
 		return
 	}
 	shard := r.shardFor(req.ID)
-	shard.mu.Lock()
-	delete(shard.m, req.ID)
-	shard.mu.Unlock()
+	shard.m.Delete(req.ID)
 	req.Err = err
 	close(req.Done)
 }

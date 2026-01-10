@@ -144,7 +144,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	}
 
 	if p.config.Debug.PlanningVisitor {
-		debugMessage("Planning visitor:")
+		debugMessage("Planning Visitor\n================")
 	}
 
 	// configure planning visitor

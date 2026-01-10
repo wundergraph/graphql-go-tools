@@ -96,7 +96,7 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 	}
 
 	if p.config.Debug.PrintOperationTransformations {
-		debugMessage("Initial operation:")
+		debugMessage("SelectNodes. Initial operation:\n===========")
 		p.printOperation(operation)
 	}
 
@@ -110,7 +110,8 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 	}
 
 	if p.config.Debug.PrintNodeSuggestions {
-		p.nodeSelectionsVisitor.nodeSuggestions.printNodesWithFilter("\nInitial node suggestions:\n", p.config.Debug.PrintNodeSuggestionsFilterNotSelected)
+		p.nodeSelectionsVisitor.nodeSuggestions.printNodesWithFilter("\nInitial node suggestions:\n",
+			p.config.Debug.PrintNodeSuggestionsFilterNotSelected)
 	}
 
 	p.nodeSelectionsVisitor.secondaryRun = false
@@ -120,16 +121,16 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 	}
 
 	if p.config.Debug.PrintOperationTransformations {
-		debugMessage("Select nodes initial run - operation:")
+		debugMessage("Selected nodes on run #1 for operation:")
 		p.printOperation(operation)
 	}
 
 	i := 1
 	hasUnresolvedFields := false
-	// secondary runs to add path for the new required fields
+	// Additional runs to add paths for the new required fields
 	for p.nodeSelectionsVisitor.hasNewFields || hasUnresolvedFields {
-		// when we have rewritten a field old node suggestion are not make sense anymore
-		// so we are removing child nodes of the rewritten fields
+		// When we have rewritten a field, the old node suggestion does not make sense anymore:
+		// we have to remove child nodes of the rewritten fields.
 		for _, fieldRef := range p.nodeSelectionsVisitor.rewrittenFieldRefs {
 			p.nodeSelectionsVisitor.nodeSuggestions.RemoveTreeNodeChilds(fieldRef)
 		}
@@ -146,11 +147,11 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 		}
 
 		if p.config.Debug.PrintOperationTransformations || p.config.Debug.PrintNodeSuggestions {
-			debugMessage(fmt.Sprintf("Select nodes run #%d", i))
+			debugMessage(fmt.Sprintf("Selected nodes on additional run #%d.", i+1))
 		}
 
 		if p.config.Debug.PrintNodeSuggestions {
-			p.nodeSelectionsVisitor.nodeSuggestions.printNodesWithFilter("\nRecalculated node suggestions:\n", p.config.Debug.PrintNodeSuggestionsFilterNotSelected)
+			p.nodeSelectionsVisitor.nodeSuggestions.printNodesWithFilter("\nUpdated node suggestions:\n", p.config.Debug.PrintNodeSuggestionsFilterNotSelected)
 		}
 
 		p.nodeSelectionsWalker.Walk(operation, definition, report)
@@ -159,8 +160,7 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 		}
 
 		if p.config.Debug.PrintOperationTransformations {
-			debugMessage("Operation with new required fields:")
-			debugMessage(fmt.Sprintf("Has new fields: %v", p.nodeSelectionsVisitor.hasNewFields))
+			debugMessage(fmt.Sprintf("Operation with new required fields (has new fields: %v):", p.nodeSelectionsVisitor.hasNewFields))
 			p.printOperation(operation)
 		}
 

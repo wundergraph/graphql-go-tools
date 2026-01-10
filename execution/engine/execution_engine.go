@@ -266,9 +266,9 @@ func (e *ExecutionEngine) getCachedPlan(ctx *internalExecutionContext, operation
 		return nil
 	}
 
-	p := ctx.postProcessor.Process(planResult)
-	e.executionPlanCache.Add(cacheKey, p)
-	return p
+	ctx.postProcessor.Process(planResult)
+	e.executionPlanCache.Add(cacheKey, planResult)
+	return planResult
 }
 
 func (e *ExecutionEngine) GetWebsocketBeforeStartHook() WebsocketBeforeStartHook {

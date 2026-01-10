@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/wundergraph/astjson"
+	"github.com/wundergraph/go-arena"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
@@ -47,7 +48,7 @@ type DataSource struct {
 	federationConfigs plan.FederationFieldConfigurations
 	disabled          bool
 
-	pool *resolve.ArenaPool
+	pool *arena.Pool
 }
 
 type ProtoConfig struct {
@@ -83,7 +84,7 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 		mapping:           config.Mapping,
 		federationConfigs: config.FederationConfigs,
 		disabled:          config.Disabled,
-		pool:              resolve.NewArenaPool(),
+		pool:              arena.NewArenaPool(),
 	}, nil
 }
 
@@ -98,7 +99,7 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 	variables := gjson.Parse(unsafebytes.BytesToString(input)).Get("body.variables")
 
 	var (
-		poolItems []*resolve.ArenaPoolItem
+		poolItems []*arena.PoolItem
 	)
 	defer func() {
 		d.pool.ReleaseMany(poolItems)
@@ -113,8 +114,6 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 	}
 
 	root := astjson.ObjectValue(nil)
-
-	failed := false
 
 	if err := d.graph.TopologicalSortResolve(func(nodes []FetchItem) error {
 		serviceCalls, err := d.rc.CompileFetches(d.graph, nodes, variables)
@@ -163,9 +162,7 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 		}
 
 		if err := errGrp.Wait(); err != nil {
-			data = builder.writeErrorBytes(err)
-			failed = true
-			return nil
+			return err
 		}
 
 		for _, result := range results {
@@ -176,21 +173,20 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 				root, err = builder.mergeValues(root, result.response)
 			}
 			if err != nil {
-				data = builder.writeErrorBytes(err)
 				return err
 			}
 		}
 
 		return nil
-	}); err != nil || failed {
-		return data, err
+	}); err != nil {
+		return builder.writeErrorBytes(err), nil
 	}
 
 	value := builder.toDataObject(root)
 	return value.MarshalTo(nil), err
 }
 
-func (d *DataSource) acquirePoolItem(input []byte, index int) *resolve.ArenaPoolItem {
+func (d *DataSource) acquirePoolItem(input []byte, index int) *arena.PoolItem {
 	keyGen := xxhash.New()
 	_, _ = keyGen.Write(input)
 	var b [8]byte

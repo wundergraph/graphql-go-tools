@@ -69,6 +69,86 @@ func fakeDataSourceWithInputCheck(t TestingTB, input []byte, data []byte) *_fake
 	}
 }
 
+type blockingDataSource struct {
+	data        []byte
+	ready       chan struct{}
+	release     chan struct{}
+	readyOnce   sync.Once
+	releaseOnce sync.Once
+}
+
+func newBlockingDataSource(data []byte) *blockingDataSource {
+	return &blockingDataSource{
+		data:    data,
+		ready:   make(chan struct{}),
+		release: make(chan struct{}),
+	}
+}
+
+func (f *blockingDataSource) waitForRelease() {
+	f.readyOnce.Do(func() {
+		close(f.ready)
+	})
+	<-f.release
+}
+
+func (f *blockingDataSource) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
+	f.waitForRelease()
+	return f.data, nil
+}
+
+func (f *blockingDataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
+	f.waitForRelease()
+	return f.data, nil
+}
+
+func (f *blockingDataSource) Ready() <-chan struct{} {
+	return f.ready
+}
+
+func (f *blockingDataSource) Release() {
+	f.releaseOnce.Do(func() {
+		close(f.release)
+	})
+}
+
+type blockingWriter struct {
+	buf         bytes.Buffer
+	ready       chan struct{}
+	release     chan struct{}
+	readyOnce   sync.Once
+	releaseOnce sync.Once
+}
+
+func newBlockingWriter() *blockingWriter {
+	return &blockingWriter{
+		ready:   make(chan struct{}),
+		release: make(chan struct{}),
+	}
+}
+
+func (w *blockingWriter) Write(p []byte) (int, error) {
+	w.readyOnce.Do(func() {
+		close(w.ready)
+	})
+	<-w.release
+	return w.buf.Write(p)
+}
+
+func (w *blockingWriter) Ready() <-chan struct{} {
+	return w.ready
+}
+
+func (w *blockingWriter) Release() {
+	w.releaseOnce.Do(func() {
+		close(w.release)
+	})
+}
+
+func (w *blockingWriter) String() string {
+	return w.buf.String()
+}
+
 type TestErrorWriter struct {
 }
 
@@ -164,12 +244,12 @@ func TestResolver_ResolveNode(t *testing.T) {
 			Data: &Object{
 				Nullable: true,
 			},
-		}, Context{ctx: context.Background()}, `{"data":{}}`
+		}, *NewContext(context.Background()), `{"data":{}}`
 	}))
 	t.Run("empty object", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{},
-		}, Context{ctx: context.Background()}, `{"data":{}}`
+		}, *NewContext(context.Background()), `{"data":{}}`
 	}))
 	t.Run("BigInt", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -203,7 +283,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"n":12345,"ns_small":"12346","ns_big":"1152921504606846976"}}`
+		}, *NewContext(context.Background()), `{"data":{"n":12345,"ns_small":"12346","ns_big":"1152921504606846976"}}`
 	}))
 	t.Run("Scalar", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -263,7 +343,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"int":12345,"float":3.5,"int_str":"12346","bigint_str":"1152921504606846976","str":"value","object":{"foo":"bar"},"encoded_object":"{\"foo\": \"bar\"}"}}`
+		}, *NewContext(context.Background()), `{"data":{"int":12345,"float":3.5,"int_str":"12346","bigint_str":"1152921504606846976","str":"value","object":{"foo":"bar"},"encoded_object":"{\"foo\": \"bar\"}"}}`
 	}))
 	t.Run("object with null field", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -275,7 +355,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"foo":null}}`
+		}, *NewContext(context.Background()), `{"data":{"foo":null}}`
 	}))
 	t.Run("default graphql object", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -287,7 +367,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"data":null}}`
+		}, *NewContext(context.Background()), `{"data":{"data":null}}`
 	}))
 	t.Run("graphql object with simple data source", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -343,7 +423,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}}}`
+		}, *NewContext(context.Background()), `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}}}`
 	}))
 	t.Run("fetch with context variable resolver", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
@@ -353,7 +433,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 				return []byte(`{"name":"Jens"}`), nil
 			}).
 			Return([]byte(`{"name":"Jens"}`), nil)
-		return &GraphQLResponse{
+		res := &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
 				FetchConfiguration: FetchConfiguration{
 					DataSource: mockDataSource,
@@ -391,7 +471,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background(), Variables: astjson.MustParseBytes([]byte(`{"id":1}`))}, `{"data":{"name":"Jens"}}`
+		}
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.Variables = astjson.MustParseBytes([]byte(`{"id":1}`))
+		return res, *resolveCtx, `{"data":{"name":"Jens"}}`
 	}))
 	t.Run("resolve array of strings", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -411,7 +494,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"strings":["Alex","true","123"]}}`
+		}, *NewContext(context.Background()), `{"data":{"strings":["Alex","true","123"]}}`
 	}))
 	t.Run("resolve array of mixed scalar types", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -431,7 +514,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"String cannot represent non-string value: \"123\"","path":["strings",2]}],"data":null}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"String cannot represent non-string value: \"123\"","path":["strings",2]}],"data":null}`
 	}))
 	t.Run("resolve array items", func(t *testing.T) {
 		t.Run("with unescape json enabled", func(t *testing.T) {
@@ -454,7 +537,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 							},
 						},
 					},
-				}, Context{ctx: context.Background()}, `{"data":{"jsonList":[{"field":"value"}]}}`
+				}, *NewContext(context.Background()), `{"data":{"jsonList":[{"field":"value"}]}}`
 			}))
 		})
 		t.Run("with unescape json disabled", func(t *testing.T) {
@@ -477,7 +560,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 							},
 						},
 					},
-				}, Context{ctx: context.Background()}, `{"data":{"jsonList":["{\"field\":\"value\"}"]}}`
+				}, *NewContext(context.Background()), `{"data":{"jsonList":["{\"field\":\"value\"}"]}}`
 			}))
 		})
 	})
@@ -584,7 +667,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"synchronousFriends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}],"asynchronousFriends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}],"nullableFriends":null,"strings":["foo","bar","baz"],"integers":[123,456,789],"floats":[1.2,3.4,5.6],"booleans":[true,false,true]}}`
+		}, *NewContext(context.Background()), `{"data":{"synchronousFriends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}],"asynchronousFriends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}],"nullableFriends":null,"strings":["foo","bar","baz"],"integers":[123,456,789],"floats":[1.2,3.4,5.6],"booleans":[true,false,true]}}`
 	}))
 	t.Run("array response from data source", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -617,7 +700,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 					},
 				},
-			}, Context{ctx: context.Background()},
+			}, *NewContext(context.Background()),
 			`{"data":{"pets":[{"name":"Woofie"},{}]}}`
 	}))
 	t.Run("non null object with field condition can be null", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
@@ -644,7 +727,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 					},
 				},
-			}, Context{ctx: context.Background()},
+			}, *NewContext(context.Background()),
 			`{"data":{"cat":{}}}`
 	}))
 	t.Run("object with multiple type conditions", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
@@ -704,7 +787,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 					},
 				},
-			}, Context{ctx: context.Background()},
+			}, *NewContext(context.Background()),
 			`{"data":{"namespaceCreate":{"code":"UserAlreadyHasPersonalNamespace","message":""}}}`
 	}))
 	t.Run("resolve fieldsets based on __typename", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
@@ -733,7 +816,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 					},
 				},
-			}, Context{ctx: context.Background()},
+			}, *NewContext(context.Background()),
 			`{"data":{"pets":[{"name":"Woofie"},{}]}}`
 	}))
 
@@ -776,7 +859,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 					},
 				},
-			}, Context{ctx: context.Background()},
+			}, *NewContext(context.Background()),
 			`{"data":{"pet":{"id":"1","detail":null}}}`
 	}))
 
@@ -806,7 +889,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 					},
 				},
-			}, Context{ctx: context.Background()},
+			}, *NewContext(context.Background()),
 			`{"data":{"pets":[{"name":"Woofie"},{}]}}`
 	}))
 	t.Run("with unescape json enabled", func(t *testing.T) {
@@ -836,7 +919,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 					// expected output is a JSON object
 				},
-			}, Context{ctx: context.Background()}, `{"data":{"data":{"hello":"world","numberAsString":"1","number":1,"bool":true,"null":null,"array":[1,2,3],"object":{"key":"value"}}}}`
+			}, *NewContext(context.Background()), `{"data":{"data":{"hello":"world","numberAsString":"1","number":1,"bool":true,"null":null,"array":[1,2,3],"object":{"key":"value"}}}}`
 		}))
 		t.Run("json array within a string", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 			return &GraphQLResponse{
@@ -864,7 +947,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 					// expected output is a JSON array
 				},
-			}, Context{ctx: context.Background()}, `{"data":{"data":[1,2,3]}}`
+			}, *NewContext(context.Background()), `{"data":{"data":[1,2,3]}}`
 		}))
 		t.Run("plain scalar values within a string", func(t *testing.T) {
 			t.Run("boolean", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
@@ -889,7 +972,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 						// expected output is a string
 					},
-				}, Context{ctx: context.Background()}, `{"data":{"data":true}}`
+				}, *NewContext(context.Background()), `{"data":{"data":true}}`
 			}))
 			t.Run("int", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 				return &GraphQLResponse{
@@ -917,7 +1000,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 						// expected output is a string
 					},
-				}, Context{ctx: context.Background()}, `{"data":{"data":1}}`
+				}, *NewContext(context.Background()), `{"data":{"data":1}}`
 			}))
 			t.Run("float", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 				return &GraphQLResponse{
@@ -945,7 +1028,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 						// expected output is a string
 					},
-				}, Context{ctx: context.Background()}, `{"data":{"data":2.0}}`
+				}, *NewContext(context.Background()), `{"data":{"data":2.0}}`
 			}))
 			t.Run("null", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 				return &GraphQLResponse{
@@ -973,7 +1056,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 						// expected output is a string
 					},
-				}, Context{ctx: context.Background()}, `{"data":{"data":null}}`
+				}, *NewContext(context.Background()), `{"data":{"data":null}}`
 			}))
 			t.Run("string", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 				return &GraphQLResponse{
@@ -1000,7 +1083,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 						// expect data value to be valid JSON string
 					},
-				}, Context{ctx: context.Background()}, `{"data":{"data":"hello world"}}`
+				}, *NewContext(context.Background()), `{"data":{"data":"hello world"}}`
 			}))
 		})
 	})
@@ -1021,7 +1104,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"id":"1"}}`
+		}, *NewContext(context.Background()), `{"data":{"id":"1"}}`
 	}))
 	t.Run("custom nullable", testGraphQLErrFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedErr string) {
 		return &GraphQLResponse{
@@ -1040,7 +1123,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.id'.","path":["id"]}],"data":null}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.id'.","path":["id"]}],"data":null}`
 	}))
 	t.Run("custom error", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOut string) {
 		return &GraphQLResponse{
@@ -1058,7 +1141,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"custom error","path":["id"]}],"data":null}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"custom error","path":["id"]}],"data":null}`
 	}))
 }
 
@@ -1429,7 +1512,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			Data: &Object{
 				Nullable: true,
 			},
-		}, Context{ctx: context.Background()}, `{"data":{}}`
+		}, *NewContext(context.Background()), `{"data":{}}`
 	}))
 	t.Run("__typename without renaming", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -1485,7 +1568,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"user":{"id":1,"name":"Jannik","__typename":"User","aliased":"User","rewritten":"User"}}}`
+		}, *NewContext(context.Background()), `{"data":{"user":{"id":1,"name":"Jannik","__typename":"User","aliased":"User","rewritten":"User"}}}`
 	}))
 	t.Run("__typename checks", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -1544,7 +1627,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Subgraph 'Users' returned invalid value 'NotUser' for __typename field.","extensions":{"code":"INVALID_GRAPHQL"}}],"data":null}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"Subgraph 'Users' returned invalid value 'NotUser' for __typename field.","extensions":{"code":"INVALID_GRAPHQL"}}],"data":null}`
 	}))
 	t.Run("__typename checks apollo compatibility object", testFnApolloCompatibility(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -1606,7 +1689,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":null,"extensions":{"valueCompletion":[{"message":"Invalid __typename found for object at field Query.user.","path":["user"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`
+		}, *NewContext(context.Background()), `{"data":null,"extensions":{"valueCompletion":[{"message":"Invalid __typename found for object at field Query.user.","path":["user"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`
 	}, nil))
 	t.Run("__typename checks apollo compatibility array", testFnApolloCompatibility(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -1670,7 +1753,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":null,"extensions":{"valueCompletion":[{"message":"Invalid __typename found for object at array element of type User at index 0.","path":["users",0],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`
+		}, *NewContext(context.Background()), `{"data":null,"extensions":{"valueCompletion":[{"message":"Invalid __typename found for object at array element of type User at index 0.","path":["users",0],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`
 	}, nil))
 	t.Run("__typename with renaming", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -1767,7 +1850,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.country'.","path":["country"]}],"data":null}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.country'.","path":["country"]}],"data":null}`
 	}))
 	t.Run("empty graphql response for non-nullable array query field", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -1793,7 +1876,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.countries'.","path":["countries"]}],"data":null}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.countries'.","path":["countries"]}],"data":null}`
 	}))
 	t.Run("fetch with simple error without datasource ID", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
@@ -1823,7 +1906,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Failed to fetch from Subgraph.","extensions":{"errors":[{"message":"errorMessage"}]}}],"data":{"name":null}}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"Failed to fetch from Subgraph.","extensions":{"errors":[{"message":"errorMessage"}]}}],"data":{"name":null}}`
 	}))
 	t.Run("fetch with simple error without datasource ID no subgraph error forwarding", testFnNoSubgraphErrorForwarding(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
@@ -1853,7 +1936,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Failed to fetch from Subgraph at Path 'query'."}],"data":{"name":null}}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"Failed to fetch from Subgraph at Path 'query'."}],"data":{"name":null}}`
 	}))
 	t.Run("fetch with simple error", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
@@ -1887,7 +1970,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at Path 'query'.","extensions":{"errors":[{"message":"errorMessage"}]}}],"data":{"name":null}}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at Path 'query'.","extensions":{"errors":[{"message":"errorMessage"}]}}],"data":{"name":null}}`
 	}))
 	t.Run("fetch with simple error in pass through Subgraph Error Mode", testFnSubgraphErrorsPassthrough(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
@@ -1921,7 +2004,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"errorMessage"}],"data":{"name":null}}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"errorMessage"}],"data":{"name":null}}`
 	}))
 	t.Run("fetch with pass through mode and omit custom fields", testFnSubgraphErrorsPassthroughAndOmitCustomFields(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
@@ -1958,7 +2041,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}],"data":{"name":null}}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}],"data":{"name":null}}`
 	}))
 	t.Run("fetch with returned err (with DataSourceID)", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
@@ -1992,7 +2075,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at Path 'query'."}],"data":{"name":null}}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at Path 'query'."}],"data":{"name":null}}`
 	}))
 	t.Run("fetch with returned err (no DataSourceID)", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
@@ -2022,7 +2105,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Failed to fetch from Subgraph at Path 'query'."}],"data":{"name":null}}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"Failed to fetch from Subgraph at Path 'query'."}],"data":{"name":null}}`
 	}))
 	t.Run("fetch with returned err and non-nullable root field", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
@@ -2056,7 +2139,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at Path 'query'."}],"data":null}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at Path 'query'."}],"data":null}`
 	}))
 	t.Run("root field with nested non-nullable fields returns null", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -2091,7 +2174,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.name'.","path":["user","name"]}],"data":{"user":null}}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.name'.","path":["user","name"]}],"data":{"user":null}}`
 	}))
 	t.Run("multiple root fields with nested non-nullable fields each return null", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -2149,7 +2232,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.one.name'.","path":["one","name"]},{"message":"Cannot return null for non-nullable field 'Query.two.age'.","path":["two","age"]}],"data":{"one":null,"two":null}}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.one.name'.","path":["one","name"]},{"message":"Cannot return null for non-nullable field 'Query.two.age'.","path":["two","age"]}],"data":{"one":null,"two":null}}`
 	}))
 	t.Run("root field with double nested non-nullable field returns partial data", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -2200,7 +2283,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.nested.name'.","path":["user","nested","name"]}],"data":{"user":{"nested":null,"age":1}}}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.nested.name'.","path":["user","nested","name"]}],"data":{"user":{"nested":null,"age":1}}}`
 	}))
 	t.Run("fetch with two Errors", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
@@ -2229,7 +2312,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Failed to fetch from Subgraph at Path 'query'.","extensions":{"errors":[{"message":"errorMessage1"},{"message":"errorMessage2"}]}}],"data":{"name":null}}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"Failed to fetch from Subgraph at Path 'query'.","extensions":{"errors":[{"message":"errorMessage1"},{"message":"errorMessage2"}]}}],"data":{"name":null}}`
 	}))
 	t.Run("non-nullable object in nullable field", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -2266,7 +2349,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"nullableField":null}}`
+		}, *NewContext(context.Background()), `{"data":{"nullableField":null}}`
 	}))
 
 	t.Run("interface response", func(t *testing.T) {
@@ -2329,13 +2412,13 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 
 			t.Run("interface response with matching type", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 				return obj(`{"thing":{"id":"1","abstractThing":{"__typename":"ConcreteOne","name":"foo"}}}`),
-					Context{ctx: context.Background()},
+					*NewContext(context.Background()),
 					`{"data":{"thing":{"id":"1","abstractThing":{"name":"foo","__typename":"ConcreteOne"}}}}`
 			}))
 
 			t.Run("interface response with not matching type", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 				return obj(`{"thing":{"id":"1","abstractThing":{"__typename":"ConcreteTwo"}}}`),
-					Context{ctx: context.Background()},
+					*NewContext(context.Background()),
 					`{"data":{"thing":{"id":"1","abstractThing":{}}}}`
 			}))
 		})
@@ -2393,13 +2476,13 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 
 			t.Run("interface response with matching type", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 				return obj(`{"data":{"things":[{"id":"1","abstractThing":{"__typename":"ConcreteOne","name":"foo"}}]}}`),
-					Context{ctx: context.Background()},
+					*NewContext(context.Background()),
 					`{"data":{"things":[{"id":"1","abstractThing":{"name":"foo"}}]}}`
 			}))
 
 			t.Run("interface response with not matching type", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 				return obj(`{"data":{"things":[{"id":"1","abstractThing":{"__typename":"ConcreteTwo"}}]}}`),
-					Context{ctx: context.Background()},
+					*NewContext(context.Background()),
 					`{"data":{"things":[{"id":"1","abstractThing":{}}]}}`
 			}))
 		})
@@ -2433,7 +2516,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"nullableArray":[]}}`
+		}, *NewContext(context.Background()), `{"data":{"nullableArray":[]}}`
 	}))
 	t.Run("empty not nullable array should resolve correctly", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -2463,7 +2546,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"notNullableArray":[]}}`
+		}, *NewContext(context.Background()), `{"data":{"notNullableArray":[]}}`
 	}))
 	t.Run("when data null not nullable array should resolve to data null and errors", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -2515,7 +2598,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Failed to fetch from Subgraph at Path 'query', Reason: no data or errors in response."}],"data":null}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"Failed to fetch from Subgraph at Path 'query', Reason: no data or errors in response."}],"data":null}`
 	}))
 	t.Run("when data null and errors present not nullable array should result to null data upstream error and resolve error", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -2556,7 +2639,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Failed to fetch from Subgraph at Path 'query'.","extensions":{"errors":[{"message":"Could not get name","locations":[{"line":3,"column":5}],"path":["todos","0","name"]}]}}],"data":{"todos":null}}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"Failed to fetch from Subgraph at Path 'query'.","extensions":{"errors":[{"message":"Could not get name","locations":[{"line":3,"column":5}],"path":["todos","0","name"]}]}}],"data":{"todos":null}}`
 	}))
 	t.Run("complex GraphQL Server plan", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		serviceOne := NewMockDataSource(ctrl)
@@ -2589,7 +2672,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				return []byte(`{"data":{"serviceOne":{"fieldOne":"fieldOneValue"}}}`), nil
 			})
 
-		return &GraphQLResponse{
+		res := &GraphQLResponse{
 			Fetches: Sequence(
 				Parallel(
 					SingleWithPath(&SingleFetch{
@@ -2790,7 +2873,10 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background(), Variables: astjson.MustParseBytes([]byte(`{"firstArg":"firstArgValue","thirdArg":123,"secondArg": true, "fourthArg": 12.34}`))}, `{"data":{"serviceOne":{"fieldOne":"fieldOneValue"},"serviceTwo":{"fieldTwo":"fieldTwoValue","serviceOneResponse":{"fieldOne":"fieldOneValue"}},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}}`
+		}
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.Variables = astjson.MustParseBytes([]byte(`{"firstArg":"firstArgValue","thirdArg":123,"secondArg": true, "fourthArg": 12.34}`))
+		return res, *resolveCtx, `{"data":{"serviceOne":{"fieldOne":"fieldOneValue"},"serviceTwo":{"fieldTwo":"fieldTwoValue","serviceOneResponse":{"fieldOne":"fieldOneValue"}},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}}`
 	}))
 	t.Run("federation", func(t *testing.T) {
 		t.Run("federation with batch", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
@@ -2988,7 +3074,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 				},
-			}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Fedora"}}]}}}`
+			}, *NewContext(context.Background()), `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Fedora"}}]}}}`
 		}))
 		t.Run("federation with merge paths", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 			userService := NewMockDataSource(ctrl)
@@ -3186,7 +3272,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 				},
-			}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Fedora"}}]}}}`
+			}, *NewContext(context.Background()), `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Fedora"}}]}}}`
 		}))
 		t.Run("federation with null response", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 			userService := NewMockDataSource(ctrl)
@@ -3412,7 +3498,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 				},
-			}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"foo","product":{"upc":"top-1","name":"Trilby"}},{"body":"bar","product":{"upc":"top-2","name":"Fedora"}},{"body":"baz","product":null},{"body":"bat","product":{"upc":"top-4","name":"Boater"}},{"body":"bal","product":{"upc":"top-5","name":"Top Hat"}},{"body":"ban","product":{"upc":"top-6","name":"Bowler"}}]}}}`
+			}, *NewContext(context.Background()), `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"foo","product":{"upc":"top-1","name":"Trilby"}},{"body":"bar","product":{"upc":"top-2","name":"Fedora"}},{"body":"baz","product":null},{"body":"bat","product":{"upc":"top-4","name":"Boater"}},{"body":"bal","product":{"upc":"top-5","name":"Top Hat"}},{"body":"ban","product":{"upc":"top-6","name":"Bowler"}}]}}}`
 		}))
 		t.Run("federation with fetch error", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 
@@ -3599,7 +3685,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 				},
-			}, Context{ctx: context.Background(), Variables: nil}, `{"errors":[{"message":"Failed to fetch from Subgraph at Path 'query.me.reviews.@.product', Reason: no data or errors in response."},{"message":"Cannot return null for non-nullable field 'Query.me.reviews.product.name'.","path":["me","reviews",0,"product","name"]},{"message":"Cannot return null for non-nullable field 'Query.me.reviews.product.name'.","path":["me","reviews",1,"product","name"]}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`
+			}, *NewContext(context.Background()), `{"errors":[{"message":"Failed to fetch from Subgraph at Path 'query.me.reviews.@.product', Reason: no data or errors in response."},{"message":"Cannot return null for non-nullable field 'Query.me.reviews.product.name'.","path":["me","reviews",0,"product","name"]},{"message":"Cannot return null for non-nullable field 'Query.me.reviews.product.name'.","path":["me","reviews",1,"product","name"]}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`
 		}))
 		t.Run("federation with fetch error and non null fields inside an array", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 
@@ -3784,7 +3870,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 				},
-			}, Context{ctx: context.Background(), Variables: nil}, `{"errors":[{"message":"Failed to fetch from Subgraph at Path 'query.me.reviews.@.product', Reason: no data or errors in response."},{"message":"Cannot return null for non-nullable field 'Query.me.reviews.product.name'.","path":["me","reviews",0,"product","name"]}],"data":{"me":{"id":"1234","username":"Me","reviews":null}}}`
+			}, *NewContext(context.Background()), `{"errors":[{"message":"Failed to fetch from Subgraph at Path 'query.me.reviews.@.product', Reason: no data or errors in response."},{"message":"Cannot return null for non-nullable field 'Query.me.reviews.product.name'.","path":["me","reviews",0,"product","name"]}],"data":{"me":{"id":"1234","username":"Me","reviews":null}}}`
 		}))
 		t.Run("federation with optional variable", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 			userService := NewMockDataSource(ctrl)
@@ -3817,7 +3903,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					return []byte(`{"data":{"_entities":[{"times":[{"id": "t1","employee":{"id":"xyz987"},"start":"2022-11-02T08:00:00","end":"2022-11-02T12:00:00"}]}]}}`), nil
 				})
 
-			return &GraphQLResponse{
+			res := &GraphQLResponse{
 				Fetches: Sequence(
 					SingleWithPath(&SingleFetch{
 						InputTemplate: InputTemplate{
@@ -3980,13 +4066,16 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 				},
-			}, Context{ctx: context.Background(), Variables: astjson.MustParseBytes([]byte(`{"companyId":"abc123","date":null}`))}, `{"data":{"me":{"employment":{"id":"xyz987","times":[{"id":"t1","employee":{"id":"xyz987"},"start":"2022-11-02T08:00:00","end":"2022-11-02T12:00:00"}]}}}}`
+			}
+			resolveCtx := NewContext(context.Background())
+			resolveCtx.Variables = astjson.MustParseBytes([]byte(`{"companyId":"abc123","date":null}`))
+			return res, *resolveCtx, `{"data":{"me":{"employment":{"id":"xyz987","times":[{"id":"t1","employee":{"id":"xyz987"},"start":"2022-11-02T08:00:00","end":"2022-11-02T12:00:00"}]}}}}`
 		}))
 	})
 }
 
 // testFnArena is a helper function for testing ArenaResolveGraphQLResponse
-func testFnArena(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string)) func(t *testing.T) {
+func testFnArena(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string)) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Helper()
 
@@ -4007,7 +4096,7 @@ func testFnArena(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLRe
 		}
 
 		buf := &bytes.Buffer{}
-		_, err := r.ArenaResolveGraphQLResponse(&ctx, node, buf)
+		_, err := r.ArenaResolveGraphQLResponse(ctx, node, buf)
 		assert.NoError(t, err)
 		assert.Equal(t, expectedOutput, buf.String())
 		ctrl.Finish()
@@ -4016,15 +4105,17 @@ func testFnArena(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLRe
 
 func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 
-	t.Run("empty graphql response", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("empty graphql response", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string) {
+		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Data: &Object{
 				Nullable: true,
 			},
-		}, Context{ctx: context.Background()}, `{"data":{}}`
+		}, resolveCtx, `{"data":{}}`
 	}))
 
-	t.Run("simple data source", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("simple data source", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string) {
+		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
 				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true}`)},
@@ -4061,10 +4152,11 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"user":{"id":"1","name":"Jens","registered":true}}}`
+		}, resolveCtx, `{"data":{"user":{"id":"1","name":"Jens","registered":true}}}`
 	}))
 
-	t.Run("array of strings", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("array of strings", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string) {
+		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
 				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"strings": ["Alex", "true", "123"]}`)},
@@ -4082,10 +4174,11 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"strings":["Alex","true","123"]}}`
+		}, resolveCtx, `{"data":{"strings":["Alex","true","123"]}}`
 	}))
 
-	t.Run("array of objects", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("array of objects", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string) {
+		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
 				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"friends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}]}`)},
@@ -4118,10 +4211,11 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"friends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}]}}`
+		}, resolveCtx, `{"data":{"friends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}]}}`
 	}))
 
-	t.Run("nested objects", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("nested objects", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string) {
+		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
 				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":"1","name":"Jens","pet":{"name":"Barky","kind":"Dog"}}`)},
@@ -4173,10 +4267,11 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"user":{"id":"1","name":"Jens","pet":{"name":"Barky","kind":"Dog"}}}}`
+		}, resolveCtx, `{"data":{"user":{"id":"1","name":"Jens","pet":{"name":"Barky","kind":"Dog"}}}}`
 	}))
 
-	t.Run("scalar types", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("scalar types", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string) {
+		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
 				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"int": 12345, "float": 3.5, "str":"value", "bool": true}`)},
@@ -4213,10 +4308,11 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"int":12345,"float":3.5,"str":"value","bool":true}}`
+		}, resolveCtx, `{"data":{"int":12345,"float":3.5,"str":"value","bool":true}}`
 	}))
 
-	t.Run("null field", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("null field", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string) {
+		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Data: &Object{
 				Fields: []*Field{
@@ -4226,10 +4322,11 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"foo":null}}`
+		}, resolveCtx, `{"data":{"foo":null}}`
 	}))
 
-	t.Run("__typename field", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("__typename field", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string) {
+		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
 				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":1,"name":"Jannik","__typename":"User"}`)},
@@ -4267,10 +4364,11 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"user":{"id":1,"name":"Jannik","__typename":"User"}}}`
+		}, resolveCtx, `{"data":{"user":{"id":1,"name":"Jannik","__typename":"User"}}}`
 	}))
 
-	t.Run("multiple fetches", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("multiple fetches", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string) {
+		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
 				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"user1":{"id":1,"name":"User1"},"user2":{"id":2,"name":"User2"}}`)},
@@ -4323,16 +4421,18 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"user1":{"id":1,"name":"User1"},"user2":{"id":2,"name":"User2"}}}`
+		}, resolveCtx, `{"data":{"user1":{"id":1,"name":"User1"},"user2":{"id":2,"name":"User2"}}}`
 	}))
 
-	t.Run("with variables", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("with variables", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any(), []byte(`{"id":1}`)).
 			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 				return []byte(`{"name":"Jens"}`), nil
 			})
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.Variables = astjson.MustParseBytes([]byte(`{"id":1}`))
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
 				FetchConfiguration: FetchConfiguration{DataSource: mockDataSource},
@@ -4367,16 +4467,17 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background(), Variables: astjson.MustParseBytes([]byte(`{"id":1}`))}, `{"data":{"name":"Jens"}}`
+		}, resolveCtx, `{"data":{"name":"Jens"}}`
 	}))
 
-	t.Run("error handling", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("error handling", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.Any()).
 			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 				return nil, errors.New("data source error")
 			})
+		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
 				FetchConfiguration: FetchConfiguration{DataSource: mockDataSource},
@@ -4392,10 +4493,11 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Failed to fetch from Subgraph."}],"data":null}`
+		}, resolveCtx, `{"errors":[{"message":"Failed to fetch from Subgraph."}],"data":null}`
 	}))
 
-	t.Run("bigint handling", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("bigint handling", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string) {
+		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
 				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"n": 12345, "ns_small": "12346", "ns_big": "1152921504606846976"}`)},
@@ -4425,10 +4527,12 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"n":12345,"ns_small":"12346","ns_big":"1152921504606846976"}}`
+		}, resolveCtx, `{"data":{"n":12345,"ns_small":"12346","ns_big":"1152921504606846976"}}`
 	}))
 
-	t.Run("skip loader", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("skip loader", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string) {
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.ExecutionOptions = ExecutionOptions{SkipLoader: true}
 		return &GraphQLResponse{
 			Data: &Object{
 				Fields: []*Field{
@@ -4438,8 +4542,123 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background(), ExecutionOptions: ExecutionOptions{SkipLoader: true}}, `{"data":null}`
+		}, resolveCtx, `{"data":null}`
 	}))
+}
+
+func TestResolver_ArenaResolveGraphQLResponse_RequestDeduplication(t *testing.T) {
+	rCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	r := newResolver(rCtx)
+
+	ds := newBlockingDataSource([]byte(`{"value":"slow"}`))
+	defer ds.Release()
+
+	response := &GraphQLResponse{
+		Info: &GraphQLResponseInfo{
+			OperationType: ast.OperationTypeQuery,
+		},
+		Fetches: Single(&SingleFetch{
+			FetchConfiguration: FetchConfiguration{
+				DataSource: ds,
+			},
+		}),
+		Data: &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("value"),
+					Value: &String{
+						Path:     []string{"value"},
+						Nullable: false,
+					},
+				},
+			},
+		},
+	}
+
+	ctxTemplateBase := NewContext(context.Background())
+	ctxTemplateBase.Request.ID = 42
+	ctxTemplateBase.VariablesHash = 1337
+	ctxTemplate := *ctxTemplateBase
+
+	const requestCount = 3
+
+	type result struct {
+		info   *GraphQLResolveInfo
+		output string
+		err    error
+	}
+
+	results := make([]result, requestCount)
+
+	var wg sync.WaitGroup
+	wg.Add(requestCount)
+
+	leaderWriter := newBlockingWriter()
+
+	go func() {
+		defer wg.Done()
+		ctx := ctxTemplate
+		info, err := r.ArenaResolveGraphQLResponse(&ctx, response, leaderWriter)
+		results[0] = result{info: info, output: leaderWriter.String(), err: err}
+	}()
+
+	select {
+	case <-ds.Ready():
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for leader data source load")
+	}
+
+	startFollowers := make(chan struct{})
+	followersEntered := make(chan struct{}, requestCount-1)
+
+	for i := 1; i < requestCount; i++ {
+		go func(i int) {
+			defer wg.Done()
+			ctx := ctxTemplate
+			<-startFollowers
+			followersEntered <- struct{}{}
+			buf := &bytes.Buffer{}
+			info, err := r.ArenaResolveGraphQLResponse(&ctx, response, buf)
+			results[i] = result{info: info, output: buf.String(), err: err}
+		}(i)
+	}
+
+	close(startFollowers)
+
+	for i := 1; i < requestCount; i++ {
+		select {
+		case <-followersEntered:
+		case <-time.After(time.Second):
+			t.Fatalf("timeout waiting for follower %d to start", i)
+		}
+	}
+
+	ds.Release()
+
+	select {
+	case <-leaderWriter.Ready():
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for leader to start writing response")
+	}
+
+	leaderWriter.Release()
+	wg.Wait()
+
+	for _, res := range results {
+		require.NoError(t, res.err)
+		require.NotNil(t, res.info)
+	}
+
+	assert.False(t, results[0].info.ResolveDeduplicated)
+
+	expectedOutput := results[0].output
+	require.NotEmpty(t, expectedOutput)
+
+	for i := 1; i < requestCount; i++ {
+		assert.True(t, results[i].info.ResolveDeduplicated)
+		assert.Equal(t, expectedOutput, results[i].output)
+	}
 }
 
 func TestResolver_ApolloCompatibilityMode_FetchError(t *testing.T) {
@@ -4482,7 +4701,7 @@ func TestResolver_ApolloCompatibilityMode_FetchError(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":null,"extensions":{"valueCompletion":[{"message":"Cannot return null for non-nullable field Query.name.","path":["name"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`
+		}, *NewContext(context.Background()), `{"data":null,"extensions":{"valueCompletion":[{"message":"Cannot return null for non-nullable field Query.name.","path":["name"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`
 	}, &options))
 
 	t.Run("simple fetch with fetch error suppression - response with error", testFnApolloCompatibility(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
@@ -4520,7 +4739,7 @@ func TestResolver_ApolloCompatibilityMode_FetchError(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Cannot query field 'name' on type 'Query'"}],"data":null}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"Cannot query field 'name' on type 'Query'"}],"data":null}`
 	}, &options))
 
 	t.Run("complex fetch with fetch error suppression", testFnApolloCompatibility(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
@@ -4706,7 +4925,7 @@ func TestResolver_ApolloCompatibilityMode_FetchError(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background(), Variables: nil}, `{"errors":[{"message":"errorMessage"}],"data":{"me":{"id":"1234","username":"Me","reviews":null}}}`
+		}, *NewContext(context.Background()), `{"errors":[{"message":"errorMessage"}],"data":{"me":{"id":"1234","username":"Me","reviews":null}}}`
 	}, &options))
 }
 
@@ -4961,11 +5180,12 @@ func (s *SubscriptionRecorder) Messages() []string {
 	return s.messages
 }
 
-func createFakeStream(messageFunc messageFunc, delay time.Duration, onStart func(input []byte)) *_fakeStream {
+func createFakeStream(messageFunc messageFunc, delay time.Duration, onStart func(input []byte), subscriptionOnStartFn func(ctx StartupHookContext, input []byte) (err error)) *_fakeStream {
 	return &_fakeStream{
-		messageFunc: messageFunc,
-		delay:       delay,
-		onStart:     onStart,
+		messageFunc:           messageFunc,
+		delay:                 delay,
+		onStart:               onStart,
+		subscriptionOnStartFn: subscriptionOnStartFn,
 	}
 }
 
@@ -4974,10 +5194,18 @@ type messageFunc func(counter int) (message string, done bool)
 var fakeStreamRequestId atomic.Int32
 
 type _fakeStream struct {
-	messageFunc messageFunc
-	onStart     func(input []byte)
-	delay       time.Duration
-	isDone      atomic.Bool
+	messageFunc           messageFunc
+	onStart               func(input []byte)
+	delay                 time.Duration
+	isDone                atomic.Bool
+	subscriptionOnStartFn func(ctx StartupHookContext, input []byte) (err error)
+}
+
+func (f *_fakeStream) SubscriptionOnStart(ctx StartupHookContext, input []byte) (err error) {
+	if f.subscriptionOnStartFn == nil {
+		return nil
+	}
+	return f.subscriptionOnStartFn(ctx, input)
 }
 
 func (f *_fakeStream) AwaitIsDone(t *testing.T, timeout time.Duration) {
@@ -5229,7 +5457,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return `{"errors":[{"message":"Validation error occurred","locations":[{"line":1,"column":1}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}],"data":null}`, true
 		}, 0, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
@@ -5267,7 +5495,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 2
 		}, 1*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
@@ -5300,7 +5528,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 1
 		}, 1*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
@@ -5358,7 +5586,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 2
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }","extensions":{"foo":"bar"}}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
@@ -5386,7 +5614,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 2
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"},"initial_payload":{"hello":"world"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
@@ -5414,7 +5642,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), false
 		}, time.Millisecond*10, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
@@ -5439,7 +5667,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), false
 		}, time.Millisecond*10, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
@@ -5464,7 +5692,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
@@ -5493,7 +5721,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { countryUpdated { name time { local } } }"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, recorder, id := setupWithAdditionalDataLoad(c, fakeStream)
 
@@ -5522,7 +5750,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), false
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, _, _ := setup(c, fakeStream)
 
@@ -5576,7 +5804,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), true
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, _, id := setup(c, fakeStream)
 		recorder := &SubscriptionRecorder{
@@ -5598,6 +5826,445 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		assert.NoError(t, err)
 		recorder.AwaitClosed(t, defaultTimeout)
 		fakeStream.AwaitIsDone(t, defaultTimeout)
+	})
+
+	t.Run("should call SubscriptionOnStart hook", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		called := make(chan bool, 1)
+
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
+		}, 1*time.Millisecond, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+		}, func(ctx StartupHookContext, input []byte) (err error) {
+			called <- true
+			return nil
+		})
+
+		resolver, plan, recorder, id := setup(c, fakeStream)
+
+		ctx := &Context{
+			ctx: context.Background(),
+		}
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
+		assert.NoError(t, err)
+
+		select {
+		case <-called:
+			t.Log("SubscriptionOnStart hook was called")
+		case <-time.After(defaultTimeout):
+			t.Fatal("SubscriptionOnStart hook was not called")
+		}
+
+		recorder.AwaitComplete(t, defaultTimeout)
+	})
+
+	t.Run("SubscriptionOnStart ctx has a working subscription updater", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
+		}, 1*time.Millisecond, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+		}, func(ctx StartupHookContext, input []byte) (err error) {
+			ctx.Updater([]byte(`{"data":{"counter":1000}}`))
+			return nil
+		})
+
+		resolver, plan, recorder, id := setup(c, fakeStream)
+
+		ctx := &Context{
+			ctx: context.Background(),
+			ExecutionOptions: ExecutionOptions{
+				SendHeartbeat: true,
+			},
+		}
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
+		assert.NoError(t, err)
+
+		recorder.AwaitComplete(t, defaultTimeout)
+		assert.Equal(t, 2, len(recorder.Messages()))
+		assert.Equal(t, `{"data":{"counter":1000}}`, recorder.Messages()[0])
+		assert.Equal(t, `{"data":{"counter":0}}`, recorder.Messages()[1])
+	})
+
+	t.Run("SubscriptionOnStart ctx updater only updates the right subscription", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		executed := atomic.Bool{}
+
+		id2 := SubscriptionIdentifier{
+			ConnectionID:   1,
+			SubscriptionID: 2,
+		}
+
+		streamCanStart := make(chan struct{})
+		startupHookWaitGroup := sync.WaitGroup{}
+		startupHookWaitGroup.Add(2)
+
+		// this message must come as last, on both recorders.
+		messageFn := func(counter int) (message string, done bool) {
+			<-streamCanStart
+			return `{"data":{"counter":0}}`, true
+		}
+
+		onStartFn := func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+		}
+
+		// this message must come first on the first recorder to be added to the trigger.
+		subscriptionOnStartFn := func(ctx StartupHookContext, input []byte) (err error) {
+			defer startupHookWaitGroup.Done()
+			if !executed.CompareAndSwap(false, true) {
+				return
+			}
+			ctx.Updater([]byte(`{"data":{"counter":1000}}`))
+			return nil
+		}
+
+		fakeStream := createFakeStream(messageFn, time.Millisecond, onStartFn, subscriptionOnStartFn)
+
+		resolver, plan, recorder, id := setup(c, fakeStream)
+
+		recorder2 := &SubscriptionRecorder{
+			buf:      &bytes.Buffer{},
+			messages: []string{},
+			complete: atomic.Bool{},
+		}
+		recorder2.complete.Store(false)
+
+		ctx := &Context{
+			ctx: context.Background(),
+			ExecutionOptions: ExecutionOptions{
+				SendHeartbeat: false,
+			},
+		}
+
+		ctx2 := &Context{
+			ctx: context.Background(),
+			ExecutionOptions: ExecutionOptions{
+				SendHeartbeat: false,
+			},
+		}
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
+		assert.NoError(t, err)
+
+		err2 := resolver.AsyncResolveGraphQLSubscription(ctx2, plan, recorder2, id2)
+		assert.NoError(t, err2)
+
+		done := make(chan struct{})
+		go func() {
+			startupHookWaitGroup.Wait()
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(defaultTimeout):
+			t.Fatal("timed out waiting for subscription startup hooks")
+		}
+
+		// Wait for both subscriptions startup hooks to be executed
+		startupHookWaitGroup.Wait()
+
+		// Signal the stream to send its message now that both subscriptions are ready
+		close(streamCanStart)
+
+		recorder.AwaitComplete(t, defaultTimeout)
+		recorder2.AwaitComplete(t, defaultTimeout)
+
+		recorderWith1Message := false
+		recorderWith2Messages := false
+
+		recorders := []*SubscriptionRecorder{recorder, recorder2}
+
+		for _, r := range recorders {
+			if len(r.Messages()) == 2 {
+				recorderWith2Messages = true
+				assert.Equal(t, `{"data":{"counter":1000}}`, r.Messages()[0])
+				assert.Equal(t, `{"data":{"counter":0}}`, r.Messages()[1])
+			}
+			if len(r.Messages()) == 1 {
+				recorderWith1Message = true
+				assert.Equal(t, `{"data":{"counter":0}}`, r.Messages()[0])
+			}
+		}
+
+		assert.True(t, recorderWith1Message, "recorder 1: %v, recorder 2: %v", recorder.messages, recorder2.messages)
+		assert.True(t, recorderWith2Messages, "recorder 1: %v, recorder 2: %v", recorder.messages, recorder2.messages)
+	})
+
+	t.Run("SubscriptionOnStart ctx updater on multiple subscriptions with same trigger works", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		id2 := SubscriptionIdentifier{
+			ConnectionID:   1,
+			SubscriptionID: 2,
+		}
+
+		streamCanStart := make(chan struct{})
+
+		// Message function that waits for signal before sending the final message
+		messageFn := func(counter int) (message string, done bool) {
+			<-streamCanStart
+			return `{"data":{"counter":0}}`, true
+		}
+
+		onStartFn := func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+		}
+
+		// this handler pushes the first message to both subscribers via subscription-on-start hook.
+		subscriptionOnStartFn := func(ctx StartupHookContext, input []byte) (err error) {
+			ctx.Updater([]byte(`{"data":{"counter":1000}}`))
+			return nil
+		}
+
+		fakeStream := createFakeStream(messageFn, 1*time.Millisecond, onStartFn, subscriptionOnStartFn)
+
+		resolver, plan, recorder, id := setup(c, fakeStream)
+
+		recorder2 := &SubscriptionRecorder{
+			buf:      &bytes.Buffer{},
+			messages: []string{},
+			complete: atomic.Bool{},
+		}
+		recorder2.complete.Store(false)
+
+		ctx := &Context{
+			ctx: context.Background(),
+			ExecutionOptions: ExecutionOptions{
+				SendHeartbeat: false,
+			},
+		}
+
+		ctx2 := &Context{
+			ctx: context.Background(),
+			ExecutionOptions: ExecutionOptions{
+				SendHeartbeat: false,
+			},
+		}
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
+		assert.NoError(t, err)
+
+		err2 := resolver.AsyncResolveGraphQLSubscription(ctx2, plan, recorder2, id2)
+		assert.NoError(t, err2)
+
+		// Wait for subscriptions to receive their initial message from the subscription-on-start hook.
+		// Then we know the subscriptions are fully registered on the trigger and then we can send
+		// the next message (by closing the streamCanStart channel).
+		recorder.AwaitAnyMessageCount(t, defaultTimeout)
+		recorder2.AwaitAnyMessageCount(t, defaultTimeout)
+		close(streamCanStart)
+
+		recorder.AwaitComplete(t, defaultTimeout)
+		recorder2.AwaitComplete(t, defaultTimeout)
+
+		// Both recorders should have received both messages in the correct order.
+		for _, r := range []*SubscriptionRecorder{recorder, recorder2} {
+			assert.Len(t, r.Messages(), 2, "recorder messages: %v", r.messages)
+			assert.Equal(t, `{"data":{"counter":1000}}`, r.Messages()[0])
+			assert.Equal(t, `{"data":{"counter":0}}`, r.Messages()[1])
+		}
+	})
+
+	t.Run("SubscriptionOnStart can send a lot of updates without blocking", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		workChanBufferSize := 10000
+
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
+		}, 1*time.Millisecond, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+		}, func(ctx StartupHookContext, input []byte) (err error) {
+			for i := 0; i < workChanBufferSize+1; i++ {
+				ctx.Updater([]byte(fmt.Sprintf(`{"data":{"counter":%d}}`, i+100)))
+			}
+			return nil
+		})
+
+		resolver, plan, recorder, id := setup(c, fakeStream)
+
+		ctx := &Context{
+			ctx: context.Background(),
+			ExecutionOptions: ExecutionOptions{
+				SendHeartbeat: true,
+			},
+		}
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
+		assert.NoError(t, err)
+
+		recorder.AwaitComplete(t, defaultTimeout)
+		assert.Equal(t, workChanBufferSize+2, len(recorder.Messages()))
+		for i := 0; i < workChanBufferSize; i++ {
+			assert.Equal(t, fmt.Sprintf(`{"data":{"counter":%d}}`, i+100), recorder.Messages()[i])
+		}
+		assert.Equal(t, `{"data":{"counter":0}}`, recorder.Messages()[workChanBufferSize+1])
+	})
+
+	t.Run("SubscriptionOnStart can send a lot of updates in a go routine while updates are coming from other sources", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		messagesToSendFromHook := int32(100)
+		messagesToSendFromOtherSources := int32(100)
+
+		firstMessageArrived := make(chan bool, 1)
+		completionWg := sync.WaitGroup{}
+		completionWg.Add(2) // Wait for both the fakeStream and the hook goroutine to complete
+
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			if counter == 0 {
+				select {
+				case firstMessageArrived <- true:
+				default:
+				}
+			}
+			if counter == int(messagesToSendFromOtherSources)-1 {
+				completionWg.Done()
+			}
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == int(messagesToSendFromOtherSources)-1
+		}, 1*time.Millisecond, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+		}, func(ctx StartupHookContext, input []byte) (err error) {
+			// send the first update immediately
+			ctx.Updater([]byte(fmt.Sprintf(`{"data":{"counter":%d}}`, 0+20000)))
+
+			// start a go routine to send the updates after the source started emitting messages
+			go func() {
+				defer completionWg.Done()
+				// Wait for the first message to arrive before sending updates
+				select {
+				case <-firstMessageArrived:
+					for i := 1; i < int(messagesToSendFromHook); i++ {
+						ctx.Updater([]byte(fmt.Sprintf(`{"data":{"counter":%d}}`, i+20000)))
+					}
+				case <-time.After(defaultTimeout):
+					// if the first message did not arrive, do not send any updates
+					return
+				}
+			}()
+
+			return nil
+		})
+
+		resolver, plan, recorder, id := setup(c, fakeStream)
+
+		ctx := &Context{
+			ctx: context.Background(),
+			ExecutionOptions: ExecutionOptions{
+				SendHeartbeat: false,
+			},
+		}
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
+		assert.NoError(t, err)
+
+		// Wait for both the hook goroutine and the fakeStream to complete
+		done := make(chan struct{})
+		go func() {
+			completionWg.Wait()
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(defaultTimeout * 2):
+			t.Fatal("timed out waiting for completion")
+		}
+
+		recorder.AwaitComplete(t, defaultTimeout*2)
+
+		var messagesHeartbeat int32
+		for _, m := range recorder.Messages() {
+			if m == "heartbeat" {
+				messagesHeartbeat++
+			}
+		}
+		assert.Equal(t, int32(messagesToSendFromHook+messagesToSendFromOtherSources+messagesHeartbeat), int32(len(recorder.Messages())))
+		assert.Equal(t, `{"data":{"counter":20000}}`, recorder.Messages()[0])
+	})
+
+	t.Run("it is possible to have two subscriptions to the same trigger", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 100
+		}, 1*time.Millisecond, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+		}, func(ctx StartupHookContext, input []byte) (err error) {
+			return nil
+		})
+
+		resolver1, plan1, recorder1, id1 := setup(c, fakeStream)
+		_, _, recorder2, id2 := setup(c, fakeStream)
+		id2.ConnectionID = id1.ConnectionID + 1
+		id2.SubscriptionID = id1.SubscriptionID + 1
+
+		ctx1 := &Context{
+			ctx: context.Background(),
+		}
+		ctx2 := &Context{
+			ctx: context.Background(),
+		}
+
+		err1 := resolver1.AsyncResolveGraphQLSubscription(ctx1, plan1, recorder1, id1)
+		assert.NoError(t, err1)
+
+		err2 := resolver1.AsyncResolveGraphQLSubscription(ctx2, plan1, recorder2, id2)
+		assert.NoError(t, err2)
+
+		// complete is called only on the last recorder
+		recorder1.AwaitComplete(t, defaultTimeout)
+		require.Equal(t, 101, len(recorder1.Messages()))
+		assert.Equal(t, `{"data":{"counter":0}}`, recorder1.Messages()[0])
+		assert.Equal(t, `{"data":{"counter":100}}`, recorder1.Messages()[100])
+
+		recorder2.AwaitComplete(t, defaultTimeout)
+		require.Equal(t, 101, len(recorder2.Messages()))
+		assert.Equal(t, `{"data":{"counter":0}}`, recorder2.Messages()[0])
+		assert.Equal(t, `{"data":{"counter":100}}`, recorder2.Messages()[100])
+	})
+
+	t.Run("should propagate errors from SubscriptionOnStart hook", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		expectedErr := errors.New("startup hook failed")
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
+		}, 1*time.Millisecond, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+		}, func(ctx StartupHookContext, input []byte) (err error) {
+			return expectedErr
+		})
+
+		resolver, plan, recorder, id := setup(c, fakeStream)
+
+		ctx := &Context{
+			ctx: context.Background(),
+		}
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
+		assert.NoError(t, err)
+
+		recorder.AwaitAnyMessageCount(t, defaultTimeout)
+		messages := recorder.Messages()
+		require.Greater(t, len(messages), 0, "Expected error message to be written to recorder")
+
+		errorMessage := messages[0]
+		assert.Contains(t, errorMessage, "errors", "Expected error message in GraphQL format")
+		assert.Contains(t, errorMessage, expectedErr.Error(), "Expected actual error message to be included")
 	})
 }
 
@@ -5671,7 +6338,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 			return `{"id":2}`, true
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000"}`, string(input))
-		})
+		}, nil)
 
 		plan := &GraphQLSubscription{
 			Trigger: GraphQLSubscriptionTrigger{
@@ -5767,7 +6434,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 			return `{"id":2}`, true
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000"}`, string(input))
-		})
+		}, nil)
 
 		plan := &GraphQLSubscription{
 			Trigger: GraphQLSubscriptionTrigger{
@@ -5861,7 +6528,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 			return `{"id":4}`, true
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000"}`, string(input))
-		})
+		}, nil)
 
 		plan := &GraphQLSubscription{
 			Trigger: GraphQLSubscriptionTrigger{
@@ -5956,7 +6623,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 			return `{"id":"x.4"}`, true
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000"}`, string(input))
-		})
+		}, nil)
 
 		plan := &GraphQLSubscription{
 			Trigger: GraphQLSubscriptionTrigger{
@@ -6055,7 +6722,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 			return `{"id":"x.2"}`, true
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000"}`, string(input))
-		})
+		}, nil)
 
 		plan := &GraphQLSubscription{
 			Trigger: GraphQLSubscriptionTrigger{

@@ -284,9 +284,7 @@ func TestLoader_LoadGraphQLResponseData(t *testing.T) {
 			},
 		},
 	}
-	ctx := &Context{
-		ctx: context.Background(),
-	}
+	ctx := NewContext(context.Background())
 	resolvable := NewResolvable(nil, ResolvableOptions{})
 	loader := &Loader{}
 	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
@@ -373,9 +371,7 @@ func TestLoader_MergeErrorDifferingTypes(t *testing.T) {
 			},
 		},
 	}
-	ctx := &Context{
-		ctx: context.Background(),
-	}
+	ctx := NewContext(context.Background())
 	resolvable := NewResolvable(nil, ResolvableOptions{})
 	loader := &Loader{}
 	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
@@ -464,9 +460,7 @@ func TestLoader_MergeErrorDifferingArrayLength(t *testing.T) {
 			},
 		},
 	}
-	ctx := &Context{
-		ctx: context.Background(),
-	}
+	ctx := NewContext(context.Background())
 	resolvable := NewResolvable(nil, ResolvableOptions{})
 	loader := &Loader{}
 	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
@@ -745,10 +739,8 @@ func TestLoader_LoadGraphQLResponseDataWithExtensions(t *testing.T) {
 			},
 		},
 	}
-	ctx := &Context{
-		ctx:        context.Background(),
-		Extensions: []byte(`{"foo":"bar"}`),
-	}
+	ctx := NewContext(context.Background())
+	ctx.Extensions = []byte(`{"foo":"bar"}`)
 	resolvable := NewResolvable(nil, ResolvableOptions{})
 	loader := &Loader{}
 	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
@@ -1021,9 +1013,7 @@ func BenchmarkLoader_LoadGraphQLResponseData(b *testing.B) {
 			},
 		},
 	}
-	ctx := &Context{
-		ctx: context.Background(),
-	}
+	ctx := NewContext(context.Background())
 	resolvable := NewResolvable(nil, ResolvableOptions{})
 	loader := &Loader{}
 	expected := `{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}}`
@@ -1116,14 +1106,12 @@ func TestLoader_RedactHeaders(t *testing.T) {
 		},
 	}
 
-	ctx := &Context{
-		ctx: context.Background(),
-		Request: Request{
-			Header: http.Header{"Authorization": []string{"value"}},
-		},
-		TracingOptions: TraceOptions{
-			Enable: true,
-		},
+	ctx := NewContext(context.Background())
+	ctx.Request = Request{
+		Header: http.Header{"Authorization": []string{"value"}},
+	}
+	ctx.TracingOptions = TraceOptions{
+		Enable: true,
 	}
 	resolvable := NewResolvable(nil, ResolvableOptions{})
 	loader := &Loader{}
@@ -1418,9 +1406,7 @@ func TestLoader_InvalidBatchItemCount(t *testing.T) {
 			},
 		},
 	}
-	ctx := &Context{
-		ctx: context.Background(),
-	}
+	ctx := NewContext(context.Background())
 	resolvable := NewResolvable(nil, ResolvableOptions{})
 	loader := &Loader{}
 	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
@@ -1463,7 +1449,7 @@ func TestRewriteErrorPaths(t *testing.T) {
 			},
 			expectedErrors: []*astjson.Value{
 				mp(`{"message": "nested", "path": ["user", "profile", "address", "street"]}`),
-				mp(`{"message": "index", "path": ["user", "profile", "reviews", "1", "body"]}`),
+				mp(`{"message": "index", "path": ["user", "profile", "reviews", 1, "body"]}`),
 			},
 		},
 		{
@@ -1538,6 +1524,577 @@ func TestRewriteErrorPaths(t *testing.T) {
 				assert.JSONEq(t, string(expectedData), string(actualData),
 					"Error %d should match expected", i)
 			}
+		})
+	}
+}
+
+func TestLoader_OptionallyOmitErrorLocations(t *testing.T) {
+	tests := []struct {
+		name                       string
+		omitSubgraphErrorLocations bool
+		inputJSON                  string
+		expectedJSON               string
+	}{
+		{
+			name:                       "omit flag is true - removes all locations",
+			omitSubgraphErrorLocations: true,
+			inputJSON: `[
+				{
+					"message": "Field error",
+					"locations": [{"line": 1, "column": 5}],
+					"path": ["field"]
+				}
+			]`,
+			expectedJSON: `[
+				{
+					"message": "Field error",
+					"path": ["field"]
+				}
+			]`,
+		},
+		{
+			name:                       "no locations field - unchanged",
+			omitSubgraphErrorLocations: false,
+			inputJSON: `[
+				{
+					"message": "Field error",
+					"path": ["field"]
+				}
+			]`,
+			expectedJSON: `[
+				{
+					"message": "Field error",
+					"path": ["field"]
+				}
+			]`,
+		},
+		{
+			name:                       "no locations field with omit flag true - calls Del safely",
+			omitSubgraphErrorLocations: true,
+			inputJSON: `[
+				{
+					"message": "Field error",
+					"path": ["field"]
+				}
+			]`,
+			expectedJSON: `[
+				{
+					"message": "Field error",
+					"path": ["field"]
+				}
+			]`,
+		},
+		{
+			name:                       "empty object with no locations - safe to call Del",
+			omitSubgraphErrorLocations: false,
+			inputJSON: `[
+				{
+					"message": "Error"
+				}
+			]`,
+			expectedJSON: `[
+				{
+					"message": "Error"
+				}
+			]`,
+		},
+		{
+			name:                       "empty object with omit flag - safe to call Del",
+			omitSubgraphErrorLocations: true,
+			inputJSON: `[
+				{
+					"message": "Error"
+				}
+			]`,
+			expectedJSON: `[
+				{
+					"message": "Error"
+				}
+			]`,
+		},
+		{
+			name:                       "multiple errors without locations field",
+			omitSubgraphErrorLocations: false,
+			inputJSON: `[
+				{
+					"message": "Error 1",
+					"path": ["field1"]
+				},
+				{
+					"message": "Error 2",
+					"extensions": {"code": "SOME_ERROR"}
+				},
+				{
+					"message": "Error 3"
+				}
+			]`,
+			expectedJSON: `[
+				{
+					"message": "Error 1",
+					"path": ["field1"]
+				},
+				{
+					"message": "Error 2",
+					"extensions": {"code": "SOME_ERROR"}
+				},
+				{
+					"message": "Error 3"
+				}
+			]`,
+		},
+		{
+			name:                       "all valid locations - unchanged",
+			omitSubgraphErrorLocations: false,
+			inputJSON: `[
+				{
+					"message": "Field error",
+					"locations": [
+						{"line": 1, "column": 5},
+						{"line": 2, "column": 10}
+					],
+					"path": ["field"]
+				}
+			]`,
+			expectedJSON: `[
+				{
+					"message": "Field error",
+					"locations": [
+						{"line": 1, "column": 5},
+						{"line": 2, "column": 10}
+					],
+					"path": ["field"]
+				}
+			]`,
+		},
+		{
+			name:                       "all locations invalid (line <= 0) - removes locations field",
+			omitSubgraphErrorLocations: false,
+			inputJSON: `[
+				{
+					"message": "Field error",
+					"locations": [
+						{"line": 0, "column": 5},
+						{"line": 1, "column": -2}
+					],
+					"path": ["field"]
+				}
+			]`,
+			expectedJSON: `[
+				{
+					"message": "Field error",
+					"path": ["field"]
+				}
+			]`,
+		},
+		{
+			name:                       "all locations invalid (column <= 0) - removes locations field",
+			omitSubgraphErrorLocations: false,
+			inputJSON: `[
+				{
+					"message": "Field error",
+					"locations": [
+						{"line": 1, "column": 0},
+						{"line": 2, "column": -1}
+					],
+					"path": ["field"]
+				}
+			]`,
+			expectedJSON: `[
+				{
+					"message": "Field error",
+					"path": ["field"]
+				}
+			]`,
+		},
+		{
+			name:                       "mixed valid and invalid locations - keeps only valid",
+			omitSubgraphErrorLocations: false,
+			inputJSON: `[
+				{
+					"message": "Field error",
+					"locations": [
+						{"line": 1, "column": 5},
+						{"line": 0, "column": 10},
+						{"line": 3, "column": -2},
+						{"line": 4, "column": 15}
+					],
+					"path": ["field"]
+				}
+			]`,
+			expectedJSON: `[
+				{
+					"message": "Field error",
+					"locations": [
+						{"line": 1, "column": 5},
+						{"line": 4, "column": 15}
+					],
+					"path": ["field"]
+				}
+			]`,
+		},
+		{
+			name:                       "location with missing line field - removes that location",
+			omitSubgraphErrorLocations: false,
+			inputJSON: `[
+				{
+					"message": "Field error",
+					"locations": [
+						{"line": 1, "column": 5},
+						{"column": 10}
+					],
+					"path": ["field"]
+				}
+			]`,
+			expectedJSON: `[
+				{
+					"message": "Field error",
+					"locations": [
+						{"line": 1, "column": 5}
+					],
+					"path": ["field"]
+				}
+			]`,
+		},
+		{
+			name:                       "location with missing column field - removes that location",
+			omitSubgraphErrorLocations: false,
+			inputJSON: `[
+				{
+					"message": "Field error",
+					"locations": [
+						{"line": 1, "column": 5},
+						{"line": 2}
+					],
+					"path": ["field"]
+				}
+			]`,
+			expectedJSON: `[
+				{
+					"message": "Field error",
+					"locations": [
+						{"line": 1, "column": 5}
+					],
+					"path": ["field"]
+				}
+			]`,
+		},
+		{
+			name:                       "all locations missing fields - removes locations field",
+			omitSubgraphErrorLocations: false,
+			inputJSON: `[
+				{
+					"message": "Field error",
+					"locations": [
+						{"line": 1},
+						{"column": 5}
+					],
+					"path": ["field"]
+				}
+			]`,
+			expectedJSON: `[
+				{
+					"message": "Field error",
+					"path": ["field"]
+				}
+			]`,
+		},
+		{
+			name:                       "multiple errors with different location scenarios",
+			omitSubgraphErrorLocations: false,
+			inputJSON: `[
+				{
+					"message": "Error 1",
+					"locations": [{"line": 1, "column": 5}],
+					"path": ["field1"]
+				},
+				{
+					"message": "Error 2",
+					"locations": [
+						{"line": 0, "column": 0}
+					],
+					"path": ["field2"]
+				},
+				{
+					"message": "Error 3",
+					"locations": [
+						{"line": 3, "column": 10},
+						{"line": -1, "column": 5}
+					],
+					"path": ["field3"]
+				}
+			]`,
+			expectedJSON: `[
+				{
+					"message": "Error 1",
+					"locations": [{"line": 1, "column": 5}],
+					"path": ["field1"]
+				},
+				{
+					"message": "Error 2",
+					"path": ["field2"]
+				},
+				{
+					"message": "Error 3",
+					"locations": [
+						{"line": 3, "column": 10}
+					],
+					"path": ["field3"]
+				}
+			]`,
+		},
+		{
+			name:                       "locations is not an array - removes locations field",
+			omitSubgraphErrorLocations: false,
+			inputJSON: `[
+				{
+					"message": "Field error",
+					"locations": "invalid",
+					"path": ["field"]
+				}
+			]`,
+			expectedJSON: `[
+				{
+					"message": "Field error",
+					"path": ["field"]
+				}
+			]`,
+		},
+		{
+			name:                       "location with string line value - removes that location",
+			omitSubgraphErrorLocations: false,
+			inputJSON: `[
+				{
+					"message": "Field error",
+					"locations": [
+						{"line": 1, "column": 5},
+						{"line": "invalid", "column": 10}
+					],
+					"path": ["field"]
+				}
+			]`,
+			expectedJSON: `[
+				{
+					"message": "Field error",
+					"locations": [
+						{"line": 1, "column": 5}
+					],
+					"path": ["field"]
+				}
+			]`,
+		},
+		{
+			name:                       "location with string column value - removes that location",
+			omitSubgraphErrorLocations: false,
+			inputJSON: `[
+				{
+					"message": "Field error",
+					"locations": [
+						{"line": 1, "column": 5},
+						{"line": 2, "column": "invalid"}
+					],
+					"path": ["field"]
+				}
+			]`,
+			expectedJSON: `[
+				{
+					"message": "Field error",
+					"locations": [
+						{"line": 1, "column": 5}
+					],
+					"path": ["field"]
+				}
+			]`,
+		},
+		{
+			name:                       "all locations with string values - removes locations field",
+			omitSubgraphErrorLocations: false,
+			inputJSON: `[
+				{
+					"message": "Field error",
+					"locations": [
+						{"line": "invalid", "column": 5},
+						{"line": 2, "column": "invalid"}
+					],
+					"path": ["field"]
+				}
+			]`,
+			expectedJSON: `[
+				{
+					"message": "Field error",
+					"path": ["field"]
+				}
+			]`,
+		},
+		{
+			name:                       "large dataset - alternating valid and invalid locations",
+			omitSubgraphErrorLocations: false,
+			inputJSON: `[
+				{
+					"message": "Complex error",
+					"locations": [
+						{"line": 1, "column": 5},
+						{"line": 0, "column": 10},
+						{"line": 3, "column": 15},
+						{"line": -1, "column": 20},
+						{"line": 5, "column": 25},
+						{"line": 6, "column": 0},
+						{"line": 7, "column": 30},
+						{"line": 8, "column": -5},
+						{"line": 9, "column": 35}
+					],
+					"path": ["field"]
+				}
+			]`,
+			expectedJSON: `[
+				{
+					"message": "Complex error",
+					"locations": [
+						{"line": 1, "column": 5},
+						{"line": 3, "column": 15},
+						{"line": 5, "column": 25},
+						{"line": 7, "column": 30},
+						{"line": 9, "column": 35}
+					],
+					"path": ["field"]
+				}
+			]`,
+		},
+		{
+			name:                       "large dataset - consecutive invalid entries at start and end",
+			omitSubgraphErrorLocations: false,
+			inputJSON: `[
+				{
+					"message": "Edge case error",
+					"locations": [
+						{"line": 0, "column": 1},
+						{"line": -1, "column": 2},
+						{"line": 0, "column": 0},
+						{"line": 4, "column": 10},
+						{"line": 5, "column": 20},
+						{"line": 6, "column": 30},
+						{"line": 7, "column": 40},
+						{"column": 50},
+						{"line": 9},
+						{"line": -5, "column": -10}
+					],
+					"path": ["field"]
+				}
+			]`,
+			expectedJSON: `[
+				{
+					"message": "Edge case error",
+					"locations": [
+						{"line": 4, "column": 10},
+						{"line": 5, "column": 20},
+						{"line": 6, "column": 30},
+						{"line": 7, "column": 40}
+					],
+					"path": ["field"]
+				}
+			]`,
+		},
+		{
+			name:                       "large dataset - mixed types and values across multiple errors",
+			omitSubgraphErrorLocations: false,
+			inputJSON: `[
+				{
+					"message": "Error 1",
+					"locations": [
+						{"line": 1, "column": 1},
+						{"line": 2, "column": 0},
+						{"line": 3, "column": 3},
+						{"line": "invalid", "column": 4},
+						{"line": 5, "column": 5}
+					],
+					"path": ["field1"]
+				},
+				{
+					"message": "Error 2",
+					"locations": [
+						{"line": 10, "column": 10},
+						{"line": 0, "column": 20},
+						{"line": 30, "column": 30},
+						{"line": 40, "column": "bad"},
+						{"line": 50, "column": 50},
+						{"line": -1, "column": 60}
+					],
+					"path": ["field2"]
+				},
+				{
+					"message": "Error 3",
+					"locations": [
+						{"column": 100},
+						{"line": 200},
+						{"line": 0, "column": 0}
+					],
+					"path": ["field3"]
+				},
+				{
+					"message": "Error 4",
+					"locations": [
+						{"line": 100, "column": 100},
+						{"line": 200, "column": 200},
+						{"line": 300, "column": 300}
+					],
+					"path": ["field4"]
+				}
+			]`,
+			expectedJSON: `[
+				{
+					"message": "Error 1",
+					"locations": [
+						{"line": 1, "column": 1},
+						{"line": 3, "column": 3},
+						{"line": 5, "column": 5}
+					],
+					"path": ["field1"]
+				},
+				{
+					"message": "Error 2",
+					"locations": [
+						{"line": 10, "column": 10},
+						{"line": 30, "column": 30},
+						{"line": 50, "column": 50}
+					],
+					"path": ["field2"]
+				},
+				{
+					"message": "Error 3",
+					"path": ["field3"]
+				},
+				{
+					"message": "Error 4",
+					"locations": [
+						{"line": 100, "column": 100},
+						{"line": 200, "column": 200},
+						{"line": 300, "column": 300}
+					],
+					"path": ["field4"]
+				}
+			]`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			loader := &Loader{
+				omitSubgraphErrorLocations: tt.omitSubgraphErrorLocations,
+			}
+
+			// Parse input JSON into astjson values
+			inputValue, err := astjson.ParseBytesWithoutCache([]byte(tt.inputJSON))
+			assert.NoError(t, err)
+
+			values := inputValue.GetArray()
+
+			// Call the function
+			loader.optionallyOmitErrorLocations(values)
+
+			// Marshal back to JSON for comparison
+			actualJSON := inputValue.MarshalTo(nil)
+
+			// Compare with expected
+			assert.JSONEq(t, tt.expectedJSON, string(actualJSON))
 		})
 	}
 }

@@ -16,6 +16,8 @@ type FetchTreeProcessor interface {
 	ProcessFetchTree(root *resolve.FetchTreeNode)
 }
 
+// Processor transforms and optimizes the query plan after
+// it's been created by the planner but before execution.
 type Processor struct {
 	disableExtractFetches bool
 	collectDataSourceInfo bool
@@ -131,7 +133,11 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 	}
 }
 
-func (p *Processor) Process(pre plan.Plan) plan.Plan {
+// Process takes a raw query plan and optimizes it by deduplicating fetches,
+// ordering them correctly by dependencies, and resolving any templated inputs.
+// It groups already-ordered fetches into parallel execution batches
+// when they have the same dependency requirements satisfied.
+func (p *Processor) Process(pre plan.Plan) {
 	switch t := pre.(type) {
 	case *plan.SynchronousResponsePlan:
 		for i := range p.processResponseTree {
@@ -162,10 +168,9 @@ func (p *Processor) Process(pre plan.Plan) plan.Plan {
 			p.processFetchTree[i].ProcessFetchTree(t.Response.Response.Fetches)
 		}
 	}
-	return pre
 }
 
-// createFetchTree creates an inital fetch tree from the raw fetches in the GraphQL response.
+// createFetchTree creates an initial fetch tree from the raw fetches in the GraphQL response.
 // The initial fetch tree is a node of sequence fetch kind, with a flat list of fetches as children.
 func (p *Processor) createFetchTree(res *resolve.GraphQLResponse) {
 	if p.disableExtractFetches {

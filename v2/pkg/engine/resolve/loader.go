@@ -64,10 +64,10 @@ func (r *ResponseInfo) GetResponseBody() string {
 	return string(r.responseBody)
 }
 
-func newResponseInfo(res *result, subgraphError error) *ResponseInfo {
+func newResponseInfo(res *result, subgraphErrors map[string]error) *ResponseInfo {
 	responseInfo := &ResponseInfo{
 		StatusCode:   res.statusCode,
-		Err:          subgraphError,
+		Err:          subgraphErrors[res.ds.Name],
 		responseBody: res.out,
 	}
 	if res.httpResponseContext != nil {
@@ -193,9 +193,10 @@ type Loader struct {
 	// If you're not doing this, you will see segfaults
 	// Example of correct usage in func "mergeResult"
 	jsonArena arena.Arena
-	// sf is the SubgraphRequestSingleFlight object shared across all client requests
-	// it's thread safe and can be used to de-duplicate subgraph requests
-	sf *SubgraphRequestSingleFlight
+
+	// singleFlight is the SubgraphRequestSingleFlight object shared across all client requests.
+	// It's thread safe and can be used to de-duplicate subgraph requests.
+	singleFlight *SubgraphRequestSingleFlight
 }
 
 func (l *Loader) Free() {
@@ -899,7 +900,7 @@ func (l *Loader) appendSubgraphError(res *result, fetchItem *FetchItem, value *a
 		subgraphError.AppendDownstreamError(&gErr)
 	}
 
-	l.ctx.appendSubgraphErrors(res.err, subgraphError)
+	l.ctx.appendSubgraphErrors(res.ds, res.err, subgraphError)
 
 	return nil
 }
@@ -1101,12 +1102,38 @@ func (l *Loader) optionallyOmitErrorFields(values []*astjson.Value) {
 
 // optionallyOmitErrorLocations removes the "locations" object from all values.
 func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
-	if !l.omitSubgraphErrorLocations {
-		return
-	}
+	arena := astjson.Arena{}
+
 	for _, value := range values {
-		if value.Exists("locations") {
-			value.Del("locations")
+		// If the flag is set, delete all locations
+		if !value.Exists(locationsField) || l.omitSubgraphErrorLocations {
+			value.Del(locationsField)
+			continue
+		}
+
+		// Create a new array via astjson we can append to the valid types
+		validLocations := arena.NewArray()
+		validIndex := 0
+
+		// GetArray will return nil if not an array which will not be ranged over
+		allLocations := value.Get(locationsField)
+		for _, loc := range allLocations.GetArray() {
+			line := loc.Get("line")
+			column := loc.Get("column")
+
+			// Keep location only if both line and column are > 0 (spec says 0 is invalid)
+			// In case it is not an int, 0 will be returned which is invalid anyway
+			if line.GetInt() > 0 && column.GetInt() > 0 {
+				validLocations.SetArrayItem(validIndex, loc)
+				validIndex++
+			}
+		}
+
+		// If all locations were invalid, delete the locations field
+		if len(validLocations.GetArray()) > 0 {
+			value.Set(locationsField, validLocations)
+		} else {
+			value.Del(locationsField)
 		}
 	}
 }
@@ -1141,28 +1168,21 @@ func rewriteErrorPaths(a arena.Arena, fetchItem *FetchItem, values []*astjson.Va
 				unsafebytes.BytesToString(item.GetStringBytes()) != "_entities" {
 				continue
 			}
-			// rewrite the path to pathPrefix + pathItems after _entities
-			newPath := make([]string, 0, len(pathPrefix)+len(pathItems)-i)
-			newPath = append(newPath, pathPrefix...)
+			arr := astjson.ArrayValue(a)
+			for j := range pathPrefix {
+				astjson.AppendToArray(arr, astjson.StringValue(a, pathPrefix[j]))
+			}
 			for j := i + 1; j < len(pathItems); j++ {
 				// If the item after _entities is an index (number), we should ignore it.
 				if j == i+1 && pathItems[j].Type() == astjson.TypeNumber {
 					continue
 				}
 				switch pathItems[j].Type() {
-				case astjson.TypeString:
-					newPath = append(newPath, unsafebytes.BytesToString(pathItems[j].GetStringBytes()))
-				case astjson.TypeNumber:
-					newPath = append(newPath, strconv.Itoa(pathItems[j].GetInt()))
-				default:
+				case astjson.TypeString, astjson.TypeNumber:
+					astjson.AppendToArray(arr, pathItems[j])
 				}
 			}
-			newPathJSON, _ := json.Marshal(newPath)
-			pathBytes, err := astjson.ParseBytesWithArena(a, newPathJSON)
-			if err != nil {
-				continue
-			}
-			value.Set(a, "path", pathBytes)
+			value.Set(a, "path", arr)
 			break
 		}
 	}
@@ -1260,7 +1280,7 @@ func (l *Loader) renderErrorsFailedDeps(fetchItem *FetchItem, res *result) error
 }
 
 func (l *Loader) renderErrorsFailedToFetch(fetchItem *FetchItem, res *result, reason string) error {
-	l.ctx.appendSubgraphErrors(res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode))
+	l.ctx.appendSubgraphErrors(res.ds, res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode))
 	errorObject, err := astjson.ParseWithArena(l.jsonArena, l.renderSubgraphBaseError(res.ds, fetchItem.ResponsePath, reason))
 	if err != nil {
 		return err
@@ -1280,7 +1300,7 @@ func (l *Loader) renderErrorsStatusFallback(fetchItem *FetchItem, res *result, s
 		reason += fmt.Sprintf(": %s", statusText)
 	}
 
-	l.ctx.appendSubgraphErrors(res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode))
+	l.ctx.appendSubgraphErrors(res.ds, res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode))
 
 	errorObject, err := astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"message":"%s"}`, reason))
 	if err != nil {
@@ -1312,7 +1332,7 @@ func (l *Loader) renderSubgraphBaseError(ds DataSourceInfo, path, reason string)
 
 func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *result) error {
 	for i := range res.authorizationRejectedReasons {
-		l.ctx.appendSubgraphErrors(res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, res.authorizationRejectedReasons[i], res.statusCode))
+		l.ctx.appendSubgraphErrors(res.ds, res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, res.authorizationRejectedReasons[i], res.statusCode))
 	}
 	pathPart := l.renderAtPathErrorPart(fetchItem.ResponsePath)
 	extensionErrorCode := fmt.Sprintf(`"extensions":{"code":"%s"}`, errorcodes.UnauthorizedFieldOrType)
@@ -1357,7 +1377,7 @@ func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *re
 }
 
 func (l *Loader) renderRateLimitRejectedErrors(fetchItem *FetchItem, res *result) error {
-	l.ctx.appendSubgraphErrors(res.err, NewRateLimitError(res.ds.Name, fetchItem.ResponsePath, res.rateLimitRejectedReason))
+	l.ctx.appendSubgraphErrors(res.ds, res.err, NewRateLimitError(res.ds.Name, fetchItem.ResponsePath, res.rateLimitRejectedReason))
 	pathPart := l.renderAtPathErrorPart(fetchItem.ResponsePath)
 	var (
 		err         error
@@ -1877,7 +1897,7 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 		return l.loadByContextDirect(ctx, source, headers, input, res)
 	}
 
-	sfKey, fetchKey, item, shared := l.sf.GetOrCreateItem(fetchItem, input, extraKey)
+	item, shared := l.singleFlight.GetOrCreateItem(fetchItem, input, extraKey)
 	if res.singleFlightStats != nil {
 		res.singleFlightStats.used = true
 		res.singleFlightStats.shared = shared
@@ -1901,7 +1921,7 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 	// helps the http client to create buffers at the right size
 	ctx = httpclient.WithHTTPClientSizeHint(ctx, item.sizeHint)
 
-	defer l.sf.Finish(sfKey, fetchKey, item)
+	defer l.singleFlight.Finish(item)
 
 	// Perform the actual load
 	err := l.loadByContextDirect(ctx, source, headers, input, res)
@@ -2112,7 +2132,10 @@ func (l *Loader) compactJSON(data []byte) ([]byte, error) {
 		return nil, err
 	}
 	out := dst.Bytes()
-	// don't use arena here or segfault
+	// Don't use arena here to avoid segfaults.
+	// If we're not keeping the result long-term on the arena,
+	// we just parse and re-marshal it to deduplicate object keys.
+	// This is not a hot path so it's fine.
 	// it's also not a hot path and not important to optimize
 	// arena requires the parsed content to be on the arena as well
 	v, err := astjson.ParseBytes(out)

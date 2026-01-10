@@ -93,12 +93,12 @@ func (v *Visitor) debugOnEnterNode(kind ast.NodeKind, ref int) {
 	case ast.NodeKindField:
 		fieldName := v.Operation.FieldNameString(ref)
 		fullPath := v.currentFullPath(false)
-		v.debugPrint("EnterField : ", fieldName, " ref: ", ref, " path: ", fullPath)
+		v.debugPrint("EnterField:", fieldName, " ref:", ref, " path:", fullPath)
 	case ast.NodeKindInlineFragment:
 		fragmentTypeCondition := v.Operation.InlineFragmentTypeConditionNameString(ref)
-		v.debugPrint("EnterInlineFragment : ", fragmentTypeCondition, " ref: ", ref)
+		v.debugPrint("EnterInlineFragment:", fragmentTypeCondition, " ref:", ref)
 	case ast.NodeKindSelectionSet:
-		v.debugPrint("EnterSelectionSet", " ref: ", ref)
+		v.debugPrint("EnterSelectionSet", " ref:", ref)
 	}
 }
 
@@ -111,12 +111,12 @@ func (v *Visitor) debugOnLeaveNode(kind ast.NodeKind, ref int) {
 	case ast.NodeKindField:
 		fieldName := v.Operation.FieldNameString(ref)
 		fullPath := v.currentFullPath(false)
-		v.debugPrint("LeaveField : ", fieldName, " ref: ", ref, " path: ", fullPath)
+		v.debugPrint("LeaveField:", fieldName, " ref:", ref, " path:", fullPath)
 	case ast.NodeKindInlineFragment:
 		fragmentTypeCondition := v.Operation.InlineFragmentTypeConditionNameString(ref)
-		v.debugPrint("LeaveInlineFragment : ", fragmentTypeCondition, " ref: ", ref)
+		v.debugPrint("LeaveInlineFragment:", fragmentTypeCondition, " ref:", ref)
 	case ast.NodeKindSelectionSet:
-		v.debugPrint("LeaveSelectionSet", " ref: ", ref)
+		v.debugPrint("LeaveSelectionSet", " ref:", ref)
 	}
 }
 
@@ -1641,6 +1641,7 @@ func (v *Visitor) configureObjectFetch(config *objectFetchConfiguration) {
 	v.response.RawFetches = append(v.response.RawFetches, fetchItem)
 }
 
+// configureFetch builds and assembles all fields of resolve.SingleFetch.
 func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external resolve.FetchConfiguration) *resolve.SingleFetch {
 	dataSourceType := reflect.TypeOf(external.DataSource).String()
 	dataSourceType = strings.TrimPrefix(dataSourceType, "*")
