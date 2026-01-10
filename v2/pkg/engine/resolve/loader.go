@@ -1102,7 +1102,6 @@ func (l *Loader) optionallyOmitErrorFields(values []*astjson.Value) {
 
 // optionallyOmitErrorLocations removes the "locations" object from all values.
 func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
-	arena := astjson.Arena{}
 
 	for _, value := range values {
 		// If the flag is set, delete all locations
@@ -1112,7 +1111,7 @@ func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
 		}
 
 		// Create a new array via astjson we can append to the valid types
-		validLocations := arena.NewArray()
+		validLocations := astjson.ArrayValue(l.jsonArena)
 		validIndex := 0
 
 		// GetArray will return nil if not an array which will not be ranged over
@@ -1124,14 +1123,14 @@ func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
 			// Keep location only if both line and column are > 0 (spec says 0 is invalid)
 			// In case it is not an int, 0 will be returned which is invalid anyway
 			if line.GetInt() > 0 && column.GetInt() > 0 {
-				validLocations.SetArrayItem(validIndex, loc)
+				validLocations.SetArrayItem(l.jsonArena, validIndex, loc)
 				validIndex++
 			}
 		}
 
 		// If all locations were invalid, delete the locations field
 		if len(validLocations.GetArray()) > 0 {
-			value.Set(locationsField, validLocations)
+			value.Set(l.jsonArena, locationsField, validLocations)
 		} else {
 			value.Del(locationsField)
 		}

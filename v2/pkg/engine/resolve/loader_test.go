@@ -2082,7 +2082,7 @@ func TestLoader_OptionallyOmitErrorLocations(t *testing.T) {
 			}
 
 			// Parse input JSON into astjson values
-			inputValue, err := astjson.ParseBytesWithoutCache([]byte(tt.inputJSON))
+			inputValue, err := astjson.ParseBytes([]byte(tt.inputJSON))
 			assert.NoError(t, err)
 
 			values := inputValue.GetArray()
