@@ -555,6 +555,10 @@ func (c *pathBuilderVisitor) EnterField(fieldRef int) {
 				c.handlePlanningField(field)
 			}
 			// and as a normal path
+
+			// NOTE: when all child fields was deferred - we should not plan normal path?
+			// where to detect it?
+
 			field.defferID = ""
 			c.handlePlanningField(field)
 		case suggestion.deferInfo != nil:
