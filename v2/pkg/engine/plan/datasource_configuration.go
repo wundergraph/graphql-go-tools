@@ -341,7 +341,6 @@ type DataSourcePlannerConfiguration struct {
 	PathType       PlannerPathType
 	IsNested       bool
 	Options        plannerConfigurationOptions
-	FetchID        int
 }
 
 type PlannerPathType int

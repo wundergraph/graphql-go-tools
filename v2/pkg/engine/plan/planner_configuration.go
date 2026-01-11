@@ -28,6 +28,7 @@ type PlannerConfiguration interface {
 
 	ObjectFetchConfiguration() *objectFetchConfiguration
 	DataSourceConfiguration() DataSource
+	DeferID() string
 
 	RequiredFields() *FederationFieldConfigurations
 
@@ -42,7 +43,6 @@ func (p *plannerConfiguration[T]) Register(visitor *Visitor) error {
 		ParentPath:     p.parentPath,
 		PathType:       p.parentPathType,
 		IsNested:       p.IsNestedPlanner(),
-		FetchID:        p.objectFetchConfiguration.fetchID,
 		Options:        p.options,
 	}
 
@@ -60,6 +60,10 @@ func (p *plannerConfiguration[T]) Debugger() (d DataSourceDebugger, ok bool) {
 
 func (p *plannerConfiguration[T]) ObjectFetchConfiguration() *objectFetchConfiguration {
 	return p.objectFetchConfiguration
+}
+
+func (p *plannerConfiguration[T]) DeferID() string {
+	return p.objectFetchConfiguration.deferID
 }
 
 func (p *plannerConfiguration[T]) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
@@ -85,12 +89,10 @@ type PlannerPathConfiguration interface {
 	HasFragmentPath(fragmentRef int) bool
 	ShouldWalkFieldsOnPath(path string, typeName string) bool
 	HasParent(parent string) bool
-	DeferID() string
 }
 
-func newPlannerPathsConfiguration(parentPath string, parentPathType PlannerPathType, paths []pathConfiguration, deferID string) *plannerPathsConfiguration {
+func newPlannerPathsConfiguration(parentPath string, parentPathType PlannerPathType, paths []pathConfiguration) *plannerPathsConfiguration {
 	p := &plannerPathsConfiguration{
-		deferID:         deferID,
 		parentPath:      parentPath,
 		parentPathType:  parentPathType,
 		index:           make(map[string][]int),
@@ -110,7 +112,6 @@ type plannerPathsConfiguration struct {
 	parentPath     string
 	parentPathType PlannerPathType
 	paths          []pathConfiguration
-	deferID        string
 
 	// indexes
 
@@ -118,10 +119,6 @@ type plannerPathsConfiguration struct {
 	indexByFieldRef map[int]struct{}
 	fragmentPaths   map[pathConfiguration]struct{}
 	nonLeafPaths    map[string]struct{}
-}
-
-func (p *plannerPathsConfiguration) DeferID() string {
-	return p.deferID
 }
 
 func (p *plannerPathsConfiguration) ForEachPath(callback func(*pathConfiguration) (shouldNathanDreak bool)) {

@@ -1323,6 +1323,7 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 		FetchDependencies: resolve.FetchDependencies{
 			FetchID:           internal.fetchID,
 			DependsOnFetchIDs: internal.dependsOnFetchIDs,
+			DeferID:           internal.deferID,
 		},
 		DataSourceIdentifier: []byte(dataSourceType),
 	}

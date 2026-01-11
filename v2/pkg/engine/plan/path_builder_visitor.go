@@ -122,6 +122,7 @@ type objectFetchConfiguration struct {
 	dependsOnFetchIDs  []int
 	rootFields         []resolve.GraphCoordinate
 	operationType      ast.OperationType
+	deferID            string
 }
 
 type currentFieldInfo struct {
@@ -1020,6 +1021,7 @@ func (c *pathBuilderVisitor) addNewPlanner(field *currentFieldInfo, isMutationRo
 		fieldRef:           field.fieldRef,
 		fieldDefinitionRef: fieldDefinition,
 		fetchID:            fetchID,
+		deferID:            field.defferID,
 		fetchItem:          c.fetchItem(),
 		sourceID:           field.ds.Id(),
 		sourceName:         field.ds.Name(),
@@ -1041,7 +1043,6 @@ func (c *pathBuilderVisitor) addNewPlanner(field *currentFieldInfo, isMutationRo
 		plannerPath,
 		c.plannerPathType(plannerPath),
 		paths,
-		field.defferID,
 	)
 
 	plannerConfig := field.ds.CreatePlannerConfiguration(c.logger, fetchConfiguration, plannerPathConfig, c.plannerConfiguration)
