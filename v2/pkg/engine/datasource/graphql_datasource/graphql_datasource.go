@@ -919,9 +919,19 @@ func (p *Planner[T]) addRepresentationsVariable() {
 	}
 
 	representationsVariable := resolve.NewResolvableObjectVariable(p.buildRepresentationsVariable())
-	p.cacheKeyTemplate = &resolve.EntityQueryCacheKeyTemplate{
+	entityCacheKeyTemplate := &resolve.EntityQueryCacheKeyTemplate{
 		Keys: representationsVariable,
 	}
+
+	// Build L1Keys from only @key configurations (no @requires fields)
+	// This ensures stable entity identity for L1 cache across different fetches
+	l1KeysObject := p.buildL1KeysVariable()
+	if l1KeysObject != nil {
+		entityCacheKeyTemplate.L1Keys = resolve.NewResolvableObjectVariable(l1KeysObject)
+	}
+
+	p.cacheKeyTemplate = entityCacheKeyTemplate
+
 	variable, _ := p.variables.AddVariable(representationsVariable)
 
 	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, "representations", []byte(fmt.Sprintf("[%s]", variable)))
@@ -937,6 +947,35 @@ func (p *Planner[T]) buildRepresentationsVariable() *resolve.Object {
 		}
 
 		objects = append(objects, node)
+	}
+
+	return mergeRepresentationVariableNodes(objects)
+}
+
+// buildL1KeysVariable builds a representation variable containing ONLY @key fields.
+// This is used for L1 (per-request) cache keys to ensure stable entity identity.
+// @requires fields are excluded because they vary between fetches but don't affect entity identity.
+// Returns nil if no @key configurations are found.
+func (p *Planner[T]) buildL1KeysVariable() *resolve.Object {
+	var objects []*resolve.Object
+	for _, cfg := range p.dataSourcePlannerConfig.RequiredFields {
+		// Only include @key configurations (FieldName is empty for keys)
+		// @requires/@provides have FieldName set to the field they apply to
+		if cfg.FieldName != "" {
+			continue
+		}
+
+		node, err := buildRepresentationVariableNode(p.visitor.Definition, cfg, p.dataSourceConfig.FederationConfiguration())
+		if err != nil {
+			// Don't fail the whole request, just skip L1 keys for this entity
+			continue
+		}
+
+		objects = append(objects, node)
+	}
+
+	if len(objects) == 0 {
+		return nil
 	}
 
 	return mergeRepresentationVariableNodes(objects)

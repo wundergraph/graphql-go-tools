@@ -338,6 +338,7 @@ func TestCacheLoad(t *testing.T) {
 		ctx := NewContext(context.Background())
 		// Disable subgraph request deduplication to avoid needing singleFlight
 		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+		ctx.ExecutionOptions.Caching.EnableL2Cache = true
 
 		// Create resolvable with arena
 		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
@@ -559,6 +560,7 @@ func TestCacheLoadSimple(t *testing.T) {
 		ctx := NewContext(context.Background())
 		// Disable subgraph request deduplication to avoid needing singleFlight
 		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+		ctx.ExecutionOptions.Caching.EnableL2Cache = true
 
 		// Create resolvable with arena
 		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
@@ -770,6 +772,7 @@ func TestCacheLoadSimple(t *testing.T) {
 		ctx := NewContext(context.Background())
 		// Disable subgraph request deduplication to avoid needing singleFlight
 		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+		ctx.ExecutionOptions.Caching.EnableL2Cache = true
 
 		// Create resolvable with arena
 		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
@@ -992,6 +995,7 @@ func TestCacheLoadSequential(t *testing.T) {
 
 		ctx1 := NewContext(context.Background())
 		ctx1.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+		ctx1.ExecutionOptions.Caching.EnableL2Cache = true
 
 		ar1 := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
 		resolvable1 := NewResolvable(ar1, ResolvableOptions{})
@@ -1038,6 +1042,7 @@ func TestCacheLoadSequential(t *testing.T) {
 
 		ctx2 := NewContext(context.Background())
 		ctx2.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+		ctx2.ExecutionOptions.Caching.EnableL2Cache = true
 
 		ar2 := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
 		resolvable2 := NewResolvable(ar2, ResolvableOptions{})

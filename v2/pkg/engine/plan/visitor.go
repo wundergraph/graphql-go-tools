@@ -1195,8 +1195,21 @@ func (v *Visitor) trackFieldForPlanner(plannerID int, fieldRef int) {
 	// For nested entity fetches, check if this field represents the entity boundary
 	// If so, we should skip adding this field to ProvidesData and instead add its children
 	if v.isEntityBoundaryField(plannerID, fieldRef) {
-		// Add a __typename field to the current object for entity boundary
-		v.addTypenameFieldForPlanner(plannerID)
+		// Create a new object for the entity fields (children of the boundary)
+		// This ensures entity fields like id, username are added to this object, not the parent
+		entityObj := &resolve.Object{
+			Fields: []*resolve.Field{},
+		}
+		// Push the entity object onto the stack so child fields get added to it
+		v.Walker.DefferOnEnterField(func() {
+			v.plannerCurrentFields[plannerID] = append(v.plannerCurrentFields[plannerID], objectFields{
+				popOnField: fieldRef,
+				fields:     &entityObj.Fields,
+			})
+		})
+		// Replace the root object for this planner with the entity object
+		// This makes the entity fields the top-level fields in ProvidesData
+		v.plannerObjects[plannerID] = entityObj
 		return
 	}
 
@@ -1348,13 +1361,17 @@ func (v *Visitor) isEntityBoundaryField(plannerID int, fieldRef int) bool {
 		return false // Root fetch, no boundary field to skip
 	}
 
+	// Normalize the response path by removing array index markers (@.)
+	// e.g., "query.topProducts.@.reviews.@.author" -> "query.topProducts.reviews.author"
+	normalizedResponsePath := strings.ReplaceAll(responsePath, ".@", "")
+
 	// For nested fetches, check if this field is at the entity boundary
 	currentPath := v.Walker.Path.DotDelimitedString()
 	fieldName := v.Operation.FieldAliasOrNameString(fieldRef)
 	fullFieldPath := currentPath + "." + fieldName
 
-	// If this field path matches the response path, it's the entity boundary
-	if fullFieldPath == responsePath {
+	// If this field path matches the normalized response path, it's the entity boundary
+	if fullFieldPath == normalizedResponsePath {
 		// Store the entity boundary path for this planner
 		v.plannerEntityBoundaryPaths[plannerID] = fullFieldPath
 		return true
@@ -1386,24 +1403,6 @@ func (v *Visitor) isEntityRootField(plannerID int, fieldRef int) bool {
 	remainingPath := strings.TrimPrefix(fullFieldPath, boundaryPath+".")
 	// If there are no more dots, this is a root field of the entity
 	return !strings.Contains(remainingPath, ".")
-}
-
-// addTypenameFieldForPlanner adds a __typename field to the current object for entity boundary fields
-func (v *Visitor) addTypenameFieldForPlanner(plannerID int) {
-
-	// Create a __typename field
-	typenameField := &resolve.Field{
-		Name: []byte("__typename"),
-		Value: &resolve.Scalar{
-			Path: []string{"__typename"},
-		},
-	}
-
-	// Add the __typename field to the current object for this planner
-	if len(v.plannerCurrentFields[plannerID]) > 0 {
-		currentFields := v.plannerCurrentFields[plannerID][len(v.plannerCurrentFields[plannerID])-1]
-		*currentFields.fields = append(*currentFields.fields, typenameField)
-	}
 }
 
 func (v *Visitor) shouldPlannerHandleField(plannerID int, fieldRef int) bool {

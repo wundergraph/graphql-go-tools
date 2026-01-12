@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"path"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -34,7 +35,7 @@ func TestFederationCaching(t *testing.T) {
 			Transport: tracker,
 		}
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(withCachingEnableART(false), withCachingLoaderCache(caches), withHTTPClient(trackingClient)))
+		setup := federationtesting.NewFederationSetup(addCachingGateway(withCachingEnableART(false), withCachingLoaderCache(caches), withHTTPClient(trackingClient), withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true})))
 		t.Cleanup(setup.Close)
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -51,11 +52,12 @@ func TestFederationCaching(t *testing.T) {
 		// First query - should miss cache and then set
 		defaultCache.ClearLog()
 		tracker.Reset()
-		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream.query"), nil, t)
-		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","author":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","author":{"username":"Me"}}]}]}}`, string(resp))
+		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
 
 		logAfterFirst := defaultCache.GetLog()
-		assert.Equal(t, 4, len(logAfterFirst))
+		// Cache operations: products (get/set), reviews (get/set), accounts User entity (get/set)
+		assert.Equal(t, 6, len(logAfterFirst))
 
 		wantLog := []CacheLogEntry{
 			{
@@ -82,28 +84,44 @@ func TestFederationCaching(t *testing.T) {
 					`{"__typename":"Product","key":{"upc":"top-2"}}`,
 				},
 			},
+			// User entity resolution from accounts (author.username requires entity fetch)
+			{
+				Operation: "get",
+				Keys: []string{
+					`{"__typename":"User","key":{"id":"1234"}}`,
+					`{"__typename":"User","key":{"id":"1234"}}`,
+				},
+				Hits: []bool{false, false},
+			},
+			{
+				Operation: "set",
+				Keys: []string{
+					`{"__typename":"User","key":{"id":"1234"}}`,
+					`{"__typename":"User","key":{"id":"1234"}}`,
+				},
+			},
 		}
 		assert.Equal(t, sortCacheLogKeys(wantLog), sortCacheLogKeys(logAfterFirst))
 
 		// Verify subgraph calls for first query
-		// First query should call products (topProducts) and reviews (reviews)
-		// Accounts is not called directly because username is provided via reviews @provides
+		// First query should call products (topProducts), reviews (reviews), and accounts (User entity)
 		productsCallsFirst := tracker.GetCount(productsHost)
 		reviewsCallsFirst := tracker.GetCount(reviewsHost)
 		accountsCallsFirst := tracker.GetCount(accountsHost)
 
 		assert.Equal(t, 1, productsCallsFirst, "First query should call products subgraph exactly once")
 		assert.Equal(t, 1, reviewsCallsFirst, "First query should call reviews subgraph exactly once")
-		assert.Equal(t, 0, accountsCallsFirst, "First query should not call accounts subgraph (username provided via reviews @provides)")
+		assert.Equal(t, 1, accountsCallsFirst, "First query should call accounts subgraph for User entity resolution")
 
 		// Second query - should hit cache and then set
 		defaultCache.ClearLog()
 		tracker.Reset()
-		resp = gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream.query"), nil, t)
-		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","author":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","author":{"username":"Me"}}]}]}}`, string(resp))
+		resp = gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
 
 		logAfterSecond := defaultCache.GetLog()
-		assert.Equal(t, 2, len(logAfterSecond))
+		// All three entity types should hit L2 cache
+		assert.Equal(t, 3, len(logAfterSecond))
 
 		wantLogSecond := []CacheLogEntry{
 			{
@@ -119,6 +137,15 @@ func TestFederationCaching(t *testing.T) {
 				},
 				Hits: []bool{true, true}, // Should be hits now, no misses
 			},
+			// User entity also hits L2 cache
+			{
+				Operation: "get",
+				Keys: []string{
+					`{"__typename":"User","key":{"id":"1234"}}`,
+					`{"__typename":"User","key":{"id":"1234"}}`,
+				},
+				Hits: []bool{true, true}, // Should be hits now
+			},
 		}
 		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond))
 
@@ -129,7 +156,7 @@ func TestFederationCaching(t *testing.T) {
 
 		assert.Equal(t, 0, productsCallsSecond, "Second query should hit cache and not call products subgraph again")
 		assert.Equal(t, 0, reviewsCallsSecond, "Second query should hit cache and not call reviews subgraph again")
-		assert.Equal(t, 0, accountsCallsSecond, "accounts not involved")
+		assert.Equal(t, 0, accountsCallsSecond, "Second query should hit cache and not call accounts subgraph again")
 	})
 
 	t.Run("two subgraphs - partial fields then full fields", func(t *testing.T) {
@@ -144,7 +171,7 @@ func TestFederationCaching(t *testing.T) {
 			Transport: tracker,
 		}
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(withCachingEnableART(false), withCachingLoaderCache(caches), withHTTPClient(trackingClient)))
+		setup := federationtesting.NewFederationSetup(addCachingGateway(withCachingEnableART(false), withCachingLoaderCache(caches), withHTTPClient(trackingClient), withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true})))
 		t.Cleanup(setup.Close)
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -201,17 +228,18 @@ func TestFederationCaching(t *testing.T) {
 				name
 				reviews {
 					body
-					author {
+					authorWithoutProvides {
 						username
 					}
 				}
 			}
 		}`
 		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, secondQuery, nil, t)
-		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","author":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","author":{"username":"Me"}}]}]}}`, string(resp))
+		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
 
 		logAfterSecond := defaultCache.GetLog()
-		assert.Equal(t, 4, len(logAfterSecond))
+		// Cache operations: products (get/set), reviews (get/set), accounts User entity (get/set)
+		assert.Equal(t, 6, len(logAfterSecond))
 
 		wantLogSecond := []CacheLogEntry{
 			{
@@ -238,17 +266,33 @@ func TestFederationCaching(t *testing.T) {
 					`{"__typename":"Product","key":{"upc":"top-2"}}`,
 				},
 			},
+			// User entity resolution from accounts (author.username requires entity fetch)
+			{
+				Operation: "get",
+				Keys: []string{
+					`{"__typename":"User","key":{"id":"1234"}}`,
+					`{"__typename":"User","key":{"id":"1234"}}`,
+				},
+				Hits: []bool{false, false},
+			},
+			{
+				Operation: "set",
+				Keys: []string{
+					`{"__typename":"User","key":{"id":"1234"}}`,
+					`{"__typename":"User","key":{"id":"1234"}}`,
+				},
+			},
 		}
 		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond))
 
-		// Verify second query: products name is cached, but reviews still need to be fetched
+		// Verify second query: products name is cached, but reviews and User entity still need to be fetched
 		productsCallsSecond := tracker.GetCount(productsHost)
 		reviewsCallsSecond := tracker.GetCount(reviewsHost)
 		accountsCallsSecond := tracker.GetCount(accountsHost)
 
 		assert.Equal(t, 1, productsCallsSecond, "Second query calls products subgraph once (for reviews data)")
 		assert.Equal(t, 1, reviewsCallsSecond, "Second query calls reviews subgraph once (reviews not cached)")
-		assert.Equal(t, 0, accountsCallsSecond, "Second query does not call accounts subgraph")
+		assert.Equal(t, 1, accountsCallsSecond, "Second query calls accounts subgraph for User entity resolution")
 
 		// Third query - repeat the second query (full fields)
 		defaultCache.ClearLog()
@@ -258,17 +302,18 @@ func TestFederationCaching(t *testing.T) {
 				name
 				reviews {
 					body
-					author {
+					authorWithoutProvides {
 						username
 					}
 				}
 			}
 		}`
 		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, thirdQuery, nil, t)
-		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","author":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","author":{"username":"Me"}}]}]}}`, string(resp))
+		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
 
 		logAfterThird := defaultCache.GetLog()
-		assert.Equal(t, 2, len(logAfterThird))
+		// All three entity types should hit L2 cache
+		assert.Equal(t, 3, len(logAfterThird))
 
 		wantLogThird := []CacheLogEntry{
 			{
@@ -284,6 +329,15 @@ func TestFederationCaching(t *testing.T) {
 				},
 				Hits: []bool{true, true}, // Should be hits from second query
 			},
+			// User entity also hits L2 cache
+			{
+				Operation: "get",
+				Keys: []string{
+					`{"__typename":"User","key":{"id":"1234"}}`,
+					`{"__typename":"User","key":{"id":"1234"}}`,
+				},
+				Hits: []bool{true, true}, // Should be hits from second query
+			},
 		}
 		assert.Equal(t, sortCacheLogKeys(wantLogThird), sortCacheLogKeys(logAfterThird))
 
@@ -295,7 +349,7 @@ func TestFederationCaching(t *testing.T) {
 		// All cache entries show hits, so no subgraph calls should be made
 		assert.Equal(t, 0, productsCallsThird, "Third query does not call products subgraph (all cache hits)")
 		assert.Equal(t, 0, reviewsCallsThird, "Third query does not call reviews subgraph (all cache hits)")
-		assert.Equal(t, 0, accountsCallsThird, "Third query does not call accounts subgraph")
+		assert.Equal(t, 0, accountsCallsThird, "Third query does not call accounts subgraph (all cache hits)")
 	})
 
 	t.Run("two subgraphs - with subgraph header prefix", func(t *testing.T) {
@@ -311,11 +365,15 @@ func TestFederationCaching(t *testing.T) {
 		}
 
 		// Create mock SubgraphHeadersBuilder that returns a fixed hash for each subgraph
+		// The composition library generates numeric datasource IDs (0, 1, 2, ...) based on subgraph order:
+		// - "0" = accounts
+		// - "1" = products (handles topProducts query) -> prefix 11111 for Query cache keys
+		// - "2" = reviews (handles Product entity fetch for reviews data) -> prefix 22222 for Product cache keys
 		mockHeadersBuilder := &mockSubgraphHeadersBuilder{
 			hashes: map[string]uint64{
-				"1": 11111,
-				"2": 22222,
-				"3": 33333,
+				"0": 33333, // accounts
+				"1": 11111, // products
+				"2": 22222, // reviews
 			},
 		}
 
@@ -324,6 +382,7 @@ func TestFederationCaching(t *testing.T) {
 			withCachingLoaderCache(caches),
 			withHTTPClient(trackingClient),
 			withSubgraphHeadersBuilder(mockHeadersBuilder),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
 		))
 		t.Cleanup(setup.Close)
 		gqlClient := NewGraphqlClient(http.DefaultClient)
@@ -341,11 +400,12 @@ func TestFederationCaching(t *testing.T) {
 		// First query - should miss cache and then set with prefixed keys
 		defaultCache.ClearLog()
 		tracker.Reset()
-		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream.query"), nil, t)
-		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","author":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","author":{"username":"Me"}}]}]}}`, string(resp))
+		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
 
 		logAfterFirst := defaultCache.GetLog()
-		assert.Equal(t, 4, len(logAfterFirst))
+		// Cache operations: products (get/set), reviews (get/set), accounts User entity (get/set)
+		assert.Equal(t, 6, len(logAfterFirst))
 
 		wantLog := []CacheLogEntry{
 			{
@@ -372,6 +432,22 @@ func TestFederationCaching(t *testing.T) {
 					`22222:{"__typename":"Product","key":{"upc":"top-2"}}`,
 				},
 			},
+			// User entity resolution from accounts (author.username requires entity fetch)
+			{
+				Operation: "get",
+				Keys: []string{
+					`33333:{"__typename":"User","key":{"id":"1234"}}`,
+					`33333:{"__typename":"User","key":{"id":"1234"}}`,
+				},
+				Hits: []bool{false, false},
+			},
+			{
+				Operation: "set",
+				Keys: []string{
+					`33333:{"__typename":"User","key":{"id":"1234"}}`,
+					`33333:{"__typename":"User","key":{"id":"1234"}}`,
+				},
+			},
 		}
 		assert.Equal(t, sortCacheLogKeys(wantLog), sortCacheLogKeys(logAfterFirst))
 
@@ -382,16 +458,18 @@ func TestFederationCaching(t *testing.T) {
 
 		assert.Equal(t, 1, productsCallsFirst, "First query should call products subgraph exactly once")
 		assert.Equal(t, 1, reviewsCallsFirst, "First query should call reviews subgraph exactly once")
-		assert.Equal(t, 0, accountsCallsFirst, "First query should not call accounts subgraph")
+		// Accounts IS called for User entity resolution (author.username requires entity fetch)
+		assert.Equal(t, 1, accountsCallsFirst, "First query should call accounts subgraph for User entity resolution")
 
 		// Second query - should hit cache with prefixed keys
 		defaultCache.ClearLog()
 		tracker.Reset()
-		resp = gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream.query"), nil, t)
-		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","author":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","author":{"username":"Me"}}]}]}}`, string(resp))
+		resp = gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
 
 		logAfterSecond := defaultCache.GetLog()
-		assert.Equal(t, 2, len(logAfterSecond))
+		// All three entity types should hit L2 cache (products, reviews products, user entities)
+		assert.Equal(t, 3, len(logAfterSecond))
 
 		wantLogSecond := []CacheLogEntry{
 			{
@@ -407,6 +485,15 @@ func TestFederationCaching(t *testing.T) {
 				},
 				Hits: []bool{true, true}, // Should be hits now
 			},
+			// User entity also hits L2 cache
+			{
+				Operation: "get",
+				Keys: []string{
+					`33333:{"__typename":"User","key":{"id":"1234"}}`,
+					`33333:{"__typename":"User","key":{"id":"1234"}}`,
+				},
+				Hits: []bool{true, true}, // Should be hits now
+			},
 		}
 		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond))
 
@@ -417,7 +504,7 @@ func TestFederationCaching(t *testing.T) {
 
 		assert.Equal(t, 0, productsCallsSecond, "Second query should hit cache and not call products subgraph again")
 		assert.Equal(t, 0, reviewsCallsSecond, "Second query should hit cache and not call reviews subgraph again")
-		assert.Equal(t, 0, accountsCallsSecond, "accounts not involved")
+		assert.Equal(t, 0, accountsCallsSecond, "Second query should hit cache and not call accounts subgraph again")
 	})
 }
 
@@ -477,6 +564,7 @@ type cachingGatewayOptions struct {
 	withLoaderCache        map[string]resolve.LoaderCache
 	httpClient             *http.Client
 	subgraphHeadersBuilder resolve.SubgraphHeadersBuilder
+	cachingOptions         resolve.CachingOptions
 }
 
 func withCachingEnableART(enableART bool) func(*cachingGatewayOptions) {
@@ -503,6 +591,12 @@ func withSubgraphHeadersBuilder(builder resolve.SubgraphHeadersBuilder) func(*ca
 	}
 }
 
+func withCachingOptionsFunc(cachingOpts resolve.CachingOptions) func(*cachingGatewayOptions) {
+	return func(opts *cachingGatewayOptions) {
+		opts.cachingOptions = cachingOpts
+	}
+}
+
 type cachingGatewayOptionsToFunc func(opts *cachingGatewayOptions)
 
 func addCachingGateway(options ...cachingGatewayOptionsToFunc) func(setup *federationtesting.FederationSetup) *httptest.Server {
@@ -522,7 +616,7 @@ func addCachingGateway(options ...cachingGatewayOptionsToFunc) func(setup *feder
 			{Name: "reviews", URL: setup.ReviewsUpstreamServer.URL},
 		}, httpClient)
 
-		gtw := gateway.Handler(abstractlogger.NoopLogger, poller, httpClient, opts.enableART, opts.withLoaderCache, opts.subgraphHeadersBuilder)
+		gtw := gateway.HandlerWithCaching(abstractlogger.NoopLogger, poller, httpClient, opts.enableART, opts.withLoaderCache, opts.subgraphHeadersBuilder, opts.cachingOptions)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
@@ -540,8 +634,7 @@ type mockSubgraphHeadersBuilder struct {
 func (m *mockSubgraphHeadersBuilder) HeadersForSubgraph(subgraphName string) (http.Header, uint64) {
 	hash := m.hashes[subgraphName]
 	if hash == 0 {
-		// Return default hash if not found - this helps debug what names are being requested
-		// Note: This will cause test failures if subgraph names don't match
+		// Return default hash if not found
 		return nil, 99999
 	}
 	return nil, hash
@@ -958,5 +1051,472 @@ func TestFakeLoaderCache(t *testing.T) {
 		result, err = cache.Get(ctx, []string{})
 		require.NoError(t, err)
 		assert.Len(t, result, 0, "Should return empty slice for empty keys")
+	})
+}
+
+// =============================================================================
+// L1/L2 CACHE END-TO-END TESTS
+// =============================================================================
+//
+// These tests verify the L1 (per-request in-memory) and L2 (external cross-request)
+// caching behavior in a federated GraphQL setup.
+//
+// L1 Cache: Prevents redundant fetches for the same entity within a single request
+// L2 Cache: Shares entity data across requests via external cache (e.g., Redis)
+//
+// Lookup Order (entity fetches): L1 -> L2 -> Subgraph Fetch
+// Lookup Order (root fetches): L2 -> Subgraph Fetch (no L1)
+
+func TestL1CacheReducesHTTPCalls(t *testing.T) {
+	// This test demonstrates that L1 cache actually reduces HTTP calls.
+	//
+	// Query structure traversing through different paths to reach the same User:
+	// - me query returns User 1234 (just ID from reviews service)
+	// - Gateway fetches User 1234 from accounts for username → populates L1
+	// - me.reviews.product.reviews.authorWithoutProvides returns User 1234 again
+	// - Gateway needs username for authorWithoutProvides
+	//
+	// The key insight: authorWithoutProvides returns the same User 1234 that was
+	// already fetched for the `me` query. Since this is a different traversal path
+	// (not a self-referential field), there's no circular reference in the cached data.
+	//
+	// With L1 enabled: authorWithoutProvides.username is L1 HIT → 1 accounts call total
+	// With L1 disabled: authorWithoutProvides.username needs fetch → 2 accounts calls total
+
+	query := `query {
+		me {
+			id
+			username
+			reviews {
+				body
+				product {
+					upc
+					reviews {
+						authorWithoutProvides {
+							id
+							username
+						}
+					}
+				}
+			}
+		}
+	}`
+
+	expectedResponse := `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","reviews":[{"authorWithoutProvides":{"id":"1234","username":"Me"}}]}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","reviews":[{"authorWithoutProvides":{"id":"1234","username":"Me"}}]}}]}}}`
+
+	t.Run("L1 enabled - reduces accounts calls via cache hit", func(t *testing.T) {
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		cachingOpts := resolve.CachingOptions{
+			EnableL1Cache: true,
+			EnableL2Cache: false,
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(cachingOpts),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// Extract hostnames
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		tracker.Reset()
+		out, headers := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+
+		assert.Equal(t, expectedResponse, string(out))
+
+		// Verify L1 hits occurred (authorWithoutProvides entities are batched together, 2 fields hit = id + username)
+		l1Hits := headers.Get("X-Cache-L1-Hits")
+		l1HitsInt, _ := strconv.ParseInt(l1Hits, 10, 64)
+		assert.Equal(t, int64(2), l1HitsInt, "Should have 2 L1 hits (id + username for authorWithoutProvides batch)")
+
+		// KEY ASSERTION: With L1 enabled, only 1 accounts call!
+		// The authorWithoutProvides.username is served from L1 cache (User 1234 already fetched for me.username).
+		accountsCalls := tracker.GetCount(accountsHost)
+		assert.Equal(t, 1, accountsCalls,
+			"With L1 enabled, should make only 1 accounts call (authorWithoutProvides is L1 hit)")
+	})
+
+	t.Run("L1 disabled - more accounts calls without cache", func(t *testing.T) {
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		cachingOpts := resolve.CachingOptions{
+			EnableL1Cache: false,
+			EnableL2Cache: false,
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(cachingOpts),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// Extract hostnames
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		tracker.Reset()
+		out, headers := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+
+		assert.Equal(t, expectedResponse, string(out))
+
+		// Verify NO L1 activity
+		l1Hits := headers.Get("X-Cache-L1-Hits")
+		l1Misses := headers.Get("X-Cache-L1-Misses")
+		l1HitsInt, _ := strconv.ParseInt(l1Hits, 10, 64)
+		l1MissesInt, _ := strconv.ParseInt(l1Misses, 10, 64)
+		assert.Equal(t, int64(0), l1HitsInt, "L1 hits should be 0 when disabled")
+		assert.Equal(t, int64(0), l1MissesInt, "L1 misses should be 0 when disabled")
+
+		// KEY ASSERTION: With L1 disabled, 2 accounts calls!
+		// The authorWithoutProvides.username requires another fetch since L1 is disabled.
+		accountsCalls := tracker.GetCount(accountsHost)
+		assert.Equal(t, 2, accountsCalls,
+			"With L1 disabled, should make 2 accounts calls (no cache reuse)")
+	})
+}
+
+func TestL1CacheSelfReferentialEntity(t *testing.T) {
+	// This test verifies that self-referential entities don't cause
+	// stack overflow when L1 cache is enabled.
+	//
+	// Background: When an entity type has a field that returns the same type
+	// (e.g., User.sameUserReviewers returning [User]), and L1 cache stores
+	// a pointer to the entity, both key.Item and key.FromCache can point to
+	// the same memory location. Without a fix, calling MergeValues(ptr, ptr)
+	// causes infinite recursion and stack overflow.
+	//
+	// The sameUserReviewers field has @requires(fields: "username") which forces
+	// sequential execution: the User entity is first fetched from accounts
+	// (populating L1), then sameUserReviewers is resolved, returning the same
+	// User entity that's already in L1 cache.
+
+	query := `query {
+		topProducts {
+			reviews {
+				authorWithoutProvides {
+					id
+					username
+					sameUserReviewers {
+						id
+						username
+					}
+				}
+			}
+		}
+	}`
+
+	// This response shows User 1234 appearing both at authorWithoutProvides level
+	// and inside sameUserReviewers (which returns the same user for testing)
+	expectedResponse := `{"data":{"topProducts":[{"reviews":[{"authorWithoutProvides":{"id":"1234","username":"Me","sameUserReviewers":[{"id":"1234","username":"Me"}]}}]},{"reviews":[{"authorWithoutProvides":{"id":"1234","username":"Me","sameUserReviewers":[{"id":"1234","username":"Me"}]}}]}]}}`
+
+	t.Run("self-referential entity should not cause stack overflow", func(t *testing.T) {
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		cachingOpts := resolve.CachingOptions{
+			EnableL1Cache: true,
+			EnableL2Cache: false,
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(cachingOpts),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// This should complete without stack overflow
+		// Before the fix, this would crash with "fatal error: stack overflow"
+		out, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+
+		assert.Equal(t, expectedResponse, string(out))
+	})
+}
+
+func TestL2CacheOnly(t *testing.T) {
+	t.Run("L2 enabled - miss then hit across requests", func(t *testing.T) {
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{
+			"default": defaultCache,
+		}
+
+		// Create HTTP client with tracking
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{
+			Transport: tracker,
+		}
+
+		// Enable L2 cache only
+		cachingOpts := resolve.CachingOptions{
+			EnableL1Cache: false,
+			EnableL2Cache: true,
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(cachingOpts),
+		))
+		t.Cleanup(setup.Close)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// Extract hostnames for tracking
+		productsURLParsed, _ := url.Parse(setup.ProductsUpstreamServer.URL)
+		reviewsURLParsed, _ := url.Parse(setup.ReviewsUpstreamServer.URL)
+		productsHost := productsURLParsed.Host
+		reviewsHost := reviewsURLParsed.Host
+
+		// First query - should miss cache
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
+
+		logAfterFirst := defaultCache.GetLog()
+		// Cache operations: get/set for Query.topProducts, Product entities, User entities = 6 operations
+		assert.Equal(t, 6, len(logAfterFirst), "Should have exactly 6 cache operations (get/set for Query, Products, Users)")
+
+		// Verify subgraph calls for first query
+		productsCallsFirst := tracker.GetCount(productsHost)
+		reviewsCallsFirst := tracker.GetCount(reviewsHost)
+		assert.Equal(t, 1, productsCallsFirst, "First query should call products subgraph exactly once")
+		assert.Equal(t, 1, reviewsCallsFirst, "First query should call reviews subgraph exactly once")
+
+		// Second query - should hit cache
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp = gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
+
+		// Verify L2 cache hits
+		logAfterSecond := defaultCache.GetLog()
+		hasHit := false
+		for _, entry := range logAfterSecond {
+			if entry.Operation == "get" {
+				for _, hit := range entry.Hits {
+					if hit {
+						hasHit = true
+						break
+					}
+				}
+			}
+		}
+		assert.True(t, hasHit, "Second query should have at least one cache hit")
+
+		// Verify no subgraph calls for second query (all cached)
+		productsCallsSecond := tracker.GetCount(productsHost)
+		reviewsCallsSecond := tracker.GetCount(reviewsHost)
+		assert.Equal(t, 0, productsCallsSecond, "Second query should not call products subgraph (cache hit)")
+		assert.Equal(t, 0, reviewsCallsSecond, "Second query should not call reviews subgraph (cache hit)")
+	})
+
+	t.Run("L2 disabled - no external cache operations", func(t *testing.T) {
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{
+			"default": defaultCache,
+		}
+
+		// Create HTTP client with tracking
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{
+			Transport: tracker,
+		}
+
+		// Disable L2 cache
+		cachingOpts := resolve.CachingOptions{
+			EnableL1Cache: false,
+			EnableL2Cache: false,
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(cachingOpts),
+		))
+		t.Cleanup(setup.Close)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// First query
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
+
+		// Verify no cache operations
+		log := defaultCache.GetLog()
+		assert.Empty(t, log, "No L2 cache operations should occur when L2 is disabled")
+	})
+}
+
+func TestL1L2CacheCombined(t *testing.T) {
+	t.Run("L1+L2 enabled - L1 within request, L2 across requests", func(t *testing.T) {
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{
+			"default": defaultCache,
+		}
+
+		// Create HTTP client with tracking
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{
+			Transport: tracker,
+		}
+
+		// Enable both L1 and L2 cache
+		cachingOpts := resolve.CachingOptions{
+			EnableL1Cache: true,
+			EnableL2Cache: true,
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(cachingOpts),
+		))
+		t.Cleanup(setup.Close)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// Extract hostnames for tracking
+		productsURLParsed, _ := url.Parse(setup.ProductsUpstreamServer.URL)
+		reviewsURLParsed, _ := url.Parse(setup.ReviewsUpstreamServer.URL)
+		productsHost := productsURLParsed.Host
+		reviewsHost := reviewsURLParsed.Host
+
+		// First query - L1 helps within request, L2 populates for later
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
+
+		// Verify subgraph calls for first query
+		productsCallsFirst := tracker.GetCount(productsHost)
+		reviewsCallsFirst := tracker.GetCount(reviewsHost)
+		assert.Equal(t, 1, productsCallsFirst, "First query should call products subgraph")
+		assert.Equal(t, 1, reviewsCallsFirst, "First query should call reviews subgraph")
+
+		// Second query - new request means fresh L1, but L2 should hit
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp = gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
+
+		logAfterSecond := defaultCache.GetLog()
+
+		// Verify L2 cache hits on second request
+		hasHit := false
+		for _, entry := range logAfterSecond {
+			if entry.Operation == "get" {
+				for _, hit := range entry.Hits {
+					if hit {
+						hasHit = true
+						break
+					}
+				}
+			}
+		}
+		assert.True(t, hasHit, "Second query should have L2 cache hits")
+
+		// Verify no subgraph calls for second query (L2 cache hits)
+		productsCallsSecond := tracker.GetCount(productsHost)
+		reviewsCallsSecond := tracker.GetCount(reviewsHost)
+		assert.Equal(t, 0, productsCallsSecond, "Second query should not call products subgraph (L2 hit)")
+		assert.Equal(t, 0, reviewsCallsSecond, "Second query should not call reviews subgraph (L2 hit)")
+	})
+
+	t.Run("L1+L2 - cross-request isolation: L1 per-request, L2 shared", func(t *testing.T) {
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{
+			"default": defaultCache,
+		}
+
+		// Create HTTP client with tracking
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{
+			Transport: tracker,
+		}
+
+		// Enable both L1 and L2
+		cachingOpts := resolve.CachingOptions{
+			EnableL1Cache: true,
+			EnableL2Cache: true,
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(cachingOpts),
+		))
+		t.Cleanup(setup.Close)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// First request - populates L2 cache
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
+
+		// Verify L2 has set operations
+		logAfterFirst := defaultCache.GetLog()
+		hasSet := false
+		for _, entry := range logAfterFirst {
+			if entry.Operation == "set" {
+				hasSet = true
+				break
+			}
+		}
+		assert.True(t, hasSet, "First request should populate L2 cache")
+
+		// Second request - L1 is fresh (new request), but L2 should provide data
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp = gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
+
+		// Verify L2 has get operations with hits
+		logAfterSecond := defaultCache.GetLog()
+		getCount := 0
+		hitCount := 0
+		for _, entry := range logAfterSecond {
+			if entry.Operation == "get" {
+				getCount++
+				for _, hit := range entry.Hits {
+					if hit {
+						hitCount++
+					}
+				}
+			}
+		}
+		assert.Greater(t, getCount, 0, "Second request should have L2 get operations")
+		assert.Greater(t, hitCount, 0, "Second request should have L2 cache hits")
 	})
 }

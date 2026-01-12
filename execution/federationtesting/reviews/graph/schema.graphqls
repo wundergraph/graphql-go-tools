@@ -15,6 +15,10 @@ interface Comment {
 type Review {
     body: String!
     author: User! @provides(fields: "username")
+    # authorWithoutProvides is the same as author but without @provides
+    # This forces gateway to fetch User entity from accounts for username
+    # Used for testing L1/L2 caching scenarios where we want entity resolution
+    authorWithoutProvides: User!
     product: Product!
     attachments: [Attachment]
     comment: Comment
@@ -59,6 +63,16 @@ type User @key(fields: "id") {
     username: String! @external
     reviews: [Review]
     realName: String!
+    # Returns other users who reviewed the same products as this user.
+    # This field returns User references that need entity resolution from accounts.
+    # @requires forces the gateway to first resolve username from accounts
+    # before calling this resolver, creating sequential execution.
+    coReviewers: [User!]! @requires(fields: "username")
+    # Returns a list containing only the same user - used for L1 cache testing.
+    # The @requires ensures sequential execution: username must be resolved first.
+    # When queried after the user is already fetched, the entire batch should be L1 hits,
+    # allowing the HTTP call to be completely skipped.
+    sameUserReviewers: [User!]! @requires(fields: "username")
 }
 
 type Product @key(fields: "upc") {

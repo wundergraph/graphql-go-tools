@@ -785,6 +785,40 @@ func TestCachingRenderEntityQueryCacheKeyTemplate(t *testing.T) {
 		}
 		assert.Equal(t, expected, cacheKeys)
 	})
+
+	t.Run("entity with array key field", func(t *testing.T) {
+		// Test that arrays in entity keys are properly resolved
+		tmpl := &EntityQueryCacheKeyTemplate{
+			Keys: NewResolvableObjectVariable(&Object{
+				Fields: []*Field{
+					{
+						Name: []byte("__typename"),
+						Value: &String{
+							Path: []string{"__typename"},
+						},
+					},
+					{
+						Name: []byte("tags"),
+						Value: &Array{
+							Path: []string{"tags"},
+							Item: &String{},
+						},
+					},
+				},
+			}),
+		}
+
+		ctx := &Context{
+			Variables: astjson.MustParse(`{}`),
+			ctx:       context.Background(),
+		}
+		data := astjson.MustParse(`{"__typename":"Product","tags":["electronics","sale"]}`)
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
+		assert.NoError(t, err)
+		assert.Len(t, cacheKeys, 1)
+		// Verify the cache key includes the array
+		assert.Contains(t, cacheKeys[0].Keys[0], `"tags":["electronics","sale"]`)
+	})
 }
 
 func BenchmarkRenderCacheKeys(b *testing.B) {

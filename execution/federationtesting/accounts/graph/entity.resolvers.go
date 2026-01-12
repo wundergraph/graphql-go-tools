@@ -18,10 +18,38 @@ func (r *entityResolver) FindUserByID(ctx context.Context, id string) (*model.Us
 		name = "Me"
 	}
 
+	// RelatedUsers creates a dependency chain for L1 cache testing:
+	// - User 1234's relatedUsers includes User 1234 (self) and User 7777
+	// - User 7777's relatedUsers includes User 7777 (self) and User 1234
+	// When querying relatedUsers.relatedUsers, the nested users are the same
+	// as the outer users, which should hit L1 cache.
+	var relatedUsers []*model.User
+	switch id {
+	case "1234":
+		// User 1234 is related to User 7777 and themselves
+		relatedUsers = []*model.User{
+			{ID: "1234"}, // Self-reference for L1 hit
+			{ID: "7777"},
+		}
+	case "7777":
+		// User 7777 is related to User 1234 and themselves
+		relatedUsers = []*model.User{
+			{ID: "7777"}, // Self-reference for L1 hit
+			{ID: "1234"},
+		}
+	default:
+		// Other users relate to User 1234
+		relatedUsers = []*model.User{
+			{ID: id}, // Self-reference
+			{ID: "1234"},
+		}
+	}
+
 	return &model.User{
-		ID:       id,
-		Username: name,
-		History:  histories,
+		ID:           id,
+		Username:     name,
+		History:      histories,
+		RelatedUsers: relatedUsers,
 	}, nil
 }
 

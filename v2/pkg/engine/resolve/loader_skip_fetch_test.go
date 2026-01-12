@@ -868,7 +868,7 @@ func TestLoader_canSkipFetch(t *testing.T) {
 
 			// Create a result struct for canSkipFetch
 			res := &result{
-				cacheKeys: cacheKeys,
+				l1CacheKeys: cacheKeys,
 			}
 
 			canSkipFetch := loader.canSkipFetch(tt.info, res)

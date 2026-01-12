@@ -28,6 +28,18 @@ func Handler(
 	loaderCaches map[string]resolve.LoaderCache,
 	subgraphHeadersBuilder resolve.SubgraphHeadersBuilder,
 ) *Gateway {
+	return HandlerWithCaching(logger, datasourcePoller, httpClient, enableART, loaderCaches, subgraphHeadersBuilder, resolve.CachingOptions{})
+}
+
+func HandlerWithCaching(
+	logger log.Logger,
+	datasourcePoller *DatasourcePollerPoller,
+	httpClient *http.Client,
+	enableART bool,
+	loaderCaches map[string]resolve.LoaderCache,
+	subgraphHeadersBuilder resolve.SubgraphHeadersBuilder,
+	cachingOptions resolve.CachingOptions,
+) *Gateway {
 	upgrader := &ws.DefaultHTTPUpgrader
 	upgrader.Header = http.Header{}
 	// upgrader.Header.Add("Sec-Websocket-Protocol", "graphql-ws")
@@ -35,7 +47,7 @@ func Handler(
 	datasourceWatcher := datasourcePoller
 
 	var gqlHandlerFactory HandlerFactoryFn = func(schema *graphql.Schema, engine *engine.ExecutionEngine) http.Handler {
-		return http2.NewGraphqlHTTPHandler(schema, engine, upgrader, logger, enableART, subgraphHeadersBuilder)
+		return http2.NewGraphqlHTTPHandler(schema, engine, upgrader, logger, enableART, subgraphHeadersBuilder, cachingOptions)
 	}
 
 	gateway := NewGateway(gqlHandlerFactory, httpClient, logger, loaderCaches)

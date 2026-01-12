@@ -1766,12 +1766,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									ProvidesData: &resolve.Object{
 										Fields: []*resolve.Field{
 											{
-												Name: []byte("__typename"),
-												Value: &resolve.Scalar{
-													Path: []string{"__typename"},
-												},
-											},
-											{
 												Name:        []byte("name"),
 												OnTypeNames: [][]byte{[]byte("Account")},
 												Value: &resolve.Scalar{
@@ -1856,6 +1850,47 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										IncludeSubgraphHeaderPrefix: true,
 										CacheKeyTemplate: &resolve.EntityQueryCacheKeyTemplate{
 											Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name:        []byte("__typename"),
+														OnTypeNames: [][]byte{[]byte("Account")},
+														Value: &resolve.String{
+															Path: []string{"__typename"},
+														},
+													},
+													{
+														Name:        []byte("id"),
+														OnTypeNames: [][]byte{[]byte("Account")},
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+													},
+													{
+														Name:        []byte("info"),
+														OnTypeNames: [][]byte{[]byte("Account")},
+														Value: &resolve.Object{
+															Path:     []string{"info"},
+															Nullable: true,
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("a"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"a"},
+																	},
+																},
+																{
+																	Name: []byte("b"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"b"},
+																	},
+																},
+															},
+														},
+													},
+												},
+											}),
+											L1Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
 												Nullable: true,
 												Fields: []*resolve.Field{
 													{

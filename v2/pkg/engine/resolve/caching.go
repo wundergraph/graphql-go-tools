@@ -132,11 +132,48 @@ func (r *RootQueryCacheKeyTemplate) renderField(a arena.Arena, ctx *Context, ite
 }
 
 type EntityQueryCacheKeyTemplate struct {
+	// Keys contains the full entity representation template (includes @key and @requires fields).
+	// Used for L2 cache keys and entity resolution.
 	Keys *ResolvableObjectVariable
+	// L1Keys contains only the @key fields template (without @requires fields).
+	// Used for L1 (per-request) cache keys to ensure stable entity identity across different fetches.
+	// If nil, falls back to using Keys.
+	L1Keys *ResolvableObjectVariable
 }
 
-// RenderCacheKeys returns one cache key per item for entity queries with keys nested under "keys"
+// RenderL1CacheKeys generates cache keys for L1 (per-request) cache.
+// Uses L1Keys template (only @key fields) for stable entity identity.
+// Falls back to Keys if L1Keys is nil.
+// L1 cache keys have no prefix since they're scoped to a single request.
+func (e *EntityQueryCacheKeyTemplate) RenderL1CacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value) ([]*CacheKey, error) {
+	template := e.L1Keys
+	if template == nil {
+		template = e.Keys
+	}
+	return e.renderCacheKeys(a, ctx, items, template, "")
+}
+
+// RenderL2CacheKeys generates cache keys for L2 (external) cache.
+// Uses Keys template (includes @key and @requires fields).
+// Prefix is used for cache isolation (typically subgraph header hash).
+func (e *EntityQueryCacheKeyTemplate) RenderL2CacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value, prefix string) ([]*CacheKey, error) {
+	return e.renderCacheKeys(a, ctx, items, e.Keys, prefix)
+}
+
+// RenderCacheKeys implements CacheKeyTemplate interface for backward compatibility.
+// For new code, prefer using RenderL1CacheKeys or RenderL2CacheKeys explicitly.
 func (e *EntityQueryCacheKeyTemplate) RenderCacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value, prefix string) ([]*CacheKey, error) {
+	// Use L1Keys for L1 cache (no prefix), Keys for L2 cache (with prefix)
+	template := e.Keys
+	if prefix == "" && e.L1Keys != nil {
+		template = e.L1Keys
+	}
+	return e.renderCacheKeys(a, ctx, items, template, prefix)
+}
+
+// renderCacheKeys is the internal implementation shared by L1 and L2 methods.
+// Returns one cache key per item for entity queries with keys nested under "key".
+func (e *EntityQueryCacheKeyTemplate) renderCacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value, keysTemplate *ResolvableObjectVariable, prefix string) ([]*CacheKey, error) {
 	jsonBytes := arena.AllocateSlice[byte](a, 0, 64)
 	cacheKeys := arena.AllocateSlice[*CacheKey](a, 0, len(items))
 
@@ -157,12 +194,12 @@ func (e *EntityQueryCacheKeyTemplate) RenderCacheKeys(a arena.Arena, ctx *Contex
 			keyObj.Set(a, "__typename", typename)
 		}
 
-		// Put entity keys under "keys" nested object
+		// Put entity keys under "key" nested object
 		keysObj := astjson.ObjectValue(a)
 
-		// Extract only the fields defined in the Keys template (not all fields from data)
-		if e.Keys != nil && e.Keys.Renderer != nil {
-			if obj, ok := e.Keys.Renderer.Node.(*Object); ok {
+		// Extract only the fields defined in the template (not all fields from data)
+		if keysTemplate != nil && keysTemplate.Renderer != nil {
+			if obj, ok := keysTemplate.Renderer.Node.(*Object); ok {
 				for _, field := range obj.Fields {
 					fieldName := unsafebytes.BytesToString(field.Name)
 					// Skip __typename as it's already handled separately
@@ -212,6 +249,20 @@ func (e *EntityQueryCacheKeyTemplate) resolveFieldValue(a arena.Arena, valueNode
 	case *String:
 		// Extract string value from data using the path
 		return data.Get(node.Path...)
+	case *Scalar:
+		// Handle scalar types (like ID) - extract value from data using the path
+		return data.Get(node.Path...)
+	case *Integer:
+		// Handle integer type
+		return data.Get(node.Path...)
+	case *Float:
+		// Handle float type
+		return data.Get(node.Path...)
+	case *Boolean:
+		// Handle boolean type
+		return data.Get(node.Path...)
+	case *CustomNode:
+		return data.Get(node.Path...)
 	case *Object:
 		// For nested objects, recursively build the object using only template-defined fields
 		nestedObj := astjson.ObjectValue(a)
@@ -233,6 +284,26 @@ func (e *EntityQueryCacheKeyTemplate) resolveFieldValue(a arena.Arena, valueNode
 			}
 		}
 		return nestedObj
+	case *Array:
+		// Handle arrays by resolving each item based on the Item template
+		arrayValue := data.Get(node.Path...)
+		if arrayValue == nil || arrayValue.Type() != astjson.TypeArray {
+			return nil
+		}
+		items := arrayValue.GetArray()
+		resultArray := astjson.ArrayValue(a)
+		resultIndex := 0
+		for _, itemData := range items {
+			if itemData == nil {
+				continue
+			}
+			resolvedItem := e.resolveFieldValue(a, node.Item, itemData)
+			if resolvedItem != nil {
+				resultArray.SetArrayItem(a, resultIndex, resolvedItem)
+				resultIndex++
+			}
+		}
+		return resultArray
 	default:
 		// For other types not handled above, return nil
 		return nil
