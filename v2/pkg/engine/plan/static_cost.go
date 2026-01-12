@@ -4,7 +4,6 @@ import "fmt"
 
 // StaticCostDefaults contains default cost values when no specific costs are configured
 var StaticCostDefaults = WeightDefaults{
-	Field:      1,
 	EnumScalar: 0,
 	Object:     1,
 	List:       10, // The assumed maximum size of a list for fields that return lists.
@@ -12,15 +11,13 @@ var StaticCostDefaults = WeightDefaults{
 
 // WeightDefaults defines default cost values for different GraphQL elements
 type WeightDefaults struct {
-	Field      int
 	EnumScalar int
 	Object     int
 	List       int
 }
 
-// FieldCostConfig defines cost configuration for a specific field of an object or input object.
-// Includes @listSize directive fields for objects.
-type FieldCostConfig struct {
+// FieldWeight defines cost configuration for a specific field of an object or input object.
+type FieldWeight struct {
 
 	// Weight is the cost of this field definition. It could be negative or zero.
 	// Should be used only if HasWeight is true.
@@ -32,9 +29,10 @@ type FieldCostConfig struct {
 	// ArgumentWeights maps an argument name to its weight.
 	// Location: ARGUMENT_DEFINITION
 	ArgumentWeights map[string]int
+}
 
-	// Fields below are defined only on FIELD_DEFINITION from the @listSize directive.
-
+// FieldListSize contains parsed data from the @listSize directive for an object field.
+type FieldListSize struct {
 	// AssumedSize is the default assumed size when no slicing argument is provided.
 	// If 0, the global default list cost is used.
 	AssumedSize int
@@ -52,12 +50,34 @@ type FieldCostConfig struct {
 	RequireOneSlicingArgument bool
 }
 
+// multiplier returns the multiplier for a list field based on the values of arguments.
+func (ls *FieldListSize) multiplier(arguments map[string]ArgumentInfo) int {
+	multiplier := -1
+	for _, slicingArg := range ls.SlicingArguments {
+		argInfo, ok := arguments[slicingArg]
+		if ok && argInfo.isSimple && argInfo.intValue > 0 && argInfo.intValue > multiplier {
+			multiplier = argInfo.intValue
+		}
+	}
+	if multiplier == -1 && ls.AssumedSize > 0 {
+		multiplier = ls.AssumedSize
+	}
+	if multiplier == -1 {
+		multiplier = StaticCostDefaults.List
+	}
+	return multiplier
+}
+
 // DataSourceCostConfig holds all cost configurations for a data source.
 // This data is passed from the composition.
 type DataSourceCostConfig struct {
-	// Fields maps field coordinate to its cost config. Cannot be on fields of interfaces.
+	// Weights maps field coordinate to its weights. Cannot be on fields of interfaces.
 	// Location: FIELD_DEFINITION, INPUT_FIELD_DEFINITION
-	Fields map[FieldCoordinate]*FieldCostConfig
+	Weights map[FieldCoordinate]*FieldWeight
+
+	// ListSizes maps field coordinates to their respective list size configurations.
+	// Location: FIELD_DEFINITION
+	ListSizes map[FieldCoordinate]*FieldListSize
 
 	// Types maps TypeName to the weight of the object, scalar or enum definition.
 	// If TypeName is not present, the default value for Enums and Scalars is 0, otherwise 1.
@@ -76,8 +96,8 @@ type DataSourceCostConfig struct {
 // NewDataSourceCostConfig creates a new cost config with defaults
 func NewDataSourceCostConfig() *DataSourceCostConfig {
 	return &DataSourceCostConfig{
-		Fields: make(map[FieldCoordinate]*FieldCostConfig),
-		Types:  make(map[string]int),
+		Weights: make(map[FieldCoordinate]*FieldWeight),
+		Types:   make(map[string]int),
 	}
 }
 
@@ -143,53 +163,46 @@ type CostTreeNode struct {
 	// arguments contain the values of arguments passed to the field.
 	arguments map[string]ArgumentInfo
 
-	isListType              bool
-	isSimpleType            bool
-	isAbstractType          bool
+	returnsListType         bool
+	returnsSimpleType       bool
+	returnsAbstractType     bool
 	isEnclosingTypeAbstract bool
 }
 
-func (node *CostTreeNode) maxCostImplementingFieldConfig(config *DataSourceCostConfig, fieldName string) *FieldCostConfig {
-	var maxWeightConfig *FieldCostConfig
+func (node *CostTreeNode) maxWeightImplementingField(config *DataSourceCostConfig, fieldName string) *FieldWeight {
+	var maxWeight *FieldWeight
 	for _, implTypeName := range node.implementingTypeNames {
 		// Get the cost config for the field of an implementing type.
-		implFieldCoord := FieldCoordinate{implTypeName, fieldName}
-		fieldConfig := config.Fields[implFieldCoord]
+		coord := FieldCoordinate{implTypeName, fieldName}
+		fieldWeight := config.Weights[coord]
 
-		if fieldConfig != nil {
-			if fieldConfig.HasWeight && (maxWeightConfig == nil || fieldConfig.Weight > maxWeightConfig.Weight) {
-				fmt.Printf("found better maxWeightConfig for %v: %v\n", implFieldCoord, fieldConfig)
-				maxWeightConfig = fieldConfig
+		if fieldWeight != nil {
+			if fieldWeight.HasWeight && (maxWeight == nil || fieldWeight.Weight > maxWeight.Weight) {
+				fmt.Printf("found better maxWeight for %v: %v\n", coord, fieldWeight)
+				maxWeight = fieldWeight
 			}
 		}
 	}
-	return maxWeightConfig
-
+	return maxWeight
 }
 
-type ArgumentInfo struct {
-	intValue int
+func (node *CostTreeNode) maxMultiplierImplementingField(config *DataSourceCostConfig, fieldName string, arguments map[string]ArgumentInfo) *FieldListSize {
+	var maxMultiplier int
+	var maxListSize *FieldListSize
+	for _, implTypeName := range node.implementingTypeNames {
+		coord := FieldCoordinate{implTypeName, fieldName}
+		listSize := config.ListSizes[coord]
 
-	// The name of an unwrapped type.
-	typeName string
-
-	// If argument is passed an input object, we want to gather counts
-	// for all the field coordinates with non-null values used in the argument.
-	//
-	// For example, for
-	//    "input A { x: Int, rec: A! }"
-	// following value is passed:
-	//    { x: 1, rec: { x: 2, rec: { x: 3 } } },
-	// then coordCounts will be:
-	//    { {"A", "rec"}: 2, {"A", "x"}: 3 }
-	//
-	coordCounts map[FieldCoordinate]int
-
-	// isInputObject is true for an input object passed to the argument,
-	// otherwise the argument is Scalar or Enum.
-	isInputObject bool
-
-	isSimple bool
+		if listSize != nil {
+			multiplier := listSize.multiplier(arguments)
+			if maxListSize == nil || multiplier > maxMultiplier {
+				fmt.Printf("found better multiplier for %v: %v\n", coord, multiplier)
+				maxMultiplier = multiplier
+				maxListSize = listSize
+			}
+		}
+	}
+	return maxListSize
 }
 
 // TotalCost calculates the total cost of this node and all descendants
@@ -222,6 +235,31 @@ func (node *CostTreeNode) TotalCost() int {
 	return cost
 }
 
+type ArgumentInfo struct {
+	intValue int
+
+	// The name of an unwrapped type.
+	typeName string
+
+	// If argument is passed an input object, we want to gather counts
+	// for all the field coordinates with non-null values used in the argument.
+	//
+	// For example, for
+	//    "input A { x: Int, rec: A! }"
+	// following value is passed:
+	//    { x: 1, rec: { x: 2, rec: { x: 3 } } },
+	// then coordCounts will be:
+	//    { {"A", "rec"}: 2, {"A", "x"}: 3 }
+	//
+	coordCounts map[FieldCoordinate]int
+
+	// isInputObject is true for an input object passed to the argument,
+	// otherwise the argument is Scalar or Enum.
+	isInputObject bool
+
+	isSimple bool
+}
+
 // CostTree represents the complete cost tree for a query
 type CostTree struct {
 	Root  *CostTreeNode
@@ -245,9 +283,6 @@ type CostCalculator struct {
 
 	// costConfigs maps data source hash to its cost configuration
 	costConfigs map[DSHash]*DataSourceCostConfig
-
-	// defaultConfig is used when no data source specific config exists
-	defaultConfig *DataSourceCostConfig
 }
 
 // NewCostCalculator creates a new cost calculator
@@ -316,12 +351,13 @@ func (c *CostCalculator) LeaveField(fieldRef int, dsHashes []DSHash) {
 }
 
 // calculateNodeCosts fills in the cost values for a node based on its data sources.
-// It implements IBM GraphQL Cost Specification.
-// See: https://ibm.github.io/graphql-specs/cost-spec.html#sec-Field-Cost
+//
 // For this node we sum weights of the field or its returned type for all the data sources.
 // Each data source can have its own cost configuration. If we plan field on two data sources,
 // it means more work for the router: we should sum the costs.
-// For the multiplier we pick the maximum.
+//
+// For the multiplier we pick the maximum field weight of implementing types and then
+// the maximum among slicing arguments.
 func (c *CostCalculator) calculateNodeCosts(node, parent *CostTreeNode) {
 	if len(node.dataSourceHashes) <= 0 {
 		// no data source is responsible for this field
@@ -337,34 +373,36 @@ func (c *CostCalculator) calculateNodeCosts(node, parent *CostTreeNode) {
 			continue
 		}
 
-		fieldConfig := dsCostConfig.Fields[node.fieldCoord]
+		fieldWeight := dsCostConfig.Weights[node.fieldCoord]
+		listSize := dsCostConfig.ListSizes[node.fieldCoord]
 		// The cost directive is not allowed on fields in an interface.
 		// The cost of a field on an interface can be calculated based on the costs of
 		// the corresponding field on each concrete type implementing that interface,
 		// either directly or indirectly through other interfaces.
-		if fieldConfig != nil && node.isEnclosingTypeAbstract && parent.isAbstractType {
+		if fieldWeight != nil && node.isEnclosingTypeAbstract && parent.returnsAbstractType {
 			// Composition should not let interface fields have weights, so we assume that
 			// the enclosing type is concrete.
 			fmt.Printf("WARNING: cost directive on field %v of interface %v\n", node.fieldCoord, parent.fieldCoord)
 		}
-		if node.isEnclosingTypeAbstract && parent.isAbstractType {
-			fmt.Printf("WARNING: no dsCostConfig for %v, parent node: %v\n", node.fieldCoord, parent.fieldCoord)
-			// This field is part of the enclosing interface/union. We should look into
-			// implementing types and find the max-weighted field.
-			// Found fieldConfig can be used for all the calculations.
-			// Should we do the same when there is no weight on the field enclosed into the abstract type?
-			fieldConfig = parent.maxCostImplementingFieldConfig(dsCostConfig, node.fieldCoord.FieldName)
+		if node.isEnclosingTypeAbstract && parent.returnsAbstractType {
+			// This field is part of the enclosing interface/union.
+			// We look into implementing types and find the max-weighted field.
+			// Found fieldWeight can be used for all the calculations.
+			fieldWeight = parent.maxWeightImplementingField(dsCostConfig, node.fieldCoord.FieldName)
+			// If this field has listSize defined, then do not look into implementing types.
+			if listSize == nil && node.returnsListType {
+				listSize = parent.maxMultiplierImplementingField(dsCostConfig, node.fieldCoord.FieldName, node.arguments)
+			}
 		}
 
-		if fieldConfig != nil && fieldConfig.HasWeight {
-			node.fieldCost += fieldConfig.Weight
+		if fieldWeight != nil && fieldWeight.HasWeight {
+			node.fieldCost += fieldWeight.Weight
 		} else {
-			fmt.Printf("WARNING: no weight for %v, parent node: %v\n", node.fieldCoord, parent)
+			// Use the weight of the type returned by this field
 			switch {
-			case node.isSimpleType:
-				// use the weight of the type returned by this field
+			case node.returnsSimpleType:
 				node.fieldCost += dsCostConfig.EnumScalarTypeWeight(node.fieldTypeName)
-			case node.isAbstractType:
+			case node.returnsAbstractType:
 				// For the abstract field, find the max weight among all implementing types
 				maxWeight := 0
 				for _, implTypeName := range node.implementingTypeNames {
@@ -379,47 +417,45 @@ func (c *CostCalculator) calculateNodeCosts(node, parent *CostTreeNode) {
 			}
 		}
 
-		if fieldConfig != nil {
-			for argName, arg := range node.arguments {
-				weight, ok := fieldConfig.ArgumentWeights[argName]
-				if ok {
+		for argName, arg := range node.arguments {
+			if fieldWeight != nil {
+				if weight, ok := fieldWeight.ArgumentWeights[argName]; ok {
 					node.argumentsCost += weight
-				} else {
-					// Take into account the type of the argument.
-					// If the argument definition itself does not have weight attached,
-					// but the type of the argument does have weight attached to it.
-					if arg.isSimple {
-						node.argumentsCost += dsCostConfig.EnumScalarTypeWeight(arg.typeName)
-					} else {
-						node.argumentsCost += dsCostConfig.ObjectTypeWeight(arg.typeName)
-					}
+					continue
 				}
-
-				// TODO: arguments should include costs of input object fields
 			}
+			// Take into account the type of the argument.
+			// If the argument definition itself does not have weight attached,
+			// but the type of the argument does have weight attached to it.
+			if arg.isSimple {
+				node.argumentsCost += dsCostConfig.EnumScalarTypeWeight(arg.typeName)
+			} else if arg.isInputObject {
+				// TODO: arguments should include costs of input object fields
+			} else {
+				node.argumentsCost += dsCostConfig.ObjectTypeWeight(arg.typeName)
+			}
+
 		}
 
 		// Compute multiplier as the maximum of data sources.
-		if !node.isListType || fieldConfig == nil {
-			node.multiplier = 1
+		if !node.returnsListType {
 			continue
 		}
 
-		multiplier := -1
-		for _, slicingArg := range fieldConfig.SlicingArguments {
-			argInfo, ok := node.arguments[slicingArg]
-			if ok && argInfo.isSimple && argInfo.intValue > 0 && argInfo.intValue > multiplier {
-				multiplier = argInfo.intValue
+		if listSize != nil {
+			multiplier := listSize.multiplier(node.arguments)
+			// If this node returns a list of abstract types, then it should have listSize defined
+			// to set the multiplier. Spec allows defining listSize on the fields of interfaces.
+			if multiplier > node.multiplier {
+				node.multiplier = multiplier
 			}
 		}
-		if multiplier == -1 && fieldConfig.AssumedSize > 0 {
-			multiplier = fieldConfig.AssumedSize
-		}
-		if multiplier > node.multiplier {
-			node.multiplier = multiplier
-		}
+
 	}
 
+	if node.multiplier == 0 && node.returnsListType {
+		node.multiplier = StaticCostDefaults.List
+	}
 }
 
 // GetTree returns the cost tree
