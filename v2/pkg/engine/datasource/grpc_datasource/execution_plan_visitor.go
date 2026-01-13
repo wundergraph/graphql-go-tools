@@ -377,7 +377,13 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 		return
 	}
 
-	field, err := r.planCtx.buildField(r.walker.EnclosingTypeDefinition, fieldDefRef, fieldName, fieldAlias)
+	field, err := r.planCtx.buildField(
+		r.walker.EnclosingTypeDefinition.NameString(r.definition),
+		fieldDefRef,
+		fieldName,
+		fieldAlias,
+	)
+
 	if err != nil {
 		r.walker.StopWithInternalErr(err)
 		return

@@ -17,7 +17,7 @@ build-plugin:
 
 .PHONY: regenerate-proto
 regenerate-proto:
-	pnpx wgc@latest grpc-service generate -i testdata/products.graphqls -o testdata/ -p productv1 -g "cosmo/pkg/proto/productv1;productv1" Product
+	pnpx wgc@latest grpc-service generate -i testdata/products.graphqls -o testdata/ -p productv1 -g "cosmo/pkg/proto/productv1;productv1" ProductService
 	mv $(mkfile_dir)/testdata/service.proto $(mkfile_dir)/product.proto
 	rm -f $(mkfile_dir)/testdata/service.proto.lock.json
 
@@ -30,7 +30,7 @@ generate-mapping-code: regenerate-proto
 
 .PHONY: regenerate-proto-local
 regenerate-proto-local:
-	pnpx tsx --env-file ../../../../cosmo/cli/.env ../../../../cosmo/cli/src/index.ts grpc-service generate -i testdata/products.graphqls -o testdata/ -p productv1 -g "cosmo/pkg/proto/productv1;productv1" Product
+	pnpx tsx --env-file ../../../../cosmo/cli/.env ../../../../cosmo/cli/src/index.ts grpc-service generate -i testdata/products.graphqls -o testdata/ -p productv1 -g "cosmo/pkg/proto/productv1;productv1" ProductService
 	mv $(mkfile_dir)/testdata/service.proto $(mkfile_dir)/product.proto
 	rm -f $(mkfile_dir)/testdata/service.proto.lock.json
 

@@ -3,6 +3,7 @@ package grpcdatasource
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
@@ -14,6 +15,9 @@ type requiredFieldVisitorConfig struct {
 	includeMemberType bool
 	// skipFieldResolvers indicates if the field resolvers should be skipped.
 	skipFieldResolvers bool
+	// referenceNestedMessages instrcuts the visitor the format the messages names to reference inner protobuf messages.
+	// Inner messages have an fqn like "MyMessage.NestedMessage"
+	referenceNestedMessages bool
 }
 
 // requiredFieldsVisitor is a visitor that visits the required fields of a message.
@@ -29,7 +33,8 @@ type requiredFieldsVisitor struct {
 
 	messageAncestors []*RPCMessage
 
-	skipFieldResolvers bool
+	skipFieldResolvers      bool
+	referenceNestedMessages bool
 }
 
 // newRequiredFieldsVisitor creates a new requiredFieldsVisitor.
@@ -55,8 +60,9 @@ func newRequiredFieldsVisitor(walker *astvisitor.Walker, message *RPCMessage, pl
 // To achieve that we create a fragment with the required fields and walk it.
 func (r *requiredFieldsVisitor) visitWithDefaults(definition *ast.Document, typeName, requiredFields string) error {
 	return r.visit(definition, typeName, requiredFields, requiredFieldVisitorConfig{
-		includeMemberType:  true,
-		skipFieldResolvers: false,
+		includeMemberType:       true,
+		skipFieldResolvers:      false,
+		referenceNestedMessages: false,
 	})
 }
 
@@ -73,6 +79,7 @@ func (r *requiredFieldsVisitor) visit(definition *ast.Document, typeName, requir
 	}
 
 	r.skipFieldResolvers = options.skipFieldResolvers
+	r.referenceNestedMessages = options.referenceNestedMessages
 
 	r.walker.Walk(doc, definition, report)
 	if report.HasErrors() {
@@ -111,6 +118,10 @@ func (r *requiredFieldsVisitor) EnterSelectionSet(ref int) {
 	}
 
 	r.messageAncestors = append(r.messageAncestors, r.message)
+	if r.referenceNestedMessages {
+		lastField.Message.Name = r.formatNestedMessageName(lastField.Message.Name)
+	}
+
 	r.message = lastField.Message
 
 	if err := r.handleCompositeType(r.walker.EnclosingTypeDefinition); err != nil {
@@ -151,7 +162,12 @@ func (r *requiredFieldsVisitor) EnterField(ref int) {
 		return
 	}
 
-	field, err := r.planCtx.buildField(r.walker.EnclosingTypeDefinition, fd, fieldName, "")
+	parentTypeName := r.message.Name
+	if !r.referenceNestedMessages {
+		parentTypeName = r.walker.EnclosingTypeDefinition.NameString(r.definition)
+	}
+
+	field, err := r.planCtx.buildField(parentTypeName, fd, fieldName, "")
 	if err != nil {
 		r.walker.StopWithInternalErr(err)
 		return
@@ -195,4 +211,19 @@ func (r *requiredFieldsVisitor) handleCompositeType(node ast.Node) error {
 	r.message.MemberTypes = memberTypes
 
 	return nil
+}
+
+// formatNestedMessageName formats the name of a nested message.
+// It returns the full qualified name of the nested message.
+func (r *requiredFieldsVisitor) formatNestedMessageName(name string) string {
+	if len(r.messageAncestors) == 0 {
+		return name
+	}
+
+	builder := strings.Builder{}
+	builder.WriteString(r.messageAncestors[len(r.messageAncestors)-1].Name)
+	builder.WriteString(".")
+	builder.WriteString(name)
+
+	return builder.String()
 }

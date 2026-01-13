@@ -14,27 +14,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
-// entityInfo contains the information about the entity that is being looked up.
-type entityInfo struct {
-	typeName                string
-	entityRootFieldRef      int
-	entityInlineFragmentRef int
-}
-
-type federationConfigData struct {
-	entityTypeName string
-	keyFields      string
-	requiredFields string
-}
-
-func newFederationConfigData(entityTypeName string) federationConfigData {
-	return federationConfigData{
-		entityTypeName: entityTypeName,
-		keyFields:      "",
-		requiredFields: "",
-	}
-}
-
 type rpcPlanVisitorFederation struct {
 	walker     *astvisitor.Walker
 	operation  *ast.Document
@@ -42,9 +21,9 @@ type rpcPlanVisitorFederation struct {
 	planCtx    *rpcPlanningContext
 	mapping    *GRPCMapping
 
-	planInfo             planningInfo
-	entityInfo           entityInfo
-	federationConfigData []federationConfigData
+	planInfo     planningInfo
+	entityInfo   entityInfo
+	entityConfig entityConfig
 
 	plan         *RPCExecutionPlan
 	subgraphName string
@@ -68,7 +47,7 @@ func newRPCPlanVisitorFederation(config rpcPlanVisitorConfig) *rpcPlanVisitorFed
 			entityRootFieldRef:      ast.InvalidRef,
 			entityInlineFragmentRef: ast.InvalidRef,
 		},
-		federationConfigData:   parseFederationConfigData(config.federationConfigs),
+		entityConfig:           parseFederationConfigData(config.federationConfigs),
 		resolvedFields:         make([]resolverField, 0),
 		fieldResolverAncestors: newStack[int](0),
 		parentCallID:           ast.InvalidRef,
@@ -104,19 +83,33 @@ func (r *rpcPlanVisitorFederation) EnterDocument(operation *ast.Document, defini
 
 // LeaveDocument implements astvisitor.DocumentVisitor.
 func (r *rpcPlanVisitorFederation) LeaveDocument(_, _ *ast.Document) {
-	if len(r.resolvedFields) == 0 {
-		return
-	}
-
 	calls, err := r.planCtx.createResolverRPCCalls(r.subgraphName, r.resolvedFields)
 	if err != nil {
 		r.walker.StopWithInternalErr(err)
 		return
 	}
 
-	r.plan.Calls = append(r.plan.Calls, calls...)
-	r.resolvedFields = nil
+	if len(calls) > 0 {
+		r.plan.Calls = append(r.plan.Calls, calls...)
+		r.resolvedFields = nil
+	}
 
+	for entityTypeName, entityConfigData := range r.entityConfig {
+		if len(entityConfigData.requiredFields) == 0 {
+			continue
+		}
+
+		calls, err = r.planCtx.createRequiredFieldsRPCCalls(r.subgraphName, entityTypeName, entityConfigData)
+		if err != nil {
+			r.walker.StopWithInternalErr(err)
+			return
+		}
+
+		if len(calls) > 0 {
+			r.plan.Calls = append(r.plan.Calls, calls...)
+		}
+
+	}
 }
 
 // EnterOperationDefinition implements astvisitor.EnterOperationDefinitionVisitor.
@@ -132,7 +125,7 @@ func (r *rpcPlanVisitorFederation) EnterOperationDefinition(ref int) {
 // EnterInlineFragment implements astvisitor.InlineFragmentVisitor.
 func (r *rpcPlanVisitorFederation) EnterInlineFragment(ref int) {
 	fragmentName := r.operation.InlineFragmentTypeConditionNameString(ref)
-	fc, ok := r.FederationConfigDataByEntityTypeName(fragmentName)
+	entityConfigData, ok := r.entityConfig.getEntity(fragmentName)
 	if !ok {
 		return
 	}
@@ -149,12 +142,12 @@ func (r *rpcPlanVisitorFederation) EnterInlineFragment(ref int) {
 
 	r.entityInfo.entityInlineFragmentRef = ref
 	r.entityInfo.typeName = fragmentName
-	if err := r.resolveEntityInformation(ref, fc); err != nil {
+	if err := r.resolveEntityInformation(ref, fragmentName, entityConfigData); err != nil {
 		r.walker.StopWithInternalErr(err)
 		return
 	}
 
-	r.scaffoldEntityLookup(fc)
+	r.scaffoldEntityLookup(fragmentName, entityConfigData)
 }
 
 // LeaveInlineFragment implements astvisitor.InlineFragmentVisitor.
@@ -329,6 +322,11 @@ func (r *rpcPlanVisitorFederation) EnterField(ref int) {
 		return
 	}
 
+	// If the field is a required field, we don't want to add it to the current response message.
+	if r.planCtx.isRequiredField(fieldDefRef) {
+		return
+	}
+
 	// If the field is a field resolver, we need to handle it later in a separate resolver call.
 	// We only store the information about the field and create the call later.
 	if r.planCtx.isFieldResolver(fieldDefRef, inRootField) {
@@ -350,7 +348,13 @@ func (r *rpcPlanVisitorFederation) EnterField(ref int) {
 		return
 	}
 
-	field, err := r.planCtx.buildField(r.walker.EnclosingTypeDefinition, fieldDefRef, fieldName, fieldAlias)
+	field, err := r.planCtx.buildField(
+		r.walker.EnclosingTypeDefinition.NameString(r.definition),
+		fieldDefRef,
+		fieldName,
+		fieldAlias,
+	)
+
 	if err != nil {
 		r.walker.StopWithInternalErr(err)
 		return
@@ -441,7 +445,7 @@ func (r *rpcPlanVisitorFederation) enterFieldResolver(ref int, fieldDefRef int) 
 	r.parentCallID++
 }
 
-func (r *rpcPlanVisitorFederation) resolveEntityInformation(inlineFragmentRef int, fc federationConfigData) error {
+func (r *rpcPlanVisitorFederation) resolveEntityInformation(inlineFragmentRef int, entityTypeName string, entityConfigData entityConfigData) error {
 	fragmentName := r.operation.InlineFragmentTypeConditionNameString(inlineFragmentRef)
 	node, found := r.definition.NodeByNameStr(r.operation.InlineFragmentTypeConditionNameString(inlineFragmentRef))
 	if !found {
@@ -454,9 +458,9 @@ func (r *rpcPlanVisitorFederation) resolveEntityInformation(inlineFragmentRef in
 		return nil
 	}
 
-	rpcConfig, exists := r.mapping.FindEntityRPCConfig(fc.entityTypeName, fc.keyFields)
+	rpcConfig, exists := r.mapping.FindEntityRPCConfig(entityTypeName, entityConfigData.keyFields)
 	if !exists {
-		return fmt.Errorf("entity type %s not found in mapping", fc.entityTypeName)
+		return fmt.Errorf("entity type %s not found in mapping", entityTypeName)
 	}
 
 	r.currentCall.Request.Name = rpcConfig.Request
@@ -469,7 +473,7 @@ func (r *rpcPlanVisitorFederation) resolveEntityInformation(inlineFragmentRef in
 // scaffoldEntityLookup creates the entity lookup call structure
 // by creating the key field message and adding it to the current request message.
 // It also adds the results message to the current response message.
-func (r *rpcPlanVisitorFederation) scaffoldEntityLookup(fc federationConfigData) {
+func (r *rpcPlanVisitorFederation) scaffoldEntityLookup(typeName string, ecd entityConfigData) {
 	keyFieldMessage := &RPCMessage{
 		Name: r.currentCall.MethodName + "Key",
 	}
@@ -478,7 +482,7 @@ func (r *rpcPlanVisitorFederation) scaffoldEntityLookup(fc federationConfigData)
 	defer walker.Release()
 
 	requiredFieldsVisitor := newRequiredFieldsVisitor(walker, keyFieldMessage, r.planCtx)
-	err := requiredFieldsVisitor.visitWithDefaults(r.definition, fc.entityTypeName, fc.keyFields)
+	err := requiredFieldsVisitor.visitWithDefaults(r.definition, typeName, ecd.keyFields)
 	if err != nil {
 		r.walker.StopWithInternalErr(err)
 		return
@@ -494,6 +498,8 @@ func (r *rpcPlanVisitorFederation) scaffoldEntityLookup(fc federationConfigData)
 		},
 	}
 
+	r.entityConfig.setEntityKeyMessage(typeName, keyFieldMessage)
+
 	// The proto response message has a field `result` which is a list of entities.
 	// As this is a special case we directly map it to _entities.
 	r.planInfo.currentResponseMessage.Fields = []RPCField{
@@ -504,16 +510,6 @@ func (r *rpcPlanVisitorFederation) scaffoldEntityLookup(fc federationConfigData)
 			Repeated:      true,
 		},
 	}
-}
-
-// FederationConfigDataByEntityTypeName returns the entity config data for the given entity type name.
-func (r *rpcPlanVisitorFederation) FederationConfigDataByEntityTypeName(entityTypeName string) (federationConfigData, bool) {
-	for _, fc := range r.federationConfigData {
-		if fc.entityTypeName == entityTypeName {
-			return fc, true
-		}
-	}
-	return federationConfigData{}, false
 }
 
 func (r *rpcPlanVisitorFederation) IsEntityInlineFragment(node ast.Node) bool {
@@ -528,36 +524,75 @@ func (r *rpcPlanVisitorFederation) IsEntityInlineFragment(node ast.Node) bool {
 	return r.entityInfo.entityInlineFragmentRef == node.Ref
 }
 
-func parseFederationConfigData(federationConfigs plan.FederationFieldConfigurations) []federationConfigData {
-	var out []federationConfigData
+// entityInfo contains the information about the entity that is being looked up.
+type entityInfo struct {
+	typeName                string
+	entityRootFieldRef      int
+	entityInlineFragmentRef int
+}
 
-	typeNameIndexSet := map[string]int{}
-	typeNameIndex := 0
+type requiredFieldData struct {
+	typeName     string
+	fieldName    string
+	selectionSet string
+}
 
-	for _, fc := range federationConfigs {
-		// Create a new entity type if it doesn't exist
-		if _, ok := typeNameIndexSet[fc.TypeName]; !ok {
-			out = append(out, newFederationConfigData(fc.TypeName))
-			typeNameIndexSet[fc.TypeName] = typeNameIndex
-			typeNameIndex++
-		}
+type entityConfig map[string]entityConfigData
 
-		data := &out[typeNameIndexSet[fc.TypeName]]
+type entityConfigData struct {
+	keyFields       string
+	keyFieldMessage *RPCMessage
+	requiredFields  map[string]string
+}
 
-		// Selection set determines whether we have key fields or additional required fields
-		if fc.SelectionSet == "" {
-			continue
-		}
+func (e entityConfig) setEntity(typeName string, data entityConfigData) {
+	e[typeName] = data
+}
 
-		// This is a required field, so we add it to the required fields
-		if fc.FieldName != "" {
-			data.requiredFields = fc.SelectionSet
-			continue
-		}
-
-		// This is a key field, so we add it to the key fields
-		data.keyFields = fc.SelectionSet
+func (e entityConfig) setEntityKeyMessage(typeName string, message *RPCMessage) {
+	data, ok := e[typeName]
+	if !ok {
+		return
 	}
 
-	return out
+	data.keyFieldMessage = message
+	e[typeName] = data
+}
+
+func (e entityConfig) getEntity(typeName string) (entityConfigData, bool) {
+	data, ok := e[typeName]
+	return data, ok
+}
+
+func (e entityConfig) setRequiredField(typeName, fieldName, selectionSet string) {
+	if _, ok := e[typeName]; !ok {
+		e[typeName] = entityConfigData{
+			requiredFields: make(map[string]string),
+		}
+	}
+
+	e[typeName].requiredFields[fieldName] = selectionSet
+}
+
+func parseFederationConfigData(federationConfigs plan.FederationFieldConfigurations) entityConfig {
+	config := make(entityConfig)
+
+	for _, fc := range federationConfigs {
+		data, ok := config.getEntity(fc.TypeName)
+		if !ok {
+			data = entityConfigData{
+				requiredFields: make(map[string]string),
+			}
+		}
+
+		if fc.FieldName != "" {
+			data.requiredFields[fc.FieldName] = fc.SelectionSet
+		} else {
+			data.keyFields = fc.SelectionSet
+		}
+
+		config.setEntity(fc.TypeName, data)
+	}
+
+	return config
 }

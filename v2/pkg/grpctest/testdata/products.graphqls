@@ -27,6 +27,13 @@ type Warehouse @key(fields: "id") {
   id: ID!
   name: String!
   location: String!
+  inventoryCount: Int! @external
+  restockData: RestockData! @external
+  stockHealthScore: Float! @requires(fields: "inventoryCount restockData { lastRestockDate }")
+}
+
+type RestockData {
+  lastRestockDate: String!
 }
 
 type User {

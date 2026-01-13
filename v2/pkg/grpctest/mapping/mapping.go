@@ -419,9 +419,20 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 						Request:  "LookupWarehouseByIdRequest",
 						Response: "LookupWarehouseByIdResponse",
 					},
+					RequiredFields: grpcdatasource.RequiredFieldsRPCMapping{
+						"stockHealthScore": {
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireWarehouseStockHealthScoreById",
+								Request:  "RequireWarehouseStockHealthScoreByIdRequest",
+								Response: "RequireWarehouseStockHealthScoreByIdResponse",
+							},
+							TargetName: "stock_health_score",
+						},
+					},
 				},
 			},
 		},
+
 		EnumValues: map[string][]grpcdatasource.EnumValueMapping{
 			"CategoryKind": {
 				{Value: "BOOK", TargetValue: "CATEGORY_KIND_BOOK"},
@@ -741,6 +752,28 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"location": {
 					TargetName: "location",
+				},
+				"inventoryCount": {
+					TargetName: "inventory_count",
+				},
+				"restockData": {
+					TargetName: "restock_data",
+				},
+				"stockHealthScore": {
+					TargetName: "stock_health_score",
+				},
+			},
+			"RequireWarehouseStockHealthScoreByIdFields": {
+				"inventoryCount": {
+					TargetName: "inventory_count",
+				},
+				"restockData": {
+					TargetName: "restock_data",
+				},
+			},
+			"RequireWarehouseStockHealthScoreByIdFields.RestockData": {
+				"lastRestockDate": {
+					TargetName: "last_restock_date",
 				},
 			},
 			"User": {

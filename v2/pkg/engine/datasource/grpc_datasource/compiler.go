@@ -712,7 +712,7 @@ func (p *RPCCompiler) resolveListDataForPath(message protoref.List, fd protoref.
 }
 
 // resolveDataForPath resolves the data for a given path in a message.
-func (p *RPCCompiler) resolveDataForPath(messsage protoref.Message, path ast.Path) []protoref.Value {
+func (p *RPCCompiler) resolveDataForPath(message protoref.Message, path ast.Path) []protoref.Value {
 	if path.Len() == 0 {
 		return nil
 	}
@@ -720,7 +720,7 @@ func (p *RPCCompiler) resolveDataForPath(messsage protoref.Message, path ast.Pat
 	segment := path[0]
 
 	if fn := segment.FieldName.String(); strings.HasPrefix(fn, "@") {
-		list := p.resolveUnderlyingList(messsage, fn)
+		list := p.resolveUnderlyingList(message, fn)
 
 		result := make([]protoref.Value, 0, len(list))
 		for _, item := range list {
@@ -730,7 +730,7 @@ func (p *RPCCompiler) resolveDataForPath(messsage protoref.Message, path ast.Pat
 		return result
 	}
 
-	field, fd := p.getMessageField(messsage, segment.FieldName.String())
+	field, fd := p.getMessageField(message, segment.FieldName.String())
 	if !field.IsValid() {
 		return nil
 	}
@@ -1251,14 +1251,25 @@ func (p *RPCCompiler) parseMessageDefinitions(messages protoref.MessageDescripto
 		protoMessage := messages.Get(i)
 
 		message := Message{
-			Name: string(protoMessage.Name()),
+			Name: p.fullMessageName(protoMessage),
 			Desc: protoMessage,
 		}
 
 		extractedMessages = append(extractedMessages, message)
+
+		if submessages := protoMessage.Messages(); submessages.Len() > 0 {
+			extractedMessages = append(extractedMessages, p.parseMessageDefinitions(submessages)...)
+		}
+
 	}
 
 	return extractedMessages
+}
+
+// fullMessageName returns the full name of the message omiting the package name.
+// In our case don't need the fqn as we only have one package where we need to resolve the messages.
+func (p *RPCCompiler) fullMessageName(m protoref.MessageDescriptor) string {
+	return strings.TrimLeft(string(m.FullName()), p.doc.Package+".")
 }
 
 // enrichMessageData enriches the message data with the field information.
@@ -1273,7 +1284,7 @@ func (p *RPCCompiler) enrichMessageData(ref int, m protoref.MessageDescriptor) {
 
 		if f.Kind() == protoref.MessageKind {
 			// Handle nested messages when they are recursive types
-			field.MessageRef = p.doc.MessageRefByName(string(f.Message().Name()))
+			field.MessageRef = p.doc.MessageRefByName(p.fullMessageName(f.Message()))
 		}
 
 		fields[i] = field

@@ -57,6 +57,7 @@ service ProductService {
   rpc QueryTypeWithMultipleFilterFields(QueryTypeWithMultipleFilterFieldsRequest) returns (QueryTypeWithMultipleFilterFieldsResponse) {}
   rpc QueryUser(QueryUserRequest) returns (QueryUserResponse) {}
   rpc QueryUsers(QueryUsersRequest) returns (QueryUsersResponse) {}
+  rpc RequireWarehouseStockHealthScoreById(RequireWarehouseStockHealthScoreByIdRequest) returns (RequireWarehouseStockHealthScoreByIdResponse) {}
   rpc ResolveCategoryCategoryMetrics(ResolveCategoryCategoryMetricsRequest) returns (ResolveCategoryCategoryMetricsResponse) {}
   rpc ResolveCategoryCategoryStatus(ResolveCategoryCategoryStatusRequest) returns (ResolveCategoryCategoryStatusResponse) {}
   rpc ResolveCategoryMascot(ResolveCategoryMascotRequest) returns (ResolveCategoryMascotResponse) {}
@@ -927,7 +928,7 @@ message ResolveCategoryMetricsNormalizedScoreArgs {
 
 message ResolveCategoryMetricsNormalizedScoreContext {
   string id = 1;
-  string metricType = 2;
+  string metric_type = 2;
   double value = 3;
 }
 
@@ -968,6 +969,34 @@ message ResolveTestContainerDetailsResult {
 
 message ResolveTestContainerDetailsResponse {
   repeated ResolveTestContainerDetailsResult result = 1;
+}
+
+message RequireWarehouseStockHealthScoreByIdRequest {
+  // RequireWarehouseStockHealthScoreByIdContext provides the context for the required fields method RequireWarehouseStockHealthScoreById.
+  repeated RequireWarehouseStockHealthScoreByIdContext context = 1;
+}
+
+message RequireWarehouseStockHealthScoreByIdContext {
+  LookupWarehouseByIdRequestKey key = 1;
+  RequireWarehouseStockHealthScoreByIdFields fields = 2;
+}
+
+message RequireWarehouseStockHealthScoreByIdResponse {
+  // RequireWarehouseStockHealthScoreByIdResult provides the result for the required fields method RequireWarehouseStockHealthScoreById.
+  repeated RequireWarehouseStockHealthScoreByIdResult result = 1;
+}
+
+message RequireWarehouseStockHealthScoreByIdResult {
+  double stock_health_score = 1;
+}
+
+message RequireWarehouseStockHealthScoreByIdFields {
+  message RestockData {
+    string last_restock_date = 1;
+  }
+
+  int32 inventory_count = 1;
+  RestockData restock_data = 2;
 }
 
 message Product {
@@ -1043,7 +1072,7 @@ message Category {
   string id = 1;
   string name = 2;
   CategoryKind kind = 3;
-  ListOfSubcategory subcategories = 5;
+  ListOfSubcategory subcategories = 4;
 }
 
 message CategoryFilter {
@@ -1212,6 +1241,10 @@ message ProductDetails {
   Animal recommended_pet = 4;
 }
 
+message RestockData {
+  string last_restock_date = 1;
+}
+
 message NestedTypeB {
   string id = 1;
   string name = 2;
@@ -1252,6 +1285,13 @@ message Subcategory {
   string name = 2;
   google.protobuf.StringValue description = 3;
   bool is_active = 4;
+}
+
+message _GraphqlOperationOptions {
+  // This could be either "query", "mutation", or "subscription".
+  string operation_type = 1;
+  // The name of the GraphQL operation.
+  string graphql_operation_name = 3;
 }
 
 message CategoryMetrics {

@@ -75,6 +75,9 @@ type EntityRPCConfig struct {
 
 	// Key is a list of field names that uniquely identify the entity
 	Key string
+
+	// RequiredFields is the configuration for the required fields method
+	RequiredFields RequiredFieldsRPCMapping
 }
 
 // FieldMapData defines the mapping between a GraphQL field and a gRPC field
@@ -95,6 +98,14 @@ type ResolveRPCTypeField struct {
 	RPC              string       // The name of the RPC method to call
 	Request          string       // The name of the request message type
 	Response         string       // The name of the response message type
+}
+
+// RequiredFieldsRPCMapping defines the mapping between a federation @requires fields and the gRPC RPC configurations
+type RequiredFieldsRPCMapping map[string]RequiredFieldsRPCTypeField
+
+type RequiredFieldsRPCTypeField struct {
+	RPCConfig
+	TargetName string
 }
 
 // FindFieldMapping finds the gRPC field name for a given GraphQL field name and type
@@ -175,6 +186,22 @@ func (g *GRPCMapping) FindEntityRPCConfig(typeName, key string) (RPCConfig, bool
 	}
 
 	return RPCConfig{}, false
+}
+
+func (g *GRPCMapping) FindRequiredFieldsRPCConfig(typeName, key, field string) (RequiredFieldsRPCTypeField, bool) {
+	rpcConfig, ok := g.EntityRPCs[typeName]
+	if !ok {
+		return RequiredFieldsRPCTypeField{}, false
+	}
+
+	for _, ei := range rpcConfig {
+		if compareKeyFields(ei.Key, key) {
+			requiredFieldMapping, found := ei.RequiredFields[field]
+			return requiredFieldMapping, found
+		}
+	}
+
+	return RequiredFieldsRPCTypeField{}, false
 }
 
 // FindResolveTypeFieldMapping finds the gRPC field name for a given GraphQL field name and type
