@@ -556,14 +556,16 @@ func (v *Visitor) extractFieldArguments(fieldRef int) map[string]ArgumentInfo {
 				argInfo.isInputObject = true
 
 			}
-			// TODO: we need to analyze variables that contains input object fields.
+			// TODO 1: read values of variables from the context later, not possible to do it here.
+
+			// TODO 2: we need to analyze variables that contains input object fields.
 			// If these fields has weight attached, use them for calculation.
 			// Variables are not inlined at this stage, so we need to inspect them via AST.
 
 		case ast.ValueKindList:
 			// not sure if these are relevant
-			unwrappedTypeRef := v.Operation.ResolveUnderlyingType(argValue.Ref)
-			argInfo.typeName = v.Operation.TypeNameString(unwrappedTypeRef)
+			// unwrappedTypeRef := v.Operation.ResolveUnderlyingType(argValue.Ref)
+			// argInfo.typeName = v.Operation.TypeNameString(unwrappedTypeRef)
 			fmt.Printf("WARNING: unhandled list argument type: %v typeName=%v\n", argValue.Kind, argInfo.typeName)
 		default:
 			fmt.Printf("WARNING: unhandled argument type: %v\n", argValue.Kind)
