@@ -5548,24 +5548,12 @@ func TestExecutionEngine_Execute(t *testing.T) {
 
 	t.Run("static cost computation", func(t *testing.T) {
 		rootNodes := []plan.TypeField{
-			{
-				TypeName:   "Query",
-				FieldNames: []string{"hero", "droid"},
-			},
-			{
-				TypeName:   "Human",
-				FieldNames: []string{"name", "height", "friends"},
-			},
-			{
-				TypeName:   "Droid",
-				FieldNames: []string{"name", "primaryFunction", "friends"},
-			},
+			{TypeName: "Query", FieldNames: []string{"hero", "droid"}},
+			{TypeName: "Human", FieldNames: []string{"name", "height", "friends"}},
+			{TypeName: "Droid", FieldNames: []string{"name", "primaryFunction", "friends"}},
 		}
 		childNodes := []plan.TypeField{
-			{
-				TypeName:   "Character",
-				FieldNames: []string{"name", "friends"},
-			},
+			{TypeName: "Character", FieldNames: []string{"name", "friends"}},
 		}
 		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
 			Fetch: &graphql_datasource.FetchConfiguration{
@@ -5702,9 +5690,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					mustGraphqlDataSourceConfiguration(t, "id",
 						mustFactory(t,
 							testNetHttpClient(t, roundTripperTestCase{
-								expectedHost:     "example.com",
-								expectedPath:     "/",
-								expectedBody:     "",
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
 								sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke Skywalker","height":"12"}}}`,
 								sendStatusCode:   200,
 							}),
@@ -5743,9 +5729,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					mustGraphqlDataSourceConfiguration(t, "id",
 						mustFactory(t,
 							testNetHttpClient(t, roundTripperTestCase{
-								expectedHost:     "example.com",
-								expectedPath:     "/",
-								expectedBody:     "",
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
 								sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke Skywalker"}}}`,
 								sendStatusCode:   200,
 							}),
@@ -5788,9 +5772,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					mustGraphqlDataSourceConfiguration(t, "id",
 						mustFactory(t,
 							testNetHttpClient(t, roundTripperTestCase{
-								expectedHost: "example.com",
-								expectedPath: "/",
-								expectedBody: "",
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
 								sendResponseBody: `{"data":{"hero":{"__typename":"Human","friends":[
 									{"__typename":"Human","name":"Luke Skywalker","height":"12"},
 									{"__typename":"Droid","name":"R2DO","primaryFunction":"joke"}
@@ -5841,9 +5823,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					mustGraphqlDataSourceConfiguration(t, "id",
 						mustFactory(t,
 							testNetHttpClient(t, roundTripperTestCase{
-								expectedHost: "example.com",
-								expectedPath: "/",
-								expectedBody: "",
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
 								sendResponseBody: `{"data":{"hero":{"__typename":"Human","friends":[
 									{"__typename":"Human","name":"Luke Skywalker","height":"12"},
 									{"__typename":"Droid","name":"R2DO","primaryFunction":"joke"}
@@ -5898,9 +5878,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					mustGraphqlDataSourceConfiguration(t, "id",
 						mustFactory(t,
 							testNetHttpClient(t, roundTripperTestCase{
-								expectedHost: "example.com",
-								expectedPath: "/",
-								expectedBody: "",
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
 								sendResponseBody: `{"data":{"hero":{"__typename":"Human","friends":[
 									{"__typename":"Human","name":"Luke Skywalker","height":"12"},
 									{"__typename":"Droid","name":"R2DO","primaryFunction":"joke"}
@@ -5957,9 +5935,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					mustGraphqlDataSourceConfiguration(t, "id",
 						mustFactory(t,
 							testNetHttpClient(t, roundTripperTestCase{
-								expectedHost: "example.com",
-								expectedPath: "/",
-								expectedBody: "",
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
 								sendResponseBody: `{"data":{"hero":{"__typename":"Human","friends":[
 									{"__typename":"Human","name":"Luke Skywalker","height":"12"},
 									{"__typename":"Droid","name":"R2DO","primaryFunction":"joke"}
@@ -5980,6 +5956,96 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			},
 			computeStaticCost(),
 		))
+
+		t.Run("custom scheme for listSize", func(t *testing.T) {
+			listSchema := `
+			type Query {
+			   items(first: Int, last: Int): [Item!] 
+			}
+			type Item @key(fields: "id") {
+			  id: ID
+			} 
+			`
+			schemaSlicing, err := graphql.NewSchemaFromString(listSchema)
+			require.NoError(t, err)
+			rootNodes := []plan.TypeField{
+				{TypeName: "Query", FieldNames: []string{"items"}},
+				{TypeName: "Item", FieldNames: []string{"id"}},
+			}
+			childNodes := []plan.TypeField{}
+			customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+				Fetch: &graphql_datasource.FetchConfiguration{
+					URL:    "https://example.com/",
+					Method: "GET",
+				},
+				SchemaConfiguration: mustSchemaConfig(t, nil, listSchema),
+			})
+			fieldConfig := []plan.FieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "items",
+					Path:      []string{"items"},
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:         "first",
+							SourceType:   plan.FieldArgumentSource,
+							RenderConfig: plan.RenderArgumentAsGraphQLValue,
+						},
+						{
+							Name:         "last",
+							SourceType:   plan.FieldArgumentSource,
+							RenderConfig: plan.RenderArgumentAsGraphQLValue,
+						},
+					},
+				},
+			}
+			t.Run("multiple slicing arguments as literals", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schemaSlicing,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `query MultipleSlicingArguments {
+							  items(first: 5, last: 12) { id }
+							}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: `{"data":{"items":[ {"id":"2"}, {"id":"3"} ]}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+										{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Query", FieldName: "items"}: {
+											AssumedSize:      8,
+											SlicingArguments: []string{"first", "last"},
+										},
+									},
+									Types: map[string]int{
+										"Item": 3,
+									},
+								},
+							},
+							customConfig,
+						),
+					},
+					fields:             fieldConfig,
+					expectedResponse:   `{"data":{"items":[{"id":"2"},{"id":"3"}]}}`,
+					expectedStaticCost: 48, // slicingArgument(12) * (Item(3)+Item.id(1))
+				},
+				computeStaticCost(),
+			))
+		})
 
 	})
 }
