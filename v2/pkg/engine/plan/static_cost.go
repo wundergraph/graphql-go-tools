@@ -51,6 +51,7 @@ type FieldListSize struct {
 }
 
 // multiplier returns the multiplier for a list field based on the values of arguments.
+// Does not take into account the SizedFields; TBD later.
 func (ls *FieldListSize) multiplier(arguments map[string]ArgumentInfo) int {
 	multiplier := -1
 	for _, slicingArg := range ls.SlicingArguments {
@@ -228,7 +229,7 @@ func (node *CostTreeNode) TotalCost() int {
 		cost = 0
 	}
 	// Here we do not follow IBM spec. We multiply with field cost.
-	// If there is weight attached to the type that is returned (resolved) by the field,
+	// If there is a weight attached to the type that is returned (resolved) by the field,
 	// the more objects we request, the more expensive it should be.
 	cost += (node.fieldCost + childrenCost) * multiplier
 
@@ -243,6 +244,7 @@ type ArgumentInfo struct {
 
 	// If argument is passed an input object, we want to gather counts
 	// for all the field coordinates with non-null values used in the argument.
+	// TBD later when input objects are supported.
 	//
 	// For example, for
 	//    "input A { x: Int, rec: A! }"
@@ -437,11 +439,13 @@ func (c *CostCalculator) calculateNodeCosts(node, parent *CostTreeNode) {
 
 		}
 
-		// Compute multiplier as the maximum of data sources.
+		// Return early, since we do not support sizedFields yet. That parameter means
+		// that lisSize could be applied to fields that return non-lists.
 		if !node.returnsListType {
 			continue
 		}
 
+		// Compute multiplier as the maximum of data sources.
 		if listSize != nil {
 			multiplier := listSize.multiplier(node.arguments)
 			// If this node returns a list of abstract types, then it should have listSize defined
