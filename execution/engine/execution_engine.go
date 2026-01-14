@@ -214,7 +214,9 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 		return report
 	}
 	e.lastPlan = cachedPlan
-	costCalculator.SetVariables(execContext.resolveContext.Variables)
+	if costCalculator != nil {
+		costCalculator.SetVariables(execContext.resolveContext.Variables)
+	}
 
 	if execContext.resolveContext.TracingOptions.Enable && !execContext.resolveContext.TracingOptions.ExcludePlannerStats {
 		planningTime := resolve.GetDurationNanoSinceTraceStart(execContext.resolveContext.Context()) - tracePlanStart

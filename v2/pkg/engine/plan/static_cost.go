@@ -357,8 +357,8 @@ func (node *CostTreeNode) setCostsAndMultiplier(configs map[DSHash]*DataSourceCo
 		// Compute multiplier as the maximum of data sources.
 		if listSize != nil {
 			multiplier := listSize.multiplier(node.arguments, variables)
-			// If this node returns a list of abstract types, then it should have listSize defined
-			// to set the multiplier. Spec allows defining listSize on the fields of interfaces.
+			// If this node returns a list of abstract types, then it could have listSize defined.
+			// Spec allows defining listSize on the fields of interfaces.
 			if multiplier > node.multiplier {
 				node.multiplier = multiplier
 			}
