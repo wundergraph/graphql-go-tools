@@ -214,11 +214,6 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		return
 	}
 
-	if p.config.ComputeStaticCost {
-		cost := p.planningVisitor.costCalculator.GetTotalCost()
-		p.planningVisitor.plan.SetStaticCost(cost)
-	}
-
 	return p.planningVisitor.plan
 }
 

@@ -1,6 +1,10 @@
 package plan
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/wundergraph/astjson"
+)
 
 // StaticCostDefaults contains default cost values when no specific costs are configured
 var StaticCostDefaults = WeightDefaults{
@@ -41,23 +45,39 @@ type FieldListSize struct {
 	// The value of these arguments will be used as the multiplier.
 	SlicingArguments []string
 
-	// SizedFields are field names that return the actual size of the list.
-	// These can be used for more accurate, actual cost estimation.
+	// SizedFields are contains field names in the returned object that returns lists.
+	// For these lists we estimate the size based on the value of the slicing arguments or AssumedSize.
 	SizedFields []string
 
 	// RequireOneSlicingArgument if true, at least one slicing argument must be provided.
 	// If false and no slicing argument is provided, AssumedSize is used.
+	// It is not used right now since it is required only for validation.
 	RequireOneSlicingArgument bool
 }
 
-// multiplier returns the multiplier for a list field based on the values of arguments.
+// multiplier returns the multiplier based on arguments and variables.
+// It picks the maximum value among slicing arguments, otherwise it tries to use AssumedSize.
+//
 // Does not take into account the SizedFields; TBD later.
-func (ls *FieldListSize) multiplier(arguments map[string]ArgumentInfo) int {
+func (ls *FieldListSize) multiplier(arguments map[string]ArgumentInfo, vars *astjson.Value) int {
 	multiplier := -1
 	for _, slicingArg := range ls.SlicingArguments {
-		argInfo, ok := arguments[slicingArg]
-		if ok && argInfo.isSimple && argInfo.intValue > 0 && argInfo.intValue > multiplier {
-			multiplier = argInfo.intValue
+		arg, ok := arguments[slicingArg]
+		if ok && arg.isSimple {
+			var value int
+			// Argument could have a variable or literal value.
+			if arg.hasVariable {
+				v := vars.Get(arg.varName)
+				if v == nil || v.Type() != astjson.TypeNumber {
+					continue
+				}
+				value = vars.GetInt(arg.varName)
+			} else if arg.intValue > 0 {
+				value = arg.intValue
+			}
+			if value > 0 && value > multiplier {
+				multiplier = value
+			}
 		}
 	}
 	if multiplier == -1 && ls.AssumedSize > 0 {
@@ -127,6 +147,8 @@ func (c *DataSourceCostConfig) ObjectTypeWeight(name string) int {
 // CostTreeNode represents a node in the cost calculation tree
 // Based on IBM GraphQL Cost Specification: https://ibm.github.io/graphql-specs/cost-spec.html
 type CostTreeNode struct {
+	parent *CostTreeNode
+
 	// dataSourceHashes identifies which data sources resolve this field.
 	dataSourceHashes []DSHash
 
@@ -187,7 +209,7 @@ func (node *CostTreeNode) maxWeightImplementingField(config *DataSourceCostConfi
 	return maxWeight
 }
 
-func (node *CostTreeNode) maxMultiplierImplementingField(config *DataSourceCostConfig, fieldName string, arguments map[string]ArgumentInfo) *FieldListSize {
+func (node *CostTreeNode) maxMultiplierImplementingField(config *DataSourceCostConfig, fieldName string, arguments map[string]ArgumentInfo, vars *astjson.Value) *FieldListSize {
 	var maxMultiplier int
 	var maxListSize *FieldListSize
 	for _, implTypeName := range node.implementingTypeNames {
@@ -195,7 +217,7 @@ func (node *CostTreeNode) maxMultiplierImplementingField(config *DataSourceCostC
 		listSize := config.ListSizes[coord]
 
 		if listSize != nil {
-			multiplier := listSize.multiplier(arguments)
+			multiplier := listSize.multiplier(arguments, vars)
 			if maxListSize == nil || multiplier > maxMultiplier {
 				fmt.Printf("found better multiplier for %v: %v\n", coord, multiplier)
 				maxMultiplier = multiplier
@@ -206,16 +228,18 @@ func (node *CostTreeNode) maxMultiplierImplementingField(config *DataSourceCostC
 	return maxListSize
 }
 
-// TotalCost calculates the total cost of this node and all descendants
-func (node *CostTreeNode) TotalCost() int {
+// totalCost calculates the total cost of this node and all descendants
+func (node *CostTreeNode) totalCost(configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value) int {
 	if node == nil {
 		return 0
 	}
 
+	node.setCostsAndMultiplier(configs, variables)
+
 	// Sum children (fields) costs
 	var childrenCost int
 	for _, child := range node.children {
-		childrenCost += child.TotalCost()
+		childrenCost += child.totalCost(configs, variables)
 	}
 
 	// Apply multiplier to children cost (for list fields)
@@ -236,123 +260,7 @@ func (node *CostTreeNode) TotalCost() int {
 	return cost
 }
 
-type ArgumentInfo struct {
-	intValue int
-
-	// The name of an unwrapped type.
-	typeName string
-
-	// If argument is passed an input object, we want to gather counts
-	// for all the field coordinates with non-null values used in the argument.
-	// TBD later when input objects are supported.
-	//
-	// For example, for
-	//    "input A { x: Int, rec: A! }"
-	// following value is passed:
-	//    { x: 1, rec: { x: 2, rec: { x: 3 } } },
-	// then coordCounts will be:
-	//    { {"A", "rec"}: 2, {"A", "x"}: 3 }
-	//
-	coordCounts map[FieldCoordinate]int
-
-	// isInputObject is true for an input object passed to the argument,
-	// otherwise the argument is Scalar or Enum.
-	isInputObject bool
-
-	isSimple bool
-}
-
-// CostTree represents the complete cost tree for a query
-type CostTree struct {
-	Root  *CostTreeNode
-	Total int
-}
-
-// Calculate computes the total cost and checks against max
-func (t *CostTree) Calculate() {
-	if t.Root != nil {
-		t.Total = t.Root.TotalCost()
-	}
-}
-
-// CostCalculator manages cost calculation during AST traversal
-type CostCalculator struct {
-	// stack maintains the current path in the cost tree
-	stack []*CostTreeNode
-
-	// tree is the complete cost tree being built
-	tree *CostTree
-
-	// costConfigs maps data source hash to its cost configuration
-	costConfigs map[DSHash]*DataSourceCostConfig
-}
-
-// NewCostCalculator creates a new cost calculator
-func NewCostCalculator() *CostCalculator {
-	tree := &CostTree{
-		Root: &CostTreeNode{
-			fieldCoord: FieldCoordinate{"_none", "_root"},
-			multiplier: 1,
-		},
-	}
-	c := CostCalculator{
-		stack:       make([]*CostTreeNode, 0, 16),
-		costConfigs: make(map[DSHash]*DataSourceCostConfig),
-		tree:        tree,
-	}
-	c.stack = append(c.stack, c.tree.Root)
-
-	return &c
-}
-
-// SetDataSourceCostConfig sets the cost config for a specific data source
-func (c *CostCalculator) SetDataSourceCostConfig(dsHash DSHash, config *DataSourceCostConfig) {
-	c.costConfigs[dsHash] = config
-}
-
-// CurrentNode returns the current node on the stack
-func (c *CostCalculator) CurrentNode() *CostTreeNode {
-	if len(c.stack) == 0 {
-		return nil
-	}
-	return c.stack[len(c.stack)-1]
-}
-
-// EnterField is called when entering a field during AST traversal.
-// It creates a skeleton node and pushes it onto the stack.
-// The actual cost calculation happens in LeaveField when fieldPlanners data is available.
-func (c *CostCalculator) EnterField(node *CostTreeNode) {
-	// Attach to parent
-	parent := c.CurrentNode()
-	if parent != nil {
-		parent.children = append(parent.children, node)
-	}
-
-	c.stack = append(c.stack, node)
-}
-
-// LeaveField calculates the cose of the current node and pop from the cost stack.
-// It is called when leaving a field during planning.
-func (c *CostCalculator) LeaveField(fieldRef int, dsHashes []DSHash) {
-	if len(c.stack) <= 1 { // Keep root on stack
-		return
-	}
-
-	// Find the current node (should match fieldRef)
-	lastIndex := len(c.stack) - 1
-	current := c.stack[lastIndex]
-	if current.fieldRef != fieldRef {
-		return
-	}
-
-	current.dataSourceHashes = dsHashes
-	parent := c.stack[lastIndex-1]
-	c.calculateNodeCosts(current, parent)
-
-	c.stack = c.stack[:lastIndex]
-}
-
-// calculateNodeCosts fills in the cost values for a node based on its data sources.
+// setCostsAndMultiplier fills in the cost values for a node based on its data sources.
 //
 // For this node we sum weights of the field or its returned type for all the data sources.
 // Each data source can have its own cost configuration. If we plan field on two data sources,
@@ -360,16 +268,17 @@ func (c *CostCalculator) LeaveField(fieldRef int, dsHashes []DSHash) {
 //
 // For the multiplier we pick the maximum field weight of implementing types and then
 // the maximum among slicing arguments.
-func (c *CostCalculator) calculateNodeCosts(node, parent *CostTreeNode) {
+func (node *CostTreeNode) setCostsAndMultiplier(configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value) {
 	if len(node.dataSourceHashes) <= 0 {
 		// no data source is responsible for this field
 		return
 	}
 
+	parent := node.parent
 	node.multiplier = 0
 
 	for _, dsHash := range node.dataSourceHashes {
-		dsCostConfig, ok := c.costConfigs[dsHash]
+		dsCostConfig, ok := configs[dsHash]
 		if !ok {
 			fmt.Printf("WARNING: no cost dsCostConfig for data source %v\n", dsHash)
 			continue
@@ -393,7 +302,7 @@ func (c *CostCalculator) calculateNodeCosts(node, parent *CostTreeNode) {
 			fieldWeight = parent.maxWeightImplementingField(dsCostConfig, node.fieldCoord.FieldName)
 			// If this field has listSize defined, then do not look into implementing types.
 			if listSize == nil && node.returnsListType {
-				listSize = parent.maxMultiplierImplementingField(dsCostConfig, node.fieldCoord.FieldName, node.arguments)
+				listSize = parent.maxMultiplierImplementingField(dsCostConfig, node.fieldCoord.FieldName, node.arguments, variables)
 			}
 		}
 
@@ -447,7 +356,7 @@ func (c *CostCalculator) calculateNodeCosts(node, parent *CostTreeNode) {
 
 		// Compute multiplier as the maximum of data sources.
 		if listSize != nil {
-			multiplier := listSize.multiplier(node.arguments)
+			multiplier := listSize.multiplier(node.arguments, variables)
 			// If this node returns a list of abstract types, then it should have listSize defined
 			// to set the multiplier. Spec allows defining listSize on the fields of interfaces.
 			if multiplier > node.multiplier {
@@ -462,14 +371,109 @@ func (c *CostCalculator) calculateNodeCosts(node, parent *CostTreeNode) {
 	}
 }
 
-// GetTree returns the cost tree
-func (c *CostCalculator) GetTree() *CostTree {
-	c.tree.Calculate()
-	return c.tree
+type ArgumentInfo struct {
+	intValue int
+
+	// The name of an unwrapped type.
+	typeName string
+
+	// If argument is passed an input object, we want to gather counts
+	// for all the field coordinates with non-null values used in the argument.
+	// TBD later when input objects are supported.
+	//
+	// For example, for
+	//    "input A { x: Int, rec: A! }"
+	// following value is passed:
+	//    { x: 1, rec: { x: 2, rec: { x: 3 } } },
+	// then coordCounts will be:
+	//    { {"A", "rec"}: 2, {"A", "x"}: 3 }
+	//
+	coordCounts map[FieldCoordinate]int
+
+	// isInputObject is true for an input object passed to the argument,
+	// otherwise the argument is Scalar or Enum.
+	isInputObject bool
+
+	isSimple bool
+
+	// When the argument points to a variable, it contains the name of the variable.
+	hasVariable bool
+
+	// The name of the variable that has value for this argument.
+	varName string
+}
+
+// CostCalculator manages cost calculation during AST traversal
+type CostCalculator struct {
+	// stack maintains the current path in the cost tree
+	stack []*CostTreeNode
+
+	// tree is the complete cost tree being built
+	tree *CostTreeNode
+
+	// costConfigs maps data source hash to its cost configuration
+	costConfigs map[DSHash]*DataSourceCostConfig
+	variables   *astjson.Value
+}
+
+// NewCostCalculator creates a new cost calculator
+func NewCostCalculator() *CostCalculator {
+	c := CostCalculator{
+		stack:       make([]*CostTreeNode, 0, 16),
+		costConfigs: make(map[DSHash]*DataSourceCostConfig),
+		tree: &CostTreeNode{
+			fieldCoord: FieldCoordinate{"_none", "_root"},
+			multiplier: 1,
+		},
+	}
+	c.stack = append(c.stack, c.tree)
+
+	return &c
+}
+
+// SetDataSourceCostConfig sets the cost config for a specific data source
+func (c *CostCalculator) SetDataSourceCostConfig(dsHash DSHash, config *DataSourceCostConfig) {
+	c.costConfigs[dsHash] = config
+}
+
+// EnterField is called when entering a field during AST traversal.
+// It creates a skeleton node and pushes it onto the stack.
+// The actual cost calculation happens in LeaveField when fieldPlanners data is available.
+func (c *CostCalculator) EnterField(node *CostTreeNode) {
+	// Attach to parent
+	if len(c.stack) > 0 {
+		parent := c.stack[len(c.stack)-1]
+		parent.children = append(parent.children, node)
+	}
+
+	c.stack = append(c.stack, node)
+}
+
+// LeaveField calculates the cose of the current node and pop from the cost stack.
+// It is called when leaving a field during planning.
+func (c *CostCalculator) LeaveField(fieldRef int, dsHashes []DSHash) {
+	if len(c.stack) <= 1 { // Keep root on stack
+		return
+	}
+
+	// Find the current node (should match fieldRef)
+	lastIndex := len(c.stack) - 1
+	current := c.stack[lastIndex]
+	if current.fieldRef != fieldRef {
+		return
+	}
+
+	current.dataSourceHashes = dsHashes
+	current.parent = c.stack[lastIndex-1]
+
+	c.stack = c.stack[:lastIndex]
 }
 
 // GetTotalCost returns the calculated total cost
 func (c *CostCalculator) GetTotalCost() int {
-	c.tree.Calculate()
-	return c.tree.Total
+	return c.tree.totalCost(c.costConfigs, c.variables)
+}
+
+func (c *CostCalculator) SetVariables(variables *astjson.Value) {
+	c.variables = variables
 }

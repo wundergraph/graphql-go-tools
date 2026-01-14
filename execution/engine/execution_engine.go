@@ -38,12 +38,6 @@ func newInternalExecutionContext() *internalExecutionContext {
 	}
 }
 
-func (e *internalExecutionContext) prepare(ctx context.Context, variables []byte, request resolve.Request) {
-	e.setContext(ctx)
-	e.setVariables(variables)
-	e.setRequest(request)
-}
-
 func (e *internalExecutionContext) setRequest(request resolve.Request) {
 	e.resolveContext.Request = request
 }
@@ -69,7 +63,7 @@ type ExecutionEngine struct {
 	executionPlanCache       *lru.Cache
 	apolloCompatibilityFlags apollocompatibility.Flags
 	// Holds the plan after Execute(). Used in testing.
-	lastPlan                 plan.Plan
+	lastPlan plan.Plan
 }
 
 type WebsocketBeforeStartHook interface {
@@ -196,7 +190,10 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 	}
 
 	execContext := newInternalExecutionContext()
-	execContext.prepare(ctx, operation.Variables, operation.InternalRequest())
+	execContext.setContext(ctx)
+	execContext.setVariables(operation.Variables)
+	execContext.setRequest(operation.InternalRequest())
+
 	for i := range options {
 		options[i](execContext)
 	}
@@ -212,11 +209,12 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 	}
 
 	var report operationreport.Report
-	cachedPlan := e.getCachedPlan(execContext, operation.Document(), e.config.schema.Document(), operation.OperationName, &report)
+	cachedPlan, costCalculator := e.getCachedPlan(execContext, operation.Document(), e.config.schema.Document(), operation.OperationName, &report)
 	if report.HasErrors() {
 		return report
 	}
 	e.lastPlan = cachedPlan
+	costCalculator.SetVariables(execContext.resolveContext.Variables)
 
 	if execContext.resolveContext.TracingOptions.Enable && !execContext.resolveContext.TracingOptions.ExcludePlannerStats {
 		planningTime := resolve.GetDurationNanoSinceTraceStart(execContext.resolveContext.Context()) - tracePlanStart
@@ -239,33 +237,33 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 	}
 }
 
-func (e *ExecutionEngine) getCachedPlan(ctx *internalExecutionContext, operation, definition *ast.Document, operationName string, report *operationreport.Report) plan.Plan {
+func (e *ExecutionEngine) getCachedPlan(ctx *internalExecutionContext, operation, definition *ast.Document, operationName string, report *operationreport.Report) (plan.Plan, *plan.CostCalculator) {
 	hash := pool.Hash64.Get()
 	hash.Reset()
 	defer pool.Hash64.Put(hash)
 	err := astprinter.Print(operation, hash)
 	if err != nil {
 		report.AddInternalError(err)
-		return nil
+		return nil, nil
 	}
 
 	cacheKey := hash.Sum64()
 
 	if cached, ok := e.executionPlanCache.Get(cacheKey); ok {
 		if p, ok := cached.(plan.Plan); ok {
-			return p
+			return p, p.GetStaticCostCalculator()
 		}
 	}
 
 	planner, _ := plan.NewPlanner(e.config.plannerConfig)
 	planResult := planner.Plan(operation, definition, operationName, report)
 	if report.HasErrors() {
-		return nil
+		return nil, nil
 	}
 
 	ctx.postProcessor.Process(planResult)
 	e.executionPlanCache.Add(cacheKey, planResult)
-	return planResult
+	return planResult, planResult.GetStaticCostCalculator()
 }
 
 func (e *ExecutionEngine) GetWebsocketBeforeStartHook() WebsocketBeforeStartHook {

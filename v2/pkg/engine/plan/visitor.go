@@ -67,7 +67,9 @@ type Visitor struct {
 	// fieldEnclosingTypeNames maps fieldRef to the enclosing type name.
 	fieldEnclosingTypeNames map[int]string
 
-	// costCalculator calculates IBM static costs during AST traversal
+	// costCalculator performs static cost analysis during AST traversal. Visitor calls
+	// enter/leave field hooks to let the calculator build the cost tree. Cost is calculated
+	// after actual planning.
 	costCalculator *CostCalculator
 }
 
@@ -516,12 +518,7 @@ func (v *Visitor) extractFieldArguments(fieldRef int) map[string]ArgumentInfo {
 		argValue := v.Operation.ArgumentValue(argRef)
 		argInfo := ArgumentInfo{}
 
-		fmt.Printf("extractFieldArguments: argName=%s, argValue=%v\n", argName, argValue)
-		val, err := v.Operation.PrintValueBytes(argValue, nil)
-		if err != nil {
-			panic(err)
-		}
-		fmt.Printf("value = %s\n", val)
+		fmt.Printf("extractFieldArguments: argName = %s, argValueKind = %v\n", argName, argValue.Kind)
 		switch argValue.Kind {
 		case ast.ValueKindBoolean, ast.ValueKindEnum, ast.ValueKindString, ast.ValueKindFloat:
 			argInfo.isSimple = true
@@ -536,6 +533,11 @@ func (v *Visitor) extractFieldArguments(fieldRef int) map[string]ArgumentInfo {
 			if !v.Operation.OperationDefinitionHasVariableDefinition(v.operationDefinition, variableValue) {
 				continue // omit optional argument when the variable is not defined
 			}
+
+			// We cannot read values of variables from the context here. Save it for later.
+			argInfo.hasVariable = true
+			argInfo.varName = variableValue
+
 			variableDefinition, exists := v.Operation.VariableDefinitionByNameAndOperation(v.operationDefinition, v.Operation.VariableValueNameBytes(argValue.Ref))
 			if !exists {
 				continue
@@ -547,7 +549,9 @@ func (v *Visitor) extractFieldArguments(fieldRef int) map[string]ArgumentInfo {
 			if !exists {
 				continue
 			}
-			fmt.Printf("variableTypeRef=%v unwrappedVarTypeRef=%v typeName=%v node=%v\n", variableTypeRef, unwrappedVarTypeRef, argInfo.typeName, node)
+
+			fmt.Printf("variableTypeRef = %v unwrappedVarTypeRef = %v typeName = %v nodeKind = %v varVal = %v\n", variableTypeRef, unwrappedVarTypeRef, argInfo.typeName, node.Kind, variableValue)
+
 			// Analyze the node to see what kind of variable was passed.
 			switch node.Kind {
 			case ast.NodeKindScalarTypeDefinition, ast.NodeKindEnumTypeDefinition:
@@ -556,9 +560,8 @@ func (v *Visitor) extractFieldArguments(fieldRef int) map[string]ArgumentInfo {
 				argInfo.isInputObject = true
 
 			}
-			// TODO 1: read values of variables from the context later, not possible to do it here.
 
-			// TODO 2: we need to analyze variables that contains input object fields.
+			// TODO: we need to analyze variables that contains input object fields.
 			// If these fields has weight attached, use them for calculation.
 			// Variables are not inlined at this stage, so we need to inspect them via AST.
 
@@ -1181,14 +1184,16 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 			Response: v.response,
 		}
 		v.plan = &SubscriptionResponsePlan{
-			FlushInterval: v.Config.DefaultFlushIntervalMillis,
-			Response:      v.subscription,
+			FlushInterval:        v.Config.DefaultFlushIntervalMillis,
+			Response:             v.subscription,
+			StaticCostCalculator: v.costCalculator,
 		}
 		return
 	}
 
 	v.plan = &SynchronousResponsePlan{
-		Response: v.response,
+		Response:             v.response,
+		StaticCostCalculator: v.costCalculator,
 	}
 }
 
