@@ -880,42 +880,6 @@ func (l *Loader) loadFetchL2Only(ctx context.Context, fetch Fetch, fetchItem *Fe
 	return nil
 }
 
-func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, fetchItem *FetchItem, items []*astjson.Value, res *result) error {
-	switch f := fetch.(type) {
-	case *SingleFetch:
-		res = l.createOrInitResult(res, f.PostProcessing, f.Info)
-		skip, err := l.tryCacheLoad(ctx, f.Info, f.Caching, items, res)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		if skip {
-			return nil
-		}
-		return l.loadSingleFetch(ctx, f, fetchItem, items, res)
-	case *EntityFetch:
-		res = l.createOrInitResult(res, f.PostProcessing, f.Info)
-		skip, err := l.tryCacheLoad(ctx, f.Info, f.Caching, items, res)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		if skip {
-			return nil
-		}
-		return l.loadEntityFetch(ctx, fetchItem, f, items, res)
-	case *BatchEntityFetch:
-		res = l.createOrInitResult(res, f.PostProcessing, f.Info)
-		skip, err := l.tryCacheLoad(ctx, f.Info, f.Caching, items, res)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		if skip {
-			return nil
-		}
-		return l.loadBatchEntityFetch(ctx, fetchItem, f, items, res)
-	}
-	return nil
-}
-
 type ErrMergeResult struct {
 	Subgraph string
 	Reason   error

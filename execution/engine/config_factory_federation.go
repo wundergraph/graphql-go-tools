@@ -29,6 +29,27 @@ type SubgraphConfiguration struct {
 	SubscriptionProtocol SubscriptionProtocol
 }
 
+// SubgraphCachingConfig defines L2 caching configuration for a specific subgraph.
+// This allows fine-grained control over which entities and root fields are cached per subgraph.
+type SubgraphCachingConfig struct {
+	SubgraphName     string                            // Name of the subgraph (must match SubgraphConfiguration.Name)
+	EntityCaching    plan.EntityCacheConfigurations    // Caching config for entity types in this subgraph
+	RootFieldCaching plan.RootFieldCacheConfigurations // Caching config for root fields in this subgraph
+}
+
+// SubgraphCachingConfigs is a list of per-subgraph caching configurations.
+type SubgraphCachingConfigs []SubgraphCachingConfig
+
+// FindBySubgraphName returns the caching config for the given subgraph name, or nil if not found.
+func (c SubgraphCachingConfigs) FindBySubgraphName(name string) *SubgraphCachingConfig {
+	for i := range c {
+		if c[i].SubgraphName == name {
+			return &c[i]
+		}
+	}
+	return nil
+}
+
 type SubscriptionProtocol string
 
 const (
@@ -43,6 +64,7 @@ type federationEngineConfigFactoryOptions struct {
 	subscriptionClientFactory graphql_datasource.GraphQLSubscriptionClientFactory
 	subscriptionType          SubscriptionType
 	customResolveMap          map[string]resolve.CustomResolve
+	subgraphCachingConfigs    SubgraphCachingConfigs
 
 	grpcClient grpc.ClientConnInterface
 }
@@ -79,6 +101,32 @@ func WithFederationSubscriptionType(subscriptionType SubscriptionType) Federatio
 	}
 }
 
+// WithSubgraphEntityCachingConfigs enables entity caching for specific subgraphs and entity types.
+// Each SubgraphEntityCachingConfig specifies which entities to cache for a particular subgraph.
+// This allows fine-grained control over caching behavior per subgraph and entity type.
+//
+// Example:
+//
+//	WithSubgraphEntityCachingConfigs(SubgraphEntityCachingConfigs{
+//	    {
+//	        SubgraphName: "products",
+//	        EntityCaching: plan.EntityCacheConfigurations{
+//	            {TypeName: "Product", CacheName: "default", TTL: 30 * time.Second},
+//	        },
+//	    },
+//	    {
+//	        SubgraphName: "accounts",
+//	        EntityCaching: plan.EntityCacheConfigurations{
+//	            {TypeName: "User", CacheName: "default", TTL: 60 * time.Second},
+//	        },
+//	    },
+//	})
+func WithSubgraphEntityCachingConfigs(configs SubgraphCachingConfigs) FederationEngineConfigFactoryOption {
+	return func(options *federationEngineConfigFactoryOptions) {
+		options.subgraphCachingConfigs = configs
+	}
+}
+
 func NewFederationEngineConfigFactory(engineCtx context.Context, subgraphsConfigs []SubgraphConfiguration, opts ...FederationEngineConfigFactoryOption) *FederationEngineConfigFactory {
 	options := federationEngineConfigFactoryOptions{
 		httpClient: &http.Client{
@@ -88,7 +136,6 @@ func NewFederationEngineConfigFactory(engineCtx context.Context, subgraphsConfig
 				TLSHandshakeTimeout: 0 * time.Second,
 			},
 		},
-		// TODO
 		grpcClient: nil,
 		streamingClient: &http.Client{
 			Timeout: 0,
@@ -109,6 +156,7 @@ func NewFederationEngineConfigFactory(engineCtx context.Context, subgraphsConfig
 		subscriptionClientFactory: options.subscriptionClientFactory,
 		subscriptionType:          options.subscriptionType,
 		customResolveMap:          options.customResolveMap,
+		subgraphCachingConfigs:    options.subgraphCachingConfigs,
 		subgraphsConfigs:          subgraphsConfigs,
 	}
 }
@@ -122,6 +170,7 @@ type FederationEngineConfigFactory struct {
 	subscriptionClientFactory graphql_datasource.GraphQLSubscriptionClientFactory
 	subscriptionType          SubscriptionType
 	customResolveMap          map[string]resolve.CustomResolve
+	subgraphCachingConfigs    SubgraphCachingConfigs
 	subgraphsConfigs          []SubgraphConfiguration
 
 	grpcClient grpc.ClientConnInterface
@@ -235,12 +284,20 @@ func (f *FederationEngineConfigFactory) createPlannerConfiguration(routerConfig 
 		})
 	}
 
+	// Create a mapping from datasource ID to subgraph name
+	// The composition library generates datasources in the same order as subgraphs are passed
+	dsIDToSubgraphName := make(map[string]string)
+	for i, subgraphConfig := range f.subgraphsConfigs {
+		dsIDToSubgraphName[fmt.Sprintf("%d", i)] = subgraphConfig.Name
+	}
+
 	for _, ds := range engineConfig.DatasourceConfigurations {
 		if ds.Kind != nodev1.DataSourceKind_GRAPHQL {
 			return nil, fmt.Errorf("invalid datasource kind %q", ds.Kind)
 		}
 
-		dataSource, err := f.subgraphDataSourceConfiguration(engineConfig, ds)
+		subgraphName := dsIDToSubgraphName[ds.Id]
+		dataSource, err := f.subgraphDataSourceConfiguration(engineConfig, ds, subgraphName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create data source configuration for data source %s: %w", ds.Id, err)
 		}
@@ -251,7 +308,7 @@ func (f *FederationEngineConfigFactory) createPlannerConfiguration(routerConfig 
 	return &outConfig, nil
 }
 
-func (f *FederationEngineConfigFactory) subgraphDataSourceConfiguration(engineConfig *nodev1.EngineConfiguration, in *nodev1.DataSourceConfiguration) (plan.DataSource, error) {
+func (f *FederationEngineConfigFactory) subgraphDataSourceConfiguration(engineConfig *nodev1.EngineConfiguration, in *nodev1.DataSourceConfiguration, subgraphName string) (plan.DataSource, error) {
 	var out plan.DataSource
 
 	factory, err := f.graphqlDataSourceFactory()
@@ -346,7 +403,7 @@ func (f *FederationEngineConfigFactory) subgraphDataSourceConfiguration(engineCo
 	out, err = plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
 		in.Id,
 		factory,
-		f.dataSourceMetaData(in),
+		f.dataSourceMetaData(in, subgraphName),
 		customConfiguration,
 	)
 	if err != nil {
@@ -356,7 +413,7 @@ func (f *FederationEngineConfigFactory) subgraphDataSourceConfiguration(engineCo
 	return out, nil
 }
 
-func (f *FederationEngineConfigFactory) dataSourceMetaData(in *nodev1.DataSourceConfiguration) *plan.DataSourceMetadata {
+func (f *FederationEngineConfigFactory) dataSourceMetaData(in *nodev1.DataSourceConfiguration, subgraphName string) *plan.DataSourceMetadata {
 	var d plan.DirectiveConfigurations = make([]plan.DirectiveConfiguration, 0, len(in.Directives))
 
 	out := &plan.DataSourceMetadata{
@@ -421,6 +478,14 @@ func (f *FederationEngineConfigFactory) dataSourceMetaData(in *nodev1.DataSource
 			InterfaceTypeName: interfaceObjectConfiguration.InterfaceTypeName,
 			ConcreteTypeNames: interfaceObjectConfiguration.ConcreteTypeNames,
 		})
+	}
+
+	// Add caching configuration for this specific subgraph
+	// Look up the caching config by subgraph name for explicit per-subgraph configuration
+	subgraphCachingConfig := f.subgraphCachingConfigs.FindBySubgraphName(subgraphName)
+	if subgraphCachingConfig != nil {
+		out.FederationMetaData.EntityCaching = subgraphCachingConfig.EntityCaching
+		out.FederationMetaData.RootFieldCaching = subgraphCachingConfig.RootFieldCaching
 	}
 
 	return out

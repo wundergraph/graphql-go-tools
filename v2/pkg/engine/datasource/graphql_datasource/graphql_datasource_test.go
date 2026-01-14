@@ -786,6 +786,14 @@ func TestGraphQLDataSource(t *testing.T) {
 							FieldNames: []string{"name", "primaryFunction", "friends"},
 						},
 					},
+					FederationMetaData: plan.FederationMetaData{
+						RootFieldCaching: plan.RootFieldCacheConfigurations{
+							{TypeName: "Query", FieldName: "droid", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: true},
+							{TypeName: "Query", FieldName: "hero", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: true},
+							{TypeName: "Query", FieldName: "stringList", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: true},
+							{TypeName: "Query", FieldName: "nestedStringList", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: true},
+						},
+					},
 				},
 				mustCustomConfiguration(t, ConfigurationInput{
 					Fetch: &FetchConfiguration{
@@ -817,7 +825,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 		DisableResolveFieldPositions: true,
-	}, WithFieldInfo(), WithDefaultPostProcessor(), WithFetchProvidesData(), WithEntityCaching()))
+	}, WithFieldInfo(), WithDefaultPostProcessor(), WithFetchProvidesData(), WithEntityCaching(), WithCacheKeyTemplates()))
 
 	t.Run("selections on interface type", RunTest(interfaceSelectionSchema, `
 		query MyQuery {

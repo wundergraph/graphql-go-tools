@@ -28,7 +28,7 @@ func Handler(
 	loaderCaches map[string]resolve.LoaderCache,
 	subgraphHeadersBuilder resolve.SubgraphHeadersBuilder,
 ) *Gateway {
-	return HandlerWithCaching(logger, datasourcePoller, httpClient, enableART, loaderCaches, subgraphHeadersBuilder, resolve.CachingOptions{})
+	return HandlerWithCaching(logger, datasourcePoller, httpClient, enableART, loaderCaches, subgraphHeadersBuilder, resolve.CachingOptions{}, nil)
 }
 
 func HandlerWithCaching(
@@ -39,6 +39,7 @@ func HandlerWithCaching(
 	loaderCaches map[string]resolve.LoaderCache,
 	subgraphHeadersBuilder resolve.SubgraphHeadersBuilder,
 	cachingOptions resolve.CachingOptions,
+	subgraphEntityCachingConfigs engine.SubgraphCachingConfigs,
 ) *Gateway {
 	upgrader := &ws.DefaultHTTPUpgrader
 	upgrader.Header = http.Header{}
@@ -50,7 +51,12 @@ func HandlerWithCaching(
 		return http2.NewGraphqlHTTPHandler(schema, engine, upgrader, logger, enableART, subgraphHeadersBuilder, cachingOptions)
 	}
 
-	gateway := NewGateway(gqlHandlerFactory, httpClient, logger, loaderCaches)
+	var gatewayOpts []GatewayOption
+	if len(subgraphEntityCachingConfigs) > 0 {
+		gatewayOpts = append(gatewayOpts, WithSubgraphEntityCachingConfigs(subgraphEntityCachingConfigs))
+	}
+
+	gateway := NewGateway(gqlHandlerFactory, httpClient, logger, loaderCaches, gatewayOpts...)
 
 	datasourceWatcher.Register(gateway)
 

@@ -3,6 +3,7 @@ package plan
 import (
 	"encoding/json"
 	"slices"
+	"time"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
@@ -13,6 +14,8 @@ type FederationMetaData struct {
 	Provides         FederationFieldConfigurations
 	EntityInterfaces []EntityInterfaceConfiguration
 	InterfaceObjects []EntityInterfaceConfiguration
+	EntityCaching    EntityCacheConfigurations
+	RootFieldCaching RootFieldCacheConfigurations
 
 	entityTypeNames map[string]struct{}
 }
@@ -25,6 +28,8 @@ type FederationInfo interface {
 	HasInterfaceObject(typeName string) bool
 	HasEntityInterface(typeName string) bool
 	EntityInterfaceNames() []string
+	EntityCacheConfig(typeName string) *EntityCacheConfiguration
+	RootFieldCacheConfig(typeName, fieldName string) *RootFieldCacheConfiguration
 }
 
 func (d *FederationMetaData) HasKeyRequirement(typeName, requiresFields string) bool {
@@ -71,6 +76,76 @@ func (d *FederationMetaData) EntityInterfaceNames() (out []string) {
 type EntityInterfaceConfiguration struct {
 	InterfaceTypeName string
 	ConcreteTypeNames []string
+}
+
+// EntityCacheConfiguration defines L2 caching behavior for a specific entity type.
+// This configuration is subgraph-local: each subgraph configures caching for entities it provides.
+type EntityCacheConfiguration struct {
+	// TypeName is the entity type to cache (e.g., "User", "Product")
+	TypeName string `json:"type_name"`
+	// CacheName is the name of the cache to use (maps to LoaderCache instances)
+	CacheName string `json:"cache_name"`
+	// TTL is the time-to-live for cached entities
+	TTL time.Duration `json:"ttl"`
+	// IncludeSubgraphHeaderPrefix indicates if forwarded headers affect cache key.
+	// When true, different header values result in different cache keys.
+	IncludeSubgraphHeaderPrefix bool `json:"include_subgraph_header_prefix"`
+}
+
+// EntityCacheConfigurations is a collection of entity cache configurations.
+type EntityCacheConfigurations []EntityCacheConfiguration
+
+// FindByTypeName returns the cache configuration for the given entity type.
+// Returns nil if no configuration exists (caching disabled for this entity).
+func (c EntityCacheConfigurations) FindByTypeName(typeName string) *EntityCacheConfiguration {
+	for i := range c {
+		if c[i].TypeName == typeName {
+			return &c[i]
+		}
+	}
+	return nil
+}
+
+// RootFieldCacheConfiguration defines L2 caching behavior for a specific root field.
+// This configuration is subgraph-local: each subgraph configures caching for root fields it provides.
+type RootFieldCacheConfiguration struct {
+	// TypeName is the type containing the field (e.g., "Query", "Mutation")
+	TypeName string `json:"type_name"`
+	// FieldName is the name of the root field to cache (e.g., "topProducts", "me")
+	FieldName string `json:"field_name"`
+	// CacheName is the name of the cache to use (maps to LoaderCache instances)
+	CacheName string `json:"cache_name"`
+	// TTL is the time-to-live for cached responses
+	TTL time.Duration `json:"ttl"`
+	// IncludeSubgraphHeaderPrefix indicates if forwarded headers affect cache key.
+	// When true, different header values result in different cache keys.
+	IncludeSubgraphHeaderPrefix bool `json:"include_subgraph_header_prefix"`
+}
+
+// RootFieldCacheConfigurations is a collection of root field cache configurations.
+type RootFieldCacheConfigurations []RootFieldCacheConfiguration
+
+// FindByTypeAndField returns the cache configuration for the given type and field.
+// Returns nil if no configuration exists (caching disabled for this root field).
+func (c RootFieldCacheConfigurations) FindByTypeAndField(typeName, fieldName string) *RootFieldCacheConfiguration {
+	for i := range c {
+		if c[i].TypeName == typeName && c[i].FieldName == fieldName {
+			return &c[i]
+		}
+	}
+	return nil
+}
+
+// EntityCacheConfig returns the cache configuration for the given entity type.
+// Returns nil if no configuration exists (caching should be disabled for this entity).
+func (d *FederationMetaData) EntityCacheConfig(typeName string) *EntityCacheConfiguration {
+	return d.EntityCaching.FindByTypeName(typeName)
+}
+
+// RootFieldCacheConfig returns the cache configuration for the given root field.
+// Returns nil if no configuration exists (caching should be disabled for this root field).
+func (d *FederationMetaData) RootFieldCacheConfig(typeName, fieldName string) *RootFieldCacheConfiguration {
+	return d.RootFieldCaching.FindByTypeAndField(typeName, fieldName)
 }
 
 type FederationFieldConfiguration struct {

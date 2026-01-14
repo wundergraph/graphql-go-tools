@@ -12,6 +12,9 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
+// GatewayOption is a function that configures a Gateway
+type GatewayOption func(*Gateway)
+
 type DataSourceObserver interface {
 	UpdateDataSources(subgraphsConfigs []engine.SubgraphConfiguration)
 }
@@ -35,8 +38,9 @@ func NewGateway(
 	httpClient *http.Client,
 	logger log.Logger,
 	loaderCaches map[string]resolve.LoaderCache,
+	opts ...GatewayOption,
 ) *Gateway {
-	return &Gateway{
+	g := &Gateway{
 		gqlHandlerFactory: gqlHandlerFactory,
 		httpClient:        httpClient,
 		logger:            logger,
@@ -46,19 +50,33 @@ func NewGateway(
 		readyCh:   make(chan struct{}),
 		readyOnce: &sync.Once{},
 	}
+
+	for _, opt := range opts {
+		opt(g)
+	}
+
+	return g
 }
 
 type Gateway struct {
-	gqlHandlerFactory HandlerFactory
-	httpClient        *http.Client
-	logger            log.Logger
-	loaderCaches      map[string]resolve.LoaderCache
+	gqlHandlerFactory            HandlerFactory
+	httpClient                   *http.Client
+	logger                       log.Logger
+	loaderCaches                 map[string]resolve.LoaderCache
+	subgraphEntityCachingConfigs engine.SubgraphCachingConfigs
 
 	gqlHandler http.Handler
 	mu         *sync.Mutex
 
 	readyCh   chan struct{}
 	readyOnce *sync.Once
+}
+
+// WithSubgraphEntityCachingConfigs configures per-subgraph entity caching for the gateway
+func WithSubgraphEntityCachingConfigs(configs engine.SubgraphCachingConfigs) GatewayOption {
+	return func(g *Gateway) {
+		g.subgraphEntityCachingConfigs = configs
+	}
 }
 
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -75,7 +93,15 @@ func (g *Gateway) Ready() {
 
 func (g *Gateway) UpdateDataSources(subgraphsConfigs []engine.SubgraphConfiguration) {
 	ctx := context.Background()
-	engineConfigFactory := engine.NewFederationEngineConfigFactory(ctx, subgraphsConfigs, engine.WithFederationHttpClient(g.httpClient))
+
+	opts := []engine.FederationEngineConfigFactoryOption{
+		engine.WithFederationHttpClient(g.httpClient),
+	}
+	if len(g.subgraphEntityCachingConfigs) > 0 {
+		opts = append(opts, engine.WithSubgraphEntityCachingConfigs(g.subgraphEntityCachingConfigs))
+	}
+
+	engineConfigFactory := engine.NewFederationEngineConfigFactory(ctx, subgraphsConfigs, opts...)
 
 	engineConfig, err := engineConfigFactory.BuildEngineConfiguration()
 	if err != nil {

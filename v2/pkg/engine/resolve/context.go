@@ -9,8 +9,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/wundergraph/astjson"
 	"go.uber.org/atomic"
+
+	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 )

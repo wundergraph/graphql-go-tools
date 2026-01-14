@@ -160,7 +160,9 @@ response := &GraphQLResponse{
 | `v2/pkg/engine/resolve/resolvable.go` | Response data container |
 | `v2/pkg/engine/plan/planner.go` | Query plan building |
 | `v2/pkg/engine/plan/visitor.go` | AST walking, ProvidesData generation, entity boundary detection |
+| `v2/pkg/engine/plan/federation_metadata.go` | EntityCacheConfiguration, FederationMetaData |
 | `v2/pkg/engine/datasource/graphql_datasource/graphql_datasource.go` | Federation planner, L1Keys building |
+| `execution/engine/config_factory_federation.go` | SubgraphEntityCachingConfigs, federation engine configuration |
 | `execution/engine/federation_caching_test.go` | E2E L1/L2 caching tests |
 | `v2/pkg/engine/resolve/l1_cache_test.go` | L1 cache unit tests |
 | `v2/pkg/engine/resolve/cache_key_test.go` | Cache key generation tests |
@@ -648,3 +650,350 @@ Run tests with race detector:
 ```bash
 go test -race ./v2/pkg/engine/resolve/... -run "TestCacheStats" -v
 ```
+
+### 2025-01-13: Per-Subgraph Entity Caching Configuration
+
+#### Design Principle: Explicit Over Implicit
+Entity caching configuration should be **explicit per-subgraph**, not implicitly applied to all subgraphs that have an entity. This makes it clear which subgraph gets which caching configuration.
+
+#### Key Types in `execution/engine/config_factory_federation.go`
+
+```go
+// SubgraphEntityCachingConfig defines L2 caching configuration for a specific subgraph.
+type SubgraphEntityCachingConfig struct {
+    SubgraphName  string                        // Must match SubgraphConfiguration.Name
+    EntityCaching plan.EntityCacheConfigurations // Caching config for entity types in this subgraph
+}
+
+type SubgraphEntityCachingConfigs []SubgraphEntityCachingConfig
+
+func (c SubgraphEntityCachingConfigs) FindBySubgraphName(name string) *SubgraphEntityCachingConfig {
+    for i := range c {
+        if c[i].SubgraphName == name {
+            return &c[i]
+        }
+    }
+    return nil
+}
+```
+
+#### Configuration Pattern
+
+```go
+// BAD - implicit, applies to all subgraphs with these entity types
+entityCacheConfigs := plan.EntityCacheConfigurations{
+    {TypeName: "Product", CacheName: "default", TTL: 30 * time.Second},
+    {TypeName: "User", CacheName: "default", TTL: 30 * time.Second},
+}
+
+// GOOD - explicit per-subgraph configuration
+subgraphCachingConfigs := engine.SubgraphEntityCachingConfigs{
+    {
+        SubgraphName: "reviews",
+        EntityCaching: plan.EntityCacheConfigurations{
+            {TypeName: "Product", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: false},
+        },
+    },
+    {
+        SubgraphName: "accounts",
+        EntityCaching: plan.EntityCacheConfigurations{
+            {TypeName: "User", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: false},
+        },
+    },
+}
+```
+
+#### Subgraph Name Mapping
+The federation composition library uses numeric datasource IDs (0, 1, 2...) based on the order subgraphs are provided. The config factory creates a mapping from these IDs to subgraph names:
+
+```go
+// In createPlannerConfiguration():
+dsIDToSubgraphName := make(map[string]string)
+for i, subgraphConfig := range f.subgraphsConfigs {
+    dsIDToSubgraphName[fmt.Sprintf("%d", i)] = subgraphConfig.Name
+}
+```
+
+This mapping is then used when creating datasource metadata to look up the correct caching config:
+
+```go
+func (f *FederationEngineConfigFactory) dataSourceMetaData(in *nodev1.DataSourceConfiguration, subgraphName string) *plan.DataSourceMetadata {
+    // ... build metadata ...
+
+    subgraphCachingConfig := f.subgraphEntityCachingConfigs.FindBySubgraphName(subgraphName)
+    if subgraphCachingConfig != nil {
+        out.FederationMetaData.EntityCaching = subgraphCachingConfig.EntityCaching
+    }
+    return out
+}
+```
+
+#### Option Function
+
+```go
+// Use this option when creating FederationEngineConfigFactory
+opts := []engine.FederationEngineConfigFactoryOption{
+    engine.WithFederationHttpClient(httpClient),
+    engine.WithSubgraphEntityCachingConfigs(subgraphCachingConfigs),
+}
+
+factory := engine.NewFederationEngineConfigFactory(ctx, subgraphConfigs, opts...)
+```
+
+#### Key Files Modified
+| File | Changes |
+|------|---------|
+| `execution/engine/config_factory_federation.go` | `SubgraphEntityCachingConfig`, `SubgraphEntityCachingConfigs` types, `FindBySubgraphName()`, option function, dsID-to-name mapping |
+| `execution/federationtesting/gateway/gateway.go` | Updated to use `SubgraphEntityCachingConfigs` type |
+| `execution/federationtesting/gateway/main.go` | Updated `HandlerWithCaching` parameter |
+| `execution/engine/federation_caching_test.go` | Tests use explicit subgraph names |
+
+#### Testing Partial Caching (Opt-in Behavior)
+To verify that only configured entities are cached:
+
+```go
+// Only configure Product caching in reviews subgraph, NOT User in accounts
+subgraphCachingConfigs := engine.SubgraphEntityCachingConfigs{
+    {
+        SubgraphName: "reviews",
+        EntityCaching: plan.EntityCacheConfigurations{
+            {TypeName: "Product", CacheName: "default", TTL: 30 * time.Second},
+        },
+    },
+    // accounts subgraph intentionally NOT configured - User entities should NOT be cached
+}
+```
+
+Test: `TestPartialEntityCaching` in `execution/engine/federation_caching_test.go`
+
+### 2025-01-13: Root Field Caching
+
+#### Root Field vs Entity Caching
+L2 caching supports two types of fetches:
+- **Entity fetches**: Resolved via `_entities` query (e.g., fetching User by ID from accounts subgraph)
+- **Root field fetches**: Direct root queries (e.g., `Query.topProducts` from products subgraph)
+
+Both require explicit opt-in configuration per subgraph.
+
+#### Key Types
+
+```go
+// RootFieldCacheConfiguration defines L2 caching for a specific root field
+type RootFieldCacheConfiguration struct {
+    TypeName                    string        // e.g., "Query", "Mutation"
+    FieldName                   string        // e.g., "topProducts", "me"
+    CacheName                   string
+    TTL                         time.Duration
+    IncludeSubgraphHeaderPrefix bool
+}
+
+// SubgraphCachingConfig now includes both entity and root field caching
+type SubgraphCachingConfig struct {
+    SubgraphName     string
+    EntityCaching    plan.EntityCacheConfigurations
+    RootFieldCaching plan.RootFieldCacheConfigurations  // NEW
+}
+```
+
+#### Configuration Example
+
+```go
+subgraphCachingConfigs := engine.SubgraphEntityCachingConfigs{
+    {
+        SubgraphName: "products",
+        RootFieldCaching: plan.RootFieldCacheConfigurations{
+            {TypeName: "Query", FieldName: "topProducts", CacheName: "default", TTL: 30 * time.Second},
+        },
+    },
+    {
+        SubgraphName: "reviews",
+        EntityCaching: plan.EntityCacheConfigurations{
+            {TypeName: "Product", CacheName: "default", TTL: 30 * time.Second},
+        },
+    },
+}
+```
+
+#### How It Works in `visitor.go:configureFetchCaching()`
+The function now checks the fetch type and looks up the appropriate config:
+```go
+if external.RequiresEntityFetch || external.RequiresEntityBatchFetch {
+    // Entity fetch: use EntityCacheConfig(entityTypeName)
+    cacheConfig := fedConfig.EntityCacheConfig(entityTypeName)
+} else {
+    // Root field fetch: use RootFieldCacheConfig(typeName, fieldName)
+    cacheConfig := fedConfig.RootFieldCacheConfig(rootField.TypeName, rootField.FieldName)
+}
+```
+
+#### Key Files Modified
+| File | Changes |
+|------|---------|
+| `v2/pkg/engine/plan/federation_metadata.go` | `RootFieldCacheConfiguration`, `RootFieldCacheConfigurations`, `RootFieldCaching` field, lookup methods |
+| `v2/pkg/engine/plan/datasource_configuration.go` | `RootFieldCacheConfig()` method on datasource |
+| `v2/pkg/engine/plan/visitor.go` | Updated `configureFetchCaching()` to handle root fields |
+| `execution/engine/config_factory_federation.go` | Added `RootFieldCaching` to `SubgraphCachingConfig` |
+| `execution/engine/federation_caching_test.go` | Added `TestRootFieldCaching` tests |
+
+Test: `TestRootFieldCaching` in `execution/engine/federation_caching_test.go`
+
+### 2025-01-13: Entity vs Root Field Fetch Detection
+
+#### Root Fields in Entity Fetches vs Root Field Fetches
+When determining cache configuration in `configureFetchCaching()`:
+
+- **Entity fetches** (`RequiresEntityFetch || RequiresEntityBatchFetch`): Can have **multiple root fields** because entity fetches resolve multiple fields of the same entity type (e.g., `__typename`, `id`, `name`). All root fields belong to the same entity type, so use `rootFields[0].TypeName` to look up cache config.
+
+- **Root field fetches**: Need **exactly 1 root field** to determine which cache config to use, since different root fields could have different cache configurations.
+
+#### Correct Logic Order in `configureFetchCaching()`
+```go
+func (v *Visitor) configureFetchCaching(internal *objectFetchConfiguration, external resolve.FetchConfiguration) resolve.FetchCacheConfiguration {
+    // 1. Preserve CacheKeyTemplate for L1 cache (always)
+    result := resolve.FetchCacheConfiguration{
+        CacheKeyTemplate: external.Caching.CacheKeyTemplate,
+    }
+
+    // 2. Check global disable
+    if v.Config.DisableEntityCaching {
+        return result
+    }
+
+    // 3. Check if cache key template exists
+    if external.Caching.CacheKeyTemplate == nil {
+        return result
+    }
+
+    // 4. Must have at least 1 root field
+    if len(internal.rootFields) == 0 {
+        return result
+    }
+
+    // 5. Find datasource
+    ds := v.findDataSourceByID(internal.sourceID)
+    if ds == nil {
+        return result
+    }
+
+    // 6. Check fetch type FIRST, then apply appropriate constraints
+    if external.RequiresEntityFetch || external.RequiresEntityBatchFetch {
+        // Entity fetch: all root fields are same entity type, use first one
+        entityTypeName := internal.rootFields[0].TypeName
+        cacheConfig := fedConfig.EntityCacheConfig(entityTypeName)
+        // ...
+    } else {
+        // Root field fetch: must have exactly 1 to determine config
+        if len(internal.rootFields) != 1 {
+            return result  // Can't determine which field's config to use
+        }
+        rootField := internal.rootFields[0]
+        cacheConfig := fedConfig.RootFieldCacheConfig(rootField.TypeName, rootField.FieldName)
+        // ...
+    }
+}
+```
+
+#### Common Bug: Checking `len(rootFields) != 1` Too Early
+**Wrong**: Check `len(rootFields) != 1` before determining if it's an entity fetch
+```go
+// BUG: This blocks entity fetches which legitimately have multiple root fields
+if len(internal.rootFields) != 1 {
+    return result
+}
+// Then check RequiresEntityFetch...
+```
+
+**Correct**: Check fetch type first, then apply appropriate root field constraints
+```go
+if external.RequiresEntityFetch || external.RequiresEntityBatchFetch {
+    // Entity fetch: multiple root fields OK (same entity type)
+    entityTypeName := internal.rootFields[0].TypeName
+    // ...
+} else {
+    // Root field fetch: need exactly 1
+    if len(internal.rootFields) != 1 {
+        return result
+    }
+    // ...
+}
+```
+
+### 2025-01-13: Test Framework Updates for Opt-in Caching
+
+#### `datasourcetesting.go` CacheKeyTemplate Clearing
+When `DisableEntityCaching` is true, the test framework now automatically clears `CacheKeyTemplate` from actual plans. This means tests that don't explicitly test caching behavior don't need to specify the internal cache key template structure.
+
+**File**: `v2/pkg/engine/datasourcetesting/datasourcetesting.go`
+
+```go
+// Added after post-processing in RunTestWithVariables:
+if config.DisableEntityCaching {
+    clearCacheKeyTemplates(actualPlan)
+}
+
+func clearCacheKeyTemplates(p plan.Plan) {
+    switch pl := p.(type) {
+    case *plan.SynchronousResponsePlan:
+        if pl.Response != nil && pl.Response.Fetches != nil {
+            clearCacheKeyTemplatesFromFetchTree(pl.Response.Fetches)
+        }
+    case *plan.SubscriptionResponsePlan:
+        if pl.Response != nil && pl.Response.Response != nil && pl.Response.Response.Fetches != nil {
+            clearCacheKeyTemplatesFromFetchTree(pl.Response.Response.Fetches)
+        }
+    }
+}
+```
+
+**Why**: The planner always generates `CacheKeyTemplate` for L1 cache support, but tests that don't care about caching shouldn't need to match this internal detail.
+
+#### Updating Tests for Opt-in L2 Caching
+When L2 caching became opt-in, tests that expected caching to be enabled by default needed updates:
+
+**Before** (old hardcoded caching):
+```go
+Caching: resolve.FetchCacheConfiguration{
+    Enabled:                     true,
+    CacheName:                   "default",
+    TTL:                         30 * time.Second,
+    IncludeSubgraphHeaderPrefix: true,
+    CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{...},
+},
+```
+
+**After** (opt-in caching, no explicit config):
+```go
+Caching: resolve.FetchCacheConfiguration{
+    // L2 caching is now opt-in via FederationMetaData
+    // CacheKeyTemplate is preserved for L1 cache support
+    CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{...},
+},
+```
+
+#### To Enable L2 Caching in Tests
+Add explicit configuration to the datasource's `FederationMetaData`:
+
+```go
+FederationMetaData: plan.FederationMetaData{
+    Keys: plan.FederationFieldConfigurations{...},
+    EntityCaching: plan.EntityCacheConfigurations{
+        {
+            TypeName:                    "Account",
+            CacheName:                   "default",
+            TTL:                         30 * time.Second,
+            IncludeSubgraphHeaderPrefix: true,
+        },
+    },
+    RootFieldCaching: plan.RootFieldCacheConfigurations{
+        {
+            TypeName:                    "Query",
+            FieldName:                   "user",
+            CacheName:                   "default",
+            TTL:                         30 * time.Second,
+            IncludeSubgraphHeaderPrefix: true,
+        },
+    },
+},
+```
+
+Or use `WithEntityCaching()` test option which sets `config.DisableEntityCaching = false`.

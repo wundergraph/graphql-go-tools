@@ -1128,6 +1128,15 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							SelectionSet: "shippingInfo {zip}",
 						},
 					},
+					RootFieldCaching: plan.RootFieldCacheConfigurations{
+						{
+							TypeName:                    "Query",
+							FieldName:                   "user",
+							CacheName:                   "default",
+							TTL:                         30 * time.Second,
+							IncludeSubgraphHeaderPrefix: true,
+						},
+					},
 				},
 			},
 			mustCustomConfiguration(t,
@@ -1229,6 +1238,14 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							TypeName:     "Address",
 							FieldName:    "secretLine",
 							SelectionSet: "zip",
+						},
+					},
+					EntityCaching: plan.EntityCacheConfigurations{
+						{
+							TypeName:                    "Account",
+							CacheName:                   "default",
+							TTL:                         30 * time.Second,
+							IncludeSubgraphHeaderPrefix: true,
 						},
 					},
 				},
@@ -2067,7 +2084,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				planConfiguration, WithFieldInfo(), WithDefaultPostProcessor(), WithFieldDependencies(), WithEntityCaching(), WithFetchProvidesData()))
+				planConfiguration, WithFieldInfo(), WithDefaultPostProcessor(), WithFieldDependencies(), WithEntityCaching(), WithFetchProvidesData(), WithCacheKeyTemplates()))
 		})
 
 		t.Run("composite keys variant", func(t *testing.T) {

@@ -160,14 +160,13 @@ func (*SingleFetch) FetchKind() FetchKind {
 type BatchEntityFetch struct {
 	FetchDependencies
 
-	Input                  BatchInput
-	DataSource             DataSource
-	PostProcessing         PostProcessingConfiguration
-	DataSourceIdentifier   []byte
-	Trace                  *DataSourceLoadTrace
-	Info                   *FetchInfo
-	CoordinateDependencies []FetchDependency
-	Caching                FetchCacheConfiguration
+	Input                BatchInput
+	DataSource           DataSource
+	PostProcessing       PostProcessingConfiguration
+	DataSourceIdentifier []byte
+	Trace                *DataSourceLoadTrace
+	Info                 *FetchInfo
+	Caching              FetchCacheConfiguration
 }
 
 func (b *BatchEntityFetch) Dependencies() *FetchDependencies {
@@ -202,14 +201,13 @@ func (*BatchEntityFetch) FetchKind() FetchKind {
 type EntityFetch struct {
 	FetchDependencies
 
-	CoordinateDependencies []FetchDependency
-	Input                  EntityInput
-	DataSource             DataSource
-	PostProcessing         PostProcessingConfiguration
-	DataSourceIdentifier   []byte
-	Trace                  *DataSourceLoadTrace
-	Info                   *FetchInfo
-	Caching                FetchCacheConfiguration
+	Input                EntityInput
+	DataSource           DataSource
+	PostProcessing       PostProcessingConfiguration
+	DataSourceIdentifier []byte
+	Trace                *DataSourceLoadTrace
+	Info                 *FetchInfo
+	Caching              FetchCacheConfiguration
 }
 
 func (e *EntityFetch) Dependencies() *FetchDependencies {
@@ -273,12 +271,6 @@ type FetchConfiguration struct {
 	SetTemplateOutputToNullOnVariableNull bool
 
 	QueryPlan *QueryPlan
-
-	// CoordinateDependencies contain a list of GraphCoordinates (typeName+fieldName)
-	// and which fields from other fetches they depend on.
-	// This information is useful to understand why a fetch depends on other fetches,
-	// and how multiple dependencies lead to a chain of fetches
-	CoordinateDependencies []FetchDependency
 
 	// OperationName is non-empty when the operation name is propagated to the upstream subgraph fetch.
 	OperationName string

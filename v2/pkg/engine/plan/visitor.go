@@ -8,7 +8,6 @@ import (
 	"regexp"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/wundergraph/astjson"
 
@@ -1645,20 +1644,8 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 	dataSourceType := reflect.TypeOf(external.DataSource).String()
 	dataSourceType = strings.TrimPrefix(dataSourceType, "*")
 
-	if !v.Config.DisableEntityCaching {
-		external.Caching = resolve.FetchCacheConfiguration{
-			Enabled:   true,
-			CacheName: "default",
-			TTL:       time.Second * time.Duration(30),
-			// templates come prepared from the DataSource
-			CacheKeyTemplate:            external.Caching.CacheKeyTemplate,
-			IncludeSubgraphHeaderPrefix: true,
-		}
-	} else {
-		external.Caching = resolve.FetchCacheConfiguration{
-			Enabled: false,
-		}
-	}
+	// Configure caching based on FederationMetaData (opt-in per entity)
+	external.Caching = v.configureFetchCaching(internal, external)
 
 	singleFetch := &resolve.SingleFetch{
 		FetchConfiguration: external,
@@ -1972,4 +1959,107 @@ func (v *Visitor) getPropagatedReasons(fetchID int, fetchReasons []resolve.Fetch
 
 	slices.SortFunc(propagated, cmpFetchReasons)
 	return propagated
+}
+
+// configureFetchCaching determines the cache configuration for a fetch.
+// For entity fetches, it looks up per-entity configuration from FederationMetaData.
+// Returns disabled caching if no configuration exists or if caching is globally disabled.
+func (v *Visitor) configureFetchCaching(internal *objectFetchConfiguration, external resolve.FetchConfiguration) resolve.FetchCacheConfiguration {
+	// Always preserve CacheKeyTemplate for L1 cache - L1 cache works independently of L2 cache.
+	// The Enabled flag controls L2 cache only, not L1 cache.
+	// L1 cache uses CacheKeyTemplate.L1Keys and is controlled by ctx.ExecutionOptions.Caching.EnableL1Cache.
+	result := resolve.FetchCacheConfiguration{
+		CacheKeyTemplate: external.Caching.CacheKeyTemplate,
+	}
+
+	// Global disable takes precedence for L2 cache
+	if v.Config.DisableEntityCaching {
+		return result
+	}
+
+	// No cache key template = caching not applicable
+	if external.Caching.CacheKeyTemplate == nil {
+		return result
+	}
+
+	// Must have at least 1 root field to determine cache config
+	if len(internal.rootFields) == 0 {
+		return result
+	}
+
+	// Find the datasource by ID to access FederationMetaData
+	ds := v.findDataSourceByID(internal.sourceID)
+	if ds == nil {
+		return result
+	}
+
+	fedConfig := ds.FederationConfiguration()
+
+	// Check if this is an entity fetch or a root field fetch
+	if external.RequiresEntityFetch || external.RequiresEntityBatchFetch {
+		// Entity fetch: look up cache config for the entity type
+		// All root fields in an entity fetch belong to the same entity type
+		entityTypeName := internal.rootFields[0].TypeName
+		cacheConfig := fedConfig.EntityCacheConfig(entityTypeName)
+		if cacheConfig == nil {
+			// No config = L2 caching disabled for this entity (opt-in model)
+			// L1 cache can still work since CacheKeyTemplate is preserved
+			return result
+		}
+
+		// L2 cache is enabled for this entity type
+		return resolve.FetchCacheConfiguration{
+			Enabled:                     true,
+			CacheName:                   cacheConfig.CacheName,
+			TTL:                         cacheConfig.TTL,
+			CacheKeyTemplate:            external.Caching.CacheKeyTemplate,
+			IncludeSubgraphHeaderPrefix: cacheConfig.IncludeSubgraphHeaderPrefix,
+		}
+	}
+
+	// Root field fetch: find common cache config for all root fields
+	// All root fields in the fetch must have the same cache config for L2 caching to be enabled
+	var commonConfig *RootFieldCacheConfiguration
+	for i := range internal.rootFields {
+		rootField := internal.rootFields[i]
+		cacheConfig := fedConfig.RootFieldCacheConfig(rootField.TypeName, rootField.FieldName)
+		if cacheConfig == nil {
+			// No config for this field = L2 caching disabled for this fetch
+			return result
+		}
+		if commonConfig == nil {
+			commonConfig = cacheConfig
+		} else {
+			// Check if config matches the common config
+			if commonConfig.CacheName != cacheConfig.CacheName ||
+				commonConfig.TTL != cacheConfig.TTL ||
+				commonConfig.IncludeSubgraphHeaderPrefix != cacheConfig.IncludeSubgraphHeaderPrefix {
+				// Different configs = can't enable L2 caching for this fetch
+				return result
+			}
+		}
+	}
+
+	if commonConfig == nil {
+		return result
+	}
+
+	// L2 cache is enabled - all root fields have the same cache config
+	return resolve.FetchCacheConfiguration{
+		Enabled:                     true,
+		CacheName:                   commonConfig.CacheName,
+		TTL:                         commonConfig.TTL,
+		CacheKeyTemplate:            external.Caching.CacheKeyTemplate,
+		IncludeSubgraphHeaderPrefix: commonConfig.IncludeSubgraphHeaderPrefix,
+	}
+}
+
+// findDataSourceByID finds the datasource configuration for a given source ID
+func (v *Visitor) findDataSourceByID(sourceID string) DataSource {
+	for i := range v.Config.DataSources {
+		if v.Config.DataSources[i].Id() == sourceID {
+			return v.Config.DataSources[i]
+		}
+	}
+	return nil
 }
