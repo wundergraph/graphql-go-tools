@@ -1066,6 +1066,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 			if !item.onFragment {
 				item.parentPathWithoutFragment = ""
 			}
+			item.requiresKey = nil
 		}
 
 		// sort suggestions by path, to have a predictable order
@@ -1150,6 +1151,12 @@ var shareableDS1 = dsb().Hash(11).Schema(shareableDS1Schema).
 	RootNode("Query", "me").
 	RootNode("User", "id", "details").
 	ChildNode("Details", "forename", "middlename").
+	KeysMetadata(FederationFieldConfigurations{
+		{
+			TypeName:     "User",
+			SelectionSet: "id",
+		},
+	}).
 	DS()
 
 const shareableDS2Schema = `
@@ -1172,6 +1179,12 @@ var shareableDS2 = dsb().Hash(22).Schema(shareableDS2Schema).
 	RootNode("Query", "me").
 	RootNode("User", "id", "details").
 	ChildNode("Details", "forename", "surname").
+	KeysMetadata(FederationFieldConfigurations{
+		{
+			TypeName:     "User",
+			SelectionSet: "id",
+		},
+	}).
 	DS()
 
 const shareableDS3Schema = `
@@ -1194,6 +1207,12 @@ var shareableDS3 = dsb().Hash(33).Schema(shareableDS3Schema).
 	RootNode("User", "id", "details").
 	ChildNode("Details", "age", "pets").
 	ChildNode("Pet", "name").
+	KeysMetadata(FederationFieldConfigurations{
+		{
+			TypeName:     "User",
+			SelectionSet: "id",
+		},
+	}).
 	DS()
 
 const conflictingPaths1Schema = `
