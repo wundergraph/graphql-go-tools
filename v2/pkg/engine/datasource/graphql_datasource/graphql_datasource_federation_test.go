@@ -19079,7 +19079,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					FederationMetaData: plan.FederationMetaData{
 						Keys: plan.FederationFieldConfigurations{
 							{
-								TypeName:     "Entity",
+								TypeName:     "Entity2",
 								SelectionSet: "id",
 							},
 						},
