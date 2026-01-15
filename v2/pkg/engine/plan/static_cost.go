@@ -89,8 +89,10 @@ func (ls *FieldListSize) multiplier(arguments map[string]ArgumentInfo, vars *ast
 			var value int
 			// Argument could have a variable or literal value.
 			if arg.hasVariable {
-				v := vars.Get(arg.varName)
-				if v == nil || v.Type() != astjson.TypeNumber {
+				if vars == nil {
+					continue
+				}
+				if v := vars.Get(arg.varName); v == nil || v.Type() != astjson.TypeNumber {
 					continue
 				}
 				value = vars.GetInt(arg.varName)
@@ -159,7 +161,7 @@ func (c *DataSourceCostConfig) EnumScalarTypeWeight(enumName string) int {
 // ObjectTypeWeight returns the default object cost
 func (c *DataSourceCostConfig) ObjectTypeWeight(name string) int {
 	if c == nil {
-		return 0
+		return StaticCostDefaults.Object
 	}
 	if cost, ok := c.Types[name]; ok {
 		return cost
@@ -297,6 +299,8 @@ func (node *CostTreeNode) setCostsAndMultiplier(configs map[DSHash]*DataSourceCo
 	}
 
 	parent := node.parent
+	node.fieldCost = 0
+	node.argumentsCost = 0
 	node.multiplier = 0
 
 	for _, dsHash := range node.dataSourceHashes {
@@ -491,7 +495,7 @@ func (c *CostCalculator) LeaveField(fieldRef int, dsHashes []DSHash) {
 	c.stack = c.stack[:lastIndex]
 }
 
-// GetTotalCost returns the calculated total cost
+// GetTotalCost returns the calculated total cost.
 func (c *CostCalculator) GetTotalCost() int {
 	return c.tree.totalCost(c.costConfigs, c.variables)
 }
