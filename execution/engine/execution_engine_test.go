@@ -6046,6 +6046,54 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				},
 				computeStaticCost(),
 			))
+			t.Run("slicing argument as a variable", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schemaSlicing,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `query SlicingWithVariable($limit: Int!) {
+							  items(first: $limit) { id }
+							}`,
+							Variables: []byte(`{"limit": 25}`),
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: `{"data":{"items":[ {"id":"2"}, {"id":"3"} ]}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+										{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Query", FieldName: "items"}: {
+											AssumedSize:      8,
+											SlicingArguments: []string{"first", "last"},
+										},
+									},
+									Types: map[string]int{
+										"Item": 3,
+									},
+								},
+							},
+							customConfig,
+						),
+					},
+					fields:             fieldConfig,
+					expectedResponse:   `{"data":{"items":[{"id":"2"},{"id":"3"}]}}`,
+					expectedStaticCost: 100, // slicingArgument($limit=25) * (Item(3)+Item.id(1))
+				},
+				computeStaticCost(),
+			))
+
 		})
 
 	})
