@@ -451,10 +451,10 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 			},
 		},
 		Debug: plan.DebugConfiguration{
-			PrintOperationTransformations: false,
-			PrintQueryPlans:               false,
-			PrintPlanningPaths:            false,
-			PrintNodeSuggestions:          false,
+			PrintOperationTransformations: true,
+			PrintQueryPlans:               true,
+			PrintPlanningPaths:            true,
+			PrintNodeSuggestions:          true,
 
 			DatasourceVisitor: false,
 		},

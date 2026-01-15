@@ -548,7 +548,7 @@ func (r *fieldSelectionRewriter) getAllowedInterfaceMemberTypeNames(fieldRef int
 	// then it should implement the interface type in the federated graph schema
 	if interfaceTypeName != fieldTypeName {
 		if slices.Contains(interfaceTypeNamesFromDefinition, fieldTypeName) {
-			return "", []string{fieldTypeName}, false, nil
+			return fieldTypeName, []string{fieldTypeName}, false, nil
 		}
 
 		// if it doesn't implement an interface type the config is corrupted
@@ -597,7 +597,7 @@ func (r *fieldSelectionRewriter) getAllowedInterfaceMemberTypeNames(fieldRef int
 	// which means we are dealing with the interface object
 	for _, k := range r.dsConfiguration.FederationConfiguration().InterfaceObjects {
 		if k.InterfaceTypeName == interfaceTypeName {
-			return "", k.ConcreteTypeNames, true, nil
+			return interfaceTypeName, k.ConcreteTypeNames, true, nil
 		}
 	}
 
