@@ -19433,7 +19433,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					title: TitleValue!
 				}
 
-				type Title1 {
+				type Title2 {
 					title: TitleValue!
 				}
 			`

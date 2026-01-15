@@ -4122,7 +4122,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					user: Named!
 				}`,
 			dsBuilder: dsb().
-				RootNode("Account", "id", "title").
+				RootNode("Admin", "id", "name", "title").
 				RootNode("User", "id", "name", "surname").
 				ChildNode("Named", "id"),
 			fieldName: "user",
