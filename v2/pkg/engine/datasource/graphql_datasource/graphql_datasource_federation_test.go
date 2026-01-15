@@ -642,13 +642,7 @@ func TestGraphQLDataSourceFederation_Mutations(t *testing.T) {
 				),
 			},
 			DisableResolveFieldPositions: true,
-			Debug: plan.DebugConfiguration{
-				// PrintOperationTransformations: true,
-				// PrintOperationEnableASTRefs:   true,
-				// PrintPlanningPaths:            true,
-				// PrintQueryPlans:               true,
-				// PrintNodeSuggestions:          true,
-			},
+			Debug:                        plan.DebugConfiguration{},
 		}
 
 		t.Run("with entity call", RunTest(
