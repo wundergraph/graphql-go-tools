@@ -117,8 +117,9 @@ type DataSourceCostConfig struct {
 // NewDataSourceCostConfig creates a new cost config with defaults
 func NewDataSourceCostConfig() *DataSourceCostConfig {
 	return &DataSourceCostConfig{
-		Weights: make(map[FieldCoordinate]*FieldWeight),
-		Types:   make(map[string]int),
+		Weights:   make(map[FieldCoordinate]*FieldWeight),
+		ListSizes: make(map[FieldCoordinate]*FieldListSize),
+		Types:     make(map[string]int),
 	}
 }
 
@@ -201,7 +202,6 @@ func (node *CostTreeNode) maxWeightImplementingField(config *DataSourceCostConfi
 
 		if fieldWeight != nil {
 			if fieldWeight.HasWeight && (maxWeight == nil || fieldWeight.Weight > maxWeight.Weight) {
-				fmt.Printf("found better maxWeight for %v: %v\n", coord, fieldWeight)
 				maxWeight = fieldWeight
 			}
 		}

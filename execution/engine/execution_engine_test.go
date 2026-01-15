@@ -336,9 +336,9 @@ func TestExecutionEngine_Execute(t *testing.T) {
 
 			if testCase.expectedStaticCost != 0 {
 				lastPlan := engine.lastPlan
-				assert.NotNil(t, lastPlan)
+				require.NotNil(t, lastPlan)
 				costCalc := lastPlan.GetStaticCostCalculator()
-				assert.Equal(t, testCase.expectedStaticCost, costCalc.GetTotalCost())
+				require.Equal(t, testCase.expectedStaticCost, costCalc.GetTotalCost())
 			}
 
 		}

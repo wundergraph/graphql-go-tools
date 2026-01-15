@@ -463,12 +463,7 @@ func (v *Visitor) enterFieldCost(fieldRef int) {
 		}
 	}
 
-	if len(implementingTypeNames) > 0 {
-		fmt.Printf("enterFieldCost: field %s.%s is interface or union, implementing types: %v\n", typeName, fieldName, implementingTypeNames)
-	}
-
 	isEnclosingTypeAbstract := v.Walker.EnclosingTypeDefinition.Kind.IsAbstractType()
-	fmt.Printf("EnclosingType Kind = %v for %s.%s\n", v.Walker.EnclosingTypeDefinition.Kind, typeName, fieldName)
 	// Create a skeleton node. dataSourceHashes will be filled in leaveFieldCost
 	node := CostTreeNode{
 		fieldRef:                fieldRef,
@@ -518,16 +513,15 @@ func (v *Visitor) extractFieldArguments(fieldRef int) map[string]ArgumentInfo {
 		argValue := v.Operation.ArgumentValue(argRef)
 		argInfo := ArgumentInfo{}
 
-		fmt.Printf("extractFieldArguments: argName = %s, argValueKind = %v\n", argName, argValue.Kind)
 		switch argValue.Kind {
-		case ast.ValueKindBoolean, ast.ValueKindEnum, ast.ValueKindString, ast.ValueKindFloat:
-			argInfo.isSimple = true
-			argInfo.typeName = v.Operation.TypeNameString(argValue.Ref)
-		case ast.ValueKindInteger:
-			// Extract integer value if present (for arguments in directives)
-			argInfo.isSimple = true
-			argInfo.typeName = v.Operation.TypeNameString(argValue.Ref)
-			argInfo.intValue = int(v.Operation.IntValueAsInt(argValue.Ref))
+		// case ast.ValueKindBoolean, ast.ValueKindEnum, ast.ValueKindString, ast.ValueKindFloat:
+		// 	argInfo.isSimple = true
+		// 	argInfo.typeName = v.Operation.TypeNameString(argValue.Ref)
+		// case ast.ValueKindInteger:
+		// 	// Extract integer value if present (for arguments in directives)
+		// 	argInfo.isSimple = true
+		// 	argInfo.typeName = v.Operation.TypeNameString(argValue.Ref)
+		// 	argInfo.intValue = int(v.Operation.IntValueAsInt(argValue.Ref))
 		case ast.ValueKindVariable:
 			variableValue := v.Operation.VariableValueNameString(argValue.Ref)
 			if !v.Operation.OperationDefinitionHasVariableDefinition(v.operationDefinition, variableValue) {
@@ -550,7 +544,7 @@ func (v *Visitor) extractFieldArguments(fieldRef int) map[string]ArgumentInfo {
 				continue
 			}
 
-			fmt.Printf("variableTypeRef = %v unwrappedVarTypeRef = %v typeName = %v nodeKind = %v varVal = %v\n", variableTypeRef, unwrappedVarTypeRef, argInfo.typeName, node.Kind, variableValue)
+			// fmt.Printf("variableTypeRef = %v unwrappedVarTypeRef = %v typeName = %v nodeKind = %v varVal = %v\n", variableTypeRef, unwrappedVarTypeRef, argInfo.typeName, node.Kind, variableValue)
 
 			// Analyze the node to see what kind of variable was passed.
 			switch node.Kind {
@@ -565,11 +559,6 @@ func (v *Visitor) extractFieldArguments(fieldRef int) map[string]ArgumentInfo {
 			// If these fields has weight attached, use them for calculation.
 			// Variables are not inlined at this stage, so we need to inspect them via AST.
 
-		case ast.ValueKindList:
-			// not sure if these are relevant
-			// unwrappedTypeRef := v.Operation.ResolveUnderlyingType(argValue.Ref)
-			// argInfo.typeName = v.Operation.TypeNameString(unwrappedTypeRef)
-			fmt.Printf("WARNING: unhandled list argument type: %v typeName=%v\n", argValue.Kind, argInfo.typeName)
 		default:
 			fmt.Printf("WARNING: unhandled argument type: %v\n", argValue.Kind)
 			continue

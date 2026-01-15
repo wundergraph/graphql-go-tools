@@ -23,10 +23,6 @@ type SynchronousResponsePlan struct {
 	StaticCostCalculator *CostCalculator
 }
 
-func (s *SynchronousResponsePlan) GetStaticCost() int {
-	return s.StaticCostCalculator.GetTotalCost()
-}
-
 func (s *SynchronousResponsePlan) GetStaticCostCalculator() *CostCalculator {
 	return s.StaticCostCalculator
 }

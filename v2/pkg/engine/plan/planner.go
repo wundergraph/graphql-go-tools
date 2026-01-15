@@ -60,22 +60,10 @@ func NewPlanner(config Configuration) (*Planner, error) {
 
 	planningWalker := astvisitor.NewWalkerWithID(48, "PlanningWalker")
 
-	// Initialize cost calculator and configure from data sources
-	var costCalc *CostCalculator
-	if config.ComputeStaticCost {
-		costCalc = NewCostCalculator()
-		for _, ds := range config.DataSources {
-			if costConfig := ds.GetCostConfig(); costConfig != nil {
-				costCalc.SetDataSourceCostConfig(ds.Hash(), costConfig)
-			}
-		}
-	}
-
 	planningVisitor := &Visitor{
 		Walker:                       &planningWalker,
 		fieldConfigs:                 map[int]*FieldConfiguration{},
 		disableResolveFieldPositions: config.DisableResolveFieldPositions,
-		costCalculator:               costCalc,
 	}
 
 	p := &Planner{
@@ -86,14 +74,6 @@ func NewPlanner(config Configuration) (*Planner, error) {
 	}
 
 	return p, nil
-}
-
-func (p *Planner) SetConfig(config Configuration) {
-	p.config = config
-}
-
-func (p *Planner) SetDebugConfig(config DebugConfiguration) {
-	p.config.Debug = config
 }
 
 type _opts struct {
@@ -168,6 +148,17 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	p.planningVisitor.fieldRefDependsOnFieldRefs = selectionsConfig.fieldRefDependsOn
 	p.planningVisitor.fieldDependencyKind = selectionsConfig.fieldDependencyKind
 	p.planningVisitor.fieldRefDependants = inverseMap(selectionsConfig.fieldRefDependsOn)
+
+	// Initialize cost calculator and configure from data sources
+	if p.config.ComputeStaticCost {
+		calc := NewCostCalculator()
+		for _, ds := range p.config.DataSources {
+			if costConfig := ds.GetCostConfig(); costConfig != nil {
+				calc.SetDataSourceCostConfig(ds.Hash(), costConfig)
+			}
+		}
+		p.planningVisitor.costCalculator = calc
+	}
 
 	p.planningWalker.ResetVisitors()
 	p.planningWalker.SetVisitorFilter(p.planningVisitor)
