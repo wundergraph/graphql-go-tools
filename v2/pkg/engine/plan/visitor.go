@@ -482,8 +482,8 @@ func (v *Visitor) enterFieldCost(fieldRef int) {
 
 // getFieldDataSourceHashes returns all data source hashes for the field.
 // A field can be planned on multiple data sources in federation scenarios.
-func (v *Visitor) getFieldDataSourceHashes(ref int) []DSHash {
-	plannerIDs, ok := v.fieldPlanners[ref]
+func (v *Visitor) getFieldDataSourceHashes(fieldRef int) []DSHash {
+	plannerIDs, ok := v.fieldPlanners[fieldRef]
 	if !ok || len(plannerIDs) == 0 {
 		return nil
 	}
@@ -769,10 +769,10 @@ func (v *Visitor) addInterfaceObjectNameToTypeNames(fieldRef int, typeName []byt
 	return onTypeNames
 }
 
-func (v *Visitor) LeaveField(ref int) {
-	v.debugOnLeaveNode(ast.NodeKindField, ref)
+func (v *Visitor) LeaveField(fieldRef int) {
+	v.debugOnLeaveNode(ast.NodeKindField, fieldRef)
 
-	if v.skipField(ref) {
+	if v.skipField(fieldRef) {
 		// we should also check skips on field leave
 		// cause on nested keys we could mistakenly remove wrong object
 		// from the stack of the current objects
@@ -781,13 +781,13 @@ func (v *Visitor) LeaveField(ref int) {
 
 	// This is done in LeaveField because fieldPlanners become available before LeaveField.
 	if v.costCalculator != nil {
-		v.costCalculator.LeaveField(ref, v.getFieldDataSourceHashes(ref))
+		v.costCalculator.LeaveField(fieldRef, v.getFieldDataSourceHashes(fieldRef))
 	}
 
-	if v.currentFields[len(v.currentFields)-1].popOnField == ref {
+	if v.currentFields[len(v.currentFields)-1].popOnField == fieldRef {
 		v.currentFields = v.currentFields[:len(v.currentFields)-1]
 	}
-	fieldDefinition, ok := v.Walker.FieldDefinition(ref)
+	fieldDefinition, ok := v.Walker.FieldDefinition(fieldRef)
 	if !ok {
 		return
 	}
