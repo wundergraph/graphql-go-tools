@@ -10,12 +10,16 @@ After the planning is done, a callee could get a ref to the calculator and reque
 Cost calculation walks the previously built tree and using variables provided with operation,
 estimates the static cost.
 
-It builds on top of IBM spec for @cost and @listSize directive with a few changes:
-* It uses Int! for weights instead of Float!.
+https://ibm.github.io/graphql-specs/cost-spec.html
+
+It builds on top of IBM spec for @cost and @listSize directive with a few changes.
+
+* We use Int! for weights instead of floats packed in String!.
 * When weight is specified for the type and a field returns the list of that type,
 this weight (along with children's costs) is multiplied too.
 
 A few things on the TBD list:
+
 * Support of SizedFields of @listSize
 * Weights on fields of InputObjects with recursion
 * Weights on arguments of directives
