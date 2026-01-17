@@ -11,6 +11,19 @@ import (
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/accounts/graph/model"
 )
 
+// FindAdminByID is the resolver for the findAdminByID field.
+func (r *entityResolver) FindAdminByID(ctx context.Context, id string) (*model.Admin, error) {
+	name := "Admin " + id
+	if id == "admin-1" {
+		name = "SuperAdmin"
+	}
+	return &model.Admin{
+		ID:       id,
+		Username: name,
+		Role:     "administrator",
+	}, nil
+}
+
 // FindUserByID is the resolver for the findUserByID field.
 func (r *entityResolver) FindUserByID(ctx context.Context, id string) (*model.User, error) {
 	name := "User " + id

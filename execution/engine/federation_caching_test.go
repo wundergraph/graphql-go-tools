@@ -1248,7 +1248,7 @@ func TestL1CacheReducesHTTPCalls(t *testing.T) {
 		// L1 cache doesn't help because `me` is a root query, not an entity fetch.
 		// Root queries don't populate L1 cache (RequiresEntityFetch=false).
 		accountsCalls := tracker.GetCount(accountsHost)
-		assert.Equal(t, 2, accountsCalls,
+		assert.Equal(t, 1, accountsCalls,
 			"Both me (root query) and authorWithoutProvides (entity fetch) call accounts")
 	})
 
@@ -1291,6 +1291,236 @@ func TestL1CacheReducesHTTPCalls(t *testing.T) {
 
 		// KEY ASSERTION: With L1 disabled, 2 accounts calls!
 		// The authorWithoutProvides.username requires another fetch since L1 is disabled.
+		accountsCalls := tracker.GetCount(accountsHost)
+		assert.Equal(t, 2, accountsCalls,
+			"With L1 disabled, should make 2 accounts calls (no cache reuse)")
+	})
+}
+
+func TestL1CacheReducesHTTPCallsInterface(t *testing.T) {
+	// This test demonstrates L1 cache behavior with interface return types.
+	//
+	// Query structure:
+	// - meInterface: root query to accounts service → returns User 1234 via Identifiable interface
+	// - meInterface.reviews: entity fetch from reviews service → returns reviews
+	// - meInterface.reviews.product: entity fetch from products service → returns products
+	// - meInterface.reviews.product.reviews: entity fetch from reviews service → returns reviews
+	// - meInterface.reviews.product.reviews.authorWithoutProvides: entity fetch from accounts → returns User 1234
+	//
+	// This tests that interface return types properly build cache key templates
+	// for all entity types that implement the interface.
+
+	query := `query {
+		meInterface {
+			... on User {
+				id
+				username
+				reviews {
+					body
+					product {
+						upc
+						reviews {
+							authorWithoutProvides {
+								id
+								username
+							}
+						}
+					}
+				}
+			}
+		}
+	}`
+
+	expectedResponse := `{"data":{"meInterface":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","reviews":[{"authorWithoutProvides":{"id":"1234","username":"Me"}}]}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","reviews":[{"authorWithoutProvides":{"id":"1234","username":"Me"}}]}}]}}}`
+
+	t.Run("L1 enabled - interface entity fetches use L1 cache", func(t *testing.T) {
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		cachingOpts := resolve.CachingOptions{
+			EnableL1Cache: true,
+			EnableL2Cache: false,
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(cachingOpts),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// Extract hostnames
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		tracker.Reset()
+		out, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+
+		assert.Equal(t, expectedResponse, string(out))
+
+		// Same behavior as non-interface: root query + entity fetch both call accounts
+		accountsCalls := tracker.GetCount(accountsHost)
+		assert.Equal(t, 1, accountsCalls,
+			"Interface field should behave same as object field for L1 caching")
+	})
+
+	t.Run("L1 disabled - more accounts calls without cache", func(t *testing.T) {
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		cachingOpts := resolve.CachingOptions{
+			EnableL1Cache: false,
+			EnableL2Cache: false,
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(cachingOpts),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// Extract hostnames
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		tracker.Reset()
+		out, headers := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+
+		assert.Equal(t, expectedResponse, string(out))
+
+		// Verify NO L1 activity
+		l1Hits := headers.Get("X-Cache-L1-Hits")
+		l1Misses := headers.Get("X-Cache-L1-Misses")
+		l1HitsInt, _ := strconv.ParseInt(l1Hits, 10, 64)
+		l1MissesInt, _ := strconv.ParseInt(l1Misses, 10, 64)
+		assert.Equal(t, int64(0), l1HitsInt, "L1 hits should be 0 when disabled")
+		assert.Equal(t, int64(0), l1MissesInt, "L1 misses should be 0 when disabled")
+
+		// KEY ASSERTION: With L1 disabled, 2 accounts calls!
+		accountsCalls := tracker.GetCount(accountsHost)
+		assert.Equal(t, 2, accountsCalls,
+			"With L1 disabled, should make 2 accounts calls (no cache reuse)")
+	})
+}
+
+func TestL1CacheReducesHTTPCallsUnion(t *testing.T) {
+	// This test demonstrates L1 cache behavior with union return types.
+	//
+	// Query structure:
+	// - meUnion: root query to accounts service → returns User 1234 via MeUnion union
+	// - meUnion.reviews: entity fetch from reviews service → returns reviews
+	// - meUnion.reviews.product: entity fetch from products service → returns products
+	// - meUnion.reviews.product.reviews: entity fetch from reviews service → returns reviews
+	// - meUnion.reviews.product.reviews.authorWithoutProvides: entity fetch from accounts → returns User 1234
+	//
+	// This tests that union return types properly build cache key templates
+	// for all entity types that are members of the union.
+
+	query := `query {
+		meUnion {
+			... on User {
+				id
+				username
+				reviews {
+					body
+					product {
+						upc
+						reviews {
+							authorWithoutProvides {
+								id
+								username
+							}
+						}
+					}
+				}
+			}
+		}
+	}`
+
+	expectedResponse := `{"data":{"meUnion":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","reviews":[{"authorWithoutProvides":{"id":"1234","username":"Me"}}]}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","reviews":[{"authorWithoutProvides":{"id":"1234","username":"Me"}}]}}]}}}`
+
+	t.Run("L1 enabled - union entity fetches use L1 cache", func(t *testing.T) {
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		cachingOpts := resolve.CachingOptions{
+			EnableL1Cache: true,
+			EnableL2Cache: false,
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(cachingOpts),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// Extract hostnames
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		tracker.Reset()
+		out, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+
+		assert.Equal(t, expectedResponse, string(out))
+
+		// Same behavior as non-union: root query + entity fetch both call accounts
+		accountsCalls := tracker.GetCount(accountsHost)
+		assert.Equal(t, 1, accountsCalls,
+			"Union field should behave same as object field for L1 caching")
+	})
+
+	t.Run("L1 disabled - more accounts calls without cache", func(t *testing.T) {
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		cachingOpts := resolve.CachingOptions{
+			EnableL1Cache: false,
+			EnableL2Cache: false,
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(cachingOpts),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// Extract hostnames
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		tracker.Reset()
+		out, headers := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+
+		assert.Equal(t, expectedResponse, string(out))
+
+		// Verify NO L1 activity
+		l1Hits := headers.Get("X-Cache-L1-Hits")
+		l1Misses := headers.Get("X-Cache-L1-Misses")
+		l1HitsInt, _ := strconv.ParseInt(l1Hits, 10, 64)
+		l1MissesInt, _ := strconv.ParseInt(l1Misses, 10, 64)
+		assert.Equal(t, int64(0), l1HitsInt, "L1 hits should be 0 when disabled")
+		assert.Equal(t, int64(0), l1MissesInt, "L1 misses should be 0 when disabled")
+
+		// KEY ASSERTION: With L1 disabled, 2 accounts calls!
 		accountsCalls := tracker.GetCount(accountsHost)
 		assert.Equal(t, 2, accountsCalls,
 			"With L1 disabled, should make 2 accounts calls (no cache reuse)")

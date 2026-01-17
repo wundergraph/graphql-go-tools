@@ -22,6 +22,26 @@ func (r *queryResolver) Me(ctx context.Context) (*model.User, error) {
 	}, nil
 }
 
+// MeInterface is the resolver for the meInterface field.
+func (r *queryResolver) MeInterface(ctx context.Context) (model.Identifiable, error) {
+	return &model.User{
+		ID:       "1234",
+		Username: "Me",
+		History:  histories,
+		RealName: "User Usington",
+	}, nil
+}
+
+// MeUnion is the resolver for the meUnion field.
+func (r *queryResolver) MeUnion(ctx context.Context) (model.MeUnion, error) {
+	return &model.User{
+		ID:       "1234",
+		Username: "Me",
+		History:  histories,
+		RealName: "User Usington",
+	}, nil
+}
+
 // Identifiable is the resolver for the identifiable field.
 func (r *queryResolver) Identifiable(ctx context.Context) (model.Identifiable, error) {
 	return &model.User{

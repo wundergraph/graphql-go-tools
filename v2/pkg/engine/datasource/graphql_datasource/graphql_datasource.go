@@ -85,8 +85,12 @@ type Planner[T Configuration] struct {
 
 	// caching
 
-	cacheKeyTemplate resolve.CacheKeyTemplate
-	rootFields       []resolve.QueryField // tracks root fields and their arguments for cache key generation
+	entityCacheKeyTemplate resolve.CacheKeyTemplate
+	rootFields             []resolve.QueryField // tracks root fields and their arguments for cache key generation
+	// rootFieldEntityCacheKeyTemplates tracks root field types (plural in case of interfaces/unions)
+	// and their correlating cache keys (excluding @requires) to allow L1 cache population
+	// for root fields that return an entity
+	rootFieldEntityCacheKeyTemplates map[string]resolve.CacheKeyTemplate
 
 	// federation
 
@@ -385,7 +389,7 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		if len(p.rootFields) > 0 {
 			rootFieldsCopy := make([]resolve.QueryField, len(p.rootFields))
 			copy(rootFieldsCopy, p.rootFields)
-			p.cacheKeyTemplate = &resolve.RootQueryCacheKeyTemplate{
+			p.entityCacheKeyTemplate = &resolve.RootQueryCacheKeyTemplate{
 				RootFields: rootFieldsCopy,
 			}
 		}
@@ -402,7 +406,8 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		QueryPlan:                             p.queryPlan,
 		OperationName:                         p.propagatedOperationName,
 		Caching: resolve.FetchCacheConfiguration{
-			CacheKeyTemplate: p.cacheKeyTemplate,
+			CacheKeyTemplate:                   p.entityCacheKeyTemplate,
+			RootFieldL1EntityCacheKeyTemplates: p.rootFieldEntityCacheKeyTemplates,
 		},
 	}
 }
@@ -742,6 +747,7 @@ func (p *Planner[T]) EnterField(ref int) {
 			FieldName: fieldName,
 		}
 		p.trackCacheKeyCoordinate(coordinate)
+		p.handlePotentialEntityRootField(ref)
 	}
 
 	// store root field name and ref
@@ -767,6 +773,118 @@ func (p *Planner[T]) isRootField() bool {
 		}
 	}
 	return true
+}
+
+func (p *Planner[T]) handlePotentialEntityRootField(ref int) {
+	fieldDefinition, ok := p.visitor.Walker.FieldDefinition(ref)
+	if !ok {
+		return
+	}
+	typeName := p.visitor.Definition.FieldDefinitionTypeNameString(fieldDefinition)
+	fieldName := p.visitor.Operation.FieldAliasOrNameString(ref)
+
+	// Get all entity type names that could be returned by this field
+	// This handles object types directly, as well as interface/union types
+	entityTypeNames := p.resolveEntityTypeNames(typeName)
+	if len(entityTypeNames) == 0 {
+		return
+	}
+
+	meta := p.dataSourceConfig.FederationConfiguration()
+
+	// Initialize map if needed
+	if p.rootFieldEntityCacheKeyTemplates == nil {
+		p.rootFieldEntityCacheKeyTemplates = make(map[string]resolve.CacheKeyTemplate)
+	}
+
+	// Build cache key templates for each entity type
+	for _, entityTypeName := range entityTypeNames {
+		p.buildAndStoreEntityCacheKeyTemplate(entityTypeName, fieldName, meta)
+	}
+}
+
+// resolveEntityTypeNames returns all entity type names that could be returned by a field.
+// For object types: returns the type name if it's an entity.
+// For interface types: returns all implementing object types that are entities.
+// For union types: returns all member types that are entities.
+func (p *Planner[T]) resolveEntityTypeNames(typeName string) []string {
+	// First, check if the type itself is an entity (object type)
+	if p.dataSourceConfig.HasEntity(typeName) {
+		return []string{typeName}
+	}
+
+	// Check if it's an interface type
+	typeNode, ok := p.visitor.Definition.Index.FirstNodeByNameStr(typeName)
+	if !ok {
+		return nil
+	}
+
+	var candidateTypes []string
+
+	switch typeNode.Kind {
+	case ast.NodeKindInterfaceTypeDefinition:
+		// Get all object types that implement this interface
+		implementors, ok := p.visitor.Definition.InterfaceTypeDefinitionImplementedByObjectWithNames(typeNode.Ref)
+		if ok {
+			candidateTypes = implementors
+		}
+	case ast.NodeKindUnionTypeDefinition:
+		// Get all member types of this union
+		members, ok := p.visitor.Definition.UnionTypeDefinitionMemberTypeNames(typeNode.Ref)
+		if ok {
+			candidateTypes = members
+		}
+	default:
+		return nil
+	}
+
+	// Filter to only include entity types
+	var entityTypes []string
+	for _, candidate := range candidateTypes {
+		if p.dataSourceConfig.HasEntity(candidate) {
+			entityTypes = append(entityTypes, candidate)
+		}
+	}
+
+	return entityTypes
+}
+
+// buildAndStoreEntityCacheKeyTemplate builds a cache key template for the given entity type
+// and stores it in the rootFieldEntityCacheKeyTemplates map.
+func (p *Planner[T]) buildAndStoreEntityCacheKeyTemplate(entityTypeName, fieldName string, meta plan.FederationMetaData) {
+	// Get all @key configurations for this entity type (excludes @requires)
+	entityKeys := meta.Keys.FilterByTypeAndResolvability(entityTypeName, true)
+	if len(entityKeys) == 0 {
+		return
+	}
+
+	// Build representation variable nodes from the entity keys
+	var objects []*resolve.Object
+	for _, key := range entityKeys {
+		node, err := buildRepresentationVariableNode(p.visitor.Definition, key, meta)
+		if err != nil {
+			continue
+		}
+		objects = append(objects, node)
+	}
+
+	if len(objects) == 0 {
+		return
+	}
+
+	// Merge all key objects into a single representation
+	mergedObject := mergeRepresentationVariableNodes(objects)
+
+	// Set the path to the root field name so the cache key template
+	// knows where to find the entity data in the response
+	mergedObject.Path = []string{fieldName}
+
+	// Create cache key template with L1Keys only (no @requires fields)
+	cacheKeyTemplate := &resolve.EntityQueryCacheKeyTemplate{
+		L1Keys: resolve.NewResolvableObjectVariable(mergedObject),
+	}
+
+	p.rootFieldEntityCacheKeyTemplates[entityTypeName] = cacheKeyTemplate
 }
 
 func (p *Planner[T]) addFieldArguments(upstreamFieldRef int, fieldRef int, fieldConfiguration *plan.FieldConfiguration) {
@@ -930,7 +1048,7 @@ func (p *Planner[T]) addRepresentationsVariable() {
 		entityCacheKeyTemplate.L1Keys = resolve.NewResolvableObjectVariable(l1KeysObject)
 	}
 
-	p.cacheKeyTemplate = entityCacheKeyTemplate
+	p.entityCacheKeyTemplate = entityCacheKeyTemplate
 
 	variable, _ := p.variables.AddVariable(representationsVariable)
 

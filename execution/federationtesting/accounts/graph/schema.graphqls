@@ -1,5 +1,7 @@
 type Query {
     me: User
+    meInterface: Identifiable
+    meUnion: MeUnion
     identifiable: Identifiable
     histories: [History]
     cat: Cat
@@ -188,3 +190,13 @@ type CDerObj {
     middle: String!
     last: String!
 }
+
+# Admin is another entity that implements Identifiable for testing interface/union caching
+type Admin implements Identifiable @key(fields: "id") {
+    id: ID!
+    username: String!
+    role: String!
+}
+
+# Union containing entity types for testing union field caching
+union MeUnion = User | Admin

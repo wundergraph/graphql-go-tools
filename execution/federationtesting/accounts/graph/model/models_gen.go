@@ -41,6 +41,10 @@ type Info interface {
 	GetQuantity() int
 }
 
+type MeUnion interface {
+	IsMeUnion()
+}
+
 type Name interface {
 	IsName()
 	GetName() string
@@ -91,6 +95,19 @@ func (A) IsAb() {}
 
 func (A) IsNamer()             {}
 func (this A) GetName() string { return this.Name }
+
+type Admin struct {
+	ID       string `json:"id"`
+	Username string `json:"username"`
+	Role     string `json:"role"`
+}
+
+func (Admin) IsIdentifiable()    {}
+func (this Admin) GetID() string { return this.ID }
+
+func (Admin) IsMeUnion() {}
+
+func (Admin) IsEntity() {}
 
 type B struct {
 	Name string `json:"name"`
@@ -289,6 +306,8 @@ type User struct {
 
 func (User) IsIdentifiable()    {}
 func (this User) GetID() string { return this.ID }
+
+func (User) IsMeUnion() {}
 
 func (User) IsEntity() {}
 

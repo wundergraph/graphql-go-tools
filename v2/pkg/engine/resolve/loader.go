@@ -572,7 +572,7 @@ func (l *Loader) cacheKeysToEntries(a arena.Arena, cacheKeys []*CacheKey) ([]*Ca
 // Sets res.l1CacheKeys for L1 lookup (no prefix) and res.l2CacheKeys for L2 lookup (with prefix).
 // Returns isEntityFetch to indicate if this fetch supports L1 caching.
 func (l *Loader) prepareCacheKeys(info *FetchInfo, cfg FetchCacheConfiguration, inputItems []*astjson.Value, res *result) (isEntityFetch bool, err error) {
-	if !cfg.Enabled || cfg.CacheKeyTemplate == nil {
+	if cfg.CacheKeyTemplate == nil {
 		return false, nil
 	}
 
@@ -801,17 +801,120 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 // Called after successful fetch and merge for entity fetches only.
 // OPTIMIZATION: Only stores if key is missing - existing entries are pointers
 // to the same arena data, so no update needed. This minimizes sync.Map calls.
-func (l *Loader) populateL1Cache(cacheKeys []*CacheKey) {
+func (l *Loader) populateL1Cache(fetchItem *FetchItem, res *result, items []*astjson.Value) {
 	if !l.ctx.ExecutionOptions.Caching.EnableL1Cache {
 		return
 	}
-	for _, ck := range cacheKeys {
+	for _, ck := range res.l1CacheKeys {
 		if ck.Item == nil {
 			continue
 		}
 		for _, keyStr := range ck.Keys {
 			// LoadOrStore only writes if key is missing, minimizing map operations
 			l.l1Cache.LoadOrStore(keyStr, ck.Item)
+		}
+	}
+	// Also populate L1 cache for root fields that return entities
+	l.populateL1CacheForRootFieldEntities(fetchItem)
+}
+
+// populateL1CacheForRootFieldEntities populates the L1 cache with entities returned by root fields.
+// This allows subsequent entity fetches to benefit from L1 cache hits when the same entities
+// were already fetched as part of a root field query.
+func (l *Loader) populateL1CacheForRootFieldEntities(fetchItem *FetchItem) {
+	// Only applies to SingleFetch (root field fetches)
+	singleFetch, ok := fetchItem.Fetch.(*SingleFetch)
+	if !ok {
+		return
+	}
+
+	templates := singleFetch.Caching.RootFieldL1EntityCacheKeyTemplates
+	if len(templates) == 0 {
+		return
+	}
+
+	// Get response data
+	data := l.resolvable.data
+	if data == nil {
+		return
+	}
+
+	// Get the path from any template to find where entities are located
+	// (all templates for the same root field have the same path)
+	var fieldPath []string
+	for _, template := range templates {
+		entityTemplate, ok := template.(*EntityQueryCacheKeyTemplate)
+		if !ok || entityTemplate.L1Keys == nil || entityTemplate.L1Keys.Renderer == nil {
+			continue
+		}
+		obj, ok := entityTemplate.L1Keys.Renderer.Node.(*Object)
+		if !ok {
+			continue
+		}
+		fieldPath = obj.Path
+		break
+	}
+
+	if len(fieldPath) == 0 {
+		return
+	}
+
+	// Navigate to the entities using the path
+	entitiesValue := data.Get(fieldPath...)
+	if entitiesValue == nil {
+		return
+	}
+
+	// Handle both single entity (object) and array of entities
+	var entities []*astjson.Value
+	switch entitiesValue.Type() {
+	case astjson.TypeArray:
+		entities = entitiesValue.GetArray()
+	case astjson.TypeObject:
+		entities = []*astjson.Value{entitiesValue}
+	default:
+		return
+	}
+
+	// For each entity, render cache key and store in L1 cache
+	for _, entity := range entities {
+		if entity == nil {
+			continue
+		}
+
+		// Extract __typename to find the right template
+		typenameValue := entity.Get("__typename")
+		if typenameValue == nil {
+			continue
+		}
+		typename := string(typenameValue.GetStringBytes())
+
+		// Look up template for this typename
+		template, ok := templates[typename]
+		if !ok {
+			continue
+		}
+
+		entityTemplate, ok := template.(*EntityQueryCacheKeyTemplate)
+		if !ok {
+			continue
+		}
+
+		// Render cache key(s) for this entity
+		cacheKeys, err := entityTemplate.RenderL1CacheKeys(l.jsonArena, l.ctx, []*astjson.Value{entity})
+		if err != nil || len(cacheKeys) == 0 {
+			continue
+		}
+
+		// Store in L1 cache
+		for _, ck := range cacheKeys {
+			if ck == nil {
+				continue
+			}
+			for _, keyStr := range ck.Keys {
+				// Use the entity directly as the cache value
+				l.l1Cache.LoadOrStore(keyStr, entity)
+			}
 		}
 	}
 }
@@ -1003,7 +1106,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		return nil
 	}
 	defer l.updateL2Cache(res)
-	defer l.populateL1Cache(res.l1CacheKeys)
+	defer l.populateL1Cache(fetchItem, res, items)
 	if len(items) == 0 {
 		// If the data is set, it must be an object according to GraphQL over HTTP spec
 		if responseData.Type() != astjson.TypeObject {

@@ -1369,13 +1369,27 @@ func (v *Visitor) isEntityBoundaryField(plannerID int, fieldRef int) bool {
 	fieldName := v.Operation.FieldAliasOrNameString(fieldRef)
 	fullFieldPath := currentPath + "." + fieldName
 
-	// If this field path matches the normalized response path, it's the entity boundary
-	if fullFieldPath == normalizedResponsePath {
-		// Store the entity boundary path for this planner
-		v.plannerEntityBoundaryPaths[plannerID] = fullFieldPath
+	// Normalize the field path by removing inline fragment type conditions
+	// e.g., "query.meInterface.$0User.reviews" -> "query.meInterface.reviews"
+	// The walker path includes $N<TypeName> markers for inline fragments
+	normalizedFieldPath := v.normalizePathRemovingFragments(fullFieldPath)
+
+	// If this normalized field path matches the normalized response path, it's the entity boundary
+	if normalizedFieldPath == normalizedResponsePath {
+		// Store the entity boundary path for this planner (use normalized path)
+		v.plannerEntityBoundaryPaths[plannerID] = normalizedFieldPath
 		return true
 	}
 	return false
+}
+
+// normalizePathRemovingFragments removes inline fragment type condition markers from the path
+// e.g., "query.meInterface.$0User.reviews" -> "query.meInterface.reviews"
+// The walker path includes $N<TypeName> markers for inline fragments (e.g., $0User, $1Admin)
+var fragmentMarkerRegex = regexp.MustCompile(`\.\$\d+\w+`)
+
+func (v *Visitor) normalizePathRemovingFragments(path string) string {
+	return fragmentMarkerRegex.ReplaceAllString(path, "")
 }
 
 // isEntityRootField checks if this field is at the root of an entity
@@ -1969,7 +1983,8 @@ func (v *Visitor) configureFetchCaching(internal *objectFetchConfiguration, exte
 	// The Enabled flag controls L2 cache only, not L1 cache.
 	// L1 cache uses CacheKeyTemplate.L1Keys and is controlled by ctx.ExecutionOptions.Caching.EnableL1Cache.
 	result := resolve.FetchCacheConfiguration{
-		CacheKeyTemplate: external.Caching.CacheKeyTemplate,
+		CacheKeyTemplate:                   external.Caching.CacheKeyTemplate,
+		RootFieldL1EntityCacheKeyTemplates: external.Caching.RootFieldL1EntityCacheKeyTemplates,
 	}
 
 	// Global disable takes precedence for L2 cache

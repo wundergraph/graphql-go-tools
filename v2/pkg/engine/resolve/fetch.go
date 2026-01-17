@@ -321,6 +321,8 @@ type FetchCacheConfiguration struct {
 	// The prefix format is "id:cacheKey" where id is the hash from HeadersForSubgraph.
 	// Defaults to true.
 	IncludeSubgraphHeaderPrefix bool
+
+	RootFieldL1EntityCacheKeyTemplates map[string]CacheKeyTemplate
 }
 
 // FetchDependency explains how a GraphCoordinate depends on other GraphCoordinates from other fetches
