@@ -103,8 +103,11 @@ type ResolveRPCTypeField struct {
 // RequiredFieldsRPCMapping defines the mapping between a federation @requires fields and the gRPC RPC configurations
 type RequiredFieldsRPCMapping map[string]RequiredFieldsRPCTypeField
 
+// RequiredFieldsRPCTypeField defines the mapping between a federation @requires field and a gRPC RPC configuration
 type RequiredFieldsRPCTypeField struct {
 	RPCConfig
+
+	// TargetName is the name of the gRPC field that is used to store the required fields arguments
 	TargetName string
 }
 

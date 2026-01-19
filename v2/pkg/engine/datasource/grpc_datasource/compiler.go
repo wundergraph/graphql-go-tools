@@ -708,8 +708,13 @@ func (p *RPCCompiler) buildRequiredFieldsMessage(inputMessage Message, rpcMessag
 			return nil, err
 		}
 
-		p.setMessageValue(msg, keyField.Name, protoref.ValueOfMessage(keyMsg))
-		p.setMessageValue(msg, requiresSelectionField.Name, protoref.ValueOfMessage(reqMsg))
+		if err := p.setMessageValue(msg, keyField.Name, protoref.ValueOfMessage(keyMsg)); err != nil {
+			return nil, err
+		}
+
+		if err := p.setMessageValue(msg, requiresSelectionField.Name, protoref.ValueOfMessage(reqMsg)); err != nil {
+			return nil, err
+		}
 
 		// build fields message
 		contextList.Append(element)
