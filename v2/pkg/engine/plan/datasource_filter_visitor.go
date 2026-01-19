@@ -452,7 +452,11 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 				return false
 			}
 
-			return !f.couldProvideChildFields(i)
+			if !f.couldProvideChildFields(i) && !f.nodeCouldProvideKeysToChildNodes(i) {
+				return true
+			}
+
+			return false
 		}) {
 			continue
 		}
@@ -915,7 +919,9 @@ func (f *DataSourceFilter) couldProvideChildFields(i int) bool {
 		}
 
 		// for non-leaf nodes, we need to check again if they could provide any child fields
-		if f.couldProvideChildFields(i) {
+		// or keys to the nested child nodes
+		// this ensures bigger chains of non-leaf nodes selected
+		if f.couldProvideChildFields(i) || f.nodeCouldProvideKeysToChildNodes(i) {
 			hasSelectableFields = true
 			break
 		}
