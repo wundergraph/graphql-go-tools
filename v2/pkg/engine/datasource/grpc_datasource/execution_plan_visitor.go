@@ -11,6 +11,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -472,14 +473,24 @@ func (r *rpcPlanVisitor) enterFieldResolver(ref int, fieldDefRef int) {
 		fieldDefinitionTypeRef: r.definition.FieldDefinitionType(fieldDefRef),
 	}
 
-	if err := r.planCtx.setResolvedField(r.walker, fieldDefRef, fieldArgs, r.fieldPath, &resolvedField); err != nil {
+	fieldPath := r.fieldPath
+	if len(r.fieldResolverAncestors) > 0 {
+		fieldPath[0].FieldName = []byte("result")
+	}
+
+	if err := r.planCtx.setResolvedField(r.walker, fieldDefRef, fieldArgs, fieldPath, &resolvedField); err != nil {
 		r.walker.StopWithInternalErr(err)
 		return
 	}
 
 	r.resolverFields = append(r.resolverFields, resolvedField)
 	r.fieldResolverAncestors.push(len(r.resolverFields) - 1)
-	r.fieldPath = r.fieldPath.WithFieldNameItem(r.operation.FieldNameBytes(ref))
+	resolveConfig := r.mapping.FindResolveTypeFieldMapping(r.walker.EnclosingTypeDefinition.NameString(r.definition), r.definition.FieldDefinitionNameString(fieldDefRef))
+	if resolveConfig == nil {
+		r.walker.StopWithInternalErr(fmt.Errorf("resolve config not found for type: %s, field: %s", r.walker.EnclosingTypeDefinition.NameString(r.definition), r.definition.FieldDefinitionNameString(fieldDefRef)))
+		return
+	}
+	r.fieldPath = r.fieldPath.WithFieldNameItem(unsafebytes.StringToBytes(resolveConfig.FieldMappingData.TargetName))
 
 	// In case of nested fields with arguments, we need to increment the related call ID.
 	r.parentCallID++

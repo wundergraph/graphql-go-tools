@@ -927,7 +927,7 @@ message ResolveCategoryMetricsNormalizedScoreArgs {
 
 message ResolveCategoryMetricsNormalizedScoreContext {
   string id = 1;
-  string metricType = 2;
+  string metric_type = 2;
   double value = 3;
 }
 
@@ -1043,7 +1043,7 @@ message Category {
   string id = 1;
   string name = 2;
   CategoryKind kind = 3;
-  ListOfSubcategory subcategories = 5;
+  ListOfSubcategory subcategories = 4;
 }
 
 message CategoryFilter {

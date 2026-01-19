@@ -907,8 +907,15 @@ func (r *rpcPlanningContext) setResolvedField(walker *astvisitor.Walker, fieldDe
 	}
 
 	for _, contextFieldRef := range contextFields {
-		contextFieldName := r.definition.FieldDefinitionNameBytes(contextFieldRef)
-		resolvedPath := fieldPath.WithFieldNameItem(contextFieldName)
+		fieldName, ok := r.mapping.FindFieldMapping(
+			walker.EnclosingTypeDefinition.NameString(r.definition),
+			r.definition.FieldDefinitionNameString(contextFieldRef),
+		)
+		if !ok {
+			return fmt.Errorf("field mapping not found for field %s", r.definition.FieldDefinitionNameString(contextFieldRef))
+		}
+
+		resolvedPath := fieldPath.WithFieldNameItem(unsafebytes.StringToBytes(fieldName))
 
 		resolvedField.contextFields = append(resolvedField.contextFields, contextField{
 			fieldRef:    contextFieldRef,
