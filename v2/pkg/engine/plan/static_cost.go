@@ -89,25 +89,29 @@ func (ls *FieldListSize) multiplier(arguments map[string]ArgumentInfo, vars *ast
 	multiplier := -1
 	for _, slicingArg := range ls.SlicingArguments {
 		arg, ok := arguments[slicingArg]
-		if ok && arg.isSimple {
-			var value int
-			// Argument could have a variable or literal value.
-			if arg.hasVariable {
-				if vars == nil {
-					continue
-				}
-				if v := vars.Get(arg.varName); v == nil || v.Type() != astjson.TypeNumber {
-					continue
-				}
-				value = vars.GetInt(arg.varName)
-			} else if arg.intValue > 0 {
-				value = arg.intValue
+		if !ok || !arg.isSimple {
+			continue
+		}
+
+		var value int
+		// Argument could be a variable or literal value.
+		if arg.hasVariable {
+			if vars == nil {
+				continue
 			}
-			if value > 0 && value > multiplier {
-				multiplier = value
+			if v := vars.Get(arg.varName); v == nil || v.Type() != astjson.TypeNumber {
+				continue
 			}
+			value = vars.GetInt(arg.varName)
+		} else if arg.intValue > 0 {
+			value = arg.intValue
+		}
+
+		if value > 0 && value > multiplier {
+			multiplier = value
 		}
 	}
+
 	if multiplier == -1 && ls.AssumedSize > 0 {
 		multiplier = ls.AssumedSize
 	}
@@ -280,9 +284,17 @@ func (node *CostTreeNode) totalCost(configs map[DSHash]*DataSourceCostConfig, va
 		// If arguments and directive weights decrease the field cost, floor it to zero.
 		cost = 0
 	}
-	// Here we do not follow IBM spec. We multiply with field cost.
+	// Here we do not follow IBM spec. IBM spec does not use the cost of the object itself
+	// in multiplication. It assumes that the weight of the type should be just summed up
+	// without regard to the size of the list.
+	//
+	// We, instead, multiply with field cost.
 	// If there is a weight attached to the type that is returned (resolved) by the field,
-	// the more objects we request, the more expensive it should be.
+	// the more objects are requested, the more expensive it should be.
+	// This, in turn, has some ambiguity for definitions of the weights for the list types.
+	// "A: [Obj] @cost(weight: 5)" means that the cost of the field is 5 for each object in the list.
+	// "type Object @cost(weight: 5) { ... }" does exactly the same thing.
+	// Weight defined on a field has priority over the weight defined on a type.
 	cost += (node.fieldCost + childrenCost) * multiplier
 
 	return cost
@@ -466,4 +478,3 @@ func (c *CostCalculator) SetVariables(variables *astjson.Value) {
 func (c *CostCalculator) GetTotalCost() int {
 	return c.tree.totalCost(c.costConfigs, c.variables)
 }
-
