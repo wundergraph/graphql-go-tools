@@ -65,7 +65,7 @@ func TestEntityLookup(t *testing.T) {
 									Repeated:      true,
 									JSONPath:      "representations",
 									Message: &RPCMessage{
-										Name:        "LookupProductByIdKey",
+										Name:        "LookupProductByIdRequestKey",
 										MemberTypes: []string{"Product"},
 										Fields: []RPCField{
 											{
@@ -149,7 +149,7 @@ func TestEntityLookup(t *testing.T) {
 									Repeated:      true,
 									JSONPath:      "representations",
 									Message: &RPCMessage{
-										Name:        "LookupProductByIdKey",
+										Name:        "LookupProductByIdRequestKey",
 										MemberTypes: []string{"Product"},
 										Fields: []RPCField{
 											{
@@ -214,7 +214,7 @@ func TestEntityLookup(t *testing.T) {
 									Repeated:      true,
 									JSONPath:      "representations",
 									Message: &RPCMessage{
-										Name:        "LookupStorageByIdKey",
+										Name:        "LookupStorageByIdRequestKey",
 										MemberTypes: []string{"Storage"},
 										Fields: []RPCField{
 											{
@@ -360,7 +360,7 @@ func TestEntityKeys(t *testing.T) {
 									Repeated:      true,
 									JSONPath:      "representations",
 									Message: &RPCMessage{
-										Name:        "LookupUserByIdKey",
+										Name:        "LookupUserByIdRequestKey",
 										MemberTypes: []string{"User"},
 										Fields: []RPCField{
 											{
@@ -470,7 +470,7 @@ func TestEntityKeys(t *testing.T) {
 									Repeated:      true,
 									JSONPath:      "representations",
 									Message: &RPCMessage{
-										Name:        "LookupUserByIdAndAddressKey",
+										Name:        "LookupUserByIdAndAddressRequestKey",
 										MemberTypes: []string{"User"},
 										Fields: []RPCField{
 											{
@@ -583,7 +583,7 @@ func TestEntityKeys(t *testing.T) {
 									Repeated:      true,
 									JSONPath:      "representations",
 									Message: &RPCMessage{
-										Name:        "LookupUserByIdAndNameKey",
+										Name:        "LookupUserByIdAndNameRequestKey",
 										MemberTypes: []string{"User"},
 										Fields: []RPCField{
 											{
@@ -685,7 +685,7 @@ func TestEntityKeys(t *testing.T) {
 									Repeated:      true,
 									JSONPath:      "representations",
 									Message: &RPCMessage{
-										Name:        "LookupUserByIdAndNameKey",
+										Name:        "LookupUserByIdAndNameRequestKey",
 										MemberTypes: []string{"User"},
 										Fields: []RPCField{
 											{
@@ -793,7 +793,7 @@ func TestEntityKeys(t *testing.T) {
 									Repeated:      true,
 									JSONPath:      "representations",
 									Message: &RPCMessage{
-										Name:        "LookupUserByIdAndNameAndAddressKey",
+										Name:        "LookupUserByIdAndNameAndAddressRequestKey",
 										MemberTypes: []string{"User"},
 										Fields: []RPCField{
 											{
@@ -918,7 +918,7 @@ func TestEntityKeys(t *testing.T) {
 									Repeated:      true,
 									JSONPath:      "representations",
 									Message: &RPCMessage{
-										Name:        "LookupUserByIdKey",
+										Name:        "LookupUserByIdRequestKey",
 										MemberTypes: []string{"User"},
 										Fields: []RPCField{
 											{
@@ -1025,7 +1025,7 @@ func TestEntityLookupWithFieldResolvers(t *testing.T) {
 									Repeated:      true,
 									JSONPath:      "representations",
 									Message: &RPCMessage{
-										Name:        "LookupProductByIdKey",
+										Name:        "LookupProductByIdRequestKey",
 										MemberTypes: []string{"Product"},
 										Fields: []RPCField{
 											{
@@ -1202,7 +1202,7 @@ func TestEntityLookupWithFieldResolvers(t *testing.T) {
 									Repeated:      true,
 									JSONPath:      "representations",
 									Message: &RPCMessage{
-										Name:        "LookupStorageByIdKey",
+										Name:        "LookupStorageByIdRequestKey",
 										MemberTypes: []string{"Storage"},
 										Fields: []RPCField{
 											{
@@ -1266,7 +1266,7 @@ func TestEntityLookupWithFieldResolvers(t *testing.T) {
 									Repeated:      true,
 									JSONPath:      "representations",
 									Message: &RPCMessage{
-										Name:        "LookupProductByIdKey",
+										Name:        "LookupProductByIdRequestKey",
 										MemberTypes: []string{"Product"},
 										Fields: []RPCField{
 											{
@@ -1478,7 +1478,7 @@ func TestEntityLookupWithFieldResolvers_WithCompositeTypes(t *testing.T) {
 									Repeated:      true,
 									JSONPath:      "representations",
 									Message: &RPCMessage{
-										Name:        "LookupProductByIdKey",
+										Name:        "LookupProductByIdRequestKey",
 										MemberTypes: []string{"Product"},
 										Fields: []RPCField{
 											{
@@ -1655,7 +1655,7 @@ func TestEntityLookupWithFieldResolvers_WithCompositeTypes(t *testing.T) {
 									Repeated:      true,
 									JSONPath:      "representations",
 									Message: &RPCMessage{
-										Name:        "LookupProductByIdKey",
+										Name:        "LookupProductByIdRequestKey",
 										MemberTypes: []string{"Product"},
 										Fields: []RPCField{
 											{
@@ -1837,7 +1837,7 @@ func TestEntityLookupWithFieldResolvers_WithCompositeTypes(t *testing.T) {
 									Repeated:      true,
 									JSONPath:      "representations",
 									Message: &RPCMessage{
-										Name:        "LookupProductByIdKey",
+										Name:        "LookupProductByIdRequestKey",
 										MemberTypes: []string{"Product"},
 										Fields: []RPCField{
 											{
@@ -2126,7 +2126,7 @@ func TestEntityLookupWithRequiredFields(t *testing.T) {
 									Repeated:      true,
 									JSONPath:      "representations",
 									Message: &RPCMessage{
-										Name:        "LookupWarehouseByIdKey",
+										Name:        "LookupWarehouseByIdRequestKey",
 										MemberTypes: []string{"Warehouse"},
 										Fields: []RPCField{
 											{
@@ -2192,7 +2192,7 @@ func TestEntityLookupWithRequiredFields(t *testing.T) {
 												Name:          "key",
 												ProtoTypeName: DataTypeMessage,
 												Message: &RPCMessage{
-													Name:        "LookupWarehouseByIdKey",
+													Name:        "LookupWarehouseByIdRequestKey",
 													MemberTypes: []string{"Warehouse"},
 													Fields: []RPCField{
 														{
@@ -2244,6 +2244,7 @@ func TestEntityLookupWithRequiredFields(t *testing.T) {
 									Name:          "result",
 									ProtoTypeName: DataTypeMessage,
 									Repeated:      true,
+									JSONPath:      "result",
 									Message: &RPCMessage{
 										Name: "RequireWarehouseStockHealthScoreByIdResult",
 										Fields: RPCFields{

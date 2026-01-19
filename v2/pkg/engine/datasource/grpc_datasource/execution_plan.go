@@ -27,6 +27,17 @@ const (
 	typenameFieldName = "__typename"
 )
 
+const (
+	// resultFieldName is the name of the field that is used to store the result of the RPC call.
+	resultFieldName = "result"
+	// contextFieldName is the name of the field that is used to store the context of the RPC call.
+	contextFieldName = "context"
+	// fieldArgsFieldName is the name of the field that is used to store the field arguments of the RPC call.
+	fieldArgsFieldName = "field_args"
+	// requiresArgumentsFieldName is the name of the field that is used to store the required fields arguments of the RPC call.
+	requiresArgumentsFieldName = "fields"
+)
+
 // OneOfType represents the type of a oneof field in a protobuf message.
 // It can be either an interface or a union type.
 type OneOfType uint8
@@ -1329,7 +1340,7 @@ func (r *rpcPlanningContext) createRequiredFieldsRPCCall(subgraphName string, ty
 			Name: rpcConfig.Request,
 			Fields: RPCFields{
 				{
-					Name:          "context", // Static name for the context field.
+					Name:          contextFieldName, // Static name for the context field.
 					ProtoTypeName: DataTypeMessage,
 					JSONPath:      "representations",
 					Repeated:      true,
@@ -1342,7 +1353,7 @@ func (r *rpcPlanningContext) createRequiredFieldsRPCCall(subgraphName string, ty
 								Message:       data.keyFieldMessage,
 							},
 							{
-								Name:          "fields",
+								Name:          requiresArgumentsFieldName,
 								ProtoTypeName: DataTypeMessage,
 								Message:       fieldMessage,
 							},
@@ -1355,9 +1366,10 @@ func (r *rpcPlanningContext) createRequiredFieldsRPCCall(subgraphName string, ty
 			Name: rpcConfig.Response,
 			Fields: RPCFields{
 				{
-					Name:          "result",
+					Name:          resultFieldName,
 					ProtoTypeName: DataTypeMessage,
 					Repeated:      true,
+					JSONPath:      resultFieldName,
 					Message: &RPCMessage{
 						Name: rpcConfig.RPC + "Result",
 						Fields: RPCFields{
@@ -1462,12 +1474,6 @@ func (r *rpcPlanningContext) createResolverRPCCalls(subgraphName string, resolve
 
 	return calls, nil
 }
-
-const (
-	resultFieldName    = "result"
-	contextFieldName   = "context"
-	fieldArgsFieldName = "field_args"
-)
 
 // newResolveRPCCall creates a new resolve RPC call for a given resolved field.
 func (r *rpcPlanningContext) newResolveRPCCall(config *resolveRPCCallConfig) (RPCCall, error) {

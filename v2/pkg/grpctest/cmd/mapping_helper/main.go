@@ -36,12 +36,20 @@ type OperationMapping struct {
 }
 
 type EntityMapping struct {
-	TypeName string `json:"typeName"`
-	Kind     string `json:"kind"`
-	Key      string `json:"key"`
-	RPC      string `json:"rpc"`
-	Request  string `json:"request"`
-	Response string `json:"response"`
+	TypeName              string                 `json:"typeName"`
+	Kind                  string                 `json:"kind"`
+	Key                   string                 `json:"key"`
+	RPC                   string                 `json:"rpc"`
+	Request               string                 `json:"request"`
+	Response              string                 `json:"response"`
+	RequiredFieldMappings []RequiredFieldMapping `json:"requiredFieldMappings,omitempty"`
+}
+
+type RequiredFieldMapping struct {
+	FieldMapping FieldMapping `json:"fieldMapping"`
+	RPC          string       `json:"rpc"`
+	Request      string       `json:"request"`
+	Response     string       `json:"response"`
 }
 
 type ResolveRPC struct {

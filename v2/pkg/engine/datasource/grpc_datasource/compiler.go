@@ -474,24 +474,20 @@ func (p *RPCCompiler) CompileFetches(graph *DependencyGraph, fetches []FetchItem
 func (p *RPCCompiler) CompileNode(graph *DependencyGraph, fetch FetchItem, inputData gjson.Result) (ServiceCall, error) {
 	call := fetch.Plan
 
-	inputMessage, ok := p.doc.MessageByName(call.Request.Name)
-	if !ok {
-		return ServiceCall{}, fmt.Errorf("input message %s not found in document", call.Request.Name)
-	}
-
 	outputMessage, ok := p.doc.MessageByName(call.Response.Name)
 	if !ok {
 		return ServiceCall{}, fmt.Errorf("output message %s not found in document", call.Response.Name)
 	}
 
-	request, err := p.newEmptyMessage(inputMessage)
+	response, err := p.newEmptyMessage(outputMessage)
 	if err != nil {
 		return ServiceCall{}, err
 	}
 
-	response, err := p.newEmptyMessage(outputMessage)
-	if err != nil {
-		return ServiceCall{}, err
+	var request protoref.Message
+	inputMessage, ok := p.doc.MessageByName(call.Request.Name)
+	if !ok {
+		return ServiceCall{}, fmt.Errorf("input message %s not found in document", call.Request.Name)
 	}
 
 	switch call.Kind {
@@ -508,6 +504,11 @@ func (p *RPCCompiler) CompileNode(graph *DependencyGraph, fetch FetchItem, input
 		}
 
 		request, err = p.buildProtoMessageWithContext(inputMessage, &call.Request, inputData, context)
+		if err != nil {
+			return ServiceCall{}, err
+		}
+	case CallKindRequired:
+		request, err = p.buildRequiredFieldsMessage(inputMessage, &call.Request, inputData)
 		if err != nil {
 			return ServiceCall{}, err
 		}
@@ -592,11 +593,6 @@ func (p *RPCCompiler) buildProtoMessageWithContext(inputMessage Message, rpcMess
 		return nil, fmt.Errorf("context field not found in message %s", rpcMessage.Name)
 	}
 
-	contextField := rootMessage.Descriptor().Fields().ByNumber(protoref.FieldNumber(contextSchemaField.Number))
-	if contextField == nil {
-		return nil, fmt.Errorf("context field not found in message %s", inputMessage.Name)
-	}
-
 	contextList := p.newEmptyListMessageByName(rootMessage, contextSchemaField.Name)
 	contextData := p.resolveContextData(context[0], contextRPCField) // TODO handle multiple contexts (resolver requires another resolver)
 
@@ -630,6 +626,93 @@ func (p *RPCCompiler) buildProtoMessageWithContext(inputMessage Message, rpcMess
 	// Set the args field
 	if err := p.setMessageValue(rootMessage, argsRPCField.Name, protoref.ValueOfMessage(args)); err != nil {
 		return nil, err
+	}
+
+	return rootMessage, nil
+}
+
+// buildRequiredFieldsMessage builds a protobuf message from an RPCMessage definition
+// and JSON data. It handles nested messages and repeated fields.
+//
+// Example:
+//
+//	message RequireWarehouseStockHealthScoreByIdRequest {
+//		// RequireWarehouseStockHealthScoreByIdContext provides the context for the required fields method RequireWarehouseStockHealthScoreById.
+//		repeated RequireWarehouseStockHealthScoreByIdContext context = 1;
+//	}
+//
+//	message RequireWarehouseStockHealthScoreByIdContext {
+//	 	LookupWarehouseByIdRequestKey key = 1;
+//		RequireWarehouseStockHealthScoreByIdFields fields = 2;
+//	}
+func (p *RPCCompiler) buildRequiredFieldsMessage(inputMessage Message, rpcMessage *RPCMessage, data gjson.Result) (protoref.Message, error) {
+	if rpcMessage == nil {
+		return nil, fmt.Errorf("rpc message is nil")
+	}
+
+	if p.doc.MessageRefByName(rpcMessage.Name) == InvalidRef {
+		return nil, fmt.Errorf("message %s not found in document", rpcMessage.Name)
+	}
+
+	rootMessage := dynamicpb.NewMessage(inputMessage.Desc)
+
+	contextSchemaField := inputMessage.GetField("context")
+	if contextSchemaField == nil {
+		return nil, fmt.Errorf("context field not found in message %s", inputMessage.Name)
+	}
+
+	contextRPCField := rpcMessage.Fields.ByName(contextSchemaField.Name)
+	if contextRPCField == nil {
+		return nil, fmt.Errorf("context field not found in message %s", rpcMessage.Name)
+	}
+
+	contextList := p.newEmptyListMessageByName(rootMessage, contextSchemaField.Name)
+	contextFieldMessage := contextRPCField.Message
+
+	if contextFieldMessage == nil {
+		return nil, fmt.Errorf("context field message not found in message %s", inputMessage.Name)
+	}
+
+	keyField := contextFieldMessage.Fields.ByName("key")
+	if keyField == nil {
+		return nil, fmt.Errorf("key field message not found in message %s", contextFieldMessage.Name)
+	}
+
+	keyMessage, ok := p.doc.MessageByName(keyField.Message.Name)
+	if !ok {
+		return nil, fmt.Errorf("message %s not found in document", keyField.Message.Name)
+	}
+
+	requiresSelectionField := contextFieldMessage.Fields.ByName("fields")
+	if requiresSelectionField == nil {
+		return nil, fmt.Errorf("fields field not found in message %s", contextFieldMessage.Name)
+	}
+
+	requiresSelectionMessage, ok := p.doc.MessageByName(requiresSelectionField.Message.Name)
+	if !ok {
+		return nil, fmt.Errorf("message %s not found in document", requiresSelectionField.Message.Name)
+	}
+
+	representations := data.Get("representations").Array()
+	for _, representation := range representations {
+		element := contextList.NewElement()
+		msg := element.Message()
+
+		keyMsg, err := p.buildProtoMessage(keyMessage, keyField.Message, representation)
+		if err != nil {
+			return nil, err
+		}
+
+		reqMsg, err := p.buildProtoMessage(requiresSelectionMessage, requiresSelectionField.Message, representation)
+		if err != nil {
+			return nil, err
+		}
+
+		p.setMessageValue(msg, keyField.Name, protoref.ValueOfMessage(keyMsg))
+		p.setMessageValue(msg, requiresSelectionField.Name, protoref.ValueOfMessage(reqMsg))
+
+		// build fields message
+		contextList.Append(element)
 	}
 
 	return rootMessage, nil

@@ -57,6 +57,7 @@ service ProductService {
   rpc QueryTypeWithMultipleFilterFields(QueryTypeWithMultipleFilterFieldsRequest) returns (QueryTypeWithMultipleFilterFieldsResponse) {}
   rpc QueryUser(QueryUserRequest) returns (QueryUserResponse) {}
   rpc QueryUsers(QueryUsersRequest) returns (QueryUsersResponse) {}
+  rpc RequireStorageStockHealthScoreById(RequireStorageStockHealthScoreByIdRequest) returns (RequireStorageStockHealthScoreByIdResponse) {}
   rpc RequireWarehouseStockHealthScoreById(RequireWarehouseStockHealthScoreByIdRequest) returns (RequireWarehouseStockHealthScoreByIdResponse) {}
   rpc ResolveCategoryCategoryMetrics(ResolveCategoryCategoryMetricsRequest) returns (ResolveCategoryCategoryMetricsResponse) {}
   rpc ResolveCategoryCategoryStatus(ResolveCategoryCategoryStatusRequest) returns (ResolveCategoryCategoryStatusResponse) {}
@@ -971,6 +972,34 @@ message ResolveTestContainerDetailsResponse {
   repeated ResolveTestContainerDetailsResult result = 1;
 }
 
+message RequireStorageStockHealthScoreByIdRequest {
+  // RequireStorageStockHealthScoreByIdContext provides the context for the required fields method RequireStorageStockHealthScoreById.
+  repeated RequireStorageStockHealthScoreByIdContext context = 1;
+}
+
+message RequireStorageStockHealthScoreByIdContext {
+  LookupStorageByIdRequestKey key = 1;
+  RequireStorageStockHealthScoreByIdFields fields = 2;
+}
+
+message RequireStorageStockHealthScoreByIdResponse {
+  // RequireStorageStockHealthScoreByIdResult provides the result for the required fields method RequireStorageStockHealthScoreById.
+  repeated RequireStorageStockHealthScoreByIdResult result = 1;
+}
+
+message RequireStorageStockHealthScoreByIdResult {
+  double stock_health_score = 1;
+}
+
+message RequireStorageStockHealthScoreByIdFields {
+  message RestockData {
+    string last_restock_date = 1;
+  }
+
+  int32 item_count = 1;
+  RestockData restock_data = 2;
+}
+
 message RequireWarehouseStockHealthScoreByIdRequest {
   // RequireWarehouseStockHealthScoreByIdContext provides the context for the required fields method RequireWarehouseStockHealthScoreById.
   repeated RequireWarehouseStockHealthScoreByIdContext context = 1;
@@ -1285,13 +1314,6 @@ message Subcategory {
   string name = 2;
   google.protobuf.StringValue description = 3;
   bool is_active = 4;
-}
-
-message _GraphqlOperationOptions {
-  // This could be either "query", "mutation", or "subscription".
-  string operation_type = 1;
-  // The name of the GraphQL operation.
-  string graphql_operation_name = 3;
 }
 
 message CategoryMetrics {

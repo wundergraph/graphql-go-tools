@@ -475,7 +475,7 @@ func (r *rpcPlanVisitorFederation) resolveEntityInformation(inlineFragmentRef in
 // It also adds the results message to the current response message.
 func (r *rpcPlanVisitorFederation) scaffoldEntityLookup(typeName string, ecd entityConfigData) {
 	keyFieldMessage := &RPCMessage{
-		Name: r.currentCall.MethodName + "Key",
+		Name: r.currentCall.Request.Name + "Key",
 	}
 
 	walker := astvisitor.WalkerFromPool()
@@ -531,12 +531,6 @@ type entityInfo struct {
 	entityInlineFragmentRef int
 }
 
-type requiredFieldData struct {
-	typeName     string
-	fieldName    string
-	selectionSet string
-}
-
 type entityConfig map[string]entityConfigData
 
 type entityConfigData struct {
@@ -562,16 +556,6 @@ func (e entityConfig) setEntityKeyMessage(typeName string, message *RPCMessage) 
 func (e entityConfig) getEntity(typeName string) (entityConfigData, bool) {
 	data, ok := e[typeName]
 	return data, ok
-}
-
-func (e entityConfig) setRequiredField(typeName, fieldName, selectionSet string) {
-	if _, ok := e[typeName]; !ok {
-		e[typeName] = entityConfigData{
-			requiredFields: make(map[string]string),
-		}
-	}
-
-	e[typeName].requiredFields[fieldName] = selectionSet
 }
 
 func parseFederationConfigData(federationConfigs plan.FederationFieldConfigurations) entityConfig {

@@ -21,6 +21,9 @@ type Storage @key(fields: "id") {
   id: ID!
   name: String!
   location: String!
+  itemCount: Int! @external
+  restockData: RestockData! @external
+  stockHealthScore: Float! @requires(fields: "itemCount restockData { lastRestockDate }")
 }
 
 type Warehouse @key(fields: "id") {

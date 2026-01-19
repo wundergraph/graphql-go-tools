@@ -74,6 +74,20 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 						Request:  "{{$entity.Request}}",
 						Response: "{{$entity.Response}}",
 					},
+					{{- if $entity.RequiredFieldMappings}}
+					RequiredFields: grpcdatasource.RequiredFieldsRPCMapping{
+						{{- range $idx, $required := $entity.RequiredFieldMappings}}
+						"{{$required.FieldMapping.Original}}": {
+							TargetName: "{{$required.FieldMapping.Mapped}}",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "{{$required.RPC}}",
+								Request:  "{{$required.Request}}",
+								Response: "{{$required.Response}}",
+							},
+						},
+						{{- end}}
+					},
+					{{- end}}
 				},
 			},
 		{{- end }}

@@ -66,6 +66,7 @@ const (
 	ProductService_QueryTypeWithMultipleFilterFields_FullMethodName     = "/productv1.ProductService/QueryTypeWithMultipleFilterFields"
 	ProductService_QueryUser_FullMethodName                             = "/productv1.ProductService/QueryUser"
 	ProductService_QueryUsers_FullMethodName                            = "/productv1.ProductService/QueryUsers"
+	ProductService_RequireStorageStockHealthScoreById_FullMethodName    = "/productv1.ProductService/RequireStorageStockHealthScoreById"
 	ProductService_RequireWarehouseStockHealthScoreById_FullMethodName  = "/productv1.ProductService/RequireWarehouseStockHealthScoreById"
 	ProductService_ResolveCategoryCategoryMetrics_FullMethodName        = "/productv1.ProductService/ResolveCategoryCategoryMetrics"
 	ProductService_ResolveCategoryCategoryStatus_FullMethodName         = "/productv1.ProductService/ResolveCategoryCategoryStatus"
@@ -138,6 +139,7 @@ type ProductServiceClient interface {
 	QueryTypeWithMultipleFilterFields(ctx context.Context, in *QueryTypeWithMultipleFilterFieldsRequest, opts ...grpc.CallOption) (*QueryTypeWithMultipleFilterFieldsResponse, error)
 	QueryUser(ctx context.Context, in *QueryUserRequest, opts ...grpc.CallOption) (*QueryUserResponse, error)
 	QueryUsers(ctx context.Context, in *QueryUsersRequest, opts ...grpc.CallOption) (*QueryUsersResponse, error)
+	RequireStorageStockHealthScoreById(ctx context.Context, in *RequireStorageStockHealthScoreByIdRequest, opts ...grpc.CallOption) (*RequireStorageStockHealthScoreByIdResponse, error)
 	RequireWarehouseStockHealthScoreById(ctx context.Context, in *RequireWarehouseStockHealthScoreByIdRequest, opts ...grpc.CallOption) (*RequireWarehouseStockHealthScoreByIdResponse, error)
 	ResolveCategoryCategoryMetrics(ctx context.Context, in *ResolveCategoryCategoryMetricsRequest, opts ...grpc.CallOption) (*ResolveCategoryCategoryMetricsResponse, error)
 	ResolveCategoryCategoryStatus(ctx context.Context, in *ResolveCategoryCategoryStatusRequest, opts ...grpc.CallOption) (*ResolveCategoryCategoryStatusResponse, error)
@@ -632,6 +634,16 @@ func (c *productServiceClient) QueryUsers(ctx context.Context, in *QueryUsersReq
 	return out, nil
 }
 
+func (c *productServiceClient) RequireStorageStockHealthScoreById(ctx context.Context, in *RequireStorageStockHealthScoreByIdRequest, opts ...grpc.CallOption) (*RequireStorageStockHealthScoreByIdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequireStorageStockHealthScoreByIdResponse)
+	err := c.cc.Invoke(ctx, ProductService_RequireStorageStockHealthScoreById_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *productServiceClient) RequireWarehouseStockHealthScoreById(ctx context.Context, in *RequireWarehouseStockHealthScoreByIdRequest, opts ...grpc.CallOption) (*RequireWarehouseStockHealthScoreByIdResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RequireWarehouseStockHealthScoreByIdResponse)
@@ -828,6 +840,7 @@ type ProductServiceServer interface {
 	QueryTypeWithMultipleFilterFields(context.Context, *QueryTypeWithMultipleFilterFieldsRequest) (*QueryTypeWithMultipleFilterFieldsResponse, error)
 	QueryUser(context.Context, *QueryUserRequest) (*QueryUserResponse, error)
 	QueryUsers(context.Context, *QueryUsersRequest) (*QueryUsersResponse, error)
+	RequireStorageStockHealthScoreById(context.Context, *RequireStorageStockHealthScoreByIdRequest) (*RequireStorageStockHealthScoreByIdResponse, error)
 	RequireWarehouseStockHealthScoreById(context.Context, *RequireWarehouseStockHealthScoreByIdRequest) (*RequireWarehouseStockHealthScoreByIdResponse, error)
 	ResolveCategoryCategoryMetrics(context.Context, *ResolveCategoryCategoryMetricsRequest) (*ResolveCategoryCategoryMetricsResponse, error)
 	ResolveCategoryCategoryStatus(context.Context, *ResolveCategoryCategoryStatusRequest) (*ResolveCategoryCategoryStatusResponse, error)
@@ -992,6 +1005,9 @@ func (UnimplementedProductServiceServer) QueryUser(context.Context, *QueryUserRe
 }
 func (UnimplementedProductServiceServer) QueryUsers(context.Context, *QueryUsersRequest) (*QueryUsersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method QueryUsers not implemented")
+}
+func (UnimplementedProductServiceServer) RequireStorageStockHealthScoreById(context.Context, *RequireStorageStockHealthScoreByIdRequest) (*RequireStorageStockHealthScoreByIdResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequireStorageStockHealthScoreById not implemented")
 }
 func (UnimplementedProductServiceServer) RequireWarehouseStockHealthScoreById(context.Context, *RequireWarehouseStockHealthScoreByIdRequest) (*RequireWarehouseStockHealthScoreByIdResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RequireWarehouseStockHealthScoreById not implemented")
@@ -1902,6 +1918,24 @@ func _ProductService_QueryUsers_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_RequireStorageStockHealthScoreById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequireStorageStockHealthScoreByIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).RequireStorageStockHealthScoreById(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_RequireStorageStockHealthScoreById_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).RequireStorageStockHealthScoreById(ctx, req.(*RequireStorageStockHealthScoreByIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProductService_RequireWarehouseStockHealthScoreById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RequireWarehouseStockHealthScoreByIdRequest)
 	if err := dec(in); err != nil {
@@ -2348,6 +2382,10 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "QueryUsers",
 			Handler:    _ProductService_QueryUsers_Handler,
+		},
+		{
+			MethodName: "RequireStorageStockHealthScoreById",
+			Handler:    _ProductService_RequireStorageStockHealthScoreById_Handler,
 		},
 		{
 			MethodName: "RequireWarehouseStockHealthScoreById",

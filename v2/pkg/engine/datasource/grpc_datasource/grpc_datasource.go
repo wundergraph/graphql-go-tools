@@ -152,7 +152,7 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 
 		for _, result := range results {
 			switch result.kind {
-			case CallKindResolve:
+			case CallKindResolve, CallKindRequired:
 				err = builder.mergeWithPath(root, result.response, result.responsePath)
 			default:
 				root, err = builder.mergeValues(root, result.response)
