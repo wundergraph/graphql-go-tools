@@ -59,6 +59,7 @@ service ProductService {
   rpc QueryUsers(QueryUsersRequest) returns (QueryUsersResponse) {}
   rpc ResolveCategoryCategoryMetrics(ResolveCategoryCategoryMetricsRequest) returns (ResolveCategoryCategoryMetricsResponse) {}
   rpc ResolveCategoryCategoryStatus(ResolveCategoryCategoryStatusRequest) returns (ResolveCategoryCategoryStatusResponse) {}
+  rpc ResolveCategoryChildCategories(ResolveCategoryChildCategoriesRequest) returns (ResolveCategoryChildCategoriesResponse) {}
   rpc ResolveCategoryMascot(ResolveCategoryMascotRequest) returns (ResolveCategoryMascotResponse) {}
   rpc ResolveCategoryMetricsNormalizedScore(ResolveCategoryMetricsNormalizedScoreRequest) returns (ResolveCategoryMetricsNormalizedScoreResponse) {}
   rpc ResolveCategoryPopularityScore(ResolveCategoryPopularityScoreRequest) returns (ResolveCategoryPopularityScoreResponse) {}
@@ -896,6 +897,30 @@ message ResolveCategoryCategoryStatusResult {
 
 message ResolveCategoryCategoryStatusResponse {
   repeated ResolveCategoryCategoryStatusResult result = 1;
+}
+
+message ResolveCategoryChildCategoriesArgs {
+  google.protobuf.BoolValue include = 1;
+}
+
+message ResolveCategoryChildCategoriesContext {
+  string id = 1;
+  string name = 2;
+}
+
+message ResolveCategoryChildCategoriesRequest {
+  // context provides the resolver context for the field childCategories of type Category.
+  repeated ResolveCategoryChildCategoriesContext context = 1;
+  // field_args provides the arguments for the resolver field childCategories of type Category.
+  ResolveCategoryChildCategoriesArgs field_args = 2;
+}
+
+message ResolveCategoryChildCategoriesResult {
+  repeated Category child_categories = 1;
+}
+
+message ResolveCategoryChildCategoriesResponse {
+  repeated ResolveCategoryChildCategoriesResult result = 1;
 }
 
 message ResolveSubcategoryItemCountArgs {

@@ -4582,6 +4582,51 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 				require.Empty(t, errData)
 			},
 		},
+		{
+			name:  "Query with recursive child categories field resolver",
+			query: "query CategoriesWithRecursiveChildCategoriesFieldResolver { categories { id name kind childCategories { id name kind childCategories { id name kind } } } }",
+			vars:  `{"variables":{}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.NotEmpty(t, categories, "categories should not be empty")
+				require.Len(t, categories, 4, "Should return 4 categories")
+
+				// Traverse child categories recursively until no more children found
+				currentLevel := categories
+				depth := 0
+
+				for {
+					var nextChildren []interface{}
+
+					for _, cat := range currentLevel {
+						category, ok := cat.(map[string]interface{})
+						require.True(t, ok, "category at depth %d should be an object", depth)
+						require.NotEmpty(t, category["id"], "category id at depth %d should not be empty", depth)
+						require.NotEmpty(t, category["name"], "category name at depth %d should not be empty", depth)
+						require.NotEmpty(t, category["kind"], "category kind at depth %d should not be empty", depth)
+
+						if children, ok := category["childCategories"].([]interface{}); ok {
+							nextChildren = append(nextChildren, children...)
+						}
+					}
+
+					if len(nextChildren) == 0 {
+						break
+					}
+
+					depth++
+					currentLevel = nextChildren
+				}
+
+				require.Equal(t, 2, depth, "expected 2 levels of child categories")
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
 	}
 
 	for _, tc := range testCases {

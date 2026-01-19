@@ -292,6 +292,17 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					Request:  "ResolveCategoryCategoryStatusRequest",
 					Response: "ResolveCategoryCategoryStatusResponse",
 				},
+				"childCategories": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName: "child_categories",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{
+							"include": "include",
+						},
+					},
+					RPC:      "ResolveCategoryChildCategories",
+					Request:  "ResolveCategoryChildCategoriesRequest",
+					Response: "ResolveCategoryChildCategoriesResponse",
+				},
 			},
 			"CategoryMetrics": {
 				"normalizedScore": {
@@ -945,6 +956,12 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					TargetName: "category_status",
 					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"checkHealth": "check_health",
+					},
+				},
+				"childCategories": {
+					TargetName: "child_categories",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"include": "include",
 					},
 				},
 			},

@@ -590,6 +590,35 @@ func (s *MockService) ResolveCategoryCategoryStatus(_ context.Context, req *prod
 	return resp, nil
 }
 
+// ResolveCategoryChildCategories implements [productv1.ProductServiceServer].
+func (s *MockService) ResolveCategoryChildCategories(_ context.Context, req *productv1.ResolveCategoryChildCategoriesRequest) (*productv1.ResolveCategoryChildCategoriesResponse, error) {
+	results := make([]*productv1.ResolveCategoryChildCategoriesResult, len(req.GetContext()))
+
+	for i, ctx := range req.GetContext() {
+		results[i] = &productv1.ResolveCategoryChildCategoriesResult{
+			ChildCategories: []*productv1.Category{
+				{
+					Id:   fmt.Sprintf("child-category-%s-%d", ctx.GetId(), i),
+					Name: fmt.Sprintf("Child Category %s %d", ctx.GetName(), i),
+					Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER,
+				},
+				{
+					Id:   fmt.Sprintf("child-category-%s-%d", ctx.GetId(), i+1),
+					Name: fmt.Sprintf("Child Category %s %d", ctx.GetName(), i+1),
+					Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER,
+				},
+			},
+		}
+	}
+
+	resp := &productv1.ResolveCategoryChildCategoriesResponse{
+		Result: results,
+	}
+
+	return resp, nil
+
+}
+
 // ResolveProductRecommendedCategory implements productv1.ProductServiceServer.
 func (s *MockService) ResolveProductRecommendedCategory(_ context.Context, req *productv1.ResolveProductRecommendedCategoryRequest) (*productv1.ResolveProductRecommendedCategoryResponse, error) {
 	results := make([]*productv1.ResolveProductRecommendedCategoryResult, 0, len(req.GetContext()))
