@@ -55,6 +55,8 @@ func (v *StaticCostVisitor) EnterField(fieldRef int) {
 
 	fieldDefinitionRef, ok := v.Walker.FieldDefinition(fieldRef)
 	if !ok {
+		// Push the sentinel node, so the LeaveField would pop the stack correctly.
+		v.stack = append(v.stack, &CostTreeNode{fieldRef: fieldRef})
 		return
 	}
 	fieldDefinitionTypeRef := v.Definition.FieldDefinitionType(fieldDefinitionRef)
@@ -107,7 +109,6 @@ func (v *StaticCostVisitor) EnterField(fieldRef int) {
 	}
 
 	v.stack = append(v.stack, &node)
-
 }
 
 // LeaveField fills DataSource hashes for the current node and pop it from the cost stack.
