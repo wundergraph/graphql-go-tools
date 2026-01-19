@@ -1,8 +1,6 @@
 package plan
 
 import (
-	"fmt"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 )
@@ -203,10 +201,6 @@ func (v *StaticCostVisitor) extractFieldArguments(fieldRef int) map[string]Argum
 			// TODO: we need to analyze variables that contains input object fields.
 			// If these fields has weight attached, use them for calculation.
 			// Variables are not inlined at this stage, so we need to inspect them via AST.
-
-		default:
-			fmt.Printf("WARNING: unhandled argument type: %v\n", argValue.Kind)
-			continue
 		}
 
 		arguments[argName] = argInfo
