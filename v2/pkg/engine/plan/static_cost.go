@@ -435,29 +435,21 @@ type ArgumentInfo struct {
 
 // CostCalculator manages cost calculation during AST traversal
 type CostCalculator struct {
-	// stack maintains the current path in the cost tree
-	stack []*CostTreeNode
-
-	// tree is the complete cost tree being built
+	// tree points to the root of the complete cost tree.
 	tree *CostTreeNode
 
 	// costConfigs maps data source hash to its cost configuration
 	costConfigs map[DSHash]*DataSourceCostConfig
-	variables   *astjson.Value
+
+	// variables are passed by the resolver's context.
+	variables *astjson.Value
 }
 
 // NewCostCalculator creates a new cost calculator
 func NewCostCalculator() *CostCalculator {
 	c := CostCalculator{
-		stack:       make([]*CostTreeNode, 0, 16),
 		costConfigs: make(map[DSHash]*DataSourceCostConfig),
-		tree: &CostTreeNode{
-			fieldCoord: FieldCoordinate{"_none", "_root"},
-			multiplier: 1,
-		},
 	}
-	c.stack = append(c.stack, c.tree)
-
 	return &c
 }
 
@@ -466,37 +458,8 @@ func (c *CostCalculator) SetDataSourceCostConfig(dsHash DSHash, config *DataSour
 	c.costConfigs[dsHash] = config
 }
 
-// EnterField is called when entering a field during AST traversal.
-// It creates a skeleton node and pushes it onto the stack.
-// The actual cost calculation happens in LeaveField when fieldPlanners data is available.
-func (c *CostCalculator) EnterField(node *CostTreeNode) {
-	// Attach to parent
-	if len(c.stack) > 0 {
-		parent := c.stack[len(c.stack)-1]
-		parent.children = append(parent.children, node)
-	}
-
-	c.stack = append(c.stack, node)
-}
-
-// LeaveField calculates the cose of the current node and pop from the cost stack.
-// It is called when leaving a field during planning.
-func (c *CostCalculator) LeaveField(fieldRef int, dsHashes []DSHash) {
-	if len(c.stack) <= 1 { // Keep root on stack
-		return
-	}
-
-	// Find the current node (should match fieldRef)
-	lastIndex := len(c.stack) - 1
-	current := c.stack[lastIndex]
-	if current.fieldRef != fieldRef {
-		return
-	}
-
-	current.dataSourceHashes = dsHashes
-	current.parent = c.stack[lastIndex-1]
-
-	c.stack = c.stack[:lastIndex]
+func (c *CostCalculator) SetVariables(variables *astjson.Value) {
+	c.variables = variables
 }
 
 // GetTotalCost returns the calculated total cost.
@@ -504,6 +467,3 @@ func (c *CostCalculator) GetTotalCost() int {
 	return c.tree.totalCost(c.costConfigs, c.variables)
 }
 
-func (c *CostCalculator) SetVariables(variables *astjson.Value) {
-	c.variables = variables
-}

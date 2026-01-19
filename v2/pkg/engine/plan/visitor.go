@@ -39,7 +39,7 @@ type Visitor struct {
 	response                     *resolve.GraphQLResponse
 	subscription                 *resolve.GraphQLSubscription
 	OperationName                string
-	operationDefinition          int
+	operationDefinitionRef       int
 	objects                      []*resolve.Object
 	currentFields                []objectFields
 	currentField                 *resolve.Field
@@ -57,20 +57,15 @@ type Visitor struct {
 	pathCache                    map[astvisitor.VisitorKind]map[int]string
 
 	// plannerFields maps plannerID to fieldRefs planned on this planner.
-	// It is available just before the LeaveField.
+	// Values added in AllowVisitor callback which is fired before calling LeaveField
 	plannerFields map[int][]int
 
 	// fieldPlanners maps fieldRef to the plannerIDs where it was planned on.
-	// It is available just before the LeaveField.
+	// Values added in AllowVisitor callback which is fired before calling LeaveField
 	fieldPlanners map[int][]int
 
 	// fieldEnclosingTypeNames maps fieldRef to the enclosing type name.
 	fieldEnclosingTypeNames map[int]string
-
-	// costCalculator performs static cost analysis during AST traversal. Visitor calls
-	// enter/leave field hooks to let the calculator build the cost tree. Cost is calculated
-	// after actual planning.
-	costCalculator *CostCalculator
 }
 
 type indirectInterfaceField struct {
@@ -139,6 +134,10 @@ type objectFields struct {
 func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any, skipFor astvisitor.SkipVisitors) bool {
 	if visitor == v {
 		// main planner visitor should always be allowed
+		return true
+	}
+	if _, isCostVisitor := visitor.(*StaticCostVisitor); isCostVisitor {
+		// cost tree visitor should always be allowed
 		return true
 	}
 	var (
@@ -406,9 +405,6 @@ func (v *Visitor) EnterField(ref int) {
 	*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
 
 	v.mapFieldConfig(ref)
-
-	// Enter cost calculation for this field (skeleton node, actual costs calculated in LeaveField)
-	v.enterFieldCost(ref)
 }
 
 func (v *Visitor) mapFieldConfig(ref int) {
@@ -419,155 +415,6 @@ func (v *Visitor) mapFieldConfig(ref int) {
 		return
 	}
 	v.fieldConfigs[ref] = fieldConfig
-}
-
-// enterFieldCost creates a skeleton cost node when entering a field.
-// Actual cost calculation is deferred to leaveFieldCost when fieldPlanners data is available.
-func (v *Visitor) enterFieldCost(fieldRef int) {
-	if v.costCalculator == nil {
-		return
-	}
-
-	typeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
-	fieldName := v.Operation.FieldNameUnsafeString(fieldRef)
-
-	fieldDefinition, ok := v.Walker.FieldDefinition(fieldRef)
-	if !ok {
-		return
-	}
-	fieldDefinitionTypeRef := v.Definition.FieldDefinitionType(fieldDefinition)
-	isListType := v.Definition.TypeIsList(fieldDefinitionTypeRef)
-	isSimpleType := v.Definition.TypeIsEnum(fieldDefinitionTypeRef, v.Definition) || v.Definition.TypeIsScalar(fieldDefinitionTypeRef, v.Definition)
-	unwrappedTypeName := v.Definition.ResolveTypeNameString(fieldDefinitionTypeRef)
-
-	arguments := v.extractFieldArguments(fieldRef)
-
-	// Check and push through if the unwrapped type of this field is interface or union.
-	unwrappedTypeNode, exists := v.Definition.NodeByNameStr(unwrappedTypeName)
-	var implementingTypeNames []string
-	var isAbstractType bool
-	if exists {
-		if unwrappedTypeNode.Kind == ast.NodeKindInterfaceTypeDefinition {
-			impl, ok := v.Definition.InterfaceTypeDefinitionImplementedByObjectWithNames(unwrappedTypeNode.Ref)
-			if ok {
-				implementingTypeNames = append(implementingTypeNames, impl...)
-				isAbstractType = true
-			}
-		}
-		if unwrappedTypeNode.Kind == ast.NodeKindUnionTypeDefinition {
-			impl, ok := v.Definition.UnionTypeDefinitionMemberTypeNames(unwrappedTypeNode.Ref)
-			if ok {
-				implementingTypeNames = append(implementingTypeNames, impl...)
-				isAbstractType = true
-			}
-		}
-	}
-
-	isEnclosingTypeAbstract := v.Walker.EnclosingTypeDefinition.Kind.IsAbstractType()
-	// Create a skeleton node. dataSourceHashes will be filled in leaveFieldCost
-	node := CostTreeNode{
-		fieldRef:                fieldRef,
-		fieldCoord:              FieldCoordinate{typeName, fieldName},
-		multiplier:              1,
-		fieldTypeName:           unwrappedTypeName,
-		implementingTypeNames:   implementingTypeNames,
-		returnsListType:         isListType,
-		returnsSimpleType:       isSimpleType,
-		returnsAbstractType:     isAbstractType,
-		isEnclosingTypeAbstract: isEnclosingTypeAbstract,
-		arguments:               arguments,
-	}
-	v.costCalculator.EnterField(&node)
-}
-
-// getFieldDataSourceHashes returns all data source hashes for the field.
-// A field can be planned on multiple data sources in federation scenarios.
-func (v *Visitor) getFieldDataSourceHashes(fieldRef int) []DSHash {
-	plannerIDs, ok := v.fieldPlanners[fieldRef]
-	if !ok || len(plannerIDs) == 0 {
-		return nil
-	}
-
-	dsHashes := make([]DSHash, 0, len(plannerIDs))
-	for _, plannerID := range plannerIDs {
-		if plannerID >= 0 && plannerID < len(v.planners) {
-			dsHash := v.planners[plannerID].DataSourceConfiguration().Hash()
-			dsHashes = append(dsHashes, dsHash)
-		}
-	}
-	return dsHashes
-}
-
-// extractFieldArguments extracts arguments from a field for cost calculation
-// This implementation does not go deep for input objects yet.
-// It should return unwrapped type names for arguments and that is it for now.
-func (v *Visitor) extractFieldArguments(fieldRef int) map[string]ArgumentInfo {
-	argRefs := v.Operation.FieldArguments(fieldRef)
-	if len(argRefs) == 0 {
-		return nil
-	}
-
-	arguments := make(map[string]ArgumentInfo, len(argRefs))
-	for _, argRef := range argRefs {
-		argName := v.Operation.ArgumentNameString(argRef)
-		argValue := v.Operation.ArgumentValue(argRef)
-		argInfo := ArgumentInfo{}
-
-		switch argValue.Kind {
-		// case ast.ValueKindBoolean, ast.ValueKindEnum, ast.ValueKindString, ast.ValueKindFloat:
-		// 	argInfo.isSimple = true
-		// 	argInfo.typeName = v.Operation.TypeNameString(argValue.Ref)
-		// case ast.ValueKindInteger:
-		// 	// Extract integer value if present (for arguments in directives)
-		// 	argInfo.isSimple = true
-		// 	argInfo.typeName = v.Operation.TypeNameString(argValue.Ref)
-		// 	argInfo.intValue = int(v.Operation.IntValueAsInt(argValue.Ref))
-		case ast.ValueKindVariable:
-			variableValue := v.Operation.VariableValueNameString(argValue.Ref)
-			if !v.Operation.OperationDefinitionHasVariableDefinition(v.operationDefinition, variableValue) {
-				continue // omit optional argument when the variable is not defined
-			}
-
-			// We cannot read values of variables from the context here. Save it for later.
-			argInfo.hasVariable = true
-			argInfo.varName = variableValue
-
-			variableDefinition, exists := v.Operation.VariableDefinitionByNameAndOperation(v.operationDefinition, v.Operation.VariableValueNameBytes(argValue.Ref))
-			if !exists {
-				continue
-			}
-			variableTypeRef := v.Operation.VariableDefinitions[variableDefinition].Type
-			unwrappedVarTypeRef := v.Operation.ResolveUnderlyingType(variableTypeRef)
-			argInfo.typeName = v.Operation.TypeNameString(unwrappedVarTypeRef)
-			node, exists := v.Definition.NodeByNameStr(argInfo.typeName)
-			if !exists {
-				continue
-			}
-
-			// fmt.Printf("variableTypeRef = %v unwrappedVarTypeRef = %v typeName = %v nodeKind = %v varVal = %v\n", variableTypeRef, unwrappedVarTypeRef, argInfo.typeName, node.Kind, variableValue)
-
-			// Analyze the node to see what kind of variable was passed.
-			switch node.Kind {
-			case ast.NodeKindScalarTypeDefinition, ast.NodeKindEnumTypeDefinition:
-				argInfo.isSimple = true
-			case ast.NodeKindInputObjectTypeDefinition:
-				argInfo.isInputObject = true
-
-			}
-
-			// TODO: we need to analyze variables that contains input object fields.
-			// If these fields has weight attached, use them for calculation.
-			// Variables are not inlined at this stage, so we need to inspect them via AST.
-
-		default:
-			fmt.Printf("WARNING: unhandled argument type: %v\n", argValue.Kind)
-			continue
-		}
-
-		arguments[argName] = argInfo
-	}
-
-	return arguments
 }
 
 func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *resolve.FieldInfo {
@@ -779,19 +626,14 @@ func (v *Visitor) LeaveField(fieldRef int) {
 		return
 	}
 
-	// This is done in LeaveField because fieldPlanners become available before LeaveField.
-	if v.costCalculator != nil {
-		v.costCalculator.LeaveField(fieldRef, v.getFieldDataSourceHashes(fieldRef))
-	}
-
 	if v.currentFields[len(v.currentFields)-1].popOnField == fieldRef {
 		v.currentFields = v.currentFields[:len(v.currentFields)-1]
 	}
-	fieldDefinition, ok := v.Walker.FieldDefinition(fieldRef)
+	fieldDefinitionRef, ok := v.Walker.FieldDefinition(fieldRef)
 	if !ok {
 		return
 	}
-	fieldDefinitionTypeNode := v.Definition.FieldDefinitionTypeNode(fieldDefinition)
+	fieldDefinitionTypeNode := v.Definition.FieldDefinitionTypeNode(fieldDefinitionRef)
 	switch fieldDefinitionTypeNode.Kind {
 	case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
 		v.objects = v.objects[:len(v.objects)-1]
@@ -1133,14 +975,14 @@ func (v *Visitor) valueRequiresExportedVariable(value ast.Value) bool {
 	}
 }
 
-func (v *Visitor) EnterOperationDefinition(ref int) {
-	operationName := v.Operation.OperationDefinitionNameString(ref)
+func (v *Visitor) EnterOperationDefinition(opRef int) {
+	operationName := v.Operation.OperationDefinitionNameString(opRef)
 	if v.OperationName != operationName {
 		v.Walker.SkipNode()
 		return
 	}
 
-	v.operationDefinition = ref
+	v.operationDefinitionRef = opRef
 
 	rootObject := &resolve.Object{
 		Fields: []*resolve.Field{},
@@ -1173,16 +1015,14 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 			Response: v.response,
 		}
 		v.plan = &SubscriptionResponsePlan{
-			FlushInterval:        v.Config.DefaultFlushIntervalMillis,
-			Response:             v.subscription,
-			StaticCostCalculator: v.costCalculator,
+			FlushInterval: v.Config.DefaultFlushIntervalMillis,
+			Response:      v.subscription,
 		}
 		return
 	}
 
 	v.plan = &SynchronousResponsePlan{
-		Response:             v.response,
-		StaticCostCalculator: v.costCalculator,
+		Response: v.response,
 	}
 }
 
@@ -1334,10 +1174,10 @@ func (v *Visitor) resolveInputTemplates(config *objectFetchConfiguration, input 
 				return v.renderJSONValueTemplate(value, variables, inputValueDefinition)
 			}
 			variableValue := v.Operation.VariableValueNameString(value.Ref)
-			if !v.Operation.OperationDefinitionHasVariableDefinition(v.operationDefinition, variableValue) {
+			if !v.Operation.OperationDefinitionHasVariableDefinition(v.operationDefinitionRef, variableValue) {
 				break // omit optional argument when variable is not defined
 			}
-			variableDefinition, exists := v.Operation.VariableDefinitionByNameAndOperation(v.operationDefinition, v.Operation.VariableValueNameBytes(value.Ref))
+			variableDefinition, exists := v.Operation.VariableDefinitionByNameAndOperation(v.operationDefinitionRef, v.Operation.VariableValueNameBytes(value.Ref))
 			if !exists {
 				break
 			}

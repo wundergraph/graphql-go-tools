@@ -18,6 +18,7 @@ type Planner struct {
 
 	planningWalker  *astvisitor.Walker
 	planningVisitor *Visitor
+	costVisitor     *StaticCostVisitor
 
 	nodeSelectionBuilder *NodeSelectionBuilder
 	planningPathBuilder  *PathBuilder
@@ -149,17 +150,6 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	p.planningVisitor.fieldDependencyKind = selectionsConfig.fieldDependencyKind
 	p.planningVisitor.fieldRefDependants = inverseMap(selectionsConfig.fieldRefDependsOn)
 
-	// Initialize cost calculator and configure from data sources
-	if p.config.ComputeStaticCost {
-		calc := NewCostCalculator()
-		for _, ds := range p.config.DataSources {
-			if costConfig := ds.GetCostConfig(); costConfig != nil {
-				calc.SetDataSourceCostConfig(ds.Hash(), costConfig)
-			}
-		}
-		p.planningVisitor.costCalculator = calc
-	}
-
 	p.planningWalker.ResetVisitors()
 	p.planningWalker.SetVisitorFilter(p.planningVisitor)
 	p.planningWalker.RegisterDocumentVisitor(p.planningVisitor)
@@ -168,6 +158,17 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	p.planningWalker.RegisterSelectionSetVisitor(p.planningVisitor)
 	p.planningWalker.RegisterEnterDirectiveVisitor(p.planningVisitor)
 	p.planningWalker.RegisterInlineFragmentVisitor(p.planningVisitor)
+
+	// Register cost visitor on the same walker (will be invoked after planningVisitor hooks)
+	if p.config.ComputeStaticCost {
+		p.costVisitor = NewStaticCostVisitor(p.planningWalker, operation, definition)
+		p.costVisitor.planners = plannersConfigurations
+		p.costVisitor.fieldPlanners = &p.planningVisitor.fieldPlanners
+		p.costVisitor.operationDefinition = &p.planningVisitor.operationDefinitionRef
+
+		p.planningWalker.RegisterEnterFieldVisitor(p.costVisitor)
+		p.planningWalker.RegisterLeaveFieldVisitor(p.costVisitor)
+	}
 
 	for key := range p.planningVisitor.planners {
 		if p.config.MinifySubgraphOperations {
@@ -203,6 +204,20 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	p.planningWalker.Walk(operation, definition, report)
 	if report.HasErrors() {
 		return
+	}
+
+	if p.config.ComputeStaticCost {
+		// Initialize cost calculator and configure from data sources
+		costCalc := NewCostCalculator()
+		for _, ds := range p.config.DataSources {
+			if costConfig := ds.GetCostConfig(); costConfig != nil {
+				costCalc.SetDataSourceCostConfig(ds.Hash(), costConfig)
+			}
+		}
+		// The root tree pointing to the costTreeNode is the ultimate result of costVisitor.
+		// Store is as part of this plan for later, should be part of the cached plan too.
+		costCalc.tree = p.costVisitor.finalCostTree()
+		p.planningVisitor.plan.SetStaticCostCalculator(costCalc)
 	}
 
 	return p.planningVisitor.plan
