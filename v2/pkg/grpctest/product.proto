@@ -62,6 +62,7 @@ service ProductService {
   rpc ResolveCategoryChildCategories(ResolveCategoryChildCategoriesRequest) returns (ResolveCategoryChildCategoriesResponse) {}
   rpc ResolveCategoryMascot(ResolveCategoryMascotRequest) returns (ResolveCategoryMascotResponse) {}
   rpc ResolveCategoryMetricsNormalizedScore(ResolveCategoryMetricsNormalizedScoreRequest) returns (ResolveCategoryMetricsNormalizedScoreResponse) {}
+  rpc ResolveCategoryOptionalCategories(ResolveCategoryOptionalCategoriesRequest) returns (ResolveCategoryOptionalCategoriesResponse) {}
   rpc ResolveCategoryPopularityScore(ResolveCategoryPopularityScoreRequest) returns (ResolveCategoryPopularityScoreResponse) {}
   rpc ResolveCategoryProductCount(ResolveCategoryProductCountRequest) returns (ResolveCategoryProductCountResponse) {}
   rpc ResolveProductMascotRecommendation(ResolveProductMascotRecommendationRequest) returns (ResolveProductMascotRecommendationResponse) {}
@@ -923,6 +924,30 @@ message ResolveCategoryChildCategoriesResponse {
   repeated ResolveCategoryChildCategoriesResult result = 1;
 }
 
+message ResolveCategoryOptionalCategoriesArgs {
+  google.protobuf.BoolValue include = 1;
+}
+
+message ResolveCategoryOptionalCategoriesContext {
+  string id = 1;
+  string name = 2;
+}
+
+message ResolveCategoryOptionalCategoriesRequest {
+  // context provides the resolver context for the field optionalCategories of type Category.
+  repeated ResolveCategoryOptionalCategoriesContext context = 1;
+  // field_args provides the arguments for the resolver field optionalCategories of type Category.
+  ResolveCategoryOptionalCategoriesArgs field_args = 2;
+}
+
+message ResolveCategoryOptionalCategoriesResult {
+  ListOfCategory optional_categories = 1;
+}
+
+message ResolveCategoryOptionalCategoriesResponse {
+  repeated ResolveCategoryOptionalCategoriesResult result = 1;
+}
+
 message ResolveSubcategoryItemCountArgs {
   SubcategoryItemFilter filters = 1;
 }
@@ -1068,7 +1093,7 @@ message Category {
   string id = 1;
   string name = 2;
   CategoryKind kind = 3;
-  ListOfSubcategory subcategories = 4;
+  ListOfSubcategory subcategories = 5;
 }
 
 message CategoryFilter {

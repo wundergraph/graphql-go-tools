@@ -131,6 +131,7 @@ type Category {
   mascot(includeVolume: Boolean!): Animal @connect__fieldResolver(context: "id kind")
   categoryStatus(checkHealth: Boolean!): ActionResult! @connect__fieldResolver(context: "id name")
   childCategories(include: Boolean): [Category!]! @connect__fieldResolver(context: "id name")
+  optionalCategories(include: Boolean): [Category!] @connect__fieldResolver(context: "id name")
 }
 
 type Subcategory {

@@ -4627,6 +4627,100 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 				require.Empty(t, errData)
 			},
 		},
+		{
+			name:  "Query with optional categories field resolver without providing include argument",
+			query: "query CategoriesWithOptionalCategories { categories { id name optionalCategories { id name kind } } }",
+			vars:  `{"variables":{}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.Len(t, categories, 4, "Should return 4 categories")
+
+				for _, cat := range categories {
+					category, ok := cat.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["id"], "category id should not be empty")
+					require.NotEmpty(t, category["name"], "category name should not be empty")
+
+					// optionalCategories uses a wrapper type (ListOfCategory) for nullable list support
+					// The field resolver was called successfully if the field is present
+					require.Contains(t, category, "optionalCategories", "optionalCategories field should be present")
+					require.Len(t, category["optionalCategories"], 2, "optionalCategories should return 2 categories")
+					for _, optionalCategory := range category["optionalCategories"].([]interface{}) {
+						optionalCategory, ok := optionalCategory.(map[string]interface{})
+						require.True(t, ok, "optionalCategory should be an object")
+						require.NotEmpty(t, optionalCategory["id"], "optionalCategory id should not be empty")
+						require.NotEmpty(t, optionalCategory["name"], "optionalCategory name should not be empty")
+						require.NotEmpty(t, optionalCategory["kind"], "optionalCategory kind should not be empty")
+					}
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with optional categories field resolver (include=true)",
+			query: "query CategoriesWithOptionalCategories($include: Boolean) { categories { id name optionalCategories(include: $include) { id name kind } } }",
+			vars:  `{"variables":{"include":true}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.Len(t, categories, 4, "Should return 4 categories")
+
+				for _, cat := range categories {
+					category, ok := cat.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["id"], "category id should not be empty")
+					require.NotEmpty(t, category["name"], "category name should not be empty")
+
+					// optionalCategories uses a wrapper type (ListOfCategory) for nullable list support
+					// The field resolver was called successfully if the field is present
+					require.Contains(t, category, "optionalCategories", "optionalCategories field should be present")
+					require.Len(t, category["optionalCategories"], 2, "optionalCategories should return 2 categories")
+					for _, optionalCategory := range category["optionalCategories"].([]interface{}) {
+						optionalCategory, ok := optionalCategory.(map[string]interface{})
+						require.True(t, ok, "optionalCategory should be an object")
+						require.NotEmpty(t, optionalCategory["id"], "optionalCategory id should not be empty")
+						require.NotEmpty(t, optionalCategory["name"], "optionalCategory name should not be empty")
+						require.NotEmpty(t, optionalCategory["kind"], "optionalCategory kind should not be empty")
+					}
+
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with optional categories field resolver (include=false)",
+			query: "query CategoriesWithOptionalCategories($include: Boolean) { categories { id name optionalCategories(include: $include) { id name kind } } }",
+			vars:  `{"variables":{"include":false}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.Len(t, categories, 4, "Should return 4 categories")
+
+				for _, cat := range categories {
+					category, ok := cat.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["id"], "category id should not be empty")
+					require.NotEmpty(t, category["name"], "category name should not be empty")
+
+					// When include=false, optionalCategories should be null
+					require.Nil(t, category["optionalCategories"], "optionalCategories should be null when include=false")
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
 	}
 
 	for _, tc := range testCases {

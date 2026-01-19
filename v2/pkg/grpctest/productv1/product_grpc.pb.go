@@ -71,6 +71,7 @@ const (
 	ProductService_ResolveCategoryChildCategories_FullMethodName        = "/productv1.ProductService/ResolveCategoryChildCategories"
 	ProductService_ResolveCategoryMascot_FullMethodName                 = "/productv1.ProductService/ResolveCategoryMascot"
 	ProductService_ResolveCategoryMetricsNormalizedScore_FullMethodName = "/productv1.ProductService/ResolveCategoryMetricsNormalizedScore"
+	ProductService_ResolveCategoryOptionalCategories_FullMethodName     = "/productv1.ProductService/ResolveCategoryOptionalCategories"
 	ProductService_ResolveCategoryPopularityScore_FullMethodName        = "/productv1.ProductService/ResolveCategoryPopularityScore"
 	ProductService_ResolveCategoryProductCount_FullMethodName           = "/productv1.ProductService/ResolveCategoryProductCount"
 	ProductService_ResolveProductMascotRecommendation_FullMethodName    = "/productv1.ProductService/ResolveProductMascotRecommendation"
@@ -143,6 +144,7 @@ type ProductServiceClient interface {
 	ResolveCategoryChildCategories(ctx context.Context, in *ResolveCategoryChildCategoriesRequest, opts ...grpc.CallOption) (*ResolveCategoryChildCategoriesResponse, error)
 	ResolveCategoryMascot(ctx context.Context, in *ResolveCategoryMascotRequest, opts ...grpc.CallOption) (*ResolveCategoryMascotResponse, error)
 	ResolveCategoryMetricsNormalizedScore(ctx context.Context, in *ResolveCategoryMetricsNormalizedScoreRequest, opts ...grpc.CallOption) (*ResolveCategoryMetricsNormalizedScoreResponse, error)
+	ResolveCategoryOptionalCategories(ctx context.Context, in *ResolveCategoryOptionalCategoriesRequest, opts ...grpc.CallOption) (*ResolveCategoryOptionalCategoriesResponse, error)
 	ResolveCategoryPopularityScore(ctx context.Context, in *ResolveCategoryPopularityScoreRequest, opts ...grpc.CallOption) (*ResolveCategoryPopularityScoreResponse, error)
 	ResolveCategoryProductCount(ctx context.Context, in *ResolveCategoryProductCountRequest, opts ...grpc.CallOption) (*ResolveCategoryProductCountResponse, error)
 	ResolveProductMascotRecommendation(ctx context.Context, in *ResolveProductMascotRecommendationRequest, opts ...grpc.CallOption) (*ResolveProductMascotRecommendationResponse, error)
@@ -682,6 +684,16 @@ func (c *productServiceClient) ResolveCategoryMetricsNormalizedScore(ctx context
 	return out, nil
 }
 
+func (c *productServiceClient) ResolveCategoryOptionalCategories(ctx context.Context, in *ResolveCategoryOptionalCategoriesRequest, opts ...grpc.CallOption) (*ResolveCategoryOptionalCategoriesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveCategoryOptionalCategoriesResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveCategoryOptionalCategories_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *productServiceClient) ResolveCategoryPopularityScore(ctx context.Context, in *ResolveCategoryPopularityScoreRequest, opts ...grpc.CallOption) (*ResolveCategoryPopularityScoreResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ResolveCategoryPopularityScoreResponse)
@@ -833,6 +845,7 @@ type ProductServiceServer interface {
 	ResolveCategoryChildCategories(context.Context, *ResolveCategoryChildCategoriesRequest) (*ResolveCategoryChildCategoriesResponse, error)
 	ResolveCategoryMascot(context.Context, *ResolveCategoryMascotRequest) (*ResolveCategoryMascotResponse, error)
 	ResolveCategoryMetricsNormalizedScore(context.Context, *ResolveCategoryMetricsNormalizedScoreRequest) (*ResolveCategoryMetricsNormalizedScoreResponse, error)
+	ResolveCategoryOptionalCategories(context.Context, *ResolveCategoryOptionalCategoriesRequest) (*ResolveCategoryOptionalCategoriesResponse, error)
 	ResolveCategoryPopularityScore(context.Context, *ResolveCategoryPopularityScoreRequest) (*ResolveCategoryPopularityScoreResponse, error)
 	ResolveCategoryProductCount(context.Context, *ResolveCategoryProductCountRequest) (*ResolveCategoryProductCountResponse, error)
 	ResolveProductMascotRecommendation(context.Context, *ResolveProductMascotRecommendationRequest) (*ResolveProductMascotRecommendationResponse, error)
@@ -1007,6 +1020,9 @@ func (UnimplementedProductServiceServer) ResolveCategoryMascot(context.Context, 
 }
 func (UnimplementedProductServiceServer) ResolveCategoryMetricsNormalizedScore(context.Context, *ResolveCategoryMetricsNormalizedScoreRequest) (*ResolveCategoryMetricsNormalizedScoreResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ResolveCategoryMetricsNormalizedScore not implemented")
+}
+func (UnimplementedProductServiceServer) ResolveCategoryOptionalCategories(context.Context, *ResolveCategoryOptionalCategoriesRequest) (*ResolveCategoryOptionalCategoriesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResolveCategoryOptionalCategories not implemented")
 }
 func (UnimplementedProductServiceServer) ResolveCategoryPopularityScore(context.Context, *ResolveCategoryPopularityScoreRequest) (*ResolveCategoryPopularityScoreResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ResolveCategoryPopularityScore not implemented")
@@ -1992,6 +2008,24 @@ func _ProductService_ResolveCategoryMetricsNormalizedScore_Handler(srv interface
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_ResolveCategoryOptionalCategories_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveCategoryOptionalCategoriesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveCategoryOptionalCategories(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveCategoryOptionalCategories_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveCategoryOptionalCategories(ctx, req.(*ResolveCategoryOptionalCategoriesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProductService_ResolveCategoryPopularityScore_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ResolveCategoryPopularityScoreRequest)
 	if err := dec(in); err != nil {
@@ -2368,6 +2402,10 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ResolveCategoryMetricsNormalizedScore",
 			Handler:    _ProductService_ResolveCategoryMetricsNormalizedScore_Handler,
+		},
+		{
+			MethodName: "ResolveCategoryOptionalCategories",
+			Handler:    _ProductService_ResolveCategoryOptionalCategories_Handler,
 		},
 		{
 			MethodName: "ResolveCategoryPopularityScore",

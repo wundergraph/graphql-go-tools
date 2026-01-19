@@ -616,7 +616,49 @@ func (s *MockService) ResolveCategoryChildCategories(_ context.Context, req *pro
 	}
 
 	return resp, nil
+}
 
+// ResolveCategoryOptionalCategories implements [productv1.ProductServiceServer].
+func (s *MockService) ResolveCategoryOptionalCategories(_ context.Context, req *productv1.ResolveCategoryOptionalCategoriesRequest) (*productv1.ResolveCategoryOptionalCategoriesResponse, error) {
+	results := make([]*productv1.ResolveCategoryOptionalCategoriesResult, 0, len(req.GetContext()))
+
+	// Check if include arg is set - if false, return nil for optionalCategories
+	include := true
+	if req.GetFieldArgs() != nil && req.GetFieldArgs().GetInclude() != nil {
+		include = req.GetFieldArgs().GetInclude().GetValue()
+	}
+
+	for i, ctx := range req.GetContext() {
+		var optionalCategories *productv1.ListOfCategory
+
+		if include {
+			// Generate 2 optional categories per parent category
+			optionalCategories = &productv1.ListOfCategory{
+				List: &productv1.ListOfCategory_List{
+					Items: []*productv1.Category{
+						{
+							Id:   fmt.Sprintf("optional-category-%s-%d", ctx.GetId(), i*2),
+							Name: fmt.Sprintf("Optional Category %s %d", ctx.GetName(), i*2),
+							Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER,
+						},
+						{
+							Id:   fmt.Sprintf("optional-category-%s-%d", ctx.GetId(), i*2+1),
+							Name: fmt.Sprintf("Optional Category %s %d", ctx.GetName(), i*2+1),
+							Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER,
+						},
+					},
+				},
+			}
+		}
+
+		results = append(results, &productv1.ResolveCategoryOptionalCategoriesResult{
+			OptionalCategories: optionalCategories,
+		})
+	}
+
+	return &productv1.ResolveCategoryOptionalCategoriesResponse{
+		Result: results,
+	}, nil
 }
 
 // ResolveProductRecommendedCategory implements productv1.ProductServiceServer.

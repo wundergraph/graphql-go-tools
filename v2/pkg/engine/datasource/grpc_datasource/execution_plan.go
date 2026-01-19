@@ -1313,6 +1313,19 @@ func (r *rpcPlanningContext) newResolveRPCCall(config *resolveRPCCallConfig) (RP
 		}
 	}
 
+	fd := r.fieldDefinitionRefForType(r.operation.FieldNameString(resolvedField.fieldRef), resolvedField.parentTypeNode.NameString(r.definition))
+	if fd == ast.InvalidRef {
+		return RPCCall{}, fmt.Errorf("unable to build response field: field definition not found for field %s", r.operation.FieldNameString(resolvedField.fieldRef))
+	}
+
+	field, err := r.buildField(resolvedField.parentTypeNode, fd, r.operation.FieldNameString(resolvedField.fieldRef), r.operation.FieldAliasString(resolvedField.fieldRef))
+	if err != nil {
+		return RPCCall{}, err
+	}
+
+	field.Name = resolveConfig.FieldMappingData.TargetName
+	field.Message = responseFieldsMessage
+
 	response := RPCMessage{
 		Name: resolveConfig.Response,
 		Fields: RPCFields{
@@ -1322,16 +1335,8 @@ func (r *rpcPlanningContext) newResolveRPCCall(config *resolveRPCCallConfig) (RP
 				JSONPath:      resultFieldName,
 				Repeated:      true,
 				Message: &RPCMessage{
-					Name: resolveConfig.RPC + "Result",
-					Fields: RPCFields{
-						{
-							Name:          resolveConfig.FieldMappingData.TargetName,
-							ProtoTypeName: dataType,
-							JSONPath:      r.operation.FieldAliasOrNameString(resolvedField.fieldRef),
-							Message:       responseFieldsMessage,
-							Optional:      !r.definition.TypeIsNonNull(resolvedField.fieldDefinitionTypeRef),
-						},
-					},
+					Name:   resolveConfig.RPC + "Result",
+					Fields: RPCFields{field},
 				},
 			},
 		},

@@ -1309,6 +1309,7 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 												Name:          "child_categories",
 												ProtoTypeName: DataTypeMessage,
 												JSONPath:      "childCategories",
+												Repeated:      true,
 												Message: &RPCMessage{
 													Name: "Category",
 													Fields: []RPCField{
@@ -1505,6 +1506,124 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 												Name:          "child_categories",
 												ProtoTypeName: DataTypeMessage,
 												JSONPath:      "childCategories",
+												Message: &RPCMessage{
+													Name: "Category",
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+														{
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
+														},
+														{
+															Name:          "kind",
+															ProtoTypeName: DataTypeEnum,
+															JSONPath:      "kind",
+															EnumName:      "CategoryKind",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query with optional categories field resolver without providing include argument",
+			query: "query CategoriesWithOptionalCategories { categories { optionalCategories { id name kind } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryCategories",
+						Request: RPCMessage{
+							Name: "QueryCategoriesRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "categories",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "categories",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name:   "Category",
+										Fields: []RPCField{},
+									},
+								},
+							},
+						},
+					},
+					{
+						DependentCalls: []int{0},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryOptionalCategories",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.optionalCategories"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryOptionalCategoriesRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryOptionalCategoriesContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("categories.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("categories.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryOptionalCategoriesArgs",
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryOptionalCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryOptionalCategoriesResult",
+										Fields: []RPCField{
+											{
+												Name:          "optional_categories",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "optionalCategories",
+												IsListType:    true,
+												ListMetadata: &ListMetadata{
+													NestingLevel: 1,
+													LevelInfo:    []LevelInfo{{Optional: true}},
+												},
 												Message: &RPCMessage{
 													Name: "Category",
 													Fields: []RPCField{

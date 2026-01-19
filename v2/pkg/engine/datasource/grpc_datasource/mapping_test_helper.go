@@ -296,6 +296,17 @@ func testMapping() *GRPCMapping {
 					Request:  "ResolveCategoryChildCategoriesRequest",
 					Response: "ResolveCategoryChildCategoriesResponse",
 				},
+				"optionalCategories": {
+					FieldMappingData: FieldMapData{
+						TargetName: "optional_categories",
+						ArgumentMappings: FieldArgumentMap{
+							"include": "include",
+						},
+					},
+					RPC:      "ResolveCategoryOptionalCategories",
+					Request:  "ResolveCategoryOptionalCategoriesRequest",
+					Response: "ResolveCategoryOptionalCategoriesResponse",
+				},
 			},
 			"CategoryMetrics": {
 				"normalizedScore": {
@@ -953,6 +964,12 @@ func testMapping() *GRPCMapping {
 				},
 				"childCategories": {
 					TargetName: "child_categories",
+					ArgumentMappings: FieldArgumentMap{
+						"include": "include",
+					},
+				},
+				"optionalCategories": {
+					TargetName: "optional_categories",
 					ArgumentMappings: FieldArgumentMap{
 						"include": "include",
 					},
