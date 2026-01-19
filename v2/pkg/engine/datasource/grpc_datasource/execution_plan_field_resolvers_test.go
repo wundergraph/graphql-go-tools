@@ -285,7 +285,8 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 											{
 												Name:          "product_count",
 												ProtoTypeName: DataTypeInt32,
-												JSONPath:      "productCount1",
+												JSONPath:      "productCount",
+												Alias:         "productCount1",
 											},
 										},
 									},
@@ -386,7 +387,8 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 											{
 												Name:          "product_count",
 												ProtoTypeName: DataTypeInt32,
-												JSONPath:      "productCount2",
+												JSONPath:      "productCount",
+												Alias:         "productCount2",
 											},
 										},
 									},
@@ -1423,6 +1425,7 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 												Name:          "child_categories",
 												ProtoTypeName: DataTypeMessage,
 												JSONPath:      "childCategories",
+												Repeated:      true,
 												Message: &RPCMessage{
 													Name: "Category",
 													Fields: []RPCField{
@@ -1506,6 +1509,7 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 												Name:          "child_categories",
 												ProtoTypeName: DataTypeMessage,
 												JSONPath:      "childCategories",
+												Repeated:      true,
 												Message: &RPCMessage{
 													Name: "Category",
 													Fields: []RPCField{
@@ -1619,6 +1623,7 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 												Name:          "optional_categories",
 												ProtoTypeName: DataTypeMessage,
 												JSONPath:      "optionalCategories",
+												Optional:      true,
 												IsListType:    true,
 												ListMetadata: &ListMetadata{
 													NestingLevel: 1,
