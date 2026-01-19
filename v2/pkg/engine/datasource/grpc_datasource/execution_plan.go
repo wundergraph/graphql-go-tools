@@ -545,49 +545,6 @@ func (r *rpcPlanningContext) createListMetadata(typeRef int) (*ListMetadata, err
 
 // buildField builds a field from a field definition.
 // It handles lists, enums, and other types.
-// func (r *rpcPlanningContext) buildField(enclosingTypeNode ast.Node, fd int, fieldName, fieldAlias string) (RPCField, error) {
-// 	fdt := r.definition.FieldDefinitionType(fd)
-// 	typeName := r.toDataType(&r.definition.Types[fdt])
-// 	parentTypeName := enclosingTypeNode.NameString(r.definition)
-
-// 	field := RPCField{
-// 		Name:          r.resolveFieldMapping(parentTypeName, fieldName),
-// 		Alias:         fieldAlias,
-// 		Optional:      !r.definition.TypeIsNonNull(fdt),
-// 		JSONPath:      fieldName,
-// 		ProtoTypeName: typeName,
-// 	}
-
-// 	if r.definition.TypeIsList(fdt) {
-// 		switch {
-// 		// for nullable or nested lists we need to build a wrapper message
-// 		// Nullability is handled by the datasource during the execution.
-// 		case r.typeIsNullableOrNestedList(fdt):
-// 			md, err := r.createListMetadata(fdt)
-// 			if err != nil {
-// 				return field, err
-// 			}
-// 			field.ListMetadata = md
-// 			field.IsListType = true
-// 		default:
-// 			// For non-nullable single lists we can directly use the repeated syntax in protobuf.
-// 			field.Repeated = true
-// 		}
-// 	}
-
-// 	if typeName == DataTypeEnum {
-// 		field.EnumName = r.definition.FieldDefinitionTypeNameString(fd)
-// 	}
-
-// 	if fieldName == typenameFieldName {
-// 		field.StaticValue = parentTypeName
-// 	}
-
-// 	return field, nil
-// }
-
-// buildField builds a field from a field definition.
-// It handles lists, enums, and other types.
 func (r *rpcPlanningContext) buildField(parentTypeName string, fd int, fieldName, fieldAlias string) (RPCField, error) {
 	fdt := r.definition.FieldDefinitionType(fd)
 	typeName := r.toDataType(&r.definition.Types[fdt])
