@@ -200,7 +200,7 @@ func (v *StaticCostVisitor) extractFieldArguments(fieldRef int) map[string]Argum
 
 			// TODO: we need to analyze variables that contains input object fields.
 			// If these fields has weight attached, use them for calculation.
-			// Variables are not inlined at this stage, so we need to inspect them via AST.
+			// Inline values extracted into variables here, so we need to inspect them via AST.
 		}
 
 		arguments[argName] = argInfo
