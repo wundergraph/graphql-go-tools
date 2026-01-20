@@ -338,6 +338,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				lastPlan := engine.lastPlan
 				require.NotNil(t, lastPlan)
 				costCalc := lastPlan.GetStaticCostCalculator()
+				fmt.Println(costCalc.DebugPrint())
 				require.Equal(t, testCase.expectedStaticCost, costCalc.GetTotalCost())
 			}
 
@@ -6064,16 +6065,184 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						),
 					},
 					expectedResponse: `{"data":{"hero":{"name":"Luke","height":"1.72"}}}`,
-					// Cost calculation:
-					// Query.hero: 2
-					// Human.name: 3
-					// Human.height: 7
 					// Total: 2 + 3 + 7
 					expectedStaticCost: 12,
 				},
 				computeStaticCost(),
 			))
 
+		})
+
+		t.Run("union types", func(t *testing.T) {
+			unionSchema := `
+			type Query {
+			   search(term: String!): [SearchResult!]
+			}
+			union SearchResult = User | Post | Comment
+			type User @key(fields: "id") {
+			  id: ID!
+			  name: String!
+			  email: String!
+			}
+			type Post @key(fields: "id") {
+			  id: ID!
+			  title: String!
+			  body: String!
+			}
+			type Comment @key(fields: "id") {
+			  id: ID!
+			  text: String!
+			}
+			`
+			schemaUnion, err := graphql.NewSchemaFromString(unionSchema)
+			require.NoError(t, err)
+
+			unionRootNodes := []plan.TypeField{
+				{TypeName: "Query", FieldNames: []string{"search"}},
+				{TypeName: "User", FieldNames: []string{"id", "name", "email"}},
+				{TypeName: "Post", FieldNames: []string{"id", "title", "body"}},
+				{TypeName: "Comment", FieldNames: []string{"id", "text"}},
+			}
+			unionChildNodes := []plan.TypeField{}
+			unionCustomConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+				Fetch: &graphql_datasource.FetchConfiguration{
+					URL:    "https://example.com/",
+					Method: "GET",
+				},
+				SchemaConfiguration: mustSchemaConfig(t, nil, unionSchema),
+			})
+			unionFieldConfig := []plan.FieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "search",
+					Path:      []string{"search"},
+					Arguments: []plan.ArgumentConfiguration{
+						{Name: "term", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+					},
+				},
+			}
+
+			t.Run("union with all member types", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schemaUnion,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{
+							  search(term: "test") {
+							    ... on User { name email }
+							    ... on Post { title body }
+							    ... on Comment { text }
+							  }
+							}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost:     "example.com",
+									expectedPath:     "/",
+									expectedBody:     "",
+									sendResponseBody: `{"data":{"search":[{"__typename":"User","name":"John","email":"john@test.com"}]}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  unionRootNodes,
+								ChildNodes: unionChildNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+										{TypeName: "User", FieldName: "name"}:    {HasWeight: true, Weight: 2},
+										{TypeName: "User", FieldName: "email"}:   {HasWeight: true, Weight: 3},
+										{TypeName: "Post", FieldName: "title"}:   {HasWeight: true, Weight: 4},
+										{TypeName: "Post", FieldName: "body"}:    {HasWeight: true, Weight: 5},
+										{TypeName: "Comment", FieldName: "text"}: {HasWeight: true, Weight: 1},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Query", FieldName: "search"}: {AssumedSize: 5},
+									},
+									Types: map[string]int{
+										"User":    2,
+										"Post":    3,
+										"Comment": 1,
+									},
+								},
+							},
+							unionCustomConfig,
+						),
+					},
+					fields:           unionFieldConfig,
+					expectedResponse: `{"data":{"search":[{"name":"John","email":"john@test.com"}]}}`,
+					// search listSize: 10
+					// For each SearchResult, use max across all union members:
+					//   Type weight: max(User=2, Post=3, Comment=1) = 3
+					//   Fields: all fields from all fragments are counted
+					//     (2 + 3) + (4 + 5) + (1) = 15
+					// TODO: this is not correct, we should pick a maximum sum among types implementing union.
+					//  9 should be used instead of 15
+					// Total: 5 * (3 + 15)
+					expectedStaticCost: 90,
+				},
+				computeStaticCost(),
+			))
+
+			t.Run("union with weighted search field", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schemaUnion,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{
+							  search(term: "test") {
+							    ... on User { name }
+							    ... on Post { title }
+							  }
+							}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost:     "example.com",
+									expectedPath:     "/",
+									expectedBody:     "",
+									sendResponseBody: `{"data":{"search":[{"__typename":"User","name":"John"}]}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  unionRootNodes,
+								ChildNodes: unionChildNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+										{TypeName: "User", FieldName: "name"}:  {HasWeight: true, Weight: 2},
+										{TypeName: "Post", FieldName: "title"}: {HasWeight: true, Weight: 5},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Query", FieldName: "search"}: {AssumedSize: 3},
+									},
+									Types: map[string]int{
+										"User": 6,
+										"Post": 10,
+									},
+								},
+							},
+							unionCustomConfig,
+						),
+					},
+					fields:           unionFieldConfig,
+					expectedResponse: `{"data":{"search":[{"name":"John"}]}}`,
+					// Query.search: max(User=10, Post=6)
+					// search listSize: 3
+					// Union members:
+					//   All fields from all fragments: User.name(2) + Post.title(5)
+					// Total: 3 * (10+2+5)
+					// TODO: we might correct this by counting only members of one implementing types
+					//  of a union when fragments are used.
+					expectedStaticCost: 51,
+				},
+				computeStaticCost(),
+			))
 		})
 
 		t.Run("custom scheme for listSize", func(t *testing.T) {

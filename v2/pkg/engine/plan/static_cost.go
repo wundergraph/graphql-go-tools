@@ -28,6 +28,7 @@ A few things on the TBD list:
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/wundergraph/astjson"
 )
@@ -477,4 +478,97 @@ func (c *CostCalculator) SetVariables(variables *astjson.Value) {
 // GetTotalCost returns the calculated total cost.
 func (c *CostCalculator) GetTotalCost() int {
 	return c.tree.totalCost(c.costConfigs, c.variables)
+}
+
+// DebugPrint prints the cost tree structure for debugging purposes.
+// It shows each node's field coordinate, costs, multipliers, and computed totals.
+func (c *CostCalculator) DebugPrint() string {
+	if c.tree == nil || len(c.tree.children) == 0 {
+		return "<empty cost tree>"
+	}
+	var sb strings.Builder
+	sb.WriteString("Cost Tree Debug:\n")
+	sb.WriteString("================\n")
+	c.tree.children[0].debugPrint(&sb, c.costConfigs, c.variables, 0)
+	fmt.Fprintf(&sb, "\nTotal Cost: %d\n", c.GetTotalCost())
+	return sb.String()
+}
+
+// debugPrint recursively prints a node and its children with indentation.
+func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value, depth int) {
+	if node == nil {
+		return
+	}
+
+	indent := strings.Repeat("  ", depth)
+
+	// Calculate costs for this node
+	node.setCostsAndMultiplier(configs, variables)
+
+	// Field coordinate info
+	fieldInfo := fmt.Sprintf("%s.%s", node.fieldCoord.TypeName, node.fieldCoord.FieldName)
+
+	// Build node info line
+	fmt.Fprintf(sb, "%s├ %s", indent, fieldInfo)
+
+	// Add type info
+	if node.fieldTypeName != "" {
+		fmt.Fprintf(sb, " -> %s", node.fieldTypeName)
+	}
+
+	// Add flags
+	var flags []string
+	if node.returnsListType {
+		flags = append(flags, "list")
+	}
+	if node.returnsAbstractType {
+		flags = append(flags, "abstract")
+	}
+	if node.returnsSimpleType {
+		flags = append(flags, "simple")
+	}
+	if len(flags) > 0 {
+		fmt.Fprintf(sb, " [%s]", strings.Join(flags, ","))
+	}
+	sb.WriteString("\n")
+
+	// Cost details
+	if node.fieldCost != 0 || node.argumentsCost != 0 || node.multiplier != 0 {
+		fmt.Fprintf(sb, "%s│ fieldCost=%d, argsCost=%d, multiplier=%d",
+			indent, node.fieldCost, node.argumentsCost, node.multiplier)
+
+		// Show data sources
+		if len(node.dataSourceHashes) > 0 {
+			fmt.Fprintf(sb, ", dataSources=%d", len(node.dataSourceHashes))
+		}
+		sb.WriteString("\n")
+	}
+
+	// Arguments info
+	if len(node.arguments) > 0 {
+		var argStrs []string
+		for name, arg := range node.arguments {
+			if arg.hasVariable {
+				argStrs = append(argStrs, fmt.Sprintf("%s=$%s", name, arg.varName))
+			} else if arg.isSimple {
+				argStrs = append(argStrs, fmt.Sprintf("%s=%d", name, arg.intValue))
+			} else {
+				argStrs = append(argStrs, fmt.Sprintf("%s=<obj>", name))
+			}
+		}
+		fmt.Fprintf(sb, "%s│ args: {%s}\n", indent, strings.Join(argStrs, ", "))
+	}
+
+	// Implementing types (for abstract types)
+	if len(node.implementingTypeNames) > 0 {
+		fmt.Fprintf(sb, "%s│ implements: [%s]\n", indent, strings.Join(node.implementingTypeNames, ", "))
+	}
+
+	subtreeCost := node.totalCost(configs, variables)
+	fmt.Fprintf(sb, "%s│ subCost=%d\n", indent, subtreeCost)
+
+	// Print children
+	for _, child := range node.children {
+		child.debugPrint(sb, configs, variables, depth+1)
+	}
 }
