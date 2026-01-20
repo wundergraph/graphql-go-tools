@@ -486,8 +486,8 @@ func (c *CostCalculator) DebugPrint() string {
 		return "<empty cost tree>"
 	}
 	var sb strings.Builder
-	sb.WriteString("Cost Tree Debug:\n")
-	sb.WriteString("================\n")
+	sb.WriteString("Cost Tree Debug\n")
+	sb.WriteString("===============\n")
 	c.tree.children[0].debugPrint(&sb, c.costConfigs, c.variables, 0)
 	return sb.String()
 }
@@ -500,14 +500,14 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*Da
 		return
 	}
 
-	indent := strings.Repeat("  ", depth)
+	indent := strings.Repeat("    ", depth)
 
 	fieldInfo := fmt.Sprintf("%s.%s", node.fieldCoord.TypeName, node.fieldCoord.FieldName)
 
 	fmt.Fprintf(sb, "%s* %s", indent, fieldInfo)
 
 	if node.fieldTypeName != "" {
-		fmt.Fprintf(sb, " -> %s", node.fieldTypeName)
+		fmt.Fprintf(sb, " : %s", node.fieldTypeName)
 	}
 
 	var flags []string
@@ -556,7 +556,7 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*Da
 	}
 
 	subtreeCost := node.totalCost(configs, variables)
-	fmt.Fprintf(sb, "%s  subCost=%d\n", indent, subtreeCost)
+	fmt.Fprintf(sb, "%s  cost=%d\n", indent, subtreeCost)
 
 	// Print children
 	for _, child := range node.children {
