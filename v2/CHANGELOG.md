@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.243](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.242...v2.0.0-rc.243) (2026-01-20)
+
+
+### Bug Fixes
+
+* planner fixes for abstract selection rewriter, node selection rules ([#1360](https://github.com/wundergraph/graphql-go-tools/issues/1360)) ([7baca8b](https://github.com/wundergraph/graphql-go-tools/commit/7baca8bdf718f0aaaa869902456d609838122657))
+
 ## [2.0.0-rc.242](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.241...v2.0.0-rc.242) (2025-12-19)
 
 
