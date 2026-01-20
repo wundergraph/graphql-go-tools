@@ -270,12 +270,12 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			engineConf.SetCustomResolveMap(testCase.customResolveMap)
 
 			engineConf.plannerConfig.Debug = plan.DebugConfiguration{
-				PrintOperationTransformations: true,
-				PrintPlanningPaths:            true,
+				// PrintOperationTransformations: true,
+				// PrintPlanningPaths:            true,
 				// PrintNodeSuggestions:          true,
-				PrintQueryPlans:      true,
-				ConfigurationVisitor: true,
-				PlanningVisitor:      true,
+				// PrintQueryPlans:               true,
+				// ConfigurationVisitor:          true,
+				// PlanningVisitor:               true,
 				// DatasourceVisitor:             true,
 			}
 
@@ -338,8 +338,9 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				lastPlan := engine.lastPlan
 				require.NotNil(t, lastPlan)
 				costCalc := lastPlan.GetStaticCostCalculator()
+				gotCost := costCalc.GetTotalCost()
 				fmt.Println(costCalc.DebugPrint())
-				require.Equal(t, testCase.expectedStaticCost, costCalc.GetTotalCost())
+				require.Equal(t, testCase.expectedStaticCost, gotCost)
 			}
 
 		}
@@ -5549,7 +5550,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 	})
 
 	t.Run("static cost computation", func(t *testing.T) {
-		t.Run("star wars", func(t *testing.T) {
+		t.Run("common on star wars scheme", func(t *testing.T) {
 			rootNodes := []plan.TypeField{
 				{TypeName: "Query", FieldNames: []string{"hero", "droid"}},
 				{TypeName: "Human", FieldNames: []string{"name", "height", "friends"}},
@@ -6094,24 +6095,24 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			  text: String!
 			}
 			`
-			schemaUnion, err := graphql.NewSchemaFromString(unionSchema)
+			schema, err := graphql.NewSchemaFromString(unionSchema)
 			require.NoError(t, err)
 
-			unionRootNodes := []plan.TypeField{
+			rootNodes := []plan.TypeField{
 				{TypeName: "Query", FieldNames: []string{"search"}},
 				{TypeName: "User", FieldNames: []string{"id", "name", "email"}},
 				{TypeName: "Post", FieldNames: []string{"id", "title", "body"}},
 				{TypeName: "Comment", FieldNames: []string{"id", "text"}},
 			}
-			unionChildNodes := []plan.TypeField{}
-			unionCustomConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+			childNodes := []plan.TypeField{}
+			customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
 				Fetch: &graphql_datasource.FetchConfiguration{
 					URL:    "https://example.com/",
 					Method: "GET",
 				},
 				SchemaConfiguration: mustSchemaConfig(t, nil, unionSchema),
 			})
-			unionFieldConfig := []plan.FieldConfiguration{
+			fieldConfig := []plan.FieldConfiguration{
 				{
 					TypeName:  "Query",
 					FieldName: "search",
@@ -6124,7 +6125,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 
 			t.Run("union with all member types", runWithoutError(
 				ExecutionEngineTestCase{
-					schema: schemaUnion,
+					schema: schema,
 					operation: func(t *testing.T) graphql.Request {
 						return graphql.Request{
 							Query: `{
@@ -6148,8 +6149,8 @@ func TestExecutionEngine_Execute(t *testing.T) {
 								}),
 							),
 							&plan.DataSourceMetadata{
-								RootNodes:  unionRootNodes,
-								ChildNodes: unionChildNodes,
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
 								CostConfig: &plan.DataSourceCostConfig{
 									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
 										{TypeName: "User", FieldName: "name"}:    {HasWeight: true, Weight: 2},
@@ -6168,10 +6169,10 @@ func TestExecutionEngine_Execute(t *testing.T) {
 									},
 								},
 							},
-							unionCustomConfig,
+							customConfig,
 						),
 					},
-					fields:           unionFieldConfig,
+					fields:           fieldConfig,
 					expectedResponse: `{"data":{"search":[{"name":"John","email":"john@test.com"}]}}`,
 					// search listSize: 10
 					// For each SearchResult, use max across all union members:
@@ -6188,7 +6189,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 
 			t.Run("union with weighted search field", runWithoutError(
 				ExecutionEngineTestCase{
-					schema: schemaUnion,
+					schema: schema,
 					operation: func(t *testing.T) graphql.Request {
 						return graphql.Request{
 							Query: `{
@@ -6211,8 +6212,8 @@ func TestExecutionEngine_Execute(t *testing.T) {
 								}),
 							),
 							&plan.DataSourceMetadata{
-								RootNodes:  unionRootNodes,
-								ChildNodes: unionChildNodes,
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
 								CostConfig: &plan.DataSourceCostConfig{
 									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
 										{TypeName: "User", FieldName: "name"}:  {HasWeight: true, Weight: 2},
@@ -6227,10 +6228,10 @@ func TestExecutionEngine_Execute(t *testing.T) {
 									},
 								},
 							},
-							unionCustomConfig,
+							customConfig,
 						),
 					},
-					fields:           unionFieldConfig,
+					fields:           fieldConfig,
 					expectedResponse: `{"data":{"search":[{"name":"John"}]}}`,
 					// Query.search: max(User=10, Post=6)
 					// search listSize: 3
@@ -6245,7 +6246,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			))
 		})
 
-		t.Run("custom scheme for listSize", func(t *testing.T) {
+		t.Run("listSize", func(t *testing.T) {
 			listSchema := `
 			type Query {
 			   items(first: Int, last: Int): [Item!] 
@@ -6377,6 +6378,145 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					fields:             fieldConfig,
 					expectedResponse:   `{"data":{"items":[{"id":"2"},{"id":"3"}]}}`,
 					expectedStaticCost: 100, // slicingArgument($limit=25) * (Item(3)+Item.id(1))
+				},
+				computeStaticCost(),
+			))
+			t.Run("slicing argument not provided falls back to assumedSize", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schemaSlicing,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `query NoSlicingArg {
+							  items { id }
+							}`,
+							// No slicing arguments provided - should fall back to assumedSize
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: `{"data":{"items":[{"id":"1"},{"id":"2"}]}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+										{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Query", FieldName: "items"}: {
+											AssumedSize:      15,
+											SlicingArguments: []string{"first", "last"},
+										},
+									},
+									Types: map[string]int{
+										"Item": 2,
+									},
+								},
+							},
+							customConfig,
+						),
+					},
+					fields:             fieldConfig,
+					expectedResponse:   `{"data":{"items":[{"id":"1"},{"id":"2"}]}}`,
+					expectedStaticCost: 45, // Total: 15 * (2 + 1)
+				},
+				computeStaticCost(),
+			))
+			t.Run("zero slicing argument falls back to assumedSize", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schemaSlicing,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `query ZeroSlicing {
+							  items(first: 0) { id }
+							}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: `{"data":{"items":[]}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+										{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Query", FieldName: "items"}: {
+											AssumedSize:      20,
+											SlicingArguments: []string{"first", "last"},
+										},
+									},
+									Types: map[string]int{
+										"Item": 2,
+									},
+								},
+							},
+							customConfig,
+						),
+					},
+					fields:             fieldConfig,
+					expectedResponse:   `{"data":{"items":[]}}`,
+					expectedStaticCost: 60, // 20 * (2 + 1)
+				},
+				computeStaticCost(),
+			))
+			t.Run("negative slicing argument falls back to assumedSize", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schemaSlicing,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `query NegativeSlicing {
+							  items(first: -5) { id }
+							}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: `{"data":{"items":[]}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+										{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Query", FieldName: "items"}: {
+											AssumedSize:      25,
+											SlicingArguments: []string{"first", "last"},
+										},
+									},
+									Types: map[string]int{
+										"Item": 2,
+									},
+								},
+							},
+							customConfig,
+						),
+					},
+					fields:             fieldConfig,
+					expectedResponse:   `{"data":{"items":[]}}`,
+					expectedStaticCost: 75, //  25 * (2 + 1)
 				},
 				computeStaticCost(),
 			))

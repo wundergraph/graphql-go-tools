@@ -252,7 +252,6 @@ func (node *CostTreeNode) maxMultiplierImplementingField(config *DataSourceCostC
 		if listSize != nil {
 			multiplier := listSize.multiplier(arguments, vars)
 			if maxListSize == nil || multiplier > maxMultiplier {
-				fmt.Printf("found better multiplier for %v: %v\n", coord, multiplier)
 				maxMultiplier = multiplier
 				maxListSize = listSize
 			}
@@ -490,33 +489,27 @@ func (c *CostCalculator) DebugPrint() string {
 	sb.WriteString("Cost Tree Debug:\n")
 	sb.WriteString("================\n")
 	c.tree.children[0].debugPrint(&sb, c.costConfigs, c.variables, 0)
-	fmt.Fprintf(&sb, "\nTotal Cost: %d\n", c.GetTotalCost())
 	return sb.String()
 }
 
 // debugPrint recursively prints a node and its children with indentation.
 func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value, depth int) {
+	// implementation is a bit crude and redundant, we could skip calculating nodes all over again.
+	// but it should suffice for debugging tests.
 	if node == nil {
 		return
 	}
 
 	indent := strings.Repeat("  ", depth)
 
-	// Calculate costs for this node
-	node.setCostsAndMultiplier(configs, variables)
-
-	// Field coordinate info
 	fieldInfo := fmt.Sprintf("%s.%s", node.fieldCoord.TypeName, node.fieldCoord.FieldName)
 
-	// Build node info line
-	fmt.Fprintf(sb, "%s├ %s", indent, fieldInfo)
+	fmt.Fprintf(sb, "%s* %s", indent, fieldInfo)
 
-	// Add type info
 	if node.fieldTypeName != "" {
 		fmt.Fprintf(sb, " -> %s", node.fieldTypeName)
 	}
 
-	// Add flags
 	var flags []string
 	if node.returnsListType {
 		flags = append(flags, "list")
@@ -532,9 +525,8 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*Da
 	}
 	sb.WriteString("\n")
 
-	// Cost details
 	if node.fieldCost != 0 || node.argumentsCost != 0 || node.multiplier != 0 {
-		fmt.Fprintf(sb, "%s│ fieldCost=%d, argsCost=%d, multiplier=%d",
+		fmt.Fprintf(sb, "%s  fieldCost=%d, argsCost=%d, multiplier=%d",
 			indent, node.fieldCost, node.argumentsCost, node.multiplier)
 
 		// Show data sources
@@ -544,7 +536,6 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*Da
 		sb.WriteString("\n")
 	}
 
-	// Arguments info
 	if len(node.arguments) > 0 {
 		var argStrs []string
 		for name, arg := range node.arguments {
@@ -556,16 +547,16 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*Da
 				argStrs = append(argStrs, fmt.Sprintf("%s=<obj>", name))
 			}
 		}
-		fmt.Fprintf(sb, "%s│ args: {%s}\n", indent, strings.Join(argStrs, ", "))
+		fmt.Fprintf(sb, "%s  args: {%s}\n", indent, strings.Join(argStrs, ", "))
 	}
 
 	// Implementing types (for abstract types)
 	if len(node.implementingTypeNames) > 0 {
-		fmt.Fprintf(sb, "%s│ implements: [%s]\n", indent, strings.Join(node.implementingTypeNames, ", "))
+		fmt.Fprintf(sb, "%s  implements: [%s]\n", indent, strings.Join(node.implementingTypeNames, ", "))
 	}
 
 	subtreeCost := node.totalCost(configs, variables)
-	fmt.Fprintf(sb, "%s│ subCost=%d\n", indent, subtreeCost)
+	fmt.Fprintf(sb, "%s  subCost=%d\n", indent, subtreeCost)
 
 	// Print children
 	for _, child := range node.children {
