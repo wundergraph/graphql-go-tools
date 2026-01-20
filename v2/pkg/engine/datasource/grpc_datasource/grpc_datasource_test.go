@@ -4577,6 +4577,35 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 				require.True(t, ok, "categories should be an array")
 				require.NotEmpty(t, categories, "categories should not be empty")
 				require.Len(t, categories, 4, "Should return 4 categories")
+
+				for i, cat := range categories {
+					category, ok := cat.(map[string]interface{})
+					require.True(t, ok, "category[%d] should be an object", i)
+
+					// Validate categoryMetrics is present (returns a single object, not an array)
+					require.Contains(t, category, "categoryMetrics", "category[%d] should have 'categoryMetrics' field", i)
+					metric, ok := category["categoryMetrics"].(map[string]interface{})
+					require.True(t, ok, "category[%d].categoryMetrics should be an object, got %T", i, category["categoryMetrics"])
+
+					// Validate id field is present and non-empty
+					require.Contains(t, metric, "id", "category[%d].categoryMetrics should have 'id' field", i)
+					require.NotEmpty(t, metric["id"], "category[%d].categoryMetrics.id should not be empty", i)
+
+					// Validate normalizedScore is a numeric value (baseline was provided)
+					require.Contains(t, metric, "normalizedScore", "category[%d].categoryMetrics should have 'normalizedScore' field", i)
+					normalizedScore, ok := metric["normalizedScore"].(float64)
+					require.True(t, ok, "category[%d].categoryMetrics.normalizedScore should be a float64, got %T", i, metric["normalizedScore"])
+					require.GreaterOrEqual(t, normalizedScore, float64(0), "category[%d].categoryMetrics.normalizedScore should be >= 0", i)
+
+					// Validate metricType equals the requested value "popularity_score"
+					require.Contains(t, metric, "metricType", "category[%d].categoryMetrics should have 'metricType' field", i)
+					require.Equal(t, "popularity_score", metric["metricType"], "category[%d].categoryMetrics.metricType should equal 'popularity_score'", i)
+
+					// Validate value field is present and is numeric
+					require.Contains(t, metric, "value", "category[%d].categoryMetrics should have 'value' field", i)
+					_, ok = metric["value"].(float64)
+					require.True(t, ok, "category[%d].categoryMetrics.value should be a float64, got %T", i, metric["value"])
+				}
 			},
 			validateError: func(t *testing.T, errData []graphqlError) {
 				require.Empty(t, errData)
