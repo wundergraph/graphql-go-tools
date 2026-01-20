@@ -4596,9 +4596,9 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 
 				// Traverse child categories recursively until no more children found
 				currentLevel := categories
-				depth := 0
+				depth, maxDepth := 0, 3
 
-				for {
+				for depth < maxDepth {
 					var nextChildren []interface{}
 
 					for _, cat := range currentLevel {
