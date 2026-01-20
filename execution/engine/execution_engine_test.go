@@ -339,7 +339,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				require.NotNil(t, lastPlan)
 				costCalc := lastPlan.GetStaticCostCalculator()
 				gotCost := costCalc.GetTotalCost()
-				fmt.Println(costCalc.DebugPrint())
+				// fmt.Println(costCalc.DebugPrint())
 				require.Equal(t, testCase.expectedStaticCost, gotCost)
 			}
 
@@ -4656,15 +4656,48 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				}
 			`
 
-		makeDataSource := func(t *testing.T, expectFetchReasons bool) []plan.DataSource {
+		type makeDataSourceOpts struct {
+			expectFetchReasons bool
+			includeCostConfig  bool
+		}
+
+		makeDataSource := func(t *testing.T, opts makeDataSourceOpts) []plan.DataSource {
 			var expectedBody1 string
 			var expectedBody2 string
-			if !expectFetchReasons {
+			if !opts.expectFetchReasons {
 				expectedBody1 = `{"query":"{accounts {__typename ... on User {some {__typename id}} ... on Admin {some {__typename id}}}}"}`
 			} else {
 				expectedBody1 = `{"query":"{accounts {__typename ... on User {some {__typename id}} ... on Admin {some {__typename id}}}}","extensions":{"fetch_reasons":[{"typename":"Admin","field":"some","by_user":true},{"typename":"User","field":"id","by_subgraphs":["id-2"],"by_user":true,"is_key":true}]}}`
 			}
 			expectedBody2 = `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[{"__typename":"User","id":"1"},{"__typename":"User","id":"3"}]}}`
+
+			// Cost config for DS1 (first subgraph): accounts service
+			var ds1CostConfig *plan.DataSourceCostConfig
+			if opts.includeCostConfig {
+				ds1CostConfig = &plan.DataSourceCostConfig{
+					Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+						{TypeName: "Query", FieldName: "accounts"}: {HasWeight: true, Weight: 5},
+						{TypeName: "User", FieldName: "some"}:      {HasWeight: true, Weight: 2},
+						{TypeName: "Admin", FieldName: "some"}:     {HasWeight: true, Weight: 3},
+					},
+					ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+						{TypeName: "Query", FieldName: "accounts"}: {AssumedSize: 3},
+					},
+				}
+			}
+
+			// Cost config for DS2 (second subgraph): extends User/Admin with title
+			var ds2CostConfig *plan.DataSourceCostConfig
+			if opts.includeCostConfig {
+				ds2CostConfig = &plan.DataSourceCostConfig{
+					Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+						{TypeName: "User", FieldName: "name"}:       {HasWeight: true, Weight: 2},
+						{TypeName: "User", FieldName: "title"}:      {HasWeight: true, Weight: 4},
+						{TypeName: "Admin", FieldName: "adminName"}: {HasWeight: true, Weight: 3},
+						{TypeName: "Admin", FieldName: "title"}:     {HasWeight: true, Weight: 5},
+					},
+				}
+			}
 
 			return []plan.DataSource{
 				mustGraphqlDataSourceConfiguration(t,
@@ -4701,6 +4734,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 								FieldNames: []string{"id", "title", "some"},
 							},
 						},
+						CostConfig: ds1CostConfig,
 						FederationMetaData: plan.FederationMetaData{
 							Keys: plan.FederationFieldConfigurations{
 								{
@@ -4751,6 +4785,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 								FieldNames: []string{"id", "adminName", "title"},
 							},
 						},
+						CostConfig: ds2CostConfig,
 						FederationMetaData: plan.FederationMetaData{
 							Keys: plan.FederationFieldConfigurations{
 								{
@@ -4793,24 +4828,24 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				return graphql.Request{
 					OperationName: "Accounts",
 					Query: `
-					query Accounts {
-						accounts {
-							... on User {
-								some {
-									title
+						query Accounts {
+							accounts {
+								... on User {
+									some {
+										title
+									}
+								}
+								... on Admin {
+									some {
+										__typename
+										id
+									}
 								}
 							}
-							... on Admin {
-								some {
-									__typename
-									id
-								}
-							}
-						}
-					}`,
+						}`,
 				}
 			},
-			dataSources:      makeDataSource(t, false),
+			dataSources:      makeDataSource(t, makeDataSourceOpts{expectFetchReasons: false}),
 			expectedResponse: `{"data":{"accounts":[{"some":{"title":"User1"}},{"some":{"__typename":"User","id":"2"}},{"some":{"title":"User3"}}]}}`,
 		}))
 
@@ -4826,27 +4861,78 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					return graphql.Request{
 						OperationName: "Accounts",
 						Query: `
-					query Accounts {
-						accounts {
-							... on User {
-								some {
-									title
+							query Accounts {
+								accounts {
+									... on User {
+										some {
+											title
+										}
+									}
+									... on Admin {
+										some {
+											__typename
+											id
+										}
+									}
 								}
-							}
-							... on Admin {
-								some {
-									__typename
-									id
-								}
-							}
-						}
-					}`,
+							}`,
 					}
 				},
-				dataSources:      makeDataSource(t, true),
+				dataSources:      makeDataSource(t, makeDataSourceOpts{expectFetchReasons: true}),
 				expectedResponse: `{"data":{"accounts":[{"some":{"title":"User1"}},{"some":{"__typename":"User","id":"2"}},{"some":{"title":"User3"}}]}}`,
 			},
 			withFetchReasons(),
+		))
+
+		t.Run("run with static cost computation", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: func(t *testing.T) *graphql.Schema {
+					t.Helper()
+					parseSchema, err := graphql.NewSchemaFromString(definition)
+					require.NoError(t, err)
+					return parseSchema
+				}(t),
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Accounts",
+						Query: `
+							query Accounts {
+								accounts {
+									... on User {
+										some {
+											title
+										}
+									}
+									... on Admin {
+										some {
+											__typename
+											id
+										}
+									}
+								}
+							}`,
+					}
+				},
+				dataSources:      makeDataSource(t, makeDataSourceOpts{includeCostConfig: true}),
+				expectedResponse: `{"data":{"accounts":[{"some":{"title":"User1"}},{"some":{"__typename":"User","id":"2"}},{"some":{"title":"User3"}}]}}`,
+				// Cost breakdown with federation:
+				// Query.accounts: fieldCost=5, multiplier=3 (listSize)
+				//   accounts returns interface [Node!]! with implementing types [User, Admin]
+				//
+				// Children (per interface member type):
+				//   User.some: User: fieldCost=3 (DS1:2 + DS2:1 summed)
+				//     User.title: 4 (DS2, resolved via _entities federation)
+				//   cost = 3 + 4 = 7
+				//
+				//   Admin.some: User: fieldCost=3 (DS1 only)
+				//   cost = 3
+				//
+				// Children total = 7 + 3 = 10
+				// (is it possible to improve accuracy here by using the largest fragment instead of the sum?)
+				// Total = (5 + 10) * 3 = 45
+				expectedStaticCost: 45,
+			},
+			computeStaticCost(),
 		))
 	})
 
