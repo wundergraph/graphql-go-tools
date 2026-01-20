@@ -474,6 +474,15 @@ func (r *rpcPlanningContext) newMessageFromSelectionSet(enclosingTypeNode ast.No
 	return message
 }
 
+func (r *rpcPlanningContext) findResolverFieldMapping(typeName, fieldName string) string {
+	resolveConfig := r.mapping.FindResolveTypeFieldMapping(typeName, fieldName)
+	if resolveConfig == nil {
+		return fieldName
+	}
+
+	return resolveConfig.FieldMappingData.TargetName
+}
+
 // resolveFieldMapping resolves the field mapping for a field.
 // This applies both for complex types in the input and for all fields in the response.
 func (r *rpcPlanningContext) resolveFieldMapping(typeName, fieldName string) string {
@@ -814,6 +823,7 @@ type resolverField struct {
 	fieldDefinitionTypeRef int
 	fieldsSelectionSetRef  int
 	responsePath           ast.Path
+	contextPath            ast.Path
 
 	contextFields      []contextField
 	fieldArguments     []fieldArgument

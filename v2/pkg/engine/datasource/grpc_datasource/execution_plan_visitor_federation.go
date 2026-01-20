@@ -417,6 +417,7 @@ func (r *rpcPlanVisitorFederation) LeaveField(ref int) {
 // ref is the field reference in the operation document.
 // fieldDefRef is the field definition reference in the definition document.
 func (r *rpcPlanVisitorFederation) enterFieldResolver(ref int, fieldDefRef int) {
+	defaultContextPath := ast.Path{{Kind: ast.FieldName, FieldName: []byte("result")}}
 	// Field arguments for non root types will be handled as resolver calls.
 	// We need to make sure to handle a hierarchy of arguments in order to perform parallel calls in order to retrieve the data.
 	fieldArgs := r.operation.FieldArguments(ref)
@@ -430,8 +431,8 @@ func (r *rpcPlanVisitorFederation) enterFieldResolver(ref int, fieldDefRef int) 
 	}
 
 	fieldPath := r.fieldPath
-	if len(r.fieldResolverAncestors) > 0 {
-		fieldPath[0].FieldName = []byte("result")
+	if r.fieldResolverAncestors.len() > 0 {
+		fieldPath = r.resolvedFields[r.fieldResolverAncestors.peek()].contextPath
 	}
 
 	if err := r.planCtx.setResolvedField(r.walker, fieldDefRef, fieldArgs, fieldPath, &resolvedField); err != nil {
@@ -439,13 +440,11 @@ func (r *rpcPlanVisitorFederation) enterFieldResolver(ref int, fieldDefRef int) 
 		return
 	}
 
+	fieldName := r.planCtx.findResolverFieldMapping(r.walker.EnclosingTypeDefinition.NameString(r.definition), r.definition.FieldDefinitionNameString(fieldDefRef))
+	resolvedField.contextPath = defaultContextPath.WithFieldNameItem(unsafebytes.StringToBytes(fieldName))
+
 	r.resolvedFields = append(r.resolvedFields, resolvedField)
 	r.fieldResolverAncestors.push(len(r.resolvedFields) - 1)
-	fieldName, ok := r.mapping.FindFieldMapping(r.walker.EnclosingTypeDefinition.NameString(r.definition), r.definition.FieldDefinitionNameString(fieldDefRef))
-	if !ok {
-		r.walker.StopWithInternalErr(fmt.Errorf("field mapping not found for field %s", r.definition.FieldDefinitionNameString(fieldDefRef)))
-		return
-	}
 	r.fieldPath = r.fieldPath.WithFieldNameItem(unsafebytes.StringToBytes(fieldName))
 
 	// In case of nested fields with arguments, we need to increment the related call ID.
