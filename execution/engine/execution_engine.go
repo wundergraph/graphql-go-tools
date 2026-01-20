@@ -27,8 +27,9 @@ import (
 )
 
 type internalExecutionContext struct {
-	resolveContext *resolve.Context
-	postProcessor  *postprocess.Processor
+	resolveContext   *resolve.Context
+	postProcessor    *postprocess.Processor
+	cacheStatsOutput *resolve.CacheStatsSnapshot // Optional pointer to capture cache stats after execution
 }
 
 func newInternalExecutionContext() *internalExecutionContext {
@@ -106,6 +107,35 @@ func WithAdditionalHttpHeaders(headers http.Header, excludeByKeys ...string) Exe
 func WithRequestTraceOptions(options resolve.TraceOptions) ExecutionOptions {
 	return func(ctx *internalExecutionContext) {
 		ctx.resolveContext.TracingOptions = options
+	}
+}
+
+func WithSubgraphHeadersBuilder(builder resolve.SubgraphHeadersBuilder) ExecutionOptions {
+	return func(ctx *internalExecutionContext) {
+		ctx.resolveContext.SubgraphHeadersBuilder = builder
+	}
+}
+
+func WithCachingOptions(options resolve.CachingOptions) ExecutionOptions {
+	return func(ctx *internalExecutionContext) {
+		ctx.resolveContext.ExecutionOptions.Caching = options
+	}
+}
+
+// WithCacheStatsOutput provides a pointer to a CacheStatsSnapshot struct that will be
+// populated with cache statistics after query execution completes.
+// This is useful for monitoring, debugging, and testing cache effectiveness.
+//
+// Example usage:
+//
+//	var stats resolve.CacheStatsSnapshot
+//	err := engine.Execute(ctx, operation, writer, WithCacheStatsOutput(&stats))
+//	if err == nil {
+//	    fmt.Printf("L1 hits: %d, L1 misses: %d\n", stats.L1Hits, stats.L1Misses)
+//	}
+func WithCacheStatsOutput(stats *resolve.CacheStatsSnapshot) ExecutionOptions {
+	return func(ctx *internalExecutionContext) {
+		ctx.cacheStatsOutput = stats
 	}
 }
 
@@ -225,12 +255,22 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 		})
 	}
 
+	// Helper to capture cache stats after execution
+	captureStats := func() {
+		if execContext.cacheStatsOutput != nil {
+			*execContext.cacheStatsOutput = execContext.resolveContext.GetCacheStats()
+		}
+	}
+
 	switch p := cachedPlan.(type) {
 	case *plan.SynchronousResponsePlan:
 		_, err := e.resolver.ResolveGraphQLResponse(execContext.resolveContext, p.Response, nil, writer)
+		captureStats()
 		return err
 	case *plan.SubscriptionResponsePlan:
-		return e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer)
+		err := e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer)
+		captureStats()
+		return err
 	default:
 		return errors.New("execution of operation is not possible")
 	}

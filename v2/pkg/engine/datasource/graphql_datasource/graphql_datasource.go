@@ -14,7 +14,6 @@ import (
 	"unicode"
 
 	"github.com/buger/jsonparser"
-	"github.com/cespare/xxhash/v2"
 	"github.com/jensneuse/abstractlogger"
 	"github.com/pkg/errors"
 	"github.com/tidwall/sjson"
@@ -83,6 +82,11 @@ type Planner[T Configuration] struct {
 	// propagatedOperationName is non-empty when the operation name is propagated
 	// to the downstream subgraph fetch.
 	propagatedOperationName string
+
+	// caching
+
+	cacheKeyTemplate resolve.CacheKeyTemplate
+	rootFields       []resolve.QueryField // tracks root fields and their arguments for cache key generation
 
 	// federation
 
@@ -376,6 +380,17 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		}
 	}
 
+	// Set cache key template for non-entity calls (root queries)
+	if !requiresEntityFetch && !requiresEntityBatchFetch {
+		if len(p.rootFields) > 0 {
+			rootFieldsCopy := make([]resolve.QueryField, len(p.rootFields))
+			copy(rootFieldsCopy, p.rootFields)
+			p.cacheKeyTemplate = &resolve.RootQueryCacheKeyTemplate{
+				RootFields: rootFieldsCopy,
+			}
+		}
+	}
+
 	return resolve.FetchConfiguration{
 		Input:                                 string(input),
 		DataSource:                            dataSource,
@@ -386,6 +401,9 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		SetTemplateOutputToNullOnVariableNull: requiresEntityFetch || requiresEntityBatchFetch,
 		QueryPlan:                             p.queryPlan,
 		OperationName:                         p.propagatedOperationName,
+		Caching: resolve.FetchCacheConfiguration{
+			CacheKeyTemplate: p.cacheKeyTemplate,
+		},
 	}
 }
 
@@ -717,6 +735,15 @@ func (p *Planner[T]) EnterField(ref int) {
 		}
 	}
 
+	// Track all root fields for cache key generation
+	if p.isRootField() {
+		coordinate := resolve.GraphCoordinate{
+			TypeName:  p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition),
+			FieldName: fieldName,
+		}
+		p.trackCacheKeyCoordinate(coordinate)
+	}
+
 	// store root field name and ref
 	if p.rootFieldName == "" {
 		p.rootFieldName = fieldName
@@ -732,11 +759,59 @@ func (p *Planner[T]) EnterField(ref int) {
 	p.addFieldArguments(p.addField(ref), ref, fieldConfiguration)
 }
 
+// isRootField returns false if an ancestor ast.Node is of kind field
+func (p *Planner[T]) isRootField() bool {
+	for i := 0; i < len(p.visitor.Walker.Ancestors); i++ {
+		if p.visitor.Walker.Ancestors[i].Kind == ast.NodeKindField {
+			return false
+		}
+	}
+	return true
+}
+
 func (p *Planner[T]) addFieldArguments(upstreamFieldRef int, fieldRef int, fieldConfiguration *plan.FieldConfiguration) {
 	if fieldConfiguration != nil {
 		for i := range fieldConfiguration.Arguments {
 			argumentConfiguration := fieldConfiguration.Arguments[i]
 			p.configureArgument(upstreamFieldRef, fieldRef, *fieldConfiguration, argumentConfiguration)
+		}
+	}
+}
+
+// trackCacheKeyCoordinate ensures a root field is tracked for cache key generation,
+// initializing an empty args slice if it doesn't exist yet
+func (p *Planner[T]) trackCacheKeyCoordinate(coordinate resolve.GraphCoordinate) {
+
+	// Check if the field is already tracked
+	for i := range p.rootFields {
+		if p.rootFields[i].Coordinate.TypeName == coordinate.TypeName &&
+			p.rootFields[i].Coordinate.FieldName == coordinate.FieldName {
+			// Field already tracked
+			return
+		}
+	}
+	// Add the field to the slice
+	p.rootFields = append(p.rootFields, resolve.QueryField{
+		Coordinate: coordinate,
+	})
+}
+
+// trackFieldWithArgument adds an argument (name + variable) to the field's tracking for cache key generation
+func (p *Planner[T]) trackFieldWithArgument(coordinate resolve.GraphCoordinate, argName string, variable resolve.Variable) {
+	if coordinate.FieldName == "" {
+		return
+	}
+	// Ensure the field is tracked first
+	p.trackCacheKeyCoordinate(coordinate)
+	// Find the field and add the argument
+	for i := range p.rootFields {
+		if p.rootFields[i].Coordinate.TypeName == coordinate.TypeName &&
+			p.rootFields[i].Coordinate.FieldName == coordinate.FieldName {
+			p.rootFields[i].Args = append(p.rootFields[i].Args, resolve.FieldArgument{
+				Name:     argName,
+				Variable: variable,
+			})
+			return
 		}
 	}
 }
@@ -822,6 +897,12 @@ func (p *Planner[T]) EnterDocument(_, _ *ast.Document) {
 
 	p.addDirectivesToVariableDefinitions = map[int][]int{}
 	p.addedInlineFragments = map[onTypeInlineFragment]struct{}{}
+
+	// reset root fields tracking for cache key generation
+	for i := 0; i < len(p.rootFields); i++ {
+		p.rootFields[i].Args = nil
+	}
+	p.rootFields = p.rootFields[:0]
 }
 
 func (p *Planner[T]) LeaveDocument(_, _ *ast.Document) {
@@ -837,12 +918,26 @@ func (p *Planner[T]) addRepresentationsVariable() {
 		return
 	}
 
-	variable, _ := p.variables.AddVariable(p.buildRepresentationsVariable())
+	representationsVariable := resolve.NewResolvableObjectVariable(p.buildRepresentationsVariable())
+	entityCacheKeyTemplate := &resolve.EntityQueryCacheKeyTemplate{
+		Keys: representationsVariable,
+	}
+
+	// Build L1Keys from only @key configurations (no @requires fields)
+	// This ensures stable entity identity for L1 cache across different fetches
+	l1KeysObject := p.buildL1KeysVariable()
+	if l1KeysObject != nil {
+		entityCacheKeyTemplate.L1Keys = resolve.NewResolvableObjectVariable(l1KeysObject)
+	}
+
+	p.cacheKeyTemplate = entityCacheKeyTemplate
+
+	variable, _ := p.variables.AddVariable(representationsVariable)
 
 	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, "representations", []byte(fmt.Sprintf("[%s]", variable)))
 }
 
-func (p *Planner[T]) buildRepresentationsVariable() resolve.Variable {
+func (p *Planner[T]) buildRepresentationsVariable() *resolve.Object {
 	objects := make([]*resolve.Object, 0, len(p.dataSourcePlannerConfig.RequiredFields))
 	for _, cfg := range p.dataSourcePlannerConfig.RequiredFields {
 		node, err := buildRepresentationVariableNode(p.visitor.Definition, cfg, p.dataSourceConfig.FederationConfiguration())
@@ -854,9 +949,36 @@ func (p *Planner[T]) buildRepresentationsVariable() resolve.Variable {
 		objects = append(objects, node)
 	}
 
-	return resolve.NewResolvableObjectVariable(
-		mergeRepresentationVariableNodes(objects),
-	)
+	return mergeRepresentationVariableNodes(objects)
+}
+
+// buildL1KeysVariable builds a representation variable containing ONLY @key fields.
+// This is used for L1 (per-request) cache keys to ensure stable entity identity.
+// @requires fields are excluded because they vary between fetches but don't affect entity identity.
+// Returns nil if no @key configurations are found.
+func (p *Planner[T]) buildL1KeysVariable() *resolve.Object {
+	var objects []*resolve.Object
+	for _, cfg := range p.dataSourcePlannerConfig.RequiredFields {
+		// Only include @key configurations (FieldName is empty for keys)
+		// @requires/@provides have FieldName set to the field they apply to
+		if cfg.FieldName != "" {
+			continue
+		}
+
+		node, err := buildRepresentationVariableNode(p.visitor.Definition, cfg, p.dataSourceConfig.FederationConfiguration())
+		if err != nil {
+			// Don't fail the whole request, just skip L1 keys for this entity
+			continue
+		}
+
+		objects = append(objects, node)
+	}
+
+	if len(objects) == 0 {
+		return nil
+	}
+
+	return mergeRepresentationVariableNodes(objects)
 }
 
 func (p *Planner[T]) addRepresentationsQuery() {
@@ -1092,7 +1214,7 @@ func (p *Planner[T]) configureArgument(upstreamFieldRef, downstreamFieldRef int,
 
 	switch argumentConfiguration.SourceType {
 	case plan.FieldArgumentSource:
-		p.configureFieldArgumentSource(upstreamFieldRef, downstreamFieldRef, argumentConfiguration)
+		p.configureFieldArgumentSource(upstreamFieldRef, downstreamFieldRef, fieldConfig, argumentConfiguration)
 	case plan.ObjectFieldSource:
 		p.configureObjectFieldSource(upstreamFieldRef, downstreamFieldRef, fieldConfig, argumentConfiguration)
 	}
@@ -1101,7 +1223,7 @@ func (p *Planner[T]) configureArgument(upstreamFieldRef, downstreamFieldRef int,
 }
 
 // configureFieldArgumentSource - creates variables for a plain argument types, in case object or list types goes deep and calls applyInlineFieldArgument
-func (p *Planner[T]) configureFieldArgumentSource(upstreamFieldRef, downstreamFieldRef int, argumentConfiguration plan.ArgumentConfiguration) {
+func (p *Planner[T]) configureFieldArgumentSource(upstreamFieldRef, downstreamFieldRef int, fieldConfig plan.FieldConfiguration, argumentConfiguration plan.ArgumentConfiguration) {
 	fieldArgument, ok := p.visitor.Operation.FieldArgument(downstreamFieldRef, []byte(argumentConfiguration.Name))
 	if !ok {
 		return
@@ -1122,6 +1244,12 @@ func (p *Planner[T]) configureFieldArgumentSource(upstreamFieldRef, downstreamFi
 	contextVariableName, exists := p.variables.AddVariable(contextVariable)
 	variableValueRef, argRef := p.upstreamOperation.AddVariableValueArgument([]byte(argumentConfiguration.Name), variableName) // add the argument to the field, but don't redefine it
 	p.upstreamOperation.AddArgumentToField(upstreamFieldRef, argRef)
+
+	coordinate := resolve.GraphCoordinate{
+		TypeName:  fieldConfig.TypeName,
+		FieldName: fieldConfig.FieldName,
+	}
+	p.trackFieldWithArgument(coordinate, argumentConfiguration.Name, contextVariable)
 
 	if exists { // if the variable exists we don't have to put it onto the variables declaration again, skip
 		return
@@ -1273,6 +1401,12 @@ func (p *Planner[T]) configureObjectFieldSource(upstreamFieldRef, downstreamFiel
 		Path:     argumentConfiguration.SourcePath,
 		Renderer: resolve.NewJSONVariableRenderer(),
 	}
+
+	coordinate := resolve.GraphCoordinate{
+		TypeName:  fieldConfiguration.TypeName,
+		FieldName: fieldConfiguration.FieldName,
+	}
+	p.trackFieldWithArgument(coordinate, argumentConfiguration.Name, variable)
 
 	objectVariableName, exists := p.variables.AddVariable(variable)
 	if !exists {
@@ -1908,20 +2042,19 @@ func (s *Source) replaceEmptyObject(variables []byte) ([]byte, bool) {
 	return variables, false
 }
 
-func (s *Source) LoadWithFiles(ctx context.Context, input []byte, files []*httpclient.FileUpload, out *bytes.Buffer) (err error) {
+func (s *Source) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
 	input = s.compactAndUnNullVariables(input)
-	return httpclient.DoMultipartForm(s.httpClient, ctx, input, files, out)
+	return httpclient.DoMultipartForm(s.httpClient, ctx, headers, input, files)
 }
 
-func (s *Source) Load(ctx context.Context, input []byte, out *bytes.Buffer) (err error) {
+func (s *Source) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
 	input = s.compactAndUnNullVariables(input)
-	return httpclient.Do(s.httpClient, ctx, input, out)
+	return httpclient.Do(s.httpClient, ctx, headers, input)
 }
 
 type GraphQLSubscriptionClient interface {
 	// Subscribe to the origin source. The implementation must not block the calling goroutine.
 	Subscribe(ctx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error
-	UniqueRequestID(ctx *resolve.Context, options GraphQLSubscriptionOptions, hash *xxhash.Digest) (err error)
 	SubscribeAsync(ctx *resolve.Context, id uint64, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error
 	Unsubscribe(id uint64)
 }
@@ -1958,12 +2091,13 @@ type SubscriptionSource struct {
 	subscriptionOnStartFns []SubscriptionOnStartFn
 }
 
-func (s *SubscriptionSource) AsyncStart(ctx *resolve.Context, id uint64, input []byte, updater resolve.SubscriptionUpdater) error {
+func (s *SubscriptionSource) AsyncStart(ctx *resolve.Context, id uint64, headers http.Header, input []byte, updater resolve.SubscriptionUpdater) error {
 	var options GraphQLSubscriptionOptions
 	err := json.Unmarshal(input, &options)
 	if err != nil {
 		return err
 	}
+	options.Header = headers
 	if options.Body.Query == "" {
 		return resolve.ErrUnableToResolve
 	}
@@ -1977,12 +2111,13 @@ func (s *SubscriptionSource) AsyncStop(id uint64) {
 }
 
 // Start the subscription. The updater is called on new events. Start needs to be called in a separate goroutine.
-func (s *SubscriptionSource) Start(ctx *resolve.Context, input []byte, updater resolve.SubscriptionUpdater) error {
+func (s *SubscriptionSource) Start(ctx *resolve.Context, headers http.Header, input []byte, updater resolve.SubscriptionUpdater) error {
 	var options GraphQLSubscriptionOptions
 	err := json.Unmarshal(input, &options)
 	if err != nil {
 		return err
 	}
+	options.Header = headers
 	if options.Body.Query == "" {
 		return resolve.ErrUnableToResolve
 	}
@@ -1992,19 +2127,6 @@ func (s *SubscriptionSource) Start(ctx *resolve.Context, input []byte, updater r
 var (
 	dataSouceName = []byte("graphql")
 )
-
-func (s *SubscriptionSource) UniqueRequestID(ctx *resolve.Context, input []byte, xxh *xxhash.Digest) (err error) {
-	_, err = xxh.Write(dataSouceName)
-	if err != nil {
-		return err
-	}
-	var options GraphQLSubscriptionOptions
-	err = json.Unmarshal(input, &options)
-	if err != nil {
-		return err
-	}
-	return s.client.UniqueRequestID(ctx, options, xxh)
-}
 
 // SubscriptionOnStart is called when a subscription is started.
 // Hooks are invoked sequentially, short-circuiting on the first error.

@@ -22,6 +22,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/wundergraph/astjson"
+	"github.com/wundergraph/go-arena"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
@@ -56,11 +57,11 @@ type ResponseInfo struct {
 	// ResponseHeaders contains a clone of the headers of the response from the subgraph.
 	ResponseHeaders http.Header
 	// This should be private as we do not want user's to access the raw responseBody directly
-	responseBody *bytes.Buffer
+	responseBody []byte
 }
 
-func (ri *ResponseInfo) GetResponseBody() string {
-	return ri.responseBody.String()
+func (r *ResponseInfo) GetResponseBody() string {
+	return string(r.responseBody)
 }
 
 func newResponseInfo(res *result, subgraphErrors map[string]error) *ResponseInfo {
@@ -91,35 +92,21 @@ func newResponseInfo(res *result, subgraphErrors map[string]error) *ResponseInfo
 	return responseInfo
 }
 
-// batchStats represents an index map for batched items.
-// It is used to ensure that the correct json values will be merged with the correct items from the batch.
-//
-// Example:
-// [[0],[1],[0],[1]] We originally have 4 items, but we have 2 unique indexes (0 and 1).
-// This means we are deduplicating 2 items by merging them from their response entity indexes.
-// 0 -> 0, 1 -> 1, 2 -> 0, 3 -> 1
-type batchStats [][]int
-
-// getUniqueIndexes returns the number of unique indexes in the batchStats.
-// This is used to ensure that we can provide a valid error message in case of differing array lengths.
-func (b *batchStats) getUniqueIndexes() int {
-	uniqueIndexes := make(map[int]struct{})
-	for _, bi := range *b {
-		for _, index := range bi {
-			if index < 0 {
-				continue
-			}
-			uniqueIndexes[index] = struct{}{}
-		}
-	}
-
-	return len(uniqueIndexes)
-}
-
 type result struct {
-	postProcessing   PostProcessingConfiguration
-	out              *bytes.Buffer
-	batchStats       batchStats
+	postProcessing PostProcessingConfiguration
+	// batchStats represents per-unique-batch-item merge targets.
+	// Outer slice index corresponds to the unique representation index in the request batch,
+	// and the inner slice contains all target values that should be merged with the response at that index.
+	//
+	// Example:
+	// For 4 original items that deduplicate to 2 unique representations, we might have:
+	// [
+	//
+	//	[item0, item2], // merge response[0] into item0 and item2
+	//	[item1, item3], // merge response[1] into item1 and item3
+	//
+	// ]
+	batchStats       [][]*astjson.Value
 	fetchSkipped     bool
 	nestedMergeItems []*result
 
@@ -138,16 +125,31 @@ type result struct {
 	loaderHookContext context.Context
 
 	httpResponseContext *httpclient.ResponseContext
+	// out is the subgraph response body
+	out               []byte
+	singleFlightStats *singleFlightStats
+	tools             *batchEntityTools
+
+	cache              LoaderCache
+	cacheMustBeUpdated bool
+	l1CacheKeys        []*CacheKey // L1 cache keys (no prefix, used for merging)
+	l2CacheKeys        []*CacheKey // L2 cache keys (with subgraph header prefix)
+	cacheSkipFetch     bool
+	cacheConfig        FetchCacheConfiguration
 }
 
-func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInfo) {
-	r.postProcessing = postProcessing
+func (l *Loader) createOrInitResult(res *result, postProcessing PostProcessingConfiguration, info *FetchInfo) *result {
+	if res == nil {
+		res = &result{}
+	}
+	res.postProcessing = postProcessing
 	if info != nil {
-		r.ds = DataSourceInfo{
+		res.ds = DataSourceInfo{
 			ID:   info.DataSourceID,
 			Name: info.DataSourceName,
 		}
 	}
+	return res
 }
 
 func IsIntrospectionDataSource(dataSourceID string) bool {
@@ -158,6 +160,8 @@ type Loader struct {
 	resolvable *Resolvable
 	ctx        *Context
 	info       *GraphQLResponseInfo
+
+	caches map[string]LoaderCache
 
 	propagateSubgraphErrors           bool
 	propagateSubgraphStatusCodes      bool
@@ -180,6 +184,27 @@ type Loader struct {
 	validateRequiredExternalFields bool
 
 	taintedObjs taintedObjects
+
+	// jsonArena is the arena to allocation json, supplied by the Resolver
+	// Disclaimer: this arena is NOT thread safe!
+	// Only use from main goroutine
+	// Don't Reset or Release, the Resolver handles this
+	// Disclaimer: When parsing json into the arena, the underlying bytes must also be allocated on the arena!
+	// This is very important to "tie" their lifecycles together
+	// If you're not doing this, you will see segfaults
+	// Example of correct usage in func "mergeResult"
+	jsonArena arena.Arena
+
+	// singleFlight is the SubgraphRequestSingleFlight object shared across all client requests.
+	// It's thread safe and can be used to de-duplicate subgraph requests.
+	singleFlight *SubgraphRequestSingleFlight
+
+	// l1Cache is the per-request entity cache (L1).
+	// Key: cache key string (WITHOUT subgraph header prefix)
+	// Value: *astjson.Value pointer to entity in jsonArena
+	// Thread-safe via sync.Map for parallel fetch support.
+	// Only used for entity fetches, NOT root fetches (root fields have no prior entity data).
+	l1Cache sync.Map
 }
 
 func (l *Loader) Free() {
@@ -218,24 +243,69 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 		return nil
 	}
 	results := make([]*result, len(nodes))
+	defer func() {
+		for i := range results {
+			// no-op if tools == nil
+			batchEntityToolPool.Put(results[i].tools)
+		}
+	}()
 	itemsItems := make([][]*astjson.Value, len(nodes))
+
+	// Phase 1: Prepare cache keys + L1 check on MAIN thread for ALL nodes
+	// L1 stats use non-atomic operations, so they MUST be on the main thread
+	for i := range nodes {
+		results[i] = &result{}
+		itemsItems[i] = l.selectItemsForPath(nodes[i].Item.FetchPath)
+		f := nodes[i].Item.Fetch
+		info := getFetchInfo(f)
+		cfg := getFetchCaching(f)
+
+		// Prepare cache keys for L1 and L2
+		isEntityFetch, err := l.prepareCacheKeys(info, cfg, itemsItems[i], results[i])
+		if err != nil {
+			return errors.WithStack(err)
+		}
+
+		// L1 Check (main thread only - not thread-safe)
+		if isEntityFetch && l.ctx.ExecutionOptions.Caching.EnableL1Cache && len(results[i].l1CacheKeys) > 0 {
+			allComplete := l.tryL1CacheLoad(info, results[i].l1CacheKeys)
+			if allComplete {
+				// All entities found in L1 - mark to skip goroutine
+				results[i].cacheSkipFetch = true
+			} else {
+				// Clear FromCache for L2 to try
+				for _, ck := range results[i].l1CacheKeys {
+					ck.FromCache = nil
+				}
+			}
+		}
+	}
+
+	// Phase 2: Parallel L2 + fetch for nodes that didn't fully hit L1
+	// L2 stats use atomic operations - thread-safe
 	g, ctx := errgroup.WithContext(l.ctx.ctx)
 	for i := range nodes {
 		i := i
-		results[i] = &result{}
-		itemsItems[i] = l.selectItemsForPath(nodes[i].Item.FetchPath)
 		f := nodes[i].Item.Fetch
 		item := nodes[i].Item
 		items := itemsItems[i]
 		res := results[i]
+
+		// Skip goroutine if L1 was a complete hit
+		if res.cacheSkipFetch {
+			continue
+		}
+
 		g.Go(func() error {
-			return l.loadFetch(ctx, f, item, items, res)
+			return l.loadFetchL2Only(ctx, f, item, items, res)
 		})
 	}
 	err := g.Wait()
 	if err != nil {
 		return errors.WithStack(err)
 	}
+
+	// Phase 3: Merge results (main thread)
 	for i := range results {
 		if results[i].nestedMergeItems != nil {
 			for j := range results[i].nestedMergeItems {
@@ -280,26 +350,34 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 
 	switch f := item.Fetch.(type) {
 	case *SingleFetch:
-		res := &result{
-			out: &bytes.Buffer{},
-		}
-		err := l.loadSingleFetch(l.ctx.ctx, f, item, items, res)
+		res := l.createOrInitResult(nil, f.PostProcessing, f.Info)
+		skip, err := l.tryCacheLoad(l.ctx.ctx, f.Info, f.Caching, items, res)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
+		}
+		if !skip {
+			err = l.loadSingleFetch(l.ctx.ctx, f, item, items, res)
+			if err != nil {
+				return err
+			}
 		}
 		err = l.mergeResult(item, res, items)
 		if l.ctx.LoaderHooks != nil {
 			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.subgraphErrors))
 		}
-
 		return err
 	case *BatchEntityFetch:
-		res := &result{
-			out: &bytes.Buffer{},
-		}
-		err := l.loadBatchEntityFetch(l.ctx.ctx, item, f, items, res)
+		res := l.createOrInitResult(nil, f.PostProcessing, f.Info)
+		defer batchEntityToolPool.Put(res.tools)
+		skip, err := l.tryCacheLoad(l.ctx.ctx, f.Info, f.Caching, items, res)
 		if err != nil {
 			return errors.WithStack(err)
+		}
+		if !skip {
+			err = l.loadBatchEntityFetch(l.ctx.ctx, item, f, items, res)
+			if err != nil {
+				return errors.WithStack(err)
+			}
 		}
 		err = l.mergeResult(item, res, items)
 		if l.ctx.LoaderHooks != nil {
@@ -307,62 +385,31 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		}
 		return err
 	case *EntityFetch:
-		res := &result{
-			out: &bytes.Buffer{},
-		}
-		err := l.loadEntityFetch(l.ctx.ctx, item, f, items, res)
+		res := l.createOrInitResult(nil, f.PostProcessing, f.Info)
+		skip, err := l.tryCacheLoad(l.ctx.ctx, f.Info, f.Caching, items, res)
 		if err != nil {
 			return errors.WithStack(err)
+		}
+		if !skip {
+			err = l.loadEntityFetch(l.ctx.ctx, item, f, items, res)
+			if err != nil {
+				return errors.WithStack(err)
+			}
 		}
 		err = l.mergeResult(item, res, items)
 		if l.ctx.LoaderHooks != nil {
 			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.subgraphErrors))
 		}
 		return err
-	case *ParallelListItemFetch:
-		results := make([]*result, len(items))
-		if l.ctx.TracingOptions.Enable {
-			f.Traces = make([]*SingleFetch, len(items))
-		}
-		g, ctx := errgroup.WithContext(l.ctx.ctx)
-		for i := range items {
-			i := i
-			results[i] = &result{
-				out: &bytes.Buffer{},
-			}
-			if l.ctx.TracingOptions.Enable {
-				f.Traces[i] = new(SingleFetch)
-				*f.Traces[i] = *f.Fetch
-				g.Go(func() error {
-					return l.loadFetch(ctx, f.Traces[i], item, items[i:i+1], results[i])
-				})
-				continue
-			}
-			g.Go(func() error {
-				return l.loadFetch(ctx, f.Fetch, item, items[i:i+1], results[i])
-			})
-		}
-		err := g.Wait()
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		for i := range results {
-			err = l.mergeResult(item, results[i], items[i:i+1])
-			if l.ctx.LoaderHooks != nil {
-				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].ds, newResponseInfo(results[i], l.ctx.subgraphErrors))
-			}
-			if err != nil {
-				return errors.WithStack(err)
-			}
-		}
-		return nil
 	default:
 		return nil
 	}
 }
 
 func (l *Loader) selectItemsForPath(path []FetchItemPathElement) []*astjson.Value {
-	items := []*astjson.Value{l.resolvable.data}
+	// Use arena allocation for the initial items slice
+	items := arena.AllocateSlice[*astjson.Value](l.jsonArena, 1, 1)
+	items[0] = l.resolvable.data
 	if len(path) == 0 {
 		return l.taintedObjs.filterOutTainted(items)
 	}
@@ -370,7 +417,7 @@ func (l *Loader) selectItemsForPath(path []FetchItemPathElement) []*astjson.Valu
 		if len(items) == 0 {
 			break
 		}
-		items = selectItems(items, path[i])
+		items = selectItems(l.jsonArena, items, path[i])
 	}
 	return l.taintedObjs.filterOutTainted(items)
 }
@@ -391,7 +438,7 @@ func isItemAllowedByTypename(obj *astjson.Value, typeNames []string) bool {
 	return slices.Contains(typeNames, __typeNameStr)
 }
 
-func selectItems(items []*astjson.Value, element FetchItemPathElement) []*astjson.Value {
+func selectItems(a arena.Arena, items []*astjson.Value, element FetchItemPathElement) []*astjson.Value {
 	if len(items) == 0 {
 		return nil
 	}
@@ -413,7 +460,7 @@ func selectItems(items []*astjson.Value, element FetchItemPathElement) []*astjso
 		}
 		return []*astjson.Value{field}
 	}
-	selected := make([]*astjson.Value, 0, len(items))
+	selected := arena.AllocateSlice[*astjson.Value](a, 0, len(items))
 	for _, item := range items {
 		if !isItemAllowedByTypename(item, element.TypeNames) {
 			continue
@@ -423,15 +470,15 @@ func selectItems(items []*astjson.Value, element FetchItemPathElement) []*astjso
 			continue
 		}
 		if field.Type() == astjson.TypeArray {
-			selected = append(selected, field.GetArray()...)
+			selected = arena.SliceAppend(a, selected, field.GetArray()...)
 			continue
 		}
-		selected = append(selected, field)
+		selected = arena.SliceAppend(a, selected, field)
 	}
 	return selected
 }
 
-func itemsData(items []*astjson.Value) *astjson.Value {
+func (l *Loader) itemsData(items []*astjson.Value) *astjson.Value {
 	if len(items) == 0 {
 		return astjson.NullValue
 	}
@@ -442,50 +489,428 @@ func itemsData(items []*astjson.Value) *astjson.Value {
 	// however, itemsData can be called concurrently, so this might result in a race
 	arr := astjson.MustParseBytes([]byte(`[]`))
 	for i, item := range items {
-		arr.SetArrayItem(i, item)
+		arr.SetArrayItem(nil, i, item)
 	}
 	return arr
+}
+
+type CacheEntry struct {
+	Key   string
+	Value []byte
+}
+
+type LoaderCache interface {
+	Get(ctx context.Context, keys []string) ([]*CacheEntry, error)
+	Set(ctx context.Context, entries []*CacheEntry, ttl time.Duration) error
+	Delete(ctx context.Context, keys []string) error
+}
+
+// extractCacheKeysStrings extracts all unique cache key strings from CacheKeys
+// If includePrefix is true and subgraphName is provided, keys are prefixed with the subgraph header hash.
+func (l *Loader) extractCacheKeysStrings(a arena.Arena, cacheKeys []*CacheKey) []string {
+	if len(cacheKeys) == 0 {
+		return nil
+	}
+	out := arena.AllocateSlice[string](a, 0, len(cacheKeys))
+	for i := range cacheKeys {
+		for j := range cacheKeys[i].Keys {
+			l := len(cacheKeys[i].Keys[j])
+			key := arena.AllocateSlice[byte](a, 0, l)
+			key = arena.SliceAppend(a, key, unsafebytes.StringToBytes(cacheKeys[i].Keys[j])...)
+			out = arena.SliceAppend(a, out, unsafebytes.BytesToString(key))
+		}
+	}
+	return out
+}
+
+// populateFromCache populates CacheKey.FromCache fields from cache entries
+// If includePrefix is true and subgraphName is provided, keys are looked up with the subgraph header hash prefix.
+func (l *Loader) populateFromCache(a arena.Arena, cacheKeys []*CacheKey, entries []*CacheEntry) (err error) {
+	for i := range entries {
+		if entries[i] == nil || entries[i].Value == nil {
+			continue
+		}
+		for j := range cacheKeys {
+			for k := range cacheKeys[j].Keys {
+				if cacheKeys[j].Keys[k] == entries[i].Key {
+					cacheKeys[j].FromCache, err = astjson.ParseBytesWithArena(a, entries[i].Value)
+					if err != nil {
+						return errors.WithStack(err)
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// cacheKeysToEntries converts CacheKeys to CacheEntries for storage
+// For each CacheKey, creates entries for all its KeyEntries with the same value
+// If includePrefix is true and subgraphName is provided, keys are prefixed with the subgraph header hash.
+func (l *Loader) cacheKeysToEntries(a arena.Arena, cacheKeys []*CacheKey) ([]*CacheEntry, error) {
+	out := arena.AllocateSlice[*CacheEntry](a, 0, len(cacheKeys))
+	buf := arena.AllocateSlice[byte](a, 64, 64)
+	for i := range cacheKeys {
+		for j := range cacheKeys[i].Keys {
+			if cacheKeys[i].Item == nil {
+				continue
+			}
+			buf = cacheKeys[i].Item.MarshalTo(buf[:0])
+			entry := &CacheEntry{
+				Key:   cacheKeys[i].Keys[j],
+				Value: arena.AllocateSlice[byte](a, len(buf), len(buf)),
+			}
+			copy(entry.Value, buf)
+			out = arena.SliceAppend(a, out, entry)
+		}
+	}
+	return out, nil
+}
+
+// prepareCacheKeys generates cache keys for L1 and/or L2 based on configuration.
+// Called on main thread before any cache lookups.
+// Sets res.l1CacheKeys for L1 lookup (no prefix) and res.l2CacheKeys for L2 lookup (with prefix).
+// Returns isEntityFetch to indicate if this fetch supports L1 caching.
+func (l *Loader) prepareCacheKeys(info *FetchInfo, cfg FetchCacheConfiguration, inputItems []*astjson.Value, res *result) (isEntityFetch bool, err error) {
+	if !cfg.Enabled || cfg.CacheKeyTemplate == nil {
+		return false, nil
+	}
+
+	// Skip all cache operations if both L1 and L2 are disabled
+	if !l.ctx.ExecutionOptions.Caching.EnableL1Cache && !l.ctx.ExecutionOptions.Caching.EnableL2Cache {
+		return false, nil
+	}
+
+	res.cacheConfig = cfg
+
+	// Check if this is an entity fetch (L1 only applies to entity fetches)
+	entityTemplate, isEntity := cfg.CacheKeyTemplate.(*EntityQueryCacheKeyTemplate)
+
+	// Always generate cache keys (needed for merging cached data into response)
+	// For entity fetches: uses L1-style keys (no prefix)
+	// For root fetches: uses regular keys (no prefix)
+	if isEntity {
+		res.l1CacheKeys, err = entityTemplate.RenderL1CacheKeys(l.jsonArena, l.ctx, inputItems)
+	} else {
+		res.l1CacheKeys, err = cfg.CacheKeyTemplate.RenderCacheKeys(l.jsonArena, l.ctx, inputItems, "")
+	}
+	if err != nil {
+		return false, err
+	}
+
+	// Generate L2 keys (with prefix for cache isolation)
+	if l.ctx.ExecutionOptions.Caching.EnableL2Cache {
+		// Get cache first to ensure it exists
+		if l.caches != nil {
+			res.cache = l.caches[cfg.CacheName]
+		}
+		if res.cache != nil {
+			// Calculate prefix for L2 (subgraph header isolation)
+			var prefix string
+			if cfg.IncludeSubgraphHeaderPrefix && l.ctx.SubgraphHeadersBuilder != nil {
+				_, headersHash := l.ctx.SubgraphHeadersBuilder.HeadersForSubgraph(info.DataSourceName)
+				var buf [20]byte
+				b := strconv.AppendUint(buf[:0], headersHash, 10)
+				prefix = string(b)
+			}
+
+			// Render L2 cache keys with prefix
+			if isEntity {
+				res.l2CacheKeys, err = entityTemplate.RenderL2CacheKeys(l.jsonArena, l.ctx, inputItems, prefix)
+			} else {
+				res.l2CacheKeys, err = cfg.CacheKeyTemplate.RenderCacheKeys(l.jsonArena, l.ctx, inputItems, prefix)
+			}
+			if err != nil {
+				return false, err
+			}
+		}
+	}
+
+	return isEntity, nil
+}
+
+// tryCacheLoad orchestrates cache lookups for sequential execution paths.
+// Uses the 3-function approach: prepareCacheKeys -> tryL1CacheLoad -> tryL2CacheLoad
+// Returns skipFetch=true if cache provides complete data.
+//
+// IMPORTANT: This function is for SEQUENTIAL execution only (main thread).
+// For PARALLEL execution, use prepareCacheKeys + tryL1CacheLoad on main thread,
+// then tryL2CacheLoad in goroutines.
+//
+// Lookup Order (entity fetches): L1 -> L2 -> Subgraph Fetch
+// Lookup Order (root fetches): L2 -> Subgraph Fetch (no L1)
+func (l *Loader) tryCacheLoad(ctx context.Context, info *FetchInfo, cfg FetchCacheConfiguration, inputItems []*astjson.Value, res *result) (skipFetch bool, err error) {
+	// Step 1: Prepare cache keys for L1 and L2
+	isEntityFetch, err := l.prepareCacheKeys(info, cfg, inputItems, res)
+	if err != nil {
+		return false, err
+	}
+
+	// No cache keys generated - nothing to do
+	if len(res.l1CacheKeys) == 0 && len(res.l2CacheKeys) == 0 {
+		return false, nil
+	}
+
+	// Step 2: L1 Check (per-request, in-memory) - entity fetches only
+	// Safe to call: this is sequential execution on main thread
+	if isEntityFetch && l.ctx.ExecutionOptions.Caching.EnableL1Cache && len(res.l1CacheKeys) > 0 {
+		allComplete := l.tryL1CacheLoad(info, res.l1CacheKeys)
+		if allComplete {
+			// All entities found in L1 with complete data - skip fetch
+			res.cacheSkipFetch = true
+			return true, nil
+		}
+		// Some or all entities missing/incomplete - clear FromCache and continue to L2
+		for _, ck := range res.l1CacheKeys {
+			ck.FromCache = nil
+		}
+	}
+
+	// Step 3: L2 Check (external cache) - if L1 missed
+	// Safe to call: this is sequential execution on main thread
+	if l.ctx.ExecutionOptions.Caching.EnableL2Cache && len(res.l2CacheKeys) > 0 {
+		skipFetch, err = l.tryL2CacheLoad(ctx, info, res)
+		if err != nil || skipFetch {
+			return skipFetch, err
+		}
+	}
+
+	// Both missed - fetch required
+	res.cacheMustBeUpdated = true
+	return false, nil
+}
+
+// tryL1CacheLoad attempts to load all items from the L1 (per-request) cache.
+// MUST be called from main thread only (L1 stats are not atomic).
+// Tracks per-entity hits/misses: HIT if entity found with complete data, MISS otherwise.
+// Returns true only if ALL items are found in cache with complete data for the fetch.
+// L1 uses cache keys WITHOUT subgraph header prefix (same request context).
+// NOTE: Only called for entity fetches, not root fetches.
+func (l *Loader) tryL1CacheLoad(info *FetchInfo, cacheKeys []*CacheKey) bool {
+	if info == nil || info.OperationType != ast.OperationTypeQuery {
+		return false
+	}
+
+	allComplete := true
+	for _, ck := range cacheKeys {
+		for _, keyStr := range ck.Keys {
+			if cached, ok := l.l1Cache.Load(keyStr); ok {
+				cachedValue := cached.(*astjson.Value)
+				// Check if cached entity has all required fields for this fetch
+				if info.ProvidesData != nil && l.validateItemHasRequiredData(cachedValue, info.ProvidesData) {
+					// Entity found with complete data - L1 HIT
+					// Use shallow copy to prevent pointer aliasing with self-referential entities
+					ck.FromCache = l.shallowCopyProvidedFields(cachedValue, info.ProvidesData)
+					l.ctx.trackL1Hit()
+				} else {
+					// Entity found but missing required fields - L1 MISS
+					allComplete = false
+					l.ctx.trackL1Miss()
+				}
+			} else {
+				// Entity not in cache - L1 MISS
+				allComplete = false
+				l.ctx.trackL1Miss()
+			}
+		}
+	}
+	return allComplete
+}
+
+// tryL2CacheLoad checks the external (L2) cache for entity data.
+// Thread-safe: can be called from parallel goroutines (uses atomic L2 stats).
+// Expects res.l2CacheKeys to be pre-populated by prepareCacheKeys().
+// Uses subgraph header prefix for cache key isolation across different configurations.
+func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *result) (skipFetch bool, err error) {
+	// L2 keys should be pre-populated by prepareCacheKeys
+	if len(res.l2CacheKeys) == 0 || res.cache == nil {
+		res.cacheMustBeUpdated = true
+		return false, nil
+	}
+
+	cacheKeyStrings := l.extractCacheKeysStrings(l.jsonArena, res.l2CacheKeys)
+	if len(cacheKeyStrings) == 0 {
+		res.cacheMustBeUpdated = true
+		return false, nil
+	}
+
+	// Get cache entries from L2
+	cacheEntries, err := res.cache.Get(ctx, cacheKeyStrings)
+	if err != nil {
+		// L2 cache errors are non-fatal, continue to fetch
+		res.cacheMustBeUpdated = true
+		return false, nil
+	}
+
+	// Populate FromCache fields in L2 CacheKeys (which have prefixed keys)
+	err = l.populateFromCache(l.jsonArena, res.l2CacheKeys, cacheEntries)
+	if err != nil {
+		res.cacheMustBeUpdated = true
+		return false, nil
+	}
+
+	// Copy FromCache values from L2 keys to L1 keys (if L1 keys exist) and track per-entity hits/misses
+	// The keys have the same structure, just different key strings
+	allComplete := true
+	if len(res.l1CacheKeys) > 0 {
+		// Entity fetch with L1 keys - copy to L1 keys for merging
+		for i := range res.l1CacheKeys {
+			if i < len(res.l2CacheKeys) {
+				res.l1CacheKeys[i].FromCache = res.l2CacheKeys[i].FromCache
+				// Track per-entity L2 hit/miss (atomic operations - thread-safe)
+				if res.l1CacheKeys[i].FromCache != nil {
+					if info != nil && info.ProvidesData != nil && l.validateItemHasRequiredData(res.l1CacheKeys[i].FromCache, info.ProvidesData) {
+						l.ctx.trackL2Hit()
+					} else {
+						l.ctx.trackL2Miss()
+						allComplete = false
+					}
+				} else {
+					l.ctx.trackL2Miss()
+					allComplete = false
+				}
+			}
+		}
+	} else {
+		// Root fetch (no L1 keys) - track directly from L2 keys
+		for _, ck := range res.l2CacheKeys {
+			if ck.FromCache != nil {
+				if info != nil && info.ProvidesData != nil && l.validateItemHasRequiredData(ck.FromCache, info.ProvidesData) {
+					l.ctx.trackL2Hit()
+				} else {
+					l.ctx.trackL2Miss()
+					allComplete = false
+				}
+			} else {
+				l.ctx.trackL2Miss()
+				allComplete = false
+			}
+		}
+	}
+
+	if allComplete {
+		res.cacheSkipFetch = true
+		return true, nil
+	}
+
+	res.cacheMustBeUpdated = true
+	return false, nil
+}
+
+// populateL1Cache stores entity data in the L1 (per-request) cache for later reuse.
+// Called after successful fetch and merge for entity fetches only.
+// OPTIMIZATION: Only stores if key is missing - existing entries are pointers
+// to the same arena data, so no update needed. This minimizes sync.Map calls.
+func (l *Loader) populateL1Cache(cacheKeys []*CacheKey) {
+	if !l.ctx.ExecutionOptions.Caching.EnableL1Cache {
+		return
+	}
+	for _, ck := range cacheKeys {
+		if ck.Item == nil {
+			continue
+		}
+		for _, keyStr := range ck.Keys {
+			// LoadOrStore only writes if key is missing, minimizing map operations
+			l.l1Cache.LoadOrStore(keyStr, ck.Item)
+		}
+	}
+}
+
+// getFetchInfo extracts FetchInfo from a Fetch interface
+func getFetchInfo(fetch Fetch) *FetchInfo {
+	switch f := fetch.(type) {
+	case *SingleFetch:
+		return f.Info
+	case *EntityFetch:
+		return f.Info
+	case *BatchEntityFetch:
+		return f.Info
+	}
+	return nil
+}
+
+// getFetchCaching extracts FetchCacheConfiguration from a Fetch interface
+func getFetchCaching(fetch Fetch) FetchCacheConfiguration {
+	switch f := fetch.(type) {
+	case *SingleFetch:
+		return f.Caching
+	case *EntityFetch:
+		return f.Caching
+	case *BatchEntityFetch:
+		return f.Caching
+	}
+	return FetchCacheConfiguration{}
+}
+
+// loadFetchL2Only loads data assuming L1 cache has already been checked on main thread.
+// Used by resolveParallel to avoid L1 access from goroutines (L1 stats are not thread-safe).
+// If res.cacheSkipFetch is true, returns immediately (L1 hit).
+// Otherwise checks L2 cache (thread-safe) and performs actual fetch if needed.
+func (l *Loader) loadFetchL2Only(ctx context.Context, fetch Fetch, fetchItem *FetchItem, items []*astjson.Value, res *result) error {
+	// If L1 was a complete hit, skip everything
+	if res.cacheSkipFetch {
+		return nil
+	}
+
+	info := getFetchInfo(fetch)
+
+	// Check L2 cache (thread-safe - uses atomic stats)
+	if l.ctx.ExecutionOptions.Caching.EnableL2Cache && len(res.l2CacheKeys) > 0 {
+		skip, err := l.tryL2CacheLoad(ctx, info, res)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		if skip {
+			return nil
+		}
+	}
+
+	// Perform actual fetch
+	switch f := fetch.(type) {
+	case *SingleFetch:
+		res = l.createOrInitResult(res, f.PostProcessing, f.Info)
+		return l.loadSingleFetch(ctx, f, fetchItem, items, res)
+	case *EntityFetch:
+		res = l.createOrInitResult(res, f.PostProcessing, f.Info)
+		return l.loadEntityFetch(ctx, fetchItem, f, items, res)
+	case *BatchEntityFetch:
+		res = l.createOrInitResult(res, f.PostProcessing, f.Info)
+		return l.loadBatchEntityFetch(ctx, fetchItem, f, items, res)
+	}
+	return nil
 }
 
 func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, fetchItem *FetchItem, items []*astjson.Value, res *result) error {
 	switch f := fetch.(type) {
 	case *SingleFetch:
-		res.out = &bytes.Buffer{}
-		return l.loadSingleFetch(ctx, f, fetchItem, items, res)
-	case *ParallelListItemFetch:
-		results := make([]*result, len(items))
-		if l.ctx.TracingOptions.Enable {
-			f.Traces = make([]*SingleFetch, len(items))
-		}
-		g, ctx := errgroup.WithContext(l.ctx.ctx)
-		for i := range items {
-			i := i
-			results[i] = &result{
-				out: &bytes.Buffer{},
-			}
-			if l.ctx.TracingOptions.Enable {
-				f.Traces[i] = new(SingleFetch)
-				*f.Traces[i] = *f.Fetch
-				g.Go(func() error {
-					return l.loadFetch(ctx, f.Traces[i], fetchItem, items[i:i+1], results[i])
-				})
-				continue
-			}
-			g.Go(func() error {
-				return l.loadFetch(ctx, f.Fetch, fetchItem, items[i:i+1], results[i])
-			})
-		}
-		err := g.Wait()
+		res = l.createOrInitResult(res, f.PostProcessing, f.Info)
+		skip, err := l.tryCacheLoad(ctx, f.Info, f.Caching, items, res)
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		res.nestedMergeItems = results
-		return nil
+		if skip {
+			return nil
+		}
+		return l.loadSingleFetch(ctx, f, fetchItem, items, res)
 	case *EntityFetch:
-		res.out = &bytes.Buffer{}
+		res = l.createOrInitResult(res, f.PostProcessing, f.Info)
+		skip, err := l.tryCacheLoad(ctx, f.Info, f.Caching, items, res)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		if skip {
+			return nil
+		}
 		return l.loadEntityFetch(ctx, fetchItem, f, items, res)
 	case *BatchEntityFetch:
-		res.out = &bytes.Buffer{}
+		res = l.createOrInitResult(res, f.PostProcessing, f.Info)
+		skip, err := l.tryCacheLoad(ctx, f.Info, f.Caching, items, res)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		if skip {
+			return nil
+		}
 		return l.loadBatchEntityFetch(ctx, fetchItem, f, items, res)
 	}
 	return nil
@@ -517,42 +942,32 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	if res.err != nil {
 		return l.renderErrorsFailedToFetch(fetchItem, res, failedToFetchNoReason)
 	}
-	if res.authorizationRejected {
-		err := l.renderAuthorizationRejectedErrors(fetchItem, res)
-		if err != nil {
-			return err
-		}
-		trueValue := astjson.MustParse(`true`)
-		skipErrorsPath := make([]string, len(res.postProcessing.MergePath)+1)
-		copy(skipErrorsPath, res.postProcessing.MergePath)
-		skipErrorsPath[len(skipErrorsPath)-1] = "__skipErrors"
-		for _, item := range items {
-			astjson.SetValue(item, trueValue, skipErrorsPath...)
-		}
-		return nil
+	if rejected, err := l.evaluateRejected(fetchItem, res, items); err != nil || rejected {
+		return err
 	}
-	if res.rateLimitRejected {
-		err := l.renderRateLimitRejectedErrors(fetchItem, res)
-		if err != nil {
-			return err
-		}
-		trueValue := astjson.MustParse(`true`)
-		skipErrorsPath := make([]string, len(res.postProcessing.MergePath)+1)
-		copy(skipErrorsPath, res.postProcessing.MergePath)
-		skipErrorsPath[len(skipErrorsPath)-1] = "__skipErrors"
-		for _, item := range items {
-			astjson.SetValue(item, trueValue, skipErrorsPath...)
+	if res.cacheSkipFetch {
+		// Merge cached data into items
+		for _, key := range res.l1CacheKeys {
+			// Merge cached data into item
+			_, _, err := astjson.MergeValues(l.jsonArena, key.Item, key.FromCache)
+			if err != nil {
+				return l.renderErrorsFailedToFetch(fetchItem, res, "invalid cache item")
+			}
 		}
 		return nil
 	}
 	if res.fetchSkipped {
 		return nil
 	}
-	if res.out.Len() == 0 {
+	if len(res.out) == 0 {
 		return l.renderErrorsFailedToFetch(fetchItem, res, emptyGraphQLResponse)
 	}
-
-	response, err := astjson.ParseBytesWithoutCache(res.out.Bytes())
+	// before parsing bytes with an arena.Arena, it's important to first allocate the bytes ON the same arena.Arena
+	// this ties their lifecycles together
+	// if you don't do this, you'll get segfaults
+	slice := arena.AllocateSlice[byte](l.jsonArena, len(res.out), len(res.out))
+	copy(slice, res.out)
+	response, err := astjson.ParseBytesWithArena(l.jsonArena, slice)
 	if err != nil {
 		// Fall back to status code if parsing fails and non-2XX
 		if (res.statusCode > 0 && res.statusCode < 200) || res.statusCode >= 300 {
@@ -623,7 +1038,8 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		// no data
 		return nil
 	}
-
+	defer l.updateL2Cache(res)
+	defer l.populateL1Cache(res.l1CacheKeys)
 	if len(items) == 0 {
 		// If the data is set, it must be an object according to GraphQL over HTTP spec
 		if responseData.Type() != astjson.TypeObject {
@@ -633,7 +1049,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		return nil
 	}
 	if len(items) == 1 && res.batchStats == nil {
-		items[0], _, err = astjson.MergeValuesWithPath(items[0], responseData, res.postProcessing.MergePath...)
+		items[0], _, err = astjson.MergeValuesWithPath(l.jsonArena, items[0], responseData, res.postProcessing.MergePath...)
 		if err != nil {
 			return errors.WithStack(ErrMergeResult{
 				Subgraph: res.ds.Name,
@@ -644,6 +1060,10 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		if slices.Contains(taintedIndices, 0) {
 			l.taintedObjs.add(items[0])
 		}
+		// Update cache key item to point to merged data for L1 cache
+		if len(res.l1CacheKeys) > 0 && res.l1CacheKeys[0] != nil {
+			res.l1CacheKeys[0].Item = items[0]
+		}
 		return nil
 	}
 	batch := responseData.GetArray()
@@ -652,26 +1072,39 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	}
 
 	if res.batchStats != nil {
-		uniqueIndexes := res.batchStats.getUniqueIndexes()
-		if uniqueIndexes != len(batch) {
-			return l.renderErrorsFailedToFetch(fetchItem, res, fmt.Sprintf(invalidBatchItemCount, uniqueIndexes, len(batch)))
+		if len(res.batchStats) != len(batch) {
+			return l.renderErrorsFailedToFetch(fetchItem, res, fmt.Sprintf(invalidBatchItemCount, len(res.batchStats), len(batch)))
 		}
 
-		for i, stats := range res.batchStats {
-			for _, idx := range stats {
-				if idx == -1 {
-					continue
-				}
-				items[i], _, err = astjson.MergeValuesWithPath(items[i], batch[idx], res.postProcessing.MergePath...)
-				if err != nil {
+		// Build a mapping from original item pointers to merged pointers
+		// This is needed because MergeValuesWithPath may return new objects
+		originalToMerged := make(map[*astjson.Value]*astjson.Value)
+
+		for batchIndex, targets := range res.batchStats {
+			src := batch[batchIndex]
+			for targetIdx, target := range targets {
+				mergedTarget, _, mErr := astjson.MergeValuesWithPath(l.jsonArena, target, src, res.postProcessing.MergePath...)
+				if mErr != nil {
 					return errors.WithStack(ErrMergeResult{
 						Subgraph: res.ds.Name,
-						Reason:   err,
+						Reason:   mErr,
 						Path:     fetchItem.ResponsePath,
 					})
 				}
-				if slices.Contains(taintedIndices, idx) {
-					l.taintedObjs.add(items[i])
+				// Track the original to merged mapping
+				originalToMerged[target] = mergedTarget
+				// Update the target in batchStats with the merged result
+				res.batchStats[batchIndex][targetIdx] = mergedTarget
+				if slices.Contains(taintedIndices, batchIndex) {
+					l.taintedObjs.add(mergedTarget)
+				}
+			}
+		}
+		// Update cache key items to point to merged data for L1 cache
+		for _, ck := range res.l1CacheKeys {
+			if ck != nil && ck.Item != nil {
+				if merged, ok := originalToMerged[ck.Item]; ok {
+					ck.Item = merged
 				}
 			}
 		}
@@ -683,7 +1116,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	}
 
 	for i := range items {
-		items[i], _, err = astjson.MergeValuesWithPath(items[i], batch[i], res.postProcessing.MergePath...)
+		items[i], _, err = astjson.MergeValuesWithPath(l.jsonArena, items[i], batch[i], res.postProcessing.MergePath...)
 		if err != nil {
 			return errors.WithStack(ErrMergeResult{
 				Subgraph: res.ds.Name,
@@ -694,8 +1127,43 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		if slices.Contains(taintedIndices, i) {
 			l.taintedObjs.add(items[i])
 		}
+		// Update cache key item to point to merged data for L1 cache
+		if i < len(res.l1CacheKeys) && res.l1CacheKeys[i] != nil {
+			res.l1CacheKeys[i].Item = items[i]
+		}
 	}
+
 	return nil
+}
+
+func (l *Loader) evaluateRejected(fetchItem *FetchItem, res *result, items []*astjson.Value) (bool, error) {
+	if res.authorizationRejected {
+		err := l.renderAuthorizationRejectedErrors(fetchItem, res)
+		if err != nil {
+			return false, err
+		}
+		l.setSkipErrors(res, items)
+		return true, nil
+	}
+	if res.rateLimitRejected {
+		err := l.renderRateLimitRejectedErrors(fetchItem, res)
+		if err != nil {
+			return false, err
+		}
+		l.setSkipErrors(res, items)
+		return true, nil
+	}
+	return false, nil
+}
+
+func (l *Loader) setSkipErrors(res *result, items []*astjson.Value) {
+	trueValue := astjson.TrueValue(l.jsonArena)
+	skipErrorsPath := make([]string, len(res.postProcessing.MergePath)+1)
+	copy(skipErrorsPath, res.postProcessing.MergePath)
+	skipErrorsPath[len(skipErrorsPath)-1] = "__skipErrors"
+	for _, item := range items {
+		astjson.SetValue(item, trueValue, skipErrorsPath...)
+	}
 }
 
 var (
@@ -703,7 +1171,8 @@ var (
 	errorsInvalidInputFooter = []byte(`]}]}`)
 )
 
-func (l *Loader) renderErrorsInvalidInput(fetchItem *FetchItem, out *bytes.Buffer) error {
+func (l *Loader) renderErrorsInvalidInput(fetchItem *FetchItem) []byte {
+	out := bytes.NewBuffer(nil)
 	elements := fetchItem.ResponsePathElements
 	if len(elements) > 0 && elements[len(elements)-1] == "@" {
 		elements = elements[:len(elements)-1]
@@ -721,7 +1190,41 @@ func (l *Loader) renderErrorsInvalidInput(fetchItem *FetchItem, out *bytes.Buffe
 		_, _ = out.Write(quote)
 	}
 	_, _ = out.Write(errorsInvalidInputFooter)
-	return nil
+	return out.Bytes()
+}
+
+// updateL2Cache writes entity data to the L2 (external) cache.
+// This enables cross-request caching via external stores like Redis.
+func (l *Loader) updateL2Cache(res *result) {
+	if !l.ctx.ExecutionOptions.Caching.EnableL2Cache {
+		return
+	}
+	if res.cache == nil || !res.cacheMustBeUpdated {
+		return
+	}
+
+	// Use l2CacheKeys (with prefix) if available, otherwise fall back to cacheKeys
+	keysToStore := res.l2CacheKeys
+	if len(keysToStore) == 0 {
+		keysToStore = res.l1CacheKeys
+	}
+	if len(keysToStore) == 0 {
+		return
+	}
+
+	// Convert CacheKeys to CacheEntries
+	cacheEntries, err := l.cacheKeysToEntries(l.jsonArena, keysToStore)
+	if err != nil {
+		// Cache update errors are non-fatal - silently ignore
+		return
+	}
+
+	if len(cacheEntries) == 0 {
+		return
+	}
+
+	// Cache set errors are non-fatal - silently ignore
+	_ = res.cache.Set(l.ctx.ctx, cacheEntries, res.cacheConfig.TTL)
 }
 
 func (l *Loader) appendSubgraphError(res *result, fetchItem *FetchItem, value *astjson.Value, values []*astjson.Value) error {
@@ -749,7 +1252,7 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 	values := value.GetArray()
 	l.optionallyOmitErrorLocations(values)
 	if l.rewriteSubgraphErrorPaths {
-		rewriteErrorPaths(fetchItem, values)
+		rewriteErrorPaths(l.jsonArena, fetchItem, values)
 	}
 	l.optionallyEnsureExtensionErrorCode(values)
 
@@ -778,7 +1281,10 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 				return err
 			}
 		}
-
+		// for efficiency purposes, resolvable.errors is not initialized
+		// don't change this, it's measurable
+		// downside: we have to verify it's initialized before appending to it
+		l.resolvable.ensureErrorsInitialized()
 		// If the error propagation mode is pass-through, we append the errors to the root array
 		l.resolvable.errors.AppendArrayItems(value)
 		return nil
@@ -792,7 +1298,7 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 	}
 
 	// Wrap mode (default)
-	errorObject, err := astjson.ParseWithoutCache(l.renderSubgraphBaseError(res.ds, fetchItem.ResponsePath, failedToFetchNoReason))
+	errorObject, err := astjson.ParseWithArena(l.jsonArena, l.renderSubgraphBaseError(res.ds, fetchItem.ResponsePath, failedToFetchNoReason))
 	if err != nil {
 		return err
 	}
@@ -815,7 +1321,10 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 	if err := l.addApolloRouterCompatibilityError(res); err != nil {
 		return err
 	}
-
+	// for efficiency purposes, resolvable.errors is not initialized
+	// don't change this, it's measurable
+	// downside: we have to verify it's initialized before appending to it
+	l.resolvable.ensureErrorsInitialized()
 	astjson.AppendToArray(l.resolvable.errors, errorObject)
 
 	return nil
@@ -861,17 +1370,17 @@ func (l *Loader) optionallyEnsureExtensionErrorCode(values []*astjson.Value) {
 			switch extensions.Type() {
 			case astjson.TypeObject:
 				if !extensions.Exists("code") {
-					extensions.Set("code", l.resolvable.astjsonArena.NewString(l.defaultErrorExtensionCode))
+					extensions.Set(l.jsonArena, "code", astjson.StringValue(l.jsonArena, l.defaultErrorExtensionCode))
 				}
 			case astjson.TypeNull:
-				extensionsObj := l.resolvable.astjsonArena.NewObject()
-				extensionsObj.Set("code", l.resolvable.astjsonArena.NewString(l.defaultErrorExtensionCode))
-				value.Set("extensions", extensionsObj)
+				extensionsObj := astjson.ObjectValue(l.jsonArena)
+				extensionsObj.Set(l.jsonArena, "code", astjson.StringValue(l.jsonArena, l.defaultErrorExtensionCode))
+				value.Set(l.jsonArena, "extensions", extensionsObj)
 			}
 		} else {
-			extensionsObj := l.resolvable.astjsonArena.NewObject()
-			extensionsObj.Set("code", l.resolvable.astjsonArena.NewString(l.defaultErrorExtensionCode))
-			value.Set("extensions", extensionsObj)
+			extensionsObj := astjson.ObjectValue(l.jsonArena)
+			extensionsObj.Set(l.jsonArena, "code", astjson.StringValue(l.jsonArena, l.defaultErrorExtensionCode))
+			value.Set(l.jsonArena, "extensions", extensionsObj)
 		}
 	}
 }
@@ -888,16 +1397,16 @@ func (l *Loader) optionallyAttachServiceNameToErrorExtension(values []*astjson.V
 			extensions := value.Get("extensions")
 			switch extensions.Type() {
 			case astjson.TypeObject:
-				extensions.Set("serviceName", l.resolvable.astjsonArena.NewString(serviceName))
+				extensions.Set(l.jsonArena, "serviceName", astjson.StringValue(l.jsonArena, serviceName))
 			case astjson.TypeNull:
-				extensionsObj := l.resolvable.astjsonArena.NewObject()
-				extensionsObj.Set("serviceName", l.resolvable.astjsonArena.NewString(serviceName))
-				value.Set("extensions", extensionsObj)
+				extensionsObj := astjson.ObjectValue(l.jsonArena)
+				extensionsObj.Set(l.jsonArena, "serviceName", astjson.StringValue(l.jsonArena, serviceName))
+				value.Set(l.jsonArena, "extensions", extensionsObj)
 			}
 		} else {
-			extensionsObj := l.resolvable.astjsonArena.NewObject()
-			extensionsObj.Set("serviceName", l.resolvable.astjsonArena.NewString(serviceName))
-			value.Set("extensions", extensionsObj)
+			extensionsObj := astjson.ObjectValue(l.jsonArena)
+			extensionsObj.Set(l.jsonArena, "serviceName", astjson.StringValue(l.jsonArena, serviceName))
+			value.Set(l.jsonArena, "extensions", extensionsObj)
 		}
 	}
 }
@@ -936,7 +1445,6 @@ func (l *Loader) optionallyOmitErrorFields(values []*astjson.Value) {
 
 // optionallyOmitErrorLocations removes the "locations" object from all values.
 func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
-	arena := astjson.Arena{}
 
 	for _, value := range values {
 		// If the flag is set, delete all locations
@@ -946,7 +1454,7 @@ func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
 		}
 
 		// Create a new array via astjson we can append to the valid types
-		validLocations := arena.NewArray()
+		validLocations := astjson.ArrayValue(l.jsonArena)
 		validIndex := 0
 
 		// GetArray will return nil if not an array which will not be ranged over
@@ -958,14 +1466,14 @@ func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
 			// Keep location only if both line and column are > 0 (spec says 0 is invalid)
 			// In case it is not an int, 0 will be returned which is invalid anyway
 			if line.GetInt() > 0 && column.GetInt() > 0 {
-				validLocations.SetArrayItem(validIndex, loc)
+				validLocations.SetArrayItem(l.jsonArena, validIndex, loc)
 				validIndex++
 			}
 		}
 
 		// If all locations were invalid, delete the locations field
 		if len(validLocations.GetArray()) > 0 {
-			value.Set(locationsField, validLocations)
+			value.Set(l.jsonArena, locationsField, validLocations)
 		} else {
 			value.Del(locationsField)
 		}
@@ -977,7 +1485,7 @@ func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
 //   - Drops the numeric index immediately following "_entities".
 //   - Converts all subsequent numeric segments to strings (e.g., 1 -> "1").
 //   - Skips non-string/non-number segments.
-func rewriteErrorPaths(fetchItem *FetchItem, values []*astjson.Value) {
+func rewriteErrorPaths(a arena.Arena, fetchItem *FetchItem, values []*astjson.Value) {
 	pathPrefix := make([]string, len(fetchItem.ResponsePathElements))
 	copy(pathPrefix, fetchItem.ResponsePathElements)
 	// remove the trailing @ in case we're in an array as it looks weird in the path
@@ -1002,28 +1510,21 @@ func rewriteErrorPaths(fetchItem *FetchItem, values []*astjson.Value) {
 				unsafebytes.BytesToString(item.GetStringBytes()) != "_entities" {
 				continue
 			}
-			// rewrite the path to pathPrefix + pathItems after _entities
-			newPath := make([]string, 0, len(pathPrefix)+len(pathItems)-i)
-			newPath = append(newPath, pathPrefix...)
+			arr := astjson.ArrayValue(a)
+			for j := range pathPrefix {
+				astjson.AppendToArray(arr, astjson.StringValue(a, pathPrefix[j]))
+			}
 			for j := i + 1; j < len(pathItems); j++ {
 				// If the item after _entities is an index (number), we should ignore it.
 				if j == i+1 && pathItems[j].Type() == astjson.TypeNumber {
 					continue
 				}
 				switch pathItems[j].Type() {
-				case astjson.TypeString:
-					newPath = append(newPath, unsafebytes.BytesToString(pathItems[j].GetStringBytes()))
-				case astjson.TypeNumber:
-					newPath = append(newPath, strconv.Itoa(pathItems[j].GetInt()))
-				default:
+				case astjson.TypeString, astjson.TypeNumber:
+					astjson.AppendToArray(arr, pathItems[j])
 				}
 			}
-			newPathJSON, _ := json.Marshal(newPath)
-			pathBytes, err := astjson.ParseBytesWithoutCache(newPathJSON)
-			if err != nil {
-				continue
-			}
-			value.Set("path", pathBytes)
+			value.Set(a, "path", arr)
 			break
 		}
 	}
@@ -1044,17 +1545,17 @@ func (l *Loader) setSubgraphStatusCode(values []*astjson.Value, statusCode int) 
 			if extensions.Type() != astjson.TypeObject {
 				continue
 			}
-			v, err := astjson.ParseWithoutCache(strconv.Itoa(statusCode))
+			v, err := astjson.ParseWithArena(l.jsonArena, strconv.Itoa(statusCode))
 			if err != nil {
 				continue
 			}
-			extensions.Set("statusCode", v)
+			extensions.Set(l.jsonArena, "statusCode", v)
 		} else {
-			v, err := astjson.ParseWithoutCache(`{"statusCode":` + strconv.Itoa(statusCode) + `}`)
+			v, err := astjson.ParseWithArena(l.jsonArena, `{"statusCode":`+strconv.Itoa(statusCode)+`}`)
 			if err != nil {
 				continue
 			}
-			value.Set("extensions", v)
+			value.Set(l.jsonArena, "extensions", v)
 		}
 	}
 }
@@ -1091,11 +1592,14 @@ func (l *Loader) addApolloRouterCompatibilityError(res *result) error {
 				}
 			}
 		}`, res.ds.Name, http.StatusText(res.statusCode), res.statusCode)
-	apolloRouterStatusError, err := astjson.ParseWithoutCache(apolloRouterStatusErrorJSON)
+	apolloRouterStatusError, err := astjson.ParseWithArena(l.jsonArena, apolloRouterStatusErrorJSON)
 	if err != nil {
 		return err
 	}
-
+	// for efficiency purposes, resolvable.errors is not initialized
+	// don't change this, it's measurable
+	// downside: we have to verify it's initialized before appending to it
+	l.resolvable.ensureErrorsInitialized()
 	astjson.AppendToArray(l.resolvable.errors, apolloRouterStatusError)
 
 	return nil
@@ -1104,22 +1608,30 @@ func (l *Loader) addApolloRouterCompatibilityError(res *result) error {
 func (l *Loader) renderErrorsFailedDeps(fetchItem *FetchItem, res *result) error {
 	path := l.renderAtPathErrorPart(fetchItem.ResponsePath)
 	msg := fmt.Sprintf(`{"message":"Failed to obtain field dependencies from Subgraph '%s'%s."}`, res.ds.Name, path)
-	errorObject, err := astjson.ParseWithoutCache(msg)
+	errorObject, err := astjson.ParseWithArena(l.jsonArena, msg)
 	if err != nil {
 		return err
 	}
 	l.setSubgraphStatusCode([]*astjson.Value{errorObject}, res.statusCode)
+	// for efficiency purposes, resolvable.errors is not initialized
+	// don't change this, it's measurable
+	// downside: we have to verify it's initialized before appending to it
+	l.resolvable.ensureErrorsInitialized()
 	astjson.AppendToArray(l.resolvable.errors, errorObject)
 	return nil
 }
 
 func (l *Loader) renderErrorsFailedToFetch(fetchItem *FetchItem, res *result, reason string) error {
 	l.ctx.appendSubgraphErrors(res.ds, res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode))
-	errorObject, err := astjson.ParseWithoutCache(l.renderSubgraphBaseError(res.ds, fetchItem.ResponsePath, reason))
+	errorObject, err := astjson.ParseWithArena(l.jsonArena, l.renderSubgraphBaseError(res.ds, fetchItem.ResponsePath, reason))
 	if err != nil {
 		return err
 	}
 	l.setSubgraphStatusCode([]*astjson.Value{errorObject}, res.statusCode)
+	// for efficiency purposes, resolvable.errors is not initialized
+	// don't change this, it's measurable
+	// downside: we have to verify it's initialized before appending to it
+	l.resolvable.ensureErrorsInitialized()
 	astjson.AppendToArray(l.resolvable.errors, errorObject)
 	return nil
 }
@@ -1132,13 +1644,16 @@ func (l *Loader) renderErrorsStatusFallback(fetchItem *FetchItem, res *result, s
 
 	l.ctx.appendSubgraphErrors(res.ds, res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode))
 
-	errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"%s"}`, reason))
+	errorObject, err := astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"message":"%s"}`, reason))
 	if err != nil {
 		return err
 	}
 
 	l.setSubgraphStatusCode([]*astjson.Value{errorObject}, res.statusCode)
-
+	// for efficiency purposes, resolvable.errors is not initialized
+	// don't change this, it's measurable
+	// downside: we have to verify it's initialized before appending to it
+	l.resolvable.ensureErrorsInitialized()
 	astjson.AppendToArray(l.resolvable.errors, errorObject)
 	return nil
 }
@@ -1163,16 +1678,20 @@ func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *re
 	}
 	pathPart := l.renderAtPathErrorPart(fetchItem.ResponsePath)
 	extensionErrorCode := fmt.Sprintf(`"extensions":{"code":"%s"}`, errorcodes.UnauthorizedFieldOrType)
+	// for efficiency purposes, resolvable.errors is not initialized
+	// don't change this, it's measurable
+	// downside: we have to verify it's initialized before appending to it
+	l.resolvable.ensureErrorsInitialized()
 	if res.ds.Name == "" {
 		for _, reason := range res.authorizationRejectedReasons {
 			if reason == "" {
-				errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Unauthorized Subgraph request%s.",%s}`, pathPart, extensionErrorCode))
+				errorObject, err := astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"message":"Unauthorized Subgraph request%s.",%s}`, pathPart, extensionErrorCode))
 				if err != nil {
 					continue
 				}
 				astjson.AppendToArray(l.resolvable.errors, errorObject)
 			} else {
-				errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Unauthorized Subgraph request%s, Reason: %s.",%s}`, pathPart, reason, extensionErrorCode))
+				errorObject, err := astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"message":"Unauthorized Subgraph request%s, Reason: %s.",%s}`, pathPart, reason, extensionErrorCode))
 				if err != nil {
 					continue
 				}
@@ -1182,13 +1701,13 @@ func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *re
 	} else {
 		for _, reason := range res.authorizationRejectedReasons {
 			if reason == "" {
-				errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s'%s.",%s}`, res.ds.Name, pathPart, extensionErrorCode))
+				errorObject, err := astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s'%s.",%s}`, res.ds.Name, pathPart, extensionErrorCode))
 				if err != nil {
 					continue
 				}
 				astjson.AppendToArray(l.resolvable.errors, errorObject)
 			} else {
-				errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s'%s, Reason: %s.",%s}`, res.ds.Name, pathPart, reason, extensionErrorCode))
+				errorObject, err := astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s'%s, Reason: %s.",%s}`, res.ds.Name, pathPart, reason, extensionErrorCode))
 				if err != nil {
 					continue
 				}
@@ -1208,39 +1727,43 @@ func (l *Loader) renderRateLimitRejectedErrors(fetchItem *FetchItem, res *result
 	)
 	if res.ds.Name == "" {
 		if res.rateLimitRejectedReason == "" {
-			errorObject, err = astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request%s."}`, pathPart))
+			errorObject, err = astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request%s."}`, pathPart))
 			if err != nil {
 				return err
 			}
 		} else {
-			errorObject, err = astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request%s, Reason: %s."}`, pathPart, res.rateLimitRejectedReason))
+			errorObject, err = astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request%s, Reason: %s."}`, pathPart, res.rateLimitRejectedReason))
 			if err != nil {
 				return err
 			}
 		}
 	} else {
 		if res.rateLimitRejectedReason == "" {
-			errorObject, err = astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s'%s."}`, res.ds.Name, pathPart))
+			errorObject, err = astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s'%s."}`, res.ds.Name, pathPart))
 			if err != nil {
 				return err
 			}
 		} else {
-			errorObject, err = astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s'%s, Reason: %s."}`, res.ds.Name, pathPart, res.rateLimitRejectedReason))
+			errorObject, err = astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s'%s, Reason: %s."}`, res.ds.Name, pathPart, res.rateLimitRejectedReason))
 			if err != nil {
 				return err
 			}
 		}
 	}
 	if l.ctx.RateLimitOptions.ErrorExtensionCode.Enabled {
-		extension, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"code":"%s"}`, l.ctx.RateLimitOptions.ErrorExtensionCode.Code))
+		extension, err := astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"code":"%s"}`, l.ctx.RateLimitOptions.ErrorExtensionCode.Code))
 		if err != nil {
 			return err
 		}
-		errorObject, _, err = astjson.MergeValuesWithPath(errorObject, extension, "extensions")
+		errorObject, _, err = astjson.MergeValuesWithPath(l.jsonArena, errorObject, extension, "extensions")
 		if err != nil {
 			return err
 		}
 	}
+	// for efficiency purposes, resolvable.errors is not initialized
+	// don't change this, it's measurable
+	// downside: we have to verify it's initialized before appending to it
+	l.resolvable.ensureErrorsInitialized()
 	astjson.AppendToArray(l.resolvable.errors, errorObject)
 	return nil
 }
@@ -1310,10 +1833,8 @@ func (l *Loader) validatePreFetch(input []byte, info *FetchInfo, res *result) (a
 }
 
 func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, fetchItem *FetchItem, items []*astjson.Value, res *result) error {
-	res.init(fetch.PostProcessing, fetch.Info)
-	buf := &bytes.Buffer{}
-
-	inputData := itemsData(items)
+	buf := bytes.NewBuffer(nil)
+	inputData := l.itemsData(items)
 	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
 		if !l.ctx.TracingOptions.ExcludeRawInputData && inputData != nil {
@@ -1335,7 +1856,8 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, fetchI
 
 	err := fetch.InputTemplate.Render(l.ctx, inputData, buf)
 	if err != nil {
-		return l.renderErrorsInvalidInput(fetchItem, res.out)
+		res.out = l.renderErrorsInvalidInput(fetchItem)
+		return nil
 	}
 	fetchInput := buf.Bytes()
 	allowed, err := l.validatePreFetch(fetchInput, fetch.Info, res)
@@ -1349,37 +1871,8 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, fetchI
 	return nil
 }
 
-var (
-	entityFetchPool = sync.Pool{
-		New: func() any {
-			return &entityFetchBuffer{
-				item:          &bytes.Buffer{},
-				preparedInput: &bytes.Buffer{},
-			}
-		},
-	}
-)
-
-type entityFetchBuffer struct {
-	item          *bytes.Buffer
-	preparedInput *bytes.Buffer
-}
-
-func acquireEntityFetchBuffer() *entityFetchBuffer {
-	return entityFetchPool.Get().(*entityFetchBuffer)
-}
-
-func releaseEntityFetchBuffer(buf *entityFetchBuffer) {
-	buf.item.Reset()
-	buf.preparedInput.Reset()
-	entityFetchPool.Put(buf)
-}
-
 func (l *Loader) loadEntityFetch(ctx context.Context, fetchItem *FetchItem, fetch *EntityFetch, items []*astjson.Value, res *result) error {
-	res.init(fetch.PostProcessing, fetch.Info)
-	buf := acquireEntityFetchBuffer()
-	defer releaseEntityFetchBuffer(buf)
-	input := itemsData(items)
+	input := l.itemsData(items)
 	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
 		if !l.ctx.TracingOptions.ExcludeRawInputData && input != nil {
@@ -1387,14 +1880,17 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetchItem *FetchItem, fetc
 		}
 	}
 
+	preparedInput := bytes.NewBuffer(nil)
+	item := bytes.NewBuffer(nil)
+
 	var undefinedVariables []string
 
-	err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, buf.preparedInput, &undefinedVariables)
+	err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	err = fetch.Input.Item.Render(l.ctx, input, buf.item)
+	err = fetch.Input.Item.Render(l.ctx, input, item)
 	if err != nil {
 		if fetch.Input.SkipErrItem {
 			// skip fetch on render item error
@@ -1406,7 +1902,7 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetchItem *FetchItem, fetc
 		}
 		return errors.WithStack(err)
 	}
-	renderedItem := buf.item.Bytes()
+	renderedItem := item.Bytes()
 	if bytes.Equal(renderedItem, null) {
 		// skip fetch if item is null
 		res.fetchSkipped = true
@@ -1425,17 +1921,17 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetchItem *FetchItem, fetc
 			return nil
 		}
 	}
-	_, _ = buf.item.WriteTo(buf.preparedInput)
-	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, buf.preparedInput, &undefinedVariables)
+	_, _ = item.WriteTo(preparedInput)
+	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	err = SetInputUndefinedVariables(buf.preparedInput, undefinedVariables)
+	err = SetInputUndefinedVariables(preparedInput, undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	fetchInput := buf.preparedInput.Bytes()
+	fetchInput := preparedInput.Bytes()
 
 	if l.ctx.TracingOptions.Enable && res.fetchSkipped {
 		l.setTracingInput(fetchItem, fetchInput, fetch.Trace)
@@ -1453,71 +1949,92 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetchItem *FetchItem, fetc
 	return nil
 }
 
-var (
-	batchEntityFetchPool = sync.Pool{}
-)
-
-type batchEntityFetchBuffer struct {
-	preparedInput *bytes.Buffer
-	itemInput     *bytes.Buffer
-	keyGen        *xxhash.Digest
+type batchEntityTools struct {
+	keyGen           *xxhash.Digest
+	batchHashToIndex map[uint64]int
+	a                arena.Arena
 }
 
-func acquireBatchEntityFetchBuffer() *batchEntityFetchBuffer {
-	buf := batchEntityFetchPool.Get()
-	if buf == nil {
-		return &batchEntityFetchBuffer{
-			preparedInput: &bytes.Buffer{},
-			itemInput:     &bytes.Buffer{},
-			keyGen:        xxhash.New(),
+func (b *batchEntityTools) reset() {
+	b.keyGen.Reset()
+	b.a.Reset()
+	for i := range b.batchHashToIndex {
+		delete(b.batchHashToIndex, i)
+	}
+}
+
+type _batchEntityToolPool struct {
+	pool sync.Pool
+}
+
+func (p *_batchEntityToolPool) Get(items int) *batchEntityTools {
+	item := p.pool.Get()
+	if item == nil {
+		return &batchEntityTools{
+			keyGen:           xxhash.New(),
+			batchHashToIndex: make(map[uint64]int, items),
+			a:                arena.NewMonotonicArena(arena.WithMinBufferSize(1024)),
 		}
 	}
-	return buf.(*batchEntityFetchBuffer)
+	return item.(*batchEntityTools)
 }
 
-func releaseBatchEntityFetchBuffer(buf *batchEntityFetchBuffer) {
-	buf.preparedInput.Reset()
-	buf.itemInput.Reset()
-	buf.keyGen.Reset()
-	batchEntityFetchPool.Put(buf)
+func (p *_batchEntityToolPool) Put(item *batchEntityTools) {
+	if item == nil {
+		return
+	}
+	item.reset()
+	p.pool.Put(item)
 }
+
+var (
+	batchEntityToolPool = _batchEntityToolPool{}
+)
 
 func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetchItem *FetchItem, fetch *BatchEntityFetch, items []*astjson.Value, res *result) error {
-	res.init(fetch.PostProcessing, fetch.Info)
-
-	buf := acquireBatchEntityFetchBuffer()
-	defer releaseBatchEntityFetchBuffer(buf)
-
 	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
 		if !l.ctx.TracingOptions.ExcludeRawInputData && len(items) != 0 {
-			data := itemsData(items)
+			data := l.itemsData(items)
 			if data != nil {
 				fetch.Trace.RawInputData, _ = l.compactJSON(data.MarshalTo(nil))
 			}
 		}
 	}
 
+	res.tools = batchEntityToolPool.Get(len(items))
+	preparedInput := arena.NewArenaBuffer(res.tools.a)
+	itemInput := arena.NewArenaBuffer(res.tools.a)
+	batchStats := arena.AllocateSlice[[]*astjson.Value](res.tools.a, 0, len(items))
+	defer func() {
+		// we need to clear the batchStats slice to avoid memory corruption
+		// once the outer func returns, we must not keep pointers to items on the arena
+		for i := range batchStats {
+			// nolint:ineffassign
+			batchStats[i] = nil
+		}
+		// nolint:ineffassign
+		batchStats = nil
+	}()
+
+	// I tried using arena here, but it only worsened the situation
 	var undefinedVariables []string
 
-	err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, buf.preparedInput, &undefinedVariables)
+	err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	res.batchStats = make(batchStats, len(items))
-	itemHashes := make([]uint64, 0, len(items))
 	batchItemIndex := 0
 	addSeparator := false
 
 WithNextItem:
 	for i, item := range items {
 		for j := range fetch.Input.Items {
-			buf.itemInput.Reset()
-			err = fetch.Input.Items[j].Render(l.ctx, item, buf.itemInput)
+			itemInput.Reset()
+			err = fetch.Input.Items[j].Render(l.ctx, item, itemInput)
 			if err != nil {
 				if fetch.Input.SkipErrItems {
 					err = nil // nolint:ineffassign
-					res.batchStats[i] = append(res.batchStats[i], -1)
 					continue
 				}
 				if l.ctx.TracingOptions.Enable {
@@ -1525,39 +2042,38 @@ WithNextItem:
 				}
 				return errors.WithStack(err)
 			}
-			if fetch.Input.SkipNullItems && buf.itemInput.Len() == 4 && bytes.Equal(buf.itemInput.Bytes(), null) {
-				res.batchStats[i] = append(res.batchStats[i], -1)
+			if fetch.Input.SkipNullItems && itemInput.Len() == 4 && bytes.Equal(itemInput.Bytes(), null) {
 				continue
 			}
-			if fetch.Input.SkipEmptyObjectItems && buf.itemInput.Len() == 2 && bytes.Equal(buf.itemInput.Bytes(), emptyObject) {
-				res.batchStats[i] = append(res.batchStats[i], -1)
+			if fetch.Input.SkipEmptyObjectItems && itemInput.Len() == 2 && bytes.Equal(itemInput.Bytes(), emptyObject) {
 				continue
 			}
 
-			buf.keyGen.Reset()
-			_, _ = buf.keyGen.Write(buf.itemInput.Bytes())
-			itemHash := buf.keyGen.Sum64()
-			for k := range itemHashes {
-				if itemHashes[k] == itemHash {
-					res.batchStats[i] = append(res.batchStats[i], k)
-					continue WithNextItem
+			res.tools.keyGen.Reset()
+			_, _ = res.tools.keyGen.Write(itemInput.Bytes())
+			itemHash := res.tools.keyGen.Sum64()
+			if existingIndex, ok := res.tools.batchHashToIndex[itemHash]; ok {
+				batchStats[existingIndex] = arena.SliceAppend(res.tools.a, batchStats[existingIndex], items[i])
+				continue WithNextItem
+			} else {
+				if addSeparator {
+					err = fetch.Input.Separator.Render(l.ctx, nil, preparedInput)
+					if err != nil {
+						return errors.WithStack(err)
+					}
 				}
+				_, _ = itemInput.WriteTo(preparedInput)
+				// new unique representation
+				res.tools.batchHashToIndex[itemHash] = batchItemIndex
+				// create a new targets bucket for this unique index
+				batchStats = arena.SliceAppend(res.tools.a, batchStats, []*astjson.Value{items[i]})
+				batchItemIndex++
+				addSeparator = true
 			}
-			itemHashes = append(itemHashes, itemHash)
-			if addSeparator {
-				err = fetch.Input.Separator.Render(l.ctx, nil, buf.preparedInput)
-				if err != nil {
-					return errors.WithStack(err)
-				}
-			}
-			_, _ = buf.itemInput.WriteTo(buf.preparedInput)
-			res.batchStats[i] = append(res.batchStats[i], batchItemIndex)
-			batchItemIndex++
-			addSeparator = true
 		}
 	}
 
-	if len(itemHashes) == 0 {
+	if len(batchStats) == 0 {
 		// all items were skipped - discard fetch
 		res.fetchSkipped = true
 		if l.ctx.TracingOptions.Enable {
@@ -1567,16 +2083,23 @@ WithNextItem:
 		}
 	}
 
-	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, buf.preparedInput, &undefinedVariables)
+	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	err = SetInputUndefinedVariables(buf.preparedInput, undefinedVariables)
+	err = SetInputUndefinedVariables(preparedInput, undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	fetchInput := buf.preparedInput.Bytes()
+
+	fetchInput := preparedInput.Bytes()
+	// it's important to copy the *astjson.Value's off the arena to avoid memory corruption
+	res.batchStats = make([][]*astjson.Value, len(batchStats))
+	for i := range batchStats {
+		res.batchStats[i] = make([]*astjson.Value, len(batchStats[i]))
+		copy(res.batchStats[i], batchStats[i])
+	}
 
 	if l.ctx.TracingOptions.Enable && res.fetchSkipped {
 		l.setTracingInput(fetchItem, fetchInput, fetch.Trace)
@@ -1590,6 +2113,7 @@ WithNextItem:
 	if !allowed {
 		return nil
 	}
+
 	l.executeSourceLoad(ctx, fetchItem, fetch.DataSource, fetchInput, res, fetch.Trace)
 	return nil
 }
@@ -1631,29 +2155,8 @@ func redactHeaders(rawJSON json.RawMessage) (json.RawMessage, error) {
 	return redactedJSON, nil
 }
 
-type disallowSingleFlightContextKey struct{}
-
-func SingleFlightDisallowed(ctx context.Context) bool {
-	return ctx.Value(disallowSingleFlightContextKey{}) != nil
-}
-
-type singleFlightStatsKey struct{}
-
-type SingleFlightStats struct {
-	SingleFlightUsed           bool
-	SingleFlightSharedResponse bool
-}
-
-func GetSingleFlightStats(ctx context.Context) *SingleFlightStats {
-	maybeStats := ctx.Value(singleFlightStatsKey{})
-	if maybeStats == nil {
-		return nil
-	}
-	return maybeStats.(*SingleFlightStats)
-}
-
-func setSingleFlightStats(ctx context.Context, stats *SingleFlightStats) context.Context {
-	return context.WithValue(ctx, singleFlightStatsKey{}, stats)
+type singleFlightStats struct {
+	used, shared bool
 }
 
 func (l *Loader) setTracingInput(fetchItem *FetchItem, input []byte, trace *DataSourceLoadTrace) {
@@ -1669,11 +2172,120 @@ func (l *Loader) setTracingInput(fetchItem *FetchItem, input []byte, trace *Data
 	}
 }
 
-func (l *Loader) loadByContext(ctx context.Context, source DataSource, input []byte, res *result) error {
-	if l.ctx.Files != nil {
-		return source.LoadWithFiles(ctx, input, l.ctx.Files, res.out)
+type loaderContextKey string
+
+const (
+	operationTypeContextKey loaderContextKey = "operationType"
+)
+
+// GetOperationTypeFromContext can be used, e.g. by the transport, to check if the operation is a Mutation
+func GetOperationTypeFromContext(ctx context.Context) ast.OperationType {
+	if ctx == nil {
+		return ast.OperationTypeQuery
 	}
-	return source.Load(ctx, input, res.out)
+	if v := ctx.Value(operationTypeContextKey); v != nil {
+		if opType, ok := v.(ast.OperationType); ok {
+			return opType
+		}
+	}
+	return ast.OperationTypeQuery
+}
+
+func (l *Loader) headersForSubgraphRequest(fetchItem *FetchItem) (http.Header, uint64) {
+	if fetchItem == nil || fetchItem.Fetch == nil {
+		return nil, 0
+	}
+	info := fetchItem.Fetch.FetchInfo()
+	if info == nil {
+		return nil, 0
+	}
+	return l.ctx.HeadersForSubgraphRequest(info.DataSourceName)
+}
+
+// singleFlightAllowed returns true if the specific GraphQL Operation is a Query
+// even if the root operation type is a Mutation or Subscription
+// sub-operations can still be of type Query
+// even in such cases we allow request de-duplication because such requests are idempotent
+func (l *Loader) singleFlightAllowed(fetchItem *FetchItem) bool {
+	if l.ctx.ExecutionOptions.DisableSubgraphRequestDeduplication {
+		return false
+	}
+	if fetchItem == nil {
+		return false
+	}
+	if fetchItem.Fetch == nil {
+		return false
+	}
+	info := fetchItem.Fetch.FetchInfo()
+	if info == nil {
+		return false
+	}
+	if info.OperationType == ast.OperationTypeQuery {
+		return true
+	}
+	return false
+}
+
+func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem *FetchItem, input []byte, res *result) error {
+
+	if l.info != nil {
+		ctx = context.WithValue(ctx, operationTypeContextKey, l.info.OperationType)
+	}
+
+	headers, extraKey := l.headersForSubgraphRequest(fetchItem)
+
+	if !l.singleFlightAllowed(fetchItem) {
+		// Disable single flight for mutations
+		return l.loadByContextDirect(ctx, source, headers, input, res)
+	}
+
+	item, shared := l.singleFlight.GetOrCreateItem(fetchItem, input, extraKey)
+	if res.singleFlightStats != nil {
+		res.singleFlightStats.used = true
+		res.singleFlightStats.shared = shared
+	}
+
+	if shared {
+		select {
+		case <-item.loaded:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+
+		if item.err != nil {
+			return item.err
+		}
+
+		res.out = item.response
+		return nil
+	}
+
+	// helps the http client to create buffers at the right size
+	ctx = httpclient.WithHTTPClientSizeHint(ctx, item.sizeHint)
+
+	defer l.singleFlight.Finish(item)
+
+	// Perform the actual load
+	err := l.loadByContextDirect(ctx, source, headers, input, res)
+	if err != nil {
+		item.err = err
+		return err
+	}
+
+	item.response = res.out
+	return nil
+}
+
+func (l *Loader) loadByContextDirect(ctx context.Context, source DataSource, headers http.Header, input []byte, res *result) error {
+	if l.ctx.Files != nil {
+		res.out, res.err = source.LoadWithFiles(ctx, headers, input, l.ctx.Files)
+	} else {
+		res.out, res.err = source.Load(ctx, headers, input)
+	}
+	if res.err != nil {
+		return errors.WithStack(res.err)
+	}
+	return nil
 }
 
 func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, source DataSource, input []byte, res *result, trace *DataSourceLoadTrace) {
@@ -1702,7 +2314,7 @@ func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, so
 		}
 	}
 	if l.ctx.TracingOptions.Enable {
-		ctx = setSingleFlightStats(ctx, &SingleFlightStats{})
+		res.singleFlightStats = &singleFlightStats{}
 		trace.Path = fetchItem.ResponsePath
 		if !l.ctx.TracingOptions.ExcludeInput {
 			trace.Input = make([]byte, len(input))
@@ -1806,9 +2418,6 @@ func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, so
 			ctx = httptrace.WithClientTrace(ctx, clientTrace)
 		}
 	}
-	if l.info != nil && l.info.OperationType == ast.OperationTypeMutation {
-		ctx = context.WithValue(ctx, disallowSingleFlightContextKey{}, true)
-	}
 	var responseContext *httpclient.ResponseContext
 	ctx, responseContext = httpclient.InjectResponseContext(ctx)
 
@@ -1817,27 +2426,26 @@ func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, so
 
 		// Prevent that the context is destroyed when the loader hook return an empty context
 		if res.loaderHookContext != nil {
-			res.err = l.loadByContext(res.loaderHookContext, source, input, res)
+			res.err = l.loadByContext(res.loaderHookContext, source, fetchItem, input, res)
 		} else {
-			res.err = l.loadByContext(ctx, source, input, res)
+			res.err = l.loadByContext(ctx, source, fetchItem, input, res)
 			res.loaderHookContext = ctx // Set the context to the original context to ensure that OnFinished hook gets valid context
 		}
 
 	} else {
-		res.err = l.loadByContext(ctx, source, input, res)
+		res.err = l.loadByContext(ctx, source, fetchItem, input, res)
 	}
 
 	res.statusCode = responseContext.StatusCode
 	res.httpResponseContext = responseContext
 
 	if l.ctx.TracingOptions.Enable {
-		stats := GetSingleFlightStats(ctx)
-		if stats != nil {
-			trace.SingleFlightUsed = stats.SingleFlightUsed
-			trace.SingleFlightSharedResponse = stats.SingleFlightSharedResponse
+		if res.singleFlightStats != nil {
+			trace.SingleFlightUsed = res.singleFlightStats.used
+			trace.SingleFlightSharedResponse = res.singleFlightStats.shared
 		}
-		if !l.ctx.TracingOptions.ExcludeOutput && res.out.Len() > 0 {
-			trace.Output, _ = l.compactJSON(res.out.Bytes())
+		if !l.ctx.TracingOptions.ExcludeOutput && len(res.out) > 0 {
+			trace.Output, _ = l.compactJSON(res.out)
 			if l.ctx.TracingOptions.EnablePredictableDebugTimings {
 				trace.Output, _ = sjson.DeleteBytes(trace.Output, "extensions.trace.response.headers.Date")
 			}
@@ -1866,10 +2474,136 @@ func (l *Loader) compactJSON(data []byte) ([]byte, error) {
 		return nil, err
 	}
 	out := dst.Bytes()
-	v, err := astjson.ParseBytesWithoutCache(out)
+	// Don't use arena here to avoid segfaults.
+	// If we're not keeping the result long-term on the arena,
+	// we just parse and re-marshal it to deduplicate object keys.
+	// This is not a hot path so it's fine.
+	// it's also not a hot path and not important to optimize
+	// arena requires the parsed content to be on the arena as well
+	v, err := astjson.ParseBytes(out)
 	if err != nil {
 		return nil, err
 	}
 	astjson.DeduplicateObjectKeysRecursively(v)
 	return v.MarshalTo(nil), nil
+}
+
+// canSkipFetch returns true if the cache provided exactly the information required to satisfy the query plan
+// the query planner generates info.ProvidesData which tells precisely which fields the fetch must load
+// if a single value is missing, we will execute the fetch
+func (l *Loader) canSkipFetch(info *FetchInfo, res *result) bool {
+	if info == nil || info.OperationType != ast.OperationTypeQuery || info.ProvidesData == nil {
+		return false
+	}
+	for i := range res.l1CacheKeys {
+		if !l.validateItemHasRequiredData(res.l1CacheKeys[i].FromCache, info.ProvidesData) {
+			return false
+		}
+	}
+	return true
+}
+
+// validateItemHasRequiredData checks if the given item contains all required data
+// as specified by the provided Object schema
+func (l *Loader) validateItemHasRequiredData(item *astjson.Value, obj *Object) bool {
+	if item == nil {
+		return false
+	}
+	// Validate each field in the object
+	for _, field := range obj.Fields {
+		if !l.validateFieldData(item, field) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// validateFieldData validates a single field against the item data
+func (l *Loader) validateFieldData(item *astjson.Value, field *Field) bool {
+	fieldValue := item.Get(unsafebytes.BytesToString(field.Name))
+
+	// Check if field exists
+	if fieldValue == nil {
+		// Field is missing - this fails validation regardless of nullability
+		// Even nullable fields must be present (can be null, but not missing)
+		return false
+	}
+
+	// Validate the field value against its specification
+	return l.validateNodeValue(fieldValue, field.Value)
+}
+
+// validateScalarData validates scalar field data
+func (l *Loader) validateScalarData(value *astjson.Value, scalar *Scalar) bool {
+	if value.Type() == astjson.TypeNull {
+		// Null is only allowed if the scalar is nullable
+		return scalar.Nullable
+	}
+
+	// Any non-null value is acceptable for a scalar
+	return true
+}
+
+// validateObjectData validates object field data
+func (l *Loader) validateObjectData(value *astjson.Value, obj *Object) bool {
+	if value.Type() == astjson.TypeNull {
+		// Null is only allowed if the object is nullable
+		return obj.Nullable
+	}
+
+	if value.Type() != astjson.TypeObject {
+		// Must be an object (or null if nullable)
+		return false
+	}
+
+	// Recursively validate the object's fields
+	return l.validateItemHasRequiredData(value, obj)
+}
+
+// validateArrayData validates array field data
+func (l *Loader) validateArrayData(value *astjson.Value, arr *Array) bool {
+	if value.Type() == astjson.TypeNull {
+		// Null is only allowed if the array is nullable
+		return arr.Nullable
+	}
+
+	if value.Type() != astjson.TypeArray {
+		// Must be an array (or null if nullable)
+		return false
+	}
+
+	// If there's no item specification, we just validate the array exists
+	if arr.Item == nil {
+		return true
+	}
+
+	// Validate each item in the array
+	arrayItems, err := value.Array()
+	if err != nil {
+		return false
+	}
+
+	for _, item := range arrayItems {
+		if !l.validateNodeValue(item, arr.Item) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// validateNodeValue validates a value against a Node specification
+func (l *Loader) validateNodeValue(value *astjson.Value, nodeSpec Node) bool {
+	switch v := nodeSpec.(type) {
+	case *Scalar:
+		return l.validateScalarData(value, v)
+	case *Object:
+		return l.validateObjectData(value, v)
+	case *Array:
+		return l.validateArrayData(value, v)
+	default:
+		// Unknown type - assume invalid
+		return false
+	}
 }

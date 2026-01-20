@@ -46,6 +46,11 @@ type Configuration struct {
 	// entity.
 	// This option requires BuildFetchReasons set to true.
 	ValidateRequiredExternalFields bool
+
+	// DisableEntityCaching disables planning of entity caching behavior or generating relevant metadata
+	DisableEntityCaching bool
+	// DisableFetchProvidesData disables planning of meta information about which fields are provided by a fetch
+	DisableFetchProvidesData bool
 }
 
 type DebugConfiguration struct {

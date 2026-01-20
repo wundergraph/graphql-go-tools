@@ -18,13 +18,37 @@ import (
 	"github.com/sebdah/goldie/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting"
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/gateway"
 	products "github.com/wundergraph/graphql-go-tools/execution/federationtesting/products/graph"
 )
 
-func addGateway(enableART bool) func(setup *federationtesting.FederationSetup) *httptest.Server {
+type gatewayOptions struct {
+	enableART       bool
+	withLoaderCache map[string]resolve.LoaderCache
+}
+
+func withEnableART(enableART bool) func(*gatewayOptions) {
+	return func(opts *gatewayOptions) {
+		opts.enableART = enableART
+	}
+}
+
+func withLoaderCache(loaderCache map[string]resolve.LoaderCache) func(*gatewayOptions) {
+	return func(opts *gatewayOptions) {
+		opts.withLoaderCache = loaderCache
+	}
+}
+
+type gatewayOptionsToFunc func(opts *gatewayOptions)
+
+func addGateway(options ...gatewayOptionsToFunc) func(setup *federationtesting.FederationSetup) *httptest.Server {
+	opts := &gatewayOptions{}
+	for _, option := range options {
+		option(opts)
+	}
 	return func(setup *federationtesting.FederationSetup) *httptest.Server {
 		httpClient := http.DefaultClient
 
@@ -34,7 +58,7 @@ func addGateway(enableART bool) func(setup *federationtesting.FederationSetup) *
 			{Name: "reviews", URL: setup.ReviewsUpstreamServer.URL},
 		}, httpClient)
 
-		gtw := gateway.Handler(abstractlogger.NoopLogger, poller, httpClient, enableART)
+		gtw := gateway.Handler(abstractlogger.NoopLogger, poller, httpClient, opts.enableART, opts.withLoaderCache, nil)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
@@ -52,7 +76,7 @@ func TestFederationIntegrationTestWithArt(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	setup := federationtesting.NewFederationSetup(addGateway(true))
+	setup := federationtesting.NewFederationSetup(addGateway(withEnableART(true)))
 	defer setup.Close()
 
 	gqlClient := NewGraphqlClient(http.DefaultClient)
@@ -82,7 +106,7 @@ func TestFederationIntegrationTestWithArt(t *testing.T) {
 func TestFederationIntegrationTest(t *testing.T) {
 
 	t.Run("single upstream query operation", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(false))
+		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
 		t.Cleanup(setup.Close)
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -92,7 +116,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("query spans multiple federated servers", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(false))
+		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
 		t.Cleanup(setup.Close)
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -102,7 +126,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("mutation operation with variables", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(false))
+		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
 		t.Cleanup(setup.Close)
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -116,7 +140,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("union query", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(false))
+		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
 		t.Cleanup(setup.Close)
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -126,7 +150,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("interface query", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(false))
+		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
 		t.Cleanup(setup.Close)
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -136,7 +160,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("subscription query through WebSocket transport", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(false))
+		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
 		t.Cleanup(setup.Close)
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -155,7 +179,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Multiple queries and nested fragments", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(false))
+		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
 		t.Cleanup(setup.Close)
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -205,7 +229,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Multiple queries with __typename", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(false))
+		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
 		t.Cleanup(setup.Close)
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -237,7 +261,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Query that returns union", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(false))
+		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
 		t.Cleanup(setup.Close)
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -316,7 +340,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Object response type with interface and object fragment", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(false))
+		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
 		t.Cleanup(setup.Close)
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -335,7 +359,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Interface response type with object fragment", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(false))
+		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
 		t.Cleanup(setup.Close)
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -355,7 +379,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("recursive fragment", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(false))
+		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
 		t.Cleanup(setup.Close)
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -365,7 +389,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("empty fragment", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(false))
+		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
 		t.Cleanup(setup.Close)
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -375,7 +399,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("empty fragment variant", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(false))
+		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
 		t.Cleanup(setup.Close)
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -385,7 +409,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Union response type with interface fragments", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(false))
+		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
 		t.Cleanup(setup.Close)
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -429,7 +453,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	// Duplicated properties (and therefore invalid JSON) are usually removed during normalization processes.
 	// It is not yet decided whether this should be addressed before these normalization processes.
 	t.Run("Complex nesting", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(false))
+		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
 		defer setup.Close()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
@@ -441,7 +465,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("More complex nesting", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(false))
+		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
 		defer setup.Close()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
@@ -453,7 +477,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Multiple nested interfaces", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(false))
+		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
 		defer setup.Close()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
@@ -465,7 +489,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Multiple nested unions", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(false))
+		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
 		defer setup.Close()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
@@ -477,7 +501,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("More complex nesting typename variant", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(false))
+		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
 		defer setup.Close()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
@@ -489,7 +513,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Abstract object", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(false))
+		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
 		defer setup.Close()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
@@ -501,7 +525,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Abstract object non shared", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(false))
+		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
 		defer setup.Close()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
@@ -513,7 +537,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Abstract object nested", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(false))
+		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
 		defer setup.Close()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
@@ -525,7 +549,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Abstract object nested reverse", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(false))
+		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
 		defer setup.Close()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
@@ -537,7 +561,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Abstract object mixed", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(false))
+		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
 		defer setup.Close()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
@@ -549,7 +573,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Abstract interface field", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(false))
+		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
 		defer setup.Close()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
@@ -561,7 +585,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Merged fields are still resolved", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(false))
+		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
 		t.Cleanup(setup.Close)
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())

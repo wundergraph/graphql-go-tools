@@ -1,10 +1,10 @@
 package resolve
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/wundergraph/astjson"
 
@@ -36,7 +36,7 @@ type InputTemplate struct {
 	SetTemplateOutputToNullOnVariableNull bool
 }
 
-func SetInputUndefinedVariables(preparedInput *bytes.Buffer, undefinedVariables []string) error {
+func SetInputUndefinedVariables(preparedInput InputTemplateWriter, undefinedVariables []string) error {
 	if len(undefinedVariables) > 0 {
 		output, err := httpclient.SetUndefinedVariables(preparedInput.Bytes(), undefinedVariables)
 		if err != nil {
@@ -55,7 +55,16 @@ func SetInputUndefinedVariables(preparedInput *bytes.Buffer, undefinedVariables 
 // to callers; renderSegments intercepts it and writes literal.NULL instead.
 var errSetTemplateOutputNull = errors.New("set to null")
 
-func (i *InputTemplate) Render(ctx *Context, data *astjson.Value, preparedInput *bytes.Buffer) error {
+// InputTemplateWriter is used to decouple Buffer implementations from InputTemplate
+// This way, the implementation can easily be swapped, e.g. between bytes.Buffer and similar implementations
+type InputTemplateWriter interface {
+	io.Writer
+	io.StringWriter
+	Reset()
+	Bytes() []byte
+}
+
+func (i *InputTemplate) Render(ctx *Context, data *astjson.Value, preparedInput InputTemplateWriter) error {
 	var undefinedVariables []string
 
 	if err := i.renderSegments(ctx, data, i.Segments, preparedInput, &undefinedVariables); err != nil {
@@ -65,12 +74,12 @@ func (i *InputTemplate) Render(ctx *Context, data *astjson.Value, preparedInput 
 	return SetInputUndefinedVariables(preparedInput, undefinedVariables)
 }
 
-func (i *InputTemplate) RenderAndCollectUndefinedVariables(ctx *Context, data *astjson.Value, preparedInput *bytes.Buffer, undefinedVariables *[]string) (err error) {
+func (i *InputTemplate) RenderAndCollectUndefinedVariables(ctx *Context, data *astjson.Value, preparedInput InputTemplateWriter, undefinedVariables *[]string) (err error) {
 	err = i.renderSegments(ctx, data, i.Segments, preparedInput, undefinedVariables)
 	return
 }
 
-func (i *InputTemplate) renderSegments(ctx *Context, data *astjson.Value, segments []TemplateSegment, preparedInput *bytes.Buffer, undefinedVariables *[]string) (err error) {
+func (i *InputTemplate) renderSegments(ctx *Context, data *astjson.Value, segments []TemplateSegment, preparedInput InputTemplateWriter, undefinedVariables *[]string) (err error) {
 	for _, segment := range segments {
 		switch segment.SegmentType {
 		case StaticSegmentType:
@@ -107,7 +116,7 @@ func (i *InputTemplate) renderSegments(ctx *Context, data *astjson.Value, segmen
 	return err
 }
 
-func (i *InputTemplate) renderObjectVariable(ctx context.Context, variables *astjson.Value, segment TemplateSegment, preparedInput *bytes.Buffer) error {
+func (i *InputTemplate) renderObjectVariable(ctx context.Context, variables *astjson.Value, segment TemplateSegment, preparedInput InputTemplateWriter) error {
 	value := variables.Get(segment.VariableSourcePath...)
 	if value == nil || value.Type() == astjson.TypeNull {
 		if i.SetTemplateOutputToNullOnVariableNull {
@@ -119,11 +128,11 @@ func (i *InputTemplate) renderObjectVariable(ctx context.Context, variables *ast
 	return segment.Renderer.RenderVariable(ctx, value, preparedInput)
 }
 
-func (i *InputTemplate) renderResolvableObjectVariable(ctx context.Context, objectData *astjson.Value, segment TemplateSegment, preparedInput *bytes.Buffer) error {
+func (i *InputTemplate) renderResolvableObjectVariable(ctx context.Context, objectData *astjson.Value, segment TemplateSegment, preparedInput InputTemplateWriter) error {
 	return segment.Renderer.RenderVariable(ctx, objectData, preparedInput)
 }
 
-func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegment, preparedInput *bytes.Buffer) (variableWasUndefined bool, err error) {
+func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegment, preparedInput InputTemplateWriter) (variableWasUndefined bool, err error) {
 	variableSourcePath := segment.VariableSourcePath
 	if len(variableSourcePath) == 1 && ctx.RemapVariables != nil {
 		nameToUse, hasMapping := ctx.RemapVariables[variableSourcePath[0]]
@@ -142,7 +151,7 @@ func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegm
 	return false, segment.Renderer.RenderVariable(ctx.Context(), value, preparedInput)
 }
 
-func (i *InputTemplate) renderHeaderVariable(ctx *Context, path []string, preparedInput *bytes.Buffer) error {
+func (i *InputTemplate) renderHeaderVariable(ctx *Context, path []string, preparedInput InputTemplateWriter) error {
 	if len(path) != 1 {
 		return errHeaderPathInvalid
 	}
@@ -151,14 +160,20 @@ func (i *InputTemplate) renderHeaderVariable(ctx *Context, path []string, prepar
 		return nil
 	}
 	if len(value) == 1 {
-		preparedInput.WriteString(value[0])
+		if _, err := preparedInput.WriteString(value[0]); err != nil {
+			return err
+		}
 		return nil
 	}
 	for j := range value {
 		if j != 0 {
-			_, _ = preparedInput.Write(literal.COMMA)
+			if _, err := preparedInput.Write(literal.COMMA); err != nil {
+				return err
+			}
 		}
-		preparedInput.WriteString(value[j])
+		if _, err := preparedInput.WriteString(value[j]); err != nil {
+			return err
+		}
 	}
 	return nil
 }

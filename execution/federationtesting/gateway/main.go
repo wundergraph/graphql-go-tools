@@ -10,6 +10,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/execution/engine"
 	http2 "github.com/wundergraph/graphql-go-tools/execution/federationtesting/gateway/http"
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 func NewDatasource(serviceConfig []ServiceConfig, httpClient *http.Client) *DatasourcePollerPoller {
@@ -24,6 +25,20 @@ func Handler(
 	datasourcePoller *DatasourcePollerPoller,
 	httpClient *http.Client,
 	enableART bool,
+	loaderCaches map[string]resolve.LoaderCache,
+	subgraphHeadersBuilder resolve.SubgraphHeadersBuilder,
+) *Gateway {
+	return HandlerWithCaching(logger, datasourcePoller, httpClient, enableART, loaderCaches, subgraphHeadersBuilder, resolve.CachingOptions{})
+}
+
+func HandlerWithCaching(
+	logger log.Logger,
+	datasourcePoller *DatasourcePollerPoller,
+	httpClient *http.Client,
+	enableART bool,
+	loaderCaches map[string]resolve.LoaderCache,
+	subgraphHeadersBuilder resolve.SubgraphHeadersBuilder,
+	cachingOptions resolve.CachingOptions,
 ) *Gateway {
 	upgrader := &ws.DefaultHTTPUpgrader
 	upgrader.Header = http.Header{}
@@ -32,10 +47,10 @@ func Handler(
 	datasourceWatcher := datasourcePoller
 
 	var gqlHandlerFactory HandlerFactoryFn = func(schema *graphql.Schema, engine *engine.ExecutionEngine) http.Handler {
-		return http2.NewGraphqlHTTPHandler(schema, engine, upgrader, logger, enableART)
+		return http2.NewGraphqlHTTPHandler(schema, engine, upgrader, logger, enableART, subgraphHeadersBuilder, cachingOptions)
 	}
 
-	gateway := NewGateway(gqlHandlerFactory, httpClient, logger)
+	gateway := NewGateway(gqlHandlerFactory, httpClient, logger, loaderCaches)
 
 	datasourceWatcher.Register(gateway)
 

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/wundergraph/astjson"
+	"go.uber.org/atomic"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 )
@@ -18,6 +19,7 @@ import (
 type Context struct {
 	ctx              context.Context
 	Variables        *astjson.Value
+	VariablesHash    uint64
 	Files            []*httpclient.FileUpload
 	Request          Request
 	RenameTypeNames  []RenameTypeName
@@ -34,12 +36,108 @@ type Context struct {
 	fieldRenderer FieldValueRenderer
 
 	subgraphErrors map[string]error
+
+	SubgraphHeadersBuilder SubgraphHeadersBuilder
+
+	// cacheStats tracks L1/L2 cache hit/miss statistics for the current request.
+	// Use GetCacheStats() to retrieve the statistics after execution.
+	cacheStats CacheStats
+}
+
+// SubgraphHeadersBuilder allows the user of the engine to "define" the headers for a subgraph request
+// Instead of going back and forth between engine & transport,
+// you can simply define a function that returns headers for a Subgraph request
+// In addition to just the header, the implementer can return a hash for the header which will be used by request deduplication
+type SubgraphHeadersBuilder interface {
+	// HeadersForSubgraph must return the headers and a hash for a Subgraph Request
+	// The hash will be used for request deduplication
+	HeadersForSubgraph(subgraphName string) (http.Header, uint64)
+	// HashAll must return the hash for all subgraph requests combined
+	HashAll() uint64
+}
+
+// HeadersForSubgraphRequest returns headers and a hash for a request that the engine will make to a subgraph
+func (c *Context) HeadersForSubgraphRequest(subgraphName string) (http.Header, uint64) {
+	if c.SubgraphHeadersBuilder == nil {
+		return nil, 0
+	}
+	return c.SubgraphHeadersBuilder.HeadersForSubgraph(subgraphName)
 }
 
 type ExecutionOptions struct {
-	SkipLoader                 bool
+	// SkipLoader will, as the name indicates, skip loading data
+	// However, it does indeed resolve a response
+	// This can be useful, e.g. in combination with IncludeQueryPlanInResponse
+	// The purpose is to get a QueryPlan (even for Subscriptions)
+	SkipLoader bool
+	// IncludeQueryPlanInResponse generates a QueryPlan as part of the response in Resolvable
 	IncludeQueryPlanInResponse bool
-	SendHeartbeat              bool
+	// SendHeartbeat sends regular HeartBeats for Subscriptions
+	SendHeartbeat bool
+	// DisableSubgraphRequestDeduplication disables deduplication of requests to the same subgraph with the same input within a single operation execution.
+	DisableSubgraphRequestDeduplication bool
+	// DisableInboundRequestDeduplication disables deduplication of inbound client requests
+	// The engine is hashing the normalized operation, variables, and forwarded headers to achieve robust deduplication
+	// By default, overhead is negligible and as such this should be false (not disabled) most of the time
+	// However, if you're benchmarking internals of the engine, it can be helpful to switch it off
+	// When disabled (set to true) the code becomes a no-op
+	DisableInboundRequestDeduplication bool
+	// Caching configures L1 (per-request) and L2 (external) entity caching.
+	Caching CachingOptions
+}
+
+// CachingOptions configures the L1/L2 entity caching behavior.
+//
+// L1 Cache (Per-Request, In-Memory):
+//   - Stored in Loader as sync.Map
+//   - Lifecycle: Single GraphQL request
+//   - Key format: Entity cache key WITHOUT subgraph header prefix
+//   - Thread-safe via sync.Map for parallel fetch support
+//   - Purpose: Prevents redundant fetches for same entity at different paths
+//   - IMPORTANT: Only used for entity fetches, NOT root fetches.
+//     Root fields have no prior entity data to look up.
+//
+// L2 Cache (External, Cross-Request):
+//   - Uses LoaderCache interface implementations (e.g., Redis)
+//   - Lifecycle: Configured TTL, shared across requests
+//   - Key format: Entity cache key WITH optional subgraph header prefix
+//   - Purpose: Reduces subgraph load by caching across requests
+//   - Applies to both root fetches and entity fetches
+//
+// Lookup Order (entity fetches): L1 -> L2 -> Subgraph Fetch
+// Lookup Order (root fetches): L2 -> Subgraph Fetch (no L1)
+type CachingOptions struct {
+	// EnableL1Cache enables per-request in-memory entity caching.
+	// L1 prevents redundant fetches for the same entity within a single request.
+	// Only applies to entity fetches (not root queries) since root queries
+	// have no prior entity data to use as a cache key.
+	// Default: false (must be explicitly enabled)
+	EnableL1Cache bool
+	// EnableL2Cache enables external cache lookups (e.g., Redis).
+	// L2 allows sharing entity data across requests.
+	// Default: false (must be explicitly enabled)
+	// Note: When false, existing FetchCacheConfiguration.Enabled still controls
+	// per-fetch L2 behavior for backward compatibility.
+	EnableL2Cache bool
+}
+
+// CacheStats tracks cache hit/miss statistics for L1 and L2 caches.
+// These statistics are collected during query execution and can be used
+// for monitoring, debugging, and testing cache effectiveness.
+//
+// Thread Safety:
+//   - L1 stats use plain int64 (main thread only)
+//   - L2 stats use *atomic.Int64 (accessed from parallel goroutines)
+type CacheStats struct {
+	// L1 cache statistics (per-request, in-memory)
+	// Safe: Only accessed from main thread
+	L1Hits   int64 // Number of L1 cache hits
+	L1Misses int64 // Number of L1 cache misses
+
+	// L2 cache statistics (external cache)
+	// Thread-safe: Accessed from parallel goroutines via atomic operations
+	L2Hits   *atomic.Int64 // Number of L2 cache hits
+	L2Misses *atomic.Int64 // Number of L2 cache misses
 }
 
 type FieldValue struct {
@@ -159,11 +257,61 @@ func (c *Context) SubgraphErrors() error {
 }
 
 func (c *Context) appendSubgraphErrors(ds DataSourceInfo, errs ...error) {
+	if c.subgraphErrors == nil {
+		c.subgraphErrors = make(map[string]error)
+	}
 	c.subgraphErrors[ds.Name] = errors.Join(c.subgraphErrors[ds.Name], errors.Join(errs...))
 }
 
+// CacheStatsSnapshot is a read-only snapshot of cache statistics.
+// Uses plain int64 values for easy consumption.
+type CacheStatsSnapshot struct {
+	L1Hits   int64
+	L1Misses int64
+	L2Hits   int64
+	L2Misses int64
+}
+
+// GetCacheStats returns a snapshot of the cache statistics for the current request.
+// This includes L1 (per-request) and L2 (external) cache hit/miss counts.
+// Returns plain int64 values for easy consumption.
+func (c *Context) GetCacheStats() CacheStatsSnapshot {
+	return CacheStatsSnapshot{
+		L1Hits:   c.cacheStats.L1Hits,
+		L1Misses: c.cacheStats.L1Misses,
+		L2Hits:   c.cacheStats.L2Hits.Load(),
+		L2Misses: c.cacheStats.L2Misses.Load(),
+	}
+}
+
+// trackL1Hit increments the L1 cache hit counter.
+// Called by the loader when an entity is found in L1 cache.
+func (c *Context) trackL1Hit() {
+	c.cacheStats.L1Hits++
+}
+
+// trackL1Miss increments the L1 cache miss counter.
+// Called by the loader when an entity is not found in L1 cache.
+func (c *Context) trackL1Miss() {
+	c.cacheStats.L1Misses++
+}
+
+// trackL2Hit increments the L2 cache hit counter.
+// Called by the loader when an entity is found in L2 (external) cache.
+// Thread-safe: uses atomic operations for parallel goroutine access.
+func (c *Context) trackL2Hit() {
+	c.cacheStats.L2Hits.Inc()
+}
+
+// trackL2Miss increments the L2 cache miss counter.
+// Called by the loader when an entity is not found in L2 (external) cache.
+// Thread-safe: uses atomic operations for parallel goroutine access.
+func (c *Context) trackL2Miss() {
+	c.cacheStats.L2Misses.Inc()
+}
+
 type Request struct {
-	ID     string
+	ID     uint64
 	Header http.Header
 }
 
@@ -172,8 +320,11 @@ func NewContext(ctx context.Context) *Context {
 		panic("nil context.Context")
 	}
 	return &Context{
-		ctx:            ctx,
-		subgraphErrors: make(map[string]error),
+		ctx: ctx,
+		cacheStats: CacheStats{
+			L2Hits:   atomic.NewInt64(0),
+			L2Misses: atomic.NewInt64(0),
+		},
 	}
 }
 

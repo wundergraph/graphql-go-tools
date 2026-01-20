@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/wundergraph/astjson"
 
@@ -64,6 +65,18 @@ type Visitor struct {
 
 	// fieldEnclosingTypeNames maps fieldRef to the enclosing type name.
 	fieldEnclosingTypeNames map[int]string
+	// plannerObjects stores the root object for each planner's ProvidesData
+	// map plannerID -> root object
+	plannerObjects map[int]*resolve.Object
+	// plannerCurrentFields stores the current field stack for each planner
+	// map plannerID -> field stack
+	plannerCurrentFields map[int][]objectFields
+	// plannerResponsePaths stores the response paths relative to each planner's root
+	// map plannerID -> response path stack
+	plannerResponsePaths map[int][]string
+	// plannerEntityBoundaryPaths stores the entity boundary paths for each planner
+	// map plannerID -> entity boundary path
+	plannerEntityBoundaryPaths map[int]string
 }
 
 type indirectInterfaceField struct {
@@ -343,6 +356,12 @@ func (v *Visitor) EnterField(ref int) {
 	if !v.Config.DisableIncludeFieldDependencies {
 		v.fieldEnclosingTypeNames[ref] = strings.Clone(v.Walker.EnclosingTypeDefinition.NameString(v.Definition))
 	}
+
+	// Track field for each planner that should handle it
+	for plannerID := range v.planners {
+		v.trackFieldForPlanner(plannerID, ref)
+	}
+
 	// check if we have to skip the field in the response
 	// it means it was requested by the planner not the user
 	if v.skipField(ref) {
@@ -612,6 +631,11 @@ func (v *Visitor) addInterfaceObjectNameToTypeNames(fieldRef int, typeName []byt
 
 func (v *Visitor) LeaveField(ref int) {
 	v.debugOnLeaveNode(ast.NodeKindField, ref)
+
+	// Pop fields for each planner that tracked this field
+	for plannerID := range v.planners {
+		v.popFieldsForPlanner(plannerID, ref)
+	}
 
 	if v.skipField(ref) {
 		// we should also check skips on field leave
@@ -1004,6 +1028,9 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 		}
 	}
 
+	// Initialize per-planner structures for ProvidesData tracking
+	v.initializePlannerStructures()
+
 	if operationKind == ast.OperationTypeSubscription {
 		v.subscription = &resolve.GraphQLSubscription{
 			Response: v.response,
@@ -1070,6 +1097,9 @@ func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.plannerFields = map[int][]int{}
 	v.fieldPlanners = map[int][]int{}
 	v.fieldEnclosingTypeNames = map[int]string{}
+	v.plannerObjects = map[int]*resolve.Object{}
+	v.plannerCurrentFields = map[int][]objectFields{}
+	v.plannerResponsePaths = map[int][]string{}
 }
 
 func (v *Visitor) LeaveDocument(_, _ *ast.Document) {
@@ -1122,6 +1152,301 @@ func (v *Visitor) isCurrentOrParentPath(currentPath string, parentPath string) b
 
 func (v *Visitor) pathDeepness(path string) int {
 	return strings.Count(path, ".")
+}
+
+func (v *Visitor) initializePlannerStructures() {
+	// Initialize root objects and field stacks for each potential planner
+	// We'll populate these as we traverse fields
+	if v.planners == nil {
+		return
+	}
+
+	for i := range v.planners {
+		v.plannerObjects[i] = &resolve.Object{
+			Fields: []*resolve.Field{},
+		}
+		v.plannerCurrentFields[i] = []objectFields{{
+			fields:     &v.plannerObjects[i].Fields,
+			popOnField: -1,
+		}}
+		v.plannerResponsePaths[i] = []string{}
+	}
+	v.plannerEntityBoundaryPaths = map[int]string{}
+}
+
+func (v *Visitor) trackFieldForPlanner(plannerID int, fieldRef int) {
+	// Safety checks
+	if v.planners == nil || plannerID >= len(v.planners) {
+		return
+	}
+	if v.plannerObjects == nil || v.plannerCurrentFields == nil {
+		return
+	}
+
+	// Check if this planner should handle this field
+	if !v.shouldPlannerHandleField(plannerID, fieldRef) {
+		return
+	}
+
+	// Get field information
+	fieldName := v.Operation.FieldNameBytes(fieldRef)
+	fieldAliasOrName := v.Operation.FieldAliasOrNameString(fieldRef)
+
+	// For nested entity fetches, check if this field represents the entity boundary
+	// If so, we should skip adding this field to ProvidesData and instead add its children
+	if v.isEntityBoundaryField(plannerID, fieldRef) {
+		// Create a new object for the entity fields (children of the boundary)
+		// This ensures entity fields like id, username are added to this object, not the parent
+		entityObj := &resolve.Object{
+			Fields: []*resolve.Field{},
+		}
+		// Push the entity object onto the stack so child fields get added to it
+		v.Walker.DefferOnEnterField(func() {
+			v.plannerCurrentFields[plannerID] = append(v.plannerCurrentFields[plannerID], objectFields{
+				popOnField: fieldRef,
+				fields:     &entityObj.Fields,
+			})
+		})
+		// Replace the root object for this planner with the entity object
+		// This makes the entity fields the top-level fields in ProvidesData
+		v.plannerObjects[plannerID] = entityObj
+		return
+	}
+
+	// Check if this is a __typename field and if we already have one with the same name and path
+	if bytes.Equal(fieldName, literal.TYPENAME) && len(v.plannerCurrentFields[plannerID]) > 0 {
+		currentFields := v.plannerCurrentFields[plannerID][len(v.plannerCurrentFields[plannerID])-1]
+
+		// Check if we already have a __typename field with the same name and path
+		for _, existingField := range *currentFields.fields {
+			if bytes.Equal(existingField.Name, []byte(fieldAliasOrName)) {
+				// For __typename fields, the path is [fieldAliasOrName]
+				// Check if the existing field has the same path
+				if existingValue, ok := existingField.Value.(*resolve.Scalar); ok {
+					if len(existingValue.Path) > 0 && existingValue.Path[0] == fieldAliasOrName {
+						// We already have this __typename field with the same name and path, skip it
+						return
+					}
+				}
+			}
+		}
+	}
+
+	// Get the field definition
+	fieldDefinition, ok := v.Walker.FieldDefinition(fieldRef)
+	if !ok {
+		return
+	}
+	fieldType := v.Definition.FieldDefinitionType(fieldDefinition)
+
+	// Create a simple field value for tracking purposes
+	fieldValue := v.createFieldValueForPlanner(fieldRef, fieldType, []string{fieldAliasOrName})
+
+	onTypeNames := v.resolveEntityOnTypeNames(plannerID, fieldRef, fieldName)
+
+	// Create the field
+	field := &resolve.Field{
+		Name:        []byte(fieldAliasOrName),
+		Value:       fieldValue,
+		OnTypeNames: onTypeNames,
+	}
+
+	// Add the field to the current object for this planner
+	if len(v.plannerCurrentFields[plannerID]) > 0 {
+		currentFields := v.plannerCurrentFields[plannerID][len(v.plannerCurrentFields[plannerID])-1]
+		*currentFields.fields = append(*currentFields.fields, field)
+	}
+
+	for {
+		// for loop to unwrap array item
+		switch node := fieldValue.(type) {
+		case *resolve.Array:
+			// unwrap and check type again
+			fieldValue = node.Item
+		case *resolve.Object:
+			// if the field value is an object, add it to the current fields stack
+			v.Walker.DefferOnEnterField(func() {
+				v.plannerCurrentFields[plannerID] = append(v.plannerCurrentFields[plannerID], objectFields{
+					popOnField: fieldRef,
+					fields:     &node.Fields,
+				})
+			})
+			return
+		default:
+			// field value is a scalar or null, we don't add it to the stack
+			return
+		}
+	}
+}
+
+func (v *Visitor) resolveEntityOnTypeNames(plannerID, fieldRef int, fieldName ast.ByteSlice) (onTypeNames [][]byte) {
+	// If this is an entity root field, return the enclosing type name
+	if v.isEntityRootField(plannerID, fieldRef) {
+		enclosingTypeName := v.Walker.EnclosingTypeDefinition.NameBytes(v.Definition)
+		if enclosingTypeName != nil {
+			return [][]byte{enclosingTypeName}
+		}
+	}
+
+	// Otherwise, use the regular resolution logic
+	onTypeNames = v.resolveOnTypeNames(fieldRef, fieldName)
+	return onTypeNames
+}
+
+// createFieldValueForPlanner creates a simplified field value for planner tracking
+// without relying on the full visitor state like resolveFieldValue does
+func (v *Visitor) createFieldValueForPlanner(fieldRef, typeRef int, path []string) resolve.Node {
+	ofType := v.Definition.Types[typeRef].OfType
+
+	switch v.Definition.Types[typeRef].TypeKind {
+	case ast.TypeKindNonNull:
+		node := v.createFieldValueForPlanner(fieldRef, ofType, path)
+		// Set nullable to false for the returned node
+		switch n := node.(type) {
+		case *resolve.Scalar:
+			n.Nullable = false
+		case *resolve.Object:
+			n.Nullable = false
+		case *resolve.Array:
+			n.Nullable = false
+		}
+		return node
+	case ast.TypeKindList:
+		listItem := v.createFieldValueForPlanner(fieldRef, ofType, nil)
+		return &resolve.Array{
+			Nullable: true,
+			Path:     path,
+			Item:     listItem,
+		}
+	case ast.TypeKindNamed:
+		typeName := v.Definition.ResolveTypeNameString(typeRef)
+		typeDefinitionNode, ok := v.Definition.Index.FirstNodeByNameStr(typeName)
+		if !ok {
+			return &resolve.Null{}
+		}
+		switch typeDefinitionNode.Kind {
+		case ast.NodeKindScalarTypeDefinition, ast.NodeKindEnumTypeDefinition:
+			return &resolve.Scalar{
+				Nullable: true,
+				Path:     path,
+			}
+		case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
+			// For object types, create a new object that will be populated by child fields
+			obj := &resolve.Object{
+				Nullable: true,
+				Path:     path,
+				Fields:   []*resolve.Field{},
+			}
+			return obj
+		default:
+			return &resolve.Null{}
+		}
+	default:
+		return &resolve.Null{}
+	}
+}
+
+// isEntityBoundaryField checks if this field represents the entity boundary for a nested entity fetch
+// For nested entity fetches, the field at the response path boundary should be skipped in ProvidesData
+func (v *Visitor) isEntityBoundaryField(plannerID int, fieldRef int) bool {
+	config := v.planners[plannerID]
+	fetchConfig := config.ObjectFetchConfiguration()
+	if fetchConfig == nil || fetchConfig.fetchItem == nil {
+		return false
+	}
+
+	// Check if this is a nested fetch (has "." in response path)
+	responsePath := "query." + fetchConfig.fetchItem.ResponsePath
+	if !strings.Contains(responsePath, ".") {
+		return false // Root fetch, no boundary field to skip
+	}
+
+	// Normalize the response path by removing array index markers (@.)
+	// e.g., "query.topProducts.@.reviews.@.author" -> "query.topProducts.reviews.author"
+	normalizedResponsePath := strings.ReplaceAll(responsePath, ".@", "")
+
+	// For nested fetches, check if this field is at the entity boundary
+	currentPath := v.Walker.Path.DotDelimitedString()
+	fieldName := v.Operation.FieldAliasOrNameString(fieldRef)
+	fullFieldPath := currentPath + "." + fieldName
+
+	// If this field path matches the normalized response path, it's the entity boundary
+	if fullFieldPath == normalizedResponsePath {
+		// Store the entity boundary path for this planner
+		v.plannerEntityBoundaryPaths[plannerID] = fullFieldPath
+		return true
+	}
+	return false
+}
+
+// isEntityRootField checks if this field is at the root of an entity
+// This means it has one additional path element compared to the stored entity boundary path
+func (v *Visitor) isEntityRootField(plannerID int, fieldRef int) bool {
+	// Check if we have a stored entity boundary path for this planner
+	boundaryPath, hasBoundary := v.plannerEntityBoundaryPaths[plannerID]
+	if !hasBoundary {
+		return false
+	}
+
+	// Get the current field path
+	currentPath := v.Walker.Path.DotDelimitedString()
+	fieldName := v.Operation.FieldAliasOrNameString(fieldRef)
+	fullFieldPath := currentPath + "." + fieldName
+
+	// Check if this field is a direct child of the entity boundary
+	// It should start with the boundary path and have exactly one more segment
+	if !strings.HasPrefix(fullFieldPath, boundaryPath+".") {
+		return false
+	}
+
+	// Remove the boundary path prefix and check if there's exactly one segment left
+	remainingPath := strings.TrimPrefix(fullFieldPath, boundaryPath+".")
+	// If there are no more dots, this is a root field of the entity
+	return !strings.Contains(remainingPath, ".")
+}
+
+func (v *Visitor) shouldPlannerHandleField(plannerID int, fieldRef int) bool {
+	// Safety checks
+	if v.planners == nil || plannerID >= len(v.planners) {
+		return false
+	}
+
+	// Use the same logic as AllowVisitor to check if a planner handles a field
+	path := v.Walker.Path.DotDelimitedString()
+	if v.Walker.CurrentKind == ast.NodeKindField {
+		path = path + "." + v.Operation.FieldAliasOrNameString(fieldRef)
+	}
+
+	config := v.planners[plannerID]
+	if !config.HasPath(path) {
+		return false
+	}
+
+	enclosingTypeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
+
+	allow := config.HasPathWithFieldRef(fieldRef) || config.HasParent(path)
+	if !allow {
+		return false
+	}
+
+	shouldWalkFieldsOnPath := config.ShouldWalkFieldsOnPath(path, enclosingTypeName) ||
+		config.ShouldWalkFieldsOnPath(path, "")
+
+	return shouldWalkFieldsOnPath
+}
+
+func (v *Visitor) popFieldsForPlanner(plannerID int, fieldRef int) {
+	// Safety checks
+	if v.plannerCurrentFields == nil || plannerID >= len(v.plannerCurrentFields) {
+		return
+	}
+
+	if len(v.plannerCurrentFields[plannerID]) > 0 {
+		last := len(v.plannerCurrentFields[plannerID]) - 1
+		if v.plannerCurrentFields[plannerID][last].popOnField == fieldRef {
+			v.plannerCurrentFields[plannerID] = v.plannerCurrentFields[plannerID][:last]
+		}
+	}
 }
 
 func (v *Visitor) resolveInputTemplates(config *objectFetchConfiguration, input *string, variables *resolve.Variables) {
@@ -1291,6 +1616,8 @@ func (v *Visitor) configureSubscription(config *objectFetchConfiguration) {
 	v.subscription.Trigger.QueryPlan = subscription.QueryPlan
 	v.resolveInputTemplates(config, &subscription.Input, &v.subscription.Trigger.Variables)
 	v.subscription.Trigger.Input = []byte(subscription.Input)
+	v.subscription.Trigger.SourceName = config.sourceName
+	v.subscription.Trigger.SourceID = config.sourceID
 	v.subscription.Filter = config.filter
 }
 
@@ -1318,6 +1645,21 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 	dataSourceType := reflect.TypeOf(external.DataSource).String()
 	dataSourceType = strings.TrimPrefix(dataSourceType, "*")
 
+	if !v.Config.DisableEntityCaching {
+		external.Caching = resolve.FetchCacheConfiguration{
+			Enabled:   true,
+			CacheName: "default",
+			TTL:       time.Second * time.Duration(30),
+			// templates come prepared from the DataSource
+			CacheKeyTemplate:            external.Caching.CacheKeyTemplate,
+			IncludeSubgraphHeaderPrefix: true,
+		}
+	} else {
+		external.Caching = resolve.FetchCacheConfiguration{
+			Enabled: false,
+		}
+	}
+
 	singleFetch := &resolve.SingleFetch{
 		FetchConfiguration: external,
 		FetchDependencies: resolve.FetchDependencies{
@@ -1337,7 +1679,12 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 		OperationType:  internal.operationType,
 		QueryPlan:      external.QueryPlan,
 	}
-
+	if !v.Config.DisableFetchProvidesData {
+		// Set ProvidesData from the planner's object structure
+		if providesData, ok := v.plannerObjects[internal.fetchID]; ok {
+			singleFetch.Info.ProvidesData = providesData
+		}
+	}
 	if v.Config.DisableIncludeFieldDependencies {
 		return singleFetch
 	}

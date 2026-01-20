@@ -16,7 +16,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -394,6 +393,49 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						),
 						PostProcessing: DefaultPostProcessingConfiguration,
+						Caching: resolve.FetchCacheConfiguration{
+							Enabled:                     true,
+							CacheName:                   "default",
+							TTL:                         30 * time.Second,
+							IncludeSubgraphHeaderPrefix: true,
+							CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{
+								RootFields: []resolve.QueryField{
+									{
+										Coordinate: resolve.GraphCoordinate{
+											TypeName:  "Query",
+											FieldName: "droid",
+										},
+										Args: []resolve.FieldArgument{
+											{
+												Name: "id",
+												Variable: &resolve.ContextVariable{
+													Path:     []string{"id"},
+													Renderer: resolve.NewJSONVariableRenderer(),
+												},
+											},
+										},
+									},
+									{
+										Coordinate: resolve.GraphCoordinate{
+											TypeName:  "Query",
+											FieldName: "hero",
+										},
+									},
+									{
+										Coordinate: resolve.GraphCoordinate{
+											TypeName:  "Query",
+											FieldName: "stringList",
+										},
+									},
+									{
+										Coordinate: resolve.GraphCoordinate{
+											TypeName:  "Query",
+											FieldName: "nestedStringList",
+										},
+									},
+								},
+							},
+						},
 					},
 					Info: &resolve.FetchInfo{
 						OperationType:  ast.OperationTypeQuery,
@@ -415,6 +457,100 @@ func TestGraphQLDataSource(t *testing.T) {
 							{
 								TypeName:  "Query",
 								FieldName: "nestedStringList",
+							},
+						},
+						ProvidesData: &resolve.Object{
+							Nullable: false,
+							Path:     []string{},
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("droid"),
+									Value: &resolve.Object{
+										Nullable: true,
+										Path:     []string{"droid"},
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("name"),
+												Value: &resolve.Scalar{
+													Path:     []string{"name"},
+													Nullable: false,
+												},
+											},
+											{
+												Name: []byte("aliased"),
+												Value: &resolve.Scalar{
+													Path:     []string{"aliased"},
+													Nullable: false,
+												},
+											},
+											{
+												Name: []byte("friends"),
+												Value: &resolve.Array{
+													Path:     []string{"friends"},
+													Nullable: true,
+													Item: &resolve.Object{
+														Nullable: true,
+														Path:     []string{},
+														Fields: []*resolve.Field{
+															{
+																Name: []byte("name"),
+																Value: &resolve.Scalar{
+																	Path:     []string{"name"},
+																	Nullable: false,
+																},
+															},
+														},
+													},
+												},
+											},
+											{
+												Name: []byte("primaryFunction"),
+												Value: &resolve.Scalar{
+													Path:     []string{"primaryFunction"},
+													Nullable: false,
+												},
+											},
+										},
+									},
+								},
+								{
+									Name: []byte("hero"),
+									Value: &resolve.Object{
+										Nullable: true,
+										Path:     []string{"hero"},
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("name"),
+												Value: &resolve.Scalar{
+													Path:     []string{"name"},
+													Nullable: false,
+												},
+											},
+										},
+									},
+								},
+								{
+									Name: []byte("stringList"),
+									Value: &resolve.Array{
+										Path:     []string{"stringList"},
+										Nullable: true,
+										Item: &resolve.Scalar{
+											Path:     []string{},
+											Nullable: true,
+										},
+									},
+								},
+								{
+									Name: []byte("nestedStringList"),
+									Value: &resolve.Array{
+										Path:     []string{"nestedStringList"},
+										Nullable: true,
+										Item: &resolve.Scalar{
+											Path:     []string{},
+											Nullable: true,
+										},
+									},
+								},
 							},
 						},
 					},
@@ -681,7 +817,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 		DisableResolveFieldPositions: true,
-	}, WithFieldInfo(), WithDefaultPostProcessor()))
+	}, WithFieldInfo(), WithDefaultPostProcessor(), WithFetchProvidesData(), WithEntityCaching()))
 
 	t.Run("selections on interface type", RunTest(interfaceSelectionSchema, `
 		query MyQuery {
@@ -4009,6 +4145,8 @@ func TestGraphQLDataSource(t *testing.T) {
 						client: NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, ctx),
 					},
 					PostProcessing: DefaultPostProcessingConfiguration,
+					SourceName:     "ds-id",
+					SourceID:       "ds-id",
 				},
 				Response: &resolve.GraphQLResponse{
 					Fetches: resolve.Sequence(),
@@ -4050,6 +4188,8 @@ func TestGraphQLDataSource(t *testing.T) {
 					client: NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, ctx),
 				},
 				PostProcessing: DefaultPostProcessingConfiguration,
+				SourceName:     "ds-id",
+				SourceID:       "ds-id",
 			},
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
@@ -8245,10 +8385,6 @@ func (f *FailingSubscriptionClient) Subscribe(ctx *resolve.Context, options Grap
 	return errSubscriptionClientFail
 }
 
-func (f *FailingSubscriptionClient) UniqueRequestID(ctx *resolve.Context, options GraphQLSubscriptionOptions, hash *xxhash.Digest) (err error) {
-	return errSubscriptionClientFail
-}
-
 type testSubscriptionUpdaterChan struct {
 	updates  chan string
 	complete chan struct{}
@@ -8466,13 +8602,13 @@ func TestSubscriptionSource_Start(t *testing.T) {
 
 	t.Run("should return error when input is invalid", func(t *testing.T) {
 		source := SubscriptionSource{client: &FailingSubscriptionClient{}}
-		err := source.Start(resolve.NewContext(context.Background()), []byte(`{"url": "", "body": "", "header": null}`), nil)
+		err := source.Start(resolve.NewContext(context.Background()), nil, []byte(`{"url": "", "body": "", "header": null}`), nil)
 		assert.Error(t, err)
 	})
 
 	t.Run("should return error when subscription client returns an error", func(t *testing.T) {
 		source := SubscriptionSource{client: &FailingSubscriptionClient{}}
-		err := source.Start(resolve.NewContext(context.Background()), []byte(`{"url": "", "body": {}, "header": null}`), nil)
+		err := source.Start(resolve.NewContext(context.Background()), nil, []byte(`{"url": "", "body": {}, "header": null}`), nil)
 		assert.Error(t, err)
 		assert.Equal(t, resolve.ErrUnableToResolve, err)
 	})
@@ -8485,7 +8621,7 @@ func TestSubscriptionSource_Start(t *testing.T) {
 
 		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: "#test") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, updater)
+		err := source.Start(ctx, nil, chatSubscriptionOptions, updater)
 		require.ErrorIs(t, err, resolve.ErrUnableToResolve)
 	})
 
@@ -8497,7 +8633,7 @@ func TestSubscriptionSource_Start(t *testing.T) {
 
 		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomNam: \"#test\") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, updater)
+		err := source.Start(ctx, nil, chatSubscriptionOptions, updater)
 		require.NoError(t, err)
 		updater.AwaitUpdates(t, time.Second, 1)
 		assert.Len(t, updater.updates, 1)
@@ -8515,7 +8651,7 @@ func TestSubscriptionSource_Start(t *testing.T) {
 		source := newSubscriptionSource(resolverLifecycle)
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
 
-		err := source.Start(resolve.NewContext(subscriptionLifecycle), chatSubscriptionOptions, updater)
+		err := source.Start(resolve.NewContext(subscriptionLifecycle), nil, chatSubscriptionOptions, updater)
 		require.NoError(t, err)
 
 		username := "myuser"
@@ -8538,7 +8674,7 @@ func TestSubscriptionSource_Start(t *testing.T) {
 		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
 
-		err := source.Start(ctx, chatSubscriptionOptions, updater)
+		err := source.Start(ctx, nil, chatSubscriptionOptions, updater)
 		require.NoError(t, err)
 
 		username := "myuser"
@@ -8602,7 +8738,7 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 
 		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomNam: \"#test\") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, updater)
+		err := source.Start(ctx, nil, chatSubscriptionOptions, updater)
 		require.NoError(t, err)
 
 		updater.AwaitUpdates(t, time.Second, 1)
@@ -8622,7 +8758,7 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 		source := newSubscriptionSource(resolverLifecycle)
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
 
-		err := source.Start(resolve.NewContext(subscriptionLifecycle), chatSubscriptionOptions, updater)
+		err := source.Start(resolve.NewContext(subscriptionLifecycle), nil, chatSubscriptionOptions, updater)
 		require.NoError(t, err)
 
 		username := "myuser"
@@ -8646,7 +8782,7 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
 
-		err := source.Start(ctx, chatSubscriptionOptions, updater)
+		err := source.Start(ctx, nil, chatSubscriptionOptions, updater)
 		require.NoError(t, err)
 
 		username := "myuser"
@@ -8784,10 +8920,9 @@ func TestSource_Load(t *testing.T) {
 			input = httpclient.SetInputBodyWithPath(input, variables, "variables")
 			input = httpclient.SetInputURL(input, []byte(serverUrl))
 
-			buf := bytes.NewBuffer(nil)
-
-			require.NoError(t, src.Load(context.Background(), input, buf))
-			assert.Equal(t, `{"variables":{"a":null,"b":"b","c":{}}}`, buf.String())
+			data, err := src.Load(context.Background(), nil, input)
+			require.NoError(t, err)
+			assert.Equal(t, `{"variables":{"a":null,"b":"b","c":{}}}`, string(data))
 		})
 	})
 	t.Run("remove undefined variables", func(t *testing.T) {
@@ -8800,7 +8935,6 @@ func TestSource_Load(t *testing.T) {
 			var input []byte
 			input = httpclient.SetInputBodyWithPath(input, variables, "variables")
 			input = httpclient.SetInputURL(input, []byte(serverUrl))
-			buf := bytes.NewBuffer(nil)
 
 			undefinedVariables := []string{"a", "c"}
 			ctx := context.Background()
@@ -8808,8 +8942,9 @@ func TestSource_Load(t *testing.T) {
 			input, err = httpclient.SetUndefinedVariables(input, undefinedVariables)
 			assert.NoError(t, err)
 
-			require.NoError(t, src.Load(ctx, input, buf))
-			assert.Equal(t, `{"variables":{"b":null}}`, buf.String())
+			data, err := src.Load(ctx, nil, input)
+			require.NoError(t, err)
+			assert.Equal(t, `{"variables":{"b":null}}`, string(data))
 		})
 	})
 }
@@ -8891,10 +9026,12 @@ func TestLoadFiles(t *testing.T) {
 		input = httpclient.SetInputBodyWithPath(input, variables, "variables")
 		input = httpclient.SetInputBodyWithPath(input, query, "query")
 		input = httpclient.SetInputURL(input, []byte(serverUrl))
-		buf := bytes.NewBuffer(nil)
 
 		ctx := context.Background()
-		require.NoError(t, src.LoadWithFiles(ctx, input, []*httpclient.FileUpload{httpclient.NewFileUpload(f.Name(), fileName, "variables.file")}, buf))
+		got, err := src.LoadWithFiles(ctx, nil, input, []*httpclient.FileUpload{httpclient.NewFileUpload(f.Name(), fileName, "variables.file")})
+		require.NoError(t, err)
+		require.Equal(t, []byte{}, got)
+
 	})
 
 	t.Run("multiple files", func(t *testing.T) {
@@ -8935,7 +9072,6 @@ func TestLoadFiles(t *testing.T) {
 		input = httpclient.SetInputBodyWithPath(input, variables, "variables")
 		input = httpclient.SetInputBodyWithPath(input, query, "query")
 		input = httpclient.SetInputURL(input, []byte(serverUrl))
-		buf := bytes.NewBuffer(nil)
 
 		dir := t.TempDir()
 		f1, err := os.CreateTemp(dir, file1Name)
@@ -8949,11 +9085,12 @@ func TestLoadFiles(t *testing.T) {
 		assert.NoError(t, err)
 
 		ctx := context.Background()
-		require.NoError(t, src.LoadWithFiles(ctx, input,
+		got, err := src.LoadWithFiles(ctx, nil, input,
 			[]*httpclient.FileUpload{
 				httpclient.NewFileUpload(f1.Name(), file1Name, "variables.files.0"),
-				httpclient.NewFileUpload(f2.Name(), file2Name, "variables.files.1")},
-			buf))
+				httpclient.NewFileUpload(f2.Name(), file2Name, "variables.files.1")})
+		require.NoError(t, err)
+		require.Equal(t, []byte{}, got)
 	})
 }
 

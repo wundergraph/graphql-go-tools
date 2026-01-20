@@ -189,6 +189,14 @@ func (ec *executionContext) resolveEntity(
 				return nil, fmt.Errorf(`resolving Entity "User": %w`, err)
 			}
 
+			entity.Username, err = ec.unmarshalNString2string(ctx, rep["username"])
+			if err != nil {
+				return nil, err
+			}
+			entity.Username, err = ec.unmarshalNString2string(ctx, rep["username"])
+			if err != nil {
+				return nil, err
+			}
 			return entity, nil
 		}
 

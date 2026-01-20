@@ -280,10 +280,11 @@ func (TitleName) IsName()              {}
 func (this TitleName) GetName() string { return this.Name }
 
 type User struct {
-	ID       string    `json:"id"`
-	Username string    `json:"username"`
-	History  []History `json:"history"`
-	RealName string    `json:"realName"`
+	ID           string    `json:"id"`
+	Username     string    `json:"username"`
+	History      []History `json:"history"`
+	RealName     string    `json:"realName"`
+	RelatedUsers []*User   `json:"relatedUsers"`
 }
 
 func (User) IsIdentifiable()    {}

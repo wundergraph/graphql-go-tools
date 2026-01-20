@@ -34,6 +34,8 @@ type testOptions struct {
 	withPrintPlan         bool
 	withFieldDependencies bool
 	withFetchReasons      bool
+	withEntityCaching     bool
+	withFetchProvidesData bool
 }
 
 func WithPostProcessors(postProcessors ...*postprocess.Processor) func(*testOptions) {
@@ -81,6 +83,22 @@ func WithFetchReasons() func(*testOptions) {
 		o.withFieldInfo = true
 		o.withFieldDependencies = true
 		o.withFetchReasons = true
+	}
+}
+
+func WithEntityCaching() func(*testOptions) {
+	return func(o *testOptions) {
+		o.withFieldInfo = true
+		o.withFieldDependencies = true
+		o.withEntityCaching = true
+	}
+}
+
+func WithFetchProvidesData() func(*testOptions) {
+	return func(o *testOptions) {
+		o.withFieldInfo = true
+		o.withFieldDependencies = true
+		o.withFetchProvidesData = true
 	}
 }
 
@@ -143,6 +161,8 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 		// by default, we don't want to have field info in the tests because it's too verbose
 		config.DisableIncludeInfo = true
 		config.DisableIncludeFieldDependencies = true
+		config.DisableEntityCaching = true
+		config.DisableFetchProvidesData = true
 
 		opts := &testOptions{}
 		for _, o := range options {
@@ -159,6 +179,14 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 
 		if opts.withFetchReasons {
 			config.BuildFetchReasons = true
+		}
+
+		if opts.withEntityCaching {
+			config.DisableEntityCaching = false
+		}
+
+		if opts.withFetchProvidesData {
+			config.DisableFetchProvidesData = false
 		}
 
 		if opts.skipReason != "" {
