@@ -534,30 +534,30 @@ func (r *fieldSelectionRewriter) getAllowedUnionMemberTypeNames(fieldRef int, un
 	return unionTypeNames, nil
 }
 
-func (r *fieldSelectionRewriter) getAllowedInterfaceMemberTypeNames(fieldRef int, interfaceDefRef int, enclosingTypeName ast.ByteSlice) (typeNames []string, isInterfaceObject bool, err error) {
-	interfaceTypeName := r.definition.InterfaceTypeDefinitionNameString(interfaceDefRef)
+func (r *fieldSelectionRewriter) getAllowedInterfaceMemberTypeNames(fieldRef int, interfaceDefRef int, enclosingTypeName ast.ByteSlice) (interfaceTypeName string, typeNames []string, isInterfaceObject bool, err error) {
+	interfaceTypeName = r.definition.InterfaceTypeDefinitionNameString(interfaceDefRef)
 	interfaceTypeNamesFromDefinition, _ := r.definition.InterfaceTypeDefinitionImplementedByObjectWithNames(interfaceDefRef)
 
 	// CurrentObject.field typename from the upstream schema
 	fieldTypeName, ok := r.fieldTypeNameFromUpstreamSchema(fieldRef, enclosingTypeName)
 	if !ok {
-		return nil, false, errors.New("unexpected error: field type name is not found in the upstream schema")
+		return "", nil, false, errors.New("unexpected error: field type name is not found in the upstream schema")
 	}
 
 	// when typename of a field is not equal to the typename of the interface type
 	// then it should implement the interface type in the federated graph schema
 	if interfaceTypeName != fieldTypeName {
 		if slices.Contains(interfaceTypeNamesFromDefinition, fieldTypeName) {
-			return []string{fieldTypeName}, false, nil
+			return fieldTypeName, []string{fieldTypeName}, false, nil
 		}
 
 		// if it doesn't implement an interface type the config is corrupted
-		return nil, false, errors.New("unexpected error: field type do not implement the interface in the federated graph schema")
+		return "", nil, false, errors.New("unexpected error: field type do not implement the interface in the federated graph schema")
 	}
 
 	interfaceNode, hasNode := r.upstreamDefinition.NodeByNameStr(interfaceTypeName)
 	if !hasNode {
-		return nil, false, errors.New("unexpected error: interface type definition not found in the upstream schema")
+		return "", nil, false, errors.New("unexpected error: interface type definition not found in the upstream schema")
 	}
 
 	// when node kind is an interface type definition
@@ -590,18 +590,18 @@ func (r *fieldSelectionRewriter) getAllowedInterfaceMemberTypeNames(fieldRef int
 		// remove possible consecutive duplicates
 		interfaceTypeNames = slices.Compact(interfaceTypeNames)
 
-		return interfaceTypeNames, false, nil
+		return interfaceTypeName, interfaceTypeNames, false, nil
 	}
 
 	// otherwise we should get node kind object type definition
 	// which means we are dealing with the interface object
 	for _, k := range r.dsConfiguration.FederationConfiguration().InterfaceObjects {
 		if k.InterfaceTypeName == interfaceTypeName {
-			return k.ConcreteTypeNames, true, nil
+			return interfaceTypeName, k.ConcreteTypeNames, true, nil
 		}
 	}
 
-	return nil, false, errors.New("unexpected error: node kind is not interface type definition in the upstream schema")
+	return "", nil, false, errors.New("unexpected error: node kind is not interface type definition in the upstream schema")
 }
 
 func (r *fieldSelectionRewriter) typeNameWithRename(typeName ast.ByteSlice) ast.ByteSlice {
