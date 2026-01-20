@@ -4721,6 +4721,53 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 				require.Empty(t, errData)
 			},
 		},
+		{
+			name:  "Query with recursive child categories field resolver and aliases",
+			query: "query CategoriesWithRecursiveChildCategoriesFieldResolverAndAliases { categories { child: childCategories { id name kind childchild: childCategories { id name kind } } } }",
+			vars:  `{"variables":{}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.NotEmpty(t, categories, "categories should not be empty")
+				require.Len(t, categories, 4, "Should return 4 categories")
+
+				for _, cat := range categories {
+					category, ok := cat.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+
+					// Check aliased field "child" (childCategories)
+					child, ok := category["child"].([]interface{})
+					require.True(t, ok, "child (aliased childCategories) should be an array")
+					require.NotEmpty(t, child, "child should not be empty")
+
+					for _, ch := range child {
+						childCategory, ok := ch.(map[string]interface{})
+						require.True(t, ok, "child category should be an object")
+						require.NotEmpty(t, childCategory["id"], "child category id should not be empty")
+						require.NotEmpty(t, childCategory["name"], "child category name should not be empty")
+						require.NotEmpty(t, childCategory["kind"], "child category kind should not be empty")
+
+						// Check nested aliased field "childchild" (childCategories)
+						childchild, ok := childCategory["childchild"].([]interface{})
+						require.True(t, ok, "childchild (aliased childCategories) should be an array")
+						require.NotEmpty(t, childchild, "childchild should not be empty")
+
+						for _, chch := range childchild {
+							childchildCategory, ok := chch.(map[string]interface{})
+							require.True(t, ok, "childchild category should be an object")
+							require.NotEmpty(t, childchildCategory["id"], "childchild category id should not be empty")
+							require.NotEmpty(t, childchildCategory["name"], "childchild category name should not be empty")
+							require.NotEmpty(t, childchildCategory["kind"], "childchild category kind should not be empty")
+						}
+					}
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
 	}
 
 	for _, tc := range testCases {
