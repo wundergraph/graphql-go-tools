@@ -5958,6 +5958,122 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				},
 				computeStaticCost(),
 			))
+
+			t.Run("named fragment on interface", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: graphql.StarwarsSchema(t),
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `
+								fragment CharacterFields on Character {
+									name
+									friends { name }
+								}
+								{ hero { ...CharacterFields } }
+								`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost:     "example.com",
+									expectedPath:     "/",
+									expectedBody:     "",
+									sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke","friends":[{"name":"Leia"}]}}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+										{TypeName: "Query", FieldName: "hero"}: {HasWeight: true, Weight: 2},
+										{TypeName: "Human", FieldName: "name"}: {HasWeight: true, Weight: 3},
+										{TypeName: "Droid", FieldName: "name"}: {HasWeight: true, Weight: 5},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Human", FieldName: "friends"}: {AssumedSize: 4},
+										{TypeName: "Droid", FieldName: "friends"}: {AssumedSize: 6},
+									},
+									Types: map[string]int{
+										"Human": 2,
+										"Droid": 3,
+									},
+								},
+							},
+							customConfig,
+						),
+					},
+					expectedResponse: `{"data":{"hero":{"name":"Luke","friends":[{"name":"Leia"}]}}}`,
+					// Cost calculation:
+					// Query.hero: 2
+					// Character.name: max(Human.name=3, Droid.name=5) = 5
+					//   friends listSize: max(4, 6) = 6
+					//   Character type: max(Human=2, Droid=3) = 3
+					//   name: max(Human.name=3, Droid.name=5) = 5
+					// Total: 2 + 5 + 6 * (3 + 5)
+					expectedStaticCost: 55,
+				},
+				computeStaticCost(),
+			))
+
+			t.Run("named fragment with concrete type", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: graphql.StarwarsSchema(t),
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `
+								fragment HumanFields on Human {
+									name
+									height
+								}
+								{ hero { ...HumanFields } }
+								`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost:     "example.com",
+									expectedPath:     "/",
+									expectedBody:     "",
+									sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke","height":"1.72"}}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+										{TypeName: "Query", FieldName: "hero"}:   {HasWeight: true, Weight: 2},
+										{TypeName: "Human", FieldName: "name"}:   {HasWeight: true, Weight: 3},
+										{TypeName: "Human", FieldName: "height"}: {HasWeight: true, Weight: 7},
+										{TypeName: "Droid", FieldName: "name"}:   {HasWeight: true, Weight: 5},
+									},
+									Types: map[string]int{
+										"Human": 1,
+										"Droid": 1,
+									},
+								},
+							},
+							customConfig,
+						),
+					},
+					expectedResponse: `{"data":{"hero":{"name":"Luke","height":"1.72"}}}`,
+					// Cost calculation:
+					// Query.hero: 2
+					// Human.name: 3
+					// Human.height: 7
+					// Total: 2 + 3 + 7
+					expectedStaticCost: 12,
+				},
+				computeStaticCost(),
+			))
+
 		})
 
 		t.Run("custom scheme for listSize", func(t *testing.T) {
@@ -6213,11 +6329,11 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					fields:           fieldConfig,
 					expectedResponse: `{"data":{"users":[{"posts":[{"comments":[{"text":"hello"}]}]}]}}`,
 					// Cost calculation:
-					// users(first:10) -> multiplier 10
+					// users(first:10): multiplier 10
 					//   User type weight: 4
-					//   posts(first:5) -> multiplier 5
+					//   posts(first:5): multiplier 5
 					//     Post type weight: 3
-					//     comments(first:3) -> multiplier 3
+					//     comments(first:3): multiplier 3
 					//       Comment type weight: 2
 					//       text weight: 1
 					// Total: 10 * (4 + 5 * (3 + 3 * (2 + 1)))
@@ -6284,11 +6400,11 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					fields:           fieldConfig,
 					expectedResponse: `{"data":{"users":[{"posts":[{"comments":[{"text":"hi"}]}]}]}}`,
 					// Cost calculation:
-					// users(first:2) -> multiplier 2
+					// users(first:2): multiplier 2
 					//   User type weight: 4
-					//   posts (no arg) -> assumedSize 50
+					//   posts (no arg): assumedSize 50
 					//     Post type weight: 3
-					//     comments(first:4) -> multiplier 4
+					//     comments(first:4): multiplier 4
 					//       Comment type weight: 2
 					//       text weight: 1
 					// Total: 2 * (4 + 50 * (3 + 4 * (2 + 1)))
