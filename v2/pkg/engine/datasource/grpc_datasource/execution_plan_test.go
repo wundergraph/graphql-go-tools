@@ -44,6 +44,7 @@ func runTestWithConfig(t *testing.T, testCase testCase, testConfig testConfig) {
 	require.Empty(t, testCase.expectedError)
 	diff := cmp.Diff(testCase.expectedPlan, plan)
 	if diff != "" {
+		t.Logf("execution plan: %s", plan.String())
 		t.Fatalf("execution plan mismatch: %s", diff)
 	}
 }
@@ -191,6 +192,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 						},
 					},
 					{
+						ID:          1,
 						ServiceName: "Products",
 						MethodName:  "QueryUser",
 						Request: RPCMessage{
@@ -1647,6 +1649,7 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 						},
 					},
 					{
+						ID:          1,
 						ServiceName: "Products",
 						MethodName:  "QueryCategories",
 						Request: RPCMessage{
@@ -2165,6 +2168,7 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 						},
 					},
 					{
+						ID:          1,
 						ServiceName: "Products",
 						MethodName:  "QueryUser",
 						Request: RPCMessage{
@@ -2206,6 +2210,7 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 						},
 					},
 					{
+						ID:          2,
 						ServiceName: "Products",
 						MethodName:  "QueryUser",
 						Request: RPCMessage{

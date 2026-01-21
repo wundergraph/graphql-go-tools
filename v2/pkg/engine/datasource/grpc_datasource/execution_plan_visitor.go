@@ -21,11 +21,10 @@ type planningInfo struct {
 
 	currentRequestMessage *RPCMessage
 
-	responseMessageAncestors  []*RPCMessage
-	currentResponseMessage    *RPCMessage
-	currentResponseFieldIndex int
-
-	responseFieldIndexAncestors []int
+	responseMessageAncestors []*RPCMessage
+	currentResponseMessage   *RPCMessage
+	// currentResponseFieldIndex int
+	// responseFieldIndexAncestors []int
 }
 
 type contextField struct {
@@ -53,9 +52,10 @@ type rpcPlanVisitor struct {
 	operationFieldRef  int
 	operationFieldRefs []int
 	currentCall        *RPCCall
-	currentCallID      int
+	operatonIndex      int
+	callIndex          int
 
-	parentCallID           int
+	// contains the indices of the resolver fields in the resolverFields slice
 	fieldResolverAncestors stack[int]
 	resolverFields         []resolverField
 
@@ -79,7 +79,6 @@ func newRPCPlanVisitor(config rpcPlanVisitorConfig) *rpcPlanVisitor {
 		mapping:                config.mapping,
 		operationFieldRef:      ast.InvalidRef,
 		resolverFields:         make([]resolverField, 0),
-		parentCallID:           ast.InvalidRef,
 		fieldResolverAncestors: newStack[int](0),
 		fieldPath:              make(ast.Path, 0),
 	}
@@ -138,7 +137,7 @@ func (r *rpcPlanVisitor) EnterOperationDefinition(ref int) {
 	selectionSetRef := r.operation.OperationDefinitions[ref].SelectionSet
 	r.operationFieldRefs = r.operation.SelectionSetFieldSelections(selectionSetRef)
 
-	r.plan.Calls = make([]RPCCall, len(r.operationFieldRefs))
+	r.plan.Calls = make([]RPCCall, 0, len(r.operationFieldRefs))
 	r.planInfo.operationType = r.operation.OperationDefinitions[ref].OperationType
 }
 
@@ -220,34 +219,32 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 		return
 	}
 
-	if len(r.planInfo.currentResponseMessage.Fields) == 0 || len(r.planInfo.currentResponseMessage.Fields) <= r.planInfo.currentResponseFieldIndex {
+	if len(r.planInfo.currentResponseMessage.Fields) == 0 {
 		return
 	}
 
-	// In nested selection sets, a new message needs to be created, which will be added to the current response message.
-	if r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message == nil {
-		r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message = r.planCtx.newMessageFromSelectionSet(r.walker.EnclosingTypeDefinition, ref)
+	switch r.walker.Ancestor().Kind {
+	case ast.NodeKindField:
+		lastIndex := len(r.planInfo.currentResponseMessage.Fields) - 1
+
+		// In nested selection sets, a new message needs to be created, which will be added to the current response message.
+		if r.planInfo.currentResponseMessage.Fields[lastIndex].Message == nil {
+			r.planInfo.currentResponseMessage.Fields[lastIndex].Message = r.planCtx.newMessageFromSelectionSet(r.walker.EnclosingTypeDefinition, ref)
+		}
+
+		// Add the current response message to the ancestors and set the current response message to the current field message
+		r.planInfo.responseMessageAncestors = append(r.planInfo.responseMessageAncestors, r.planInfo.currentResponseMessage)
+		r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.Fields[lastIndex].Message
+
+		// Check if the ancestor type is a composite type (interface or union)
+		// and set the oneof type and member types.
+		if err := r.handleCompositeType(r.walker.Ancestor()); err != nil {
+			// If the ancestor is a composite type, but we were unable to resolve the member types,
+			// we stop the walker and return an internal error.
+			r.walker.StopWithInternalErr(err)
+			return
+		}
 	}
-
-	// Add the current response message to the ancestors and set the current response message to the current field message
-	r.planInfo.responseMessageAncestors = append(r.planInfo.responseMessageAncestors, r.planInfo.currentResponseMessage)
-	r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message
-
-	// Check if the ancestor type is a composite type (interface or union)
-	// and set the oneof type and member types.
-	if err := r.handleCompositeType(r.walker.Ancestor()); err != nil {
-		// If the ancestor is a composite type, but we were unable to resolve the member types,
-		// we stop the walker and return an internal error.
-		r.walker.StopWithInternalErr(err)
-		return
-	}
-
-	// Keep track of the field indices for the current response message.
-	// This is used to set the correct field index for the current response message
-	// when leaving the selection set.
-	r.planInfo.responseFieldIndexAncestors = append(r.planInfo.responseFieldIndexAncestors, r.planInfo.currentResponseFieldIndex)
-
-	r.planInfo.currentResponseFieldIndex = 0 // reset the field index for the current selection set
 }
 
 func (r *rpcPlanVisitor) handleCompositeType(node ast.Node) error {
@@ -294,11 +291,6 @@ func (r *rpcPlanVisitor) LeaveSelectionSet(ref int) {
 		return
 	}
 
-	if len(r.planInfo.responseFieldIndexAncestors) > 0 {
-		r.planInfo.currentResponseFieldIndex = r.planInfo.responseFieldIndexAncestors[len(r.planInfo.responseFieldIndexAncestors)-1]
-		r.planInfo.responseFieldIndexAncestors = r.planInfo.responseFieldIndexAncestors[:len(r.planInfo.responseFieldIndexAncestors)-1]
-	}
-
 	if len(r.planInfo.responseMessageAncestors) > 0 {
 		r.planInfo.currentResponseMessage = r.planInfo.responseMessageAncestors[len(r.planInfo.responseMessageAncestors)-1]
 		r.planInfo.responseMessageAncestors = r.planInfo.responseMessageAncestors[:len(r.planInfo.responseMessageAncestors)-1]
@@ -314,10 +306,11 @@ func (r *rpcPlanVisitor) handleRootField(isRootField bool, ref int) error {
 	r.planInfo.operationFieldName = r.operation.FieldNameString(ref)
 
 	r.currentCall = &RPCCall{
+		ID:          r.callIndex,
 		ServiceName: r.planCtx.resolveServiceName(r.subgraphName),
 	}
 
-	r.parentCallID = r.currentCallID
+	r.callIndex++
 
 	r.planInfo.currentRequestMessage = &r.currentCall.Request
 	r.planInfo.currentResponseMessage = &r.currentCall.Response
@@ -430,54 +423,48 @@ func (r *rpcPlanVisitor) LeaveField(ref int) {
 	if r.planCtx.isFieldResolver(fieldDefRef, inRootField) {
 		// Pop the field resolver ancestor only when leaving a field resolver field.
 		r.fieldResolverAncestors.pop()
-
-		// If the field has arguments, we need to decrement the related call ID.
-		// This is because we can also have nested arguments, which require the underlying field to be resolved
-		// by values provided by the parent call.
-		r.parentCallID--
-
-		// We handle field resolvers differently, so we don't want to increment the response field index.
-		return
 	}
-
-	// If we are not in the operation field, we can increment the response field index.
-	r.planInfo.currentResponseFieldIndex++
 }
 
 // finalizeCall finalizes the current call and resets the current call.
 func (r *rpcPlanVisitor) finalizeCall() {
-	r.plan.Calls[r.currentCallID] = *r.currentCall
+	r.plan.Calls = append(r.plan.Calls, *r.currentCall)
 	r.currentCall = nil
 
-	r.currentCallID++
-	if r.currentCallID < len(r.operationFieldRefs) {
-		r.operationFieldRef = r.operationFieldRefs[r.currentCallID]
+	r.operatonIndex++
+	if r.operatonIndex < len(r.operationFieldRefs) {
+		r.operationFieldRef = r.operationFieldRefs[r.operatonIndex]
 	}
-
-	r.planInfo.currentResponseFieldIndex = 0
 }
 
 // enterFieldResolver enters a field resolver.
 // ref is the field reference in the operation document.
 // fieldDefRef is the field definition reference in the definition document.
+// TODO: extract to planCtx
 func (r *rpcPlanVisitor) enterFieldResolver(ref int, fieldDefRef int) {
 	defaultContextPath := ast.Path{{Kind: ast.FieldName, FieldName: []byte("result")}}
 	// Field arguments for non root types will be handled as resolver calls.
 	// We need to make sure to handle a hierarchy of arguments in order to perform parallel calls in order to retrieve the data.
 	fieldArgs := r.operation.FieldArguments(ref)
+
+	parentID := r.operatonIndex
+	fieldPath := r.fieldPath
+	if r.fieldResolverAncestors.len() > 0 {
+		fieldPath = r.resolverFields[r.fieldResolverAncestors.peek()].contextPath
+		parentID = r.resolverFields[r.fieldResolverAncestors.peek()].id
+	}
+
 	// We don't want to add fields from the selection set to the actual call
 	resolvedField := resolverField{
-		callerRef:              r.parentCallID,
+		id:                     r.callIndex,
+		callerRef:              parentID,
 		parentTypeNode:         r.walker.EnclosingTypeDefinition,
 		fieldRef:               ref,
 		responsePath:           r.walker.Path[1:].WithoutInlineFragmentNames().WithFieldNameItem(r.operation.FieldAliasOrNameBytes(ref)),
 		fieldDefinitionTypeRef: r.definition.FieldDefinitionType(fieldDefRef),
 	}
 
-	fieldPath := r.fieldPath
-	if r.fieldResolverAncestors.len() > 0 {
-		fieldPath = r.resolverFields[r.fieldResolverAncestors.peek()].contextPath
-	}
+	r.callIndex++
 
 	if err := r.planCtx.setResolvedField(r.walker, fieldDefRef, fieldArgs, fieldPath, &resolvedField); err != nil {
 		r.walker.StopWithInternalErr(err)
@@ -485,13 +472,15 @@ func (r *rpcPlanVisitor) enterFieldResolver(ref int, fieldDefRef int) {
 	}
 
 	fieldName := r.planCtx.findResolverFieldMapping(r.walker.EnclosingTypeDefinition.NameString(r.definition), r.definition.FieldDefinitionNameString(fieldDefRef))
+
+	if resolvedField.listNestingLevel > 0 {
+		fieldName = strings.Repeat("@", resolvedField.listNestingLevel) + fieldName
+	}
+
 	resolvedField.contextPath = defaultContextPath.WithFieldNameItem(unsafebytes.StringToBytes(fieldName))
 
 	r.resolverFields = append(r.resolverFields, resolvedField)
 	r.fieldResolverAncestors.push(len(r.resolverFields) - 1)
 
 	r.fieldPath = r.fieldPath.WithFieldNameItem(unsafebytes.StringToBytes(fieldName))
-
-	// In case of nested fields with arguments, we need to increment the related call ID.
-	r.parentCallID++
 }

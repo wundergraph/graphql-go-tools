@@ -76,6 +76,8 @@ const (
 // RPCCall represents a single call to a gRPC service method.
 // It contains all the information needed to make the call and process the response.
 type RPCCall struct {
+	// ID indicates the expected index of the call in the execution plan
+	ID int
 	// Kind of call, used to decide how to execute the call
 	// This is used to identify the call type and execution behaviour.
 	Kind CallKind
@@ -292,8 +294,8 @@ func (r *RPCExecutionPlan) String() string {
 
 	result.WriteString("RPCExecutionPlan:\n")
 
-	for j, call := range r.Calls {
-		result.WriteString(fmt.Sprintf("    Call %d:\n", j))
+	for _, call := range r.Calls {
+		result.WriteString(fmt.Sprintf("    Call %d:\n", call.ID))
 
 		if len(call.DependentCalls) > 0 {
 			result.WriteString("      DependentCalls: [")
@@ -362,6 +364,7 @@ func formatRPCMessage(sb *strings.Builder, message RPCMessage, indent int) {
 		fmt.Fprintf(sb, "%s    TypeName: %s\n", indentStr, field.ProtoTypeName)
 		fmt.Fprintf(sb, "%s    Repeated: %v\n", indentStr, field.Repeated)
 		fmt.Fprintf(sb, "%s    JSONPath: %s\n", indentStr, field.JSONPath)
+		fmt.Fprintf(sb, "%s    ResolvePath: %s\n", indentStr, field.ResolvePath.String())
 
 		if field.Message != nil {
 			fmt.Fprintf(sb, "%s    Message:\n", indentStr)
@@ -817,6 +820,7 @@ func (r *rpcPlanningContext) resolveServiceName(subgraphName string) string {
 }
 
 type resolverField struct {
+	id                     int
 	callerRef              int
 	parentTypeNode         ast.Node
 	fieldRef               int
@@ -829,6 +833,7 @@ type resolverField struct {
 	fieldArguments     []fieldArgument
 	fragmentSelections []fragmentSelection
 	fragmentType       OneOfType
+	listNestingLevel   int
 	memberTypes        []string
 }
 
@@ -935,6 +940,12 @@ func (r *rpcPlanningContext) setResolvedField(walker *astvisitor.Walker, fieldDe
 	}
 
 	resolvedField.fieldArguments = fieldArguments
+
+	fdt := r.definition.FieldDefinitionType(fieldDefRef)
+	if r.typeIsNullableOrNestedList(fdt) {
+		resolvedField.listNestingLevel = r.definition.TypeNumberOfListWraps(fdt)
+	}
+
 	return nil
 }
 
@@ -1349,6 +1360,7 @@ func (r *rpcPlanningContext) newResolveRPCCall(config *resolveRPCCallConfig) (RP
 	}
 
 	return RPCCall{
+		ID:             resolvedField.id,
 		DependentCalls: []int{resolvedField.callerRef},
 		ResponsePath:   resolvedField.responsePath,
 		MethodName:     resolveConfig.RPC,
