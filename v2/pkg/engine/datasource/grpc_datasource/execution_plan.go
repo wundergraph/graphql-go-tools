@@ -912,7 +912,7 @@ func (r *rpcPlanningContext) setResolvedField(walker *astvisitor.Walker, fieldDe
 			walker.EnclosingTypeDefinition.NameString(r.definition),
 			r.definition.FieldDefinitionNameString(contextFieldRef),
 		)
-		resolvedPath := fieldPath.WithFieldNameItem(unsafebytes.StringToBytes(mapping))
+		resolvedPath := fieldPath.WithFieldNameItem([]byte(mapping))
 
 		resolvedField.contextFields = append(resolvedField.contextFields, contextField{
 			fieldRef:    contextFieldRef,
