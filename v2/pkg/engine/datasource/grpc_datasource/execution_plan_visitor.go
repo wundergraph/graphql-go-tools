@@ -1,6 +1,7 @@
 package grpcdatasource
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"strings"
@@ -11,7 +12,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -465,16 +465,17 @@ func (r *rpcPlanVisitor) enterFieldResolver(ref int, fieldDefRef int) {
 		return
 	}
 
-	fieldName := r.planCtx.findResolverFieldMapping(r.walker.EnclosingTypeDefinition.NameString(r.definition), r.definition.FieldDefinitionNameString(fieldDefRef))
+	buf := bytes.Buffer{}
+	buf.Write(bytes.Repeat([]byte("@"), resolvedField.listNestingLevel))
+	buf.WriteString(r.planCtx.findResolverFieldMapping(
+		r.walker.EnclosingTypeDefinition.NameString(r.definition),
+		r.definition.FieldDefinitionNameString(fieldDefRef),
+	))
 
-	if resolvedField.listNestingLevel > 0 {
-		fieldName = strings.Repeat("@", resolvedField.listNestingLevel) + fieldName
-	}
-
-	resolvedField.contextPath = defaultContextPath.WithFieldNameItem(unsafebytes.StringToBytes(fieldName))
+	resolvedField.contextPath = defaultContextPath.WithFieldNameItem(buf.Bytes())
 
 	r.resolverFields = append(r.resolverFields, resolvedField)
 	r.fieldResolverAncestors.push(len(r.resolverFields) - 1)
 
-	r.fieldPath = r.fieldPath.WithFieldNameItem(unsafebytes.StringToBytes(fieldName))
+	r.fieldPath = r.fieldPath.WithFieldNameItem(buf.Bytes())
 }

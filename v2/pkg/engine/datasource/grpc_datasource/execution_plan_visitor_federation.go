@@ -1,6 +1,7 @@
 package grpcdatasource
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"strings"
@@ -11,7 +12,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -397,16 +397,16 @@ func (r *rpcPlanVisitorFederation) enterFieldResolver(ref int, fieldDefRef int) 
 	fieldArgs := r.operation.FieldArguments(ref)
 	// We don't want to add fields from the selection set to the actual call
 
+	parentID := r.currentCall.ID
 	fieldPath := r.fieldPath
-	callerRef := r.currentCall.ID
 	if r.fieldResolverAncestors.len() > 0 {
 		fieldPath = r.resolverFields[r.fieldResolverAncestors.peek()].contextPath
-		callerRef = r.resolverFields[r.fieldResolverAncestors.peek()].callerRef
+		parentID = r.resolverFields[r.fieldResolverAncestors.peek()].id
 	}
 
 	resolvedField := resolverField{
 		id:                     r.callIndex,
-		callerRef:              callerRef,
+		callerRef:              parentID,
 		parentTypeNode:         r.walker.EnclosingTypeDefinition,
 		fieldRef:               ref,
 		responsePath:           r.walker.Path[1:].WithoutInlineFragmentNames().WithFieldNameItem(r.operation.FieldAliasOrNameBytes(ref)),
@@ -420,17 +420,18 @@ func (r *rpcPlanVisitorFederation) enterFieldResolver(ref int, fieldDefRef int) 
 		return
 	}
 
-	fieldName := r.planCtx.findResolverFieldMapping(r.walker.EnclosingTypeDefinition.NameString(r.definition), r.definition.FieldDefinitionNameString(fieldDefRef))
+	buf := bytes.Buffer{}
+	buf.Write(bytes.Repeat([]byte("@"), resolvedField.listNestingLevel))
+	buf.WriteString(r.planCtx.findResolverFieldMapping(
+		r.walker.EnclosingTypeDefinition.NameString(r.definition),
+		r.definition.FieldDefinitionNameString(fieldDefRef),
+	))
 
-	if resolvedField.listNestingLevel > 0 {
-		fieldName = strings.Repeat("@", resolvedField.listNestingLevel) + fieldName
-	}
-
-	resolvedField.contextPath = defaultContextPath.WithFieldNameItem(unsafebytes.StringToBytes(fieldName))
+	resolvedField.contextPath = defaultContextPath.WithFieldNameItem(buf.Bytes())
 
 	r.resolverFields = append(r.resolverFields, resolvedField)
 	r.fieldResolverAncestors.push(len(r.resolverFields) - 1)
-	r.fieldPath = r.fieldPath.WithFieldNameItem(unsafebytes.StringToBytes(fieldName))
+	r.fieldPath = r.fieldPath.WithFieldNameItem(buf.Bytes())
 }
 
 func (r *rpcPlanVisitorFederation) resolveEntityInformation(inlineFragmentRef int, fc federationConfigData) error {
