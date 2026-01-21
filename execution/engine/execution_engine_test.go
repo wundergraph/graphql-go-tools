@@ -5945,6 +5945,11 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					},
 					expectedResponse:   `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
 					expectedStaticCost: 247, // Query.hero(max(7,5))+ 20 * (7+2+2+1)
+					// We pick maximum on every path independently. This is to reveal the upper boundary.
+					// Query.hero: picked maximum weight (Human=7) out of two types (Human, Droid)
+					// Query.hero.friends: the max possible weight (7) is for implementing class Human
+					// of the returned type of Character; the multiplier picked for the Droid since
+					// it is the maximum possible value - we considered the enclosing type that contains it.
 				},
 				computeStaticCost(),
 			))
