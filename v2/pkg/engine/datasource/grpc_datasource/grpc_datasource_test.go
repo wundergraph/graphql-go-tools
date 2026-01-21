@@ -4847,7 +4847,7 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			},
 		},
 		{
-			name:  "Query with both childCategories and optionalCategories with nested field resolvers",
+			name:  "Query with sibling field resolvers - nested optionalCategories only in childCategories",
 			query: "query CategoriesWithBothFieldResolversNested { categories { id name childCategories { id name kind optionalCategories { id name kind } } optionalCategories { id name kind } } }",
 			vars:  `{"variables":{}}`,
 			validate: func(t *testing.T, data map[string]interface{}) {
@@ -4901,7 +4901,7 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			},
 		},
 		{
-			name:  "Query with both childCategories and optionalCategories with nested field resolvers",
+			name:  "Query with sibling field resolvers - nested resolvers in both branches",
 			query: "query CategoriesWithBothFieldResolversNested { categories { id name childCategories { id name kind optionalCategories { id name kind } } optionalCategories { id name kind childCategories { id name kind } } } }",
 			vars:  `{"variables":{}}`,
 			validate: func(t *testing.T, data map[string]interface{}) {

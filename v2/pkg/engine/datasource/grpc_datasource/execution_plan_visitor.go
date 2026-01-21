@@ -47,7 +47,6 @@ type rpcPlanVisitor struct {
 	subgraphName       string
 	mapping            *GRPCMapping
 	plan               *RPCExecutionPlan
-	operationIndex     int   // The index of the current root operation in the plan.
 	operationFieldRef  int   // The field reference to the current operation field.
 	operationFieldRefs []int // The field reference to all operation fields in the operation.
 	currentCall        *RPCCall
@@ -305,7 +304,6 @@ func (r *rpcPlanVisitor) handleRootField(isRootField bool, ref int) error {
 		ServiceName: r.planCtx.resolveServiceName(r.subgraphName),
 	}
 
-	r.operationIndex = r.callIndex
 	r.callIndex++
 
 	r.planInfo.currentRequestMessage = &r.currentCall.Request
@@ -443,7 +441,7 @@ func (r *rpcPlanVisitor) enterFieldResolver(ref int, fieldDefRef int) {
 	// We need to make sure to handle a hierarchy of arguments in order to perform parallel calls in order to retrieve the data.
 	fieldArgs := r.operation.FieldArguments(ref)
 
-	parentID := r.operationIndex
+	parentID := r.currentCall.ID
 	fieldPath := r.fieldPath
 	if r.fieldResolverAncestors.len() > 0 {
 		fieldPath = r.resolverFields[r.fieldResolverAncestors.peek()].contextPath

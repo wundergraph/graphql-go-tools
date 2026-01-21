@@ -51,8 +51,7 @@ type rpcPlanVisitorFederation struct {
 	subgraphName string
 	currentCall  *RPCCall
 
-	callIndex      int // global counter for all calls.
-	operationIndex int // index of the current root operation in the plan.
+	callIndex int // global counter for all calls.
 	// contains the indices of the resolver fields in the resolverFields slice
 	fieldResolverAncestors stack[int]
 	resolverFields         []resolverField
@@ -74,7 +73,6 @@ func newRPCPlanVisitorFederation(config rpcPlanVisitorConfig) *rpcPlanVisitorFed
 		federationConfigData:   parseFederationConfigData(config.federationConfigs),
 		resolverFields:         make([]resolverField, 0),
 		fieldResolverAncestors: newStack[int](0),
-		operationIndex:         ast.InvalidRef,
 		fieldPath:              ast.Path{}.WithFieldNameItem([]byte("result")),
 	}
 
@@ -146,7 +144,6 @@ func (r *rpcPlanVisitorFederation) EnterInlineFragment(ref int) {
 		Kind:        CallKindEntity,
 	}
 
-	r.operationIndex = r.callIndex
 	r.callIndex++
 
 	r.planInfo.currentRequestMessage = &r.currentCall.Request
@@ -401,7 +398,7 @@ func (r *rpcPlanVisitorFederation) enterFieldResolver(ref int, fieldDefRef int) 
 	// We don't want to add fields from the selection set to the actual call
 
 	fieldPath := r.fieldPath
-	callerRef := r.operationIndex
+	callerRef := r.currentCall.ID
 	if r.fieldResolverAncestors.len() > 0 {
 		fieldPath = r.resolverFields[r.fieldResolverAncestors.peek()].contextPath
 		callerRef = r.resolverFields[r.fieldResolverAncestors.peek()].callerRef
