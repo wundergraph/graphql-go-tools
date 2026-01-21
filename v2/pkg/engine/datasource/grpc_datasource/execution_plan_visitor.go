@@ -47,15 +47,14 @@ type rpcPlanVisitor struct {
 	subgraphName       string
 	mapping            *GRPCMapping
 	plan               *RPCExecutionPlan
-	operationFieldRef  int
-	operationFieldRefs []int
+	operatonIndex      int   // The index of the current root operation in the plan.
+	operationFieldRef  int   // The field reference to the current operation field.
+	operationFieldRefs []int // The field reference to all operation fields in the operation.
 	currentCall        *RPCCall
-	operatonIndex      int
-	callIndex          int
+	callIndex          int // Global counter for all calls.
 
-	// contains the indices of the resolver fields in the resolverFields slice
-	fieldResolverAncestors stack[int]
-	resolverFields         []resolverField
+	fieldResolverAncestors stack[int]      // contains the indices of the resolver fields in the resolverFields slice
+	resolverFields         []resolverField // contains information about the resolver fields. These are used to create the resolver calls when leaving the document.
 
 	fieldPath ast.Path
 }
@@ -306,6 +305,7 @@ func (r *rpcPlanVisitor) handleRootField(isRootField bool, ref int) error {
 		ServiceName: r.planCtx.resolveServiceName(r.subgraphName),
 	}
 
+	r.operatonIndex = r.callIndex
 	r.callIndex++
 
 	r.planInfo.currentRequestMessage = &r.currentCall.Request
@@ -427,9 +427,9 @@ func (r *rpcPlanVisitor) finalizeCall() {
 	r.plan.Calls = append(r.plan.Calls, *r.currentCall)
 	r.currentCall = nil
 
-	r.operatonIndex++
-	if r.operatonIndex < len(r.operationFieldRefs) {
-		r.operationFieldRef = r.operationFieldRefs[r.operatonIndex]
+	if len(r.operationFieldRefs) > 0 {
+		r.operationFieldRef = r.operationFieldRefs[0]
+		r.operationFieldRefs = r.operationFieldRefs[1:]
 	}
 }
 

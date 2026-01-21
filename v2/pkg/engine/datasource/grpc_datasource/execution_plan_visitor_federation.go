@@ -51,8 +51,8 @@ type rpcPlanVisitorFederation struct {
 	subgraphName string
 	currentCall  *RPCCall
 
-	callIndex    int
-	parentCallID int
+	callIndex      int // global counter for all calls.
+	operationIndex int // index of the current root operation in the plan.
 	// contains the indices of the resolver fields in the resolverFields slice
 	fieldResolverAncestors stack[int]
 	resolverFields         []resolverField
@@ -74,7 +74,7 @@ func newRPCPlanVisitorFederation(config rpcPlanVisitorConfig) *rpcPlanVisitorFed
 		federationConfigData:   parseFederationConfigData(config.federationConfigs),
 		resolverFields:         make([]resolverField, 0),
 		fieldResolverAncestors: newStack[int](0),
-		parentCallID:           ast.InvalidRef,
+		operationIndex:         ast.InvalidRef,
 		fieldPath:              ast.Path{}.WithFieldNameItem([]byte("result")),
 	}
 
@@ -146,8 +146,8 @@ func (r *rpcPlanVisitorFederation) EnterInlineFragment(ref int) {
 		Kind:        CallKindEntity,
 	}
 
+	r.operationIndex = r.callIndex
 	r.callIndex++
-	r.parentCallID = len(r.plan.Calls)
 
 	r.planInfo.currentRequestMessage = &r.currentCall.Request
 	r.planInfo.currentResponseMessage = &r.currentCall.Response
@@ -386,14 +386,6 @@ func (r *rpcPlanVisitorFederation) LeaveField(ref int) {
 	if r.planCtx.isFieldResolver(fieldDefRef, inRootField) {
 		// Pop the field resolver ancestor only when leaving a field resolver field.
 		r.fieldResolverAncestors.pop()
-
-		// If the field has arguments, we need to decrement the related call ID.
-		// This is because we can also have nested arguments, which require the underlying field to be resolved
-		// by values provided by the parent call.
-		r.parentCallID--
-
-		// We handle field resolvers differently, so we don't want to increment the response field index.
-		return
 	}
 }
 
@@ -409,7 +401,7 @@ func (r *rpcPlanVisitorFederation) enterFieldResolver(ref int, fieldDefRef int) 
 	// We don't want to add fields from the selection set to the actual call
 
 	fieldPath := r.fieldPath
-	callerRef := r.parentCallID
+	callerRef := r.operationIndex
 	if r.fieldResolverAncestors.len() > 0 {
 		fieldPath = r.resolverFields[r.fieldResolverAncestors.peek()].contextPath
 		callerRef = r.resolverFields[r.fieldResolverAncestors.peek()].callerRef
@@ -442,9 +434,6 @@ func (r *rpcPlanVisitorFederation) enterFieldResolver(ref int, fieldDefRef int) 
 	r.resolverFields = append(r.resolverFields, resolvedField)
 	r.fieldResolverAncestors.push(len(r.resolverFields) - 1)
 	r.fieldPath = r.fieldPath.WithFieldNameItem(unsafebytes.StringToBytes(fieldName))
-
-	// In case of nested fields with arguments, we need to increment the related call ID.
-	r.parentCallID++
 }
 
 func (r *rpcPlanVisitorFederation) resolveEntityInformation(inlineFragmentRef int, fc federationConfigData) error {
