@@ -133,20 +133,6 @@ func (r *RPCMessage) SelectValidTypes(typeName string) []string {
 	return []string{r.Name, typeName}
 }
 
-// AppendTypeNameField appends a typename field to the message.
-func (r *RPCMessage) AppendTypeNameField(typeName string) {
-	if r.Fields != nil && r.Fields.Exists(typenameFieldName, "") {
-		return
-	}
-
-	r.Fields = append(r.Fields, RPCField{
-		Name:          typenameFieldName,
-		ProtoTypeName: DataTypeString,
-		StaticValue:   typeName,
-		JSONPath:      typenameFieldName,
-	})
-}
-
 // RPCFieldSelectionSet is a map of field selections based on inline fragments
 type RPCFieldSelectionSet map[string]RPCFields
 

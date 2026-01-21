@@ -44,7 +44,6 @@ func runTestWithConfig(t *testing.T, testCase testCase, testConfig testConfig) {
 	require.Empty(t, testCase.expectedError)
 	diff := cmp.Diff(testCase.expectedPlan, plan)
 	if diff != "" {
-		t.Logf("execution plan: %s", plan.String())
 		t.Fatalf("execution plan mismatch: %s", diff)
 	}
 }

@@ -23,8 +23,6 @@ type planningInfo struct {
 
 	responseMessageAncestors []*RPCMessage
 	currentResponseMessage   *RPCMessage
-	// currentResponseFieldIndex int
-	// responseFieldIndexAncestors []int
 }
 
 type contextField struct {
@@ -219,31 +217,29 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 		return
 	}
 
-	if len(r.planInfo.currentResponseMessage.Fields) == 0 {
+	// If we don't have any fields or selecting on a field, we can return.
+	if len(r.planInfo.currentResponseMessage.Fields) == 0 || r.walker.Ancestor().Kind != ast.NodeKindField {
 		return
 	}
 
-	switch r.walker.Ancestor().Kind {
-	case ast.NodeKindField:
-		lastIndex := len(r.planInfo.currentResponseMessage.Fields) - 1
+	lastIndex := len(r.planInfo.currentResponseMessage.Fields) - 1
 
-		// In nested selection sets, a new message needs to be created, which will be added to the current response message.
-		if r.planInfo.currentResponseMessage.Fields[lastIndex].Message == nil {
-			r.planInfo.currentResponseMessage.Fields[lastIndex].Message = r.planCtx.newMessageFromSelectionSet(r.walker.EnclosingTypeDefinition, ref)
-		}
+	// In nested selection sets, a new message needs to be created, which will be added to the current response message.
+	if r.planInfo.currentResponseMessage.Fields[lastIndex].Message == nil {
+		r.planInfo.currentResponseMessage.Fields[lastIndex].Message = r.planCtx.newMessageFromSelectionSet(r.walker.EnclosingTypeDefinition, ref)
+	}
 
-		// Add the current response message to the ancestors and set the current response message to the current field message
-		r.planInfo.responseMessageAncestors = append(r.planInfo.responseMessageAncestors, r.planInfo.currentResponseMessage)
-		r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.Fields[lastIndex].Message
+	// Add the current response message to the ancestors and set the current response message to the current field message
+	r.planInfo.responseMessageAncestors = append(r.planInfo.responseMessageAncestors, r.planInfo.currentResponseMessage)
+	r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.Fields[lastIndex].Message
 
-		// Check if the ancestor type is a composite type (interface or union)
-		// and set the oneof type and member types.
-		if err := r.handleCompositeType(r.walker.Ancestor()); err != nil {
-			// If the ancestor is a composite type, but we were unable to resolve the member types,
-			// we stop the walker and return an internal error.
-			r.walker.StopWithInternalErr(err)
-			return
-		}
+	// Check if the ancestor type is a composite type (interface or union)
+	// and set the oneof type and member types.
+	if err := r.handleCompositeType(r.walker.Ancestor()); err != nil {
+		// If the ancestor is a composite type, but we were unable to resolve the member types,
+		// we stop the walker and return an internal error.
+		r.walker.StopWithInternalErr(err)
+		return
 	}
 }
 
