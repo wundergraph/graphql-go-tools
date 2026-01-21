@@ -2456,28 +2456,8 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 				},
 			},
 		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			runTest(t, testCase{
-				query:         tt.query,
-				expectedPlan:  tt.expectedPlan,
-				expectedError: tt.expectedError,
-			})
-		})
-	}
-
-}
-
-func TestExecutionPlanFieldResolvers_WithSiblingFieldResolvers(t *testing.T) {
-	t.Parallel()
-	// This test case fails - execution plan generation is incorrect for sibling field resolvers with nested resolvers
-	t.Run("Should create an execution plan for a query with both childCategories and optionalCategories with nested field resolvers", func(t *testing.T) {
-		t.Parallel()
-
-		runTest(t, testCase{
+		{
+			name:  "Should create an execution plan for a query with both childCategories and optionalCategories with nested field resolvers sibling field resolvers",
 			query: "query CategoriesWithBothFieldResolversNested { categories { id name childCategories { id name kind optionalCategories { id name kind } } optionalCategories { id name kind childCategories { id name kind } } } }",
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
@@ -2866,8 +2846,20 @@ func TestExecutionPlanFieldResolvers_WithSiblingFieldResolvers(t *testing.T) {
 					},
 				},
 			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			runTest(t, testCase{
+				query:         tt.query,
+				expectedPlan:  tt.expectedPlan,
+				expectedError: tt.expectedError,
+			})
 		})
-	})
+	}
+
 }
 
 func TestExecutionPlanFieldResolvers_WithCompositeTypes(t *testing.T) {
