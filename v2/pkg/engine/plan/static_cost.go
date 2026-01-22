@@ -260,8 +260,8 @@ func (node *CostTreeNode) maxMultiplierImplementingField(config *DataSourceCostC
 	return maxListSize
 }
 
-// totalCost calculates the total cost of this node and all descendants
-func (node *CostTreeNode) totalCost(configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value) int {
+// staticCost calculates the static cost of this node and all descendants
+func (node *CostTreeNode) staticCost(configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value) int {
 	if node == nil {
 		return 0
 	}
@@ -271,7 +271,7 @@ func (node *CostTreeNode) totalCost(configs map[DSHash]*DataSourceCostConfig, va
 	// Sum children (fields) costs
 	var childrenCost int
 	for _, child := range node.children {
-		childrenCost += child.totalCost(configs, variables)
+		childrenCost += child.staticCost(configs, variables)
 	}
 
 	// Apply multiplier to children cost (for list fields)
@@ -474,9 +474,9 @@ func (c *CostCalculator) SetVariables(variables *astjson.Value) {
 	c.variables = variables
 }
 
-// GetTotalCost returns the calculated total cost.
-func (c *CostCalculator) GetTotalCost() int {
-	return c.tree.totalCost(c.costConfigs, c.variables)
+// GetStaticCost returns the calculated total static cost.
+func (c *CostCalculator) GetStaticCost() int {
+	return c.tree.staticCost(c.costConfigs, c.variables)
 }
 
 // DebugPrint prints the cost tree structure for debugging purposes.
@@ -555,7 +555,7 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*Da
 		fmt.Fprintf(sb, "%s  implements: [%s]\n", indent, strings.Join(node.implementingTypeNames, ", "))
 	}
 
-	subtreeCost := node.totalCost(configs, variables)
+	subtreeCost := node.staticCost(configs, variables)
 	fmt.Fprintf(sb, "%s  cost=%d\n", indent, subtreeCost)
 
 	// Print children
