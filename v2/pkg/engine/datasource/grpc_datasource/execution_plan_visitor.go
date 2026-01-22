@@ -44,11 +44,12 @@ type rpcPlanVisitor struct {
 	planInfo   planningInfo
 	planCtx    *rpcPlanningContext
 
-	subgraphName       string
-	mapping            *GRPCMapping
-	plan               *RPCExecutionPlan
-	operationFieldRef  int   // The field reference to the current operation field.
-	operationFieldRefs []int // The field reference to all operation fields in the operation.
+	subgraphName string
+	mapping      *GRPCMapping
+	plan         *RPCExecutionPlan
+	// The field reference to all operation fields in the operation.
+	// The first element is always pointing to the current root operation and shifts when a call is finalized.
+	operationFieldRefs []int
 	currentCall        *RPCCall
 	callIndex          int // Global counter for all calls.
 
@@ -73,7 +74,6 @@ func newRPCPlanVisitor(config rpcPlanVisitorConfig) *rpcPlanVisitor {
 		plan:                   &RPCExecutionPlan{},
 		subgraphName:           cases.Title(language.Und, cases.NoLower).String(config.subgraphName),
 		mapping:                config.mapping,
-		operationFieldRef:      ast.InvalidRef,
 		resolverFields:         make([]resolverField, 0),
 		fieldResolverAncestors: newStack[int](0),
 		fieldPath:              make(ast.Path, 0),
@@ -131,7 +131,12 @@ func (r *rpcPlanVisitor) EnterOperationDefinition(ref int) {
 	// These fields determine the names for the RPC functions to call.
 	// TODO: handle fragments on root level `... on Query {}`
 	selectionSetRef := r.operation.OperationDefinitions[ref].SelectionSet
-	r.operationFieldRefs = r.operation.SelectionSetFieldSelections(selectionSetRef)
+	r.operationFieldRefs = r.operation.SelectionSetFieldRefs(selectionSetRef)
+
+	if len(r.operationFieldRefs) == 0 {
+		r.walker.StopWithInternalErr(fmt.Errorf("internal: unexpected operation definition with no fields"))
+		return
+	}
 
 	r.plan.Calls = make([]RPCCall, 0, len(r.operationFieldRefs))
 	r.planInfo.operationType = r.operation.OperationDefinitions[ref].OperationType
@@ -142,7 +147,7 @@ func (r *rpcPlanVisitor) EnterOperationDefinition(ref int) {
 // and builds the request message from the input argument.
 func (r *rpcPlanVisitor) EnterArgument(ref int) {
 	ancestor := r.walker.Ancestor()
-	if ancestor.Kind != ast.NodeKindField || ancestor.Ref != r.operationFieldRef {
+	if ancestor.Kind != ast.NodeKindField || ancestor.Ref != r.operationFieldRefs[0] {
 		return
 	}
 	argumentInputValueDefinitionRef, exists := r.walker.ArgumentInputValueDefinition(ref)
@@ -296,7 +301,6 @@ func (r *rpcPlanVisitor) handleRootField(isRootField bool, ref int) error {
 		return nil
 	}
 
-	r.operationFieldRef = ref
 	r.planInfo.operationFieldName = r.operation.FieldNameString(ref)
 
 	r.currentCall = &RPCCall{
@@ -425,11 +429,9 @@ func (r *rpcPlanVisitor) finalizeCall() {
 	r.plan.Calls = append(r.plan.Calls, *r.currentCall)
 	r.currentCall = nil
 
-	// If we have more than one root level operation field,
-	// we remove the first one and set the operation field reference to the next one.
+	// If we have more than one root level operation field we remove the first one.
 	if len(r.operationFieldRefs) > 1 {
 		r.operationFieldRefs = r.operationFieldRefs[1:]
-		r.operationFieldRef = r.operationFieldRefs[0]
 	}
 }
 
