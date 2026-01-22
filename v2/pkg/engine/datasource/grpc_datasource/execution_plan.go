@@ -529,25 +529,25 @@ func (r *rpcPlanningContext) createListMetadata(typeRef int) (*ListMetadata, err
 
 // buildField builds a field from a field definition.
 // It handles lists, enums, and other types.
-func (r *rpcPlanningContext) buildField(enclosingTypeNode ast.Node, fd int, fieldName, fieldAlias string) (RPCField, error) {
-	fdt := r.definition.FieldDefinitionType(fd)
-	typeName := r.toDataType(&r.definition.Types[fdt])
+func (r *rpcPlanningContext) buildField(enclosingTypeNode ast.Node, fieldDef int, fieldName, fieldAlias string) (RPCField, error) {
+	fieldDefType := r.definition.FieldDefinitionType(fieldDef)
+	typeName := r.toDataType(&r.definition.Types[fieldDefType])
 	parentTypeName := enclosingTypeNode.NameString(r.definition)
 
 	field := RPCField{
 		Name:          r.resolveFieldMapping(parentTypeName, fieldName),
 		Alias:         fieldAlias,
-		Optional:      !r.definition.TypeIsNonNull(fdt),
+		Optional:      !r.definition.TypeIsNonNull(fieldDefType),
 		JSONPath:      fieldName,
 		ProtoTypeName: typeName,
 	}
 
-	if r.definition.TypeIsList(fdt) {
+	if r.definition.TypeIsList(fieldDefType) {
 		switch {
 		// for nullable or nested lists we need to build a wrapper message
 		// Nullability is handled by the datasource during the execution.
-		case r.typeIsNullableOrNestedList(fdt):
-			md, err := r.createListMetadata(fdt)
+		case r.typeIsNullableOrNestedList(fieldDefType):
+			md, err := r.createListMetadata(fieldDefType)
 			if err != nil {
 				return field, err
 			}
@@ -560,7 +560,7 @@ func (r *rpcPlanningContext) buildField(enclosingTypeNode ast.Node, fd int, fiel
 	}
 
 	if typeName == DataTypeEnum {
-		field.EnumName = r.definition.FieldDefinitionTypeNameString(fd)
+		field.EnumName = r.definition.FieldDefinitionTypeNameString(fieldDef)
 	}
 
 	if fieldName == typenameFieldName {
@@ -927,9 +927,9 @@ func (r *rpcPlanningContext) setResolvedField(walker *astvisitor.Walker, fieldDe
 
 	resolvedField.fieldArguments = fieldArguments
 
-	fdt := r.definition.FieldDefinitionType(fieldDefRef)
-	if r.typeIsNullableOrNestedList(fdt) {
-		resolvedField.listNestingLevel = r.definition.TypeNumberOfListWraps(fdt)
+	fieldDefType := r.definition.FieldDefinitionType(fieldDefRef)
+	if r.typeIsNullableOrNestedList(fieldDefType) {
+		resolvedField.listNestingLevel = r.definition.TypeNumberOfListWraps(fieldDefType)
 	}
 
 	return nil
