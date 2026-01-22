@@ -425,9 +425,11 @@ func (r *rpcPlanVisitor) finalizeCall() {
 	r.plan.Calls = append(r.plan.Calls, *r.currentCall)
 	r.currentCall = nil
 
-	if len(r.operationFieldRefs) > 0 {
-		r.operationFieldRef = r.operationFieldRefs[0]
+	// If we have more than one root level operation field,
+	// we remove the first one and set the operation field reference to the next one.
+	if len(r.operationFieldRefs) > 1 {
 		r.operationFieldRefs = r.operationFieldRefs[1:]
+		r.operationFieldRef = r.operationFieldRefs[0]
 	}
 }
 
