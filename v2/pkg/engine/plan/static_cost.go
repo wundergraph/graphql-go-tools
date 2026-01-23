@@ -453,8 +453,11 @@ type CostCalculator struct {
 	defaultListSize int
 }
 
-// NewCostCalculator creates a new cost calculator
+// NewCostCalculator creates a new cost calculator. The defaultListSize is floored to 1.
 func NewCostCalculator(defaultListSize int) *CostCalculator {
+	if defaultListSize < 1 {
+		defaultListSize = 1
+	}
 	c := CostCalculator{
 		costConfigs:     make(map[DSHash]*DataSourceCostConfig),
 		defaultListSize: defaultListSize,
