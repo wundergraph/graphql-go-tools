@@ -288,6 +288,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			engineConf.plannerConfig.BuildFetchReasons = opts.propagateFetchReasons
 			engineConf.plannerConfig.ValidateRequiredExternalFields = opts.validateRequiredExternalFields
 			engineConf.plannerConfig.ComputeStaticCost = opts.computeStaticCost
+			engineConf.plannerConfig.StaticCostDefaultListSize = 10
 			resolveOpts := resolve.ResolverOptions{
 				MaxConcurrency:    1024,
 				ResolvableOptions: opts.resolvableOptions,

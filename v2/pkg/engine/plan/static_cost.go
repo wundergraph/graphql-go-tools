@@ -33,19 +33,11 @@ import (
 	"github.com/wundergraph/astjson"
 )
 
-// StaticCostDefaults contains default cost values when no specific costs are configured
-var StaticCostDefaults = WeightDefaults{
-	EnumScalar: 0,
-	Object:     1,
-	List:       10, // The assumed maximum size of a list for fields that return lists.
-}
+// We don't allow configuring default weights for enums, scalars and objects.
+// But they could be in the future.
 
-// WeightDefaults defines default cost values for different GraphQL elements
-type WeightDefaults struct {
-	EnumScalar int
-	Object     int
-	List       int
-}
+const DefaultEnumScalarWeight = 0
+const DefaultObjectWeight = 1
 
 // FieldWeight defines cost configuration for a specific field of an object or input object.
 type FieldWeight struct {
@@ -84,9 +76,10 @@ type FieldListSize struct {
 
 // multiplier returns the multiplier based on arguments and variables.
 // It picks the maximum value among slicing arguments, otherwise it tries to use AssumedSize.
+// If neither is available, it falls back to defaultListSize.
 //
 // Does not take into account the SizedFields; TBD later.
-func (ls *FieldListSize) multiplier(arguments map[string]ArgumentInfo, vars *astjson.Value) int {
+func (ls *FieldListSize) multiplier(arguments map[string]ArgumentInfo, vars *astjson.Value, defaultListSize int) int {
 	multiplier := -1
 	for _, slicingArg := range ls.SlicingArguments {
 		arg, ok := arguments[slicingArg]
@@ -117,7 +110,7 @@ func (ls *FieldListSize) multiplier(arguments map[string]ArgumentInfo, vars *ast
 		multiplier = ls.AssumedSize
 	}
 	if multiplier == -1 {
-		multiplier = StaticCostDefaults.List
+		multiplier = defaultListSize
 	}
 	return multiplier
 }
@@ -164,18 +157,18 @@ func (c *DataSourceCostConfig) EnumScalarTypeWeight(enumName string) int {
 	if cost, ok := c.Types[enumName]; ok {
 		return cost
 	}
-	return StaticCostDefaults.EnumScalar
+	return DefaultEnumScalarWeight
 }
 
 // ObjectTypeWeight returns the default object cost
 func (c *DataSourceCostConfig) ObjectTypeWeight(name string) int {
 	if c == nil {
-		return StaticCostDefaults.Object
+		return DefaultObjectWeight
 	}
 	if cost, ok := c.Types[name]; ok {
 		return cost
 	}
-	return StaticCostDefaults.Object
+	return DefaultObjectWeight
 }
 
 // CostTreeNode represents a node in the cost calculation tree
@@ -205,7 +198,7 @@ type CostTreeNode struct {
 	// The data below is stored for deferred cost calculation.
 	// We populate these fields in EnterField and use them as a source of truth in LeaveField.
 
-	// fieldRef is the AST field reference
+	// fieldRef is the AST field reference. Used by the visitor to build the tree.
 	fieldRef int
 
 	// Enclosing type name and field name
@@ -242,7 +235,7 @@ func (node *CostTreeNode) maxWeightImplementingField(config *DataSourceCostConfi
 	return maxWeight
 }
 
-func (node *CostTreeNode) maxMultiplierImplementingField(config *DataSourceCostConfig, fieldName string, arguments map[string]ArgumentInfo, vars *astjson.Value) *FieldListSize {
+func (node *CostTreeNode) maxMultiplierImplementingField(config *DataSourceCostConfig, fieldName string, arguments map[string]ArgumentInfo, vars *astjson.Value, defaultListSize int) *FieldListSize {
 	var maxMultiplier int
 	var maxListSize *FieldListSize
 	for _, implTypeName := range node.implementingTypeNames {
@@ -250,7 +243,7 @@ func (node *CostTreeNode) maxMultiplierImplementingField(config *DataSourceCostC
 		listSize := config.ListSizes[coord]
 
 		if listSize != nil {
-			multiplier := listSize.multiplier(arguments, vars)
+			multiplier := listSize.multiplier(arguments, vars, defaultListSize)
 			if maxListSize == nil || multiplier > maxMultiplier {
 				maxMultiplier = multiplier
 				maxListSize = listSize
@@ -261,17 +254,17 @@ func (node *CostTreeNode) maxMultiplierImplementingField(config *DataSourceCostC
 }
 
 // staticCost calculates the static cost of this node and all descendants
-func (node *CostTreeNode) staticCost(configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value) int {
+func (node *CostTreeNode) staticCost(configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value, defaultListSize int) int {
 	if node == nil {
 		return 0
 	}
 
-	node.setCostsAndMultiplier(configs, variables)
+	node.setCostsAndMultiplier(configs, variables, defaultListSize)
 
 	// Sum children (fields) costs
 	var childrenCost int
 	for _, child := range node.children {
-		childrenCost += child.staticCost(configs, variables)
+		childrenCost += child.staticCost(configs, variables, defaultListSize)
 	}
 
 	// Apply multiplier to children cost (for list fields)
@@ -308,7 +301,7 @@ func (node *CostTreeNode) staticCost(configs map[DSHash]*DataSourceCostConfig, v
 //
 // For the multiplier we pick the maximum field weight of implementing types and then
 // the maximum among slicing arguments.
-func (node *CostTreeNode) setCostsAndMultiplier(configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value) {
+func (node *CostTreeNode) setCostsAndMultiplier(configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value, defaultListSize int) {
 	if len(node.dataSourceHashes) <= 0 {
 		// no data source is responsible for this field
 		return
@@ -345,7 +338,7 @@ func (node *CostTreeNode) setCostsAndMultiplier(configs map[DSHash]*DataSourceCo
 			fieldWeight = parent.maxWeightImplementingField(dsCostConfig, node.fieldCoord.FieldName)
 			// If this field has listSize defined, then do not look into implementing types.
 			if listSize == nil && node.returnsListType {
-				listSize = parent.maxMultiplierImplementingField(dsCostConfig, node.fieldCoord.FieldName, node.arguments, variables)
+				listSize = parent.maxMultiplierImplementingField(dsCostConfig, node.fieldCoord.FieldName, node.arguments, variables, defaultListSize)
 			}
 		}
 
@@ -399,7 +392,7 @@ func (node *CostTreeNode) setCostsAndMultiplier(configs map[DSHash]*DataSourceCo
 
 		// Compute multiplier as the maximum of data sources.
 		if listSize != nil {
-			multiplier := listSize.multiplier(node.arguments, variables)
+			multiplier := listSize.multiplier(node.arguments, variables, defaultListSize)
 			// If this node returns a list of abstract types, then it could have listSize defined.
 			// Spec allows defining listSize on the fields of interfaces.
 			if multiplier > node.multiplier {
@@ -410,7 +403,7 @@ func (node *CostTreeNode) setCostsAndMultiplier(configs map[DSHash]*DataSourceCo
 	}
 
 	if node.multiplier == 0 && node.returnsListType {
-		node.multiplier = StaticCostDefaults.List
+		node.multiplier = defaultListSize
 	}
 }
 
@@ -456,12 +449,15 @@ type CostCalculator struct {
 
 	// variables are passed by the resolver's context.
 	variables *astjson.Value
+
+	defaultListSize int
 }
 
 // NewCostCalculator creates a new cost calculator
-func NewCostCalculator() *CostCalculator {
+func NewCostCalculator(defaultListSize int) *CostCalculator {
 	c := CostCalculator{
-		costConfigs: make(map[DSHash]*DataSourceCostConfig),
+		costConfigs:     make(map[DSHash]*DataSourceCostConfig),
+		defaultListSize: defaultListSize,
 	}
 	return &c
 }
@@ -477,7 +473,7 @@ func (c *CostCalculator) SetVariables(variables *astjson.Value) {
 
 // GetStaticCost returns the calculated total static cost.
 func (c *CostCalculator) GetStaticCost() int {
-	return c.tree.staticCost(c.costConfigs, c.variables)
+	return c.tree.staticCost(c.costConfigs, c.variables, c.defaultListSize)
 }
 
 // DebugPrint prints the cost tree structure for debugging purposes.
@@ -489,12 +485,12 @@ func (c *CostCalculator) DebugPrint() string {
 	var sb strings.Builder
 	sb.WriteString("Cost Tree Debug\n")
 	sb.WriteString("===============\n")
-	c.tree.children[0].debugPrint(&sb, c.costConfigs, c.variables, 0)
+	c.tree.children[0].debugPrint(&sb, c.costConfigs, c.variables, c.defaultListSize, 0)
 	return sb.String()
 }
 
 // debugPrint recursively prints a node and its children with indentation.
-func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value, depth int) {
+func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value, defaultListSize int, depth int) {
 	// implementation is a bit crude and redundant, we could skip calculating nodes all over again.
 	// but it should suffice for debugging tests.
 	if node == nil {
@@ -556,11 +552,11 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*Da
 		fmt.Fprintf(sb, "%s  implements: [%s]\n", indent, strings.Join(node.implementingTypeNames, ", "))
 	}
 
-	subtreeCost := node.staticCost(configs, variables)
+	subtreeCost := node.staticCost(configs, variables, defaultListSize)
 	fmt.Fprintf(sb, "%s  cost=%d\n", indent, subtreeCost)
 
 	// Print children
 	for _, child := range node.children {
-		child.debugPrint(sb, configs, variables, depth+1)
+		child.debugPrint(sb, configs, variables, defaultListSize, depth+1)
 	}
 }

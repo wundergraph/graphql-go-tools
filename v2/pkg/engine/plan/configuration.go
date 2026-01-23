@@ -48,6 +48,7 @@ type Configuration struct {
 	ValidateRequiredExternalFields bool
 
 	ComputeStaticCost bool
+	StaticCostDefaultListSize int
 }
 
 type DebugConfiguration struct {

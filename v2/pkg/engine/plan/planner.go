@@ -208,7 +208,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 
 	if p.config.ComputeStaticCost {
 		// Initialize cost calculator and configure from data sources
-		costCalc := NewCostCalculator()
+		costCalc := NewCostCalculator(p.config.StaticCostDefaultListSize)
 		for _, ds := range p.config.DataSources {
 			if costConfig := ds.GetCostConfig(); costConfig != nil {
 				costCalc.SetDataSourceCostConfig(ds.Hash(), costConfig)
