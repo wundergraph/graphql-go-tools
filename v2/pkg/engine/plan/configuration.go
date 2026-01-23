@@ -47,7 +47,10 @@ type Configuration struct {
 	// This option requires BuildFetchReasons set to true.
 	ValidateRequiredExternalFields bool
 
+	// ComputeStaticCost enables static cost computation for operations.
 	ComputeStaticCost bool
+
+	// When the list size is unknown from directives, this value is used as a default for static cost.
 	StaticCostDefaultListSize int
 }
 
