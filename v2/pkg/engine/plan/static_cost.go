@@ -314,7 +314,7 @@ func (node *CostTreeNode) setCostsAndMultiplier(configs map[DSHash]*DataSourceCo
 
 	for _, dsHash := range node.dataSourceHashes {
 		dsCostConfig, ok := configs[dsHash]
-		if !ok {
+		if !ok || dsCostConfig == nil {
 			dsCostConfig = &DataSourceCostConfig{}
 			// Save it for later use by other fields:
 			configs[dsHash] = dsCostConfig
