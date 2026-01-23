@@ -322,8 +322,9 @@ func (node *CostTreeNode) setCostsAndMultiplier(configs map[DSHash]*DataSourceCo
 	for _, dsHash := range node.dataSourceHashes {
 		dsCostConfig, ok := configs[dsHash]
 		if !ok {
-			fmt.Printf("WARNING: no cost dsCostConfig for data source %v\n", dsHash)
-			continue
+			dsCostConfig = &DataSourceCostConfig{}
+			// Save it for later use by other fields:
+			configs[dsHash] = dsCostConfig
 		}
 
 		fieldWeight := dsCostConfig.Weights[node.fieldCoord]
