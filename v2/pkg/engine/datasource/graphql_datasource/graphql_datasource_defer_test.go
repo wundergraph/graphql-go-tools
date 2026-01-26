@@ -76,6 +76,8 @@ func TestGraphQLDataSourceDefer(t *testing.T) {
 				Debug: plan.DebugConfiguration{
 					PrintQueryPlans:    true,
 					PrintPlanningPaths: true,
+
+					PlanningVisitor: true,
 				},
 			}
 
@@ -97,87 +99,28 @@ func TestGraphQLDataSourceDefer(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
+									FetchDependencies: resolve.FetchDependencies{
+										FetchID: 0,
+										DeferID: "1",
+									},
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
+										Input: `{"method":"POST","url":"http://first.service","body":{"query":"{user {title}}"}}`,
 										PostProcessing: DefaultPostProcessingConfiguration,
 										DataSource:     &Source{},
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
-								resolve.SingleWithPath(&resolve.SingleFetch{
+								resolve.Single(&resolve.SingleFetch{
 									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename hostedImageWithProvides {image {__typename id}}}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
-													},
-												}),
-											},
-										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
+										FetchID: 1,
+									},
+									FetchConfiguration: resolve.FetchConfiguration{
+										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {name}}"}}`,
+										PostProcessing: DefaultPostProcessingConfiguration,
+										DataSource:     &Source{},
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-								}, "user", resolve.ObjectPath("user")),
-								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           2,
-										DependsOnFetchIDs: []int{1},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://fourth.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Image {__typename cdnUrl}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Image")},
-														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("Image")},
-														},
-													},
-												}),
-											},
-										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
-									},
-									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-								}, "user.hostedImageWithProvides.image", resolve.ObjectPath("user"), resolve.ObjectPath("hostedImageWithProvides"), resolve.ObjectPath("image")),
+								}),
 							),
 							Data: &resolve.Object{
 								Fields: []*resolve.Field{
@@ -192,34 +135,18 @@ func TestGraphQLDataSourceDefer(t *testing.T) {
 											TypeName: "User",
 											Fields: []*resolve.Field{
 												{
-													Name: []byte("hostedImageWithProvides"),
-													Value: &resolve.Object{
-														Path:     []string{"hostedImageWithProvides"},
-														Nullable: false,
-														PossibleTypes: map[string]struct{}{
-															"HostedImage": {},
-														},
-														TypeName: "HostedImage",
-														Fields: []*resolve.Field{
-															{
-																Name: []byte("image"),
-																Value: &resolve.Object{
-																	Path: []string{"image"},
-																	PossibleTypes: map[string]struct{}{
-																		"Image": {},
-																	},
-																	TypeName: "Image",
-																	Fields: []*resolve.Field{
-																		{
-																			Name: []byte("cdnUrl"),
-																			Value: &resolve.String{
-																				Path: []string{"cdnUrl"},
-																			},
-																		},
-																	},
-																},
-															},
-														},
+													Name: []byte("name"),
+													Value: &resolve.String{
+														Path: []string{"name"},
+													},
+												},
+												{
+													Name: []byte("title"),
+													Defer: &resolve.DeferField{
+														DeferID: "1",
+													},
+													Value: &resolve.String{
+														Path: []string{"title"},
 													},
 												},
 											},
@@ -232,6 +159,7 @@ func TestGraphQLDataSourceDefer(t *testing.T) {
 					planConfiguration,
 					WithDefaultPostProcessor(),
 					WithDefer(),
+					WithCalculateFieldDependencies(),
 				)
 			})
 		})
@@ -375,7 +303,7 @@ func TestGraphQLDataSourceDefer(t *testing.T) {
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
+										Input: `{"method":"POST","url":"http://first.service","body":{"query":"{user {title __typename id}}"}}`,
 										PostProcessing: DefaultPostProcessingConfiguration,
 										DataSource:     &Source{},
 									},
@@ -388,7 +316,7 @@ func TestGraphQLDataSourceDefer(t *testing.T) {
 									}, FetchConfiguration: resolve.FetchConfiguration{
 										RequiresEntityBatchFetch:              false,
 										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename hostedImageWithProvides {image {__typename id}}}}}","variables":{"representations":[$$0$$]}}}`,
+										Input: `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename firstName}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:                            &Source{},
 										SetTemplateOutputToNullOnVariableNull: true,
 										Variables: []resolve.Variable{
@@ -421,11 +349,12 @@ func TestGraphQLDataSourceDefer(t *testing.T) {
 								resolve.SingleWithPath(&resolve.SingleFetch{
 									FetchDependencies: resolve.FetchDependencies{
 										FetchID:           2,
-										DependsOnFetchIDs: []int{1},
+										DependsOnFetchIDs: []int{0},
+										DeferID:           "1",
 									}, FetchConfiguration: resolve.FetchConfiguration{
 										RequiresEntityBatchFetch:              false,
 										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://fourth.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Image {__typename cdnUrl}}}","variables":{"representations":[$$0$$]}}}`,
+										Input: `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename lastName}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:                            &Source{},
 										SetTemplateOutputToNullOnVariableNull: true,
 										Variables: []resolve.Variable{
@@ -438,14 +367,14 @@ func TestGraphQLDataSourceDefer(t *testing.T) {
 															Value: &resolve.String{
 																Path: []string{"__typename"},
 															},
-															OnTypeNames: [][]byte{[]byte("Image")},
+															OnTypeNames: [][]byte{[]byte("User")},
 														},
 														{
 															Name: []byte("id"),
 															Value: &resolve.Scalar{
 																Path: []string{"id"},
 															},
-															OnTypeNames: [][]byte{[]byte("Image")},
+															OnTypeNames: [][]byte{[]byte("User")},
 														},
 													},
 												}),
@@ -454,7 +383,7 @@ func TestGraphQLDataSourceDefer(t *testing.T) {
 										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-								}, "user.hostedImageWithProvides.image", resolve.ObjectPath("user"), resolve.ObjectPath("hostedImageWithProvides"), resolve.ObjectPath("image")),
+								}, "user", resolve.ObjectPath("user")),
 							),
 							Data: &resolve.Object{
 								Fields: []*resolve.Field{
@@ -469,34 +398,24 @@ func TestGraphQLDataSourceDefer(t *testing.T) {
 											TypeName: "User",
 											Fields: []*resolve.Field{
 												{
-													Name: []byte("hostedImageWithProvides"),
-													Value: &resolve.Object{
-														Path:     []string{"hostedImageWithProvides"},
-														Nullable: false,
-														PossibleTypes: map[string]struct{}{
-															"HostedImage": {},
-														},
-														TypeName: "HostedImage",
-														Fields: []*resolve.Field{
-															{
-																Name: []byte("image"),
-																Value: &resolve.Object{
-																	Path: []string{"image"},
-																	PossibleTypes: map[string]struct{}{
-																		"Image": {},
-																	},
-																	TypeName: "Image",
-																	Fields: []*resolve.Field{
-																		{
-																			Name: []byte("cdnUrl"),
-																			Value: &resolve.String{
-																				Path: []string{"cdnUrl"},
-																			},
-																		},
-																	},
-																},
-															},
-														},
+													Name: []byte("title"),
+													Value: &resolve.String{
+														Path: []string{"title"},
+													},
+												},
+												{
+													Name: []byte("firstName"),
+													Value: &resolve.String{
+														Path: []string{"firstName"},
+													},
+												},
+												{
+													Name: []byte("lastName"),
+													Defer: &resolve.DeferField{
+														DeferID: "1",
+													},
+													Value: &resolve.String{
+														Path: []string{"lastName"},
 													},
 												},
 											},
@@ -509,6 +428,7 @@ func TestGraphQLDataSourceDefer(t *testing.T) {
 					planConfiguration,
 					WithDefaultPostProcessor(),
 					WithDefer(),
+					WithCalculateFieldDependencies(),
 				)
 			})
 		})

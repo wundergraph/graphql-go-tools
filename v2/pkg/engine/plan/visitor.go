@@ -41,8 +41,9 @@ type Visitor struct {
 	OperationName                string
 	operationDefinition          int
 	objects                      []*resolve.Object
-	currentFields                []objectFields
+	currentObjectFields          []objectFields
 	currentField                 *resolve.Field
+	currentFields                []*resolve.Field
 	planners                     []PlannerConfiguration
 	skipFieldsRefs               []int
 	fieldRefDependsOnFieldRefs   map[int][]int
@@ -197,7 +198,7 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any
 			}
 		}
 
-		if !v.Config.DisableIncludeFieldDependencies && kind == astvisitor.LeaveField {
+		if !v.Config.DisableCalculateFieldDependencies && kind == astvisitor.LeaveField {
 			// we don't need to do this twice, so we only do it on leave
 
 			// store which fields are planned on which planners
@@ -343,7 +344,10 @@ func (v *Visitor) EnterField(ref int) {
 	}
 
 	// append the field to the current object
-	*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
+	*v.currentObjectFields[len(v.currentObjectFields)-1].fields = append(*v.currentObjectFields[len(v.currentObjectFields)-1].fields, v.currentField)
+
+	// append the current field to the list of current fields
+	v.currentFields = append(v.currentFields, v.currentField)
 
 	v.mapFieldConfig(ref)
 }
@@ -403,6 +407,12 @@ func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *reso
 			sourceNames = append(sourceNames, v.planners[i].DataSourceConfiguration().Name())
 		}
 	}
+	// deduplicate
+	slices.Sort(sourceIDs)
+	sourceIDs = slices.Compact(sourceIDs)
+	slices.Sort(sourceNames)
+	sourceNames = slices.Compact(sourceNames)
+
 	fieldInfo := &resolve.FieldInfo{
 		Name:            fieldName,
 		NamedType:       typeName,
@@ -549,8 +559,14 @@ func (v *Visitor) LeaveField(ref int) {
 		return
 	}
 
-	if v.currentFields[len(v.currentFields)-1].popOnField == ref {
-		v.currentFields = v.currentFields[:len(v.currentFields)-1]
+	v.assignDefer(ref)
+
+	// remove the current field from the current fields stack
+	v.currentFields = v.currentFields[:len(v.currentFields)-1]
+
+	// remove the current field from the list of current object fields if they belong to this field
+	if v.currentObjectFields[len(v.currentObjectFields)-1].popOnField == ref {
+		v.currentObjectFields = v.currentObjectFields[:len(v.currentObjectFields)-1]
 	}
 	fieldDefinition, ok := v.Walker.FieldDefinition(ref)
 	if !ok {
@@ -560,6 +576,31 @@ func (v *Visitor) LeaveField(ref int) {
 	switch fieldDefinitionTypeNode.Kind {
 	case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
 		v.objects = v.objects[:len(v.objects)-1]
+	}
+}
+
+func (v *Visitor) assignDefer(fieldRef int) {
+	currentField := v.currentFields[len(v.currentFields)-1]
+
+	// ignore existence check - we should always have planners for the field
+	plannerIds, _ := v.fieldPlanners[fieldRef]
+
+	for _, plannerId := range plannerIds {
+		planner := v.planners[plannerId]
+
+		fieldPathConfiguration, ok := planner.PathWithFieldRef(fieldRef)
+		if !ok {
+			continue
+		}
+
+		if fieldPathConfiguration.deferredField {
+			currentField.Defer = &resolve.DeferField{
+				DeferID: fieldPathConfiguration.deferID,
+			}
+
+			// after the normalization we should have only one planner per deferred field
+			break
+		}
 	}
 }
 
@@ -791,8 +832,12 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 
 			v.objects = append(v.objects, object)
 
+			// When the current field has an object type, we need to push its fields slice to the stack.
+			// However, we can do that only after the field, which we are currently creating, will be added to the parent object fields.
+			// So we defer this action to be executed right after the current field is added to the parent object fields slice.
+			// This is more simple than analyzing resolve.Node, because this object could be nested in a list.
 			v.Walker.DefferOnEnterField(func() {
-				v.currentFields = append(v.currentFields, objectFields{
+				v.currentObjectFields = append(v.currentObjectFields, objectFields{
 					popOnField: fieldRef,
 					fields:     &object.Fields,
 				})
@@ -913,7 +958,7 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 	}
 
 	v.objects = append(v.objects, rootObject)
-	v.currentFields = append(v.currentFields, objectFields{
+	v.currentObjectFields = append(v.currentObjectFields, objectFields{
 		fields:     &rootObject.Fields,
 		popOnField: -1,
 	})
@@ -950,46 +995,6 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 	}
 }
 
-// TODO: cleanup - field alias override logic is disabled
-func (v *Visitor) resolveFieldPath(ref int) []string {
-	typeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
-	fieldName := v.Operation.FieldNameUnsafeString(ref)
-	plannerConfig := v.currentOrParentPlannerConfiguration(ref)
-
-	aliasOverride := false
-	if plannerConfig != nil && plannerConfig.Planner() != nil {
-		behavior := plannerConfig.DataSourceConfiguration().PlanningBehavior()
-		aliasOverride = behavior.OverrideFieldPathFromAlias
-	}
-
-	for i := range v.Config.Fields {
-		if v.Config.Fields[i].TypeName == typeName && v.Config.Fields[i].FieldName == fieldName {
-			if aliasOverride {
-				override, exists := plannerConfig.DownstreamResponseFieldAlias(ref)
-				if exists {
-					return []string{override}
-				}
-			}
-			if aliasOverride && v.Operation.FieldAliasIsDefined(ref) {
-				return []string{v.Operation.FieldAliasString(ref)}
-			}
-			if v.Config.Fields[i].DisableDefaultMapping {
-				return nil
-			}
-			if len(v.Config.Fields[i].Path) != 0 {
-				return v.Config.Fields[i].Path
-			}
-			return []string{fieldName}
-		}
-	}
-
-	if aliasOverride {
-		return []string{v.Operation.FieldAliasOrNameString(ref)}
-	}
-
-	return []string{fieldName}
-}
-
 func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.Operation, v.Definition = operation, definition
 	v.fieldConfigs = map[int]*FieldConfiguration{}
@@ -1015,43 +1020,6 @@ var (
 	templateRegex = regexp.MustCompile(`{{.*?}}`)
 	selectorRegex = regexp.MustCompile(`{{\s*\.(.*?)\s*}}`)
 )
-
-func (v *Visitor) currentOrParentPlannerConfiguration(fieldRef int) PlannerConfiguration {
-	// TODO: this method should be dropped it is unnecessary expensive
-
-	const none = -1
-	currentPath := v.currentFullPath(false)
-	plannerIndex := none
-	plannerPathDeepness := none
-
-	for i := range v.planners {
-		v.planners[i].ForEachPath(func(plannerPath *pathConfiguration) bool {
-			if v.isCurrentOrParentPath(currentPath, plannerPath.path) {
-				currentPlannerPathDeepness := v.pathDeepness(plannerPath.path)
-				if currentPlannerPathDeepness > plannerPathDeepness {
-					plannerPathDeepness = currentPlannerPathDeepness
-					plannerIndex = i
-					return true
-				}
-			}
-			return false
-		})
-	}
-
-	if plannerIndex != none {
-		return v.planners[plannerIndex]
-	}
-
-	return nil
-}
-
-func (v *Visitor) isCurrentOrParentPath(currentPath string, parentPath string) bool {
-	return strings.HasPrefix(currentPath, parentPath)
-}
-
-func (v *Visitor) pathDeepness(path string) int {
-	return strings.Count(path, ".")
-}
 
 func (v *Visitor) resolveInputTemplates(config *objectFetchConfiguration, input *string, variables *resolve.Variables) {
 	*input = templateRegex.ReplaceAllStringFunc(*input, func(s string) string {
