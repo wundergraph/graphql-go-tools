@@ -241,6 +241,9 @@ type pathConfiguration struct {
 	dsHash     DSHash
 	isRootNode bool
 	pathType   PathType
+
+	deferredField bool
+	deferID       string
 }
 
 type PathType int
