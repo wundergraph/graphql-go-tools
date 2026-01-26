@@ -28,14 +28,15 @@ import (
 )
 
 type testOptions struct {
-	postProcessors        []*postprocess.Processor
-	skipReason            string
-	withFieldInfo         bool
-	withPrintPlan         bool
-	withFieldDependencies bool
-	withFetchReasons      bool
-	validationOptions     []astvalidation.Option
-	withDefer             bool
+	postProcessors                 []*postprocess.Processor
+	skipReason                     string
+	withFieldInfo                  bool
+	withPrintPlan                  bool
+	withIncludeFieldDependencies   bool
+	withFetchReasons               bool
+	withDefer                      bool
+	validationOptions              []astvalidation.Option
+	withCalculateFieldDependencies bool
 }
 
 func WithDefer() func(*testOptions) {
@@ -77,17 +78,25 @@ func WithPrintPlan() func(*testOptions) {
 	}
 }
 
-func WithFieldDependencies() func(*testOptions) {
+func WithIncludeFieldDependencies() func(*testOptions) {
 	return func(o *testOptions) {
 		o.withFieldInfo = true
-		o.withFieldDependencies = true
+		o.withIncludeFieldDependencies = true
+		o.withCalculateFieldDependencies = true
+	}
+}
+
+func WithCalculateFieldDependencies() func(*testOptions) {
+	return func(o *testOptions) {
+		o.withCalculateFieldDependencies = true
 	}
 }
 
 func WithFetchReasons() func(*testOptions) {
 	return func(o *testOptions) {
 		o.withFieldInfo = true
-		o.withFieldDependencies = true
+		o.withIncludeFieldDependencies = true
+		o.withCalculateFieldDependencies = true
 		o.withFetchReasons = true
 	}
 }
@@ -157,6 +166,7 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 		// by default, we don't want to have field info in the tests because it's too verbose
 		config.DisableIncludeInfo = true
 		config.DisableIncludeFieldDependencies = true
+		config.DisableCalculateFieldDependencies = true
 
 		opts := &testOptions{}
 		for _, o := range options {
@@ -167,8 +177,12 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 			config.DisableIncludeInfo = false
 		}
 
-		if opts.withFieldDependencies {
+		if opts.withIncludeFieldDependencies {
 			config.DisableIncludeFieldDependencies = false
+		}
+
+		if opts.withCalculateFieldDependencies {
+			config.DisableCalculateFieldDependencies = false
 		}
 
 		if opts.withFetchReasons {
