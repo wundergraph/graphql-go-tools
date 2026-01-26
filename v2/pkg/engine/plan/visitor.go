@@ -50,7 +50,6 @@ type Visitor struct {
 	fieldRefDependants           map[int][]int // inverse of fieldRefDependsOnFieldRefs
 	fieldConfigs                 map[int]*FieldConfiguration
 	exportedVariables            map[string]struct{}
-	skipIncludeOnFragments       map[int]skipIncludeInfo
 	disableResolveFieldPositions bool
 	includeQueryPlans            bool
 	indirectInterfaceFields      map[int]indirectInterfaceField
@@ -115,13 +114,6 @@ func (v *Visitor) debugPrint(args ...interface{}) {
 	allArgs := []interface{}{"[Visitor]: "}
 	allArgs = append(allArgs, args...)
 	fmt.Println(allArgs...)
-}
-
-type skipIncludeInfo struct {
-	skip                bool
-	skipVariableName    string
-	include             bool
-	includeVariableName string
 }
 
 type objectFields struct {
@@ -306,23 +298,6 @@ func (v *Visitor) EnterInlineFragment(ref int) {
 		}
 		v.indirectInterfaceFields[v.Operation.InlineFragments[ref].SelectionSet] = field
 	}
-
-	directives := v.Operation.InlineFragments[ref].Directives.Refs
-	skipVariableName, skip := v.Operation.ResolveSkipDirectiveVariable(directives)
-	includeVariableName, include := v.Operation.ResolveIncludeDirectiveVariable(directives)
-	setRef := v.Operation.InlineFragments[ref].SelectionSet
-	if setRef == ast.InvalidRef {
-		return
-	}
-
-	if skip || include {
-		v.skipIncludeOnFragments[ref] = skipIncludeInfo{
-			skip:                skip,
-			skipVariableName:    skipVariableName,
-			include:             include,
-			includeVariableName: includeVariableName,
-		}
-	}
 }
 
 func (v *Visitor) LeaveInlineFragment(ref int) {
@@ -491,24 +466,6 @@ func (v *Visitor) resolveFieldPosition(ref int) resolve.Position {
 		Line:   v.Operation.Fields[ref].Position.LineStart,
 		Column: v.Operation.Fields[ref].Position.CharStart,
 	}
-}
-
-func (v *Visitor) resolveSkipIncludeOnParent() (info skipIncludeInfo, ok bool) {
-	if len(v.skipIncludeOnFragments) == 0 {
-		return skipIncludeInfo{}, false
-	}
-
-	for i := len(v.Walker.Ancestors) - 1; i >= 0; i-- {
-		ancestor := v.Walker.Ancestors[i]
-		if ancestor.Kind != ast.NodeKindInlineFragment {
-			continue
-		}
-		if info, ok := v.skipIncludeOnFragments[ancestor.Ref]; ok {
-			return info, true
-		}
-	}
-
-	return skipIncludeInfo{}, false
 }
 
 func (v *Visitor) resolveOnTypeNames(fieldRef int, fieldName ast.ByteSlice) (onTypeNames [][]byte) {
@@ -861,6 +818,7 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 			}
 
 			v.objects = append(v.objects, object)
+
 			v.Walker.DefferOnEnterField(func() {
 				v.currentFields = append(v.currentFields, objectFields{
 					popOnField: fieldRef,
@@ -1064,7 +1022,6 @@ func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.Operation, v.Definition = operation, definition
 	v.fieldConfigs = map[int]*FieldConfiguration{}
 	v.exportedVariables = map[string]struct{}{}
-	v.skipIncludeOnFragments = map[int]skipIncludeInfo{}
 	v.indirectInterfaceFields = map[int]indirectInterfaceField{}
 	v.pathCache = map[astvisitor.VisitorKind]map[int]string{}
 	v.plannerFields = map[int][]int{}
