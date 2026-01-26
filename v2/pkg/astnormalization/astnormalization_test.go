@@ -1042,7 +1042,7 @@ func TestVariablesNormalizer(t *testing.T) {
 
 		normalizer := NewVariablesNormalizer()
 		report := operationreport.Report{}
-		uploadsMapping := normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
+		result := normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
 		require.False(t, report.HasErrors(), report.Error())
 
 		out := unsafeprinter.Print(&operationDocument)
@@ -1060,7 +1060,119 @@ func TestVariablesNormalizer(t *testing.T) {
 			{VariableName: "a", OriginalUploadPath: "variables.varTwo.oneList.0.value", NewUploadPath: "variables.a.two.oneList.0.value"},
 			{VariableName: "a", OriginalUploadPath: "variables.varTwo.one.list.0", NewUploadPath: "variables.a.two.one.list.0"},
 			{VariableName: "a", OriginalUploadPath: "variables.varTwo.one.value", NewUploadPath: "variables.a.two.one.value"},
-		}, uploadsMapping)
+		}, result.UploadsMapping)
+
+		// Verify field argument mapping is populated
+		assert.Equal(t, "a", result.FieldArgumentMapping["hello.arg"])
+	})
+
+	t.Run("field argument mapping", func(t *testing.T) {
+		const fieldArgMappingSchema = `
+			type Query {
+				user(id: ID!, active: Boolean): User
+				users(name: String!, limit: Int!, offset: Int): [User!]!
+			}
+			type User {
+				id: ID!
+				name: String!
+				posts(limit: Int!): [Post!]!
+			}
+			type Post {
+				id: ID!
+				title: String!
+			}
+		`
+
+		testCases := []struct {
+			name            string
+			operation       string
+			variables       string
+			expectedMapping FieldArgumentMapping
+		}{
+			{
+				name: "user provided variable",
+				operation: `query GetUser($userId: ID!) {
+					user(id: $userId) { name }
+				}`,
+				variables:       `{"userId": "123"}`,
+				expectedMapping: FieldArgumentMapping{"user.id": "userId"},
+			},
+			{
+				name: "inline literal extracted",
+				operation: `query GetUser {
+					user(id: "123") { name }
+				}`,
+				variables:       `{}`,
+				expectedMapping: FieldArgumentMapping{"user.id": "a"},
+			},
+			{
+				name: "multiple inline literals",
+				operation: `query GetUsers {
+					a: user(id: "user-1") { name }
+					b: user(id: "user-2") { name }
+				}`,
+				variables:       `{}`,
+				expectedMapping: FieldArgumentMapping{"a.id": "a", "b.id": "b"},
+			},
+			{
+				name: "nested field arguments",
+				operation: `query GetUserPosts($userId: ID!, $limit: Int!) {
+					user(id: $userId) {
+						posts(limit: $limit) { title }
+					}
+				}`,
+				variables:       `{"userId": "123", "limit": 10}`,
+				expectedMapping: FieldArgumentMapping{"user.id": "userId", "user.posts.limit": "limit"},
+			},
+			{
+				name: "aliased fields with variables",
+				operation: `query GetUsers($id1: ID!, $id2: ID!) {
+					a: user(id: $id1) { name }
+					b: user(id: $id2) { name }
+				}`,
+				variables:       `{"id1": "user-1", "id2": "user-2"}`,
+				expectedMapping: FieldArgumentMapping{"a.id": "id1", "b.id": "id2"},
+			},
+			{
+				name: "multiple arguments on single field",
+				operation: `query SearchUsers($name: String!, $limit: Int!, $offset: Int) {
+					users(name: $name, limit: $limit, offset: $offset) { id }
+				}`,
+				variables:       `{"name": "john", "limit": 10, "offset": 5}`,
+				expectedMapping: FieldArgumentMapping{"users.name": "name", "users.limit": "limit", "users.offset": "offset"},
+			},
+			{
+				name: "mixed inline and variables",
+				operation: `query GetUser($userId: ID!) {
+					user(id: $userId, active: true) { name }
+				}`,
+				variables:       `{"userId": "123"}`,
+				expectedMapping: FieldArgumentMapping{"user.id": "userId", "user.active": "a"},
+			},
+			{
+				name: "empty mapping when no arguments",
+				operation: `query GetUser {
+					user { name }
+				}`,
+				variables:       `{}`,
+				expectedMapping: FieldArgumentMapping{},
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				definitionDocument := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(fieldArgMappingSchema)
+				operationDocument := unsafeparser.ParseGraphqlDocumentString(tc.operation)
+				operationDocument.Input.Variables = []byte(tc.variables)
+
+				normalizer := NewVariablesNormalizer()
+				report := operationreport.Report{}
+				result := normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
+				require.False(t, report.HasErrors(), report.Error())
+
+				assert.Equal(t, tc.expectedMapping, result.FieldArgumentMapping)
+			})
+		}
 	})
 }
 

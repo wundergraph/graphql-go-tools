@@ -3,6 +3,7 @@ package astnormalization
 import (
 	"bytes"
 	"fmt"
+	"strings"
 
 	"github.com/buger/jsonparser"
 	"github.com/tidwall/sjson"
@@ -34,6 +35,10 @@ type variablesExtractionVisitor struct {
 	extractedVariableTypeRefs []int
 	uploadFinder              *uploads.UploadFinder
 	uploadsPath               []uploads.UploadPathMapping
+	// fieldArgumentMapping maps field arguments to their variable names.
+	// Key: "fieldPath.argumentName" (e.g., "user.posts.limit")
+	// Value: variable name after extraction (e.g., "a", "b", "userId")
+	fieldArgumentMapping FieldArgumentMapping
 }
 
 func (v *variablesExtractionVisitor) EnterArgument(ref int) {
@@ -63,6 +68,8 @@ func (v *variablesExtractionVisitor) EnterArgument(ref int) {
 		if len(uploadsMapping) > 0 {
 			v.uploadsPath = append(v.uploadsPath, uploadsMapping...)
 		}
+		// Record the field argument mapping for existing variables
+		v.recordFieldArgumentMapping(ref)
 		return
 	}
 
@@ -141,12 +148,56 @@ func (v *variablesExtractionVisitor) EnterArgument(ref int) {
 	v.operation.OperationDefinitions[v.Ancestors[0].Ref].VariableDefinitions.Refs =
 		append(v.operation.OperationDefinitions[v.Ancestors[0].Ref].VariableDefinitions.Refs, newVariableRef)
 	v.operation.OperationDefinitions[v.Ancestors[0].Ref].HasVariableDefinitions = true
+
+	// Record the field argument mapping for the newly extracted variable
+	v.recordFieldArgumentMappingWithVarName(ref, string(variableNameBytes))
 }
 
 func (v *variablesExtractionVisitor) EnterDocument(operation, definition *ast.Document) {
 	v.operation, v.definition = operation, definition
 	v.extractedVariables = v.extractedVariables[:0]
 	v.extractedVariableTypeRefs = v.extractedVariableTypeRefs[:0]
+	v.fieldArgumentMapping = make(FieldArgumentMapping)
+}
+
+// buildFieldPath builds the field path from the walker's ancestors.
+// It returns a dot-separated path of field names/aliases (e.g., "user.posts").
+func (v *variablesExtractionVisitor) buildFieldPath() string {
+	var parts []string
+	for _, anc := range v.Ancestors {
+		if anc.Kind == ast.NodeKindField {
+			alias := v.operation.FieldAliasString(anc.Ref)
+			if alias != "" {
+				parts = append(parts, alias)
+			} else {
+				parts = append(parts, v.operation.FieldNameString(anc.Ref))
+			}
+		}
+	}
+	return strings.Join(parts, ".")
+}
+
+// recordFieldArgumentMapping records the field argument mapping for an existing variable.
+func (v *variablesExtractionVisitor) recordFieldArgumentMapping(ref int) {
+	fieldPath := v.buildFieldPath()
+	if fieldPath == "" {
+		return
+	}
+	argName := v.operation.ArgumentNameString(ref)
+	key := fieldPath + "." + argName
+	varName := v.operation.VariableValueNameString(v.operation.Arguments[ref].Value.Ref)
+	v.fieldArgumentMapping[key] = varName
+}
+
+// recordFieldArgumentMappingWithVarName records the field argument mapping for a newly extracted variable.
+func (v *variablesExtractionVisitor) recordFieldArgumentMappingWithVarName(ref int, varName string) {
+	fieldPath := v.buildFieldPath()
+	if fieldPath == "" {
+		return
+	}
+	argName := v.operation.ArgumentNameString(ref)
+	key := fieldPath + "." + argName
+	v.fieldArgumentMapping[key] = varName
 }
 
 func (v *variablesExtractionVisitor) variableExists(variableValue []byte, inputValueDefinition int) (exists bool, name []byte, definition int) {

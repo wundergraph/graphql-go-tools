@@ -70,7 +70,6 @@ package astnormalization
 
 import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization/uploads"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
@@ -382,22 +381,25 @@ func NewVariablesNormalizer() *VariablesNormalizer {
 	}
 }
 
-func (v *VariablesNormalizer) NormalizeOperation(operation, definition *ast.Document, report *operationreport.Report) []uploads.UploadPathMapping {
+func (v *VariablesNormalizer) NormalizeOperation(operation, definition *ast.Document, report *operationreport.Report) VariablesNormalizerResult {
 	v.firstDetectUnused.Walk(operation, definition, report)
 	if report.HasErrors() {
-		return nil
+		return VariablesNormalizerResult{}
 	}
 	v.secondExtract.Walk(operation, definition, report)
 	if report.HasErrors() {
-		return nil
+		return VariablesNormalizerResult{}
 	}
 	v.thirdDeleteUnused.Walk(operation, definition, report)
 	if report.HasErrors() {
-		return nil
+		return VariablesNormalizerResult{}
 	}
 	v.fourthCoerce.Walk(operation, definition, report)
 
-	return v.variablesExtractionVisitor.uploadsPath
+	return VariablesNormalizerResult{
+		UploadsMapping:       v.variablesExtractionVisitor.uploadsPath,
+		FieldArgumentMapping: v.variablesExtractionVisitor.fieldArgumentMapping,
+	}
 }
 
 type fragmentCycleVisitor struct {
