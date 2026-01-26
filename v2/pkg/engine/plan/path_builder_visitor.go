@@ -135,7 +135,8 @@ type currentFieldInfo struct {
 	suggestion          *NodeSuggestion
 	ds                  DataSource
 	shareable           bool
-	defferID            string
+	deferID             string
+	deferField          bool
 }
 
 func (c *pathBuilderVisitor) currentSelectionSetInfo() (info selectionSetTypeInfo, ok bool) {
@@ -551,7 +552,8 @@ func (c *pathBuilderVisitor) EnterField(fieldRef int) {
 		switch {
 		case len(suggestion.deferIDs) > 0:
 			for _, deferID := range suggestion.deferIDs {
-				field.defferID = deferID
+				field.deferID = deferID
+				field.deferField = false
 				// defer parent path planning - should be planned as a deferred path
 				c.handlePlanningField(field)
 			}
@@ -560,15 +562,18 @@ func (c *pathBuilderVisitor) EnterField(fieldRef int) {
 			// NOTE: when all child fields was deferred - we should not plan normal path?
 			// where to detect it?
 
-			field.defferID = ""
+			field.deferID = ""
+			field.deferField = false
 			c.handlePlanningField(field)
 		case suggestion.deferInfo != nil:
-			field.defferID = suggestion.deferInfo.ID
+			field.deferID = suggestion.deferInfo.ID
+			field.deferField = true
 			// should be planned only as a deferred path
 			c.handlePlanningField(field)
 		default:
 			// normal field planning
-			field.defferID = ""
+			field.deferID = ""
+			field.deferField = false
 			c.handlePlanningField(field)
 		}
 	}
@@ -602,7 +607,7 @@ func (c *pathBuilderVisitor) handlePlanningField(field *currentFieldInfo) {
 	plannedOnPlannerIds := c.fieldsPlannedOn[field.fieldRef]
 
 	if slices.ContainsFunc(plannedOnPlannerIds, func(plannerIdx int) bool {
-		return c.planners[plannerIdx].DataSourceConfiguration().Hash() == field.ds.Hash() && c.planners[plannerIdx].DeferID() == field.defferID
+		return c.planners[plannerIdx].DataSourceConfiguration().Hash() == field.ds.Hash() && c.planners[plannerIdx].DeferID() == field.deferID
 	}) {
 		// when we have already planned the field on the same datasource as was suggested
 		// we do not need to try to plan it again
@@ -826,12 +831,12 @@ func (c *pathBuilderVisitor) planWithExistingPlanners(field *currentFieldInfo) (
 			continue
 		}
 
-		if plannerConfig.DeferID() != "" && field.defferID == "" {
+		if plannerConfig.DeferID() != "" && field.deferID == "" {
 			// do not plan a non-deferred field on a deferred planner
 			continue
 		}
 
-		if field.defferID != "" && plannerConfig.DeferID() != field.defferID {
+		if field.deferID != "" && plannerConfig.DeferID() != field.deferID {
 			// do not plan a deferred field on a planner with different defer id
 			// or not a deferred planner
 			continue
@@ -882,6 +887,8 @@ func (c *pathBuilderVisitor) planWithExistingPlanners(field *currentFieldInfo) (
 					dsHash:           currentPlannerDSHash,
 					isRootNode:       isRootNode,
 					pathType:         PathTypeField,
+					deferID:          field.deferID,
+					deferredField:    field.deferField,
 				})
 
 				return plannerIdx, true
@@ -932,6 +939,8 @@ func (c *pathBuilderVisitor) addNewPlanner(field *currentFieldInfo, isMutationRo
 		dsHash:           field.ds.Hash(),
 		isRootNode:       true,
 		pathType:         PathTypeField,
+		deferID:          field.deferID,
+		deferredField:    field.deferField,
 	}
 
 	paths := []pathConfiguration{
@@ -1021,7 +1030,7 @@ func (c *pathBuilderVisitor) addNewPlanner(field *currentFieldInfo, isMutationRo
 		fieldRef:           field.fieldRef,
 		fieldDefinitionRef: fieldDefinition,
 		fetchID:            fetchID,
-		deferID:            field.defferID,
+		deferID:            field.deferID,
 		fetchItem:          c.fetchItem(),
 		sourceID:           field.ds.Id(),
 		sourceName:         field.ds.Name(),
