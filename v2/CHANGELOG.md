@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.245](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.244...v2.0.0-rc.245) (2026-01-26)
+
+
+### Bug Fixes
+
+* concurrent access of the grpc datasource ([#1370](https://github.com/wundergraph/graphql-go-tools/issues/1370)) ([1875e64](https://github.com/wundergraph/graphql-go-tools/commit/1875e647a930117eec1882e94b1579dbbe19d3c9))
+
 ## [2.0.0-rc.244](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.243...v2.0.0-rc.244) (2026-01-26)
 
 
