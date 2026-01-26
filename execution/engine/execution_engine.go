@@ -62,8 +62,6 @@ type ExecutionEngine struct {
 	resolver                 *resolve.Resolver
 	executionPlanCache       *lru.Cache
 	apolloCompatibilityFlags apollocompatibility.Flags
-	// Holds the plan after Execute(). Used in testing.
-	lastPlan plan.Plan
 }
 
 type WebsocketBeforeStartHook interface {
@@ -213,12 +211,9 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 	if report.HasErrors() {
 		return report
 	}
-	e.lastPlan = cachedPlan
-	if costCalculator != nil {
-		operation.ComputeStaticCost(costCalculator, e.config.plannerConfig, execContext.resolveContext.Variables)
-		// Debugging of cost trees. Do not remove.
-		// fmt.Println(costCalculator.DebugPrint(e.config.plannerConfig, execContext.resolveContext.Variables))
-	}
+	operation.ComputeStaticCost(costCalculator, e.config.plannerConfig, execContext.resolveContext.Variables)
+	// Debugging of cost trees. Do not remove.
+	// fmt.Println(costCalculator.DebugPrint(e.config.plannerConfig, execContext.resolveContext.Variables))
 
 	if execContext.resolveContext.TracingOptions.Enable && !execContext.resolveContext.TracingOptions.ExcludePlannerStats {
 		planningTime := resolve.GetDurationNanoSinceTraceStart(execContext.resolveContext.Context()) - tracePlanStart

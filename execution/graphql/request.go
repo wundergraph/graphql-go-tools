@@ -196,7 +196,11 @@ func (r *Request) OperationType() (OperationType, error) {
 }
 
 func (r *Request) ComputeStaticCost(calc *plan.CostCalculator, config plan.Configuration, variables *astjson.Value) {
-	r.staticCost = calc.GetStaticCost(config, variables)
+	if calc != nil {
+		r.staticCost = calc.GetStaticCost(config, variables)
+	} else {
+		r.staticCost = 0
+	}
 }
 
 func (r *Request) StaticCost() int {
