@@ -2,6 +2,7 @@ package grpcdatasource
 
 import (
 	"fmt"
+	"sync"
 )
 
 // FetchItem is a single fetch item in the execution plan.
@@ -16,6 +17,7 @@ type FetchItem struct {
 // DependencyGraph is a graph of the calls in the execution plan.
 // It is used to determine the order in which to execute the calls.
 type DependencyGraph struct {
+	mu      sync.RWMutex // Protects concurrent access to fetches slice
 	fetches []FetchItem
 	// nodes is a list of lists of dependent calls.
 	// Each node index corresponds to a call index in the execution plan
@@ -134,6 +136,9 @@ func (g *DependencyGraph) TopologicalSortResolve(resolver func(nodes []FetchItem
 
 // Fetch returns the fetch item for a given index.
 func (g *DependencyGraph) Fetch(index int) (FetchItem, error) {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+
 	if index < 0 || index >= len(g.fetches) {
 		return FetchItem{}, fmt.Errorf("unable to find fetch %d in execution plan", index)
 	}
@@ -158,5 +163,7 @@ func (g *DependencyGraph) FetchDependencies(fetch *FetchItem) ([]FetchItem, erro
 
 // SetFetchData sets the service call for a given index.
 func (g *DependencyGraph) SetFetchData(index int, serviceCall *ServiceCall) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	g.fetches[index].ServiceCall = serviceCall
 }
