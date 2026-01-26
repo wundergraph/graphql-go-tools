@@ -179,19 +179,6 @@ type CostTreeNode struct {
 	// dataSourceHashes identifies which data sources resolve this field.
 	dataSourceHashes []DSHash
 
-	// fieldCost is the weight of this field or its returned type
-	fieldCost int
-
-	// argumentsCost is the sum of argument weights and input fields used on this field.
-	argumentsCost int
-
-	// Weights on directives ignored for now.
-	directivesCost int
-
-	// multiplier is the list size multiplier from @listSize directive
-	// Applied to children costs for list fields
-	multiplier int
-
 	// children contain child field costs
 	children []*CostTreeNode
 
@@ -259,7 +246,7 @@ func (node *CostTreeNode) staticCost(configs map[DSHash]*DataSourceCostConfig, v
 		return 0
 	}
 
-	node.setCostsAndMultiplier(configs, variables, defaultListSize)
+	fieldCost, argsCost, directivesCost, multiplier := node.costsAndMultiplier(configs, variables, defaultListSize)
 
 	// Sum children (fields) costs
 	var childrenCost int
@@ -268,11 +255,10 @@ func (node *CostTreeNode) staticCost(configs map[DSHash]*DataSourceCostConfig, v
 	}
 
 	// Apply multiplier to children cost (for list fields)
-	multiplier := node.multiplier
 	if multiplier == 0 {
 		multiplier = 1
 	}
-	cost := node.argumentsCost + node.directivesCost
+	cost := argsCost + directivesCost
 	if cost < 0 {
 		// If arguments and directive weights decrease the field cost, floor it to zero.
 		cost = 0
@@ -288,29 +274,33 @@ func (node *CostTreeNode) staticCost(configs map[DSHash]*DataSourceCostConfig, v
 	// "A: [Obj] @cost(weight: 5)" means that the cost of the field is 5 for each object in the list.
 	// "type Object @cost(weight: 5) { ... }" does exactly the same thing.
 	// Weight defined on a field has priority over the weight defined on a type.
-	cost += (node.fieldCost + childrenCost) * multiplier
+	cost += (fieldCost + childrenCost) * multiplier
 
 	return cost
 }
 
-// setCostsAndMultiplier fills in the cost values for a node based on its data sources.
+// costsAndMultiplier fills in the cost values for a node based on its data sources.
 //
 // For this node we sum weights of the field or its returned type for all the data sources.
 // Each data source can have its own cost configuration. If we plan field on two data sources,
 // it means more work for the router: we should sum the costs.
 //
+// fieldCost is the weight of this field or its returned type
+// argsCost is the sum of argument weights and input fields used on this field.
+// Weights on directives ignored for now.
 // For the multiplier we pick the maximum field weight of implementing types and then
 // the maximum among slicing arguments.
-func (node *CostTreeNode) setCostsAndMultiplier(configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value, defaultListSize int) {
+func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value, defaultListSize int) (fieldCost, argsCost, directiveCost, multiplier int) {
 	if len(node.dataSourceHashes) <= 0 {
 		// no data source is responsible for this field
 		return
 	}
 
 	parent := node.parent
-	node.fieldCost = 0
-	node.argumentsCost = 0
-	node.multiplier = 0
+	fieldCost = 0
+	argsCost = 0
+	directiveCost = 0
+	multiplier = 0
 
 	for _, dsHash := range node.dataSourceHashes {
 		dsCostConfig, ok := configs[dsHash]
@@ -343,12 +333,12 @@ func (node *CostTreeNode) setCostsAndMultiplier(configs map[DSHash]*DataSourceCo
 		}
 
 		if fieldWeight != nil && fieldWeight.HasWeight {
-			node.fieldCost += fieldWeight.Weight
+			fieldCost += fieldWeight.Weight
 		} else {
 			// Use the weight of the type returned by this field
 			switch {
 			case node.returnsSimpleType:
-				node.fieldCost += dsCostConfig.EnumScalarTypeWeight(node.fieldTypeName)
+				fieldCost += dsCostConfig.EnumScalarTypeWeight(node.fieldTypeName)
 			case node.returnsAbstractType:
 				// For the abstract field, find the max weight among all implementing types
 				maxWeight := 0
@@ -358,16 +348,16 @@ func (node *CostTreeNode) setCostsAndMultiplier(configs map[DSHash]*DataSourceCo
 						maxWeight = weight
 					}
 				}
-				node.fieldCost += maxWeight
+				fieldCost += maxWeight
 			default:
-				node.fieldCost += dsCostConfig.ObjectTypeWeight(node.fieldTypeName)
+				fieldCost += dsCostConfig.ObjectTypeWeight(node.fieldTypeName)
 			}
 		}
 
 		for argName, arg := range node.arguments {
 			if fieldWeight != nil {
 				if weight, ok := fieldWeight.ArgumentWeights[argName]; ok {
-					node.argumentsCost += weight
+					argsCost += weight
 					continue
 				}
 			}
@@ -375,11 +365,11 @@ func (node *CostTreeNode) setCostsAndMultiplier(configs map[DSHash]*DataSourceCo
 			// If the argument definition itself does not have weight attached,
 			// but the type of the argument does have weight attached to it.
 			if arg.isSimple {
-				node.argumentsCost += dsCostConfig.EnumScalarTypeWeight(arg.typeName)
+				argsCost += dsCostConfig.EnumScalarTypeWeight(arg.typeName)
 			} else if arg.isInputObject {
 				// TODO: arguments should include costs of input object fields
 			} else {
-				node.argumentsCost += dsCostConfig.ObjectTypeWeight(arg.typeName)
+				argsCost += dsCostConfig.ObjectTypeWeight(arg.typeName)
 			}
 
 		}
@@ -392,19 +382,20 @@ func (node *CostTreeNode) setCostsAndMultiplier(configs map[DSHash]*DataSourceCo
 
 		// Compute multiplier as the maximum of data sources.
 		if listSize != nil {
-			multiplier := listSize.multiplier(node.arguments, variables, defaultListSize)
+			localMultiplier := listSize.multiplier(node.arguments, variables, defaultListSize)
 			// If this node returns a list of abstract types, then it could have listSize defined.
 			// Spec allows defining listSize on the fields of interfaces.
-			if multiplier > node.multiplier {
-				node.multiplier = multiplier
+			if localMultiplier > multiplier {
+				multiplier = localMultiplier
 			}
 		}
 
 	}
 
-	if node.multiplier == 0 && node.returnsListType {
-		node.multiplier = defaultListSize
+	if multiplier == 0 && node.returnsListType {
+		multiplier = defaultListSize
 	}
+	return
 }
 
 type ArgumentInfo struct {
@@ -441,54 +432,57 @@ type ArgumentInfo struct {
 
 // CostCalculator manages cost calculation during AST traversal
 type CostCalculator struct {
-	// tree points to the root of the complete cost tree.
+	// tree points to the root of the complete cost tree. Calculator tree is built once per query,
+	// then it is cached as part of the plan cache and
+	// not supposed to change again even during lifetime of a process.
 	tree *CostTreeNode
-
-	// costConfigs maps data source hash to its cost configuration
-	costConfigs map[DSHash]*DataSourceCostConfig
-
-	// variables are passed by the resolver's context.
-	variables *astjson.Value
-
-	defaultListSize int
 }
 
 // NewCostCalculator creates a new cost calculator. The defaultListSize is floored to 1.
-func NewCostCalculator(defaultListSize int) *CostCalculator {
-	if defaultListSize < 1 {
-		defaultListSize = 1
-	}
-	c := CostCalculator{
-		costConfigs:     make(map[DSHash]*DataSourceCostConfig),
-		defaultListSize: defaultListSize,
-	}
+func NewCostCalculator() *CostCalculator {
+	c := CostCalculator{}
 	return &c
 }
 
-// SetDataSourceCostConfig sets the cost config for a specific data source
-func (c *CostCalculator) SetDataSourceCostConfig(dsHash DSHash, config *DataSourceCostConfig) {
-	c.costConfigs[dsHash] = config
-}
-
-func (c *CostCalculator) SetVariables(variables *astjson.Value) {
-	c.variables = variables
-}
-
 // GetStaticCost returns the calculated total static cost.
-func (c *CostCalculator) GetStaticCost() int {
-	return c.tree.staticCost(c.costConfigs, c.variables, c.defaultListSize)
+// config should be static per process or instance. variables could change between requests.
+func (c *CostCalculator) GetStaticCost(config Configuration, variables *astjson.Value) int {
+	// costConfigs maps data source hash to its cost configuration. At the runtime we do not change
+	// this at all. It could be set once per router process.
+	costConfigs := make(map[DSHash]*DataSourceCostConfig)
+	for _, ds := range config.DataSources {
+		if costConfig := ds.GetCostConfig(); costConfig != nil {
+			costConfigs[ds.Hash()] = costConfig
+		}
+	}
+	defaultListSize := config.StaticCostDefaultListSize
+	if defaultListSize < 1 {
+		defaultListSize = 1
+	}
+	return c.tree.staticCost(costConfigs, variables, defaultListSize)
+
 }
 
 // DebugPrint prints the cost tree structure for debugging purposes.
 // It shows each node's field coordinate, costs, multipliers, and computed totals.
-func (c *CostCalculator) DebugPrint() string {
+func (c *CostCalculator) DebugPrint(config Configuration, variables *astjson.Value) string {
 	if c.tree == nil || len(c.tree.children) == 0 {
 		return "<empty cost tree>"
 	}
 	var sb strings.Builder
 	sb.WriteString("Cost Tree Debug\n")
 	sb.WriteString("===============\n")
-	c.tree.children[0].debugPrint(&sb, c.costConfigs, c.variables, c.defaultListSize, 0)
+	costConfigs := make(map[DSHash]*DataSourceCostConfig)
+	for _, ds := range config.DataSources {
+		if costConfig := ds.GetCostConfig(); costConfig != nil {
+			costConfigs[ds.Hash()] = costConfig
+		}
+	}
+	defaultListSize := config.StaticCostDefaultListSize
+	if defaultListSize < 1 {
+		defaultListSize = 1
+	}
+	c.tree.children[0].debugPrint(&sb, costConfigs, variables, defaultListSize, 0)
 	return sb.String()
 }
 
@@ -525,9 +519,11 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*Da
 	}
 	sb.WriteString("\n")
 
-	if node.fieldCost != 0 || node.argumentsCost != 0 || node.multiplier != 0 {
-		fmt.Fprintf(sb, "%s  fieldCost=%d, argsCost=%d, multiplier=%d",
-			indent, node.fieldCost, node.argumentsCost, node.multiplier)
+	// Compute costs for this node to display in debug output
+	fieldCost, argsCost, dirsCost, multiplier := node.costsAndMultiplier(configs, variables, defaultListSize)
+	if fieldCost != 0 || argsCost != 0 || dirsCost != 0 || multiplier != 0 {
+		fmt.Fprintf(sb, "%s  fieldCost=%d, argsCost=%d, directivesCost=%d, multiplier=%d",
+			indent, fieldCost, argsCost, dirsCost, multiplier)
 
 		// Show data sources
 		if len(node.dataSourceHashes) > 0 {
@@ -550,15 +546,16 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*Da
 		fmt.Fprintf(sb, "%s  args: {%s}\n", indent, strings.Join(argStrs, ", "))
 	}
 
-	// Implementing types (for abstract types)
 	if len(node.implementingTypeNames) > 0 {
 		fmt.Fprintf(sb, "%s  implements: [%s]\n", indent, strings.Join(node.implementingTypeNames, ", "))
 	}
 
+	// This is somewhat redundant, but it should not be used in production.
+	// If there is a need to present cost tree to the user,
+	// printing should be embedded into the tree calculation process.
 	subtreeCost := node.staticCost(configs, variables, defaultListSize)
 	fmt.Fprintf(sb, "%s  cost=%d\n", indent, subtreeCost)
 
-	// Print children
 	for _, child := range node.children {
 		child.debugPrint(sb, configs, variables, defaultListSize, depth+1)
 	}

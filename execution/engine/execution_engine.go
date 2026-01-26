@@ -215,7 +215,9 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 	}
 	e.lastPlan = cachedPlan
 	if costCalculator != nil {
-		costCalculator.SetVariables(execContext.resolveContext.Variables)
+		operation.ComputerStaticCost(costCalculator, e.config.plannerConfig, execContext.resolveContext.Variables)
+		// Debugging of cost trees. Do not remove.
+		// fmt.Println(costCalculator.DebugPrint(e.config.plannerConfig, execContext.resolveContext.Variables))
 	}
 
 	if execContext.resolveContext.TracingOptions.Enable && !execContext.resolveContext.TracingOptions.ExcludePlannerStats {

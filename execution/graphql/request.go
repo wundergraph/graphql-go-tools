@@ -6,8 +6,10 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
@@ -42,6 +44,8 @@ type Request struct {
 	request      resolve.Request
 
 	validForSchema map[uint64]ValidationResult
+
+	staticCost     int
 }
 
 func UnmarshalRequest(reader io.Reader, request *Request) error {
@@ -188,4 +192,12 @@ func (r *Request) OperationType() (OperationType, error) {
 	}
 
 	return OperationTypeUnknown, nil
+}
+
+func (r *Request) ComputerStaticCost(calc *plan.CostCalculator, config plan.Configuration, variables *astjson.Value) {
+	r.staticCost = calc.GetStaticCost(config, variables)
+}
+
+func (r *Request) StaticCost() int {
+	return r.staticCost
 }

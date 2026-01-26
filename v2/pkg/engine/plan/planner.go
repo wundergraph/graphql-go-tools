@@ -207,15 +207,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	}
 
 	if p.config.ComputeStaticCost {
-		// Initialize cost calculator and configure from data sources
-		costCalc := NewCostCalculator(p.config.StaticCostDefaultListSize)
-		for _, ds := range p.config.DataSources {
-			if costConfig := ds.GetCostConfig(); costConfig != nil {
-				costCalc.SetDataSourceCostConfig(ds.Hash(), costConfig)
-			}
-		}
-		// The root tree pointing to the costTreeNode is the ultimate result of costVisitor.
-		// Store is as part of this plan for later, should be part of the cached plan too.
+		costCalc := NewCostCalculator()
 		costCalc.tree = p.costVisitor.finalCostTree()
 		p.planningVisitor.plan.SetStaticCostCalculator(costCalc)
 	}

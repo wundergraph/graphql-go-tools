@@ -35,7 +35,6 @@ func NewStaticCostVisitor(walker *astvisitor.Walker, operation, definition *ast.
 	stack := make([]*CostTreeNode, 0, 16)
 	rootNode := CostTreeNode{
 		fieldCoord: FieldCoordinate{"_none", "_root"},
-		multiplier: 1,
 	}
 	stack = append(stack, &rootNode)
 	return &StaticCostVisitor{
@@ -92,7 +91,6 @@ func (v *StaticCostVisitor) EnterField(fieldRef int) {
 	node := CostTreeNode{
 		fieldRef:                fieldRef,
 		fieldCoord:              FieldCoordinate{typeName, fieldName},
-		multiplier:              1,
 		fieldTypeName:           unwrappedTypeName,
 		implementingTypeNames:   implementingTypeNames,
 		returnsListType:         isListType,
