@@ -258,34 +258,6 @@ func (v *Visitor) currentFullPath(skipFragments bool) string {
 }
 
 func (v *Visitor) EnterDirective(ref int) {
-	directiveName := v.Operation.DirectiveNameString(ref)
-	ancestor := v.Walker.Ancestors[len(v.Walker.Ancestors)-1]
-	switch ancestor.Kind {
-	case ast.NodeKindOperationDefinition:
-		switch directiveName {
-		case "flushInterval":
-			if value, ok := v.Operation.DirectiveArgumentValueByName(ref, literal.MILLISECONDS); ok {
-				if value.Kind == ast.ValueKindInteger {
-					v.plan.SetFlushInterval(v.Operation.IntValueAsInt(value.Ref))
-				}
-			}
-		}
-	case ast.NodeKindField:
-		switch directiveName {
-		case "stream":
-			initialBatchSize := 0
-			if value, ok := v.Operation.DirectiveArgumentValueByName(ref, literal.INITIAL_BATCH_SIZE); ok {
-				if value.Kind == ast.ValueKindInteger {
-					initialBatchSize = int(v.Operation.IntValueAsInt32(value.Ref))
-				}
-			}
-			v.currentField.Stream = &resolve.StreamField{
-				InitialBatchSize: initialBatchSize,
-			}
-		case "defer":
-			v.currentField.Defer = &resolve.DeferField{}
-		}
-	}
 }
 
 func (v *Visitor) EnterInlineFragment(ref int) {
