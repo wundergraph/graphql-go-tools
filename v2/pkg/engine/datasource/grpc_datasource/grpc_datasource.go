@@ -37,7 +37,6 @@ var _ resolve.DataSource = (*DataSource)(nil)
 // It handles the conversion of GraphQL queries to gRPC requests and
 // transforms the responses back to GraphQL format.
 type DataSource struct {
-	plan              *RPCExecutionPlan
 	graph             *DependencyGraph
 	cc                grpc.ClientConnInterface
 	rc                *RPCCompiler
@@ -72,7 +71,6 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 	}
 
 	return &DataSource{
-		plan:              plan,
 		graph:             NewDependencyGraph(plan),
 		cc:                client,
 		rc:                config.Compiler,
@@ -122,6 +120,7 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 					return err
 				}
 
+				d.graph.SetFetchData(serviceCall.ID, serviceCall.CloneOutput())
 				response, err := builder.marshalResponseJSON(&a, &serviceCall.RPC.Response, serviceCall.Output)
 				if err != nil {
 					return err

@@ -5219,6 +5219,7 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			// Parse the GraphQL schema
 			schemaDoc := grpctest.MustGraphQLSchema(t)
 

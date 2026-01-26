@@ -2,6 +2,9 @@ package grpcdatasource
 
 import (
 	"fmt"
+	"sync"
+
+	protoref "google.golang.org/protobuf/reflect/protoreflect"
 )
 
 // FetchItem is a single fetch item in the execution plan.
@@ -9,13 +12,14 @@ import (
 type FetchItem struct {
 	ID               int
 	Plan             *RPCCall
-	ServiceCall      *ServiceCall
+	Output           protoref.Message
 	DependentFetches []int
 }
 
 // DependencyGraph is a graph of the calls in the execution plan.
 // It is used to determine the order in which to execute the calls.
 type DependencyGraph struct {
+	mu      sync.RWMutex
 	fetches []FetchItem
 	// nodes is a list of lists of dependent calls.
 	// Each node index corresponds to a call index in the execution plan
@@ -43,7 +47,6 @@ func NewDependencyGraph(executionPlan *RPCExecutionPlan) *DependencyGraph {
 		graph.fetches[call.ID] = FetchItem{
 			ID:               call.ID,
 			Plan:             &call,
-			ServiceCall:      nil,
 			DependentFetches: call.DependentCalls,
 		}
 	}
@@ -119,7 +122,11 @@ func (g *DependencyGraph) TopologicalSortResolve(resolver func(nodes []FetchItem
 	// After setting up the call hierarchy, we are grouping the calls by their level.
 	chunks := make(map[int][]FetchItem)
 	for callIndex, chunkIndex := range callHierarchyRefs {
-		chunks[chunkIndex] = append(chunks[chunkIndex], g.fetches[callIndex])
+		fetch, err := g.Fetch(callIndex)
+		if err != nil {
+			return err
+		}
+		chunks[chunkIndex] = append(chunks[chunkIndex], fetch)
 	}
 
 	// We are iterating over the chunks and resolving the calls in the correct order.
@@ -134,6 +141,9 @@ func (g *DependencyGraph) TopologicalSortResolve(resolver func(nodes []FetchItem
 
 // Fetch returns the fetch item for a given index.
 func (g *DependencyGraph) Fetch(index int) (FetchItem, error) {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+
 	if index < 0 || index >= len(g.fetches) {
 		return FetchItem{}, fmt.Errorf("unable to find fetch %d in execution plan", index)
 	}
@@ -157,6 +167,9 @@ func (g *DependencyGraph) FetchDependencies(fetch *FetchItem) ([]FetchItem, erro
 }
 
 // SetFetchData sets the service call for a given index.
-func (g *DependencyGraph) SetFetchData(index int, serviceCall *ServiceCall) {
-	g.fetches[index].ServiceCall = serviceCall
+func (g *DependencyGraph) SetFetchData(index int, outputMessage protoref.Message) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	g.fetches[index].Output = outputMessage
 }

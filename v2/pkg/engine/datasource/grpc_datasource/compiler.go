@@ -9,6 +9,7 @@ import (
 
 	"github.com/bufbuild/protocompile"
 	"github.com/tidwall/gjson"
+	"google.golang.org/protobuf/proto"
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/dynamicpb"
 
@@ -389,6 +390,7 @@ func (p *RPCCompiler) processFile(f protoref.FileDescriptor, mapping *GRPCMappin
 
 // ServiceCall represents a single gRPC service call with its input and output messages.
 type ServiceCall struct {
+	ID int
 	// ServiceName is the name of the gRPC service to call
 	ServiceName string
 	// MethodName is the name of the method on the service to call
@@ -399,6 +401,10 @@ type ServiceCall struct {
 	Output protoref.Message
 	// RPC is the call that was made to the gRPC service
 	RPC *RPCCall
+}
+
+func (s *ServiceCall) CloneOutput() protoref.Message {
+	return proto.Clone(s.Output.Interface()).ProtoReflect()
 }
 
 func (s *ServiceCall) MethodFullName() string {
@@ -464,7 +470,7 @@ func (p *RPCCompiler) CompileFetches(graph *DependencyGraph, fetches []FetchItem
 			return nil, err
 		}
 
-		graph.SetFetchData(node.ID, &serviceCall)
+		serviceCall.ID = node.ID
 		serviceCalls = append(serviceCalls, serviceCall)
 	}
 
@@ -636,13 +642,13 @@ func (p *RPCCompiler) buildProtoMessageWithContext(inputMessage Message, rpcMess
 }
 
 func (p *RPCCompiler) resolveContextData(context FetchItem, contextField *RPCField) []map[string]protoref.Value {
-	if context.ServiceCall == nil || context.ServiceCall.Output == nil {
+	if context.Output == nil {
 		return []map[string]protoref.Value{}
 	}
 
 	contextValues := make([]map[string]protoref.Value, 0)
 	for _, field := range contextField.Message.Fields {
-		values := p.resolveContextDataForPath(context.ServiceCall.Output, field.ResolvePath)
+		values := p.resolveContextDataForPath(context.Output, field.ResolvePath)
 
 		for index, value := range values {
 			if index >= len(contextValues) {
