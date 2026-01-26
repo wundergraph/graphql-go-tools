@@ -113,6 +113,9 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 
 		// make gRPC calls
 		for index, serviceCall := range serviceCalls {
+			// Capture loop variables to avoid closure issues
+			index := index
+			serviceCall := serviceCall
 			errGrp.Go(func() error {
 				a := astjson.Arena{}
 				// Invoke the gRPC method - this will populate serviceCall.Output
