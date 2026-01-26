@@ -195,7 +195,7 @@ func (r *Request) OperationType() (OperationType, error) {
 	return OperationTypeUnknown, nil
 }
 
-func (r *Request) ComputerStaticCost(calc *plan.CostCalculator, config plan.Configuration, variables *astjson.Value) {
+func (r *Request) ComputeStaticCost(calc *plan.CostCalculator, config plan.Configuration, variables *astjson.Value) {
 	r.staticCost = calc.GetStaticCost(config, variables)
 }
 
