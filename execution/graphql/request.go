@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/wundergraph/astjson"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
@@ -45,7 +46,7 @@ type Request struct {
 
 	validForSchema map[uint64]ValidationResult
 
-	staticCost     int
+	staticCost int
 }
 
 func UnmarshalRequest(reader io.Reader, request *Request) error {
