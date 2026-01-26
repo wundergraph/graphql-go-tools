@@ -8,6 +8,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -512,6 +513,7 @@ func (f *collectNodesDSVisitor) EnterField(fieldRef int, itemIds []int, treeNode
 			IsLeaf:                    isLeaf,
 			isTypeName:                info.isTypeName,
 			treeNodeId:                treeNodeId,
+			deferInfo:                 info.deferInfo,
 		}
 
 		f.localSuggestions = append(f.localSuggestions, &node)
@@ -560,6 +562,7 @@ type fieldInfo struct {
 	possibleTypeNames                                              []string
 	currentPathWithoutFragments                                    string
 	enclosingTypeDefinition                                        ast.Node
+	deferInfo                                                      *DeferInfo
 }
 
 func (f *treeBuilderVisitor) collectFieldInfo(fieldRef int) {
@@ -596,5 +599,30 @@ func (f *treeBuilderVisitor) collectFieldInfo(fieldRef int) {
 		currentPathWithoutFragments: currentPathWithoutFragments,
 		isTypeName:                  isTypeName,
 		enclosingTypeDefinition:     f.walker.EnclosingTypeDefinition,
+		deferInfo:                   f.deferInfo(fieldRef),
 	}
+}
+
+func (f *treeBuilderVisitor) deferInfo(fieldRef int) *DeferInfo {
+	deferDirectiveRef, exists := f.operation.Fields[fieldRef].Directives.HasDirectiveByNameBytes(f.operation, literal.DEFER_INTERNAL)
+	if !exists {
+		return nil
+	}
+
+	info := &DeferInfo{}
+
+	idValue, _ := f.operation.DirectiveArgumentValueByName(deferDirectiveRef, []byte("id"))
+	info.ID = f.operation.StringValueContentString(idValue.Ref)
+
+	parentIdValue, exists := f.operation.DirectiveArgumentValueByName(deferDirectiveRef, []byte("parentDeferId"))
+	if exists {
+		info.ParentID = f.operation.StringValueContentString(parentIdValue.Ref)
+	}
+
+	labelValue, exists := f.operation.DirectiveArgumentValueByName(deferDirectiveRef, []byte("label"))
+	if exists {
+		info.Label = f.operation.StringValueContentString(labelValue.Ref)
+	}
+
+	return info
 }

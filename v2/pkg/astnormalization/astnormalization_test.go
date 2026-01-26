@@ -41,6 +41,7 @@ func TestNormalizeOperation(t *testing.T) {
 			WithRemoveFragmentDefinitions(),
 			WithRemoveUnusedVariables(),
 			WithNormalizeDefinition(),
+			WithInlineDefer(),
 		)
 		normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
 
@@ -48,8 +49,8 @@ func TestNormalizeOperation(t *testing.T) {
 			t.Fatal(report.Error())
 		}
 
-		got := mustString(astprinter.PrintString(&operationDocument))
-		want := mustString(astprinter.PrintString(&expectedOutputDocument))
+		got := mustString(astprinter.PrintStringIndent(&operationDocument, "  "))
+		want := mustString(astprinter.PrintStringIndent(&expectedOutputDocument, "  "))
 
 		assert.Equal(t, want, got)
 		assert.Equal(t, expectedVariables, string(operationDocument.Input.Variables))
@@ -510,6 +511,72 @@ func TestNormalizeOperation(t *testing.T) {
 			}`, ``, ``)
 	})
 
+	t.Run("defer", func(t *testing.T) {
+		run(t, testDefinition, `
+			query pet {
+				pet {
+					... on Dog @defer {
+						name
+						nickname
+						... @defer {
+							barkVolume
+						}
+					}
+					... on Dog {
+						... @defer {
+							extra {
+								noString
+							}
+						}
+						... @defer {
+							extra {
+								string
+								noString
+							}
+						}
+					}
+					... on Cat {
+						name
+						extra {
+							bool
+						}
+					}
+					... on Cat @defer {
+						name
+						meowVolume
+						extra {
+							bool
+						}
+					}
+					... on Cat @defer {
+						name
+						nickname
+						meowVolume
+					}
+				}
+			}`, `
+			query pet {
+				pet {
+					... on Dog {
+						name @defer_internal(id: "1")
+						nickname @defer_internal(id: "1")
+						barkVolume @defer_internal(id: "2", parentDeferId: "1")
+						extra @defer_internal(id: "3") {
+							noString @defer_internal(id: "3")
+							string @defer_internal(id: "4")
+						}
+					}
+					... on Cat {
+						name
+						extra {
+							bool
+						}
+						meowVolume @defer_internal(id: "5")
+						nickname @defer_internal(id: "6")
+					}
+				}
+			}`, ``, ``)
+	})
 }
 
 func TestOperationNormalizer_NormalizeOperation(t *testing.T) {
@@ -1243,7 +1310,24 @@ var runWithVariables = func(t *testing.T, normalizeFunc registerNormalizeFunc, d
 	assert.Equal(t, want, got)
 }
 
-var run = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, operation, expectedOutput string, indent ...bool) {
+type runOptions struct {
+	indent            bool
+	withInternalDefer bool
+}
+
+var runWithOptions = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, operation, expectedOutput string, options runOptions) {
+	t.Helper()
+	run(t, normalizeFunc, definition, operation, expectedOutput, options)
+}
+
+var run = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, operation, expectedOutput string, options ...runOptions) {
+	t.Helper()
+
+	var opts runOptions
+
+	if len(options) > 0 {
+		opts = options[0]
+	}
 
 	definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
 	err := asttransform.MergeDefinitionWithBaseSchema(&definitionDocument)
@@ -1265,7 +1349,7 @@ var run = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, op
 	}
 
 	var got, want string
-	if len(indent) > 0 && indent[0] {
+	if opts.indent {
 		got = mustString(astprinter.PrintStringIndent(&operationDocument, "  "))
 		want = mustString(astprinter.PrintStringIndent(&expectedOutputDocument, "  "))
 	} else {

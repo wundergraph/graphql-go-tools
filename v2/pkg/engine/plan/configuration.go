@@ -35,6 +35,10 @@ type Configuration struct {
 	// It requires DisableIncludeInfo set to false.
 	DisableIncludeFieldDependencies bool
 
+	// DisableCalculateFieldDependencies controls whether the planner calculates
+	// field dependencies at all.
+	DisableCalculateFieldDependencies bool
+
 	// BuildFetchReasons allows generating the FetchReasons structure for all the fields.
 	// It may be enabled by some other components of the engine.
 	// It requires DisableIncludeInfo and DisableIncludeFieldDependencies set to false.

@@ -179,4 +179,6 @@ type StreamField struct {
 	InitialBatchSize int
 }
 
-type DeferField struct{}
+type DeferField struct {
+	DeferID string
+}

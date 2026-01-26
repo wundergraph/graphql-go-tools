@@ -341,7 +341,6 @@ type DataSourcePlannerConfiguration struct {
 	PathType       PlannerPathType
 	IsNested       bool
 	Options        plannerConfigurationOptions
-	FetchID        int
 }
 
 type PlannerPathType int
@@ -417,6 +416,7 @@ type DataSourcePlanningBehavior struct {
 	//  }
 	// When true expected response will be { "rootField": ..., "alias": ... }
 	// When false expected response will be { "rootField": ..., "original": ... }
+	// Deprecated: has no effect anymore
 	OverrideFieldPathFromAlias bool
 
 	// AllowPlanningTypeName set to true will allow the planner to plan __typename fields.

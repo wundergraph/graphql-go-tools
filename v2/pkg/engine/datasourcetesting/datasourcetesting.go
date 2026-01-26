@@ -28,12 +28,20 @@ import (
 )
 
 type testOptions struct {
-	postProcessors        []*postprocess.Processor
-	skipReason            string
-	withFieldInfo         bool
-	withPrintPlan         bool
-	withFieldDependencies bool
-	withFetchReasons      bool
+	postProcessors                 []*postprocess.Processor
+	skipReason                     string
+	withFieldInfo                  bool
+	withPrintPlan                  bool
+	withIncludeFieldDependencies   bool
+	withFetchReasons               bool
+	withDefer                      bool
+	withCalculateFieldDependencies bool
+}
+
+func WithDefer() func(*testOptions) {
+	return func(o *testOptions) {
+		o.withDefer = true
+	}
 }
 
 func WithPostProcessors(postProcessors ...*postprocess.Processor) func(*testOptions) {
@@ -69,17 +77,25 @@ func WithPrintPlan() func(*testOptions) {
 	}
 }
 
-func WithFieldDependencies() func(*testOptions) {
+func WithIncludeFieldDependencies() func(*testOptions) {
 	return func(o *testOptions) {
 		o.withFieldInfo = true
-		o.withFieldDependencies = true
+		o.withIncludeFieldDependencies = true
+		o.withCalculateFieldDependencies = true
+	}
+}
+
+func WithCalculateFieldDependencies() func(*testOptions) {
+	return func(o *testOptions) {
+		o.withCalculateFieldDependencies = true
 	}
 }
 
 func WithFetchReasons() func(*testOptions) {
 	return func(o *testOptions) {
 		o.withFieldInfo = true
-		o.withFieldDependencies = true
+		o.withIncludeFieldDependencies = true
+		o.withCalculateFieldDependencies = true
 		o.withFetchReasons = true
 	}
 }
@@ -143,6 +159,7 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 		// by default, we don't want to have field info in the tests because it's too verbose
 		config.DisableIncludeInfo = true
 		config.DisableIncludeFieldDependencies = true
+		config.DisableCalculateFieldDependencies = true
 
 		opts := &testOptions{}
 		for _, o := range options {
@@ -153,8 +170,12 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 			config.DisableIncludeInfo = false
 		}
 
-		if opts.withFieldDependencies {
+		if opts.withIncludeFieldDependencies {
 			config.DisableIncludeFieldDependencies = false
+		}
+
+		if opts.withCalculateFieldDependencies {
+			config.DisableCalculateFieldDependencies = false
 		}
 
 		if opts.withFetchReasons {
@@ -170,11 +191,29 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 		if variables != "" {
 			op.Input.Variables = []byte(variables)
 		}
-		err := asttransform.MergeDefinitionWithBaseSchema(&def)
+
+		transformOptions := asttransform.Options{}
+		if opts.withDefer {
+			transformOptions.InternalDefer = true
+		}
+
+		err := asttransform.MergeDefinitionWithBaseSchemaWithOptions(&def, transformOptions)
 		if err != nil {
 			t.Fatal(err)
 		}
-		norm := astnormalization.NewWithOpts(astnormalization.WithExtractVariables(), astnormalization.WithInlineFragmentSpreads(), astnormalization.WithRemoveFragmentDefinitions(), astnormalization.WithRemoveUnusedVariables())
+
+		normalizationOptions := []astnormalization.Option{
+			astnormalization.WithExtractVariables(),
+			astnormalization.WithInlineFragmentSpreads(),
+			astnormalization.WithRemoveFragmentDefinitions(),
+			astnormalization.WithRemoveUnusedVariables(),
+		}
+
+		if opts.withDefer {
+			normalizationOptions = append(normalizationOptions, astnormalization.WithInlineDefer())
+		}
+
+		norm := astnormalization.NewWithOpts(normalizationOptions...)
 		var report operationreport.Report
 		norm.NormalizeOperation(&op, &def, &report)
 

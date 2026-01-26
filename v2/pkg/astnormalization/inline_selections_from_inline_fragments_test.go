@@ -96,4 +96,58 @@ func TestResolveInlineFragments(t *testing.T) {
 					}`)
 	})
 
+	t.Run("with internal defer", func(t *testing.T) {
+		run(t, inlineSelectionsFromInlineFragments, testDefinition, `
+					query pet {
+						pet {
+							... on Dog {
+								name @defer_internal(id: "1")
+								nickname @defer_internal(id: "1")
+								... {
+									barkVolume @defer_internal(id: "2", parentDeferId: "1")
+								}
+							}
+							... on Dog {
+								... {
+									extra @defer_internal(id: "3") {	
+										noString @defer_internal(id: "3")
+									}
+								}
+								... {
+									extra @defer_internal(id: "4") {	
+										string @defer_internal(id: "4")
+										noString @defer_internal(id: "4")
+									}
+								}
+							}
+							... on Cat {
+								name @defer_internal(id: "5")
+								meowVolume @defer_internal(id: "5")
+							}
+						}
+					}`,
+			`
+					query pet {
+						pet {
+							... on Dog {
+								name @defer_internal(id: "1")
+								nickname @defer_internal(id: "1")
+								barkVolume @defer_internal(id: "2", parentDeferId: "1")
+							}
+							... on Dog {
+								extra @defer_internal(id: "3") {	
+									noString @defer_internal(id: "3")
+								}
+								extra @defer_internal(id: "4") {	
+									string @defer_internal(id: "4")
+									noString @defer_internal(id: "4")
+								}
+							}
+							... on Cat {
+								name @defer_internal(id: "5")
+								meowVolume @defer_internal(id: "5")
+							}
+						}
+					}`)
+	})
 }

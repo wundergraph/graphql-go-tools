@@ -28,6 +28,7 @@ type PlannerConfiguration interface {
 
 	ObjectFetchConfiguration() *objectFetchConfiguration
 	DataSourceConfiguration() DataSource
+	DeferID() string
 
 	RequiredFields() *FederationFieldConfigurations
 
@@ -42,7 +43,6 @@ func (p *plannerConfiguration[T]) Register(visitor *Visitor) error {
 		ParentPath:     p.parentPath,
 		PathType:       p.parentPathType,
 		IsNested:       p.IsNestedPlanner(),
-		FetchID:        p.objectFetchConfiguration.fetchID,
 		Options:        p.options,
 	}
 
@@ -60,6 +60,10 @@ func (p *plannerConfiguration[T]) Debugger() (d DataSourceDebugger, ok bool) {
 
 func (p *plannerConfiguration[T]) ObjectFetchConfiguration() *objectFetchConfiguration {
 	return p.objectFetchConfiguration
+}
+
+func (p *plannerConfiguration[T]) DeferID() string {
+	return p.objectFetchConfiguration.deferID
 }
 
 func (p *plannerConfiguration[T]) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
@@ -82,6 +86,7 @@ type PlannerPathConfiguration interface {
 	IsNestedPlanner() bool
 	HasPath(path string) bool
 	HasPathWithFieldRef(fieldRef int) bool
+	PathWithFieldRef(fieldRef int) (*pathConfiguration, bool)
 	HasFragmentPath(fragmentRef int) bool
 	ShouldWalkFieldsOnPath(path string, typeName string) bool
 	HasParent(parent string) bool
@@ -92,7 +97,7 @@ func newPlannerPathsConfiguration(parentPath string, parentPathType PlannerPathT
 		parentPath:      parentPath,
 		parentPathType:  parentPathType,
 		index:           make(map[string][]int),
-		indexByFieldRef: make(map[int]struct{}),
+		indexByFieldRef: make(map[int]*pathConfiguration),
 		fragmentPaths:   make(map[pathConfiguration]struct{}),
 		nonLeafPaths:    make(map[string]struct{}),
 	}
@@ -112,7 +117,7 @@ type plannerPathsConfiguration struct {
 	// indexes
 
 	index           map[string][]int
-	indexByFieldRef map[int]struct{}
+	indexByFieldRef map[int]*pathConfiguration
 	fragmentPaths   map[pathConfiguration]struct{}
 	nonLeafPaths    map[string]struct{}
 }
@@ -146,7 +151,7 @@ func (p *plannerPathsConfiguration) AddPath(configuration pathConfiguration) {
 		p.fragmentPaths[configuration] = struct{}{}
 	}
 	if configuration.pathType == PathTypeField {
-		p.indexByFieldRef[configuration.fieldRef] = struct{}{}
+		p.indexByFieldRef[configuration.fieldRef] = &configuration
 	}
 }
 
@@ -164,6 +169,11 @@ func (p *plannerPathsConfiguration) HasPath(path string) bool {
 func (p *plannerPathsConfiguration) HasPathWithFieldRef(fieldRef int) bool {
 	_, ok := p.indexByFieldRef[fieldRef]
 	return ok
+}
+
+func (p *plannerPathsConfiguration) PathWithFieldRef(fieldRef int) (*pathConfiguration, bool) {
+	path, ok := p.indexByFieldRef[fieldRef]
+	return path, ok
 }
 
 func (p *plannerPathsConfiguration) HasFragmentPath(fragmentRef int) bool {
@@ -237,6 +247,9 @@ type pathConfiguration struct {
 	dsHash     DSHash
 	isRootNode bool
 	pathType   PathType
+
+	deferredField bool
+	deferID       string
 }
 
 type PathType int
@@ -250,7 +263,7 @@ const (
 func (p *pathConfiguration) String() string {
 	switch p.pathType {
 	case PathTypeField:
-		return fmt.Sprintf(`{"ds":%d,"path":"%s","fieldRef":%3d,"typeName":"%s","shouldWalkFields":%t,"isRootNode":%t,"pathType":"field"}`, p.dsHash, p.path, p.fieldRef, p.typeName, p.shouldWalkFields, p.isRootNode)
+		return fmt.Sprintf(`{"ds":%d,"path":"%s","fieldRef":%3d,"typeName":"%s","shouldWalkFields":%t,"isRootNode":%t,"pathType":"field","deferID":"%s"}`, p.dsHash, p.path, p.fieldRef, p.typeName, p.shouldWalkFields, p.isRootNode, p.deferID)
 	case PathTypeFragment:
 		return fmt.Sprintf(`{"ds":%d,"path":"%s","fragmentRef":%3d,"shouldWalkFields":%t,"pathType":"fragment"}`, p.dsHash, p.path, p.fragmentRef, p.shouldWalkFields)
 	case PathTypeParent:
