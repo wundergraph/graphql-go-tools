@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.244](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.243...v2.0.0-rc.244) (2026-01-26)
+
+
+### Bug Fixes
+
+* incorrect field resolver path ([#1363](https://github.com/wundergraph/graphql-go-tools/issues/1363)) ([46544dc](https://github.com/wundergraph/graphql-go-tools/commit/46544dc9bf1a8cbd61ad2505a34cef0e71e59f3b))
+
 ## [2.0.0-rc.243](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.242...v2.0.0-rc.243) (2026-01-20)
 
 
