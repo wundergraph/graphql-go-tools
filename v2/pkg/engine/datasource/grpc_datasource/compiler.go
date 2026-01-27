@@ -596,10 +596,10 @@ func (p *RPCCompiler) buildProtoMessageWithContext(inputMessage Message, rpcMess
 	contextList := p.newEmptyListMessageByName(rootMessage, contextSchemaField.Name)
 	contextData := p.resolveContextData(context[0], contextRPCField) // TODO handle multiple contexts (resolver requires another resolver)
 
-	for _, data := range contextData {
+	for _, contextElement := range contextData {
 		val := contextList.NewElement()
 		valMsg := val.Message()
-		for fieldName, value := range data {
+		for fieldName, value := range contextElement {
 			if err := p.setMessageValue(valMsg, fieldName, value); err != nil {
 				return nil, err
 			}
@@ -764,7 +764,6 @@ func (p *RPCCompiler) resolveContextDataForPath(message protoref.Message, path a
 	}
 
 	return p.resolveDataForPath(msg.Message(), path)
-
 }
 
 // resolveListDataForPath resolves the data for a given path in a list message.
@@ -784,13 +783,14 @@ func (p *RPCCompiler) resolveListDataForPath(message protoref.List, fd protoref.
 
 			for _, val := range values {
 				if list, isList := val.Interface().(protoref.List); isList {
-					values := p.resolveListDataForPath(list, fd, path)
+					values := p.resolveListDataForPath(list, fd, path[1:])
 					result = append(result, values...)
 					continue
+				} else {
+					result = append(result, val)
 				}
 			}
 
-			result = append(result, values...)
 		default:
 			result = append(result, item)
 		}

@@ -61,8 +61,10 @@ service ProductService {
   rpc RequireWarehouseStockHealthScoreById(RequireWarehouseStockHealthScoreByIdRequest) returns (RequireWarehouseStockHealthScoreByIdResponse) {}
   rpc ResolveCategoryCategoryMetrics(ResolveCategoryCategoryMetricsRequest) returns (ResolveCategoryCategoryMetricsResponse) {}
   rpc ResolveCategoryCategoryStatus(ResolveCategoryCategoryStatusRequest) returns (ResolveCategoryCategoryStatusResponse) {}
+  rpc ResolveCategoryChildCategories(ResolveCategoryChildCategoriesRequest) returns (ResolveCategoryChildCategoriesResponse) {}
   rpc ResolveCategoryMascot(ResolveCategoryMascotRequest) returns (ResolveCategoryMascotResponse) {}
   rpc ResolveCategoryMetricsNormalizedScore(ResolveCategoryMetricsNormalizedScoreRequest) returns (ResolveCategoryMetricsNormalizedScoreResponse) {}
+  rpc ResolveCategoryOptionalCategories(ResolveCategoryOptionalCategoriesRequest) returns (ResolveCategoryOptionalCategoriesResponse) {}
   rpc ResolveCategoryPopularityScore(ResolveCategoryPopularityScoreRequest) returns (ResolveCategoryPopularityScoreResponse) {}
   rpc ResolveCategoryProductCount(ResolveCategoryProductCountRequest) returns (ResolveCategoryProductCountResponse) {}
   rpc ResolveProductMascotRecommendation(ResolveProductMascotRecommendationRequest) returns (ResolveProductMascotRecommendationResponse) {}
@@ -898,6 +900,54 @@ message ResolveCategoryCategoryStatusResult {
 
 message ResolveCategoryCategoryStatusResponse {
   repeated ResolveCategoryCategoryStatusResult result = 1;
+}
+
+message ResolveCategoryChildCategoriesArgs {
+  google.protobuf.BoolValue include = 1;
+}
+
+message ResolveCategoryChildCategoriesContext {
+  string id = 1;
+  string name = 2;
+}
+
+message ResolveCategoryChildCategoriesRequest {
+  // context provides the resolver context for the field childCategories of type Category.
+  repeated ResolveCategoryChildCategoriesContext context = 1;
+  // field_args provides the arguments for the resolver field childCategories of type Category.
+  ResolveCategoryChildCategoriesArgs field_args = 2;
+}
+
+message ResolveCategoryChildCategoriesResult {
+  repeated Category child_categories = 1;
+}
+
+message ResolveCategoryChildCategoriesResponse {
+  repeated ResolveCategoryChildCategoriesResult result = 1;
+}
+
+message ResolveCategoryOptionalCategoriesArgs {
+  google.protobuf.BoolValue include = 1;
+}
+
+message ResolveCategoryOptionalCategoriesContext {
+  string id = 1;
+  string name = 2;
+}
+
+message ResolveCategoryOptionalCategoriesRequest {
+  // context provides the resolver context for the field optionalCategories of type Category.
+  repeated ResolveCategoryOptionalCategoriesContext context = 1;
+  // field_args provides the arguments for the resolver field optionalCategories of type Category.
+  ResolveCategoryOptionalCategoriesArgs field_args = 2;
+}
+
+message ResolveCategoryOptionalCategoriesResult {
+  ListOfCategory optional_categories = 1;
+}
+
+message ResolveCategoryOptionalCategoriesResponse {
+  repeated ResolveCategoryOptionalCategoriesResult result = 1;
 }
 
 message ResolveSubcategoryItemCountArgs {

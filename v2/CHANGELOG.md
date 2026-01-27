@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.0.0-rc.245](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.244...v2.0.0-rc.245) (2026-01-26)
+
+
+### Bug Fixes
+
+* concurrent access of the grpc datasource ([#1370](https://github.com/wundergraph/graphql-go-tools/issues/1370)) ([1875e64](https://github.com/wundergraph/graphql-go-tools/commit/1875e647a930117eec1882e94b1579dbbe19d3c9))
+
+## [2.0.0-rc.244](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.243...v2.0.0-rc.244) (2026-01-26)
+
+
+### Bug Fixes
+
+* incorrect field resolver path ([#1363](https://github.com/wundergraph/graphql-go-tools/issues/1363)) ([46544dc](https://github.com/wundergraph/graphql-go-tools/commit/46544dc9bf1a8cbd61ad2505a34cef0e71e59f3b))
+
+## [2.0.0-rc.243](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.242...v2.0.0-rc.243) (2026-01-20)
+
+
+### Bug Fixes
+
+* planner fixes for abstract selection rewriter, node selection rules ([#1360](https://github.com/wundergraph/graphql-go-tools/issues/1360)) ([7baca8b](https://github.com/wundergraph/graphql-go-tools/commit/7baca8bdf718f0aaaa869902456d609838122657))
+
 ## [2.0.0-rc.242](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.241...v2.0.0-rc.242) (2025-12-19)
 
 

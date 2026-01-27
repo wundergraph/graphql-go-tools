@@ -38,7 +38,6 @@ var _ resolve.DataSource = (*DataSource)(nil)
 // transforms the responses back to GraphQL format.
 type DataSource struct {
 	plan              *RPCExecutionPlan
-	graph             *DependencyGraph
 	cc                grpc.ClientConnInterface
 	rc                *RPCCompiler
 	mapping           *GRPCMapping
@@ -73,7 +72,6 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 
 	return &DataSource{
 		plan:              plan,
-		graph:             NewDependencyGraph(plan),
 		cc:                client,
 		rc:                config.Compiler,
 		mapping:           config.Mapping,
@@ -98,12 +96,14 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 		return nil
 	}
 
+	graph := NewDependencyGraph(d.plan)
+
 	arena := astjson.Arena{}
 	defer arena.Reset()
 	root := arena.NewObject()
 
-	if err := d.graph.TopologicalSortResolve(func(nodes []FetchItem) error {
-		serviceCalls, err := d.rc.CompileFetches(d.graph, nodes, variables)
+	if err := graph.TopologicalSortResolve(func(nodes []FetchItem) error {
+		serviceCalls, err := d.rc.CompileFetches(graph, nodes, variables)
 		if err != nil {
 			return err
 		}

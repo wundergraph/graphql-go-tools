@@ -424,7 +424,6 @@ func (c *pathBuilderVisitor) EnterSelectionSet(ref int) {
 
 func (c *pathBuilderVisitor) LeaveSelectionSet(ref int) {
 	c.debugPrint("LeaveSelectionSet ref:", ref)
-	// c.processPendingFieldRequirements(ref)
 	c.selectionSetRefs = c.selectionSetRefs[:len(c.selectionSetRefs)-1]
 	c.parentTypeNodes = c.parentTypeNodes[:len(c.parentTypeNodes)-1]
 }
