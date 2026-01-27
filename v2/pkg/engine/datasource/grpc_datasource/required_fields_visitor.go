@@ -162,12 +162,7 @@ func (r *requiredFieldsVisitor) EnterField(ref int) {
 		return
 	}
 
-	parentTypeName := r.message.Name
-	if !r.referenceNestedMessages {
-		parentTypeName = r.walker.EnclosingTypeDefinition.NameString(r.definition)
-	}
-
-	field, err := r.planCtx.buildField(parentTypeName, fd, fieldName, "")
+	field, err := r.planCtx.buildField(r.walker.EnclosingTypeDefinition.NameString(r.definition), fd, fieldName, "")
 	if err != nil {
 		r.walker.StopWithInternalErr(err)
 		return

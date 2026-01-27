@@ -1082,26 +1082,35 @@ type resolveRPCCallConfig struct {
 	fieldArgsMessage *RPCMessage
 }
 
-// buildFieldResolverTypeMessage builds the message for a given field resolver type.
+type buildFieldMessageConfig struct {
+	typeName              string
+	fragmentType          OneOfType
+	memberTypes           []string
+	fragmentSelections    []fragmentSelection
+	fieldsSelectionSetRef int
+	fieldRefs             []int
+}
+
+// buildMessageForField builds the message for a given field resolver type.
 // When a field resolver returns a complex or composite type, we need to build a message for the type.
-func (r *rpcPlanningContext) buildFieldResolverTypeMessage(typeName string, resolverField *resolverField) (*RPCMessage, error) {
+func (r *rpcPlanningContext) buildMessageForField(config buildFieldMessageConfig) (*RPCMessage, error) {
 	message := &RPCMessage{
-		Name:        typeName,
-		OneOfType:   resolverField.fragmentType,
-		MemberTypes: resolverField.memberTypes,
+		Name:        config.typeName,
+		OneOfType:   config.fragmentType,
+		MemberTypes: config.memberTypes,
 	}
 
 	// field resolvers which return a non scalar type must have a selection set.
 	// If we don't have a selection set we return an error.
-	if len(resolverField.fragmentSelections) == 0 && resolverField.fieldsSelectionSetRef == ast.InvalidRef {
+	if len(config.fragmentSelections) == 0 && config.fieldsSelectionSetRef == ast.InvalidRef {
 		return nil, errors.New("unable to resolve required fields: no fields selection set found")
 	}
 
 	// If the resolved field returns a composite type we need to handle the selection set for the inline fragment.
-	if len(resolverField.fragmentSelections) > 0 {
-		message.FieldSelectionSet = make(RPCFieldSelectionSet, len(resolverField.fragmentSelections))
+	if len(config.fragmentSelections) > 0 {
+		message.FieldSelectionSet = make(RPCFieldSelectionSet, len(config.fragmentSelections))
 
-		for _, fragmentSelection := range resolverField.fragmentSelections {
+		for _, fragmentSelection := range config.fragmentSelections {
 			inlineFragmentTypeNode, found := r.definition.NodeByNameStr(fragmentSelection.typeName)
 			if !found {
 				return nil, fmt.Errorf("unable to build composite field: underlying fragment type node not found for type %s", fragmentSelection.typeName)
@@ -1116,17 +1125,17 @@ func (r *rpcPlanningContext) buildFieldResolverTypeMessage(typeName string, reso
 		}
 	}
 
-	if resolverField.fieldsSelectionSetRef == ast.InvalidRef {
+	if config.fieldsSelectionSetRef == ast.InvalidRef {
 		return message, nil
 	}
 
 	// If the resolved field does not return a composite type we handle the selection set for the required field.
-	parentTypeNode, found := r.definition.NodeByNameStr(typeName)
+	parentTypeNode, found := r.definition.NodeByNameStr(config.typeName)
 	if !found {
-		return nil, fmt.Errorf("parent type node not found for type %s", typeName)
+		return nil, fmt.Errorf("parent type node not found for type %s", config.typeName)
 	}
 
-	fieldRefs := r.operation.SelectionSetFieldRefs(resolverField.fieldsSelectionSetRef)
+	fieldRefs := r.operation.SelectionSetFieldRefs(config.fieldsSelectionSetRef)
 	message.Fields = make(RPCFields, 0, len(fieldRefs))
 
 	for _, fieldRef := range fieldRefs {
@@ -1272,8 +1281,8 @@ message RequireWarehouseStockHealthScoreByIdFields {
 */
 func (r *rpcPlanningContext) createRequiredFieldsRPCCalls(callIndex *int, subgraphName string, entityTypeName string, data entityConfigData) ([]RPCCall, error) {
 	calls := make([]RPCCall, 0, len(data.requiredFields))
-	for fieldName, selectionSet := range data.requiredFields {
-		call, err := r.createRequiredFieldsRPCCall(*callIndex, subgraphName, entityTypeName, fieldName, selectionSet, data)
+	for fieldName, requiredField := range data.requiredFields {
+		call, err := r.createRequiredFieldsRPCCall(*callIndex, subgraphName, entityTypeName, fieldName, &requiredField, data)
 		if err != nil {
 			return nil, err
 		}
@@ -1286,7 +1295,7 @@ func (r *rpcPlanningContext) createRequiredFieldsRPCCalls(callIndex *int, subgra
 }
 
 // createRequiredFieldsRPCCall creates a new required fields RPC call for a given configuration.
-func (r *rpcPlanningContext) createRequiredFieldsRPCCall(callIndex int, subgraphName string, typeName, fieldName, selectionSet string, data entityConfigData) (RPCCall, error) {
+func (r *rpcPlanningContext) createRequiredFieldsRPCCall(callIndex int, subgraphName, typeName, fieldName string, requiredField *requiredField, data entityConfigData) (RPCCall, error) {
 	rpcConfig, exists := r.mapping.FindRequiredFieldsRPCConfig(typeName, data.keyFields, fieldName)
 	if !exists {
 		return RPCCall{}, fmt.Errorf("required fields RPC config not found for type: %s, field: %s", typeName, fieldName)
@@ -1296,6 +1305,18 @@ func (r *rpcPlanningContext) createRequiredFieldsRPCCall(callIndex int, subgraph
 		Name: rpcConfig.RPC + "Fields",
 	}
 
+	fieldDefRef := r.fieldDefinitionRefForType(fieldName, typeName)
+	if fieldDefRef == ast.InvalidRef {
+		return RPCCall{}, fmt.Errorf("unable to build required field: field definition not found for field %s", fieldName)
+	}
+
+	field, err := r.buildField(typeName, fieldDefRef, fieldName, "")
+	if err != nil {
+		return RPCCall{}, err
+	}
+
+	field.Name = rpcConfig.TargetName
+
 	call := RPCCall{
 		ID:          callIndex,
 		ServiceName: r.resolveServiceName(subgraphName),
@@ -1303,7 +1324,7 @@ func (r *rpcPlanningContext) createRequiredFieldsRPCCall(callIndex int, subgraph
 		MethodName:  rpcConfig.RPC,
 		ResponsePath: ast.Path{
 			{Kind: ast.FieldName, FieldName: []byte("_entities")},
-			{Kind: ast.FieldName, FieldName: unsafebytes.StringToBytes(fieldName)},
+			{Kind: ast.FieldName, FieldName: []byte(fieldName)},
 		},
 		Request: RPCMessage{
 			Name: rpcConfig.Request,
@@ -1340,14 +1361,8 @@ func (r *rpcPlanningContext) createRequiredFieldsRPCCall(callIndex int, subgraph
 					Repeated:      true,
 					JSONPath:      resultFieldName,
 					Message: &RPCMessage{
-						Name: rpcConfig.RPC + "Result",
-						Fields: RPCFields{
-							{
-								Name:          rpcConfig.TargetName,
-								ProtoTypeName: DataTypeDouble,
-								JSONPath:      fieldName,
-							},
-						},
+						Name:   rpcConfig.RPC + "Result",
+						Fields: RPCFields{requiredField.resultField},
 					},
 				},
 			},
@@ -1358,7 +1373,7 @@ func (r *rpcPlanningContext) createRequiredFieldsRPCCall(callIndex int, subgraph
 	defer walker.Release()
 
 	vis := newRequiredFieldsVisitor(walker, fieldMessage, r)
-	if err := vis.visit(r.definition, typeName, selectionSet, requiredFieldVisitorConfig{
+	if err := vis.visit(r.definition, typeName, requiredField.selectionSet, requiredFieldVisitorConfig{
 		referenceNestedMessages: true,
 	}); err != nil {
 		return RPCCall{}, err
@@ -1456,9 +1471,13 @@ func (r *rpcPlanningContext) newResolveRPCCall(config *resolveRPCCallConfig) (RP
 	var responseFieldsMessage *RPCMessage
 	if dataType == DataTypeMessage {
 		var err error
-		responseFieldsMessage, err = r.buildFieldResolverTypeMessage(
-			r.definition.ResolveTypeNameString(underlyingTypeRef),
-			resolvedField,
+		responseFieldsMessage, err = r.buildMessageForField(buildFieldMessageConfig{
+			typeName:              r.definition.ResolveTypeNameString(underlyingTypeRef),
+			fragmentType:          resolvedField.fragmentType,
+			memberTypes:           resolvedField.memberTypes,
+			fragmentSelections:    resolvedField.fragmentSelections,
+			fieldsSelectionSetRef: resolvedField.fieldsSelectionSetRef,
+		},
 		)
 
 		if err != nil {

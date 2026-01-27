@@ -309,6 +309,8 @@ func (r *rpcPlanVisitorFederation) EnterField(ref int) {
 
 	// If the field is a required field, we don't want to add it to the current response message.
 	if r.planCtx.isRequiredField(fieldDefRef) {
+		r.enterRequiredField(ref, fieldDefRef, r.walker.EnclosingTypeDefinition)
+		r.walker.SkipNode()
 		return
 	}
 
@@ -354,7 +356,7 @@ func (r *rpcPlanVisitorFederation) EnterField(ref int) {
 	r.fieldPath = r.fieldPath.WithFieldNameItem([]byte(prefix + field.Name))
 
 	// check if we are inside of an inline fragment and not the entity inline fragment
-	if ref, ok := r.walker.ResolveInlineFragment(); ok && r.entityInfo.entityInlineFragmentRef != ref {
+	if ref := r.walker.ResolveInlineFragment(); ref != ast.InvalidRef && r.entityInfo.entityInlineFragmentRef != ref {
 		if r.planInfo.currentResponseMessage.FieldSelectionSet == nil {
 			r.planInfo.currentResponseMessage.FieldSelectionSet = make(RPCFieldSelectionSet)
 		}
@@ -388,6 +390,58 @@ func (r *rpcPlanVisitorFederation) LeaveField(ref int) {
 		// Pop the field resolver ancestor only when leaving a field resolver field.
 		r.fieldResolverAncestors.pop()
 	}
+}
+
+// enterRequiredField handles the creation of the required field.
+// TODO: Handle support for nested field resolvers.
+func (r *rpcPlanVisitorFederation) enterRequiredField(ref, fieldDefRef int, parentTypeNode ast.Node) {
+	// build a field and add it to the entity config.
+	// If the field has selections, we need to recursively enter the subsequent selections and apply the logic in EnterField.
+	fieldName := r.operation.FieldNameString(ref)
+
+	field, err := r.planCtx.buildField(
+		parentTypeNode.NameString(r.definition),
+		fieldDefRef,
+		fieldName,
+		r.operation.FieldAliasString(ref),
+	)
+
+	if err != nil {
+		r.walker.StopWithInternalErr(err)
+		return
+	}
+
+	if field.ProtoTypeName == DataTypeMessage {
+		fieldDefType := r.definition.FieldDefinitionType(fieldDefRef)
+		message, err := r.planCtx.buildMessageForField(buildFieldMessageConfig{
+			typeName:              r.definition.ResolveTypeNameString(fieldDefType),
+			fieldsSelectionSetRef: r.operation.Fields[ref].SelectionSet,
+		})
+
+		if err != nil {
+			r.walker.StopWithInternalErr(err)
+			return
+		}
+
+		field.Message = message
+	}
+
+	config, exists := r.entityConfig.getEntity(r.entityInfo.typeName)
+	if !exists {
+		r.walker.StopWithInternalErr(fmt.Errorf("entity config not found for type %s", r.entityInfo.typeName))
+		return
+	}
+
+	rf, exists := config.requiredFields[fieldName]
+	if !exists {
+		r.walker.StopWithInternalErr(fmt.Errorf("required field not found for type %s and field %s", r.entityInfo.typeName, fieldName))
+		return
+	}
+
+	rf.ref = ref
+	rf.fieldDefRef = fieldDefRef
+	rf.resultField = field
+	config.requiredFields[fieldName] = rf
 }
 
 // enterFieldResolver enters a field resolver.
@@ -541,10 +595,16 @@ type entityInfo struct {
 
 type entityConfig map[string]entityConfigData
 
+type requiredField struct {
+	ref          int
+	fieldDefRef  int
+	selectionSet string
+	resultField  RPCField
+}
 type entityConfigData struct {
 	keyFields       string
 	keyFieldMessage *RPCMessage
-	requiredFields  map[string]string
+	requiredFields  map[string]requiredField
 }
 
 func (e entityConfig) setEntity(typeName string, data entityConfigData) {
@@ -573,12 +633,16 @@ func parseFederationConfigData(federationConfigs plan.FederationFieldConfigurati
 		data, ok := config.getEntity(fc.TypeName)
 		if !ok {
 			data = entityConfigData{
-				requiredFields: make(map[string]string),
+				requiredFields: make(map[string]requiredField),
 			}
 		}
 
 		if fc.FieldName != "" {
-			data.requiredFields[fc.FieldName] = fc.SelectionSet
+			data.requiredFields[fc.FieldName] = requiredField{
+				ref:          ast.InvalidRef,
+				fieldDefRef:  ast.InvalidRef,
+				selectionSet: fc.SelectionSet,
+			}
 		} else {
 			data.keyFields = fc.SelectionSet
 		}

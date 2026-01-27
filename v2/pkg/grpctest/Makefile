@@ -41,8 +41,8 @@ generate-mapping-code-local: regenerate-proto-local
 	rm -f $(mkfile_dir)/testdata/mapping.json
 
 
-.PHONY: generate-all-local
-generate-all-local: generate-mapping-code-local generate-proto
-
 .PHONY: generate-all
 generate-all: generate-mapping-code generate-proto
+
+.PHONY: generate-all-local
+generate-all-local: generate-mapping-code-local generate-proto

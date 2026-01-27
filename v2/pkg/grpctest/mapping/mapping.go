@@ -577,107 +577,6 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 			},
 		},
 		Fields: map[string]grpcdatasource.FieldMap{
-			"RequireStorageStockHealthScoreByIdFields.RestockData": {
-				"lastRestockDate": {
-					TargetName: "last_restock_date",
-				},
-			},
-			"RequireStorageStockHealthScoreByIdFields": {
-				"itemCount": {
-					TargetName: "item_count",
-				},
-				"restockData": {
-					TargetName: "restock_data",
-				},
-			},
-			"RequireStorageTagSummaryByIdFields": {
-				"tags": {
-					TargetName: "tags",
-				},
-			},
-			"RequireStorageOptionalTagSummaryByIdFields": {
-				"optionalTags": {
-					TargetName: "optional_tags",
-				},
-			},
-			"RequireStorageMetadataScoreByIdFields.StorageMetadata": {
-				"capacity": {
-					TargetName: "capacity",
-				},
-				"zone": {
-					TargetName: "zone",
-				},
-			},
-			"RequireStorageMetadataScoreByIdFields": {
-				"metadata": {
-					TargetName: "metadata",
-				},
-			},
-			"RequireStorageProcessedMetadataByIdFields.StorageMetadata": {
-				"capacity": {
-					TargetName: "capacity",
-				},
-				"zone": {
-					TargetName: "zone",
-				},
-				"priority": {
-					TargetName: "priority",
-				},
-			},
-			"RequireStorageProcessedMetadataByIdFields": {
-				"metadata": {
-					TargetName: "metadata",
-				},
-			},
-			"RequireStorageOptionalProcessedMetadataByIdFields.StorageMetadata": {
-				"capacity": {
-					TargetName: "capacity",
-				},
-				"zone": {
-					TargetName: "zone",
-				},
-			},
-			"RequireStorageOptionalProcessedMetadataByIdFields": {
-				"metadata": {
-					TargetName: "metadata",
-				},
-			},
-			"RequireStorageProcessedTagsByIdFields": {
-				"tags": {
-					TargetName: "tags",
-				},
-			},
-			"RequireStorageOptionalProcessedTagsByIdFields": {
-				"optionalTags": {
-					TargetName: "optional_tags",
-				},
-			},
-			"RequireStorageProcessedMetadataHistoryByIdFields.StorageMetadata": {
-				"capacity": {
-					TargetName: "capacity",
-				},
-				"zone": {
-					TargetName: "zone",
-				},
-			},
-			"RequireStorageProcessedMetadataHistoryByIdFields": {
-				"metadataHistory": {
-					TargetName: "metadata_history",
-				},
-			},
-			"RequireWarehouseStockHealthScoreByIdFields.RestockData": {
-				"lastRestockDate": {
-					TargetName: "last_restock_date",
-				},
-			},
-			"RequireWarehouseStockHealthScoreByIdFields": {
-				"inventoryCount": {
-					TargetName: "inventory_count",
-				},
-				"restockData": {
-					TargetName: "restock_data",
-				},
-			},
 			"Query": {
 				"users": {
 					TargetName: "users",
@@ -973,6 +872,51 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				"location": {
 					TargetName: "location",
 				},
+				"itemCount": {
+					TargetName: "item_count",
+				},
+				"restockData": {
+					TargetName: "restock_data",
+				},
+				"stockHealthScore": {
+					TargetName: "stock_health_score",
+				},
+				"tags": {
+					TargetName: "tags",
+				},
+				"optionalTags": {
+					TargetName: "optional_tags",
+				},
+				"metadata": {
+					TargetName: "metadata",
+				},
+				"metadataHistory": {
+					TargetName: "metadata_history",
+				},
+				"tagSummary": {
+					TargetName: "tag_summary",
+				},
+				"optionalTagSummary": {
+					TargetName: "optional_tag_summary",
+				},
+				"metadataScore": {
+					TargetName: "metadata_score",
+				},
+				"processedMetadata": {
+					TargetName: "processed_metadata",
+				},
+				"optionalProcessedMetadata": {
+					TargetName: "optional_processed_metadata",
+				},
+				"processedTags": {
+					TargetName: "processed_tags",
+				},
+				"optionalProcessedTags": {
+					TargetName: "optional_processed_tags",
+				},
+				"processedMetadataHistory": {
+					TargetName: "processed_metadata_history",
+				},
 				"storageStatus": {
 					TargetName: "storage_status",
 					ArgumentMappings: grpcdatasource.FieldArgumentMap{
@@ -1001,6 +945,15 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"location": {
 					TargetName: "location",
+				},
+				"inventoryCount": {
+					TargetName: "inventory_count",
+				},
+				"restockData": {
+					TargetName: "restock_data",
+				},
+				"stockHealthScore": {
+					TargetName: "stock_health_score",
 				},
 			},
 			"RestockData": {
