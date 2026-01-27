@@ -49,9 +49,9 @@ func (s *MockService) RequireWarehouseStockHealthScoreById(_ context.Context, re
 	return &productv1.RequireWarehouseStockHealthScoreByIdResponse{Result: results}, nil
 }
 
-// RequireWarehouseTagSummaryById implements [productv1.ProductServiceServer].
-func (s *MockService) RequireWarehouseTagSummaryById(_ context.Context, req *productv1.RequireWarehouseTagSummaryByIdRequest) (*productv1.RequireWarehouseTagSummaryByIdResponse, error) {
-	results := make([]*productv1.RequireWarehouseTagSummaryByIdResult, 0, len(req.GetContext()))
+// RequireStorageTagSummaryById implements [productv1.ProductServiceServer].
+func (s *MockService) RequireStorageTagSummaryById(_ context.Context, req *productv1.RequireStorageTagSummaryByIdRequest) (*productv1.RequireStorageTagSummaryByIdResponse, error) {
+	results := make([]*productv1.RequireStorageTagSummaryByIdResult, 0, len(req.GetContext()))
 
 	for _, ctx := range req.GetContext() {
 		fields := ctx.GetFields()
@@ -59,17 +59,17 @@ func (s *MockService) RequireWarehouseTagSummaryById(_ context.Context, req *pro
 		tags := fields.GetTags()
 		tagSummary := strings.Join(tags, ", ")
 
-		results = append(results, &productv1.RequireWarehouseTagSummaryByIdResult{
+		results = append(results, &productv1.RequireStorageTagSummaryByIdResult{
 			TagSummary: tagSummary,
 		})
 	}
 
-	return &productv1.RequireWarehouseTagSummaryByIdResponse{Result: results}, nil
+	return &productv1.RequireStorageTagSummaryByIdResponse{Result: results}, nil
 }
 
-// RequireWarehouseOptionalTagSummaryById implements [productv1.ProductServiceServer].
-func (s *MockService) RequireWarehouseOptionalTagSummaryById(_ context.Context, req *productv1.RequireWarehouseOptionalTagSummaryByIdRequest) (*productv1.RequireWarehouseOptionalTagSummaryByIdResponse, error) {
-	results := make([]*productv1.RequireWarehouseOptionalTagSummaryByIdResult, 0, len(req.GetContext()))
+// RequireStorageOptionalTagSummaryById implements [productv1.ProductServiceServer].
+func (s *MockService) RequireStorageOptionalTagSummaryById(_ context.Context, req *productv1.RequireStorageOptionalTagSummaryByIdRequest) (*productv1.RequireStorageOptionalTagSummaryByIdResponse, error) {
+	results := make([]*productv1.RequireStorageOptionalTagSummaryByIdResult, 0, len(req.GetContext()))
 
 	for _, ctx := range req.GetContext() {
 		fields := ctx.GetFields()
@@ -83,17 +83,17 @@ func (s *MockService) RequireWarehouseOptionalTagSummaryById(_ context.Context, 
 		}
 		// Otherwise, optionalTagSummary remains nil
 
-		results = append(results, &productv1.RequireWarehouseOptionalTagSummaryByIdResult{
+		results = append(results, &productv1.RequireStorageOptionalTagSummaryByIdResult{
 			OptionalTagSummary: optionalTagSummary,
 		})
 	}
 
-	return &productv1.RequireWarehouseOptionalTagSummaryByIdResponse{Result: results}, nil
+	return &productv1.RequireStorageOptionalTagSummaryByIdResponse{Result: results}, nil
 }
 
-// RequireWarehouseMetadataScoreById implements [productv1.ProductServiceServer].
-func (s *MockService) RequireWarehouseMetadataScoreById(_ context.Context, req *productv1.RequireWarehouseMetadataScoreByIdRequest) (*productv1.RequireWarehouseMetadataScoreByIdResponse, error) {
-	results := make([]*productv1.RequireWarehouseMetadataScoreByIdResult, 0, len(req.GetContext()))
+// RequireStorageMetadataScoreById implements [productv1.ProductServiceServer].
+func (s *MockService) RequireStorageMetadataScoreById(_ context.Context, req *productv1.RequireStorageMetadataScoreByIdRequest) (*productv1.RequireStorageMetadataScoreByIdResponse, error) {
+	results := make([]*productv1.RequireStorageMetadataScoreByIdResult, 0, len(req.GetContext()))
 
 	for _, ctx := range req.GetContext() {
 		fields := ctx.GetFields()
@@ -118,51 +118,51 @@ func (s *MockService) RequireWarehouseMetadataScoreById(_ context.Context, req *
 
 		score := capacity * zoneWeight
 
-		results = append(results, &productv1.RequireWarehouseMetadataScoreByIdResult{
+		results = append(results, &productv1.RequireStorageMetadataScoreByIdResult{
 			MetadataScore: score,
 		})
 	}
 
-	return &productv1.RequireWarehouseMetadataScoreByIdResponse{Result: results}, nil
+	return &productv1.RequireStorageMetadataScoreByIdResponse{Result: results}, nil
 }
 
-// RequireWarehouseProcessedMetadataById implements [productv1.ProductServiceServer].
-// Returns a complex type (WarehouseMetadata) with processed values.
-func (s *MockService) RequireWarehouseProcessedMetadataById(_ context.Context, req *productv1.RequireWarehouseProcessedMetadataByIdRequest) (*productv1.RequireWarehouseProcessedMetadataByIdResponse, error) {
-	results := make([]*productv1.RequireWarehouseProcessedMetadataByIdResult, 0, len(req.GetContext()))
+// RequireStorageProcessedMetadataById implements [productv1.ProductServiceServer].
+// Returns a complex type (StorageMetadata) with processed values.
+func (s *MockService) RequireStorageProcessedMetadataById(_ context.Context, req *productv1.RequireStorageProcessedMetadataByIdRequest) (*productv1.RequireStorageProcessedMetadataByIdResponse, error) {
+	results := make([]*productv1.RequireStorageProcessedMetadataByIdResult, 0, len(req.GetContext()))
 
 	for _, ctx := range req.GetContext() {
 		fields := ctx.GetFields()
 		metadata := fields.GetMetadata()
 
 		// Process metadata: double capacity, uppercase zone, adjust priority
-		processedMetadata := &productv1.WarehouseMetadata{
+		processedMetadata := &productv1.StorageMetadata{
 			Capacity: metadata.GetCapacity() * 2,
 			Zone:     strings.ToUpper(metadata.GetZone()),
 			Priority: metadata.GetPriority() + 10,
 		}
 
-		results = append(results, &productv1.RequireWarehouseProcessedMetadataByIdResult{
+		results = append(results, &productv1.RequireStorageProcessedMetadataByIdResult{
 			ProcessedMetadata: processedMetadata,
 		})
 	}
 
-	return &productv1.RequireWarehouseProcessedMetadataByIdResponse{Result: results}, nil
+	return &productv1.RequireStorageProcessedMetadataByIdResponse{Result: results}, nil
 }
 
-// RequireWarehouseOptionalProcessedMetadataById implements [productv1.ProductServiceServer].
-// Returns a nullable complex type (WarehouseMetadata).
-func (s *MockService) RequireWarehouseOptionalProcessedMetadataById(_ context.Context, req *productv1.RequireWarehouseOptionalProcessedMetadataByIdRequest) (*productv1.RequireWarehouseOptionalProcessedMetadataByIdResponse, error) {
-	results := make([]*productv1.RequireWarehouseOptionalProcessedMetadataByIdResult, 0, len(req.GetContext()))
+// RequireStorageOptionalProcessedMetadataById implements [productv1.ProductServiceServer].
+// Returns a nullable complex type (StorageMetadata).
+func (s *MockService) RequireStorageOptionalProcessedMetadataById(_ context.Context, req *productv1.RequireStorageOptionalProcessedMetadataByIdRequest) (*productv1.RequireStorageOptionalProcessedMetadataByIdResponse, error) {
+	results := make([]*productv1.RequireStorageOptionalProcessedMetadataByIdResult, 0, len(req.GetContext()))
 
 	for i, ctx := range req.GetContext() {
 		fields := ctx.GetFields()
 		metadata := fields.GetMetadata()
 
-		var processedMetadata *productv1.WarehouseMetadata
+		var processedMetadata *productv1.StorageMetadata
 		// Return nil for every other item to test nullable behavior
 		if i%2 == 0 && metadata != nil {
-			processedMetadata = &productv1.WarehouseMetadata{
+			processedMetadata = &productv1.StorageMetadata{
 				Capacity: metadata.GetCapacity() * 3,
 				Zone:     strings.ToLower(metadata.GetZone()),
 				Priority: 1, // Default priority for optional
@@ -170,18 +170,18 @@ func (s *MockService) RequireWarehouseOptionalProcessedMetadataById(_ context.Co
 		}
 		// For odd indices, processedMetadata remains nil
 
-		results = append(results, &productv1.RequireWarehouseOptionalProcessedMetadataByIdResult{
+		results = append(results, &productv1.RequireStorageOptionalProcessedMetadataByIdResult{
 			OptionalProcessedMetadata: processedMetadata,
 		})
 	}
 
-	return &productv1.RequireWarehouseOptionalProcessedMetadataByIdResponse{Result: results}, nil
+	return &productv1.RequireStorageOptionalProcessedMetadataByIdResponse{Result: results}, nil
 }
 
-// RequireWarehouseProcessedTagsById implements [productv1.ProductServiceServer].
+// RequireStorageProcessedTagsById implements [productv1.ProductServiceServer].
 // Returns a list of strings with processed tags.
-func (s *MockService) RequireWarehouseProcessedTagsById(_ context.Context, req *productv1.RequireWarehouseProcessedTagsByIdRequest) (*productv1.RequireWarehouseProcessedTagsByIdResponse, error) {
-	results := make([]*productv1.RequireWarehouseProcessedTagsByIdResult, 0, len(req.GetContext()))
+func (s *MockService) RequireStorageProcessedTagsById(_ context.Context, req *productv1.RequireStorageProcessedTagsByIdRequest) (*productv1.RequireStorageProcessedTagsByIdResponse, error) {
+	results := make([]*productv1.RequireStorageProcessedTagsByIdResult, 0, len(req.GetContext()))
 
 	for _, ctx := range req.GetContext() {
 		fields := ctx.GetFields()
@@ -193,18 +193,18 @@ func (s *MockService) RequireWarehouseProcessedTagsById(_ context.Context, req *
 			processedTags = append(processedTags, "PROCESSED_"+strings.ToUpper(tag))
 		}
 
-		results = append(results, &productv1.RequireWarehouseProcessedTagsByIdResult{
+		results = append(results, &productv1.RequireStorageProcessedTagsByIdResult{
 			ProcessedTags: processedTags,
 		})
 	}
 
-	return &productv1.RequireWarehouseProcessedTagsByIdResponse{Result: results}, nil
+	return &productv1.RequireStorageProcessedTagsByIdResponse{Result: results}, nil
 }
 
-// RequireWarehouseOptionalProcessedTagsById implements [productv1.ProductServiceServer].
+// RequireStorageOptionalProcessedTagsById implements [productv1.ProductServiceServer].
 // Returns a nullable list of strings.
-func (s *MockService) RequireWarehouseOptionalProcessedTagsById(_ context.Context, req *productv1.RequireWarehouseOptionalProcessedTagsByIdRequest) (*productv1.RequireWarehouseOptionalProcessedTagsByIdResponse, error) {
-	results := make([]*productv1.RequireWarehouseOptionalProcessedTagsByIdResult, 0, len(req.GetContext()))
+func (s *MockService) RequireStorageOptionalProcessedTagsById(_ context.Context, req *productv1.RequireStorageOptionalProcessedTagsByIdRequest) (*productv1.RequireStorageOptionalProcessedTagsByIdResponse, error) {
+	results := make([]*productv1.RequireStorageOptionalProcessedTagsByIdResult, 0, len(req.GetContext()))
 
 	for i, ctx := range req.GetContext() {
 		fields := ctx.GetFields()
@@ -212,7 +212,7 @@ func (s *MockService) RequireWarehouseOptionalProcessedTagsById(_ context.Contex
 
 		var processedTags *productv1.ListOfString
 		// Return nil for every other item to test nullable behavior
-		// Also return nil if optionalTags is empty (matching RequireWarehouseOptionalTagSummaryById behavior)
+		// Also return nil if optionalTags is empty (matching RequireStorageOptionalTagSummaryById behavior)
 		if i%2 == 0 && optionalTags != nil && optionalTags.GetList() != nil && len(optionalTags.GetList().GetItems()) > 0 {
 			items := optionalTags.GetList().GetItems()
 			processed := make([]string, 0, len(items))
@@ -227,37 +227,37 @@ func (s *MockService) RequireWarehouseOptionalProcessedTagsById(_ context.Contex
 		}
 		// For odd indices, processedTags remains nil
 
-		results = append(results, &productv1.RequireWarehouseOptionalProcessedTagsByIdResult{
+		results = append(results, &productv1.RequireStorageOptionalProcessedTagsByIdResult{
 			OptionalProcessedTags: processedTags,
 		})
 	}
 
-	return &productv1.RequireWarehouseOptionalProcessedTagsByIdResponse{Result: results}, nil
+	return &productv1.RequireStorageOptionalProcessedTagsByIdResponse{Result: results}, nil
 }
 
-// RequireWarehouseProcessedMetadataHistoryById implements [productv1.ProductServiceServer].
-// Returns a list of complex types (WarehouseMetadata).
-func (s *MockService) RequireWarehouseProcessedMetadataHistoryById(_ context.Context, req *productv1.RequireWarehouseProcessedMetadataHistoryByIdRequest) (*productv1.RequireWarehouseProcessedMetadataHistoryByIdResponse, error) {
-	results := make([]*productv1.RequireWarehouseProcessedMetadataHistoryByIdResult, 0, len(req.GetContext()))
+// RequireStorageProcessedMetadataHistoryById implements [productv1.ProductServiceServer].
+// Returns a list of complex types (StorageMetadata).
+func (s *MockService) RequireStorageProcessedMetadataHistoryById(_ context.Context, req *productv1.RequireStorageProcessedMetadataHistoryByIdRequest) (*productv1.RequireStorageProcessedMetadataHistoryByIdResponse, error) {
+	results := make([]*productv1.RequireStorageProcessedMetadataHistoryByIdResult, 0, len(req.GetContext()))
 
 	for _, ctx := range req.GetContext() {
 		fields := ctx.GetFields()
 		metadataHistory := fields.GetMetadataHistory()
 
 		// Process each metadata in history: multiply capacity by index+1, prefix zone
-		processedHistory := make([]*productv1.WarehouseMetadata, 0, len(metadataHistory))
+		processedHistory := make([]*productv1.StorageMetadata, 0, len(metadataHistory))
 		for j, metadata := range metadataHistory {
-			processedHistory = append(processedHistory, &productv1.WarehouseMetadata{
+			processedHistory = append(processedHistory, &productv1.StorageMetadata{
 				Capacity: metadata.GetCapacity() * int32(j+1),
 				Zone:     "HIST_" + metadata.GetZone(),
 				Priority: int32(j + 1),
 			})
 		}
 
-		results = append(results, &productv1.RequireWarehouseProcessedMetadataHistoryByIdResult{
+		results = append(results, &productv1.RequireStorageProcessedMetadataHistoryByIdResult{
 			ProcessedMetadataHistory: processedHistory,
 		})
 	}
 
-	return &productv1.RequireWarehouseProcessedMetadataHistoryByIdResponse{Result: results}, nil
+	return &productv1.RequireStorageProcessedMetadataHistoryByIdResponse{Result: results}, nil
 }
