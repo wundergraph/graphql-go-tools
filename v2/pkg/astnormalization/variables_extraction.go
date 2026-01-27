@@ -69,7 +69,7 @@ func (v *variablesExtractionVisitor) EnterArgument(ref int) {
 			v.uploadsPath = append(v.uploadsPath, uploadsMapping...)
 		}
 		// Record the field argument mapping for existing variables
-		v.recordFieldArgumentMapping(ref)
+		v.recordFieldArgumentMapping(ref, "")
 		return
 	}
 
@@ -150,7 +150,7 @@ func (v *variablesExtractionVisitor) EnterArgument(ref int) {
 	v.operation.OperationDefinitions[v.Ancestors[0].Ref].HasVariableDefinitions = true
 
 	// Record the field argument mapping for the newly extracted variable
-	v.recordFieldArgumentMappingWithVarName(ref, string(variableNameBytes))
+	v.recordFieldArgumentMapping(ref, string(variableNameBytes))
 }
 
 func (v *variablesExtractionVisitor) EnterDocument(operation, definition *ast.Document) {
@@ -177,23 +177,16 @@ func (v *variablesExtractionVisitor) buildFieldPath() string {
 	return strings.Join(parts, ".")
 }
 
-// recordFieldArgumentMapping records the field argument mapping for an existing variable.
-func (v *variablesExtractionVisitor) recordFieldArgumentMapping(ref int) {
+// recordFieldArgumentMapping records the currently visited field argument
+// of v in v.fieldArgumentMapping, alongside its matching variable name.
+// If varName is empty, it looks up the variable name from the operation.
+func (v *variablesExtractionVisitor) recordFieldArgumentMapping(ref int, varName string) {
 	fieldPath := v.buildFieldPath()
 	if fieldPath == "" {
 		return
 	}
-	argName := v.operation.ArgumentNameString(ref)
-	key := fieldPath + "." + argName
-	varName := v.operation.VariableValueNameString(v.operation.Arguments[ref].Value.Ref)
-	v.fieldArgumentMapping[key] = varName
-}
-
-// recordFieldArgumentMappingWithVarName records the field argument mapping for a newly extracted variable.
-func (v *variablesExtractionVisitor) recordFieldArgumentMappingWithVarName(ref int, varName string) {
-	fieldPath := v.buildFieldPath()
-	if fieldPath == "" {
-		return
+	if varName == "" {
+		varName = v.operation.VariableValueNameString(v.operation.Arguments[ref].Value.Ref)
 	}
 	argName := v.operation.ArgumentNameString(ref)
 	key := fieldPath + "." + argName
