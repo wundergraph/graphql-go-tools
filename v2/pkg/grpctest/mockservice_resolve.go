@@ -842,3 +842,125 @@ func (s *MockService) ResolveCategoryProductCount(_ context.Context, req *produc
 
 	return resp, nil
 }
+
+// ResolveWarehouseWarehouseStatus implements productv1.ProductServiceServer.
+func (s *MockService) ResolveWarehouseWarehouseStatus(_ context.Context, req *productv1.ResolveWarehouseWarehouseStatusRequest) (*productv1.ResolveWarehouseWarehouseStatusResponse, error) {
+	results := make([]*productv1.ResolveWarehouseWarehouseStatusResult, 0, len(req.GetContext()))
+
+	checkHealth := false
+	if req.GetFieldArgs() != nil {
+		checkHealth = req.GetFieldArgs().GetCheckHealth()
+	}
+
+	for i, ctx := range req.GetContext() {
+		var actionResult *productv1.ActionResult
+
+		if checkHealth && i%3 == 0 {
+			// Return error status for health check failures
+			actionResult = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionError{
+					ActionError: &productv1.ActionError{
+						Message: fmt.Sprintf("Health check failed for warehouse %s", ctx.GetName()),
+						Code:    "WAREHOUSE_HEALTH_CHECK_FAILED",
+					},
+				},
+			}
+		} else {
+			// Return success status
+			actionResult = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionSuccess{
+					ActionSuccess: &productv1.ActionSuccess{
+						Message:   fmt.Sprintf("Warehouse %s is healthy", ctx.GetName()),
+						Timestamp: "2024-01-01T00:00:00Z",
+					},
+				},
+			}
+		}
+
+		results = append(results, &productv1.ResolveWarehouseWarehouseStatusResult{
+			WarehouseStatus: actionResult,
+		})
+	}
+
+	return &productv1.ResolveWarehouseWarehouseStatusResponse{
+		Result: results,
+	}, nil
+}
+
+// ResolveWarehouseLinkedWarehouses implements productv1.ProductServiceServer.
+func (s *MockService) ResolveWarehouseLinkedWarehouses(_ context.Context, req *productv1.ResolveWarehouseLinkedWarehousesRequest) (*productv1.ResolveWarehouseLinkedWarehousesResponse, error) {
+	results := make([]*productv1.ResolveWarehouseLinkedWarehousesResult, len(req.GetContext()))
+
+	depth := int32(1)
+	if req.GetFieldArgs() != nil {
+		depth = req.GetFieldArgs().GetDepth()
+	}
+
+	for i, ctx := range req.GetContext() {
+		// Generate linked warehouses based on depth
+		linkedWarehouses := make([]*productv1.Warehouse, 0, depth)
+		for j := int32(0); j < depth; j++ {
+			linkedWarehouses = append(linkedWarehouses, &productv1.Warehouse{
+				Id:       fmt.Sprintf("linked-warehouse-%s-%d", ctx.GetId(), j),
+				Name:     fmt.Sprintf("Linked Warehouse %s %d", ctx.GetName(), j),
+				Location: fmt.Sprintf("%s-linked-%d", ctx.GetLocation(), j),
+			})
+		}
+
+		results[i] = &productv1.ResolveWarehouseLinkedWarehousesResult{
+			LinkedWarehouses: linkedWarehouses,
+		}
+	}
+
+	return &productv1.ResolveWarehouseLinkedWarehousesResponse{
+		Result: results,
+	}, nil
+}
+
+// ResolveWarehouseNearbyWarehouses implements productv1.ProductServiceServer.
+func (s *MockService) ResolveWarehouseNearbyWarehouses(_ context.Context, req *productv1.ResolveWarehouseNearbyWarehousesRequest) (*productv1.ResolveWarehouseNearbyWarehousesResponse, error) {
+	results := make([]*productv1.ResolveWarehouseNearbyWarehousesResult, 0, len(req.GetContext()))
+
+	// Check if radius arg is set - if nil or 0, return nil for nearbyWarehouses
+	radius := int32(0)
+	if req.GetFieldArgs() != nil && req.GetFieldArgs().GetRadius() != nil {
+		radius = req.GetFieldArgs().GetRadius().GetValue()
+	}
+
+	for i, ctx := range req.GetContext() {
+		var nearbyWarehouses *productv1.ListOfWarehouse
+
+		if radius > 0 {
+			// Generate nearby warehouses based on radius
+			warehouses := make([]*productv1.Warehouse, 0, radius)
+			for j := int32(0); j < radius && j < 5; j++ { // Cap at 5 warehouses
+				warehouses = append(warehouses, &productv1.Warehouse{
+					Id:       fmt.Sprintf("nearby-warehouse-%s-%d", ctx.GetId(), j),
+					Name:     fmt.Sprintf("Nearby Warehouse %d", j),
+					Location: fmt.Sprintf("%s-nearby-%d", ctx.GetLocation(), j),
+				})
+			}
+			nearbyWarehouses = &productv1.ListOfWarehouse{
+				List: &productv1.ListOfWarehouse_List{
+					Items: warehouses,
+				},
+			}
+		} else if i%2 == 0 {
+			// For even indices with no radius, return empty list
+			nearbyWarehouses = &productv1.ListOfWarehouse{
+				List: &productv1.ListOfWarehouse_List{
+					Items: []*productv1.Warehouse{},
+				},
+			}
+		}
+		// For odd indices with no radius, nearbyWarehouses remains nil
+
+		results = append(results, &productv1.ResolveWarehouseNearbyWarehousesResult{
+			NearbyWarehouses: nearbyWarehouses,
+		})
+	}
+
+	return &productv1.ResolveWarehouseNearbyWarehousesResponse{
+		Result: results,
+	}, nil
+}

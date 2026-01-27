@@ -404,6 +404,41 @@ func testMapping() *GRPCMapping {
 					Response: "ResolveTestContainerDetailsResponse",
 				},
 			},
+			"Warehouse": {
+				"warehouseStatus": {
+					FieldMappingData: FieldMapData{
+						TargetName: "warehouse_status",
+						ArgumentMappings: FieldArgumentMap{
+							"checkHealth": "check_health",
+						},
+					},
+					RPC:      "ResolveWarehouseWarehouseStatus",
+					Request:  "ResolveWarehouseWarehouseStatusRequest",
+					Response: "ResolveWarehouseWarehouseStatusResponse",
+				},
+				"linkedWarehouses": {
+					FieldMappingData: FieldMapData{
+						TargetName: "linked_warehouses",
+						ArgumentMappings: FieldArgumentMap{
+							"depth": "depth",
+						},
+					},
+					RPC:      "ResolveWarehouseLinkedWarehouses",
+					Request:  "ResolveWarehouseLinkedWarehousesRequest",
+					Response: "ResolveWarehouseLinkedWarehousesResponse",
+				},
+				"nearbyWarehouses": {
+					FieldMappingData: FieldMapData{
+						TargetName: "nearby_warehouses",
+						ArgumentMappings: FieldArgumentMap{
+							"radius": "radius",
+						},
+					},
+					RPC:      "ResolveWarehouseNearbyWarehouses",
+					Request:  "ResolveWarehouseNearbyWarehousesRequest",
+					Response: "ResolveWarehouseNearbyWarehousesResponse",
+				},
+			},
 		},
 		EntityRPCs: map[string][]EntityRPCConfig{
 			"Product": {
@@ -453,6 +488,70 @@ func testMapping() *GRPCMapping {
 								Response: "RequireWarehouseStockHealthScoreByIdResponse",
 							},
 						},
+						"tagSummary": {
+							TargetName: "tag_summary",
+							RPCConfig: RPCConfig{
+								RPC:      "RequireWarehouseTagSummaryById",
+								Request:  "RequireWarehouseTagSummaryByIdRequest",
+								Response: "RequireWarehouseTagSummaryByIdResponse",
+							},
+						},
+						"optionalTagSummary": {
+							TargetName: "optional_tag_summary",
+							RPCConfig: RPCConfig{
+								RPC:      "RequireWarehouseOptionalTagSummaryById",
+								Request:  "RequireWarehouseOptionalTagSummaryByIdRequest",
+								Response: "RequireWarehouseOptionalTagSummaryByIdResponse",
+							},
+						},
+						"metadataScore": {
+							TargetName: "metadata_score",
+							RPCConfig: RPCConfig{
+								RPC:      "RequireWarehouseMetadataScoreById",
+								Request:  "RequireWarehouseMetadataScoreByIdRequest",
+								Response: "RequireWarehouseMetadataScoreByIdResponse",
+							},
+						},
+						"processedMetadata": {
+							TargetName: "processed_metadata",
+							RPCConfig: RPCConfig{
+								RPC:      "RequireWarehouseProcessedMetadataById",
+								Request:  "RequireWarehouseProcessedMetadataByIdRequest",
+								Response: "RequireWarehouseProcessedMetadataByIdResponse",
+							},
+						},
+						"optionalProcessedMetadata": {
+							TargetName: "optional_processed_metadata",
+							RPCConfig: RPCConfig{
+								RPC:      "RequireWarehouseOptionalProcessedMetadataById",
+								Request:  "RequireWarehouseOptionalProcessedMetadataByIdRequest",
+								Response: "RequireWarehouseOptionalProcessedMetadataByIdResponse",
+							},
+						},
+						"processedTags": {
+							TargetName: "processed_tags",
+							RPCConfig: RPCConfig{
+								RPC:      "RequireWarehouseProcessedTagsById",
+								Request:  "RequireWarehouseProcessedTagsByIdRequest",
+								Response: "RequireWarehouseProcessedTagsByIdResponse",
+							},
+						},
+						"optionalProcessedTags": {
+							TargetName: "optional_processed_tags",
+							RPCConfig: RPCConfig{
+								RPC:      "RequireWarehouseOptionalProcessedTagsById",
+								Request:  "RequireWarehouseOptionalProcessedTagsByIdRequest",
+								Response: "RequireWarehouseOptionalProcessedTagsByIdResponse",
+							},
+						},
+						"processedMetadataHistory": {
+							TargetName: "processed_metadata_history",
+							RPCConfig: RPCConfig{
+								RPC:      "RequireWarehouseProcessedMetadataHistoryById",
+								Request:  "RequireWarehouseProcessedMetadataHistoryByIdRequest",
+								Response: "RequireWarehouseProcessedMetadataHistoryByIdResponse",
+							},
+						},
 					},
 				},
 			},
@@ -495,6 +594,81 @@ func testMapping() *GRPCMapping {
 				},
 				"restockData": {
 					TargetName: "restock_data",
+				},
+			},
+			"RequireWarehouseTagSummaryByIdFields": {
+				"tags": {
+					TargetName: "tags",
+				},
+			},
+			"RequireWarehouseOptionalTagSummaryByIdFields": {
+				"optionalTags": {
+					TargetName: "optional_tags",
+				},
+			},
+			"RequireWarehouseMetadataScoreByIdFields.WarehouseMetadata": {
+				"capacity": {
+					TargetName: "capacity",
+				},
+				"zone": {
+					TargetName: "zone",
+				},
+			},
+			"RequireWarehouseMetadataScoreByIdFields": {
+				"metadata": {
+					TargetName: "metadata",
+				},
+			},
+			"RequireWarehouseProcessedMetadataByIdFields.WarehouseMetadata": {
+				"capacity": {
+					TargetName: "capacity",
+				},
+				"zone": {
+					TargetName: "zone",
+				},
+				"priority": {
+					TargetName: "priority",
+				},
+			},
+			"RequireWarehouseProcessedMetadataByIdFields": {
+				"metadata": {
+					TargetName: "metadata",
+				},
+			},
+			"RequireWarehouseOptionalProcessedMetadataByIdFields.WarehouseMetadata": {
+				"capacity": {
+					TargetName: "capacity",
+				},
+				"zone": {
+					TargetName: "zone",
+				},
+			},
+			"RequireWarehouseOptionalProcessedMetadataByIdFields": {
+				"metadata": {
+					TargetName: "metadata",
+				},
+			},
+			"RequireWarehouseProcessedTagsByIdFields": {
+				"tags": {
+					TargetName: "tags",
+				},
+			},
+			"RequireWarehouseOptionalProcessedTagsByIdFields": {
+				"optionalTags": {
+					TargetName: "optional_tags",
+				},
+			},
+			"RequireWarehouseProcessedMetadataHistoryByIdFields.WarehouseMetadata": {
+				"capacity": {
+					TargetName: "capacity",
+				},
+				"zone": {
+					TargetName: "zone",
+				},
+			},
+			"RequireWarehouseProcessedMetadataHistoryByIdFields": {
+				"metadataHistory": {
+					TargetName: "metadata_history",
 				},
 			},
 			"Query": {
@@ -803,10 +977,39 @@ func testMapping() *GRPCMapping {
 				"location": {
 					TargetName: "location",
 				},
+				"warehouseStatus": {
+					TargetName: "warehouse_status",
+					ArgumentMappings: FieldArgumentMap{
+						"checkHealth": "check_health",
+					},
+				},
+				"linkedWarehouses": {
+					TargetName: "linked_warehouses",
+					ArgumentMappings: FieldArgumentMap{
+						"depth": "depth",
+					},
+				},
+				"nearbyWarehouses": {
+					TargetName: "nearby_warehouses",
+					ArgumentMappings: FieldArgumentMap{
+						"radius": "radius",
+					},
+				},
 			},
 			"RestockData": {
 				"lastRestockDate": {
 					TargetName: "last_restock_date",
+				},
+			},
+			"WarehouseMetadata": {
+				"capacity": {
+					TargetName: "capacity",
+				},
+				"zone": {
+					TargetName: "zone",
+				},
+				"priority": {
+					TargetName: "priority",
 				},
 			},
 			"User": {

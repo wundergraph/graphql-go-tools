@@ -84,10 +84,6 @@ func (r *rpcPlanVisitorFederation) EnterDocument(operation *ast.Document, defini
 
 // LeaveDocument implements astvisitor.DocumentVisitor.
 func (r *rpcPlanVisitorFederation) LeaveDocument(_, _ *ast.Document) {
-	if len(r.resolverFields) == 0 {
-		return
-	}
-
 	calls, err := r.planCtx.createResolverRPCCalls(r.subgraphName, r.resolverFields)
 	if err != nil {
 		r.walker.StopWithInternalErr(err)
@@ -104,7 +100,7 @@ func (r *rpcPlanVisitorFederation) LeaveDocument(_, _ *ast.Document) {
 			continue
 		}
 
-		calls, err = r.planCtx.createRequiredFieldsRPCCalls(r.subgraphName, entityTypeName, entityConfigData)
+		calls, err = r.planCtx.createRequiredFieldsRPCCalls(&r.callIndex, r.subgraphName, entityTypeName, entityConfigData)
 		if err != nil {
 			r.walker.StopWithInternalErr(err)
 			return

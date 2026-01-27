@@ -411,6 +411,41 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					Response: "ResolveTestContainerDetailsResponse",
 				},
 			},
+			"Warehouse": {
+				"warehouseStatus": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName: "warehouse_status",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{
+							"checkHealth": "check_health",
+						},
+					},
+					RPC:      "ResolveWarehouseWarehouseStatus",
+					Request:  "ResolveWarehouseWarehouseStatusRequest",
+					Response: "ResolveWarehouseWarehouseStatusResponse",
+				},
+				"linkedWarehouses": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName: "linked_warehouses",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{
+							"depth": "depth",
+						},
+					},
+					RPC:      "ResolveWarehouseLinkedWarehouses",
+					Request:  "ResolveWarehouseLinkedWarehousesRequest",
+					Response: "ResolveWarehouseLinkedWarehousesResponse",
+				},
+				"nearbyWarehouses": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName: "nearby_warehouses",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{
+							"radius": "radius",
+						},
+					},
+					RPC:      "ResolveWarehouseNearbyWarehouses",
+					Request:  "ResolveWarehouseNearbyWarehousesRequest",
+					Response: "ResolveWarehouseNearbyWarehousesResponse",
+				},
+			},
 		},
 		EntityRPCs: map[string][]grpcdatasource.EntityRPCConfig{
 			"Product": {
@@ -460,6 +495,70 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 								Response: "RequireWarehouseStockHealthScoreByIdResponse",
 							},
 						},
+						"tagSummary": {
+							TargetName: "tag_summary",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireWarehouseTagSummaryById",
+								Request:  "RequireWarehouseTagSummaryByIdRequest",
+								Response: "RequireWarehouseTagSummaryByIdResponse",
+							},
+						},
+						"optionalTagSummary": {
+							TargetName: "optional_tag_summary",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireWarehouseOptionalTagSummaryById",
+								Request:  "RequireWarehouseOptionalTagSummaryByIdRequest",
+								Response: "RequireWarehouseOptionalTagSummaryByIdResponse",
+							},
+						},
+						"metadataScore": {
+							TargetName: "metadata_score",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireWarehouseMetadataScoreById",
+								Request:  "RequireWarehouseMetadataScoreByIdRequest",
+								Response: "RequireWarehouseMetadataScoreByIdResponse",
+							},
+						},
+						"processedMetadata": {
+							TargetName: "processed_metadata",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireWarehouseProcessedMetadataById",
+								Request:  "RequireWarehouseProcessedMetadataByIdRequest",
+								Response: "RequireWarehouseProcessedMetadataByIdResponse",
+							},
+						},
+						"optionalProcessedMetadata": {
+							TargetName: "optional_processed_metadata",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireWarehouseOptionalProcessedMetadataById",
+								Request:  "RequireWarehouseOptionalProcessedMetadataByIdRequest",
+								Response: "RequireWarehouseOptionalProcessedMetadataByIdResponse",
+							},
+						},
+						"processedTags": {
+							TargetName: "processed_tags",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireWarehouseProcessedTagsById",
+								Request:  "RequireWarehouseProcessedTagsByIdRequest",
+								Response: "RequireWarehouseProcessedTagsByIdResponse",
+							},
+						},
+						"optionalProcessedTags": {
+							TargetName: "optional_processed_tags",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireWarehouseOptionalProcessedTagsById",
+								Request:  "RequireWarehouseOptionalProcessedTagsByIdRequest",
+								Response: "RequireWarehouseOptionalProcessedTagsByIdResponse",
+							},
+						},
+						"processedMetadataHistory": {
+							TargetName: "processed_metadata_history",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireWarehouseProcessedMetadataHistoryById",
+								Request:  "RequireWarehouseProcessedMetadataHistoryByIdRequest",
+								Response: "RequireWarehouseProcessedMetadataHistoryByIdResponse",
+							},
+						},
 					},
 				},
 			},
@@ -502,6 +601,81 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"restockData": {
 					TargetName: "restock_data",
+				},
+			},
+			"RequireWarehouseTagSummaryByIdFields": {
+				"tags": {
+					TargetName: "tags",
+				},
+			},
+			"RequireWarehouseOptionalTagSummaryByIdFields": {
+				"optionalTags": {
+					TargetName: "optional_tags",
+				},
+			},
+			"RequireWarehouseMetadataScoreByIdFields.WarehouseMetadata": {
+				"capacity": {
+					TargetName: "capacity",
+				},
+				"zone": {
+					TargetName: "zone",
+				},
+			},
+			"RequireWarehouseMetadataScoreByIdFields": {
+				"metadata": {
+					TargetName: "metadata",
+				},
+			},
+			"RequireWarehouseProcessedMetadataByIdFields.WarehouseMetadata": {
+				"capacity": {
+					TargetName: "capacity",
+				},
+				"zone": {
+					TargetName: "zone",
+				},
+				"priority": {
+					TargetName: "priority",
+				},
+			},
+			"RequireWarehouseProcessedMetadataByIdFields": {
+				"metadata": {
+					TargetName: "metadata",
+				},
+			},
+			"RequireWarehouseOptionalProcessedMetadataByIdFields.WarehouseMetadata": {
+				"capacity": {
+					TargetName: "capacity",
+				},
+				"zone": {
+					TargetName: "zone",
+				},
+			},
+			"RequireWarehouseOptionalProcessedMetadataByIdFields": {
+				"metadata": {
+					TargetName: "metadata",
+				},
+			},
+			"RequireWarehouseProcessedTagsByIdFields": {
+				"tags": {
+					TargetName: "tags",
+				},
+			},
+			"RequireWarehouseOptionalProcessedTagsByIdFields": {
+				"optionalTags": {
+					TargetName: "optional_tags",
+				},
+			},
+			"RequireWarehouseProcessedMetadataHistoryByIdFields.WarehouseMetadata": {
+				"capacity": {
+					TargetName: "capacity",
+				},
+				"zone": {
+					TargetName: "zone",
+				},
+			},
+			"RequireWarehouseProcessedMetadataHistoryByIdFields": {
+				"metadataHistory": {
+					TargetName: "metadata_history",
 				},
 			},
 			"Query": {
@@ -810,10 +984,39 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				"location": {
 					TargetName: "location",
 				},
+				"warehouseStatus": {
+					TargetName: "warehouse_status",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"checkHealth": "check_health",
+					},
+				},
+				"linkedWarehouses": {
+					TargetName: "linked_warehouses",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"depth": "depth",
+					},
+				},
+				"nearbyWarehouses": {
+					TargetName: "nearby_warehouses",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"radius": "radius",
+					},
+				},
 			},
 			"RestockData": {
 				"lastRestockDate": {
 					TargetName: "last_restock_date",
+				},
+			},
+			"WarehouseMetadata": {
+				"capacity": {
+					TargetName: "capacity",
+				},
+				"zone": {
+					TargetName: "zone",
+				},
+				"priority": {
+					TargetName: "priority",
 				},
 			},
 			"User": {

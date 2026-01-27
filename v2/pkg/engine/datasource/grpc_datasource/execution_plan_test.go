@@ -91,7 +91,7 @@ func buildPath(path string) ast.Path {
 	return items
 }
 
-func TestQueryExecutionPlans(t *testing.T) {
+func TestExecutionPlan_Query(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name          string
@@ -1156,7 +1156,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 	}
 }
 
-func TestQueryExecutionPlans_WithConfig(t *testing.T) {
+func TestExecutionPlan_Query_WithConfig(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name          string
@@ -1287,7 +1287,7 @@ func TestQueryExecutionPlans_WithConfig(t *testing.T) {
 	}
 }
 
-func TestProductExecutionPlan(t *testing.T) {
+func TestExecutionPlan_Query_WithCategories(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name          string
@@ -1507,7 +1507,7 @@ func TestProductExecutionPlan(t *testing.T) {
 	}
 }
 
-func TestProductExecutionPlanWithAliases(t *testing.T) {
+func TestExecutionPlan_Operations_WithAliases(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name          string

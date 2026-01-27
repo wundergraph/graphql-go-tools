@@ -1270,14 +1270,15 @@ message RequireWarehouseStockHealthScoreByIdFields {
   RestockData restock_data = 2;
 }
 */
-func (r *rpcPlanningContext) createRequiredFieldsRPCCalls(subgraphName string, entityTypeName string, data entityConfigData) ([]RPCCall, error) {
+func (r *rpcPlanningContext) createRequiredFieldsRPCCalls(callIndex *int, subgraphName string, entityTypeName string, data entityConfigData) ([]RPCCall, error) {
 	calls := make([]RPCCall, 0, len(data.requiredFields))
 	for fieldName, selectionSet := range data.requiredFields {
-		call, err := r.createRequiredFieldsRPCCall(subgraphName, entityTypeName, fieldName, selectionSet, data)
+		call, err := r.createRequiredFieldsRPCCall(*callIndex, subgraphName, entityTypeName, fieldName, selectionSet, data)
 		if err != nil {
 			return nil, err
 		}
 
+		*callIndex++
 		calls = append(calls, call)
 	}
 
@@ -1285,7 +1286,7 @@ func (r *rpcPlanningContext) createRequiredFieldsRPCCalls(subgraphName string, e
 }
 
 // createRequiredFieldsRPCCall creates a new required fields RPC call for a given configuration.
-func (r *rpcPlanningContext) createRequiredFieldsRPCCall(subgraphName string, typeName, fieldName, selectionSet string, data entityConfigData) (RPCCall, error) {
+func (r *rpcPlanningContext) createRequiredFieldsRPCCall(callIndex int, subgraphName string, typeName, fieldName, selectionSet string, data entityConfigData) (RPCCall, error) {
 	rpcConfig, exists := r.mapping.FindRequiredFieldsRPCConfig(typeName, data.keyFields, fieldName)
 	if !exists {
 		return RPCCall{}, fmt.Errorf("required fields RPC config not found for type: %s, field: %s", typeName, fieldName)
@@ -1296,6 +1297,7 @@ func (r *rpcPlanningContext) createRequiredFieldsRPCCall(subgraphName string, ty
 	}
 
 	call := RPCCall{
+		ID:          callIndex,
 		ServiceName: r.resolveServiceName(subgraphName),
 		Kind:        CallKindRequired,
 		MethodName:  rpcConfig.RPC,
@@ -1351,6 +1353,7 @@ func (r *rpcPlanningContext) createRequiredFieldsRPCCall(subgraphName string, ty
 			},
 		},
 	}
+
 	walker := astvisitor.WalkerFromPool()
 	defer walker.Release()
 
