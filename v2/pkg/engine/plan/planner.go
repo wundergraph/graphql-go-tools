@@ -159,7 +159,10 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	p.planningWalker.RegisterEnterDirectiveVisitor(p.planningVisitor)
 	p.planningWalker.RegisterInlineFragmentVisitor(p.planningVisitor)
 
-	// Register cost visitor on the same walker (will be invoked after planningVisitor hooks)
+	// Register cost visitor on the same walker (will be invoked after planningVisitor hooks).
+	// We have to register it last in the walker, as it depends on the fieldPlanners field of the
+	// visitor. That field is populated in the AllowVisitor callback. Walker calls Enter* callbacks
+	// in the order they were registered, and Leave* callbacks in the reverse order.
 	if p.config.ComputeStaticCost {
 		p.costVisitor = NewStaticCostVisitor(p.planningWalker, operation, definition)
 		p.costVisitor.planners = plannersConfigurations
