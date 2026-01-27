@@ -43,7 +43,7 @@ type pathBuilderVisitor struct {
 	addedPathTracker              []pathConfiguration    // addedPathTracker is a list of paths which were added
 	addedPathTrackerIndex         map[string][]int       // addedPathTrackerIndex is a map of path to index in addedPathTracker
 
-	fieldDependenciesForPlanners map[int][]int // fieldDependenciesForPlanners is a map[FieldRef][]plannerIdx holds list of planner ids which depends on a field ref. Used for @key dependencies
+	fieldDependenciesForPlanners map[int][]int // fieldDependenciesForPlanners is a map[fieldRef][]plannerIdx holds list of planner ids which depends on a field ref. Used for @key dependencies
 	fieldsPlannedOn              map[int][]int // fieldsPlannedOn is a map[fieldRef][]plannerIdx holds list of planner ids which planned a field ref
 
 	secondaryRun bool // secondaryRun is a flag to indicate that we're running the pathBuilderVisitor not the first time
