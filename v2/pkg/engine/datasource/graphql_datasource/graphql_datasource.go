@@ -783,7 +783,7 @@ func (p *Planner[T]) allowField(ref int) bool {
 	// In addition, we skip field if its path are equal to planner parent path
 	// This is required to correctly plan on datasource which has corresponding child/root node,
 	// but we don't need to add it to the query as we are in the nested request
-	currentPath := fmt.Sprintf("%s.%s", p.visitor.Walker.Path.DotDelimitedString(), fieldAliasOrName)
+	currentPath := fmt.Sprintf("%s.%s", p.visitor.Walker.Path.DotDelimitedString(true), fieldAliasOrName)
 	if p.dataSourcePlannerConfig.ParentPath != "query" && p.dataSourcePlannerConfig.ParentPath == currentPath {
 		p.DebugPrint("allowField: false path:", currentPath, "is equal to parent path", p.dataSourcePlannerConfig.ParentPath)
 		return false

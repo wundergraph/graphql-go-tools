@@ -319,7 +319,7 @@ func (v *requiredFieldsVisitor) addRequiredField(keyRef int, fieldName ast.ByteS
 			Name:      v.config.operation.Input.AppendInputBytes(fullAliasName),
 		}
 
-		currentPath := v.Walker.Path.DotDelimitedString() + "." + string(fieldName)
+		currentPath := v.Walker.Path.DotDelimitedString(true) + "." + string(fieldName)
 		v.mapping[currentPath] = string(fullAliasName)
 	}
 

@@ -3,7 +3,6 @@ package astnormalization
 import (
 	"bytes"
 	"fmt"
-	"strings"
 
 	"github.com/buger/jsonparser"
 	"github.com/tidwall/sjson"
@@ -42,6 +41,11 @@ type variablesExtractionVisitor struct {
 }
 
 func (v *variablesExtractionVisitor) EnterArgument(ref int) {
+	if v.Ancestors[0].Kind == ast.NodeKindFragmentDefinition {
+		v.recordFieldArgumentMapping(ref, "")
+		return
+	}
+
 	if len(v.Ancestors) == 0 || v.Ancestors[0].Kind != ast.NodeKindOperationDefinition {
 		return
 	}
@@ -163,18 +167,7 @@ func (v *variablesExtractionVisitor) EnterDocument(operation, definition *ast.Do
 // buildFieldPath builds the field path from the walker's ancestors.
 // It returns a dot-separated path of field names/aliases (e.g., "user.posts").
 func (v *variablesExtractionVisitor) buildFieldPath() string {
-	var parts []string
-	for _, anc := range v.Ancestors {
-		if anc.Kind == ast.NodeKindField {
-			alias := v.operation.FieldAliasString(anc.Ref)
-			if alias != "" {
-				parts = append(parts, alias)
-			} else {
-				parts = append(parts, v.operation.FieldNameString(anc.Ref))
-			}
-		}
-	}
-	return strings.Join(parts, ".")
+	return v.Path.DotDelimitedString(false)
 }
 
 // recordFieldArgumentMapping records the currently visited field argument
@@ -186,6 +179,10 @@ func (v *variablesExtractionVisitor) recordFieldArgumentMapping(ref int, varName
 		return
 	}
 	if varName == "" {
+		// TODO handle literals on named fragments
+		if v.operation.Arguments[ref].Value.Kind != ast.ValueKindVariable {
+			return
+		}
 		varName = v.operation.VariableValueNameString(v.operation.Arguments[ref].Value.Ref)
 	}
 	argName := v.operation.ArgumentNameString(ref)

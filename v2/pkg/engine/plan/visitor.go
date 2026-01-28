@@ -145,7 +145,7 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any
 		v.pathCache[kind] = make(map[int]string)
 	}
 	if path == "" {
-		path = v.Walker.Path.DotDelimitedString()
+		path = v.Walker.Path.DotDelimitedString(true)
 		if kind == astvisitor.EnterField || kind == astvisitor.LeaveField {
 			path = path + "." + v.Operation.FieldAliasOrNameString(ref)
 		}
@@ -253,9 +253,9 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any
 }
 
 func (v *Visitor) currentFullPath(skipFragments bool) string {
-	path := v.Walker.Path.DotDelimitedString()
+	path := v.Walker.Path.DotDelimitedString(true)
 	if skipFragments {
-		path = v.Walker.Path.WithoutInlineFragmentNames().DotDelimitedString()
+		path = v.Walker.Path.WithoutInlineFragmentNames().DotDelimitedString(true)
 	}
 
 	if v.Walker.CurrentKind == ast.NodeKindField {

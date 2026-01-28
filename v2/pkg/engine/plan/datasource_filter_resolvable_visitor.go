@@ -42,7 +42,7 @@ func (f *nodesResolvableVisitor) EnterField(ref int) {
 		}
 	}
 
-	parentPath := f.walker.Path.DotDelimitedString()
+	parentPath := f.walker.Path.DotDelimitedString(true)
 	currentPath := parentPath + "." + fieldAliasOrName
 
 	_, found := f.nodes.HasSuggestionForPath(typeName, fieldName, currentPath)

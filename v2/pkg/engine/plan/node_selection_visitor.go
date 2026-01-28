@@ -222,7 +222,7 @@ func (c *nodeSelectionVisitor) handleEnterField(fieldRef int, handleRequires boo
 
 	c.debugPrint("EnterField ref:", fieldRef, "fieldName:", fieldName, "typeName:", typeName, "requires:", handleRequires)
 
-	parentPath := c.walker.Path.DotDelimitedString()
+	parentPath := c.walker.Path.DotDelimitedString(true)
 	currentPath := parentPath + "." + fieldAliasOrName
 
 	suggestions := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)

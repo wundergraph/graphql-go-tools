@@ -1063,7 +1063,7 @@ func TestVariablesNormalizer(t *testing.T) {
 		}, result.UploadsMapping)
 
 		// Verify field argument mapping is populated
-		assert.Equal(t, "a", result.FieldArgumentMapping["hello.arg"])
+		assert.Equal(t, "a", result.FieldArgumentMapping["mutation.hello.arg"])
 	})
 
 	t.Run("field argument mapping", func(t *testing.T) {
@@ -1071,15 +1071,35 @@ func TestVariablesNormalizer(t *testing.T) {
 			type Query {
 				user(id: ID!, active: Boolean): User
 				users(name: String!, limit: Int!, offset: Int): [User!]!
+				node(id: ID!): Node
 			}
-			type User {
+			interface Node {
+				id: ID!
+				User: UserContainer
+			}
+			type UserContainer {
+				posts(limit: Int!): [Post!]!
+			}
+			type User implements Node {
 				id: ID!
 				name: String!
 				posts(limit: Int!): [Post!]!
+				items(limit: Int!): [Item!]!
+				User: UserContainer
+			}
+			type Admin implements Node {
+				id: ID!
+				role: String!
+				items(limit: Int!): [Item!]!
+				User: UserContainer
 			}
 			type Post {
 				id: ID!
 				title: String!
+			}
+			type Item {
+				id: ID!
+				name: String!
 			}
 		`
 
@@ -1090,64 +1110,80 @@ func TestVariablesNormalizer(t *testing.T) {
 			expectedMapping FieldArgumentMapping
 		}{
 			{
-				name: "user provided variable",
+				name: "mapping references the name of the variable",
 				operation: `query GetUser($userId: ID!) {
 					user(id: $userId) { name }
 				}`,
 				variables:       `{"userId": "123"}`,
-				expectedMapping: FieldArgumentMapping{"user.id": "userId"},
+				expectedMapping: FieldArgumentMapping{"query.user.id": "userId"},
 			},
 			{
-				name: "inline literal extracted",
+				name: "mapping references an extracted variable on literal values",
 				operation: `query GetUser {
 					user(id: "123") { name }
 				}`,
 				variables:       `{}`,
-				expectedMapping: FieldArgumentMapping{"user.id": "a"},
+				expectedMapping: FieldArgumentMapping{"query.user.id": "a"},
 			},
 			{
-				name: "multiple inline literals",
+				name: "mapping references an extracted variable on multiple literal values",
 				operation: `query GetUsers {
-					a: user(id: "user-1") { name }
-					b: user(id: "user-2") { name }
+					firstAlias: user(id: "user-1") { name }
+					secondAlias: user(id: "user-2") { name }
 				}`,
-				variables:       `{}`,
-				expectedMapping: FieldArgumentMapping{"a.id": "a", "b.id": "b"},
+				variables: `{}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.firstAlias.id":  "a",
+					"query.secondAlias.id": "b",
+				},
 			},
 			{
-				name: "nested field arguments",
+				name: "mapping references an extracted variable on multiple variable values",
+				operation: `query GetUsers($id1: ID!, $id2: ID!) {
+					firstAlias: user(id: $id1) { name }
+					secondAlias: user(id: $id2) { name }
+				}`,
+				variables: `{"id1": "user-1", "id2": "user-2"}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.firstAlias.id":  "id1",
+					"query.secondAlias.id": "id2",
+				},
+			},
+			{
+				name: "mapping correctly builds paths on nested field arguments",
 				operation: `query GetUserPosts($userId: ID!, $limit: Int!) {
 					user(id: $userId) {
 						posts(limit: $limit) { title }
 					}
 				}`,
-				variables:       `{"userId": "123", "limit": 10}`,
-				expectedMapping: FieldArgumentMapping{"user.id": "userId", "user.posts.limit": "limit"},
+				variables: `{"userId": "123", "limit": 10}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.user.id":          "userId",
+					"query.user.posts.limit": "limit",
+				},
 			},
 			{
-				name: "aliased fields with variables",
-				operation: `query GetUsers($id1: ID!, $id2: ID!) {
-					a: user(id: $id1) { name }
-					b: user(id: $id2) { name }
-				}`,
-				variables:       `{"id1": "user-1", "id2": "user-2"}`,
-				expectedMapping: FieldArgumentMapping{"a.id": "id1", "b.id": "id2"},
-			},
-			{
-				name: "multiple arguments on single field",
+				name: "multiple variables refs used correctly in mapping",
 				operation: `query SearchUsers($name: String!, $limit: Int!, $offset: Int) {
 					users(name: $name, limit: $limit, offset: $offset) { id }
 				}`,
-				variables:       `{"name": "john", "limit": 10, "offset": 5}`,
-				expectedMapping: FieldArgumentMapping{"users.name": "name", "users.limit": "limit", "users.offset": "offset"},
+				variables: `{"name": "john", "limit": 10, "offset": 5}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.users.name":   "name",
+					"query.users.limit":  "limit",
+					"query.users.offset": "offset",
+				},
 			},
 			{
-				name: "mixed inline and variables",
+				name: "mixed inline and variables get correctly mapped",
 				operation: `query GetUser($userId: ID!) {
 					user(id: $userId, active: true) { name }
 				}`,
-				variables:       `{"userId": "123"}`,
-				expectedMapping: FieldArgumentMapping{"user.id": "userId", "user.active": "a"},
+				variables: `{"userId": "123"}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.user.id":     "userId",
+					"query.user.active": "a",
+				},
 			},
 			{
 				name: "empty mapping when no arguments",
@@ -1156,6 +1192,89 @@ func TestVariablesNormalizer(t *testing.T) {
 				}`,
 				variables:       `{}`,
 				expectedMapping: FieldArgumentMapping{},
+			},
+			{
+				name: "inline fragment prefixed with dollar sign in paths",
+				operation: `query GetNode($nodeId: ID!, $limit: Int!) {
+					node(id: $nodeId) {
+						... on User {
+							posts(limit: $limit) { title }
+						}
+					}
+				}`,
+				variables: `{"nodeId": "123", "limit": 10}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.node.id":                "nodeId",
+					"query.node.$User.posts.limit": "limit",
+				},
+			},
+			{
+				name: "same field in different inline fragments requires type name to avoid collision",
+				operation: `query GetNode($nodeId: ID!) {
+					node(id: $nodeId) {
+						... on User {
+							items(limit: 10) { name }
+						}
+						... on Admin {
+							items(limit: 5) { name }
+						}
+					}
+				}`,
+				variables: `{"nodeId": "123"}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.node.id":                 "nodeId",
+					"query.node.$User.items.limit":  "a",
+					"query.node.$Admin.items.limit": "b",
+				},
+			},
+			{
+				name: "inline fragment and field with same name requires prefix to avoid collision",
+				operation: `query GetNode($nodeId: ID!) {
+					node(id: $nodeId) {
+						... on User {
+							posts(limit: 10) { title }
+						}
+						User {
+							posts(limit: 5) { title }
+						}
+					}
+				}`,
+				variables: `{"nodeId": "123"}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.node.id":                "nodeId",
+					"query.node.$User.posts.limit": "a",
+					"query.node.User.posts.limit":  "b",
+				},
+			},
+			{
+				name: "named fragment with variable field arg value",
+				operation: `fragment UserFieldsPost on User {
+					posts(limit: $limitVar) { title }
+				}
+				query GetUser($limitVar: Int!) {
+					user {
+						...UserFieldsPost
+					}
+				}`,
+				variables: `{"limitVar": 11}`,
+				expectedMapping: FieldArgumentMapping{
+					"User.posts.limit": "limitVar",
+				},
+			},
+			{
+				name: "named fragment with literal field arg value",
+				operation: `fragment UserFieldsPost on User {
+					posts(limit: 10) { title }
+				}
+				query GetUser {
+					user {
+						...UserFieldsPost
+					}
+				}`,
+				variables: `{}`,
+				expectedMapping: FieldArgumentMapping{
+					"User.posts.limit": "a",
+				},
 			},
 		}
 
