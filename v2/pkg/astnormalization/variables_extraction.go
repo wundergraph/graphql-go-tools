@@ -34,10 +34,7 @@ type variablesExtractionVisitor struct {
 	extractedVariableTypeRefs []int
 	uploadFinder              *uploads.UploadFinder
 	uploadsPath               []uploads.UploadPathMapping
-	// fieldArgumentMapping maps field arguments to their variable names.
-	// Key: "fieldPath.argumentName" (e.g., "user.posts.limit")
-	// Value: variable name after extraction (e.g., "a", "b", "userId")
-	fieldArgumentMapping FieldArgumentMapping
+	fieldArgumentMapping      FieldArgumentMapping
 }
 
 func (v *variablesExtractionVisitor) EnterArgument(ref int) {
@@ -171,23 +168,36 @@ func (v *variablesExtractionVisitor) buildFieldPath() string {
 }
 
 // recordFieldArgumentMapping records the currently visited field argument
-// of v in v.fieldArgumentMapping, alongside its matching variable name.
-// If varName is empty, it looks up the variable name from the operation.
+// of v in v.fieldArgumentMapping, alongside its matching variable name or literal value.
+// If varName is empty, it looks up the variable name from the operation or stores the literal value.
 func (v *variablesExtractionVisitor) recordFieldArgumentMapping(ref int, varName string) {
 	fieldPath := v.buildFieldPath()
 	if fieldPath == "" {
 		return
 	}
-	if varName == "" {
-		// TODO handle literals on named fragments
-		if v.operation.Arguments[ref].Value.Kind != ast.ValueKindVariable {
-			return
-		}
-		varName = v.operation.VariableValueNameString(v.operation.Arguments[ref].Value.Ref)
-	}
 	argName := v.operation.ArgumentNameString(ref)
 	key := fieldPath + "." + argName
-	v.fieldArgumentMapping[key] = varName
+
+	if varName != "" {
+		// Variable name was provided (from extraction)
+		v.fieldArgumentMapping[key] = FieldArgumentValue{VariableName: varName}
+		return
+	}
+
+	if v.operation.Arguments[ref].Value.Kind == ast.ValueKindVariable {
+		// Existing variable reference
+		varName = v.operation.VariableValueNameString(v.operation.Arguments[ref].Value.Ref)
+		v.fieldArgumentMapping[key] = FieldArgumentValue{VariableName: varName}
+		return
+	}
+
+	// Literal value - store the JSON-encoded value
+	valueBytes, err := v.operation.ValueToJSON(v.operation.Arguments[ref].Value)
+	if err != nil {
+		return // Skip on error
+	}
+	v.fieldArgumentMapping[key] = FieldArgumentValue{LiteralValue: valueBytes}
+
 }
 
 func (v *variablesExtractionVisitor) variableExists(variableValue []byte, inputValueDefinition int) (exists bool, name []byte, definition int) {
