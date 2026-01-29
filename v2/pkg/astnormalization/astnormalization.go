@@ -106,7 +106,6 @@ type OperationNormalizer struct {
 	operationWalkers []walkerStage
 
 	removeOperationDefinitionsVisitor *removeOperationDefinitionsVisitor
-	variablesExtractionVisitor        *variablesExtractionVisitor
 
 	options              options
 	definitionNormalizer *DefinitionNormalizer
@@ -245,7 +244,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 
 	if o.options.extractVariables {
 		extractVariablesWalker := astvisitor.NewWalkerWithID(8, "ExtractVariables")
-		o.variablesExtractionVisitor = extractVariables(&extractVariablesWalker)
+		extractVariables(&extractVariablesWalker)
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
 			name:   "extractVariables",
 			walker: &extractVariablesWalker,
@@ -345,17 +344,6 @@ func (o *OperationNormalizer) NormalizeNamedOperation(operation, definition *ast
 	}
 }
 
-// GetFieldArgumentMapping returns the field argument mapping after normalization.
-// Returns nil if extractVariables option was not enabled or normalization hasn't run.
-// Note: Paths reflect the normalized operation structure (after fragment inlining),
-// e.g., "query.user.$User.posts.limit" for a field originally in a named fragment.
-func (o *OperationNormalizer) GetFieldArgumentMapping() FieldArgumentMapping {
-	if o.variablesExtractionVisitor == nil {
-		return nil
-	}
-	return o.variablesExtractionVisitor.fieldArgumentMapping
-}
-
 type VariablesNormalizer struct {
 	firstDetectUnused          *astvisitor.Walker
 	secondExtract              *astvisitor.Walker
@@ -409,7 +397,8 @@ func (v *VariablesNormalizer) NormalizeOperation(operation, definition *ast.Docu
 	v.fourthCoerce.Walk(operation, definition, report)
 
 	return VariablesNormalizerResult{
-		UploadsMapping: v.variablesExtractionVisitor.uploadsPath,
+		UploadsMapping:       v.variablesExtractionVisitor.uploadsPath,
+		FieldArgumentMapping: v.variablesExtractionVisitor.fieldArgumentMapping,
 	}
 }
 
