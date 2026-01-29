@@ -1281,8 +1281,8 @@ message RequireWarehouseStockHealthScoreByIdFields {
 */
 func (r *rpcPlanningContext) createRequiredFieldsRPCCalls(callIndex *int, subgraphName string, entityTypeName string, data entityConfigData) ([]RPCCall, error) {
 	calls := make([]RPCCall, 0, len(data.requiredFields))
-	for fieldName, requiredField := range data.requiredFields {
-		call, err := r.createRequiredFieldsRPCCall(*callIndex, subgraphName, entityTypeName, fieldName, &requiredField, data)
+	for _, requiredField := range data.requiredFields {
+		call, err := r.createRequiredFieldsRPCCall(*callIndex, subgraphName, entityTypeName, &requiredField, data)
 		if err != nil {
 			return nil, err
 		}
@@ -1295,22 +1295,22 @@ func (r *rpcPlanningContext) createRequiredFieldsRPCCalls(callIndex *int, subgra
 }
 
 // createRequiredFieldsRPCCall creates a new required fields RPC call for a given configuration.
-func (r *rpcPlanningContext) createRequiredFieldsRPCCall(callIndex int, subgraphName, typeName, fieldName string, requiredField *requiredField, data entityConfigData) (RPCCall, error) {
-	rpcConfig, exists := r.mapping.FindRequiredFieldsRPCConfig(typeName, data.keyFields, fieldName)
+func (r *rpcPlanningContext) createRequiredFieldsRPCCall(callIndex int, subgraphName, typeName string, requiredField *requiredField, data entityConfigData) (RPCCall, error) {
+	rpcConfig, exists := r.mapping.FindRequiredFieldsRPCConfig(typeName, data.keyFields, requiredField.fieldName)
 	if !exists {
-		return RPCCall{}, fmt.Errorf("required fields RPC config not found for type: %s, field: %s", typeName, fieldName)
+		return RPCCall{}, fmt.Errorf("required fields RPC config not found for type: %s, field: %s", typeName, requiredField.fieldName)
 	}
 
 	fieldMessage := &RPCMessage{
 		Name: rpcConfig.RPC + "Fields",
 	}
 
-	fieldDefRef := r.fieldDefinitionRefForType(fieldName, typeName)
+	fieldDefRef := r.fieldDefinitionRefForType(requiredField.fieldName, typeName)
 	if fieldDefRef == ast.InvalidRef {
-		return RPCCall{}, fmt.Errorf("unable to build required field: field definition not found for field %s", fieldName)
+		return RPCCall{}, fmt.Errorf("unable to build required field: field definition not found for field %s", requiredField.fieldName)
 	}
 
-	field, err := r.buildField(typeName, fieldDefRef, fieldName, "")
+	field, err := r.buildField(typeName, fieldDefRef, requiredField.fieldName, "")
 	if err != nil {
 		return RPCCall{}, err
 	}
@@ -1324,7 +1324,7 @@ func (r *rpcPlanningContext) createRequiredFieldsRPCCall(callIndex int, subgraph
 		MethodName:  rpcConfig.RPC,
 		ResponsePath: ast.Path{
 			{Kind: ast.FieldName, FieldName: []byte("_entities")},
-			{Kind: ast.FieldName, FieldName: []byte(fieldName)},
+			{Kind: ast.FieldName, FieldName: []byte(requiredField.fieldName)},
 		},
 		Request: RPCMessage{
 			Name: rpcConfig.Request,

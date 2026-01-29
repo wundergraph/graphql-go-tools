@@ -432,16 +432,16 @@ func (r *rpcPlanVisitorFederation) enterRequiredField(ref, fieldDefRef int, pare
 		return
 	}
 
-	rf, exists := config.requiredFields[fieldName]
-	if !exists {
+	index, requiredField := config.findRequiredField(fieldName)
+	if index == ast.InvalidRef {
 		r.walker.StopWithInternalErr(fmt.Errorf("required field not found for type %s and field %s", r.entityInfo.typeName, fieldName))
 		return
 	}
 
-	rf.ref = ref
-	rf.fieldDefRef = fieldDefRef
-	rf.resultField = field
-	config.requiredFields[fieldName] = rf
+	requiredField.ref = ref
+	requiredField.fieldDefRef = fieldDefRef
+	requiredField.resultField = field
+	config.requiredFields[index] = requiredField
 }
 
 // enterFieldResolver enters a field resolver.
@@ -596,6 +596,7 @@ type entityInfo struct {
 type entityConfig map[string]entityConfigData
 
 type requiredField struct {
+	fieldName    string
 	ref          int
 	fieldDefRef  int
 	selectionSet string
@@ -604,7 +605,17 @@ type requiredField struct {
 type entityConfigData struct {
 	keyFields       string
 	keyFieldMessage *RPCMessage
-	requiredFields  map[string]requiredField
+	requiredFields  []requiredField
+}
+
+func (e entityConfigData) findRequiredField(fieldName string) (int, requiredField) {
+	for i, rf := range e.requiredFields {
+		if rf.fieldName == fieldName {
+			return i, rf
+		}
+	}
+
+	return ast.InvalidRef, requiredField{}
 }
 
 func (e entityConfig) setEntity(typeName string, data entityConfigData) {
@@ -633,16 +644,17 @@ func parseFederationConfigData(federationConfigs plan.FederationFieldConfigurati
 		data, ok := config.getEntity(fc.TypeName)
 		if !ok {
 			data = entityConfigData{
-				requiredFields: make(map[string]requiredField),
+				requiredFields: make([]requiredField, 0),
 			}
 		}
 
 		if fc.FieldName != "" {
-			data.requiredFields[fc.FieldName] = requiredField{
+			data.requiredFields = append(data.requiredFields, requiredField{
+				fieldName:    fc.FieldName,
 				ref:          ast.InvalidRef,
 				fieldDefRef:  ast.InvalidRef,
 				selectionSet: fc.SelectionSet,
-			}
+			})
 		} else {
 			data.keyFields = fc.SelectionSet
 		}
