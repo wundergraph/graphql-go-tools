@@ -38,11 +38,6 @@ type variablesExtractionVisitor struct {
 }
 
 func (v *variablesExtractionVisitor) EnterArgument(ref int) {
-	if v.Ancestors[0].Kind == ast.NodeKindFragmentDefinition {
-		v.recordFieldArgumentMapping(ref, "")
-		return
-	}
-
 	if len(v.Ancestors) == 0 || v.Ancestors[0].Kind != ast.NodeKindOperationDefinition {
 		return
 	}
