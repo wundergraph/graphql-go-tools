@@ -41,6 +41,16 @@ type GraphQLResponse struct {
 	DataSources []DataSourceInfo
 }
 
+type DeferGraphQLResponse struct {
+	Patches []DeferData
+	Fetches *FetchTreeNode
+}
+
+type DeferData struct {
+	Data *Object
+	Path []string
+}
+
 type GraphQLResponseInfo struct {
 	OperationType ast.OperationType
 }

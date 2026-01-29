@@ -9,6 +9,7 @@ type Kind int
 const (
 	SynchronousResponseKind Kind = iota + 1
 	SubscriptionResponseKind
+	DeferResponsePlanKind
 )
 
 type Plan interface {
@@ -40,4 +41,19 @@ func (s *SubscriptionResponsePlan) SetFlushInterval(interval int64) {
 
 func (*SubscriptionResponsePlan) PlanKind() Kind {
 	return SubscriptionResponseKind
+}
+
+type DeferResponsePlan struct {
+	RawResponse     *resolve.GraphQLResponse
+	InitialResponse *resolve.GraphQLResponse
+	DeferResponses  []*resolve.DeferGraphQLResponse
+	FlushInterval   int64
+}
+
+func (d DeferResponsePlan) PlanKind() Kind {
+	return DeferResponsePlanKind
+}
+
+func (d DeferResponsePlan) SetFlushInterval(interval int64) {
+	d.FlushInterval = interval
 }

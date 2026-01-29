@@ -185,7 +185,7 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any
 		}
 
 		shouldWalkFieldsOnPath :=
-			// check if the field path has type condition and matches the enclosing type
+		// check if the field path has type condition and matches the enclosing type
 			config.ShouldWalkFieldsOnPath(path, enclosingTypeName) ||
 				// check if the planner has path without type condition
 				// this could happen in case of union type
@@ -963,23 +963,35 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 		popOnField: -1,
 	})
 
-	operationKind, _, err := AnalyzePlanKind(v.Operation, v.Definition, v.OperationName)
-	if err != nil {
-		v.Walker.StopWithInternalErr(err)
-		return
+	isSubscription := false
+	isDefer := false
+
+	for i := range v.planners {
+		if v.planners[i].ObjectFetchConfiguration().isSubscription {
+			isSubscription = true
+			break
+		}
+
+		if v.planners[i].DeferID() != "" {
+			isDefer = true
+			break
+		}
 	}
 
 	v.response = &resolve.GraphQLResponse{
 		Data:       rootObject,
 		RawFetches: make([]*resolve.FetchItem, 0, len(v.planners)),
 	}
+
 	if !v.Config.DisableIncludeInfo {
+		operationType := v.Operation.OperationDefinitions[0].OperationType
 		v.response.Info = &resolve.GraphQLResponseInfo{
-			OperationType: operationKind,
+			OperationType: operationType,
 		}
 	}
 
-	if operationKind == ast.OperationTypeSubscription {
+	switch {
+	case isSubscription:
 		v.subscription = &resolve.GraphQLSubscription{
 			Response: v.response,
 		}
@@ -987,11 +999,27 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 			FlushInterval: v.Config.DefaultFlushIntervalMillis,
 			Response:      v.subscription,
 		}
-		return
-	}
+	case isDefer:
+		if !v.Config.DisableIncludeInfo {
+			v.response.Info = &resolve.GraphQLResponseInfo{
+				OperationType: ast.OperationTypeQuery,
+			}
+		}
 
-	v.plan = &SynchronousResponsePlan{
-		Response: v.response,
+		v.plan = &DeferResponsePlan{
+			RawResponse: v.response,
+		}
+	default:
+		if !v.Config.DisableIncludeInfo {
+			v.response.Info = &resolve.GraphQLResponseInfo{
+				OperationType: ast.OperationTypeQuery,
+			}
+		}
+
+		v.plan = &SynchronousResponsePlan{
+			Response: v.response,
+		}
+
 	}
 }
 
