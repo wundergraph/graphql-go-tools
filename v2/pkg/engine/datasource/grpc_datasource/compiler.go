@@ -22,52 +22,90 @@ const (
 )
 
 // DataType represents the different types of data that can be stored in a protobuf field.
-type DataType string
+type DataType int8
+
+/*
+// Constants as defined by the google.protobuf.Field.Kind enumeration.
+const (
+	BoolKind     Kind = 8
+	EnumKind     Kind = 14
+	Int32Kind    Kind = 5
+	Uint32Kind   Kind = 13
+	Int64Kind    Kind = 3
+	Uint64Kind   Kind = 4
+	FloatKind    Kind = 2
+	DoubleKind   Kind = 1
+	StringKind   Kind = 9
+	BytesKind    Kind = 12
+)
+
+*/
 
 // Protobuf data types supported by the compiler.
 const (
-	DataTypeString  DataType = "string"    // String type
-	DataTypeInt32   DataType = "int32"     // 32-bit integer type
-	DataTypeInt64   DataType = "int64"     // 64-bit integer type
-	DataTypeUint32  DataType = "uint32"    // 32-bit unsigned integer type
-	DataTypeUint64  DataType = "uint64"    // 64-bit unsigned integer type
-	DataTypeFloat   DataType = "float"     // 32-bit floating point type
-	DataTypeDouble  DataType = "double"    // 64-bit floating point type
-	DataTypeBool    DataType = "bool"      // Boolean type
-	DataTypeEnum    DataType = "enum"      // Enumeration type
-	DataTypeMessage DataType = "message"   // Nested message type
-	DataTypeUnknown DataType = "<unknown>" // Represents an unknown or unsupported type
-	DataTypeBytes   DataType = "bytes"     // Bytes type
+	DataTypeUnknown DataType = -1 // Represents an unknown or unsupported type
+	DataTypeFloat   DataType = 2  // 32-bit floating point type
+	DataTypeDouble  DataType = 1  // 64-bit floating point type
+	DataTypeInt64   DataType = 3  // 64-bit integer type
+	DataTypeUint64  DataType = 4  // 64-bit unsigned integer type
+	DataTypeInt32   DataType = 5  // 32-bit integer type
+	DataTypeBool    DataType = 8  // Boolean type
+	DataTypeString  DataType = 9  // String type
+	DataTypeBytes   DataType = 12 // Bytes type
+	DataTypeUint32  DataType = 13 // 32-bit unsigned integer type
+	DataTypeEnum    DataType = 14 // Enumeration type
+	DataTypeMessage DataType = 11 // Nested message type
 )
 
 // dataTypeMap maps string representation of protobuf types to DataType constants.
-var dataTypeMap = map[string]DataType{
-	"string":  DataTypeString,
-	"int32":   DataTypeInt32,
-	"int64":   DataTypeInt64,
-	"uint32":  DataTypeUint32,
-	"uint64":  DataTypeUint64,
-	"float":   DataTypeFloat,
-	"double":  DataTypeDouble,
-	"bool":    DataTypeBool,
-	"bytes":   DataTypeBytes,
-	"enum":    DataTypeEnum,
-	"message": DataTypeMessage,
+var dataTypeMap = map[protoref.Kind]DataType{
+	protoref.StringKind:  DataTypeString,
+	protoref.Int32Kind:   DataTypeInt32,
+	protoref.Int64Kind:   DataTypeInt64,
+	protoref.Uint32Kind:  DataTypeUint32,
+	protoref.Uint64Kind:  DataTypeUint64,
+	protoref.FloatKind:   DataTypeFloat,
+	protoref.DoubleKind:  DataTypeDouble,
+	protoref.BoolKind:    DataTypeBool,
+	protoref.BytesKind:   DataTypeBytes,
+	protoref.EnumKind:    DataTypeEnum,
+	protoref.MessageKind: DataTypeMessage,
 }
 
-// String returns the string representation of the DataType.
+// String returns the string representation of a DataType.
 func (d DataType) String() string {
-	return string(d)
+	switch d {
+	case DataTypeUnknown:
+		return "Unknown"
+	case DataTypeFloat:
+		return "Float"
+	case DataTypeDouble:
+		return "Double"
+	case DataTypeInt64:
+		return "Int64"
+	case DataTypeUint64:
+		return "Uint64"
+	case DataTypeInt32:
+		return "Int32"
+	case DataTypeBool:
+		return "Bool"
+	case DataTypeString:
+		return "String"
+	case DataTypeBytes:
+		return "Bytes"
+	case DataTypeUint32:
+		return "Uint32"
+	case DataTypeEnum:
+		return "Enum"
+	case DataTypeMessage:
+		return "Message"
+	default:
+		return "Unknown"
+	}
 }
 
-// IsValid checks if the DataType is a valid protobuf type.
-func (d DataType) IsValid() bool {
-	_, ok := dataTypeMap[string(d)]
-	return ok
-}
-
-func fromGraphQLType(s string) DataType {
-	switch s {
+func fromGraphQLType(s []byte) DataType {
+	switch string(s) {
 	case "ID", "String":
 		return DataTypeString
 	case "Int":
@@ -88,12 +126,12 @@ func fromGraphQLType(s string) DataType {
 
 // parseDataType converts a string type name to a DataType constant.
 // Returns DataTypeUnknown if the type is not recognized.
-func parseDataType(name string) DataType {
-	if !dataTypeMap[name].IsValid() {
+func parseDataType(kind protoref.Kind) DataType {
+	if _, ok := dataTypeMap[kind]; !ok {
 		return DataTypeUnknown
 	}
 
-	return dataTypeMap[name]
+	return dataTypeMap[kind]
 }
 
 type NodeKind int
@@ -1190,7 +1228,7 @@ func (p *RPCCompiler) traverseList(rootMsg protoref.Message, level int, field *F
 			}
 		default:
 			for _, element := range elements {
-				itemsField.Append(p.setValueForKind(DataType(itemsFieldDesc.Kind().String()), element))
+				itemsField.Append(p.setValueForKind(parseDataType(itemsFieldDesc.Kind()), element))
 			}
 		}
 
@@ -1388,11 +1426,10 @@ func (p *RPCCompiler) enrichMessageData(ref int, m protoref.MessageDescriptor) {
 // parseField extracts information from a protobuf field descriptor.
 func (p *RPCCompiler) parseField(f protoref.FieldDescriptor) Field {
 	name := string(f.Name())
-	typeName := f.Kind().String()
 
 	return Field{
 		Name:       name,
-		Type:       parseDataType(typeName),
+		Type:       parseDataType(f.Kind()),
 		Number:     int32(f.Number()),
 		Repeated:   f.IsList(),
 		Optional:   f.Cardinality() == protoref.Optional,

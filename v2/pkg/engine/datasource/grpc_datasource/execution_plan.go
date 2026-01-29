@@ -361,7 +361,7 @@ func formatRPCMessage(sb *strings.Builder, message RPCMessage, indent int) {
 
 	for _, field := range message.Fields {
 		fmt.Fprintf(sb, "%s  - Name: %s\n", indentStr, field.Name)
-		fmt.Fprintf(sb, "%s    TypeName: %s\n", indentStr, field.ProtoTypeName)
+		fmt.Fprintf(sb, "%s    TypeName: %s (%d)\n", indentStr, field.ProtoTypeName.String(), field.ProtoTypeName)
 		fmt.Fprintf(sb, "%s    Repeated: %v\n", indentStr, field.Repeated)
 		fmt.Fprintf(sb, "%s    JSONPath: %s\n", indentStr, field.JSONPath)
 		fmt.Fprintf(sb, "%s    ResolvePath: %s\n", indentStr, field.ResolvePath.String())
@@ -406,10 +406,10 @@ func (r *rpcPlanningContext) toDataType(t *ast.Type) DataType {
 // parseGraphQLType parses an ast.Type and returns the corresponding DataType.
 // It handles the different type kinds and non-null types.
 func (r *rpcPlanningContext) parseGraphQLType(t *ast.Type) DataType {
-	dt := r.definition.Input.ByteSliceString(t.Name)
+	dt := r.definition.Input.ByteSlice(t.Name)
 
 	// Retrieve the node to check the kind
-	node, found := r.definition.NodeByNameStr(dt)
+	node, found := r.definition.NodeByName(dt)
 	if !found {
 		return DataTypeUnknown
 	}
