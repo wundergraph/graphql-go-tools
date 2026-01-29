@@ -28,7 +28,7 @@ import (
 )
 
 type testOptions struct {
-	postProcessors                 []*postprocess.Processor
+	postProcessor                  *postprocess.Processor
 	skipReason                     string
 	withFieldInfo                  bool
 	withPrintPlan                  bool
@@ -44,12 +44,6 @@ func WithDefer() func(*testOptions) {
 	}
 }
 
-func WithPostProcessors(postProcessors ...*postprocess.Processor) func(*testOptions) {
-	return func(o *testOptions) {
-		o.postProcessors = postProcessors
-	}
-}
-
 func WithSkipReason(reason string) func(*testOptions) {
 	return func(o *testOptions) {
 		o.skipReason = reason
@@ -57,11 +51,16 @@ func WithSkipReason(reason string) func(*testOptions) {
 }
 
 func WithDefaultPostProcessor() func(*testOptions) {
-	return WithPostProcessors(postprocess.NewProcessor(postprocess.DisableResolveInputTemplates(), postprocess.DisableCreateConcreteSingleFetchTypes(), postprocess.DisableCreateParallelNodes(), postprocess.DisableMergeFields()))
+	return func(o *testOptions) {
+		o.postProcessor = postprocess.NewProcessor(postprocess.DisableResolveInputTemplates(), postprocess.DisableCreateConcreteSingleFetchTypes(), postprocess.DisableCreateParallelNodes(), postprocess.DisableMergeFields())
+	}
 }
 
 func WithDefaultCustomPostProcessor(options ...postprocess.ProcessorOption) func(*testOptions) {
-	return WithPostProcessors(postprocess.NewProcessor(options...))
+	// TODO: rename to WithPostProcessor
+	return func(o *testOptions) {
+		o.postProcessor = postprocess.NewProcessor(options...)
+	}
 }
 
 func WithFieldInfo() func(*testOptions) {
@@ -244,10 +243,8 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 			t.Fatal(report.Error())
 		}
 
-		if opts.postProcessors != nil {
-			for _, processor := range opts.postProcessors {
-				processor.Process(actualPlan)
-			}
+		if opts.postProcessor != nil {
+			opts.postProcessor.Process(actualPlan)
 		}
 
 		if opts.withPrintPlan {

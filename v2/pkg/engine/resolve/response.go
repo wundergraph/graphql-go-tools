@@ -42,13 +42,8 @@ type GraphQLResponse struct {
 }
 
 type DeferGraphQLResponse struct {
-	Patches []DeferData
+	DeferID string
 	Fetches *FetchTreeNode
-}
-
-type DeferData struct {
-	Data *Object
-	Path []string
 }
 
 type GraphQLResponseInfo struct {
