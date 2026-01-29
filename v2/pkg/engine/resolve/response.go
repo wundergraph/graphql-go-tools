@@ -56,6 +56,16 @@ func (g *GraphQLResponse) SingleFlightAllowed() bool {
 	return false
 }
 
+type DeferGraphQLResponse struct {
+	Patches []DeferData
+	Fetches *FetchTreeNode
+}
+
+type DeferData struct {
+	Data *Object
+	Path []string
+}
+
 type GraphQLResponseInfo struct {
 	OperationType ast.OperationType
 }

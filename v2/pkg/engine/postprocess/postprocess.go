@@ -21,11 +21,23 @@ type FetchTreeProcessor interface {
 type Processor struct {
 	disableExtractFetches bool
 	collectDataSourceInfo bool
-	resolveInputTemplates *resolveInputTemplates
-	appendFetchID         *fetchIDAppender
-	dedupe                *deduplicateSingleFetches
-	processResponseTree   []ResponseTreeProcessor
-	processFetchTree      []FetchTreeProcessor
+	processFetchTree      *FetchTreeProcessors
+	processResponseTree   *ResponseTreeProcessors
+	deferProcessor        *deferProcessor
+}
+
+type FetchTreeProcessors struct {
+	resolveInputTemplates          *resolveInputTemplates
+	appendFetchID                  *fetchIDAppender
+	dedupe                         *deduplicateSingleFetches
+	addMissingNestedDependencies   *addMissingNestedDependencies
+	createConcreteSingleFetchTypes *createConcreteSingleFetchTypes
+	orderSequenceByDependencies    *orderSequenceByDependencies
+	createParallelNodes            *createParallelNodes
+}
+
+type ResponseTreeProcessors struct {
+	mergeFields *mergeFields
 }
 
 type processorOptions struct {
@@ -39,6 +51,7 @@ type processorOptions struct {
 	disableCreateParallelNodes            bool
 	disableAddMissingNestedDependencies   bool
 	collectDataSourceInfo                 bool
+	disableDefer                          bool
 }
 
 type ProcessorOption func(*processorOptions)
@@ -92,6 +105,12 @@ func DisableAddMissingNestedDependencies() ProcessorOption {
 	}
 }
 
+func DisableDefer() ProcessorOption {
+	return func(o *processorOptions) {
+		o.disableDefer = true
+	}
+}
+
 func NewProcessor(options ...ProcessorOption) *Processor {
 	opts := &processorOptions{}
 	for _, o := range options {
@@ -100,35 +119,38 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 	return &Processor{
 		collectDataSourceInfo: opts.collectDataSourceInfo,
 		disableExtractFetches: opts.disableExtractFetches,
-		resolveInputTemplates: &resolveInputTemplates{
-			disable: opts.disableResolveInputTemplates,
-		},
-		appendFetchID: &fetchIDAppender{
-			disable: opts.disableRewriteOpNames,
-		},
-		dedupe: &deduplicateSingleFetches{
-			disable: opts.disableDeduplicateSingleFetches,
-		},
-		processFetchTree: []FetchTreeProcessor{
+		processFetchTree: &FetchTreeProcessors{
+			resolveInputTemplates: &resolveInputTemplates{
+				disable: opts.disableResolveInputTemplates,
+			},
+			appendFetchID: &fetchIDAppender{
+				disable: opts.disableRewriteOpNames,
+			},
+			dedupe: &deduplicateSingleFetches{
+				disable: opts.disableDeduplicateSingleFetches,
+			},
 			// this must go first, as we need to deduplicate fetches so that subsequent processors can work correctly
-			&addMissingNestedDependencies{
+			addMissingNestedDependencies: &addMissingNestedDependencies{
 				disable: opts.disableAddMissingNestedDependencies,
 			},
 			// this must go after deduplication because it relies on the existence of a "sequence" fetch node in the root
-			&createConcreteSingleFetchTypes{
+			createConcreteSingleFetchTypes: &createConcreteSingleFetchTypes{
 				disable: opts.disableCreateConcreteSingleFetchTypes,
 			},
-			&orderSequenceByDependencies{
+			orderSequenceByDependencies: &orderSequenceByDependencies{
 				disable: opts.disableOrderSequenceByDependencies,
 			},
-			&createParallelNodes{
+			createParallelNodes: &createParallelNodes{
 				disable: opts.disableCreateParallelNodes,
 			},
 		},
-		processResponseTree: []ResponseTreeProcessor{
-			&mergeFields{
+		processResponseTree: &ResponseTreeProcessors{
+			mergeFields: &mergeFields{
 				disable: opts.disableMergeFields,
 			},
+		},
+		deferProcessor: &deferProcessor{
+			disable: opts.disableDefer,
 		},
 	}
 }
@@ -140,33 +162,56 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 func (p *Processor) Process(pre plan.Plan) {
 	switch t := pre.(type) {
 	case *plan.SynchronousResponsePlan:
-		for i := range p.processResponseTree {
-			p.processResponseTree[i].Process(t.Response.Data)
-		}
+		p.processResponseTree.mergeFields.Process(t.Response.Data)
 		// initialize the fetch tree
 		p.createFetchTree(t.Response)
 		// NOTE: deduplication relies on the fact that the fetch tree
 		// have flat structure of child fetches
-		p.dedupe.ProcessFetchTree(t.Response.Fetches)
+		p.processFetchTree.dedupe.ProcessFetchTree(t.Response.Fetches)
 		// Appending fetchIDs makes query content unique, thus it should happen after "dedupe".
-		p.appendFetchID.ProcessFetchTree(t.Response.Fetches)
-		p.resolveInputTemplates.ProcessFetchTree(t.Response.Fetches)
-		for i := range p.processFetchTree {
-			p.processFetchTree[i].ProcessFetchTree(t.Response.Fetches)
+		p.processFetchTree.appendFetchID.ProcessFetchTree(t.Response.Fetches)
+		p.processFetchTree.resolveInputTemplates.ProcessFetchTree(t.Response.Fetches)
+		p.processFetchTree.addMissingNestedDependencies.ProcessFetchTree(t.Response.Fetches)
+		p.processFetchTree.createConcreteSingleFetchTypes.ProcessFetchTree(t.Response.Fetches)
+		p.processFetchTree.orderSequenceByDependencies.ProcessFetchTree(t.Response.Fetches)
+		p.processFetchTree.createParallelNodes.ProcessFetchTree(t.Response.Fetches)
+	case *plan.DeferResponsePlan:
+		p.processResponseTree.mergeFields.Process(t.RawResponse.Data)
+		p.createFetchTree(t.RawResponse)
+		p.processFetchTree.dedupe.ProcessFetchTree(t.RawResponse.Fetches)
+		p.processFetchTree.appendFetchID.ProcessFetchTree(t.RawResponse.Fetches)
+		p.processFetchTree.resolveInputTemplates.ProcessFetchTree(t.RawResponse.Fetches)
+		p.processFetchTree.addMissingNestedDependencies.ProcessFetchTree(t.RawResponse.Fetches)
+		p.processFetchTree.createConcreteSingleFetchTypes.ProcessFetchTree(t.RawResponse.Fetches)
+
+		// extract deferred fetches and fields into their own fetch trees
+		p.deferProcessor.Process(t)
+
+		// process the initial response fetch tree
+		p.processFetchTree.orderSequenceByDependencies.ProcessFetchTree(t.InitialResponse.Fetches)
+		p.processFetchTree.createParallelNodes.ProcessFetchTree(t.InitialResponse.Fetches)
+
+		// process each deferred response fetch tree
+		for _, deferResp := range t.DeferResponses {
+			p.processFetchTree.orderSequenceByDependencies.ProcessFetchTree(deferResp.Fetches)
+			p.processFetchTree.createParallelNodes.ProcessFetchTree(deferResp.Fetches)
 		}
+
 	case *plan.SubscriptionResponsePlan:
-		for i := range p.processResponseTree {
-			p.processResponseTree[i].ProcessSubscription(t.Response.Response.Data)
-		}
+		p.processResponseTree.mergeFields.Process(t.Response.Response.Data)
 		p.createFetchTree(t.Response.Response)
 		p.appendTriggerToFetchTree(t.Response)
-		p.dedupe.ProcessFetchTree(t.Response.Response.Fetches)
-		p.appendFetchID.ProcessFetchTree(t.Response.Response.Fetches)
-		p.resolveInputTemplates.ProcessFetchTree(t.Response.Response.Fetches)
-		p.resolveInputTemplates.ProcessTrigger(&t.Response.Trigger)
-		for i := range p.processFetchTree {
-			p.processFetchTree[i].ProcessFetchTree(t.Response.Response.Fetches)
-		}
+		p.processFetchTree.dedupe.ProcessFetchTree(t.Response.Response.Fetches)
+		// Appending fetchIDs makes query content unique, thus it should happen after "dedupe".
+		p.processFetchTree.appendFetchID.ProcessFetchTree(t.Response.Response.Fetches)
+		// resolve input templates for nested fetches
+		p.processFetchTree.resolveInputTemplates.ProcessFetchTree(t.Response.Response.Fetches)
+		// resolve input template for the root query in the subscription trigger
+		p.processFetchTree.resolveInputTemplates.ProcessTrigger(&t.Response.Trigger)
+		p.processFetchTree.addMissingNestedDependencies.ProcessFetchTree(t.Response.Response.Fetches)
+		p.processFetchTree.createConcreteSingleFetchTypes.ProcessFetchTree(t.Response.Response.Fetches)
+		p.processFetchTree.orderSequenceByDependencies.ProcessFetchTree(t.Response.Response.Fetches)
+		p.processFetchTree.createParallelNodes.ProcessFetchTree(t.Response.Response.Fetches)
 	}
 }
 
