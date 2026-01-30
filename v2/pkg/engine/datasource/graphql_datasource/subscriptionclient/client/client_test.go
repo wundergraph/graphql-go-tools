@@ -1,6 +1,7 @@
 package client
 
 import (
+	"net/http"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -8,6 +9,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// newTestClient creates a client for testing using http.DefaultClient.
+// Panics on error since test setup failures should be fatal.
+func newTestClient(t *testing.T) *Client {
+	t.Helper()
+	c, err := New(http.DefaultClient, http.DefaultClient)
+	require.NoError(t, err)
+	return c
+}
 
 func TestSubscriptionKey(t *testing.T) {
 	t.Run("differs for different queries", func(t *testing.T) {
@@ -163,7 +173,7 @@ func TestSubscription(t *testing.T) {
 
 func TestClient(t *testing.T) {
 	t.Run("New creates client with transports", func(t *testing.T) {
-		c := New()
+		c := newTestClient(t)
 		defer c.Close()
 
 		assert.NotNil(t, c.ws)
@@ -172,7 +182,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("Stats returns correct counts", func(t *testing.T) {
-		c := New()
+		c := newTestClient(t)
 		defer c.Close()
 
 		stats := c.Stats()
@@ -181,13 +191,13 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("Close is idempotent", func(t *testing.T) {
-		c := New()
+		c := newTestClient(t)
 		c.Close()
 		c.Close() // should not panic
 	})
 
 	t.Run("Subscribe fails after Close", func(t *testing.T) {
-		c := New()
+		c := newTestClient(t)
 		c.Close()
 
 		_, _, err := c.Subscribe(t.Context(), &Request{Query: "subscription { a }"}, Options{

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"sync"
 
 	"github.com/coder/websocket"
@@ -14,6 +15,8 @@ import (
 )
 
 type WSTransport struct {
+	httpClient *http.Client
+
 	mu      sync.Mutex
 	dialing map[uint64]*dialResult
 	conns   map[uint64]*WSConnection
@@ -25,11 +28,17 @@ type dialResult struct {
 	err  error
 }
 
-func NewWSTransport() *WSTransport {
-	return &WSTransport{
-		conns:   make(map[uint64]*WSConnection),
-		dialing: make(map[uint64]*dialResult),
+// NewWSTransport creates a new WSTransport with the provided http.Client
+// for WebSocket upgrade requests.
+func NewWSTransport(httpClient *http.Client) (*WSTransport, error) {
+	if httpClient == nil {
+		return nil, fmt.Errorf("WSTransport: http.Client must not be nil")
 	}
+	return &WSTransport{
+		httpClient: httpClient,
+		conns:      make(map[uint64]*WSConnection),
+		dialing:    make(map[uint64]*dialResult),
+	}, nil
 }
 
 func (t *WSTransport) Subscribe(ctx context.Context, req *shared.Request, opts shared.Options) (<-chan *shared.Message, func(), error) {
@@ -120,10 +129,11 @@ func (t *WSTransport) dial(ctx context.Context, key uint64, opts shared.Options)
 	case shared.SubprotocolGraphQLWS:
 		subprotocols = []string{"graphql-ws"}
 	default:
-		subprotocols = []string{"graphql-transport-ws", "graphql-ws"}
+		subprotocols = []string{"graphql-transport-ws"}
 	}
 
 	wsConn, _, err := websocket.Dial(ctx, opts.Endpoint, &websocket.DialOptions{
+		HTTPClient:   t.httpClient,
 		Subprotocols: subprotocols,
 		HTTPHeader:   opts.Headers,
 	})
