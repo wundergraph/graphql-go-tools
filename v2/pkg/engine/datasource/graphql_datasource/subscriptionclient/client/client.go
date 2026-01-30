@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"sync"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
@@ -48,13 +49,25 @@ type Stats struct {
 	Listeners     int // total listener channels
 }
 
-// New creates a new subscription client.
-func New() *Client {
+// New creates a new subscription client with the provided HTTP clients.
+// httpClient is used for WebSocket upgrade requests.
+// streamingClient is used for SSE requests (should have appropriate timeouts for long-lived connections).
+func New(httpClient, streamingClient *http.Client) (*Client, error) {
+	ws, err := transport.NewWSTransport(httpClient)
+	if err != nil {
+		return nil, err
+	}
+
+	sse, err := transport.NewSSETransport(streamingClient)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Client{
 		subs: make(map[uint64]*subscription),
-		ws:   transport.NewWSTransport(),
-		sse:  transport.NewSSETransport(),
-	}
+		ws:   ws,
+		sse:  sse,
+	}, nil
 }
 
 // Subscribe creates or joins a subscription.

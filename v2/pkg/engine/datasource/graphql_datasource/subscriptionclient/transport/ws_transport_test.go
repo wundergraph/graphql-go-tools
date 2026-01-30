@@ -17,6 +17,14 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/transport"
 )
 
+// newTestWSTransport creates a WSTransport for testing using http.DefaultClient.
+func newTestWSTransport(t *testing.T) *transport.WSTransport {
+	t.Helper()
+	tr, err := transport.NewWSTransport(http.DefaultClient)
+	require.NoError(t, err)
+	return tr
+}
+
 func TestWSTransport_Subscribe(t *testing.T) {
 	t.Parallel()
 
@@ -43,7 +51,7 @@ func TestWSTransport_Subscribe(t *testing.T) {
 			})
 		})
 
-		tr := transport.NewWSTransport()
+		tr := newTestWSTransport(t)
 		defer tr.Close()
 
 		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
@@ -85,7 +93,7 @@ func TestWSTransport_Subscribe(t *testing.T) {
 			}
 		})
 
-		tr := transport.NewWSTransport()
+		tr := newTestWSTransport(t)
 		defer tr.Close()
 
 		opts := common.Options{
@@ -133,7 +141,7 @@ func TestWSTransport_Subscribe(t *testing.T) {
 			}
 		})
 
-		tr := transport.NewWSTransport()
+		tr := newTestWSTransport(t)
 		defer tr.Close()
 
 		headers1 := http.Header{"Authorization": []string{"Bearer token1"}}
@@ -186,7 +194,7 @@ func TestWSTransport_Subscribe(t *testing.T) {
 			}
 		})
 
-		tr := transport.NewWSTransport()
+		tr := newTestWSTransport(t)
 		defer tr.Close()
 
 		ch1, cancel1, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, common.Options{
@@ -225,7 +233,7 @@ func TestWSTransport_Subscribe(t *testing.T) {
 			}
 		})
 
-		tr := transport.NewWSTransport()
+		tr := newTestWSTransport(t)
 		defer tr.Close()
 
 		opts := common.Options{
@@ -275,7 +283,7 @@ func TestWSTransport_Subscribe(t *testing.T) {
 			}
 		})
 
-		tr := transport.NewWSTransport()
+		tr := newTestWSTransport(t)
 		defer tr.Close()
 
 		opts := common.Options{
@@ -319,7 +327,7 @@ func TestWSTransport_Close(t *testing.T) {
 			}
 		})
 
-		tr := transport.NewWSTransport()
+		tr := newTestWSTransport(t)
 
 		_, _, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, common.Options{
 			Endpoint:  server.URL,
@@ -346,7 +354,7 @@ func TestWSTransport_Close(t *testing.T) {
 			}
 		})
 
-		tr := transport.NewWSTransport()
+		tr := newTestWSTransport(t)
 
 		ch, _, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, common.Options{
 			Endpoint:  server.URL,
@@ -388,7 +396,7 @@ func TestWSTransport_ConcurrentSubscribe(t *testing.T) {
 			}
 		})
 
-		tr := transport.NewWSTransport()
+		tr := newTestWSTransport(t)
 		defer tr.Close()
 
 		opts := common.Options{
