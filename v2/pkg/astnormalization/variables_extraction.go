@@ -7,6 +7,8 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/tidwall/sjson"
 
+	"github.com/wundergraph/astjson"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astimport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization/uploads"
@@ -194,10 +196,17 @@ func (v *variablesExtractionVisitor) recordFieldArgumentMapping(ref int, varName
 	// Literal value - store the JSON-encoded value
 	valueBytes, err := v.operation.ValueToJSON(v.operation.Arguments[ref].Value)
 	if err != nil {
-		return // Skip on error
+		// Skip on error
+		return
 	}
-	v.fieldArgumentMapping[key] = FieldArgumentValue{LiteralValue: valueBytes}
 
+	astValue, err := astjson.ParseBytesWithoutCache(valueBytes)
+	if err != nil {
+		// Skip on error
+		return
+	}
+
+	v.fieldArgumentMapping[key] = FieldArgumentValue{LiteralValue: astValue}
 }
 
 func (v *variablesExtractionVisitor) variableExists(variableValue []byte, inputValueDefinition int) (exists bool, name []byte, definition int) {

@@ -1,12 +1,16 @@
 package astnormalization
 
-import "github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization/uploads"
+import (
+	"github.com/wundergraph/astjson"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization/uploads"
+)
 
 // FieldArgumentValue represents either a variable reference or a literal value.
 // If LiteralValue is non-nil, it's a literal; otherwise use VariableName.
 type FieldArgumentValue struct {
-	VariableName string // Set when value is from a variable (e.g., "userId", "a")
-	LiteralValue []byte // Set when value is a literal (JSON encoded, e.g., []byte("10"))
+	VariableName string
+	LiteralValue *astjson.Value
 }
 
 // FieldArgumentMapping maps field arguments to their values.
