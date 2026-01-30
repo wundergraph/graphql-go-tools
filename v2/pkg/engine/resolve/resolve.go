@@ -850,6 +850,7 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		}
 
 		if asyncDataSource != nil {
+			fmt.Println("datasource is async", asyncDataSource)
 			err = asyncDataSource.AsyncStart(cloneCtx, triggerID, add.headers, add.input, trig.updater)
 		} else {
 			err = add.resolve.Trigger.Source.Start(cloneCtx, add.headers, add.input, trig.updater)
