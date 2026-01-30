@@ -16,12 +16,19 @@ import (
 
 // Context should not ever be initialized directly, and should be initialized via the NewContext function
 type Context struct {
-	ctx              context.Context
-	Variables        *astjson.Value
+	ctx context.Context
+
+	// Variables contains the variables to be used to render values of variables for the subgraph.
+	// Resolver takes into account RemapVariables for variable names.
+	Variables *astjson.Value
+
+	// RemapVariables contains a map from new names to old names. When variables are renamed,
+	// the resolver will use the new name to look up the old name to render the variable in the query.
+	RemapVariables map[string]string
+
 	Files            []*httpclient.FileUpload
 	Request          Request
 	RenameTypeNames  []RenameTypeName
-	RemapVariables   map[string]string
 	TracingOptions   TraceOptions
 	RateLimitOptions RateLimitOptions
 	ExecutionOptions ExecutionOptions

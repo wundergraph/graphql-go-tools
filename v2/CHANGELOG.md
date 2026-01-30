@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.246](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.245...v2.0.0-rc.246) (2026-01-27)
+
+
+### Features
+
+* compute static costs ([#1359](https://github.com/wundergraph/graphql-go-tools/issues/1359)) ([004f68e](https://github.com/wundergraph/graphql-go-tools/commit/004f68e2253c9f2ae9d20aa4488041c7551c84d7))
+
 ## [2.0.0-rc.245](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.244...v2.0.0-rc.245) (2026-01-26)
 
 
