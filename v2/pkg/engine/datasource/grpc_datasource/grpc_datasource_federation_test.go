@@ -1207,3 +1207,419 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires(t *testing.T) {
 		})
 	}
 }
+
+func Test_DataSource_Load_WithEntity_Calls_And_Requires_And_FieldResolvers(t *testing.T) {
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
+
+	type graphqlError struct {
+		Message string `json:"message"`
+	}
+	type graphqlResponse struct {
+		Data   map[string]interface{} `json:"data"`
+		Errors []graphqlError         `json:"errors,omitempty"`
+	}
+
+	testCases := []struct {
+		name              string
+		query             string
+		vars              string
+		federationConfigs plan.FederationFieldConfigurations
+		validate          func(t *testing.T, data map[string]interface{})
+		validateError     func(t *testing.T, errData []graphqlError)
+	}{
+		{
+			name:  "Query Storage with tagSummary (requires) + storageStatus (field resolver)",
+			query: `query($representations: [_Any!]!, $checkHealth: Boolean!) { _entities(representations: $representations) { ...on Storage { __typename id tagSummary storageStatus(checkHealth: $checkHealth) { ... on ActionSuccess { message } ... on ActionError { message code } } } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Storage","id":"1","tags":["electronics","gadgets","sale"]},
+				{"__typename":"Storage","id":"2","tags":["books","fiction"]},
+				{"__typename":"Storage","id":"3","tags":[]}
+			],"checkHealth":false}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "tagSummary",
+					SelectionSet: "tags",
+				},
+			},
+			validate: func(t *testing.T, data map[string]interface{}) {
+				entities, ok := data["_entities"].([]interface{})
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 3, "Should return 3 entities")
+
+				// Storage 1: tags = ["electronics", "gadgets", "sale"] -> "electronics, gadgets, sale"
+				storage1, ok := entities[0].(map[string]interface{})
+				require.True(t, ok, "storage1 should be an object")
+				require.Equal(t, "Storage", storage1["__typename"])
+				require.Equal(t, "1", storage1["id"])
+				require.Equal(t, "electronics, gadgets, sale", storage1["tagSummary"])
+				// Check storageStatus field resolver result
+				status1, ok := storage1["storageStatus"].(map[string]interface{})
+				require.True(t, ok, "storageStatus should be an object")
+				require.Contains(t, status1, "message")
+				require.Contains(t, status1["message"], "is healthy")
+
+				// Storage 2: tags = ["books", "fiction"] -> "books, fiction"
+				storage2, ok := entities[1].(map[string]interface{})
+				require.True(t, ok, "storage2 should be an object")
+				require.Equal(t, "2", storage2["id"])
+				require.Equal(t, "books, fiction", storage2["tagSummary"])
+				status2, ok := storage2["storageStatus"].(map[string]interface{})
+				require.True(t, ok, "storageStatus should be an object")
+				require.Contains(t, status2, "message")
+
+				// Storage 3: tags = [] -> ""
+				storage3, ok := entities[2].(map[string]interface{})
+				require.True(t, ok, "storage3 should be an object")
+				require.Equal(t, "3", storage3["id"])
+				require.Equal(t, "", storage3["tagSummary"])
+				status3, ok := storage3["storageStatus"].(map[string]interface{})
+				require.True(t, ok, "storageStatus should be an object")
+				require.Contains(t, status3, "message")
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			name:  "Query Storage with metadataScore (requires) + linkedStorages (field resolver)",
+			query: `query($representations: [_Any!]!, $depth: Int!) { _entities(representations: $representations) { ...on Storage { __typename id metadataScore linkedStorages(depth: $depth) { id name } } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Storage","id":"1","metadata":{"capacity":100,"zone":"A"}},
+				{"__typename":"Storage","id":"2","metadata":{"capacity":200,"zone":"B"}}
+			],"depth":2}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "metadataScore",
+					SelectionSet: "metadata { capacity zone }",
+				},
+			},
+			validate: func(t *testing.T, data map[string]interface{}) {
+				entities, ok := data["_entities"].([]interface{})
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 2, "Should return 2 entities")
+
+				// Storage 1: capacity=100, zone="A" (weight=1.0) -> 100*1.0 = 100.0
+				storage1, ok := entities[0].(map[string]interface{})
+				require.True(t, ok, "storage1 should be an object")
+				require.Equal(t, "Storage", storage1["__typename"])
+				require.Equal(t, "1", storage1["id"])
+				require.Equal(t, 100.0, storage1["metadataScore"])
+				// Check linkedStorages field resolver result
+				linked1, ok := storage1["linkedStorages"].([]interface{})
+				require.True(t, ok, "linkedStorages should be an array")
+				require.Len(t, linked1, 2, "Should return 2 linked storages (depth=2)")
+				for i, linked := range linked1 {
+					linkedStorage, ok := linked.(map[string]interface{})
+					require.True(t, ok, "linked storage should be an object")
+					require.Contains(t, linkedStorage["id"], fmt.Sprintf("linked-storage-1-%d", i))
+					require.Contains(t, linkedStorage, "name")
+				}
+
+				// Storage 2: capacity=200, zone="B" (weight=0.8) -> 200*0.8 = 160.0
+				storage2, ok := entities[1].(map[string]interface{})
+				require.True(t, ok, "storage2 should be an object")
+				require.Equal(t, "2", storage2["id"])
+				require.Equal(t, 160.0, storage2["metadataScore"])
+				linked2, ok := storage2["linkedStorages"].([]interface{})
+				require.True(t, ok, "linkedStorages should be an array")
+				require.Len(t, linked2, 2, "Should return 2 linked storages (depth=2)")
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			name:  "Query Storage with optionalTagSummary (nullable requires) + nearbyStorages (nullable field resolver)",
+			query: `query($representations: [_Any!]!, $radius: Int) { _entities(representations: $representations) { ...on Storage { __typename id optionalTagSummary nearbyStorages(radius: $radius) { id name } } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Storage","id":"1","optionalTags":["premium","featured"]},
+				{"__typename":"Storage","id":"2","optionalTags":[]},
+				{"__typename":"Storage","id":"3","optionalTags":null}
+			],"radius":3}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "optionalTagSummary",
+					SelectionSet: "optionalTags",
+				},
+			},
+			validate: func(t *testing.T, data map[string]interface{}) {
+				entities, ok := data["_entities"].([]interface{})
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 3, "Should return 3 entities")
+
+				// Storage 1: optionalTags = ["premium", "featured"] -> "premium, featured"
+				storage1, ok := entities[0].(map[string]interface{})
+				require.True(t, ok, "storage1 should be an object")
+				require.Equal(t, "Storage", storage1["__typename"])
+				require.Equal(t, "1", storage1["id"])
+				require.Equal(t, "premium, featured", storage1["optionalTagSummary"])
+				// Check nearbyStorages field resolver result with radius=3
+				nearby1, ok := storage1["nearbyStorages"].([]interface{})
+				require.True(t, ok, "nearbyStorages should be an array")
+				require.Len(t, nearby1, 3, "Should return 3 nearby storages (radius=3)")
+
+				// Storage 2: optionalTags = [] -> null (empty list returns nil)
+				storage2, ok := entities[1].(map[string]interface{})
+				require.True(t, ok, "storage2 should be an object")
+				require.Equal(t, "2", storage2["id"])
+				require.Nil(t, storage2["optionalTagSummary"])
+				nearby2, ok := storage2["nearbyStorages"].([]interface{})
+				require.True(t, ok, "nearbyStorages should be an array")
+				require.Len(t, nearby2, 3, "Should return 3 nearby storages (radius=3)")
+
+				// Storage 3: optionalTags = null -> null
+				storage3, ok := entities[2].(map[string]interface{})
+				require.True(t, ok, "storage3 should be an object")
+				require.Equal(t, "3", storage3["id"])
+				require.Nil(t, storage3["optionalTagSummary"])
+				nearby3, ok := storage3["nearbyStorages"].([]interface{})
+				require.True(t, ok, "nearbyStorages should be an array")
+				require.Len(t, nearby3, 3, "Should return 3 nearby storages (radius=3)")
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			name:  "Query Storage with optionalTagSummary (nullable requires) + nearbyStorages (null radius - tests null behavior)",
+			query: `query($representations: [_Any!]!, $radius: Int) { _entities(representations: $representations) { ...on Storage { __typename id optionalTagSummary nearbyStorages(radius: $radius) { id name } } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Storage","id":"1","optionalTags":["premium"]},
+				{"__typename":"Storage","id":"2","optionalTags":["featured"]},
+				{"__typename":"Storage","id":"3","optionalTags":["sale"]},
+				{"__typename":"Storage","id":"4","optionalTags":["discount"]}
+			],"radius":null}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "optionalTagSummary",
+					SelectionSet: "optionalTags",
+				},
+			},
+			validate: func(t *testing.T, data map[string]interface{}) {
+				entities, ok := data["_entities"].([]interface{})
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 4, "Should return 4 entities")
+
+				// When radius is null, the mock service behavior is:
+				// - Even indices (0, 2): return empty list
+				// - Odd indices (1, 3): return null
+
+				// Storage 1 (index 0, even): nearbyStorages should be empty list
+				storage1, ok := entities[0].(map[string]interface{})
+				require.True(t, ok, "storage1 should be an object")
+				require.Equal(t, "Storage", storage1["__typename"])
+				require.Equal(t, "1", storage1["id"])
+				require.Equal(t, "premium", storage1["optionalTagSummary"])
+				nearby1, ok := storage1["nearbyStorages"].([]interface{})
+				require.True(t, ok, "nearbyStorages should be an empty array for even index")
+				require.Len(t, nearby1, 0, "Should return empty list for index 0 when radius is null")
+
+				// Storage 2 (index 1, odd): nearbyStorages should be null
+				storage2, ok := entities[1].(map[string]interface{})
+				require.True(t, ok, "storage2 should be an object")
+				require.Equal(t, "2", storage2["id"])
+				require.Equal(t, "featured", storage2["optionalTagSummary"])
+				require.Nil(t, storage2["nearbyStorages"], "nearbyStorages should be null for odd index")
+
+				// Storage 3 (index 2, even): nearbyStorages should be empty list
+				storage3, ok := entities[2].(map[string]interface{})
+				require.True(t, ok, "storage3 should be an object")
+				require.Equal(t, "3", storage3["id"])
+				require.Equal(t, "sale", storage3["optionalTagSummary"])
+				nearby3, ok := storage3["nearbyStorages"].([]interface{})
+				require.True(t, ok, "nearbyStorages should be an empty array for even index")
+				require.Len(t, nearby3, 0, "Should return empty list for index 2 when radius is null")
+
+				// Storage 4 (index 3, odd): nearbyStorages should be null
+				storage4, ok := entities[3].(map[string]interface{})
+				require.True(t, ok, "storage4 should be an object")
+				require.Equal(t, "4", storage4["id"])
+				require.Equal(t, "discount", storage4["optionalTagSummary"])
+				require.Nil(t, storage4["nearbyStorages"], "nearbyStorages should be null for odd index")
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			name:  "Query Storage with multiple requires (tagSummary + metadataScore) + storageStatus (field resolver)",
+			query: `query($representations: [_Any!]!, $checkHealth: Boolean!) { _entities(representations: $representations) { ...on Storage { __typename id tagSummary metadataScore storageStatus(checkHealth: $checkHealth) { ... on ActionSuccess { message timestamp } ... on ActionError { message code } } } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Storage","id":"1","tags":["tech","sale"],"metadata":{"capacity":100,"zone":"A"}},
+				{"__typename":"Storage","id":"2","tags":["books"],"metadata":{"capacity":200,"zone":"B"}}
+			],"checkHealth":false}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "tagSummary",
+					SelectionSet: "tags",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "metadataScore",
+					SelectionSet: "metadata { capacity zone }",
+				},
+			},
+			validate: func(t *testing.T, data map[string]interface{}) {
+				entities, ok := data["_entities"].([]interface{})
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 2, "Should return 2 entities")
+
+				// Storage 1: tagSummary = "tech, sale", metadataScore = 100*1.0 = 100.0
+				storage1, ok := entities[0].(map[string]interface{})
+				require.True(t, ok, "storage1 should be an object")
+				require.Equal(t, "Storage", storage1["__typename"])
+				require.Equal(t, "1", storage1["id"])
+				require.Equal(t, "tech, sale", storage1["tagSummary"])
+				require.Equal(t, 100.0, storage1["metadataScore"])
+				// Check storageStatus field resolver result
+				status1, ok := storage1["storageStatus"].(map[string]interface{})
+				require.True(t, ok, "storageStatus should be an object")
+				require.Contains(t, status1, "message")
+				require.Contains(t, status1["message"], "is healthy")
+				require.Contains(t, status1, "timestamp")
+
+				// Storage 2: tagSummary = "books", metadataScore = 200*0.8 = 160.0
+				storage2, ok := entities[1].(map[string]interface{})
+				require.True(t, ok, "storage2 should be an object")
+				require.Equal(t, "2", storage2["id"])
+				require.Equal(t, "books", storage2["tagSummary"])
+				require.Equal(t, 160.0, storage2["metadataScore"])
+				status2, ok := storage2["storageStatus"].(map[string]interface{})
+				require.True(t, ok, "storageStatus should be an object")
+				require.Contains(t, status2, "message")
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			name:  "Query Storage with processedMetadata (complex return requires) + linkedStorages (field resolver)",
+			query: `query($representations: [_Any!]!, $depth: Int!) { _entities(representations: $representations) { ...on Storage { __typename id processedMetadata { capacity zone priority } linkedStorages(depth: $depth) { id name } } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Storage","id":"1","metadata":{"capacity":50,"zone":"a","priority":5}},
+				{"__typename":"Storage","id":"2","metadata":{"capacity":100,"zone":"b","priority":10}}
+			],"depth":1}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "processedMetadata",
+					SelectionSet: "metadata { capacity zone priority }",
+				},
+			},
+			validate: func(t *testing.T, data map[string]interface{}) {
+				entities, ok := data["_entities"].([]interface{})
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 2, "Should return 2 entities")
+
+				// Storage 1: capacity=50*2=100, zone="A" (uppercase), priority=5+10=15
+				storage1, ok := entities[0].(map[string]interface{})
+				require.True(t, ok, "storage1 should be an object")
+				require.Equal(t, "Storage", storage1["__typename"])
+				require.Equal(t, "1", storage1["id"])
+				metadata1, ok := storage1["processedMetadata"].(map[string]interface{})
+				require.True(t, ok, "processedMetadata should be an object")
+				require.Equal(t, float64(100), metadata1["capacity"])
+				require.Equal(t, "A", metadata1["zone"])
+				require.Equal(t, float64(15), metadata1["priority"])
+				// Check linkedStorages field resolver result
+				linked1, ok := storage1["linkedStorages"].([]interface{})
+				require.True(t, ok, "linkedStorages should be an array")
+				require.Len(t, linked1, 1, "Should return 1 linked storage (depth=1)")
+				linkedStorage1, ok := linked1[0].(map[string]interface{})
+				require.True(t, ok, "linked storage should be an object")
+				require.Contains(t, linkedStorage1["id"], "linked-storage-1-0")
+				require.Contains(t, linkedStorage1, "name")
+
+				// Storage 2: capacity=100*2=200, zone="B" (uppercase), priority=10+10=20
+				storage2, ok := entities[1].(map[string]interface{})
+				require.True(t, ok, "storage2 should be an object")
+				require.Equal(t, "2", storage2["id"])
+				metadata2, ok := storage2["processedMetadata"].(map[string]interface{})
+				require.True(t, ok, "processedMetadata should be an object")
+				require.Equal(t, float64(200), metadata2["capacity"])
+				require.Equal(t, "B", metadata2["zone"])
+				require.Equal(t, float64(20), metadata2["priority"])
+				linked2, ok := storage2["linkedStorages"].([]interface{})
+				require.True(t, ok, "linkedStorages should be an array")
+				require.Len(t, linked2, 1, "Should return 1 linked storage (depth=1)")
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Parse the GraphQL schema
+			schemaDoc := grpctest.MustGraphQLSchema(t)
+
+			// Parse the GraphQL query
+			queryDoc, report := astparser.ParseGraphqlDocumentString(tc.query)
+			if report.HasErrors() {
+				t.Fatalf("failed to parse query: %s", report.Error())
+			}
+
+			compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+			if err != nil {
+				t.Fatalf("failed to compile proto: %v", err)
+			}
+
+			// Create the datasource
+			ds, err := NewDataSource(conn, DataSourceConfig{
+				Operation:         &queryDoc,
+				Definition:        &schemaDoc,
+				SubgraphName:      "Products",
+				Mapping:           testMapping(),
+				Compiler:          compiler,
+				FederationConfigs: tc.federationConfigs,
+			})
+			require.NoError(t, err)
+
+			// Execute the query through our datasource
+			output := new(bytes.Buffer)
+			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
+			err = ds.Load(context.Background(), []byte(input), output)
+			require.NoError(t, err)
+
+			// Parse the response
+			var resp graphqlResponse
+
+			err = json.Unmarshal(output.Bytes(), &resp)
+			require.NoError(t, err, "Failed to unmarshal response")
+
+			tc.validate(t, resp.Data)
+			tc.validateError(t, resp.Errors)
+		})
+	}
+}
