@@ -411,7 +411,7 @@ func (r *rpcPlanningContext) parseGraphQLType(t *ast.Type) DataType {
 	// Retrieve the node to check the kind
 	node, found := r.definition.NodeByName(dt)
 	if !found {
-		return DataTypeUnknown
+		return fromGraphQLType(dt)
 	}
 
 	// For non-scalar types, return the corresponding DataType

@@ -733,7 +733,18 @@ func (p *RPCCompiler) buildRequiredFieldsMessage(inputMessage Message, rpcMessag
 		return nil, fmt.Errorf("message %s not found in document", requiresSelectionField.Message.Name)
 	}
 
-	representations := data.Get("representations").Array()
+	representationsValue := data.Get("representations")
+	if exists, isArray := representationsValue.Exists(), representationsValue.IsArray(); !exists || !isArray {
+		if !exists {
+			return nil, errors.New("representations field not found in data")
+		}
+
+		if !isArray {
+			return nil, errors.New("invalid type for representations element, expected representations to be an array")
+		}
+	}
+
+	representations := representationsValue.Array()
 	for _, representation := range representations {
 		element := contextList.NewElement()
 		msg := element.Message()
@@ -1397,7 +1408,7 @@ func (p *RPCCompiler) parseMessageDefinitions(messages protoref.MessageDescripto
 // fullMessageName returns the full name of the message omiting the package name.
 // In our case don't need the fqn as we only have one package where we need to resolve the messages.
 func (p *RPCCompiler) fullMessageName(m protoref.MessageDescriptor) string {
-	return strings.TrimLeft(string(m.FullName()), p.doc.Package+".")
+	return strings.TrimPrefix(string(m.FullName()), p.doc.Package+".")
 }
 
 // enrichMessageData enriches the message data with the field information.
