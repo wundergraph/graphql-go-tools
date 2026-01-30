@@ -24,40 +24,42 @@ const (
 // DataType represents the different types of data that can be stored in a protobuf field.
 type DataType int8
 
-/*
-// Constants as defined by the google.protobuf.Field.Kind enumeration.
-const (
-	BoolKind     Kind = 8
-	EnumKind     Kind = 14
-	Int32Kind    Kind = 5
-	Uint32Kind   Kind = 13
-	Int64Kind    Kind = 3
-	Uint64Kind   Kind = 4
-	FloatKind    Kind = 2
-	DoubleKind   Kind = 1
-	StringKind   Kind = 9
-	BytesKind    Kind = 12
-)
-
-*/
-
 // Protobuf data types supported by the compiler.
+// These values intentionally match the google.protobuf.FieldDescriptorProto.Type enum
+// (exposed via protoref.Kind) for efficient conversion. The protobuf spec has been
+// stable since 2008, so these values are unlikely to change.
 const (
 	DataTypeUnknown DataType = -1 // Represents an unknown or unsupported type
-	DataTypeFloat   DataType = 2  // 32-bit floating point type
-	DataTypeDouble  DataType = 1  // 64-bit floating point type
-	DataTypeInt64   DataType = 3  // 64-bit integer type
-	DataTypeUint64  DataType = 4  // 64-bit unsigned integer type
-	DataTypeInt32   DataType = 5  // 32-bit integer type
-	DataTypeBool    DataType = 8  // Boolean type
-	DataTypeString  DataType = 9  // String type
-	DataTypeBytes   DataType = 12 // Bytes type
-	DataTypeUint32  DataType = 13 // 32-bit unsigned integer type
-	DataTypeEnum    DataType = 14 // Enumeration type
-	DataTypeMessage DataType = 11 // Nested message type
+	DataTypeDouble  DataType = 1  // 64-bit floating point type (protoref.DoubleKind)
+	DataTypeFloat   DataType = 2  // 32-bit floating point type (protoref.FloatKind)
+	DataTypeInt64   DataType = 3  // 64-bit integer type (protoref.Int64Kind)
+	DataTypeUint64  DataType = 4  // 64-bit unsigned integer type (protoref.Uint64Kind)
+	DataTypeInt32   DataType = 5  // 32-bit integer type (protoref.Int32Kind)
+	DataTypeBool    DataType = 8  // Boolean type (protoref.BoolKind)
+	DataTypeString  DataType = 9  // String type (protoref.StringKind)
+	DataTypeMessage DataType = 11 // Nested message type (protoref.MessageKind)
+	DataTypeBytes   DataType = 12 // Bytes type (protoref.BytesKind)
+	DataTypeUint32  DataType = 13 // 32-bit unsigned integer type (protoref.Uint32Kind)
+	DataTypeEnum    DataType = 14 // Enumeration type (protoref.EnumKind)
 )
 
-// dataTypeMap maps string representation of protobuf types to DataType constants.
+// Compile-time assertions to ensure DataType values match protoref.Kind values.
+// If the protoref library ever changes these values, compilation will fail here.
+var (
+	_ = [1]struct{}{}[DataTypeDouble-DataType(protoref.DoubleKind)]
+	_ = [1]struct{}{}[DataTypeFloat-DataType(protoref.FloatKind)]
+	_ = [1]struct{}{}[DataTypeInt64-DataType(protoref.Int64Kind)]
+	_ = [1]struct{}{}[DataTypeUint64-DataType(protoref.Uint64Kind)]
+	_ = [1]struct{}{}[DataTypeInt32-DataType(protoref.Int32Kind)]
+	_ = [1]struct{}{}[DataTypeBool-DataType(protoref.BoolKind)]
+	_ = [1]struct{}{}[DataTypeString-DataType(protoref.StringKind)]
+	_ = [1]struct{}{}[DataTypeMessage-DataType(protoref.MessageKind)]
+	_ = [1]struct{}{}[DataTypeBytes-DataType(protoref.BytesKind)]
+	_ = [1]struct{}{}[DataTypeUint32-DataType(protoref.Uint32Kind)]
+	_ = [1]struct{}{}[DataTypeEnum-DataType(protoref.EnumKind)]
+)
+
+// dataTypeMap maps protoref.Kind to DataType constants.
 var dataTypeMap = map[protoref.Kind]DataType{
 	protoref.StringKind:  DataTypeString,
 	protoref.Int32Kind:   DataTypeInt32,
