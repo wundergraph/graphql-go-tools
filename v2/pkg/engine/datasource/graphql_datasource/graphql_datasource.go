@@ -423,7 +423,7 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 		p.stopWithError(errors.WithStack(fmt.Errorf("ConfigureSubscription: failed to marshal header: %w", err)))
 		return plan.SubscriptionConfiguration{}
 	}
-	if err == nil && len(header) != 0 && !bytes.Equal(header, literal.NULL) {
+	if len(header) != 0 && !bytes.Equal(header, literal.NULL) {
 		input = httpclient.SetInputHeader(input, header)
 	}
 
@@ -1956,24 +1956,24 @@ type SubscriptionSource struct {
 	subscriptionOnStartFns []SubscriptionOnStartFn
 }
 
-func (s *SubscriptionSource) AsyncStart(ctx *resolve.Context, id uint64, headers http.Header, input []byte, updater resolve.SubscriptionUpdater) error {
-	var options GraphQLSubscriptionOptions
-	err := json.Unmarshal(input, &options)
-	if err != nil {
-		return err
-	}
-	options.Header = headers
-	if options.Body.Query == "" {
-		return resolve.ErrUnableToResolve
-	}
-	return s.client.SubscribeAsync(ctx, id, options, updater)
-}
+// func (s *SubscriptionSource) AsyncStart(ctx *resolve.Context, id uint64, headers http.Header, input []byte, updater resolve.SubscriptionUpdater) error {
+// 	var options GraphQLSubscriptionOptions
+// 	err := json.Unmarshal(input, &options)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	options.Header = headers
+// 	if options.Body.Query == "" {
+// 		return resolve.ErrUnableToResolve
+// 	}
+// 	return s.client.SubscribeAsync(ctx, id, options, updater)
+// }
 
 // AsyncStop stops the subscription with the given id. AsyncStop is only effective when netPoll is enabled
 // because without netPoll we manage the lifecycle of the connection in the subscription client.
-func (s *SubscriptionSource) AsyncStop(id uint64) {
-	s.client.Unsubscribe(id)
-}
+// func (s *SubscriptionSource) AsyncStop(id uint64) {
+// 	s.client.Unsubscribe(id)
+// }
 
 // Start the subscription. The updater is called on new events. Start needs to be called in a separate goroutine.
 func (s *SubscriptionSource) Start(ctx *resolve.Context, headers http.Header, input []byte, updater resolve.SubscriptionUpdater) error {
