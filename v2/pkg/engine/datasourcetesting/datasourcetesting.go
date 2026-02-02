@@ -191,12 +191,7 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 			op.Input.Variables = []byte(variables)
 		}
 
-		transformOptions := asttransform.Options{}
-		if opts.withDefer {
-			transformOptions.InternalDefer = true
-		}
-
-		err := asttransform.MergeDefinitionWithBaseSchemaWithOptions(&def, transformOptions)
+		err := asttransform.MergeDefinitionWithBaseSchema(&def)
 		if err != nil {
 			t.Fatal(err)
 		}

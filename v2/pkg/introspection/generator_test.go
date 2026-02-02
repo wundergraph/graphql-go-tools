@@ -6,21 +6,23 @@ import (
 	"testing"
 
 	"github.com/jensneuse/diffview"
+	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/goldie"
 )
 
 func TestGenerator_Generate(t *testing.T) {
 	starwarsSchemaBytes, err := os.ReadFile("./testdata/starwars.schema.graphql")
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(t, err)
 
 	definition, report := astparser.ParseGraphqlDocumentBytes(starwarsSchemaBytes)
 	if report.HasErrors() {
 		t.Fatal(report)
 	}
+
+	require.NoError(t, asttransform.MergeDefinitionWithBaseSchema(&definition))
 
 	gen := NewGenerator()
 	var data Data
@@ -30,16 +32,12 @@ func TestGenerator_Generate(t *testing.T) {
 	}
 
 	outputPretty, err := json.MarshalIndent(data, "", "  ")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	goldie.Assert(t, "starwars_introspected", outputPretty)
 	if t.Failed() {
 		fixture, err := os.ReadFile("./fixtures/starwars_introspected.golden")
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 
 		diffview.NewGoland().DiffViewBytes("startwars_introspected", fixture, outputPretty)
 	}
