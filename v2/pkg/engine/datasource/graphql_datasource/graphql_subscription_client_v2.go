@@ -166,7 +166,7 @@ func mapWSSubprotocol(proto string) common.WSSubprotocol {
 	case ProtocolGraphQLWS:
 		return common.SubprotocolGraphQLWS
 	case ProtocolGraphQLTWS:
-		return common.SubprotocolGraphQLTWS
+		return common.SubprotocolGraphQLTransportWS
 	default:
 		return common.SubprotocolAuto
 	}

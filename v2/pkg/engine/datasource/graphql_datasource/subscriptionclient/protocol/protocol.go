@@ -2,14 +2,13 @@ package protocol
 
 import (
 	"context"
+	"errors"
 
 	"github.com/coder/websocket"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
 )
 
 type Protocol interface {
-	Subprotocol() string
-
 	Init(ctx context.Context, conn *websocket.Conn, payload map[string]any) error
 
 	Subscribe(ctx context.Context, conn *websocket.Conn, id string, req *common.Request) error
@@ -22,6 +21,12 @@ type Protocol interface {
 
 	Pong(ctx context.Context, conn *websocket.Conn) error
 }
+
+var (
+	ErrAckTimeout      = errors.New("connection_ack timeout")
+	ErrAckNotReceived  = errors.New("expected connection_ack")
+	ErrConnectionError = errors.New("connection error from server")
+)
 
 type Message struct {
 	ID      string

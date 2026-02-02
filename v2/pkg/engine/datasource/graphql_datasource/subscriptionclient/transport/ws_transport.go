@@ -9,7 +9,7 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/rs/xid"
-	shared "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/protocol"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
@@ -41,7 +41,7 @@ func NewWSTransport(httpClient *http.Client) (*WSTransport, error) {
 	}, nil
 }
 
-func (t *WSTransport) Subscribe(ctx context.Context, req *shared.Request, opts shared.Options) (<-chan *shared.Message, func(), error) {
+func (t *WSTransport) Subscribe(ctx context.Context, req *common.Request, opts common.Options) (<-chan *common.Message, func(), error) {
 	conn, err := t.getOrDial(ctx, opts)
 	if err != nil {
 		return nil, nil, err
@@ -79,7 +79,7 @@ func (t *WSTransport) ConnCount() int {
 	return len(t.conns)
 }
 
-func (t *WSTransport) getOrDial(ctx context.Context, opts shared.Options) (*WSConnection, error) {
+func (t *WSTransport) getOrDial(ctx context.Context, opts common.Options) (*WSConnection, error) {
 	key := connKey(opts)
 
 	t.mu.Lock()
@@ -121,21 +121,10 @@ func (t *WSTransport) getOrDial(ctx context.Context, opts shared.Options) (*WSCo
 	return conn, err
 }
 
-func (t *WSTransport) dial(ctx context.Context, key uint64, opts shared.Options) (*WSConnection, error) {
-	var subprotocols []string
-	switch opts.WSSubprotocol {
-	case shared.SubprotocolGraphQLTWS:
-		subprotocols = []string{"graphql-transport-ws"}
-	case shared.SubprotocolGraphQLWS:
-		subprotocols = []string{"graphql-ws"}
-	default:
-		// Auto: prefer modern, fall back to legacy
-		subprotocols = []string{"graphql-transport-ws", "graphql-ws"}
-	}
-
+func (t *WSTransport) dial(ctx context.Context, key uint64, opts common.Options) (*WSConnection, error) {
 	wsConn, _, err := websocket.Dial(ctx, opts.Endpoint, &websocket.DialOptions{
 		HTTPClient:   t.httpClient,
-		Subprotocols: subprotocols,
+		Subprotocols: opts.WSSubprotocol.Subprotocols(),
 		HTTPHeader:   opts.Headers,
 	})
 	if err != nil {
@@ -162,17 +151,18 @@ func (t *WSTransport) dial(ctx context.Context, key uint64, opts shared.Options)
 	return conn, nil
 }
 
-func (t *WSTransport) negotiateSubprotocol(requested shared.WSSubprotocol, accepted string) (protocol.Protocol, error) {
-	if requested != shared.SubprotocolAuto {
+func (t *WSTransport) negotiateSubprotocol(requested common.WSSubprotocol, accepted string) (protocol.Protocol, error) {
+	if requested != common.SubprotocolAuto {
 		if accepted != string(requested) {
 			return nil, fmt.Errorf("server accepted %q but requested %q", accepted, requested)
 		}
 	}
-	switch shared.WSSubprotocol(accepted) {
-	case shared.SubprotocolGraphQLTWS:
+
+	switch common.WSSubprotocol(accepted) {
+	case common.SubprotocolGraphQLTransportWS:
+		return protocol.NewGraphQLTransportWS(), nil
+	case common.SubprotocolGraphQLWS:
 		return protocol.NewGraphQLWS(), nil
-	case shared.SubprotocolGraphQLWS:
-		return protocol.NewGraphQLWSLegacy(), nil
 	default:
 		return nil, fmt.Errorf("unsupported subprotocol: %q", accepted)
 	}
@@ -185,7 +175,7 @@ func (t *WSTransport) removeConn(key uint64) {
 }
 
 // connKey computes a hash key for connection pooling.
-func connKey(opts shared.Options) uint64 {
+func connKey(opts common.Options) uint64 {
 	h := pool.Hash64.Get()
 	defer pool.Hash64.Put(h)
 

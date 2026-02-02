@@ -12,42 +12,35 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
 )
 
-// Legacy graphql-ws protocol message types.
-// See: https://github.com/apollographql/subscriptions-transport-ws/blob/master/PROTOCOL.md
 const (
-	legacyTypeConnectionInit      = "connection_init"
-	legacyTypeConnectionAck       = "connection_ack"
-	legacyTypeConnectionError     = "connection_error"
-	legacyTypeConnectionKeepAlive = "ka"
-	legacyTypeConnectionTerminate = "connection_terminate"
-	legacyTypeStart               = "start"
-	legacyTypeData                = "data"
-	legacyTypeError               = "error"
-	legacyTypeComplete            = "complete"
-	legacyTypeStop                = "stop"
+	gwsTypeConnectionInit      = "connection_init"
+	gwsTypeConnectionAck       = "connection_ack"
+	gwsTypeConnectionError     = "connection_error"
+	gwsTypeConnectionKeepAlive = "ka"
+	gwsTypeConnectionTerminate = "connection_terminate"
+	gwsTypeStart               = "start"
+	gwsTypeData                = "data"
+	gwsTypeError               = "error"
+	gwsTypeComplete            = "complete"
+	gwsTypeStop                = "stop"
 )
 
-// GraphQLWSLegacy implements the legacy graphql-ws protocol.
-// This is the older Apollo subscriptions-transport-ws protocol.
-type GraphQLWSLegacy struct {
+// GraphQLWS implements the legacy graphql-ws protocol.
+// See: https://github.com/apollographql/subscriptions-transport-ws/blob/master/PROTOCOL.md
+type GraphQLWS struct {
 	AckTimeout time.Duration
 }
 
-// NewGraphQLWSLegacy creates a new legacy graphql-ws protocol handler.
-func NewGraphQLWSLegacy() *GraphQLWSLegacy {
-	return &GraphQLWSLegacy{
+func NewGraphQLWS() *GraphQLWS {
+	return &GraphQLWS{
 		AckTimeout: 30 * time.Second,
 	}
 }
 
-func (p *GraphQLWSLegacy) Subprotocol() string {
-	return "graphql-ws"
-}
-
 // Init implements Protocol.
-func (p *GraphQLWSLegacy) Init(ctx context.Context, conn *websocket.Conn, payload map[string]any) error {
+func (p *GraphQLWS) Init(ctx context.Context, conn *websocket.Conn, payload map[string]any) error {
 	initMsg := outgoingMessage{
-		Type:    legacyTypeConnectionInit,
+		Type:    gwsTypeConnectionInit,
 		Payload: payload,
 	}
 	if err := wsjson.Write(ctx, conn, initMsg); err != nil {
@@ -72,12 +65,12 @@ func (p *GraphQLWSLegacy) Init(ctx context.Context, conn *websocket.Conn, payloa
 		}
 
 		switch ackMessage.Type {
-		case legacyTypeConnectionAck:
+		case gwsTypeConnectionAck:
 			return nil
-		case legacyTypeConnectionKeepAlive:
+		case gwsTypeConnectionKeepAlive:
 			// Keep-alive messages can arrive before ack, ignore them
 			continue
-		case legacyTypeConnectionError:
+		case gwsTypeConnectionError:
 			var errPayload map[string]any
 			if ackMessage.Payload != nil {
 				json.Unmarshal(ackMessage.Payload, &errPayload)
@@ -90,10 +83,10 @@ func (p *GraphQLWSLegacy) Init(ctx context.Context, conn *websocket.Conn, payloa
 }
 
 // Subscribe implements Protocol.
-func (p *GraphQLWSLegacy) Subscribe(ctx context.Context, conn *websocket.Conn, id string, req *common.Request) error {
+func (p *GraphQLWS) Subscribe(ctx context.Context, conn *websocket.Conn, id string, req *common.Request) error {
 	msg := outgoingMessage{
 		ID:   id,
-		Type: legacyTypeStart,
+		Type: gwsTypeStart,
 		Payload: subscribePayload{
 			Query:         req.Query,
 			Variables:     req.Variables,
@@ -105,16 +98,16 @@ func (p *GraphQLWSLegacy) Subscribe(ctx context.Context, conn *websocket.Conn, i
 }
 
 // Unsubscribe implements Protocol.
-func (p *GraphQLWSLegacy) Unsubscribe(ctx context.Context, conn *websocket.Conn, id string) error {
+func (p *GraphQLWS) Unsubscribe(ctx context.Context, conn *websocket.Conn, id string) error {
 	msg := outgoingMessage{
 		ID:   id,
-		Type: legacyTypeStop,
+		Type: gwsTypeStop,
 	}
 	return wsjson.Write(ctx, conn, msg)
 }
 
 // Read implements Protocol.
-func (p *GraphQLWSLegacy) Read(ctx context.Context, conn *websocket.Conn) (*Message, error) {
+func (p *GraphQLWS) Read(ctx context.Context, conn *websocket.Conn) (*Message, error) {
 	var raw incomingMessage
 	if err := wsjson.Read(ctx, conn, &raw); err != nil {
 		return nil, fmt.Errorf("read message: %w", err)
@@ -125,25 +118,25 @@ func (p *GraphQLWSLegacy) Read(ctx context.Context, conn *websocket.Conn) (*Mess
 
 // Ping implements Protocol.
 // Legacy protocol doesn't support client-initiated ping, this is a no-op.
-func (p *GraphQLWSLegacy) Ping(ctx context.Context, conn *websocket.Conn) error {
+func (p *GraphQLWS) Ping(ctx context.Context, conn *websocket.Conn) error {
 	// Legacy protocol doesn't have client ping - only server sends ka
 	return nil
 }
 
 // Pong implements Protocol.
 // Legacy protocol doesn't support pong messages, this is a no-op.
-func (p *GraphQLWSLegacy) Pong(ctx context.Context, conn *websocket.Conn) error {
+func (p *GraphQLWS) Pong(ctx context.Context, conn *websocket.Conn) error {
 	// Legacy protocol doesn't have pong
 	return nil
 }
 
-func (p *GraphQLWSLegacy) decode(raw incomingMessage) (*Message, error) {
+func (p *GraphQLWS) decode(raw incomingMessage) (*Message, error) {
 	msg := &Message{
 		ID: raw.ID,
 	}
 
 	switch raw.Type {
-	case legacyTypeData:
+	case gwsTypeData:
 		msg.Type = MessageData
 		if raw.Payload != nil {
 			var resp common.ExecutionResult
@@ -153,7 +146,7 @@ func (p *GraphQLWSLegacy) decode(raw incomingMessage) (*Message, error) {
 			msg.Payload = &resp
 		}
 
-	case legacyTypeError:
+	case gwsTypeError:
 		msg.Type = MessageError
 		if raw.Payload != nil {
 			var errs []common.GraphQLError
@@ -165,14 +158,14 @@ func (p *GraphQLWSLegacy) decode(raw incomingMessage) (*Message, error) {
 			msg.Err = errors.New("subscription error")
 		}
 
-	case legacyTypeComplete:
+	case gwsTypeComplete:
 		msg.Type = MessageComplete
 
-	case legacyTypeConnectionKeepAlive:
+	case gwsTypeConnectionKeepAlive:
 		// Map keep-alive to ping for consistent handling
 		msg.Type = MessagePing
 
-	case legacyTypeConnectionError:
+	case gwsTypeConnectionError:
 		msg.Type = MessageError
 		var errPayload map[string]any
 		if raw.Payload != nil {
@@ -187,4 +180,4 @@ func (p *GraphQLWSLegacy) decode(raw incomingMessage) (*Message, error) {
 	return msg, nil
 }
 
-var _ Protocol = (*GraphQLWSLegacy)(nil)
+var _ Protocol = (*GraphQLWS)(nil)

@@ -21,9 +21,9 @@ const (
 	TransportWS  = common.TransportWS
 	TransportSSE = common.TransportSSE
 
-	SubprotocolAuto       = common.SubprotocolAuto
-	SubprotocolGraphQLTWS = common.SubprotocolGraphQLTWS
-	SubprotocolGraphQLWS  = common.SubprotocolGraphQLWS
+	SubprotocolAuto               = common.SubprotocolAuto
+	SubprotocolGraphQLTransportWS = common.SubprotocolGraphQLTransportWS
+	SubprotocolGraphQLWS          = common.SubprotocolGraphQLWS
 
 	SSEMethodAuto = common.SSEMethodAuto
 	SSEMethodPOST = common.SSEMethodPOST

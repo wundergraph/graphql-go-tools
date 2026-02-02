@@ -14,10 +14,23 @@ const (
 type WSSubprotocol string
 
 const (
-	SubprotocolAuto       WSSubprotocol = ""                     // Auto, negotiated with the server
-	SubprotocolGraphQLTWS WSSubprotocol = "graphql-transport-ws" // Modern subprotocol, confusingly named `graphql-ws`
-	SubprotocolGraphQLWS  WSSubprotocol = "graphql-ws"           // Legacy subprotocol, deprecated
+	SubprotocolAuto               WSSubprotocol = ""                     // Auto, negotiated with the server
+	SubprotocolGraphQLTransportWS WSSubprotocol = "graphql-transport-ws" // Modern subprotocol
+	SubprotocolGraphQLWS          WSSubprotocol = "graphql-ws"           // Legacy subprotocol, deprecated
 )
+
+func (s WSSubprotocol) Subprotocols() []string {
+	switch s {
+	case SubprotocolAuto:
+		return []string{"graphql-transport-ws", "graphql-ws"}
+	case SubprotocolGraphQLTransportWS:
+		return []string{"graphql-transport-ws"}
+	case SubprotocolGraphQLWS:
+		return []string{"graphql-ws"}
+	default:
+		return nil
+	}
+}
 
 type SSEMethod string
 
@@ -37,6 +50,6 @@ type Options struct {
 	WSSubprotocol WSSubprotocol
 
 	// Only affects the SSE transport.
-	// Defaults to POST (graphql-sse spec). Use GET for traditional SSE endpoints.
+	// Defaults to POST (graphql-sse spec).
 	SSEMethod SSEMethod
 }
