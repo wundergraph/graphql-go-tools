@@ -30,15 +30,12 @@ type dialResult struct {
 
 // NewWSTransport creates a new WSTransport with the provided http.Client
 // for WebSocket upgrade requests.
-func NewWSTransport(httpClient *http.Client) (*WSTransport, error) {
-	if httpClient == nil {
-		return nil, fmt.Errorf("WSTransport: http.Client must not be nil")
-	}
+func NewWSTransport(httpClient *http.Client) *WSTransport {
 	return &WSTransport{
 		httpClient: httpClient,
 		conns:      make(map[uint64]*WSConnection),
 		dialing:    make(map[uint64]*dialResult),
-	}, nil
+	}
 }
 
 func (t *WSTransport) Subscribe(ctx context.Context, req *common.Request, opts common.Options) (<-chan *common.Message, func(), error) {

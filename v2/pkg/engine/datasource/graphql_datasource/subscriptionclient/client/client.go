@@ -52,22 +52,12 @@ type Stats struct {
 // New creates a new subscription client with the provided HTTP clients.
 // httpClient is used for WebSocket upgrade requests.
 // streamingClient is used for SSE requests (should have appropriate timeouts for long-lived connections).
-func New(httpClient, streamingClient *http.Client) (*Client, error) {
-	ws, err := transport.NewWSTransport(httpClient)
-	if err != nil {
-		return nil, err
-	}
-
-	sse, err := transport.NewSSETransport(streamingClient)
-	if err != nil {
-		return nil, err
-	}
-
+func New(httpClient, streamingClient *http.Client) *Client {
 	return &Client{
 		subs: make(map[uint64]*subscription),
-		ws:   ws,
-		sse:  sse,
-	}, nil
+		ws:   transport.NewWSTransport(httpClient),
+		sse:  transport.NewSSETransport(streamingClient),
+	}
 }
 
 // Subscribe creates or joins a subscription.

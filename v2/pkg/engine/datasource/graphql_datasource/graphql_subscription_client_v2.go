@@ -17,17 +17,13 @@ type subscriptionClientV2 struct {
 	client *client.Client
 }
 
-// NewSubscriptionClientV2 creates a new subscription client using the v2 implementation.
+// NewGraphQLSubscriptionClientV2 creates a new subscription client using the v2 implementation.
 // httpClient is used for WebSocket upgrade requests.
 // streamingClient is used for SSE requests (should have appropriate timeouts for long-lived connections).
-func NewSubscriptionClientV2(httpClient, streamingClient *http.Client) (GraphQLSubscriptionClient, error) {
-	c, err := client.New(httpClient, streamingClient)
-	if err != nil {
-		return nil, err
-	}
+func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client) GraphQLSubscriptionClient {
 	return &subscriptionClientV2{
-		client: c,
-	}, nil
+		client: client.New(httpClient, streamingClient),
+	}
 }
 
 // Subscribe implements GraphQLSubscriptionClient.
@@ -90,18 +86,6 @@ func (c *subscriptionClientV2) readLoop(ctx context.Context, msgCh <-chan *commo
 			}
 		}
 	}
-}
-
-// SubscribeAsync is not supported in v2 client.
-// The sync Subscribe path with context cancellation handles all use cases.
-func (c *subscriptionClientV2) SubscribeAsync(ctx *resolve.Context, id uint64, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
-	return fmt.Errorf("SubscribeAsync not supported in v2 client")
-}
-
-// Unsubscribe is not supported in v2 client.
-// Unsubscription is handled via context cancellation.
-func (c *subscriptionClientV2) Unsubscribe(id uint64) {
-	// No-op: context cancellation handles cleanup
 }
 
 // convertToClientOptions converts GraphQLSubscriptionOptions to the new client's types.
