@@ -244,7 +244,8 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 
 	if o.options.extractVariables {
 		extractVariablesWalker := astvisitor.NewWalkerWithID(8, "ExtractVariables")
-		extractVariables(&extractVariablesWalker)
+		// disabling field arg mapping as it's only necessary on the variable normalizer
+		extractVariables(&extractVariablesWalker, false)
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
 			name:   "extractVariables",
 			walker: &extractVariablesWalker,
@@ -352,7 +353,7 @@ type VariablesNormalizer struct {
 	variablesExtractionVisitor *variablesExtractionVisitor
 }
 
-func NewVariablesNormalizer() *VariablesNormalizer {
+func NewVariablesNormalizer(withFieldArgMapping bool) *VariablesNormalizer {
 	// delete unused modifying variables refs,
 	// so it is safer to run it sequentially with the extraction
 	thirdDeleteUnused := astvisitor.NewWalkerWithID(8, "DeleteUnusedVariables")
@@ -366,7 +367,7 @@ func NewVariablesNormalizer() *VariablesNormalizer {
 	detectVariableUsage(&firstDetectUnused, del)
 
 	secondExtract := astvisitor.NewWalkerWithID(8, "ExtractVariables")
-	variablesExtractionVisitor := extractVariables(&secondExtract)
+	variablesExtractionVisitor := extractVariables(&secondExtract, withFieldArgMapping)
 	extractVariablesDefaultValue(&secondExtract)
 
 	fourthCoerce := astvisitor.NewWalkerWithID(0, "VariablesCoercion")
@@ -398,7 +399,7 @@ func (v *VariablesNormalizer) NormalizeOperation(operation, definition *ast.Docu
 
 	return VariablesNormalizerResult{
 		UploadsMapping:       v.variablesExtractionVisitor.uploadsPath,
-		FieldArgumentMapping: v.variablesExtractionVisitor.fieldArgumentMapping,
+		FieldArgumentMapping: v.variablesExtractionVisitor.fieldArgumentMapping.result,
 	}
 }
 

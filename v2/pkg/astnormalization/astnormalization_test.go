@@ -1018,7 +1018,7 @@ func TestVariablesNormalizer(t *testing.T) {
 		operationDocument := unsafeparser.ParseGraphqlDocumentString(input)
 		operationDocument.Input.Variables = []byte(`{}`)
 
-		normalizer := NewVariablesNormalizer()
+		normalizer := NewVariablesNormalizer(false)
 		report := operationreport.Report{}
 		normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
 		require.False(t, report.HasErrors(), report.Error())
@@ -1040,7 +1040,8 @@ func TestVariablesNormalizer(t *testing.T) {
 		operationDocument := unsafeparser.ParseGraphqlDocumentString(`mutation Foo($varOne: [Input2!]! $varTwo: Input2!) { hello(arg: {twoList: $varOne two: $varTwo}) }`)
 		operationDocument.Input.Variables = []byte(`{"varOne":[{"oneList":[{"list":[null,null],"value":null}],"one":{"list":[null],"value":null}}],"varTwo":{"oneList":[{"list":[null,null],"value":null}],"one":{"list":[null],"value":null}}}`)
 
-		normalizer := NewVariablesNormalizer()
+		// create normalizer without field arg mapping
+		normalizer := NewVariablesNormalizer(false)
 		report := operationreport.Report{}
 		result := normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
 		require.False(t, report.HasErrors(), report.Error())
@@ -1062,8 +1063,8 @@ func TestVariablesNormalizer(t *testing.T) {
 			{VariableName: "a", OriginalUploadPath: "variables.varTwo.one.value", NewUploadPath: "variables.a.two.one.value"},
 		}, result.UploadsMapping)
 
-		// Verify field argument mapping is populated
-		assert.Equal(t, "a", result.FieldArgumentMapping["mutation.hello.arg"])
+		// Verify field argument mapping is not populated
+		assert.Nil(t, result.FieldArgumentMapping)
 	})
 
 	t.Run("field argument mapping", func(t *testing.T) {
@@ -1209,7 +1210,7 @@ func TestVariablesNormalizer(t *testing.T) {
 				operationDocument := unsafeparser.ParseGraphqlDocumentString(tc.operation)
 				operationDocument.Input.Variables = []byte(tc.variables)
 
-				normalizer := NewVariablesNormalizer()
+				normalizer := NewVariablesNormalizer(true)
 				report := operationreport.Report{}
 				result := normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
 				require.False(t, report.HasErrors(), report.Error())
@@ -1245,7 +1246,7 @@ var mustString = func(str string, err error) string {
 }
 
 type registerNormalizeFunc func(walker *astvisitor.Walker)
-type registerNormalizeVariablesFunc func(walker *astvisitor.Walker) *variablesExtractionVisitor
+type registerNormalizeVariablesFunc func(walker *astvisitor.Walker, withFieldArgMapping bool) *variablesExtractionVisitor
 type registerNormalizeVariablesDefaulValueFunc func(walker *astvisitor.Walker) *variablesDefaultValueExtractionVisitor
 type registerNormalizeDeleteVariablesFunc func(walker *astvisitor.Walker) *deleteUnusedVariablesVisitor
 
@@ -1341,7 +1342,7 @@ var runWithVariablesExtraction = func(t *testing.T, normalizeFunc registerNormal
 	t.Helper()
 
 	runWithVariablesAssert(t, func(walker *astvisitor.Walker) {
-		normalizeFunc(walker)
+		normalizeFunc(walker, false)
 	}, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables, additionalNormalizers...)
 }
 
@@ -1349,7 +1350,7 @@ var runWithVariablesExtractionAndPreNormalize = func(t *testing.T, normalizeFunc
 	t.Helper()
 
 	runWithVariablesAssertAndPreNormalize(t, func(walker *astvisitor.Walker) {
-		normalizeFunc(walker)
+		normalizeFunc(walker, false)
 	}, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables, prerequisites...)
 }
 
@@ -1445,7 +1446,7 @@ var runWithExpectedErrors = func(t *testing.T, normalizeFunc registerNormalizeVa
 	report := operationreport.Report{}
 	walker := astvisitor.NewWalker(48)
 
-	normalizeFunc(&walker)
+	normalizeFunc(&walker, false)
 
 	for _, fn := range additionalNormalizers {
 		fn(&walker)

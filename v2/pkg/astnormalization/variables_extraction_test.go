@@ -559,8 +559,8 @@ func TestVariablesExtraction(t *testing.T) {
 		t.Run("arg has inline object value with upload passed via variable", func(t *testing.T) {
 			var visitor *variablesExtractionVisitor
 
-			register := func(walker *astvisitor.Walker) *variablesExtractionVisitor {
-				visitor = extractVariables(walker)
+			register := func(walker *astvisitor.Walker, withFieldArgMapping bool) *variablesExtractionVisitor {
+				visitor = extractVariables(walker, withFieldArgMapping)
 				return visitor
 			}
 
@@ -580,8 +580,8 @@ func TestVariablesExtraction(t *testing.T) {
 		t.Run("arg has inline objects with variables which have nested file uploads", func(t *testing.T) {
 			var visitor *variablesExtractionVisitor
 
-			register := func(walker *astvisitor.Walker) *variablesExtractionVisitor {
-				visitor = extractVariables(walker)
+			register := func(walker *astvisitor.Walker, withFieldArgMapping bool) *variablesExtractionVisitor {
+				visitor = extractVariables(walker, withFieldArgMapping)
 				return visitor
 			}
 
@@ -616,8 +616,8 @@ func TestVariablesExtraction(t *testing.T) {
 		t.Run("arg of type upload", func(t *testing.T) {
 			var visitor *variablesExtractionVisitor
 
-			register := func(walker *astvisitor.Walker) *variablesExtractionVisitor {
-				visitor = extractVariables(walker)
+			register := func(walker *astvisitor.Walker, withFieldArgMapping bool) *variablesExtractionVisitor {
+				visitor = extractVariables(walker, withFieldArgMapping)
 				return visitor
 			}
 
@@ -637,8 +637,8 @@ func TestVariablesExtraction(t *testing.T) {
 		t.Run("arg has nested upload in a variable", func(t *testing.T) {
 			var visitor *variablesExtractionVisitor
 
-			register := func(walker *astvisitor.Walker) *variablesExtractionVisitor {
-				visitor = extractVariables(walker)
+			register := func(walker *astvisitor.Walker, withFieldArgMapping bool) *variablesExtractionVisitor {
+				visitor = extractVariables(walker, withFieldArgMapping)
 				return visitor
 			}
 
