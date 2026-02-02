@@ -153,6 +153,7 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 			astnormalization.WithRemoveFragmentDefinitions(),
 			astnormalization.WithRemoveUnusedVariables(),
 			astnormalization.WithInlineFragmentSpreads(),
+			astnormalization.WithInlineDefer(),
 		)
 		if err != nil {
 			return err
@@ -243,6 +244,9 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 			operation.ComputeActualCost(costCalculator, e.config.plannerConfig, execContext.resolveContext.ActualListSizes)
 		}
 		return nil
+	case *plan.DeferResponsePlan:
+		_, err := e.resolver.ResolveGraphQLDeferResponse(execContext.resolveContext, p.Response, writer)
+		return err
 	case *plan.SubscriptionResponsePlan:
 		return e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer)
 	default:

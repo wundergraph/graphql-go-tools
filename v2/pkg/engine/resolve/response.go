@@ -78,6 +78,11 @@ type ResponseWriter interface {
 	io.Writer
 }
 
+type DeferResponseWriter interface {
+	ResponseWriter
+	Flush() error
+}
+
 type SubscriptionCloseKind struct {
 	WSCode ws.StatusCode
 	Reason string

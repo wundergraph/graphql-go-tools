@@ -315,6 +315,7 @@ type _executionTestOptions struct {
 	validateRequiredExternalFields               bool
 	computeCosts                                 bool
 	relaxFieldSelectionMergingNullability        bool
+	streamingResponse                            bool
 }
 
 type executionTestOptions func(*_executionTestOptions)
@@ -348,6 +349,12 @@ func computeCosts() executionTestOptions {
 func relaxFieldSelectionMergingNullability() executionTestOptions {
 	return func(options *_executionTestOptions) {
 		options.relaxFieldSelectionMergingNullability = true
+	}
+}
+
+func withStreamingResponse() executionTestOptions {
+	return func(options *_executionTestOptions) {
+		options.streamingResponse = true
 	}
 }
 
@@ -5831,6 +5838,100 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			},
 			relaxFieldSelectionMergingNullability(),
 		))
+	})
+
+	t.Run("defer", func(t *testing.T) {
+		t.Run("simple", func(t *testing.T) {
+
+			definition := `
+				type User {
+					id: ID!
+					name: String!
+					title: String!
+				}
+
+				type Query {
+					user: User!
+				}
+			`
+
+			makeDataSource := func(t *testing.T, expectFetchReasons bool) []plan.DataSource {
+				return []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id-1",
+						mustFactory(t,
+							testConditionalNetHttpClient(t, conditionalTestCase{
+								expectedHost: "first",
+								expectedPath: "/",
+								responses: map[string]sendResponse{
+									`{"query":"{user {name}}"}`: {
+										statusCode: 200,
+										body:       `{"data":{"user":{"name":"Black"}}}`,
+									},
+									`{"query":"{user {title}}"}`: {
+										statusCode: 200,
+										body:       `{"data":{"user":{"title":"Sabbat"}}}`,
+									},
+								},
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"user"},
+								},
+							},
+							ChildNodes: []plan.TypeField{
+								{
+									TypeName:   "User",
+									FieldNames: []string{"id", "title", "name"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://first/",
+								Method: "POST",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								&graphql_datasource.FederationConfiguration{
+									Enabled:    true,
+									ServiceSDL: definition,
+								},
+								definition,
+							),
+						}),
+					),
+				}
+			}
+
+			t.Run("run", runWithoutError(ExecutionEngineTestCase{
+				schema: func(t *testing.T) *graphql.Schema {
+					t.Helper()
+					parseSchema, err := graphql.NewSchemaFromString(definition)
+					require.NoError(t, err)
+					return parseSchema
+				}(t),
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "DeferUserTitle",
+						Query: `
+						query DeferUserTitle {
+							user {
+								name
+								... @defer {
+									title
+								}
+							}
+						}`,
+					}
+				},
+				dataSources:      makeDataSource(t, false),
+				expectedResponse: `{"data":{"user":{"name":"Black"}}}{"name":"Black"}{"data":{{"name":"Black"}}}`,
+			}, withStreamingResponse()))
+		})
 	})
 }
 
