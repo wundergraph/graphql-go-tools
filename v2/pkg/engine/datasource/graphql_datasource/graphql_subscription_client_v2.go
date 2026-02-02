@@ -17,13 +17,12 @@ type subscriptionClientV2 struct {
 	client *client.Client
 }
 
-// NewGraphQLSubscriptionClient creates a new subscription client using the v2 implementation.
+// NewGraphQLSubscriptionClient creates a new subscription client
 // httpClient is used for WebSocket upgrade requests.
 // streamingClient is used for SSE requests (should have appropriate timeouts for long-lived connections).
-// engineCtx controls the client's lifecycle - when cancelled, all subscriptions are terminated.
-func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engineCtx context.Context) GraphQLSubscriptionClient {
+func NewGraphQLSubscriptionClient(ctx context.Context, httpClient *http.Client, streamingClient *http.Client) GraphQLSubscriptionClient {
 	return &subscriptionClientV2{
-		client: client.New(engineCtx, httpClient, streamingClient),
+		client: client.New(ctx, httpClient, streamingClient),
 	}
 }
 
