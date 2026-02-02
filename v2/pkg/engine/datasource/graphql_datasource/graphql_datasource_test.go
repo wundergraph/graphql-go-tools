@@ -3992,6 +3992,9 @@ func TestGraphQLDataSource(t *testing.T) {
 			DefaultFlushIntervalMillis:   500,
 		}, WithDefaultPostProcessor()))
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	t.Run("Subscription", func(t *testing.T) {
 		t.Run("Subscription", runTestOnTestDefinition(t, `
 		subscription RemainingJedis {
@@ -4002,7 +4005,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Trigger: resolve.GraphQLSubscriptionTrigger{
 					Input: []byte(`{"url":"wss://swapi.com/graphql","body":{"query":"subscription{remainingJedis}"}}`),
 					Source: &SubscriptionSource{
-						client: NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, context.Background()),
+						client: NewGraphQLSubscriptionClient(ctx, http.DefaultClient, http.DefaultClient),
 					},
 					PostProcessing: DefaultPostProcessingConfiguration,
 					SourceName:     "ds-id",
@@ -4045,7 +4048,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				),
 				Source: &SubscriptionSource{
-					client: NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, context.Background()),
+					client: NewGraphQLSubscriptionClient(ctx, http.DefaultClient, http.DefaultClient),
 				},
 				PostProcessing: DefaultPostProcessingConfiguration,
 				SourceName:     "ds-id",
