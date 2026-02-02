@@ -162,13 +162,7 @@ func (p *GraphQLTransportWS) decode(raw incomingMessage) (*Message, error) {
 	case gtwsTypeError:
 		msg.Type = MessageError
 		if raw.Payload != nil {
-			var errs []common.GraphQLError
-			if err := json.Unmarshal(raw.Payload, &errs); err != nil {
-				return nil, fmt.Errorf("unmarshal error payload: %w", err)
-			}
-			msg.Err = &common.SubscriptionError{Errors: errs}
-		} else {
-			msg.Err = errors.New("subscription error")
+			msg.Payload = &common.ExecutionResult{Errors: raw.Payload}
 		}
 
 	case gtwsTypeComplete:

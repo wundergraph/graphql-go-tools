@@ -17,12 +17,13 @@ type subscriptionClientV2 struct {
 	client *client.Client
 }
 
-// NewGraphQLSubscriptionClientV2 creates a new subscription client using the v2 implementation.
+// NewGraphQLSubscriptionClient creates a new subscription client using the v2 implementation.
 // httpClient is used for WebSocket upgrade requests.
 // streamingClient is used for SSE requests (should have appropriate timeouts for long-lived connections).
-func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client) GraphQLSubscriptionClient {
+// engineCtx controls the client's lifecycle - when cancelled, all subscriptions are terminated.
+func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engineCtx context.Context) GraphQLSubscriptionClient {
 	return &subscriptionClientV2{
-		client: client.New(httpClient, streamingClient),
+		client: client.New(engineCtx, httpClient, streamingClient),
 	}
 }
 
@@ -52,26 +53,18 @@ func (c *subscriptionClientV2) readLoop(ctx context.Context, msgCh <-chan *commo
 	for {
 		select {
 		case <-ctx.Done():
-			// Client disconnected - context cancellation is the unsubscribe mechanism
+			updater.Complete()
 			return
 
 		case msg, ok := <-msgCh:
 			if !ok {
-				// Channel closed by upstream
 				updater.Complete()
 				return
 			}
 
 			if msg.Err != nil {
-				// Transport/protocol error
 				updater.Update(formatSubscriptionError(msg.Err))
 				updater.Close(resolve.SubscriptionCloseKindDownstreamServiceError)
-				return
-			}
-
-			if msg.Done {
-				// Upstream signaled completion
-				updater.Complete()
 				return
 			}
 
@@ -83,6 +76,11 @@ func (c *subscriptionClientV2) readLoop(ctx context.Context, msgCh <-chan *commo
 					return
 				}
 				updater.Update(data)
+			}
+
+			if msg.Done {
+				updater.Complete()
+				return
 			}
 		}
 	}

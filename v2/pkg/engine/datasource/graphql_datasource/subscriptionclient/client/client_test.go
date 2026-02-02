@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -130,7 +131,7 @@ func TestSubscription(t *testing.T) {
 
 		go sub.fanout(func() {})
 
-		msg := &Message{Payload: &Response{}}
+		msg := &Message{Payload: &ExecutionResult{}}
 		source <- msg
 		close(source)
 
@@ -164,8 +165,7 @@ func TestSubscription(t *testing.T) {
 
 func TestClient(t *testing.T) {
 	t.Run("New creates client with transports", func(t *testing.T) {
-		c := New(http.DefaultClient, http.DefaultClient)
-		defer c.Close()
+		c := New(t.Context(), http.DefaultClient, http.DefaultClient)
 
 		assert.NotNil(t, c.ws)
 		assert.NotNil(t, c.sse)
@@ -173,23 +173,24 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("Stats returns correct counts", func(t *testing.T) {
-		c := New(http.DefaultClient, http.DefaultClient)
-		defer c.Close()
+		c := New(t.Context(), http.DefaultClient, http.DefaultClient)
 
 		stats := c.Stats()
 		assert.Equal(t, 0, stats.Subscriptions)
 		assert.Equal(t, 0, stats.Listeners)
 	})
 
-	t.Run("Close is idempotent", func(t *testing.T) {
-		c := New(http.DefaultClient, http.DefaultClient)
-		c.Close()
-		c.Close() // should not panic
+	t.Run("context cancellation is idempotent", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		_ = New(ctx, http.DefaultClient, http.DefaultClient)
+		cancel()
+		cancel() // should not panic
 	})
 
-	t.Run("Subscribe fails after Close", func(t *testing.T) {
-		c := New(http.DefaultClient, http.DefaultClient)
-		c.Close()
+	t.Run("Subscribe fails after context cancelled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		c := New(ctx, http.DefaultClient, http.DefaultClient)
+		cancel()
 
 		_, _, err := c.Subscribe(t.Context(), &Request{Query: "subscription { a }"}, Options{
 			Endpoint: "ws://localhost/graphql",

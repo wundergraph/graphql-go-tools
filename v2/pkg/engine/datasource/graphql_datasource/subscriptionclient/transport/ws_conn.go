@@ -21,6 +21,7 @@ var (
 )
 
 type WSConnection struct {
+	ctx      context.Context
 	conn     *websocket.Conn
 	protocol protocol.Protocol
 
@@ -38,8 +39,9 @@ type WSConnection struct {
 	WriteTimeout time.Duration
 }
 
-func NewWSConnection(conn *websocket.Conn, protocol protocol.Protocol, onEmpty func()) *WSConnection {
+func NewWSConnection(ctx context.Context, conn *websocket.Conn, protocol protocol.Protocol, onEmpty func()) *WSConnection {
 	return &WSConnection{
+		ctx:      ctx,
 		conn:     conn,
 		protocol: protocol,
 		subs:     make(map[string]chan<- *common.Message),
@@ -131,14 +133,12 @@ func (c *WSConnection) withWriteLock(f func() error) error {
 func (c *WSConnection) ReadLoop() {
 	defer c.shutdown(errors.New("read loop exited"))
 
-	ctx := context.Background()
-
 	for {
 		if c.closed.Load() {
 			return
 		}
 
-		msg, err := c.protocol.Read(ctx, c.conn)
+		msg, err := c.protocol.Read(c.ctx, c.conn)
 		if err != nil {
 			c.shutdown(fmt.Errorf("read: %w", err))
 			return
@@ -146,7 +146,7 @@ func (c *WSConnection) ReadLoop() {
 
 		switch msg.Type {
 		case protocol.MessagePing:
-			pongCtx, cancel := context.WithTimeout(ctx, c.WriteTimeout)
+			pongCtx, cancel := context.WithTimeout(c.ctx, c.WriteTimeout)
 			_ = c.withWriteLock(func() error {
 				return c.protocol.Pong(pongCtx, c.conn)
 			})

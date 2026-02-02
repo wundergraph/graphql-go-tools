@@ -4,16 +4,13 @@ import "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql
 
 // Re-export common types for single-import convenience.
 type (
-	Message           = common.Message
-	Response          = common.ExecutionResult
-	GraphQLError      = common.GraphQLError
-	Location          = common.Location
-	Request           = common.Request
-	SubscriptionError = common.SubscriptionError
-	Options           = common.Options
-	TransportType     = common.TransportType
-	WSSubprotocol     = common.WSSubprotocol
-	SSEMethod         = common.SSEMethod
+	Message         = common.Message
+	ExecutionResult = common.ExecutionResult
+	Request         = common.Request
+	Options         = common.Options
+	TransportType   = common.TransportType
+	WSSubprotocol   = common.WSSubprotocol
+	SSEMethod       = common.SSEMethod
 )
 
 // Re-export constants.

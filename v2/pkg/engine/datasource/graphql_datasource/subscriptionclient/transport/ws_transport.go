@@ -15,6 +15,7 @@ import (
 )
 
 type WSTransport struct {
+	ctx        context.Context
 	httpClient *http.Client
 
 	mu      sync.Mutex
@@ -29,13 +30,19 @@ type dialResult struct {
 }
 
 // NewWSTransport creates a new WSTransport with the provided http.Client
-// for WebSocket upgrade requests.
-func NewWSTransport(httpClient *http.Client) *WSTransport {
-	return &WSTransport{
+// for WebSocket upgrade requests. The transport will automatically close
+// all connections when ctx is cancelled.
+func NewWSTransport(ctx context.Context, httpClient *http.Client) *WSTransport {
+	t := &WSTransport{
+		ctx:        ctx,
 		httpClient: httpClient,
 		conns:      make(map[uint64]*WSConnection),
 		dialing:    make(map[uint64]*dialResult),
 	}
+
+	context.AfterFunc(ctx, t.closeAll)
+
+	return t
 }
 
 func (t *WSTransport) Subscribe(ctx context.Context, req *common.Request, opts common.Options) (<-chan *common.Message, func(), error) {
@@ -48,7 +55,8 @@ func (t *WSTransport) Subscribe(ctx context.Context, req *common.Request, opts c
 	return conn.Subscribe(ctx, id, req)
 }
 
-func (t *WSTransport) Close() error {
+// closeAll closes all connections. Called automatically when context is cancelled.
+func (t *WSTransport) closeAll() {
 	t.mu.Lock()
 
 	// Copy because conn.Close -> shutdown -> onEmpty -> t.removeConn -> t.mu.Lock
@@ -65,8 +73,6 @@ func (t *WSTransport) Close() error {
 	for _, conn := range conns {
 		conn.Close()
 	}
-
-	return nil
 }
 
 func (t *WSTransport) ConnCount() int {
@@ -139,7 +145,7 @@ func (t *WSTransport) dial(ctx context.Context, key uint64, opts common.Options)
 		return nil, err
 	}
 
-	conn := NewWSConnection(wsConn, proto, func() {
+	conn := NewWSConnection(t.ctx, wsConn, proto, func() {
 		t.removeConn(key)
 	})
 

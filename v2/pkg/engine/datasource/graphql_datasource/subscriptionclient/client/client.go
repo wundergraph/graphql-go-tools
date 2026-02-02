@@ -20,12 +20,16 @@ var (
 // Client manages GraphQL subscriptions with deduplication and fan-out.
 // It is designed as a shared singleton for proxy use - each Subscribe call
 // provides its own endpoint, headers, and auth from the downstream request.
+//
+// The client's lifecycle is tied to the provided context. When the context
+// is cancelled, all subscriptions are terminated and resources are released.
 type Client struct {
-	mu     sync.Mutex
-	subs   map[uint64]*subscription
-	ws     *transport.WSTransport
-	sse    *transport.SSETransport
-	closed bool
+	ctx context.Context
+
+	mu   sync.Mutex
+	subs map[uint64]*subscription
+	ws   *transport.WSTransport
+	sse  *transport.SSETransport
 }
 
 // subscription represents a deduplicated upstream subscription with fan-out.
@@ -52,12 +56,20 @@ type Stats struct {
 // New creates a new subscription client with the provided HTTP clients.
 // httpClient is used for WebSocket upgrade requests.
 // streamingClient is used for SSE requests (should have appropriate timeouts for long-lived connections).
-func New(httpClient, streamingClient *http.Client) *Client {
-	return &Client{
+//
+// The client's lifecycle is tied to ctx. When ctx is cancelled, all subscriptions
+// are automatically terminated and resources are released.
+func New(ctx context.Context, httpClient, streamingClient *http.Client) *Client {
+	c := &Client{
+		ctx:  ctx,
 		subs: make(map[uint64]*subscription),
-		ws:   transport.NewWSTransport(httpClient),
-		sse:  transport.NewSSETransport(streamingClient),
+		ws:   transport.NewWSTransport(ctx, httpClient),
+		sse:  transport.NewSSETransport(ctx, streamingClient),
 	}
+
+	context.AfterFunc(ctx, c.shutdown)
+
+	return c
 }
 
 // Subscribe creates or joins a subscription.
@@ -68,7 +80,7 @@ func (c *Client) Subscribe(ctx context.Context, req *common.Request, opts common
 
 	c.mu.Lock()
 
-	if c.closed {
+	if c.ctx.Err() != nil {
 		c.mu.Unlock()
 		return nil, nil, ErrClientClosed
 	}
@@ -113,14 +125,9 @@ func (c *Client) Subscribe(ctx context.Context, req *common.Request, opts common
 	return sub.addListener()
 }
 
-// Close terminates all subscriptions and releases resources.
-func (c *Client) Close() {
+// shutdown terminates all subscriptions. Called automatically when context is cancelled.
+func (c *Client) shutdown() {
 	c.mu.Lock()
-	if c.closed {
-		c.mu.Unlock()
-		return
-	}
-	c.closed = true
 
 	// Copy to avoid holding lock during cancel
 	subs := make([]*subscription, 0, len(c.subs))
@@ -130,15 +137,10 @@ func (c *Client) Close() {
 	c.subs = make(map[uint64]*subscription)
 	c.mu.Unlock()
 
-	// Cancel all and wait for cleanup
+	// Cancel all subscriptions - transports handle their own shutdown via context
 	for _, sub := range subs {
 		sub.cancel()
-		<-sub.done
 	}
-
-	// Close transports
-	c.ws.Close()
-	c.sse.Close()
 }
 
 // Stats returns client statistics.
