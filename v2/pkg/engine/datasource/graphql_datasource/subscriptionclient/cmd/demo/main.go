@@ -148,10 +148,7 @@ func main() {
 }
 
 func run(ctx context.Context, endpoint string, numVUs, numSubs, numListeners int, transport string) {
-	c, err := client.New(http.DefaultClient, http.DefaultClient)
-	if err != nil {
-		log.Fatalf("failed to create client: %v", err)
-	}
+	c := client.New(http.DefaultClient, http.DefaultClient)
 	defer c.Close()
 
 	st := newStats()

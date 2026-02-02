@@ -1920,8 +1920,6 @@ func (s *Source) Load(ctx context.Context, headers http.Header, input []byte) (d
 type GraphQLSubscriptionClient interface {
 	// Subscribe to the origin source. The implementation must not block the calling goroutine.
 	Subscribe(ctx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error
-	SubscribeAsync(ctx *resolve.Context, id uint64, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error
-	Unsubscribe(id uint64)
 }
 
 type GraphQLSubscriptionOptions struct {

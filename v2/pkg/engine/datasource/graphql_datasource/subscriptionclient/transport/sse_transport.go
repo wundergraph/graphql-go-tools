@@ -28,14 +28,11 @@ type SSETransport struct {
 }
 
 // NewSSETransport creates a new SSETransport with the provided http.Client.
-func NewSSETransport(client *http.Client) (*SSETransport, error) {
-	if client == nil {
-		return nil, fmt.Errorf("SSETransport: http.Client must not be nil")
-	}
+func NewSSETransport(client *http.Client) *SSETransport {
 	return &SSETransport{
 		client: client,
 		conns:  make(map[*SSEConnection]struct{}),
-	}, nil
+	}
 }
 
 // Subscribe initiates a GraphQL subscription over SSE.

@@ -19,14 +19,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/transport"
 )
 
-// newTestSSETransport creates an SSETransport for testing using http.DefaultClient.
-func newTestSSETransport(t *testing.T) *transport.SSETransport {
-	t.Helper()
-	tr, err := transport.NewSSETransport(http.DefaultClient)
-	require.NoError(t, err)
-	return tr
-}
-
 func TestSSETransport_Subscribe(t *testing.T) {
 	t.Parallel()
 
@@ -60,7 +52,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 			flusher.Flush()
 		})
 
-		tr := newTestSSETransport(t)
+		tr := transport.NewSSETransport(http.DefaultClient)
 		defer tr.Close()
 
 		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
@@ -103,7 +95,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 			fmt.Fprintf(w, "event: complete\ndata:\n\n")
 		})
 
-		tr := newTestSSETransport(t)
+		tr := transport.NewSSETransport(http.DefaultClient)
 		defer tr.Close()
 
 		headers := http.Header{
@@ -141,7 +133,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 			flusher.Flush()
 		})
 
-		tr := newTestSSETransport(t)
+		tr := transport.NewSSETransport(http.DefaultClient)
 		defer tr.Close()
 
 		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
@@ -166,7 +158,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 			fmt.Fprintf(w, "event: error\ndata: [{\"message\": \"Something went wrong\"}]\n\n")
 		})
 
-		tr := newTestSSETransport(t)
+		tr := transport.NewSSETransport(http.DefaultClient)
 		defer tr.Close()
 
 		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
@@ -191,7 +183,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 			fmt.Fprintf(w, "event: complete\ndata:\n\n")
 		})
 
-		tr := newTestSSETransport(t)
+		tr := transport.NewSSETransport(http.DefaultClient)
 		defer tr.Close()
 
 		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
@@ -226,7 +218,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 			flusher.Flush()
 		})
 
-		tr := newTestSSETransport(t)
+		tr := transport.NewSSETransport(http.DefaultClient)
 		defer tr.Close()
 
 		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
@@ -266,7 +258,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 			flusher.Flush()
 		})
 
-		tr := newTestSSETransport(t)
+		tr := transport.NewSSETransport(http.DefaultClient)
 		defer tr.Close()
 
 		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
@@ -303,7 +295,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 			close(serverClosed)
 		})
 
-		tr := newTestSSETransport(t)
+		tr := transport.NewSSETransport(http.DefaultClient)
 		defer tr.Close()
 
 		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
@@ -345,7 +337,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 			close(serverClosed)
 		})
 
-		tr := newTestSSETransport(t)
+		tr := transport.NewSSETransport(http.DefaultClient)
 		defer tr.Close()
 
 		ctx, ctxCancel := context.WithCancel(context.Background())
@@ -375,7 +367,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 			w.WriteHeader(http.StatusUnauthorized)
 		})
 
-		tr := newTestSSETransport(t)
+		tr := transport.NewSSETransport(http.DefaultClient)
 		defer tr.Close()
 
 		_, _, err := tr.Subscribe(context.Background(), &common.Request{
@@ -394,7 +386,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 			w.Write([]byte("Internal server error"))
 		})
 
-		tr := newTestSSETransport(t)
+		tr := transport.NewSSETransport(http.DefaultClient)
 		defer tr.Close()
 
 		_, _, err := tr.Subscribe(context.Background(), &common.Request{
@@ -423,7 +415,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 			<-r.Context().Done()
 		})
 
-		tr := newTestSSETransport(t)
+		tr := transport.NewSSETransport(http.DefaultClient)
 		defer tr.Close()
 
 		opts := common.Options{Endpoint: server.URL}
@@ -459,7 +451,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 			// Server closes without sending complete
 		})
 
-		tr := newTestSSETransport(t)
+		tr := transport.NewSSETransport(http.DefaultClient)
 		defer tr.Close()
 
 		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
@@ -496,7 +488,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 			flusher.Flush()
 		})
 
-		tr := newTestSSETransport(t)
+		tr := transport.NewSSETransport(http.DefaultClient)
 		defer tr.Close()
 
 		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
@@ -530,7 +522,7 @@ func TestSSETransport_Close(t *testing.T) {
 			closedCount.Add(1)
 		})
 
-		tr := newTestSSETransport(t)
+		tr := transport.NewSSETransport(http.DefaultClient)
 
 		opts := common.Options{Endpoint: server.URL}
 
@@ -580,8 +572,7 @@ func TestSSETransport_CustomClient(t *testing.T) {
 			},
 		}
 
-		tr, err := transport.NewSSETransport(customClient)
-		require.NoError(t, err)
+		tr := transport.NewSSETransport(customClient)
 		defer tr.Close()
 
 		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
@@ -630,7 +621,7 @@ func TestSSETransport_ContentTypeValidation(t *testing.T) {
 			fmt.Fprintf(w, "event: complete\ndata:\n\n")
 		})
 
-		tr := newTestSSETransport(t)
+		tr := transport.NewSSETransport(http.DefaultClient)
 		defer tr.Close()
 
 		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
@@ -652,7 +643,7 @@ func TestSSETransport_ContentTypeValidation(t *testing.T) {
 			w.Write([]byte(`{"error": "not sse"}`))
 		})
 
-		tr := newTestSSETransport(t)
+		tr := transport.NewSSETransport(http.DefaultClient)
 		defer tr.Close()
 
 		_, _, err := tr.Subscribe(context.Background(), &common.Request{
@@ -700,7 +691,7 @@ func TestSSETransport_GETMethod(t *testing.T) {
 			flusher.Flush()
 		})
 
-		tr := newTestSSETransport(t)
+		tr := transport.NewSSETransport(http.DefaultClient)
 		defer tr.Close()
 
 		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
@@ -744,7 +735,7 @@ func TestSSETransport_GETMethod(t *testing.T) {
 			fmt.Fprintf(w, "event: complete\ndata:\n\n")
 		})
 
-		tr := newTestSSETransport(t)
+		tr := transport.NewSSETransport(http.DefaultClient)
 		defer tr.Close()
 
 		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
@@ -774,7 +765,7 @@ func TestSSETransport_GETMethod(t *testing.T) {
 			fmt.Fprintf(w, "event: complete\ndata:\n\n")
 		})
 
-		tr := newTestSSETransport(t)
+		tr := transport.NewSSETransport(http.DefaultClient)
 		defer tr.Close()
 
 		headers := http.Header{
@@ -810,7 +801,7 @@ func TestSSETransport_GETMethod(t *testing.T) {
 			fmt.Fprintf(w, "event: complete\ndata:\n\n")
 		})
 
-		tr := newTestSSETransport(t)
+		tr := transport.NewSSETransport(http.DefaultClient)
 		defer tr.Close()
 
 		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
@@ -845,7 +836,7 @@ func TestSSETransport_MethodDefault(t *testing.T) {
 			fmt.Fprintf(w, "event: complete\ndata:\n\n")
 		})
 
-		tr := newTestSSETransport(t)
+		tr := transport.NewSSETransport(http.DefaultClient)
 		defer tr.Close()
 
 		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
@@ -874,7 +865,7 @@ func TestSSETransport_MethodDefault(t *testing.T) {
 			fmt.Fprintf(w, "event: complete\ndata:\n\n")
 		})
 
-		tr := newTestSSETransport(t)
+		tr := transport.NewSSETransport(http.DefaultClient)
 		defer tr.Close()
 
 		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
