@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"net/http"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -67,7 +66,7 @@ func TestSubscription(t *testing.T) {
 			listeners: make(map[uint64]chan *Message),
 		}
 
-		ch, _, err := sub.addListener()
+		ch, _, err := sub.addListener(t.Context())
 		require.NoError(t, err)
 
 		assert.NotNil(t, ch)
@@ -79,9 +78,9 @@ func TestSubscription(t *testing.T) {
 			listeners: make(map[uint64]chan *Message),
 		}
 
-		sub.addListener()
-		sub.addListener()
-		sub.addListener()
+		sub.addListener(t.Context())
+		sub.addListener(t.Context())
+		sub.addListener(t.Context())
 
 		assert.Equal(t, 3, len(sub.listeners))
 	})
@@ -92,7 +91,7 @@ func TestSubscription(t *testing.T) {
 			listeners: make(map[uint64]chan *Message),
 		}
 
-		_, cancel, _ := sub.addListener()
+		_, cancel, _ := sub.addListener(t.Context())
 		assert.Equal(t, 1, len(sub.listeners))
 
 		cancel()
@@ -107,8 +106,8 @@ func TestSubscription(t *testing.T) {
 			listeners: make(map[uint64]chan *Message),
 		}
 
-		_, cancel1, _ := sub.addListener()
-		_, cancel2, _ := sub.addListener()
+		_, cancel1, _ := sub.addListener(t.Context())
+		_, cancel2, _ := sub.addListener(t.Context())
 
 		cancel1()
 		assert.False(t, cancelled.Load(), "should not cancel with listeners remaining")
@@ -126,8 +125,8 @@ func TestSubscription(t *testing.T) {
 			done:      make(chan struct{}),
 		}
 
-		ch1, _, _ := sub.addListener()
-		ch2, _, _ := sub.addListener()
+		ch1, _, _ := sub.addListener(t.Context())
+		ch2, _, _ := sub.addListener(t.Context())
 
 		go sub.fanout(func() {})
 
@@ -151,7 +150,7 @@ func TestSubscription(t *testing.T) {
 			done:      make(chan struct{}),
 		}
 
-		ch, _, _ := sub.addListener()
+		ch, _, _ := sub.addListener(t.Context())
 
 		go sub.fanout(func() {})
 
@@ -165,7 +164,7 @@ func TestSubscription(t *testing.T) {
 
 func TestClient(t *testing.T) {
 	t.Run("New creates client with transports", func(t *testing.T) {
-		c := New(t.Context(), http.DefaultClient, http.DefaultClient)
+		c := New(t.Context(), Config{})
 
 		assert.NotNil(t, c.ws)
 		assert.NotNil(t, c.sse)
@@ -173,7 +172,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("Stats returns correct counts", func(t *testing.T) {
-		c := New(t.Context(), http.DefaultClient, http.DefaultClient)
+		c := New(t.Context(), Config{})
 
 		stats := c.Stats()
 		assert.Equal(t, 0, stats.Subscriptions)
@@ -182,14 +181,14 @@ func TestClient(t *testing.T) {
 
 	t.Run("context cancellation is idempotent", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
-		_ = New(ctx, http.DefaultClient, http.DefaultClient)
+		_ = New(ctx, Config{})
 		cancel()
 		cancel() // should not panic
 	})
 
 	t.Run("Subscribe fails after context cancelled", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
-		c := New(ctx, http.DefaultClient, http.DefaultClient)
+		c := New(ctx, Config{})
 		cancel()
 
 		_, _, err := c.Subscribe(t.Context(), &Request{Query: "subscription { a }"}, Options{
@@ -224,13 +223,13 @@ func TestConcurrency(t *testing.T) {
 		go sub.fanout(func() {})
 
 		// Keep one listener alive to prevent subscription from closing
-		_, anchorCancel, err := sub.addListener()
+		_, anchorCancel, err := sub.addListener(t.Context())
 		require.NoError(t, err)
 
 		var wg sync.WaitGroup
 		for range 100 {
 			wg.Go(func() {
-				_, cancel, err := sub.addListener()
+				_, cancel, err := sub.addListener(t.Context())
 				if err == nil {
 					cancel()
 				}
@@ -256,12 +255,12 @@ func TestConcurrency(t *testing.T) {
 		go sub.fanout(func() {})
 
 		// Add and remove listener to close subscription
-		_, cancel, _ := sub.addListener()
+		_, cancel, _ := sub.addListener(t.Context())
 		cancel()
 		<-sub.done
 
 		// Now try to add another listener
-		_, _, err := sub.addListener()
+		_, _, err := sub.addListener(t.Context())
 		assert.Equal(t, ErrSubscriptionClosed, err)
 	})
 }

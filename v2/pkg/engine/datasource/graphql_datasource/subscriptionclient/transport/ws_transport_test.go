@@ -43,7 +43,7 @@ func TestWSTransport_Subscribe(t *testing.T) {
 			})
 		})
 
-		tr := transport.NewWSTransport(t.Context(), http.DefaultClient)
+		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil)
 
 		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
@@ -84,7 +84,7 @@ func TestWSTransport_Subscribe(t *testing.T) {
 			}
 		})
 
-		tr := transport.NewWSTransport(t.Context(), http.DefaultClient)
+		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil)
 
 		opts := common.Options{
 			Endpoint:  server.URL,
@@ -131,7 +131,7 @@ func TestWSTransport_Subscribe(t *testing.T) {
 			}
 		})
 
-		tr := transport.NewWSTransport(t.Context(), http.DefaultClient)
+		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil)
 
 		headers1 := http.Header{"Authorization": []string{"Bearer token1"}}
 		headers2 := http.Header{"Authorization": []string{"Bearer token2"}}
@@ -183,7 +183,7 @@ func TestWSTransport_Subscribe(t *testing.T) {
 			}
 		})
 
-		tr := transport.NewWSTransport(t.Context(), http.DefaultClient)
+		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil)
 
 		ch1, cancel1, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, common.Options{
 			Endpoint:    server.URL,
@@ -221,7 +221,7 @@ func TestWSTransport_Subscribe(t *testing.T) {
 			}
 		})
 
-		tr := transport.NewWSTransport(t.Context(), http.DefaultClient)
+		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil)
 
 		opts := common.Options{
 			Endpoint:  server.URL,
@@ -270,7 +270,7 @@ func TestWSTransport_Subscribe(t *testing.T) {
 			}
 		})
 
-		tr := transport.NewWSTransport(t.Context(), http.DefaultClient)
+		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil)
 
 		opts := common.Options{
 			Endpoint:  server.URL,
@@ -314,7 +314,7 @@ func TestWSTransport_ContextCancellation(t *testing.T) {
 		})
 
 		ctx, cancel := context.WithCancel(context.Background())
-		tr := transport.NewWSTransport(ctx, http.DefaultClient)
+		tr := transport.NewWSTransport(ctx, http.DefaultClient, nil)
 
 		_, _, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, common.Options{
 			Endpoint:  server.URL,
@@ -345,7 +345,7 @@ func TestWSTransport_ContextCancellation(t *testing.T) {
 		})
 
 		ctx, cancel := context.WithCancel(context.Background())
-		tr := transport.NewWSTransport(ctx, http.DefaultClient)
+		tr := transport.NewWSTransport(ctx, http.DefaultClient, nil)
 
 		ch, _, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, common.Options{
 			Endpoint:  server.URL,
@@ -387,7 +387,7 @@ func TestWSTransport_ConcurrentSubscribe(t *testing.T) {
 			}
 		})
 
-		tr := transport.NewWSTransport(t.Context(), http.DefaultClient)
+		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil)
 
 		opts := common.Options{
 			Endpoint:  server.URL,
@@ -440,7 +440,7 @@ func TestWSTransport_LegacyProtocol(t *testing.T) {
 			})
 		})
 
-		tr := transport.NewWSTransport(t.Context(), http.DefaultClient)
+		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil)
 
 		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
@@ -484,7 +484,7 @@ func TestWSTransport_LegacyProtocol(t *testing.T) {
 			})
 		})
 
-		tr := transport.NewWSTransport(t.Context(), http.DefaultClient)
+		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil)
 
 		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
@@ -524,7 +524,7 @@ func TestWSTransport_LegacyProtocol(t *testing.T) {
 			})
 		})
 
-		tr := transport.NewWSTransport(t.Context(), http.DefaultClient)
+		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil)
 
 		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",

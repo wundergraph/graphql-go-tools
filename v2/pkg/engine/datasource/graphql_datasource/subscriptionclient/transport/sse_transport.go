@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/jensneuse/abstractlogger"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
 )
 
@@ -23,6 +24,7 @@ import (
 type SSETransport struct {
 	ctx    context.Context
 	client *http.Client
+	log    abstractlogger.Logger
 
 	mu    sync.Mutex
 	conns map[*SSEConnection]struct{}
@@ -30,10 +32,15 @@ type SSETransport struct {
 
 // NewSSETransport creates a new SSETransport with the provided http.Client.
 // The transport will automatically close all connections when ctx is cancelled.
-func NewSSETransport(ctx context.Context, client *http.Client) *SSETransport {
+func NewSSETransport(ctx context.Context, client *http.Client, log abstractlogger.Logger) *SSETransport {
+	if log == nil {
+		log = abstractlogger.NoopLogger
+	}
+
 	t := &SSETransport{
 		ctx:    ctx,
 		client: client,
+		log:    log,
 		conns:  make(map[*SSEConnection]struct{}),
 	}
 
@@ -57,11 +64,16 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 		method = common.SSEMethodPOST // Default to POST (graphql-sse spec)
 	}
 
+	t.log.Debug("sseTransport.Subscribe",
+		abstractlogger.String("endpoint", opts.Endpoint),
+		abstractlogger.String("method", string(method)),
+	)
+
 	switch method {
 	case common.SSEMethodPOST:
-		httpReq, err = t.buildPOSTRequest(ctx, req, opts)
+		httpReq, err = buildPOSTRequest(t.ctx, req, opts)
 	case common.SSEMethodGET:
-		httpReq, err = t.buildGETRequest(ctx, req, opts)
+		httpReq, err = buildGETRequest(t.ctx, req, opts)
 	default:
 		return nil, nil, fmt.Errorf("unsupported SSE method: %s", method)
 	}
@@ -73,12 +85,20 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 	// Execute request
 	resp, err := t.client.Do(httpReq)
 	if err != nil {
+		t.log.Error("sseTransport.Subscribe",
+			abstractlogger.String("endpoint", opts.Endpoint),
+			abstractlogger.Error(err),
+		)
 		return nil, nil, fmt.Errorf("execute request: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
+		t.log.Error("sseTransport.Subscribe",
+			abstractlogger.String("endpoint", opts.Endpoint),
+			abstractlogger.Int("status", resp.StatusCode),
+		)
 		if len(body) > 0 {
 			return nil, nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
 		}
@@ -90,6 +110,11 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 		resp.Body.Close()
 		return nil, nil, err
 	}
+
+	t.log.Debug("sseTransport.Subscribe",
+		abstractlogger.String("endpoint", opts.Endpoint),
+		abstractlogger.String("status", "connected"),
+	)
 
 	// Create connection
 	conn := newSSEConnection(resp)
@@ -109,7 +134,7 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 }
 
 // buildPOSTRequest creates a POST request with JSON body (graphql-sse spec).
-func (t *SSETransport) buildPOSTRequest(ctx context.Context, req *common.Request, opts common.Options) (*http.Request, error) {
+func buildPOSTRequest(ctx context.Context, req *common.Request, opts common.Options) (*http.Request, error) {
 	body, err := json.Marshal(map[string]any{
 		"query":         req.Query,
 		"variables":     req.Variables,
@@ -136,7 +161,7 @@ func (t *SSETransport) buildPOSTRequest(ctx context.Context, req *common.Request
 }
 
 // buildGETRequest creates a GET request with query parameters (traditional SSE).
-func (t *SSETransport) buildGETRequest(ctx context.Context, req *common.Request, opts common.Options) (*http.Request, error) {
+func buildGETRequest(ctx context.Context, req *common.Request, opts common.Options) (*http.Request, error) {
 	// Parse the endpoint URL
 	u, err := url.Parse(opts.Endpoint)
 	if err != nil {
@@ -213,6 +238,10 @@ func (t *SSETransport) closeAll() {
 	}
 	t.conns = make(map[*SSEConnection]struct{})
 	t.mu.Unlock()
+
+	t.log.Debug("sseTransport.closeAll",
+		abstractlogger.Int("connections", len(conns)),
+	)
 
 	for _, conn := range conns {
 		conn.Close()

@@ -8,15 +8,32 @@ import (
 	"sync"
 
 	"github.com/coder/websocket"
+	"github.com/jensneuse/abstractlogger"
 	"github.com/rs/xid"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/protocol"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
+type ErrFailedUpgrade struct {
+	URL        string
+	StatusCode int
+}
+
+func (u *ErrFailedUpgrade) Error() string {
+	return fmt.Sprintf("failed to upgrade connection to %s, status code: %d", u.URL, u.StatusCode)
+}
+
+type ErrInvalidSubprotocol string
+
+func (e ErrInvalidSubprotocol) Error() string {
+	return fmt.Sprintf("provided websocket subprotocol '%s' is not supported. The supported subprotocols are graphql-ws and graphql-transport-ws. Please configure your subsciptions with the mentioned subprotocols", string(e))
+}
+
 type WSTransport struct {
-	ctx        context.Context
-	httpClient *http.Client
+	ctx           context.Context
+	upgradeClient *http.Client
+	log           abstractlogger.Logger
 
 	mu      sync.Mutex
 	dialing map[uint64]*dialResult
@@ -32,12 +49,17 @@ type dialResult struct {
 // NewWSTransport creates a new WSTransport with the provided http.Client
 // for WebSocket upgrade requests. The transport will automatically close
 // all connections when ctx is cancelled.
-func NewWSTransport(ctx context.Context, httpClient *http.Client) *WSTransport {
+func NewWSTransport(ctx context.Context, upgradeClient *http.Client, log abstractlogger.Logger) *WSTransport {
+	if log == nil {
+		log = abstractlogger.NoopLogger
+	}
+
 	t := &WSTransport{
-		ctx:        ctx,
-		httpClient: httpClient,
-		conns:      make(map[uint64]*WSConnection),
-		dialing:    make(map[uint64]*dialResult),
+		ctx:           ctx,
+		upgradeClient: upgradeClient,
+		log:           log,
+		conns:         make(map[uint64]*WSConnection),
+		dialing:       make(map[uint64]*dialResult),
 	}
 
 	context.AfterFunc(ctx, t.closeAll)
@@ -69,6 +91,10 @@ func (t *WSTransport) closeAll() {
 	t.conns = make(map[uint64]*WSConnection)
 
 	t.mu.Unlock()
+
+	t.log.Debug("wsTransport.closeAll",
+		abstractlogger.Int("connections", len(conns)),
+	)
 
 	for _, conn := range conns {
 		conn.Close()
@@ -125,27 +151,58 @@ func (t *WSTransport) getOrDial(ctx context.Context, opts common.Options) (*WSCo
 }
 
 func (t *WSTransport) dial(ctx context.Context, key uint64, opts common.Options) (*WSConnection, error) {
-	wsConn, _, err := websocket.Dial(ctx, opts.Endpoint, &websocket.DialOptions{
-		HTTPClient:   t.httpClient,
+	t.log.Debug("wsTransport.dial",
+		abstractlogger.String("endpoint", opts.Endpoint),
+		abstractlogger.String("subprotocol", string(opts.WSSubprotocol)),
+	)
+
+	wsConn, resp, err := websocket.Dial(ctx, opts.Endpoint, &websocket.DialOptions{
+		HTTPClient:   t.upgradeClient,
 		Subprotocols: opts.WSSubprotocol.Subprotocols(),
 		HTTPHeader:   opts.Headers,
 	})
 	if err != nil {
+		t.log.Error("wsTransport.dial",
+			abstractlogger.String("endpoint", opts.Endpoint),
+			abstractlogger.Error(err),
+		)
+
+		// backwards compatibility with error handling in the router
+		if resp.StatusCode != http.StatusSwitchingProtocols {
+			return nil, &ErrFailedUpgrade{URL: opts.Endpoint, StatusCode: resp.StatusCode}
+		}
+
 		return nil, err
 	}
 
 	proto, err := t.negotiateSubprotocol(opts.WSSubprotocol, wsConn.Subprotocol())
 	if err != nil {
+		t.log.Error("wsTransport.dial",
+			abstractlogger.String("endpoint", opts.Endpoint),
+			abstractlogger.String("error", "subprotocol negotiation failed"),
+			abstractlogger.Error(err),
+		)
 		wsConn.Close(websocket.StatusProtocolError, err.Error())
 		return nil, err
 	}
 
 	if err := proto.Init(ctx, wsConn, opts.InitPayload); err != nil {
+		t.log.Error("wsTransport.dial",
+			abstractlogger.String("endpoint", opts.Endpoint),
+			abstractlogger.String("error", "protocol init failed"),
+			abstractlogger.Error(err),
+		)
 		wsConn.Close(websocket.StatusProtocolError, "init failed")
 		return nil, err
 	}
 
-	conn := NewWSConnection(t.ctx, wsConn, proto, func() {
+	t.log.Debug("wsTransport.dial",
+		abstractlogger.String("endpoint", opts.Endpoint),
+		abstractlogger.String("status", "connected"),
+		abstractlogger.String("negotiated_subprotocol", wsConn.Subprotocol()),
+	)
+
+	conn := NewWSConnection(t.ctx, wsConn, proto, t.log, func() {
 		t.removeConn(key)
 	})
 
@@ -157,7 +214,7 @@ func (t *WSTransport) dial(ctx context.Context, key uint64, opts common.Options)
 func (t *WSTransport) negotiateSubprotocol(requested common.WSSubprotocol, accepted string) (protocol.Protocol, error) {
 	if requested != common.SubprotocolAuto {
 		if accepted != string(requested) {
-			return nil, fmt.Errorf("server accepted %q but requested %q", accepted, requested)
+			return nil, ErrInvalidSubprotocol(accepted)
 		}
 	}
 
@@ -167,7 +224,7 @@ func (t *WSTransport) negotiateSubprotocol(requested common.WSSubprotocol, accep
 	case common.SubprotocolGraphQLWS:
 		return protocol.NewGraphQLWS(), nil
 	default:
-		return nil, fmt.Errorf("unsupported subprotocol: %q", accepted)
+		return nil, ErrInvalidSubprotocol(accepted)
 	}
 }
 
