@@ -350,7 +350,9 @@ func newGTWSTestServer(t *testing.T, handler func(ctx context.Context, conn *web
 func dialGTWS(t *testing.T, server *httptest.Server) *websocket.Conn {
 	t.Helper()
 
-	conn, _, err := websocket.Dial(t.Context(), server.URL, nil)
+	conn, _, err := websocket.Dial(t.Context(), server.URL, &websocket.DialOptions{
+		Subprotocols: []string{"graphql-transport-ws"},
+	})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
