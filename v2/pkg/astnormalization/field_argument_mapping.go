@@ -1,22 +1,14 @@
 package astnormalization
 
 import (
-	"github.com/wundergraph/astjson"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization/uploads"
 )
 
-// FieldArgumentValue represents either a variable reference or a literal value.
-// If LiteralValue is non-nil, it's a literal; otherwise use VariableName.
-type FieldArgumentValue struct {
-	VariableName string
-	LiteralValue *astjson.Value
-}
-
-// FieldArgumentMapping maps field arguments to their values.
-// Key: "fieldPath.argumentName" (e.g., "User.posts.limit")
-// Value: either a variable name or a literal value
-type FieldArgumentMapping map[string]FieldArgumentValue
+// FieldArgumentMapping maps the path of field arguments inside an operation
+// to the name of their mapped variables.
+// Key: "rootOperationType.fieldPath.argumentName" (e.g., "query.posts.limit")
+// Value: name of variable of field argument after variable normalization.
+type FieldArgumentMapping map[string]string
 
 // VariablesNormalizerResult contains the results of variable normalization.
 type VariablesNormalizerResult struct {

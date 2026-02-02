@@ -694,7 +694,7 @@ type AbstractFieldPathCollector struct {
 }
 
 func (v *AbstractFieldPathCollector) EnterField(ref int) {
-	parentPath := v.Walker.Path.WithoutInlineFragmentNames().DotDelimitedString(true)
+	parentPath := v.Walker.Path.WithoutInlineFragmentNames().DotDelimitedString()
 	currentFieldName := v.operation.FieldNameString(ref)
 	currentPath := parentPath + "." + currentFieldName
 

@@ -7,8 +7,6 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/tidwall/sjson"
 
-	"github.com/wundergraph/astjson"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astimport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization/uploads"
@@ -40,11 +38,6 @@ type variablesExtractionVisitor struct {
 }
 
 func (v *variablesExtractionVisitor) EnterArgument(ref int) {
-	if v.Ancestors[0].Kind == ast.NodeKindFragmentDefinition {
-		v.recordFieldArgumentMapping(ref, "")
-		return
-	}
-
 	if len(v.Ancestors) == 0 || v.Ancestors[0].Kind != ast.NodeKindOperationDefinition {
 		return
 	}
@@ -163,17 +156,11 @@ func (v *variablesExtractionVisitor) EnterDocument(operation, definition *ast.Do
 	v.fieldArgumentMapping = make(FieldArgumentMapping)
 }
 
-// buildFieldPath builds the field path from the walker's ancestors.
-// It returns a dot-separated path of field names/aliases (e.g., "user.posts").
-func (v *variablesExtractionVisitor) buildFieldPath() string {
-	return v.Path.DotDelimitedString(false)
-}
-
 // recordFieldArgumentMapping records the currently visited field argument
 // of v in v.fieldArgumentMapping, alongside its matching variable name or literal value.
 // If varName is empty, it looks up the variable name from the operation or stores the literal value.
 func (v *variablesExtractionVisitor) recordFieldArgumentMapping(ref int, varName string) {
-	fieldPath := v.buildFieldPath()
+	fieldPath := v.Path.DotDelimitedString()
 	if fieldPath == "" {
 		return
 	}
@@ -182,31 +169,22 @@ func (v *variablesExtractionVisitor) recordFieldArgumentMapping(ref int, varName
 
 	if varName != "" {
 		// Variable name was provided (from extraction)
-		v.fieldArgumentMapping[key] = FieldArgumentValue{VariableName: varName}
+		v.fieldArgumentMapping[key] = varName
 		return
 	}
 
-	if v.operation.Arguments[ref].Value.Kind == ast.ValueKindVariable {
-		// Existing variable reference
-		varName = v.operation.VariableValueNameString(v.operation.Arguments[ref].Value.Ref)
-		v.fieldArgumentMapping[key] = FieldArgumentValue{VariableName: varName}
+	if v.operation.Arguments[ref].Value.Kind != ast.ValueKindVariable {
+		// We expect the operation on this visitor to be normalized before the visitor walks it.
+		// This means that values of any field arguments should be extracted to variables.
+		// If we still land here it means the query hasn't been normalized before.
+		// In this case we ignore mapping the field argument, i.e. we do not support mapping field
+		// arguments with literal values.
+		// It's not impossible to do so, just expensive and not needed at the moment.
 		return
 	}
 
-	// Literal value - store the JSON-encoded value
-	valueBytes, err := v.operation.ValueToJSON(v.operation.Arguments[ref].Value)
-	if err != nil {
-		// Skip on error
-		return
-	}
-
-	astValue, err := astjson.ParseBytesWithoutCache(valueBytes)
-	if err != nil {
-		// Skip on error
-		return
-	}
-
-	v.fieldArgumentMapping[key] = FieldArgumentValue{LiteralValue: astValue}
+	varName = v.operation.VariableValueNameString(v.operation.Arguments[ref].Value.Ref)
+	v.fieldArgumentMapping[key] = varName
 }
 
 func (v *variablesExtractionVisitor) variableExists(variableValue []byte, inputValueDefinition int) (exists bool, name []byte, definition int) {

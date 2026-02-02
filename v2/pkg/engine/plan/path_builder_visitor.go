@@ -362,8 +362,8 @@ func (c *pathBuilderVisitor) EnterSelectionSet(ref int) {
 		return
 	}
 
-	parentPath := c.walker.Path[:len(c.walker.Path)-1].DotDelimitedString(true)
-	currentPath := c.walker.Path.DotDelimitedString(true)
+	parentPath := c.walker.Path[:len(c.walker.Path)-1].DotDelimitedString()
+	currentPath := c.walker.Path.DotDelimitedString()
 	typeName := c.operation.InlineFragmentTypeConditionNameString(ancestor.Ref)
 
 	node, ok := c.definition.NodeByNameStr(typeName)
@@ -440,7 +440,7 @@ func (c *pathBuilderVisitor) EnterField(fieldRef int) {
 
 	c.debugPrint("EnterField ref:", fieldRef, "fieldName:", fieldName, "typeName:", typeName)
 
-	parentPath := c.walker.Path.DotDelimitedString(true)
+	parentPath := c.walker.Path.DotDelimitedString()
 	// we need to also check preceding path for inline fragments
 	// as for the field within inline fragment the parent path will include type condition in a path
 	// but planner path still will not include it
@@ -458,7 +458,7 @@ func (c *pathBuilderVisitor) EnterField(fieldRef int) {
 		precedingPath = c.walker.Path[:i-1]
 	}
 	if precedingPath != nil {
-		precedingParentPath = precedingPath.DotDelimitedString(true)
+		precedingParentPath = precedingPath.DotDelimitedString()
 	}
 
 	currentPath := parentPath + "." + fieldAliasOrName
@@ -630,7 +630,7 @@ func (c *pathBuilderVisitor) fieldHasAuthorizationRule(typeName, fieldName strin
 }
 
 func (c *pathBuilderVisitor) fieldIsChildNode(plannerIdx int) bool {
-	path := c.walker.Path.DotDelimitedString(true)
+	path := c.walker.Path.DotDelimitedString()
 	plannerPath := c.planners[plannerIdx].ParentPath()
 	fieldPath := strings.TrimPrefix(path, plannerPath)
 	return strings.ContainsAny(fieldPath, ".")
@@ -926,7 +926,7 @@ func (c *pathBuilderVisitor) addNewPlanner(fieldRef int, typeName, fieldName, cu
 	plannerPath := parentPath
 
 	if isParentFragment {
-		precedingFragmentPath := c.walker.Path[:len(c.walker.Path)-1].DotDelimitedString(true)
+		precedingFragmentPath := c.walker.Path[:len(c.walker.Path)-1].DotDelimitedString()
 		// if the parent is a fragment, we add the preceding parent path as well
 		// to be able to walk selection sets in the fragment
 		paths = append([]pathConfiguration{
