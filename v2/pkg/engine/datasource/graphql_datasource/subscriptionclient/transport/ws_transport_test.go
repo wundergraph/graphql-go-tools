@@ -424,6 +424,136 @@ func TestWSTransport_ConcurrentSubscribe(t *testing.T) {
 	})
 }
 
+func TestWSTransport_LegacyProtocol(t *testing.T) {
+	t.Parallel()
+
+	t.Run("connects to legacy graphql-ws server", func(t *testing.T) {
+		t.Parallel()
+
+		server := newLegacyGraphQLWSServer(t, func(ctx context.Context, conn *websocket.Conn) {
+			// Read start message
+			var msg map[string]any
+			require.NoError(t, wsjson.Read(ctx, conn, &msg))
+			assert.Equal(t, "start", msg["type"])
+
+			// Send data
+			wsjson.Write(ctx, conn, map[string]any{
+				"id":      msg["id"],
+				"type":    "data",
+				"payload": map[string]any{"data": map[string]any{"value": 42}},
+			})
+
+			// Send complete
+			wsjson.Write(ctx, conn, map[string]any{
+				"id":   msg["id"],
+				"type": "complete",
+			})
+		})
+
+		tr := newTestWSTransport(t)
+		defer tr.Close()
+
+		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+			Query: "subscription { test }",
+		}, common.Options{
+			Endpoint:      server.URL,
+			Transport:     common.TransportWS,
+			WSSubprotocol: common.SubprotocolGraphQLWS, // Request legacy protocol
+		})
+		require.NoError(t, err)
+		defer cancel()
+
+		msg := receiveWithTimeout(t, ch, time.Second)
+		assert.Contains(t, string(msg.Payload.Data), "42")
+
+		msg = receiveWithTimeout(t, ch, time.Second)
+		assert.True(t, msg.Done)
+	})
+
+	t.Run("handles keep-alive messages", func(t *testing.T) {
+		t.Parallel()
+
+		server := newLegacyGraphQLWSServer(t, func(ctx context.Context, conn *websocket.Conn) {
+			// Read start message
+			var msg map[string]any
+			require.NoError(t, wsjson.Read(ctx, conn, &msg))
+
+			// Send keep-alive
+			wsjson.Write(ctx, conn, map[string]string{"type": "ka"})
+
+			// Send data
+			wsjson.Write(ctx, conn, map[string]any{
+				"id":      msg["id"],
+				"type":    "data",
+				"payload": map[string]any{"data": map[string]any{"value": 1}},
+			})
+
+			// Send complete
+			wsjson.Write(ctx, conn, map[string]any{
+				"id":   msg["id"],
+				"type": "complete",
+			})
+		})
+
+		tr := newTestWSTransport(t)
+		defer tr.Close()
+
+		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+			Query: "subscription { test }",
+		}, common.Options{
+			Endpoint:      server.URL,
+			Transport:     common.TransportWS,
+			WSSubprotocol: common.SubprotocolGraphQLWS,
+		})
+		require.NoError(t, err)
+		defer cancel()
+
+		// Should receive data (keep-alive is handled internally)
+		msg := receiveWithTimeout(t, ch, time.Second)
+		assert.NotNil(t, msg.Payload)
+
+		msg = receiveWithTimeout(t, ch, time.Second)
+		assert.True(t, msg.Done)
+	})
+
+	t.Run("auto-negotiates to legacy when modern unavailable", func(t *testing.T) {
+		t.Parallel()
+
+		// Server only supports legacy protocol
+		server := newLegacyGraphQLWSServer(t, func(ctx context.Context, conn *websocket.Conn) {
+			var msg map[string]any
+			require.NoError(t, wsjson.Read(ctx, conn, &msg))
+			assert.Equal(t, "start", msg["type"]) // Should use legacy message type
+
+			wsjson.Write(ctx, conn, map[string]any{
+				"id":      msg["id"],
+				"type":    "data",
+				"payload": map[string]any{"data": map[string]any{"value": 99}},
+			})
+			wsjson.Write(ctx, conn, map[string]any{
+				"id":   msg["id"],
+				"type": "complete",
+			})
+		})
+
+		tr := newTestWSTransport(t)
+		defer tr.Close()
+
+		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+			Query: "subscription { test }",
+		}, common.Options{
+			Endpoint:      server.URL,
+			Transport:     common.TransportWS,
+			WSSubprotocol: common.SubprotocolAuto, // Auto-negotiate
+		})
+		require.NoError(t, err)
+		defer cancel()
+
+		msg := receiveWithTimeout(t, ch, time.Second)
+		assert.Contains(t, string(msg.Payload.Data), "99")
+	})
+}
+
 // Test helpers
 
 func newGraphQLWSServer(t *testing.T, handler func(ctx context.Context, conn *websocket.Conn)) *httptest.Server {
@@ -432,6 +562,38 @@ func newGraphQLWSServer(t *testing.T, handler func(ctx context.Context, conn *we
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
 			Subprotocols: []string{"graphql-transport-ws"},
+		})
+		if err != nil {
+			return
+		}
+		defer conn.Close(websocket.StatusNormalClosure, "")
+
+		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		defer cancel()
+
+		// Handle connection_init
+		var initMsg map[string]any
+		if err := wsjson.Read(ctx, conn, &initMsg); err != nil {
+			return
+		}
+		if initMsg["type"] != "connection_init" {
+			return
+		}
+		wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
+
+		handler(ctx, conn)
+	}))
+
+	t.Cleanup(server.Close)
+	return server
+}
+
+func newLegacyGraphQLWSServer(t *testing.T, handler func(ctx context.Context, conn *websocket.Conn)) *httptest.Server {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+			Subprotocols: []string{"graphql-ws"}, // Legacy protocol only
 		})
 		if err != nil {
 			return

@@ -38,15 +38,11 @@ func (c *subscriptionClientV2) Subscribe(ctx *resolve.Context, options GraphQLSu
 		return err
 	}
 
-	fmt.Println("Received subscription message")
-
 	msgCh, cancel, err := c.client.Subscribe(ctx.Context(), req, opts)
 	if err != nil {
 		fmt.Println("Error subscribing:", err)
 		return err
 	}
-
-	fmt.Println("Got subscription channel")
 
 	go c.readLoop(ctx.Context(), msgCh, cancel, updater)
 
@@ -56,8 +52,6 @@ func (c *subscriptionClientV2) Subscribe(ctx *resolve.Context, options GraphQLSu
 // readLoop bridges the channel-based API to the callback-based updater.
 func (c *subscriptionClientV2) readLoop(ctx context.Context, msgCh <-chan *common.Message, cancel func(), updater resolve.SubscriptionUpdater) {
 	defer cancel()
-
-	fmt.Println("starting readLoop")
 
 	for {
 		select {
