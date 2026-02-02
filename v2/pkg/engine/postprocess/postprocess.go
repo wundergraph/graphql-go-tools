@@ -23,7 +23,7 @@ type Processor struct {
 	collectDataSourceInfo  bool
 	fetchTreeProcessors    *FetchTreeProcessors
 	responseTreeProcessors *ResponseTreeProcessors
-	deferProcessor         *deferProcessor
+	extractDeferFetches    *extractDeferFetches
 }
 
 type FetchTreeProcessors struct {
@@ -68,7 +68,7 @@ type processorOptions struct {
 	disableCreateParallelNodes            bool
 	disableAddMissingNestedDependencies   bool
 	collectDataSourceInfo                 bool
-	disableDefer                          bool
+	disableExtractDeferFetches            bool
 }
 
 type ProcessorOption func(*processorOptions)
@@ -122,9 +122,9 @@ func DisableAddMissingNestedDependencies() ProcessorOption {
 	}
 }
 
-func DisableDefer() ProcessorOption {
+func DisableExtractDeferFetches() ProcessorOption {
 	return func(o *processorOptions) {
-		o.disableDefer = true
+		o.disableExtractDeferFetches = true
 	}
 }
 
@@ -166,8 +166,8 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 				disable: opts.disableMergeFields,
 			},
 		},
-		deferProcessor: &deferProcessor{
-			disable: opts.disableDefer,
+		extractDeferFetches: &extractDeferFetches{
+			disable: opts.disableExtractDeferFetches,
 		},
 	}
 }
@@ -191,7 +191,7 @@ func (p *Processor) Process(pre plan.Plan) {
 		p.fetchTreeProcessors.processFlatFetchTree(t.Response.Fetches)
 
 		// extract deferred fetches into their own fetch trees
-		p.deferProcessor.Process(t)
+		p.extractDeferFetches.Process(t)
 
 		// process the initial response fetch tree
 		p.fetchTreeProcessors.organizeFetchTree(t.Response.Fetches)
