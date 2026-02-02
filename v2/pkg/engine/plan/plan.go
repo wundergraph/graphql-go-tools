@@ -44,8 +44,7 @@ func (*SubscriptionResponsePlan) PlanKind() Kind {
 }
 
 type DeferResponsePlan struct {
-	Response      *resolve.GraphQLResponse
-	Defers        []*resolve.DeferGraphQLResponse
+	Response      *resolve.GraphQLDeferResponse
 	FlushInterval int64
 }
 

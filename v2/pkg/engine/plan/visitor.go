@@ -1007,7 +1007,9 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 		}
 
 		v.plan = &DeferResponsePlan{
-			Response: v.response,
+			Response: &resolve.GraphQLDeferResponse{
+				Response: v.response,
+			},
 		}
 	default:
 		if !v.Config.DisableIncludeInfo {

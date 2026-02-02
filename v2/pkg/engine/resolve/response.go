@@ -41,7 +41,12 @@ type GraphQLResponse struct {
 	DataSources []DataSourceInfo
 }
 
-type DeferGraphQLResponse struct {
+type GraphQLDeferResponse struct {
+	Response *GraphQLResponse
+	Defers   []*DeferFetchGroup
+}
+
+type DeferFetchGroup struct {
 	DeferID string
 	Fetches *FetchTreeNode
 }

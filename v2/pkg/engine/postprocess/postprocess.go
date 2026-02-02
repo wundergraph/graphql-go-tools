@@ -186,18 +186,18 @@ func (p *Processor) Process(pre plan.Plan) {
 		p.fetchTreeProcessors.organizeFetchTree(t.Response.Fetches)
 
 	case *plan.DeferResponsePlan:
-		p.responseTreeProcessors.mergeFields.Process(t.Response.Data)
-		p.createFetchTree(t.Response)
-		p.fetchTreeProcessors.processFlatFetchTree(t.Response.Fetches)
+		p.responseTreeProcessors.mergeFields.Process(t.Response.Response.Data)
+		p.createFetchTree(t.Response.Response)
+		p.fetchTreeProcessors.processFlatFetchTree(t.Response.Response.Fetches)
 
 		// extract deferred fetches into their own fetch trees
 		p.extractDeferFetches.Process(t)
 
 		// process the initial response fetch tree
-		p.fetchTreeProcessors.organizeFetchTree(t.Response.Fetches)
+		p.fetchTreeProcessors.organizeFetchTree(t.Response.Response.Fetches)
 
 		// process each deferred response fetch tree
-		for _, deferResp := range t.Defers {
+		for _, deferResp := range t.Response.Defers {
 			p.fetchTreeProcessors.organizeFetchTree(deferResp.Fetches)
 		}
 
