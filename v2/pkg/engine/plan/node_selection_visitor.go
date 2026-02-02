@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"slices"
@@ -54,10 +55,13 @@ type nodeSelectionVisitor struct {
 	newFieldRefs map[int]struct{} // newFieldRefs is a set of field refs which were added by the visitor or was modified by a rewrite
 }
 
+func (c *nodeSelectionVisitor) addNewSkipFieldRefs(fieldRefs ...int) {
+	c.addSkipFieldRefs(fieldRefs...)
+	c.addNewFieldRefs(fieldRefs...)
+}
+
 func (c *nodeSelectionVisitor) addSkipFieldRefs(fieldRefs ...int) {
 	c.skipFieldsRefs = append(c.skipFieldsRefs, fieldRefs...)
-
-	c.addNewFieldRefs(fieldRefs...)
 }
 
 func (c *nodeSelectionVisitor) addNewFieldRefs(fieldRefs ...int) {
@@ -255,6 +259,11 @@ func (c *nodeSelectionVisitor) handleEnterField(fieldRef int, handleRequires boo
 }
 
 func (c *nodeSelectionVisitor) LeaveField(ref int) {
+	if bytes.Equal(c.operation.FieldAliasOrNameBytes(ref), []byte("__internal__typename_placeholder")) {
+		// we should skip such typename as it was added as a placeholder to keep query valid
+		// when normalizaion removed all other selections from the selection set
+		c.addSkipFieldRefs(ref)
+	}
 }
 
 func (c *nodeSelectionVisitor) handleFieldRequiredByRequires(fieldRef int, parentPath, typeName, fieldName, currentPath string, dsConfig DataSource) {
@@ -520,7 +529,7 @@ func (c *nodeSelectionVisitor) addFieldRequirementsToOperation(selectionSetRef i
 	}
 	c.resetVisitedAbstractChecksForModifiedFields(addFieldsResult.modifiedFieldRefs)
 
-	c.addSkipFieldRefs(addFieldsResult.skipFieldRefs...)
+	c.addNewSkipFieldRefs(addFieldsResult.skipFieldRefs...)
 	// add mapping for the field dependencies
 	for _, requestedByFieldRef := range requirements.requestedByFieldRefs {
 		fieldKey := fieldIndexKey{requestedByFieldRef, requirements.dsHash}
@@ -610,7 +619,7 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 		// op, _ := astprinter.PrintStringIndentDebug(c.operation, " ")
 		// fmt.Println("operation: ", op)
 
-		c.addSkipFieldRefs(addFieldsResult.skipFieldRefs...)
+		c.addNewSkipFieldRefs(addFieldsResult.skipFieldRefs...)
 
 		// setup deps between key chain items
 		if currentFieldRefs != nil && previousJump != nil {
@@ -710,7 +719,7 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldR
 		return
 	}
 
-	c.addSkipFieldRefs(rewriter.skipFieldRefs...)
+	c.addNewSkipFieldRefs(rewriter.skipFieldRefs...)
 	c.hasNewFields = true
 	c.rewrittenFieldRefs = append(c.rewrittenFieldRefs, fieldRef)
 	c.persistedRewrittenFieldRefs[fieldRef] = struct{}{}

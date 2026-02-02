@@ -1606,7 +1606,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						expectedHost:     "example.com",
 						expectedPath:     "/",
 						expectedBody:     "",
-						sendResponseBody: `{"data":{"__internal__typename_placeholder":"Query"}}`,
+						sendResponseBody: `doesn't matter, no fetch will be done, as query typename resolved by engine`,
 						sendStatusCode:   200,
 					}),
 				),
@@ -1642,6 +1642,82 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			},
 		},
 		expectedResponse: `{"data":{}}`,
+	}))
+
+	t.Run("execute operation with all nested fields skipped", runWithoutError(ExecutionEngineTestCase{
+		schema: func(t *testing.T) *graphql.Schema {
+			t.Helper()
+			schema := `
+			type Query {
+				hero(name: String!): Hero!
+			}
+
+			type Hero {
+				name: String!
+			}
+			`
+			parseSchema, err := graphql.NewSchemaFromString(schema)
+			require.NoError(t, err)
+			return parseSchema
+		}(t),
+		operation: func(t *testing.T) graphql.Request {
+			return graphql.Request{
+				OperationName: "MyHero",
+				Variables:     []byte(`{"heroName": "Luke"}`),
+				Query: `query MyHero($heroName: String!){
+						hero(name: $heroName) {
+							name @skip(if: true)
+						}
+					}`,
+			}
+		},
+		dataSources: []plan.DataSource{
+			mustGraphqlDataSourceConfiguration(t,
+				"id",
+				mustFactory(t,
+					testNetHttpClient(t, roundTripperTestCase{
+						expectedHost:     "example.com",
+						expectedPath:     "/",
+						expectedBody:     "",
+						sendResponseBody: `{"data":{"hero":{"__typename":"Hero"}}}`,
+						sendStatusCode:   200,
+					}),
+				),
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"hero"}},
+					},
+					ChildNodes: []plan.TypeField{
+						{TypeName: "Hero", FieldNames: []string{"name"}},
+					},
+				},
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{
+						URL:    "https://example.com/",
+						Method: "POST",
+					},
+					SchemaConfiguration: mustSchemaConfig(
+						t,
+						nil,
+						`type Query { hero(name: String!): Hero! } type Hero { name: String! }`,
+					),
+				}),
+			),
+		},
+		fields: []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "hero",
+				Path:      []string{"hero"},
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "name",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+		},
+		expectedResponse: `{"data":{"hero":{}}}`,
 	}))
 
 	t.Run("execute operation and apply input coercion for lists without variables", runWithoutError(ExecutionEngineTestCase{
