@@ -182,7 +182,7 @@ func run(ctx context.Context, endpoint string, numVUs, numSubs, numListeners int
 			InitPayload: map[string]any{"user": id},
 		}
 		if vuTransport == client.TransportWS {
-			opts.WSSubprotocol = client.SubprotocolGraphQLTWS
+			opts.WSSubprotocol = client.SubprotocolGraphQLTransportWS
 		}
 
 		v := vu{

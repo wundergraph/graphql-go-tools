@@ -15,14 +15,14 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/protocol"
 )
 
-func TestGraphQLWSLegacy_Init(t *testing.T) {
+func TestGraphQLTransportWS_Init(t *testing.T) {
 	t.Parallel()
 
 	t.Run("sends connection_init and receives connection_ack", func(t *testing.T) {
 		t.Parallel()
 
 		received := make(chan map[string]any, 1)
-		server := newLegacyTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
+		server := newGTWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
 			var msg map[string]any
 			if err := wsjson.Read(ctx, conn, &msg); err == nil {
 				received <- msg
@@ -30,9 +30,9 @@ func TestGraphQLWSLegacy_Init(t *testing.T) {
 			wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
 		})
 
-		conn := dialLegacy(t, server)
+		conn := dialGTWS(t, server)
 
-		p := protocol.NewGraphQLWSLegacy()
+		p := protocol.NewGraphQLTransportWS()
 
 		err := p.Init(t.Context(), conn, map[string]any{"secret": "token"})
 		require.NoError(t, err)
@@ -47,95 +47,86 @@ func TestGraphQLWSLegacy_Init(t *testing.T) {
 	t.Run("returns error when ack times out", func(t *testing.T) {
 		t.Parallel()
 
-		server := newLegacyTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
+		server := newGTWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
 			time.Sleep(500 * time.Millisecond)
 		})
 
-		conn := dialLegacy(t, server)
+		conn := dialGTWS(t, server)
 
-		p := &protocol.GraphQLWSLegacy{AckTimeout: 50 * time.Millisecond}
+		p := &protocol.GraphQLTransportWS{AckTimeout: 50 * time.Millisecond}
 		err := p.Init(t.Context(), conn, nil)
 
 		require.ErrorIs(t, err, protocol.ErrAckTimeout)
 	})
 
-	t.Run("handles keep-alive before ack", func(t *testing.T) {
+	t.Run("handles ping before ack", func(t *testing.T) {
 		t.Parallel()
 
-		server := newLegacyTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
+		received := make(chan map[string]any, 2)
+		server := newGTWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
 			var msg1 map[string]any
-			wsjson.Read(ctx, conn, &msg1) // connection_init
+			wsjson.Read(ctx, conn, &msg1)
+			received <- msg1
 
-			// Send keep-alive before ack
-			wsjson.Write(ctx, conn, map[string]string{"type": "ka"})
+			wsjson.Write(ctx, conn, map[string]string{"type": "ping"})
 
-			// Then send ack
+			var msg2 map[string]any
+			wsjson.Read(ctx, conn, &msg2)
+			received <- msg2
+
 			wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
 		})
 
-		conn := dialLegacy(t, server)
+		conn := dialGTWS(t, server)
 
-		p := protocol.NewGraphQLWSLegacy()
+		p := protocol.NewGraphQLTransportWS()
 		err := p.Init(t.Context(), conn, nil)
 		require.NoError(t, err)
-	})
 
-	t.Run("returns error on connection_error", func(t *testing.T) {
-		t.Parallel()
-
-		server := newLegacyTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
-			var msg map[string]any
-			wsjson.Read(ctx, conn, &msg)
-			wsjson.Write(ctx, conn, map[string]any{
-				"type":    "connection_error",
-				"payload": map[string]any{"message": "auth failed"},
-			})
+		awaitMessage(t, time.Second, received, func(t *testing.T, msg map[string]any) {
+			assert.Equal(t, "connection_init", msg["type"])
 		})
 
-		conn := dialLegacy(t, server)
-
-		p := protocol.NewGraphQLWSLegacy()
-		err := p.Init(t.Context(), conn, nil)
-
-		require.ErrorIs(t, err, protocol.ErrConnectionError)
-		assert.Contains(t, err.Error(), "auth failed")
+		awaitMessage(t, time.Second, received, func(t *testing.T, msg map[string]any) {
+			assert.Equal(t, "pong", msg["type"])
+		})
 	})
 
 	t.Run("returns error on unexpected message type", func(t *testing.T) {
 		t.Parallel()
 
-		server := newLegacyTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
+		server := newGTWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
 			var msg map[string]any
 			wsjson.Read(ctx, conn, &msg)
 			wsjson.Write(ctx, conn, map[string]string{"type": "error"})
 		})
 
-		conn := dialLegacy(t, server)
+		conn := dialGTWS(t, server)
 
-		p := protocol.NewGraphQLWSLegacy()
+		p := protocol.NewGraphQLTransportWS()
 		err := p.Init(t.Context(), conn, nil)
 
 		assert.ErrorIs(t, err, protocol.ErrAckNotReceived)
 	})
 }
 
-func TestGraphQLWSLegacy_Subscribe(t *testing.T) {
+func TestGraphQLWS_Subscribe(t *testing.T) {
 	t.Parallel()
 
-	t.Run("sends start message with query and variables", func(t *testing.T) {
+	t.Run("sends subscribe message with query and variables", func(t *testing.T) {
 		t.Parallel()
 
 		received := make(chan map[string]any, 1)
-		server := newLegacyTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
+		server := newGTWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
 			var msg map[string]any
 			if err := wsjson.Read(ctx, conn, &msg); err == nil {
 				received <- msg
 			}
 		})
 
-		conn := dialLegacy(t, server)
+		conn := dialGTWS(t, server)
 
-		p := protocol.NewGraphQLWSLegacy()
+		p := protocol.NewGraphQLTransportWS()
 		err := p.Subscribe(t.Context(), conn, "sub-1", &common.Request{
 			Query:     "subscription { test }",
 			Variables: map[string]any{"id": 123},
@@ -143,7 +134,7 @@ func TestGraphQLWSLegacy_Subscribe(t *testing.T) {
 		require.NoError(t, err)
 
 		awaitMessage(t, time.Second, received, func(t *testing.T, msg map[string]any) {
-			assert.Equal(t, "start", msg["type"])
+			assert.Equal(t, "subscribe", msg["type"])
 			assert.Equal(t, "sub-1", msg["id"])
 
 			payload, _ := msg["payload"].(map[string]any)
@@ -155,52 +146,52 @@ func TestGraphQLWSLegacy_Subscribe(t *testing.T) {
 	})
 }
 
-func TestGraphQLWSLegacy_Unsubscribe(t *testing.T) {
+func TestGraphQLWS_Unsubscribe(t *testing.T) {
 	t.Parallel()
 
-	t.Run("sends stop message with subscription id", func(t *testing.T) {
+	t.Run("sends complete message with subscription id", func(t *testing.T) {
 		t.Parallel()
 
 		received := make(chan map[string]any, 1)
-		server := newLegacyTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
+		server := newGTWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
 			var msg map[string]any
 			if err := wsjson.Read(ctx, conn, &msg); err == nil {
 				received <- msg
 			}
 		})
 
-		conn := dialLegacy(t, server)
+		conn := dialGTWS(t, server)
 
-		p := protocol.NewGraphQLWSLegacy()
+		p := protocol.NewGraphQLTransportWS()
 		err := p.Unsubscribe(t.Context(), conn, "sub-1")
 		require.NoError(t, err)
 
 		awaitMessage(t, time.Second, received, func(t *testing.T, msg map[string]any) {
-			assert.Equal(t, "stop", msg["type"])
+			assert.Equal(t, "complete", msg["type"])
 			assert.Equal(t, "sub-1", msg["id"])
 		})
 	})
 }
 
-func TestGraphQLWSLegacy_Read(t *testing.T) {
+func TestGraphQLWS_Read(t *testing.T) {
 	t.Parallel()
 
-	t.Run("decodes data message with payload", func(t *testing.T) {
+	t.Run("decodes next message with data payload", func(t *testing.T) {
 		t.Parallel()
 
-		server := newLegacyTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
+		server := newGTWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
 			wsjson.Write(ctx, conn, map[string]any{
 				"id":   "sub-1",
-				"type": "data",
+				"type": "next",
 				"payload": map[string]any{
 					"data": map[string]any{"value": 42},
 				},
 			})
 		})
 
-		conn := dialLegacy(t, server)
+		conn := dialGTWS(t, server)
 
-		p := protocol.NewGraphQLWSLegacy()
+		p := protocol.NewGraphQLTransportWS()
 		msg, err := p.Read(t.Context(), conn)
 
 		require.NoError(t, err)
@@ -213,7 +204,7 @@ func TestGraphQLWSLegacy_Read(t *testing.T) {
 	t.Run("decodes error message with graphql errors", func(t *testing.T) {
 		t.Parallel()
 
-		server := newLegacyTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
+		server := newGTWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
 			wsjson.Write(ctx, conn, map[string]any{
 				"id":   "sub-1",
 				"type": "error",
@@ -223,9 +214,9 @@ func TestGraphQLWSLegacy_Read(t *testing.T) {
 			})
 		})
 
-		conn := dialLegacy(t, server)
+		conn := dialGTWS(t, server)
 
-		p := protocol.NewGraphQLWSLegacy()
+		p := protocol.NewGraphQLTransportWS()
 		msg, err := p.Read(t.Context(), conn)
 
 		require.NoError(t, err)
@@ -237,16 +228,16 @@ func TestGraphQLWSLegacy_Read(t *testing.T) {
 	t.Run("decodes complete message", func(t *testing.T) {
 		t.Parallel()
 
-		server := newLegacyTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
+		server := newGTWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
 			wsjson.Write(ctx, conn, map[string]any{
 				"id":   "sub-1",
 				"type": "complete",
 			})
 		})
 
-		conn := dialLegacy(t, server)
+		conn := dialGTWS(t, server)
 
-		p := protocol.NewGraphQLWSLegacy()
+		p := protocol.NewGraphQLTransportWS()
 		msg, err := p.Read(t.Context(), conn)
 
 		require.NoError(t, err)
@@ -254,53 +245,32 @@ func TestGraphQLWSLegacy_Read(t *testing.T) {
 		assert.Equal(t, protocol.MessageComplete, msg.Type)
 	})
 
-	t.Run("decodes keep-alive message as ping", func(t *testing.T) {
+	t.Run("decodes ping message", func(t *testing.T) {
 		t.Parallel()
 
-		server := newLegacyTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
-			wsjson.Write(ctx, conn, map[string]string{"type": "ka"})
+		server := newGTWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
+			wsjson.Write(ctx, conn, map[string]string{"type": "ping"})
 		})
 
-		conn := dialLegacy(t, server)
+		conn := dialGTWS(t, server)
 
-		p := protocol.NewGraphQLWSLegacy()
+		p := protocol.NewGraphQLTransportWS()
 		msg, err := p.Read(t.Context(), conn)
 
 		require.NoError(t, err)
 		assert.Equal(t, protocol.MessagePing, msg.Type)
 	})
 
-	t.Run("decodes connection_error message", func(t *testing.T) {
-		t.Parallel()
-
-		server := newLegacyTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
-			wsjson.Write(ctx, conn, map[string]any{
-				"type":    "connection_error",
-				"payload": map[string]any{"reason": "session expired"},
-			})
-		})
-
-		conn := dialLegacy(t, server)
-
-		p := protocol.NewGraphQLWSLegacy()
-		msg, err := p.Read(t.Context(), conn)
-
-		require.NoError(t, err)
-		assert.Equal(t, protocol.MessageError, msg.Type)
-		require.Error(t, msg.Err)
-		assert.Contains(t, msg.Err.Error(), "session expired")
-	})
-
 	t.Run("returns error for unknown message type", func(t *testing.T) {
 		t.Parallel()
 
-		server := newLegacyTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
+		server := newGTWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
 			wsjson.Write(ctx, conn, map[string]string{"type": "unknown"})
 		})
 
-		conn := dialLegacy(t, server)
+		conn := dialGTWS(t, server)
 
-		p := protocol.NewGraphQLWSLegacy()
+		p := protocol.NewGraphQLTransportWS()
 		_, err := p.Read(t.Context(), conn)
 
 		require.Error(t, err)
@@ -308,38 +278,58 @@ func TestGraphQLWSLegacy_Read(t *testing.T) {
 	})
 }
 
-func TestGraphQLWSLegacy_PingPong(t *testing.T) {
+func TestGraphQLTransportWS_PingPong(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ping is a no-op for legacy protocol", func(t *testing.T) {
-		t.Parallel()
+	t.Run("sends ping message", func(t *testing.T) {
+		received := make(chan map[string]any, 1)
 
-		// Legacy protocol doesn't support client-initiated ping
-		p := protocol.NewGraphQLWSLegacy()
+		server := newGTWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
+			var msg map[string]any
+			if err := wsjson.Read(ctx, conn, &msg); err == nil {
+				received <- msg
+			}
+		})
 
-		// This should not error, just be a no-op
-		err := p.Ping(context.Background(), nil)
+		conn := dialGTWS(t, server)
+
+		p := protocol.NewGraphQLTransportWS()
+		err := p.Ping(t.Context(), conn)
 		require.NoError(t, err)
+
+		awaitMessage(t, time.Second, received, func(t *testing.T, msg map[string]any) {
+			assert.Equal(t, "ping", msg["type"])
+		})
 	})
 
-	t.Run("pong is a no-op for legacy protocol", func(t *testing.T) {
-		t.Parallel()
+	t.Run("sends pong message", func(t *testing.T) {
+		received := make(chan map[string]any, 1)
 
-		// Legacy protocol doesn't support pong
-		p := protocol.NewGraphQLWSLegacy()
+		server := newGTWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
+			var msg map[string]any
+			if err := wsjson.Read(ctx, conn, &msg); err == nil {
+				received <- msg
+			}
+		})
 
-		// This should not error, just be a no-op
-		err := p.Pong(context.Background(), nil)
+		conn := dialGTWS(t, server)
+
+		p := protocol.NewGraphQLTransportWS()
+		err := p.Pong(t.Context(), conn)
 		require.NoError(t, err)
+
+		awaitMessage(t, time.Second, received, func(t *testing.T, msg map[string]any) {
+			assert.Equal(t, "pong", msg["type"])
+		})
 	})
 }
 
-func newLegacyTestServer(t *testing.T, handler func(ctx context.Context, conn *websocket.Conn)) *httptest.Server {
+func newGTWSTestServer(t *testing.T, handler func(ctx context.Context, conn *websocket.Conn)) *httptest.Server {
 	t.Helper()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-			Subprotocols: []string{"graphql-ws"},
+			Subprotocols: []string{"graphql-transport-ws"},
 		})
 		if err != nil {
 			return
@@ -357,12 +347,10 @@ func newLegacyTestServer(t *testing.T, handler func(ctx context.Context, conn *w
 	return server
 }
 
-func dialLegacy(t *testing.T, server *httptest.Server) *websocket.Conn {
+func dialGTWS(t *testing.T, server *httptest.Server) *websocket.Conn {
 	t.Helper()
 
-	conn, _, err := websocket.Dial(t.Context(), server.URL, &websocket.DialOptions{
-		Subprotocols: []string{"graphql-ws"},
-	})
+	conn, _, err := websocket.Dial(t.Context(), server.URL, nil)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -370,4 +358,15 @@ func dialLegacy(t *testing.T, server *httptest.Server) *websocket.Conn {
 	})
 
 	return conn
+}
+
+func awaitMessage[A any](t *testing.T, timeout time.Duration, ch <-chan A, f func(*testing.T, A), msgAndArgs ...any) {
+	t.Helper()
+
+	select {
+	case msg := <-ch:
+		f(t, msg)
+	case <-time.After(timeout):
+		t.Fatal("timed out waiting for message")
+	}
 }

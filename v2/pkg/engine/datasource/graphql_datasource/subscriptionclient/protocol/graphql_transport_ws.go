@@ -13,20 +13,14 @@ import (
 )
 
 const (
-	typeConnectionInit = "connection_init"
-	typeConnectionAck  = "connection_ack"
-	typePing           = "ping"
-	typePong           = "pong"
-	typeSubscribe      = "subscribe"
-	typeNext           = "next"
-	typeError          = "error"
-	typeComplete       = "complete"
-)
-
-var (
-	ErrAckTimeout      = errors.New("connection_ack timeout")
-	ErrAckNotReceived  = errors.New("expected connection_ack")
-	ErrConnectionError = errors.New("connection error from server")
+	gtwsTypeConnectionInit = "connection_init"
+	gtwsTypeConnectionAck  = "connection_ack"
+	gtwsTypePing           = "ping"
+	gtwsTypePong           = "pong"
+	gtwsTypeSubscribe      = "subscribe"
+	gtwsTypeNext           = "next"
+	gtwsTypeError          = "error"
+	gtwsTypeComplete       = "complete"
 )
 
 type outgoingMessage struct {
@@ -48,24 +42,20 @@ type subscribePayload struct {
 	Extensions    map[string]any `json:"extensions,omitempty"`
 }
 
-type GraphQLWS struct {
+type GraphQLTransportWS struct {
 	AckTimeout time.Duration
 }
 
-func NewGraphQLWS() *GraphQLWS {
-	return &GraphQLWS{
+func NewGraphQLTransportWS() *GraphQLTransportWS {
+	return &GraphQLTransportWS{
 		AckTimeout: 30 * time.Second,
 	}
 }
 
-func (p *GraphQLWS) Subprotocol() string {
-	return "graphql-transport-ws"
-}
-
 // Init implements Protocol.
-func (p *GraphQLWS) Init(ctx context.Context, conn *websocket.Conn, payload map[string]any) error {
+func (p *GraphQLTransportWS) Init(ctx context.Context, conn *websocket.Conn, payload map[string]any) error {
 	initMsg := outgoingMessage{
-		Type:    typeConnectionInit,
+		Type:    gtwsTypeConnectionInit,
 		Payload: payload,
 	}
 	if err := wsjson.Write(ctx, conn, initMsg); err != nil {
@@ -90,9 +80,9 @@ func (p *GraphQLWS) Init(ctx context.Context, conn *websocket.Conn, payload map[
 		}
 
 		switch ackMessage.Type {
-		case typeConnectionAck:
+		case gtwsTypeConnectionAck:
 			return nil
-		case typePing:
+		case gtwsTypePing:
 			if err := p.Pong(ctx, conn); err != nil {
 				return fmt.Errorf("pre-init pong: %w", err)
 			}
@@ -105,23 +95,23 @@ func (p *GraphQLWS) Init(ctx context.Context, conn *websocket.Conn, payload map[
 }
 
 // Ping implements Protocol.
-func (p *GraphQLWS) Ping(ctx context.Context, conn *websocket.Conn) error {
+func (p *GraphQLTransportWS) Ping(ctx context.Context, conn *websocket.Conn) error {
 	msg := outgoingMessage{
-		Type: typePing,
+		Type: gtwsTypePing,
 	}
 	return wsjson.Write(ctx, conn, msg)
 }
 
 // Pong implements Protocol.
-func (p *GraphQLWS) Pong(ctx context.Context, conn *websocket.Conn) error {
+func (p *GraphQLTransportWS) Pong(ctx context.Context, conn *websocket.Conn) error {
 	msg := outgoingMessage{
-		Type: typePong,
+		Type: gtwsTypePong,
 	}
 	return wsjson.Write(ctx, conn, msg)
 }
 
 // Read implements Protocol.
-func (p *GraphQLWS) Read(ctx context.Context, conn *websocket.Conn) (*Message, error) {
+func (p *GraphQLTransportWS) Read(ctx context.Context, conn *websocket.Conn) (*Message, error) {
 	var raw incomingMessage
 	if err := wsjson.Read(ctx, conn, &raw); err != nil {
 		return nil, fmt.Errorf("read message: %w", err)
@@ -131,10 +121,10 @@ func (p *GraphQLWS) Read(ctx context.Context, conn *websocket.Conn) (*Message, e
 }
 
 // Subscribe implements Protocol.
-func (p *GraphQLWS) Subscribe(ctx context.Context, conn *websocket.Conn, id string, req *common.Request) error {
+func (p *GraphQLTransportWS) Subscribe(ctx context.Context, conn *websocket.Conn, id string, req *common.Request) error {
 	msg := outgoingMessage{
 		ID:   id,
-		Type: typeSubscribe,
+		Type: gtwsTypeSubscribe,
 		Payload: subscribePayload{
 			Query:         req.Query,
 			Variables:     req.Variables,
@@ -146,21 +136,21 @@ func (p *GraphQLWS) Subscribe(ctx context.Context, conn *websocket.Conn, id stri
 }
 
 // Unsubscribe implements Protocol.
-func (p *GraphQLWS) Unsubscribe(ctx context.Context, conn *websocket.Conn, id string) error {
+func (p *GraphQLTransportWS) Unsubscribe(ctx context.Context, conn *websocket.Conn, id string) error {
 	msg := outgoingMessage{
 		ID:   id,
-		Type: typeComplete,
+		Type: gtwsTypeComplete,
 	}
 	return wsjson.Write(ctx, conn, msg)
 }
 
-func (p *GraphQLWS) decode(raw incomingMessage) (*Message, error) {
+func (p *GraphQLTransportWS) decode(raw incomingMessage) (*Message, error) {
 	msg := &Message{
 		ID: raw.ID,
 	}
 
 	switch raw.Type {
-	case typeNext:
+	case gtwsTypeNext:
 		msg.Type = MessageData
 		if raw.Payload != nil {
 			var resp common.ExecutionResult
@@ -169,7 +159,7 @@ func (p *GraphQLWS) decode(raw incomingMessage) (*Message, error) {
 			}
 			msg.Payload = &resp
 		}
-	case typeError:
+	case gtwsTypeError:
 		msg.Type = MessageError
 		if raw.Payload != nil {
 			var errs []common.GraphQLError
@@ -181,13 +171,13 @@ func (p *GraphQLWS) decode(raw incomingMessage) (*Message, error) {
 			msg.Err = errors.New("subscription error")
 		}
 
-	case typeComplete:
+	case gtwsTypeComplete:
 		msg.Type = MessageComplete
 
-	case typePing:
+	case gtwsTypePing:
 		msg.Type = MessagePing
 
-	case typePong:
+	case gtwsTypePong:
 		msg.Type = MessagePong
 
 	default:
@@ -197,4 +187,4 @@ func (p *GraphQLWS) decode(raw incomingMessage) (*Message, error) {
 	return msg, nil
 }
 
-var _ Protocol = (*GraphQLWS)(nil)
+var _ Protocol = (*GraphQLTransportWS)(nil)
