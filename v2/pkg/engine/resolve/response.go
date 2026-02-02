@@ -56,7 +56,12 @@ func (g *GraphQLResponse) SingleFlightAllowed() bool {
 	return false
 }
 
-type DeferGraphQLResponse struct {
+type GraphQLDeferResponse struct {
+	Response *GraphQLResponse
+	Defers   []*DeferFetchGroup
+}
+
+type DeferFetchGroup struct {
 	DeferID string
 	Fetches *FetchTreeNode
 }

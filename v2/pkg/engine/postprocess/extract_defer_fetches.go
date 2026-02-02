@@ -19,7 +19,7 @@ func (d *extractDeferFetches) Process(deferPlan *plan.DeferResponsePlan) {
 
 	root, fetchGroups := d.fetchGroups(deferPlan)
 
-	deferPlan.Response.Fetches = &resolve.FetchTreeNode{
+	deferPlan.Response.Response.Fetches = &resolve.FetchTreeNode{
 		Kind:       resolve.FetchTreeNodeKindSequence,
 		ChildNodes: root,
 	}
@@ -28,7 +28,7 @@ func (d *extractDeferFetches) Process(deferPlan *plan.DeferResponsePlan) {
 
 	for _, deferID := range deferIds {
 		fetches := fetchGroups[deferID]
-		deferResponse := &resolve.DeferGraphQLResponse{
+		deferResponse := &resolve.DeferFetchGroup{
 			DeferID: deferID,
 
 			Fetches: &resolve.FetchTreeNode{
@@ -36,14 +36,14 @@ func (d *extractDeferFetches) Process(deferPlan *plan.DeferResponsePlan) {
 				ChildNodes: fetches,
 			},
 		}
-		deferPlan.Defers = append(deferPlan.Defers, deferResponse)
+		deferPlan.Response.Defers = append(deferPlan.Response.Defers, deferResponse)
 	}
 }
 
 func (d *extractDeferFetches) fetchGroups(deferPlan *plan.DeferResponsePlan) (root []*resolve.FetchTreeNode, deffered map[string][]*resolve.FetchTreeNode) {
 	fetchGroups := make(map[string][]*resolve.FetchTreeNode)
 
-	for _, fetch := range deferPlan.Response.Fetches.ChildNodes {
+	for _, fetch := range deferPlan.Response.Response.Fetches.ChildNodes {
 		deferID := fetch.Item.Fetch.Dependencies().DeferID
 		if deferID == "" {
 			root = append(root, fetch)
