@@ -227,6 +227,9 @@ func (j *jsonBuilder) mergeWithPath(base *astjson.Value, resolved *astjson.Value
 	}
 
 	resolvedValues := resolved.GetArray(resolveResponsePath)
+	if len(resolvedValues) == 0 {
+		return nil
+	}
 
 	searchPath := path[:len(path)-1]
 	elementName := path[len(path)-1].FieldName.String()

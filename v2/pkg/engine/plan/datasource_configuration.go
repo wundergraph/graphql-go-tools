@@ -51,6 +51,9 @@ type DataSourceMetadata struct {
 
 	Directives *DirectiveConfigurations
 
+	// CostConfig holds IBM static cost configuration for this data source
+	CostConfig *DataSourceCostConfig
+
 	rootNodesIndex  map[string]fieldsIndex // maps TypeName to fieldsIndex
 	childNodesIndex map[string]fieldsIndex // maps TypeName to fieldsIndex
 
@@ -287,6 +290,9 @@ type DataSource interface {
 	Hash() DSHash
 	FederationConfiguration() FederationMetaData
 	CreatePlannerConfiguration(logger abstractlogger.Logger, fetchConfig *objectFetchConfiguration, pathConfig *plannerPathsConfiguration, configuration *Configuration) PlannerConfiguration
+
+	// GetCostConfig returns the IBM static cost configuration for this data source
+	GetCostConfig() *DataSourceCostConfig
 }
 
 func (d *dataSourceConfiguration[T]) CustomConfiguration() T {
@@ -333,6 +339,13 @@ func (d *dataSourceConfiguration[T]) FederationConfiguration() FederationMetaDat
 
 func (d *dataSourceConfiguration[T]) Hash() DSHash {
 	return d.hash
+}
+
+func (d *dataSourceConfiguration[T]) GetCostConfig() *DataSourceCostConfig {
+	if d.DataSourceMetadata == nil {
+		return nil
+	}
+	return d.DataSourceMetadata.CostConfig
 }
 
 type DataSourcePlannerConfiguration struct {

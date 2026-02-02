@@ -10,30 +10,36 @@ func BenchmarkBuildDependencyGraph(b *testing.B) {
 	executionPlan := &RPCExecutionPlan{
 		Calls: []RPCCall{
 			{
+				ID:             0,
 				Kind:           CallKindStandard,
 				DependentCalls: []int{1},
 				MethodName:     "Method1",
 			},
 			{
+				ID:         1,
 				Kind:       CallKindStandard,
 				MethodName: "Method2",
 			},
 			{
+				ID:             2,
 				Kind:           CallKindStandard,
 				DependentCalls: []int{0},
 				MethodName:     "Method3",
 			},
 			{
+				ID:             3,
 				Kind:           CallKindStandard,
 				DependentCalls: []int{0},
 				MethodName:     "Method4",
 			},
 			{
+				ID:             4,
 				Kind:           CallKindStandard,
 				DependentCalls: []int{0, 2},
 				MethodName:     "Method5",
 			},
 			{
+				ID:         5,
 				Kind:       CallKindStandard,
 				MethodName: "Method6",
 			},
@@ -54,30 +60,36 @@ func TestBuildDependencyGraph(t *testing.T) {
 		executionPlan := &RPCExecutionPlan{
 			Calls: []RPCCall{
 				{
+					ID:             0,
 					Kind:           CallKindStandard,
 					DependentCalls: []int{1},
 					MethodName:     "Method1",
 				},
 				{
+					ID:         1,
 					Kind:       CallKindStandard,
 					MethodName: "Method2",
 				},
 				{
+					ID:             2,
 					Kind:           CallKindStandard,
 					DependentCalls: []int{0},
 					MethodName:     "Method3",
 				},
 				{
+					ID:             3,
 					Kind:           CallKindStandard,
 					DependentCalls: []int{0},
 					MethodName:     "Method4",
 				},
 				{
+					ID:             4,
 					Kind:           CallKindStandard,
 					DependentCalls: []int{0, 2},
 					MethodName:     "Method5",
 				},
 				{
+					ID:         5,
 					Kind:       CallKindStandard,
 					MethodName: "Method6",
 				},
@@ -101,10 +113,12 @@ func TestBuildDependencyGraph(t *testing.T) {
 		executionPlan := &RPCExecutionPlan{
 			Calls: []RPCCall{
 				{
+					ID:             0,
 					Kind:           CallKindStandard,
 					DependentCalls: []int{1},
 				},
 				{
+					ID:   1,
 					Kind: CallKindStandard,
 				},
 			},
@@ -129,10 +143,12 @@ func TestBuildDependencyGraph(t *testing.T) {
 		executionPlan := &RPCExecutionPlan{
 			Calls: []RPCCall{
 				{
+					ID:             0,
 					Kind:           CallKindStandard,
 					DependentCalls: []int{1},
 				},
 				{
+					ID:             1,
 					Kind:           CallKindStandard,
 					DependentCalls: []int{0},
 				},
@@ -156,10 +172,12 @@ func TestBuildDependencyGraph(t *testing.T) {
 		executionPlan := &RPCExecutionPlan{
 			Calls: []RPCCall{
 				{
+					ID:             0,
 					Kind:           CallKindStandard,
 					DependentCalls: []int{1},
 				},
 				{
+					ID:             1,
 					Kind:           CallKindStandard,
 					DependentCalls: []int{2},
 				},

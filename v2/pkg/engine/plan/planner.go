@@ -18,6 +18,7 @@ type Planner struct {
 
 	planningWalker  *astvisitor.Walker
 	planningVisitor *Visitor
+	costVisitor     *StaticCostVisitor
 
 	nodeSelectionBuilder *NodeSelectionBuilder
 	planningPathBuilder  *PathBuilder
@@ -59,6 +60,7 @@ func NewPlanner(config Configuration) (*Planner, error) {
 	// planning
 
 	planningWalker := astvisitor.NewWalkerWithID(48, "PlanningWalker")
+
 	planningVisitor := &Visitor{
 		Walker:                       &planningWalker,
 		fieldConfigs:                 map[int]*FieldConfiguration{},
@@ -73,14 +75,6 @@ func NewPlanner(config Configuration) (*Planner, error) {
 	}
 
 	return p, nil
-}
-
-func (p *Planner) SetConfig(config Configuration) {
-	p.config = config
-}
-
-func (p *Planner) SetDebugConfig(config DebugConfiguration) {
-	p.config.Debug = config
 }
 
 type _opts struct {
@@ -165,6 +159,20 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	p.planningWalker.RegisterEnterDirectiveVisitor(p.planningVisitor)
 	p.planningWalker.RegisterInlineFragmentVisitor(p.planningVisitor)
 
+	// Register cost visitor on the same walker (will be invoked after planningVisitor hooks).
+	// We have to register it last in the walker, as it depends on the fieldPlanners field of the
+	// visitor. That field is populated in the AllowVisitor callback. Walker calls Enter* callbacks
+	// in the order they were registered, and Leave* callbacks in the reverse order.
+	if p.config.ComputeStaticCost {
+		p.costVisitor = NewStaticCostVisitor(p.planningWalker, operation, definition)
+		p.costVisitor.planners = plannersConfigurations
+		p.costVisitor.fieldPlanners = &p.planningVisitor.fieldPlanners
+		p.costVisitor.operationDefinition = &p.planningVisitor.operationDefinitionRef
+
+		p.planningWalker.RegisterEnterFieldVisitor(p.costVisitor)
+		p.planningWalker.RegisterLeaveFieldVisitor(p.costVisitor)
+	}
+
 	for key := range p.planningVisitor.planners {
 		if p.config.MinifySubgraphOperations {
 			if dataSourceWithMinify, ok := p.planningVisitor.planners[key].Planner().(SubgraphRequestMinifier); ok {
@@ -195,10 +203,16 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		}
 	}
 
-	// create raw execution plan
+	// create a raw execution plan
 	p.planningWalker.Walk(operation, definition, report)
 	if report.HasErrors() {
 		return
+	}
+
+	if p.config.ComputeStaticCost {
+		costCalc := NewCostCalculator()
+		costCalc.tree = p.costVisitor.finalCostTree()
+		p.planningVisitor.plan.SetStaticCostCalculator(costCalc)
 	}
 
 	return p.planningVisitor.plan
