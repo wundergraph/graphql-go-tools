@@ -8,11 +8,11 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
-type deferProcessor struct {
+type extractDeferFetches struct {
 	disable bool
 }
 
-func (d *deferProcessor) Process(deferPlan *plan.DeferResponsePlan) {
+func (d *extractDeferFetches) Process(deferPlan *plan.DeferResponsePlan) {
 	if d.disable {
 		return
 	}
@@ -40,7 +40,7 @@ func (d *deferProcessor) Process(deferPlan *plan.DeferResponsePlan) {
 	}
 }
 
-func (d *deferProcessor) fetchGroups(deferPlan *plan.DeferResponsePlan) (root []*resolve.FetchTreeNode, deffered map[string][]*resolve.FetchTreeNode) {
+func (d *extractDeferFetches) fetchGroups(deferPlan *plan.DeferResponsePlan) (root []*resolve.FetchTreeNode, deffered map[string][]*resolve.FetchTreeNode) {
 	fetchGroups := make(map[string][]*resolve.FetchTreeNode)
 
 	for _, fetch := range deferPlan.Response.Fetches.ChildNodes {

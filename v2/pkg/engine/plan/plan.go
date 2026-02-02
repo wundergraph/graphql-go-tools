@@ -64,9 +64,9 @@ func (s *SubscriptionResponsePlan) SetStaticCostCalculator(c *CostCalculator) {
 }
 
 type DeferResponsePlan struct {
-	Response *resolve.GraphQLResponse
-	Defers   []*resolve.DeferGraphQLResponse
-	FlushInterval   int64
+	Response      *resolve.GraphQLResponse
+	Defers        []*resolve.DeferGraphQLResponse
+	FlushInterval int64
 }
 
 func (d DeferResponsePlan) PlanKind() Kind {
