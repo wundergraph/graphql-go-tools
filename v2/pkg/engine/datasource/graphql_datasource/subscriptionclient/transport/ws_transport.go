@@ -129,7 +129,8 @@ func (t *WSTransport) dial(ctx context.Context, key uint64, opts shared.Options)
 	case shared.SubprotocolGraphQLWS:
 		subprotocols = []string{"graphql-ws"}
 	default:
-		subprotocols = []string{"graphql-transport-ws"}
+		// Auto: prefer modern, fall back to legacy
+		subprotocols = []string{"graphql-transport-ws", "graphql-ws"}
 	}
 
 	wsConn, _, err := websocket.Dial(ctx, opts.Endpoint, &websocket.DialOptions{
@@ -171,7 +172,7 @@ func (t *WSTransport) negotiateSubprotocol(requested shared.WSSubprotocol, accep
 	case shared.SubprotocolGraphQLTWS:
 		return protocol.NewGraphQLWS(), nil
 	case shared.SubprotocolGraphQLWS:
-		return nil, fmt.Errorf("legacy protocol %q not implemented yet", accepted)
+		return protocol.NewGraphQLWSLegacy(), nil
 	default:
 		return nil, fmt.Errorf("unsupported subprotocol: %q", accepted)
 	}

@@ -152,7 +152,7 @@ func (c *WSConnection) ReadLoop() {
 			})
 			cancel()
 		case protocol.MessagePong:
-			// TODO? We don't send pings currently.
+			// Do nothing, pongs can sometimes be used as unidirectional heartbeats
 		case protocol.MessageData, protocol.MessageError, protocol.MessageComplete:
 			c.dispatch(msg)
 		}
