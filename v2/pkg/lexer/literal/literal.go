@@ -66,7 +66,7 @@ var (
 	IF                            = []byte("if")
 	SKIP                          = []byte("skip")
 	DEFER                         = []byte("defer")
-	DEFER_INTERNAL                = []byte("defer_internal")
+	DEFER_INTERNAL                = []byte("__defer_internal")
 	LABEL                         = []byte("label")
 	STREAM                        = []byte("stream")
 	SCHEMA                        = []byte("schema")

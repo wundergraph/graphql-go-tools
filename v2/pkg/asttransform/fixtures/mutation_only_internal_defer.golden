@@ -217,7 +217,7 @@ enum __TypeKind {
 }
 
 "Directs the executor to defer this fragment when the if argument is true or undefined."
-directive @defer_internal(
+directive @__defer_internal(
     id: String!
     "A unique identifier for the results."
     label: String

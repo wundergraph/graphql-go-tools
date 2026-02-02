@@ -13,11 +13,8 @@ var (
 	//go:embed base.graphql
 	baseSchema []byte
 
-	//go:embed defer_internal.graphql
-	deferInternal []byte
-
 	//go:embed defer.graphql
-	deferRegular []byte
+	deferDefinition []byte
 )
 
 type Options struct {
@@ -25,15 +22,8 @@ type Options struct {
 }
 
 func MergeDefinitionWithBaseSchema(definition *ast.Document) error {
-	return MergeDefinitionWithBaseSchemaWithOptions(definition, Options{})
-}
-
-func MergeDefinitionWithBaseSchemaWithOptions(definition *ast.Document, options Options) error {
 	definition.Input.AppendInputBytes(baseSchema)
-	definition.Input.AppendInputBytes(deferRegular)
-	if options.InternalDefer {
-		definition.Input.AppendInputBytes(deferInternal)
-	}
+	definition.Input.AppendInputBytes(deferDefinition)
 
 	parser := astparser.NewParser()
 	report := operationreport.Report{}
