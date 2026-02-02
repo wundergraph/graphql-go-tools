@@ -558,12 +558,12 @@ func TestNormalizeOperation(t *testing.T) {
 			query pet {
 				pet {
 					... on Dog {
-						name @defer_internal(id: "1")
-						nickname @defer_internal(id: "1")
-						barkVolume @defer_internal(id: "2", parentDeferId: "1")
-						extra @defer_internal(id: "3") {
-							noString @defer_internal(id: "3")
-							string @defer_internal(id: "4")
+						name @__defer_internal(id: "1")
+						nickname @__defer_internal(id: "1")
+						barkVolume @__defer_internal(id: "2", parentDeferId: "1")
+						extra @__defer_internal(id: "3") {
+							noString @__defer_internal(id: "3")
+							string @__defer_internal(id: "4")
 						}
 					}
 					... on Cat {
@@ -571,8 +571,8 @@ func TestNormalizeOperation(t *testing.T) {
 						extra {
 							bool
 						}
-						meowVolume @defer_internal(id: "5")
-						nickname @defer_internal(id: "6")
+						meowVolume @__defer_internal(id: "5")
+						nickname @__defer_internal(id: "6")
 					}
 				}
 			}`, ``, ``)
