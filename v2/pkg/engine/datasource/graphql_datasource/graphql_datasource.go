@@ -150,6 +150,11 @@ func (p *Planner[T]) EnterDirective(ref int) {
 }
 
 func (p *Planner[T]) addDirectiveToNode(directiveRef int, node ast.Node) {
+	// do not propagate internal directives to upstream query document
+	if bytes.Equal(p.visitor.Operation.DirectiveNameBytes(directiveRef), literal.DEFER_INTERNAL) {
+		return
+	}
+
 	directiveName := p.visitor.Operation.DirectiveNameString(directiveRef)
 	operationType := ast.OperationTypeQuery
 	if !p.dataSourcePlannerConfig.IsNested {

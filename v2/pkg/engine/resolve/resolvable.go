@@ -50,6 +50,8 @@ type Resolvable struct {
 	wroteErrors         bool
 	wroteData           bool
 	skipValueCompletion bool
+	deferMode           bool
+	deferID             string
 
 	typeNames [][]byte
 
@@ -262,6 +264,10 @@ func (r *Resolvable) printData(root *Object) {
 	r.printBytes(colon)
 	r.printBytes(lBrace)
 	r.print = true
+
+	if r.deferMode && r.deferID != "" {
+		r.print = false
+	}
 	_ = r.walkObject(root, r.data)
 	r.print = false
 	r.printBytes(rBrace)
@@ -615,6 +621,21 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 		}
 	}
 
+	hasDeferredFields := false
+	for i := range obj.Fields {
+		if obj.Fields[i].Defer != nil && obj.Fields[i].Defer.DeferID == r.deferID {
+			hasDeferredFields = true
+		}
+	}
+
+	if hasDeferredFields {
+		// enable printing
+		if !r.print {
+			r.print = true
+			defer func() { r.print = false }()
+		}
+	}
+
 	if r.print && !isRoot {
 		r.printBytes(lBrace)
 	}
@@ -625,6 +646,22 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 		r.typeNames = r.typeNames[:len(r.typeNames)-1]
 	}()
 	for i := range obj.Fields {
+		if r.deferMode {
+
+			// for initial response render only fields without a defer id
+			if r.deferID == "" && obj.Fields[i].Defer != nil {
+				continue
+			}
+
+			// skip fields with different defer id in deferred response
+			if r.deferID != "" && obj.Fields[i].Defer != nil && obj.Fields[i].Defer.DeferID == r.deferID {
+				continue
+			}
+
+			// when defer id matches render field - render it
+			// walk objects to find other defers
+		}
+
 		if obj.Fields[i].ParentOnTypeNames != nil {
 			if r.skipFieldOnParentTypeNames(obj.Fields[i]) {
 				continue

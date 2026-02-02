@@ -155,6 +155,7 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 			astnormalization.WithRemoveFragmentDefinitions(),
 			astnormalization.WithRemoveUnusedVariables(),
 			astnormalization.WithInlineFragmentSpreads(),
+			astnormalization.WithInlineDefer(),
 		)
 		if err != nil {
 			return err
@@ -228,6 +229,9 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 	switch p := cachedPlan.(type) {
 	case *plan.SynchronousResponsePlan:
 		_, err := e.resolver.ResolveGraphQLResponse(execContext.resolveContext, p.Response, nil, writer)
+		return err
+	case *plan.DeferResponsePlan:
+		_, err := e.resolver.ResolveGraphQLDeferResponse(execContext.resolveContext, p.Response, writer)
 		return err
 	case *plan.SubscriptionResponsePlan:
 		return e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer)

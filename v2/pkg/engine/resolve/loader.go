@@ -190,14 +190,19 @@ func (l *Loader) Free() {
 }
 
 func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, resolvable *Resolvable) (err error) {
-	l.resolvable = resolvable
-	l.ctx = ctx
-	l.info = response.Info
-	l.taintedObjs = make(taintedObjects)
-	return l.resolveFetchNode(response.Fetches)
+	l.Init(ctx, response.Info, resolvable)
+
+	return l.ResolveFetchNode(response.Fetches)
 }
 
-func (l *Loader) resolveFetchNode(node *FetchTreeNode) error {
+func (l *Loader) Init(ctx *Context, responseInfo *GraphQLResponseInfo, resolvable *Resolvable) {
+	l.resolvable = resolvable
+	l.ctx = ctx
+	l.info = responseInfo
+	l.taintedObjs = make(taintedObjects)
+}
+
+func (l *Loader) ResolveFetchNode(node *FetchTreeNode) error {
 	if node == nil {
 		return nil
 	}
@@ -264,7 +269,7 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 
 func (l *Loader) resolveSerial(nodes []*FetchTreeNode) error {
 	for i := range nodes {
-		err := l.resolveFetchNode(nodes[i])
+		err := l.ResolveFetchNode(nodes[i])
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -629,6 +634,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		if responseData.Type() != astjson.TypeObject {
 			return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape)
 		}
+		// TODO: unclear why we doing this
 		l.resolvable.data = responseData
 		return nil
 	}
