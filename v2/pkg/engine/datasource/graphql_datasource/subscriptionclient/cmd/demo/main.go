@@ -148,7 +148,7 @@ func main() {
 }
 
 func run(ctx context.Context, endpoint string, numVUs, numSubs, numListeners int, transport string) {
-	c := client.New(ctx, http.DefaultClient, http.DefaultClient)
+	c := client.New(ctx, client.Config{})
 
 	st := newStats()
 	var wg sync.WaitGroup

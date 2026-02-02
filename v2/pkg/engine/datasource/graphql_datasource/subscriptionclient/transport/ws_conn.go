@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/jensneuse/abstractlogger"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/protocol"
 )
@@ -24,6 +25,7 @@ type WSConnection struct {
 	ctx      context.Context
 	conn     *websocket.Conn
 	protocol protocol.Protocol
+	log      abstractlogger.Logger
 
 	writeMu sync.Mutex
 
@@ -39,11 +41,16 @@ type WSConnection struct {
 	WriteTimeout time.Duration
 }
 
-func NewWSConnection(ctx context.Context, conn *websocket.Conn, protocol protocol.Protocol, onEmpty func()) *WSConnection {
+func NewWSConnection(ctx context.Context, conn *websocket.Conn, protocol protocol.Protocol, log abstractlogger.Logger, onEmpty func()) *WSConnection {
+	if log == nil {
+		log = abstractlogger.NoopLogger
+	}
+
 	return &WSConnection{
 		ctx:      ctx,
 		conn:     conn,
 		protocol: protocol,
+		log:      log,
 		subs:     make(map[string]chan<- *common.Message),
 		done:     make(chan struct{}),
 		onEmpty:  onEmpty,
@@ -73,13 +80,20 @@ func (c *WSConnection) Subscribe(ctx context.Context, id string, req *common.Req
 	if err := c.withWriteLock(func() error {
 		return c.protocol.Subscribe(ctx, c.conn, id, req)
 	}); err != nil {
+		c.log.Error("wsConnection.Subscribe",
+			abstractlogger.String("id", id),
+			abstractlogger.Error(err),
+		)
 		c.removeSub(id)
 		return nil, nil, err
 	}
 
-	cancel := func() {
-		c.unsubscribe(id)
-	}
+	c.log.Debug("wsConnection.Subscribe",
+		abstractlogger.String("id", id),
+		abstractlogger.String("status", "subscribed"),
+	)
+
+	cancel := func() { c.removeSub(id) }
 
 	return ch, cancel, nil
 }
@@ -95,8 +109,11 @@ func (c *WSConnection) removeSub(id string) {
 		close(ch)
 	}
 
-	if isEmpty && c.onEmpty != nil {
-		c.onEmpty()
+	if isEmpty {
+		if c.onEmpty != nil {
+			c.onEmpty()
+		}
+		c.Close()
 	}
 }
 
@@ -108,6 +125,8 @@ func (c *WSConnection) unsubscribe(id string) {
 	if !exists {
 		return
 	}
+
+	c.log.Debug("wsConnection.unsubscribe", abstractlogger.String("id", id))
 
 	unsubscribeCtx, cancel := context.WithTimeout(context.Background(), c.WriteTimeout)
 	defer cancel()
@@ -140,12 +159,17 @@ func (c *WSConnection) ReadLoop() {
 
 		msg, err := c.protocol.Read(c.ctx, c.conn)
 		if err != nil {
+			c.log.Debug("wsConnection.ReadLoop",
+				abstractlogger.String("status", "error"),
+				abstractlogger.Error(err),
+			)
 			c.shutdown(fmt.Errorf("read: %w", err))
 			return
 		}
 
 		switch msg.Type {
 		case protocol.MessagePing:
+			c.log.Debug("wsConnection.ReadLoop", abstractlogger.String("message", "ping"))
 			pongCtx, cancel := context.WithTimeout(c.ctx, c.WriteTimeout)
 			_ = c.withWriteLock(func() error {
 				return c.protocol.Pong(pongCtx, c.conn)
@@ -153,6 +177,7 @@ func (c *WSConnection) ReadLoop() {
 			cancel()
 		case protocol.MessagePong:
 			// Do nothing, pongs can sometimes be used as unidirectional heartbeats
+			c.log.Debug("wsConnection.ReadLoop", abstractlogger.String("message", "pong"))
 		case protocol.MessageData, protocol.MessageError, protocol.MessageComplete:
 			c.dispatch(msg)
 		}
@@ -171,7 +196,7 @@ func (c *WSConnection) dispatch(msg *protocol.Message) {
 	ch <- msg.IntoClientMessage()
 
 	if msg.Type == protocol.MessageComplete || msg.Type == protocol.MessageError {
-		c.removeSub(msg.ID)
+		c.unsubscribe(msg.ID)
 	}
 }
 
@@ -181,6 +206,10 @@ func (c *WSConnection) shutdown(err error) {
 	}
 
 	c.closeErr = err
+
+	c.log.Debug("wsConnection.shutdown",
+		abstractlogger.Error(err),
+	)
 
 	close(c.done)
 

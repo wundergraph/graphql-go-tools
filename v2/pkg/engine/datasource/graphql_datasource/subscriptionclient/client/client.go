@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/jensneuse/abstractlogger"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/transport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
@@ -25,6 +26,7 @@ var (
 // is cancelled, all subscriptions are terminated and resources are released.
 type Client struct {
 	ctx context.Context
+	log abstractlogger.Logger
 
 	mu   sync.Mutex
 	subs map[uint64]*subscription
@@ -53,21 +55,39 @@ type Stats struct {
 	Listeners     int // total listener channels
 }
 
-// New creates a new subscription client with the provided HTTP clients.
-// httpClient is used for WebSocket upgrade requests.
-// streamingClient is used for SSE requests (should have appropriate timeouts for long-lived connections).
+// Config holds the client configuration.
+type Config struct {
+	UpgradeClient   *http.Client
+	StreamingClient *http.Client
+	Logger          abstractlogger.Logger
+}
+
+// New creates a new subscription client with the provided config.
 //
 // The client's lifecycle is tied to ctx. When ctx is cancelled, all subscriptions
 // are automatically terminated and resources are released.
-func New(ctx context.Context, httpClient, streamingClient *http.Client) *Client {
+func New(ctx context.Context, cfg Config) *Client {
+	if cfg.UpgradeClient == nil {
+		cfg.UpgradeClient = http.DefaultClient
+	}
+	if cfg.StreamingClient == nil {
+		cfg.StreamingClient = http.DefaultClient
+	}
+	if cfg.Logger == nil {
+		cfg.Logger = abstractlogger.NoopLogger
+	}
+
 	c := &Client{
 		ctx:  ctx,
+		log:  cfg.Logger,
 		subs: make(map[uint64]*subscription),
-		ws:   transport.NewWSTransport(ctx, httpClient),
-		sse:  transport.NewSSETransport(ctx, streamingClient),
+		ws:   transport.NewWSTransport(ctx, cfg.UpgradeClient, cfg.Logger),
+		sse:  transport.NewSSETransport(ctx, cfg.StreamingClient, cfg.Logger),
 	}
 
 	context.AfterFunc(ctx, c.shutdown)
+
+	c.log.Debug("subscriptionClient.New", abstractlogger.String("status", "initialized"))
 
 	return c
 }
@@ -82,13 +102,21 @@ func (c *Client) Subscribe(ctx context.Context, req *common.Request, opts common
 
 	if c.ctx.Err() != nil {
 		c.mu.Unlock()
+		c.log.Debug("subscriptionClient.Subscribe",
+			abstractlogger.String("status", "rejected"),
+			abstractlogger.String("reason", "client closed"),
+		)
 		return nil, nil, ErrClientClosed
 	}
 
 	// Dedup check
 	if sub, ok := c.subs[key]; ok {
 		c.mu.Unlock()
-		return sub.addListener()
+		c.log.Debug("subscriptionClient.Subscribe",
+			abstractlogger.String("status", "dedup_hit"),
+			abstractlogger.String("endpoint", opts.Endpoint),
+		)
+		return sub.addListener(ctx)
 	}
 
 	// Route to transport
@@ -103,8 +131,19 @@ func (c *Client) Subscribe(ctx context.Context, req *common.Request, opts common
 	}
 	if err != nil {
 		c.mu.Unlock()
+		c.log.Error("subscriptionClient.Subscribe",
+			abstractlogger.String("status", "failed"),
+			abstractlogger.String("endpoint", opts.Endpoint),
+			abstractlogger.Error(err),
+		)
 		return nil, nil, err
 	}
+
+	c.log.Debug("subscriptionClient.Subscribe",
+		abstractlogger.String("status", "created"),
+		abstractlogger.String("endpoint", opts.Endpoint),
+		abstractlogger.String("transport", string(opts.Transport)),
+	)
 
 	sub := &subscription{
 		source:    source,
@@ -122,7 +161,7 @@ func (c *Client) Subscribe(ctx context.Context, req *common.Request, opts common
 		c.mu.Unlock()
 	})
 
-	return sub.addListener()
+	return sub.addListener(ctx)
 }
 
 // shutdown terminates all subscriptions. Called automatically when context is cancelled.
@@ -136,6 +175,10 @@ func (c *Client) shutdown() {
 	}
 	c.subs = make(map[uint64]*subscription)
 	c.mu.Unlock()
+
+	c.log.Debug("subscriptionClient.shutdown",
+		abstractlogger.Int("subscriptions", len(subs)),
+	)
 
 	// Cancel all subscriptions - transports handle their own shutdown via context
 	for _, sub := range subs {
@@ -199,7 +242,7 @@ func (s *subscription) fanout(onDone func()) {
 }
 
 // addListener adds a new listener to the subscription.
-func (s *subscription) addListener() (<-chan *common.Message, func(), error) {
+func (s *subscription) addListener(ctx context.Context) (<-chan *common.Message, func(), error) {
 	ch := make(chan *common.Message, 8)
 
 	s.mu.Lock()
@@ -212,11 +255,14 @@ func (s *subscription) addListener() (<-chan *common.Message, func(), error) {
 	s.listeners[id] = ch
 	s.mu.Unlock()
 
-	cancel := func() {
-		s.removeListener(id)
+	cancel := sync.OnceFunc(func() { s.removeListener(id) })
+	stop := context.AfterFunc(ctx, cancel)
+	wrappedCancel := func() {
+		stop()
+		cancel()
 	}
 
-	return ch, cancel, nil
+	return ch, wrappedCancel, nil
 }
 
 // removeListener removes a listener and cancels upstream if last.
