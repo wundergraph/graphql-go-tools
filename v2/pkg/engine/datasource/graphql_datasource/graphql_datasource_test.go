@@ -4002,7 +4002,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Trigger: resolve.GraphQLSubscriptionTrigger{
 					Input: []byte(`{"url":"wss://swapi.com/graphql","body":{"query":"subscription{remainingJedis}"}}`),
 					Source: &SubscriptionSource{
-						client: NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient),
+						client: NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, context.Background()),
 					},
 					PostProcessing: DefaultPostProcessingConfiguration,
 					SourceName:     "ds-id",
@@ -4045,7 +4045,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				),
 				Source: &SubscriptionSource{
-					client: NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient),
+					client: NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, context.Background()),
 				},
 				PostProcessing: DefaultPostProcessingConfiguration,
 				SourceName:     "ds-id",
@@ -8456,7 +8456,7 @@ func TestSubscriptionSource_Start(t *testing.T) {
 
 	newSubscriptionSource := func(ctx context.Context) SubscriptionSource {
 		httpClient := http.Client{}
-		subscriptionSource := SubscriptionSource{client: NewGraphQLSubscriptionClient(&httpClient, http.DefaultClient)}
+		subscriptionSource := SubscriptionSource{client: NewGraphQLSubscriptionClient(&httpClient, http.DefaultClient, ctx)}
 		return subscriptionSource
 	}
 
@@ -8585,7 +8585,7 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 	newSubscriptionSource := func(ctx context.Context) SubscriptionSource {
 		httpClient := http.Client{}
 		subscriptionSource := SubscriptionSource{
-			client: NewGraphQLSubscriptionClient(&httpClient, http.DefaultClient),
+			client: NewGraphQLSubscriptionClient(&httpClient, http.DefaultClient, ctx),
 		}
 		return subscriptionSource
 	}

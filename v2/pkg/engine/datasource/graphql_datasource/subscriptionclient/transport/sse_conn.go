@@ -136,16 +136,9 @@ func (c *SSEConnection) parseEvent(eventType string, data []byte) *common.Messag
 		return &common.Message{Payload: &resp}
 
 	case "error":
-		var errors []common.GraphQLError
-		if err := json.Unmarshal(data, &errors); err != nil {
-			return &common.Message{
-				Err:  err,
-				Done: true,
-			}
-		}
 		return &common.Message{
-			Err:  &common.SubscriptionError{Errors: errors},
-			Done: true,
+			Payload: &common.ExecutionResult{Errors: data},
+			Done:    true,
 		}
 
 	case "complete":

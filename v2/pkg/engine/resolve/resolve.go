@@ -828,16 +828,6 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		r.reporter.SubscriptionCountInc(1)
 	}
 
-	var asyncDataSource AsyncSubscriptionDataSource
-
-	if async, ok := add.resolve.Trigger.Source.(AsyncSubscriptionDataSource); ok {
-		trig.cancel = func() {
-			cancel()
-			async.AsyncStop(triggerID)
-		}
-		asyncDataSource = async
-	}
-
 	go func() {
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:start:%d\n", triggerID)
@@ -849,12 +839,7 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 			return
 		}
 
-		if asyncDataSource != nil {
-			fmt.Println("datasource is async", asyncDataSource)
-			err = asyncDataSource.AsyncStart(cloneCtx, triggerID, add.headers, add.input, trig.updater)
-		} else {
-			err = add.resolve.Trigger.Source.Start(cloneCtx, add.headers, add.input, trig.updater)
-		}
+		err = add.resolve.Trigger.Source.Start(cloneCtx, add.headers, add.input, trig.updater)
 		if err != nil {
 			if r.options.Debug {
 				fmt.Printf("resolver:trigger:failed:%d\n", triggerID)

@@ -40,6 +40,9 @@ func (m *Message) IntoClientMessage() *common.Message {
 	case MessageData:
 		return &common.Message{Payload: m.Payload}
 	case MessageError:
+		if m.Payload != nil {
+			return &common.Message{Payload: m.Payload, Done: true}
+		}
 		return &common.Message{Err: m.Err, Done: true}
 	case MessageComplete:
 		return &common.Message{Done: true}

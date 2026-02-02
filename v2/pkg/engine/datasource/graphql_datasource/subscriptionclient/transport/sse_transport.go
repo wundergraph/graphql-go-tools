@@ -21,6 +21,7 @@ import (
 //
 // Supports both POST (graphql-sse spec) and GET (traditional SSE) methods.
 type SSETransport struct {
+	ctx    context.Context
 	client *http.Client
 
 	mu    sync.Mutex
@@ -28,11 +29,17 @@ type SSETransport struct {
 }
 
 // NewSSETransport creates a new SSETransport with the provided http.Client.
-func NewSSETransport(client *http.Client) *SSETransport {
-	return &SSETransport{
+// The transport will automatically close all connections when ctx is cancelled.
+func NewSSETransport(ctx context.Context, client *http.Client) *SSETransport {
+	t := &SSETransport{
+		ctx:    ctx,
 		client: client,
 		conns:  make(map[*SSEConnection]struct{}),
 	}
+
+	context.AfterFunc(ctx, t.closeAll)
+
+	return t
 }
 
 // Subscribe initiates a GraphQL subscription over SSE.
@@ -197,8 +204,8 @@ func (t *SSETransport) removeConn(conn *SSEConnection) {
 	t.mu.Unlock()
 }
 
-// Close terminates all active SSE connections.
-func (t *SSETransport) Close() error {
+// closeAll terminates all active SSE connections. Called automatically when context is cancelled.
+func (t *SSETransport) closeAll() {
 	t.mu.Lock()
 	conns := make([]*SSEConnection, 0, len(t.conns))
 	for conn := range t.conns {
@@ -210,8 +217,6 @@ func (t *SSETransport) Close() error {
 	for _, conn := range conns {
 		conn.Close()
 	}
-
-	return nil
 }
 
 // ConnCount returns the number of active SSE connections.

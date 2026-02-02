@@ -221,8 +221,8 @@ func TestGraphQLWS_Read(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, protocol.MessageError, msg.Type)
-		require.Error(t, msg.Err)
-		assert.Contains(t, msg.Err.Error(), "something went wrong")
+		require.NotNil(t, msg.Payload)
+		assert.Contains(t, string(msg.Payload.Errors), "something went wrong")
 	})
 
 	t.Run("decodes complete message", func(t *testing.T) {

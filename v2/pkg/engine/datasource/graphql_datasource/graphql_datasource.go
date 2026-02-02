@@ -1954,25 +1954,6 @@ type SubscriptionSource struct {
 	subscriptionOnStartFns []SubscriptionOnStartFn
 }
 
-// func (s *SubscriptionSource) AsyncStart(ctx *resolve.Context, id uint64, headers http.Header, input []byte, updater resolve.SubscriptionUpdater) error {
-// 	var options GraphQLSubscriptionOptions
-// 	err := json.Unmarshal(input, &options)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	options.Header = headers
-// 	if options.Body.Query == "" {
-// 		return resolve.ErrUnableToResolve
-// 	}
-// 	return s.client.SubscribeAsync(ctx, id, options, updater)
-// }
-
-// AsyncStop stops the subscription with the given id. AsyncStop is only effective when netPoll is enabled
-// because without netPoll we manage the lifecycle of the connection in the subscription client.
-// func (s *SubscriptionSource) AsyncStop(id uint64) {
-// 	s.client.Unsubscribe(id)
-// }
-
 // Start the subscription. The updater is called on new events. Start needs to be called in a separate goroutine.
 func (s *SubscriptionSource) Start(ctx *resolve.Context, headers http.Header, input []byte, updater resolve.SubscriptionUpdater) error {
 	var options GraphQLSubscriptionOptions
@@ -1986,10 +1967,6 @@ func (s *SubscriptionSource) Start(ctx *resolve.Context, headers http.Header, in
 	}
 	return s.client.Subscribe(ctx, options, updater)
 }
-
-var (
-	dataSouceName = []byte("graphql")
-)
 
 // SubscriptionOnStart is called when a subscription is started.
 // Hooks are invoked sequentially, short-circuiting on the first error.

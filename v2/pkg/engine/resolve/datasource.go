@@ -18,11 +18,6 @@ type SubscriptionDataSource interface {
 	Start(ctx *Context, headers http.Header, input []byte, updater SubscriptionUpdater) error
 }
 
-type AsyncSubscriptionDataSource interface {
-	AsyncStart(ctx *Context, id uint64, headers http.Header, input []byte, updater SubscriptionUpdater) error
-	AsyncStop(id uint64)
-}
-
 // HookableSubscriptionDataSource is a hookable interface for subscription data sources.
 // It is used to call a function when a subscription is started.
 // This is useful for data sources that need to do some work when a subscription is started,
