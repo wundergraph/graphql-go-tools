@@ -129,23 +129,30 @@ func (f *inlineFragmentExpandDeferVisitor) EnterSelectionSet(ref int) {
 }
 
 func (f *inlineFragmentExpandDeferVisitor) addInternalDeferDirective(fieldRef int) {
-	var args []int
+	var argRefs []int
 
 	deferInfo := f.defers[len(f.defers)-1]
 
 	if deferInfo.id != "" {
-		args = append(args, f.addStringArgument("id", deferInfo.id))
+		argRefs = append(argRefs, f.addStringArgument("id", deferInfo.id))
 	}
 
 	if deferInfo.parentDeferId != "" {
-		args = append(args, f.addStringArgument("parentDeferId", deferInfo.parentDeferId))
+		argRefs = append(argRefs, f.addStringArgument("parentDeferId", deferInfo.parentDeferId))
 	}
 
 	if deferInfo.label != "" {
-		args = append(args, f.addStringArgument("label", deferInfo.label))
+		argRefs = append(argRefs, f.addStringArgument("label", deferInfo.label))
 	}
 
-	directiveRef := f.operation.ImportDirective("defer_internal", args)
+	directive := ast.Directive{
+		Name:         f.operation.Input.AppendInputBytes(literal.DEFER_INTERNAL),
+		HasArguments: len(argRefs) > 0,
+		Arguments: ast.ArgumentList{
+			Refs: argRefs,
+		},
+	}
+	directiveRef := f.operation.AddDirective(directive)
 
 	f.operation.AddDirectiveToNode(directiveRef, ast.Node{
 		Kind: ast.NodeKindField,
