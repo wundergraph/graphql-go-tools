@@ -332,5 +332,6 @@ func clearCacheKeyTemplateFromFetch(f resolve.Fetch) {
 	switch fetch := f.(type) {
 	case *resolve.SingleFetch:
 		fetch.FetchConfiguration.Caching.CacheKeyTemplate = nil
+		fetch.FetchConfiguration.Caching.RootFieldL1EntityCacheKeyTemplates = nil
 	}
 }
