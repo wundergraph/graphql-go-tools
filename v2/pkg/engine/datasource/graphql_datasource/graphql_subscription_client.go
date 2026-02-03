@@ -3,6 +3,7 @@ package graphql_datasource
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -150,7 +151,11 @@ func (c *subscriptionClientV2) readLoop(ctx context.Context, msgCh <-chan *commo
 			}
 
 			if msg.Err != nil {
-				updater.Update(formatSubscriptionError(msg.Err))
+				// Only send error message if it's not a connection closure.
+				// Connection closures are communicated via the close frame reason.
+				if !errors.Is(msg.Err, common.ErrConnectionClosed) {
+					updater.Update(formatSubscriptionError(msg.Err))
+				}
 				updater.Close(resolve.SubscriptionCloseKindDownstreamServiceError)
 				return
 			}

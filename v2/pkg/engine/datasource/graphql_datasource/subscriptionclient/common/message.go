@@ -1,6 +1,11 @@
 package common
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"errors"
+)
+
+var ErrConnectionClosed = errors.New("connection closed")
 
 type Message struct {
 	Payload *ExecutionResult

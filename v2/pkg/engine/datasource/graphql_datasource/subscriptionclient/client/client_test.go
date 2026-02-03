@@ -112,6 +112,92 @@ func TestClient_ContextCancellation(t *testing.T) {
 	})
 }
 
+func TestClient_CancelSendsComplete(t *testing.T) {
+	t.Run("cancel sends complete to server", func(t *testing.T) {
+		defer goleak.VerifyNone(t, goleak.IgnoreAnyFunction("net/http/httptest.(*Server).goServe.func1"))
+
+		completeReceived := make(chan string, 1)
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+				Subprotocols: []string{"graphql-transport-ws"},
+			})
+			if err != nil {
+				return
+			}
+			defer conn.CloseNow()
+
+			ctx := r.Context()
+
+			// Handle connection_init
+			var initMsg map[string]any
+			if err := wsjson.Read(ctx, conn, &initMsg); err != nil {
+				return
+			}
+			if initMsg["type"] != "connection_init" {
+				return
+			}
+			_ = wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
+
+			// Read subscribe
+			var subMsg map[string]any
+			if err := wsjson.Read(ctx, conn, &subMsg); err != nil {
+				return
+			}
+			if subMsg["type"] != "subscribe" {
+				return
+			}
+			subID := subMsg["id"].(string)
+
+			// Send a next message
+			_ = wsjson.Write(ctx, conn, map[string]any{
+				"id":      subID,
+				"type":    "next",
+				"payload": map[string]any{"data": map[string]any{"value": 1}},
+			})
+
+			// Wait for complete message from client
+			var completeMsg map[string]any
+			if err := wsjson.Read(ctx, conn, &completeMsg); err != nil {
+				return
+			}
+			if completeMsg["type"] == "complete" {
+				completeReceived <- completeMsg["id"].(string)
+			}
+		}))
+		t.Cleanup(server.Close)
+
+		c := New(t.Context(), Config{})
+
+		ch, cancel, err := c.Subscribe(t.Context(), &common.Request{
+			Query: "subscription { test }",
+		}, common.Options{
+			Endpoint:  server.URL,
+			Transport: common.TransportWS,
+		})
+		require.NoError(t, err)
+
+		// Wait for first message
+		select {
+		case msg := <-ch:
+			require.NotNil(t, msg.Payload)
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for message")
+		}
+
+		// Cancel the subscription - this should send complete to server
+		cancel()
+
+		// Verify server received complete
+		select {
+		case id := <-completeReceived:
+			assert.NotEmpty(t, id, "complete message should have subscription ID")
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for complete message on server")
+		}
+	})
+}
+
 // Test helper: creates an SSE server that sends periodic messages
 func newTestSSEServer(t *testing.T) *httptest.Server {
 	t.Helper()

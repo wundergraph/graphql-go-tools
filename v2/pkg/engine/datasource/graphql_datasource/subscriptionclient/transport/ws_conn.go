@@ -15,7 +15,6 @@ import (
 )
 
 var (
-	ErrConnectionClosed   = errors.New("connection closed")
 	ErrSubscriptionExists = errors.New("subscription ID already exists")
 
 	DefaultWriteTimeout = 5 * time.Second
@@ -61,7 +60,7 @@ func NewWSConnection(ctx context.Context, conn *websocket.Conn, protocol protoco
 
 func (c *WSConnection) Subscribe(ctx context.Context, id string, req *common.Request) (<-chan *common.Message, func(), error) {
 	if c.closed.Load() {
-		return nil, nil, ErrConnectionClosed
+		return nil, nil, common.ErrConnectionClosed
 	}
 
 	// Small buffer to absorb bursts
@@ -93,7 +92,7 @@ func (c *WSConnection) Subscribe(ctx context.Context, id string, req *common.Req
 		abstractlogger.String("status", "subscribed"),
 	)
 
-	cancel := func() { c.removeSub(id) }
+	cancel := func() { c.unsubscribe(id) }
 
 	return ch, cancel, nil
 }
@@ -143,7 +142,7 @@ func (c *WSConnection) withWriteLock(f func() error) error {
 	defer c.writeMu.Unlock()
 
 	if c.closed.Load() {
-		return ErrConnectionClosed
+		return common.ErrConnectionClosed
 	}
 
 	return f()
@@ -163,7 +162,7 @@ func (c *WSConnection) ReadLoop() {
 				abstractlogger.String("status", "error"),
 				abstractlogger.Error(err),
 			)
-			c.shutdown(fmt.Errorf("read: %w", err))
+			c.shutdown(fmt.Errorf("%w: read: %w", common.ErrConnectionClosed, err))
 			return
 		}
 
@@ -232,7 +231,7 @@ func (c *WSConnection) shutdown(err error) {
 }
 
 func (c *WSConnection) Close() error {
-	c.shutdown(ErrConnectionClosed)
+	c.shutdown(common.ErrConnectionClosed)
 	return nil
 }
 

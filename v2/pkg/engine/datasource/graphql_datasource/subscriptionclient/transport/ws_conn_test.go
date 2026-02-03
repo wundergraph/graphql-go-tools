@@ -65,7 +65,7 @@ func TestWSConnection_Subscribe(t *testing.T) {
 
 		_, _, err := wsc.Subscribe(context.Background(), "sub-1", &common.Request{})
 
-		assert.ErrorIs(t, err, transport.ErrConnectionClosed)
+		assert.ErrorIs(t, err, common.ErrConnectionClosed)
 	})
 
 	t.Run("returns error when protocol subscribe fails", func(t *testing.T) {
