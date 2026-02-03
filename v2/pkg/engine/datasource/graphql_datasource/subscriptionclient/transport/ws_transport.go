@@ -27,7 +27,7 @@ func (u *ErrFailedUpgrade) Error() string {
 type ErrInvalidSubprotocol string
 
 func (e ErrInvalidSubprotocol) Error() string {
-	return fmt.Sprintf("provided websocket subprotocol '%s' is not supported. The supported subprotocols are graphql-ws and graphql-transport-ws. Please configure your subsciptions with the mentioned subprotocols", string(e))
+	return fmt.Sprintf("provided websocket subprotocol '%s' is not supported. The supported subprotocols are graphql-ws and graphql-transport-ws. Please configure your subscriptions with the mentioned subprotocols", string(e))
 }
 
 type WSTransport struct {
@@ -168,7 +168,7 @@ func (t *WSTransport) dial(ctx context.Context, key uint64, opts common.Options)
 		)
 
 		// backwards compatibility with error handling in the router
-		if resp.StatusCode != http.StatusSwitchingProtocols {
+		if resp != nil && resp.StatusCode != http.StatusSwitchingProtocols {
 			return nil, &ErrFailedUpgrade{URL: opts.Endpoint, StatusCode: resp.StatusCode}
 		}
 

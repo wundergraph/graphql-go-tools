@@ -125,7 +125,6 @@ func (c *subscriptionClientV2) Subscribe(ctx *resolve.Context, options GraphQLSu
 
 	msgCh, cancel, err := c.client.Subscribe(ctx.Context(), req, opts)
 	if err != nil {
-		fmt.Println("Error subscribing:", err)
 		return err
 	}
 
