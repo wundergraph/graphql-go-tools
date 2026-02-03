@@ -245,3 +245,20 @@ func formatSubscriptionError(err error) []byte {
 	data, _ := json.Marshal(errResponse)
 	return data
 }
+
+// GraphQLSubscriptionClientFactory abstracts the way of creating a new GraphQLSubscriptionClient.
+// This can be very handy for testing purposes.
+type GraphQLSubscriptionClientFactory interface {
+	NewSubscriptionClient(ctx context.Context, options ...SubscriptionClientOption) GraphQLSubscriptionClient
+}
+
+type DefaultSubscriptionClientFactory struct{}
+
+func (d *DefaultSubscriptionClientFactory) NewSubscriptionClient(ctx context.Context, options ...SubscriptionClientOption) GraphQLSubscriptionClient {
+	return NewGraphQLSubscriptionClient(ctx, options...)
+}
+
+func IsDefaultGraphQLSubscriptionClient(client GraphQLSubscriptionClient) bool {
+	_, ok := client.(*subscriptionClientV2)
+	return ok
+}
