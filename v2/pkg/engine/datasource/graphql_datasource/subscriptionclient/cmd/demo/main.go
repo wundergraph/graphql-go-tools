@@ -220,8 +220,8 @@ func logStats(c *client.Client, st *stats, interval time.Duration) {
 	runtime.ReadMemStats(&m)
 
 	cs := c.Stats()
-	fmt.Printf("\n--- ws=%d sse=%d subs=%d listeners=%d | goroutines=%d alloc=%dMB ---\n",
-		cs.WSConns, cs.SSEConns, cs.Subscriptions, cs.Listeners,
+	fmt.Printf("\n--- ws=%d sse=%d | goroutines=%d alloc=%dMB ---\n",
+		cs.WSConns, cs.SSEConns,
 		runtime.NumGoroutine(),
 		m.Alloc/1024/1024,
 	)
