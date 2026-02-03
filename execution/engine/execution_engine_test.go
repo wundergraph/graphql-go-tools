@@ -55,7 +55,8 @@ func mustConfiguration(t *testing.T, input graphql_datasource.ConfigurationInput
 func mustFactory(t testing.TB, httpClient *http.Client) plan.PlannerFactory[graphql_datasource.Configuration] {
 	t.Helper()
 
-	factory, err := graphql_datasource.NewFactory(context.Background(), httpClient, graphql_datasource.NewGraphQLSubscriptionClient(httpClient, httpClient, context.Background()))
+	factory, err := graphql_datasource.NewFactory(context.Background(), httpClient, graphql_datasource.NewGraphQLSubscriptionClient(context.Background(),
+		graphql_datasource.WithUpgradeClient(httpClient), graphql_datasource.WithStreamingClient(httpClient)))
 	require.NoError(t, err)
 
 	return factory
@@ -7133,10 +7134,9 @@ func newFederationEngineStaticConfig(ctx context.Context, setup *federationtesti
 		return
 	}
 
-	subscriptionClient := graphql_datasource.NewGraphQLSubscriptionClient(
-		httpclient.DefaultNetHttpClient,
-		httpclient.DefaultNetHttpClient,
-		ctx,
+	subscriptionClient := graphql_datasource.NewGraphQLSubscriptionClient(ctx,
+		graphql_datasource.WithUpgradeClient(httpclient.DefaultNetHttpClient),
+		graphql_datasource.WithStreamingClient(httpclient.DefaultNetHttpClient),
 	)
 
 	graphqlFactory, err := graphql_datasource.NewFactory(ctx, httpclient.DefaultNetHttpClient, subscriptionClient)
