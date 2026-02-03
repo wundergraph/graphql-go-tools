@@ -138,7 +138,7 @@ func TestGraphQLWSLegacy_Subscribe(t *testing.T) {
 		p := protocol.NewGraphQLWS()
 		err := p.Subscribe(t.Context(), conn, "sub-1", &common.Request{
 			Query:     "subscription { test }",
-			Variables: map[string]any{"id": 123},
+			Variables: []byte(`{"id": 123}`),
 		})
 		require.NoError(t, err)
 

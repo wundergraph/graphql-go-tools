@@ -69,11 +69,17 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 		abstractlogger.String("method", string(method)),
 	)
 
+	// Use request context, but with transport requestCancel
+	requestCtx, requestCancel := context.WithCancel(context.WithoutCancel(ctx))
+
+	// Attach cancel to transport context
+	context.AfterFunc(t.ctx, requestCancel)
+
 	switch method {
 	case common.SSEMethodPOST:
-		httpReq, err = buildPOSTRequest(t.ctx, req, opts)
+		httpReq, err = buildPOSTRequest(requestCtx, req, opts)
 	case common.SSEMethodGET:
-		httpReq, err = buildGETRequest(t.ctx, req, opts)
+		httpReq, err = buildGETRequest(requestCtx, req, opts)
 	default:
 		return nil, nil, fmt.Errorf("unsupported SSE method: %s", method)
 	}
@@ -125,22 +131,17 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 
 	go conn.ReadLoop()
 
-	cancel := func() {
+	cancelFn := func() {
 		conn.Close()
 		t.removeConn(conn)
 	}
 
-	return conn.ch, cancel, nil
+	return conn.ch, cancelFn, nil
 }
 
 // buildPOSTRequest creates a POST request with JSON body (graphql-sse spec).
 func buildPOSTRequest(ctx context.Context, req *common.Request, opts common.Options) (*http.Request, error) {
-	body, err := json.Marshal(map[string]any{
-		"query":         req.Query,
-		"variables":     req.Variables,
-		"operationName": req.OperationName,
-		"extensions":    req.Extensions,
-	})
+	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}

@@ -414,6 +414,341 @@ func TestWSTransport_ConcurrentSubscribe(t *testing.T) {
 	})
 }
 
+func TestWSTransport_InitPayloadForwarding(t *testing.T) {
+	t.Parallel()
+
+	t.Run("forwards init payload to server with graphql-transport-ws protocol", func(t *testing.T) {
+		t.Parallel()
+
+		receivedPayload := make(chan map[string]any, 1)
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+				Subprotocols: []string{"graphql-transport-ws"},
+			})
+			if err != nil {
+				return
+			}
+			defer conn.Close(websocket.StatusNormalClosure, "")
+
+			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+			defer cancel()
+
+			// Read connection_init and capture payload
+			var initMsg map[string]any
+			if err := wsjson.Read(ctx, conn, &initMsg); err != nil {
+				return
+			}
+			if initMsg["type"] != "connection_init" {
+				return
+			}
+			if payload, ok := initMsg["payload"].(map[string]any); ok {
+				receivedPayload <- payload
+			} else {
+				receivedPayload <- nil
+			}
+
+			wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
+
+			// Read subscribe and respond
+			var subMsg map[string]any
+			if err := wsjson.Read(ctx, conn, &subMsg); err != nil {
+				return
+			}
+			wsjson.Write(ctx, conn, map[string]any{
+				"id":      subMsg["id"],
+				"type":    "next",
+				"payload": map[string]any{"data": map[string]any{"value": 1}},
+			})
+		}))
+		t.Cleanup(server.Close)
+
+		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil)
+
+		initPayload := map[string]any{
+			"Authorization": "Bearer secret-token",
+			"X-Custom":      "custom-value",
+			"nested": map[string]any{
+				"key": "nested-value",
+			},
+		}
+
+		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+			Query: "subscription { test }",
+		}, common.Options{
+			Endpoint:      server.URL,
+			Transport:     common.TransportWS,
+			WSSubprotocol: common.SubprotocolGraphQLTransportWS,
+			InitPayload:   initPayload,
+		})
+		require.NoError(t, err)
+		defer cancel()
+
+		// Verify payload was received by server
+		select {
+		case payload := <-receivedPayload:
+			require.NotNil(t, payload, "server should receive init payload")
+			assert.Equal(t, "Bearer secret-token", payload["Authorization"])
+			assert.Equal(t, "custom-value", payload["X-Custom"])
+			nested, ok := payload["nested"].(map[string]any)
+			require.True(t, ok, "nested should be a map")
+			assert.Equal(t, "nested-value", nested["key"])
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for init payload")
+		}
+
+		// Subscription should work
+		msg := receiveWithTimeout(t, ch, time.Second)
+		assert.NotNil(t, msg.Payload)
+	})
+
+	t.Run("forwards init payload to server with graphql-ws legacy protocol", func(t *testing.T) {
+		t.Parallel()
+
+		receivedPayload := make(chan map[string]any, 1)
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+				Subprotocols: []string{"graphql-ws"},
+			})
+			if err != nil {
+				return
+			}
+			defer conn.Close(websocket.StatusNormalClosure, "")
+
+			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+			defer cancel()
+
+			// Read connection_init and capture payload
+			var initMsg map[string]any
+			if err := wsjson.Read(ctx, conn, &initMsg); err != nil {
+				return
+			}
+			if initMsg["type"] != "connection_init" {
+				return
+			}
+			if payload, ok := initMsg["payload"].(map[string]any); ok {
+				receivedPayload <- payload
+			} else {
+				receivedPayload <- nil
+			}
+
+			wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
+
+			// Read start and respond
+			var startMsg map[string]any
+			if err := wsjson.Read(ctx, conn, &startMsg); err != nil {
+				return
+			}
+			wsjson.Write(ctx, conn, map[string]any{
+				"id":      startMsg["id"],
+				"type":    "data",
+				"payload": map[string]any{"data": map[string]any{"value": 1}},
+			})
+		}))
+		t.Cleanup(server.Close)
+
+		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil)
+
+		initPayload := map[string]any{
+			"token":   "legacy-auth-token",
+			"version": float64(2), // JSON numbers are float64
+		}
+
+		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+			Query: "subscription { test }",
+		}, common.Options{
+			Endpoint:      server.URL,
+			Transport:     common.TransportWS,
+			WSSubprotocol: common.SubprotocolGraphQLWS, // Legacy protocol
+			InitPayload:   initPayload,
+		})
+		require.NoError(t, err)
+		defer cancel()
+
+		// Verify payload was received by server
+		select {
+		case payload := <-receivedPayload:
+			require.NotNil(t, payload, "server should receive init payload")
+			assert.Equal(t, "legacy-auth-token", payload["token"])
+			assert.Equal(t, float64(2), payload["version"])
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for init payload")
+		}
+
+		// Subscription should work
+		msg := receiveWithTimeout(t, ch, time.Second)
+		assert.NotNil(t, msg.Payload)
+	})
+
+	t.Run("sends empty payload when init payload is nil", func(t *testing.T) {
+		t.Parallel()
+
+		receivedPayload := make(chan map[string]any, 1)
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+				Subprotocols: []string{"graphql-transport-ws"},
+			})
+			if err != nil {
+				return
+			}
+			defer conn.Close(websocket.StatusNormalClosure, "")
+
+			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+			defer cancel()
+
+			// Read connection_init and capture payload
+			var initMsg map[string]any
+			if err := wsjson.Read(ctx, conn, &initMsg); err != nil {
+				return
+			}
+			if initMsg["type"] != "connection_init" {
+				return
+			}
+			if payload, ok := initMsg["payload"].(map[string]any); ok {
+				receivedPayload <- payload
+			} else {
+				receivedPayload <- nil
+			}
+
+			wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
+
+			// Read subscribe and respond
+			var subMsg map[string]any
+			if err := wsjson.Read(ctx, conn, &subMsg); err != nil {
+				return
+			}
+			wsjson.Write(ctx, conn, map[string]any{
+				"id":      subMsg["id"],
+				"type":    "next",
+				"payload": map[string]any{"data": map[string]any{"value": 1}},
+			})
+		}))
+		t.Cleanup(server.Close)
+
+		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil)
+
+		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+			Query: "subscription { test }",
+		}, common.Options{
+			Endpoint:      server.URL,
+			Transport:     common.TransportWS,
+			WSSubprotocol: common.SubprotocolGraphQLTransportWS,
+			InitPayload:   nil, // No init payload
+		})
+		require.NoError(t, err)
+		defer cancel()
+
+		// Server should receive nil/empty payload
+		select {
+		case payload := <-receivedPayload:
+			assert.Nil(t, payload, "server should receive nil payload when not provided")
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for init message")
+		}
+
+		// Subscription should still work
+		msg := receiveWithTimeout(t, ch, time.Second)
+		assert.NotNil(t, msg.Payload)
+	})
+
+	t.Run("same endpoint with different init payloads uses separate connections", func(t *testing.T) {
+		t.Parallel()
+
+		var mu sync.Mutex
+		receivedPayloads := make([]map[string]any, 0)
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+				Subprotocols: []string{"graphql-transport-ws"},
+			})
+			if err != nil {
+				return
+			}
+			defer conn.Close(websocket.StatusNormalClosure, "")
+
+			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+			defer cancel()
+
+			// Read connection_init and capture payload
+			var initMsg map[string]any
+			if err := wsjson.Read(ctx, conn, &initMsg); err != nil {
+				return
+			}
+			if initMsg["type"] != "connection_init" {
+				return
+			}
+
+			mu.Lock()
+			if payload, ok := initMsg["payload"].(map[string]any); ok {
+				receivedPayloads = append(receivedPayloads, payload)
+			}
+			mu.Unlock()
+
+			wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
+
+			// Handle subscriptions
+			for {
+				var msg map[string]any
+				if err := wsjson.Read(ctx, conn, &msg); err != nil {
+					return
+				}
+				if msg["type"] == "subscribe" {
+					wsjson.Write(ctx, conn, map[string]any{
+						"id":      msg["id"],
+						"type":    "next",
+						"payload": map[string]any{"data": map[string]any{"value": 1}},
+					})
+				}
+			}
+		}))
+		t.Cleanup(server.Close)
+
+		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil)
+
+		// First subscription with user1 token
+		ch1, cancel1, err := tr.Subscribe(context.Background(), &common.Request{
+			Query: "subscription { test }",
+		}, common.Options{
+			Endpoint:      server.URL,
+			Transport:     common.TransportWS,
+			WSSubprotocol: common.SubprotocolGraphQLTransportWS,
+			InitPayload:   map[string]any{"user": "user1"},
+		})
+		require.NoError(t, err)
+		defer cancel1()
+
+		receiveWithTimeout(t, ch1, time.Second)
+
+		// Second subscription with user2 token - should create new connection
+		ch2, cancel2, err := tr.Subscribe(context.Background(), &common.Request{
+			Query: "subscription { test }",
+		}, common.Options{
+			Endpoint:      server.URL,
+			Transport:     common.TransportWS,
+			WSSubprotocol: common.SubprotocolGraphQLTransportWS,
+			InitPayload:   map[string]any{"user": "user2"},
+		})
+		require.NoError(t, err)
+		defer cancel2()
+
+		receiveWithTimeout(t, ch2, time.Second)
+
+		// Verify two separate connections were made with different payloads
+		assert.Equal(t, 2, tr.ConnCount())
+
+		mu.Lock()
+		defer mu.Unlock()
+		require.Len(t, receivedPayloads, 2)
+
+		users := make([]string, 0, 2)
+		for _, p := range receivedPayloads {
+			if user, ok := p["user"].(string); ok {
+				users = append(users, user)
+			}
+		}
+		assert.ElementsMatch(t, []string{"user1", "user2"}, users)
+	})
+}
+
 func TestWSTransport_LegacyProtocol(t *testing.T) {
 	t.Parallel()
 

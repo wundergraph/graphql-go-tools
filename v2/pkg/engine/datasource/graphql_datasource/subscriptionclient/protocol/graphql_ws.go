@@ -85,14 +85,9 @@ func (p *GraphQLWS) Init(ctx context.Context, conn *websocket.Conn, payload map[
 // Subscribe implements Protocol.
 func (p *GraphQLWS) Subscribe(ctx context.Context, conn *websocket.Conn, id string, req *common.Request) error {
 	msg := outgoingMessage{
-		ID:   id,
-		Type: gwsTypeStart,
-		Payload: subscribePayload{
-			Query:         req.Query,
-			Variables:     req.Variables,
-			OperationName: req.OperationName,
-			Extensions:    req.Extensions,
-		},
+		ID:      id,
+		Type:    gwsTypeStart,
+		Payload: req,
 	}
 	return wsjson.Write(ctx, conn, msg)
 }
