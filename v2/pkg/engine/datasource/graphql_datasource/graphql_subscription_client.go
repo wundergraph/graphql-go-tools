@@ -202,28 +202,11 @@ func convertToClientOptions(options GraphQLSubscriptionOptions) (common.Options,
 		opts.InitPayload = initPayload
 	}
 
-	// Build request
 	req := &common.Request{
 		Query:         options.Body.Query,
 		OperationName: options.Body.OperationName,
-	}
-
-	// Convert Variables from json.RawMessage to map[string]any
-	if len(options.Body.Variables) > 0 {
-		var vars map[string]any
-		if err := json.Unmarshal(options.Body.Variables, &vars); err != nil {
-			return common.Options{}, nil, fmt.Errorf("failed to unmarshal variables: %w", err)
-		}
-		req.Variables = vars
-	}
-
-	// Convert Extensions from json.RawMessage to map[string]any
-	if len(options.Body.Extensions) > 0 {
-		var ext map[string]any
-		if err := json.Unmarshal(options.Body.Extensions, &ext); err != nil {
-			return common.Options{}, nil, fmt.Errorf("failed to unmarshal extensions: %w", err)
-		}
-		req.Extensions = ext
+		Variables:     options.Body.Variables,
+		Extensions:    options.Body.Extensions,
 	}
 
 	return opts, req, nil

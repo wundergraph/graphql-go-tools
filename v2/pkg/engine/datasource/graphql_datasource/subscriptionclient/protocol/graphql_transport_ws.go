@@ -35,12 +35,6 @@ type incomingMessage struct {
 	Payload json.RawMessage `json:"payload,omitempty"`
 }
 
-type subscribePayload struct {
-	Query         string         `json:"query"`
-	Variables     map[string]any `json:"variables,omitempty"`
-	OperationName string         `json:"operationName,omitempty"`
-	Extensions    map[string]any `json:"extensions,omitempty"`
-}
 
 type GraphQLTransportWS struct {
 	AckTimeout time.Duration
@@ -123,14 +117,9 @@ func (p *GraphQLTransportWS) Read(ctx context.Context, conn *websocket.Conn) (*M
 // Subscribe implements Protocol.
 func (p *GraphQLTransportWS) Subscribe(ctx context.Context, conn *websocket.Conn, id string, req *common.Request) error {
 	msg := outgoingMessage{
-		ID:   id,
-		Type: gtwsTypeSubscribe,
-		Payload: subscribePayload{
-			Query:         req.Query,
-			Variables:     req.Variables,
-			OperationName: req.OperationName,
-			Extensions:    req.Extensions,
-		},
+		ID:      id,
+		Type:    gtwsTypeSubscribe,
+		Payload: req,
 	}
 	return wsjson.Write(ctx, conn, msg)
 }

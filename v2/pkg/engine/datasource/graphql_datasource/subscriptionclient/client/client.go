@@ -313,16 +313,12 @@ func subscriptionKey(opts common.Options, req *common.Request) uint64 {
 	h.WriteString("\x00")
 
 	if len(req.Variables) > 0 {
-		if data, err := json.Marshal(req.Variables); err == nil {
-			h.Write(data)
-		}
+		h.Write(req.Variables)
 	}
 	h.WriteString("\x00")
 
 	if len(req.Extensions) > 0 {
-		if data, err := json.Marshal(req.Extensions); err == nil {
-			h.Write(data)
-		}
+		h.Write(req.Extensions)
 	}
 
 	return h.Sum64()

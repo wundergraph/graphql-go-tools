@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -228,11 +229,12 @@ func logStats(c *client.Client, st *stats, interval time.Duration) {
 }
 
 func subscribe(ctx context.Context, c *client.Client, v vu, subId, listenerId int, counter *atomic.Uint64) {
+	extJSON, _ := json.Marshal(map[string]any{
+		"subId": subId, // varies per subscription to prevent dedup across subs
+	})
 	req := &client.Request{
-		Query: `subscription { time(timezone: "UTC") }`,
-		Extensions: map[string]any{
-			"subId": subId, // varies per subscription to prevent dedup across subs
-		},
+		Query:      `subscription { time(timezone: "UTC") }`,
+		Extensions: extJSON,
 	}
 
 	ch, cancel, err := c.Subscribe(ctx, req, v.opts)

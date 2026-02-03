@@ -15,8 +15,8 @@ type ExecutionResult struct {
 }
 
 type Request struct {
-	Query         string         `json:"query"`
-	Variables     map[string]any `json:"variables,omitempty"`
-	OperationName string         `json:"operationName,omitempty"`
-	Extensions    map[string]any `json:"extensions,omitempty"`
+	Query         string          `json:"query"`
+	OperationName string          `json:"operationName,omitempty"`
+	Variables     json.RawMessage `json:"variables,omitempty"`
+	Extensions    json.RawMessage `json:"extensions,omitempty"`
 }

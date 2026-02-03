@@ -56,7 +56,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 
 		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query:         "subscription { test }",
-			Variables:     map[string]any{"id": 123},
+			Variables:     []byte(`{"id": 123}`),
 			OperationName: "TestSub",
 		}, common.Options{
 			Endpoint:  server.URL,
@@ -679,7 +679,7 @@ func TestSSETransport_GETMethod(t *testing.T) {
 
 		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query:         "subscription { test }",
-			Variables:     map[string]any{"id": 123},
+			Variables:     []byte(`{"id": 123}`),
 			OperationName: "TestSub",
 		}, common.Options{
 			Endpoint:  server.URL,

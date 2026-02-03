@@ -34,8 +34,8 @@ func TestSubscriptionKey(t *testing.T) {
 		opts := Options{Endpoint: "ws://localhost/graphql"}
 		query := "subscription($id: ID!) { item(id: $id) }"
 
-		key1 := subscriptionKey(opts, &Request{Query: query, Variables: map[string]any{"id": "1"}})
-		key2 := subscriptionKey(opts, &Request{Query: query, Variables: map[string]any{"id": "2"}})
+		key1 := subscriptionKey(opts, &Request{Query: query, Variables: []byte(`{"id": "1"}`)})
+		key2 := subscriptionKey(opts, &Request{Query: query, Variables: []byte(`{"id": "2"}`)})
 
 		assert.NotEqual(t, key1, key2)
 	})
@@ -53,8 +53,8 @@ func TestSubscriptionKey(t *testing.T) {
 		opts := Options{Endpoint: "ws://localhost/graphql"}
 		query := "subscription { a }"
 
-		key1 := subscriptionKey(opts, &Request{Query: query, Extensions: map[string]any{"subId": 1}})
-		key2 := subscriptionKey(opts, &Request{Query: query, Extensions: map[string]any{"subId": 2}})
+		key1 := subscriptionKey(opts, &Request{Query: query, Extensions: []byte(`{"subId": 1}`)})
+		key2 := subscriptionKey(opts, &Request{Query: query, Extensions: []byte(`{"subId": 2}`)})
 
 		assert.NotEqual(t, key1, key2)
 	})
