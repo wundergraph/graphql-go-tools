@@ -2,181 +2,26 @@ package client
 
 import (
 	"context"
-	"sync"
-	"sync/atomic"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
+	"go.uber.org/goleak"
 )
 
-func TestSubscriptionKey(t *testing.T) {
-	t.Run("differs for different queries", func(t *testing.T) {
-		opts := Options{Endpoint: "ws://localhost/graphql"}
-
-		key1 := subscriptionKey(opts, &Request{Query: "subscription { a }"})
-		key2 := subscriptionKey(opts, &Request{Query: "subscription { b }"})
-
-		assert.NotEqual(t, key1, key2)
-	})
-
-	t.Run("is deterministic", func(t *testing.T) {
-		opts := Options{Endpoint: "ws://localhost/graphql"}
-		req := &Request{Query: "subscription { a }"}
-
-		key1 := subscriptionKey(opts, req)
-		key2 := subscriptionKey(opts, req)
-
-		assert.Equal(t, key1, key2)
-	})
-
-	t.Run("differs for different variables", func(t *testing.T) {
-		opts := Options{Endpoint: "ws://localhost/graphql"}
-		query := "subscription($id: ID!) { item(id: $id) }"
-
-		key1 := subscriptionKey(opts, &Request{Query: query, Variables: []byte(`{"id": "1"}`)})
-		key2 := subscriptionKey(opts, &Request{Query: query, Variables: []byte(`{"id": "2"}`)})
-
-		assert.NotEqual(t, key1, key2)
-	})
-
-	t.Run("differs for different endpoints", func(t *testing.T) {
-		req := &Request{Query: "subscription { a }"}
-
-		key1 := subscriptionKey(Options{Endpoint: "ws://a.example.com/graphql"}, req)
-		key2 := subscriptionKey(Options{Endpoint: "ws://b.example.com/graphql"}, req)
-
-		assert.NotEqual(t, key1, key2)
-	})
-
-	t.Run("differs for different extensions", func(t *testing.T) {
-		opts := Options{Endpoint: "ws://localhost/graphql"}
-		query := "subscription { a }"
-
-		key1 := subscriptionKey(opts, &Request{Query: query, Extensions: []byte(`{"subId": 1}`)})
-		key2 := subscriptionKey(opts, &Request{Query: query, Extensions: []byte(`{"subId": 2}`)})
-
-		assert.NotEqual(t, key1, key2)
-	})
-}
-
-func TestSubscription(t *testing.T) {
-	t.Run("addListener creates buffered channel", func(t *testing.T) {
-		sub := &subscription{
-			listeners: make(map[uint64]chan *Message),
-		}
-
-		ch, _, err := sub.addListener(t.Context())
-		require.NoError(t, err)
-
-		assert.NotNil(t, ch)
-		assert.Equal(t, 8, cap(ch))
-	})
-
-	t.Run("multiple listeners get unique IDs", func(t *testing.T) {
-		sub := &subscription{
-			listeners: make(map[uint64]chan *Message),
-		}
-
-		sub.addListener(t.Context())
-		sub.addListener(t.Context())
-		sub.addListener(t.Context())
-
-		assert.Equal(t, 3, len(sub.listeners))
-	})
-
-	t.Run("removeListener removes from map", func(t *testing.T) {
-		sub := &subscription{
-			cancelFn:  func() {},
-			listeners: make(map[uint64]chan *Message),
-		}
-
-		_, cancel, _ := sub.addListener(t.Context())
-		assert.Equal(t, 1, len(sub.listeners))
-
-		cancel()
-		assert.Equal(t, 0, len(sub.listeners))
-	})
-
-	t.Run("last listener removal cancels upstream", func(t *testing.T) {
-		var cancelled atomic.Bool
-
-		sub := &subscription{
-			cancelFn:  func() { cancelled.Store(true) },
-			listeners: make(map[uint64]chan *Message),
-		}
-
-		_, cancel1, _ := sub.addListener(t.Context())
-		_, cancel2, _ := sub.addListener(t.Context())
-
-		cancel1()
-		assert.False(t, cancelled.Load(), "should not cancel with listeners remaining")
-
-		cancel2()
-		assert.True(t, cancelled.Load(), "should cancel when last listener removed")
-	})
-
-	t.Run("fanout broadcasts to all listeners", func(t *testing.T) {
-		source := make(chan *Message, 1)
-		sub := &subscription{
-			source:    source,
-			cancelFn:  func() {},
-			listeners: make(map[uint64]chan *Message),
-			done:      make(chan struct{}),
-		}
-
-		ch1, _, _ := sub.addListener(t.Context())
-		ch2, _, _ := sub.addListener(t.Context())
-
-		go sub.fanout(func() {})
-
-		msg := &Message{Payload: &ExecutionResult{}}
-		source <- msg
-		close(source)
-
-		// Wait for fanout to complete
-		<-sub.done
-
-		assert.Equal(t, msg, <-ch1)
-		assert.Equal(t, msg, <-ch2)
-	})
-
-	t.Run("fanout closes listeners when source closes", func(t *testing.T) {
-		source := make(chan *Message)
-		sub := &subscription{
-			source:    source,
-			cancelFn:  func() {},
-			listeners: make(map[uint64]chan *Message),
-			done:      make(chan struct{}),
-		}
-
-		ch, _, _ := sub.addListener(t.Context())
-
-		go sub.fanout(func() {})
-
-		close(source)
-		<-sub.done
-
-		_, ok := <-ch
-		assert.False(t, ok, "channel should be closed")
-	})
-}
-
 func TestClient(t *testing.T) {
-	t.Run("New creates client with transports", func(t *testing.T) {
+	t.Run("new creates client with transports", func(t *testing.T) {
 		c := New(t.Context(), Config{})
 
 		assert.NotNil(t, c.ws)
 		assert.NotNil(t, c.sse)
-		assert.NotNil(t, c.subs)
-	})
-
-	t.Run("Stats returns correct counts", func(t *testing.T) {
-		c := New(t.Context(), Config{})
-
-		stats := c.Stats()
-		assert.Equal(t, 0, stats.Subscriptions)
-		assert.Equal(t, 0, stats.Listeners)
 	})
 
 	t.Run("context cancellation is idempotent", func(t *testing.T) {
@@ -186,7 +31,7 @@ func TestClient(t *testing.T) {
 		cancel() // should not panic
 	})
 
-	t.Run("Subscribe fails after context cancelled", func(t *testing.T) {
+	t.Run("subscribe fails after context cancelled", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		c := New(ctx, Config{})
 		cancel()
@@ -194,73 +39,180 @@ func TestClient(t *testing.T) {
 		_, _, err := c.Subscribe(t.Context(), &Request{Query: "subscription { a }"}, Options{
 			Endpoint: "ws://localhost/graphql",
 		})
+
 		assert.Equal(t, ErrClientClosed, err)
 	})
 }
 
-func TestClientDedup(t *testing.T) {
-	t.Run("identical subscriptions share upstream", func(t *testing.T) {
-		opts := Options{Endpoint: "ws://localhost/graphql"}
-		req := &Request{Query: "subscription { a }"}
+func TestClient_ContextCancellation(t *testing.T) {
+	// These tests verify that cancelling the client's context properly cleans up all goroutines
 
-		key1 := subscriptionKey(opts, req)
-		key2 := subscriptionKey(opts, req)
+	t.Run("context cancellation cleans up", func(t *testing.T) {
+		defer goleak.VerifyNone(t, goleak.IgnoreAnyFunction("net/http/httptest.(*Server).goServe.func1"))
 
-		assert.Equal(t, key1, key2, "identical requests should produce same key")
+		server := newTestWSServer(t)
+
+		ctx, cancel := context.WithCancel(context.Background())
+
+		c := New(ctx, Config{})
+
+		ch, _, err := c.Subscribe(context.Background(), &common.Request{
+			Query: "subscription { test }",
+		}, common.Options{
+			Endpoint:  server.URL,
+			Transport: common.TransportWS,
+		})
+		require.NoError(t, err)
+
+		// subscription is working
+		select {
+		case msg := <-ch:
+			require.NotNil(t, msg.Payload)
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for message")
+		}
+
+		cancel()
+	})
+
+	t.Run("context cancellation cleans up multiple connections", func(t *testing.T) {
+		defer goleak.VerifyNone(t, goleak.IgnoreAnyFunction("net/http/httptest.(*Server).goServe.func1"))
+
+		server := newTestWSServer(t)
+
+		ctx, cancel := context.WithCancel(context.Background())
+
+		c := New(ctx, Config{})
+
+		// Start subscriptions with different headers (forces multiple connections)
+		for i := range 3 {
+			headers := http.Header{"X-Request-ID": []string{string(rune('A' + i))}}
+			ch, _, err := c.Subscribe(context.Background(), &common.Request{
+				Query: "subscription { test }",
+			}, common.Options{
+				Endpoint:  server.URL,
+				Transport: common.TransportWS,
+				Headers:   headers,
+			})
+			require.NoError(t, err)
+
+			// Drain first message
+			select {
+			case <-ch:
+			case <-time.After(time.Second):
+				t.Fatal("timeout")
+			}
+		}
+
+		// Should have 3 connections
+		stats := c.Stats()
+		require.Equal(t, 3, stats.WSConns)
+
+		cancel()
 	})
 }
 
-func TestConcurrency(t *testing.T) {
-	t.Run("subscription handles concurrent listener add/remove", func(t *testing.T) {
-		source := make(chan *Message)
-		sub := &subscription{
-			source:    source,
-			cancelFn:  func() { close(source) },
-			listeners: make(map[uint64]chan *Message),
-			done:      make(chan struct{}),
+// Test helper: creates an SSE server that sends periodic messages
+func newTestSSEServer(t *testing.T) *httptest.Server {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "SSE not supported", http.StatusInternalServerError)
+			return
 		}
 
-		go sub.fanout(func() {})
+		// Send initial message
+		fmt.Fprintf(w, "event: next\ndata: {\"data\":{\"test\":\"value\"}}\n\n")
+		flusher.Flush()
 
-		// Keep one listener alive to prevent subscription from closing
-		_, anchorCancel, err := sub.addListener(t.Context())
-		require.NoError(t, err)
+		// Send periodic messages until client disconnects
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
 
-		var wg sync.WaitGroup
-		for range 100 {
-			wg.Go(func() {
-				_, cancel, err := sub.addListener(t.Context())
-				if err == nil {
-					cancel()
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-ticker.C:
+				fmt.Fprintf(w, "event: next\ndata: {\"data\":{\"test\":\"value\"}}\n\n")
+				flusher.Flush()
+			}
+		}
+	}))
+
+	t.Cleanup(server.Close)
+	return server
+}
+
+// Test helper: creates a WebSocket server that sends periodic messages
+func newTestWSServer(t *testing.T) *httptest.Server {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+			Subprotocols: []string{"graphql-transport-ws"},
+		})
+		if err != nil {
+			return
+		}
+		defer conn.CloseNow()
+
+		ctx, cancel := context.WithCancel(r.Context())
+		defer cancel()
+
+		// Handle connection_init
+		var initMsg map[string]any
+		if err := wsjson.Read(ctx, conn, &initMsg); err != nil {
+			return
+		}
+		if initMsg["type"] != "connection_init" {
+			return
+		}
+		wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
+
+		// Read messages in background, cancel context when connection closes
+		go func() {
+			defer cancel()
+			for {
+				var msg map[string]any
+				if err := wsjson.Read(ctx, conn, &msg); err != nil {
+					return
 				}
-			})
+				// Handle subscribe by sending first message
+				if msg["type"] == "subscribe" {
+					wsjson.Write(ctx, conn, map[string]any{
+						"id":      msg["id"],
+						"type":    "next",
+						"payload": map[string]any{"data": map[string]any{"value": 1}},
+					})
+				}
+			}
+		}()
+
+		// Send periodic messages until context cancelled
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				// Ignore write errors (connection may be closed)
+				_ = wsjson.Write(ctx, conn, map[string]any{
+					"type":    "next",
+					"payload": map[string]any{"data": map[string]any{"value": 1}},
+				})
+			}
 		}
+	}))
 
-		wg.Wait()
-
-		// Now release the anchor - this triggers subscription close
-		anchorCancel()
-		<-sub.done
-	})
-
-	t.Run("addListener returns error after subscription closed", func(t *testing.T) {
-		source := make(chan *Message)
-		sub := &subscription{
-			source:    source,
-			cancelFn:  func() { close(source) },
-			listeners: make(map[uint64]chan *Message),
-			done:      make(chan struct{}),
-		}
-
-		go sub.fanout(func() {})
-
-		// Add and remove listener to close subscription
-		_, cancel, _ := sub.addListener(t.Context())
-		cancel()
-		<-sub.done
-
-		// Now try to add another listener
-		_, _, err := sub.addListener(t.Context())
-		assert.Equal(t, ErrSubscriptionClosed, err)
-	})
+	t.Cleanup(server.Close)
+	return server
 }
