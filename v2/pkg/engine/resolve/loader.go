@@ -1105,14 +1105,17 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		// no data
 		return nil
 	}
-	defer l.updateL2Cache(res)
-	defer l.populateL1Cache(fetchItem, res, items)
 	if len(items) == 0 {
 		// If the data is set, it must be an object according to GraphQL over HTTP spec
 		if responseData.Type() != astjson.TypeObject {
 			return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape)
 		}
 		l.resolvable.data = responseData
+		// Only populate caches on success (no errors)
+		if !hasErrors {
+			l.populateL1Cache(fetchItem, res, items)
+			l.updateL2Cache(res)
+		}
 		return nil
 	}
 	if len(items) == 1 && res.batchStats == nil {
@@ -1130,6 +1133,13 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		// Update cache key item to point to merged data for L1 cache
 		if len(res.l1CacheKeys) > 0 && res.l1CacheKeys[0] != nil {
 			res.l1CacheKeys[0].Item = items[0]
+		}
+		// Only populate caches on success (no errors)
+		if !hasErrors {
+			defer func() {
+				l.populateL1Cache(fetchItem, res, items)
+				l.updateL2Cache(res)
+			}()
 		}
 		return nil
 	}
@@ -1175,6 +1185,11 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 				}
 			}
 		}
+		// Only populate caches on success (no errors)
+		if !hasErrors {
+			l.populateL1Cache(fetchItem, res, items)
+			l.updateL2Cache(res)
+		}
 		return nil
 	}
 
@@ -1200,6 +1215,11 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		}
 	}
 
+	// Only populate caches on success (no errors)
+	if !hasErrors {
+		l.populateL1Cache(fetchItem, res, items)
+		l.updateL2Cache(res)
+	}
 	return nil
 }
 

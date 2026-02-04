@@ -1,6 +1,9 @@
 type Query {
     me: User
     cat: Cat
+    # reviewWithError returns a review whose author (error-user) triggers an error in accounts subgraph.
+    # Used for testing cache error handling - caches should NOT be populated on errors.
+    reviewWithError: Review
 }
 
 type Cat {

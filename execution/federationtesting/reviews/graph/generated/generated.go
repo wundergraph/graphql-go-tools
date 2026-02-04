@@ -82,6 +82,7 @@ type ComplexityRoot struct {
 	Query struct {
 		Cat                func(childComplexity int) int
 		Me                 func(childComplexity int) int
+		ReviewWithError    func(childComplexity int) int
 		__resolve__service func(childComplexity int) int
 		__resolve_entities func(childComplexity int, representations []map[string]any) int
 	}
@@ -140,6 +141,7 @@ type ProductResolver interface {
 type QueryResolver interface {
 	Me(ctx context.Context) (*model.User, error)
 	Cat(ctx context.Context) (*model.Cat, error)
+	ReviewWithError(ctx context.Context) (*model.Review, error)
 }
 type ReviewResolver interface {
 	AuthorWithoutProvides(ctx context.Context, obj *model.Review) (*model.User, error)
@@ -271,6 +273,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.Me(childComplexity), true
+
+	case "Query.reviewWithError":
+		if e.complexity.Query.ReviewWithError == nil {
+			break
+		}
+
+		return e.complexity.Query.ReviewWithError(childComplexity), true
 
 	case "Query._service":
 		if e.complexity.Query.__resolve__service == nil {
@@ -552,6 +561,9 @@ var sources = []*ast.Source{
 	{Name: "../schema.graphqls", Input: `type Query {
     me: User
     cat: Cat
+    # reviewWithError returns a review whose author (error-user) triggers an error in accounts subgraph.
+    # Used for testing cache error handling - caches should NOT be populated on errors.
+    reviewWithError: Review
 }
 
 type Cat {
@@ -1589,6 +1601,61 @@ func (ec *executionContext) fieldContext_Query_cat(_ context.Context, field grap
 				return ec.fieldContext_Cat_name(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Cat", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_reviewWithError(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_reviewWithError(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().ReviewWithError(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.Review)
+	fc.Result = res
+	return ec.marshalOReview2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋreviewsᚋgraphᚋmodelᚐReview(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_reviewWithError(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "body":
+				return ec.fieldContext_Review_body(ctx, field)
+			case "author":
+				return ec.fieldContext_Review_author(ctx, field)
+			case "authorWithoutProvides":
+				return ec.fieldContext_Review_authorWithoutProvides(ctx, field)
+			case "product":
+				return ec.fieldContext_Review_product(ctx, field)
+			case "attachments":
+				return ec.fieldContext_Review_attachments(ctx, field)
+			case "comment":
+				return ec.fieldContext_Review_comment(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Review", field.Name)
 		},
 	}
 	return fc, nil
@@ -5314,6 +5381,25 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_cat(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "reviewWithError":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_reviewWithError(ctx, field)
 				return res
 			}
 

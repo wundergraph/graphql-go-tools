@@ -6,6 +6,7 @@ package graph
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/accounts/graph/generated"
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/accounts/graph/model"
@@ -26,6 +27,11 @@ func (r *entityResolver) FindAdminByID(ctx context.Context, id string) (*model.A
 
 // FindUserByID is the resolver for the findUserByID field.
 func (r *entityResolver) FindUserByID(ctx context.Context, id string) (*model.User, error) {
+	// Error triggering for cache error handling tests
+	if id == "error-user" {
+		return nil, fmt.Errorf("user not found: %s", id)
+	}
+
 	name := "User " + id
 	if id == "1234" {
 		name = "Me"

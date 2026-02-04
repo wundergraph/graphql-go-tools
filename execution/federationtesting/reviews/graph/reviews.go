@@ -21,3 +21,12 @@ var reviews = []*model.Review{
 		Author:  &model.User{ID: "7777", Username: "User 7777"},
 	},
 }
+
+// errorReview is a separate review used for cache error testing.
+// It has an author ID "error-user" which triggers an error in the accounts subgraph.
+// This is accessed via the reviewWithError query, not through normal reviews.
+var errorReview = &model.Review{
+	Body:    "This review triggers an error when resolving the author",
+	Product: &model.Product{Upc: "error-product"},
+	Author:  &model.User{ID: "error-user", Username: ""},
+}

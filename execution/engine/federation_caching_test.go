@@ -2826,3 +2826,337 @@ func TestL1CacheRootFieldEntityListPopulation(t *testing.T) {
 		assert.Equal(t, int64(0), l1MissesInt, "L1 misses should be 0 when disabled")
 	})
 }
+
+// =============================================================================
+// CACHE ERROR HANDLING TESTS
+// =============================================================================
+//
+// These tests verify that caches are NOT populated when subgraphs return errors.
+// The cache should only store successful responses to prevent caching error states.
+
+func TestCacheNotPopulatedOnErrors(t *testing.T) {
+	// Query that triggers an error in accounts subgraph via error-user
+	// The reviewWithError field returns a review with author ID "error-user"
+	// which causes FindUserByID to return an error
+	errorQuery := `query {
+		reviewWithError {
+			body
+			authorWithoutProvides {
+				id
+				username
+			}
+		}
+	}`
+
+	// Expected error response - data is null due to non-nullable username field error propagation
+	expectedErrorResponse := `{"errors":[{"message":"Failed to fetch from Subgraph '0' at Path 'reviewWithError.authorWithoutProvides'."},{"message":"Cannot return null for non-nullable field 'User.username'.","path":["reviewWithError","authorWithoutProvides","username"]}],"data":{"reviewWithError":null}}`
+
+	t.Run("L1 only - error response prevents cache population", func(t *testing.T) {
+		// This test verifies that L1 cache is NOT populated when an error occurs.
+		// If L1 was erroneously populated, the second query would not call accounts.
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		cachingOpts := resolve.CachingOptions{
+			EnableL1Cache: true,
+			EnableL2Cache: false,
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(cachingOpts),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// Extract hostnames
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		reviewsURLParsed, _ := url.Parse(setup.ReviewsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+		reviewsHost := reviewsURLParsed.Host
+
+		// First query - should get error from accounts
+		tracker.Reset()
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, errorQuery, nil, t)
+
+		// Verify exact error response
+		assert.Equal(t, expectedErrorResponse, string(resp))
+
+		reviewsCallsFirst := tracker.GetCount(reviewsHost)
+		accountsCallsFirst := tracker.GetCount(accountsHost)
+		assert.Equal(t, 1, reviewsCallsFirst, "First query should call reviews subgraph once")
+		assert.Equal(t, 1, accountsCallsFirst, "First query should call accounts subgraph once")
+
+		// Second query - L1 should NOT have cached the error, so accounts should be called again
+		tracker.Reset()
+		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, errorQuery, nil, t)
+
+		// Same error should be returned
+		assert.Equal(t, expectedErrorResponse, string(resp))
+
+		accountsCallsSecond := tracker.GetCount(accountsHost)
+		// KEY ASSERTION: If L1 incorrectly cached the error, this would be 0
+		assert.Equal(t, 1, accountsCallsSecond, "Second query should call accounts again (L1 should NOT cache errors)")
+	})
+
+	t.Run("L2 only - error response prevents cache population", func(t *testing.T) {
+		// This test verifies that L2 cache is NOT populated when an error occurs.
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{
+			"default": defaultCache,
+		}
+
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		// Configure L2 caching for User entities
+		subgraphCachingConfigs := engine.SubgraphCachingConfigs{
+			{
+				SubgraphName: "accounts",
+				EntityCaching: plan.EntityCacheConfigurations{
+					{TypeName: "User", CacheName: "default", TTL: 30 * time.Second},
+				},
+			},
+		}
+
+		cachingOpts := resolve.CachingOptions{
+			EnableL1Cache: false,
+			EnableL2Cache: true,
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(cachingOpts),
+			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// Extract hostnames
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		// First query - should get error from accounts
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, errorQuery, nil, t)
+
+		// Verify exact error response
+		assert.Equal(t, expectedErrorResponse, string(resp))
+
+		accountsCallsFirst := tracker.GetCount(accountsHost)
+		assert.Equal(t, 1, accountsCallsFirst, "First query should call accounts subgraph once")
+
+		// Verify exact cache log: only "get" with miss, NO "set"
+		// Since the fetch had an error, cache population should be skipped entirely
+		wantCacheLog := []CacheLogEntry{
+			{
+				Operation: "get",
+				Keys:      []string{`{"__typename":"User","key":{"id":"error-user"}}`},
+				Hits:      []bool{false},
+			},
+			// NO "set" entry - this is the key assertion
+		}
+		assert.Equal(t, wantCacheLog, defaultCache.GetLog(), "Cache log should only have 'get' miss, no 'set'")
+
+		// Second query - L2 should NOT have cached the error, so accounts should be called again
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, errorQuery, nil, t)
+
+		// Same error should be returned
+		assert.Equal(t, expectedErrorResponse, string(resp))
+
+		accountsCallsSecond := tracker.GetCount(accountsHost)
+		assert.Equal(t, 1, accountsCallsSecond, "Second query should call accounts again (L2 should NOT cache errors)")
+
+		// Second query should also have same cache log pattern (get miss, no set)
+		assert.Equal(t, wantCacheLog, defaultCache.GetLog(), "Second query cache log should also have 'get' miss, no 'set'")
+	})
+
+	t.Run("L1 and L2 - error response prevents both caches", func(t *testing.T) {
+		// This test verifies that both L1 and L2 caches are NOT populated when an error occurs.
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{
+			"default": defaultCache,
+		}
+
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		// Configure L2 caching for User entities
+		subgraphCachingConfigs := engine.SubgraphCachingConfigs{
+			{
+				SubgraphName: "accounts",
+				EntityCaching: plan.EntityCacheConfigurations{
+					{TypeName: "User", CacheName: "default", TTL: 30 * time.Second},
+				},
+			},
+		}
+
+		cachingOpts := resolve.CachingOptions{
+			EnableL1Cache: true,
+			EnableL2Cache: true,
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(cachingOpts),
+			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// Extract hostnames
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		// First query - should get error from accounts
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, errorQuery, nil, t)
+
+		// Verify exact error response
+		assert.Equal(t, expectedErrorResponse, string(resp))
+
+		accountsCallsFirst := tracker.GetCount(accountsHost)
+		assert.Equal(t, 1, accountsCallsFirst, "First query should call accounts subgraph once")
+
+		// Verify exact cache log: only "get" with miss, NO "set"
+		wantCacheLog := []CacheLogEntry{
+			{
+				Operation: "get",
+				Keys:      []string{`{"__typename":"User","key":{"id":"error-user"}}`},
+				Hits:      []bool{false},
+			},
+		}
+		assert.Equal(t, wantCacheLog, defaultCache.GetLog(), "Cache log should only have 'get' miss, no 'set'")
+
+		// Second query - neither L1 nor L2 should have cached the error
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, errorQuery, nil, t)
+
+		// Same error should be returned
+		assert.Equal(t, expectedErrorResponse, string(resp))
+
+		accountsCallsSecond := tracker.GetCount(accountsHost)
+		assert.Equal(t, 1, accountsCallsSecond, "Second query should call accounts again (neither L1 nor L2 should cache errors)")
+
+		// Second query should also have same cache log pattern
+		assert.Equal(t, wantCacheLog, defaultCache.GetLog(), "Second query cache log should also have 'get' miss, no 'set'")
+	})
+
+	t.Run("error does not pollute cache for subsequent success queries", func(t *testing.T) {
+		// This test verifies that an error query doesn't pollute the cache
+		// and that subsequent successful queries still work correctly.
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{
+			"default": defaultCache,
+		}
+
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		// Configure L2 caching for User entities
+		subgraphCachingConfigs := engine.SubgraphCachingConfigs{
+			{
+				SubgraphName: "accounts",
+				EntityCaching: plan.EntityCacheConfigurations{
+					{TypeName: "User", CacheName: "default", TTL: 30 * time.Second},
+				},
+			},
+		}
+
+		cachingOpts := resolve.CachingOptions{
+			EnableL1Cache: true,
+			EnableL2Cache: true,
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(cachingOpts),
+			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// Extract hostnames
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		// First: Query that triggers an error
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, errorQuery, nil, t)
+
+		// Verify exact error response
+		assert.Equal(t, expectedErrorResponse, string(resp))
+
+		accountsCallsError := tracker.GetCount(accountsHost)
+		assert.Equal(t, 1, accountsCallsError, "Error query should call accounts")
+
+		// Verify error-user was NOT cached (only get, no set)
+		wantErrorCacheLog := []CacheLogEntry{
+			{
+				Operation: "get",
+				Keys:      []string{`{"__typename":"User","key":{"id":"error-user"}}`},
+				Hits:      []bool{false},
+			},
+		}
+		assert.Equal(t, wantErrorCacheLog, defaultCache.GetLog(), "Error query cache log should only have 'get' miss, no 'set'")
+
+		// Second: Query a successful user (User 1234 via me query)
+		// Note: "me" is a root query, not an entity fetch, so it doesn't use L2 entity caching
+		successQuery := `query {
+			me {
+				id
+				username
+			}
+		}`
+		expectedSuccessResponse := `{"data":{"me":{"id":"1234","username":"Me"}}}`
+
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, successQuery, nil, t)
+
+		// Should succeed with exact expected response
+		assert.Equal(t, expectedSuccessResponse, string(resp))
+
+		// Note: Root queries (me) don't use L2 entity caching by default,
+		// so the cache log should be empty for this query.
+		// The important thing is that the previous error didn't pollute the cache.
+		assert.Equal(t, 0, len(defaultCache.GetLog()), "Root query should not use L2 entity cache")
+
+		// Third: Query the error user again - should still fail (not cached)
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, errorQuery, nil, t)
+
+		assert.Equal(t, expectedErrorResponse, string(resp))
+		accountsCallsErrorAgain := tracker.GetCount(accountsHost)
+		assert.Equal(t, 1, accountsCallsErrorAgain, "Error query should call accounts again (error was not cached)")
+
+		// Verify cache log still shows only get miss, no set
+		assert.Equal(t, wantErrorCacheLog, defaultCache.GetLog(), "Third query cache log should still have 'get' miss, no 'set'")
+	})
+}
