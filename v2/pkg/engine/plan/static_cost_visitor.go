@@ -86,6 +86,18 @@ func (v *StaticCostVisitor) EnterField(fieldRef int) {
 		}
 	}
 
+	aliasOrName := v.Operation.FieldAliasOrNameString(fieldRef)
+
+	var jsonPath string
+	if len(v.stack) > 0 {
+		parent := v.stack[len(v.stack)-1]
+		if parent.jsonPath != "" {
+			jsonPath = parent.jsonPath + "." + aliasOrName
+		} else {
+			jsonPath = aliasOrName
+		}
+	}
+
 	isEnclosingTypeAbstract := v.Walker.EnclosingTypeDefinition.Kind.IsAbstractType()
 	// Create a skeleton node. dataSourceHashes will be filled in leaveFieldCost
 	node := CostTreeNode{
@@ -98,6 +110,7 @@ func (v *StaticCostVisitor) EnterField(fieldRef int) {
 		returnsAbstractType:     isAbstractType,
 		isEnclosingTypeAbstract: isEnclosingTypeAbstract,
 		arguments:               arguments,
+		jsonPath:                jsonPath,
 	}
 
 	// Attach to parent

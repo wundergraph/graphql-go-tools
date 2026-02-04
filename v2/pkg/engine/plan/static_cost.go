@@ -200,6 +200,8 @@ type CostTreeNode struct {
 	// arguments contain the values of arguments passed to the field.
 	arguments map[string]ArgumentInfo
 
+	jsonPath string // JSON path using aliases too
+
 	returnsListType         bool
 	returnsSimpleType       bool
 	returnsAbstractType     bool
@@ -240,18 +242,22 @@ func (node *CostTreeNode) maxMultiplierImplementingField(config *DataSourceCostC
 	return maxListSize
 }
 
-// staticCost calculates the static cost of this node and all descendants
-func (node *CostTreeNode) staticCost(configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value, defaultListSize int) int {
+// cost calculates the estimated/actual cost of this node and all descendants.
+//
+// defaultListSize designates the mode of operation.
+// When it is positive, then its value is used as a fallback value of list sizes for the estimated cost.
+// When it is negative, then it computes the actual cost. And it uses the actualListSizes map.
+func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value, defaultListSize int, actualListSizes map[string]int) int {
 	if node == nil {
 		return 0
 	}
 
-	fieldCost, argsCost, directivesCost, multiplier := node.costsAndMultiplier(configs, variables, defaultListSize)
+	fieldCost, argsCost, directivesCost, multiplier := node.costsAndMultiplier(configs, variables, defaultListSize, actualListSizes)
 
 	// Sum children (fields) costs
 	var childrenCost int
 	for _, child := range node.children {
-		childrenCost += child.staticCost(configs, variables, defaultListSize)
+		childrenCost += child.cost(configs, variables, defaultListSize, actualListSizes)
 	}
 
 	// Apply multiplier to children cost (for list fields)
@@ -279,7 +285,7 @@ func (node *CostTreeNode) staticCost(configs map[DSHash]*DataSourceCostConfig, v
 	return cost
 }
 
-// costsAndMultiplier fills in the cost values for a node based on its data sources.
+// costsAndMultiplier returns the cost values for a node based on its data sources.
 //
 // For this node we sum weights of the field or its returned type for all the data sources.
 // Each data source can have its own cost configuration. If we plan field on two data sources,
@@ -288,9 +294,15 @@ func (node *CostTreeNode) staticCost(configs map[DSHash]*DataSourceCostConfig, v
 // fieldCost is the weight of this field or its returned type
 // argsCost is the sum of argument weights and input fields used on this field.
 // Weights on directives ignored for now.
-// For the multiplier we pick the maximum field weight of implementing types and then
+//
+// defaultListSize designates the mode of operation.
+// When it is positive, then its value is used as a fallback value of list sizes for the estimated cost.
+// When it is negative, then it computes the actual cost. And it uses the actualListSizes map.
+//
+// When estimating cost, it picks the highest multiplier among different data sources.
+// Also, it picks the maximum field weight of implementing types and then
 // the maximum among slicing arguments.
-func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value, defaultListSize int) (fieldCost, argsCost, directiveCost, multiplier int) {
+func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value, defaultListSize int, actualListSizes map[string]int) (fieldCost, argsCost, directiveCost, multiplier int) {
 	if len(node.dataSourceHashes) <= 0 {
 		// no data source is responsible for this field
 		return
@@ -301,6 +313,8 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 	argsCost = 0
 	directiveCost = 0
 	multiplier = 0
+
+	estimated := defaultListSize > 0
 
 	for _, dsHash := range node.dataSourceHashes {
 		dsCostConfig, ok := configs[dsHash]
@@ -381,7 +395,7 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 		}
 
 		// Compute multiplier as the maximum of data sources.
-		if listSize != nil {
+		if estimated && listSize != nil {
 			localMultiplier := listSize.multiplier(node.arguments, variables, defaultListSize)
 			// If this node returns a list of abstract types, then it could have listSize defined.
 			// Spec allows defining listSize on the fields of interfaces.
@@ -392,8 +406,16 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 
 	}
 
-	if multiplier == 0 && node.returnsListType {
-		multiplier = defaultListSize
+	if estimated {
+		if multiplier == 0 && node.returnsListType {
+			multiplier = defaultListSize
+		}
+	} else {
+		var ok bool
+		multiplier, ok = actualListSizes[node.jsonPath]
+		if !ok {
+			fmt.Printf("WARNING: no actual list size for field %v\n", node.jsonPath)
+		}
 	}
 	return
 }
@@ -459,7 +481,7 @@ func (c *CostCalculator) GetStaticCost(config Configuration, variables *astjson.
 	if defaultListSize < 1 {
 		defaultListSize = 1
 	}
-	return c.tree.staticCost(costConfigs, variables, defaultListSize)
+	return c.tree.cost(costConfigs, variables, defaultListSize)
 
 }
 
@@ -520,7 +542,7 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*Da
 	sb.WriteString("\n")
 
 	// Compute costs for this node to display in debug output
-	fieldCost, argsCost, dirsCost, multiplier := node.costsAndMultiplier(configs, variables, defaultListSize)
+	fieldCost, argsCost, dirsCost, multiplier := node.costsAndMultiplier(configs, variables, defaultListSize, nil)
 	if fieldCost != 0 || argsCost != 0 || dirsCost != 0 || multiplier != 0 {
 		fmt.Fprintf(sb, "%s  fieldCost=%d, argsCost=%d, directivesCost=%d, multiplier=%d",
 			indent, fieldCost, argsCost, dirsCost, multiplier)
@@ -550,10 +572,14 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*Da
 		fmt.Fprintf(sb, "%s  implements: [%s]\n", indent, strings.Join(node.implementingTypeNames, ", "))
 	}
 
+	if len(node.jsonPath) > 0 {
+		fmt.Fprintf(sb, "%s  jsonPath=%s\n", indent, node.jsonPath)
+	}
+
 	// This is somewhat redundant, but it should not be used in production.
 	// If there is a need to present cost tree to the user,
 	// printing should be embedded into the tree calculation process.
-	subtreeCost := node.staticCost(configs, variables, defaultListSize)
+	subtreeCost := node.cost(configs, variables, defaultListSize)
 	fmt.Fprintf(sb, "%s  cost=%d\n", indent, subtreeCost)
 
 	for _, child := range node.children {

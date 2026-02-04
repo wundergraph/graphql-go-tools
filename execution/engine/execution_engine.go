@@ -213,7 +213,7 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 	}
 	operation.ComputeStaticCost(costCalculator, e.config.plannerConfig, execContext.resolveContext.Variables)
 	// Debugging of cost trees. Do not remove.
-	// fmt.Println(costCalculator.DebugPrint(e.config.plannerConfig, execContext.resolveContext.Variables))
+	fmt.Println(costCalculator.DebugPrint(e.config.plannerConfig, execContext.resolveContext.Variables))
 
 	if execContext.resolveContext.TracingOptions.Enable && !execContext.resolveContext.TracingOptions.ExcludePlannerStats {
 		planningTime := resolve.GetDurationNanoSinceTraceStart(execContext.resolveContext.Context()) - tracePlanStart
