@@ -60,6 +60,10 @@ type Resolvable struct {
 	enclosingTypeNames []string
 
 	currentFieldInfo *FieldInfo
+
+	// haltExecution is set to true when ErrorBehaviorHalt encounters an error.
+	// Once set, remaining fetches and resolution will be skipped.
+	haltExecution bool
 }
 
 type ResolvableOptions struct {
@@ -98,6 +102,7 @@ func (r *Resolvable) Reset() {
 	r.renameTypeNames = r.renameTypeNames[:0]
 	r.authorizationError = nil
 	r.astjsonArena = nil
+	r.haltExecution = false
 	r.xxh.Reset()
 	for k := range r.authorizationAllow {
 		delete(r.authorizationAllow, k)
@@ -215,6 +220,12 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 	if r.authorizationError != nil {
 		return r.authorizationError
 	}
+
+	// In HALT mode, if we encountered any error, the entire data becomes null
+	if r.haltExecution {
+		hasErrors = true
+	}
+
 	r.printBytes(lBrace)
 	if r.hasErrors() {
 		r.printErrors()
@@ -253,6 +264,33 @@ func (r *Resolvable) enclosingTypeName() string {
 
 func (r *Resolvable) err() bool {
 	return true
+}
+
+// handleNonNullableError handles the error behavior for non-nullable field errors.
+// Returns true if the error should propagate (bubble up), false if it should stop here.
+func (r *Resolvable) handleNonNullableError() bool {
+	// If ctx is nil (e.g., during variable rendering), default to PROPAGATE behavior
+	if r.ctx == nil {
+		return true
+	}
+
+	switch r.ctx.ExecutionOptions.ErrorBehavior {
+	case ErrorBehaviorNull:
+		// NULL mode: don't propagate, the field becomes null even if non-nullable
+		return false
+	case ErrorBehaviorHalt:
+		// HALT mode: stop execution entirely, propagate the error
+		r.haltExecution = true
+		return true
+	default:
+		// PROPAGATE mode (default): traditional null bubbling
+		return true
+	}
+}
+
+// HaltExecution returns true if execution should be halted (HALT mode encountered an error).
+func (r *Resolvable) HaltExecution() bool {
+	return r.haltExecution
 }
 
 func (r *Resolvable) printErrors() {
@@ -585,7 +623,10 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(obj.Path, parent)
-		return r.err()
+		if r.handleNonNullableError() {
+			return r.err()
+		}
+		return r.walkNull()
 	}
 	r.pushNodePathElement(obj.Path)
 	isRoot := r.depth < 2
@@ -829,7 +870,10 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(arr.Path, parent)
-		return r.err()
+		if r.handleNonNullableError() {
+			return r.err()
+		}
+		return r.walkNull()
 	}
 	r.pushNodePathElement(arr.Path)
 	defer r.popNodePathElement(arr.Path)
@@ -904,7 +948,10 @@ func (r *Resolvable) walkString(s *String, value *astjson.Value) bool {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(s.Path, parent)
-		return r.err()
+		if r.handleNonNullableError() {
+			return r.err()
+		}
+		return r.walkNull()
 	}
 	if value.Type() != astjson.TypeString {
 		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
@@ -950,7 +997,10 @@ func (r *Resolvable) walkBoolean(b *Boolean, value *astjson.Value) bool {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(b.Path, parent)
-		return r.err()
+		if r.handleNonNullableError() {
+			return r.err()
+		}
+		return r.walkNull()
 	}
 	if value.Type() != astjson.TypeTrue && value.Type() != astjson.TypeFalse {
 		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
@@ -971,7 +1021,10 @@ func (r *Resolvable) walkInteger(i *Integer, value *astjson.Value) bool {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(i.Path, parent)
-		return r.err()
+		if r.handleNonNullableError() {
+			return r.err()
+		}
+		return r.walkNull()
 	}
 	if value.Type() != astjson.TypeNumber {
 		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
@@ -992,7 +1045,10 @@ func (r *Resolvable) walkFloat(f *Float, value *astjson.Value) bool {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(f.Path, parent)
-		return r.err()
+		if r.handleNonNullableError() {
+			return r.err()
+		}
+		return r.walkNull()
 	}
 	if !r.print {
 		if value.Type() != astjson.TypeNumber {
@@ -1022,7 +1078,10 @@ func (r *Resolvable) walkBigInt(b *BigInt, value *astjson.Value) bool {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(b.Path, parent)
-		return r.err()
+		if r.handleNonNullableError() {
+			return r.err()
+		}
+		return r.walkNull()
 	}
 	if r.print {
 		r.renderScalarFieldValue(value, b.Nullable)
@@ -1038,7 +1097,10 @@ func (r *Resolvable) walkScalar(s *Scalar, value *astjson.Value) bool {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(s.Path, parent)
-		return r.err()
+		if r.handleNonNullableError() {
+			return r.err()
+		}
+		return r.walkNull()
 	}
 	if r.print {
 		r.renderScalarFieldValue(value, s.Nullable)
@@ -1070,7 +1132,10 @@ func (r *Resolvable) walkCustom(c *CustomNode, value *astjson.Value) bool {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(c.Path, parent)
-		return r.err()
+		if r.handleNonNullableError() {
+			return r.err()
+		}
+		return r.walkNull()
 	}
 	r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
 	resolved, err := c.Resolve(r.ctx, r.marshalBuf)
@@ -1149,7 +1214,10 @@ func (r *Resolvable) walkEnum(e *Enum, value *astjson.Value) bool {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(e.Path, parent)
-		return r.err()
+		if r.handleNonNullableError() {
+			return r.err()
+		}
+		return r.walkNull()
 	}
 	if value.Type() != astjson.TypeString {
 		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
@@ -1211,7 +1279,7 @@ func (r *Resolvable) addNonNullableFieldError(fieldPath []string, parent *astjso
 	if r.options.ApolloCompatibilityValueCompletionInExtensions {
 		r.addValueCompletion(r.renderApolloCompatibleNonNullableErrorMessage(), errorcodes.InvalidGraphql)
 	} else {
-		errorMessage := fmt.Sprintf("Cannot return null for non-nullable field '%s'.", r.renderFieldPath())
+		errorMessage := fmt.Sprintf("Cannot return null for non-nullable field '%s'.", r.renderFieldCoordinates())
 		r.ensureErrorsInitialized()
 		fastjsonext.AppendErrorToArray(r.astjsonArena, r.errors, errorMessage, r.path)
 	}
@@ -1277,7 +1345,13 @@ func (r *Resolvable) renderFieldCoordinates() string {
 	case 1:
 		return r.renderRootFieldCoordinates(r.path[0].Name)
 	default:
-		return fmt.Sprintf("%s.%s", r.enclosingTypeName(), r.path[pathLength-1].Name)
+		typeName := r.enclosingTypeName()
+		fieldName := r.path[pathLength-1].Name
+		if typeName == "" {
+			// Fall back to full path if no type name is available
+			return r.renderFieldPath()
+		}
+		return fmt.Sprintf("%s.%s", typeName, fieldName)
 	}
 }
 

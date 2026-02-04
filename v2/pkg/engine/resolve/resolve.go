@@ -197,6 +197,18 @@ type ResolverOptions struct {
 	// and will override any values set for those options
 	// using runtime.GOMAXPROCS(0) allows the deduplication to scale with the CPU resources available to the process
 	SetDeduplicationShardCountToGOMAXPROCS bool
+
+	// OnErrorEnabled enables the onError feature (request extension + __service introspection).
+	// When false (default), the feature is completely invisible:
+	// - onError request extensions are silently ignored
+	// - __service introspection is not available
+	// - The server behaves exactly as if the feature doesn't exist
+	OnErrorEnabled bool
+
+	// DefaultErrorBehavior is the default error behavior when onError is not specified or invalid.
+	// Invalid values silently fall back to this default.
+	// Only effective when OnErrorEnabled is true.
+	DefaultErrorBehavior ErrorBehavior
 }
 
 // New returns a new Resolver. ctx.Done() is used to cancel all active subscriptions and streams.

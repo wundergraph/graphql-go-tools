@@ -139,6 +139,21 @@ func WithCacheStatsOutput(stats *resolve.CacheStatsSnapshot) ExecutionOptions {
 	}
 }
 
+// WithErrorBehavior sets the error handling behavior for the request.
+// This implements the GraphQL spec proposal for onError (PR #1163).
+//
+// Available behaviors:
+//   - ErrorBehaviorPropagate: Traditional null bubbling (default)
+//   - ErrorBehaviorNull: Errors yield null without bubbling
+//   - ErrorBehaviorHalt: First error stops execution, data becomes null
+//
+// Note: This option only has effect when OnErrorEnabled is true in ResolverOptions.
+func WithErrorBehavior(behavior resolve.ErrorBehavior) ExecutionOptions {
+	return func(ctx *internalExecutionContext) {
+		ctx.resolveContext.ExecutionOptions.ErrorBehavior = behavior
+	}
+}
+
 func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engineConfig Configuration, resolverOptions resolve.ResolverOptions) (*ExecutionEngine, error) {
 	executionPlanCache, err := lru.New(1024)
 	if err != nil {

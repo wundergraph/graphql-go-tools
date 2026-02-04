@@ -35,6 +35,7 @@ type Request struct {
 	OperationName string          `json:"operationName"`
 	Variables     json.RawMessage `json:"variables,omitempty"`
 	Query         string          `json:"query"`
+	Extensions    json.RawMessage `json:"extensions,omitempty"`
 
 	document     ast.Document
 	isParsed     bool
@@ -42,6 +43,31 @@ type Request struct {
 	request      resolve.Request
 
 	validForSchema map[uint64]ValidationResult
+}
+
+// extensionsOnError is used for parsing the onError field from extensions
+type extensionsOnError struct {
+	OnError string `json:"onError"`
+}
+
+// GetOnErrorBehavior extracts the onError value from the extensions field.
+// Returns the parsed ErrorBehavior and true if a valid value was found.
+// Returns ErrorBehaviorPropagate and false if not found or invalid.
+func (r *Request) GetOnErrorBehavior() (resolve.ErrorBehavior, bool) {
+	if len(r.Extensions) == 0 {
+		return resolve.ErrorBehaviorPropagate, false
+	}
+
+	var ext extensionsOnError
+	if err := json.Unmarshal(r.Extensions, &ext); err != nil {
+		return resolve.ErrorBehaviorPropagate, false
+	}
+
+	if ext.OnError == "" {
+		return resolve.ErrorBehaviorPropagate, false
+	}
+
+	return resolve.ParseErrorBehavior(ext.OnError)
 }
 
 func UnmarshalRequest(reader io.Reader, request *Request) error {

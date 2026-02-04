@@ -85,6 +85,10 @@ type ExecutionOptions struct {
 	DisableInboundRequestDeduplication bool
 	// Caching configures L1 (per-request) and L2 (external) entity caching.
 	Caching CachingOptions
+	// ErrorBehavior controls error handling during resolution.
+	// Only effective when OnErrorEnabled is true in ResolverOptions.
+	// Default is ErrorBehaviorPropagate for backward compatibility.
+	ErrorBehavior ErrorBehavior
 }
 
 // CachingOptions configures the L1/L2 entity caching behavior.
