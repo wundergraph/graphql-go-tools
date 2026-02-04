@@ -216,13 +216,22 @@ out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
 Test mock in `cache_load_test.go` with TTL support and operation logging.
 
 ### Assertions
-```go
-// GOOD: Precise
-assert.Equal(t, 3, hitCount, "should have exactly 3 L1 hits")
 
-// BAD: Vague
-assert.GreaterOrEqual(t, hitCount, 1)
+**IMPORTANT**: Always use exact assertions in cache tests. Never use vague comparisons.
+
+```go
+// GOOD: Exact values - always preferred
+assert.Equal(t, 3, hitCount, "should have exactly 3 L1 hits")
+assert.Equal(t, int64(12), l1HitsInt, "should have exactly 12 L1 hits")
+assert.Equal(t, 2, accountsCalls, "should call accounts subgraph exactly twice")
+
+// BAD: Never use vague comparisons
+assert.GreaterOrEqual(t, hitCount, 1)  // DON'T DO THIS
+assert.Greater(t, l1HitsInt, int64(0)) // DON'T DO THIS
+assert.LessOrEqual(t, calls, 5)        // DON'T DO THIS
 ```
+
+Exact assertions catch regressions that vague assertions miss. If the expected value changes, update the test to reflect the new exact value.
 
 ## Federation Test Setup
 
