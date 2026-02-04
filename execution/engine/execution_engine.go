@@ -211,7 +211,7 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 	if report.HasErrors() {
 		return report
 	}
-	operation.ComputeStaticCost(costCalculator, e.config.plannerConfig, execContext.resolveContext.Variables)
+	operation.ComputeEstimatedCost(costCalculator, e.config.plannerConfig, execContext.resolveContext.Variables)
 	// Debugging of cost trees. Do not remove.
 	fmt.Println(costCalculator.DebugPrint(e.config.plannerConfig, execContext.resolveContext.Variables))
 
@@ -227,8 +227,14 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 
 	switch p := cachedPlan.(type) {
 	case *plan.SynchronousResponsePlan:
-		_, err := e.resolver.ResolveGraphQLResponse(execContext.resolveContext, p.Response, nil, writer)
-		return err
+		resp, err := e.resolver.ResolveGraphQLResponse(execContext.resolveContext, p.Response, nil, writer)
+		if err != nil {
+			return err
+		}
+		if resp != nil && resp.ActualListSizes != nil {
+			operation.ComputeActualCost(costCalculator, e.config.plannerConfig, execContext.resolveContext.Variables, resp.ActualListSizes)
+		}
+		return nil
 	case *plan.SubscriptionResponsePlan:
 		return e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer)
 	default:
@@ -250,7 +256,7 @@ func (e *ExecutionEngine) getCachedPlan(ctx *internalExecutionContext, operation
 
 	if cached, ok := e.executionPlanCache.Get(cacheKey); ok {
 		if p, ok := cached.(plan.Plan); ok {
-			return p, p.GetStaticCostCalculator()
+			return p, p.GetCostCalculator()
 		}
 	}
 
@@ -262,7 +268,7 @@ func (e *ExecutionEngine) getCachedPlan(ctx *internalExecutionContext, operation
 
 	ctx.postProcessor.Process(planResult)
 	e.executionPlanCache.Add(cacheKey, planResult)
-	return planResult, planResult.GetStaticCostCalculator()
+	return planResult, planResult.GetCostCalculator()
 }
 
 func (e *ExecutionEngine) GetWebsocketBeforeStartHook() WebsocketBeforeStartHook {

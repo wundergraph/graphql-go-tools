@@ -252,6 +252,8 @@ func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, variabl
 		return 0
 	}
 
+	estimated := defaultListSize > 0
+
 	fieldCost, argsCost, directivesCost, multiplier := node.costsAndMultiplier(configs, variables, defaultListSize, actualListSizes)
 
 	// Sum children (fields) costs
@@ -280,7 +282,11 @@ func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, variabl
 	// "A: [Obj] @cost(weight: 5)" means that the cost of the field is 5 for each object in the list.
 	// "type Object @cost(weight: 5) { ... }" does exactly the same thing.
 	// Weight defined on a field has priority over the weight defined on a type.
-	cost += (fieldCost + childrenCost) * multiplier
+	if estimated {
+		cost += (fieldCost + childrenCost) * multiplier
+	} else {
+		cost += fieldCost*multiplier + childrenCost
+	}
 
 	return cost
 }
@@ -333,7 +339,7 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 		if fieldWeight != nil && node.isEnclosingTypeAbstract && parent.returnsAbstractType {
 			// Composition should not let interface fields have weights, so we assume that
 			// the enclosing type is concrete.
-			fmt.Printf("WARNING: cost directive on field %v of interface %v\n", node.fieldCoord, parent.fieldCoord)
+			// fmt.Printf("WARNING: cost directive on field %v of interface %v\n", node.fieldCoord, parent.fieldCoord)
 		}
 		if node.isEnclosingTypeAbstract && parent.returnsAbstractType {
 			// This field is part of the enclosing interface/union.
@@ -406,16 +412,19 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 
 	}
 
-	if estimated {
-		if multiplier == 0 && node.returnsListType {
-			multiplier = defaultListSize
-		}
-	} else {
+	if !node.returnsListType {
+		return
+	}
+	if !estimated { // actual or dynamic
 		var ok bool
 		multiplier, ok = actualListSizes[node.jsonPath]
 		if !ok {
 			fmt.Printf("WARNING: no actual list size for field %v\n", node.jsonPath)
 		}
+		return
+	}
+	if multiplier == 0 {
+		multiplier = defaultListSize
 	}
 	return
 }
@@ -481,8 +490,18 @@ func (c *CostCalculator) GetStaticCost(config Configuration, variables *astjson.
 	if defaultListSize < 1 {
 		defaultListSize = 1
 	}
-	return c.tree.cost(costConfigs, variables, defaultListSize)
+	return c.tree.cost(costConfigs, variables, defaultListSize, nil)
+}
 
+func (c *CostCalculator) GetActualCost(config Configuration, vars *astjson.Value, actualListSizes map[string]int) int {
+	costConfigs := make(map[DSHash]*DataSourceCostConfig)
+	for _, ds := range config.DataSources {
+		if costConfig := ds.GetCostConfig(); costConfig != nil {
+			costConfigs[ds.Hash()] = costConfig
+		}
+	}
+	// most probably variables are not used for actual cost calculation. check that
+	return c.tree.cost(costConfigs, vars, -1, actualListSizes) // -1 signals actual mode
 }
 
 // DebugPrint prints the cost tree structure for debugging purposes.
@@ -579,7 +598,7 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*Da
 	// This is somewhat redundant, but it should not be used in production.
 	// If there is a need to present cost tree to the user,
 	// printing should be embedded into the tree calculation process.
-	subtreeCost := node.cost(configs, variables, defaultListSize)
+	subtreeCost := node.cost(configs, variables, defaultListSize, nil)
 	fmt.Fprintf(sb, "%s  cost=%d\n", indent, subtreeCost)
 
 	for _, child := range node.children {

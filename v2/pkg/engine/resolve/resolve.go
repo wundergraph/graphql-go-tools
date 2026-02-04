@@ -257,7 +257,7 @@ func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{
 
 type GraphQLResolveInfo struct {
 	ResolveAcquireWaitTime time.Duration
-	ActualListSize map[string]int
+	ActualListSizes        map[string]int
 }
 
 func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (*GraphQLResolveInfo, error) {
@@ -289,7 +289,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		return nil, err
 	}
 
-	resp.ActualListSize = t.resolvable.actualListSizes
+	resp.ActualListSizes = t.resolvable.actualListSizes
 
 	return resp, err
 }

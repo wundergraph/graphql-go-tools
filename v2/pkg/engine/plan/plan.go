@@ -14,8 +14,8 @@ const (
 type Plan interface {
 	PlanKind() Kind
 	SetFlushInterval(interval int64)
-	GetStaticCostCalculator() *CostCalculator
-	SetStaticCostCalculator(calc *CostCalculator)
+	GetCostCalculator() *CostCalculator
+	SetCostCalculator(calc *CostCalculator)
 }
 
 type SynchronousResponsePlan struct {
@@ -32,11 +32,11 @@ func (*SynchronousResponsePlan) PlanKind() Kind {
 	return SynchronousResponseKind
 }
 
-func (s *SynchronousResponsePlan) GetStaticCostCalculator() *CostCalculator {
+func (s *SynchronousResponsePlan) GetCostCalculator() *CostCalculator {
 	return s.StaticCostCalculator
 }
 
-func (s *SynchronousResponsePlan) SetStaticCostCalculator(c *CostCalculator) {
+func (s *SynchronousResponsePlan) SetCostCalculator(c *CostCalculator) {
 	s.StaticCostCalculator = c
 }
 
@@ -54,10 +54,10 @@ func (*SubscriptionResponsePlan) PlanKind() Kind {
 	return SubscriptionResponseKind
 }
 
-func (s *SubscriptionResponsePlan) GetStaticCostCalculator() *CostCalculator {
+func (s *SubscriptionResponsePlan) GetCostCalculator() *CostCalculator {
 	return s.StaticCostCalculator
 }
 
-func (s *SubscriptionResponsePlan) SetStaticCostCalculator(c *CostCalculator) {
+func (s *SubscriptionResponsePlan) SetCostCalculator(c *CostCalculator) {
 	s.StaticCostCalculator = c
 }
