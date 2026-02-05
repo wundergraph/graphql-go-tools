@@ -3,6 +3,7 @@ package graphql
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -199,18 +200,22 @@ func (r *Request) OperationType() (OperationType, error) {
 func (r *Request) ComputeEstimatedCost(calc *plan.CostCalculator, config plan.Configuration, variables *astjson.Value) {
 	if calc != nil {
 		r.estimatedCost = calc.GetStaticCost(config, variables)
+		// Debugging of cost trees. Uncomment to debug.
+		fmt.Println(calc.DebugPrint(config, variables, nil))
 	} else {
 		r.estimatedCost = 0
 	}
 }
 
-func (r *Request) StaticCost() int {
+func (r *Request) EstimatedCost() int {
 	return r.estimatedCost
 }
 
 func (r *Request) ComputeActualCost(calc *plan.CostCalculator, config plan.Configuration, variables *astjson.Value, actualListSizes map[string]int) {
 	if calc != nil && actualListSizes != nil {
 		r.actualCost = calc.GetActualCost(config, variables, actualListSizes)
+		// Debugging of cost trees. Uncomment to debug.
+		fmt.Println(calc.DebugPrint(config, variables, actualListSizes))
 	} else {
 		r.actualCost = 0
 	}

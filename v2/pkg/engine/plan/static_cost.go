@@ -252,8 +252,6 @@ func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, variabl
 		return 0
 	}
 
-	estimated := defaultListSize > 0
-
 	fieldCost, argsCost, directivesCost, multiplier := node.costsAndMultiplier(configs, variables, defaultListSize, actualListSizes)
 
 	// Sum children (fields) costs
@@ -262,8 +260,8 @@ func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, variabl
 		childrenCost += child.cost(configs, variables, defaultListSize, actualListSizes)
 	}
 
-	// Apply multiplier to children cost (for list fields)
-	if multiplier == 0 {
+	// We enforce this multiplier only for non-list fields.
+	if multiplier == 0 && !node.returnsListType {
 		multiplier = 1
 	}
 	cost := argsCost + directivesCost
@@ -282,11 +280,7 @@ func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, variabl
 	// "A: [Obj] @cost(weight: 5)" means that the cost of the field is 5 for each object in the list.
 	// "type Object @cost(weight: 5) { ... }" does exactly the same thing.
 	// Weight defined on a field has priority over the weight defined on a type.
-	if estimated {
-		cost += (fieldCost + childrenCost) * multiplier
-	} else {
-		cost += fieldCost*multiplier + childrenCost
-	}
+	cost += (fieldCost + childrenCost) * multiplier
 
 	return cost
 }
@@ -339,7 +333,7 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 		if fieldWeight != nil && node.isEnclosingTypeAbstract && parent.returnsAbstractType {
 			// Composition should not let interface fields have weights, so we assume that
 			// the enclosing type is concrete.
-			// fmt.Printf("WARNING: cost directive on field %v of interface %v\n", node.fieldCoord, parent.fieldCoord)
+			fmt.Printf("WARNING: cost directive on field %v of interface %v\n", node.fieldCoord, parent.fieldCoord)
 		}
 		if node.isEnclosingTypeAbstract && parent.returnsAbstractType {
 			// This field is part of the enclosing interface/union.
@@ -419,7 +413,8 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 		var ok bool
 		multiplier, ok = actualListSizes[node.jsonPath]
 		if !ok {
-			fmt.Printf("WARNING: no actual list size for field %v\n", node.jsonPath)
+			fmt.Printf("WARNING: no actual list size for field %v: %v\n", node.jsonPath, actualListSizes)
+			fmt.Printf("WARNING: defaultListSize: %v\n", defaultListSize)
 		}
 		return
 	}
@@ -506,13 +501,11 @@ func (c *CostCalculator) GetActualCost(config Configuration, vars *astjson.Value
 
 // DebugPrint prints the cost tree structure for debugging purposes.
 // It shows each node's field coordinate, costs, multipliers, and computed totals.
-func (c *CostCalculator) DebugPrint(config Configuration, variables *astjson.Value) string {
+func (c *CostCalculator) DebugPrint(config Configuration, variables *astjson.Value, actualListSizes map[string]int) string {
 	if c.tree == nil || len(c.tree.children) == 0 {
 		return "<empty cost tree>"
 	}
 	var sb strings.Builder
-	sb.WriteString("Cost Tree Debug\n")
-	sb.WriteString("===============\n")
 	costConfigs := make(map[DSHash]*DataSourceCostConfig)
 	for _, ds := range config.DataSources {
 		if costConfig := ds.GetCostConfig(); costConfig != nil {
@@ -523,12 +516,20 @@ func (c *CostCalculator) DebugPrint(config Configuration, variables *astjson.Val
 	if defaultListSize < 1 {
 		defaultListSize = 1
 	}
-	c.tree.children[0].debugPrint(&sb, costConfigs, variables, defaultListSize, 0)
+	if actualListSizes != nil {
+		defaultListSize = -1
+		sb.WriteString("Actual Cost Tree Debug\n")
+		sb.WriteString("======================\n")
+	} else {
+		sb.WriteString("Estimated Cost Tree Debug\n")
+		sb.WriteString("=========================\n")
+	}
+	c.tree.children[0].debugPrint(&sb, costConfigs, variables, defaultListSize, actualListSizes, 0)
 	return sb.String()
 }
 
 // debugPrint recursively prints a node and its children with indentation.
-func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value, defaultListSize int, depth int) {
+func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value, defaultListSize int, actualListSizes map[string]int, depth int) {
 	// implementation is a bit crude and redundant, we could skip calculating nodes all over again.
 	// but it should suffice for debugging tests.
 	if node == nil {
@@ -561,14 +562,23 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*Da
 	sb.WriteString("\n")
 
 	// Compute costs for this node to display in debug output
-	fieldCost, argsCost, dirsCost, multiplier := node.costsAndMultiplier(configs, variables, defaultListSize, nil)
+	fieldCost, argsCost, dirsCost, multiplier := node.costsAndMultiplier(configs, variables, defaultListSize, actualListSizes)
 	if fieldCost != 0 || argsCost != 0 || dirsCost != 0 || multiplier != 0 {
-		fmt.Fprintf(sb, "%s  fieldCost=%d, argsCost=%d, directivesCost=%d, multiplier=%d",
-			indent, fieldCost, argsCost, dirsCost, multiplier)
+		fmt.Fprintf(sb, "%s  fieldCost=%d", indent, fieldCost)
+
+		if argsCost > 0 {
+			fmt.Fprintf(sb, ", argsCost=%d", argsCost)
+		}
+		if dirsCost > 0 {
+			fmt.Fprintf(sb, ", directivesCost=%d", dirsCost)
+		}
+		if multiplier > 0 {
+			fmt.Fprintf(sb, ", multiplier=%d", multiplier)
+		}
 
 		// Show data sources
 		if len(node.dataSourceHashes) > 0 {
-			fmt.Fprintf(sb, ", dataSources=%d", len(node.dataSourceHashes))
+			fmt.Fprintf(sb, ", dataSources=%v", node.dataSourceHashes)
 		}
 		sb.WriteString("\n")
 	}
@@ -598,10 +608,10 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*Da
 	// This is somewhat redundant, but it should not be used in production.
 	// If there is a need to present cost tree to the user,
 	// printing should be embedded into the tree calculation process.
-	subtreeCost := node.cost(configs, variables, defaultListSize, nil)
+	subtreeCost := node.cost(configs, variables, defaultListSize, actualListSizes)
 	fmt.Fprintf(sb, "%s  cost=%d\n", indent, subtreeCost)
 
 	for _, child := range node.children {
-		child.debugPrint(sb, configs, variables, defaultListSize, depth+1)
+		child.debugPrint(sb, configs, variables, defaultListSize, actualListSizes, depth+1)
 	}
 }
