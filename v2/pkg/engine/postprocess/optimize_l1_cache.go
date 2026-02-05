@@ -1,6 +1,7 @@
 package postprocess
 
 import (
+	"bytes"
 	"slices"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
@@ -54,13 +55,7 @@ func (o *optimizeL1Cache) ProcessFetchTree(root *resolve.FetchTreeNode) {
 		return
 	}
 
-	// Phase 2: Build reverse dependency map and group by entity type
-	byEntityType := make(map[string][]*entityFetchInfo)
-	for _, ef := range entityFetches {
-		byEntityType[ef.entityType] = append(byEntityType[ef.entityType], ef)
-	}
-
-	// Phase 3: Determine L1 usefulness for each entity fetch
+	// Phase 2: Determine L1 usefulness for each entity fetch
 	for _, ef := range entityFetches {
 		canRead := o.hasValidProvider(ef, entityFetches, rootFieldProviderInfos)
 		canWrite := o.hasValidConsumer(ef, entityFetches)
@@ -372,7 +367,7 @@ func objectProvidesAllFields(provider, consumer *resolve.Object) bool {
 // findFieldByName finds a field by name in a slice of fields
 func findFieldByName(fields []*resolve.Field, name []byte) *resolve.Field {
 	for _, field := range fields {
-		if string(field.Name) == string(name) {
+		if bytes.Equal(field.Name, name) {
 			return field
 		}
 	}
