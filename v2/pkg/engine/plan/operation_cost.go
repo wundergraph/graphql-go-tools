@@ -2,7 +2,7 @@ package plan
 
 /*
 
-Static Cost Analysis.
+Cost Analysis.
 
 Planning visitor collects information for the costCalculator via EnterField and LeaveField hooks.
 Calculator builds a tree of nodes, each node corresponding to the requested field.
@@ -483,9 +483,9 @@ func NewCostCalculator() *CostCalculator {
 	return &c
 }
 
-// GetStaticCost returns the calculated total static cost.
+// EstimateCost returns the calculated total static cost.
 // config should be static per process or instance. variables could change between requests.
-func (c *CostCalculator) GetStaticCost(config Configuration, variables *astjson.Value) int {
+func (c *CostCalculator) EstimateCost(config Configuration, variables *astjson.Value) int {
 	// costConfigs maps data source hash to its cost configuration. At the runtime we do not change
 	// this at all. It could be set once per router process.
 	costConfigs := make(map[DSHash]*DataSourceCostConfig)
@@ -505,7 +505,7 @@ const (
 	actualCostMode = -1 // -1 signals actual mode
 )
 
-func (c *CostCalculator) GetActualCost(config Configuration, vars *astjson.Value, actualListSizes map[string]int) int {
+func (c *CostCalculator) ActualCost(config Configuration, vars *astjson.Value, actualListSizes map[string]int) int {
 	costConfigs := make(map[DSHash]*DataSourceCostConfig)
 	for _, ds := range config.DataSources {
 		if costConfig := ds.GetCostConfig(); costConfig != nil {
