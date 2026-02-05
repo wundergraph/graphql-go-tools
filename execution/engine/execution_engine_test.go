@@ -7061,7 +7061,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					expectedResponse:      `{"data":{"users":[{"posts":[{"comments":[{"text":"a"},{"text":"b"},{"text":"c"}]},{"comments":[{"text":"d"},{"text":"e"},{"text":"f"}]}]},{"posts":[{"comments":[{"text":"g"},{"text":"h"},{"text":"i"}]},{"comments":[{"text":"j"},{"text":"k"},{"text":"l"}]}]}]}}`,
 					expectedEstimatedCost: 640,
 					// Actual cost: 2 * (4 + 2 * (3 + 3 * (2 + 1))) = 56
-					expectedActualCost: 320,
+					expectedActualCost: 56,
 				},
 				computeCosts(),
 			))
@@ -7133,7 +7133,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					// Estimated : 10 * (4 + 5 * (3 + 2 * (2 + 1))) = 490
 					expectedEstimatedCost: 490,
 					// Actual cost: 2 * (4 + 1.5 * (3 + 3 * (2 + 1))) = 44
-					expectedActualCost: 188,
+					expectedActualCost: 44,
 				},
 				computeCosts(),
 			))

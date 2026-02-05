@@ -28,6 +28,7 @@ A few things on the TBD list:
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/wundergraph/astjson"
@@ -247,6 +248,7 @@ func (node *CostTreeNode) maxMultiplierImplementingField(config *DataSourceCostC
 // defaultListSize designates the mode of operation.
 // When it is positive, then its value is used as a fallback value of list sizes for the estimated cost.
 // When it is negative, then it computes the actual cost. And it uses the actualListSizes map.
+// For actual cost, multipliers are computed as averages (totalCount/parentCount).
 func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value, defaultListSize int, actualListSizes map[string]int) int {
 	if node == nil {
 		return 0
@@ -254,21 +256,22 @@ func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, variabl
 
 	fieldCost, argsCost, directivesCost, multiplier := node.costsAndMultiplier(configs, variables, defaultListSize, actualListSizes)
 
-	// Sum children (fields) costs
+	// Sum children costs
 	var childrenCost int
 	for _, child := range node.children {
 		childrenCost += child.cost(configs, variables, defaultListSize, actualListSizes)
 	}
 
-	// We enforce this multiplier only for non-list fields.
+	// We enforce multiplier=1 for non-list fields.
 	if multiplier == 0 && !node.returnsListType {
 		multiplier = 1
 	}
+
 	cost := argsCost + directivesCost
 	if cost < 0 {
-		// If arguments and directive weights decrease the field cost, floor it to zero.
 		cost = 0
 	}
+
 	// Here we do not follow IBM spec. IBM spec does not use the cost of the object itself
 	// in multiplication. It assumes that the weight of the type should be just summed up
 	// without regard to the size of the list.
@@ -280,7 +283,7 @@ func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, variabl
 	// "A: [Obj] @cost(weight: 5)" means that the cost of the field is 5 for each object in the list.
 	// "type Object @cost(weight: 5) { ... }" does exactly the same thing.
 	// Weight defined on a field has priority over the weight defined on a type.
-	cost += (fieldCost + childrenCost) * multiplier
+	cost += int(math.Ceil(float64(childrenCost+fieldCost) * multiplier))
 
 	return cost
 }
@@ -302,7 +305,7 @@ func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, variabl
 // When estimating cost, it picks the highest multiplier among different data sources.
 // Also, it picks the maximum field weight of implementing types and then
 // the maximum among slicing arguments.
-func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value, defaultListSize int, actualListSizes map[string]int) (fieldCost, argsCost, directiveCost, multiplier int) {
+func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value, defaultListSize int, actualListSizes map[string]int) (fieldCost, argsCost, directiveCost int, multiplier float64) {
 	if len(node.dataSourceHashes) <= 0 {
 		// no data source is responsible for this field
 		return
@@ -396,7 +399,7 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 
 		// Compute multiplier as the maximum of data sources.
 		if estimated && listSize != nil {
-			localMultiplier := listSize.multiplier(node.arguments, variables, defaultListSize)
+			localMultiplier := float64(listSize.multiplier(node.arguments, variables, defaultListSize))
 			// If this node returns a list of abstract types, then it could have listSize defined.
 			// Spec allows defining listSize on the fields of interfaces.
 			if localMultiplier > multiplier {
@@ -410,16 +413,26 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 		return
 	}
 	if !estimated { // actual or dynamic
-		var ok bool
-		multiplier, ok = actualListSizes[node.jsonPath]
-		if !ok {
-			fmt.Printf("WARNING: no actual list size for field %v: %v\n", node.jsonPath, actualListSizes)
-			fmt.Printf("WARNING: defaultListSize: %v\n", defaultListSize)
+		totalCount, ok := actualListSizes[node.jsonPath]
+		if ok && totalCount != 0 {
+			parentCount := 1
+			if lastDot := strings.LastIndex(node.jsonPath, "."); lastDot != -1 {
+				parentPath := node.jsonPath[:lastDot]
+				if pc, found := actualListSizes[parentPath]; found && pc > 0 {
+					parentCount = pc
+				}
+			}
+			// We compute average to avoid double counting for nested lists
+			multiplier = float64(totalCount) / float64(parentCount)
+		} else {
+			// No items in the list mean that we completely disregard children of the list.
+			// That is not very accurate because we called the resolver of this field anyway.
+			multiplier = 0.0
 		}
 		return
 	}
 	if multiplier == 0 {
-		multiplier = defaultListSize
+		multiplier = float64(defaultListSize)
 	}
 	return
 }
@@ -559,6 +572,9 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*Da
 	if len(flags) > 0 {
 		fmt.Fprintf(sb, " [%s]", strings.Join(flags, ","))
 	}
+	if len(node.jsonPath) > 0 {
+		fmt.Fprintf(sb, " : path=%s", node.jsonPath)
+	}
 	sb.WriteString("\n")
 
 	// Compute costs for this node to display in debug output
@@ -572,9 +588,7 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*Da
 		if dirsCost > 0 {
 			fmt.Fprintf(sb, ", directivesCost=%d", dirsCost)
 		}
-		if multiplier > 0 {
-			fmt.Fprintf(sb, ", multiplier=%d", multiplier)
-		}
+		fmt.Fprintf(sb, ", multiplier=%.2f", multiplier)
 
 		// Show data sources
 		if len(node.dataSourceHashes) > 0 {
@@ -601,15 +615,11 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*Da
 		fmt.Fprintf(sb, "%s  implements: [%s]\n", indent, strings.Join(node.implementingTypeNames, ", "))
 	}
 
-	if len(node.jsonPath) > 0 {
-		fmt.Fprintf(sb, "%s  jsonPath=%s\n", indent, node.jsonPath)
-	}
-
 	// This is somewhat redundant, but it should not be used in production.
 	// If there is a need to present cost tree to the user,
 	// printing should be embedded into the tree calculation process.
 	subtreeCost := node.cost(configs, variables, defaultListSize, actualListSizes)
-	fmt.Fprintf(sb, "%s  cost=%d\n", indent, subtreeCost)
+	fmt.Fprintf(sb, "%s  subCost=%d\n", indent, subtreeCost)
 
 	for _, child := range node.children {
 		child.debugPrint(sb, configs, variables, defaultListSize, actualListSizes, depth+1)
