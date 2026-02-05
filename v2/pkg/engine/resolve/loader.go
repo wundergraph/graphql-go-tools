@@ -598,16 +598,11 @@ func (l *Loader) prepareCacheKeys(info *FetchInfo, cfg FetchCacheConfiguration, 
 	res.cacheConfig = cfg
 
 	// Check if this is an entity fetch (L1 only applies to entity fetches)
-	entityTemplate, isEntity := cfg.CacheKeyTemplate.(*EntityQueryCacheKeyTemplate)
+	_, isEntity := cfg.CacheKeyTemplate.(*EntityQueryCacheKeyTemplate)
 
 	// Always generate cache keys (needed for merging cached data into response)
-	// For entity fetches: uses L1-style keys (no prefix)
-	// For root fetches: uses regular keys (no prefix)
-	if isEntity {
-		res.l1CacheKeys, err = entityTemplate.RenderL1CacheKeys(l.jsonArena, l.ctx, inputItems)
-	} else {
-		res.l1CacheKeys, err = cfg.CacheKeyTemplate.RenderCacheKeys(l.jsonArena, l.ctx, inputItems, "")
-	}
+	// For entity fetches and root fetches: uses keys without prefix for L1
+	res.l1CacheKeys, err = cfg.CacheKeyTemplate.RenderCacheKeys(l.jsonArena, l.ctx, inputItems, "")
 	if err != nil {
 		return false, err
 	}
@@ -629,11 +624,7 @@ func (l *Loader) prepareCacheKeys(info *FetchInfo, cfg FetchCacheConfiguration, 
 			}
 
 			// Render L2 cache keys with prefix
-			if isEntity {
-				res.l2CacheKeys, err = entityTemplate.RenderL2CacheKeys(l.jsonArena, l.ctx, inputItems, prefix)
-			} else {
-				res.l2CacheKeys, err = cfg.CacheKeyTemplate.RenderCacheKeys(l.jsonArena, l.ctx, inputItems, prefix)
-			}
+			res.l2CacheKeys, err = cfg.CacheKeyTemplate.RenderCacheKeys(l.jsonArena, l.ctx, inputItems, prefix)
 			if err != nil {
 				return false, err
 			}
@@ -921,10 +912,10 @@ func (l *Loader) populateL1CacheForRootFieldEntities(fetchItem *FetchItem) {
 	var fieldPath []string
 	for _, template := range templates {
 		entityTemplate, ok := template.(*EntityQueryCacheKeyTemplate)
-		if !ok || entityTemplate.L1Keys == nil || entityTemplate.L1Keys.Renderer == nil {
+		if !ok || entityTemplate.Keys == nil || entityTemplate.Keys.Renderer == nil {
 			continue
 		}
-		obj, ok := entityTemplate.L1Keys.Renderer.Node.(*Object)
+		obj, ok := entityTemplate.Keys.Renderer.Node.(*Object)
 		if !ok {
 			continue
 		}
@@ -978,7 +969,7 @@ func (l *Loader) populateL1CacheForRootFieldEntities(fetchItem *FetchItem) {
 		}
 
 		// Render cache key(s) for this entity
-		cacheKeys, err := entityTemplate.RenderL1CacheKeys(l.jsonArena, l.ctx, []*astjson.Value{entity})
+		cacheKeys, err := entityTemplate.RenderCacheKeys(l.jsonArena, l.ctx, []*astjson.Value{entity}, "")
 		if err != nil || len(cacheKeys) == 0 {
 			continue
 		}

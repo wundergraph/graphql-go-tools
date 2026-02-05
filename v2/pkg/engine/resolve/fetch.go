@@ -316,7 +316,7 @@ type FetchCacheConfiguration struct {
 	TTL time.Duration
 	// CacheKeyTemplate can be used to render a cache key for the fetch.
 	// In case of a root fetch, the variables will be one or more field arguments
-	// For entity fetches, the variables will be a single Object Variable with @key and @requires fields
+	// For entity fetches, the variables will be a single Object Variable with only @key fields
 	CacheKeyTemplate CacheKeyTemplate
 	// IncludeSubgraphHeaderPrefix indicates if cache keys should be prefixed with the subgraph header hash.
 	// The prefix format is "id:cacheKey" where id is the hash from HeadersForSubgraph.

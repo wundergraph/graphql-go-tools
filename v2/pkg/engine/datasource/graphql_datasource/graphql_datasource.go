@@ -879,9 +879,9 @@ func (p *Planner[T]) buildAndStoreEntityCacheKeyTemplate(entityTypeName, fieldNa
 	// knows where to find the entity data in the response
 	mergedObject.Path = []string{fieldName}
 
-	// Create cache key template with L1Keys only (no @requires fields)
+	// Create cache key template with only @key fields (no @requires fields)
 	cacheKeyTemplate := &resolve.EntityQueryCacheKeyTemplate{
-		L1Keys: resolve.NewResolvableObjectVariable(mergedObject),
+		Keys: resolve.NewResolvableObjectVariable(mergedObject),
 	}
 
 	p.rootFieldEntityCacheKeyTemplates[entityTypeName] = cacheKeyTemplate
@@ -1037,15 +1037,22 @@ func (p *Planner[T]) addRepresentationsVariable() {
 	}
 
 	representationsVariable := resolve.NewResolvableObjectVariable(p.buildRepresentationsVariable())
-	entityCacheKeyTemplate := &resolve.EntityQueryCacheKeyTemplate{
-		Keys: representationsVariable,
+
+	// Build cache key template from only @key fields (no @requires fields)
+	// This ensures stable entity identity for both L1 and L2 cache
+	cacheKeysObject := p.buildCacheKeyVariable()
+	var cacheKeysVar *resolve.ResolvableObjectVariable
+	if cacheKeysObject != nil {
+		cacheKeysVar = resolve.NewResolvableObjectVariable(cacheKeysObject)
+	} else {
+		// Fallback to full representations if no @key-only fields found.
+		// This can happen when all RequiredFields are @requires/@provides (no pure @key entries).
+		// In practice this is rare since entity resolution typically requires at least one @key field.
+		cacheKeysVar = representationsVariable
 	}
 
-	// Build L1Keys from only @key configurations (no @requires fields)
-	// This ensures stable entity identity for L1 cache across different fetches
-	l1KeysObject := p.buildL1KeysVariable()
-	if l1KeysObject != nil {
-		entityCacheKeyTemplate.L1Keys = resolve.NewResolvableObjectVariable(l1KeysObject)
+	entityCacheKeyTemplate := &resolve.EntityQueryCacheKeyTemplate{
+		Keys: cacheKeysVar,
 	}
 
 	p.entityCacheKeyTemplate = entityCacheKeyTemplate
@@ -1070,11 +1077,11 @@ func (p *Planner[T]) buildRepresentationsVariable() *resolve.Object {
 	return mergeRepresentationVariableNodes(objects)
 }
 
-// buildL1KeysVariable builds a representation variable containing ONLY @key fields.
-// This is used for L1 (per-request) cache keys to ensure stable entity identity.
+// buildCacheKeyVariable builds a representation variable containing ONLY @key fields.
+// This is used for cache keys (both L1 and L2) to ensure stable entity identity.
 // @requires fields are excluded because they vary between fetches but don't affect entity identity.
 // Returns nil if no @key configurations are found.
-func (p *Planner[T]) buildL1KeysVariable() *resolve.Object {
+func (p *Planner[T]) buildCacheKeyVariable() *resolve.Object {
 	var objects []*resolve.Object
 	for _, cfg := range p.dataSourcePlannerConfig.RequiredFields {
 		// Only include @key configurations (FieldName is empty for keys)
@@ -1085,7 +1092,8 @@ func (p *Planner[T]) buildL1KeysVariable() *resolve.Object {
 
 		node, err := buildRepresentationVariableNode(p.visitor.Definition, cfg, p.dataSourceConfig.FederationConfiguration())
 		if err != nil {
-			// Don't fail the whole request, just skip L1 keys for this entity
+			// Don't fail the whole request, just skip this key configuration for cache keys.
+			// This may cause cache misses for this entity type.
 			continue
 		}
 
