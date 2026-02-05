@@ -268,9 +268,6 @@ func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, variabl
 	}
 
 	cost := argsCost + directivesCost
-	if cost < 0 {
-		cost = 0
-	}
 
 	// Here we do not follow IBM spec. IBM spec does not use the cost of the object itself
 	// in multiplication. It assumes that the weight of the type should be just summed up
@@ -283,8 +280,10 @@ func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, variabl
 	// "A: [Obj] @cost(weight: 5)" means that the cost of the field is 5 for each object in the list.
 	// "type Object @cost(weight: 5) { ... }" does exactly the same thing.
 	// Weight defined on a field has priority over the weight defined on a type.
-	cost += int(math.Ceil(float64(childrenCost+fieldCost) * multiplier))
-
+	cost += int(math.RoundToEven(float64(childrenCost+fieldCost) * multiplier))
+	if cost < 0 {
+		cost = 0
+	}
 	return cost
 }
 
@@ -427,7 +426,8 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 		} else {
 			// No items in the list mean that we completely disregard children of the list.
 			// That is not very accurate because we called the resolver of this field anyway.
-			multiplier = 0.0
+			// So we need to account for that by setting multiplier to 1.
+			multiplier = 1.0
 		}
 		return
 	}
@@ -501,6 +501,10 @@ func (c *CostCalculator) GetStaticCost(config Configuration, variables *astjson.
 	return c.tree.cost(costConfigs, variables, defaultListSize, nil)
 }
 
+const (
+	actualCostMode = -1 // -1 signals actual mode
+)
+
 func (c *CostCalculator) GetActualCost(config Configuration, vars *astjson.Value, actualListSizes map[string]int) int {
 	costConfigs := make(map[DSHash]*DataSourceCostConfig)
 	for _, ds := range config.DataSources {
@@ -509,7 +513,7 @@ func (c *CostCalculator) GetActualCost(config Configuration, vars *astjson.Value
 		}
 	}
 	// most probably variables are not used for actual cost calculation. check that
-	return c.tree.cost(costConfigs, vars, -1, actualListSizes) // -1 signals actual mode
+	return c.tree.cost(costConfigs, vars, actualCostMode, actualListSizes)
 }
 
 // DebugPrint prints the cost tree structure for debugging purposes.

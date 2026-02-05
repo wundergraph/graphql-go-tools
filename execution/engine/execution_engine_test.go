@@ -5766,6 +5766,68 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				computeCosts(),
 			))
 
+			t.Run("negative weights - cost is never negative", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: graphql.StarwarsSchema(t),
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{
+								droid(id: "R2D2") {
+									name
+									primaryFunction
+								}
+							}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: `{"data":{"droid":{"name":"R2D2","primaryFunction":"no"}}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+										{TypeName: "Query", FieldName: "droid"}: {
+											HasWeight:       true,
+											Weight:          -10,                      // Negative field weight
+											ArgumentWeights: map[string]int{"id": -5}, // Negative argument weight
+										},
+										{TypeName: "Droid", FieldName: "name"}:            {HasWeight: true, Weight: -3},
+										{TypeName: "Droid", FieldName: "primaryFunction"}: {HasWeight: true, Weight: -2},
+									},
+									Types: map[string]int{
+										"Droid": -1, // Negative type weight
+									},
+								}},
+							customConfig,
+						),
+					},
+					fields: []plan.FieldConfiguration{
+						{
+							TypeName: "Query", FieldName: "droid",
+							Arguments: []plan.ArgumentConfiguration{
+								{
+									Name:         "id",
+									SourceType:   plan.FieldArgumentSource,
+									RenderConfig: plan.RenderArgumentAsGraphQLValue,
+								},
+							},
+						},
+					},
+					expectedResponse: `{"data":{"droid":{"name":"R2D2","primaryFunction":"no"}}}`,
+					// All weights are negative.
+					// But cost should be floored to 0 (never negative)
+					expectedEstimatedCost: 0,
+				},
+				computeCosts(),
+			))
+
 			t.Run("hero field has weight (returns interface) and with concrete fragment", runWithoutError(
 				ExecutionEngineTestCase{
 					schema: graphql.StarwarsSchema(t),
@@ -6158,8 +6220,10 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					expectedResponse: `{"data":{"hero":{"friends":[]}}}`,
 					// Estimated with default list size 10: hero(7) + 10 * (7 + 2 + 2) = 117
 					expectedEstimatedCost: 117,
-					// Actual with empty list: hero(7) + 0 * (7 + 2 + 2) = 7
-					expectedActualCost: 7,
+					// Actual with empty list: hero(7) + 1 * (7 + 2 + 2) = 18
+					// We consider empty lists as lists containing one item to account for the
+					// resolver work.
+					expectedActualCost: 18,
 				},
 				computeCosts(),
 			))
@@ -7134,6 +7198,391 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					expectedEstimatedCost: 490,
 					// Actual cost: 2 * (4 + 1.5 * (3 + 3 * (2 + 1))) = 44
 					expectedActualCost: 44,
+				},
+				computeCosts(),
+			))
+
+			t.Run("actual cost for root-level list - no parent", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schemaNested,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{ users(first: 10) { id } }`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com",
+									expectedPath: "/",
+									expectedBody: "",
+									// Response has 3 users at the root level
+									sendResponseBody: `{"data":{"users":[
+										{"id":"1"},
+										{"id":"2"},
+										{"id":"3"}]}}`,
+									sendStatusCode: 200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+										{TypeName: "User", FieldName: "id"}: {HasWeight: true, Weight: 1},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Query", FieldName: "users"}: {
+											AssumedSize:      100,
+											SlicingArguments: []string{"first"},
+										},
+									},
+									Types: map[string]int{
+										"User": 4,
+									},
+								},
+							},
+							customConfig,
+						),
+					},
+					fields:           fieldConfig,
+					expectedResponse: `{"data":{"users":[{"id":"1"},{"id":"2"},{"id":"3"}]}}`,
+					// Estimated: 10 * (4 + 1) = 50
+					expectedEstimatedCost: 50,
+					// Actual cost: 3 users at root
+					// 3 * (4 + 1) = 15
+					expectedActualCost: 15,
+				},
+				computeCosts(),
+			))
+
+			t.Run("mixed empty and non-empty lists - averaging behavior", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schemaNested,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{
+							  users(first: 10) {
+							    posts(first: 5) {
+							      comments(first: 3) { text }
+							    }
+							  }
+							}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com",
+									expectedPath: "/",
+									expectedBody: "",
+									sendResponseBody: `{"data":{"users":[
+										{"posts":[
+											{"comments":[{"text":"a"},{"text":"b"}]},
+											{"comments":[{"text":"c"},{"text":"d"}]}
+										]},
+										{"posts":[]},
+										{"posts":[
+											{"comments":[]}
+										]}
+									]}}`,
+									sendStatusCode: 200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+										{TypeName: "Comment", FieldName: "text"}: {HasWeight: true, Weight: 1},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Query", FieldName: "users"}: {
+											AssumedSize:      100,
+											SlicingArguments: []string{"first"},
+										},
+										{TypeName: "User", FieldName: "posts"}: {
+											AssumedSize:      50,
+											SlicingArguments: []string{"first"},
+										},
+										{TypeName: "Post", FieldName: "comments"}: {
+											AssumedSize:      20,
+											SlicingArguments: []string{"first"},
+										},
+									},
+									Types: map[string]int{
+										"User":    4,
+										"Post":    3,
+										"Comment": 2,
+									},
+								},
+							},
+							customConfig,
+						),
+					},
+					fields:                fieldConfig,
+					expectedResponse:      `{"data":{"users":[{"posts":[{"comments":[{"text":"a"},{"text":"b"}]},{"comments":[{"text":"c"},{"text":"d"}]}]},{"posts":[]},{"posts":[{"comments":[]}]}]}}`,
+					expectedEstimatedCost: 640, // 10 * (4 + 5 * (3 + 3 * (2 + 1)))
+					// Actual cost with mixed empty/non-empty lists:
+					// Users: 3 items, multiplier 3.0
+					// Posts: 3 items total, 3 parents → multiplier 1.0 (avg)
+					//   - User 1: 2 posts
+					//   - User 2: 0 posts (empty)
+					//   - User 3: 1 post
+					// Comments: 4 items total, 3 parents → multiplier 1.33 (avg)
+					//   - Post 1: 2 comments
+					//   - Post 2: 2 comments
+					//   - Post 3: 0 comments (empty)
+					//
+					// Calculation:
+					// Comments: RoundToEven((2 + 1) * 1.33) = RoundToEven(3.99) = 4
+					// Posts: RoundToEven((3 + 4) * 1.0) = 7
+					// Users: RoundToEven((4 + 7) * 3.0) = 33
+					//
+					// This tests that empty lists (0 items) are included in the averaging:
+					// - User 2's empty posts list contributes 0 to totalCount
+					// - Post 3's empty comments list contributes 0 to totalCount
+					// - But they're still counted as parents for the multiplier calculation
+					expectedActualCost: 33,
+				},
+				computeCosts(),
+			))
+
+			t.Run("deeply nested lists with fractional multipliers - compounding rounding", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: func() *graphql.Schema {
+						deepSchema := `
+						type Query {
+						   level1(first: Int): [Level1!]
+						}
+						type Level1 @key(fields: "id") {
+						  id: ID!
+						  level2(first: Int): [Level2!]
+						}
+						type Level2 @key(fields: "id") {
+						  id: ID!
+						  level3(first: Int): [Level3!]
+						}
+						type Level3 @key(fields: "id") {
+						  id: ID!
+						  level4(first: Int): [Level4!]
+						}
+						type Level4 @key(fields: "id") {
+						  id: ID!
+						  level5(first: Int): [Level5!]
+						}
+						type Level5 @key(fields: "id") {
+						  id: ID!
+						  value: String!
+						}
+						`
+						s, err := graphql.NewSchemaFromString(deepSchema)
+						require.NoError(t, err)
+						return s
+					}(),
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{
+							  level1(first: 10) {
+							    level2(first: 10) {
+							      level3(first: 10) {
+							        level4(first: 10) {
+							          level5(first: 10) {
+							            value
+							          }
+							        }
+							      }
+							    }
+							  }
+							}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com",
+									expectedPath: "/",
+									expectedBody: "",
+									sendResponseBody: `{"data":{"level1":[
+										{"level2":[
+											{"level3":[
+												{"level4":[
+													{"level5":[{"value":"a"}]},
+													{"level5":[{"value":"b"},{"value":"c"}]}
+												]},
+												{"level4":[
+													{"level5":[{"value":"d"}]}
+												]}
+											]},
+											{"level3":[
+												{"level4":[
+													{"level5":[{"value":"e"}]}
+												]}
+											]}
+										]},
+										{"level2":[
+											{"level3":[
+												{"level4":[
+													{"level5":[{"value":"f"},{"value":"g"}]},
+													{"level5":[{"value":"h"}]}
+												]},
+												{"level4":[
+													{"level5":[{"value":"i"}]}
+												]}
+											]}
+										]},
+										{"level2":[
+											{"level3":[
+												{"level4":[
+													{"level5":[{"value":"j"}]},
+													{"level5":[{"value":"k"}]}
+												]},
+												{"level4":[
+													{"level5":[{"value":"l"}]},
+													{"level5":[{"value":"m"}]}
+												]}
+											]}
+										]}
+									]}}`,
+									sendStatusCode: 200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes: []plan.TypeField{
+									{TypeName: "Query", FieldNames: []string{"level1"}},
+									{TypeName: "Level1", FieldNames: []string{"id", "level2"}},
+									{TypeName: "Level2", FieldNames: []string{"id", "level3"}},
+									{TypeName: "Level3", FieldNames: []string{"id", "level4"}},
+									{TypeName: "Level4", FieldNames: []string{"id", "level5"}},
+									{TypeName: "Level5", FieldNames: []string{"id", "value"}},
+								},
+								ChildNodes: []plan.TypeField{},
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+										{TypeName: "Level5", FieldName: "value"}: {HasWeight: true, Weight: 1},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Query", FieldName: "level1"}: {
+											AssumedSize:      100,
+											SlicingArguments: []string{"first"},
+										},
+										{TypeName: "Level1", FieldName: "level2"}: {
+											AssumedSize:      100,
+											SlicingArguments: []string{"first"},
+										},
+										{TypeName: "Level2", FieldName: "level3"}: {
+											AssumedSize:      100,
+											SlicingArguments: []string{"first"},
+										},
+										{TypeName: "Level3", FieldName: "level4"}: {
+											AssumedSize:      100,
+											SlicingArguments: []string{"first"},
+										},
+										{TypeName: "Level4", FieldName: "level5"}: {
+											AssumedSize:      100,
+											SlicingArguments: []string{"first"},
+										},
+									},
+									Types: map[string]int{
+										"Level1": 1,
+										"Level2": 1,
+										"Level3": 1,
+										"Level4": 1,
+										"Level5": 1,
+									},
+								},
+							},
+							mustConfiguration(t, graphql_datasource.ConfigurationInput{
+								Fetch: &graphql_datasource.FetchConfiguration{
+									URL:    "https://example.com/",
+									Method: "GET",
+								},
+								SchemaConfiguration: mustSchemaConfig(t, nil, `
+									type Query {
+									   level1(first: Int): [Level1!]
+									}
+									type Level1 @key(fields: "id") {
+									  id: ID!
+									  level2(first: Int): [Level2!]
+									}
+									type Level2 @key(fields: "id") {
+									  id: ID!
+									  level3(first: Int): [Level3!]
+									}
+									type Level3 @key(fields: "id") {
+									  id: ID!
+									  level4(first: Int): [Level4!]
+									}
+									type Level4 @key(fields: "id") {
+									  id: ID!
+									  level5(first: Int): [Level5!]
+									}
+									type Level5 @key(fields: "id") {
+									  id: ID!
+									  value: String!
+									}
+								`),
+							}),
+						),
+					},
+					fields: []plan.FieldConfiguration{
+						{
+							TypeName: "Query", FieldName: "level1", Path: []string{"level1"},
+							Arguments: []plan.ArgumentConfiguration{
+								{Name: "first", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+							},
+						},
+						{
+							TypeName: "Level1", FieldName: "level2", Path: []string{"level2"},
+							Arguments: []plan.ArgumentConfiguration{
+								{Name: "first", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+							},
+						},
+						{
+							TypeName: "Level2", FieldName: "level3", Path: []string{"level3"},
+							Arguments: []plan.ArgumentConfiguration{
+								{Name: "first", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+							},
+						},
+						{
+							TypeName: "Level3", FieldName: "level4", Path: []string{"level4"},
+							Arguments: []plan.ArgumentConfiguration{
+								{Name: "first", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+							},
+						},
+						{
+							TypeName: "Level4", FieldName: "level5", Path: []string{"level5"},
+							Arguments: []plan.ArgumentConfiguration{
+								{Name: "first", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+							},
+						},
+					},
+					expectedResponse:      `{"data":{"level1":[{"level2":[{"level3":[{"level4":[{"level5":[{"value":"a"}]},{"level5":[{"value":"b"},{"value":"c"}]}]},{"level4":[{"level5":[{"value":"d"}]}]}]},{"level3":[{"level4":[{"level5":[{"value":"e"}]}]}]}]},{"level2":[{"level3":[{"level4":[{"level5":[{"value":"f"},{"value":"g"}]},{"level5":[{"value":"h"}]}]},{"level4":[{"level5":[{"value":"i"}]}]}]}]},{"level2":[{"level3":[{"level4":[{"level5":[{"value":"j"}]},{"level5":[{"value":"k"}]}]},{"level4":[{"level5":[{"value":"l"}]},{"level5":[{"value":"m"}]}]}]}]}]}}`,
+					expectedEstimatedCost: 211110,
+					// Actual cost with fractional multipliers:
+					// Level5: 13 items, 11 parents → multiplier 1.18 (13/11 = 1.181818...)
+					// Level4: 11 items, 7 parents  → multiplier 1.57 (11/7 = 1.571428...)
+					// Level3: 7 items,  4 parents  → multiplier 1.75 (7/4 = 1.75)
+					// Level2: 4 items,  3 parents  → multiplier 1.33 (4/3 = 1.333...)
+					// Level1: 3 items,  1 parent   → multiplier 3.0
+					//
+					// Mathematical calculation (no intermediate rounding):
+					// cost = 3 * (1 + 1.33 * (1 + 1.75 * (1 + 1.57 * (1 + 1.18 * (1 + 1)))))
+					//      = 50.806584 → RoundToEven → 51
+					//
+					// Current implementation with RoundToEven at each level:
+					// Level5: RoundToEven((1 + 1)  * 1.18) = 2
+					// Level4: RoundToEven((1 + 2)  * 1.57) = 5
+					// Level3: RoundToEven((1 + 5)  * 1.75) = 10 (rounds to even)
+					// Level2: RoundToEven((1 + 10) * 1.33) = 15
+					// Level1: RoundToEven((1 + 15) * 3.00) = 48
+					//
+					// This test documents the compounding rounding error: 48 vs 51 (6% underestimate)
+					// The error accumulates through 5 levels of nested lists with fractional multipliers.
+					expectedActualCost: 48,
 				},
 				computeCosts(),
 			))
