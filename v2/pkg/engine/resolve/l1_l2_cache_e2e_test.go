@@ -114,6 +114,7 @@ func TestL1L2CacheEndToEnd(t *testing.T) {
 						Enabled:          true,
 						CacheName:        "default",
 						CacheKeyTemplate: productCacheKeyTemplate,
+						UseL1Cache:       true,
 					},
 				}, "query.product", ObjectPath("product")),
 				// Second entity fetch (same entity at different path)
@@ -134,6 +135,7 @@ func TestL1L2CacheEndToEnd(t *testing.T) {
 						Enabled:          true,
 						CacheName:        "default",
 						CacheKeyTemplate: productCacheKeyTemplate,
+						UseL1Cache:       true,
 					},
 				}, "query.product.related", ObjectPath("product")),
 			),
@@ -225,7 +227,7 @@ func TestL1L2CacheEndToEnd(t *testing.T) {
 					DataSource:     entityDS,
 					PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data", "_entities"}},
 					Info:           &FetchInfo{DataSourceName: "products", OperationType: ast.OperationTypeQuery, ProvidesData: providesData},
-					Caching:        FetchCacheConfiguration{Enabled: true, CacheName: "default", CacheKeyTemplate: productCacheKeyTemplate},
+					Caching:        FetchCacheConfiguration{Enabled: true, CacheName: "default", CacheKeyTemplate: productCacheKeyTemplate, UseL1Cache: true},
 				}, "query.product", ObjectPath("product")),
 				SingleWithPath(&BatchEntityFetch{
 					Input: BatchInput{
@@ -236,7 +238,7 @@ func TestL1L2CacheEndToEnd(t *testing.T) {
 					DataSource:     entityDS,
 					PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data", "_entities"}},
 					Info:           &FetchInfo{DataSourceName: "products", OperationType: ast.OperationTypeQuery, ProvidesData: providesData},
-					Caching:        FetchCacheConfiguration{Enabled: true, CacheName: "default", CacheKeyTemplate: productCacheKeyTemplate},
+					Caching:        FetchCacheConfiguration{Enabled: true, CacheName: "default", CacheKeyTemplate: productCacheKeyTemplate, UseL1Cache: true},
 				}, "query.product.related", ObjectPath("product")),
 			),
 			Data: &Object{
@@ -338,7 +340,7 @@ func TestL1L2CacheEndToEnd(t *testing.T) {
 						DataSource:     entityDS,
 						PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data", "_entities"}},
 						Info:           &FetchInfo{DataSourceName: "products", OperationType: ast.OperationTypeQuery, ProvidesData: providesData},
-						Caching:        FetchCacheConfiguration{Enabled: true, CacheName: "default", CacheKeyTemplate: productCacheKeyTemplate, TTL: time.Minute},
+						Caching:        FetchCacheConfiguration{Enabled: true, CacheName: "default", CacheKeyTemplate: productCacheKeyTemplate, TTL: time.Minute, UseL1Cache: true},
 					}, "query.product", ObjectPath("product")),
 				),
 				Data: &Object{
@@ -450,7 +452,7 @@ func TestL1L2CacheEndToEnd(t *testing.T) {
 					DataSource:     entityDS,
 					PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data", "_entities"}},
 					Info:           &FetchInfo{DataSourceName: "products", OperationType: ast.OperationTypeQuery, ProvidesData: providesData},
-					Caching:        FetchCacheConfiguration{Enabled: true, CacheName: "default", CacheKeyTemplate: productCacheKeyTemplate},
+					Caching:        FetchCacheConfiguration{Enabled: true, CacheName: "default", CacheKeyTemplate: productCacheKeyTemplate, UseL1Cache: true},
 				}, "query.product", ObjectPath("product")),
 			),
 			Data: &Object{Fields: []*Field{{Name: []byte("product"), Value: &Object{Path: []string{"product"}, Fields: []*Field{
@@ -544,7 +546,7 @@ func TestL1L2CacheEndToEnd(t *testing.T) {
 					DataSource:     entityDS1,
 					PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data", "_entities"}},
 					Info:           &FetchInfo{DataSourceName: "products", OperationType: ast.OperationTypeQuery, ProvidesData: providesData},
-					Caching:        FetchCacheConfiguration{Enabled: true, CacheName: "default", CacheKeyTemplate: productCacheKeyTemplate, TTL: time.Minute},
+					Caching:        FetchCacheConfiguration{Enabled: true, CacheName: "default", CacheKeyTemplate: productCacheKeyTemplate, TTL: time.Minute, UseL1Cache: true},
 				}, "query.product", ObjectPath("product")),
 				SingleWithPath(&BatchEntityFetch{
 					Input: BatchInput{
@@ -555,7 +557,7 @@ func TestL1L2CacheEndToEnd(t *testing.T) {
 					DataSource:     entityDS2,
 					PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data", "_entities"}},
 					Info:           &FetchInfo{DataSourceName: "products", OperationType: ast.OperationTypeQuery, ProvidesData: providesData},
-					Caching:        FetchCacheConfiguration{Enabled: true, CacheName: "default", CacheKeyTemplate: productCacheKeyTemplate, TTL: time.Minute},
+					Caching:        FetchCacheConfiguration{Enabled: true, CacheName: "default", CacheKeyTemplate: productCacheKeyTemplate, TTL: time.Minute, UseL1Cache: true},
 				}, "query.product.related", ObjectPath("product")),
 			),
 			Data: &Object{Fields: []*Field{{Name: []byte("product"), Value: &Object{Path: []string{"product"}, Fields: []*Field{
@@ -651,7 +653,7 @@ func TestL1L2CacheEndToEnd(t *testing.T) {
 					DataSource:     entityDS,
 					PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data", "_entities"}},
 					Info:           &FetchInfo{DataSourceName: "products", OperationType: ast.OperationTypeQuery, ProvidesData: providesData},
-					Caching:        FetchCacheConfiguration{Enabled: true, CacheName: "default", CacheKeyTemplate: productCacheKeyTemplate},
+					Caching:        FetchCacheConfiguration{Enabled: true, CacheName: "default", CacheKeyTemplate: productCacheKeyTemplate, UseL1Cache: true},
 				}, "query.product", ObjectPath("product")),
 			),
 			Data: &Object{Fields: []*Field{{Name: []byte("product"), Value: &Object{Path: []string{"product"}, Fields: []*Field{
@@ -751,7 +753,7 @@ func TestL1L2CacheEndToEnd(t *testing.T) {
 						DataSource:     entityDS,
 						PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data", "_entities"}},
 						Info:           &FetchInfo{DataSourceName: "products", OperationType: ast.OperationTypeQuery, ProvidesData: providesData},
-						Caching:        FetchCacheConfiguration{Enabled: true, CacheName: "default", CacheKeyTemplate: productCacheKeyTemplate, TTL: time.Minute},
+						Caching:        FetchCacheConfiguration{Enabled: true, CacheName: "default", CacheKeyTemplate: productCacheKeyTemplate, TTL: time.Minute, UseL1Cache: true},
 					}, "query.product", ObjectPath("product")),
 				),
 				Data: &Object{Fields: []*Field{{Name: []byte("product"), Value: &Object{Path: []string{"product"}, Fields: []*Field{
@@ -851,7 +853,7 @@ func TestL1L2CacheEndToEnd(t *testing.T) {
 					DataSource:     entityDS,
 					PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data", "_entities"}},
 					Info:           &FetchInfo{DataSourceName: "products", OperationType: ast.OperationTypeQuery, ProvidesData: providesData},
-					Caching:        FetchCacheConfiguration{Enabled: true, CacheName: "default", CacheKeyTemplate: productCacheKeyTemplate},
+					Caching:        FetchCacheConfiguration{Enabled: true, CacheName: "default", CacheKeyTemplate: productCacheKeyTemplate, UseL1Cache: true},
 				}, "query.product", ObjectPath("product")),
 			),
 			Data: &Object{Fields: []*Field{{Name: []byte("product"), Value: &Object{Path: []string{"product"}, Fields: []*Field{
@@ -1044,6 +1046,7 @@ func TestL1CacheSkipsParallelFetch(t *testing.T) {
 						Enabled:          true,
 						CacheName:        "default",
 						CacheKeyTemplate: productCacheKeyTemplate,
+						UseL1Cache:       true,
 					},
 				}, "query.products", ArrayPath("products")),
 				// Parallel group with single fetch - should skip because L1 has all data
@@ -1065,6 +1068,7 @@ func TestL1CacheSkipsParallelFetch(t *testing.T) {
 							Enabled:          true,
 							CacheName:        "default",
 							CacheKeyTemplate: productCacheKeyTemplate,
+							UseL1Cache:       true,
 						},
 					}, "query.products", ArrayPath("products")),
 				),

@@ -120,6 +120,7 @@ func TestPlanner_Plan(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						FetchConfiguration: resolve.FetchConfiguration{
 							DataSource: &FakeDataSource{&StatefulSource{}},
+							Caching: resolve.FetchCacheConfiguration{},
 						},
 						DataSourceIdentifier: []byte("plan.FakeDataSource"),
 					},
@@ -191,6 +192,7 @@ func TestPlanner_Plan(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						FetchConfiguration: resolve.FetchConfiguration{
 							DataSource: &FakeDataSource{&StatefulSource{}},
+							Caching: resolve.FetchCacheConfiguration{},
 						},
 						DataSourceIdentifier: []byte("plan.FakeDataSource"),
 					},
@@ -249,6 +251,7 @@ func TestPlanner_Plan(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						FetchConfiguration: resolve.FetchConfiguration{
 							DataSource: &FakeDataSource{&StatefulSource{}},
+							Caching: resolve.FetchCacheConfiguration{},
 						},
 						DataSourceIdentifier: []byte("plan.FakeDataSource"),
 					},
@@ -318,6 +321,7 @@ func TestPlanner_Plan(t *testing.T) {
 						Fetch: &resolve.SingleFetch{
 							FetchConfiguration: resolve.FetchConfiguration{
 								DataSource: &FakeDataSource{&StatefulSource{}},
+								Caching: resolve.FetchCacheConfiguration{},
 							},
 							DataSourceIdentifier: []byte("plan.FakeDataSource"),
 						},
@@ -388,6 +392,7 @@ func TestPlanner_Plan(t *testing.T) {
 						Fetch: &resolve.SingleFetch{
 							FetchConfiguration: resolve.FetchConfiguration{
 								DataSource: &FakeDataSource{&StatefulSource{}},
+								Caching: resolve.FetchCacheConfiguration{},
 							},
 							DataSourceIdentifier: []byte("plan.FakeDataSource"),
 						},
@@ -560,6 +565,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Fetch: &resolve.SingleFetch{
 									FetchConfiguration: resolve.FetchConfiguration{
 										DataSource: &FakeDataSource{&StatefulSource{}},
+										Caching: resolve.FetchCacheConfiguration{},
 									},
 									DataSourceIdentifier: []byte("plan.FakeDataSource"),
 								},
@@ -618,6 +624,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Fetch: &resolve.SingleFetch{
 									FetchConfiguration: resolve.FetchConfiguration{
 										DataSource: &FakeDataSource{&StatefulSource{}},
+										Caching: resolve.FetchCacheConfiguration{},
 									},
 									DataSourceIdentifier: []byte("plan.FakeDataSource"),
 								},
@@ -681,6 +688,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Fetch: &resolve.SingleFetch{
 									FetchConfiguration: resolve.FetchConfiguration{
 										DataSource: &FakeDataSource{&StatefulSource{}},
+										Caching: resolve.FetchCacheConfiguration{},
 									},
 									DataSourceIdentifier: []byte("plan.FakeDataSource"),
 								},
@@ -817,6 +825,7 @@ var expectedMyHeroPlan = &SynchronousResponsePlan{
 				Fetch: &resolve.SingleFetch{
 					FetchConfiguration: resolve.FetchConfiguration{
 						DataSource: &FakeDataSource{&StatefulSource{}},
+						Caching: resolve.FetchCacheConfiguration{},
 					},
 					DataSourceIdentifier: []byte("plan.FakeDataSource"),
 				},
@@ -862,6 +871,7 @@ var expectedMyHeroPlanWithFragment = &SynchronousResponsePlan{
 				Fetch: &resolve.SingleFetch{
 					FetchConfiguration: resolve.FetchConfiguration{
 						DataSource: &FakeDataSource{&StatefulSource{}},
+						Caching: resolve.FetchCacheConfiguration{},
 					},
 					DataSourceIdentifier: []byte("plan.FakeDataSource"),
 				},

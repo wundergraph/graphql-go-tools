@@ -1982,6 +1982,7 @@ func (v *Visitor) configureFetchCaching(internal *objectFetchConfiguration, exte
 	// Always preserve CacheKeyTemplate for L1 cache - L1 cache works independently of L2 cache.
 	// The Enabled flag controls L2 cache only, not L1 cache.
 	// L1 cache uses CacheKeyTemplate.L1Keys and is controlled by ctx.ExecutionOptions.Caching.EnableL1Cache.
+	// UseL1Cache defaults to false - the postprocessor (optimizeL1Cache) will enable it when beneficial.
 	result := resolve.FetchCacheConfiguration{
 		CacheKeyTemplate:                   external.Caching.CacheKeyTemplate,
 		RootFieldL1EntityCacheKeyTemplates: external.Caching.RootFieldL1EntityCacheKeyTemplates,
@@ -2023,6 +2024,7 @@ func (v *Visitor) configureFetchCaching(internal *objectFetchConfiguration, exte
 		}
 
 		// L2 cache is enabled for this entity type
+		// UseL1Cache is set by the postprocessor (optimizeL1Cache) when beneficial
 		return resolve.FetchCacheConfiguration{
 			Enabled:                     true,
 			CacheName:                   cacheConfig.CacheName,
@@ -2061,6 +2063,7 @@ func (v *Visitor) configureFetchCaching(internal *objectFetchConfiguration, exte
 	}
 
 	// L2 cache is enabled - all root fields have the same cache config
+	// UseL1Cache is set by the postprocessor (optimizeL1Cache) when beneficial
 	return resolve.FetchCacheConfiguration{
 		Enabled:                     true,
 		CacheName:                   commonConfig.CacheName,

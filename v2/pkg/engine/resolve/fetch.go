@@ -330,6 +330,11 @@ type FetchCacheConfiguration struct {
 	// entities are fetched from the subgraph. Cached entities are served directly.
 	// This is propagated from EntityCacheConfiguration during planning.
 	EnablePartialCacheLoad bool
+
+	// UseL1Cache controls whether this fetch uses L1 (per-request) cache.
+	// Set by postprocessor based on whether a prior fetch can populate L1
+	// for this entity type. Defaults to true for backward compatibility.
+	UseL1Cache bool
 }
 
 // FetchDependency explains how a GraphCoordinate depends on other GraphCoordinates from other fetches

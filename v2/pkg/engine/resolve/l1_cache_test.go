@@ -120,6 +120,7 @@ func TestL1Cache(t *testing.T) {
 							CacheName:        "default",
 							TTL:              30 * time.Second,
 							CacheKeyTemplate: productCacheKeyTemplate,
+							UseL1Cache:       true,
 						},
 					},
 					InputTemplate: InputTemplate{
@@ -165,6 +166,7 @@ func TestL1Cache(t *testing.T) {
 							CacheName:        "default",
 							TTL:              30 * time.Second,
 							CacheKeyTemplate: productCacheKeyTemplate,
+							UseL1Cache:       true,
 						},
 					},
 					InputTemplate: InputTemplate{
@@ -667,6 +669,7 @@ func TestL1CachePartialLoading(t *testing.T) {
 						CacheName:              "default",
 						TTL:                    30 * time.Second,
 						CacheKeyTemplate:       productCacheKeyTemplate,
+						UseL1Cache:             true,
 						EnablePartialCacheLoad: true, // KEY: Enable partial loading
 					},
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -832,6 +835,7 @@ func TestL1CachePartialLoading(t *testing.T) {
 						CacheName:              "default",
 						TTL:                    30 * time.Second,
 						CacheKeyTemplate:       productCacheKeyTemplate,
+						UseL1Cache:             true,
 						EnablePartialCacheLoad: false, // KEY: Partial loading DISABLED (default)
 					},
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -1011,6 +1015,7 @@ func TestL1CachePartialLoadingL1Only(t *testing.T) {
 						CacheName:        "default",
 						TTL:              30 * time.Second,
 						CacheKeyTemplate: userCacheKeyTemplate,
+						UseL1Cache:       true,
 						// First fetch does NOT have partial loading - fetches all
 					},
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -1063,6 +1068,7 @@ func TestL1CachePartialLoadingL1Only(t *testing.T) {
 						CacheName:              "default",
 						TTL:                    30 * time.Second,
 						CacheKeyTemplate:       userCacheKeyTemplate,
+						UseL1Cache:             true,
 						EnablePartialCacheLoad: true, // KEY: Enable partial loading
 					},
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -1125,5 +1131,164 @@ func TestL1CachePartialLoadingL1Only(t *testing.T) {
 		// All authors should be in the result with usernames from first fetch
 		expectedOutput := `{"data":{"product":{"__typename":"Product","id":"prod-1","reviews":[{"body":"Great!","author":{"__typename":"User","id":"author-1","username":"user1"}},{"body":"Love it!","author":{"__typename":"User","id":"author-1","username":"user1"}},{"body":"Nice!","author":{"__typename":"User","id":"author-2","username":"user2"}}]}}}`
 		assert.Equal(t, expectedOutput, out)
+	})
+}
+
+func TestL1CacheUseL1CacheFlagDisabled(t *testing.T) {
+	t.Run("UseL1Cache=false bypasses L1 even when globally enabled", func(t *testing.T) {
+		// This test verifies that when UseL1Cache=false is set on a fetch,
+		// the L1 cache is bypassed even though L1 is globally enabled.
+		// This is the behavior set by the optimizeL1Cache postprocessor when
+		// a fetch cannot benefit from L1 caching.
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		// Root datasource
+		rootDS := NewMockDataSource(ctrl)
+		rootDS.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"product":{"__typename":"Product","id":"prod-1"}}}`), nil
+			}).Times(1)
+
+		// Entity fetch - should be called TWICE because UseL1Cache=false
+		// even though L1 is globally enabled
+		entityDS := NewMockDataSource(ctrl)
+		entityDS.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"_entities":[{"__typename":"Product","id":"prod-1","name":"Product One"}]}}`), nil
+			}).Times(2) // Called twice because UseL1Cache=false bypasses L1
+
+		productCacheKeyTemplate := &EntityQueryCacheKeyTemplate{
+			Keys: NewResolvableObjectVariable(&Object{
+				Fields: []*Field{
+					{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+					{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+				},
+			}),
+		}
+
+		providesData := &Object{
+			Fields: []*Field{
+				{Name: []byte("id"), Value: &Scalar{Path: []string{"id"}, Nullable: false}},
+				{Name: []byte("name"), Value: &Scalar{Path: []string{"name"}, Nullable: false}},
+			},
+		}
+
+		response := &GraphQLResponse{
+			Info: &GraphQLResponseInfo{
+				OperationType: ast.OperationTypeQuery,
+			},
+			Fetches: Sequence(
+				SingleWithPath(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource: rootDS,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data"},
+						},
+					},
+					InputTemplate: InputTemplate{
+						Segments: []TemplateSegment{
+							{Data: []byte(`{"method":"POST"}`), SegmentType: StaticSegmentType},
+						},
+					},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+				}, "query"),
+
+				// First entity fetch - UseL1Cache=false
+				SingleWithPath(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource: entityDS,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data", "_entities", "0"},
+						},
+						Caching: FetchCacheConfiguration{
+							Enabled:          true,
+							CacheName:        "default",
+							TTL:              30 * time.Second,
+							CacheKeyTemplate: productCacheKeyTemplate,
+							UseL1Cache:       false, // Explicitly disabled
+						},
+					},
+					InputTemplate: InputTemplate{
+						Segments: []TemplateSegment{
+							{Data: []byte(`{"method":"POST"}`), SegmentType: StaticSegmentType},
+						},
+					},
+					Info: &FetchInfo{
+						DataSourceID:   "products",
+						DataSourceName: "products",
+						OperationType:  ast.OperationTypeQuery,
+						ProvidesData:   providesData,
+					},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+				}, "query.product", ObjectPath("product")),
+
+				// Second entity fetch - UseL1Cache=false, should NOT hit L1
+				SingleWithPath(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource: entityDS,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data", "_entities", "0"},
+						},
+						Caching: FetchCacheConfiguration{
+							Enabled:          true,
+							CacheName:        "default",
+							TTL:              30 * time.Second,
+							CacheKeyTemplate: productCacheKeyTemplate,
+							UseL1Cache:       false, // Explicitly disabled
+						},
+					},
+					InputTemplate: InputTemplate{
+						Segments: []TemplateSegment{
+							{Data: []byte(`{"method":"POST"}`), SegmentType: StaticSegmentType},
+						},
+					},
+					Info: &FetchInfo{
+						DataSourceID:   "products",
+						DataSourceName: "products",
+						OperationType:  ast.OperationTypeQuery,
+						ProvidesData:   providesData,
+					},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+				}, "query.product", ObjectPath("product")),
+			),
+			Data: &Object{
+				Fields: []*Field{
+					{
+						Name: []byte("product"),
+						Value: &Object{
+							Path: []string{"product"},
+							Fields: []*Field{
+								{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+								{Name: []byte("name"), Value: &String{Path: []string{"name"}}},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		loader := &Loader{}
+
+		ctx := NewContext(context.Background())
+		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+		ctx.ExecutionOptions.Caching.EnableL1Cache = true // L1 globally ENABLED
+
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		resolvable := NewResolvable(ar, ResolvableOptions{})
+		err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+		require.NoError(t, err)
+
+		err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+		require.NoError(t, err)
+
+		out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
+		assert.Equal(t, `{"data":{"product":{"__typename":"Product","id":"prod-1","name":"Product One"}}}`, out)
+
+		// Verify L1 cache stats show no hits (both fetches went to subgraph)
+		stats := ctx.GetCacheStats()
+		assert.Equal(t, int64(0), stats.L1Hits, "should have 0 L1 hits when UseL1Cache=false")
 	})
 }

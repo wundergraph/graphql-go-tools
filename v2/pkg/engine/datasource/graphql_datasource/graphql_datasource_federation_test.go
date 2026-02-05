@@ -1580,6 +1580,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										CacheName:                   "default",
 										TTL:                         30 * time.Second,
 										IncludeSubgraphHeaderPrefix: true,
+										// UseL1Cache defaults to false - root query fetches with RootQueryCacheKeyTemplate don't populate entity L1 cache
 										CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{
 											RootFields: []resolve.QueryField{
 												{
@@ -1865,6 +1866,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										CacheName:                   "default",
 										TTL:                         time.Second * 30,
 										IncludeSubgraphHeaderPrefix: true,
+										UseL1Cache:                  false, // Set to false by postprocessor (no L1 benefit for this fetch)
 										CacheKeyTemplate: &resolve.EntityQueryCacheKeyTemplate{
 											Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
 												Nullable: true,
