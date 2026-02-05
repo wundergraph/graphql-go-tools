@@ -527,8 +527,8 @@ func (l *Loader) extractCacheKeysStrings(a arena.Arena, cacheKeys []*CacheKey) [
 	out := arena.AllocateSlice[string](a, 0, len(cacheKeys))
 	for i := range cacheKeys {
 		for j := range cacheKeys[i].Keys {
-			l := len(cacheKeys[i].Keys[j])
-			key := arena.AllocateSlice[byte](a, 0, l)
+			keyLen := len(cacheKeys[i].Keys[j])
+			key := arena.AllocateSlice[byte](a, 0, keyLen)
 			key = arena.SliceAppend(a, key, unsafebytes.StringToBytes(cacheKeys[i].Keys[j])...)
 			out = arena.SliceAppend(a, out, unsafebytes.BytesToString(key))
 		}
@@ -2195,9 +2195,10 @@ func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetchItem *FetchItem,
 	addSeparator := false
 
 	// Build a set of indices that need fetching for partial cache loading
-	// If fetchItemIndices is empty but partialCacheEnabled is true, all items are cached
-	fetchIndexSet := make(map[int]struct{})
+	// Only allocate the map when partial loading is enabled and there are items to fetch
+	var fetchIndexSet map[int]struct{}
 	if res.partialCacheEnabled && len(res.fetchItemIndices) > 0 {
+		fetchIndexSet = make(map[int]struct{}, len(res.fetchItemIndices))
 		for _, idx := range res.fetchItemIndices {
 			fetchIndexSet[idx] = struct{}{}
 		}
@@ -2206,7 +2207,7 @@ func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetchItem *FetchItem,
 WithNextItem:
 	for i, item := range items {
 		// Skip items that are already cached when partial loading is enabled
-		if res.partialCacheEnabled && len(res.fetchItemIndices) > 0 {
+		if fetchIndexSet != nil {
 			if _, needsFetch := fetchIndexSet[i]; !needsFetch {
 				continue
 			}
