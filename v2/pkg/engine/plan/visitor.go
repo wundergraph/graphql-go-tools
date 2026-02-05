@@ -2029,6 +2029,7 @@ func (v *Visitor) configureFetchCaching(internal *objectFetchConfiguration, exte
 			TTL:                         cacheConfig.TTL,
 			CacheKeyTemplate:            external.Caching.CacheKeyTemplate,
 			IncludeSubgraphHeaderPrefix: cacheConfig.IncludeSubgraphHeaderPrefix,
+			EnablePartialCacheLoad:      cacheConfig.EnablePartialCacheLoad,
 		}
 	}
 

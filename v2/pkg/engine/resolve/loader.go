@@ -136,6 +136,11 @@ type result struct {
 	l2CacheKeys        []*CacheKey // L2 cache keys (with subgraph header prefix)
 	cacheSkipFetch     bool
 	cacheConfig        FetchCacheConfiguration
+
+	// Partial cache loading fields
+	partialCacheEnabled bool  // Whether partial loading is enabled for this fetch
+	cachedItemIndices   []int // Indices of items fully served from cache
+	fetchItemIndices    []int // Indices of items that need to be fetched
 }
 
 func (l *Loader) createOrInitResult(res *result, postProcessing PostProcessingConfiguration, info *FetchInfo) *result {
@@ -260,6 +265,9 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 		info := getFetchInfo(f)
 		cfg := getFetchCaching(f)
 
+		// Set partial loading flag BEFORE cache lookup so tracking arrays are populated
+		results[i].partialCacheEnabled = cfg.EnablePartialCacheLoad
+
 		// Prepare cache keys for L1 and L2
 		isEntityFetch, err := l.prepareCacheKeys(info, cfg, itemsItems[i], results[i])
 		if err != nil {
@@ -268,15 +276,20 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 
 		// L1 Check (main thread only - not thread-safe)
 		if isEntityFetch && l.ctx.ExecutionOptions.Caching.EnableL1Cache && len(results[i].l1CacheKeys) > 0 {
-			allComplete := l.tryL1CacheLoad(info, results[i].l1CacheKeys)
+			allComplete := l.tryL1CacheLoad(info, results[i].l1CacheKeys, results[i])
 			if allComplete {
 				// All entities found in L1 - mark to skip goroutine
 				results[i].cacheSkipFetch = true
+			} else if results[i].partialCacheEnabled && len(results[i].cachedItemIndices) > 0 {
+				// Partial hit with partial loading enabled - keep FromCache values
+				// Continue to L2/fetch for remaining items
 			} else {
-				// Clear FromCache for L2 to try
+				// All-or-nothing mode OR no hits - clear FromCache for L2 to try
 				for _, ck := range results[i].l1CacheKeys {
 					ck.FromCache = nil
 				}
+				results[i].cachedItemIndices = nil
+				results[i].fetchItemIndices = nil
 			}
 		}
 	}
@@ -651,19 +664,33 @@ func (l *Loader) tryCacheLoad(ctx context.Context, info *FetchInfo, cfg FetchCac
 		return false, nil
 	}
 
+	// Set partial loading flag BEFORE cache lookup so tracking arrays are populated
+	res.partialCacheEnabled = cfg.EnablePartialCacheLoad
+
 	// Step 2: L1 Check (per-request, in-memory) - entity fetches only
 	// Safe to call: this is sequential execution on main thread
 	if isEntityFetch && l.ctx.ExecutionOptions.Caching.EnableL1Cache && len(res.l1CacheKeys) > 0 {
-		allComplete := l.tryL1CacheLoad(info, res.l1CacheKeys)
+		allComplete := l.tryL1CacheLoad(info, res.l1CacheKeys, res)
 		if allComplete {
 			// All entities found in L1 with complete data - skip fetch
 			res.cacheSkipFetch = true
 			return true, nil
 		}
-		// Some or all entities missing/incomplete - clear FromCache and continue to L2
+
+		if res.partialCacheEnabled && len(res.cachedItemIndices) > 0 {
+			// Partial hit with partial loading enabled
+			// cachedItemIndices and fetchItemIndices already populated by tryL1CacheLoad
+			// Keep FromCache values for cached items, proceed to fetch only missing items
+			res.cacheMustBeUpdated = true
+			return false, nil
+		}
+
+		// All-or-nothing mode OR no hits - clear FromCache and try L2
 		for _, ck := range res.l1CacheKeys {
 			ck.FromCache = nil
 		}
+		res.cachedItemIndices = nil
+		res.fetchItemIndices = nil
 	}
 
 	// Step 3: L2 Check (external cache) - if L1 missed
@@ -672,6 +699,12 @@ func (l *Loader) tryCacheLoad(ctx context.Context, info *FetchInfo, cfg FetchCac
 		skipFetch, err = l.tryL2CacheLoad(ctx, info, res)
 		if err != nil || skipFetch {
 			return skipFetch, err
+		}
+
+		if res.partialCacheEnabled && len(res.cachedItemIndices) > 0 {
+			// Partial hit from L2 with partial loading enabled
+			// Keep FromCache values, return false to proceed with fetch for missing items
+			return false, nil
 		}
 	}
 
@@ -686,13 +719,16 @@ func (l *Loader) tryCacheLoad(ctx context.Context, info *FetchInfo, cfg FetchCac
 // Returns true only if ALL items are found in cache with complete data for the fetch.
 // L1 uses cache keys WITHOUT subgraph header prefix (same request context).
 // NOTE: Only called for entity fetches, not root fetches.
-func (l *Loader) tryL1CacheLoad(info *FetchInfo, cacheKeys []*CacheKey) bool {
+// When res.partialCacheEnabled is true, populates res.cachedItemIndices and res.fetchItemIndices
+// to track which items were cached vs need fetching.
+func (l *Loader) tryL1CacheLoad(info *FetchInfo, cacheKeys []*CacheKey, res *result) bool {
 	if info == nil || info.OperationType != ast.OperationTypeQuery {
 		return false
 	}
 
 	allComplete := true
-	for _, ck := range cacheKeys {
+	for i, ck := range cacheKeys {
+		var foundComplete bool
 		for _, keyStr := range ck.Keys {
 			if cached, ok := l.l1Cache.Load(keyStr); ok {
 				cachedValue := cached.(*astjson.Value)
@@ -702,15 +738,23 @@ func (l *Loader) tryL1CacheLoad(info *FetchInfo, cacheKeys []*CacheKey) bool {
 					// Use shallow copy to prevent pointer aliasing with self-referential entities
 					ck.FromCache = l.shallowCopyProvidedFields(cachedValue, info.ProvidesData)
 					l.ctx.trackL1Hit()
-				} else {
-					// Entity found but missing required fields - L1 MISS
-					allComplete = false
-					l.ctx.trackL1Miss()
+					foundComplete = true
+					break
 				}
-			} else {
-				// Entity not in cache - L1 MISS
-				allComplete = false
-				l.ctx.trackL1Miss()
+			}
+		}
+
+		if foundComplete {
+			// Track cached item index when partial loading enabled
+			if res.partialCacheEnabled {
+				res.cachedItemIndices = append(res.cachedItemIndices, i)
+			}
+		} else {
+			allComplete = false
+			l.ctx.trackL1Miss()
+			// Track fetch item index when partial loading enabled
+			if res.partialCacheEnabled {
+				res.fetchItemIndices = append(res.fetchItemIndices, i)
 			}
 		}
 	}
@@ -761,29 +805,53 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 				if res.l1CacheKeys[i].FromCache != nil {
 					if info != nil && info.ProvidesData != nil && l.validateItemHasRequiredData(res.l1CacheKeys[i].FromCache, info.ProvidesData) {
 						l.ctx.trackL2Hit()
+						// Track cached item index when partial loading enabled
+						if res.partialCacheEnabled {
+							res.cachedItemIndices = append(res.cachedItemIndices, i)
+						}
 					} else {
 						l.ctx.trackL2Miss()
 						allComplete = false
+						// Track fetch item index when partial loading enabled
+						if res.partialCacheEnabled {
+							res.fetchItemIndices = append(res.fetchItemIndices, i)
+						}
 					}
 				} else {
 					l.ctx.trackL2Miss()
 					allComplete = false
+					// Track fetch item index when partial loading enabled
+					if res.partialCacheEnabled {
+						res.fetchItemIndices = append(res.fetchItemIndices, i)
+					}
 				}
 			}
 		}
 	} else {
 		// Root fetch (no L1 keys) - track directly from L2 keys
-		for _, ck := range res.l2CacheKeys {
+		for i, ck := range res.l2CacheKeys {
 			if ck.FromCache != nil {
 				if info != nil && info.ProvidesData != nil && l.validateItemHasRequiredData(ck.FromCache, info.ProvidesData) {
 					l.ctx.trackL2Hit()
+					// Track cached item index when partial loading enabled
+					if res.partialCacheEnabled {
+						res.cachedItemIndices = append(res.cachedItemIndices, i)
+					}
 				} else {
 					l.ctx.trackL2Miss()
 					allComplete = false
+					// Track fetch item index when partial loading enabled
+					if res.partialCacheEnabled {
+						res.fetchItemIndices = append(res.fetchItemIndices, i)
+					}
 				}
 			} else {
 				l.ctx.trackL2Miss()
 				allComplete = false
+				// Track fetch item index when partial loading enabled
+				if res.partialCacheEnabled {
+					res.fetchItemIndices = append(res.fetchItemIndices, i)
+				}
 			}
 		}
 	}
@@ -1022,6 +1090,18 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 			}
 		}
 		return nil
+	}
+
+	// Handle partial cache loading: merge cached items first
+	if res.partialCacheEnabled && len(res.cachedItemIndices) > 0 {
+		for _, idx := range res.cachedItemIndices {
+			if idx < len(res.l1CacheKeys) && res.l1CacheKeys[idx] != nil && res.l1CacheKeys[idx].FromCache != nil {
+				_, _, err := astjson.MergeValues(l.jsonArena, res.l1CacheKeys[idx].Item, res.l1CacheKeys[idx].FromCache)
+				if err != nil {
+					return l.renderErrorsFailedToFetch(fetchItem, res, "invalid cache item")
+				}
+			}
+		}
 	}
 	if res.fetchSkipped {
 		return nil
@@ -2114,8 +2194,24 @@ func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetchItem *FetchItem,
 	batchItemIndex := 0
 	addSeparator := false
 
+	// Build a set of indices that need fetching for partial cache loading
+	// If fetchItemIndices is empty but partialCacheEnabled is true, all items are cached
+	fetchIndexSet := make(map[int]struct{})
+	if res.partialCacheEnabled && len(res.fetchItemIndices) > 0 {
+		for _, idx := range res.fetchItemIndices {
+			fetchIndexSet[idx] = struct{}{}
+		}
+	}
+
 WithNextItem:
 	for i, item := range items {
+		// Skip items that are already cached when partial loading is enabled
+		if res.partialCacheEnabled && len(res.fetchItemIndices) > 0 {
+			if _, needsFetch := fetchIndexSet[i]; !needsFetch {
+				continue
+			}
+		}
+
 		for j := range fetch.Input.Items {
 			itemInput.Reset()
 			err = fetch.Input.Items[j].Render(l.ctx, item, itemInput)

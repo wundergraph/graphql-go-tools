@@ -307,7 +307,8 @@ func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
 }
 
 type FetchCacheConfiguration struct {
-	// Enabled indicates if caching is enabled for this fetch
+	// Enabled indicates if L2 caching is enabled for this fetch.
+	// L1 caching is controlled separately via ctx.ExecutionOptions.Caching.EnableL1Cache.
 	Enabled bool
 	// CacheName is the name of the cache to use for this fetch
 	CacheName string
@@ -321,8 +322,14 @@ type FetchCacheConfiguration struct {
 	// The prefix format is "id:cacheKey" where id is the hash from HeadersForSubgraph.
 	// Defaults to true.
 	IncludeSubgraphHeaderPrefix bool
-
+	// RootFieldL1EntityCacheKeyTemplates holds L1 cache key templates for entities returned by root fields.
 	RootFieldL1EntityCacheKeyTemplates map[string]CacheKeyTemplate
+
+	// EnablePartialCacheLoad enables fetching only cache-missed entities.
+	// When true and some entities are cached while others are not, only the missing
+	// entities are fetched from the subgraph. Cached entities are served directly.
+	// This is propagated from EntityCacheConfiguration during planning.
+	EnablePartialCacheLoad bool
 }
 
 // FetchDependency explains how a GraphCoordinate depends on other GraphCoordinates from other fetches

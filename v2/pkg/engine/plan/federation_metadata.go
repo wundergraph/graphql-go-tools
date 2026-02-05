@@ -80,16 +80,35 @@ type EntityInterfaceConfiguration struct {
 
 // EntityCacheConfiguration defines L2 caching behavior for a specific entity type.
 // This configuration is subgraph-local: each subgraph configures caching for entities it provides.
+// Caching is opt-in: entities without configuration will not be cached in L2.
 type EntityCacheConfiguration struct {
-	// TypeName is the entity type to cache (e.g., "User", "Product")
+	// TypeName is the GraphQL type name of the entity to cache (e.g., "User", "Product").
+	// This must match the __typename returned by the subgraph for _entities queries.
 	TypeName string `json:"type_name"`
-	// CacheName is the name of the cache to use (maps to LoaderCache instances)
+
+	// CacheName identifies which LoaderCache instance to use for storing this entity.
+	// Multiple entity types can share a cache by using the same CacheName.
+	// The cache name must be registered in the Loader's caches map at runtime.
 	CacheName string `json:"cache_name"`
-	// TTL is the time-to-live for cached entities
+
+	// TTL (Time To Live) specifies how long cached entities remain valid.
+	// After TTL expires, the next request will fetch fresh data from the subgraph.
+	// A zero TTL means entries never expire (not recommended for production).
 	TTL time.Duration `json:"ttl"`
-	// IncludeSubgraphHeaderPrefix indicates if forwarded headers affect cache key.
-	// When true, different header values result in different cache keys.
+
+	// IncludeSubgraphHeaderPrefix controls whether forwarded headers affect cache keys.
+	// When true, cache keys include a hash of the headers sent to the subgraph,
+	// ensuring different header configurations (e.g., different auth tokens) use
+	// separate cache entries. Set to true when subgraph responses vary by headers.
 	IncludeSubgraphHeaderPrefix bool `json:"include_subgraph_header_prefix"`
+
+	// EnablePartialCacheLoad enables fetching only cache-missed entities from the subgraph.
+	// Default behavior (false): If ANY entity in a batch is missing from cache, ALL entities
+	// are fetched from the subgraph. This keeps the cache fresh but may overfetch.
+	// When enabled (true): Only missing entities are fetched; cached entities are served
+	// directly from cache. This reduces subgraph load but cached entities may become stale
+	// within their TTL window. Use when cache freshness is acceptable within TTL bounds.
+	EnablePartialCacheLoad bool `json:"enable_partial_cache_load"`
 }
 
 // EntityCacheConfigurations is a collection of entity cache configurations.
