@@ -297,6 +297,8 @@ func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, variabl
 // argsCost is the sum of argument weights and input fields used on this field.
 // Weights on directives ignored for now.
 //
+// variables are used only for the estimated costs.
+//
 // defaultListSize designates the mode of operation.
 // When it is positive, then its value is used as a fallback value of list sizes for the estimated cost.
 // When it is negative, then it computes the actual cost. And it uses the actualListSizes map.
@@ -316,7 +318,7 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 	directiveCost = 0
 	multiplier = 0
 
-	estimated := defaultListSize > 0
+	isEstimation := defaultListSize > 0
 
 	for _, dsHash := range node.dataSourceHashes {
 		dsCostConfig, ok := configs[dsHash]
@@ -335,6 +337,7 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 		if fieldWeight != nil && node.isEnclosingTypeAbstract && parent.returnsAbstractType {
 			// Composition should not let interface fields have weights, so we assume that
 			// the enclosing type is concrete.
+			// Maybe we somehow want to log this? Or just ignore it?
 			fmt.Printf("WARNING: cost directive on field %v of interface %v\n", node.fieldCoord, parent.fieldCoord)
 		}
 		if node.isEnclosingTypeAbstract && parent.returnsAbstractType {
@@ -343,7 +346,7 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 			// Found fieldWeight can be used for all the calculations.
 			fieldWeight = parent.maxWeightImplementingField(dsCostConfig, node.fieldCoord.FieldName)
 			// If this field has listSize defined, then do not look into implementing types.
-			if listSize == nil && node.returnsListType {
+			if isEstimation && listSize == nil && node.returnsListType {
 				listSize = parent.maxMultiplierImplementingField(dsCostConfig, node.fieldCoord.FieldName, node.arguments, variables, defaultListSize)
 			}
 		}
@@ -397,7 +400,7 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 		}
 
 		// Compute multiplier as the maximum of data sources.
-		if estimated && listSize != nil {
+		if isEstimation && listSize != nil {
 			localMultiplier := float64(listSize.multiplier(node.arguments, variables, defaultListSize))
 			// If this node returns a list of abstract types, then it could have listSize defined.
 			// Spec allows defining listSize on the fields of interfaces.
@@ -411,7 +414,7 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 	if !node.returnsListType {
 		return
 	}
-	if !estimated { // actual or dynamic
+	if !isEstimation { // actual or dynamic
 		totalCount, ok := actualListSizes[node.jsonPath]
 		if ok && totalCount != 0 {
 			parentCount := 1
@@ -505,15 +508,15 @@ const (
 	actualCostMode = -1 // -1 signals actual mode
 )
 
-func (c *CostCalculator) ActualCost(config Configuration, vars *astjson.Value, actualListSizes map[string]int) int {
+// ActualCost returns the actual cost of the operation that is based on the actual sizes of lists.
+func (c *CostCalculator) ActualCost(config Configuration, actualListSizes map[string]int) int {
 	costConfigs := make(map[DSHash]*DataSourceCostConfig)
 	for _, ds := range config.DataSources {
 		if costConfig := ds.GetCostConfig(); costConfig != nil {
 			costConfigs[ds.Hash()] = costConfig
 		}
 	}
-	// most probably variables are not used for actual cost calculation. check that
-	return c.tree.cost(costConfigs, vars, actualCostMode, actualListSizes)
+	return c.tree.cost(costConfigs, nil, actualCostMode, actualListSizes)
 }
 
 // DebugPrint prints the cost tree structure for debugging purposes.

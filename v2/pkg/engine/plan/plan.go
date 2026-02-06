@@ -19,9 +19,9 @@ type Plan interface {
 }
 
 type SynchronousResponsePlan struct {
-	Response             *resolve.GraphQLResponse
-	FlushInterval        int64
-	StaticCostCalculator *CostCalculator
+	Response       *resolve.GraphQLResponse
+	FlushInterval  int64
+	CostCalculator *CostCalculator
 }
 
 func (s *SynchronousResponsePlan) SetFlushInterval(interval int64) {
@@ -33,11 +33,11 @@ func (*SynchronousResponsePlan) PlanKind() Kind {
 }
 
 func (s *SynchronousResponsePlan) GetCostCalculator() *CostCalculator {
-	return s.StaticCostCalculator
+	return s.CostCalculator
 }
 
 func (s *SynchronousResponsePlan) SetCostCalculator(c *CostCalculator) {
-	s.StaticCostCalculator = c
+	s.CostCalculator = c
 }
 
 type SubscriptionResponsePlan struct {

@@ -136,7 +136,7 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any
 		// main planner visitor should always be allowed
 		return true
 	}
-	if _, isCostVisitor := visitor.(*StaticCostVisitor); isCostVisitor {
+	if _, isCostVisitor := visitor.(*CostVisitor); isCostVisitor {
 		// cost tree visitor should always be allowed
 		return true
 	}

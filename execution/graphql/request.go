@@ -212,7 +212,7 @@ func (r *Request) EstimatedCost() int {
 
 func (r *Request) ComputeActualCost(calc *plan.CostCalculator, config plan.Configuration, variables *astjson.Value, actualListSizes map[string]int) {
 	if calc != nil && actualListSizes != nil {
-		r.actualCost = calc.ActualCost(config, variables, actualListSizes)
+		r.actualCost = calc.ActualCost(config, actualListSizes)
 		// Debugging of cost trees. Uncomment to debug.
 		// fmt.Println(calc.DebugPrint(config, variables, actualListSizes))
 	} else {
