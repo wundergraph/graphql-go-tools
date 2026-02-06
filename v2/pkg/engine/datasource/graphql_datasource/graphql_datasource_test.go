@@ -398,6 +398,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							CacheName:                   "default",
 							TTL:                         30 * time.Second,
 							IncludeSubgraphHeaderPrefix: true,
+							// UseL1Cache defaults to false - root query fetches with RootQueryCacheKeyTemplate don't populate entity L1 cache
 							CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{
 								RootFields: []resolve.QueryField{
 									{

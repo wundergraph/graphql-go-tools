@@ -6,10 +6,10 @@ GraphQL Federation entity caching system with L1 (per-request) and L2 (external)
 
 | Cache | Storage | Scope | Key Fields | Thread Safety |
 |-------|---------|-------|------------|---------------|
-| **L1** | `sync.Map` in Loader | Single request | `@key` only (L1Keys) | sync.Map |
-| **L2** | External (LoaderCache) | Cross-request | `@key` + `@requires` (Keys) | Atomic stats |
+| **L1** | `sync.Map` in Loader | Single request | `@key` only | sync.Map |
+| **L2** | External (LoaderCache) | Cross-request | `@key` only | Atomic stats |
 
-**Key Principle**: L1 uses only `@key` fields for stable entity identity. L2 uses full entity representation.
+**Key Principle**: Both L1 and L2 use only `@key` fields for stable entity identity.
 
 ## Key Files
 
@@ -17,12 +17,12 @@ GraphQL Federation entity caching system with L1 (per-request) and L2 (external)
 |------|---------|
 | `v2/pkg/engine/resolve/loader.go` | L1/L2 cache core: `prepareCacheKeys`, `tryL1CacheLoad`, `tryL2CacheLoad`, `populateL1Cache` |
 | `v2/pkg/engine/resolve/loader_json_copy.go` | Shallow copy for self-referential entities |
-| `v2/pkg/engine/resolve/caching.go` | `RenderL1CacheKeys`, `RenderL2CacheKeys`, `EntityQueryCacheKeyTemplate`, `RootQueryCacheKeyTemplate` |
+| `v2/pkg/engine/resolve/caching.go` | `RenderCacheKeys`, `EntityQueryCacheKeyTemplate`, `RootQueryCacheKeyTemplate` |
 | `v2/pkg/engine/resolve/context.go` | `CachingOptions`, `CacheStats`, tracking methods |
 | `v2/pkg/engine/resolve/fetch.go` | `FetchCacheConfiguration`, `FetchInfo.ProvidesData` |
 | `v2/pkg/engine/plan/visitor.go` | `configureFetchCaching()`, `isEntityBoundaryField` |
 | `v2/pkg/engine/plan/federation_metadata.go` | `EntityCacheConfiguration`, `RootFieldCacheConfiguration` |
-| `v2/pkg/engine/datasource/graphql_datasource/graphql_datasource.go` | `buildL1KeysVariable()`, cache key template building |
+| `v2/pkg/engine/datasource/graphql_datasource/graphql_datasource.go` | `buildCacheKeyVariable()`, cache key template building |
 | `execution/engine/config_factory_federation.go` | `SubgraphCachingConfig`, per-subgraph configuration |
 | `execution/engine/federation_caching_test.go` | E2E caching tests |
 | `v2/pkg/engine/resolve/l1_cache_test.go` | L1 cache unit tests |
@@ -31,13 +31,11 @@ GraphQL Federation entity caching system with L1 (per-request) and L2 (external)
 
 ### Cache Key Templates
 ```go
-// Entity caching - uses different keys for L1 vs L2
+// Entity caching - same @key-only keys for both L1 and L2
 type EntityQueryCacheKeyTemplate struct {
-    Keys   *ResolvableObjectVariable  // L2: @key + @requires fields
-    L1Keys *ResolvableObjectVariable  // L1: @key fields only
+    Keys *ResolvableObjectVariable  // @key fields only (no @requires)
 }
-func (e *EntityQueryCacheKeyTemplate) RenderL1CacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value) ([]*CacheKey, error)
-func (e *EntityQueryCacheKeyTemplate) RenderL2CacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value, prefix string) ([]*CacheKey, error)
+func (e *EntityQueryCacheKeyTemplate) RenderCacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value, prefix string) ([]*CacheKey, error)
 
 // Root field caching - same template for L1 and L2
 type RootQueryCacheKeyTemplate struct {
@@ -126,20 +124,6 @@ opts := []engine.FederationEngineConfigFactoryOption{
 3. **Main thread**: Merge results, populate L1 cache
 
 **Rationale**: L1 is cheap (in-memory), check on main thread to skip goroutine work early. L2/fetch are expensive, run in parallel.
-
-## L1Keys vs Keys
-
-Built in `graphql_datasource.go:buildL1KeysVariable()`:
-```go
-for _, cfg := range p.dataSourcePlannerConfig.RequiredFields {
-    // Only @key configs have empty FieldName
-    // @requires/@provides have FieldName set
-    if cfg.FieldName != "" {
-        continue  // Skip @requires fields
-    }
-    // Include only @key fields for L1
-}
-```
 
 ## Self-Referential Entity Fix
 

@@ -248,6 +248,7 @@ func TestCacheLoad(t *testing.T) {
 						CacheName:        "default",
 						TTL:              30 * time.Second,
 						CacheKeyTemplate: productCacheKeyTemplate,
+						UseL1Cache:       true,
 					},
 				}, "query.topProducts.reviews.product", ArrayPath("topProducts"), ArrayPath("reviews"), ObjectPath("product")),
 			),
@@ -482,6 +483,7 @@ func TestCacheLoadSimple(t *testing.T) {
 							CacheName:        "default",
 							TTL:              30 * time.Second,
 							CacheKeyTemplate: productCacheKeyTemplate,
+							UseL1Cache:       true,
 						},
 					},
 					InputTemplate: InputTemplate{
@@ -694,6 +696,7 @@ func TestCacheLoadSimple(t *testing.T) {
 							CacheName:        "default",
 							TTL:              30 * time.Second,
 							CacheKeyTemplate: productCacheKeyTemplate,
+							UseL1Cache:       true,
 						},
 					},
 					InputTemplate: InputTemplate{
@@ -914,6 +917,7 @@ func TestCacheLoadSequential(t *testing.T) {
 								CacheName:        "default",
 								TTL:              30 * time.Second,
 								CacheKeyTemplate: productCacheKeyTemplate,
+								UseL1Cache:       true,
 							},
 						},
 						InputTemplate: InputTemplate{

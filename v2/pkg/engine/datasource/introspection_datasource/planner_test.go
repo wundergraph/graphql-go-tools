@@ -143,6 +143,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 								PostProcessing: resolve.PostProcessingConfiguration{
 									MergePath: []string{"__type"},
 								},
+								// Note: UseL1Cache is cleared to false by the test framework when WithCacheKeyTemplates() is not used
 							},
 						},
 					},
@@ -218,6 +219,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 								PostProcessing: resolve.PostProcessingConfiguration{
 									MergePath: []string{"__schema"},
 								},
+								// Note: UseL1Cache is cleared to false by the test framework when WithCacheKeyTemplates() is not used
 							},
 						},
 					},
@@ -286,6 +288,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 								PostProcessing: resolve.PostProcessingConfiguration{
 									MergePath: []string{"__schema"},
 								},
+								// Note: UseL1Cache is cleared to false by the test framework when WithCacheKeyTemplates() is not used
 							},
 						},
 					},
@@ -416,6 +419,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 								PostProcessing: resolve.PostProcessingConfiguration{
 									MergePath: []string{"__type"},
 								},
+								// Note: UseL1Cache is cleared to false by the test framework when WithCacheKeyTemplates() is not used
 							},
 						},
 					},

@@ -132,46 +132,19 @@ func (r *RootQueryCacheKeyTemplate) renderField(a arena.Arena, ctx *Context, ite
 }
 
 type EntityQueryCacheKeyTemplate struct {
-	// Keys contains the full entity representation template (includes @key and @requires fields).
-	// Used for L2 cache keys and entity resolution.
+	// Keys contains only @key fields (without @requires fields).
+	// Used for both L1 and L2 cache keys to ensure stable entity identity.
 	Keys *ResolvableObjectVariable
-	// L1Keys contains only the @key fields template (without @requires fields).
-	// Used for L1 (per-request) cache keys to ensure stable entity identity across different fetches.
-	// If nil, falls back to using Keys.
-	L1Keys *ResolvableObjectVariable
 }
 
-// RenderL1CacheKeys generates cache keys for L1 (per-request) cache.
-// Uses L1Keys template (only @key fields) for stable entity identity.
-// Falls back to Keys if L1Keys is nil.
-// L1 cache keys have no prefix since they're scoped to a single request.
-func (e *EntityQueryCacheKeyTemplate) RenderL1CacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value) ([]*CacheKey, error) {
-	template := e.L1Keys
-	if template == nil {
-		template = e.Keys
-	}
-	return e.renderCacheKeys(a, ctx, items, template, "")
-}
-
-// RenderL2CacheKeys generates cache keys for L2 (external) cache.
-// Uses Keys template (includes @key and @requires fields).
-// Prefix is used for cache isolation (typically subgraph header hash).
-func (e *EntityQueryCacheKeyTemplate) RenderL2CacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value, prefix string) ([]*CacheKey, error) {
+// RenderCacheKeys implements CacheKeyTemplate interface.
+// Uses Keys template (only @key fields) for stable entity identity.
+// Prefix is used for L2 cache isolation (typically subgraph header hash).
+func (e *EntityQueryCacheKeyTemplate) RenderCacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value, prefix string) ([]*CacheKey, error) {
 	return e.renderCacheKeys(a, ctx, items, e.Keys, prefix)
 }
 
-// RenderCacheKeys implements CacheKeyTemplate interface for backward compatibility.
-// For new code, prefer using RenderL1CacheKeys or RenderL2CacheKeys explicitly.
-func (e *EntityQueryCacheKeyTemplate) RenderCacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value, prefix string) ([]*CacheKey, error) {
-	// Use L1Keys for L1 cache (no prefix), Keys for L2 cache (with prefix)
-	template := e.Keys
-	if prefix == "" && e.L1Keys != nil {
-		template = e.L1Keys
-	}
-	return e.renderCacheKeys(a, ctx, items, template, prefix)
-}
-
-// renderCacheKeys is the internal implementation shared by L1 and L2 methods.
+// renderCacheKeys is the internal implementation for RenderCacheKeys.
 // Returns one cache key per item for entity queries with keys nested under "key".
 func (e *EntityQueryCacheKeyTemplate) renderCacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value, keysTemplate *ResolvableObjectVariable, prefix string) ([]*CacheKey, error) {
 	jsonBytes := arena.AllocateSlice[byte](a, 0, 64)

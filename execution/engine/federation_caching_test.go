@@ -2473,9 +2473,9 @@ func TestL1CacheChildFieldEntityList(t *testing.T) {
 		l1HitsInt, _ := strconv.ParseInt(l1Hits, 10, 64)
 		l1MissesInt, _ := strconv.ParseInt(l1Misses, 10, 64)
 		// L1 hits for User 1234 in sameUserReviewers (twice, once per product's review)
-		// L1 misses: 2 Products + 2 Users (authorWithoutProvides) + 2 Users (sameUserReviewers check)
+		// L1 misses: User entity fetches (Product fetch has UseL1Cache=false due to optimization)
 		assert.Equal(t, int64(2), l1HitsInt, "Should have exactly 2 L1 hits for User 1234 in sameUserReviewers")
-		assert.Equal(t, int64(6), l1MissesInt, "Should have exactly 6 L1 misses")
+		assert.Equal(t, int64(2), l1MissesInt, "Should have exactly 2 L1 misses (User entity fetches)")
 	})
 
 	t.Run("L1 disabled - accounts called for sameUserReviewers", func(t *testing.T) {
@@ -2617,10 +2617,12 @@ func TestL1CacheNestedEntityListDeduplication(t *testing.T) {
 			"With L1 enabled: exactly 2 accounts calls (nested coReviewers served entirely from L1)")
 
 		// We expect significant L1 hits for the nested level where all users are already cached
+		// The L1 optimization reduces misses by skipping L1 operations for entity types
+		// that have no valid provider/consumer relationship.
 		assert.Equal(t, int64(12), l1HitsInt,
 			"Should have exactly 12 L1 hits for nested coReviewers deduplication")
-		assert.Equal(t, int64(10), l1MissesInt,
-			"Should have exactly 10 L1 misses")
+		assert.Equal(t, int64(8), l1MissesInt,
+			"Should have exactly 8 L1 misses (reduced by optimization)")
 	})
 
 	t.Run("L1 disabled - more accounts calls without deduplication", func(t *testing.T) {
@@ -2763,9 +2765,19 @@ func TestL1CacheRootFieldEntityListPopulation(t *testing.T) {
 		l1Misses := headers.Get("X-Cache-L1-Misses")
 		l1HitsInt, _ := strconv.ParseInt(l1Hits, 10, 64)
 		l1MissesInt, _ := strconv.ParseInt(l1Misses, 10, 64)
-		// L1 hits for User 1234 in sameUserReviewers (twice, once per product's review)
+		// L1 cache flow:
+		// - Product entity fetch (reviews subgraph): 2 products, batched as 1 fetch
+		//   Each product checked L1 → miss, then populated after fetch
+		// - User entity fetch (authorWithoutProvides): User 1234 fetched twice (same user, 2 reviews)
+		//   First: miss, populate L1. Second: hit!
+		// - User entity fetch (sameUserReviewers): 2 hits for User 1234
+		// Total: 2 L1 hits (second authorWithoutProvides + sameUserReviewers uses same User 1234)
 		assert.Equal(t, int64(2), l1HitsInt, "Should have exactly 2 L1 hits for User 1234 in sameUserReviewers")
-		assert.Equal(t, int64(6), l1MissesInt, "Should have exactly 6 L1 misses")
+		// L1 misses: Product and User entity fetches on first encounter
+		// - Product fetch: 2 products in batch = 2 individual L1 lookups = 2 misses
+		// - User fetch: 1 miss for first User 1234, then hits
+		// With batching, we see 2 misses total (Product misses are now skipped due to optimization)
+		assert.Equal(t, int64(2), l1MissesInt, "Should have exactly 2 L1 misses (User entity fetches)")
 	})
 
 	t.Run("L1 disabled - more accounts calls without L1 optimization", func(t *testing.T) {
@@ -3158,5 +3170,162 @@ func TestCacheNotPopulatedOnErrors(t *testing.T) {
 
 		// Verify cache log still shows only get miss, no set
 		assert.Equal(t, wantErrorCacheLog, defaultCache.GetLog(), "Third query cache log should still have 'get' miss, no 'set'")
+	})
+}
+
+// TestL1CacheOptimizationReducesSubgraphCalls tests that the L1 cache optimization
+// postprocessor (optimizeL1Cache) correctly identifies which fetches can benefit
+// from L1 caching and sets UseL1Cache appropriately.
+//
+// The key insight is that L1 is only useful when:
+// 1. A prior fetch can provide cached data (READ benefit)
+// 2. A later fetch can consume cached data (WRITE benefit)
+//
+// This test verifies the end-to-end effect: when L1 optimization identifies
+// matching entity types between fetches, it enables L1 caching, resulting in
+// fewer subgraph calls.
+func TestL1CacheOptimizationReducesSubgraphCalls(t *testing.T) {
+	// This query demonstrates L1 optimization:
+	// - Query.me returns User entity
+	// - User.sameUserReviewers returns [User] entities
+	// When L1 is enabled and optimized correctly:
+	// - First User fetch (me) populates L1 cache
+	// - Second User fetch (sameUserReviewers) hits L1 cache, SKIPS subgraph call
+	//
+	// The optimizeL1Cache postprocessor:
+	// - Sets UseL1Cache=true on User fetches (they share the same entity type)
+	// - Sets UseL1Cache=false on fetches with no matching entity types
+
+	query := `query {
+		me {
+			id
+			username
+			sameUserReviewers {
+				id
+				username
+			}
+		}
+	}`
+
+	expectedResponse := `{"data":{"me":{"id":"1234","username":"Me","sameUserReviewers":[{"id":"1234","username":"Me"}]}}}`
+
+	t.Run("L1 optimization enables cache hit between same entity type fetches", func(t *testing.T) {
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		cachingOpts := resolve.CachingOptions{
+			EnableL1Cache: true,
+			EnableL2Cache: false,
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(cachingOpts),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// Extract hostnames
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		reviewsURLParsed, _ := url.Parse(setup.ReviewsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+		reviewsHost := reviewsURLParsed.Host
+
+		tracker.Reset()
+		out, headers := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+
+		assert.Equal(t, expectedResponse, string(out))
+
+		// Query flow with L1 optimization:
+		// 1. accounts subgraph: Query.me (root query, returns User 1234)
+		//    - L1 cache populated with User 1234
+		// 2. reviews subgraph: User.sameUserReviewers (returns [User 1234])
+		// 3. accounts subgraph: User entity fetch for sameUserReviewers
+		//    - User 1234 is 100% L1 HIT! This call is SKIPPED!
+		accountsCalls := tracker.GetCount(accountsHost)
+		reviewsCalls := tracker.GetCount(reviewsHost)
+
+		// KEY ASSERTION: Only 1 accounts call!
+		// Without L1 optimization, there would be 2 calls:
+		// - First: Query.me
+		// - Second: User entity resolution for sameUserReviewers
+		// With L1 optimization, the second call is skipped because User 1234 is in L1 cache.
+		assert.Equal(t, 1, accountsCalls,
+			"L1 optimization: only 1 accounts call (sameUserReviewers resolved from L1 cache)")
+		assert.Equal(t, 1, reviewsCalls,
+			"Should call reviews subgraph once for User.sameUserReviewers")
+
+		// Verify L1 cache was used
+		l1Hits := headers.Get("X-Cache-L1-Hits")
+		l1Misses := headers.Get("X-Cache-L1-Misses")
+		l1HitsInt, _ := strconv.ParseInt(l1Hits, 10, 64)
+		l1MissesInt, _ := strconv.ParseInt(l1Misses, 10, 64)
+		// L1 hit: User 1234 found in cache during sameUserReviewers resolution
+		// Query.me populates L1 via RootFieldL1EntityCacheKeyTemplates (write-only, no miss)
+		// sameUserReviewers entity fetch finds User 1234 in L1 → HIT
+		assert.Equal(t, int64(1), l1HitsInt,
+			"Should have exactly 1 L1 hit (User 1234 in sameUserReviewers)")
+		// L1 misses: 0 because Query.me populates L1 without going through entity fetch path
+		// Root field L1 population is write-only, doesn't register as a miss
+		assert.Equal(t, int64(0), l1MissesInt,
+			"Should have exactly 0 L1 misses (root field population doesn't count as miss)")
+	})
+
+	t.Run("Without L1, same query requires more subgraph calls", func(t *testing.T) {
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		cachingOpts := resolve.CachingOptions{
+			EnableL1Cache: false, // L1 disabled
+			EnableL2Cache: false,
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(cachingOpts),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// Extract hostnames
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		reviewsURLParsed, _ := url.Parse(setup.ReviewsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+		reviewsHost := reviewsURLParsed.Host
+
+		tracker.Reset()
+		out, headers := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+
+		assert.Equal(t, expectedResponse, string(out))
+
+		// Query flow WITHOUT L1:
+		// 1. accounts subgraph: Query.me (root query)
+		// 2. reviews subgraph: User.sameUserReviewers
+		// 3. accounts subgraph: User entity fetch (NO L1 cache → must fetch!)
+		accountsCalls := tracker.GetCount(accountsHost)
+		reviewsCalls := tracker.GetCount(reviewsHost)
+
+		// KEY ASSERTION: 2 accounts calls without L1!
+		// This proves L1 optimization saves a subgraph call.
+		assert.Equal(t, 2, accountsCalls,
+			"Without L1: 2 accounts calls (sameUserReviewers requires separate fetch)")
+		assert.Equal(t, 1, reviewsCalls,
+			"Should call reviews subgraph once for User.sameUserReviewers")
+
+		// Verify NO L1 activity
+		l1Hits := headers.Get("X-Cache-L1-Hits")
+		l1Misses := headers.Get("X-Cache-L1-Misses")
+		l1HitsInt, _ := strconv.ParseInt(l1Hits, 10, 64)
+		l1MissesInt, _ := strconv.ParseInt(l1Misses, 10, 64)
+		assert.Equal(t, int64(0), l1HitsInt, "L1 hits should be 0 when L1 disabled")
+		assert.Equal(t, int64(0), l1MissesInt, "L1 misses should be 0 when L1 disabled")
 	})
 }

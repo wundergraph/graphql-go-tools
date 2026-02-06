@@ -316,7 +316,7 @@ type FetchCacheConfiguration struct {
 	TTL time.Duration
 	// CacheKeyTemplate can be used to render a cache key for the fetch.
 	// In case of a root fetch, the variables will be one or more field arguments
-	// For entity fetches, the variables will be a single Object Variable with @key and @requires fields
+	// For entity fetches, the variables will be a single Object Variable with only @key fields
 	CacheKeyTemplate CacheKeyTemplate
 	// IncludeSubgraphHeaderPrefix indicates if cache keys should be prefixed with the subgraph header hash.
 	// The prefix format is "id:cacheKey" where id is the hash from HeadersForSubgraph.
@@ -330,6 +330,11 @@ type FetchCacheConfiguration struct {
 	// entities are fetched from the subgraph. Cached entities are served directly.
 	// This is propagated from EntityCacheConfiguration during planning.
 	EnablePartialCacheLoad bool
+
+	// UseL1Cache controls whether this fetch uses L1 (per-request) cache.
+	// Set by postprocessor based on whether a prior fetch can populate L1
+	// for this entity type. Defaults to true for backward compatibility.
+	UseL1Cache bool
 }
 
 // FetchDependency explains how a GraphCoordinate depends on other GraphCoordinates from other fetches

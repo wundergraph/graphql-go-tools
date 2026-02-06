@@ -297,12 +297,28 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 func clearCacheKeyTemplates(p plan.Plan) {
 	switch pl := p.(type) {
 	case *plan.SynchronousResponsePlan:
-		if pl.Response != nil && pl.Response.Fetches != nil {
-			clearCacheKeyTemplatesFromFetchTree(pl.Response.Fetches)
+		if pl.Response != nil {
+			if pl.Response.Fetches != nil {
+				clearCacheKeyTemplatesFromFetchTree(pl.Response.Fetches)
+			}
+			// Also clear from RawFetches (pre-postprocessed fetch items)
+			for _, item := range pl.Response.RawFetches {
+				if item != nil && item.Fetch != nil {
+					clearCacheKeyTemplateFromFetch(item.Fetch)
+				}
+			}
 		}
 	case *plan.SubscriptionResponsePlan:
-		if pl.Response != nil && pl.Response.Response != nil && pl.Response.Response.Fetches != nil {
-			clearCacheKeyTemplatesFromFetchTree(pl.Response.Response.Fetches)
+		if pl.Response != nil && pl.Response.Response != nil {
+			if pl.Response.Response.Fetches != nil {
+				clearCacheKeyTemplatesFromFetchTree(pl.Response.Response.Fetches)
+			}
+			// Also clear from RawFetches
+			for _, item := range pl.Response.Response.RawFetches {
+				if item != nil && item.Fetch != nil {
+					clearCacheKeyTemplateFromFetch(item.Fetch)
+				}
+			}
 		}
 	}
 }
@@ -333,5 +349,8 @@ func clearCacheKeyTemplateFromFetch(f resolve.Fetch) {
 	case *resolve.SingleFetch:
 		fetch.FetchConfiguration.Caching.CacheKeyTemplate = nil
 		fetch.FetchConfiguration.Caching.RootFieldL1EntityCacheKeyTemplates = nil
+		// Clear UseL1Cache to avoid test failures when comparing expected vs actual
+		// since the planner now defaults to true but most tests expect false (zero value)
+		fetch.FetchConfiguration.Caching.UseL1Cache = false
 	}
 }

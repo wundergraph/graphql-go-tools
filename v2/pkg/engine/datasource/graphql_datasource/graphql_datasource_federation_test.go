@@ -1580,6 +1580,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										CacheName:                   "default",
 										TTL:                         30 * time.Second,
 										IncludeSubgraphHeaderPrefix: true,
+										// UseL1Cache defaults to false - root query fetches with RootQueryCacheKeyTemplate don't populate entity L1 cache
 										CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{
 											RootFields: []resolve.QueryField{
 												{
@@ -1865,49 +1866,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										CacheName:                   "default",
 										TTL:                         time.Second * 30,
 										IncludeSubgraphHeaderPrefix: true,
+										UseL1Cache:                  false, // Set to false by postprocessor (no L1 benefit for this fetch)
 										CacheKeyTemplate: &resolve.EntityQueryCacheKeyTemplate{
 											Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
-												Nullable: true,
-												Fields: []*resolve.Field{
-													{
-														Name:        []byte("__typename"),
-														OnTypeNames: [][]byte{[]byte("Account")},
-														Value: &resolve.String{
-															Path: []string{"__typename"},
-														},
-													},
-													{
-														Name:        []byte("id"),
-														OnTypeNames: [][]byte{[]byte("Account")},
-														Value: &resolve.Scalar{
-															Path: []string{"id"},
-														},
-													},
-													{
-														Name:        []byte("info"),
-														OnTypeNames: [][]byte{[]byte("Account")},
-														Value: &resolve.Object{
-															Path:     []string{"info"},
-															Nullable: true,
-															Fields: []*resolve.Field{
-																{
-																	Name: []byte("a"),
-																	Value: &resolve.Scalar{
-																		Path: []string{"a"},
-																	},
-																},
-																{
-																	Name: []byte("b"),
-																	Value: &resolve.Scalar{
-																		Path: []string{"b"},
-																	},
-																},
-															},
-														},
-													},
-												},
-											}),
-											L1Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
 												Nullable: true,
 												Fields: []*resolve.Field{
 													{
