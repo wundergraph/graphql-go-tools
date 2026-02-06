@@ -250,6 +250,7 @@ func (d *Document) ResolveTypeNameString(ref int) string {
 	return unsafebytes.BytesToString(d.ResolveTypeNameBytes(ref))
 }
 
+// ResolveUnderlyingType unwraps the ref type until it finds the named type.
 func (d *Document) ResolveUnderlyingType(ref int) (typeRef int) {
 	typeRef = ref
 	graphqlType := d.Types[ref]
@@ -261,6 +262,7 @@ func (d *Document) ResolveUnderlyingType(ref int) (typeRef int) {
 	return
 }
 
+// ResolveListOrNameType unwraps the ref type until it finds the named or list type.
 func (d *Document) ResolveListOrNameType(ref int) (typeRef int) {
 	typeRef = ref
 	graphqlType := d.Types[ref]

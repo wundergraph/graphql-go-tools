@@ -62,6 +62,7 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 						},
 					},
 					{
+						ID:             1,
 						DependentCalls: []int{0},
 						ServiceName:    "Products",
 						MethodName:     "ResolveCategoryProductCount",
@@ -193,6 +194,7 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 						},
 					},
 					{
+						ID:             1,
 						DependentCalls: []int{0},
 						ServiceName:    "Products",
 						MethodName:     "ResolveCategoryProductCount",
@@ -285,7 +287,8 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 											{
 												Name:          "product_count",
 												ProtoTypeName: DataTypeInt32,
-												JSONPath:      "productCount1",
+												JSONPath:      "productCount",
+												Alias:         "productCount1",
 											},
 										},
 									},
@@ -294,6 +297,7 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 						},
 					},
 					{
+						ID:             2,
 						DependentCalls: []int{0},
 						ServiceName:    "Products",
 						MethodName:     "ResolveCategoryProductCount",
@@ -386,7 +390,8 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 											{
 												Name:          "product_count",
 												ProtoTypeName: DataTypeInt32,
-												JSONPath:      "productCount2",
+												JSONPath:      "productCount",
+												Alias:         "productCount2",
 											},
 										},
 									},
@@ -469,6 +474,7 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 						},
 					},
 					{
+						ID:             1,
 						DependentCalls: []int{0},
 						ServiceName:    "Products",
 						MethodName:     "ResolveSubcategoryItemCount",
@@ -600,6 +606,7 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 						},
 					},
 					{
+						ID:             1,
 						DependentCalls: []int{0},
 						Kind:           CallKindResolve,
 						ServiceName:    "Products",
@@ -723,6 +730,7 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 						},
 					},
 					{
+						ID:             1,
 						DependentCalls: []int{0},
 						Kind:           CallKindResolve,
 						ServiceName:    "Products",
@@ -849,6 +857,7 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 						},
 					},
 					{
+						ID:             1,
 						DependentCalls: []int{0},
 						ServiceName:    "Products",
 						MethodName:     "ResolveCategoryPopularityScore",
@@ -916,6 +925,7 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 						},
 					},
 					{
+						ID:             2,
 						DependentCalls: []int{0},
 						ServiceName:    "Products",
 						MethodName:     "ResolveCategoryCategoryMetrics",
@@ -1060,6 +1070,7 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 						},
 					},
 					{
+						ID:             1,
 						DependentCalls: []int{0},
 						ServiceName:    "Products",
 						MethodName:     "ResolveCategoryCategoryMetrics",
@@ -1150,6 +1161,7 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 						},
 					},
 					{
+						ID:             2,
 						DependentCalls: []int{1},
 						ServiceName:    "Products",
 						MethodName:     "ResolveCategoryMetricsNormalizedScore",
@@ -1169,19 +1181,19 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 												Name:          "id",
 												ProtoTypeName: DataTypeString,
 												JSONPath:      "id",
-												ResolvePath:   buildPath("categories.categoryMetrics.id"),
+												ResolvePath:   buildPath("result.category_metrics.id"),
 											},
 											{
 												Name:          "value",
 												ProtoTypeName: DataTypeDouble,
 												JSONPath:      "value",
-												ResolvePath:   buildPath("categories.categoryMetrics.value"),
+												ResolvePath:   buildPath("result.category_metrics.value"),
 											},
 											{
 												Name:          "metric_type",
 												ProtoTypeName: DataTypeString,
 												JSONPath:      "metricType",
-												ResolvePath:   buildPath("categories.categoryMetrics.metricType"),
+												ResolvePath:   buildPath("result.category_metrics.metric_type"),
 											},
 										},
 									},
@@ -1227,6 +1239,1614 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:  "Should create an execution plan for a query with child categories field resolver",
+			query: "query CategoriesWithChildCategoriesFieldResolver { categories { childCategories { id name kind } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryCategories",
+						Request: RPCMessage{
+							Name: "QueryCategoriesRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "categories",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "categories",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name:   "Category",
+										Fields: []RPCField{},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             1,
+						DependentCalls: []int{0},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryChildCategories",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.childCategories"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryChildCategoriesRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("categories.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("categories.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesArgs",
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryChildCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesResult",
+										Fields: []RPCField{
+											{
+												Name:          "child_categories",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "childCategories",
+												Repeated:      true,
+												Message: &RPCMessage{
+													Name: "Category",
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+														{
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
+														},
+														{
+															Name:          "kind",
+															ProtoTypeName: DataTypeEnum,
+															JSONPath:      "kind",
+															EnumName:      "CategoryKind",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query with recursive child categories field resolver",
+			query: "query CategoriesWithRecursiveChildCategoriesFieldResolver { categories { childCategories { id name kind childCategories { id name kind } } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryCategories",
+						Request: RPCMessage{
+							Name: "QueryCategoriesRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "categories",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "categories",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name:   "Category",
+										Fields: []RPCField{},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             1,
+						DependentCalls: []int{0},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryChildCategories",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.childCategories"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryChildCategoriesRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("categories.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("categories.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesArgs",
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryChildCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesResult",
+										Fields: []RPCField{
+											{
+												Name:          "child_categories",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "childCategories",
+												Repeated:      true,
+												Message: &RPCMessage{
+													Name: "Category",
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+														{
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
+														},
+														{
+															Name:          "kind",
+															ProtoTypeName: DataTypeEnum,
+															JSONPath:      "kind",
+															EnumName:      "CategoryKind",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             2,
+						DependentCalls: []int{1},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryChildCategories",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.childCategories.childCategories"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryChildCategoriesRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("result.child_categories.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("result.child_categories.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesArgs",
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryChildCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesResult",
+										Fields: []RPCField{
+											{
+												Name:          "child_categories",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "childCategories",
+												Repeated:      true,
+												Message: &RPCMessage{
+													Name: "Category",
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+														{
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
+														},
+														{
+															Name:          "kind",
+															ProtoTypeName: DataTypeEnum,
+															JSONPath:      "kind",
+															EnumName:      "CategoryKind",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query with recursive child categories field resolver and aliases",
+			query: "query CategoriesWithRecursiveChildCategoriesFieldResolverAndAliases { categories { child: childCategories { id name kind childchild: childCategories { id name kind } } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryCategories",
+						Request: RPCMessage{
+							Name: "QueryCategoriesRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "categories",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "categories",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name:   "Category",
+										Fields: []RPCField{},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             1,
+						DependentCalls: []int{0},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryChildCategories",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.child"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryChildCategoriesRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("categories.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("categories.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesArgs",
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryChildCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesResult",
+										Fields: []RPCField{
+											{
+												Name:          "child_categories",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "childCategories",
+												Alias:         "child",
+												Repeated:      true,
+												Message: &RPCMessage{
+													Name: "Category",
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+														{
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
+														},
+														{
+															Name:          "kind",
+															ProtoTypeName: DataTypeEnum,
+															JSONPath:      "kind",
+															EnumName:      "CategoryKind",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             2,
+						DependentCalls: []int{1},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryChildCategories",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.child.childchild"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryChildCategoriesRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("result.child_categories.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("result.child_categories.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesArgs",
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryChildCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesResult",
+										Fields: []RPCField{
+											{
+												Name:          "child_categories",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "childCategories",
+												Alias:         "childchild",
+												Repeated:      true,
+												Message: &RPCMessage{
+													Name: "Category",
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+														{
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
+														},
+														{
+															Name:          "kind",
+															ProtoTypeName: DataTypeEnum,
+															JSONPath:      "kind",
+															EnumName:      "CategoryKind",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query with recursive multiple recursive field resolvers",
+			query: "query CategoriesWithRecursiveChildCategoriesFieldResolver { categories { childCategories { id name kind childCategories { id name kind childCategories { id name kind childCategories { id name kind } } } } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryCategories",
+						Request: RPCMessage{
+							Name: "QueryCategoriesRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "categories",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "categories",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name:   "Category",
+										Fields: []RPCField{},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             1,
+						DependentCalls: []int{0},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryChildCategories",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.childCategories"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryChildCategoriesRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("categories.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("categories.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesArgs",
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryChildCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesResult",
+										Fields: []RPCField{
+											{
+												Name:          "child_categories",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "childCategories",
+												Repeated:      true,
+												Message: &RPCMessage{
+													Name: "Category",
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+														{
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
+														},
+														{
+															Name:          "kind",
+															ProtoTypeName: DataTypeEnum,
+															JSONPath:      "kind",
+															EnumName:      "CategoryKind",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             2,
+						DependentCalls: []int{1},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryChildCategories",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.childCategories.childCategories"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryChildCategoriesRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("result.child_categories.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("result.child_categories.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesArgs",
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryChildCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesResult",
+										Fields: []RPCField{
+											{
+												Name:          "child_categories",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "childCategories",
+												Repeated:      true,
+												Message: &RPCMessage{
+													Name: "Category",
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+														{
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
+														},
+														{
+															Name:          "kind",
+															ProtoTypeName: DataTypeEnum,
+															JSONPath:      "kind",
+															EnumName:      "CategoryKind",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             3,
+						DependentCalls: []int{2},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryChildCategories",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.childCategories.childCategories.childCategories"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryChildCategoriesRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("result.child_categories.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("result.child_categories.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesArgs",
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryChildCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesResult",
+										Fields: []RPCField{
+											{
+												Name:          "child_categories",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "childCategories",
+												Repeated:      true,
+												Message: &RPCMessage{
+													Name: "Category",
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+														{
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
+														},
+														{
+															Name:          "kind",
+															ProtoTypeName: DataTypeEnum,
+															JSONPath:      "kind",
+															EnumName:      "CategoryKind",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             4,
+						DependentCalls: []int{3},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryChildCategories",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.childCategories.childCategories.childCategories.childCategories"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryChildCategoriesRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("result.child_categories.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("result.child_categories.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesArgs",
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryChildCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesResult",
+										Fields: []RPCField{
+											{
+												Name:          "child_categories",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "childCategories",
+												Repeated:      true,
+												Message: &RPCMessage{
+													Name: "Category",
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+														{
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
+														},
+														{
+															Name:          "kind",
+															ProtoTypeName: DataTypeEnum,
+															JSONPath:      "kind",
+															EnumName:      "CategoryKind",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query with optional categories field resolver without providing include argument",
+			query: "query CategoriesWithOptionalCategories { categories { optionalCategories { id name kind } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryCategories",
+						Request: RPCMessage{
+							Name: "QueryCategoriesRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "categories",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "categories",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name:   "Category",
+										Fields: []RPCField{},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             1,
+						DependentCalls: []int{0},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryOptionalCategories",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.optionalCategories"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryOptionalCategoriesRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryOptionalCategoriesContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("categories.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("categories.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryOptionalCategoriesArgs",
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryOptionalCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryOptionalCategoriesResult",
+										Fields: []RPCField{
+											{
+												Name:          "optional_categories",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "optionalCategories",
+												Optional:      true,
+												IsListType:    true,
+												ListMetadata: &ListMetadata{
+													NestingLevel: 1,
+													LevelInfo:    []LevelInfo{{Optional: true}},
+												},
+												Message: &RPCMessage{
+													Name: "Category",
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+														{
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
+														},
+														{
+															Name:          "kind",
+															ProtoTypeName: DataTypeEnum,
+															JSONPath:      "kind",
+															EnumName:      "CategoryKind",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query with optional categories and nested optional categories field resolver",
+			query: "query CategoriesWithOptionalCategories { categories { optionalCategories { id name kind optionalCategories { id name kind } } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryCategories",
+						Request: RPCMessage{
+							Name: "QueryCategoriesRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "categories",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "categories",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name:   "Category",
+										Fields: []RPCField{},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             1,
+						DependentCalls: []int{0},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryOptionalCategories",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.optionalCategories"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryOptionalCategoriesRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryOptionalCategoriesContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("categories.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("categories.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryOptionalCategoriesArgs",
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryOptionalCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryOptionalCategoriesResult",
+										Fields: []RPCField{
+											{
+												Name:          "optional_categories",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "optionalCategories",
+												Optional:      true,
+												IsListType:    true,
+												ListMetadata: &ListMetadata{
+													NestingLevel: 1,
+													LevelInfo:    []LevelInfo{{Optional: true}},
+												},
+												Message: &RPCMessage{
+													Name: "Category",
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+														{
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
+														},
+														{
+															Name:          "kind",
+															ProtoTypeName: DataTypeEnum,
+															JSONPath:      "kind",
+															EnumName:      "CategoryKind",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             2,
+						DependentCalls: []int{1},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryOptionalCategories",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.optionalCategories.optionalCategories"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryOptionalCategoriesRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryOptionalCategoriesContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("result.@optional_categories.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("result.@optional_categories.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryOptionalCategoriesArgs",
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryOptionalCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryOptionalCategoriesResult",
+										Fields: []RPCField{
+											{
+												Name:          "optional_categories",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "optionalCategories",
+												Optional:      true,
+												IsListType:    true,
+												ListMetadata: &ListMetadata{
+													NestingLevel: 1,
+													LevelInfo:    []LevelInfo{{Optional: true}},
+												},
+												Message: &RPCMessage{
+													Name: "Category",
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+														{
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
+														},
+														{
+															Name:          "kind",
+															ProtoTypeName: DataTypeEnum,
+															JSONPath:      "kind",
+															EnumName:      "CategoryKind",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query with both childCategories and optionalCategories with nested field resolvers sibling field resolvers",
+			query: "query CategoriesWithBothFieldResolversNested { categories { id name childCategories { id name kind optionalCategories { id name kind } } optionalCategories { id name kind childCategories { id name kind } } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryCategories",
+						Request: RPCMessage{
+							Name: "QueryCategoriesRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "categories",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "categories",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "Category",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             1,
+						DependentCalls: []int{0},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryChildCategories",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.childCategories"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryChildCategoriesRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("categories.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("categories.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesArgs",
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryChildCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesResult",
+										Fields: []RPCField{
+											{
+												Name:          "child_categories",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "childCategories",
+												Repeated:      true,
+												Message: &RPCMessage{
+													Name: "Category",
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+														{
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
+														},
+														{
+															Name:          "kind",
+															ProtoTypeName: DataTypeEnum,
+															JSONPath:      "kind",
+															EnumName:      "CategoryKind",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             2,
+						DependentCalls: []int{1},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryOptionalCategories",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.childCategories.optionalCategories"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryOptionalCategoriesRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryOptionalCategoriesContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("result.child_categories.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("result.child_categories.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryOptionalCategoriesArgs",
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryOptionalCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryOptionalCategoriesResult",
+										Fields: []RPCField{
+											{
+												Name:          "optional_categories",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "optionalCategories",
+												Optional:      true,
+												IsListType:    true,
+												ListMetadata: &ListMetadata{
+													NestingLevel: 1,
+													LevelInfo:    []LevelInfo{{Optional: true}},
+												},
+												Message: &RPCMessage{
+													Name: "Category",
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+														{
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
+														},
+														{
+															Name:          "kind",
+															ProtoTypeName: DataTypeEnum,
+															JSONPath:      "kind",
+															EnumName:      "CategoryKind",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             3,
+						DependentCalls: []int{0},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryOptionalCategories",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.optionalCategories"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryOptionalCategoriesRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryOptionalCategoriesContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("categories.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("categories.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryOptionalCategoriesArgs",
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryOptionalCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryOptionalCategoriesResult",
+										Fields: []RPCField{
+											{
+												Name:          "optional_categories",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "optionalCategories",
+												Optional:      true,
+												IsListType:    true,
+												ListMetadata: &ListMetadata{
+													NestingLevel: 1,
+													LevelInfo:    []LevelInfo{{Optional: true}},
+												},
+												Message: &RPCMessage{
+													Name: "Category",
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+														{
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
+														},
+														{
+															Name:          "kind",
+															ProtoTypeName: DataTypeEnum,
+															JSONPath:      "kind",
+															EnumName:      "CategoryKind",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             4,
+						DependentCalls: []int{3},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryChildCategories",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.optionalCategories.childCategories"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryChildCategoriesRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("result.@optional_categories.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("result.@optional_categories.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesArgs",
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryChildCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesResult",
+										Fields: []RPCField{
+											{
+												Name:          "child_categories",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "childCategories",
+												Repeated:      true,
+												Message: &RPCMessage{
+													Name: "Category",
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+														{
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
+														},
+														{
+															Name:          "kind",
+															ProtoTypeName: DataTypeEnum,
+															JSONPath:      "kind",
+															EnumName:      "CategoryKind",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1239,6 +2859,7 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 			})
 		})
 	}
+
 }
 
 func TestExecutionPlanFieldResolvers_WithCompositeTypes(t *testing.T) {
@@ -1277,6 +2898,7 @@ func TestExecutionPlanFieldResolvers_WithCompositeTypes(t *testing.T) {
 						},
 					},
 					{
+						ID:             1,
 						DependentCalls: []int{0},
 						ServiceName:    "Products",
 						MethodName:     "ResolveCategoryMascot",
@@ -1399,6 +3021,7 @@ func TestExecutionPlanFieldResolvers_WithCompositeTypes(t *testing.T) {
 						},
 					},
 					{
+						ID:             1,
 						DependentCalls: []int{0},
 						ServiceName:    "Products",
 						MethodName:     "ResolveCategoryCategoryStatus",
@@ -1540,6 +3163,7 @@ func TestExecutionPlanFieldResolvers_WithCompositeTypes(t *testing.T) {
 						},
 					},
 					{
+						ID:             1,
 						DependentCalls: []int{0},
 						ServiceName:    "Products",
 						MethodName:     "ResolveTestContainerDetails",
@@ -1702,6 +3326,7 @@ func TestExecutionPlanFieldResolvers_WithCompositeTypes(t *testing.T) {
 						},
 					},
 					{
+						ID:             1,
 						DependentCalls: []int{0},
 						ServiceName:    "Products",
 						MethodName:     "ResolveTestContainerDetails",
@@ -1864,6 +3489,7 @@ func TestExecutionPlanFieldResolvers_WithCompositeTypes(t *testing.T) {
 						},
 					},
 					{
+						ID:             1,
 						DependentCalls: []int{0},
 						ServiceName:    "Products",
 						MethodName:     "ResolveTestContainerDetails",
@@ -2062,6 +3688,7 @@ func TestExecutionPlanFieldResolvers_WithCompositeTypes(t *testing.T) {
 						},
 					},
 					{
+						ID:             1,
 						DependentCalls: []int{0},
 						ServiceName:    "Products",
 						MethodName:     "ResolveTestContainerDetails",
@@ -2369,6 +3996,7 @@ func TestExecutionPlanFieldResolvers_CustomSchemas(t *testing.T) {
 						},
 					},
 					{
+						ID:             1,
 						Kind:           CallKindResolve,
 						DependentCalls: []int{0},
 						ResponsePath:   buildPath("foo.fooResolver"),
@@ -2438,6 +4066,7 @@ func TestExecutionPlanFieldResolvers_CustomSchemas(t *testing.T) {
 						},
 					},
 					{
+						ID:             2,
 						Kind:           CallKindResolve,
 						DependentCalls: []int{1},
 						ResponsePath:   buildPath("foo.fooResolver.bazResolver"),
@@ -2457,7 +4086,7 @@ func TestExecutionPlanFieldResolvers_CustomSchemas(t *testing.T) {
 												Name:          "id",
 												ProtoTypeName: DataTypeString,
 												JSONPath:      "id",
-												ResolvePath:   buildPath("foo.fooResolver.id"),
+												ResolvePath:   buildPath("result.foo_resolver.id"),
 											},
 										},
 									},
@@ -2540,6 +4169,7 @@ func TestExecutionPlanFieldResolvers_CustomSchemas(t *testing.T) {
 						},
 					},
 					{
+						ID:             1,
 						Kind:           CallKindResolve,
 						DependentCalls: []int{0},
 						ResponsePath:   buildPath("foo.fooResolver"),
@@ -2655,6 +4285,7 @@ func TestExecutionPlanFieldResolvers_CustomSchemas(t *testing.T) {
 						},
 					},
 					{
+						ID:             1,
 						Kind:           CallKindResolve,
 						DependentCalls: []int{0},
 						ResponsePath:   buildPath("foo.fooResolverOptionalArgument"),
