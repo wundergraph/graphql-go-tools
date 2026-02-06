@@ -61,6 +61,7 @@ require (
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/urfave/cli/v2 v2.27.7 // indirect
+	github.com/wundergraph/go-arena v1.1.0 // indirect
 	github.com/xrash/smetrics v0.0.0-20250705151800-55b8f293f342 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
@@ -75,5 +76,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rogchap.com/v8go v0.9.0 // indirect
 )
+
+replace github.com/wundergraph/graphql-go-tools/v2 => ../v2
 
 tool github.com/99designs/gqlgen
