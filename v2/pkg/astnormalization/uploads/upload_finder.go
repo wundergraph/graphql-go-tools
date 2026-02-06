@@ -81,7 +81,7 @@ func (v *UploadFinder) FindUploads(operation, definition *ast.Document, variable
 		variables = []byte("{}")
 	}
 
-	v.variables, err = astjson.ParseBytesWithoutCache(variables)
+	v.variables, err = astjson.ParseBytes(variables)
 	if err != nil {
 		return nil, err
 	}

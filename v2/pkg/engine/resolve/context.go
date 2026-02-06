@@ -26,6 +26,7 @@ type Context struct {
 	// the resolver will use the new name to look up the old name to render the variable in the query.
 	RemapVariables map[string]string
 
+	VariablesHash    uint64
 	Files            []*httpclient.FileUpload
 	Request          Request
 	RenameTypeNames  []RenameTypeName
@@ -41,12 +42,48 @@ type Context struct {
 	fieldRenderer FieldValueRenderer
 
 	subgraphErrors map[string]error
+
+	SubgraphHeadersBuilder SubgraphHeadersBuilder
+}
+
+// SubgraphHeadersBuilder allows the user of the engine to "define" the headers for a subgraph request
+// Instead of going back and forth between engine & transport,
+// you can simply define a function that returns headers for a Subgraph request
+// In addition to just the header, the implementer can return a hash for the header which will be used by request deduplication
+type SubgraphHeadersBuilder interface {
+	// HeadersForSubgraph must return the headers and a hash for a Subgraph Request
+	// The hash will be used for request deduplication
+	HeadersForSubgraph(subgraphName string) (http.Header, uint64)
+	// HashAll must return the hash for all subgraph requests combined
+	HashAll() uint64
+}
+
+// HeadersForSubgraphRequest returns headers and a hash for a request that the engine will make to a subgraph
+func (c *Context) HeadersForSubgraphRequest(subgraphName string) (http.Header, uint64) {
+	if c.SubgraphHeadersBuilder == nil {
+		return nil, 0
+	}
+	return c.SubgraphHeadersBuilder.HeadersForSubgraph(subgraphName)
 }
 
 type ExecutionOptions struct {
-	SkipLoader                 bool
+	// SkipLoader will, as the name indicates, skip loading data
+	// However, it does indeed resolve a response
+	// This can be useful, e.g. in combination with IncludeQueryPlanInResponse
+	// The purpose is to get a QueryPlan (even for Subscriptions)
+	SkipLoader bool
+	// IncludeQueryPlanInResponse generates a QueryPlan as part of the response in Resolvable
 	IncludeQueryPlanInResponse bool
-	SendHeartbeat              bool
+	// SendHeartbeat sends regular HeartBeats for Subscriptions
+	SendHeartbeat bool
+	// DisableSubgraphRequestDeduplication disables deduplication of requests to the same subgraph with the same input within a single operation execution.
+	DisableSubgraphRequestDeduplication bool
+	// DisableInboundRequestDeduplication disables deduplication of inbound client requests
+	// The engine is hashing the normalized operation, variables, and forwarded headers to achieve robust deduplication
+	// By default, overhead is negligible and as such this should be false (not disabled) most of the time
+	// However, if you're benchmarking internals of the engine, it can be helpful to switch it off
+	// When disabled (set to true) the code becomes a no-op
+	DisableInboundRequestDeduplication bool
 }
 
 type FieldValue struct {
@@ -166,11 +203,14 @@ func (c *Context) SubgraphErrors() error {
 }
 
 func (c *Context) appendSubgraphErrors(ds DataSourceInfo, errs ...error) {
+	if c.subgraphErrors == nil {
+		c.subgraphErrors = make(map[string]error)
+	}
 	c.subgraphErrors[ds.Name] = errors.Join(c.subgraphErrors[ds.Name], errors.Join(errs...))
 }
 
 type Request struct {
-	ID     string
+	ID     uint64
 	Header http.Header
 }
 
@@ -179,8 +219,7 @@ func NewContext(ctx context.Context) *Context {
 		panic("nil context.Context")
 	}
 	return &Context{
-		ctx:            ctx,
-		subgraphErrors: make(map[string]error),
+		ctx: ctx,
 	}
 }
 
