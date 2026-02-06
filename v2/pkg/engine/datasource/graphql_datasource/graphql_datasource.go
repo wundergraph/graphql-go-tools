@@ -423,7 +423,7 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 		p.stopWithError(errors.WithStack(fmt.Errorf("ConfigureSubscription: failed to marshal header: %w", err)))
 		return plan.SubscriptionConfiguration{}
 	}
-	if err == nil && len(header) != 0 && !bytes.Equal(header, literal.NULL) {
+	if len(header) != 0 && !bytes.Equal(header, literal.NULL) {
 		input = httpclient.SetInputHeader(input, header)
 	}
 
@@ -1920,8 +1920,6 @@ func (s *Source) Load(ctx context.Context, headers http.Header, input []byte) (d
 type GraphQLSubscriptionClient interface {
 	// Subscribe to the origin source. The implementation must not block the calling goroutine.
 	Subscribe(ctx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error
-	SubscribeAsync(ctx *resolve.Context, id uint64, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error
-	Unsubscribe(id uint64)
 }
 
 type GraphQLSubscriptionOptions struct {
@@ -1956,25 +1954,6 @@ type SubscriptionSource struct {
 	subscriptionOnStartFns []SubscriptionOnStartFn
 }
 
-func (s *SubscriptionSource) AsyncStart(ctx *resolve.Context, id uint64, headers http.Header, input []byte, updater resolve.SubscriptionUpdater) error {
-	var options GraphQLSubscriptionOptions
-	err := json.Unmarshal(input, &options)
-	if err != nil {
-		return err
-	}
-	options.Header = headers
-	if options.Body.Query == "" {
-		return resolve.ErrUnableToResolve
-	}
-	return s.client.SubscribeAsync(ctx, id, options, updater)
-}
-
-// AsyncStop stops the subscription with the given id. AsyncStop is only effective when netPoll is enabled
-// because without netPoll we manage the lifecycle of the connection in the subscription client.
-func (s *SubscriptionSource) AsyncStop(id uint64) {
-	s.client.Unsubscribe(id)
-}
-
 // Start the subscription. The updater is called on new events. Start needs to be called in a separate goroutine.
 func (s *SubscriptionSource) Start(ctx *resolve.Context, headers http.Header, input []byte, updater resolve.SubscriptionUpdater) error {
 	var options GraphQLSubscriptionOptions
@@ -1988,10 +1967,6 @@ func (s *SubscriptionSource) Start(ctx *resolve.Context, headers http.Header, in
 	}
 	return s.client.Subscribe(ctx, options, updater)
 }
-
-var (
-	dataSouceName = []byte("graphql")
-)
 
 // SubscriptionOnStart is called when a subscription is started.
 // Hooks are invoked sequentially, short-circuiting on the first error.
