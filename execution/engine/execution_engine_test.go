@@ -7327,24 +7327,15 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					expectedEstimatedCost: 640, // 10 * (4 + 5 * (3 + 3 * (2 + 1)))
 					// Actual cost with mixed empty/non-empty lists:
 					// Users: 3 items, multiplier 3.0
-					// Posts: 3 items total, 3 parents → multiplier 1.0 (avg)
-					//   - User 1: 2 posts
-					//   - User 2: 0 posts (empty)
-					//   - User 3: 1 post
-					// Comments: 4 items total, 3 parents → multiplier 1.33 (avg)
-					//   - Post 1: 2 comments
-					//   - Post 2: 2 comments
-					//   - Post 3: 0 comments (empty)
+					// Posts: 3 items, 3 parents => multiplier 1.0 (avg)
+					// Comments: 4 items, 3 parents => multiplier 1.33 (avg)
 					//
 					// Calculation:
-					// Comments: RoundToEven((2 + 1) * 1.33) = RoundToEven(3.99) = 4
-					// Posts: RoundToEven((3 + 4) * 1.0) = 7
-					// Users: RoundToEven((4 + 7) * 3.0) = 33
+					// Comments: RoundToEven((2 + 1) * 1.33) ~= 4
+					// Posts:    RoundToEven((3 + 4) * 1.00)  = 7
+					// Users:    RoundToEven((4 + 7) * 3.00)  = 33
 					//
-					// This tests that empty lists (0 items) are included in the averaging:
-					// - User 2's empty posts list contributes 0 to totalCount
-					// - Post 3's empty comments list contributes 0 to totalCount
-					// - But they're still counted as parents for the multiplier calculation
+					// Empty lists are included in the averaging:
 					expectedActualCost: 33,
 				},
 				computeCosts(),
@@ -7563,25 +7554,24 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					expectedResponse:      `{"data":{"level1":[{"level2":[{"level3":[{"level4":[{"level5":[{"value":"a"}]},{"level5":[{"value":"b"},{"value":"c"}]}]},{"level4":[{"level5":[{"value":"d"}]}]}]},{"level3":[{"level4":[{"level5":[{"value":"e"}]}]}]}]},{"level2":[{"level3":[{"level4":[{"level5":[{"value":"f"},{"value":"g"}]},{"level5":[{"value":"h"}]}]},{"level4":[{"level5":[{"value":"i"}]}]}]}]},{"level2":[{"level3":[{"level4":[{"level5":[{"value":"j"}]},{"level5":[{"value":"k"}]}]},{"level4":[{"level5":[{"value":"l"}]},{"level5":[{"value":"m"}]}]}]}]}]}}`,
 					expectedEstimatedCost: 211110,
 					// Actual cost with fractional multipliers:
-					// Level5: 13 items, 11 parents → multiplier 1.18 (13/11 = 1.181818...)
-					// Level4: 11 items, 7 parents  → multiplier 1.57 (11/7 = 1.571428...)
-					// Level3: 7 items,  4 parents  → multiplier 1.75 (7/4 = 1.75)
-					// Level2: 4 items,  3 parents  → multiplier 1.33 (4/3 = 1.333...)
-					// Level1: 3 items,  1 parent   → multiplier 3.0
+					// Level5: 13 items, 11 parents => multiplier 1.18 (13/11 = 1.181818...)
+					// Level4: 11 items,  7 parents => multiplier 1.57 (11/7 = 1.571428...)
+					// Level3:  7 items,  4 parents => multiplier 1.75 (7/4 = 1.75)
+					// Level2:  4 items,  3 parents => multiplier 1.33 (4/3 = 1.333...)
+					// Level1:  3 items,  1 parent  => multiplier 3.0
 					//
-					// Mathematical calculation (no intermediate rounding):
+					// Ideal calculation without rounding:
 					// cost = 3 * (1 + 1.33 * (1 + 1.75 * (1 + 1.57 * (1 + 1.18 * (1 + 1)))))
-					//      = 50.806584 → RoundToEven → 51
+					//      = 50.806584 ~= 51
 					//
-					// Current implementation with RoundToEven at each level:
-					// Level5: RoundToEven((1 + 1)  * 1.18) = 2
-					// Level4: RoundToEven((1 + 2)  * 1.57) = 5
-					// Level3: RoundToEven((1 + 5)  * 1.75) = 10 (rounds to even)
+					// Current implementation:
+					// Level5: RoundToEven((1 +  1) * 1.18) = 2
+					// Level4: RoundToEven((1 +  2) * 1.57) = 5
+					// Level3: RoundToEven((1 +  5) * 1.75) = 10 (rounds to even)
 					// Level2: RoundToEven((1 + 10) * 1.33) = 15
 					// Level1: RoundToEven((1 + 15) * 3.00) = 48
 					//
-					// This test documents the compounding rounding error: 48 vs 51 (6% underestimate)
-					// The error accumulates through 5 levels of nested lists with fractional multipliers.
+					// The compounding rounding error: 48 vs 51 (6% underestimate)
 					expectedActualCost: 48,
 				},
 				computeCosts(),
