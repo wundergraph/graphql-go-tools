@@ -47,7 +47,7 @@ func TestVariablesMapper(t *testing.T) {
 		WithRemoveFragmentDefinitions(),
 		WithRemoveUnusedVariables(),
 	)
-	variablesNormalizer := NewVariablesNormalizer()
+	variablesNormalizer := NewVariablesNormalizer(false)
 
 	testCases := []struct {
 		name             string

@@ -41,7 +41,7 @@ func TestVariablesUnusedDeletion(t *testing.T) {
 
 	del := deleteUnusedVariables(&secondWalker)
 	detectVariableUsage(&firstWalker, del)
-	extractVariables(&firstWalker)
+	extractVariables(&firstWalker, false)
 
 	rep := &operationreport.Report{}
 	firstWalker.Walk(&operationDocument, &definitionDocument, rep)
