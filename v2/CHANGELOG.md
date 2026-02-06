@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.247](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.246...v2.0.0-rc.247) (2026-02-06)
+
+
+### Features
+
+* improve memory management & request deduplication ([#1336](https://github.com/wundergraph/graphql-go-tools/issues/1336)) ([938d1a9](https://github.com/wundergraph/graphql-go-tools/commit/938d1a9e13ef066fb514eb149e9aa44b886030c5))
+
 ## [2.0.0-rc.246](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.245...v2.0.0-rc.246) (2026-01-27)
 
 
