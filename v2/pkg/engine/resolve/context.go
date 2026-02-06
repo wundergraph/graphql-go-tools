@@ -26,7 +26,7 @@ type Context struct {
 	// the resolver will use the new name to look up the old name to render the variable in the query.
 	RemapVariables map[string]string
 
-	VariablesHash uint64
+	VariablesHash    uint64
 	Files            []*httpclient.FileUpload
 	Request          Request
 	RenameTypeNames  []RenameTypeName
