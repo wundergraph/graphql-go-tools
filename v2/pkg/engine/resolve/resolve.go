@@ -318,7 +318,9 @@ type GraphQLResolveInfo struct {
 	ResolveAcquireWaitTime time.Duration
 	// ResolveDeduplicated indicates whether the resolution of the entire operation was deduplicated via single flight
 	ResolveDeduplicated bool
-	ActualListSizes     map[string]int
+	// ActualListSizes is a map of json paths to the actual list size in the response.
+	// Used for calculating the actual costs.
+	ActualListSizes map[string]int
 }
 
 func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (*GraphQLResolveInfo, error) {
