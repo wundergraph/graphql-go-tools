@@ -22,52 +22,92 @@ const (
 )
 
 // DataType represents the different types of data that can be stored in a protobuf field.
-type DataType string
+type DataType int8
 
 // Protobuf data types supported by the compiler.
+// These values intentionally match the google.protobuf.FieldDescriptorProto.Type enum
+// (exposed via protoref.Kind) for efficient conversion. The protobuf spec has been
+// stable since 2008, so these values are unlikely to change.
 const (
-	DataTypeString  DataType = "string"    // String type
-	DataTypeInt32   DataType = "int32"     // 32-bit integer type
-	DataTypeInt64   DataType = "int64"     // 64-bit integer type
-	DataTypeUint32  DataType = "uint32"    // 32-bit unsigned integer type
-	DataTypeUint64  DataType = "uint64"    // 64-bit unsigned integer type
-	DataTypeFloat   DataType = "float"     // 32-bit floating point type
-	DataTypeDouble  DataType = "double"    // 64-bit floating point type
-	DataTypeBool    DataType = "bool"      // Boolean type
-	DataTypeEnum    DataType = "enum"      // Enumeration type
-	DataTypeMessage DataType = "message"   // Nested message type
-	DataTypeUnknown DataType = "<unknown>" // Represents an unknown or unsupported type
-	DataTypeBytes   DataType = "bytes"     // Bytes type
+	DataTypeUnknown DataType = -1 // Represents an unknown or unsupported type
+	DataTypeDouble  DataType = 1  // 64-bit floating point type (protoref.DoubleKind)
+	DataTypeFloat   DataType = 2  // 32-bit floating point type (protoref.FloatKind)
+	DataTypeInt64   DataType = 3  // 64-bit integer type (protoref.Int64Kind)
+	DataTypeUint64  DataType = 4  // 64-bit unsigned integer type (protoref.Uint64Kind)
+	DataTypeInt32   DataType = 5  // 32-bit integer type (protoref.Int32Kind)
+	DataTypeBool    DataType = 8  // Boolean type (protoref.BoolKind)
+	DataTypeString  DataType = 9  // String type (protoref.StringKind)
+	DataTypeMessage DataType = 11 // Nested message type (protoref.MessageKind)
+	DataTypeBytes   DataType = 12 // Bytes type (protoref.BytesKind)
+	DataTypeUint32  DataType = 13 // 32-bit unsigned integer type (protoref.Uint32Kind)
+	DataTypeEnum    DataType = 14 // Enumeration type (protoref.EnumKind)
 )
 
-// dataTypeMap maps string representation of protobuf types to DataType constants.
-var dataTypeMap = map[string]DataType{
-	"string":  DataTypeString,
-	"int32":   DataTypeInt32,
-	"int64":   DataTypeInt64,
-	"uint32":  DataTypeUint32,
-	"uint64":  DataTypeUint64,
-	"float":   DataTypeFloat,
-	"double":  DataTypeDouble,
-	"bool":    DataTypeBool,
-	"bytes":   DataTypeBytes,
-	"enum":    DataTypeEnum,
-	"message": DataTypeMessage,
+// Compile-time assertions to ensure DataType values match protoref.Kind values.
+// If the protoref library ever changes these values, compilation will fail here.
+var (
+	_ = [1]struct{}{}[DataTypeDouble-DataType(protoref.DoubleKind)]
+	_ = [1]struct{}{}[DataTypeFloat-DataType(protoref.FloatKind)]
+	_ = [1]struct{}{}[DataTypeInt64-DataType(protoref.Int64Kind)]
+	_ = [1]struct{}{}[DataTypeUint64-DataType(protoref.Uint64Kind)]
+	_ = [1]struct{}{}[DataTypeInt32-DataType(protoref.Int32Kind)]
+	_ = [1]struct{}{}[DataTypeBool-DataType(protoref.BoolKind)]
+	_ = [1]struct{}{}[DataTypeString-DataType(protoref.StringKind)]
+	_ = [1]struct{}{}[DataTypeMessage-DataType(protoref.MessageKind)]
+	_ = [1]struct{}{}[DataTypeBytes-DataType(protoref.BytesKind)]
+	_ = [1]struct{}{}[DataTypeUint32-DataType(protoref.Uint32Kind)]
+	_ = [1]struct{}{}[DataTypeEnum-DataType(protoref.EnumKind)]
+)
+
+// dataTypeMap maps protoref.Kind to DataType constants.
+var dataTypeMap = map[protoref.Kind]DataType{
+	protoref.StringKind:  DataTypeString,
+	protoref.Int32Kind:   DataTypeInt32,
+	protoref.Int64Kind:   DataTypeInt64,
+	protoref.Uint32Kind:  DataTypeUint32,
+	protoref.Uint64Kind:  DataTypeUint64,
+	protoref.FloatKind:   DataTypeFloat,
+	protoref.DoubleKind:  DataTypeDouble,
+	protoref.BoolKind:    DataTypeBool,
+	protoref.BytesKind:   DataTypeBytes,
+	protoref.EnumKind:    DataTypeEnum,
+	protoref.MessageKind: DataTypeMessage,
 }
 
-// String returns the string representation of the DataType.
+// String returns the string representation of a DataType.
 func (d DataType) String() string {
-	return string(d)
+	switch d {
+	case DataTypeUnknown:
+		return "Unknown"
+	case DataTypeFloat:
+		return "Float"
+	case DataTypeDouble:
+		return "Double"
+	case DataTypeInt64:
+		return "Int64"
+	case DataTypeUint64:
+		return "Uint64"
+	case DataTypeInt32:
+		return "Int32"
+	case DataTypeBool:
+		return "Bool"
+	case DataTypeString:
+		return "String"
+	case DataTypeBytes:
+		return "Bytes"
+	case DataTypeUint32:
+		return "Uint32"
+	case DataTypeEnum:
+		return "Enum"
+	case DataTypeMessage:
+		return "Message"
+	default:
+		return "Unknown"
+	}
 }
 
-// IsValid checks if the DataType is a valid protobuf type.
-func (d DataType) IsValid() bool {
-	_, ok := dataTypeMap[string(d)]
-	return ok
-}
-
-func fromGraphQLType(s string) DataType {
-	switch s {
+func fromGraphQLType(s []byte) DataType {
+	switch string(s) {
 	case "ID", "String":
 		return DataTypeString
 	case "Int":
@@ -88,12 +128,12 @@ func fromGraphQLType(s string) DataType {
 
 // parseDataType converts a string type name to a DataType constant.
 // Returns DataTypeUnknown if the type is not recognized.
-func parseDataType(name string) DataType {
-	if !dataTypeMap[name].IsValid() {
+func parseDataType(kind protoref.Kind) DataType {
+	if _, ok := dataTypeMap[kind]; !ok {
 		return DataTypeUnknown
 	}
 
-	return dataTypeMap[name]
+	return dataTypeMap[kind]
 }
 
 type NodeKind int
@@ -474,24 +514,20 @@ func (p *RPCCompiler) CompileFetches(graph *DependencyGraph, fetches []FetchItem
 func (p *RPCCompiler) CompileNode(graph *DependencyGraph, fetch FetchItem, inputData gjson.Result) (ServiceCall, error) {
 	call := fetch.Plan
 
-	inputMessage, ok := p.doc.MessageByName(call.Request.Name)
-	if !ok {
-		return ServiceCall{}, fmt.Errorf("input message %s not found in document", call.Request.Name)
-	}
-
 	outputMessage, ok := p.doc.MessageByName(call.Response.Name)
 	if !ok {
 		return ServiceCall{}, fmt.Errorf("output message %s not found in document", call.Response.Name)
 	}
 
-	request, err := p.newEmptyMessage(inputMessage)
+	response, err := p.newEmptyMessage(outputMessage)
 	if err != nil {
 		return ServiceCall{}, err
 	}
 
-	response, err := p.newEmptyMessage(outputMessage)
-	if err != nil {
-		return ServiceCall{}, err
+	var request protoref.Message
+	inputMessage, ok := p.doc.MessageByName(call.Request.Name)
+	if !ok {
+		return ServiceCall{}, fmt.Errorf("input message %s not found in document", call.Request.Name)
 	}
 
 	switch call.Kind {
@@ -508,6 +544,11 @@ func (p *RPCCompiler) CompileNode(graph *DependencyGraph, fetch FetchItem, input
 		}
 
 		request, err = p.buildProtoMessageWithContext(inputMessage, &call.Request, inputData, context)
+		if err != nil {
+			return ServiceCall{}, err
+		}
+	case CallKindRequired:
+		request, err = p.buildRequiredFieldsMessage(inputMessage, &call.Request, inputData)
 		if err != nil {
 			return ServiceCall{}, err
 		}
@@ -592,11 +633,6 @@ func (p *RPCCompiler) buildProtoMessageWithContext(inputMessage Message, rpcMess
 		return nil, fmt.Errorf("context field not found in message %s", rpcMessage.Name)
 	}
 
-	contextField := rootMessage.Descriptor().Fields().ByNumber(protoref.FieldNumber(contextSchemaField.Number))
-	if contextField == nil {
-		return nil, fmt.Errorf("context field not found in message %s", inputMessage.Name)
-	}
-
 	contextList := p.newEmptyListMessageByName(rootMessage, contextSchemaField.Name)
 	contextData := p.resolveContextData(context[0], contextRPCField) // TODO handle multiple contexts (resolver requires another resolver)
 
@@ -630,6 +666,109 @@ func (p *RPCCompiler) buildProtoMessageWithContext(inputMessage Message, rpcMess
 	// Set the args field
 	if err := p.setMessageValue(rootMessage, argsRPCField.Name, protoref.ValueOfMessage(args)); err != nil {
 		return nil, err
+	}
+
+	return rootMessage, nil
+}
+
+// buildRequiredFieldsMessage builds a protobuf message from an RPCMessage definition
+// and JSON data. It handles nested messages and repeated fields.
+//
+// Example:
+//
+//	message RequireWarehouseStockHealthScoreByIdRequest {
+//		// RequireWarehouseStockHealthScoreByIdContext provides the context for the required fields method RequireWarehouseStockHealthScoreById.
+//		repeated RequireWarehouseStockHealthScoreByIdContext context = 1;
+//	}
+//
+//	message RequireWarehouseStockHealthScoreByIdContext {
+//	 	LookupWarehouseByIdRequestKey key = 1;
+//		RequireWarehouseStockHealthScoreByIdFields fields = 2;
+//	}
+func (p *RPCCompiler) buildRequiredFieldsMessage(inputMessage Message, rpcMessage *RPCMessage, data gjson.Result) (protoref.Message, error) {
+	if rpcMessage == nil {
+		return nil, fmt.Errorf("rpc message is nil")
+	}
+
+	if p.doc.MessageRefByName(rpcMessage.Name) == InvalidRef {
+		return nil, fmt.Errorf("message %s not found in document", rpcMessage.Name)
+	}
+
+	rootMessage := dynamicpb.NewMessage(inputMessage.Desc)
+
+	contextSchemaField := inputMessage.GetField("context")
+	if contextSchemaField == nil {
+		return nil, fmt.Errorf("context field not found in message %s", inputMessage.Name)
+	}
+
+	contextRPCField := rpcMessage.Fields.ByName(contextSchemaField.Name)
+	if contextRPCField == nil {
+		return nil, fmt.Errorf("context field not found in message %s", rpcMessage.Name)
+	}
+
+	contextList := p.newEmptyListMessageByName(rootMessage, contextSchemaField.Name)
+	contextFieldMessage := contextRPCField.Message
+
+	if contextFieldMessage == nil {
+		return nil, fmt.Errorf("context field message not found in message %s", inputMessage.Name)
+	}
+
+	keyField := contextFieldMessage.Fields.ByName("key")
+	if keyField == nil {
+		return nil, fmt.Errorf("key field message not found in message %s", contextFieldMessage.Name)
+	}
+
+	keyMessage, ok := p.doc.MessageByName(keyField.Message.Name)
+	if !ok {
+		return nil, fmt.Errorf("message %s not found in document", keyField.Message.Name)
+	}
+
+	requiresSelectionField := contextFieldMessage.Fields.ByName("fields")
+	if requiresSelectionField == nil {
+		return nil, fmt.Errorf("fields field not found in message %s", contextFieldMessage.Name)
+	}
+
+	requiresSelectionMessage, ok := p.doc.MessageByName(requiresSelectionField.Message.Name)
+	if !ok {
+		return nil, fmt.Errorf("message %s not found in document", requiresSelectionField.Message.Name)
+	}
+
+	representationsValue := data.Get("representations")
+	if exists, isArray := representationsValue.Exists(), representationsValue.IsArray(); !exists || !isArray {
+		if !exists {
+			return nil, errors.New("representations field not found in data")
+		}
+
+		if !isArray {
+			return nil, errors.New("invalid type for representations element, expected representations to be an array")
+		}
+	}
+
+	representations := representationsValue.Array()
+	for _, representation := range representations {
+		element := contextList.NewElement()
+		msg := element.Message()
+
+		keyMsg, err := p.buildProtoMessage(keyMessage, keyField.Message, representation)
+		if err != nil {
+			return nil, err
+		}
+
+		reqMsg, err := p.buildProtoMessage(requiresSelectionMessage, requiresSelectionField.Message, representation)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := p.setMessageValue(msg, keyField.Name, protoref.ValueOfMessage(keyMsg)); err != nil {
+			return nil, err
+		}
+
+		if err := p.setMessageValue(msg, requiresSelectionField.Name, protoref.ValueOfMessage(reqMsg)); err != nil {
+			return nil, err
+		}
+
+		// build fields message
+		contextList.Append(element)
 	}
 
 	return rootMessage, nil
@@ -712,7 +851,7 @@ func (p *RPCCompiler) resolveListDataForPath(message protoref.List, fd protoref.
 }
 
 // resolveDataForPath resolves the data for a given path in a message.
-func (p *RPCCompiler) resolveDataForPath(messsage protoref.Message, path ast.Path) []protoref.Value {
+func (p *RPCCompiler) resolveDataForPath(message protoref.Message, path ast.Path) []protoref.Value {
 	if path.Len() == 0 {
 		return nil
 	}
@@ -720,7 +859,7 @@ func (p *RPCCompiler) resolveDataForPath(messsage protoref.Message, path ast.Pat
 	segment := path[0]
 
 	if fn := segment.FieldName.String(); strings.HasPrefix(fn, "@") {
-		list := p.resolveUnderlyingList(messsage, fn)
+		list := p.resolveUnderlyingList(message, fn)
 
 		result := make([]protoref.Value, 0, len(list))
 		for _, item := range list {
@@ -730,7 +869,7 @@ func (p *RPCCompiler) resolveDataForPath(messsage protoref.Message, path ast.Pat
 		return result
 	}
 
-	field, fd := p.getMessageField(messsage, segment.FieldName.String())
+	field, fd := p.getMessageField(message, segment.FieldName.String())
 	if !field.IsValid() {
 		return nil
 	}
@@ -1102,7 +1241,7 @@ func (p *RPCCompiler) traverseList(rootMsg protoref.Message, level int, field *F
 			}
 		default:
 			for _, element := range elements {
-				itemsField.Append(p.setValueForKind(DataType(itemsFieldDesc.Kind().String()), element))
+				itemsField.Append(p.setValueForKind(parseDataType(itemsFieldDesc.Kind()), element))
 			}
 		}
 
@@ -1251,14 +1390,25 @@ func (p *RPCCompiler) parseMessageDefinitions(messages protoref.MessageDescripto
 		protoMessage := messages.Get(i)
 
 		message := Message{
-			Name: string(protoMessage.Name()),
+			Name: p.fullMessageName(protoMessage),
 			Desc: protoMessage,
 		}
 
 		extractedMessages = append(extractedMessages, message)
+
+		if submessages := protoMessage.Messages(); submessages.Len() > 0 {
+			extractedMessages = append(extractedMessages, p.parseMessageDefinitions(submessages)...)
+		}
+
 	}
 
 	return extractedMessages
+}
+
+// fullMessageName returns the full name of the message omiting the package name.
+// In our case don't need the fqn as we only have one package where we need to resolve the messages.
+func (p *RPCCompiler) fullMessageName(m protoref.MessageDescriptor) string {
+	return strings.TrimPrefix(string(m.FullName()), p.doc.Package+".")
 }
 
 // enrichMessageData enriches the message data with the field information.
@@ -1273,7 +1423,7 @@ func (p *RPCCompiler) enrichMessageData(ref int, m protoref.MessageDescriptor) {
 
 		if f.Kind() == protoref.MessageKind {
 			// Handle nested messages when they are recursive types
-			field.MessageRef = p.doc.MessageRefByName(string(f.Message().Name()))
+			field.MessageRef = p.doc.MessageRefByName(p.fullMessageName(f.Message()))
 		}
 
 		fields[i] = field
@@ -1289,11 +1439,10 @@ func (p *RPCCompiler) enrichMessageData(ref int, m protoref.MessageDescriptor) {
 // parseField extracts information from a protobuf field descriptor.
 func (p *RPCCompiler) parseField(f protoref.FieldDescriptor) Field {
 	name := string(f.Name())
-	typeName := f.Kind().String()
 
 	return Field{
 		Name:       name,
-		Type:       parseDataType(typeName),
+		Type:       parseDataType(f.Kind()),
 		Number:     int32(f.Number()),
 		Repeated:   f.IsList(),
 		Optional:   f.Cardinality() == protoref.Optional,

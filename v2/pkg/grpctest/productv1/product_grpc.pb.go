@@ -19,68 +19,81 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ProductService_LookupProductById_FullMethodName                     = "/productv1.ProductService/LookupProductById"
-	ProductService_LookupStorageById_FullMethodName                     = "/productv1.ProductService/LookupStorageById"
-	ProductService_LookupWarehouseById_FullMethodName                   = "/productv1.ProductService/LookupWarehouseById"
-	ProductService_MutationBulkCreateAuthors_FullMethodName             = "/productv1.ProductService/MutationBulkCreateAuthors"
-	ProductService_MutationBulkCreateBlogPosts_FullMethodName           = "/productv1.ProductService/MutationBulkCreateBlogPosts"
-	ProductService_MutationBulkUpdateAuthors_FullMethodName             = "/productv1.ProductService/MutationBulkUpdateAuthors"
-	ProductService_MutationBulkUpdateBlogPosts_FullMethodName           = "/productv1.ProductService/MutationBulkUpdateBlogPosts"
-	ProductService_MutationCreateAuthor_FullMethodName                  = "/productv1.ProductService/MutationCreateAuthor"
-	ProductService_MutationCreateBlogPost_FullMethodName                = "/productv1.ProductService/MutationCreateBlogPost"
-	ProductService_MutationCreateNullableFieldsType_FullMethodName      = "/productv1.ProductService/MutationCreateNullableFieldsType"
-	ProductService_MutationCreateUser_FullMethodName                    = "/productv1.ProductService/MutationCreateUser"
-	ProductService_MutationPerformAction_FullMethodName                 = "/productv1.ProductService/MutationPerformAction"
-	ProductService_MutationUpdateAuthor_FullMethodName                  = "/productv1.ProductService/MutationUpdateAuthor"
-	ProductService_MutationUpdateBlogPost_FullMethodName                = "/productv1.ProductService/MutationUpdateBlogPost"
-	ProductService_MutationUpdateNullableFieldsType_FullMethodName      = "/productv1.ProductService/MutationUpdateNullableFieldsType"
-	ProductService_QueryAllAuthors_FullMethodName                       = "/productv1.ProductService/QueryAllAuthors"
-	ProductService_QueryAllBlogPosts_FullMethodName                     = "/productv1.ProductService/QueryAllBlogPosts"
-	ProductService_QueryAllNullableFieldsTypes_FullMethodName           = "/productv1.ProductService/QueryAllNullableFieldsTypes"
-	ProductService_QueryAllPets_FullMethodName                          = "/productv1.ProductService/QueryAllPets"
-	ProductService_QueryAuthor_FullMethodName                           = "/productv1.ProductService/QueryAuthor"
-	ProductService_QueryAuthorById_FullMethodName                       = "/productv1.ProductService/QueryAuthorById"
-	ProductService_QueryAuthorsWithFilter_FullMethodName                = "/productv1.ProductService/QueryAuthorsWithFilter"
-	ProductService_QueryBlogPost_FullMethodName                         = "/productv1.ProductService/QueryBlogPost"
-	ProductService_QueryBlogPostById_FullMethodName                     = "/productv1.ProductService/QueryBlogPostById"
-	ProductService_QueryBlogPostsWithFilter_FullMethodName              = "/productv1.ProductService/QueryBlogPostsWithFilter"
-	ProductService_QueryBulkSearchAuthors_FullMethodName                = "/productv1.ProductService/QueryBulkSearchAuthors"
-	ProductService_QueryBulkSearchBlogPosts_FullMethodName              = "/productv1.ProductService/QueryBulkSearchBlogPosts"
-	ProductService_QueryCalculateTotals_FullMethodName                  = "/productv1.ProductService/QueryCalculateTotals"
-	ProductService_QueryCategories_FullMethodName                       = "/productv1.ProductService/QueryCategories"
-	ProductService_QueryCategoriesByKind_FullMethodName                 = "/productv1.ProductService/QueryCategoriesByKind"
-	ProductService_QueryCategoriesByKinds_FullMethodName                = "/productv1.ProductService/QueryCategoriesByKinds"
-	ProductService_QueryComplexFilterType_FullMethodName                = "/productv1.ProductService/QueryComplexFilterType"
-	ProductService_QueryFilterCategories_FullMethodName                 = "/productv1.ProductService/QueryFilterCategories"
-	ProductService_QueryNestedType_FullMethodName                       = "/productv1.ProductService/QueryNestedType"
-	ProductService_QueryNullableFieldsType_FullMethodName               = "/productv1.ProductService/QueryNullableFieldsType"
-	ProductService_QueryNullableFieldsTypeById_FullMethodName           = "/productv1.ProductService/QueryNullableFieldsTypeById"
-	ProductService_QueryNullableFieldsTypeWithFilter_FullMethodName     = "/productv1.ProductService/QueryNullableFieldsTypeWithFilter"
-	ProductService_QueryRandomPet_FullMethodName                        = "/productv1.ProductService/QueryRandomPet"
-	ProductService_QueryRandomSearchResult_FullMethodName               = "/productv1.ProductService/QueryRandomSearchResult"
-	ProductService_QueryRecursiveType_FullMethodName                    = "/productv1.ProductService/QueryRecursiveType"
-	ProductService_QuerySearch_FullMethodName                           = "/productv1.ProductService/QuerySearch"
-	ProductService_QueryTestContainer_FullMethodName                    = "/productv1.ProductService/QueryTestContainer"
-	ProductService_QueryTestContainers_FullMethodName                   = "/productv1.ProductService/QueryTestContainers"
-	ProductService_QueryTypeFilterWithArguments_FullMethodName          = "/productv1.ProductService/QueryTypeFilterWithArguments"
-	ProductService_QueryTypeWithMultipleFilterFields_FullMethodName     = "/productv1.ProductService/QueryTypeWithMultipleFilterFields"
-	ProductService_QueryUser_FullMethodName                             = "/productv1.ProductService/QueryUser"
-	ProductService_QueryUsers_FullMethodName                            = "/productv1.ProductService/QueryUsers"
-	ProductService_ResolveCategoryCategoryMetrics_FullMethodName        = "/productv1.ProductService/ResolveCategoryCategoryMetrics"
-	ProductService_ResolveCategoryCategoryStatus_FullMethodName         = "/productv1.ProductService/ResolveCategoryCategoryStatus"
-	ProductService_ResolveCategoryChildCategories_FullMethodName        = "/productv1.ProductService/ResolveCategoryChildCategories"
-	ProductService_ResolveCategoryMascot_FullMethodName                 = "/productv1.ProductService/ResolveCategoryMascot"
-	ProductService_ResolveCategoryMetricsNormalizedScore_FullMethodName = "/productv1.ProductService/ResolveCategoryMetricsNormalizedScore"
-	ProductService_ResolveCategoryOptionalCategories_FullMethodName     = "/productv1.ProductService/ResolveCategoryOptionalCategories"
-	ProductService_ResolveCategoryPopularityScore_FullMethodName        = "/productv1.ProductService/ResolveCategoryPopularityScore"
-	ProductService_ResolveCategoryProductCount_FullMethodName           = "/productv1.ProductService/ResolveCategoryProductCount"
-	ProductService_ResolveProductMascotRecommendation_FullMethodName    = "/productv1.ProductService/ResolveProductMascotRecommendation"
-	ProductService_ResolveProductProductDetails_FullMethodName          = "/productv1.ProductService/ResolveProductProductDetails"
-	ProductService_ResolveProductRecommendedCategory_FullMethodName     = "/productv1.ProductService/ResolveProductRecommendedCategory"
-	ProductService_ResolveProductShippingEstimate_FullMethodName        = "/productv1.ProductService/ResolveProductShippingEstimate"
-	ProductService_ResolveProductStockStatus_FullMethodName             = "/productv1.ProductService/ResolveProductStockStatus"
-	ProductService_ResolveSubcategoryItemCount_FullMethodName           = "/productv1.ProductService/ResolveSubcategoryItemCount"
-	ProductService_ResolveTestContainerDetails_FullMethodName           = "/productv1.ProductService/ResolveTestContainerDetails"
+	ProductService_LookupProductById_FullMethodName                           = "/productv1.ProductService/LookupProductById"
+	ProductService_LookupStorageById_FullMethodName                           = "/productv1.ProductService/LookupStorageById"
+	ProductService_LookupWarehouseById_FullMethodName                         = "/productv1.ProductService/LookupWarehouseById"
+	ProductService_MutationBulkCreateAuthors_FullMethodName                   = "/productv1.ProductService/MutationBulkCreateAuthors"
+	ProductService_MutationBulkCreateBlogPosts_FullMethodName                 = "/productv1.ProductService/MutationBulkCreateBlogPosts"
+	ProductService_MutationBulkUpdateAuthors_FullMethodName                   = "/productv1.ProductService/MutationBulkUpdateAuthors"
+	ProductService_MutationBulkUpdateBlogPosts_FullMethodName                 = "/productv1.ProductService/MutationBulkUpdateBlogPosts"
+	ProductService_MutationCreateAuthor_FullMethodName                        = "/productv1.ProductService/MutationCreateAuthor"
+	ProductService_MutationCreateBlogPost_FullMethodName                      = "/productv1.ProductService/MutationCreateBlogPost"
+	ProductService_MutationCreateNullableFieldsType_FullMethodName            = "/productv1.ProductService/MutationCreateNullableFieldsType"
+	ProductService_MutationCreateUser_FullMethodName                          = "/productv1.ProductService/MutationCreateUser"
+	ProductService_MutationPerformAction_FullMethodName                       = "/productv1.ProductService/MutationPerformAction"
+	ProductService_MutationUpdateAuthor_FullMethodName                        = "/productv1.ProductService/MutationUpdateAuthor"
+	ProductService_MutationUpdateBlogPost_FullMethodName                      = "/productv1.ProductService/MutationUpdateBlogPost"
+	ProductService_MutationUpdateNullableFieldsType_FullMethodName            = "/productv1.ProductService/MutationUpdateNullableFieldsType"
+	ProductService_QueryAllAuthors_FullMethodName                             = "/productv1.ProductService/QueryAllAuthors"
+	ProductService_QueryAllBlogPosts_FullMethodName                           = "/productv1.ProductService/QueryAllBlogPosts"
+	ProductService_QueryAllNullableFieldsTypes_FullMethodName                 = "/productv1.ProductService/QueryAllNullableFieldsTypes"
+	ProductService_QueryAllPets_FullMethodName                                = "/productv1.ProductService/QueryAllPets"
+	ProductService_QueryAuthor_FullMethodName                                 = "/productv1.ProductService/QueryAuthor"
+	ProductService_QueryAuthorById_FullMethodName                             = "/productv1.ProductService/QueryAuthorById"
+	ProductService_QueryAuthorsWithFilter_FullMethodName                      = "/productv1.ProductService/QueryAuthorsWithFilter"
+	ProductService_QueryBlogPost_FullMethodName                               = "/productv1.ProductService/QueryBlogPost"
+	ProductService_QueryBlogPostById_FullMethodName                           = "/productv1.ProductService/QueryBlogPostById"
+	ProductService_QueryBlogPostsWithFilter_FullMethodName                    = "/productv1.ProductService/QueryBlogPostsWithFilter"
+	ProductService_QueryBulkSearchAuthors_FullMethodName                      = "/productv1.ProductService/QueryBulkSearchAuthors"
+	ProductService_QueryBulkSearchBlogPosts_FullMethodName                    = "/productv1.ProductService/QueryBulkSearchBlogPosts"
+	ProductService_QueryCalculateTotals_FullMethodName                        = "/productv1.ProductService/QueryCalculateTotals"
+	ProductService_QueryCategories_FullMethodName                             = "/productv1.ProductService/QueryCategories"
+	ProductService_QueryCategoriesByKind_FullMethodName                       = "/productv1.ProductService/QueryCategoriesByKind"
+	ProductService_QueryCategoriesByKinds_FullMethodName                      = "/productv1.ProductService/QueryCategoriesByKinds"
+	ProductService_QueryComplexFilterType_FullMethodName                      = "/productv1.ProductService/QueryComplexFilterType"
+	ProductService_QueryFilterCategories_FullMethodName                       = "/productv1.ProductService/QueryFilterCategories"
+	ProductService_QueryNestedType_FullMethodName                             = "/productv1.ProductService/QueryNestedType"
+	ProductService_QueryNullableFieldsType_FullMethodName                     = "/productv1.ProductService/QueryNullableFieldsType"
+	ProductService_QueryNullableFieldsTypeById_FullMethodName                 = "/productv1.ProductService/QueryNullableFieldsTypeById"
+	ProductService_QueryNullableFieldsTypeWithFilter_FullMethodName           = "/productv1.ProductService/QueryNullableFieldsTypeWithFilter"
+	ProductService_QueryRandomPet_FullMethodName                              = "/productv1.ProductService/QueryRandomPet"
+	ProductService_QueryRandomSearchResult_FullMethodName                     = "/productv1.ProductService/QueryRandomSearchResult"
+	ProductService_QueryRecursiveType_FullMethodName                          = "/productv1.ProductService/QueryRecursiveType"
+	ProductService_QuerySearch_FullMethodName                                 = "/productv1.ProductService/QuerySearch"
+	ProductService_QueryTestContainer_FullMethodName                          = "/productv1.ProductService/QueryTestContainer"
+	ProductService_QueryTestContainers_FullMethodName                         = "/productv1.ProductService/QueryTestContainers"
+	ProductService_QueryTypeFilterWithArguments_FullMethodName                = "/productv1.ProductService/QueryTypeFilterWithArguments"
+	ProductService_QueryTypeWithMultipleFilterFields_FullMethodName           = "/productv1.ProductService/QueryTypeWithMultipleFilterFields"
+	ProductService_QueryUser_FullMethodName                                   = "/productv1.ProductService/QueryUser"
+	ProductService_QueryUsers_FullMethodName                                  = "/productv1.ProductService/QueryUsers"
+	ProductService_RequireStorageMetadataScoreById_FullMethodName             = "/productv1.ProductService/RequireStorageMetadataScoreById"
+	ProductService_RequireStorageOptionalProcessedMetadataById_FullMethodName = "/productv1.ProductService/RequireStorageOptionalProcessedMetadataById"
+	ProductService_RequireStorageOptionalProcessedTagsById_FullMethodName     = "/productv1.ProductService/RequireStorageOptionalProcessedTagsById"
+	ProductService_RequireStorageOptionalTagSummaryById_FullMethodName        = "/productv1.ProductService/RequireStorageOptionalTagSummaryById"
+	ProductService_RequireStorageProcessedMetadataById_FullMethodName         = "/productv1.ProductService/RequireStorageProcessedMetadataById"
+	ProductService_RequireStorageProcessedMetadataHistoryById_FullMethodName  = "/productv1.ProductService/RequireStorageProcessedMetadataHistoryById"
+	ProductService_RequireStorageProcessedTagsById_FullMethodName             = "/productv1.ProductService/RequireStorageProcessedTagsById"
+	ProductService_RequireStorageStockHealthScoreById_FullMethodName          = "/productv1.ProductService/RequireStorageStockHealthScoreById"
+	ProductService_RequireStorageTagSummaryById_FullMethodName                = "/productv1.ProductService/RequireStorageTagSummaryById"
+	ProductService_RequireWarehouseStockHealthScoreById_FullMethodName        = "/productv1.ProductService/RequireWarehouseStockHealthScoreById"
+	ProductService_ResolveCategoryCategoryMetrics_FullMethodName              = "/productv1.ProductService/ResolveCategoryCategoryMetrics"
+	ProductService_ResolveCategoryCategoryStatus_FullMethodName               = "/productv1.ProductService/ResolveCategoryCategoryStatus"
+	ProductService_ResolveCategoryChildCategories_FullMethodName              = "/productv1.ProductService/ResolveCategoryChildCategories"
+	ProductService_ResolveCategoryMascot_FullMethodName                       = "/productv1.ProductService/ResolveCategoryMascot"
+	ProductService_ResolveCategoryMetricsNormalizedScore_FullMethodName       = "/productv1.ProductService/ResolveCategoryMetricsNormalizedScore"
+	ProductService_ResolveCategoryOptionalCategories_FullMethodName           = "/productv1.ProductService/ResolveCategoryOptionalCategories"
+	ProductService_ResolveCategoryPopularityScore_FullMethodName              = "/productv1.ProductService/ResolveCategoryPopularityScore"
+	ProductService_ResolveCategoryProductCount_FullMethodName                 = "/productv1.ProductService/ResolveCategoryProductCount"
+	ProductService_ResolveProductMascotRecommendation_FullMethodName          = "/productv1.ProductService/ResolveProductMascotRecommendation"
+	ProductService_ResolveProductProductDetails_FullMethodName                = "/productv1.ProductService/ResolveProductProductDetails"
+	ProductService_ResolveProductRecommendedCategory_FullMethodName           = "/productv1.ProductService/ResolveProductRecommendedCategory"
+	ProductService_ResolveProductShippingEstimate_FullMethodName              = "/productv1.ProductService/ResolveProductShippingEstimate"
+	ProductService_ResolveProductStockStatus_FullMethodName                   = "/productv1.ProductService/ResolveProductStockStatus"
+	ProductService_ResolveStorageLinkedStorages_FullMethodName                = "/productv1.ProductService/ResolveStorageLinkedStorages"
+	ProductService_ResolveStorageNearbyStorages_FullMethodName                = "/productv1.ProductService/ResolveStorageNearbyStorages"
+	ProductService_ResolveStorageStorageStatus_FullMethodName                 = "/productv1.ProductService/ResolveStorageStorageStatus"
+	ProductService_ResolveSubcategoryItemCount_FullMethodName                 = "/productv1.ProductService/ResolveSubcategoryItemCount"
+	ProductService_ResolveTestContainerDetails_FullMethodName                 = "/productv1.ProductService/ResolveTestContainerDetails"
 )
 
 // ProductServiceClient is the client API for ProductService service.
@@ -139,6 +152,16 @@ type ProductServiceClient interface {
 	QueryTypeWithMultipleFilterFields(ctx context.Context, in *QueryTypeWithMultipleFilterFieldsRequest, opts ...grpc.CallOption) (*QueryTypeWithMultipleFilterFieldsResponse, error)
 	QueryUser(ctx context.Context, in *QueryUserRequest, opts ...grpc.CallOption) (*QueryUserResponse, error)
 	QueryUsers(ctx context.Context, in *QueryUsersRequest, opts ...grpc.CallOption) (*QueryUsersResponse, error)
+	RequireStorageMetadataScoreById(ctx context.Context, in *RequireStorageMetadataScoreByIdRequest, opts ...grpc.CallOption) (*RequireStorageMetadataScoreByIdResponse, error)
+	RequireStorageOptionalProcessedMetadataById(ctx context.Context, in *RequireStorageOptionalProcessedMetadataByIdRequest, opts ...grpc.CallOption) (*RequireStorageOptionalProcessedMetadataByIdResponse, error)
+	RequireStorageOptionalProcessedTagsById(ctx context.Context, in *RequireStorageOptionalProcessedTagsByIdRequest, opts ...grpc.CallOption) (*RequireStorageOptionalProcessedTagsByIdResponse, error)
+	RequireStorageOptionalTagSummaryById(ctx context.Context, in *RequireStorageOptionalTagSummaryByIdRequest, opts ...grpc.CallOption) (*RequireStorageOptionalTagSummaryByIdResponse, error)
+	RequireStorageProcessedMetadataById(ctx context.Context, in *RequireStorageProcessedMetadataByIdRequest, opts ...grpc.CallOption) (*RequireStorageProcessedMetadataByIdResponse, error)
+	RequireStorageProcessedMetadataHistoryById(ctx context.Context, in *RequireStorageProcessedMetadataHistoryByIdRequest, opts ...grpc.CallOption) (*RequireStorageProcessedMetadataHistoryByIdResponse, error)
+	RequireStorageProcessedTagsById(ctx context.Context, in *RequireStorageProcessedTagsByIdRequest, opts ...grpc.CallOption) (*RequireStorageProcessedTagsByIdResponse, error)
+	RequireStorageStockHealthScoreById(ctx context.Context, in *RequireStorageStockHealthScoreByIdRequest, opts ...grpc.CallOption) (*RequireStorageStockHealthScoreByIdResponse, error)
+	RequireStorageTagSummaryById(ctx context.Context, in *RequireStorageTagSummaryByIdRequest, opts ...grpc.CallOption) (*RequireStorageTagSummaryByIdResponse, error)
+	RequireWarehouseStockHealthScoreById(ctx context.Context, in *RequireWarehouseStockHealthScoreByIdRequest, opts ...grpc.CallOption) (*RequireWarehouseStockHealthScoreByIdResponse, error)
 	ResolveCategoryCategoryMetrics(ctx context.Context, in *ResolveCategoryCategoryMetricsRequest, opts ...grpc.CallOption) (*ResolveCategoryCategoryMetricsResponse, error)
 	ResolveCategoryCategoryStatus(ctx context.Context, in *ResolveCategoryCategoryStatusRequest, opts ...grpc.CallOption) (*ResolveCategoryCategoryStatusResponse, error)
 	ResolveCategoryChildCategories(ctx context.Context, in *ResolveCategoryChildCategoriesRequest, opts ...grpc.CallOption) (*ResolveCategoryChildCategoriesResponse, error)
@@ -152,6 +175,9 @@ type ProductServiceClient interface {
 	ResolveProductRecommendedCategory(ctx context.Context, in *ResolveProductRecommendedCategoryRequest, opts ...grpc.CallOption) (*ResolveProductRecommendedCategoryResponse, error)
 	ResolveProductShippingEstimate(ctx context.Context, in *ResolveProductShippingEstimateRequest, opts ...grpc.CallOption) (*ResolveProductShippingEstimateResponse, error)
 	ResolveProductStockStatus(ctx context.Context, in *ResolveProductStockStatusRequest, opts ...grpc.CallOption) (*ResolveProductStockStatusResponse, error)
+	ResolveStorageLinkedStorages(ctx context.Context, in *ResolveStorageLinkedStoragesRequest, opts ...grpc.CallOption) (*ResolveStorageLinkedStoragesResponse, error)
+	ResolveStorageNearbyStorages(ctx context.Context, in *ResolveStorageNearbyStoragesRequest, opts ...grpc.CallOption) (*ResolveStorageNearbyStoragesResponse, error)
+	ResolveStorageStorageStatus(ctx context.Context, in *ResolveStorageStorageStatusRequest, opts ...grpc.CallOption) (*ResolveStorageStorageStatusResponse, error)
 	ResolveSubcategoryItemCount(ctx context.Context, in *ResolveSubcategoryItemCountRequest, opts ...grpc.CallOption) (*ResolveSubcategoryItemCountResponse, error)
 	ResolveTestContainerDetails(ctx context.Context, in *ResolveTestContainerDetailsRequest, opts ...grpc.CallOption) (*ResolveTestContainerDetailsResponse, error)
 }
@@ -634,6 +660,106 @@ func (c *productServiceClient) QueryUsers(ctx context.Context, in *QueryUsersReq
 	return out, nil
 }
 
+func (c *productServiceClient) RequireStorageMetadataScoreById(ctx context.Context, in *RequireStorageMetadataScoreByIdRequest, opts ...grpc.CallOption) (*RequireStorageMetadataScoreByIdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequireStorageMetadataScoreByIdResponse)
+	err := c.cc.Invoke(ctx, ProductService_RequireStorageMetadataScoreById_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) RequireStorageOptionalProcessedMetadataById(ctx context.Context, in *RequireStorageOptionalProcessedMetadataByIdRequest, opts ...grpc.CallOption) (*RequireStorageOptionalProcessedMetadataByIdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequireStorageOptionalProcessedMetadataByIdResponse)
+	err := c.cc.Invoke(ctx, ProductService_RequireStorageOptionalProcessedMetadataById_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) RequireStorageOptionalProcessedTagsById(ctx context.Context, in *RequireStorageOptionalProcessedTagsByIdRequest, opts ...grpc.CallOption) (*RequireStorageOptionalProcessedTagsByIdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequireStorageOptionalProcessedTagsByIdResponse)
+	err := c.cc.Invoke(ctx, ProductService_RequireStorageOptionalProcessedTagsById_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) RequireStorageOptionalTagSummaryById(ctx context.Context, in *RequireStorageOptionalTagSummaryByIdRequest, opts ...grpc.CallOption) (*RequireStorageOptionalTagSummaryByIdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequireStorageOptionalTagSummaryByIdResponse)
+	err := c.cc.Invoke(ctx, ProductService_RequireStorageOptionalTagSummaryById_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) RequireStorageProcessedMetadataById(ctx context.Context, in *RequireStorageProcessedMetadataByIdRequest, opts ...grpc.CallOption) (*RequireStorageProcessedMetadataByIdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequireStorageProcessedMetadataByIdResponse)
+	err := c.cc.Invoke(ctx, ProductService_RequireStorageProcessedMetadataById_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) RequireStorageProcessedMetadataHistoryById(ctx context.Context, in *RequireStorageProcessedMetadataHistoryByIdRequest, opts ...grpc.CallOption) (*RequireStorageProcessedMetadataHistoryByIdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequireStorageProcessedMetadataHistoryByIdResponse)
+	err := c.cc.Invoke(ctx, ProductService_RequireStorageProcessedMetadataHistoryById_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) RequireStorageProcessedTagsById(ctx context.Context, in *RequireStorageProcessedTagsByIdRequest, opts ...grpc.CallOption) (*RequireStorageProcessedTagsByIdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequireStorageProcessedTagsByIdResponse)
+	err := c.cc.Invoke(ctx, ProductService_RequireStorageProcessedTagsById_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) RequireStorageStockHealthScoreById(ctx context.Context, in *RequireStorageStockHealthScoreByIdRequest, opts ...grpc.CallOption) (*RequireStorageStockHealthScoreByIdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequireStorageStockHealthScoreByIdResponse)
+	err := c.cc.Invoke(ctx, ProductService_RequireStorageStockHealthScoreById_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) RequireStorageTagSummaryById(ctx context.Context, in *RequireStorageTagSummaryByIdRequest, opts ...grpc.CallOption) (*RequireStorageTagSummaryByIdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequireStorageTagSummaryByIdResponse)
+	err := c.cc.Invoke(ctx, ProductService_RequireStorageTagSummaryById_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) RequireWarehouseStockHealthScoreById(ctx context.Context, in *RequireWarehouseStockHealthScoreByIdRequest, opts ...grpc.CallOption) (*RequireWarehouseStockHealthScoreByIdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequireWarehouseStockHealthScoreByIdResponse)
+	err := c.cc.Invoke(ctx, ProductService_RequireWarehouseStockHealthScoreById_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *productServiceClient) ResolveCategoryCategoryMetrics(ctx context.Context, in *ResolveCategoryCategoryMetricsRequest, opts ...grpc.CallOption) (*ResolveCategoryCategoryMetricsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ResolveCategoryCategoryMetricsResponse)
@@ -764,6 +890,36 @@ func (c *productServiceClient) ResolveProductStockStatus(ctx context.Context, in
 	return out, nil
 }
 
+func (c *productServiceClient) ResolveStorageLinkedStorages(ctx context.Context, in *ResolveStorageLinkedStoragesRequest, opts ...grpc.CallOption) (*ResolveStorageLinkedStoragesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveStorageLinkedStoragesResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveStorageLinkedStorages_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) ResolveStorageNearbyStorages(ctx context.Context, in *ResolveStorageNearbyStoragesRequest, opts ...grpc.CallOption) (*ResolveStorageNearbyStoragesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveStorageNearbyStoragesResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveStorageNearbyStorages_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) ResolveStorageStorageStatus(ctx context.Context, in *ResolveStorageStorageStatusRequest, opts ...grpc.CallOption) (*ResolveStorageStorageStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveStorageStorageStatusResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveStorageStorageStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *productServiceClient) ResolveSubcategoryItemCount(ctx context.Context, in *ResolveSubcategoryItemCountRequest, opts ...grpc.CallOption) (*ResolveSubcategoryItemCountResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ResolveSubcategoryItemCountResponse)
@@ -840,6 +996,16 @@ type ProductServiceServer interface {
 	QueryTypeWithMultipleFilterFields(context.Context, *QueryTypeWithMultipleFilterFieldsRequest) (*QueryTypeWithMultipleFilterFieldsResponse, error)
 	QueryUser(context.Context, *QueryUserRequest) (*QueryUserResponse, error)
 	QueryUsers(context.Context, *QueryUsersRequest) (*QueryUsersResponse, error)
+	RequireStorageMetadataScoreById(context.Context, *RequireStorageMetadataScoreByIdRequest) (*RequireStorageMetadataScoreByIdResponse, error)
+	RequireStorageOptionalProcessedMetadataById(context.Context, *RequireStorageOptionalProcessedMetadataByIdRequest) (*RequireStorageOptionalProcessedMetadataByIdResponse, error)
+	RequireStorageOptionalProcessedTagsById(context.Context, *RequireStorageOptionalProcessedTagsByIdRequest) (*RequireStorageOptionalProcessedTagsByIdResponse, error)
+	RequireStorageOptionalTagSummaryById(context.Context, *RequireStorageOptionalTagSummaryByIdRequest) (*RequireStorageOptionalTagSummaryByIdResponse, error)
+	RequireStorageProcessedMetadataById(context.Context, *RequireStorageProcessedMetadataByIdRequest) (*RequireStorageProcessedMetadataByIdResponse, error)
+	RequireStorageProcessedMetadataHistoryById(context.Context, *RequireStorageProcessedMetadataHistoryByIdRequest) (*RequireStorageProcessedMetadataHistoryByIdResponse, error)
+	RequireStorageProcessedTagsById(context.Context, *RequireStorageProcessedTagsByIdRequest) (*RequireStorageProcessedTagsByIdResponse, error)
+	RequireStorageStockHealthScoreById(context.Context, *RequireStorageStockHealthScoreByIdRequest) (*RequireStorageStockHealthScoreByIdResponse, error)
+	RequireStorageTagSummaryById(context.Context, *RequireStorageTagSummaryByIdRequest) (*RequireStorageTagSummaryByIdResponse, error)
+	RequireWarehouseStockHealthScoreById(context.Context, *RequireWarehouseStockHealthScoreByIdRequest) (*RequireWarehouseStockHealthScoreByIdResponse, error)
 	ResolveCategoryCategoryMetrics(context.Context, *ResolveCategoryCategoryMetricsRequest) (*ResolveCategoryCategoryMetricsResponse, error)
 	ResolveCategoryCategoryStatus(context.Context, *ResolveCategoryCategoryStatusRequest) (*ResolveCategoryCategoryStatusResponse, error)
 	ResolveCategoryChildCategories(context.Context, *ResolveCategoryChildCategoriesRequest) (*ResolveCategoryChildCategoriesResponse, error)
@@ -853,6 +1019,9 @@ type ProductServiceServer interface {
 	ResolveProductRecommendedCategory(context.Context, *ResolveProductRecommendedCategoryRequest) (*ResolveProductRecommendedCategoryResponse, error)
 	ResolveProductShippingEstimate(context.Context, *ResolveProductShippingEstimateRequest) (*ResolveProductShippingEstimateResponse, error)
 	ResolveProductStockStatus(context.Context, *ResolveProductStockStatusRequest) (*ResolveProductStockStatusResponse, error)
+	ResolveStorageLinkedStorages(context.Context, *ResolveStorageLinkedStoragesRequest) (*ResolveStorageLinkedStoragesResponse, error)
+	ResolveStorageNearbyStorages(context.Context, *ResolveStorageNearbyStoragesRequest) (*ResolveStorageNearbyStoragesResponse, error)
+	ResolveStorageStorageStatus(context.Context, *ResolveStorageStorageStatusRequest) (*ResolveStorageStorageStatusResponse, error)
 	ResolveSubcategoryItemCount(context.Context, *ResolveSubcategoryItemCountRequest) (*ResolveSubcategoryItemCountResponse, error)
 	ResolveTestContainerDetails(context.Context, *ResolveTestContainerDetailsRequest) (*ResolveTestContainerDetailsResponse, error)
 	mustEmbedUnimplementedProductServiceServer()
@@ -1006,6 +1175,36 @@ func (UnimplementedProductServiceServer) QueryUser(context.Context, *QueryUserRe
 func (UnimplementedProductServiceServer) QueryUsers(context.Context, *QueryUsersRequest) (*QueryUsersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method QueryUsers not implemented")
 }
+func (UnimplementedProductServiceServer) RequireStorageMetadataScoreById(context.Context, *RequireStorageMetadataScoreByIdRequest) (*RequireStorageMetadataScoreByIdResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequireStorageMetadataScoreById not implemented")
+}
+func (UnimplementedProductServiceServer) RequireStorageOptionalProcessedMetadataById(context.Context, *RequireStorageOptionalProcessedMetadataByIdRequest) (*RequireStorageOptionalProcessedMetadataByIdResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequireStorageOptionalProcessedMetadataById not implemented")
+}
+func (UnimplementedProductServiceServer) RequireStorageOptionalProcessedTagsById(context.Context, *RequireStorageOptionalProcessedTagsByIdRequest) (*RequireStorageOptionalProcessedTagsByIdResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequireStorageOptionalProcessedTagsById not implemented")
+}
+func (UnimplementedProductServiceServer) RequireStorageOptionalTagSummaryById(context.Context, *RequireStorageOptionalTagSummaryByIdRequest) (*RequireStorageOptionalTagSummaryByIdResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequireStorageOptionalTagSummaryById not implemented")
+}
+func (UnimplementedProductServiceServer) RequireStorageProcessedMetadataById(context.Context, *RequireStorageProcessedMetadataByIdRequest) (*RequireStorageProcessedMetadataByIdResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequireStorageProcessedMetadataById not implemented")
+}
+func (UnimplementedProductServiceServer) RequireStorageProcessedMetadataHistoryById(context.Context, *RequireStorageProcessedMetadataHistoryByIdRequest) (*RequireStorageProcessedMetadataHistoryByIdResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequireStorageProcessedMetadataHistoryById not implemented")
+}
+func (UnimplementedProductServiceServer) RequireStorageProcessedTagsById(context.Context, *RequireStorageProcessedTagsByIdRequest) (*RequireStorageProcessedTagsByIdResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequireStorageProcessedTagsById not implemented")
+}
+func (UnimplementedProductServiceServer) RequireStorageStockHealthScoreById(context.Context, *RequireStorageStockHealthScoreByIdRequest) (*RequireStorageStockHealthScoreByIdResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequireStorageStockHealthScoreById not implemented")
+}
+func (UnimplementedProductServiceServer) RequireStorageTagSummaryById(context.Context, *RequireStorageTagSummaryByIdRequest) (*RequireStorageTagSummaryByIdResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequireStorageTagSummaryById not implemented")
+}
+func (UnimplementedProductServiceServer) RequireWarehouseStockHealthScoreById(context.Context, *RequireWarehouseStockHealthScoreByIdRequest) (*RequireWarehouseStockHealthScoreByIdResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequireWarehouseStockHealthScoreById not implemented")
+}
 func (UnimplementedProductServiceServer) ResolveCategoryCategoryMetrics(context.Context, *ResolveCategoryCategoryMetricsRequest) (*ResolveCategoryCategoryMetricsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ResolveCategoryCategoryMetrics not implemented")
 }
@@ -1044,6 +1243,15 @@ func (UnimplementedProductServiceServer) ResolveProductShippingEstimate(context.
 }
 func (UnimplementedProductServiceServer) ResolveProductStockStatus(context.Context, *ResolveProductStockStatusRequest) (*ResolveProductStockStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ResolveProductStockStatus not implemented")
+}
+func (UnimplementedProductServiceServer) ResolveStorageLinkedStorages(context.Context, *ResolveStorageLinkedStoragesRequest) (*ResolveStorageLinkedStoragesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResolveStorageLinkedStorages not implemented")
+}
+func (UnimplementedProductServiceServer) ResolveStorageNearbyStorages(context.Context, *ResolveStorageNearbyStoragesRequest) (*ResolveStorageNearbyStoragesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResolveStorageNearbyStorages not implemented")
+}
+func (UnimplementedProductServiceServer) ResolveStorageStorageStatus(context.Context, *ResolveStorageStorageStatusRequest) (*ResolveStorageStorageStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResolveStorageStorageStatus not implemented")
 }
 func (UnimplementedProductServiceServer) ResolveSubcategoryItemCount(context.Context, *ResolveSubcategoryItemCountRequest) (*ResolveSubcategoryItemCountResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ResolveSubcategoryItemCount not implemented")
@@ -1918,6 +2126,186 @@ func _ProductService_QueryUsers_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_RequireStorageMetadataScoreById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequireStorageMetadataScoreByIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).RequireStorageMetadataScoreById(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_RequireStorageMetadataScoreById_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).RequireStorageMetadataScoreById(ctx, req.(*RequireStorageMetadataScoreByIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_RequireStorageOptionalProcessedMetadataById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequireStorageOptionalProcessedMetadataByIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).RequireStorageOptionalProcessedMetadataById(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_RequireStorageOptionalProcessedMetadataById_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).RequireStorageOptionalProcessedMetadataById(ctx, req.(*RequireStorageOptionalProcessedMetadataByIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_RequireStorageOptionalProcessedTagsById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequireStorageOptionalProcessedTagsByIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).RequireStorageOptionalProcessedTagsById(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_RequireStorageOptionalProcessedTagsById_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).RequireStorageOptionalProcessedTagsById(ctx, req.(*RequireStorageOptionalProcessedTagsByIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_RequireStorageOptionalTagSummaryById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequireStorageOptionalTagSummaryByIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).RequireStorageOptionalTagSummaryById(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_RequireStorageOptionalTagSummaryById_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).RequireStorageOptionalTagSummaryById(ctx, req.(*RequireStorageOptionalTagSummaryByIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_RequireStorageProcessedMetadataById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequireStorageProcessedMetadataByIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).RequireStorageProcessedMetadataById(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_RequireStorageProcessedMetadataById_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).RequireStorageProcessedMetadataById(ctx, req.(*RequireStorageProcessedMetadataByIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_RequireStorageProcessedMetadataHistoryById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequireStorageProcessedMetadataHistoryByIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).RequireStorageProcessedMetadataHistoryById(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_RequireStorageProcessedMetadataHistoryById_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).RequireStorageProcessedMetadataHistoryById(ctx, req.(*RequireStorageProcessedMetadataHistoryByIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_RequireStorageProcessedTagsById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequireStorageProcessedTagsByIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).RequireStorageProcessedTagsById(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_RequireStorageProcessedTagsById_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).RequireStorageProcessedTagsById(ctx, req.(*RequireStorageProcessedTagsByIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_RequireStorageStockHealthScoreById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequireStorageStockHealthScoreByIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).RequireStorageStockHealthScoreById(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_RequireStorageStockHealthScoreById_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).RequireStorageStockHealthScoreById(ctx, req.(*RequireStorageStockHealthScoreByIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_RequireStorageTagSummaryById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequireStorageTagSummaryByIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).RequireStorageTagSummaryById(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_RequireStorageTagSummaryById_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).RequireStorageTagSummaryById(ctx, req.(*RequireStorageTagSummaryByIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_RequireWarehouseStockHealthScoreById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequireWarehouseStockHealthScoreByIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).RequireWarehouseStockHealthScoreById(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_RequireWarehouseStockHealthScoreById_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).RequireWarehouseStockHealthScoreById(ctx, req.(*RequireWarehouseStockHealthScoreByIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProductService_ResolveCategoryCategoryMetrics_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ResolveCategoryCategoryMetricsRequest)
 	if err := dec(in); err != nil {
@@ -2148,6 +2536,60 @@ func _ProductService_ResolveProductStockStatus_Handler(srv interface{}, ctx cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProductServiceServer).ResolveProductStockStatus(ctx, req.(*ResolveProductStockStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_ResolveStorageLinkedStorages_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveStorageLinkedStoragesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveStorageLinkedStorages(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveStorageLinkedStorages_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveStorageLinkedStorages(ctx, req.(*ResolveStorageLinkedStoragesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_ResolveStorageNearbyStorages_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveStorageNearbyStoragesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveStorageNearbyStorages(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveStorageNearbyStorages_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveStorageNearbyStorages(ctx, req.(*ResolveStorageNearbyStoragesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_ResolveStorageStorageStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveStorageStorageStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveStorageStorageStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveStorageStorageStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveStorageStorageStatus(ctx, req.(*ResolveStorageStorageStatusRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2384,6 +2826,46 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ProductService_QueryUsers_Handler,
 		},
 		{
+			MethodName: "RequireStorageMetadataScoreById",
+			Handler:    _ProductService_RequireStorageMetadataScoreById_Handler,
+		},
+		{
+			MethodName: "RequireStorageOptionalProcessedMetadataById",
+			Handler:    _ProductService_RequireStorageOptionalProcessedMetadataById_Handler,
+		},
+		{
+			MethodName: "RequireStorageOptionalProcessedTagsById",
+			Handler:    _ProductService_RequireStorageOptionalProcessedTagsById_Handler,
+		},
+		{
+			MethodName: "RequireStorageOptionalTagSummaryById",
+			Handler:    _ProductService_RequireStorageOptionalTagSummaryById_Handler,
+		},
+		{
+			MethodName: "RequireStorageProcessedMetadataById",
+			Handler:    _ProductService_RequireStorageProcessedMetadataById_Handler,
+		},
+		{
+			MethodName: "RequireStorageProcessedMetadataHistoryById",
+			Handler:    _ProductService_RequireStorageProcessedMetadataHistoryById_Handler,
+		},
+		{
+			MethodName: "RequireStorageProcessedTagsById",
+			Handler:    _ProductService_RequireStorageProcessedTagsById_Handler,
+		},
+		{
+			MethodName: "RequireStorageStockHealthScoreById",
+			Handler:    _ProductService_RequireStorageStockHealthScoreById_Handler,
+		},
+		{
+			MethodName: "RequireStorageTagSummaryById",
+			Handler:    _ProductService_RequireStorageTagSummaryById_Handler,
+		},
+		{
+			MethodName: "RequireWarehouseStockHealthScoreById",
+			Handler:    _ProductService_RequireWarehouseStockHealthScoreById_Handler,
+		},
+		{
 			MethodName: "ResolveCategoryCategoryMetrics",
 			Handler:    _ProductService_ResolveCategoryCategoryMetrics_Handler,
 		},
@@ -2434,6 +2916,18 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ResolveProductStockStatus",
 			Handler:    _ProductService_ResolveProductStockStatus_Handler,
+		},
+		{
+			MethodName: "ResolveStorageLinkedStorages",
+			Handler:    _ProductService_ResolveStorageLinkedStorages_Handler,
+		},
+		{
+			MethodName: "ResolveStorageNearbyStorages",
+			Handler:    _ProductService_ResolveStorageNearbyStorages_Handler,
+		},
+		{
+			MethodName: "ResolveStorageStorageStatus",
+			Handler:    _ProductService_ResolveStorageStorageStatus_Handler,
 		},
 		{
 			MethodName: "ResolveSubcategoryItemCount",

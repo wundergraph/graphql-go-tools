@@ -842,3 +842,125 @@ func (s *MockService) ResolveCategoryProductCount(_ context.Context, req *produc
 
 	return resp, nil
 }
+
+// ResolveStorageStorageStatus implements productv1.ProductServiceServer.
+func (s *MockService) ResolveStorageStorageStatus(_ context.Context, req *productv1.ResolveStorageStorageStatusRequest) (*productv1.ResolveStorageStorageStatusResponse, error) {
+	results := make([]*productv1.ResolveStorageStorageStatusResult, 0, len(req.GetContext()))
+
+	checkHealth := false
+	if req.GetFieldArgs() != nil {
+		checkHealth = req.GetFieldArgs().GetCheckHealth()
+	}
+
+	for i, ctx := range req.GetContext() {
+		var actionResult *productv1.ActionResult
+
+		if checkHealth && i%3 == 0 {
+			// Return error status for health check failures
+			actionResult = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionError{
+					ActionError: &productv1.ActionError{
+						Message: fmt.Sprintf("Health check failed for storage %s", ctx.GetName()),
+						Code:    "STORAGE_HEALTH_CHECK_FAILED",
+					},
+				},
+			}
+		} else {
+			// Return success status
+			actionResult = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionSuccess{
+					ActionSuccess: &productv1.ActionSuccess{
+						Message:   fmt.Sprintf("Storage %s is healthy", ctx.GetName()),
+						Timestamp: "2024-01-01T00:00:00Z",
+					},
+				},
+			}
+		}
+
+		results = append(results, &productv1.ResolveStorageStorageStatusResult{
+			StorageStatus: actionResult,
+		})
+	}
+
+	return &productv1.ResolveStorageStorageStatusResponse{
+		Result: results,
+	}, nil
+}
+
+// ResolveStorageLinkedStorages implements productv1.ProductServiceServer.
+func (s *MockService) ResolveStorageLinkedStorages(_ context.Context, req *productv1.ResolveStorageLinkedStoragesRequest) (*productv1.ResolveStorageLinkedStoragesResponse, error) {
+	results := make([]*productv1.ResolveStorageLinkedStoragesResult, len(req.GetContext()))
+
+	depth := int32(1)
+	if req.GetFieldArgs() != nil {
+		depth = req.GetFieldArgs().GetDepth()
+	}
+
+	for i, ctx := range req.GetContext() {
+		// Generate linked storages based on depth
+		linkedStorages := make([]*productv1.Storage, 0, depth)
+		for j := int32(0); j < depth; j++ {
+			linkedStorages = append(linkedStorages, &productv1.Storage{
+				Id:       fmt.Sprintf("linked-storage-%s-%d", ctx.GetId(), j),
+				Name:     fmt.Sprintf("Linked Storage %s %d", ctx.GetName(), j),
+				Location: fmt.Sprintf("%s-linked-%d", ctx.GetLocation(), j),
+			})
+		}
+
+		results[i] = &productv1.ResolveStorageLinkedStoragesResult{
+			LinkedStorages: linkedStorages,
+		}
+	}
+
+	return &productv1.ResolveStorageLinkedStoragesResponse{
+		Result: results,
+	}, nil
+}
+
+// ResolveStorageNearbyStorages implements productv1.ProductServiceServer.
+func (s *MockService) ResolveStorageNearbyStorages(_ context.Context, req *productv1.ResolveStorageNearbyStoragesRequest) (*productv1.ResolveStorageNearbyStoragesResponse, error) {
+	results := make([]*productv1.ResolveStorageNearbyStoragesResult, 0, len(req.GetContext()))
+
+	// Check if radius arg is set - if nil or 0, return nil for nearbyStorages
+	radius := int32(0)
+	if req.GetFieldArgs() != nil && req.GetFieldArgs().GetRadius() != nil {
+		radius = req.GetFieldArgs().GetRadius().GetValue()
+	}
+
+	for i, ctx := range req.GetContext() {
+		var nearbyStorages *productv1.ListOfStorage
+
+		if radius > 0 {
+			// Generate nearby storages based on radius
+			storages := make([]*productv1.Storage, 0, radius)
+			for j := int32(0); j < radius && j < 5; j++ { // Cap at 5 storages
+				storages = append(storages, &productv1.Storage{
+					Id:       fmt.Sprintf("nearby-storage-%s-%d", ctx.GetId(), j),
+					Name:     fmt.Sprintf("Nearby Storage %d", j),
+					Location: fmt.Sprintf("%s-nearby-%d", ctx.GetLocation(), j),
+				})
+			}
+			nearbyStorages = &productv1.ListOfStorage{
+				List: &productv1.ListOfStorage_List{
+					Items: storages,
+				},
+			}
+		} else if i%2 == 0 {
+			// For even indices with no radius, return empty list
+			nearbyStorages = &productv1.ListOfStorage{
+				List: &productv1.ListOfStorage_List{
+					Items: []*productv1.Storage{},
+				},
+			}
+		}
+		// For odd indices with no radius, nearbyStorages remains nil
+
+		results = append(results, &productv1.ResolveStorageNearbyStoragesResult{
+			NearbyStorages: nearbyStorages,
+		})
+	}
+
+	return &productv1.ResolveStorageNearbyStoragesResponse{
+		Result: results,
+	}, nil
+}

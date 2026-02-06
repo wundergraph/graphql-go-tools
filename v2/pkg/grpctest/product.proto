@@ -57,6 +57,16 @@ service ProductService {
   rpc QueryTypeWithMultipleFilterFields(QueryTypeWithMultipleFilterFieldsRequest) returns (QueryTypeWithMultipleFilterFieldsResponse) {}
   rpc QueryUser(QueryUserRequest) returns (QueryUserResponse) {}
   rpc QueryUsers(QueryUsersRequest) returns (QueryUsersResponse) {}
+  rpc RequireStorageMetadataScoreById(RequireStorageMetadataScoreByIdRequest) returns (RequireStorageMetadataScoreByIdResponse) {}
+  rpc RequireStorageOptionalProcessedMetadataById(RequireStorageOptionalProcessedMetadataByIdRequest) returns (RequireStorageOptionalProcessedMetadataByIdResponse) {}
+  rpc RequireStorageOptionalProcessedTagsById(RequireStorageOptionalProcessedTagsByIdRequest) returns (RequireStorageOptionalProcessedTagsByIdResponse) {}
+  rpc RequireStorageOptionalTagSummaryById(RequireStorageOptionalTagSummaryByIdRequest) returns (RequireStorageOptionalTagSummaryByIdResponse) {}
+  rpc RequireStorageProcessedMetadataById(RequireStorageProcessedMetadataByIdRequest) returns (RequireStorageProcessedMetadataByIdResponse) {}
+  rpc RequireStorageProcessedMetadataHistoryById(RequireStorageProcessedMetadataHistoryByIdRequest) returns (RequireStorageProcessedMetadataHistoryByIdResponse) {}
+  rpc RequireStorageProcessedTagsById(RequireStorageProcessedTagsByIdRequest) returns (RequireStorageProcessedTagsByIdResponse) {}
+  rpc RequireStorageStockHealthScoreById(RequireStorageStockHealthScoreByIdRequest) returns (RequireStorageStockHealthScoreByIdResponse) {}
+  rpc RequireStorageTagSummaryById(RequireStorageTagSummaryByIdRequest) returns (RequireStorageTagSummaryByIdResponse) {}
+  rpc RequireWarehouseStockHealthScoreById(RequireWarehouseStockHealthScoreByIdRequest) returns (RequireWarehouseStockHealthScoreByIdResponse) {}
   rpc ResolveCategoryCategoryMetrics(ResolveCategoryCategoryMetricsRequest) returns (ResolveCategoryCategoryMetricsResponse) {}
   rpc ResolveCategoryCategoryStatus(ResolveCategoryCategoryStatusRequest) returns (ResolveCategoryCategoryStatusResponse) {}
   rpc ResolveCategoryChildCategories(ResolveCategoryChildCategoriesRequest) returns (ResolveCategoryChildCategoriesResponse) {}
@@ -70,6 +80,9 @@ service ProductService {
   rpc ResolveProductRecommendedCategory(ResolveProductRecommendedCategoryRequest) returns (ResolveProductRecommendedCategoryResponse) {}
   rpc ResolveProductShippingEstimate(ResolveProductShippingEstimateRequest) returns (ResolveProductShippingEstimateResponse) {}
   rpc ResolveProductStockStatus(ResolveProductStockStatusRequest) returns (ResolveProductStockStatusResponse) {}
+  rpc ResolveStorageLinkedStorages(ResolveStorageLinkedStoragesRequest) returns (ResolveStorageLinkedStoragesResponse) {}
+  rpc ResolveStorageNearbyStorages(ResolveStorageNearbyStoragesRequest) returns (ResolveStorageNearbyStoragesResponse) {}
+  rpc ResolveStorageStorageStatus(ResolveStorageStorageStatusRequest) returns (ResolveStorageStorageStatusResponse) {}
   rpc ResolveSubcategoryItemCount(ResolveSubcategoryItemCountRequest) returns (ResolveSubcategoryItemCountResponse) {}
   rpc ResolveTestContainerDetails(ResolveTestContainerDetailsRequest) returns (ResolveTestContainerDetailsResponse) {}
 }
@@ -183,6 +196,13 @@ message ListOfOrderLine {
 message ListOfProduct {
   message List {
     repeated Product items = 1;
+  }
+  List list = 1;
+}
+// Wrapper message for a list of Storage.
+message ListOfStorage {
+  message List {
+    repeated Storage items = 1;
   }
   List list = 1;
 }
@@ -781,6 +801,79 @@ message ResolveProductProductDetailsResponse {
   repeated ResolveProductProductDetailsResult result = 1;
 }
 
+message ResolveStorageStorageStatusArgs {
+  bool check_health = 1;
+}
+
+message ResolveStorageStorageStatusContext {
+  string id = 1;
+  string name = 2;
+}
+
+message ResolveStorageStorageStatusRequest {
+  // context provides the resolver context for the field storageStatus of type Storage.
+  repeated ResolveStorageStorageStatusContext context = 1;
+  // field_args provides the arguments for the resolver field storageStatus of type Storage.
+  ResolveStorageStorageStatusArgs field_args = 2;
+}
+
+message ResolveStorageStorageStatusResult {
+  ActionResult storage_status = 1;
+}
+
+message ResolveStorageStorageStatusResponse {
+  repeated ResolveStorageStorageStatusResult result = 1;
+}
+
+message ResolveStorageLinkedStoragesArgs {
+  int32 depth = 1;
+}
+
+message ResolveStorageLinkedStoragesContext {
+  string id = 1;
+  string name = 2;
+  string location = 3;
+}
+
+message ResolveStorageLinkedStoragesRequest {
+  // context provides the resolver context for the field linkedStorages of type Storage.
+  repeated ResolveStorageLinkedStoragesContext context = 1;
+  // field_args provides the arguments for the resolver field linkedStorages of type Storage.
+  ResolveStorageLinkedStoragesArgs field_args = 2;
+}
+
+message ResolveStorageLinkedStoragesResult {
+  repeated Storage linked_storages = 1;
+}
+
+message ResolveStorageLinkedStoragesResponse {
+  repeated ResolveStorageLinkedStoragesResult result = 1;
+}
+
+message ResolveStorageNearbyStoragesArgs {
+  google.protobuf.Int32Value radius = 1;
+}
+
+message ResolveStorageNearbyStoragesContext {
+  string id = 1;
+  string location = 2;
+}
+
+message ResolveStorageNearbyStoragesRequest {
+  // context provides the resolver context for the field nearbyStorages of type Storage.
+  repeated ResolveStorageNearbyStoragesContext context = 1;
+  // field_args provides the arguments for the resolver field nearbyStorages of type Storage.
+  ResolveStorageNearbyStoragesArgs field_args = 2;
+}
+
+message ResolveStorageNearbyStoragesResult {
+  ListOfStorage nearby_storages = 1;
+}
+
+message ResolveStorageNearbyStoragesResponse {
+  repeated ResolveStorageNearbyStoragesResult result = 1;
+}
+
 message ResolveCategoryProductCountArgs {
   ProductCountFilter filters = 1;
 }
@@ -1020,6 +1113,267 @@ message ResolveTestContainerDetailsResponse {
   repeated ResolveTestContainerDetailsResult result = 1;
 }
 
+message RequireStorageStockHealthScoreByIdRequest {
+  // RequireStorageStockHealthScoreByIdContext provides the context for the required fields method RequireStorageStockHealthScoreById.
+  repeated RequireStorageStockHealthScoreByIdContext context = 1;
+}
+
+message RequireStorageStockHealthScoreByIdContext {
+  LookupStorageByIdRequestKey key = 1;
+  RequireStorageStockHealthScoreByIdFields fields = 2;
+}
+
+message RequireStorageStockHealthScoreByIdResponse {
+  // RequireStorageStockHealthScoreByIdResult provides the result for the required fields method RequireStorageStockHealthScoreById.
+  repeated RequireStorageStockHealthScoreByIdResult result = 1;
+}
+
+message RequireStorageStockHealthScoreByIdResult {
+  double stock_health_score = 1;
+}
+
+message RequireStorageStockHealthScoreByIdFields {
+  message RestockData {
+    string last_restock_date = 1;
+  }
+
+  int32 item_count = 1;
+  RestockData restock_data = 2;
+}
+
+message RequireStorageTagSummaryByIdRequest {
+  // RequireStorageTagSummaryByIdContext provides the context for the required fields method RequireStorageTagSummaryById.
+  repeated RequireStorageTagSummaryByIdContext context = 1;
+}
+
+message RequireStorageTagSummaryByIdContext {
+  LookupStorageByIdRequestKey key = 1;
+  RequireStorageTagSummaryByIdFields fields = 2;
+}
+
+message RequireStorageTagSummaryByIdResponse {
+  // RequireStorageTagSummaryByIdResult provides the result for the required fields method RequireStorageTagSummaryById.
+  repeated RequireStorageTagSummaryByIdResult result = 1;
+}
+
+message RequireStorageTagSummaryByIdResult {
+  string tag_summary = 1;
+}
+
+message RequireStorageTagSummaryByIdFields {
+  repeated string tags = 1;
+}
+
+message RequireStorageOptionalTagSummaryByIdRequest {
+  // RequireStorageOptionalTagSummaryByIdContext provides the context for the required fields method RequireStorageOptionalTagSummaryById.
+  repeated RequireStorageOptionalTagSummaryByIdContext context = 1;
+}
+
+message RequireStorageOptionalTagSummaryByIdContext {
+  LookupStorageByIdRequestKey key = 1;
+  RequireStorageOptionalTagSummaryByIdFields fields = 2;
+}
+
+message RequireStorageOptionalTagSummaryByIdResponse {
+  // RequireStorageOptionalTagSummaryByIdResult provides the result for the required fields method RequireStorageOptionalTagSummaryById.
+  repeated RequireStorageOptionalTagSummaryByIdResult result = 1;
+}
+
+message RequireStorageOptionalTagSummaryByIdResult {
+  google.protobuf.StringValue optional_tag_summary = 1;
+}
+
+message RequireStorageOptionalTagSummaryByIdFields {
+  ListOfString optional_tags = 1;
+}
+
+message RequireStorageMetadataScoreByIdRequest {
+  // RequireStorageMetadataScoreByIdContext provides the context for the required fields method RequireStorageMetadataScoreById.
+  repeated RequireStorageMetadataScoreByIdContext context = 1;
+}
+
+message RequireStorageMetadataScoreByIdContext {
+  LookupStorageByIdRequestKey key = 1;
+  RequireStorageMetadataScoreByIdFields fields = 2;
+}
+
+message RequireStorageMetadataScoreByIdResponse {
+  // RequireStorageMetadataScoreByIdResult provides the result for the required fields method RequireStorageMetadataScoreById.
+  repeated RequireStorageMetadataScoreByIdResult result = 1;
+}
+
+message RequireStorageMetadataScoreByIdResult {
+  double metadata_score = 1;
+}
+
+message RequireStorageMetadataScoreByIdFields {
+  message StorageMetadata {
+    int32 capacity = 1;
+    string zone = 2;
+  }
+
+  StorageMetadata metadata = 1;
+}
+
+message RequireStorageProcessedMetadataByIdRequest {
+  // RequireStorageProcessedMetadataByIdContext provides the context for the required fields method RequireStorageProcessedMetadataById.
+  repeated RequireStorageProcessedMetadataByIdContext context = 1;
+}
+
+message RequireStorageProcessedMetadataByIdContext {
+  LookupStorageByIdRequestKey key = 1;
+  RequireStorageProcessedMetadataByIdFields fields = 2;
+}
+
+message RequireStorageProcessedMetadataByIdResponse {
+  // RequireStorageProcessedMetadataByIdResult provides the result for the required fields method RequireStorageProcessedMetadataById.
+  repeated RequireStorageProcessedMetadataByIdResult result = 1;
+}
+
+message RequireStorageProcessedMetadataByIdResult {
+  StorageMetadata processed_metadata = 1;
+}
+
+message RequireStorageProcessedMetadataByIdFields {
+  message StorageMetadata {
+    int32 capacity = 1;
+    string zone = 2;
+    int32 priority = 3;
+  }
+
+  StorageMetadata metadata = 1;
+}
+
+message RequireStorageOptionalProcessedMetadataByIdRequest {
+  // RequireStorageOptionalProcessedMetadataByIdContext provides the context for the required fields method RequireStorageOptionalProcessedMetadataById.
+  repeated RequireStorageOptionalProcessedMetadataByIdContext context = 1;
+}
+
+message RequireStorageOptionalProcessedMetadataByIdContext {
+  LookupStorageByIdRequestKey key = 1;
+  RequireStorageOptionalProcessedMetadataByIdFields fields = 2;
+}
+
+message RequireStorageOptionalProcessedMetadataByIdResponse {
+  // RequireStorageOptionalProcessedMetadataByIdResult provides the result for the required fields method RequireStorageOptionalProcessedMetadataById.
+  repeated RequireStorageOptionalProcessedMetadataByIdResult result = 1;
+}
+
+message RequireStorageOptionalProcessedMetadataByIdResult {
+  StorageMetadata optional_processed_metadata = 1;
+}
+
+message RequireStorageOptionalProcessedMetadataByIdFields {
+  message StorageMetadata {
+    int32 capacity = 1;
+    string zone = 2;
+  }
+
+  StorageMetadata metadata = 1;
+}
+
+message RequireStorageProcessedTagsByIdRequest {
+  // RequireStorageProcessedTagsByIdContext provides the context for the required fields method RequireStorageProcessedTagsById.
+  repeated RequireStorageProcessedTagsByIdContext context = 1;
+}
+
+message RequireStorageProcessedTagsByIdContext {
+  LookupStorageByIdRequestKey key = 1;
+  RequireStorageProcessedTagsByIdFields fields = 2;
+}
+
+message RequireStorageProcessedTagsByIdResponse {
+  // RequireStorageProcessedTagsByIdResult provides the result for the required fields method RequireStorageProcessedTagsById.
+  repeated RequireStorageProcessedTagsByIdResult result = 1;
+}
+
+message RequireStorageProcessedTagsByIdResult {
+  repeated string processed_tags = 1;
+}
+
+message RequireStorageProcessedTagsByIdFields {
+  repeated string tags = 1;
+}
+
+message RequireStorageOptionalProcessedTagsByIdRequest {
+  // RequireStorageOptionalProcessedTagsByIdContext provides the context for the required fields method RequireStorageOptionalProcessedTagsById.
+  repeated RequireStorageOptionalProcessedTagsByIdContext context = 1;
+}
+
+message RequireStorageOptionalProcessedTagsByIdContext {
+  LookupStorageByIdRequestKey key = 1;
+  RequireStorageOptionalProcessedTagsByIdFields fields = 2;
+}
+
+message RequireStorageOptionalProcessedTagsByIdResponse {
+  // RequireStorageOptionalProcessedTagsByIdResult provides the result for the required fields method RequireStorageOptionalProcessedTagsById.
+  repeated RequireStorageOptionalProcessedTagsByIdResult result = 1;
+}
+
+message RequireStorageOptionalProcessedTagsByIdResult {
+  ListOfString optional_processed_tags = 1;
+}
+
+message RequireStorageOptionalProcessedTagsByIdFields {
+  ListOfString optional_tags = 1;
+}
+
+message RequireStorageProcessedMetadataHistoryByIdRequest {
+  // RequireStorageProcessedMetadataHistoryByIdContext provides the context for the required fields method RequireStorageProcessedMetadataHistoryById.
+  repeated RequireStorageProcessedMetadataHistoryByIdContext context = 1;
+}
+
+message RequireStorageProcessedMetadataHistoryByIdContext {
+  LookupStorageByIdRequestKey key = 1;
+  RequireStorageProcessedMetadataHistoryByIdFields fields = 2;
+}
+
+message RequireStorageProcessedMetadataHistoryByIdResponse {
+  // RequireStorageProcessedMetadataHistoryByIdResult provides the result for the required fields method RequireStorageProcessedMetadataHistoryById.
+  repeated RequireStorageProcessedMetadataHistoryByIdResult result = 1;
+}
+
+message RequireStorageProcessedMetadataHistoryByIdResult {
+  repeated StorageMetadata processed_metadata_history = 1;
+}
+
+message RequireStorageProcessedMetadataHistoryByIdFields {
+  message StorageMetadata {
+    int32 capacity = 1;
+    string zone = 2;
+  }
+
+  repeated StorageMetadata metadata_history = 1;
+}
+
+message RequireWarehouseStockHealthScoreByIdRequest {
+  // RequireWarehouseStockHealthScoreByIdContext provides the context for the required fields method RequireWarehouseStockHealthScoreById.
+  repeated RequireWarehouseStockHealthScoreByIdContext context = 1;
+}
+
+message RequireWarehouseStockHealthScoreByIdContext {
+  LookupWarehouseByIdRequestKey key = 1;
+  RequireWarehouseStockHealthScoreByIdFields fields = 2;
+}
+
+message RequireWarehouseStockHealthScoreByIdResponse {
+  // RequireWarehouseStockHealthScoreByIdResult provides the result for the required fields method RequireWarehouseStockHealthScoreById.
+  repeated RequireWarehouseStockHealthScoreByIdResult result = 1;
+}
+
+message RequireWarehouseStockHealthScoreByIdResult {
+  double stock_health_score = 1;
+}
+
+message RequireWarehouseStockHealthScoreByIdFields {
+  message RestockData {
+    string last_restock_date = 1;
+  }
+
+  int32 inventory_count = 1;
+  RestockData restock_data = 2;
+}
+
 message Product {
   string id = 1;
   string name = 2;
@@ -1093,7 +1447,7 @@ message Category {
   string id = 1;
   string name = 2;
   CategoryKind kind = 3;
-  ListOfSubcategory subcategories = 5;
+  ListOfSubcategory subcategories = 4;
 }
 
 message CategoryFilter {
@@ -1260,6 +1614,16 @@ message ProductDetails {
   string description = 2;
   ActionResult review_summary = 3;
   Animal recommended_pet = 4;
+}
+
+message RestockData {
+  string last_restock_date = 1;
+}
+
+message StorageMetadata {
+  int32 capacity = 1;
+  string zone = 2;
+  int32 priority = 3;
 }
 
 message NestedTypeB {

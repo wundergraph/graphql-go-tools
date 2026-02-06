@@ -21,12 +21,55 @@ type Storage @key(fields: "id") {
   id: ID!
   name: String!
   location: String!
+  itemCount: Int! @external
+  restockData: RestockData! @external
+  stockHealthScore: Float! @requires(fields: "itemCount restockData { lastRestockDate }")
+  
+  # External fields for @requires testing
+  tags: [String!]! @external
+  optionalTags: [String!] @external
+  metadata: StorageMetadata! @external
+  metadataHistory: [StorageMetadata!]! @external
+  
+  # @requires fields returning scalars
+  tagSummary: String! @requires(fields: "tags")
+  optionalTagSummary: String @requires(fields: "optionalTags")
+  metadataScore: Float! @requires(fields: "metadata { capacity zone }")
+  
+  # @requires fields returning complex types
+  processedMetadata: StorageMetadata! @requires(fields: "metadata { capacity zone priority }")
+  optionalProcessedMetadata: StorageMetadata @requires(fields: "metadata { capacity zone }")
+  
+  # @requires fields returning lists
+  processedTags: [String!]! @requires(fields: "tags")
+  optionalProcessedTags: [String!] @requires(fields: "optionalTags")
+  
+  # @requires fields returning lists of complex types
+  processedMetadataHistory: [StorageMetadata!]! @requires(fields: "metadataHistory { capacity zone }")
+  
+  # @connect_fieldResolver fields
+  storageStatus(checkHealth: Boolean!): ActionResult! @connect__fieldResolver(context: "id name")
+  linkedStorages(depth: Int!): [Storage!]! @connect__fieldResolver(context: "id name location")
+  nearbyStorages(radius: Int): [Storage!] @connect__fieldResolver(context: "id location")
 }
 
 type Warehouse @key(fields: "id") {
   id: ID!
   name: String!
   location: String!
+  inventoryCount: Int! @external
+  restockData: RestockData! @external
+  stockHealthScore: Float! @requires(fields: "inventoryCount restockData { lastRestockDate }")
+}
+
+type RestockData {
+  lastRestockDate: String!
+}
+
+type StorageMetadata {
+  capacity: Int!
+  zone: String!
+  priority: Int!
 }
 
 type User {

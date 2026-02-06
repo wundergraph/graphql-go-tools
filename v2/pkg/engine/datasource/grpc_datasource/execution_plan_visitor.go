@@ -369,7 +369,13 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 		return
 	}
 
-	field, err := r.planCtx.buildField(r.walker.EnclosingTypeDefinition, fieldDefRef, fieldName, fieldAlias)
+	field, err := r.planCtx.buildField(
+		r.walker.EnclosingTypeDefinition.NameString(r.definition),
+		fieldDefRef,
+		fieldName,
+		fieldAlias,
+	)
+
 	if err != nil {
 		r.walker.StopWithInternalErr(err)
 		return
@@ -384,7 +390,7 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 	r.fieldPath = r.fieldPath.WithFieldNameItem([]byte(prefix + field.Name))
 
 	// check if we are inside of an inline fragment
-	if ref, ok := r.walker.ResolveInlineFragment(); ok {
+	if ref := r.walker.ResolveInlineFragment(); ref != ast.InvalidRef {
 		if r.planInfo.currentResponseMessage.FieldSelectionSet == nil {
 			r.planInfo.currentResponseMessage.FieldSelectionSet = make(RPCFieldSelectionSet)
 		}
