@@ -18,7 +18,7 @@ type Planner struct {
 
 	planningWalker  *astvisitor.Walker
 	planningVisitor *Visitor
-	costVisitor     *StaticCostVisitor
+	costVisitor     *CostVisitor
 
 	nodeSelectionBuilder *NodeSelectionBuilder
 	planningPathBuilder  *PathBuilder
@@ -163,8 +163,8 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	// We have to register it last in the walker, as it depends on the fieldPlanners field of the
 	// visitor. That field is populated in the AllowVisitor callback. Walker calls Enter* callbacks
 	// in the order they were registered, and Leave* callbacks in the reverse order.
-	if p.config.ComputeStaticCost {
-		p.costVisitor = NewStaticCostVisitor(p.planningWalker, operation, definition)
+	if p.config.ComputeCosts {
+		p.costVisitor = NewCostVisitor(p.planningWalker, operation, definition)
 		p.costVisitor.planners = plannersConfigurations
 		p.costVisitor.fieldPlanners = &p.planningVisitor.fieldPlanners
 		p.costVisitor.operationDefinition = &p.planningVisitor.operationDefinitionRef
@@ -209,10 +209,10 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		return
 	}
 
-	if p.config.ComputeStaticCost {
+	if p.config.ComputeCosts {
 		costCalc := NewCostCalculator()
 		costCalc.tree = p.costVisitor.finalCostTree()
-		p.planningVisitor.plan.SetStaticCostCalculator(costCalc)
+		p.planningVisitor.plan.SetCostCalculator(costCalc)
 	}
 
 	return p.planningVisitor.plan

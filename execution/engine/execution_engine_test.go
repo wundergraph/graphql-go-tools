@@ -210,10 +210,11 @@ type ExecutionEngineTestCase struct {
 	skipReason       string
 	indentJSON       bool
 
-	expectedResponse     string
-	expectedJSONResponse string
-	expectedFixture      string
-	expectedStaticCost   int
+	expectedResponse      string
+	expectedJSONResponse  string
+	expectedFixture       string
+	expectedEstimatedCost int
+	expectedActualCost    int
 }
 
 type _executionTestOptions struct {
@@ -222,7 +223,7 @@ type _executionTestOptions struct {
 	apolloRouterCompatibilitySubrequestHTTPError bool
 	propagateFetchReasons                        bool
 	validateRequiredExternalFields               bool
-	computeStaticCost                            bool
+	computeCosts                                 bool
 }
 
 type executionTestOptions func(*_executionTestOptions)
@@ -247,9 +248,9 @@ func validateRequiredExternalFields() executionTestOptions {
 	}
 }
 
-func computeStaticCost() executionTestOptions {
+func computeCosts() executionTestOptions {
 	return func(options *_executionTestOptions) {
-		options.computeStaticCost = true
+		options.computeCosts = true
 	}
 }
 
@@ -287,7 +288,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			}
 			engineConf.plannerConfig.BuildFetchReasons = opts.propagateFetchReasons
 			engineConf.plannerConfig.ValidateRequiredExternalFields = opts.validateRequiredExternalFields
-			engineConf.plannerConfig.ComputeStaticCost = opts.computeStaticCost
+			engineConf.plannerConfig.ComputeCosts = opts.computeCosts
 			engineConf.plannerConfig.StaticCostDefaultListSize = 10
 			resolveOpts := resolve.ResolverOptions{
 				MaxConcurrency:    1024,
@@ -335,9 +336,14 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				assert.Equal(t, testCase.expectedResponse, actualResponse)
 			}
 
-			if testCase.expectedStaticCost != 0 {
-				gotCost := operation.StaticCost()
-				require.Equal(t, testCase.expectedStaticCost, gotCost)
+			if testCase.expectedEstimatedCost != 0 {
+				gotCost := operation.EstimatedCost()
+				require.Equal(t, testCase.expectedEstimatedCost, gotCost)
+			}
+
+			if testCase.expectedActualCost != 0 {
+				gotActualCost := operation.ActualCost()
+				require.Equal(t, testCase.expectedActualCost, gotActualCost)
 			}
 
 		}
@@ -4927,9 +4933,9 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				// Children total = 7 + 3 = 10
 				// (is it possible to improve accuracy here by using the largest fragment instead of the sum?)
 				// Total = (5 + 10) * 3 = 45
-				expectedStaticCost: 45,
+				expectedEstimatedCost: 45,
 			},
-			computeStaticCost(),
+			computeCosts(),
 		))
 	})
 
@@ -5632,7 +5638,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 		})
 	})
 
-	t.Run("static cost computation", func(t *testing.T) {
+	t.Run("costs computation", func(t *testing.T) {
 		t.Run("common on star wars scheme", func(t *testing.T) {
 			rootNodes := []plan.TypeField{
 				{TypeName: "Query", FieldNames: []string{"hero", "droid"}},
@@ -5699,10 +5705,10 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							},
 						},
 					},
-					expectedResponse:   `{"data":{"droid":{"name":"R2D2","primaryFunction":"no"}}}`,
-					expectedStaticCost: 18, // Query.droid (1) + droid.name (17)
+					expectedResponse:      `{"data":{"droid":{"name":"R2D2","primaryFunction":"no"}}}`,
+					expectedEstimatedCost: 18, // Query.droid (1) + droid.name (17)
 				},
-				computeStaticCost(),
+				computeCosts(),
 			))
 
 			t.Run("droid with weighted plain fields and an argument", runWithoutError(
@@ -5754,10 +5760,72 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							},
 						},
 					},
-					expectedResponse:   `{"data":{"droid":{"name":"R2D2","primaryFunction":"no"}}}`,
-					expectedStaticCost: 21, // Query.droid (1) + Query.droid.id (3) + droid.name (17)
+					expectedResponse:      `{"data":{"droid":{"name":"R2D2","primaryFunction":"no"}}}`,
+					expectedEstimatedCost: 21, // Query.droid (1) + Query.droid.id (3) + droid.name (17)
 				},
-				computeStaticCost(),
+				computeCosts(),
+			))
+
+			t.Run("negative weights - cost is never negative", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: graphql.StarwarsSchema(t),
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{
+								droid(id: "R2D2") {
+									name
+									primaryFunction
+								}
+							}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: `{"data":{"droid":{"name":"R2D2","primaryFunction":"no"}}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+										{TypeName: "Query", FieldName: "droid"}: {
+											HasWeight:       true,
+											Weight:          -10,                      // Negative field weight
+											ArgumentWeights: map[string]int{"id": -5}, // Negative argument weight
+										},
+										{TypeName: "Droid", FieldName: "name"}:            {HasWeight: true, Weight: -3},
+										{TypeName: "Droid", FieldName: "primaryFunction"}: {HasWeight: true, Weight: -2},
+									},
+									Types: map[string]int{
+										"Droid": -1, // Negative type weight
+									},
+								}},
+							customConfig,
+						),
+					},
+					fields: []plan.FieldConfiguration{
+						{
+							TypeName: "Query", FieldName: "droid",
+							Arguments: []plan.ArgumentConfiguration{
+								{
+									Name:         "id",
+									SourceType:   plan.FieldArgumentSource,
+									RenderConfig: plan.RenderArgumentAsGraphQLValue,
+								},
+							},
+						},
+					},
+					expectedResponse: `{"data":{"droid":{"name":"R2D2","primaryFunction":"no"}}}`,
+					// All weights are negative.
+					// But cost should be floored to 0 (never negative)
+					expectedEstimatedCost: 0,
+				},
+				computeCosts(),
 			))
 
 			t.Run("hero field has weight (returns interface) and with concrete fragment", runWithoutError(
@@ -5796,10 +5864,10 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							customConfig,
 						),
 					},
-					expectedResponse:   `{"data":{"hero":{"name":"Luke Skywalker","height":"12"}}}`,
-					expectedStaticCost: 22, // Query.hero (2) + Human.height (3) + Droid.name (17=max(7, 17))
+					expectedResponse:      `{"data":{"hero":{"name":"Luke Skywalker","height":"12"}}}`,
+					expectedEstimatedCost: 22, // Query.hero (2) + Human.height (3) + Droid.name (17=max(7, 17))
 				},
-				computeStaticCost(),
+				computeCosts(),
 			))
 
 			t.Run("hero field has no weight (returns interface) and with concrete fragment", runWithoutError(
@@ -5834,10 +5902,10 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							customConfig,
 						),
 					},
-					expectedResponse:   `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
-					expectedStaticCost: 30, // Query.Human (13) + Droid.name (17=max(7, 17))
+					expectedResponse:      `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+					expectedEstimatedCost: 30, // Query.Human (13) + Droid.name (17=max(7, 17))
 				},
-				computeStaticCost(),
+				computeCosts(),
 			))
 
 			t.Run("query hero without assumedSize on friends", runWithoutError(
@@ -5885,10 +5953,10 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							customConfig,
 						),
 					},
-					expectedResponse:   `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
-					expectedStaticCost: 127, // Query.hero(max(7,5))+10*(Human(max(7,5))+Human.name(2)+Human.height(1)+Droid.name(2))
+					expectedResponse:      `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
+					expectedEstimatedCost: 127, // Query.hero(max(7,5))+10*(Human(max(7,5))+Human.name(2)+Human.height(1)+Droid.name(2))
 				},
-				computeStaticCost(),
+				computeCosts(),
 			))
 
 			t.Run("query hero with assumedSize on friends", runWithoutError(
@@ -5940,15 +6008,15 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							customConfig,
 						),
 					},
-					expectedResponse:   `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
-					expectedStaticCost: 247, // Query.hero(max(7,5))+ 20 * (7+2+2+1)
+					expectedResponse:      `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
+					expectedEstimatedCost: 247, // Query.hero(max(7,5))+ 20 * (7+2+2+1)
 					// We pick maximum on every path independently. This is to reveal the upper boundary.
 					// Query.hero: picked maximum weight (Human=7) out of two types (Human, Droid)
 					// Query.hero.friends: the max possible weight (7) is for implementing class Human
 					// of the returned type of Character; the multiplier picked for the Droid since
 					// it is the maximum possible value - we considered the enclosing type that contains it.
 				},
-				computeStaticCost(),
+				computeCosts(),
 			))
 
 			t.Run("query hero with assumedSize on friends and weight defined", runWithoutError(
@@ -6002,10 +6070,10 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							customConfig,
 						),
 					},
-					expectedResponse:   `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
-					expectedStaticCost: 187, // Query.hero(max(7,5))+ 20 * (4+2+2+1)
+					expectedResponse:      `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
+					expectedEstimatedCost: 187, // Query.hero(max(7,5))+ 20 * (4+2+2+1)
 				},
-				computeStaticCost(),
+				computeCosts(),
 			))
 
 			t.Run("query hero with empty cost structures", runWithoutError(
@@ -6043,10 +6111,121 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							customConfig,
 						),
 					},
-					expectedResponse:   `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
-					expectedStaticCost: 11, // Query.hero(max(1,1))+ 10 * 1
+					expectedResponse:      `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
+					expectedEstimatedCost: 11, // Query.hero(max(1,1))+ 10 * 1
 				},
-				computeStaticCost(),
+				computeCosts(),
+			))
+
+			// Actual cost tests - verifies that actual cost uses real list sizes from response
+			// rather than estimated/assumed sizes
+
+			t.Run("actual cost with list field - 2 items instead of default 10", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: graphql.StarwarsSchema(t),
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{ 
+								hero {
+									friends {
+										...on Droid { name primaryFunction }
+										...on Human { name height }
+									}
+								}
+							}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									// Response has 2 friends (not 10 as estimated)
+									sendResponseBody: `{"data":{"hero":{"__typename":"Human","friends":[
+										{"__typename":"Human","name":"Luke Skywalker","height":"12"},
+										{"__typename":"Droid","name":"R2DO","primaryFunction":"joke"}
+									]}}}`,
+									sendStatusCode: 200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+										{TypeName: "Human", FieldName: "height"}: {HasWeight: true, Weight: 1},
+										{TypeName: "Human", FieldName: "name"}:   {HasWeight: true, Weight: 2},
+										{TypeName: "Droid", FieldName: "name"}:   {HasWeight: true, Weight: 2},
+									},
+									Types: map[string]int{
+										"Human": 7,
+										"Droid": 5,
+									},
+								},
+							},
+							customConfig,
+						),
+					},
+					expectedResponse: `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
+					// Estimated with default list size 10: hero(7) + 10 * (7 + 2 + 2 + 1) = 127
+					expectedEstimatedCost: 127,
+					// Actual uses real list size 2: hero(7) + 2 * (7 + 2 + 2 + 1) = 31
+					expectedActualCost: 31,
+				},
+				computeCosts(),
+			))
+
+			t.Run("actual cost with empty list", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: graphql.StarwarsSchema(t),
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{ 
+								hero {
+									friends {
+										...on Droid { name }
+										...on Human { name }
+									}
+								}
+							}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									// Response has empty friends array
+									sendResponseBody: `{"data":{"hero":{"__typename":"Human","friends":[]}}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+										{TypeName: "Human", FieldName: "name"}: {HasWeight: true, Weight: 2},
+										{TypeName: "Droid", FieldName: "name"}: {HasWeight: true, Weight: 2},
+									},
+									Types: map[string]int{
+										"Human": 7,
+										"Droid": 5,
+									},
+								},
+							},
+							customConfig,
+						),
+					},
+					expectedResponse: `{"data":{"hero":{"friends":[]}}}`,
+					// Estimated with default list size 10: hero(7) + 10 * (7 + 2 + 2) = 117
+					expectedEstimatedCost: 117,
+					// Actual with empty list: hero(7) + 1 * (7 + 2 + 2) = 18
+					// We consider empty lists as lists containing one item to account for the
+					// resolver work.
+					expectedActualCost: 18,
+				},
+				computeCosts(),
 			))
 
 			t.Run("named fragment on interface", runWithoutError(
@@ -6104,9 +6283,9 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					//   Character type: max(Human=2, Droid=3) = 3
 					//   name: max(Human.name=3, Droid.name=5) = 5
 					// Total: 2 + 5 + 6 * (3 + 5)
-					expectedStaticCost: 55,
+					expectedEstimatedCost: 55,
 				},
-				computeStaticCost(),
+				computeCosts(),
 			))
 
 			t.Run("named fragment with concrete type", runWithoutError(
@@ -6155,9 +6334,9 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					},
 					expectedResponse: `{"data":{"hero":{"name":"Luke","height":"1.72"}}}`,
 					// Total: 2 + 3 + 7
-					expectedStaticCost: 12,
+					expectedEstimatedCost: 12,
 				},
-				computeStaticCost(),
+				computeCosts(),
 			))
 
 		})
@@ -6270,9 +6449,9 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					// TODO: this is not correct, we should pick a maximum sum among types implementing union.
 					//  9 should be used instead of 15
 					// Total: 5 * (3 + 15)
-					expectedStaticCost: 90,
+					expectedEstimatedCost: 90,
 				},
-				computeStaticCost(),
+				computeCosts(),
 			))
 
 			t.Run("union with weighted search field", runWithoutError(
@@ -6328,9 +6507,9 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					// Total: 3 * (10+2+5)
 					// TODO: we might correct this by counting only members of one implementing types
 					//  of a union when fragments are used.
-					expectedStaticCost: 51,
+					expectedEstimatedCost: 51,
 				},
-				computeStaticCost(),
+				computeCosts(),
 			))
 		})
 
@@ -6416,11 +6595,11 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							customConfig,
 						),
 					},
-					fields:             fieldConfig,
-					expectedResponse:   `{"data":{"items":[{"id":"2"},{"id":"3"}]}}`,
-					expectedStaticCost: 48, // slicingArgument(12) * (Item(3)+Item.id(1))
+					fields:                fieldConfig,
+					expectedResponse:      `{"data":{"items":[{"id":"2"},{"id":"3"}]}}`,
+					expectedEstimatedCost: 48, // slicingArgument(12) * (Item(3)+Item.id(1))
 				},
-				computeStaticCost(),
+				computeCosts(),
 			))
 			t.Run("slicing argument as a variable", runWithoutError(
 				ExecutionEngineTestCase{
@@ -6463,11 +6642,11 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							customConfig,
 						),
 					},
-					fields:             fieldConfig,
-					expectedResponse:   `{"data":{"items":[{"id":"2"},{"id":"3"}]}}`,
-					expectedStaticCost: 100, // slicingArgument($limit=25) * (Item(3)+Item.id(1))
+					fields:                fieldConfig,
+					expectedResponse:      `{"data":{"items":[{"id":"2"},{"id":"3"}]}}`,
+					expectedEstimatedCost: 100, // slicingArgument($limit=25) * (Item(3)+Item.id(1))
 				},
-				computeStaticCost(),
+				computeCosts(),
 			))
 			t.Run("slicing argument not provided falls back to assumedSize", runWithoutError(
 				ExecutionEngineTestCase{
@@ -6510,11 +6689,11 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							customConfig,
 						),
 					},
-					fields:             fieldConfig,
-					expectedResponse:   `{"data":{"items":[{"id":"1"},{"id":"2"}]}}`,
-					expectedStaticCost: 45, // Total: 15 * (2 + 1)
+					fields:                fieldConfig,
+					expectedResponse:      `{"data":{"items":[{"id":"1"},{"id":"2"}]}}`,
+					expectedEstimatedCost: 45, // Total: 15 * (2 + 1)
 				},
-				computeStaticCost(),
+				computeCosts(),
 			))
 			t.Run("zero slicing argument falls back to assumedSize", runWithoutError(
 				ExecutionEngineTestCase{
@@ -6556,11 +6735,11 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							customConfig,
 						),
 					},
-					fields:             fieldConfig,
-					expectedResponse:   `{"data":{"items":[]}}`,
-					expectedStaticCost: 60, // 20 * (2 + 1)
+					fields:                fieldConfig,
+					expectedResponse:      `{"data":{"items":[]}}`,
+					expectedEstimatedCost: 60, // 20 * (2 + 1)
 				},
-				computeStaticCost(),
+				computeCosts(),
 			))
 			t.Run("negative slicing argument falls back to assumedSize", runWithoutError(
 				ExecutionEngineTestCase{
@@ -6602,11 +6781,11 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							customConfig,
 						),
 					},
-					fields:             fieldConfig,
-					expectedResponse:   `{"data":{"items":[]}}`,
-					expectedStaticCost: 75, //  25 * (2 + 1)
+					fields:                fieldConfig,
+					expectedResponse:      `{"data":{"items":[]}}`,
+					expectedEstimatedCost: 75, //  25 * (2 + 1)
 				},
-				computeStaticCost(),
+				computeCosts(),
 			))
 
 		})
@@ -6734,9 +6913,9 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					//       Comment type weight: 2
 					//       text weight: 1
 					// Total: 10 * (4 + 5 * (3 + 3 * (2 + 1)))
-					expectedStaticCost: 640,
+					expectedEstimatedCost: 640,
 				},
-				computeStaticCost(),
+				computeCosts(),
 			))
 
 			t.Run("nested lists fallback to assumedSize when slicing arg not provided", runWithoutError(
@@ -6805,9 +6984,597 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					//       Comment type weight: 2
 					//       text weight: 1
 					// Total: 2 * (4 + 50 * (3 + 4 * (2 + 1)))
-					expectedStaticCost: 1508,
+					expectedEstimatedCost: 1508,
 				},
-				computeStaticCost(),
+				computeCosts(),
+			))
+
+			t.Run("actual cost for nested lists - 1 item at each level", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schemaNested,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{
+							  users(first: 10) {
+							    posts(first: 5) {
+							      comments(first: 3) { text }
+							    }
+							  }
+							}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com",
+									expectedPath: "/",
+									expectedBody: "",
+									// Response has 1 user with 1 post with 1 comment
+									sendResponseBody: `{"data":{"users":[{"posts":[{"comments":[{"text":"hello"}]}]}]}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+										{TypeName: "Comment", FieldName: "text"}: {HasWeight: true, Weight: 1},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Query", FieldName: "users"}: {
+											AssumedSize:      100,
+											SlicingArguments: []string{"first"},
+										},
+										{TypeName: "User", FieldName: "posts"}: {
+											AssumedSize:      50,
+											SlicingArguments: []string{"first"},
+										},
+										{TypeName: "Post", FieldName: "comments"}: {
+											AssumedSize:      20,
+											SlicingArguments: []string{"first"},
+										},
+									},
+									Types: map[string]int{
+										"User":    4,
+										"Post":    3,
+										"Comment": 2,
+									},
+								},
+							},
+							customConfig,
+						),
+					},
+					fields:           fieldConfig,
+					expectedResponse: `{"data":{"users":[{"posts":[{"comments":[{"text":"hello"}]}]}]}}`,
+					// Estimated cost with slicing arguments (10, 5, 3):
+					// Total: 10 * (4 + 5 * (3 + 3 * (2 + 1))) = 640
+					expectedEstimatedCost: 640,
+					// Actual cost with 1 item at each level:
+					// Total: 1 * (4 + 1 * (3 + 1 * (2 + 1))) = 10
+					expectedActualCost: 10,
+				},
+				computeCosts(),
+			))
+
+			t.Run("actual cost for nested lists - varying sizes", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schemaNested,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{
+							  users(first: 10) {
+							    posts(first: 5) {
+							      comments(first: 3) { text }
+							    }
+							  }
+							}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com",
+									expectedPath: "/",
+									expectedBody: "",
+									// Response has 2 users, each with 2 posts, each with 3 comments
+									sendResponseBody: `{"data":{"users":[
+										{"posts":[
+											{"comments":[{"text":"a"},{"text":"b"},{"text":"c"}]},
+											{"comments":[{"text":"d"},{"text":"e"},{"text":"f"}]}]},
+										{"posts":[
+											{"comments":[{"text":"g"},{"text":"h"},{"text":"i"}]},
+											{"comments":[{"text":"j"},{"text":"k"},{"text":"l"}]}]}]}}`,
+									sendStatusCode: 200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+										{TypeName: "Comment", FieldName: "text"}: {HasWeight: true, Weight: 1},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Query", FieldName: "users"}: {
+											AssumedSize:      100,
+											SlicingArguments: []string{"first"},
+										},
+										{TypeName: "User", FieldName: "posts"}: {
+											AssumedSize:      50,
+											SlicingArguments: []string{"first"},
+										},
+										{TypeName: "Post", FieldName: "comments"}: {
+											AssumedSize:      20,
+											SlicingArguments: []string{"first"},
+										},
+									},
+									Types: map[string]int{
+										"User":    4,
+										"Post":    3,
+										"Comment": 2,
+									},
+								},
+							},
+							customConfig,
+						),
+					},
+					fields:                fieldConfig,
+					expectedResponse:      `{"data":{"users":[{"posts":[{"comments":[{"text":"a"},{"text":"b"},{"text":"c"}]},{"comments":[{"text":"d"},{"text":"e"},{"text":"f"}]}]},{"posts":[{"comments":[{"text":"g"},{"text":"h"},{"text":"i"}]},{"comments":[{"text":"j"},{"text":"k"},{"text":"l"}]}]}]}}`,
+					expectedEstimatedCost: 640,
+					// Actual cost: 2 * (4 + 2 * (3 + 3 * (2 + 1))) = 56
+					expectedActualCost: 56,
+				},
+				computeCosts(),
+			))
+
+			t.Run("actual cost for nested lists - uneven sizes", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schemaNested,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{
+							  users(first: 10) {
+							    posts(first: 5) {
+							      comments(first: 2) { text }
+							    }
+							  }
+							}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com",
+									expectedPath: "/",
+									expectedBody: "",
+									// Response has 2 users, with 1.5 posts each, each with 3 comments
+									sendResponseBody: `{"data":{"users":[
+										{"posts":[
+											{"comments":[{"text":"d"},{"text":"e"},{"text":"f"}]}]},
+										{"posts":[
+											{"comments":[{"text":"g"},{"text":"h"},{"text":"i"}]},
+											{"comments":[{"text":"j"},{"text":"k"},{"text":"l"}]}]}]}}`,
+									sendStatusCode: 200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+										{TypeName: "Comment", FieldName: "text"}: {HasWeight: true, Weight: 1},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Query", FieldName: "users"}: {
+											AssumedSize:      100,
+											SlicingArguments: []string{"first"},
+										},
+										{TypeName: "User", FieldName: "posts"}: {
+											AssumedSize:      50,
+											SlicingArguments: []string{"first"},
+										},
+										{TypeName: "Post", FieldName: "comments"}: {
+											AssumedSize:      20,
+											SlicingArguments: []string{"first"},
+										},
+									},
+									Types: map[string]int{
+										"User":    4,
+										"Post":    3,
+										"Comment": 2,
+									},
+								},
+							},
+							customConfig,
+						),
+					},
+					fields:           fieldConfig,
+					expectedResponse: `{"data":{"users":[{"posts":[{"comments":[{"text":"d"},{"text":"e"},{"text":"f"}]}]},{"posts":[{"comments":[{"text":"g"},{"text":"h"},{"text":"i"}]},{"comments":[{"text":"j"},{"text":"k"},{"text":"l"}]}]}]}}`,
+					// Estimated : 10 * (4 + 5 * (3 + 2 * (2 + 1))) = 490
+					expectedEstimatedCost: 490,
+					// Actual cost: 2 * (4 + 1.5 * (3 + 3 * (2 + 1))) = 44
+					expectedActualCost: 44,
+				},
+				computeCosts(),
+			))
+
+			t.Run("actual cost for root-level list - no parent", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schemaNested,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{ users(first: 10) { id } }`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com",
+									expectedPath: "/",
+									expectedBody: "",
+									// Response has 3 users at the root level
+									sendResponseBody: `{"data":{"users":[
+										{"id":"1"},
+										{"id":"2"},
+										{"id":"3"}]}}`,
+									sendStatusCode: 200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+										{TypeName: "User", FieldName: "id"}: {HasWeight: true, Weight: 1},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Query", FieldName: "users"}: {
+											AssumedSize:      100,
+											SlicingArguments: []string{"first"},
+										},
+									},
+									Types: map[string]int{
+										"User": 4,
+									},
+								},
+							},
+							customConfig,
+						),
+					},
+					fields:           fieldConfig,
+					expectedResponse: `{"data":{"users":[{"id":"1"},{"id":"2"},{"id":"3"}]}}`,
+					// Estimated: 10 * (4 + 1) = 50
+					expectedEstimatedCost: 50,
+					// Actual cost: 3 users at root
+					// 3 * (4 + 1) = 15
+					expectedActualCost: 15,
+				},
+				computeCosts(),
+			))
+
+			t.Run("mixed empty and non-empty lists - averaging behavior", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schemaNested,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{
+							  users(first: 10) {
+							    posts(first: 5) {
+							      comments(first: 3) { text }
+							    }
+							  }
+							}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com",
+									expectedPath: "/",
+									expectedBody: "",
+									sendResponseBody: `{"data":{"users":[
+										{"posts":[
+											{"comments":[{"text":"a"},{"text":"b"}]},
+											{"comments":[{"text":"c"},{"text":"d"}]}
+										]},
+										{"posts":[]},
+										{"posts":[
+											{"comments":[]}
+										]}
+									]}}`,
+									sendStatusCode: 200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+										{TypeName: "Comment", FieldName: "text"}: {HasWeight: true, Weight: 1},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Query", FieldName: "users"}: {
+											AssumedSize:      100,
+											SlicingArguments: []string{"first"},
+										},
+										{TypeName: "User", FieldName: "posts"}: {
+											AssumedSize:      50,
+											SlicingArguments: []string{"first"},
+										},
+										{TypeName: "Post", FieldName: "comments"}: {
+											AssumedSize:      20,
+											SlicingArguments: []string{"first"},
+										},
+									},
+									Types: map[string]int{
+										"User":    4,
+										"Post":    3,
+										"Comment": 2,
+									},
+								},
+							},
+							customConfig,
+						),
+					},
+					fields:                fieldConfig,
+					expectedResponse:      `{"data":{"users":[{"posts":[{"comments":[{"text":"a"},{"text":"b"}]},{"comments":[{"text":"c"},{"text":"d"}]}]},{"posts":[]},{"posts":[{"comments":[]}]}]}}`,
+					expectedEstimatedCost: 640, // 10 * (4 + 5 * (3 + 3 * (2 + 1)))
+					// Actual cost with mixed empty/non-empty lists:
+					// Users: 3 items, multiplier 3.0
+					// Posts: 3 items, 3 parents => multiplier 1.0 (avg)
+					// Comments: 4 items, 3 parents => multiplier 1.33 (avg)
+					//
+					// Calculation:
+					// Comments: RoundToEven((2 + 1) * 1.33) ~= 4
+					// Posts:    RoundToEven((3 + 4) * 1.00)  = 7
+					// Users:    RoundToEven((4 + 7) * 3.00)  = 33
+					//
+					// Empty lists are included in the averaging:
+					expectedActualCost: 33,
+				},
+				computeCosts(),
+			))
+
+			t.Run("deeply nested lists with fractional multipliers - compounding rounding", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: func() *graphql.Schema {
+						deepSchema := `
+						type Query {
+						   level1(first: Int): [Level1!]
+						}
+						type Level1 @key(fields: "id") {
+						  id: ID!
+						  level2(first: Int): [Level2!]
+						}
+						type Level2 @key(fields: "id") {
+						  id: ID!
+						  level3(first: Int): [Level3!]
+						}
+						type Level3 @key(fields: "id") {
+						  id: ID!
+						  level4(first: Int): [Level4!]
+						}
+						type Level4 @key(fields: "id") {
+						  id: ID!
+						  level5(first: Int): [Level5!]
+						}
+						type Level5 @key(fields: "id") {
+						  id: ID!
+						  value: String!
+						}
+						`
+						s, err := graphql.NewSchemaFromString(deepSchema)
+						require.NoError(t, err)
+						return s
+					}(),
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{
+							  level1(first: 10) {
+							    level2(first: 10) {
+							      level3(first: 10) {
+							        level4(first: 10) {
+							          level5(first: 10) {
+							            value
+							          }
+							        }
+							      }
+							    }
+							  }
+							}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com",
+									expectedPath: "/",
+									expectedBody: "",
+									sendResponseBody: `{"data":{"level1":[
+										{"level2":[
+											{"level3":[
+												{"level4":[
+													{"level5":[{"value":"a"}]},
+													{"level5":[{"value":"b"},{"value":"c"}]}
+												]},
+												{"level4":[
+													{"level5":[{"value":"d"}]}
+												]}
+											]},
+											{"level3":[
+												{"level4":[
+													{"level5":[{"value":"e"}]}
+												]}
+											]}
+										]},
+										{"level2":[
+											{"level3":[
+												{"level4":[
+													{"level5":[{"value":"f"},{"value":"g"}]},
+													{"level5":[{"value":"h"}]}
+												]},
+												{"level4":[
+													{"level5":[{"value":"i"}]}
+												]}
+											]}
+										]},
+										{"level2":[
+											{"level3":[
+												{"level4":[
+													{"level5":[{"value":"j"}]},
+													{"level5":[{"value":"k"}]}
+												]},
+												{"level4":[
+													{"level5":[{"value":"l"}]},
+													{"level5":[{"value":"m"}]}
+												]}
+											]}
+										]}
+									]}}`,
+									sendStatusCode: 200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes: []plan.TypeField{
+									{TypeName: "Query", FieldNames: []string{"level1"}},
+									{TypeName: "Level1", FieldNames: []string{"id", "level2"}},
+									{TypeName: "Level2", FieldNames: []string{"id", "level3"}},
+									{TypeName: "Level3", FieldNames: []string{"id", "level4"}},
+									{TypeName: "Level4", FieldNames: []string{"id", "level5"}},
+									{TypeName: "Level5", FieldNames: []string{"id", "value"}},
+								},
+								ChildNodes: []plan.TypeField{},
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+										{TypeName: "Level5", FieldName: "value"}: {HasWeight: true, Weight: 1},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Query", FieldName: "level1"}: {
+											AssumedSize:      100,
+											SlicingArguments: []string{"first"},
+										},
+										{TypeName: "Level1", FieldName: "level2"}: {
+											AssumedSize:      100,
+											SlicingArguments: []string{"first"},
+										},
+										{TypeName: "Level2", FieldName: "level3"}: {
+											AssumedSize:      100,
+											SlicingArguments: []string{"first"},
+										},
+										{TypeName: "Level3", FieldName: "level4"}: {
+											AssumedSize:      100,
+											SlicingArguments: []string{"first"},
+										},
+										{TypeName: "Level4", FieldName: "level5"}: {
+											AssumedSize:      100,
+											SlicingArguments: []string{"first"},
+										},
+									},
+									Types: map[string]int{
+										"Level1": 1,
+										"Level2": 1,
+										"Level3": 1,
+										"Level4": 1,
+										"Level5": 1,
+									},
+								},
+							},
+							mustConfiguration(t, graphql_datasource.ConfigurationInput{
+								Fetch: &graphql_datasource.FetchConfiguration{
+									URL:    "https://example.com/",
+									Method: "GET",
+								},
+								SchemaConfiguration: mustSchemaConfig(t, nil, `
+									type Query {
+									   level1(first: Int): [Level1!]
+									}
+									type Level1 @key(fields: "id") {
+									  id: ID!
+									  level2(first: Int): [Level2!]
+									}
+									type Level2 @key(fields: "id") {
+									  id: ID!
+									  level3(first: Int): [Level3!]
+									}
+									type Level3 @key(fields: "id") {
+									  id: ID!
+									  level4(first: Int): [Level4!]
+									}
+									type Level4 @key(fields: "id") {
+									  id: ID!
+									  level5(first: Int): [Level5!]
+									}
+									type Level5 @key(fields: "id") {
+									  id: ID!
+									  value: String!
+									}
+								`),
+							}),
+						),
+					},
+					fields: []plan.FieldConfiguration{
+						{
+							TypeName: "Query", FieldName: "level1", Path: []string{"level1"},
+							Arguments: []plan.ArgumentConfiguration{
+								{Name: "first", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+							},
+						},
+						{
+							TypeName: "Level1", FieldName: "level2", Path: []string{"level2"},
+							Arguments: []plan.ArgumentConfiguration{
+								{Name: "first", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+							},
+						},
+						{
+							TypeName: "Level2", FieldName: "level3", Path: []string{"level3"},
+							Arguments: []plan.ArgumentConfiguration{
+								{Name: "first", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+							},
+						},
+						{
+							TypeName: "Level3", FieldName: "level4", Path: []string{"level4"},
+							Arguments: []plan.ArgumentConfiguration{
+								{Name: "first", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+							},
+						},
+						{
+							TypeName: "Level4", FieldName: "level5", Path: []string{"level5"},
+							Arguments: []plan.ArgumentConfiguration{
+								{Name: "first", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+							},
+						},
+					},
+					expectedResponse:      `{"data":{"level1":[{"level2":[{"level3":[{"level4":[{"level5":[{"value":"a"}]},{"level5":[{"value":"b"},{"value":"c"}]}]},{"level4":[{"level5":[{"value":"d"}]}]}]},{"level3":[{"level4":[{"level5":[{"value":"e"}]}]}]}]},{"level2":[{"level3":[{"level4":[{"level5":[{"value":"f"},{"value":"g"}]},{"level5":[{"value":"h"}]}]},{"level4":[{"level5":[{"value":"i"}]}]}]}]},{"level2":[{"level3":[{"level4":[{"level5":[{"value":"j"}]},{"level5":[{"value":"k"}]}]},{"level4":[{"level5":[{"value":"l"}]},{"level5":[{"value":"m"}]}]}]}]}]}}`,
+					expectedEstimatedCost: 211110,
+					// Actual cost with fractional multipliers:
+					// Level5: 13 items, 11 parents => multiplier 1.18 (13/11 = 1.181818...)
+					// Level4: 11 items,  7 parents => multiplier 1.57 (11/7 = 1.571428...)
+					// Level3:  7 items,  4 parents => multiplier 1.75 (7/4 = 1.75)
+					// Level2:  4 items,  3 parents => multiplier 1.33 (4/3 = 1.333...)
+					// Level1:  3 items,  1 parent  => multiplier 3.0
+					//
+					// Ideal calculation without rounding:
+					// cost = 3 * (1 + 1.33 * (1 + 1.75 * (1 + 1.57 * (1 + 1.18 * (1 + 1)))))
+					//      = 50.806584 ~= 51
+					//
+					// Current implementation:
+					// Level5: RoundToEven((1 +  1) * 1.18) = 2
+					// Level4: RoundToEven((1 +  2) * 1.57) = 5
+					// Level3: RoundToEven((1 +  5) * 1.75) = 10 (rounds to even)
+					// Level2: RoundToEven((1 + 10) * 1.33) = 15
+					// Level1: RoundToEven((1 + 15) * 3.00) = 48
+					//
+					// The compounding rounding error: 48 vs 51 (6% underestimate)
+					expectedActualCost: 48,
+				},
+				computeCosts(),
 			))
 		})
 
