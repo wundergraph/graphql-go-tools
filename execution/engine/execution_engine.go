@@ -17,6 +17,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/introspection_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/postprocess"
@@ -62,6 +63,7 @@ type ExecutionEngine struct {
 	resolver                 *resolve.Resolver
 	executionPlanCache       *lru.Cache
 	apolloCompatibilityFlags apollocompatibility.Flags
+	validationOptions        []astvalidation.Option
 }
 
 type WebsocketBeforeStartHook interface {
@@ -130,6 +132,11 @@ func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engin
 		dsIDs[ds.Id()] = struct{}{}
 	}
 
+	var validationOpts []astvalidation.Option
+	if engineConfig.plannerConfig.RelaxSubgraphOperationFieldSelectionMergingNullability {
+		validationOpts = append(validationOpts, astvalidation.WithRelaxFieldSelectionMergingNullability())
+	}
+
 	return &ExecutionEngine{
 		logger:             logger,
 		config:             engineConfig,
@@ -138,6 +145,7 @@ func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engin
 		apolloCompatibilityFlags: apollocompatibility.Flags{
 			ReplaceInvalidVarError: resolverOptions.ResolvableOptions.ApolloCompatibilityReplaceInvalidVarError,
 		},
+		validationOptions: validationOpts,
 	}, nil
 }
 
@@ -159,7 +167,7 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 	}
 
 	// Validate the operation against the schema.
-	if result, err := operation.ValidateForSchema(e.config.schema); err != nil {
+	if result, err := operation.ValidateForSchema(e.config.schema, e.validationOptions...); err != nil {
 		return err
 	} else if !result.Valid {
 		return result.Errors
