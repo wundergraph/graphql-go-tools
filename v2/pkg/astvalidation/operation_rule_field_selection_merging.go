@@ -119,10 +119,10 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 					return
 				}
 			} else if !f.definition.TypesAreCompatibleDeep(f.nonScalarRequirements[i].fieldTypeRef, fieldType) {
-				// Per SameResponseShape (spec sec 5.3.2), when enclosing types cannot overlap
-				// at runtime (two distinct concrete object types), nullability differences are
-				// acceptable because only one branch will ever contribute to the response.
-				// This relaxation is gated behind the relaxNullabilityCheck flag.
+				// Deliberate deviation from SameResponseShape (spec sec 5.3.2): when enclosing
+				// types cannot overlap at runtime (two distinct concrete object types),
+				// we allow nullability differences because only one branch will ever
+				// contribute to the response. This is gated behind relaxNullabilityCheck.
 				if !f.relaxNullabilityCheck ||
 					f.potentiallySameObject(f.nonScalarRequirements[i].enclosingTypeDefinition, f.EnclosingTypeDefinition) ||
 					!f.definition.TypesAreCompatibleIgnoringNullability(f.nonScalarRequirements[i].fieldTypeRef, fieldType) {

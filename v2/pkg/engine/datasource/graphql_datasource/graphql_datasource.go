@@ -1715,13 +1715,12 @@ func newPrintKitPool(validationOptions ...astvalidation.Option) *sync.Pool {
 }
 
 type Factory[T Configuration] struct {
-	executionContext                      context.Context
-	httpClient                            *http.Client
-	grpcClient                            grpc.ClientConnInterface
-	grpcClientProvider                    func() grpc.ClientConnInterface
-	subscriptionClient                    GraphQLSubscriptionClient
-	relaxFieldSelectionMergingNullability bool
-	printKitPool                          *sync.Pool
+	executionContext   context.Context
+	httpClient         *http.Client
+	grpcClient         grpc.ClientConnInterface
+	grpcClientProvider func() grpc.ClientConnInterface
+	subscriptionClient GraphQLSubscriptionClient
+	printKitPool       *sync.Pool
 }
 
 // NewFactory (HTTP) creates a new factory for the GraphQL datasource planner
@@ -1793,18 +1792,17 @@ func (p *Planner[T]) releaseKit(kit *printKit) {
 	p.printKitPool.Put(kit)
 }
 
+// EnableSubgraphFieldSelectionMergingNullabilityRelaxation implements
+// plan.SubgraphFieldSelectionMergingNullabilityRelaxer. It configures the
+// factory's internal operation validator to allow differing nullability on
+// fields in non-overlapping concrete types. Must be called before Planner().
 func (f *Factory[T]) EnableSubgraphFieldSelectionMergingNullabilityRelaxation() {
-	f.relaxFieldSelectionMergingNullability = true
-	f.printKitPool = nil // reset pool so it's recreated with the new setting
+	f.printKitPool = newPrintKitPool(astvalidation.WithRelaxFieldSelectionMergingNullability())
 }
 
 func (f *Factory[T]) getPrintKitPool() *sync.Pool {
 	if f.printKitPool == nil {
-		if f.relaxFieldSelectionMergingNullability {
-			f.printKitPool = newPrintKitPool(astvalidation.WithRelaxFieldSelectionMergingNullability())
-		} else {
-			f.printKitPool = newPrintKitPool()
-		}
+		f.printKitPool = newPrintKitPool()
 	}
 	return f.printKitPool
 }

@@ -22,6 +22,10 @@ func WithApolloCompatibilityFlags(flags apollocompatibility.Flags) Option {
 	}
 }
 
+// WithRelaxFieldSelectionMergingNullability enables a deliberate spec deviation that allows
+// differing nullability (e.g. String! vs String) on fields in non-overlapping concrete
+// object types within inline fragments. Without this option, the validator enforces the
+// strict GraphQL spec behavior where nullability must always match.
 func WithRelaxFieldSelectionMergingNullability() Option {
 	return func(options *OperationValidatorOptions) {
 		options.RelaxFieldSelectionMergingNullabilityCheck = true
