@@ -505,7 +505,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 
 	var responseData *astjson.Value
 	if res.postProcessing.SelectResponseDataPath != nil {
-		responseData = response.Get(res.postProcessing.SelectResponseDataPath...)
+		responseData = response.Get(res.postProcessing.SelectResponseDataPath...) // returns null
 	} else {
 		responseData = response
 	}
@@ -542,6 +542,10 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 
 	// Check if data needs processing.
 	if res.postProcessing.SelectResponseDataPath != nil && astjson.ValueIsNull(responseData) {
+		if isNullEntityFetch(res.postProcessing.SelectResponseDataPath, response) {
+			return nil
+		}
+
 		// When:
 		// - No errors or data are present
 		// - Status code is not within the 2XX range
@@ -635,6 +639,27 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		}
 	}
 	return nil
+}
+
+// isNullEntityFetch returns true, if the fetch at dataPath is null
+// but it's part of an actual array response, i.e.
+// { "data": { "_entities": [null] } }
+// instead of
+// { "data": null }
+// The latter will return false.
+func isNullEntityFetch(dataPath []string, response *astjson.Value) bool {
+	if len(dataPath) > 1 && dataPath[len(dataPath)-2] == "_entities" {
+		// data path is an entity array
+		// check that the entity fetch's parent array exists
+		parentPath := dataPath[:len(dataPath)-1]
+		parentData := response.Get(parentPath...)
+
+		if astjson.ValueIsNonNull(parentData) && parentData.Type() == astjson.TypeArray {
+			return true
+		}
+	}
+
+	return false
 }
 
 var (

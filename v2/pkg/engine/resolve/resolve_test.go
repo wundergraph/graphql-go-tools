@@ -2141,6 +2141,44 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, *NewContext(context.Background()), `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at Path 'query'."}],"data":null}`
 	}))
+	t.Run("fetch with null entity and non-nullable root field", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		mockDataSource := NewMockDataSource(ctrl)
+		mockDataSource.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+				// Subgraph returns null for the entity
+				pair := NewBufPair()
+				pair.Data.WriteString(`{"_entities":[null]}`)
+				return writeGraphqlResponse(pair, w, false)
+			})
+		return &GraphQLResponse{
+			Fetches: SingleWithPath(&SingleFetch{
+				FetchConfiguration: FetchConfiguration{
+					DataSource: mockDataSource,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath:   []string{"data", "_entities", "0"},
+						SelectResponseErrorsPath: []string{"errors"},
+					},
+				},
+				Info: &FetchInfo{
+					DataSourceID:   "Users",
+					DataSourceName: "Users",
+				},
+			}, "query"),
+			Data: &Object{
+				Nullable: false,
+				Fields: []*Field{
+					{
+						Name: []byte("name"),
+						Value: &String{
+							Path:     []string{"name"},
+							Nullable: false,
+						},
+					},
+				},
+			},
+		}, *NewContext(context.Background()), `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at Path 'query'."}],"data":null}`
+	}))
 	t.Run("root field with nested non-nullable fields returns null", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
