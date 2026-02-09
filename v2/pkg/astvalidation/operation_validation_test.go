@@ -1077,6 +1077,38 @@ func TestExecutionValidation(t *testing.T) {
 								}
 							}`, FieldSelectionMerging(), Valid)
 					})
+					t.Run("allows differing scalar nullability on non-overlapping object types", func(t *testing.T) {
+						runWithDefinition(t, entityDefinition, `
+								{
+									entity {
+										... on User { email }
+										... on Organization { email }
+									}
+								}`, FieldSelectionMerging(), Valid)
+					})
+					t.Run("allows differing non-scalar nullability on non-overlapping object types", func(t *testing.T) {
+						runWithDefinition(t, entityDefinition, `
+								{
+									entity {
+										... on User { profile { name } }
+										... on Organization { profile { name } }
+									}
+								}`, FieldSelectionMerging(), Valid)
+					})
+					t.Run("disallows differing return type nullability when interface could overlap", func(t *testing.T) {
+						runWithDefinition(t, boxDefinition, `
+								{
+									someBox {
+										... on NonNullStringBox1 {
+											scalar
+										}
+										... on StringBox {
+											scalar
+										}
+									}
+								}`, FieldSelectionMerging(), Invalid,
+							withValidationErrors(`fields 'scalar' conflict because they return conflicting types 'String!' and 'String'`))
+					})
 					t.Run("same wrapped scalar return types", func(t *testing.T) {
 						runWithDefinition(t, boxDefinition, `
 							{
@@ -5642,6 +5674,42 @@ type Query {
 	someBox: SomeBox
 	connection: Connection
 }
+schema {
+	query: Query
+}`
+
+const entityDefinition = `
+scalar String
+scalar Int
+scalar ID
+
+interface Node {
+	id: ID!
+}
+
+type User implements Node {
+	id: ID!
+	email: String!
+	profile: Profile!
+}
+
+type Organization implements Node {
+	id: ID!
+	email: String
+	profile: Profile
+}
+
+type Profile {
+	name: String
+}
+
+union Entity = User | Organization
+
+type Query {
+	entity: Entity
+	node: Node
+}
+
 schema {
 	query: Query
 }`

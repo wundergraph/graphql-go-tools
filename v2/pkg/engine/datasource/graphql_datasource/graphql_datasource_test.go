@@ -8231,6 +8231,136 @@ func TestGraphQLDataSource(t *testing.T) {
 		},
 		DisableResolveFieldPositions: true,
 	}, WithDefaultPostProcessor()))
+
+	t.Run("inline fragments on non-overlapping types with different field nullability", func(t *testing.T) {
+		definition := `
+			scalar String
+			scalar Int
+			scalar ID
+
+			interface Node {
+				id: ID!
+			}
+
+			type User implements Node {
+				id: ID!
+				email: String!
+				profile: Profile!
+			}
+
+			type Organization implements Node {
+				id: ID!
+				email: String
+				profile: Profile
+			}
+
+			type Profile {
+				name: String
+			}
+
+			union Entity = User | Organization
+
+			type Query {
+				entity: Entity
+			}
+
+			schema {
+				query: Query
+			}
+		`
+
+		t.Run("run", RunTest(definition, `
+			query MyQuery {
+				entity {
+					... on User { email }
+					... on Organization { email }
+				}
+			}`,
+			"MyQuery",
+			&plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Fetches: resolve.Sequence(
+						resolve.Single(&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								DataSource:     &Source{},
+								Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"{entity {__typename ... on User {email} ... on Organization {email}}}"}}`,
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						})),
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("entity"),
+								Value: &resolve.Object{
+									Path:     []string{"entity"},
+									Nullable: true,
+									PossibleTypes: map[string]struct{}{
+										"User":         {},
+										"Organization": {},
+									},
+									TypeName: "Entity",
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("email"),
+											Value: &resolve.String{
+												Path: []string{"email"},
+											},
+											OnTypeNames: [][]byte{[]byte("User")},
+										},
+										{
+											Name: []byte("email"),
+											Value: &resolve.String{
+												Path:     []string{"email"},
+												Nullable: true,
+											},
+											OnTypeNames: [][]byte{[]byte("Organization")},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, plan.Configuration{
+				DataSources: []plan.DataSource{
+					mustDataSourceConfiguration(
+						t,
+						"ds-id",
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"entity"},
+								},
+							},
+							ChildNodes: []plan.TypeField{
+								{
+									TypeName:   "User",
+									FieldNames: []string{"id", "email", "profile"},
+								},
+								{
+									TypeName:   "Organization",
+									FieldNames: []string{"id", "email", "profile"},
+								},
+								{
+									TypeName:   "Profile",
+									FieldNames: []string{"name"},
+								},
+							},
+						},
+						mustCustomConfiguration(t, ConfigurationInput{
+							Fetch: &FetchConfiguration{
+								URL: "https://example.com/graphql",
+							},
+							SchemaConfiguration: mustSchema(t, nil, definition),
+						}),
+					),
+				},
+				DisableResolveFieldPositions: true,
+			}, WithDefaultPostProcessor(),
+		))
+	})
 }
 
 var errSubscriptionClientFail = errors.New("subscription client fail error")

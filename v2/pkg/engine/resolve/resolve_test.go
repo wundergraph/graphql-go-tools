@@ -892,6 +892,91 @@ func TestResolver_ResolveNode(t *testing.T) {
 			}, *NewContext(context.Background()),
 			`{"data":{"pets":[{"name":"Woofie"},{}]}}`
 	}))
+	t.Run("resolve fields with differing nullability on non-overlapping types", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
+		// This test verifies that the resolver correctly handles fields where the same field name
+		// has different nullability on non-overlapping concrete types (e.g. User.email: String! vs Organization.email: String).
+		// A User object should resolve email as non-null, and an Organization object should resolve email as nullable.
+		return &GraphQLResponse{
+				Fetches: Single(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"entity":{"__typename":"User","email":"user@example.com"}}`)},
+				}),
+				Data: &Object{
+					Fields: []*Field{
+						{
+							Name: []byte("entity"),
+							Value: &Object{
+								Path: []string{"entity"},
+								PossibleTypes: map[string]struct{}{
+									"User":         {},
+									"Organization": {},
+								},
+								TypeName: "Entity",
+								Fields: []*Field{
+									{
+										OnTypeNames: [][]byte{[]byte("User")},
+										Name:        []byte("email"),
+										Value: &String{
+											Path: []string{"email"},
+										},
+									},
+									{
+										OnTypeNames: [][]byte{[]byte("Organization")},
+										Name:        []byte("email"),
+										Value: &String{
+											Path:     []string{"email"},
+											Nullable: true,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, *NewContext(context.Background()),
+			`{"data":{"entity":{"email":"user@example.com"}}}`
+	}))
+	t.Run("resolve fields with differing nullability on non-overlapping types - nullable variant", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
+		// Same scenario but the runtime object is Organization (nullable email) with a null email value
+		return &GraphQLResponse{
+				Fetches: Single(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"entity":{"__typename":"Organization","email":null}}`)},
+				}),
+				Data: &Object{
+					Fields: []*Field{
+						{
+							Name: []byte("entity"),
+							Value: &Object{
+								Path: []string{"entity"},
+								PossibleTypes: map[string]struct{}{
+									"User":         {},
+									"Organization": {},
+								},
+								TypeName: "Entity",
+								Fields: []*Field{
+									{
+										OnTypeNames: [][]byte{[]byte("User")},
+										Name:        []byte("email"),
+										Value: &String{
+											Path: []string{"email"},
+										},
+									},
+									{
+										OnTypeNames: [][]byte{[]byte("Organization")},
+										Name:        []byte("email"),
+										Value: &String{
+											Path:     []string{"email"},
+											Nullable: true,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, *NewContext(context.Background()),
+			`{"data":{"entity":{"email":null}}}`
+	}))
+
 	t.Run("with unescape json enabled", func(t *testing.T) {
 		t.Run("json object within a string", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 			return &GraphQLResponse{

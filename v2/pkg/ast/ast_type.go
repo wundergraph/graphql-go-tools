@@ -241,6 +241,56 @@ func (d *Document) TypesAreCompatibleDeep(left int, right int) bool {
 	}
 }
 
+// TypesAreCompatibleIgnoringNullability is a relaxed variant of TypesAreCompatibleDeep
+// that strips NonNull wrappers at every nesting level but still requires the same list
+// structure and the same base named type. This implements the spec's "SameResponseShape"
+// semantics for fields on non-overlapping parent types (e.g. two different concrete object
+// types in inline fragments that can never apply to the same runtime object).
+func (d *Document) TypesAreCompatibleIgnoringNullability(left int, right int) bool {
+	for {
+		if left == -1 || right == -1 {
+			return false
+		}
+		// Strip NonNull wrappers from both sides
+		if d.Types[left].TypeKind == TypeKindNonNull {
+			left = d.Types[left].OfType
+		}
+		if d.Types[right].TypeKind == TypeKindNonNull {
+			right = d.Types[right].OfType
+		}
+		if d.Types[left].TypeKind != d.Types[right].TypeKind {
+			return false
+		}
+		if d.Types[left].TypeKind == TypeKindNamed {
+			leftName := d.TypeNameBytes(left)
+			rightName := d.TypeNameBytes(right)
+			if bytes.Equal(leftName, rightName) {
+				return true
+			}
+			leftNode, _ := d.Index.FirstNodeByNameBytes(leftName)
+			rightNode, _ := d.Index.FirstNodeByNameBytes(rightName)
+			if leftNode.Kind == rightNode.Kind {
+				return false
+			}
+			if leftNode.Kind == NodeKindInterfaceTypeDefinition && rightNode.Kind == NodeKindObjectTypeDefinition {
+				return d.NodeImplementsInterfaceFields(rightNode, leftNode)
+			}
+			if leftNode.Kind == NodeKindObjectTypeDefinition && rightNode.Kind == NodeKindInterfaceTypeDefinition {
+				return d.NodeImplementsInterfaceFields(leftNode, rightNode)
+			}
+			if leftNode.Kind == NodeKindUnionTypeDefinition && rightNode.Kind == NodeKindObjectTypeDefinition {
+				return d.NodeIsUnionMember(rightNode, leftNode)
+			}
+			if leftNode.Kind == NodeKindObjectTypeDefinition && rightNode.Kind == NodeKindUnionTypeDefinition {
+				return d.NodeIsUnionMember(leftNode, rightNode)
+			}
+			return false
+		}
+		left = d.Types[left].OfType
+		right = d.Types[right].OfType
+	}
+}
+
 func (d *Document) ResolveTypeNameBytes(ref int) ByteSlice {
 	resolvedTypeRef := d.ResolveUnderlyingType(ref)
 	return d.TypeNameBytes(resolvedTypeRef)

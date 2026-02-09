@@ -33,6 +33,7 @@ type nonScalarRequirement struct {
 	objectName              ast.ByteSlice
 	fieldTypeRef            int
 	fieldTypeDefinitionNode ast.Node
+	enclosingTypeDefinition ast.Node
 }
 
 type nonScalarRequirements []nonScalarRequirement
@@ -116,18 +117,25 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 					return
 				}
 			} else if !f.definition.TypesAreCompatibleDeep(f.nonScalarRequirements[i].fieldTypeRef, fieldType) {
-				left, err := f.definition.PrintTypeBytes(f.nonScalarRequirements[i].fieldTypeRef, nil)
-				if err != nil {
-					f.StopWithInternalErr(err)
+				// When enclosing types cannot overlap (e.g. two different concrete object types),
+				// allow nullability differences as long as the base types match
+				if !f.potentiallySameObject(f.nonScalarRequirements[i].enclosingTypeDefinition, f.EnclosingTypeDefinition) &&
+					f.definition.TypesAreCompatibleIgnoringNullability(f.nonScalarRequirements[i].fieldTypeRef, fieldType) {
+					// Different nullability on non-overlapping types is safe
+				} else {
+					left, err := f.definition.PrintTypeBytes(f.nonScalarRequirements[i].fieldTypeRef, nil)
+					if err != nil {
+						f.StopWithInternalErr(err)
+						return
+					}
+					right, err := f.definition.PrintTypeBytes(fieldType, nil)
+					if err != nil {
+						f.StopWithInternalErr(err)
+						return
+					}
+					f.StopWithExternalErr(operationreport.ErrTypesForFieldMismatch(objectName, left, right))
 					return
 				}
-				right, err := f.definition.PrintTypeBytes(fieldType, nil)
-				if err != nil {
-					f.StopWithInternalErr(err)
-					return
-				}
-				f.StopWithExternalErr(operationreport.ErrTypesForFieldMismatch(objectName, left, right))
-				return
 			}
 
 			if fieldDefinitionTypeNode.Kind != f.nonScalarRequirements[i].fieldTypeDefinitionNode.Kind {
@@ -144,6 +152,7 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 			objectName:              objectName,
 			fieldTypeRef:            fieldType,
 			fieldTypeDefinitionNode: fieldDefinitionTypeNode,
+			enclosingTypeDefinition: f.EnclosingTypeDefinition,
 		})
 		return
 	}
@@ -160,18 +169,25 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 			}
 		}
 		if !f.definition.TypesAreCompatibleDeep(f.scalarRequirements[i].fieldType, fieldType) {
-			left, err := f.definition.PrintTypeBytes(f.scalarRequirements[i].fieldType, nil)
-			if err != nil {
-				f.StopWithInternalErr(err)
+			// When enclosing types cannot overlap (e.g. two different concrete object types),
+			// allow nullability differences as long as the base types match
+			if !f.potentiallySameObject(f.scalarRequirements[i].enclosingTypeDefinition, f.EnclosingTypeDefinition) &&
+				f.definition.TypesAreCompatibleIgnoringNullability(f.scalarRequirements[i].fieldType, fieldType) {
+				// Different nullability on non-overlapping types is safe
+			} else {
+				left, err := f.definition.PrintTypeBytes(f.scalarRequirements[i].fieldType, nil)
+				if err != nil {
+					f.StopWithInternalErr(err)
+					return
+				}
+				right, err := f.definition.PrintTypeBytes(fieldType, nil)
+				if err != nil {
+					f.StopWithInternalErr(err)
+					return
+				}
+				f.StopWithExternalErr(operationreport.ErrFieldsConflict(objectName, left, right))
 				return
 			}
-			right, err := f.definition.PrintTypeBytes(fieldType, nil)
-			if err != nil {
-				f.StopWithInternalErr(err)
-				return
-			}
-			f.StopWithExternalErr(operationreport.ErrFieldsConflict(objectName, left, right))
-			return
 		}
 
 		if fieldDefinitionTypeNode.Kind != f.scalarRequirements[i].fieldTypeDefinitionNode.Kind {
