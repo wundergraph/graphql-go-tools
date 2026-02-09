@@ -24,6 +24,16 @@ func (r *queryResolver) TopProducts(ctx context.Context, first *int) ([]*model.P
 	return hats[:len(hats)-1], nil
 }
 
+// Product is the resolver for the product field.
+func (r *queryResolver) Product(ctx context.Context, upc string) (*model.Product, error) {
+	for _, h := range hats {
+		if h.Upc == upc {
+			return h, nil
+		}
+	}
+	return nil, nil
+}
+
 // UpdatedPrice is the resolver for the updatedPrice field.
 func (r *subscriptionResolver) UpdatedPrice(ctx context.Context) (<-chan *model.Product, error) {
 	updatedPrice := make(chan *model.Product)

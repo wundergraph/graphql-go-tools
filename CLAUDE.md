@@ -277,3 +277,22 @@ type CacheEntry struct {
     Value []byte  // JSON-encoded entity
 }
 ```
+
+## Always use exact assertions
+
+Use `assert.Equal` with exact expected values. Never use `Contains`, `GreaterOrEqual`, `LessOrEqual`, or any vague comparison.
+For objects or slices, always compare against a fully defined expected value, not just a subset.
+
+```go
+// CORRECT
+assert.Equal(t, 3, len(log), "should have exactly 3 cache operations")
+assert.Equal(t, 1, tracker.GetCount(host), "should call subgraph exactly once")
+assert.Equal(t, int64(12), stats.L1Hits, "should have exactly 12 L1 hits")
+
+// WRONG — hides regressions
+assert.GreaterOrEqual(t, len(log), 1)
+assert.Greater(t, stats.L1Hits, int64(0))
+assert.Contains(t, log[0].Keys, expectedKey)
+```
+
+If the expected value changes due to a code change, update the test to the new exact value.

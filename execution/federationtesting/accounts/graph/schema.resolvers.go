@@ -22,6 +22,27 @@ func (r *queryResolver) Me(ctx context.Context) (*model.User, error) {
 	}, nil
 }
 
+// User is the resolver for the user field.
+func (r *queryResolver) User(ctx context.Context, id string) (*model.User, error) {
+	name := "User " + id
+	if id == "1234" {
+		name = "Me"
+	}
+	return &model.User{
+		ID:       id,
+		Username: name,
+		RealName: "Real " + name,
+	}, nil
+}
+
+// UserByIDAndName is the resolver for the userByIdAndName field.
+func (r *queryResolver) UserByIDAndName(ctx context.Context, id string, username string) (*model.User, error) {
+	return &model.User{
+		ID:       id,
+		Username: username,
+	}, nil
+}
+
 // MeInterface is the resolver for the meInterface field.
 func (r *queryResolver) MeInterface(ctx context.Context) (model.Identifiable, error) {
 	return &model.User{

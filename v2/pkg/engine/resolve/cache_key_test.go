@@ -821,6 +821,329 @@ func TestCachingRenderEntityQueryCacheKeyTemplate(t *testing.T) {
 	})
 }
 
+func TestDerivedEntityCacheKey(t *testing.T) {
+	t.Run("simple string ID", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{
+					Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					Args: []FieldArgument{
+						{Name: "id", Variable: &ContextVariable{Path: []string{"id"}, Renderer: NewCacheKeyVariableRenderer()}},
+					},
+				},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "User",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{Variables: astjson.MustParse(`{"id":"123"}`), ctx: context.Background()}
+		data := astjson.MustParse(`{}`)
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(cacheKeys))
+		assert.Equal(t, []string{`{"__typename":"User","key":{"id":"123"}}`}, cacheKeys[0].Keys)
+	})
+
+	t.Run("integer argument", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{
+					Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					Args: []FieldArgument{
+						{Name: "id", Variable: &ContextVariable{Path: []string{"id"}, Renderer: NewCacheKeyVariableRenderer()}},
+					},
+				},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "User",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{Variables: astjson.MustParse(`{"id":42}`), ctx: context.Background()}
+		data := astjson.MustParse(`{}`)
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(cacheKeys))
+		assert.Equal(t, []string{`{"__typename":"User","key":{"id":42}}`}, cacheKeys[0].Keys)
+	})
+
+	t.Run("nested object path", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{
+					Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					Args: []FieldArgument{
+						{Name: "input", Variable: &ContextVariable{Path: []string{"input"}, Renderer: NewCacheKeyVariableRenderer()}},
+					},
+				},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "User",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"input", "userId"}},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{Variables: astjson.MustParse(`{"input":{"userId":"456"}}`), ctx: context.Background()}
+		data := astjson.MustParse(`{}`)
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(cacheKeys))
+		assert.Equal(t, []string{`{"__typename":"User","key":{"id":"456"}}`}, cacheKeys[0].Keys)
+	})
+
+	t.Run("deep nested path", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "thing"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "X",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"a", "b", "c"}},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{Variables: astjson.MustParse(`{"a":{"b":{"c":"deep"}}}`), ctx: context.Background()}
+		data := astjson.MustParse(`{}`)
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(cacheKeys))
+		assert.Equal(t, []string{`{"__typename":"X","key":{"id":"deep"}}`}, cacheKeys[0].Keys)
+	})
+
+	t.Run("array index path", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "User",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"ids", "0"}},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{Variables: astjson.MustParse(`{"ids":["first","second"]}`), ctx: context.Background()}
+		data := astjson.MustParse(`{}`)
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(cacheKeys))
+		assert.Equal(t, []string{`{"__typename":"User","key":{"id":"first"}}`}, cacheKeys[0].Keys)
+	})
+
+	t.Run("array index path - empty array", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "User",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"ids", "0"}},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{Variables: astjson.MustParse(`{"ids":[]}`), ctx: context.Background()}
+		data := astjson.MustParse(`{}`)
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(cacheKeys))
+		// Empty array has no index 0 → skip caching
+		assert.Equal(t, 0, len(cacheKeys[0].Keys))
+	})
+
+	t.Run("array index path - null variable", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "User",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"ids", "0"}},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{Variables: astjson.MustParse(`{"ids":null}`), ctx: context.Background()}
+		data := astjson.MustParse(`{}`)
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(cacheKeys))
+		// Null variable → skip caching
+		assert.Equal(t, 0, len(cacheKeys[0].Keys))
+	})
+
+	t.Run("multiple key fields", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "orgUser"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "OrgUser",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "orgId", ArgumentPath: []string{"orgId"}},
+						{EntityKeyField: "userId", ArgumentPath: []string{"userId"}},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{Variables: astjson.MustParse(`{"orgId":"org1","userId":"u1"}`), ctx: context.Background()}
+		data := astjson.MustParse(`{}`)
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(cacheKeys))
+		assert.Equal(t, []string{`{"__typename":"OrgUser","key":{"orgId":"org1","userId":"u1"}}`}, cacheKeys[0].Keys)
+	})
+
+	t.Run("with prefix", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "User",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{Variables: astjson.MustParse(`{"id":"123"}`), ctx: context.Background()}
+		data := astjson.MustParse(`{}`)
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "12345")
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(cacheKeys))
+		assert.Equal(t, []string{`12345:{"__typename":"User","key":{"id":"123"}}`}, cacheKeys[0].Keys)
+	})
+
+	t.Run("missing variable - skip caching", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "User",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"nonexistent"}},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{Variables: astjson.MustParse(`{}`), ctx: context.Background()}
+		data := astjson.MustParse(`{}`)
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(cacheKeys))
+		// No keys generated (empty) because variable is missing
+		assert.Equal(t, 0, len(cacheKeys[0].Keys))
+	})
+
+	t.Run("null variable - skip caching", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "User",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{Variables: astjson.MustParse(`{"id":null}`), ctx: context.Background()}
+		data := astjson.MustParse(`{}`)
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(cacheKeys))
+		// No keys generated because variable is null
+		assert.Equal(t, 0, len(cacheKeys[0].Keys))
+	})
+
+	t.Run("variable remapping", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "User",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{
+			Variables:      astjson.MustParse(`{"userId":"123"}`),
+			RemapVariables: map[string]string{"id": "userId"},
+			ctx:            context.Background(),
+		}
+		data := astjson.MustParse(`{}`)
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(cacheKeys))
+		assert.Equal(t, []string{`{"__typename":"User","key":{"id":"123"}}`}, cacheKeys[0].Keys)
+	})
+
+	t.Run("no entity key mapping - uses root field key", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{
+					Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					Args: []FieldArgument{
+						{Name: "id", Variable: &ContextVariable{Path: []string{"id"}, Renderer: NewCacheKeyVariableRenderer()}},
+					},
+				},
+			},
+			// No EntityKeyMappings - should use root field key format
+		}
+
+		ctx := &Context{Variables: astjson.MustParse(`{"id":"123"}`), ctx: context.Background()}
+		data := astjson.MustParse(`{}`)
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(cacheKeys))
+		assert.Equal(t, []string{`{"__typename":"Query","field":"user","args":{"id":"123"}}`}, cacheKeys[0].Keys)
+	})
+}
+
 func BenchmarkRenderCacheKeys(b *testing.B) {
 	a := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
 

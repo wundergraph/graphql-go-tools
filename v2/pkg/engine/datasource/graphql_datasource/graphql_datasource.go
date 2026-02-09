@@ -389,9 +389,29 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		if len(p.rootFields) > 0 {
 			rootFieldsCopy := make([]resolve.QueryField, len(p.rootFields))
 			copy(rootFieldsCopy, p.rootFields)
-			p.entityCacheKeyTemplate = &resolve.RootQueryCacheKeyTemplate{
+			template := &resolve.RootQueryCacheKeyTemplate{
 				RootFields: rootFieldsCopy,
 			}
+			// Populate entity key mappings from federation config
+			fedMeta := p.dataSourceConfig.FederationConfiguration()
+			for _, rf := range p.rootFields {
+				rfConfig := fedMeta.RootFieldCacheConfig(rf.Coordinate.TypeName, rf.Coordinate.FieldName)
+				if rfConfig != nil && len(rfConfig.EntityKeyMappings) > 0 {
+					for _, ekm := range rfConfig.EntityKeyMappings {
+						mappingConfig := resolve.EntityKeyMappingConfig{
+							EntityTypeName: ekm.EntityTypeName,
+						}
+						for _, fm := range ekm.FieldMappings {
+							mappingConfig.FieldMappings = append(mappingConfig.FieldMappings, resolve.EntityFieldMappingConfig{
+								EntityKeyField: fm.EntityKeyField,
+								ArgumentPath:   fm.ArgumentPath,
+							})
+						}
+						template.EntityKeyMappings = append(template.EntityKeyMappings, mappingConfig)
+					}
+				}
+			}
+			p.entityCacheKeyTemplate = template
 		}
 	}
 

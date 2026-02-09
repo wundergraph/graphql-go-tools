@@ -526,11 +526,17 @@ func (l *Loader) extractCacheKeysStrings(a arena.Arena, cacheKeys []*CacheKey) [
 		return nil
 	}
 	out := arena.AllocateSlice[string](a, 0, len(cacheKeys))
+	seen := make(map[string]struct{}, len(cacheKeys))
 	for i := range cacheKeys {
 		for j := range cacheKeys[i].Keys {
-			keyLen := len(cacheKeys[i].Keys[j])
+			keyStr := cacheKeys[i].Keys[j]
+			if _, ok := seen[keyStr]; ok {
+				continue
+			}
+			seen[keyStr] = struct{}{}
+			keyLen := len(keyStr)
 			key := arena.AllocateSlice[byte](a, 0, keyLen)
-			key = arena.SliceAppend(a, key, unsafebytes.StringToBytes(cacheKeys[i].Keys[j])...)
+			key = arena.SliceAppend(a, key, unsafebytes.StringToBytes(keyStr)...)
 			out = arena.SliceAppend(a, out, unsafebytes.BytesToString(key))
 		}
 	}
@@ -564,12 +570,26 @@ func (l *Loader) populateFromCache(a arena.Arena, cacheKeys []*CacheKey, entries
 func (l *Loader) cacheKeysToEntries(a arena.Arena, cacheKeys []*CacheKey) ([]*CacheEntry, error) {
 	out := arena.AllocateSlice[*CacheEntry](a, 0, len(cacheKeys))
 	buf := arena.AllocateSlice[byte](a, 64, 64)
+	seen := make(map[string]struct{}, len(cacheKeys))
 	for i := range cacheKeys {
 		for j := range cacheKeys[i].Keys {
 			if cacheKeys[i].Item == nil {
 				continue
 			}
-			buf = cacheKeys[i].Item.MarshalTo(buf[:0])
+			keyStr := cacheKeys[i].Keys[j]
+			if _, ok := seen[keyStr]; ok {
+				continue
+			}
+			seen[keyStr] = struct{}{}
+			// When EntityMergePath is set, store entity-level data (extracted at merge path)
+			// instead of response-level data, so entity fetches can read it directly.
+			itemToStore := cacheKeys[i].Item
+			if len(cacheKeys[i].EntityMergePath) > 0 {
+				if entityData := cacheKeys[i].Item.Get(cacheKeys[i].EntityMergePath...); entityData != nil {
+					itemToStore = entityData
+				}
+			}
+			buf = itemToStore.MarshalTo(buf[:0])
 			entry := &CacheEntry{
 				Key:   cacheKeys[i].Keys[j],
 				Value: arena.AllocateSlice[byte](a, len(buf), len(buf)),
@@ -627,6 +647,27 @@ func (l *Loader) prepareCacheKeys(info *FetchInfo, cfg FetchCacheConfiguration, 
 			res.l2CacheKeys, err = cfg.CacheKeyTemplate.RenderCacheKeys(l.jsonArena, l.ctx, inputItems, prefix)
 			if err != nil {
 				return false, err
+			}
+		}
+	}
+
+	// When root field uses entity key mapping, set EntityMergePath so that
+	// store/load can extract/wrap entity-level data at the merge path.
+	if rootTemplate, ok := cfg.CacheKeyTemplate.(*RootQueryCacheKeyTemplate); ok && len(rootTemplate.EntityKeyMappings) > 0 {
+		// Determine the path to extract entity data from the merged response.
+		// If MergePath is set (e.g. ["user"]), use it directly.
+		// Otherwise, the entity data is nested under the root field name in the response
+		// (e.g. for field "user", response is {"user":{...}} and entity data is at ["user"]).
+		entityPath := res.postProcessing.MergePath
+		if len(entityPath) == 0 && len(rootTemplate.RootFields) == 1 {
+			entityPath = []string{rootTemplate.RootFields[0].Coordinate.FieldName}
+		}
+		if len(entityPath) > 0 {
+			for _, ck := range res.l1CacheKeys {
+				ck.EntityMergePath = entityPath
+			}
+			for _, ck := range res.l2CacheKeys {
+				ck.EntityMergePath = entityPath
 			}
 		}
 	}
@@ -784,6 +825,21 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 	if err != nil {
 		res.cacheMustBeUpdated = true
 		return false, nil
+	}
+
+	// When EntityMergePath is set, the cache stores entity-level data (e.g. {"id":"1234","username":"Me"}).
+	// Root field fetches need response-level data (e.g. {"user":{"id":"1234","username":"Me"}}),
+	// so wrap the cached entity data back at the merge path before validation.
+	for _, ck := range res.l2CacheKeys {
+		if len(ck.EntityMergePath) > 0 && ck.FromCache != nil {
+			wrapped := ck.FromCache
+			for i := len(ck.EntityMergePath) - 1; i >= 0; i-- {
+				obj := astjson.ObjectValue(l.jsonArena)
+				obj.Set(l.jsonArena, ck.EntityMergePath[i], wrapped)
+				wrapped = obj
+			}
+			ck.FromCache = wrapped
+		}
 	}
 
 	// Copy FromCache values from L2 keys to L1 keys (if L1 keys exist) and track per-entity hits/misses
@@ -1210,9 +1266,12 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		if slices.Contains(taintedIndices, 0) {
 			l.taintedObjs.add(items[0])
 		}
-		// Update cache key item to point to merged data for L1 cache
+		// Update cache key items to point to merged data for L1 and L2 caches
 		if len(res.l1CacheKeys) > 0 && res.l1CacheKeys[0] != nil {
 			res.l1CacheKeys[0].Item = items[0]
+		}
+		if len(res.l2CacheKeys) > 0 && res.l2CacheKeys[0] != nil {
+			res.l2CacheKeys[0].Item = items[0]
 		}
 		// Only populate caches on success (no errors)
 		if !hasErrors {
@@ -1257,8 +1316,15 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 				}
 			}
 		}
-		// Update cache key items to point to merged data for L1 cache
+		// Update cache key items to point to merged data for L1 and L2 caches
 		for _, ck := range res.l1CacheKeys {
+			if ck != nil && ck.Item != nil {
+				if merged, ok := originalToMerged[ck.Item]; ok {
+					ck.Item = merged
+				}
+			}
+		}
+		for _, ck := range res.l2CacheKeys {
 			if ck != nil && ck.Item != nil {
 				if merged, ok := originalToMerged[ck.Item]; ok {
 					ck.Item = merged
@@ -1289,9 +1355,12 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		if slices.Contains(taintedIndices, i) {
 			l.taintedObjs.add(items[i])
 		}
-		// Update cache key item to point to merged data for L1 cache
+		// Update cache key items to point to merged data for L1 and L2 caches
 		if i < len(res.l1CacheKeys) && res.l1CacheKeys[i] != nil {
 			res.l1CacheKeys[i].Item = items[i]
+		}
+		if i < len(res.l2CacheKeys) && res.l2CacheKeys[i] != nil {
+			res.l2CacheKeys[i].Item = items[i]
 		}
 	}
 

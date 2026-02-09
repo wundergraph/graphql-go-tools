@@ -14,13 +14,28 @@ type CacheKeyTemplate interface {
 }
 
 type CacheKey struct {
-	Item      *astjson.Value
-	FromCache *astjson.Value
-	Keys      []string
+	Item            *astjson.Value
+	FromCache       *astjson.Value
+	Keys            []string
+	EntityMergePath []string // Set when root field uses entity key mapping; used to store/load entity-level data
 }
 
 type RootQueryCacheKeyTemplate struct {
-	RootFields []QueryField
+	RootFields        []QueryField
+	EntityKeyMappings []EntityKeyMappingConfig
+}
+
+// EntityKeyMappingConfig configures how root field arguments map to entity @key fields
+// for derived entity cache keys.
+type EntityKeyMappingConfig struct {
+	EntityTypeName string
+	FieldMappings  []EntityFieldMappingConfig
+}
+
+// EntityFieldMappingConfig maps a single entity @key field to a root field argument path.
+type EntityFieldMappingConfig struct {
+	EntityKeyField string
+	ArgumentPath   []string
 }
 
 type QueryField struct {
@@ -33,8 +48,9 @@ type FieldArgument struct {
 	Variable Variable
 }
 
-// RenderCacheKeys returns multiple cache keys, one per item
-// Each cache key contains one or more KeyEntry objects (one per root field)
+// RenderCacheKeys returns multiple cache keys, one per item.
+// Each cache key contains one or more KeyEntry objects (one per root field).
+// When EntityKeyMappings are configured, entity key format is used INSTEAD of root field format.
 func (r *RootQueryCacheKeyTemplate) RenderCacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value, prefix string) ([]*CacheKey, error) {
 	if len(r.RootFields) == 0 {
 		return nil, nil
@@ -47,17 +63,30 @@ func (r *RootQueryCacheKeyTemplate) RenderCacheKeys(a arena.Arena, ctx *Context,
 		// Create KeyEntry for each root field
 		keyEntries := arena.AllocateSlice[string](a, 0, len(r.RootFields))
 		for _, field := range r.RootFields {
-			var key string
-			key, jsonBytes = r.renderField(a, ctx, item, jsonBytes, field)
-			if prefix != "" {
-				l := len(prefix) + 1 + len(key)
-				tmp := arena.AllocateSlice[byte](a, 0, l)
-				tmp = arena.SliceAppend(a, tmp, unsafebytes.StringToBytes(prefix)...)
-				tmp = arena.SliceAppend(a, tmp, []byte(`:`)...)
-				tmp = arena.SliceAppend(a, tmp, unsafebytes.StringToBytes(key)...)
-				key = unsafebytes.BytesToString(tmp)
+			if len(r.EntityKeyMappings) > 0 {
+				// Entity key mapping configured: use entity key format INSTEAD of root field key
+				for _, mapping := range r.EntityKeyMappings {
+					entityKey, jsonBytesOut := r.renderDerivedEntityKey(a, ctx, jsonBytes, mapping, prefix)
+					jsonBytes = jsonBytesOut
+					if entityKey != "" {
+						keyEntries = arena.SliceAppend(a, keyEntries, entityKey)
+					}
+					// If entityKey is empty (missing arg), keyEntries stays empty → no caching
+				}
+			} else {
+				// No entity key mapping: use root field key (current behavior)
+				var key string
+				key, jsonBytes = r.renderField(a, ctx, item, jsonBytes, field)
+				if prefix != "" {
+					l := len(prefix) + 1 + len(key)
+					tmp := arena.AllocateSlice[byte](a, 0, l)
+					tmp = arena.SliceAppend(a, tmp, unsafebytes.StringToBytes(prefix)...)
+					tmp = arena.SliceAppend(a, tmp, []byte(`:`)...)
+					tmp = arena.SliceAppend(a, tmp, unsafebytes.StringToBytes(key)...)
+					key = unsafebytes.BytesToString(tmp)
+				}
+				keyEntries = arena.SliceAppend(a, keyEntries, key)
 			}
-			keyEntries = arena.SliceAppend(a, keyEntries, key)
 		}
 		cacheKeys = arena.SliceAppend(a, cacheKeys, &CacheKey{
 			Item: item,
@@ -65,6 +94,48 @@ func (r *RootQueryCacheKeyTemplate) RenderCacheKeys(a arena.Arena, ctx *Context,
 		})
 	}
 	return cacheKeys, nil
+}
+
+// renderDerivedEntityKey renders a cache key in entity format using root field arguments.
+// Returns "" if any argument cannot be resolved (skip caching for this request).
+// Format: {"__typename":"User","key":{"id":"123"}} with optional prefix.
+func (r *RootQueryCacheKeyTemplate) renderDerivedEntityKey(a arena.Arena, ctx *Context, jsonBytes []byte, mapping EntityKeyMappingConfig, prefix string) (string, []byte) {
+	keyObj := astjson.ObjectValue(a)
+	keyObj.Set(a, "__typename", astjson.StringValue(a, mapping.EntityTypeName))
+
+	keysObj := astjson.ObjectValue(a)
+	for _, fm := range mapping.FieldMappings {
+		argumentPath := fm.ArgumentPath
+		// Apply variable remapping (same as renderField)
+		if len(argumentPath) == 1 && ctx.RemapVariables != nil {
+			if nameToUse, hasMapping := ctx.RemapVariables[argumentPath[0]]; hasMapping && nameToUse != argumentPath[0] {
+				argumentPath = []string{nameToUse}
+			}
+		}
+
+		argValue := ctx.Variables.Get(argumentPath...)
+		if argValue == nil || argValue.Type() == astjson.TypeNull {
+			// Missing or null argument → skip caching
+			return "", jsonBytes
+		}
+		keysObj.Set(a, fm.EntityKeyField, argValue)
+	}
+
+	keyObj.Set(a, "key", keysObj)
+
+	// Marshal to JSON
+	jsonBytes = keyObj.MarshalTo(jsonBytes[:0])
+	l := len(jsonBytes)
+	if prefix != "" {
+		l += 1 + len(prefix)
+	}
+	slice := arena.AllocateSlice[byte](a, 0, l)
+	if prefix != "" {
+		slice = arena.SliceAppend(a, slice, unsafebytes.StringToBytes(prefix)...)
+		slice = arena.SliceAppend(a, slice, []byte(`:`)...)
+	}
+	slice = arena.SliceAppend(a, slice, jsonBytes...)
+	return unsafebytes.BytesToString(slice), jsonBytes
 }
 
 // renderField renders a single field cache key as JSON

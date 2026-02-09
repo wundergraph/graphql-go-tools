@@ -139,6 +139,33 @@ type RootFieldCacheConfiguration struct {
 	// IncludeSubgraphHeaderPrefix indicates if forwarded headers affect cache key.
 	// When true, different header values result in different cache keys.
 	IncludeSubgraphHeaderPrefix bool `json:"include_subgraph_header_prefix"`
+	// EntityKeyMappings configures derived entity cache keys for this root field.
+	// When set, the L2 cache key uses entity key format instead of root field format,
+	// enabling cache sharing between root field queries and entity fetches.
+	EntityKeyMappings []EntityKeyMapping `json:"entity_key_mappings,omitempty"`
+}
+
+// EntityKeyMapping defines how a root field's arguments map to entity @key fields.
+// When configured, the root field's L2 cache key uses the entity key format
+// (e.g., {"__typename":"User","key":{"id":"123"}}) instead of the root field format.
+// This enables cache sharing between root field queries and entity fetches.
+type EntityKeyMapping struct {
+	// EntityTypeName is the entity type returned by the root field (e.g., "User")
+	EntityTypeName string `json:"entity_type_name"`
+	// FieldMappings maps entity @key fields to root field arguments
+	FieldMappings []FieldMapping `json:"field_mappings"`
+}
+
+// FieldMapping maps an entity @key field to a root field argument path.
+type FieldMapping struct {
+	// EntityKeyField is the @key field name on the entity (e.g., "id")
+	EntityKeyField string `json:"entity_key_field"`
+	// ArgumentPath is the path into ctx.Variables to extract the argument value.
+	// Uses the same []string format as ContextVariable.Path.
+	// Object keys: ["id"], ["input", "userId"]
+	// Array index: ["ids", "0"] (decimal string)
+	// Subject to ctx.RemapVariables when len==1
+	ArgumentPath []string `json:"argument_path"`
 }
 
 // RootFieldCacheConfigurations is a collection of root field cache configurations.

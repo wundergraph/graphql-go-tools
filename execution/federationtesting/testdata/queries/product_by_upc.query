@@ -1,0 +1,6 @@
+query ProductByUpc($upc: String!) {
+    product(upc: $upc) {
+        upc
+        name
+    }
+}

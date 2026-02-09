@@ -2,6 +2,8 @@
 schema:
   - graph/*.graphqls
 
+skip_mod_tidy: true
+
 # Where should the generated server code go?
 exec:
   filename: graph/generated/generated.go
