@@ -18,7 +18,7 @@ func TestKeyInfo(t *testing.T) {
 		typeName   string
 
 		dataSource      DataSource
-		providesEntries []*NodeSuggestion
+		providesEntries map[string]struct{}
 
 		expectPaths          []KeyInfoFieldPath
 		expectExternalFields bool
@@ -166,17 +166,9 @@ func TestKeyInfo(t *testing.T) {
 						SelectionSet: "id name",
 					},
 				}).DS(),
-			providesEntries: []*NodeSuggestion{
-				{
-					TypeName:  "User",
-					FieldName: "id",
-					Path:      "query.me.id",
-				},
-				{
-					TypeName:  "User",
-					FieldName: "name",
-					Path:      "query.me.name",
-				},
+			providesEntries: map[string]struct{}{
+				"User|id|query.me.id":     {},
+				"User|name|query.me.name": {},
 			},
 			expectPaths: []KeyInfoFieldPath{
 				{Path: "query.me.id"},
@@ -221,7 +213,7 @@ func TestCollectKeysForPath(t *testing.T) {
 		typeName   string
 
 		dataSource      DataSource
-		providesEntries []*NodeSuggestion
+		providesEntries map[string]struct{}
 
 		expectKeys []DSKeyInfo
 	}{
@@ -326,17 +318,9 @@ func TestCollectKeysForPath(t *testing.T) {
 					},
 				}).
 				DS(),
-			providesEntries: []*NodeSuggestion{
-				{
-					TypeName:  "User",
-					FieldName: "id",
-					Path:      "query.me.id",
-				},
-				{
-					TypeName:  "User",
-					FieldName: "name",
-					Path:      "query.me.name",
-				},
+			providesEntries: map[string]struct{}{
+				"User|id|query.me.id":     {},
+				"User|name|query.me.name": {},
 			},
 			expectKeys: []DSKeyInfo{
 				{

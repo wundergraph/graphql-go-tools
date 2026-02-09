@@ -290,6 +290,20 @@ func (c *nodeSelectionVisitor) handleFieldRequiredByRequires(fieldRef int, paren
 		return
 	}
 
+	// check if the required fields are already provided
+	input := areRequiredFieldsProvidedInput{
+		TypeName:       typeName,
+		FieldName:      fieldName,
+		RequiredFields: requiresConfiguration.SelectionSet,
+		Definition:     c.definition,
+		ProvidedFields: c.nodeSuggestions.providedFields[dsConfig.Hash()],
+		ParentPath:     parentPath,
+	}
+
+	if areRequiredFieldsProvided(input) {
+		return
+	}
+
 	// we should plan adding required fields for the field
 	// they will be added in the on LeaveSelectionSet callback for the current selection set
 	// and current field ref will be added to fieldDependsOn map

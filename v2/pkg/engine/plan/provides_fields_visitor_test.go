@@ -5,7 +5,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
@@ -36,88 +35,23 @@ func TestProvidesSuggestions(t *testing.T) {
 		}`
 
 	definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(definitionSDL)
-	fieldSet, report := providesFragment("User", keySDL, &definition)
-	assert.False(t, report.HasErrors())
 
 	cases := []struct {
 		selectionSetRef int
-		expected        []*NodeSuggestion
+		expected        map[string]struct{}
 	}{
 		{
 			selectionSetRef: 2,
-			expected: []*NodeSuggestion{
-				{
-					FieldRef:       ast.InvalidRef,
-					TypeName:       "User",
-					FieldName:      "name",
-					DataSourceHash: 2023,
-					Path:           "query.me.name",
-					ParentPath:     "query.me",
-				},
-				{
-					FieldRef:       ast.InvalidRef,
-					TypeName:       "User",
-					FieldName:      "info",
-					DataSourceHash: 2023,
-					Path:           "query.me.info",
-					ParentPath:     "query.me",
-				},
-				{
-					FieldRef:       ast.InvalidRef,
-					TypeName:       "Info",
-					FieldName:      "age",
-					DataSourceHash: 2023,
-					Path:           "query.me.info.age",
-					ParentPath:     "query.me.info",
-				},
-				{
-					FieldRef:       ast.InvalidRef,
-					TypeName:       "Info",
-					FieldName:      "__typename",
-					DataSourceHash: 2023,
-					Path:           "query.me.info.__typename",
-					ParentPath:     "query.me.info",
-				},
-				{
-					FieldRef:       ast.InvalidRef,
-					TypeName:       "User",
-					FieldName:      "address",
-					DataSourceHash: 2023,
-					Path:           "query.me.address",
-					ParentPath:     "query.me",
-				},
-				{
-					FieldRef:       ast.InvalidRef,
-					TypeName:       "Address",
-					FieldName:      "street",
-					DataSourceHash: 2023,
-					Path:           "query.me.address.street",
-					ParentPath:     "query.me.address",
-				},
-				{
-					FieldRef:       ast.InvalidRef,
-					TypeName:       "Address",
-					FieldName:      "zip",
-					DataSourceHash: 2023,
-					Path:           "query.me.address.zip",
-					ParentPath:     "query.me.address",
-				},
-				{
-					FieldRef:       ast.InvalidRef,
-					TypeName:       "Address",
-					FieldName:      "__typename",
-					DataSourceHash: 2023,
-					Path:           "query.me.address.__typename",
-					ParentPath:     "query.me.address",
-				},
-				{
-					FieldRef:       ast.InvalidRef,
-					TypeName:       "User",
-					FieldName:      "__typename",
-					DataSourceHash: 2023,
-					Path:           "query.me.__typename",
-					ParentPath:     "query.me",
-				},
+			expected: map[string]struct{}{
+				"User|name|query.me.name":                        {},
+				"User|info|query.me.info":                        {},
+				"Info|age|query.me.info.age":                     {},
+				"Info|__typename|query.me.info.__typename":       {},
+				"User|address|query.me.address":                  {},
+				"Address|street|query.me.address.street":         {},
+				"Address|zip|query.me.address.zip":               {},
+				"Address|__typename|query.me.address.__typename": {},
+				"User|__typename|query.me.__typename":            {},
 			},
 		},
 	}
@@ -152,21 +86,14 @@ func TestProvidesSuggestions(t *testing.T) {
 			}
 			meta.InitNodesIndex()
 
-			ds := &dataSourceConfiguration[string]{
-				hash:               2023,
-				DataSourceMetadata: meta,
-			}
-
 			input := &providesInput{
-				operationSelectionSet: c.selectionSetRef,
-				providesFieldSet:      fieldSet,
-				definition:            &definition,
-				report:                report,
-				parentPath:            "query.me",
-				dataSource:            ds,
+				parentTypeName:       "User",
+				providesSelectionSet: keySDL,
+				definition:           &definition,
+				parentPath:           "query.me",
 			}
 
-			suggestions := providesSuggestions(input)
+			suggestions, report := providesSuggestions(input)
 			assert.False(t, report.HasErrors())
 			assert.Equal(t, c.expected, suggestions)
 		})
@@ -204,54 +131,32 @@ func TestProvidesSuggestionsWithFragments(t *testing.T) {
 		parentPath           string
 		fieldTypeName        string
 		providesSelectionSet string
-		expected             []*NodeSuggestion
+		expected             map[string]struct{}
 	}{
 		{
 			selectionSetRef:      1,
 			parentPath:           "query.ab",
 			fieldTypeName:        "AB",
 			providesSelectionSet: `... on A {a} ... on B {b}`,
-			expected: []*NodeSuggestion{
-				{
-					FieldRef:       ast.InvalidRef,
-					TypeName:       "A",
-					FieldName:      "a",
-					DataSourceHash: 2023,
-					Path:           "query.ab.a",
-					ParentPath:     "query.ab",
-				},
-				{
-					FieldRef:       ast.InvalidRef,
-					TypeName:       "A",
-					FieldName:      "__typename",
-					DataSourceHash: 2023,
-					Path:           "query.ab.__typename",
-					ParentPath:     "query.ab",
-				},
-				{
-					FieldRef:       ast.InvalidRef,
-					TypeName:       "B",
-					FieldName:      "b",
-					DataSourceHash: 2023,
-					Path:           "query.ab.b",
-					ParentPath:     "query.ab",
-				},
-				{
-					FieldRef:       ast.InvalidRef,
-					TypeName:       "B",
-					FieldName:      "__typename",
-					DataSourceHash: 2023,
-					Path:           "query.ab.__typename",
-					ParentPath:     "query.ab",
-				},
-				{
-					FieldRef:       ast.InvalidRef,
-					TypeName:       "AB",
-					FieldName:      "__typename",
-					DataSourceHash: 2023,
-					Path:           "query.ab.__typename",
-					ParentPath:     "query.ab",
-				},
+			expected: map[string]struct{}{
+				"A|a|query.ab.a":                    {},
+				"A|__typename|query.ab.__typename":  {},
+				"B|b|query.ab.b":                    {},
+				"B|__typename|query.ab.__typename":  {},
+				"AB|__typename|query.ab.__typename": {},
+			},
+		},
+		{
+			selectionSetRef:      2,
+			parentPath:           "query.nestedAB.ab",
+			fieldTypeName:        "AB",
+			providesSelectionSet: `... on A {a} ... on B {b}`,
+			expected: map[string]struct{}{
+				"A|a|query.nestedAB.ab.a":                    {},
+				"A|__typename|query.nestedAB.ab.__typename":  {},
+				"B|b|query.nestedAB.ab.b":                    {},
+				"B|__typename|query.nestedAB.ab.__typename":  {},
+				"AB|__typename|query.nestedAB.ab.__typename": {},
 			},
 		},
 		{
@@ -259,63 +164,14 @@ func TestProvidesSuggestionsWithFragments(t *testing.T) {
 			parentPath:           "query.nestedAB",
 			fieldTypeName:        "NestedAB",
 			providesSelectionSet: `ab { ... on A {a} ... on B {b} }`,
-			expected: []*NodeSuggestion{
-				{
-					FieldRef:       ast.InvalidRef,
-					TypeName:       "NestedAB",
-					FieldName:      "ab",
-					DataSourceHash: 2023,
-					Path:           "query.nestedAB.ab",
-					ParentPath:     "query.nestedAB",
-				},
-				{
-					FieldRef:       ast.InvalidRef,
-					TypeName:       "A",
-					FieldName:      "a",
-					DataSourceHash: 2023,
-					Path:           "query.nestedAB.ab.a",
-					ParentPath:     "query.nestedAB.ab",
-				},
-				{
-					FieldRef:       ast.InvalidRef,
-					TypeName:       "A",
-					FieldName:      "__typename",
-					DataSourceHash: 2023,
-					Path:           "query.nestedAB.ab.__typename",
-					ParentPath:     "query.nestedAB.ab",
-				},
-				{
-					FieldRef:       ast.InvalidRef,
-					TypeName:       "B",
-					FieldName:      "b",
-					DataSourceHash: 2023,
-					Path:           "query.nestedAB.ab.b",
-					ParentPath:     "query.nestedAB.ab",
-				},
-				{
-					FieldRef:       ast.InvalidRef,
-					TypeName:       "B",
-					FieldName:      "__typename",
-					DataSourceHash: 2023,
-					Path:           "query.nestedAB.ab.__typename",
-					ParentPath:     "query.nestedAB.ab",
-				},
-				{
-					FieldRef:       ast.InvalidRef,
-					TypeName:       "AB",
-					FieldName:      "__typename",
-					DataSourceHash: 2023,
-					Path:           "query.nestedAB.ab.__typename",
-					ParentPath:     "query.nestedAB.ab",
-				},
-				{
-					FieldRef:       ast.InvalidRef,
-					TypeName:       "NestedAB",
-					FieldName:      "__typename",
-					DataSourceHash: 2023,
-					Path:           "query.nestedAB.__typename",
-					ParentPath:     "query.nestedAB",
-				},
+			expected: map[string]struct{}{
+				"NestedAB|ab|query.nestedAB.ab":                 {},
+				"A|a|query.nestedAB.ab.a":                       {},
+				"A|__typename|query.nestedAB.ab.__typename":     {},
+				"B|b|query.nestedAB.ab.b":                       {},
+				"B|__typename|query.nestedAB.ab.__typename":     {},
+				"AB|__typename|query.nestedAB.ab.__typename":    {},
+				"NestedAB|__typename|query.nestedAB.__typename": {},
 			},
 		},
 	}
@@ -346,24 +202,14 @@ func TestProvidesSuggestionsWithFragments(t *testing.T) {
 			}
 			meta.InitNodesIndex()
 
-			ds := &dataSourceConfiguration[string]{
-				hash:               2023,
-				DataSourceMetadata: meta,
-			}
-
-			fieldSet, report := providesFragment(c.fieldTypeName, c.providesSelectionSet, &definition)
-			assert.False(t, report.HasErrors())
-
 			input := &providesInput{
-				operationSelectionSet: c.selectionSetRef,
-				providesFieldSet:      fieldSet,
-				definition:            &definition,
-				report:                report,
-				parentPath:            c.parentPath,
-				dataSource:            ds,
+				parentTypeName:       c.fieldTypeName,
+				providesSelectionSet: c.providesSelectionSet,
+				definition:           &definition,
+				parentPath:           c.parentPath,
 			}
 
-			suggestions := providesSuggestions(input)
+			suggestions, report := providesSuggestions(input)
 			assert.False(t, report.HasErrors())
 			assert.Equal(t, c.expected, suggestions)
 		})
