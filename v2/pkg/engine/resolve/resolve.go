@@ -421,6 +421,9 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 	// all data is written to the client
 	// we're safe to release our buffer
 	r.responseBufferPool.Release(responseArena)
+
+	resp.ActualListSizes = t.resolvable.actualListSizes
+
 	return resp, err
 }
 
