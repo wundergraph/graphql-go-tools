@@ -300,6 +300,12 @@ func (d *dataSourceConfiguration[T]) CustomConfiguration() T {
 }
 
 func (d *dataSourceConfiguration[T]) CreatePlannerConfiguration(logger abstractlogger.Logger, fetchConfig *objectFetchConfiguration, pathConfig *plannerPathsConfiguration, configuration *Configuration) PlannerConfiguration {
+	if configuration.RelaxSubgraphOperationFieldSelectionMergingNullability {
+		if relaxer, ok := d.factory.(SubgraphFieldSelectionMergingNullabilityRelaxer); ok {
+			relaxer.EnableSubgraphFieldSelectionMergingNullabilityRelaxation()
+		}
+	}
+
 	planner := d.factory.Planner(logger)
 
 	fetchConfig.planner = planner
@@ -473,6 +479,14 @@ type DataSourceBehavior interface {
 
 type Identifyable interface {
 	astvisitor.VisitorIdentifier
+}
+
+// SubgraphFieldSelectionMergingNullabilityRelaxer is an optional interface that a PlannerFactory
+// can implement to support relaxed nullability checks when validating upstream operations.
+// When called, the factory should configure its internal validator to allow differing nullability
+// on fields in non-overlapping concrete types.
+type SubgraphFieldSelectionMergingNullabilityRelaxer interface {
+	EnableSubgraphFieldSelectionMergingNullabilityRelaxation()
 }
 
 type DataSourcePlanner[T any] interface {

@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	. "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasourcetesting"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
@@ -8357,8 +8358,10 @@ func TestGraphQLDataSource(t *testing.T) {
 						}),
 					),
 				},
-				DisableResolveFieldPositions: true,
+				DisableResolveFieldPositions:                           true,
+				RelaxSubgraphOperationFieldSelectionMergingNullability: true,
 			}, WithDefaultPostProcessor(),
+			WithValidationOptions(astvalidation.WithRelaxFieldSelectionMergingNullability()),
 		))
 	})
 }

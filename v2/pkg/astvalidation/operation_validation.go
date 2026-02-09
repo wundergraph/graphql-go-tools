@@ -12,12 +12,19 @@ import (
 )
 
 type OperationValidatorOptions struct {
-	ApolloCompatibilityFlags apollocompatibility.Flags
+	ApolloCompatibilityFlags                   apollocompatibility.Flags
+	RelaxFieldSelectionMergingNullabilityCheck bool
 }
 
 func WithApolloCompatibilityFlags(flags apollocompatibility.Flags) Option {
 	return func(options *OperationValidatorOptions) {
 		options.ApolloCompatibilityFlags = flags
+	}
+}
+
+func WithRelaxFieldSelectionMergingNullability() Option {
+	return func(options *OperationValidatorOptions) {
+		options.RelaxFieldSelectionMergingNullabilityCheck = true
 	}
 }
 
@@ -47,7 +54,7 @@ func DefaultOperationValidator(options ...Option) *OperationValidator {
 	validator.RegisterRule(LoneAnonymousOperation())
 	validator.RegisterRule(SubscriptionSingleRootField())
 	validator.RegisterRule(FieldSelections())
-	validator.RegisterRule(FieldSelectionMerging())
+	validator.RegisterRule(FieldSelectionMerging(opts.RelaxFieldSelectionMergingNullabilityCheck))
 	validator.RegisterRule(KnownArguments())
 	validator.RegisterRule(Values())
 	validator.RegisterRule(ArgumentUniqueness())

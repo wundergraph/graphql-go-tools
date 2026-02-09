@@ -1084,7 +1084,17 @@ func TestExecutionValidation(t *testing.T) {
 										... on User { email }
 										... on Organization { email }
 									}
-								}`, FieldSelectionMerging(), Valid)
+								}`, FieldSelectionMerging(true), Valid)
+					})
+					t.Run("rejects differing scalar nullability on non-overlapping object types without relaxation flag", func(t *testing.T) {
+						runWithDefinition(t, entityDefinition, `
+								{
+									entity {
+										... on User { email }
+										... on Organization { email }
+									}
+								}`, FieldSelectionMerging(), Invalid,
+							withValidationErrors(`fields 'email' conflict because they return conflicting types 'String!' and 'String'`))
 					})
 					t.Run("allows differing non-scalar nullability on non-overlapping object types", func(t *testing.T) {
 						runWithDefinition(t, entityDefinition, `
@@ -1093,7 +1103,17 @@ func TestExecutionValidation(t *testing.T) {
 										... on User { profile { name } }
 										... on Organization { profile { name } }
 									}
-								}`, FieldSelectionMerging(), Valid)
+								}`, FieldSelectionMerging(true), Valid)
+					})
+					t.Run("rejects differing non-scalar nullability on non-overlapping object types without relaxation flag", func(t *testing.T) {
+						runWithDefinition(t, entityDefinition, `
+								{
+									entity {
+										... on User { profile { name } }
+										... on Organization { profile { name } }
+									}
+								}`, FieldSelectionMerging(), Invalid,
+							withValidationErrors(`differing types 'Profile!' and 'Profile' for objectName 'profile'`))
 					})
 					t.Run("disallows differing return type nullability when interface could overlap", func(t *testing.T) {
 						runWithDefinition(t, boxDefinition, `

@@ -10,9 +10,10 @@ import (
 )
 
 // FieldSelectionMerging validates if field selections can be merged
-func FieldSelectionMerging() Rule {
+func FieldSelectionMerging(relaxNullabilityCheck ...bool) Rule {
+	relax := len(relaxNullabilityCheck) > 0 && relaxNullabilityCheck[0]
 	return func(walker *astvisitor.Walker) {
-		visitor := fieldSelectionMergingVisitor{Walker: walker}
+		visitor := fieldSelectionMergingVisitor{Walker: walker, relaxNullabilityCheck: relax}
 		walker.RegisterEnterDocumentVisitor(&visitor)
 		walker.RegisterEnterFieldVisitor(&visitor)
 		walker.RegisterEnterOperationVisitor(&visitor)
@@ -27,6 +28,7 @@ type fieldSelectionMergingVisitor struct {
 	scalarRequirements    scalarRequirements
 	nonScalarRequirements nonScalarRequirements
 	refs                  []int
+	relaxNullabilityCheck bool
 }
 type nonScalarRequirement struct {
 	path                    ast.Path
@@ -117,12 +119,13 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 					return
 				}
 			} else if !f.definition.TypesAreCompatibleDeep(f.nonScalarRequirements[i].fieldTypeRef, fieldType) {
-				// When enclosing types cannot overlap (e.g. two different concrete object types),
-				// allow nullability differences as long as the base types match
-				if !f.potentiallySameObject(f.nonScalarRequirements[i].enclosingTypeDefinition, f.EnclosingTypeDefinition) &&
-					f.definition.TypesAreCompatibleIgnoringNullability(f.nonScalarRequirements[i].fieldTypeRef, fieldType) {
-					// Different nullability on non-overlapping types is safe
-				} else {
+				// Per SameResponseShape (spec sec 5.3.2), when enclosing types cannot overlap
+				// at runtime (two distinct concrete object types), nullability differences are
+				// acceptable because only one branch will ever contribute to the response.
+				// This relaxation is gated behind the relaxNullabilityCheck flag.
+				if !f.relaxNullabilityCheck ||
+					f.potentiallySameObject(f.nonScalarRequirements[i].enclosingTypeDefinition, f.EnclosingTypeDefinition) ||
+					!f.definition.TypesAreCompatibleIgnoringNullability(f.nonScalarRequirements[i].fieldTypeRef, fieldType) {
 					left, err := f.definition.PrintTypeBytes(f.nonScalarRequirements[i].fieldTypeRef, nil)
 					if err != nil {
 						f.StopWithInternalErr(err)
@@ -169,12 +172,13 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 			}
 		}
 		if !f.definition.TypesAreCompatibleDeep(f.scalarRequirements[i].fieldType, fieldType) {
-			// When enclosing types cannot overlap (e.g. two different concrete object types),
-			// allow nullability differences as long as the base types match
-			if !f.potentiallySameObject(f.scalarRequirements[i].enclosingTypeDefinition, f.EnclosingTypeDefinition) &&
-				f.definition.TypesAreCompatibleIgnoringNullability(f.scalarRequirements[i].fieldType, fieldType) {
-				// Different nullability on non-overlapping types is safe
-			} else {
+			// Per SameResponseShape (spec sec 5.3.2), when enclosing types cannot overlap
+			// at runtime (two distinct concrete object types), nullability differences are
+			// acceptable because only one branch will ever contribute to the response.
+			// This relaxation is gated behind the relaxNullabilityCheck flag.
+			if !f.relaxNullabilityCheck ||
+				f.potentiallySameObject(f.scalarRequirements[i].enclosingTypeDefinition, f.EnclosingTypeDefinition) ||
+				!f.definition.TypesAreCompatibleIgnoringNullability(f.scalarRequirements[i].fieldType, fieldType) {
 				left, err := f.definition.PrintTypeBytes(f.scalarRequirements[i].fieldType, nil)
 				if err != nil {
 					f.StopWithInternalErr(err)
@@ -209,6 +213,14 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 	})
 }
 
+// potentiallySameObject reports whether two enclosing type definitions could apply
+// to the same runtime object. This determines whether field merging must enforce
+// strict type equality (including nullability) or may relax it.
+//
+//   - If either type is an interface, returns true (conservative: any concrete
+//     type might implement that interface).
+//   - Two object types overlap only when they share the same name.
+//   - All other combinations return false.
 func (f *fieldSelectionMergingVisitor) potentiallySameObject(left, right ast.Node) bool {
 	switch {
 	case left.Kind == ast.NodeKindInterfaceTypeDefinition || right.Kind == ast.NodeKindInterfaceTypeDefinition:
