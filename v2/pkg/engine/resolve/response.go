@@ -22,6 +22,8 @@ type GraphQLSubscriptionTrigger struct {
 	Source         SubscriptionDataSource
 	PostProcessing PostProcessingConfiguration
 	QueryPlan      *QueryPlan
+	SourceName     string
+	SourceID       string
 }
 
 // GraphQLResponse contains an ordered tree of fetches and the response shape.
@@ -39,6 +41,19 @@ type GraphQLResponse struct {
 
 	Info        *GraphQLResponseInfo
 	DataSources []DataSourceInfo
+}
+
+func (g *GraphQLResponse) SingleFlightAllowed() bool {
+	if g == nil {
+		return false
+	}
+	if g.Info == nil {
+		return false
+	}
+	if g.Info.OperationType == ast.OperationTypeQuery {
+		return true
+	}
+	return false
 }
 
 type GraphQLResponseInfo struct {
