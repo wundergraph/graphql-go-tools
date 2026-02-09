@@ -12,6 +12,18 @@ import (
 	"github.com/wundergraph/go-arena"
 )
 
+// TestEntityMergePath tests the EntityMergePath mechanism, which enables cache
+// sharing between root field fetches and entity fetches.
+//
+// Problem: A root field fetch (e.g. Query.user(id:"1234")) returns response-level
+// data like {"user":{"id":"1234","username":"Me"}}. An entity fetch for the same
+// entity returns entity-level data like {"id":"1234","username":"Me"} (no wrapper).
+// When both use the same cache key (derived entity key), the stored format must be
+// consistent so either fetch type can read the other's cache entries.
+//
+// Solution: EntityMergePath records the JSON path (e.g. ["user"]) at which the
+// entity data is nested in the root field response. On store, cacheKeysToEntries
+// strips the wrapper. On load, tryL2CacheLoad re-wraps the entity data.
 func TestEntityMergePath(t *testing.T) {
 
 	// Group 1: prepareCacheKeys — EntityMergePath assignment
@@ -202,6 +214,8 @@ func TestEntityMergePath(t *testing.T) {
 			assert.Equal(t, []string(nil), res.l1CacheKeys[0].EntityMergePath)
 		})
 
+		// When there are multiple root fields, EntityMergePath cannot be derived from a single
+		// field name (ambiguous), so it falls back to res.postProcessing.MergePath if available.
 		t.Run("multiple root fields without MergePath does not set EntityMergePath", func(t *testing.T) {
 			ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
 			ctx := NewContext(context.Background())
@@ -458,20 +472,37 @@ func TestEntityMergePath(t *testing.T) {
 			}
 
 			// Call tryL2CacheLoad
-			_, err = loader.tryL2CacheLoad(context.Background(), &FetchInfo{
+			// ProvidesData must match the wrapped response shape for validation to pass
+			skipFetch, err := loader.tryL2CacheLoad(context.Background(), &FetchInfo{
 				ProvidesData: &Object{
 					Fields: []*Field{
-						{Name: []byte("id"), Value: &Scalar{Path: []string{"id"}}},
-						{Name: []byte("username"), Value: &Scalar{Path: []string{"username"}}},
+						{Name: []byte("user"), Value: &Object{
+							Path: []string{"user"},
+							Fields: []*Field{
+								{Name: []byte("id"), Value: &Scalar{Path: []string{"id"}}},
+								{Name: []byte("username"), Value: &Scalar{Path: []string{"username"}}},
+							},
+						}},
 					},
 				},
 			}, res)
 			require.NoError(t, err)
+			assert.Equal(t, true, skipFetch, "all items cached, should skip fetch")
 
 			// Verify the L2 cache key's FromCache was wrapped
 			require.NotNil(t, res.l2CacheKeys[0].FromCache)
 			wrapped := string(res.l2CacheKeys[0].FromCache.MarshalTo(nil))
 			assert.Equal(t, `{"user":{"id":"1234","username":"Me"}}`, wrapped)
+
+			// Verify L1 cache key also received the wrapped value (L2-to-L1 copy)
+			require.NotNil(t, res.l1CacheKeys[0].FromCache)
+			l1Wrapped := string(res.l1CacheKeys[0].FromCache.MarshalTo(nil))
+			assert.Equal(t, `{"user":{"id":"1234","username":"Me"}}`, l1Wrapped)
+
+			// Verify L2 stats: 1 hit, 0 misses
+			stats := ctx.GetCacheStats()
+			assert.Equal(t, int64(1), stats.L2Hits)
+			assert.Equal(t, int64(0), stats.L2Misses)
 		})
 
 		t.Run("EntityMergePath not set and cache hit returns data as-is", func(t *testing.T) {
@@ -509,7 +540,7 @@ func TestEntityMergePath(t *testing.T) {
 				},
 			}
 
-			_, err = loader.tryL2CacheLoad(context.Background(), &FetchInfo{
+			skipFetch, err := loader.tryL2CacheLoad(context.Background(), &FetchInfo{
 				ProvidesData: &Object{
 					Fields: []*Field{
 						{Name: []byte("user"), Value: &Object{
@@ -523,10 +554,21 @@ func TestEntityMergePath(t *testing.T) {
 				},
 			}, res)
 			require.NoError(t, err)
+			assert.Equal(t, true, skipFetch, "all items cached, should skip fetch")
 
 			require.NotNil(t, res.l2CacheKeys[0].FromCache)
 			unwrapped := string(res.l2CacheKeys[0].FromCache.MarshalTo(nil))
 			assert.Equal(t, `{"user":{"id":"1234","username":"Me"}}`, unwrapped)
+
+			// Verify L1 cache key also received the value (L2-to-L1 copy)
+			require.NotNil(t, res.l1CacheKeys[0].FromCache)
+			l1Value := string(res.l1CacheKeys[0].FromCache.MarshalTo(nil))
+			assert.Equal(t, `{"user":{"id":"1234","username":"Me"}}`, l1Value)
+
+			// Verify L2 stats: 1 hit, 0 misses
+			stats := ctx.GetCacheStats()
+			assert.Equal(t, int64(1), stats.L2Hits)
+			assert.Equal(t, int64(0), stats.L2Misses)
 		})
 
 		t.Run("EntityMergePath set but cache miss stays nil", func(t *testing.T) {
@@ -561,7 +603,7 @@ func TestEntityMergePath(t *testing.T) {
 				},
 			}
 
-			_, err := loader.tryL2CacheLoad(context.Background(), &FetchInfo{
+			skipFetch, err := loader.tryL2CacheLoad(context.Background(), &FetchInfo{
 				ProvidesData: &Object{
 					Fields: []*Field{
 						{Name: []byte("id"), Value: &Scalar{Path: []string{"id"}}},
@@ -569,8 +611,14 @@ func TestEntityMergePath(t *testing.T) {
 				},
 			}, res)
 			require.NoError(t, err)
+			assert.Equal(t, false, skipFetch, "cache miss, should not skip fetch")
 
 			assert.Nil(t, res.l2CacheKeys[0].FromCache)
+
+			// Verify L2 stats: 0 hits, 1 miss
+			stats := ctx.GetCacheStats()
+			assert.Equal(t, int64(0), stats.L2Hits)
+			assert.Equal(t, int64(1), stats.L2Misses)
 		})
 
 		t.Run("multi-segment EntityMergePath wraps at each level", func(t *testing.T) {
@@ -609,7 +657,7 @@ func TestEntityMergePath(t *testing.T) {
 				},
 			}
 
-			_, err = loader.tryL2CacheLoad(context.Background(), &FetchInfo{
+			skipFetch, err := loader.tryL2CacheLoad(context.Background(), &FetchInfo{
 				ProvidesData: &Object{
 					Fields: []*Field{
 						{Name: []byte("data"), Value: &Object{
@@ -627,10 +675,21 @@ func TestEntityMergePath(t *testing.T) {
 				},
 			}, res)
 			require.NoError(t, err)
+			assert.Equal(t, true, skipFetch, "all items cached, should skip fetch")
 
 			require.NotNil(t, res.l2CacheKeys[0].FromCache)
 			wrapped := string(res.l2CacheKeys[0].FromCache.MarshalTo(nil))
 			assert.Equal(t, `{"data":{"user":{"id":"1234"}}}`, wrapped)
+
+			// Verify L1 cache key also received the wrapped value (L2-to-L1 copy)
+			require.NotNil(t, res.l1CacheKeys[0].FromCache)
+			l1Wrapped := string(res.l1CacheKeys[0].FromCache.MarshalTo(nil))
+			assert.Equal(t, `{"data":{"user":{"id":"1234"}}}`, l1Wrapped)
+
+			// Verify L2 stats: 1 hit, 0 misses
+			stats := ctx.GetCacheStats()
+			assert.Equal(t, int64(1), stats.L2Hits)
+			assert.Equal(t, int64(0), stats.L2Misses)
 		})
 	})
 
@@ -707,7 +766,7 @@ func TestEntityMergePath(t *testing.T) {
 			assert.Equal(t, originalJSON, loaded)
 		})
 
-		t.Run("cross-lookup root field stores entity fetch loads", func(t *testing.T) {
+		t.Run("root field store is loadable by entity fetch using same derived key", func(t *testing.T) {
 			ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
 			cache := NewFakeLoaderCache()
 
