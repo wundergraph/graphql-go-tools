@@ -73,7 +73,7 @@ func TestEntityMergePath(t *testing.T) {
 
 			isEntity, err := loader.prepareCacheKeys(&FetchInfo{}, cfg, inputItems, res)
 			require.NoError(t, err)
-			assert.Equal(t, false, isEntity)
+			assert.False(t, isEntity)
 			require.Equal(t, 1, len(res.l1CacheKeys))
 			assert.Equal(t, []string{"user"}, res.l1CacheKeys[0].EntityMergePath)
 		})
@@ -126,7 +126,7 @@ func TestEntityMergePath(t *testing.T) {
 
 			isEntity, err := loader.prepareCacheKeys(&FetchInfo{}, cfg, inputItems, res)
 			require.NoError(t, err)
-			assert.Equal(t, false, isEntity)
+			assert.False(t, isEntity)
 			require.Equal(t, 1, len(res.l1CacheKeys))
 			assert.Equal(t, []string{"data", "user"}, res.l1CacheKeys[0].EntityMergePath)
 		})
@@ -209,7 +209,7 @@ func TestEntityMergePath(t *testing.T) {
 
 			isEntity, err := loader.prepareCacheKeys(&FetchInfo{}, cfg, inputItems, res)
 			require.NoError(t, err)
-			assert.Equal(t, true, isEntity)
+			assert.True(t, isEntity)
 			require.Equal(t, 1, len(res.l1CacheKeys))
 			assert.Equal(t, []string(nil), res.l1CacheKeys[0].EntityMergePath)
 		})
@@ -487,7 +487,7 @@ func TestEntityMergePath(t *testing.T) {
 				},
 			}, res)
 			require.NoError(t, err)
-			assert.Equal(t, true, skipFetch, "all items cached, should skip fetch")
+			assert.True(t, skipFetch, "all items cached, should skip fetch")
 
 			// Verify the L2 cache key's FromCache was wrapped
 			require.NotNil(t, res.l2CacheKeys[0].FromCache)
@@ -554,7 +554,7 @@ func TestEntityMergePath(t *testing.T) {
 				},
 			}, res)
 			require.NoError(t, err)
-			assert.Equal(t, true, skipFetch, "all items cached, should skip fetch")
+			assert.True(t, skipFetch, "all items cached, should skip fetch")
 
 			require.NotNil(t, res.l2CacheKeys[0].FromCache)
 			unwrapped := string(res.l2CacheKeys[0].FromCache.MarshalTo(nil))
@@ -611,7 +611,7 @@ func TestEntityMergePath(t *testing.T) {
 				},
 			}, res)
 			require.NoError(t, err)
-			assert.Equal(t, false, skipFetch, "cache miss, should not skip fetch")
+			assert.False(t, skipFetch, "cache miss, should not skip fetch")
 
 			assert.Nil(t, res.l2CacheKeys[0].FromCache)
 
@@ -675,7 +675,7 @@ func TestEntityMergePath(t *testing.T) {
 				},
 			}, res)
 			require.NoError(t, err)
-			assert.Equal(t, true, skipFetch, "all items cached, should skip fetch")
+			assert.True(t, skipFetch, "all items cached, should skip fetch")
 
 			require.NotNil(t, res.l2CacheKeys[0].FromCache)
 			wrapped := string(res.l2CacheKeys[0].FromCache.MarshalTo(nil))
@@ -862,7 +862,7 @@ func TestEntityMergePath(t *testing.T) {
 			entityRes := &result{}
 			isEntity, err := loader.prepareCacheKeys(&FetchInfo{}, entityCfg, []*astjson.Value{entityItem}, entityRes)
 			require.NoError(t, err)
-			assert.Equal(t, true, isEntity)
+			assert.True(t, isEntity)
 			require.Equal(t, 1, len(entityRes.l1CacheKeys))
 			// Entity fetch should NOT have EntityMergePath
 			assert.Equal(t, []string(nil), entityRes.l1CacheKeys[0].EntityMergePath)
