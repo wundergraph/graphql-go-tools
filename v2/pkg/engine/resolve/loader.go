@@ -505,7 +505,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 
 	var responseData *astjson.Value
 	if res.postProcessing.SelectResponseDataPath != nil {
-		responseData = response.Get(res.postProcessing.SelectResponseDataPath...) // returns null
+		responseData = response.Get(res.postProcessing.SelectResponseDataPath...)
 	} else {
 		responseData = response
 	}
@@ -542,6 +542,8 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 
 	// Check if data needs processing.
 	if res.postProcessing.SelectResponseDataPath != nil && astjson.ValueIsNull(responseData) {
+		// First check if this is actually an entity null fetch, instead of a data null fetch.
+		// In this case we return early to avoid adding subgraph errors or merging this into items.
 		if isNullEntityFetch(res.postProcessing.SelectResponseDataPath, response) {
 			return nil
 		}
