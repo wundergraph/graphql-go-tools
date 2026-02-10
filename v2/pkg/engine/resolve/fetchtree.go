@@ -130,17 +130,6 @@ func (n *FetchTreeNode) Trace() *FetchTreeTraceNode {
 				Trace:      f.Trace,
 				Path:       n.Item.ResponsePath,
 			}
-		case *ParallelListItemFetch:
-			trace.Fetch = &FetchTraceNode{
-				Kind:       "ParallelList",
-				SourceID:   f.Fetch.Info.DataSourceID,
-				SourceName: f.Fetch.Info.DataSourceName,
-				Traces:     make([]*DataSourceLoadTrace, len(f.Traces)),
-				Path:       n.Item.ResponsePath,
-			}
-			for i, t := range f.Traces {
-				trace.Fetch.Traces[i] = t.Trace
-			}
 		default:
 		}
 	case FetchTreeNodeKindSequence, FetchTreeNodeKindParallel:
@@ -252,20 +241,6 @@ func (n *FetchTreeNode) queryPlan() *FetchTreeQueryPlanNode {
 			if f.Info.QueryPlan != nil {
 				queryPlan.Fetch.Query = f.Info.QueryPlan.Query
 				queryPlan.Fetch.Representations = f.Info.QueryPlan.DependsOnFields
-			}
-		case *ParallelListItemFetch:
-			queryPlan.Fetch = &FetchTreeQueryPlan{
-				Kind:              "ParallelList",
-				FetchID:           f.Fetch.FetchDependencies.FetchID,
-				DependsOnFetchIDs: f.Fetch.FetchDependencies.DependsOnFetchIDs,
-				SubgraphName:      f.Fetch.Info.DataSourceName,
-				SubgraphID:        f.Fetch.Info.DataSourceID,
-				Path:              n.Item.ResponsePath,
-			}
-
-			if f.Fetch.Info.QueryPlan != nil {
-				queryPlan.Fetch.Query = f.Fetch.Info.QueryPlan.Query
-				queryPlan.Fetch.Representations = f.Fetch.Info.QueryPlan.DependsOnFields
 			}
 		default:
 		}

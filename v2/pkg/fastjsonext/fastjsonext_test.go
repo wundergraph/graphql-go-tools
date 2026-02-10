@@ -21,28 +21,28 @@ func TestGetArray(t *testing.T) {
 
 func TestAppendErrorWithMessage(t *testing.T) {
 	a := astjson.MustParse(`[]`)
-	AppendErrorToArray(&astjson.Arena{}, a, "error", nil)
+	AppendErrorToArray(nil, a, "error", nil)
 	out := a.MarshalTo(nil)
 	require.Equal(t, `[{"message":"error"}]`, string(out))
-	AppendErrorToArray(&astjson.Arena{}, a, "error2", []PathElement{{Name: "a"}})
+	AppendErrorToArray(nil, a, "error2", []PathElement{{Name: "a"}})
 	out = a.MarshalTo(nil)
 	require.Equal(t, `[{"message":"error"},{"message":"error2","path":["a"]}]`, string(out))
 }
 
 func TestCreateErrorObjectWithPath(t *testing.T) {
-	v := CreateErrorObjectWithPath(&astjson.Arena{}, "my error message", []PathElement{
+	v := CreateErrorObjectWithPath(nil, "my error message", []PathElement{
 		{Name: "a"},
 	})
 	out := v.MarshalTo(nil)
 	require.Equal(t, `{"message":"my error message","path":["a"]}`, string(out))
-	v = CreateErrorObjectWithPath(&astjson.Arena{}, "my error message", []PathElement{
+	v = CreateErrorObjectWithPath(nil, "my error message", []PathElement{
 		{Name: "a"},
 		{Idx: 1},
 		{Name: "b"},
 	})
 	out = v.MarshalTo(nil)
 	require.Equal(t, `{"message":"my error message","path":["a",1,"b"]}`, string(out))
-	v = CreateErrorObjectWithPath(&astjson.Arena{}, "my error message", []PathElement{
+	v = CreateErrorObjectWithPath(nil, "my error message", []PathElement{
 		{Name: "a"},
 		{Name: "b"},
 	})

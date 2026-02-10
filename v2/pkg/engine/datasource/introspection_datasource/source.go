@@ -1,11 +1,11 @@
 package introspection_datasource
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"io"
+	"net/http"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/introspection"
@@ -19,21 +19,21 @@ type Source struct {
 	introspectionData *introspection.Data
 }
 
-func (s *Source) Load(ctx context.Context, input []byte, out *bytes.Buffer) (err error) {
+func (s *Source) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
 	var req introspectionInput
 	if err := json.Unmarshal(input, &req); err != nil {
-		return err
+		return nil, err
 	}
 
 	if req.RequestType == TypeRequestType {
-		return s.singleType(out, req.TypeName)
+		return s.singleTypeBytes(req.TypeName)
 	}
 
-	return json.NewEncoder(out).Encode(s.introspectionData.Schema)
+	return json.Marshal(s.introspectionData.Schema)
 }
 
-func (s *Source) LoadWithFiles(ctx context.Context, input []byte, files []*httpclient.FileUpload, out *bytes.Buffer) (err error) {
-	return errors.New("introspection data source does not support file uploads")
+func (s *Source) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
+	return nil, errors.New("introspection data source does not support file uploads")
 }
 
 func (s *Source) typeInfo(typeName *string) *introspection.FullType {
@@ -56,4 +56,13 @@ func (s *Source) singleType(w io.Writer, typeName *string) error {
 	}
 
 	return json.NewEncoder(w).Encode(typeInfo)
+}
+
+func (s *Source) singleTypeBytes(typeName *string) ([]byte, error) {
+	typeInfo := s.typeInfo(typeName)
+	if typeInfo == nil {
+		return null, nil
+	}
+
+	return json.Marshal(typeInfo)
 }
