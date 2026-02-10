@@ -2144,7 +2144,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	t.Run("fetch with null entity and non-nullable root field", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
 			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				// Subgraph returns null for the entity
 				pair := NewBufPair()
@@ -2182,7 +2182,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	t.Run("fetch with null entity and nullable root field", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
 			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				// Subgraph returns null for the entity
 				pair := NewBufPair()
