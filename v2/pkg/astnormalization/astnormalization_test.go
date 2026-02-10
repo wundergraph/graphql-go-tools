@@ -1070,6 +1070,7 @@ func TestVariablesNormalizer(t *testing.T) {
 	t.Run("field argument mapping", func(t *testing.T) {
 		const fieldArgMappingSchema = `
 			type Query {
+				viewer: User
 				user(id: ID!, active: Boolean): User
 				users(name: String!, limit: Int!, offset: Int): [User!]!
 				node(id: ID!): Node
@@ -1196,8 +1197,8 @@ func TestVariablesNormalizer(t *testing.T) {
 			{
 				name: "empty mapping when no arguments",
 				operation: `
-				query GetUser {
-					user { name }
+				query GetViewer {
+					viewer { id name }
 				}`,
 				variables:       `{}`,
 				expectedMapping: FieldArgumentMapping{},
