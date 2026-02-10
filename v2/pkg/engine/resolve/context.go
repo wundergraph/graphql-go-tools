@@ -40,6 +40,10 @@ type Context struct {
 
 	SubgraphHeadersBuilder SubgraphHeadersBuilder
 
+	// Debug enables enrichment of context with debug metadata (e.g., cache fetch info).
+	// Zero overhead when disabled (production default). Tests opt in via engine.WithDebugMode().
+	Debug bool
+
 	// cacheStats tracks L1/L2 cache hit/miss statistics for the current request.
 	// Use GetCacheStats() to retrieve the statistics after execution.
 	cacheStats CacheStats

@@ -23,6 +23,7 @@ func NewGraphqlHTTPHandler(
 	enableART bool,
 	subgraphHeadersBuilder resolve.SubgraphHeadersBuilder,
 	cachingOptions resolve.CachingOptions,
+	debugMode bool,
 ) http.Handler {
 	return &GraphQLHTTPRequestHandler{
 		schema:                 schema,
@@ -32,6 +33,7 @@ func NewGraphqlHTTPHandler(
 		enableART:              enableART,
 		subgraphHeadersBuilder: subgraphHeadersBuilder,
 		cachingOptions:         cachingOptions,
+		debugMode:              debugMode,
 	}
 }
 
@@ -43,6 +45,7 @@ type GraphQLHTTPRequestHandler struct {
 	enableART              bool
 	subgraphHeadersBuilder resolve.SubgraphHeadersBuilder
 	cachingOptions         resolve.CachingOptions
+	debugMode              bool
 }
 
 func (g *GraphQLHTTPRequestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

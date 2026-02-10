@@ -116,6 +116,12 @@ func WithSubgraphHeadersBuilder(builder resolve.SubgraphHeadersBuilder) Executio
 	}
 }
 
+func WithDebugMode() ExecutionOptions {
+	return func(ctx *internalExecutionContext) {
+		ctx.resolveContext.Debug = true
+	}
+}
+
 func WithCachingOptions(options resolve.CachingOptions) ExecutionOptions {
 	return func(ctx *internalExecutionContext) {
 		ctx.resolveContext.ExecutionOptions.Caching = options

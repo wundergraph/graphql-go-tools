@@ -22,6 +22,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting"
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/gateway"
 	products "github.com/wundergraph/graphql-go-tools/execution/federationtesting/products/graph"
+	reviewsgraph "github.com/wundergraph/graphql-go-tools/execution/federationtesting/reviews/graph"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
@@ -104,6 +105,9 @@ func TestFederationIntegrationTestWithArt(t *testing.T) {
 // This tests produces data races in the generated gql code. Disable it when the race
 // detector is enabled.
 func TestFederationIntegrationTest(t *testing.T) {
+	// Reset reviews to clean state — mutations in this and other test functions may have added reviews.
+	reviewsgraph.ResetReviews()
+	t.Cleanup(reviewsgraph.ResetReviews)
 
 	t.Run("single upstream query operation", func(t *testing.T) {
 		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))

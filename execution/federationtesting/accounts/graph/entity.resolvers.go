@@ -67,6 +67,7 @@ func (r *entityResolver) FindUserByID(ctx context.Context, id string) (*model.Us
 	return &model.User{
 		ID:           id,
 		Username:     name,
+		Nickname:     "nick-" + name,
 		History:      histories,
 		RelatedUsers: relatedUsers,
 	}, nil

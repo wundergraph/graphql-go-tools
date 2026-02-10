@@ -17,6 +17,7 @@ func (r *queryResolver) Me(ctx context.Context) (*model.User, error) {
 	return &model.User{
 		ID:       "1234",
 		Username: "Me",
+		Nickname: "nick-Me",
 		History:  histories,
 		RealName: "User Usington",
 	}, nil
@@ -31,6 +32,7 @@ func (r *queryResolver) User(ctx context.Context, id string) (*model.User, error
 	return &model.User{
 		ID:       id,
 		Username: name,
+		Nickname: "nick-" + name,
 		RealName: "Real " + name,
 	}, nil
 }
@@ -40,6 +42,7 @@ func (r *queryResolver) UserByIDAndName(ctx context.Context, id string, username
 	return &model.User{
 		ID:       id,
 		Username: username,
+		Nickname: "nick-" + username,
 	}, nil
 }
 
@@ -48,6 +51,7 @@ func (r *queryResolver) MeInterface(ctx context.Context) (model.Identifiable, er
 	return &model.User{
 		ID:       "1234",
 		Username: "Me",
+		Nickname: "nick-Me",
 		History:  histories,
 		RealName: "User Usington",
 	}, nil
@@ -58,6 +62,7 @@ func (r *queryResolver) MeUnion(ctx context.Context) (model.MeUnion, error) {
 	return &model.User{
 		ID:       "1234",
 		Username: "Me",
+		Nickname: "nick-Me",
 		History:  histories,
 		RealName: "User Usington",
 	}, nil
@@ -68,6 +73,7 @@ func (r *queryResolver) Identifiable(ctx context.Context) (model.Identifiable, e
 	return &model.User{
 		ID:       "1234",
 		Username: "Me",
+		Nickname: "nick-Me",
 		History:  histories,
 		RealName: "User Usington",
 	}, nil

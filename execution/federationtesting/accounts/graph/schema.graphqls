@@ -28,6 +28,7 @@ interface Identifiable {
 type User implements Identifiable @key(fields: "id")  {
     id: ID!
     username: String!
+    nickname: String!
     history: [History!]!
     realName: String!
     # Returns users who have interacted with this user's purchased products.

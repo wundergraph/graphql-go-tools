@@ -91,7 +91,7 @@
               "kind": "Single",
               "path": "",
               "source_id": "0",
-              "source_name": "0",
+              "source_name": "accounts",
               "trace": {
                 "raw_input_data": {},
                 "input": {
@@ -241,7 +241,7 @@
                   "kind": "BatchEntity",
                   "path": "me.history.@.product",
                   "source_id": "1",
-                  "source_name": "1",
+                  "source_name": "products",
                   "trace": {
                     "raw_input_data": {
                       "upc": "top-2",
@@ -378,7 +378,7 @@
                   "kind": "Entity",
                   "path": "me",
                   "source_id": "2",
-                  "source_name": "2",
+                  "source_name": "reviews",
                   "trace": {
                     "raw_input_data": {
                       "id": "1234",

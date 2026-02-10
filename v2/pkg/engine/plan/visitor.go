@@ -2037,6 +2037,13 @@ func (v *Visitor) configureFetchCaching(internal *objectFetchConfiguration, exte
 
 	// Root field fetch: find common cache config for all root fields
 	// All root fields in the fetch must have the same cache config for L2 caching to be enabled
+
+	// Root field caching only applies to queries - mutations and subscriptions
+	// should never cache root field responses in L2 (they would never be read).
+	if internal.operationType != ast.OperationTypeQuery {
+		return result
+	}
+
 	var commonConfig *RootFieldCacheConfiguration
 	for i := range internal.rootFields {
 		rootField := internal.rootFields[i]

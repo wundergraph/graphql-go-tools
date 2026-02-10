@@ -299,6 +299,7 @@ func (this TitleName) GetName() string { return this.Name }
 type User struct {
 	ID           string    `json:"id"`
 	Username     string    `json:"username"`
+	Nickname     string    `json:"nickname"`
 	History      []History `json:"history"`
 	RealName     string    `json:"realName"`
 	RelatedUsers []*User   `json:"relatedUsers"`

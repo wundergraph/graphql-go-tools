@@ -367,7 +367,7 @@ func addPartialCacheGateway(options ...partialCacheGatewayOptionsToFunc) func(se
 			{Name: "reviews", URL: setup.ReviewsUpstreamServer.URL},
 		}, httpClient)
 
-		gtw := gateway.HandlerWithCaching(abstractlogger.NoopLogger, poller, httpClient, false, opts.withLoaderCache, nil, opts.cachingOptions, opts.subgraphEntityCachingConfigs)
+		gtw := gateway.HandlerWithCaching(abstractlogger.NoopLogger, poller, httpClient, false, opts.withLoaderCache, nil, opts.cachingOptions, opts.subgraphEntityCachingConfigs, false)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()

@@ -400,8 +400,9 @@ func (f *FederationEngineConfigFactory) subgraphDataSourceConfiguration(engineCo
 		return nil, fmt.Errorf("error creating custom configuration for data source %s: %w", in.Id, err)
 	}
 
-	out, err = plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+	out, err = plan.NewDataSourceConfigurationWithName[graphql_datasource.Configuration](
 		in.Id,
+		subgraphName,
 		factory,
 		f.dataSourceMetaData(in, subgraphName),
 		customConfiguration,

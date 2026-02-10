@@ -16,6 +16,21 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 )
 
+func mustGraphqlDataSourceConfigurationWithName(t *testing.T, id string, name string, factory plan.PlannerFactory[graphqlDataSource.Configuration], metadata *plan.DataSourceMetadata, customConfig graphqlDataSource.Configuration) plan.DataSourceConfiguration[graphqlDataSource.Configuration] {
+	t.Helper()
+
+	cfg, err := plan.NewDataSourceConfigurationWithName[graphqlDataSource.Configuration](
+		id,
+		name,
+		factory,
+		metadata,
+		customConfig,
+	)
+	require.NoError(t, err)
+
+	return cfg
+}
+
 func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 	engineCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -131,8 +146,8 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 				require.NoError(t, err)
 
 				conf.SetDataSources([]plan.DataSource{
-					mustGraphqlDataSourceConfiguration(t,
-						"0",
+					mustGraphqlDataSourceConfigurationWithName(t,
+						"0", "users",
 						gqlFactory,
 						&plan.DataSourceMetadata{
 							RootNodes: []plan.TypeField{
@@ -177,8 +192,8 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 							CustomScalarTypeFields: []graphqlDataSource.SingleTypeField{},
 						}),
 					),
-					mustGraphqlDataSourceConfiguration(t,
-						"1",
+					mustGraphqlDataSourceConfigurationWithName(t,
+						"1", "products",
 						gqlFactory,
 						&plan.DataSourceMetadata{
 							RootNodes: []plan.TypeField{
@@ -223,8 +238,8 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 							CustomScalarTypeFields: []graphqlDataSource.SingleTypeField{},
 						}),
 					),
-					mustGraphqlDataSourceConfiguration(t,
-						"2",
+					mustGraphqlDataSourceConfigurationWithName(t,
+						"2", "reviews",
 						gqlFactory,
 						&plan.DataSourceMetadata{
 							RootNodes: []plan.TypeField{

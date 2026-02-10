@@ -130,6 +130,8 @@ type result struct {
 	singleFlightStats *singleFlightStats
 	tools             *batchEntityTools
 
+	fetchInfo *FetchInfo // Stored for updateL2Cache debug context enrichment
+
 	cache              LoaderCache
 	cacheMustBeUpdated bool
 	l1CacheKeys        []*CacheKey // L1 cache keys (no prefix, used for merging)
@@ -153,6 +155,7 @@ func (l *Loader) createOrInitResult(res *result, postProcessing PostProcessingCo
 			ID:   info.DataSourceID,
 			Name: info.DataSourceName,
 		}
+		res.fetchInfo = info
 	}
 	return res
 }
@@ -800,6 +803,14 @@ func (l *Loader) tryL1CacheLoad(info *FetchInfo, cacheKeys []*CacheKey, res *res
 // Expects res.l2CacheKeys to be pre-populated by prepareCacheKeys().
 // Uses subgraph header prefix for cache key isolation across different configurations.
 func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *result) (skipFetch bool, err error) {
+	// Skip L2 cache reads for mutations - always fetch fresh data from subgraph.
+	// We check l.info (root operation type), not info (per-fetch type), because
+	// nested entity fetches within mutations have OperationType=Query.
+	if l.info != nil && l.info.OperationType != ast.OperationTypeQuery {
+		res.cacheMustBeUpdated = true
+		return false, nil
+	}
+
 	// L2 keys should be pre-populated by prepareCacheKeys
 	if len(res.l2CacheKeys) == 0 || res.cache == nil {
 		res.cacheMustBeUpdated = true
@@ -810,6 +821,11 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 	if len(cacheKeyStrings) == 0 {
 		res.cacheMustBeUpdated = true
 		return false, nil
+	}
+
+	// Enrich context with fetch identity when debug mode is enabled
+	if l.ctx.Debug {
+		ctx = WithCacheFetchInfo(ctx, info, res.cacheConfig)
 	}
 
 	// Get cache entries from L2
@@ -1459,8 +1475,14 @@ func (l *Loader) updateL2Cache(res *result) {
 		return
 	}
 
+	// Enrich context with fetch identity when debug mode is enabled
+	ctx := l.ctx.ctx
+	if l.ctx.Debug {
+		ctx = WithCacheFetchInfo(ctx, res.fetchInfo, res.cacheConfig)
+	}
+
 	// Cache set errors are non-fatal - silently ignore
-	_ = res.cache.Set(l.ctx.ctx, cacheEntries, res.cacheConfig.TTL)
+	_ = res.cache.Set(ctx, cacheEntries, res.cacheConfig.TTL)
 }
 
 func (l *Loader) appendSubgraphError(res *result, fetchItem *FetchItem, value *astjson.Value, values []*astjson.Value) error {

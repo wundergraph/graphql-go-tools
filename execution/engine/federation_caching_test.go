@@ -21,6 +21,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/execution/engine"
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting"
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/gateway"
+	reviewsgraph "github.com/wundergraph/graphql-go-tools/execution/federationtesting/reviews/graph"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
@@ -434,15 +435,15 @@ func TestFederationCaching(t *testing.T) {
 		}
 
 		// Create mock SubgraphHeadersBuilder that returns a fixed hash for each subgraph
-		// The composition library generates numeric datasource IDs (0, 1, 2, ...) based on subgraph order:
-		// - "0" = accounts
-		// - "1" = products (handles topProducts query) -> prefix 11111 for Query cache keys
-		// - "2" = reviews (handles Product entity fetch for reviews data) -> prefix 22222 for Product cache keys
+		// Subgraph names are used as keys for the header hash lookup:
+		// - "accounts" -> prefix 33333 for User entity cache keys
+		// - "products" -> prefix 11111 for Query cache keys
+		// - "reviews" -> prefix 22222 for Product entity cache keys
 		mockHeadersBuilder := &mockSubgraphHeadersBuilder{
 			hashes: map[string]uint64{
-				"0": 33333, // accounts
-				"1": 11111, // products
-				"2": 22222, // reviews
+				"accounts": 33333,
+				"products": 11111,
+				"reviews":  22222,
 			},
 		}
 
@@ -1166,7 +1167,7 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 
 		mockHeadersBuilder := &mockSubgraphHeadersBuilder{
 			hashes: map[string]uint64{
-				"0": 33333, // accounts
+				"accounts": 33333,
 			},
 		}
 
@@ -2168,6 +2169,293 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 	})
 }
 
+func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
+	// Ensure reviews are reset after all subtests complete to avoid polluting other test functions.
+	t.Cleanup(reviewsgraph.ResetReviews)
+
+	// Shared caching config for all subtests: only entity caching for User on accounts
+	subgraphCachingConfigs := engine.SubgraphCachingConfigs{
+		{
+			SubgraphName: "accounts",
+			EntityCaching: plan.EntityCacheConfigurations{
+				{TypeName: "User", CacheName: "default", TTL: 30 * time.Second},
+			},
+		},
+	}
+
+	mutationVars := queryVariables{
+		"authorID": "1234",
+		"upc":      "top-1",
+		"review":   "Great!",
+	}
+
+	t.Run("mutation skips L2 cache read and writes updated entity", func(t *testing.T) {
+		reviewsgraph.ResetReviews()
+
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{"default": defaultCache}
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
+			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
+		))
+		t.Cleanup(setup.Close)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		// Step 1: Query populates L2 cache.
+		// The query fetches me.reviews.authorWithoutProvides.username, which triggers
+		// User entity resolution from accounts. L2 cache is empty → miss → fetch → set.
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/me_reviews_without_provides.query"), nil, t)
+		assert.Equal(t, `{"data":{"me":{"reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}}}`, string(resp))
+
+		logAfterQuery1 := defaultCache.GetLog()
+		assert.Equal(t, 2, len(logAfterQuery1), "Step 1: should have exactly 2 cache operations (get miss + set for User)")
+		wantLogQuery1 := []CacheLogEntry{
+			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{false}},
+			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogQuery1), sortCacheLogKeys(logAfterQuery1), "Step 1: cache log should show get miss then set for User")
+		assert.Equal(t, 1, tracker.GetCount(accountsHost), "Step 1: should call accounts subgraph exactly once for User entity resolution")
+
+		// Step 2: Mutation skips L2 read, still writes to L2.
+		// The mutation guard in tryL2CacheLoad checks l.info.OperationType != Query,
+		// so L2 read is bypassed. After the entity fetch completes, updateL2Cache
+		// writes fresh data (cacheMustBeUpdated=true).
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp = gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("mutations/add_review_without_provides.query"), mutationVars, t)
+		assert.Equal(t, `{"data":{"addReview":{"body":"Great!","authorWithoutProvides":{"username":"Me"}}}}`, string(resp))
+
+		logAfterMutation := defaultCache.GetLog()
+		assert.Equal(t, 1, len(logAfterMutation), "Step 2: should have exactly 1 cache operation (set only, NO get)")
+		wantLogMutation := []CacheLogEntry{
+			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogMutation), sortCacheLogKeys(logAfterMutation), "Step 2: mutation should only set to L2, never get")
+		assert.Equal(t, 1, tracker.GetCount(accountsHost), "Step 2: mutation should call accounts subgraph (not served from cache)")
+
+		// Step 3: Query reads from L2 (hit).
+		// Same query as step 1. User entity is in L2 from the mutation's write → HIT.
+		// No accounts call needed (entity resolution fully served from L2).
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp = gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/me_reviews_without_provides.query"), nil, t)
+		assert.Equal(t, `{"data":{"me":{"reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}},{"body":"Great!","authorWithoutProvides":{"username":"Me"}}]}}}`, string(resp))
+
+		logAfterQuery2 := defaultCache.GetLog()
+		assert.Equal(t, 1, len(logAfterQuery2), "Step 3: should have exactly 1 cache operation (get hit)")
+		wantLogQuery2 := []CacheLogEntry{
+			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogQuery2), sortCacheLogKeys(logAfterQuery2), "Step 3: query should hit L2 cache for User")
+		assert.Equal(t, 0, tracker.GetCount(accountsHost), "Step 3: query should NOT call accounts subgraph (L2 cache hit)")
+	})
+
+	t.Run("mutation with no prior cache writes to L2 for subsequent query", func(t *testing.T) {
+		reviewsgraph.ResetReviews()
+
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{"default": defaultCache}
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
+			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
+		))
+		t.Cleanup(setup.Close)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		// Step 1: Mutation first (no prior cache)
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("mutations/add_review_without_provides.query"), mutationVars, t)
+		assert.Equal(t, `{"data":{"addReview":{"body":"Great!","authorWithoutProvides":{"username":"Me"}}}}`, string(resp))
+
+		logAfterMutation := defaultCache.GetLog()
+		assert.Equal(t, 1, len(logAfterMutation), "Step 1: should have exactly 1 cache operation (set only)")
+		wantLogMutation := []CacheLogEntry{
+			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogMutation), sortCacheLogKeys(logAfterMutation), "Step 1: mutation should only set to L2")
+		assert.Equal(t, 1, tracker.GetCount(accountsHost), "Step 1: should call accounts subgraph exactly once")
+
+		// Step 2: Query reads from L2 (hit from mutation's write)
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp = gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/me_reviews_without_provides.query"), nil, t)
+		assert.Equal(t, `{"data":{"me":{"reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}},{"body":"Great!","authorWithoutProvides":{"username":"Me"}}]}}}`, string(resp))
+
+		logAfterQuery := defaultCache.GetLog()
+		assert.Equal(t, 1, len(logAfterQuery), "Step 2: should have exactly 1 cache operation (get hit)")
+		wantLogQuery := []CacheLogEntry{
+			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogQuery), sortCacheLogKeys(logAfterQuery), "Step 2: query should hit L2 cache for User")
+		assert.Equal(t, 0, tracker.GetCount(accountsHost), "Step 2: query should NOT call accounts subgraph (L2 cache hit)")
+	})
+
+	t.Run("consecutive mutations never read from L2 cache", func(t *testing.T) {
+		reviewsgraph.ResetReviews()
+
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{"default": defaultCache}
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
+			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
+		))
+		t.Cleanup(setup.Close)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		// Step 1: First mutation
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("mutations/add_review_without_provides.query"), mutationVars, t)
+		assert.Equal(t, `{"data":{"addReview":{"body":"Great!","authorWithoutProvides":{"username":"Me"}}}}`, string(resp))
+
+		logAfterMutation1 := defaultCache.GetLog()
+		assert.Equal(t, 1, len(logAfterMutation1), "Step 1: should have exactly 1 cache operation (set only)")
+		wantLogMutation1 := []CacheLogEntry{
+			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogMutation1), sortCacheLogKeys(logAfterMutation1), "Step 1: first mutation should only set to L2")
+		assert.Equal(t, 1, tracker.GetCount(accountsHost), "Step 1: should call accounts subgraph exactly once")
+
+		// Step 2: Second mutation (same author, different review)
+		defaultCache.ClearLog()
+		tracker.Reset()
+		mutation2Vars := queryVariables{
+			"authorID": "1234",
+			"upc":      "top-2",
+			"review":   "Also great!",
+		}
+		resp = gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("mutations/add_review_without_provides.query"), mutation2Vars, t)
+		assert.Equal(t, `{"data":{"addReview":{"body":"Also great!","authorWithoutProvides":{"username":"Me"}}}}`, string(resp))
+
+		logAfterMutation2 := defaultCache.GetLog()
+		assert.Equal(t, 1, len(logAfterMutation2), "Step 2: should have exactly 1 cache operation (set only, NO get even though L2 has data)")
+		wantLogMutation2 := []CacheLogEntry{
+			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogMutation2), sortCacheLogKeys(logAfterMutation2), "Step 2: second mutation should only set to L2, never get")
+		assert.Equal(t, 1, tracker.GetCount(accountsHost), "Step 2: should call accounts subgraph exactly once (not from cache)")
+	})
+
+	t.Run("query with different fields after mutation hits L2 cache", func(t *testing.T) {
+		// Entity fetches store complete entity data from the subgraph (all fields the subgraph provides),
+		// not just the fields selected in the current query. So a mutation that triggers entity resolution
+		// for User populates L2 with full User data, and a subsequent query selecting different fields
+		// (e.g., nickname) will still get a cache HIT.
+		reviewsgraph.ResetReviews()
+
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{"default": defaultCache}
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
+			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
+			withDebugMode(true),
+		))
+		t.Cleanup(setup.Close)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		// Step 1: Mutation writes User entity data to L2 (skips L2 read).
+		// The mutation guard in tryL2CacheLoad bypasses L2 reads for non-query operations.
+		// After entity resolution, updateL2Cache writes fresh User data to L2.
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("mutations/add_review_without_provides.query"), mutationVars, t)
+		assert.Equal(t, `{"data":{"addReview":{"body":"Great!","authorWithoutProvides":{"username":"Me"}}}}`, string(resp))
+
+		logAfterMutation := defaultCache.GetLogWithCaller()
+		assert.Equal(t, 1, len(logAfterMutation), "Step 1: should have exactly 1 cache operation (set only)")
+		wantLogMutation := []CacheLogEntry{
+			// updateL2Cache writes fresh User data after entity resolution (mutation skipped L2 read).
+			{
+				Operation: "set",
+				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
+				Caller:    "accounts: entity(User)",
+			},
+		}
+		assert.Equal(t, sortCacheLogKeysWithCaller(wantLogMutation), sortCacheLogKeysWithCaller(logAfterMutation), "Step 1: mutation should only set to L2")
+		assert.Equal(t, 1, tracker.GetCount(accountsHost), "Step 1: should call accounts subgraph exactly once")
+
+		// Step 2: Query requests different fields (username + nickname).
+		// The query plan has two fetch nodes in a serial chain that both use the User entity cache key:
+		//   (a) Entity resolution for authorWithoutProvides User → tryL2CacheLoad → HIT (from mutation's write)
+		//   (b) A separate fetch to accounts (for the `me` root query) → fetches from accounts → updateL2Cache writes to L2
+		// Entity fetches store complete entity data from the subgraph, so even though the mutation
+		// only selected username, the cached data includes all User fields (username, nickname, etc.),
+		// and the entity resolution for authorWithoutProvides gets a full HIT.
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp = gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/me_reviews_without_provides_with_nickname.query"), nil, t)
+		assert.Equal(t, `{"data":{"me":{"reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","nickname":"nick-Me"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","nickname":"nick-Me"}},{"body":"Great!","authorWithoutProvides":{"username":"Me","nickname":"nick-Me"}}]}}}`, string(resp))
+
+		logAfterQuery := defaultCache.GetLogWithCaller()
+		assert.Equal(t, 2, len(logAfterQuery), "Step 2: should have exactly 2 cache operations (get hit + set)")
+		wantLogQuery := []CacheLogEntry{
+			// Entity resolution for authorWithoutProvides checks L2 → HIT (data from mutation's write).
+			{
+				Operation: "get",
+				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
+				Hits:      []bool{true},
+				Caller:    "accounts: entity(User)",
+			},
+			// A separate fetch to accounts (me root query) fetches User data and writes it to L2.
+			{
+				Operation: "set",
+				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
+				Caller:    "accounts: entity(User)",
+			},
+		}
+		assert.Equal(t, sortCacheLogKeysWithCaller(wantLogQuery), sortCacheLogKeysWithCaller(logAfterQuery), "Step 2: query should hit L2 cache (entity stores complete data)")
+		// Accounts is called once for the me root query (not cached), but NOT for entity resolution (L2 hit)
+		assert.Equal(t, 1, tracker.GetCount(accountsHost), "Step 2: accounts called once for me root query, entity resolution served from L2 cache")
+	})
+}
+
 // subgraphCallTracker tracks HTTP requests made to subgraph servers
 type subgraphCallTracker struct {
 	mu       sync.RWMutex
@@ -2226,6 +2514,7 @@ type cachingGatewayOptions struct {
 	subgraphHeadersBuilder       resolve.SubgraphHeadersBuilder
 	cachingOptions               resolve.CachingOptions
 	subgraphEntityCachingConfigs engine.SubgraphCachingConfigs
+	debugMode                    bool
 }
 
 func withCachingEnableART(enableART bool) func(*cachingGatewayOptions) {
@@ -2264,6 +2553,12 @@ func withSubgraphEntityCachingConfigs(configs engine.SubgraphCachingConfigs) fun
 	}
 }
 
+func withDebugMode(enabled bool) func(*cachingGatewayOptions) {
+	return func(opts *cachingGatewayOptions) {
+		opts.debugMode = enabled
+	}
+}
+
 type cachingGatewayOptionsToFunc func(opts *cachingGatewayOptions)
 
 func addCachingGateway(options ...cachingGatewayOptionsToFunc) func(setup *federationtesting.FederationSetup) *httptest.Server {
@@ -2283,7 +2578,7 @@ func addCachingGateway(options ...cachingGatewayOptionsToFunc) func(setup *feder
 			{Name: "reviews", URL: setup.ReviewsUpstreamServer.URL},
 		}, httpClient)
 
-		gtw := gateway.HandlerWithCaching(abstractlogger.NoopLogger, poller, httpClient, opts.enableART, opts.withLoaderCache, opts.subgraphHeadersBuilder, opts.cachingOptions, opts.subgraphEntityCachingConfigs)
+		gtw := gateway.HandlerWithCaching(abstractlogger.NoopLogger, poller, httpClient, opts.enableART, opts.withLoaderCache, opts.subgraphHeadersBuilder, opts.cachingOptions, opts.subgraphEntityCachingConfigs, opts.debugMode)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
@@ -2324,30 +2619,22 @@ type CacheLogEntry struct {
 	Operation string   // "get", "set", "delete"
 	Keys      []string // Keys involved in the operation
 	Hits      []bool   // For Get: whether each key was a hit (true) or miss (false)
+	Caller    string   // Fetch identity when debug enabled: "accounts: entity(User)" or "products: rootField(Query.topProducts)"
 }
 
-// normalizeCacheLog creates a copy of log entries without timestamps for comparison
-func normalizeCacheLog(log []CacheLogEntry) []CacheLogEntry {
-	normalized := make([]CacheLogEntry, len(log))
-	for i, entry := range log {
-		normalized[i] = CacheLogEntry{
-			Operation: entry.Operation,
-			Keys:      entry.Keys,
-			Hits:      entry.Hits,
-			// Timestamp is zero value for comparison
-		}
-	}
-	return normalized
-}
-
-// sortCacheLogKeys sorts the keys (and corresponding hits) in each cache log entry
-// This makes comparisons order-independent when multiple keys are present
+// sortCacheLogKeys sorts the keys (and corresponding hits) in each cache log entry.
+// This makes comparisons order-independent when multiple keys are present.
+// Caller is intentionally stripped — it's for debug logging, not assertions.
 func sortCacheLogKeys(log []CacheLogEntry) []CacheLogEntry {
 	sorted := make([]CacheLogEntry, len(log))
 	for i, entry := range log {
 		// Only sort if there are multiple keys
 		if len(entry.Keys) <= 1 {
-			sorted[i] = entry
+			sorted[i] = CacheLogEntry{
+				Operation: entry.Operation,
+				Keys:      entry.Keys,
+				Hits:      entry.Hits,
+			}
 			continue
 		}
 
@@ -2373,6 +2660,53 @@ func sortCacheLogKeys(log []CacheLogEntry) []CacheLogEntry {
 			Operation: entry.Operation,
 			Keys:      make([]string, len(pairs)),
 			Hits:      nil,
+		}
+		if entry.Hits != nil && len(entry.Hits) > 0 {
+			sorted[i].Hits = make([]bool, len(pairs))
+		}
+		for j := range pairs {
+			sorted[i].Keys[j] = pairs[j].key
+			if sorted[i].Hits != nil {
+				sorted[i].Hits[j] = pairs[j].hit
+			}
+		}
+	}
+	return sorted
+}
+
+// sortCacheLogKeysWithCaller is like sortCacheLogKeys but preserves the Caller field.
+// Use this when you want assertions to verify which Loader method chain triggered each cache event.
+func sortCacheLogKeysWithCaller(log []CacheLogEntry) []CacheLogEntry {
+	sorted := make([]CacheLogEntry, len(log))
+	for i, entry := range log {
+		if len(entry.Keys) <= 1 {
+			sorted[i] = CacheLogEntry{
+				Operation: entry.Operation,
+				Keys:      entry.Keys,
+				Hits:      entry.Hits,
+				Caller:    entry.Caller,
+			}
+			continue
+		}
+
+		pairs := make([]struct {
+			key string
+			hit bool
+		}, len(entry.Keys))
+		for j := range entry.Keys {
+			pairs[j].key = entry.Keys[j]
+			if entry.Hits != nil && j < len(entry.Hits) {
+				pairs[j].hit = entry.Hits[j]
+			}
+		}
+		sort.Slice(pairs, func(a, b int) bool {
+			return pairs[a].key < pairs[b].key
+		})
+		sorted[i] = CacheLogEntry{
+			Operation: entry.Operation,
+			Keys:      make([]string, len(pairs)),
+			Hits:      nil,
+			Caller:    entry.Caller,
 		}
 		if entry.Hits != nil && len(entry.Hits) > 0 {
 			sorted[i].Hits = make([]bool, len(pairs))
@@ -2440,10 +2774,15 @@ func (f *FakeLoaderCache) Get(ctx context.Context, keys []string) ([]*resolve.Ca
 	}
 
 	// Log the operation
+	caller := ""
+	if cfi := resolve.GetCacheFetchInfo(ctx); cfi != nil {
+		caller = cfi.String()
+	}
 	f.log = append(f.log, CacheLogEntry{
 		Operation: "get",
 		Keys:      keys,
 		Hits:      hits,
+		Caller:    caller,
 	})
 
 	return result, nil
@@ -2482,10 +2821,15 @@ func (f *FakeLoaderCache) Set(ctx context.Context, entries []*resolve.CacheEntry
 	}
 
 	// Log the operation
+	caller := ""
+	if cfi := resolve.GetCacheFetchInfo(ctx); cfi != nil {
+		caller = cfi.String()
+	}
 	f.log = append(f.log, CacheLogEntry{
 		Operation: "set",
 		Keys:      keys,
 		Hits:      nil, // Set operations don't have hits/misses
+		Caller:    caller,
 	})
 
 	return nil
@@ -2503,10 +2847,15 @@ func (f *FakeLoaderCache) Delete(ctx context.Context, keys []string) error {
 	}
 
 	// Log the operation
+	caller := ""
+	if cfi := resolve.GetCacheFetchInfo(ctx); cfi != nil {
+		caller = cfi.String()
+	}
 	f.log = append(f.log, CacheLogEntry{
 		Operation: "delete",
 		Keys:      keys,
 		Hits:      nil, // Delete operations don't have hits/misses
+		Caller:    caller,
 	})
 
 	return nil
@@ -2514,6 +2863,17 @@ func (f *FakeLoaderCache) Delete(ctx context.Context, keys []string) error {
 
 // GetLog returns a copy of the cache operation log
 func (f *FakeLoaderCache) GetLog() []CacheLogEntry {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	logCopy := make([]CacheLogEntry, len(f.log))
+	copy(logCopy, f.log)
+	return logCopy
+}
+
+// GetLogWithCaller returns a copy of the cache operation log with Caller populated.
+// Use this with sortCacheLogKeysWithCaller to assert on both operation details and
+// the Loader method chain that triggered each cache event.
+func (f *FakeLoaderCache) GetLogWithCaller() []CacheLogEntry {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	logCopy := make([]CacheLogEntry, len(f.log))
@@ -4415,7 +4775,7 @@ func TestCacheNotPopulatedOnErrors(t *testing.T) {
 	}`
 
 	// Expected error response - data is null due to non-nullable username field error propagation
-	expectedErrorResponse := `{"errors":[{"message":"Failed to fetch from Subgraph '0' at Path 'reviewWithError.authorWithoutProvides'."},{"message":"Cannot return null for non-nullable field 'User.username'.","path":["reviewWithError","authorWithoutProvides","username"]}],"data":{"reviewWithError":null}}`
+	expectedErrorResponse := `{"errors":[{"message":"Failed to fetch from Subgraph 'accounts' at Path 'reviewWithError.authorWithoutProvides'."},{"message":"Cannot return null for non-nullable field 'User.username'.","path":["reviewWithError","authorWithoutProvides","username"]}],"data":{"reviewWithError":null}}`
 
 	t.Run("L1 only - error response prevents cache population", func(t *testing.T) {
 		// This test verifies that L1 cache is NOT populated when an error occurs.
