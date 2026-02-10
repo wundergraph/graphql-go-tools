@@ -295,6 +295,7 @@ func (c *nodeSelectionVisitor) handleFieldRequiredByRequires(fieldRef int, paren
 		FieldName:      fieldName,
 		RequiredFields: requiresConfiguration.SelectionSet,
 		Definition:     c.definition,
+		DataSource:     dsConfig,
 		ProvidedFields: c.nodeSuggestions.providedFields[dsConfig.Hash()],
 		ParentPath:     parentPath,
 	}

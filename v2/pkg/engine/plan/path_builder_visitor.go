@@ -721,40 +721,24 @@ func (c *pathBuilderVisitor) addFieldDependencies(fieldRef int, typeName, fieldN
 func (c *pathBuilderVisitor) isPlannerDependenciesAllowsToPlanField(fieldRef int, currentPlannerIdx int) bool {
 	fieldKey := fieldIndexKey{fieldRef, c.planners[currentPlannerIdx].DataSourceConfiguration().Hash()}
 
-	// we have a field which have `requires` directive and depends on some fields,
-	// so we need to check is current planner already involved in this requires chain
+	// we have a field that has `requires` directive and depends on some fields,
+	// so we need to check is the current planner already involved in this requires chain
 	waitingFor := c.fieldDependsOn[fieldKey]
 
-	// iterate over fields we depends on
+	// iterate over fields we depend on
 	for _, waitingForFieldRef := range waitingFor {
-		// get all planners which planned the field we depend on
+		// get all planners that planned the field we depend on
 		plannedOnPlannerIds := c.fieldsPlannedOn[waitingForFieldRef]
 
-		// for each planner which has planned the field we depend on
+		// for each planner that has planned the field we depend on
 		for _, plannedOnPlannerId := range plannedOnPlannerIds {
-			// check if it has a dependency on the current planner id
-			if slices.Contains(c.planners[plannedOnPlannerId].ObjectFetchConfiguration().dependsOnFetchIDs, currentPlannerIdx) {
+			// check if any dependency field planned on the current planner
+			if plannedOnPlannerId == currentPlannerIdx {
 				return false
 			}
-		}
-	}
 
-	return true
-}
-
-func (c *pathBuilderVisitor) isAllFieldDependenciesOnSameDataSource(fieldRef int, currentPlannerIdx int) bool {
-	fieldKey := fieldIndexKey{fieldRef, c.planners[currentPlannerIdx].DataSourceConfiguration().Hash()}
-
-	// we have a field which have `requires` directive and depends on some fields,
-	waitingFor := c.fieldDependsOn[fieldKey]
-
-	// iterate over fields we depends on
-	for _, waitingForFieldRef := range waitingFor {
-		// get all planners which planned the field we depend on
-		plannedOnPlannerIds := c.fieldsPlannedOn[waitingForFieldRef]
-
-		for _, plannedOnPlannerId := range plannedOnPlannerIds {
-			if plannedOnPlannerId != currentPlannerIdx {
+			// check if it has a dependency on the current planner id
+			if slices.Contains(c.planners[plannedOnPlannerId].ObjectFetchConfiguration().dependsOnFetchIDs, currentPlannerIdx) {
 				return false
 			}
 		}
@@ -795,11 +779,9 @@ func (c *pathBuilderVisitor) planWithExistingPlanners(fieldRef int, typeName, fi
 		})
 
 		if fieldHasRequiresDirective {
-			// we should not plan fields with requires on a root level planner
-			// because field with requires always will need an additional fetch before could be planned
-			if !plannerConfig.IsNestedPlanner() && !c.isAllFieldDependenciesOnSameDataSource(fieldRef, plannerIdx) {
-				continue
-			}
+			// we should not plan fields with requires on the same planner as its dependencies,
+			// because field with requires always will need an additional fetch before could be planned.
+			// or the current planner provides dependencies for one of the requires depency
 
 			if !c.isPlannerDependenciesAllowsToPlanField(fieldRef, plannerIdx) {
 				continue

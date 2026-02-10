@@ -13,6 +13,7 @@ type areRequiredFieldsProvidedInput struct {
 	FieldName      string
 	RequiredFields string
 	Definition     *ast.Document
+	DataSource     DataSource
 	ProvidedFields map[string]struct{}
 	ParentPath     string
 }
@@ -61,7 +62,21 @@ func (v *requiredFieldsProvidedVisitor) EnterField(ref int) {
 	key := providedFieldKey(typeName, currentFieldName, currentPath)
 
 	_, provided := v.input.ProvidedFields[key]
+
 	if !provided {
+		// if we are on a nested path, e.g. parent provided
+		if parentPath != "" {
+			hasRootNode := v.input.DataSource.HasRootNode(typeName, currentFieldName)
+			hasChildNode := v.input.DataSource.HasChildNode(typeName, currentFieldName)
+
+			// if the field is not external under the parent
+			if hasRootNode || hasChildNode {
+				// we consider it accessible.
+				// e.g., implicitly provided
+				return
+			}
+		}
+
 		v.allProvided = false
 		v.walker.Stop()
 	}
