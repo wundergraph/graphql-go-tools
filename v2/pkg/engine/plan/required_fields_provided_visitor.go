@@ -19,7 +19,7 @@ type areRequiredFieldsProvidedInput struct {
 
 func areRequiredFieldsProvided(input areRequiredFieldsProvidedInput) (bool, *operationreport.Report) {
 	if len(input.ProvidedFields) == 0 {
-		return false, nil
+		return false, operationreport.NewReport()
 	}
 
 	key, report := RequiredFieldsFragment(input.TypeName, input.RequiredFields, false)
