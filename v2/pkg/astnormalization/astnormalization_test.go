@@ -1202,6 +1202,36 @@ func TestVariablesNormalizer(t *testing.T) {
 				variables:       `{}`,
 				expectedMapping: FieldArgumentMapping{},
 			},
+			{
+				name: "reused literal values are recorded for all field arguments",
+				operation: `
+				query GetUsers {
+					firstAlias: user(id: "123") { name }
+					secondAlias: user(id: "123") { name }
+				}`,
+				variables: `{}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.firstAlias.id":  "a",
+					"query.secondAlias.id": "a",
+				},
+			},
+			{
+				name: "multiple reused literal values with different values are all recorded",
+				operation: `
+				query GetUsers {
+					firstAlias: user(id: "123") { name }
+					secondAlias: user(id: "123") { name }
+					thirdAlias: user(id: "456") { name }
+					fourthAlias: user(id: "456") { name }
+				}`,
+				variables: `{}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.firstAlias.id":  "a",
+					"query.secondAlias.id": "a",
+					"query.thirdAlias.id":  "b",
+					"query.fourthAlias.id": "b",
+				},
+			},
 		}
 
 		for _, tc := range testCases {

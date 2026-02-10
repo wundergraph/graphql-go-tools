@@ -91,6 +91,12 @@ func (v *variablesExtractionVisitor) EnterArgument(ref int) {
 		value := v.operation.AddVariableValue(variable)
 		v.operation.Arguments[ref].Value.Kind = ast.ValueKindVariable
 		v.operation.Arguments[ref].Value.Ref = value
+
+		// Record the field argument mapping for already extracted variable
+		if v.fieldArgumentMapping.enabled {
+			v.recordFieldArgumentMapping(ref, string(name))
+		}
+
 		return
 	}
 	variableNameBytes := v.operation.GenerateUnusedVariableDefinitionName(v.Ancestors[0].Ref)
