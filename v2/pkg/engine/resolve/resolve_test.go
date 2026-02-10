@@ -2145,11 +2145,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.Any()).
-			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 				// Subgraph returns null for the entity
-				pair := NewBufPair()
-				pair.Data.WriteString(`{"_entities":[null]}`)
-				return writeGraphqlResponse(pair, w, false)
+				return []byte(`{"data":{"_entities":[null]}}`), nil
 			})
 		return &GraphQLResponse{
 			Fetches: SingleWithPath(&SingleFetch{
@@ -2183,11 +2181,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.Any()).
-			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 				// Subgraph returns null for the entity
-				pair := NewBufPair()
-				pair.Data.WriteString(`{"_entities":[null]}`)
-				return writeGraphqlResponse(pair, w, false)
+				return []byte(`{"data":{"_entities":[null]}}`), nil
 			})
 		return &GraphQLResponse{
 			Fetches: SingleWithPath(&SingleFetch{
