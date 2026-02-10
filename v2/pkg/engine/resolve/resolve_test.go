@@ -2215,7 +2215,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, *NewContext(context.Background()), `{\"data\":{\"name\":null}}`
+		}, *NewContext(context.Background()), `{"data":{"name":null}}`
 	}))
 	t.Run("root field with nested non-nullable fields returns null", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
