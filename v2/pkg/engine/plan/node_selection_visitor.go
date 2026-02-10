@@ -1,7 +1,6 @@
 package plan
 
 import (
-	"errors"
 	"fmt"
 	"slices"
 
@@ -232,7 +231,7 @@ func (c *nodeSelectionVisitor) handleEnterField(fieldRef int, handleRequires boo
 			return d.Hash() == suggestion.DataSourceHash
 		})
 		if dsIdx == -1 {
-			c.walker.StopWithInternalErr(errors.New("we should always have a datasource for a suggestion"))
+			c.walker.StopWithInternalErr(fmt.Errorf("do not have a datasource for a field suggestion for field %s at path %s", fieldName, currentPath))
 			return
 		}
 		ds := c.dataSources[dsIdx]
@@ -300,13 +299,20 @@ func (c *nodeSelectionVisitor) handleFieldRequiredByRequires(fieldRef int, paren
 		ParentPath:     parentPath,
 	}
 
-	if areRequiredFieldsProvided(input) {
+	provided, report := areRequiredFieldsProvided(input)
+	if report.HasErrors() {
+		c.walker.StopWithInternalErr(fmt.Errorf("failed to check if required fields are provided for field %s at path %s: %s", fieldName, currentPath, report.Error()))
 		return
 	}
 
-	// we should plan adding required fields for the field
-	// they will be added in the on LeaveSelectionSet callback for the current selection set
-	// and current field ref will be added to fieldDependsOn map
+	if provided {
+		// if all fields from requires configuration are provided, we do not need to add them to the operation
+		return
+	}
+
+	// we should plan to add required fields for the field
+	// they will be added in the on LeaveSelectionSet callback for the current selection set,
+	// and the current field ref will be added to the fieldDependsOn map
 	c.addPendingFieldRequirements(fieldRef, dsConfig.Hash(), requiresConfiguration, currentPath, false)
 	c.handleKeyRequirementsForBackJumpOnSameDataSource(fieldRef, dsConfig, typeName, parentPath)
 }
@@ -529,7 +535,7 @@ func (c *nodeSelectionVisitor) addFieldRequirementsToOperation(selectionSetRef i
 
 	addFieldsResult, report := addRequiredFields(input)
 	if report.HasErrors() {
-		c.walker.StopWithInternalErr(fmt.Errorf("failed to add required fields %s for %s at path %s", requirements.selectionSet, typeName, requirements.path))
+		c.walker.StopWithInternalErr(fmt.Errorf("failed to add required fields %s for %s at path %s: %s", requirements.selectionSet, typeName, requirements.path, report.Error()))
 		return
 	}
 	c.resetVisitedAbstractChecksForModifiedFields(addFieldsResult.modifiedFieldRefs)
@@ -616,7 +622,7 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 
 		addFieldsResult, report := addRequiredFields(input)
 		if report.HasErrors() {
-			c.walker.StopWithInternalErr(fmt.Errorf("failed to add required key fields %s for %s", jump.SelectionSet, jump.TypeName))
+			c.walker.StopWithInternalErr(fmt.Errorf("failed to add required key fields %s for %s: %s", jump.SelectionSet, jump.TypeName, report.Error()))
 			return
 		}
 		c.resetVisitedAbstractChecksForModifiedFields(addFieldsResult.modifiedFieldRefs)
@@ -710,13 +716,13 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldR
 
 	rewriter, err := newFieldSelectionRewriter(c.operation, c.definition, ds, options...)
 	if err != nil {
-		c.walker.StopWithInternalErr(err)
+		c.walker.StopWithInternalErr(fmt.Errorf("failed to create field selection rewriter for field %s at path %s: %s", c.operation.FieldNameString(fieldRef), c.walker.Path.DotDelimitedString(), err.Error()))
 		return
 	}
 
 	result, err := rewriter.RewriteFieldSelection(fieldRef, c.walker.EnclosingTypeDefinition)
 	if err != nil {
-		c.walker.StopWithInternalErr(err)
+		c.walker.StopWithInternalErr(fmt.Errorf("failed to rewrite field selection for field %s at path %s: %s", c.operation.FieldNameString(fieldRef), c.walker.Path.DotDelimitedString(), err.Error()))
 		return
 	}
 
