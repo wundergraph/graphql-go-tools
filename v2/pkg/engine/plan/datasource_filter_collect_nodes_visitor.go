@@ -253,20 +253,34 @@ type collectNodesDSVisitor struct {
 	definition *ast.Document
 	dataSource DataSource
 
+	// local suggestions stores suggestions for the current run of collecting fields
+	// they are reset after each run, because each time we collect suggestion only for new field refs
 	localSuggestions      []*NodeSuggestion
 	localSuggestionLookup map[int]struct{}
 
+	// local provides entries, they should survive reset
+	// because unique fields refs are collected only once
 	providesEntries map[string]struct{}
 
+	// global node suggestion, we append to them after each run
 	nodes *NodeSuggestions
 
+	// notExternalKeyPaths - stores paths of fields used in keys, which marked external
+	// but semantically are not true external
 	notExternalKeyPaths map[string]struct{}
-	info                map[int]fieldInfo
 
+	// reference to a global cache of field info shared between all collector instances
+	info map[int]fieldInfo
+
+	// information about keys available for a given path collected during the current run
 	keys []DSKeyInfo
 
+	// globalSeenKeys - stores key information which is shared globally between collectors, needed to avoid collecting keys on the same path
+	// between different runs, as evaluating keys are very expensive
+	// as it is shared between goroutines of collector we read it during the run, and write after the run finished
 	globalSeenKeys map[SeenKeyPath]struct{}
-	localSeenKeys  map[SeenKeyPath]struct{}
+	// seen keys local to the current run
+	localSeenKeys map[SeenKeyPath]struct{}
 }
 
 // reset - cleanups only data which should not be persisted between runs
