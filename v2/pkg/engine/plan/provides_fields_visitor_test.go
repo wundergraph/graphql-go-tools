@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 func TestProvidesSuggestions(t *testing.T) {
@@ -58,8 +57,6 @@ func TestProvidesSuggestions(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(keySDL, func(t *testing.T) {
-			report := &operationreport.Report{}
-
 			meta := &DataSourceMetadata{
 				RootNodes: []TypeField{
 					{
