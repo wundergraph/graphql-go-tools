@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.248](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.247...v2.0.0-rc.248) (2026-02-11)
+
+
+### Bug Fixes
+
+* requires is not ignored when all fields provided ([#1380](https://github.com/wundergraph/graphql-go-tools/issues/1380)) ([31d9d45](https://github.com/wundergraph/graphql-go-tools/commit/31d9d456c90b5575f7c0d49a40feb3f931ba1b3b))
+
 ## [2.0.0-rc.247](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.246...v2.0.0-rc.247) (2026-02-06)
 
 
