@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/rs/xid"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/client"
 )
 

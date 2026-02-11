@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/coder/websocket"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
 )
 

@@ -13,6 +13,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/protocol"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/transport"
@@ -424,13 +425,15 @@ func newTestConn(t *testing.T) (*websocket.Conn, *websocket.Conn) {
 	t.Cleanup(server.Close)
 
 	url := "ws" + strings.TrimPrefix(server.URL, "http")
-	clientConn, _, err := websocket.Dial(context.Background(), url, nil)
+	clientConn, _, err := websocket.Dial(context.Background(), url, nil) //nolint:bodyclose
 	require.NoError(t, err)
 
-	t.Cleanup(func() { clientConn.Close(websocket.StatusNormalClosure, "shutdown") })
+	t.Cleanup(func() {
+		clientConn.Close(websocket.StatusNormalClosure, "shutdown")
+	})
 
 	srvConn := <-serverConn
-	t.Cleanup(func() { srvConn.CloseNow() })
+	t.Cleanup(func() { _ = srvConn.CloseNow() })
 
 	return clientConn, srvConn
 }

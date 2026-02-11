@@ -51,8 +51,8 @@ func TestSSEConnection_ReadLoop(t *testing.T) {
 		go conn.ReadLoop()
 
 		msg := <-conn.ch
-		assert.Error(t, msg.Err)
-		assert.True(t, msg.Done)
+		require.Error(t, msg.Err)
+		require.True(t, msg.Done)
 	})
 
 	t.Run("stops on complete event", func(t *testing.T) {
@@ -120,7 +120,6 @@ func TestSSEConnection_Close(t *testing.T) {
 		assert.NoError(t, err1)
 		assert.NoError(t, err2)
 	})
-
 }
 
 func TestSSEConnection_Channel(t *testing.T) {
@@ -140,13 +139,14 @@ type errorReader struct {
 	err error
 }
 
-func (r *errorReader) Read(p []byte) (int, error) {
+func (r *errorReader) Read(_ []byte) (int, error) {
 	return 0, r.err
 }
 
 // trackingCloser tracks if Close was called
 type trackingCloser struct {
 	io.Reader
+
 	closed atomic.Bool
 }
 

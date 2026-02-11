@@ -9,6 +9,7 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
 )
 
@@ -34,7 +35,6 @@ type incomingMessage struct {
 	Type    string          `json:"type"`
 	Payload json.RawMessage `json:"payload,omitempty"`
 }
-
 
 type GraphQLTransportWS struct {
 	AckTimeout time.Duration
@@ -85,7 +85,6 @@ func (p *GraphQLTransportWS) Init(ctx context.Context, conn *websocket.Conn, pay
 			return fmt.Errorf("%w: got %q", ErrAckNotReceived, ackMessage.Type)
 		}
 	}
-
 }
 
 // Ping implements Protocol.

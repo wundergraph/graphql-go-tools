@@ -13,6 +13,7 @@ import (
 	"github.com/coder/websocket/wsjson"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/transport"
 )
@@ -26,18 +27,18 @@ func TestWSTransport_Subscribe(t *testing.T) {
 		server := newGraphQLWSServer(t, func(ctx context.Context, conn *websocket.Conn) {
 			// Read subscribe
 			var msg map[string]any
-			require.NoError(t, wsjson.Read(ctx, conn, &msg))
+			_ = wsjson.Read(ctx, conn, &msg)
 			assert.Equal(t, "subscribe", msg["type"])
 
 			// Send data
-			wsjson.Write(ctx, conn, map[string]any{
+			_ = wsjson.Write(ctx, conn, map[string]any{
 				"id":      msg["id"],
 				"type":    "next",
 				"payload": map[string]any{"data": map[string]any{"value": 42}},
 			})
 
 			// Send complete
-			wsjson.Write(ctx, conn, map[string]any{
+			_ = wsjson.Write(ctx, conn, map[string]any{
 				"id":   msg["id"],
 				"type": "complete",
 			})
@@ -75,7 +76,7 @@ func TestWSTransport_Subscribe(t *testing.T) {
 				}
 
 				if msg["type"] == "subscribe" {
-					wsjson.Write(ctx, conn, map[string]any{
+					_ = wsjson.Write(ctx, conn, map[string]any{
 						"id":      msg["id"],
 						"type":    "next",
 						"payload": map[string]any{"data": map[string]any{"value": 1}},
@@ -122,7 +123,7 @@ func TestWSTransport_Subscribe(t *testing.T) {
 				}
 
 				if msg["type"] == "subscribe" {
-					wsjson.Write(ctx, conn, map[string]any{
+					_ = wsjson.Write(ctx, conn, map[string]any{
 						"id":      msg["id"],
 						"type":    "next",
 						"payload": map[string]any{"data": map[string]any{"value": 1}},
@@ -174,7 +175,7 @@ func TestWSTransport_Subscribe(t *testing.T) {
 				}
 
 				if msg["type"] == "subscribe" {
-					wsjson.Write(ctx, conn, map[string]any{
+					_ = wsjson.Write(ctx, conn, map[string]any{
 						"id":      msg["id"],
 						"type":    "next",
 						"payload": map[string]any{"data": map[string]any{"value": 1}},
@@ -261,7 +262,7 @@ func TestWSTransport_Subscribe(t *testing.T) {
 				}
 
 				if msg["type"] == "subscribe" {
-					wsjson.Write(ctx, conn, map[string]any{
+					_ = wsjson.Write(ctx, conn, map[string]any{
 						"id":      msg["id"],
 						"type":    "next",
 						"payload": map[string]any{"data": map[string]any{"value": 1}},
@@ -378,7 +379,7 @@ func TestWSTransport_ConcurrentSubscribe(t *testing.T) {
 				}
 
 				if msg["type"] == "subscribe" {
-					wsjson.Write(ctx, conn, map[string]any{
+					_ = wsjson.Write(ctx, conn, map[string]any{
 						"id":      msg["id"],
 						"type":    "next",
 						"payload": map[string]any{"data": map[string]any{"value": 1}},
@@ -447,14 +448,14 @@ func TestWSTransport_InitPayloadForwarding(t *testing.T) {
 				receivedPayload <- nil
 			}
 
-			wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
+			_ = wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
 
 			// Read subscribe and respond
 			var subMsg map[string]any
 			if err := wsjson.Read(ctx, conn, &subMsg); err != nil {
 				return
 			}
-			wsjson.Write(ctx, conn, map[string]any{
+			_ = wsjson.Write(ctx, conn, map[string]any{
 				"id":      subMsg["id"],
 				"type":    "next",
 				"payload": map[string]any{"data": map[string]any{"value": 1}},
@@ -531,14 +532,14 @@ func TestWSTransport_InitPayloadForwarding(t *testing.T) {
 				receivedPayload <- nil
 			}
 
-			wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
+			_ = wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
 
 			// Read start and respond
 			var startMsg map[string]any
 			if err := wsjson.Read(ctx, conn, &startMsg); err != nil {
 				return
 			}
-			wsjson.Write(ctx, conn, map[string]any{
+			_ = wsjson.Write(ctx, conn, map[string]any{
 				"id":      startMsg["id"],
 				"type":    "data",
 				"payload": map[string]any{"data": map[string]any{"value": 1}},
@@ -609,14 +610,14 @@ func TestWSTransport_InitPayloadForwarding(t *testing.T) {
 				receivedPayload <- nil
 			}
 
-			wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
+			_ = wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
 
 			// Read subscribe and respond
 			var subMsg map[string]any
 			if err := wsjson.Read(ctx, conn, &subMsg); err != nil {
 				return
 			}
-			wsjson.Write(ctx, conn, map[string]any{
+			_ = wsjson.Write(ctx, conn, map[string]any{
 				"id":      subMsg["id"],
 				"type":    "next",
 				"payload": map[string]any{"data": map[string]any{"value": 1}},
@@ -683,7 +684,7 @@ func TestWSTransport_InitPayloadForwarding(t *testing.T) {
 			}
 			mu.Unlock()
 
-			wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
+			_ = wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
 
 			// Handle subscriptions
 			for {
@@ -692,7 +693,7 @@ func TestWSTransport_InitPayloadForwarding(t *testing.T) {
 					return
 				}
 				if msg["type"] == "subscribe" {
-					wsjson.Write(ctx, conn, map[string]any{
+					_ = wsjson.Write(ctx, conn, map[string]any{
 						"id":      msg["id"],
 						"type":    "next",
 						"payload": map[string]any{"data": map[string]any{"value": 1}},
@@ -762,14 +763,14 @@ func TestWSTransport_LegacyProtocol(t *testing.T) {
 			assert.Equal(t, "start", msg["type"])
 
 			// Send data
-			wsjson.Write(ctx, conn, map[string]any{
+			_ = wsjson.Write(ctx, conn, map[string]any{
 				"id":      msg["id"],
 				"type":    "data",
 				"payload": map[string]any{"data": map[string]any{"value": 42}},
 			})
 
 			// Send complete
-			wsjson.Write(ctx, conn, map[string]any{
+			_ = wsjson.Write(ctx, conn, map[string]any{
 				"id":   msg["id"],
 				"type": "complete",
 			})
@@ -803,17 +804,17 @@ func TestWSTransport_LegacyProtocol(t *testing.T) {
 			require.NoError(t, wsjson.Read(ctx, conn, &msg))
 
 			// Send keep-alive
-			wsjson.Write(ctx, conn, map[string]string{"type": "ka"})
+			_ = wsjson.Write(ctx, conn, map[string]string{"type": "ka"})
 
 			// Send data
-			wsjson.Write(ctx, conn, map[string]any{
+			_ = wsjson.Write(ctx, conn, map[string]any{
 				"id":      msg["id"],
 				"type":    "data",
 				"payload": map[string]any{"data": map[string]any{"value": 1}},
 			})
 
 			// Send complete
-			wsjson.Write(ctx, conn, map[string]any{
+			_ = wsjson.Write(ctx, conn, map[string]any{
 				"id":   msg["id"],
 				"type": "complete",
 			})
@@ -848,12 +849,12 @@ func TestWSTransport_LegacyProtocol(t *testing.T) {
 			require.NoError(t, wsjson.Read(ctx, conn, &msg))
 			assert.Equal(t, "start", msg["type"]) // Should use legacy message type
 
-			wsjson.Write(ctx, conn, map[string]any{
+			_ = wsjson.Write(ctx, conn, map[string]any{
 				"id":      msg["id"],
 				"type":    "data",
 				"payload": map[string]any{"data": map[string]any{"value": 99}},
 			})
-			wsjson.Write(ctx, conn, map[string]any{
+			_ = wsjson.Write(ctx, conn, map[string]any{
 				"id":   msg["id"],
 				"type": "complete",
 			})
@@ -901,7 +902,7 @@ func newGraphQLWSServer(t *testing.T, handler func(ctx context.Context, conn *we
 		if initMsg["type"] != "connection_init" {
 			return
 		}
-		wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
+		_ = wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
 
 		handler(ctx, conn)
 	}))
@@ -933,7 +934,7 @@ func newLegacyGraphQLWSServer(t *testing.T, handler func(ctx context.Context, co
 		if initMsg["type"] != "connection_init" {
 			return
 		}
-		wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
+		_ = wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
 
 		handler(ctx, conn)
 	}))

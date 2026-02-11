@@ -11,6 +11,7 @@ import (
 	"github.com/coder/websocket/wsjson"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/protocol"
 )
@@ -27,7 +28,7 @@ func TestGraphQLTransportWS_Init(t *testing.T) {
 			if err := wsjson.Read(ctx, conn, &msg); err == nil {
 				received <- msg
 			}
-			wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
+			_ = wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
 		})
 
 		conn := dialGTWS(t, server)
@@ -65,16 +66,16 @@ func TestGraphQLTransportWS_Init(t *testing.T) {
 		received := make(chan map[string]any, 2)
 		server := newGTWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
 			var msg1 map[string]any
-			wsjson.Read(ctx, conn, &msg1)
+			_ = wsjson.Read(ctx, conn, &msg1)
 			received <- msg1
 
-			wsjson.Write(ctx, conn, map[string]string{"type": "ping"})
+			_ = wsjson.Write(ctx, conn, map[string]string{"type": "ping"})
 
 			var msg2 map[string]any
-			wsjson.Read(ctx, conn, &msg2)
+			_ = wsjson.Read(ctx, conn, &msg2)
 			received <- msg2
 
-			wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
+			_ = wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
 		})
 
 		conn := dialGTWS(t, server)
@@ -97,8 +98,8 @@ func TestGraphQLTransportWS_Init(t *testing.T) {
 
 		server := newGTWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
 			var msg map[string]any
-			wsjson.Read(ctx, conn, &msg)
-			wsjson.Write(ctx, conn, map[string]string{"type": "error"})
+			_ = wsjson.Read(ctx, conn, &msg)
+			_ = wsjson.Write(ctx, conn, map[string]string{"type": "error"})
 		})
 
 		conn := dialGTWS(t, server)
@@ -180,7 +181,7 @@ func TestGraphQLWS_Read(t *testing.T) {
 		t.Parallel()
 
 		server := newGTWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
-			wsjson.Write(ctx, conn, map[string]any{
+			_ = wsjson.Write(ctx, conn, map[string]any{
 				"id":   "sub-1",
 				"type": "next",
 				"payload": map[string]any{
@@ -205,7 +206,7 @@ func TestGraphQLWS_Read(t *testing.T) {
 		t.Parallel()
 
 		server := newGTWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
-			wsjson.Write(ctx, conn, map[string]any{
+			_ = wsjson.Write(ctx, conn, map[string]any{
 				"id":   "sub-1",
 				"type": "error",
 				"payload": []map[string]any{
@@ -229,7 +230,7 @@ func TestGraphQLWS_Read(t *testing.T) {
 		t.Parallel()
 
 		server := newGTWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
-			wsjson.Write(ctx, conn, map[string]any{
+			_ = wsjson.Write(ctx, conn, map[string]any{
 				"id":   "sub-1",
 				"type": "complete",
 			})
@@ -249,7 +250,7 @@ func TestGraphQLWS_Read(t *testing.T) {
 		t.Parallel()
 
 		server := newGTWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
-			wsjson.Write(ctx, conn, map[string]string{"type": "ping"})
+			_ = wsjson.Write(ctx, conn, map[string]string{"type": "ping"})
 		})
 
 		conn := dialGTWS(t, server)
@@ -265,7 +266,7 @@ func TestGraphQLWS_Read(t *testing.T) {
 		t.Parallel()
 
 		server := newGTWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
-			wsjson.Write(ctx, conn, map[string]string{"type": "unknown"})
+			_ = wsjson.Write(ctx, conn, map[string]string{"type": "unknown"})
 		})
 
 		conn := dialGTWS(t, server)
@@ -282,6 +283,8 @@ func TestGraphQLTransportWS_PingPong(t *testing.T) {
 	t.Parallel()
 
 	t.Run("sends ping message", func(t *testing.T) {
+		t.Parallel()
+
 		received := make(chan map[string]any, 1)
 
 		server := newGTWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
@@ -303,6 +306,8 @@ func TestGraphQLTransportWS_PingPong(t *testing.T) {
 	})
 
 	t.Run("sends pong message", func(t *testing.T) {
+		t.Parallel()
+
 		received := make(chan map[string]any, 1)
 
 		server := newGTWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
@@ -350,13 +355,14 @@ func newGTWSTestServer(t *testing.T, handler func(ctx context.Context, conn *web
 func dialGTWS(t *testing.T, server *httptest.Server) *websocket.Conn {
 	t.Helper()
 
-	conn, _, err := websocket.Dial(t.Context(), server.URL, &websocket.DialOptions{
+	conn, resp, err := websocket.Dial(t.Context(), server.URL, &websocket.DialOptions{
 		Subprotocols: []string{"graphql-transport-ws"},
 	})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		conn.Close(websocket.StatusNormalClosure, "")
+		_ = resp.Body.Close()
+		_ = conn.Close(websocket.StatusNormalClosure, "")
 	})
 
 	return conn

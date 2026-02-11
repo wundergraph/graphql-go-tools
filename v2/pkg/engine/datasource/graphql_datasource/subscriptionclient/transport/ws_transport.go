@@ -10,6 +10,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/jensneuse/abstractlogger"
 	"github.com/rs/xid"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/protocol"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
@@ -156,7 +157,7 @@ func (t *WSTransport) dial(ctx context.Context, key uint64, opts common.Options)
 		abstractlogger.String("subprotocol", string(opts.WSSubprotocol)),
 	)
 
-	wsConn, resp, err := websocket.Dial(ctx, opts.Endpoint, &websocket.DialOptions{
+	wsConn, resp, err := websocket.Dial(ctx, opts.Endpoint, &websocket.DialOptions{ //nolint:bodyclose
 		HTTPClient:   t.upgradeClient,
 		Subprotocols: opts.WSSubprotocol.Subprotocols(),
 		HTTPHeader:   opts.Headers,
@@ -239,20 +240,20 @@ func connKey(opts common.Options) uint64 {
 	h := pool.Hash64.Get()
 	defer pool.Hash64.Put(h)
 
-	h.WriteString(opts.Endpoint)
-	h.WriteString("\x00")
+	_, _ = h.WriteString(opts.Endpoint)
+	_, _ = h.WriteString("\x00")
 
-	h.WriteString(string(opts.WSSubprotocol))
-	h.WriteString("\x00")
+	_, _ = h.WriteString(string(opts.WSSubprotocol))
+	_, _ = h.WriteString("\x00")
 
 	if len(opts.Headers) > 0 {
-		opts.Headers.Write(h)
+		_ = opts.Headers.Write(h)
 	}
-	h.WriteString("\x00")
+	_, _ = h.WriteString("\x00")
 
 	if len(opts.InitPayload) > 0 {
 		if data, err := json.Marshal(opts.InitPayload); err == nil {
-			h.Write(data)
+			_, _ = h.Write(data)
 		}
 	}
 

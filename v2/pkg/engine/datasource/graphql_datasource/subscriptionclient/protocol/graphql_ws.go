@@ -9,6 +9,7 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
 )
 
@@ -73,7 +74,8 @@ func (p *GraphQLWS) Init(ctx context.Context, conn *websocket.Conn, payload map[
 		case gwsTypeConnectionError:
 			var errPayload map[string]any
 			if ackMessage.Payload != nil {
-				json.Unmarshal(ackMessage.Payload, &errPayload)
+				// If this fails, the error will have nil errors anyway, handling it does nothing unique
+				_ = json.Unmarshal(ackMessage.Payload, &errPayload)
 			}
 			return fmt.Errorf("%w: %v", ErrConnectionError, errPayload)
 		default:
@@ -158,7 +160,7 @@ func (p *GraphQLWS) decode(raw incomingMessage) (*Message, error) {
 		msg.Type = MessageError
 		var errPayload map[string]any
 		if raw.Payload != nil {
-			json.Unmarshal(raw.Payload, &errPayload)
+			_ = json.Unmarshal(raw.Payload, &errPayload)
 		}
 		msg.Err = fmt.Errorf("connection error: %v", errPayload)
 

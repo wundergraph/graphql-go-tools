@@ -15,6 +15,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/transport"
 )
@@ -37,7 +38,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 
 			// Read and verify body
 			body, _ := io.ReadAll(r.Body)
-			json.Unmarshal(body, &receivedBody)
+			assert.NoError(t, json.Unmarshal(body, &receivedBody))
 
 			// Send SSE response
 			w.Header().Set("Content-Type", "text/event-stream")
@@ -373,7 +374,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 
 		server := newSSEServer(t, func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("Internal server error"))
+			_, _ = w.Write([]byte("Internal server error"))
 		})
 
 		tr := transport.NewSSETransport(t.Context(), http.DefaultClient, nil)
@@ -625,7 +626,7 @@ func TestSSETransport_ContentTypeValidation(t *testing.T) {
 		server := newSSEServer(t, func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"error": "not sse"}`))
+			_, _ = w.Write([]byte(`{"error": "not sse"}`))
 		})
 
 		tr := transport.NewSSETransport(t.Context(), http.DefaultClient, nil)

@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 
 	"github.com/r3labs/sse/v2"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
 )
 

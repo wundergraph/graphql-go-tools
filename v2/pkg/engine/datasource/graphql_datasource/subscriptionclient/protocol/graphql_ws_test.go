@@ -11,6 +11,7 @@ import (
 	"github.com/coder/websocket/wsjson"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/protocol"
 )
@@ -27,7 +28,7 @@ func TestGraphQLWS_Init(t *testing.T) {
 			if err := wsjson.Read(ctx, conn, &msg); err == nil {
 				received <- msg
 			}
-			wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
+			_ = wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
 		})
 
 		conn := dialGWS(t, server)
@@ -64,13 +65,13 @@ func TestGraphQLWS_Init(t *testing.T) {
 
 		server := newGWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
 			var msg1 map[string]any
-			wsjson.Read(ctx, conn, &msg1) // connection_init
+			_ = wsjson.Read(ctx, conn, &msg1) // connection_init
 
 			// Send keep-alive before ack
-			wsjson.Write(ctx, conn, map[string]string{"type": "ka"})
+			_ = wsjson.Write(ctx, conn, map[string]string{"type": "ka"})
 
 			// Then send ack
-			wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
+			_ = wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
 		})
 
 		conn := dialGWS(t, server)
@@ -85,8 +86,8 @@ func TestGraphQLWS_Init(t *testing.T) {
 
 		server := newGWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
 			var msg map[string]any
-			wsjson.Read(ctx, conn, &msg)
-			wsjson.Write(ctx, conn, map[string]any{
+			_ = wsjson.Read(ctx, conn, &msg)
+			_ = wsjson.Write(ctx, conn, map[string]any{
 				"type":    "connection_error",
 				"payload": map[string]any{"message": "auth failed"},
 			})
@@ -106,8 +107,8 @@ func TestGraphQLWS_Init(t *testing.T) {
 
 		server := newGWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
 			var msg map[string]any
-			wsjson.Read(ctx, conn, &msg)
-			wsjson.Write(ctx, conn, map[string]string{"type": "error"})
+			_ = wsjson.Read(ctx, conn, &msg)
+			_ = wsjson.Write(ctx, conn, map[string]string{"type": "error"})
 		})
 
 		conn := dialGWS(t, server)
@@ -189,7 +190,7 @@ func TestGraphQLWSLegacy_Read(t *testing.T) {
 		t.Parallel()
 
 		server := newGWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
-			wsjson.Write(ctx, conn, map[string]any{
+			_ = wsjson.Write(ctx, conn, map[string]any{
 				"id":   "sub-1",
 				"type": "data",
 				"payload": map[string]any{
@@ -214,7 +215,7 @@ func TestGraphQLWSLegacy_Read(t *testing.T) {
 		t.Parallel()
 
 		server := newGWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
-			wsjson.Write(ctx, conn, map[string]any{
+			_ = wsjson.Write(ctx, conn, map[string]any{
 				"id":   "sub-1",
 				"type": "error",
 				"payload": []map[string]any{
@@ -238,7 +239,7 @@ func TestGraphQLWSLegacy_Read(t *testing.T) {
 		t.Parallel()
 
 		server := newGWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
-			wsjson.Write(ctx, conn, map[string]any{
+			_ = wsjson.Write(ctx, conn, map[string]any{
 				"id":   "sub-1",
 				"type": "complete",
 			})
@@ -258,7 +259,7 @@ func TestGraphQLWSLegacy_Read(t *testing.T) {
 		t.Parallel()
 
 		server := newGWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
-			wsjson.Write(ctx, conn, map[string]string{"type": "ka"})
+			_ = wsjson.Write(ctx, conn, map[string]string{"type": "ka"})
 		})
 
 		conn := dialGWS(t, server)
@@ -274,7 +275,7 @@ func TestGraphQLWSLegacy_Read(t *testing.T) {
 		t.Parallel()
 
 		server := newGWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
-			wsjson.Write(ctx, conn, map[string]any{
+			_ = wsjson.Write(ctx, conn, map[string]any{
 				"type":    "connection_error",
 				"payload": map[string]any{"reason": "session expired"},
 			})
@@ -295,7 +296,9 @@ func TestGraphQLWSLegacy_Read(t *testing.T) {
 		t.Parallel()
 
 		server := newGWSTestServer(t, func(ctx context.Context, conn *websocket.Conn) {
-			wsjson.Write(ctx, conn, map[string]string{"type": "unknown"})
+			_ = wsjson.Write(ctx, conn, map[string]any{
+				"type": "unknown",
+			})
 		})
 
 		conn := dialGWS(t, server)
@@ -360,13 +363,13 @@ func newGWSTestServer(t *testing.T, handler func(ctx context.Context, conn *webs
 func dialGWS(t *testing.T, server *httptest.Server) *websocket.Conn {
 	t.Helper()
 
-	conn, _, err := websocket.Dial(t.Context(), server.URL, &websocket.DialOptions{
+	conn, _, err := websocket.Dial(t.Context(), server.URL, &websocket.DialOptions{ //nolint:bodyclose
 		Subprotocols: []string{"graphql-ws"},
 	})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		conn.Close(websocket.StatusNormalClosure, "")
+		_ = conn.Close(websocket.StatusNormalClosure, "")
 	})
 
 	return conn

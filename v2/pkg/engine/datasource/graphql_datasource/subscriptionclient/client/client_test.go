@@ -12,8 +12,9 @@ import (
 	"github.com/coder/websocket/wsjson"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
 	"go.uber.org/goleak"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
 )
 
 func TestClient(t *testing.T) {
@@ -25,10 +26,12 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("context cancellation is idempotent", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		_ = New(ctx, Config{})
-		cancel()
-		cancel() // should not panic
+		assert.NotPanics(t, func() {
+			ctx, cancel := context.WithCancel(context.Background())
+			_ = New(ctx, Config{})
+			cancel()
+			cancel() // should not panic
+		})
 	})
 
 	t.Run("subscribe fails after context cancelled", func(t *testing.T) {
@@ -125,7 +128,9 @@ func TestClient_CancelSendsComplete(t *testing.T) {
 			if err != nil {
 				return
 			}
-			defer conn.CloseNow()
+			defer func() {
+				_ = conn.CloseNow()
+			}()
 
 			ctx := r.Context()
 
@@ -247,7 +252,9 @@ func newTestWSServer(t *testing.T) *httptest.Server {
 		if err != nil {
 			return
 		}
-		defer conn.CloseNow()
+		defer func() {
+			_ = conn.CloseNow()
+		}()
 
 		ctx, cancel := context.WithCancel(r.Context())
 		defer cancel()
@@ -260,7 +267,7 @@ func newTestWSServer(t *testing.T) *httptest.Server {
 		if initMsg["type"] != "connection_init" {
 			return
 		}
-		wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
+		_ = wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
 
 		// Read messages in background, cancel context when connection closes
 		go func() {
@@ -272,7 +279,7 @@ func newTestWSServer(t *testing.T) *httptest.Server {
 				}
 				// Handle subscribe by sending first message
 				if msg["type"] == "subscribe" {
-					wsjson.Write(ctx, conn, map[string]any{
+					_ = wsjson.Write(ctx, conn, map[string]any{
 						"id":      msg["id"],
 						"type":    "next",
 						"payload": map[string]any{"data": map[string]any{"value": 1}},
