@@ -38,7 +38,7 @@ func TestGraphQLWS_Init(t *testing.T) {
 		err := p.Init(t.Context(), conn, map[string]any{"secret": "token"})
 		require.NoError(t, err)
 
-		awaitMessage(t, time.Second, received, func(t *testing.T, msg map[string]any) {
+		AwaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
 			assert.Equal(t, "connection_init", msg["type"])
 			payload, _ := msg["payload"].(map[string]any)
 			assert.Equal(t, "token", payload["secret"])
@@ -143,7 +143,7 @@ func TestGraphQLWSLegacy_Subscribe(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		awaitMessage(t, time.Second, received, func(t *testing.T, msg map[string]any) {
+		AwaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
 			assert.Equal(t, "start", msg["type"])
 			assert.Equal(t, "sub-1", msg["id"])
 
@@ -176,7 +176,7 @@ func TestGraphQLWSLegacy_Unsubscribe(t *testing.T) {
 		err := p.Unsubscribe(t.Context(), conn, "sub-1")
 		require.NoError(t, err)
 
-		awaitMessage(t, time.Second, received, func(t *testing.T, msg map[string]any) {
+		AwaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
 			assert.Equal(t, "stop", msg["type"])
 			assert.Equal(t, "sub-1", msg["id"])
 		})

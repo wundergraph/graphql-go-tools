@@ -38,7 +38,7 @@ func TestGraphQLTransportWS_Init(t *testing.T) {
 		err := p.Init(t.Context(), conn, map[string]any{"secret": "token"})
 		require.NoError(t, err)
 
-		awaitMessage(t, time.Second, received, func(t *testing.T, msg map[string]any) {
+		AwaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
 			assert.Equal(t, "connection_init", msg["type"])
 			payload, _ := msg["payload"].(map[string]any)
 			assert.Equal(t, "token", payload["secret"])
@@ -84,11 +84,11 @@ func TestGraphQLTransportWS_Init(t *testing.T) {
 		err := p.Init(t.Context(), conn, nil)
 		require.NoError(t, err)
 
-		awaitMessage(t, time.Second, received, func(t *testing.T, msg map[string]any) {
+		AwaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
 			assert.Equal(t, "connection_init", msg["type"])
 		})
 
-		awaitMessage(t, time.Second, received, func(t *testing.T, msg map[string]any) {
+		AwaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
 			assert.Equal(t, "pong", msg["type"])
 		})
 	})
@@ -134,7 +134,7 @@ func TestGraphQLWS_Subscribe(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		awaitMessage(t, time.Second, received, func(t *testing.T, msg map[string]any) {
+		AwaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
 			assert.Equal(t, "subscribe", msg["type"])
 			assert.Equal(t, "sub-1", msg["id"])
 
@@ -167,7 +167,7 @@ func TestGraphQLWS_Unsubscribe(t *testing.T) {
 		err := p.Unsubscribe(t.Context(), conn, "sub-1")
 		require.NoError(t, err)
 
-		awaitMessage(t, time.Second, received, func(t *testing.T, msg map[string]any) {
+		AwaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
 			assert.Equal(t, "complete", msg["type"])
 			assert.Equal(t, "sub-1", msg["id"])
 		})
@@ -300,7 +300,7 @@ func TestGraphQLTransportWS_PingPong(t *testing.T) {
 		err := p.Ping(t.Context(), conn)
 		require.NoError(t, err)
 
-		awaitMessage(t, time.Second, received, func(t *testing.T, msg map[string]any) {
+		AwaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
 			assert.Equal(t, "ping", msg["type"])
 		})
 	})
@@ -323,7 +323,7 @@ func TestGraphQLTransportWS_PingPong(t *testing.T) {
 		err := p.Pong(t.Context(), conn)
 		require.NoError(t, err)
 
-		awaitMessage(t, time.Second, received, func(t *testing.T, msg map[string]any) {
+		AwaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
 			assert.Equal(t, "pong", msg["type"])
 		})
 	})
@@ -355,26 +355,25 @@ func newGTWSTestServer(t *testing.T, handler func(ctx context.Context, conn *web
 func dialGTWS(t *testing.T, server *httptest.Server) *websocket.Conn {
 	t.Helper()
 
-	conn, resp, err := websocket.Dial(t.Context(), server.URL, &websocket.DialOptions{
+	conn, _, err := websocket.Dial(t.Context(), server.URL, &websocket.DialOptions{ //nolint:bodyclose
 		Subprotocols: []string{"graphql-transport-ws"},
 	})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		_ = resp.Body.Close()
 		_ = conn.Close(websocket.StatusNormalClosure, "")
 	})
 
 	return conn
 }
 
-func awaitMessage[A any](t *testing.T, timeout time.Duration, ch <-chan A, f func(*testing.T, A), msgAndArgs ...any) {
+func AwaitChannelWithT[A any](t *testing.T, timeout time.Duration, ch <-chan A, f func(*testing.T, A), msgAndArgs ...any) {
 	t.Helper()
 
 	select {
-	case msg := <-ch:
-		f(t, msg)
+	case args := <-ch:
+		f(t, args)
 	case <-time.After(timeout):
-		t.Fatal("timed out waiting for message")
+		require.Fail(t, "unable to receive message before timeout", msgAndArgs...)
 	}
 }
