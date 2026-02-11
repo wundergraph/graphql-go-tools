@@ -210,7 +210,7 @@ func (v *representationVariableVisitor) EnterField(ref int) {
 	}
 	fieldDefinitionType := v.definition.FieldDefinitionType(fieldDefinition)
 
-	currentPath := v.Walker.Path.DotDelimitedString() + "." + string(fieldName)
+	currentPath := v.Walker.Path.DotDelimitedString(true) + "." + string(fieldName)
 
 	// if path was remapped during the planning we update its path
 	fieldPath := string(fieldName)

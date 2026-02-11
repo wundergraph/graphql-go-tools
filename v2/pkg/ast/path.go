@@ -128,7 +128,7 @@ func (p Path) String() string {
 	return out
 }
 
-func (p Path) DotDelimitedString() string {
+func (p Path) DotDelimitedString(useFragmentRefs bool) string {
 	builder := strings.Builder{}
 
 	toGrow := 0
@@ -160,7 +160,9 @@ func (p Path) DotDelimitedString() string {
 			}
 		case InlineFragmentName:
 			builder.WriteString(InlineFragmentPathPrefix)
-			builder.WriteString(strconv.Itoa(p[i].FragmentRef))
+			if useFragmentRefs {
+				builder.WriteString(strconv.Itoa(p[i].FragmentRef))
+			}
 			builder.WriteString(unsafebytes.BytesToString(p[i].FieldName))
 		}
 	}

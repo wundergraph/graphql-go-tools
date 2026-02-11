@@ -198,7 +198,7 @@ func (v *keyInfoVisitor) EnterField(ref int) {
 	fieldName := v.input.key.FieldNameUnsafeString(ref)
 	typeName := v.walker.EnclosingTypeDefinition.NameString(v.input.definition)
 
-	parentPath := v.input.parentPath + strings.TrimPrefix(v.walker.Path.DotDelimitedString(), v.input.typeName)
+	parentPath := v.input.parentPath + strings.TrimPrefix(v.walker.Path.DotDelimitedString(true), v.input.typeName)
 	currentPath := parentPath + "." + fieldName
 
 	hasRootNode := v.input.dataSource.HasRootNode(typeName, fieldName)

@@ -186,7 +186,7 @@ func (v *variablesExtractionVisitor) recordFieldArgumentMapping(ref int, varName
 		return
 	}
 
-	fieldPath := v.Path.DotDelimitedString()
+	fieldPath := v.Path.DotDelimitedString(false)
 	if fieldPath == "" {
 		return
 	}

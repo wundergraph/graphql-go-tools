@@ -1233,6 +1233,142 @@ func TestVariablesNormalizer(t *testing.T) {
 					"query.fourthAlias.id": "b",
 				},
 			},
+			{
+				name: "inline fragment with arguments includes dollar prefix in path",
+				operation: `
+				query GetNode($id: ID!, $limit: Int!) {
+					node(id: $id) {
+						id
+						... on User {
+							name
+							posts(limit: $limit) { title }
+						}
+					}
+				}`,
+				variables: `{"id": "123", "limit": 10}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.node.id":                "id",
+					"query.node.$User.posts.limit": "limit",
+				},
+			},
+			{
+				name: "multiple inline fragments with arguments each get dollar prefix",
+				operation: `
+				query GetNode($id: ID!, $userLimit: Int!, $adminLimit: Int!) {
+					node(id: $id) {
+						id
+						... on User {
+							name
+							items(limit: $userLimit) { name }
+						}
+						... on Admin {
+							role
+							items(limit: $adminLimit) { name }
+						}
+					}
+				}`,
+				variables: `{"id": "123", "userLimit": 5, "adminLimit": 10}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.node.id":                 "id",
+					"query.node.$User.items.limit":  "userLimit",
+					"query.node.$Admin.items.limit": "adminLimit",
+				},
+			},
+			{
+				name: "inline fragment with literal argument gets extracted variable",
+				operation: `
+				query GetNode($id: ID!) {
+					node(id: $id) {
+						id
+						... on User {
+							name
+							posts(limit: 20) { title }
+						}
+					}
+				}`,
+				variables: `{"id": "123"}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.node.id":                "id",
+					"query.node.$User.posts.limit": "a",
+				},
+			},
+			{
+				name: "nested inline fragments include all dollar prefixes in path",
+				operation: `
+				query GetNode($id: ID!, $limit: Int!) {
+					node(id: $id) {
+						... on User {
+							User {
+								posts(limit: $limit) { title }
+							}
+						}
+					}
+				}`,
+				variables: `{"id": "123", "limit": 10}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.node.id":                     "id",
+					"query.node.$User.User.posts.limit": "limit",
+				},
+			},
+			{
+				name: "inline fragment in aliased field includes alias in path",
+				operation: `
+				query GetNode($id: ID!, $limit: Int!) {
+					nodeAlias: node(id: $id) {
+						id
+						... on User {
+							name
+							posts(limit: $limit) { title }
+						}
+					}
+				}`,
+				variables: `{"id": "123", "limit": 10}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.nodeAlias.id":                "id",
+					"query.nodeAlias.$User.posts.limit": "limit",
+				},
+			},
+			{
+				name: "multiple inline fragments with mixed variables and literals",
+				operation: `
+				query GetNode($id: ID!, $userLimit: Int!) {
+					node(id: $id) {
+						id
+						... on User {
+							items(limit: $userLimit) { name }
+						}
+						... on Admin {
+							items(limit: 15) { name }
+						}
+					}
+				}`,
+				variables: `{"id": "123", "userLimit": 5}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.node.id":                 "id",
+					"query.node.$User.items.limit":  "userLimit",
+					"query.node.$Admin.items.limit": "a",
+				},
+			},
+			{
+				// There is no hard requirement for excluding directive arguments
+				// but at the moment this is not supported because it would involve more
+				// complex changes to the variable normalizer.
+				name: "directive arguments are not included in field argument mapping",
+				operation: `
+				query GetUser($userId: ID!, $limit: Int!, $includeItems: Boolean!, $skipPosts: Boolean!) {
+					user(id: $userId) {
+						name
+						posts(limit: $limit) @skip(if: $skipPosts) { title }
+						items(limit: 10) @include(if: $includeItems) { name }
+					}
+				}`,
+				variables: `{"userId": "123", "limit": 5, "includeItems": true, "skipPosts": false}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.user.id":          "userId",
+					"query.user.posts.limit": "limit",
+					"query.user.items.limit": "a",
+				},
+			},
 		}
 
 		for _, tc := range testCases {
