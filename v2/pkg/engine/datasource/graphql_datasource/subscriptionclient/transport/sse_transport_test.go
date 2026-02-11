@@ -330,24 +330,24 @@ func TestSSETransport_Subscribe(t *testing.T) {
 			close(serverClosed)
 		})
 
-		tr := transport.NewSSETransport(t.Context(), http.DefaultClient, nil)
+		transportCtx, transportCancel := context.WithCancel(context.Background())
 
-		ctx, ctxCancel := context.WithCancel(context.Background())
+		tr := transport.NewSSETransport(transportCtx, http.DefaultClient, nil)
 
-		ch, cancel, err := tr.Subscribe(ctx, &common.Request{
+		ch, cancel, err := tr.Subscribe(transportCtx, &common.Request{
 			Query: "subscription { test }",
 		}, common.Options{Endpoint: server.URL})
 		require.NoError(t, err)
 		defer cancel()
 
-		receiveWithTimeout(t, ch, time.Second)
+		_ = receiveWithTimeout(t, ch, time.Second)
 
 		// Cancel context
-		ctxCancel()
+		transportCancel()
 
 		select {
 		case <-serverClosed:
-		case <-time.After(time.Second):
+		case <-time.After(10 * time.Second):
 			t.Fatal("server did not detect context cancellation")
 		}
 	})

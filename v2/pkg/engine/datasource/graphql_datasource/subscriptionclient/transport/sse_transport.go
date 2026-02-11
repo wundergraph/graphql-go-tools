@@ -75,6 +75,7 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 
 	// Attach cancel to transport context
 	context.AfterFunc(t.ctx, requestCancel)
+	context.AfterFunc(ctx, requestCancel)
 
 	switch method {
 	case common.SSEMethodPOST:
