@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
 )
@@ -47,6 +48,7 @@ func TestAreRequiredFieldsProvided(t *testing.T) {
 		parentPath     string
 		providedFields map[string]struct{}
 		expected       bool
+		datasource     DataSource
 	}{
 		{
 			name:           "all fields provided",
@@ -81,14 +83,36 @@ func TestAreRequiredFieldsProvided(t *testing.T) {
 			expected: true,
 		},
 		{
-			name:           "nested field missing",
+			name:           "one nested field missing - missing field is external",
 			typeName:       "User",
-			requiredFields: "address { street }",
+			requiredFields: "address { street zip }",
 			parentPath:     "query.me",
 			providedFields: map[string]struct{}{
-				"User|address|query.me.address": {},
+				"User|address|query.me.address":          {},
+				"Address|street|query.me.address.street": {},
 			},
 			expected: false,
+			datasource: dsb().
+				ChildNode("User", "address").
+				ChildNode("Address", "street").
+				AddChildNodeExternalFieldNames("Address", "zip").
+				DS(),
+		},
+		{
+			// case of implicitly provided field, due to provided parent
+			name:           "one nested field missing - missing field is not external",
+			typeName:       "User",
+			requiredFields: "address { street zip }",
+			parentPath:     "query.me",
+			providedFields: map[string]struct{}{
+				"User|address|query.me.address":          {},
+				"Address|street|query.me.address.street": {},
+			},
+			expected: true,
+			datasource: dsb().
+				ChildNode("User", "address").
+				ChildNode("Address", "street", "zip").
+				DS(),
 		},
 		{
 			name:           "deeply nested fields provided",
@@ -155,9 +179,14 @@ func TestAreRequiredFieldsProvided(t *testing.T) {
 				Definition:     &definition,
 				ProvidedFields: c.providedFields,
 				ParentPath:     c.parentPath,
+				DataSource:     dsb().DS(),
+			}
+			if c.datasource != nil {
+				input.DataSource = c.datasource
 			}
 
-			result := areRequiredFieldsProvided(input)
+			result, report := areRequiredFieldsProvided(input)
+			require.False(t, report.HasErrors())
 			assert.Equal(t, c.expected, result)
 		})
 	}
