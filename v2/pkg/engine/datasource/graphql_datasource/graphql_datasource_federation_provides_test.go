@@ -191,8 +191,8 @@ func TestGraphQLDataSourceFederation_NestedRequiresProvides(t *testing.T) {
 		planConfiguration := plan.Configuration{
 			DisableResolveFieldPositions: true,
 			Debug: plan.DebugConfiguration{
-				PrintQueryPlans:    true,
-				PrintPlanningPaths: true,
+				PrintQueryPlans:    false,
+				PrintPlanningPaths: false,
 			},
 			DataSources: []plan.DataSource{
 				service1DataSourceConfig,

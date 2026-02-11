@@ -269,6 +269,7 @@ type collectNodesDSVisitor struct {
 	localSeenKeys  map[SeenKeyPath]struct{}
 }
 
+// reset - cleanups only data which should not be persisted between runs
 func (f *collectNodesDSVisitor) reset() {
 	f.localSuggestions = f.localSuggestions[:0]
 	f.keys = f.keys[:0]

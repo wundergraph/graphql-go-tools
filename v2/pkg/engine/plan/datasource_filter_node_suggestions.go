@@ -205,6 +205,7 @@ func (f *NodeSuggestions) SuggestionsForPath(typeName, fieldName, path string) (
 	return suggestions
 }
 
+// addProvidedField stores globally provided fields paths for a datasource
 func (f *NodeSuggestions) addProvidedField(key string, dsHash DSHash) {
 	if _, ok := f.providedFields[dsHash]; !ok {
 		f.providedFields[dsHash] = make(map[string]struct{})

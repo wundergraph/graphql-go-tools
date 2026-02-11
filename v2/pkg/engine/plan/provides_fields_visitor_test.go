@@ -36,11 +36,9 @@ func TestProvidesSuggestions(t *testing.T) {
 	definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(definitionSDL)
 
 	cases := []struct {
-		selectionSetRef int
-		expected        map[string]struct{}
+		expected map[string]struct{}
 	}{
 		{
-			selectionSetRef: 2,
 			expected: map[string]struct{}{
 				"User|name|query.me.name":                        {},
 				"User|info|query.me.info":                        {},
@@ -124,14 +122,12 @@ func TestProvidesSuggestionsWithFragments(t *testing.T) {
 	definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(definitionSDL)
 
 	cases := []struct {
-		selectionSetRef      int
 		parentPath           string
 		fieldTypeName        string
 		providesSelectionSet string
 		expected             map[string]struct{}
 	}{
 		{
-			selectionSetRef:      1,
 			parentPath:           "query.ab",
 			fieldTypeName:        "AB",
 			providesSelectionSet: `... on A {a} ... on B {b}`,
@@ -144,7 +140,6 @@ func TestProvidesSuggestionsWithFragments(t *testing.T) {
 			},
 		},
 		{
-			selectionSetRef:      2,
 			parentPath:           "query.nestedAB.ab",
 			fieldTypeName:        "AB",
 			providesSelectionSet: `... on A {a} ... on B {b}`,
@@ -157,7 +152,6 @@ func TestProvidesSuggestionsWithFragments(t *testing.T) {
 			},
 		},
 		{
-			selectionSetRef:      1,
 			parentPath:           "query.nestedAB",
 			fieldTypeName:        "NestedAB",
 			providesSelectionSet: `ab { ... on A {a} ... on B {b} }`,

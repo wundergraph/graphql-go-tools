@@ -291,18 +291,17 @@ func (c *nodeSelectionVisitor) handleFieldRequiredByRequires(fieldRef int, paren
 
 	// check if the required fields are already provided
 	input := areRequiredFieldsProvidedInput{
-		TypeName:       typeName,
-		FieldName:      fieldName,
-		RequiredFields: requiresConfiguration.SelectionSet,
-		Definition:     c.definition,
-		DataSource:     dsConfig,
-		ProvidedFields: c.nodeSuggestions.providedFields[dsConfig.Hash()],
-		ParentPath:     parentPath,
+		typeName:       typeName,
+		requiredFields: requiresConfiguration.SelectionSet,
+		definition:     c.definition,
+		dataSource:     dsConfig,
+		providedFields: c.nodeSuggestions.providedFields[dsConfig.Hash()],
+		parentPath:     parentPath,
 	}
 
 	provided, report := areRequiredFieldsProvided(input)
 	if report.HasErrors() {
-		c.walker.StopWithInternalErr(fmt.Errorf("failed to check if required fields are provided for field %s at path %s: %s", fieldName, currentPath, report.Error()))
+		c.walker.StopWithInternalErr(fmt.Errorf("failed to check if required fields are provided for field %s at path %s: %w", fieldName, currentPath, report))
 		return
 	}
 
@@ -536,7 +535,7 @@ func (c *nodeSelectionVisitor) addFieldRequirementsToOperation(selectionSetRef i
 
 	addFieldsResult, report := addRequiredFields(input)
 	if report.HasErrors() {
-		c.walker.StopWithInternalErr(fmt.Errorf("failed to add required fields %s for %s at path %s: %s", requirements.selectionSet, typeName, requirements.path, report.Error()))
+		c.walker.StopWithInternalErr(fmt.Errorf("failed to add required fields %s for %s at path %s: %w", requirements.selectionSet, typeName, requirements.path, report))
 		return
 	}
 	c.resetVisitedAbstractChecksForModifiedFields(addFieldsResult.modifiedFieldRefs)
@@ -623,7 +622,7 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 
 		addFieldsResult, report := addRequiredFields(input)
 		if report.HasErrors() {
-			c.walker.StopWithInternalErr(fmt.Errorf("failed to add required key fields %s for %s: %s", jump.SelectionSet, jump.TypeName, report.Error()))
+			c.walker.StopWithInternalErr(fmt.Errorf("failed to add required key fields %s for %s: %w", jump.SelectionSet, jump.TypeName, report))
 			return
 		}
 		c.resetVisitedAbstractChecksForModifiedFields(addFieldsResult.modifiedFieldRefs)
@@ -717,13 +716,13 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldR
 
 	rewriter, err := newFieldSelectionRewriter(c.operation, c.definition, ds, options...)
 	if err != nil {
-		c.walker.StopWithInternalErr(fmt.Errorf("failed to create field selection rewriter for field %s at path %s: %s", c.operation.FieldNameString(fieldRef), c.walker.Path.DotDelimitedString(), err.Error()))
+		c.walker.StopWithInternalErr(fmt.Errorf("failed to create field selection rewriter for field %s at path %s: %w", c.operation.FieldNameString(fieldRef), c.walker.Path.DotDelimitedString(), err))
 		return
 	}
 
 	result, err := rewriter.RewriteFieldSelection(fieldRef, c.walker.EnclosingTypeDefinition)
 	if err != nil {
-		c.walker.StopWithInternalErr(fmt.Errorf("failed to rewrite field selection for field %s at path %s: %s", c.operation.FieldNameString(fieldRef), c.walker.Path.DotDelimitedString(), err.Error()))
+		c.walker.StopWithInternalErr(fmt.Errorf("failed to rewrite field selection for field %s at path %s: %w", c.operation.FieldNameString(fieldRef), c.walker.Path.DotDelimitedString(), err))
 		return
 	}
 

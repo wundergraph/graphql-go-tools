@@ -9,21 +9,49 @@ import (
 )
 
 type areRequiredFieldsProvidedInput struct {
-	TypeName       string
-	FieldName      string
-	RequiredFields string
-	Definition     *ast.Document
-	DataSource     DataSource
-	ProvidedFields map[string]struct{}
-	ParentPath     string
+	typeName       string
+	requiredFields string
+	definition     *ast.Document
+	dataSource     DataSource
+	providedFields map[string]struct{}
+	parentPath     string
 }
 
+// areRequiredFieldsProvided checks if all required fields are provided on the given path in a query
+// Example subgraph schema:
+// type Address @key(fields: "zip") {
+//  id: ID!
+//  street: String @requires(fields: "zip")
+//  zip: String @external
+// }
+
+// type User @key(fields: "id") {
+//  id: ID!
+//  address: Address @external
+// }
+
+//	type Query {
+//	 me: User @provides(fields: "address { street zip }")
+//	}
+//
+// Example query:
+//
+//	query {
+//	  me {
+//	    address {
+//	      street
+//	    }
+//	  }
+//	}
+//
+// When one of the parent nodes provides fields, which are mentioned in requires.
+// We can skip fetching these requirements, because fields are already available under the given path.
 func areRequiredFieldsProvided(input areRequiredFieldsProvidedInput) (bool, *operationreport.Report) {
-	if len(input.ProvidedFields) == 0 {
+	if len(input.providedFields) == 0 {
 		return false, operationreport.NewReport()
 	}
 
-	key, report := RequiredFieldsFragment(input.TypeName, input.RequiredFields, false)
+	key, report := RequiredFieldsFragment(input.typeName, input.requiredFields, false)
 	if report.HasErrors() {
 		return false, report
 	}
@@ -38,7 +66,7 @@ func areRequiredFieldsProvided(input areRequiredFieldsProvidedInput) (bool, *ope
 	}
 
 	walker.RegisterEnterFieldVisitor(visitor)
-	walker.Walk(key, input.Definition, report)
+	walker.Walk(key, input.definition, report)
 
 	return visitor.allProvided, report
 }
@@ -51,23 +79,23 @@ type requiredFieldsProvidedVisitor struct {
 }
 
 func (v *requiredFieldsProvidedVisitor) EnterField(ref int) {
-	typeName := v.walker.EnclosingTypeDefinition.NameString(v.input.Definition)
+	typeName := v.walker.EnclosingTypeDefinition.NameString(v.input.definition)
 	currentFieldName := v.key.FieldNameUnsafeString(ref)
 
 	currentPathWithoutFragments := v.walker.Path.WithoutInlineFragmentNames().DotDelimitedString()
 	// remove the parent type name from the path because we are walking a fragment with the required fields
-	parentPath := v.input.ParentPath + strings.TrimPrefix(currentPathWithoutFragments, v.input.TypeName)
+	parentPath := v.input.parentPath + strings.TrimPrefix(currentPathWithoutFragments, v.input.typeName)
 	currentPath := parentPath + "." + currentFieldName
 
 	key := providedFieldKey(typeName, currentFieldName, currentPath)
 
-	_, provided := v.input.ProvidedFields[key]
+	_, provided := v.input.providedFields[key]
 
 	if !provided {
-		// if we are on a nested path, e.g. parent provided
+		// if we are on a nested path - it means that parent was provided as we reach this
 		if parentPath != "" {
-			hasRootNode := v.input.DataSource.HasRootNode(typeName, currentFieldName)
-			hasChildNode := v.input.DataSource.HasChildNode(typeName, currentFieldName)
+			hasRootNode := v.input.dataSource.HasRootNode(typeName, currentFieldName)
+			hasChildNode := v.input.dataSource.HasChildNode(typeName, currentFieldName)
 
 			// if the field is not external under the parent
 			if hasRootNode || hasChildNode {

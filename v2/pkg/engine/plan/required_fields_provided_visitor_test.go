@@ -43,7 +43,6 @@ func TestAreRequiredFieldsProvided(t *testing.T) {
 	cases := []struct {
 		name           string
 		typeName       string
-		fieldName      string
 		requiredFields string
 		parentPath     string
 		providedFields map[string]struct{}
@@ -129,7 +128,6 @@ func TestAreRequiredFieldsProvided(t *testing.T) {
 		{
 			name:           "requires with field name",
 			typeName:       "User",
-			fieldName:      "username",
 			requiredFields: "name",
 			parentPath:     "query.me",
 			providedFields: map[string]struct{}{
@@ -173,16 +171,15 @@ func TestAreRequiredFieldsProvided(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			input := areRequiredFieldsProvidedInput{
-				TypeName:       c.typeName,
-				FieldName:      c.fieldName,
-				RequiredFields: c.requiredFields,
-				Definition:     &definition,
-				ProvidedFields: c.providedFields,
-				ParentPath:     c.parentPath,
-				DataSource:     dsb().DS(),
+				typeName:       c.typeName,
+				requiredFields: c.requiredFields,
+				definition:     &definition,
+				providedFields: c.providedFields,
+				parentPath:     c.parentPath,
+				dataSource:     dsb().DS(),
 			}
 			if c.datasource != nil {
-				input.DataSource = c.datasource
+				input.dataSource = c.datasource
 			}
 
 			result, report := areRequiredFieldsProvided(input)

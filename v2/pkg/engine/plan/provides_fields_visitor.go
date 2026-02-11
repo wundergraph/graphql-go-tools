@@ -1,7 +1,6 @@
 package plan
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -110,6 +109,8 @@ func (v *providesVisitor) EnterField(ref int) {
 	v.suggestions[providedFieldKey(typeName, fieldName, currentPath)] = struct{}{}
 }
 
+// providedFieldKey returns a unique key for a provided field
+// it consists of the type name, field name and dot delimited path from a query
 func providedFieldKey(typeName, fieldName, path string) string {
-	return fmt.Sprintf("%s|%s|%s", typeName, fieldName, path)
+	return typeName + "|" + fieldName + "|" + path
 }
