@@ -82,7 +82,7 @@ func (v *requiredFieldsProvidedVisitor) EnterField(ref int) {
 	typeName := v.walker.EnclosingTypeDefinition.NameString(v.input.definition)
 	currentFieldName := v.key.FieldNameUnsafeString(ref)
 
-	currentPathWithoutFragments := v.walker.Path.WithoutInlineFragmentNames().DotDelimitedString()
+	currentPathWithoutFragments := v.walker.Path.WithoutInlineFragmentNames().DotDelimitedString(true)
 	// remove the parent type name from the path because we are walking a fragment with the required fields
 	parentPath := v.input.parentPath + strings.TrimPrefix(currentPathWithoutFragments, v.input.typeName)
 	currentPath := parentPath + "." + currentFieldName
