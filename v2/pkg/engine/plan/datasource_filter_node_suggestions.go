@@ -96,6 +96,7 @@ type NodeSuggestions struct {
 	pathSuggestions map[string][]*NodeSuggestion
 	seenFields      map[int]struct{}
 	responseTree    tree.Tree[[]int]
+	providedFields  map[DSHash]map[string]struct{}
 }
 
 func TraverseBFS(data tree.Tree[[]int]) iter.Seq2[uint, tree.Node[[]int]] {
@@ -133,6 +134,7 @@ func NewNodeSuggestionsWithSize(size int) *NodeSuggestions {
 		seenFields:      make(map[int]struct{}, size),
 		pathSuggestions: make(map[string][]*NodeSuggestion),
 		responseTree:    *responseTree,
+		providedFields:  make(map[DSHash]map[string]struct{}),
 	}
 }
 
@@ -201,6 +203,14 @@ func (f *NodeSuggestions) SuggestionsForPath(typeName, fieldName, path string) (
 	}
 
 	return suggestions
+}
+
+// addProvidedField stores globally provided fields paths for a datasource
+func (f *NodeSuggestions) addProvidedField(key string, dsHash DSHash) {
+	if _, ok := f.providedFields[dsHash]; !ok {
+		f.providedFields[dsHash] = make(map[string]struct{})
+	}
+	f.providedFields[dsHash][key] = struct{}{}
 }
 
 func (f *NodeSuggestions) HasSuggestionForPath(typeName, fieldName, path string) (dsHash DSHash, ok bool) {
