@@ -221,7 +221,7 @@ func (c *nodeSelectionVisitor) handleEnterField(fieldRef int, handleRequires boo
 
 	c.debugPrint("EnterField ref:", fieldRef, "fieldName:", fieldName, "typeName:", typeName, "requires:", handleRequires)
 
-	parentPath := c.walker.Path.DotDelimitedString(true)
+	parentPath := c.walker.Path.DotDelimitedString()
 	currentPath := parentPath + "." + fieldAliasOrName
 
 	suggestions := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
@@ -716,13 +716,13 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldR
 
 	rewriter, err := newFieldSelectionRewriter(c.operation, c.definition, ds, options...)
 	if err != nil {
-		c.walker.StopWithInternalErr(fmt.Errorf("failed to create field selection rewriter for field %s at path %s: %w", c.operation.FieldNameString(fieldRef), c.walker.Path.DotDelimitedString(true), err))
+		c.walker.StopWithInternalErr(fmt.Errorf("failed to create field selection rewriter for field %s at path %s: %w", c.operation.FieldNameString(fieldRef), c.walker.Path.DotDelimitedString(), err))
 		return
 	}
 
 	result, err := rewriter.RewriteFieldSelection(fieldRef, c.walker.EnclosingTypeDefinition)
 	if err != nil {
-		c.walker.StopWithInternalErr(fmt.Errorf("failed to rewrite field selection for field %s at path %s: %w", c.operation.FieldNameString(fieldRef), c.walker.Path.DotDelimitedString(true), err))
+		c.walker.StopWithInternalErr(fmt.Errorf("failed to rewrite field selection for field %s at path %s: %w", c.operation.FieldNameString(fieldRef), c.walker.Path.DotDelimitedString(), err))
 		return
 	}
 

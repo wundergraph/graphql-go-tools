@@ -32,6 +32,6 @@ func (r *emptySelectionSetVisitor) EnterDocument(operation, definition *ast.Docu
 
 func (r *emptySelectionSetVisitor) EnterSelectionSet(ref int) {
 	if r.operation.SelectionSetIsEmpty(ref) {
-		r.Walker.StopWithInternalErr(fmt.Errorf("astvalidation selection set on path %s is empty", r.Walker.Path.DotDelimitedString(true)))
+		r.Walker.StopWithInternalErr(fmt.Errorf("astvalidation selection set on path %s is empty", r.Walker.Path.DotDelimitedString()))
 	}
 }

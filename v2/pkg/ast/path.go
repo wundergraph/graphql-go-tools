@@ -128,7 +128,20 @@ func (p Path) String() string {
 	return out
 }
 
-func (p Path) DotDelimitedString(useFragmentRefs bool) string {
+// DotDelimitedString returns a dot-separated string representation of the path.
+// Inline fragments include their reference number, e.g., "query.user.$1User.name".
+func (p Path) DotDelimitedString() string {
+	return p.dotDelimitedString(true)
+}
+
+// DotDelimitedStringWithoutFragmentRefs returns a dot-separated string representation of the path.
+// Unlike DotDelimitedString, inline fragments omit their reference number,
+// e.g., "query.user.$User.name".
+func (p Path) DotDelimitedStringWithoutFragmentRefs() string {
+	return p.dotDelimitedString(false)
+}
+
+func (p Path) dotDelimitedString(includeFragmentRefs bool) string {
 	builder := strings.Builder{}
 
 	toGrow := 0
@@ -160,7 +173,7 @@ func (p Path) DotDelimitedString(useFragmentRefs bool) string {
 			}
 		case InlineFragmentName:
 			builder.WriteString(InlineFragmentPathPrefix)
-			if useFragmentRefs {
+			if includeFragmentRefs {
 				builder.WriteString(strconv.Itoa(p[i].FragmentRef))
 			}
 			builder.WriteString(unsafebytes.BytesToString(p[i].FieldName))
