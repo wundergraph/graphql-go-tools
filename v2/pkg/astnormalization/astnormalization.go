@@ -353,6 +353,9 @@ type VariablesNormalizer struct {
 	variablesExtractionVisitor *variablesExtractionVisitor
 }
 
+// NewVariablesNormalizer creates a new variable normalizer.
+// If withFieldArgMapping is true then the normalizer creates a
+// mapping of field arguments as a "side product" when NormalizeOperation is called.
 func NewVariablesNormalizer(withFieldArgMapping bool) *VariablesNormalizer {
 	// delete unused modifying variables refs,
 	// so it is safer to run it sequentially with the extraction
@@ -382,6 +385,13 @@ func NewVariablesNormalizer(withFieldArgMapping bool) *VariablesNormalizer {
 	}
 }
 
+// NormalizeOperation processes GraphQL operation variables.
+// It detects and removes unused variables, extracts variables from inline values
+// and coerces variable types. It modifies the operation in place and
+// returns metadata including field argument mappings and upload paths.
+// Field argument mapping is done only when v is configured to do so via NewVariablesNormalizer,
+// else VariablesNormalizerResult.FieldArgumentMapping will be nil.
+// Any errors encountered during normalization are reported via the report parameter.
 func (v *VariablesNormalizer) NormalizeOperation(operation, definition *ast.Document, report *operationreport.Report) VariablesNormalizerResult {
 	v.firstDetectUnused.Walk(operation, definition, report)
 	if report.HasErrors() {
