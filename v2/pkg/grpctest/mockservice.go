@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
@@ -209,11 +210,22 @@ func (s *MockService) QuerySearch(ctx context.Context, in *productv1.QuerySearch
 func (s *MockService) QueryUsers(ctx context.Context, in *productv1.QueryUsersRequest) (*productv1.QueryUsersResponse, error) {
 	var results []*productv1.User
 
+	// Default prefix for user names and IDs
+	prefix := "User"
+
+	// Allow header to override the prefix
+	md, ok := metadata.FromIncomingContext(ctx)
+	if ok {
+		if values := md.Get("x-user-prefix"); len(values) > 0 {
+			prefix = values[0]
+		}
+	}
+
 	// Generate 3 random users
 	for i := 1; i <= 3; i++ {
 		results = append(results, &productv1.User{
 			Id:   fmt.Sprintf("user-%d", i),
-			Name: fmt.Sprintf("User %d", i),
+			Name: fmt.Sprintf("%s %d", prefix, i),
 		})
 	}
 
@@ -224,6 +236,12 @@ func (s *MockService) QueryUsers(ctx context.Context, in *productv1.QueryUsersRe
 
 func (s *MockService) QueryUser(ctx context.Context, in *productv1.QueryUserRequest) (*productv1.QueryUserResponse, error) {
 	userId := in.GetId()
+	md, ok := metadata.FromIncomingContext(ctx)
+	if ok {
+		if values := md.Get("x-testheader"); len(values) > 0 {
+			userId = values[0]
+		}
+	}
 
 	// Return a gRPC status error for a specific test case
 	if userId == "error-user" {
@@ -515,11 +533,20 @@ func (s *MockService) QueryAllPets(ctx context.Context, in *productv1.QueryAllPe
 // Implementation for CreateUser mutation
 func (s *MockService) MutationCreateUser(ctx context.Context, in *productv1.MutationCreateUserRequest) (*productv1.MutationCreateUserResponse, error) {
 	input := in.GetInput()
+	name := input.GetName()
+
+	// Allow header to override the name
+	md, ok := metadata.FromIncomingContext(ctx)
+	if ok {
+		if values := md.Get("x-custom-name"); len(values) > 0 {
+			name = values[0]
+		}
+	}
 
 	// Create a new user with the input name and a random ID
 	user := &productv1.User{
 		Id:   fmt.Sprintf("user-%d", rand.Intn(1000)),
-		Name: input.GetName(),
+		Name: name,
 	}
 
 	return &productv1.MutationCreateUserResponse{
