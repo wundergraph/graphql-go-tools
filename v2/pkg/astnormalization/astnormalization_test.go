@@ -1018,7 +1018,7 @@ func TestVariablesNormalizer(t *testing.T) {
 		operationDocument := unsafeparser.ParseGraphqlDocumentString(input)
 		operationDocument.Input.Variables = []byte(`{}`)
 
-		normalizer := NewVariablesNormalizer()
+		normalizer := NewVariablesNormalizer(false)
 		report := operationreport.Report{}
 		normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
 		require.False(t, report.HasErrors(), report.Error())
@@ -1040,9 +1040,10 @@ func TestVariablesNormalizer(t *testing.T) {
 		operationDocument := unsafeparser.ParseGraphqlDocumentString(`mutation Foo($varOne: [Input2!]! $varTwo: Input2!) { hello(arg: {twoList: $varOne two: $varTwo}) }`)
 		operationDocument.Input.Variables = []byte(`{"varOne":[{"oneList":[{"list":[null,null],"value":null}],"one":{"list":[null],"value":null}}],"varTwo":{"oneList":[{"list":[null,null],"value":null}],"one":{"list":[null],"value":null}}}`)
 
-		normalizer := NewVariablesNormalizer()
+		// create normalizer without field arg mapping
+		normalizer := NewVariablesNormalizer(false)
 		report := operationreport.Report{}
-		uploadsMapping := normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
+		result := normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
 		require.False(t, report.HasErrors(), report.Error())
 
 		out := unsafeprinter.Print(&operationDocument)
@@ -1060,7 +1061,330 @@ func TestVariablesNormalizer(t *testing.T) {
 			{VariableName: "a", OriginalUploadPath: "variables.varTwo.oneList.0.value", NewUploadPath: "variables.a.two.oneList.0.value"},
 			{VariableName: "a", OriginalUploadPath: "variables.varTwo.one.list.0", NewUploadPath: "variables.a.two.one.list.0"},
 			{VariableName: "a", OriginalUploadPath: "variables.varTwo.one.value", NewUploadPath: "variables.a.two.one.value"},
-		}, uploadsMapping)
+		}, result.UploadsMapping)
+
+		// Verify field argument mapping is not populated
+		assert.Nil(t, result.FieldArgumentMapping)
+	})
+
+	t.Run("field argument mapping", func(t *testing.T) {
+		const fieldArgMappingSchema = `
+			type Query {
+				viewer: User
+				user(id: ID!, active: Boolean): User
+				users(name: String!, limit: Int!, offset: Int): [User!]!
+				node(id: ID!): Node
+			}
+			interface Node {
+				id: ID!
+				User: UserContainer
+			}
+			type UserContainer {
+				posts(limit: Int!): [Post!]!
+			}
+			type User implements Node {
+				id: ID!
+				name: String!
+				posts(limit: Int!): [Post!]!
+				items(limit: Int!): [Item!]!
+				User: UserContainer
+			}
+			type Admin implements Node {
+				id: ID!
+				role: String!
+				items(limit: Int!): [Item!]!
+				User: UserContainer
+			}
+			type Post {
+				id: ID!
+				title: String!
+			}
+			type Item {
+				id: ID!
+				name: String!
+			}
+		`
+
+		testCases := []struct {
+			name            string
+			operation       string
+			variables       string
+			expectedMapping FieldArgumentMapping
+		}{
+			{
+				name: "mapping references the name of the variable",
+				operation: `
+				query GetUser($userId: ID!) {
+					user(id: $userId) { name }
+				}`,
+				variables:       `{"userId": "123"}`,
+				expectedMapping: FieldArgumentMapping{"query.user.id": "userId"},
+			},
+			{
+				name: "mapping references an extracted variable on literal values",
+				operation: `
+				query GetUser {
+					user(id: "123") { name }
+				}`,
+				variables:       `{}`,
+				expectedMapping: FieldArgumentMapping{"query.user.id": "a"},
+			},
+			{
+				name: "mapping references an extracted variable on multiple literal values",
+				operation: `
+				query GetUsers {
+					firstAlias: user(id: "user-1") { name }
+					secondAlias: user(id: "user-2") { name }
+				}`,
+				variables: `{}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.firstAlias.id":  "a",
+					"query.secondAlias.id": "b",
+				},
+			},
+			{
+				name: "mapping references an extracted variable on multiple variable values",
+				operation: `
+				query GetUsers($id1: ID!, $id2: ID!) {
+					firstAlias: user(id: $id1) { name }
+					secondAlias: user(id: $id2) { name }
+				}`,
+				variables: `{"id1": "user-1", "id2": "user-2"}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.firstAlias.id":  "id1",
+					"query.secondAlias.id": "id2",
+				},
+			},
+			{
+				name: "mapping correctly builds paths on nested field arguments",
+				operation: `
+				query GetUserPosts($userId: ID!, $limit: Int!) {
+					user(id: $userId) {
+						posts(limit: $limit) { title }
+					}
+				}`,
+				variables: `{"userId": "123", "limit": 10}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.user.id":          "userId",
+					"query.user.posts.limit": "limit",
+				},
+			},
+			{
+				name: "multiple variables refs used correctly in mapping",
+				operation: `
+				query SearchUsers($name: String!, $limit: Int!, $offset: Int) {
+					users(name: $name, limit: $limit, offset: $offset) { id }
+				}`,
+				variables: `{"name": "john", "limit": 10, "offset": 5}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.users.name":   "name",
+					"query.users.limit":  "limit",
+					"query.users.offset": "offset",
+				},
+			},
+			{
+				name: "mixed inline and variables get correctly mapped",
+				operation: `
+				query GetUser($userId: ID!) {
+					user(id: $userId, active: true) { name }
+				}`,
+				variables: `{"userId": "123"}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.user.id":     "userId",
+					"query.user.active": "a",
+				},
+			},
+			{
+				name: "empty mapping when no arguments",
+				operation: `
+				query GetViewer {
+					viewer { id name }
+				}`,
+				variables:       `{}`,
+				expectedMapping: FieldArgumentMapping{},
+			},
+			{
+				name: "reused literal values are recorded for all field arguments",
+				operation: `
+				query GetUsers {
+					firstAlias: user(id: "123") { name }
+					secondAlias: user(id: "123") { name }
+				}`,
+				variables: `{}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.firstAlias.id":  "a",
+					"query.secondAlias.id": "a",
+				},
+			},
+			{
+				name: "multiple reused literal values with different values are all recorded",
+				operation: `
+				query GetUsers {
+					firstAlias: user(id: "123") { name }
+					secondAlias: user(id: "123") { name }
+					thirdAlias: user(id: "456") { name }
+					fourthAlias: user(id: "456") { name }
+				}`,
+				variables: `{}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.firstAlias.id":  "a",
+					"query.secondAlias.id": "a",
+					"query.thirdAlias.id":  "b",
+					"query.fourthAlias.id": "b",
+				},
+			},
+			{
+				name: "inline fragment with arguments includes dollar prefix in path",
+				operation: `
+				query GetNode($id: ID!, $limit: Int!) {
+					node(id: $id) {
+						id
+						... on User {
+							name
+							posts(limit: $limit) { title }
+						}
+					}
+				}`,
+				variables: `{"id": "123", "limit": 10}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.node.id":                "id",
+					"query.node.$User.posts.limit": "limit",
+				},
+			},
+			{
+				name: "multiple inline fragments with arguments each get dollar prefix",
+				operation: `
+				query GetNode($id: ID!, $userLimit: Int!, $adminLimit: Int!) {
+					node(id: $id) {
+						id
+						... on User {
+							name
+							items(limit: $userLimit) { name }
+						}
+						... on Admin {
+							role
+							items(limit: $adminLimit) { name }
+						}
+					}
+				}`,
+				variables: `{"id": "123", "userLimit": 5, "adminLimit": 10}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.node.id":                 "id",
+					"query.node.$User.items.limit":  "userLimit",
+					"query.node.$Admin.items.limit": "adminLimit",
+				},
+			},
+			{
+				name: "inline fragment with literal argument gets extracted variable",
+				operation: `
+				query GetNode($id: ID!) {
+					node(id: $id) {
+						id
+						... on User {
+							name
+							posts(limit: 20) { title }
+						}
+					}
+				}`,
+				variables: `{"id": "123"}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.node.id":                "id",
+					"query.node.$User.posts.limit": "a",
+				},
+			},
+			{
+				name: "nested inline fragments include all dollar prefixes in path",
+				operation: `
+				query GetNode($id: ID!, $limit: Int!) {
+					node(id: $id) {
+						... on User {
+							User {
+								posts(limit: $limit) { title }
+							}
+						}
+					}
+				}`,
+				variables: `{"id": "123", "limit": 10}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.node.id":                     "id",
+					"query.node.$User.User.posts.limit": "limit",
+				},
+			},
+			{
+				name: "inline fragment in aliased field includes alias in path",
+				operation: `
+				query GetNode($id: ID!, $limit: Int!) {
+					nodeAlias: node(id: $id) {
+						id
+						... on User {
+							name
+							posts(limit: $limit) { title }
+						}
+					}
+				}`,
+				variables: `{"id": "123", "limit": 10}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.nodeAlias.id":                "id",
+					"query.nodeAlias.$User.posts.limit": "limit",
+				},
+			},
+			{
+				name: "multiple inline fragments with mixed variables and literals",
+				operation: `
+				query GetNode($id: ID!, $userLimit: Int!) {
+					node(id: $id) {
+						id
+						... on User {
+							items(limit: $userLimit) { name }
+						}
+						... on Admin {
+							items(limit: 15) { name }
+						}
+					}
+				}`,
+				variables: `{"id": "123", "userLimit": 5}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.node.id":                 "id",
+					"query.node.$User.items.limit":  "userLimit",
+					"query.node.$Admin.items.limit": "a",
+				},
+			},
+			{
+				// There is no hard requirement for excluding directive arguments
+				// but at the moment this is not supported because it would involve more
+				// complex changes to the variable normalizer.
+				name: "directive arguments are not included in field argument mapping",
+				operation: `
+				query GetUser($userId: ID!, $limit: Int!, $includeItems: Boolean!, $skipPosts: Boolean!) {
+					user(id: $userId) {
+						name
+						posts(limit: $limit) @skip(if: $skipPosts) { title }
+						items(limit: 10) @include(if: $includeItems) { name }
+					}
+				}`,
+				variables: `{"userId": "123", "limit": 5, "includeItems": true, "skipPosts": false}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.user.id":          "userId",
+					"query.user.posts.limit": "limit",
+					"query.user.items.limit": "a",
+				},
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				definitionDocument := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(fieldArgMappingSchema)
+				operationDocument := unsafeparser.ParseGraphqlDocumentString(tc.operation)
+				operationDocument.Input.Variables = []byte(tc.variables)
+
+				normalizer := NewVariablesNormalizer(true)
+				report := operationreport.Report{}
+				result := normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
+				require.False(t, report.HasErrors(), report.Error())
+
+				assert.Equal(t, tc.expectedMapping, result.FieldArgumentMapping)
+			})
+		}
 	})
 }
 
@@ -1089,7 +1413,7 @@ var mustString = func(str string, err error) string {
 }
 
 type registerNormalizeFunc func(walker *astvisitor.Walker)
-type registerNormalizeVariablesFunc func(walker *astvisitor.Walker) *variablesExtractionVisitor
+type registerNormalizeVariablesFunc func(walker *astvisitor.Walker, withFieldArgMapping bool) *variablesExtractionVisitor
 type registerNormalizeVariablesDefaulValueFunc func(walker *astvisitor.Walker) *variablesDefaultValueExtractionVisitor
 type registerNormalizeDeleteVariablesFunc func(walker *astvisitor.Walker) *deleteUnusedVariablesVisitor
 
@@ -1185,7 +1509,7 @@ var runWithVariablesExtraction = func(t *testing.T, normalizeFunc registerNormal
 	t.Helper()
 
 	runWithVariablesAssert(t, func(walker *astvisitor.Walker) {
-		normalizeFunc(walker)
+		normalizeFunc(walker, false)
 	}, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables, additionalNormalizers...)
 }
 
@@ -1193,7 +1517,7 @@ var runWithVariablesExtractionAndPreNormalize = func(t *testing.T, normalizeFunc
 	t.Helper()
 
 	runWithVariablesAssertAndPreNormalize(t, func(walker *astvisitor.Walker) {
-		normalizeFunc(walker)
+		normalizeFunc(walker, false)
 	}, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables, prerequisites...)
 }
 
@@ -1289,7 +1613,7 @@ var runWithExpectedErrors = func(t *testing.T, normalizeFunc registerNormalizeVa
 	report := operationreport.Report{}
 	walker := astvisitor.NewWalker(48)
 
-	normalizeFunc(&walker)
+	normalizeFunc(&walker, false)
 
 	for _, fn := range additionalNormalizers {
 		fn(&walker)

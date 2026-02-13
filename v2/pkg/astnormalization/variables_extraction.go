@@ -14,10 +14,13 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 )
 
-func extractVariables(walker *astvisitor.Walker) *variablesExtractionVisitor {
+func extractVariables(walker *astvisitor.Walker, withFieldArgMapping bool) *variablesExtractionVisitor {
 	visitor := &variablesExtractionVisitor{
 		Walker:       walker,
 		uploadFinder: uploads.NewUploadFinder(),
+		fieldArgumentMapping: fieldArgMappingOption{
+			enabled: withFieldArgMapping,
+		},
 	}
 	walker.RegisterEnterDocumentVisitor(visitor)
 	walker.RegisterEnterArgumentVisitor(visitor)
@@ -34,6 +37,12 @@ type variablesExtractionVisitor struct {
 	extractedVariableTypeRefs []int
 	uploadFinder              *uploads.UploadFinder
 	uploadsPath               []uploads.UploadPathMapping
+	fieldArgumentMapping      fieldArgMappingOption
+}
+
+type fieldArgMappingOption struct {
+	enabled bool
+	result  FieldArgumentMapping
 }
 
 func (v *variablesExtractionVisitor) EnterArgument(ref int) {
@@ -63,6 +72,10 @@ func (v *variablesExtractionVisitor) EnterArgument(ref int) {
 		if len(uploadsMapping) > 0 {
 			v.uploadsPath = append(v.uploadsPath, uploadsMapping...)
 		}
+		// Record the field argument mapping for existing variables
+		if v.fieldArgumentMapping.enabled {
+			v.recordFieldArgumentMapping(ref, "")
+		}
 		return
 	}
 
@@ -78,6 +91,12 @@ func (v *variablesExtractionVisitor) EnterArgument(ref int) {
 		value := v.operation.AddVariableValue(variable)
 		v.operation.Arguments[ref].Value.Kind = ast.ValueKindVariable
 		v.operation.Arguments[ref].Value.Ref = value
+
+		// Record the field argument mapping for already extracted variable
+		if v.fieldArgumentMapping.enabled {
+			v.recordFieldArgumentMapping(ref, string(name))
+		}
+
 		return
 	}
 	variableNameBytes := v.operation.GenerateUnusedVariableDefinitionName(v.Ancestors[0].Ref)
@@ -141,12 +160,57 @@ func (v *variablesExtractionVisitor) EnterArgument(ref int) {
 	v.operation.OperationDefinitions[v.Ancestors[0].Ref].VariableDefinitions.Refs =
 		append(v.operation.OperationDefinitions[v.Ancestors[0].Ref].VariableDefinitions.Refs, newVariableRef)
 	v.operation.OperationDefinitions[v.Ancestors[0].Ref].HasVariableDefinitions = true
+
+	// Record the field argument mapping for the newly extracted variable
+	if v.fieldArgumentMapping.enabled {
+		v.recordFieldArgumentMapping(ref, string(variableNameBytes))
+	}
 }
 
 func (v *variablesExtractionVisitor) EnterDocument(operation, definition *ast.Document) {
 	v.operation, v.definition = operation, definition
 	v.extractedVariables = v.extractedVariables[:0]
 	v.extractedVariableTypeRefs = v.extractedVariableTypeRefs[:0]
+	if v.fieldArgumentMapping.enabled {
+		v.fieldArgumentMapping.result = make(FieldArgumentMapping)
+	}
+}
+
+// recordFieldArgumentMapping records the currently visited field argument
+// of v in v.fieldArgumentMapping, alongside its matching variable name or literal value.
+// If varName is empty, it looks up the variable name from the operation or stores the literal value.
+func (v *variablesExtractionVisitor) recordFieldArgumentMapping(ref int, varName string) {
+	// Guard to prevent nil panics.
+	// If v.fieldArgumentMapping.result is nil, then field argument mapping is disabled.
+	if v.fieldArgumentMapping.result == nil {
+		return
+	}
+
+	fieldPath := v.Path.DotDelimitedStringWithoutFragmentRefs()
+	if fieldPath == "" {
+		return
+	}
+	argName := v.operation.ArgumentNameString(ref)
+	key := fieldPath + "." + argName
+
+	if varName != "" {
+		// Variable name was provided (from extraction)
+		v.fieldArgumentMapping.result[key] = varName
+		return
+	}
+
+	if v.operation.Arguments[ref].Value.Kind != ast.ValueKindVariable {
+		// We expect the operation on this visitor to be normalized before the visitor walks it.
+		// This means that values of any field arguments should be extracted to variables.
+		// If we still land here it means the query hasn't been normalized before.
+		// In this case we ignore mapping the field argument, i.e. we do not support mapping field
+		// arguments with literal values.
+		// It's not impossible to do so, just expensive and not needed at the moment.
+		return
+	}
+
+	varName = v.operation.VariableValueNameString(v.operation.Arguments[ref].Value.Ref)
+	v.fieldArgumentMapping.result[key] = varName
 }
 
 func (v *variablesExtractionVisitor) variableExists(variableValue []byte, inputValueDefinition int) (exists bool, name []byte, definition int) {
