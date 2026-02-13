@@ -46,7 +46,8 @@ type Request struct {
 
 	validForSchema map[uint64]ValidationResult
 
-	staticCost int
+	estimatedCost int
+	actualCost    int
 }
 
 func UnmarshalRequest(reader io.Reader, request *Request) error {
@@ -195,14 +196,30 @@ func (r *Request) OperationType() (OperationType, error) {
 	return OperationTypeUnknown, nil
 }
 
-func (r *Request) ComputeStaticCost(calc *plan.CostCalculator, config plan.Configuration, variables *astjson.Value) {
+func (r *Request) ComputeEstimatedCost(calc *plan.CostCalculator, config plan.Configuration, variables *astjson.Value) {
 	if calc != nil {
-		r.staticCost = calc.GetStaticCost(config, variables)
+		r.estimatedCost = calc.EstimateCost(config, variables)
+		// Debugging of cost trees. Uncomment to debug.
+		// fmt.Println(calc.DebugPrint(config, variables, nil))
 	} else {
-		r.staticCost = 0
+		r.estimatedCost = 0
 	}
 }
 
-func (r *Request) StaticCost() int {
-	return r.staticCost
+func (r *Request) EstimatedCost() int {
+	return r.estimatedCost
+}
+
+func (r *Request) ComputeActualCost(calc *plan.CostCalculator, config plan.Configuration, variables *astjson.Value, actualListSizes map[string]int) {
+	if calc != nil && actualListSizes != nil {
+		r.actualCost = calc.ActualCost(config, actualListSizes)
+		// Debugging of cost trees. Uncomment to debug.
+		// fmt.Println(calc.DebugPrint(config, variables, actualListSizes))
+	} else {
+		r.actualCost = 0
+	}
+}
+
+func (r *Request) ActualCost() int {
+	return r.actualCost
 }

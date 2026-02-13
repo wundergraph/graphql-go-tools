@@ -5,11 +5,11 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 )
 
-// StaticCostVisitor builds the cost tree during AST traversal.
+// CostVisitor builds the cost tree during AST traversal.
 // It is registered on the same walker as the planning Visitor and uses
 // data from the planning visitor (fieldPlanners, planners) to determine
 // which data sources are responsible for each field.
-type StaticCostVisitor struct {
+type CostVisitor struct {
 	Walker *astvisitor.Walker
 
 	// AST documents - set before walking
@@ -30,14 +30,14 @@ type StaticCostVisitor struct {
 	tree *CostTreeNode
 }
 
-// NewStaticCostVisitor creates a new cost tree visitor
-func NewStaticCostVisitor(walker *astvisitor.Walker, operation, definition *ast.Document) *StaticCostVisitor {
+// NewCostVisitor creates a new cost tree visitor
+func NewCostVisitor(walker *astvisitor.Walker, operation, definition *ast.Document) *CostVisitor {
 	stack := make([]*CostTreeNode, 0, 16)
 	rootNode := CostTreeNode{
 		fieldCoord: FieldCoordinate{"_none", "_root"},
 	}
 	stack = append(stack, &rootNode)
-	return &StaticCostVisitor{
+	return &CostVisitor{
 		Walker:     walker,
 		Operation:  operation,
 		Definition: definition,
@@ -48,7 +48,7 @@ func NewStaticCostVisitor(walker *astvisitor.Walker, operation, definition *ast.
 
 // EnterField creates a partial cost node when entering a field.
 // The node is filled in full in the LeaveField when fieldPlanners data is available.
-func (v *StaticCostVisitor) EnterField(fieldRef int) {
+func (v *CostVisitor) EnterField(fieldRef int) {
 	typeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
 	fieldName := v.Operation.FieldNameUnsafeString(fieldRef)
 
@@ -86,6 +86,18 @@ func (v *StaticCostVisitor) EnterField(fieldRef int) {
 		}
 	}
 
+	aliasOrName := v.Operation.FieldAliasOrNameString(fieldRef)
+
+	var jsonPath string
+	if len(v.stack) > 0 {
+		parent := v.stack[len(v.stack)-1]
+		if parent.jsonPath != "" {
+			jsonPath = parent.jsonPath + "." + aliasOrName
+		} else {
+			jsonPath = aliasOrName
+		}
+	}
+
 	isEnclosingTypeAbstract := v.Walker.EnclosingTypeDefinition.Kind.IsAbstractType()
 	// Create a skeleton node. dataSourceHashes will be filled in leaveFieldCost
 	node := CostTreeNode{
@@ -98,6 +110,7 @@ func (v *StaticCostVisitor) EnterField(fieldRef int) {
 		returnsAbstractType:     isAbstractType,
 		isEnclosingTypeAbstract: isEnclosingTypeAbstract,
 		arguments:               arguments,
+		jsonPath:                jsonPath,
 	}
 
 	// Attach to parent
@@ -110,7 +123,7 @@ func (v *StaticCostVisitor) EnterField(fieldRef int) {
 }
 
 // LeaveField fills DataSource hashes for the current node and pop it from the cost stack.
-func (v *StaticCostVisitor) LeaveField(fieldRef int) {
+func (v *CostVisitor) LeaveField(fieldRef int) {
 	dsHashes := v.getFieldDataSourceHashes(fieldRef)
 
 	if len(v.stack) <= 1 { // Keep root on stack
@@ -132,7 +145,7 @@ func (v *StaticCostVisitor) LeaveField(fieldRef int) {
 
 // getFieldDataSourceHashes returns all data source hashes for the field.
 // A field can be planned on multiple data sources in federation scenarios.
-func (v *StaticCostVisitor) getFieldDataSourceHashes(fieldRef int) []DSHash {
+func (v *CostVisitor) getFieldDataSourceHashes(fieldRef int) []DSHash {
 	plannerIDs, ok := (*v.fieldPlanners)[fieldRef]
 	if !ok || len(plannerIDs) == 0 {
 		return nil
@@ -151,7 +164,7 @@ func (v *StaticCostVisitor) getFieldDataSourceHashes(fieldRef int) []DSHash {
 // extractFieldArguments extracts arguments from a field for cost calculation
 // This implementation does not go deep for input objects yet.
 // It should return unwrapped type names for arguments and that is it for now.
-func (v *StaticCostVisitor) extractFieldArguments(fieldRef int) map[string]ArgumentInfo {
+func (v *CostVisitor) extractFieldArguments(fieldRef int) map[string]ArgumentInfo {
 	argRefs := v.Operation.FieldArguments(fieldRef)
 	if len(argRefs) == 0 {
 		return nil
@@ -208,6 +221,6 @@ func (v *StaticCostVisitor) extractFieldArguments(fieldRef int) map[string]Argum
 	return arguments
 }
 
-func (v *StaticCostVisitor) finalCostTree() *CostTreeNode {
+func (v *CostVisitor) finalCostTree() *CostTreeNode {
 	return v.tree
 }
