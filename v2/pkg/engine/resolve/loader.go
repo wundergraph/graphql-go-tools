@@ -561,6 +561,12 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 
 	// Check if data needs processing.
 	if res.postProcessing.SelectResponseDataPath != nil && astjson.ValueIsNull(responseData) {
+		// First check if this is actually an entity null fetch, instead of a data null fetch.
+		// In this case we return early to avoid adding subgraph errors or merging this into items.
+		if isNullEntityFetch(res.postProcessing.SelectResponseDataPath, response) {
+			return nil
+		}
+
 		// When:
 		// - No errors or data are present
 		// - Status code is not within the 2XX range
@@ -654,6 +660,27 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		}
 	}
 	return nil
+}
+
+// isNullEntityFetch returns true, if the fetch at dataPath is null
+// but it's part of an actual array response, i.e.
+// { "data": { "_entities": [null] } }
+// instead of
+// { "data": null }
+// The latter will return false.
+func isNullEntityFetch(dataPath []string, response *astjson.Value) bool {
+	if len(dataPath) > 1 && dataPath[len(dataPath)-2] == "_entities" {
+		// data path is an entity array
+		// check that the entity fetch's parent array exists
+		parentPath := dataPath[:len(dataPath)-1]
+		parentData := response.Get(parentPath...)
+
+		if astjson.ValueIsNonNull(parentData) && parentData.Type() == astjson.TypeArray {
+			return true
+		}
+	}
+
+	return false
 }
 
 var (
