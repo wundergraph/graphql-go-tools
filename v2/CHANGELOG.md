@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.249](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.248...v2.0.0-rc.249) (2026-02-13)
+
+
+### Bug Fixes
+
+* ensure GC safety for arena-allocated string values ([#1383](https://github.com/wundergraph/graphql-go-tools/issues/1383)) ([608be72](https://github.com/wundergraph/graphql-go-tools/commit/608be72c12b7e308a4134d3a7fe1205f7f491bf5))
+
 ## [2.0.0-rc.248](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.247...v2.0.0-rc.248) (2026-02-11)
 
 
