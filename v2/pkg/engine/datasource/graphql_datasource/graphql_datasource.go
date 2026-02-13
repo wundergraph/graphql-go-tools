@@ -92,6 +92,8 @@ type Planner[T Configuration] struct {
 
 	// gRPC
 	grpcClient grpc.ClientConnInterface
+
+	printKitPool *sync.Pool
 }
 
 func (p *Planner[T]) EnableSubgraphRequestMinifier() {
@@ -1685,10 +1687,10 @@ type printKit struct {
 	report     *operationreport.Report
 }
 
-var (
-	printKitPool = &sync.Pool{
+func newPrintKitPool(validationOptions ...astvalidation.Option) *sync.Pool {
+	return &sync.Pool{
 		New: func() any {
-			validator := astvalidation.DefaultOperationValidator()
+			validator := astvalidation.DefaultOperationValidator(validationOptions...)
 			// as we are creating operation programmatically in the graphql datasource planner,
 			// we need to catch incorrect behavior of the planner
 			// as graphql datasource planner should visit only selection sets which has fields,
@@ -1710,7 +1712,7 @@ var (
 			}
 		},
 	}
-)
+}
 
 type Factory[T Configuration] struct {
 	executionContext   context.Context
@@ -1718,6 +1720,7 @@ type Factory[T Configuration] struct {
 	grpcClient         grpc.ClientConnInterface
 	grpcClientProvider func() grpc.ClientConnInterface
 	subscriptionClient GraphQLSubscriptionClient
+	printKitPool       *sync.Pool
 }
 
 // NewFactory (HTTP) creates a new factory for the GraphQL datasource planner
@@ -1780,13 +1783,28 @@ func NewFactoryGRPCClientProvider(executionContext context.Context, clientProvid
 }
 
 func (p *Planner[T]) getKit() *printKit {
-	return printKitPool.Get().(*printKit)
+	return p.printKitPool.Get().(*printKit)
 }
 
 func (p *Planner[T]) releaseKit(kit *printKit) {
 	kit.buf.Reset()
 	kit.report.Reset()
-	printKitPool.Put(kit)
+	p.printKitPool.Put(kit)
+}
+
+// EnableSubgraphFieldSelectionMergingNullabilityRelaxation implements
+// plan.SubgraphFieldSelectionMergingNullabilityRelaxer. It configures the
+// factory's internal operation validator to allow differing nullability on
+// fields in non-overlapping concrete types. Must be called before Planner().
+func (f *Factory[T]) EnableSubgraphFieldSelectionMergingNullabilityRelaxation() {
+	f.printKitPool = newPrintKitPool(astvalidation.WithRelaxFieldSelectionMergingNullability())
+}
+
+func (f *Factory[T]) getPrintKitPool() *sync.Pool {
+	if f.printKitPool == nil {
+		f.printKitPool = newPrintKitPool()
+	}
+	return f.printKitPool
 }
 
 func (f *Factory[T]) Planner(logger abstractlogger.Logger) plan.DataSourcePlanner[T] {
@@ -1799,6 +1817,7 @@ func (f *Factory[T]) Planner(logger abstractlogger.Logger) plan.DataSourcePlanne
 		fetchClient:        f.httpClient,
 		grpcClient:         grpcClient,
 		subscriptionClient: f.subscriptionClient,
+		printKitPool:       f.getPrintKitPool(),
 	}
 }
 

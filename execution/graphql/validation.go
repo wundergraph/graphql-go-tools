@@ -11,7 +11,7 @@ type ValidationResult struct {
 	Errors graphqlerrors.Errors
 }
 
-func (r *Request) ValidateForSchema(schema *Schema) (result ValidationResult, err error) {
+func (r *Request) ValidateForSchema(schema *Schema, options ...astvalidation.Option) (result ValidationResult, err error) {
 	if schema == nil {
 		return ValidationResult{Valid: false, Errors: nil}, ErrNilSchema
 	}
@@ -31,7 +31,7 @@ func (r *Request) ValidateForSchema(schema *Schema) (result ValidationResult, er
 		return operationValidationResultFromReport(report)
 	}
 
-	validator := astvalidation.DefaultOperationValidator()
+	validator := astvalidation.DefaultOperationValidator(options...)
 	validator.Validate(&r.document, &schema.document, &report)
 	result, err = operationValidationResultFromReport(report)
 	if err != nil {

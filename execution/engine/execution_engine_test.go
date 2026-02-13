@@ -223,6 +223,7 @@ type _executionTestOptions struct {
 	propagateFetchReasons                        bool
 	validateRequiredExternalFields               bool
 	computeStaticCost                            bool
+	relaxFieldSelectionMergingNullability        bool
 }
 
 type executionTestOptions func(*_executionTestOptions)
@@ -250,6 +251,12 @@ func validateRequiredExternalFields() executionTestOptions {
 func computeStaticCost() executionTestOptions {
 	return func(options *_executionTestOptions) {
 		options.computeStaticCost = true
+	}
+}
+
+func relaxFieldSelectionMergingNullability() executionTestOptions {
+	return func(options *_executionTestOptions) {
+		options.relaxFieldSelectionMergingNullability = true
 	}
 }
 
@@ -289,6 +296,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			engineConf.plannerConfig.ValidateRequiredExternalFields = opts.validateRequiredExternalFields
 			engineConf.plannerConfig.ComputeStaticCost = opts.computeStaticCost
 			engineConf.plannerConfig.StaticCostDefaultListSize = 10
+			engineConf.plannerConfig.RelaxSubgraphOperationFieldSelectionMergingNullability = opts.relaxFieldSelectionMergingNullability
 			resolveOpts := resolve.ResolverOptions{
 				MaxConcurrency:    1024,
 				ResolvableOptions: opts.resolvableOptions,
@@ -321,7 +329,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			if withError {
 				require.Error(t, err)
 				if expectedErrorMessage != "" {
-					assert.Contains(t, err.Error(), expectedErrorMessage)
+					assert.Equal(t, expectedErrorMessage, err.Error())
 				}
 			} else {
 				require.NoError(t, err)
@@ -6811,6 +6819,134 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			))
 		})
 
+	})
+
+	t.Run("field merging with different nullability on non-overlapping union types", func(t *testing.T) {
+		unionSchema := `
+			union Entity = User | Organization
+			type Query { entity: Entity }
+			type User { id: ID!, email: String! }
+			type Organization { id: ID!, email: String }
+		`
+		schema, err := graphql.NewSchemaFromString(unionSchema)
+		require.NoError(t, err)
+
+		rootNodes := []plan.TypeField{
+			{TypeName: "Query", FieldNames: []string{"entity"}},
+			{TypeName: "User", FieldNames: []string{"id", "email"}},
+			{TypeName: "Organization", FieldNames: []string{"id", "email"}},
+		}
+
+		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+			Fetch: &graphql_datasource.FetchConfiguration{
+				URL:    "https://example.com/",
+				Method: "POST",
+			},
+			SchemaConfiguration: mustSchemaConfig(t, nil, unionSchema),
+		})
+
+		fieldConfig := []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "entity",
+				Path:      []string{"entity"},
+			},
+		}
+
+		t.Run("without relaxation flag, validation rejects differing nullability", runWithAndCompareError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "O",
+						Query:         `query O { entity { ... on User { email } ... on Organization { email } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "ds-id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"entity":{"__typename":"User","email":"user@test.com"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: rootNodes,
+						},
+						customConfig,
+					),
+				},
+				fields: fieldConfig,
+			},
+			`fields 'email' conflict because they return conflicting types 'String!' and 'String', locations: [], path: [query,entity,$1Organization]`,
+		))
+
+		t.Run("non-null email from User type", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "O",
+						Query:         `query O { entity { ... on User { email } ... on Organization { email } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "ds-id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"entity":{"__typename":"User","email":"user@test.com"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: rootNodes,
+						},
+						customConfig,
+					),
+				},
+				fields:           fieldConfig,
+				expectedResponse: `{"data":{"entity":{"email":"user@test.com"}}}`,
+			},
+			relaxFieldSelectionMergingNullability(),
+		))
+
+		t.Run("null email from Organization type", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "O",
+						Query:         `query O { entity { ... on User { email } ... on Organization { email } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "ds-id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"entity":{"__typename":"Organization","email":null}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: rootNodes,
+						},
+						customConfig,
+					),
+				},
+				fields:           fieldConfig,
+				expectedResponse: `{"data":{"entity":{"email":null}}}`,
+			},
+			relaxFieldSelectionMergingNullability(),
+		))
 	})
 }
 
