@@ -158,17 +158,15 @@ func (d *graphqlDataSourceGenerator) generateSubscriptionClient(httpClient *http
 	var graphqlSubscriptionClient graphql_datasource.GraphQLSubscriptionClient
 	switch definedOptions.subscriptionType {
 	case SubscriptionTypeGraphQLTransportWS:
-		graphqlSubscriptionClient = definedOptions.subscriptionClientFactory.NewSubscriptionClient(
-			httpClient,
-			definedOptions.streamingClient,
-			nil,
+		graphqlSubscriptionClient = definedOptions.subscriptionClientFactory.NewSubscriptionClient(context.TODO(),
+			graphql_datasource.WithUpgradeClient(httpClient),
+			graphql_datasource.WithStreamingClient(definedOptions.streamingClient),
 		)
 	default:
 		// for compatibility reasons we fall back to graphql-ws protocol
-		graphqlSubscriptionClient = definedOptions.subscriptionClientFactory.NewSubscriptionClient(
-			httpClient,
-			definedOptions.streamingClient,
-			nil,
+		graphqlSubscriptionClient = definedOptions.subscriptionClientFactory.NewSubscriptionClient(context.TODO(),
+			graphql_datasource.WithUpgradeClient(httpClient),
+			graphql_datasource.WithStreamingClient(definedOptions.streamingClient),
 		)
 	}
 
