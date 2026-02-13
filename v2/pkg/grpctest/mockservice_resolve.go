@@ -3,7 +3,9 @@ package grpctest
 import (
 	"context"
 	"fmt"
+	"strconv"
 
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/productv1"
@@ -828,11 +830,25 @@ func (s *MockService) ResolveSubcategoryItemCount(_ context.Context, req *produc
 }
 
 // ResolveCategoryProductCount implements productv1.ProductServiceServer.
-func (s *MockService) ResolveCategoryProductCount(_ context.Context, req *productv1.ResolveCategoryProductCountRequest) (*productv1.ResolveCategoryProductCountResponse, error) {
+func (s *MockService) ResolveCategoryProductCount(ctx context.Context, req *productv1.ResolveCategoryProductCountRequest) (*productv1.ResolveCategoryProductCountResponse, error) {
 	results := make([]*productv1.ResolveCategoryProductCountResult, 0, len(req.GetContext()))
+
+	// Default offset is 0
+	offset := int32(0)
+
+	// Allow header to override the offset
+	md, ok := metadata.FromIncomingContext(ctx)
+	if ok {
+		if values := md.Get("x-count-offset"); len(values) > 0 {
+			if v, err := strconv.Atoi(values[0]); err == nil {
+				offset = int32(v)
+			}
+		}
+	}
+
 	for i := range req.GetContext() {
 		results = append(results, &productv1.ResolveCategoryProductCountResult{
-			ProductCount: int32(i),
+			ProductCount: int32(i) + offset,
 		})
 	}
 
