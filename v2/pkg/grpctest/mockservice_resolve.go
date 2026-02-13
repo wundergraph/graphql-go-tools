@@ -832,7 +832,7 @@ func (s *MockService) ResolveSubcategoryItemCount(_ context.Context, req *produc
 // ResolveCategoryProductCount implements productv1.ProductServiceServer.
 func (s *MockService) ResolveCategoryProductCount(ctx context.Context, req *productv1.ResolveCategoryProductCountRequest) (*productv1.ResolveCategoryProductCountResponse, error) {
 	results := make([]*productv1.ResolveCategoryProductCountResult, 0, len(req.GetContext()))
-	
+
 	// Default offset is 0
 	offset := int32(0)
 
