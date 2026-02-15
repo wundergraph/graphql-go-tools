@@ -462,6 +462,8 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 
 		t.resolvable.deferMode = true
 		t.resolvable.deferID = ""
+		// for initial response we allow render initial structure
+		t.resolvable.enableDeferRender = true
 
 		// render initial response
 		err = t.resolvable.Resolve(ctx.ctx, response.Response.Data, response.Response.Fetches, writer)
@@ -527,6 +529,8 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 
 			// render deferred response items
 			t.resolvable.deferID = deferGroup.DeferID
+			// we disable rendering until we hit defferred fields
+			t.resolvable.enableDeferRender = false
 			err = t.resolvable.Resolve(ctx.ctx, response.Response.Data, deferGroup.Fetches, writer)
 			if err != nil {
 				return nil, err
