@@ -149,23 +149,24 @@ func (d *directiveIncludeSkipVisitor) removeParentNode() {
 	selectionSetRef := grandParent.Ref
 
 	if d.operation.SelectionSetIsEmpty(selectionSetRef) {
-		selectionRef, _ := d.typeNameSelection()
-		d.operation.AddSelectionRefToSelectionSet(selectionSetRef, selectionRef)
+		addInternalTypeNamePlaceholder(d.operation, selectionSetRef)
 	}
 }
 
-func (d *directiveIncludeSkipVisitor) typeNameSelection() (selectionRef int, fieldRef int) {
-	field := d.operation.AddField(ast.Field{
-		Name: d.operation.Input.AppendInputString("__typename"),
+func addInternalTypeNamePlaceholder(operation *ast.Document, selectionSetRef int) {
+	field := operation.AddField(ast.Field{
+		Name: operation.Input.AppendInputString("__typename"),
 		// We are adding an alias to the __typename field to mark it as internally added
 		// So planner could ignore this field during creation of the response shape
 		Alias: ast.Alias{
 			IsDefined: true,
-			Name:      d.operation.Input.AppendInputString("__internal__typename_placeholder"),
+			Name:      operation.Input.AppendInputString("__internal__typename_placeholder"),
 		},
 	})
-	return d.operation.AddSelectionToDocument(ast.Selection{
+	selectionRef := operation.AddSelectionToDocument(ast.Selection{
 		Ref:  field.Ref,
 		Kind: ast.SelectionKindField,
-	}), field.Ref
+	})
+
+	operation.AddSelectionRefToSelectionSet(selectionSetRef, selectionRef)
 }
