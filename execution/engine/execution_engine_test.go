@@ -5848,6 +5848,12 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					id: ID!
 					name: String!
 					title: String!
+					info: Info!
+				}
+
+				type Info {
+					email: String!
+					phone: String!
 				}
 
 				type Query {
@@ -5868,9 +5874,33 @@ func TestExecutionEngine_Execute(t *testing.T) {
 										statusCode: 200,
 										body:       `{"data":{"user":{"name":"Black"}}}`,
 									},
+									`{"query":"{user {__internal__typename_placeholder: __typename}}"}`: {
+										statusCode: 200,
+										body:       `{"data":{"user":{"__internal__typename_placeholder":"User"}}}`,
+									},
 									`{"query":"{user {title}}"}`: {
 										statusCode: 200,
 										body:       `{"data":{"user":{"title":"Sabbat"}}}`,
+									},
+									`{"query":"{user {id}}"}`: {
+										statusCode: 200,
+										body:       `{"data":{"user":{"id":"1"}}}`,
+									},
+									`{"query":"{user {title id}}"}`: {
+										statusCode: 200,
+										body:       `{"data":{"user":{"title":"Sabbat","id":"1"}}}`,
+									},
+									`{"query":"{user {name title id}}"}`: {
+										statusCode: 200,
+										body:       `{"data":{"user":{"name":"Black","title":"Sabbat","id":"1"}}}`,
+									},
+									`{"query":"{user {info {email phone}}}"}`: {
+										statusCode: 200,
+										body:       `{"data":{"user":{"info":{"email":"black@sabbat","phone":"123"}}}}`,
+									},
+									`{"query":"{user {name info {__internal__typename_placeholder: __typename}}}"}`: {
+										statusCode: 200,
+										body:       `{"data":{"user":{"name":"Black","info":{"__internal__typename_placeholder":"Info"}}}}`,
 									},
 								},
 							}),
@@ -5885,7 +5915,11 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							ChildNodes: []plan.TypeField{
 								{
 									TypeName:   "User",
-									FieldNames: []string{"id", "title", "name"},
+									FieldNames: []string{"id", "title", "name", "info"},
+								},
+								{
+									TypeName:   "Info",
+									FieldNames: []string{"email", "phone"},
 								},
 							},
 						},
@@ -5907,7 +5941,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				}
 			}
 
-			t.Run("run", runWithoutError(ExecutionEngineTestCase{
+			t.Run("single deffered field", runWithoutError(ExecutionEngineTestCase{
 				schema: func(t *testing.T) *graphql.Schema {
 					t.Helper()
 					parseSchema, err := graphql.NewSchemaFromString(definition)
@@ -5928,8 +5962,188 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						}`,
 					}
 				},
-				dataSources:      makeDataSource(t, false),
-				expectedResponse: `{"data":{"user":{"name":"Black"}}}{"name":"Black"}{"data":{{"name":"Black"}}}`,
+				dataSources: makeDataSource(t, false),
+				expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("multiple deffered fields", runWithoutError(ExecutionEngineTestCase{
+				schema: func(t *testing.T) *graphql.Schema {
+					t.Helper()
+					parseSchema, err := graphql.NewSchemaFromString(definition)
+					require.NoError(t, err)
+					return parseSchema
+				}(t),
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "DeferUserTitle",
+						Query: `
+						query DeferUserTitle {
+							user {
+								name
+								... @defer {
+									title
+									id
+								}
+							}
+						}`,
+					}
+				},
+				dataSources: makeDataSource(t, false),
+				expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat","id":"1"},"path":["user"]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("multiple deffered fields - all object fields deferred", runWithoutError(ExecutionEngineTestCase{
+				schema: func(t *testing.T) *graphql.Schema {
+					t.Helper()
+					parseSchema, err := graphql.NewSchemaFromString(definition)
+					require.NoError(t, err)
+					return parseSchema
+				}(t),
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "DeferUserTitle",
+						Query: `
+						query DeferUserTitle {
+							user {
+								... @defer {
+									name
+									title
+									id
+								}
+							}
+						}`,
+					}
+				},
+				dataSources: makeDataSource(t, false),
+				expectedResponse: `{"data":{"user":{}},"hasNext":true}
+{"incremental":[{"data":{"name":"Black","title":"Sabbat","id":"1"},"path":["user"]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("nested defers", runWithoutError(ExecutionEngineTestCase{
+				schema: func(t *testing.T) *graphql.Schema {
+					t.Helper()
+					parseSchema, err := graphql.NewSchemaFromString(definition)
+					require.NoError(t, err)
+					return parseSchema
+				}(t),
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "DeferUserTitle",
+						Query: `
+						query DeferUserTitle {
+							user {
+								name
+								... @defer {
+									title
+									... @defer {
+										id
+									}
+								}
+							}
+						}`,
+					}
+				},
+				dataSources: makeDataSource(t, false),
+				expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"id":"1"},"path":["user"]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("parallel defers", runWithoutError(ExecutionEngineTestCase{
+				schema: func(t *testing.T) *graphql.Schema {
+					t.Helper()
+					parseSchema, err := graphql.NewSchemaFromString(definition)
+					require.NoError(t, err)
+					return parseSchema
+				}(t),
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "DeferUserTitle",
+						Query: `
+						query DeferUserTitle {
+							user {
+								name
+								... @defer {
+									title
+								}
+								... @defer {
+									id
+								}
+							}
+						}`,
+					}
+				},
+				dataSources: makeDataSource(t, false),
+				expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"id":"1"},"path":["user"]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("defer nested object", runWithoutError(ExecutionEngineTestCase{
+				schema: func(t *testing.T) *graphql.Schema {
+					t.Helper()
+					parseSchema, err := graphql.NewSchemaFromString(definition)
+					require.NoError(t, err)
+					return parseSchema
+				}(t),
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "DeferUserTitle",
+						Query: `
+						query DeferUserTitle {
+							user {
+								name
+								... @defer {
+									info {
+										email
+										phone
+									}
+								}
+							}
+						}`,
+					}
+				},
+				dataSources: makeDataSource(t, false),
+				expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
+{"incremental":[{"data":{"info":{"email":"black@sabbat","phone":"123"}},"path":["user"]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("defer nested object fields", runWithoutError(ExecutionEngineTestCase{
+				schema: func(t *testing.T) *graphql.Schema {
+					t.Helper()
+					parseSchema, err := graphql.NewSchemaFromString(definition)
+					require.NoError(t, err)
+					return parseSchema
+				}(t),
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "DeferUserTitle",
+						Query: `
+						query DeferUserTitle {
+							user {
+								name
+								info {
+									... @defer {
+										email
+										phone
+									}
+								}
+							}
+						}`,
+					}
+				},
+				dataSources: makeDataSource(t, false),
+				expectedResponse: `{"data":{"user":{"name":"Black","info":{}}},"hasNext":true}
+{"incremental":[{"data":{"email":"black@sabbat","phone":"123"},"path":["user","info"]}],"hasNext":false}
+`,
 			}, withStreamingResponse()))
 		})
 	})
