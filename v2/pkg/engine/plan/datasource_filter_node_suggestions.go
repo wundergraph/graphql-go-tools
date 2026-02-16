@@ -182,22 +182,31 @@ func (f *NodeSuggestions) propagateDeferParentsUpToRootNode(i int) {
 				continue
 			}
 
+			if f.items[parentIdx].deferInfo != nil && f.items[parentIdx].deferInfo.ID == f.items[i].deferInfo.ID {
+				// if parent item is in the same defer -
+				// we should not mark it as a defer parent,
+				// because defer parents are planned twice - in a deffered planner and regular
+				break
+			}
+
 			if slices.Contains(f.items[parentIdx].deferIDs, f.items[i].deferInfo.ID) {
-				// no need to update
-				return
+				// no need to update already contains this defer id
+				break
 			} else {
 				parentIdToUpdate = parentIdx
 			}
 		}
 
 		if parentIdToUpdate == -1 {
-			// should not happen
-			return
+			// could happen if we haven't set it
+			// because it already contains this defer id
+			break
 		}
 
 		parentIndexesToAddDeferID = append(parentIndexesToAddDeferID, parentIdToUpdate)
 
 		if f.items[parentIdToUpdate].IsRootNode {
+			// we have found a root node from which we could branch out
 			break
 		}
 

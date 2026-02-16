@@ -462,28 +462,10 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 
 		t.resolvable.deferMode = true
 		t.resolvable.deferID = ""
-		// for initial response we allow render initial structure
 		t.resolvable.enableDeferRender = true
 
 		// render initial response
 		err = t.resolvable.Resolve(ctx.ctx, response.Response.Data, response.Response.Fetches, writer)
-		if err != nil {
-			return nil, err
-		}
-
-		// check if we have any deferred responses
-		// if yes, we need to print hasNext: true
-		if len(response.Defers) > 0 {
-			t.resolvable.printHasNext(true)
-		}
-
-		// manually close the root object because Resolve doesn't do it in deferMode
-		_, err = writer.Write(rBrace)
-		if err != nil {
-			return nil, err
-		}
-
-		_, err = writer.Write(literalNewLine)
 		if err != nil {
 			return nil, err
 		}
@@ -500,58 +482,9 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 				return nil, err
 			}
 
-			// render deferred response envelope
-			// {"incremental": [ ... ]}
-			_, err = writer.Write(lBrace)
-			if err != nil {
-				return nil, err
-			}
-			_, err = writer.Write(quote)
-			if err != nil {
-				return nil, err
-			}
-			_, err = writer.Write(literalIncremental)
-			if err != nil {
-				return nil, err
-			}
-			_, err = writer.Write(quote)
-			if err != nil {
-				return nil, err
-			}
-			_, err = writer.Write(colon)
-			if err != nil {
-				return nil, err
-			}
-			_, err = writer.Write(lBrack)
-			if err != nil {
-				return nil, err
-			}
-
-			// render deferred response items
 			t.resolvable.deferID = deferGroup.DeferID
-			// we disable rendering until we hit defferred fields
-			t.resolvable.enableDeferRender = false
-			err = t.resolvable.Resolve(ctx.ctx, response.Response.Data, deferGroup.Fetches, writer)
-			if err != nil {
-				return nil, err
-			}
 
-			// close incremental array
-			_, err = writer.Write(rBrack)
-			if err != nil {
-				return nil, err
-			}
-
-			// print hasNext
-			t.resolvable.printHasNext(i < len(response.Defers)-1)
-
-			// close envelope
-			_, err = writer.Write(rBrace)
-			if err != nil {
-				return nil, err
-			}
-
-			_, err = writer.Write(literalNewLine)
+			err = t.resolvable.ResolveDefer(response.Response.Data, writer, i < len(response.Defers)-1)
 			if err != nil {
 				return nil, err
 			}

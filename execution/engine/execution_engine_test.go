@@ -7102,6 +7102,14 @@ func TestExecutionEngine_Execute(t *testing.T) {
 										statusCode: 200,
 										body:       `{"data":{"user":{"info":{"email":"black@sabbat","phone":"123"}}}}`,
 									},
+									`{"query":"{user {info {phone} title}}"}`: {
+										statusCode: 200,
+										body:       `{"data":{"user":{"info":{"phone":"123"},"title":"Sabbat"}}}`,
+									},
+									`{"query":"{user {name info {email}}}"}`: {
+										statusCode: 200,
+										body:       `{"data":{"user":{"name":"Black","info":{"email":"black@sabbat"}}}}`,
+									},
 									`{"query":"{user {name info {__internal__typename_placeholder: __typename}}}"}`: {
 										statusCode: 200,
 										body:       `{"data":{"user":{"name":"Black","info":{"__internal__typename_placeholder":"Info"}}}}`,
@@ -7169,6 +7177,34 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				dataSources: makeDataSource(t, false),
 				expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
 {"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("single deffered field between regular fields", runWithoutError(ExecutionEngineTestCase{
+				schema: func(t *testing.T) *graphql.Schema {
+					t.Helper()
+					parseSchema, err := graphql.NewSchemaFromString(definition)
+					require.NoError(t, err)
+					return parseSchema
+				}(t),
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "DeferUserTitle",
+						Query: `
+						query DeferUserTitle {
+							user {
+								title
+								... @defer {
+									name
+								}
+								id
+							}
+						}`,
+					}
+				},
+				dataSources: makeDataSource(t, false),
+				expectedResponse: `{"data":{"user":{"title":"Sabbat","id":"1"}},"hasNext":true}
+{"incremental":[{"data":{"name":"Black"},"path":["user"]}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -7317,6 +7353,39 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				dataSources: makeDataSource(t, false),
 				expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
 {"incremental":[{"data":{"info":{"email":"black@sabbat","phone":"123"}},"path":["user"]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("defer nested object with duplicated non defered object", runWithoutError(ExecutionEngineTestCase{
+				schema: func(t *testing.T) *graphql.Schema {
+					t.Helper()
+					parseSchema, err := graphql.NewSchemaFromString(definition)
+					require.NoError(t, err)
+					return parseSchema
+				}(t),
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "DeferUserTitle",
+						Query: `
+						query DeferUserTitle {
+							user {
+								name
+								info {
+									email
+								}
+								... @defer {
+									info {
+										phone
+									}
+									title
+								}
+							}
+						}`,
+					}
+				},
+				dataSources: makeDataSource(t, false),
+				expectedResponse: `{"data":{"user":{"name":"Black","info":{"email":"black@sabbat"}}},"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]},{"data":{"phone":"123"},"path":["user","info"]}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
