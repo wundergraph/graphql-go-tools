@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.250](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.249...v2.0.0-rc.250) (2026-02-16)
+
+
+### Features
+
+* add flag for relaxed nullability checks on same shape ([#1378](https://github.com/wundergraph/graphql-go-tools/issues/1378)) ([6be2e74](https://github.com/wundergraph/graphql-go-tools/commit/6be2e74036a027f44adaff7f6bfbdbce1d1fb03b))
+
 ## [2.0.0-rc.249](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.248...v2.0.0-rc.249) (2026-02-13)
 
 
