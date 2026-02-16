@@ -1,0 +1,16 @@
+type Product @key(fields: "id") {
+    id: ID!
+    name: String
+    description: String
+    category: String
+    price: Float
+    inStock: Boolean
+    reviews: [Review!]!
+    rating: Float
+    manufacturer: String
+}
+
+type Review {
+    text: String!
+    stars: Int!
+}
