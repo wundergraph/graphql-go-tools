@@ -84,10 +84,11 @@ func (c *nodesCollector) initVisitors() {
 			keys:                  make([]DSKeyInfo, 0, 2),
 			localSeenKeys:         make(map[SeenKeyPath]struct{}),
 			localSuggestionLookup: make(map[int]struct{}),
+			providesEntries:       make(map[string]struct{}),
 			globalSeenKeys:        c.seenKeys,
+			dataSource:            dataSource,
+			notExternalKeyPaths:   make(map[string]struct{}),
 		}
-		visitor.dataSource = dataSource
-		visitor.notExternalKeyPaths = make(map[string]struct{})
 		c.dsVisitors = append(c.dsVisitors, visitor)
 		c.dsVisitorsReports = append(c.dsVisitorsReports, operationreport.NewReport())
 	}
@@ -252,22 +253,37 @@ type collectNodesDSVisitor struct {
 	definition *ast.Document
 	dataSource DataSource
 
+	// local suggestions stores suggestions for the current run of collecting fields
+	// they are reset after each run, because each time we collect suggestion only for new field refs
 	localSuggestions      []*NodeSuggestion
 	localSuggestionLookup map[int]struct{}
 
-	providesEntries []*NodeSuggestion
+	// local provides entries, they should survive reset
+	// because unique fields refs are collected only once
+	providesEntries map[string]struct{}
 
+	// global node suggestion, we append to them after each run
 	nodes *NodeSuggestions
 
+	// notExternalKeyPaths - stores paths of fields used in keys, which marked external
+	// but semantically are not true external
 	notExternalKeyPaths map[string]struct{}
-	info                map[int]fieldInfo
 
+	// reference to a global cache of field info shared between all collector instances
+	info map[int]fieldInfo
+
+	// information about keys available for a given path collected during the current run
 	keys []DSKeyInfo
 
+	// globalSeenKeys - stores key information which is shared globally between collectors, needed to avoid collecting keys on the same path
+	// between different runs, as evaluating keys are very expensive
+	// as it is shared between goroutines of collector we read it during the run, and write after the run finished
 	globalSeenKeys map[SeenKeyPath]struct{}
-	localSeenKeys  map[SeenKeyPath]struct{}
+	// seen keys local to the current run
+	localSeenKeys map[SeenKeyPath]struct{}
 }
 
+// reset - cleanups only data which should not be persisted between runs
 func (f *collectNodesDSVisitor) reset() {
 	f.localSuggestions = f.localSuggestions[:0]
 	f.keys = f.keys[:0]
@@ -346,31 +362,26 @@ func (f *collectNodesDSVisitor) handleProvidesSuggestions(fieldRef int, typeName
 	}
 	fieldTypeName := f.definition.FieldDefinitionTypeNameString(fieldDefRef)
 
-	providesFieldSet, report := providesFragment(fieldTypeName, providesSelectionSet, f.definition)
-	if report.HasErrors() {
-		return fmt.Errorf("failed to parse provides fields for %s.%s at path %s: %v", typeName, fieldName, currentPath, report)
-	}
-
-	selectionSetRef, ok := f.operation.FieldSelectionSet(fieldRef)
+	_, ok = f.operation.FieldSelectionSet(fieldRef)
 	if !ok {
 		return fmt.Errorf("failed to get selection set ref for %s.%s at path %s. Field with provides directive should have a selections", typeName, fieldName, currentPath)
 	}
 
 	input := &providesInput{
-		providesFieldSet:      providesFieldSet,
-		operation:             f.operation,
-		definition:            f.definition,
-		operationSelectionSet: selectionSetRef,
-		report:                report,
-		parentPath:            currentPath,
-		dataSource:            f.dataSource,
+		parentTypeName:       fieldTypeName,
+		providesSelectionSet: providesSelectionSet,
+		definition:           f.definition,
+		parentPath:           currentPath,
 	}
-	providesSuggestions := providesSuggestions(input)
+	providesSuggestions, report := providesSuggestions(input)
 	if report.HasErrors() {
 		return fmt.Errorf("failed to get provides suggestions for %s.%s at path %s: %v", typeName, fieldName, currentPath, report)
 	}
 
-	f.providesEntries = append(f.providesEntries, providesSuggestions...)
+	for providedKey := range providesSuggestions {
+		f.providesEntries[providedKey] = struct{}{}
+	}
+
 	return nil
 }
 
@@ -449,9 +460,7 @@ func (f *collectNodesDSVisitor) EnterField(fieldRef int, itemIds []int, treeNode
 		return nil
 	}
 
-	isProvided := slices.ContainsFunc(f.providesEntries, func(suggestion *NodeSuggestion) bool {
-		return suggestion.TypeName == info.typeName && suggestion.FieldName == info.fieldName && suggestion.Path == info.currentPath
-	})
+	_, isProvided := f.providesEntries[providedFieldKey(info.typeName, info.fieldName, info.currentPath)]
 
 	if info.isTypeName && f.isInterfaceObject(info.typeName) {
 		// we should not add a typename on the interface object
@@ -522,6 +531,7 @@ func (f *collectNodesDSVisitor) EnterField(fieldRef int, itemIds []int, treeNode
 }
 
 func (f *collectNodesDSVisitor) applySuggestions() {
+	// copy local suggestions to the global nodes suggestions
 	for _, suggestion := range f.localSuggestions {
 		f.nodes.addSuggestion(suggestion)
 		itemId := len(f.nodes.items) - 1
@@ -530,6 +540,11 @@ func (f *collectNodesDSVisitor) applySuggestions() {
 		itemIds := treeNode.GetData()
 		itemIds = append(itemIds, itemId)
 		treeNode.SetData(itemIds)
+	}
+
+	// apply provides entries
+	for entry := range f.providesEntries {
+		f.nodes.addProvidedField(entry, f.dataSource.Hash())
 	}
 }
 

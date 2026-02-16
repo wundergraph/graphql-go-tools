@@ -1,7 +1,6 @@
 package plan
 
 import (
-	"slices"
 	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -16,7 +15,7 @@ type keyVisitorInput struct {
 	report          *operationreport.Report
 
 	dataSource       DataSource
-	providesEntries  []*NodeSuggestion
+	providesEntries  map[string]struct{}
 	keyIsConditional bool
 }
 
@@ -217,9 +216,7 @@ func (v *keyInfoVisitor) EnterField(ref int) {
 	isExternal := hasExternalRootNode || hasExternalChildNode
 
 	if isExternal {
-		isProvided := slices.ContainsFunc(v.input.providesEntries, func(suggestion *NodeSuggestion) bool {
-			return suggestion.TypeName == typeName && suggestion.FieldName == fieldName && suggestion.Path == currentPath
-		})
+		_, isProvided := v.input.providesEntries[providedFieldKey(typeName, fieldName, currentPath)]
 
 		if isProvided {
 			// if the field is provided, it should not be marked as external

@@ -13,7 +13,7 @@ import (
 
 // FindProductByUpc is the resolver for the findProductByUpc field.
 func (r *entityResolver) FindProductByUpc(ctx context.Context, upc string) (*model.Product, error) {
-	for _, h := range hats {
+	for _, h := range r.products {
 		if h.Upc == upc {
 			return h, nil
 		}
