@@ -1714,15 +1714,26 @@ func newPrintKitPool(validationOptions ...astvalidation.Option) *sync.Pool {
 	}
 }
 
+var (
+	defaultPrintKitPool         = newPrintKitPool()
+	relaxedPrintKitPool         *sync.Pool
+	relaxedPrintKitPoolOnce     sync.Once
+)
+
+func getRelaxedPrintKitPool() *sync.Pool {
+	relaxedPrintKitPoolOnce.Do(func() {
+		relaxedPrintKitPool = newPrintKitPool(astvalidation.WithRelaxFieldSelectionMergingNullability())
+	})
+	return relaxedPrintKitPool
+}
+
 type Factory[T Configuration] struct {
-	executionContext                context.Context
-	httpClient                      *http.Client
-	grpcClient                      grpc.ClientConnInterface
-	grpcClientProvider              func() grpc.ClientConnInterface
-	subscriptionClient              GraphQLSubscriptionClient
-	printKitPool                    *sync.Pool
-	printKitPoolOnce                sync.Once
-	relaxFieldMergingNullability    bool
+	executionContext   context.Context
+	httpClient         *http.Client
+	grpcClient         grpc.ClientConnInterface
+	grpcClientProvider func() grpc.ClientConnInterface
+	subscriptionClient GraphQLSubscriptionClient
+	printKitPool       *sync.Pool
 }
 
 // NewFactory (HTTP) creates a new factory for the GraphQL datasource planner
@@ -1796,21 +1807,17 @@ func (p *Planner[T]) releaseKit(kit *printKit) {
 
 // EnableSubgraphFieldSelectionMergingNullabilityRelaxation implements
 // plan.SubgraphFieldSelectionMergingNullabilityRelaxer. It configures the
-// factory's internal operation validator to allow differing nullability on
-// fields in non-overlapping concrete types. Must be called before Planner().
+// factory to use a shared pool whose validator allows differing nullability
+// on fields in non-overlapping concrete types.
 func (f *Factory[T]) EnableSubgraphFieldSelectionMergingNullabilityRelaxation() {
-	f.relaxFieldMergingNullability = true
+	f.printKitPool = getRelaxedPrintKitPool()
 }
 
 func (f *Factory[T]) getPrintKitPool() *sync.Pool {
-	f.printKitPoolOnce.Do(func() {
-		if f.relaxFieldMergingNullability {
-			f.printKitPool = newPrintKitPool(astvalidation.WithRelaxFieldSelectionMergingNullability())
-		} else {
-			f.printKitPool = newPrintKitPool()
-		}
-	})
-	return f.printKitPool
+	if f.printKitPool != nil {
+		return f.printKitPool
+	}
+	return defaultPrintKitPool
 }
 
 func (f *Factory[T]) Planner(logger abstractlogger.Logger) plan.DataSourcePlanner[T] {
