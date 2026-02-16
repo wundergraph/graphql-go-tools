@@ -1715,9 +1715,9 @@ func newPrintKitPool(validationOptions ...astvalidation.Option) *sync.Pool {
 }
 
 var (
-	defaultPrintKitPool         = newPrintKitPool()
-	relaxedPrintKitPool         *sync.Pool
-	relaxedPrintKitPoolOnce     sync.Once
+	defaultPrintKitPool     = newPrintKitPool()
+	relaxedPrintKitPool     *sync.Pool
+	relaxedPrintKitPoolOnce sync.Once
 )
 
 func getRelaxedPrintKitPool() *sync.Pool {
