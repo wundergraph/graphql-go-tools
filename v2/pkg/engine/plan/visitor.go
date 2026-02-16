@@ -1456,15 +1456,15 @@ func (v *Visitor) shouldPlannerHandleField(plannerID int, fieldRef int) bool {
 }
 
 func (v *Visitor) popFieldsForPlanner(plannerID int, fieldRef int) {
-	// Safety checks
-	if v.plannerCurrentFields == nil || plannerID >= len(v.plannerCurrentFields) {
+	fields, ok := v.plannerCurrentFields[plannerID]
+	if !ok {
 		return
 	}
 
-	if len(v.plannerCurrentFields[plannerID]) > 0 {
-		last := len(v.plannerCurrentFields[plannerID]) - 1
-		if v.plannerCurrentFields[plannerID][last].popOnField == fieldRef {
-			v.plannerCurrentFields[plannerID] = v.plannerCurrentFields[plannerID][:last]
+	if len(fields) > 0 {
+		last := len(fields) - 1
+		if fields[last].popOnField == fieldRef {
+			v.plannerCurrentFields[plannerID] = fields[:last]
 		}
 	}
 }
@@ -1795,13 +1795,14 @@ func (v *Visitor) subscriptionFieldReturnTypeName(typeName, fieldName string) st
 	return ""
 }
 
-// entityKeyFieldNames extracts all field names from @key configurations.
+// entityKeyFieldNames extracts top-level field names from @key configurations.
+// LIMITATION: Uses naive whitespace splitting — only works for flat keys like
+// "id" or "id name". Compound keys with nested fields (e.g., "org { id }")
+// will produce incorrect results. This is acceptable because false positives
+// make it harder to trigger invalidate mode, which is the safe default.
 func (v *Visitor) entityKeyFieldNames(keys []FederationFieldConfiguration) map[string]struct{} {
 	result := make(map[string]struct{})
 	for _, key := range keys {
-		// Parse the selection set to get individual field names
-		// Selection sets are like "id" or "id name" or "id { subfield }"
-		// For simple cases, split by whitespace
 		fields := strings.Fields(key.SelectionSet)
 		for _, f := range fields {
 			// Strip braces for nested fields

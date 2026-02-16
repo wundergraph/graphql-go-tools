@@ -445,7 +445,9 @@ type trigger struct {
 	initialized bool
 	updater     *subscriptionUpdater
 	// cacheConfig is computed once at trigger creation from the first subscription.
-	// All subscriptions on a trigger share the same plan, so the cache config is identical.
+	// All subscriptions on a trigger share the same plan (and hence the same
+	// cache config) because the trigger ID is derived from hash(input + headers).
+	// Different plans produce different inputs, which produce different triggers.
 	// nil means no entity cache population is configured for this trigger.
 	cacheConfig *triggerEntityCacheConfig
 }
@@ -672,8 +674,10 @@ func (r *Resolver) buildTriggerCacheConfig(c *Context, s *sub) *triggerEntityCac
 // root entities received via a subscription event. This is the trigger-level
 // version that runs once per trigger event instead of once per subscription.
 func (r *Resolver) handleTriggerEntityCache(config *triggerEntityCacheConfig, data []byte) {
-
-	cache := r.options.Caches[config.pop.CacheName]
+	cache, ok := r.options.Caches[config.pop.CacheName]
+	if !ok {
+		return
+	}
 
 	// Get the subgraph header prefix for cache key isolation
 	var prefix string
@@ -717,7 +721,12 @@ func (r *Resolver) handleTriggerEntityCache(config *triggerEntityCacheConfig, da
 		return
 	}
 
-	// Inject __typename into entity items for cache key rendering.
+	// Inject __typename for cache key rendering and filter by entity type.
+	// Two cases:
+	// 1. No __typename present: inject the configured EntityTypeName so
+	//    RenderCacheKeys can produce proper keys.
+	// 2. __typename present but doesn't match (union/interface return types):
+	//    skip the item — only the configured entity type should be cached.
 	if config.pop.EntityTypeName != "" {
 		filtered := items[:0]
 		for _, item := range items {
@@ -762,6 +771,8 @@ func (r *Resolver) handleTriggerEntityCache(config *triggerEntityCacheConfig, da
 				Value: value,
 			})
 		}
+		// Cache errors are intentionally ignored: subscription delivery must
+		// not be blocked by cache failures.
 		if len(entries) > 0 {
 			_ = cache.Set(ctx, entries, config.pop.TTL)
 		}
@@ -903,7 +914,7 @@ func (r *Resolver) handleHeartbeat(sub *sub) {
 
 func (r *Resolver) handleTriggerClose(s subscriptionEvent) {
 	if r.options.Debug {
-		fmt.Printf("resolver:trigger:shutdown:%d:%d\n", s.triggerID, s.id.SubscriptionID)
+		fmt.Printf("resolver:trigger:shutdown:%d\n", s.triggerID)
 	}
 
 	r.closeTrigger(s.triggerID, s.closeKind)
@@ -1184,7 +1195,9 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 		return
 	}
 
-	// Slow path: async cache op → event loop fans out after
+	// Slow path: populate L2 cache BEFORE fanning out to subscriptions.
+	// The cache must be populated first because child entity fetches check
+	// L2 cache. If we fanned out immediately, those fetches would miss.
 	dataCopy := make([]byte, len(data))
 	copy(dataCopy, data)
 	go r.performTriggerEntityCacheAsync(id, nil, trig.cacheConfig, dataCopy)
@@ -1212,7 +1225,7 @@ func (r *Resolver) handleUpdateSubscription(id uint64, data []byte, subIdentifie
 		return
 	}
 
-	// Slow path: async cache op → event loop fans out after
+	// Slow path: populate L2 cache BEFORE fanning out (see handleTriggerUpdate).
 	dataCopy := make([]byte, len(data))
 	copy(dataCopy, data)
 	go r.performTriggerEntityCacheAsync(id, &subIdentifier, trig.cacheConfig, dataCopy)
