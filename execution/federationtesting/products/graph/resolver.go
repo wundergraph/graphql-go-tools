@@ -4,6 +4,7 @@
 package graph
 
 import (
+	"sync"
 	"time"
 
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/products/graph/model"
@@ -16,4 +17,5 @@ type Resolver struct {
 	maxPrice          int
 	currentPrice      int
 	updateInterval    time.Duration
+	priceMu           sync.Mutex
 }

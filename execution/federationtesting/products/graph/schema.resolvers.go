@@ -21,7 +21,14 @@ func (r *mutationResolver) SetPrice(ctx context.Context, upc string, price int) 
 
 // TopProducts is the resolver for the topProducts field.
 func (r *queryResolver) TopProducts(ctx context.Context, first *int) ([]*model.Product, error) {
-	return r.products[:len(r.products)-1], nil
+	if len(r.products) == 0 {
+		return nil, nil
+	}
+	end := len(r.products) - 1
+	if first != nil && *first >= 0 && *first < end {
+		end = *first
+	}
+	return r.products[:end], nil
 }
 
 // UpdatedPrice is the resolver for the updatedPrice field.
@@ -42,9 +49,11 @@ func (r *subscriptionResolver) UpdatedPrice(ctx context.Context) (<-chan *model.
 					continue
 				}
 
+				r.priceMu.Lock()
 				p := *product
 				p.Price = r.currentPrice
-				r.currentPrice += 1
+				r.currentPrice++
+				r.priceMu.Unlock()
 				updatedPrice <- &p
 			}
 		}
