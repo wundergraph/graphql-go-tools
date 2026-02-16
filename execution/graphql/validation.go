@@ -17,13 +17,16 @@ func (r *Request) ValidateForSchema(schema *Schema, options ...astvalidation.Opt
 	}
 
 	schemaHash := schema.Hash()
+	useCache := len(options) == 0
 
 	if r.validForSchema == nil {
 		r.validForSchema = map[uint64]ValidationResult{}
 	}
 
-	if result, ok := r.validForSchema[schemaHash]; ok {
-		return result, nil
+	if useCache {
+		if result, ok := r.validForSchema[schemaHash]; ok {
+			return result, nil
+		}
 	}
 
 	report := r.parseQueryOnce()
@@ -37,7 +40,9 @@ func (r *Request) ValidateForSchema(schema *Schema, options ...astvalidation.Opt
 	if err != nil {
 		return result, err
 	}
-	r.validForSchema[schemaHash] = result
+	if useCache {
+		r.validForSchema[schemaHash] = result
+	}
 	return result, err
 }
 
