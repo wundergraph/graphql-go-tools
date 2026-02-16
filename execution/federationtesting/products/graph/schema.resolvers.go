@@ -21,7 +21,7 @@ func (r *mutationResolver) SetPrice(ctx context.Context, upc string, price int) 
 
 // TopProducts is the resolver for the topProducts field.
 func (r *queryResolver) TopProducts(ctx context.Context, first *int) ([]*model.Product, error) {
-	return hats[:len(hats)-1], nil
+	return r.products[:len(r.products)-1], nil
 }
 
 // UpdatedPrice is the resolver for the updatedPrice field.
@@ -32,18 +32,20 @@ func (r *subscriptionResolver) UpdatedPrice(ctx context.Context) (<-chan *model.
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(updateInterval):
-				product := hats[len(hats)-1]
-				if randomnessEnabled {
-					product = hats[rand.Intn(len(hats)-1)]
-					product.Price = rand.Intn(maxPrice-minPrice+1) + minPrice
-					updatedPrice <- product
+			case <-time.After(r.updateInterval):
+				product := r.products[len(r.products)-1]
+				if r.randomnessEnabled {
+					product = r.products[rand.Intn(len(r.products)-1)]
+					p := *product
+					p.Price = rand.Intn(r.maxPrice-r.minPrice+1) + r.minPrice
+					updatedPrice <- &p
 					continue
 				}
 
-				product.Price = currentPrice
-				currentPrice += 1
-				updatedPrice <- product
+				p := *product
+				p.Price = r.currentPrice
+				r.currentPrice += 1
+				updatedPrice <- &p
 			}
 		}
 	}()
@@ -55,7 +57,7 @@ func (r *subscriptionResolver) UpdateProductPrice(ctx context.Context, upc strin
 	updatedPrice := make(chan *model.Product)
 	var product *model.Product
 
-	for _, hat := range hats {
+	for _, hat := range r.products {
 		if hat.Upc == upc {
 			product = hat
 			break
@@ -76,8 +78,9 @@ func (r *subscriptionResolver) UpdateProductPrice(ctx context.Context, upc strin
 			case <-ctx.Done():
 				return
 			case <-time.After(100 * time.Millisecond):
-				product.Price = num
-				updatedPrice <- product
+				p := *product
+				p.Price = num
+				updatedPrice <- &p
 			}
 		}
 	}()
