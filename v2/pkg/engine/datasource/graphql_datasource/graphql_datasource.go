@@ -1721,6 +1721,7 @@ type Factory[T Configuration] struct {
 	grpcClientProvider func() grpc.ClientConnInterface
 	subscriptionClient GraphQLSubscriptionClient
 	printKitPool       *sync.Pool
+	printKitPoolOnce   sync.Once
 }
 
 // NewFactory (HTTP) creates a new factory for the GraphQL datasource planner
@@ -1801,9 +1802,11 @@ func (f *Factory[T]) EnableSubgraphFieldSelectionMergingNullabilityRelaxation() 
 }
 
 func (f *Factory[T]) getPrintKitPool() *sync.Pool {
-	if f.printKitPool == nil {
-		f.printKitPool = newPrintKitPool()
-	}
+	f.printKitPoolOnce.Do(func() {
+		if f.printKitPool == nil {
+			f.printKitPool = newPrintKitPool()
+		}
+	})
 	return f.printKitPool
 }
 
