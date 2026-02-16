@@ -1796,13 +1796,21 @@ func NewFactoryGRPCClientProvider(executionContext context.Context, clientProvid
 }
 
 func (p *Planner[T]) getKit() *printKit {
-	return p.printKitPool.Get().(*printKit)
+	pool := p.printKitPool
+	if pool == nil {
+		pool = defaultPrintKitPool
+	}
+	return pool.Get().(*printKit)
 }
 
 func (p *Planner[T]) releaseKit(kit *printKit) {
 	kit.buf.Reset()
 	kit.report.Reset()
-	p.printKitPool.Put(kit)
+	pool := p.printKitPool
+	if pool == nil {
+		pool = defaultPrintKitPool
+	}
+	pool.Put(kit)
 }
 
 // EnableSubgraphFieldSelectionMergingNullabilityRelaxation implements
