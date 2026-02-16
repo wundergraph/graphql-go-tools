@@ -33,6 +33,9 @@ func (r *queryResolver) TopProducts(ctx context.Context, first *int) ([]*model.P
 
 // UpdatedPrice is the resolver for the updatedPrice field.
 func (r *subscriptionResolver) UpdatedPrice(ctx context.Context) (<-chan *model.Product, error) {
+	if len(r.products) == 0 {
+		return nil, fmt.Errorf("no products configured")
+	}
 	updatedPrice := make(chan *model.Product)
 	go func() {
 		for {
@@ -42,7 +45,9 @@ func (r *subscriptionResolver) UpdatedPrice(ctx context.Context) (<-chan *model.
 			case <-time.After(r.updateInterval):
 				product := r.products[len(r.products)-1]
 				if r.randomnessEnabled {
-					product = r.products[rand.Intn(len(r.products)-1)]
+					if len(r.products) > 1 {
+						product = r.products[rand.Intn(len(r.products)-1)]
+					}
 					p := *product
 					p.Price = rand.Intn(r.maxPrice-r.minPrice+1) + r.minPrice
 					updatedPrice <- &p
