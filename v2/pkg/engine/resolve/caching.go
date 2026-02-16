@@ -14,10 +14,13 @@ type CacheKeyTemplate interface {
 }
 
 type CacheKey struct {
-	Item            *astjson.Value
-	FromCache       *astjson.Value
-	Keys            []string
-	EntityMergePath []string // Set when root field uses entity key mapping; used to store/load entity-level data
+	Item      *astjson.Value
+	FromCache *astjson.Value
+	Keys      []string
+	// EntityMergePath enables cache sharing between root field and entity fetches.
+	// On STORE: extracts entity-level data at this path (e.g., ["user"] extracts from {"user":{...}}).
+	// On LOAD: wraps cached entity-level data back at this path (e.g., wraps {...} into {"user":{...}}).
+	EntityMergePath []string
 }
 
 type RootQueryCacheKeyTemplate struct {

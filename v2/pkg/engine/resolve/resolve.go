@@ -673,6 +673,11 @@ func (r *Resolver) buildTriggerCacheConfig(c *Context, s *sub) *triggerEntityCac
 // handleTriggerEntityCache performs the L2 cache operation (set or delete) for
 // root entities received via a subscription event. This is the trigger-level
 // version that runs once per trigger event instead of once per subscription.
+//
+// THREADING: This method runs in a dedicated goroutine (via performTriggerEntityCacheAsync).
+// It reads config.resolveCtx which was captured at subscription creation time. This is safe
+// because the accessed fields (Request.ID, SubgraphHeadersBuilder, ExecutionOptions, Variables,
+// RemapVariables) are immutable after subscription creation. Do NOT write to resolveCtx from here.
 func (r *Resolver) handleTriggerEntityCache(config *triggerEntityCacheConfig, data []byte) {
 	cache, ok := r.options.Caches[config.pop.CacheName]
 	if !ok {
@@ -728,7 +733,7 @@ func (r *Resolver) handleTriggerEntityCache(config *triggerEntityCacheConfig, da
 	// 2. __typename present but doesn't match (union/interface return types):
 	//    skip the item — only the configured entity type should be cached.
 	if config.pop.EntityTypeName != "" {
-		filtered := items[:0]
+		filtered := make([]*astjson.Value, 0, len(items))
 		for _, item := range items {
 			existing := item.Get("__typename")
 			if existing == nil {
@@ -1779,7 +1784,9 @@ func (s *subscriptionUpdater) CloseSubscription(kind SubscriptionCloseKind, id S
 }
 
 type subscriptionEvent struct {
-	triggerID       uint64
+	triggerID uint64
+	// id identifies the target subscription. nil means "all subscriptions on the trigger"
+	// (used by subscriptionEventKindTriggerCacheDone for broadcast after cache population).
 	id              *SubscriptionIdentifier
 	kind            subscriptionEventKind
 	data            []byte

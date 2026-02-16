@@ -370,13 +370,18 @@ func TestL1L2CacheEndToEnd(t *testing.T) {
 		err = loader1.LoadGraphQLResponseData(ctx1, createResponse(rootDS1, entityDS1), resolvable1)
 		require.NoError(t, err)
 
-		// Verify cache log shows miss then set
-		log := cache.GetLog()
-		require.GreaterOrEqual(t, len(log), 1)
-		assert.Equal(t, "get", log[0].Operation)
-		assert.False(t, log[0].Hits[0], "First request should be cache miss")
+		productKey := []string{`{"__typename":"Product","key":{"id":"prod-1"}}`}
 
-		// Second request (cache hit)
+		log := cache.GetLog()
+		wantFirstLog := []CacheLogEntry{
+			// _entities(Product) — L2 miss, product not yet cached
+			{Operation: "get", Keys: productKey, Hits: []bool{false}},
+			// _entities(Product) — store fetched product data in L2
+			{Operation: "set", Keys: productKey},
+		}
+		assert.Equal(t, wantFirstLog, log, "First request: L2 miss then set")
+
+		// Second request (cache hit) — new loader but same L2 cache instance
 		cache.ClearLog()
 		ctx2 := NewContext(context.Background())
 		ctx2.ExecutionOptions.DisableSubgraphRequestDeduplication = true
@@ -393,11 +398,12 @@ func TestL1L2CacheEndToEnd(t *testing.T) {
 		err = loader2.LoadGraphQLResponseData(ctx2, createResponse(rootDS2, entityDS2), resolvable2)
 		require.NoError(t, err)
 
-		// Verify cache hit
 		log2 := cache.GetLog()
-		require.GreaterOrEqual(t, len(log2), 1)
-		assert.Equal(t, "get", log2[0].Operation)
-		assert.True(t, log2[0].Hits[0], "Second request should be cache hit")
+		wantSecondLog := []CacheLogEntry{
+			// _entities(Product) — L2 hit, product cached from first request; no DS call needed
+			{Operation: "get", Keys: productKey, Hits: []bool{true}},
+		}
+		assert.Equal(t, wantSecondLog, log2, "Second request: L2 hit only")
 	})
 
 	t.Run("L2 Only - disabled means no cache operations", func(t *testing.T) {
@@ -581,18 +587,20 @@ func TestL1L2CacheEndToEnd(t *testing.T) {
 		err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
 		require.NoError(t, err)
 
-		// First entity fetch: L1 miss -> L2 miss -> fetch -> populate both
-		// Second entity fetch: L1 hit -> skip everything
-		// So we should only see one L2 get operation (for the first entity fetch)
+		// Two sequential entity fetches for the same product (prod-1):
+		// 1st fetch: L1 miss -> L2 miss -> DS call -> populate L1 + L2
+		// 2nd fetch: L1 hit -> skip L2 and DS entirely
+		// So L2 only sees operations from the 1st fetch
+		productKey := []string{`{"__typename":"Product","key":{"id":"prod-1"}}`}
 		log := cache.GetLog()
-
-		getCount := 0
-		for _, entry := range log {
-			if entry.Operation == "get" {
-				getCount++
-			}
+		wantLog := []CacheLogEntry{
+			// 1st _entities(Product) — L1 miss, L2 miss
+			{Operation: "get", Keys: productKey, Hits: []bool{false}},
+			// 1st _entities(Product) — store fetched data in L2 (L1 also populated in-memory)
+			{Operation: "set", Keys: productKey},
+			// 2nd _entities(Product) — no L2 operations: L1 hit short-circuits
 		}
-		assert.Equal(t, 1, getCount, "L1 hit should prevent second L2 lookup")
+		assert.Equal(t, wantLog, log, "L1 hit should prevent second L2 lookup")
 	})
 
 	t.Run("L1+L2 - L1 miss, L2 hit provides data", func(t *testing.T) {
@@ -680,11 +688,12 @@ func TestL1L2CacheEndToEnd(t *testing.T) {
 		out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
 		assert.Equal(t, `{"data":{"product":{"__typename":"Product","id":"prod-1","name":"L2 Cached Product"}}}`, out)
 
-		// Verify L2 was consulted and hit
 		log := cache.GetLog()
-		require.GreaterOrEqual(t, len(log), 1)
-		assert.Equal(t, "get", log[0].Operation)
-		assert.True(t, log[0].Hits[0], "L2 should have hit")
+		wantLog := []CacheLogEntry{
+			// _entities(Product) — L1 miss (empty), L2 hit from pre-populated cache; no DS call needed
+			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"id":"prod-1"}}`}, Hits: []bool{true}},
+		}
+		assert.Equal(t, wantLog, log, "L2 hit: single get operation with hit")
 	})
 
 	t.Run("L1+L2 - cross-request: L1 isolated, L2 shared", func(t *testing.T) {
@@ -796,11 +805,13 @@ func TestL1L2CacheEndToEnd(t *testing.T) {
 		err = loader2.LoadGraphQLResponseData(ctx2, createResponse(rootDS2, entityDS2), resolvable2)
 		require.NoError(t, err)
 
-		// Verify L2 hit on second request
+		// Request 2 uses a new Loader (new L1) but same L2 cache instance
 		log := cache.GetLog()
-		require.GreaterOrEqual(t, len(log), 1)
-		assert.Equal(t, "get", log[0].Operation)
-		assert.True(t, log[0].Hits[0], "Request 2 should hit L2 cache")
+		wantLog := []CacheLogEntry{
+			// _entities(Product) — L1 miss (new request, empty L1), L2 hit from request 1; no DS call
+			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"id":"prod-1"}}`}, Hits: []bool{true}},
+		}
+		assert.Equal(t, wantLog, log, "Request 2: L2 hit (L1 is fresh/empty)")
 	})
 
 	t.Run("Both disabled - no cache operations", func(t *testing.T) {

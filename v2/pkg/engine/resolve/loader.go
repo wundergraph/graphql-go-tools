@@ -806,6 +806,9 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 	// Skip L2 cache reads for mutations - always fetch fresh data from subgraph.
 	// We check l.info (root operation type), not info (per-fetch type), because
 	// nested entity fetches within mutations have OperationType=Query.
+	// NOTE: L2 cache WRITES are NOT skipped for mutations (see updateL2Cache).
+	// This is intentional: mutations produce fresh data that should populate L2
+	// so subsequent queries benefit from the updated cache.
 	// Subscriptions are allowed to read from L2 cache because their child entity
 	// fetches are read operations, just like queries.
 	if l.info != nil && l.info.OperationType == ast.OperationTypeMutation {
