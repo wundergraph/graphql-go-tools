@@ -7,6 +7,7 @@ import (
 )
 
 func TestFederation_Bleve(t *testing.T) {
+	t.Parallel()
 	idx := newBleveIndex(t)
 	RunFederatedBackendTests(t, idx, BackendCaps{
 		HasTextSearch: true,

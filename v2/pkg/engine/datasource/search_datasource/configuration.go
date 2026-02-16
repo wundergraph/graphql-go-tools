@@ -38,14 +38,14 @@ func (c *Configuration) NeedsResponseWrapper() bool {
 
 // IndexedFieldConfig describes a field's indexing configuration.
 type IndexedFieldConfig struct {
-	FieldName    string               `json:"field_name"`
-	GraphQLType  string               `json:"graphql_type"`
+	FieldName    string                `json:"field_name"`
+	GraphQLType  string                `json:"graphql_type"`
 	IndexType    searchindex.FieldType `json:"index_type"`
-	Filterable   bool                 `json:"filterable"`
-	Sortable     bool                 `json:"sortable"`
-	Dimensions   int                  `json:"dimensions,omitempty"`
-	Weight       float64              `json:"weight,omitempty"`
-	Autocomplete bool                 `json:"autocomplete,omitempty"`
+	Filterable   bool                  `json:"filterable"`
+	Sortable     bool                  `json:"sortable"`
+	Dimensions   int                   `json:"dimensions,omitempty"`
+	Weight       float64               `json:"weight,omitempty"`
+	Autocomplete bool                  `json:"autocomplete,omitempty"`
 }
 
 // EmbeddingFieldConfig describes a derived embedding field.

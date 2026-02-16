@@ -398,7 +398,6 @@ func ExecuteFederatedQuery(t *testing.T, setup *FederatedTestSetup, query string
 		t.Fatalf("expected SynchronousResponsePlan, got %T", executionPlan)
 	}
 
-
 	if syncPlan.Response.Info == nil {
 		syncPlan.Response.Info = &resolve.GraphQLResponseInfo{
 			OperationType: ast.OperationTypeQuery,
@@ -628,4 +627,3 @@ func (n *noopSubscriptionClient) SubscribeAsync(_ *resolve.Context, _ uint64, _ 
 	return nil
 }
 func (n *noopSubscriptionClient) Unsubscribe(_ uint64) {}
-

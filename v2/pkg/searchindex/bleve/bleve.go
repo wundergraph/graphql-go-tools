@@ -782,4 +782,3 @@ func convertFacets(bleveFacets search.FacetResults) map[string]searchindex.Facet
 	}
 	return facets
 }
-

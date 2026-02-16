@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jensneuse/abstractlogger"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/searchindex"
-
-	"github.com/jensneuse/abstractlogger"
 )
 
 // Factory creates Planner instances for the search datasource.
@@ -26,8 +26,8 @@ func NewFactory(
 	embedderRegistry *searchindex.EmbedderRegistry,
 ) *Factory {
 	return &Factory{
-		executionContext:  ctx,
-		indexRegistry:     indexRegistry,
+		executionContext: ctx,
+		indexRegistry:    indexRegistry,
 		embedderRegistry: embedderRegistry,
 		indices:          make(map[string]searchindex.Index),
 	}

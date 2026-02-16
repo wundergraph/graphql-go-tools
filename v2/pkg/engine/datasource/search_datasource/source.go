@@ -21,28 +21,28 @@ type Source struct {
 
 // searchInput represents the parsed input from the planner.
 type searchInput struct {
-	SearchField string           `json:"search_field"`
-	Query       string           `json:"query,omitempty"`
-	Vector      []float32        `json:"vector,omitempty"`
-	Search      *searchInputArg  `json:"search,omitempty"`
-	Filter      json.RawMessage  `json:"filter,omitempty"`
-	Sort        json.RawMessage  `json:"sort,omitempty"`
-	Limit       *int             `json:"limit,omitempty"`
-	Offset      *int             `json:"offset,omitempty"`
-	Facets      []string         `json:"facets,omitempty"`
-	GeoSort     *geoSortInput    `json:"geoSort,omitempty"`
-	Fuzziness   *string          `json:"fuzziness,omitempty"`
-	First       *int             `json:"first,omitempty"`
-	After       *string          `json:"after,omitempty"`
-	Last        *int             `json:"last,omitempty"`
-	Before      *string          `json:"before,omitempty"`
-	Prefix      *string          `json:"prefix,omitempty"`
-	IsSuggest   bool             `json:"is_suggest,omitempty"`
+	SearchField string          `json:"search_field"`
+	Query       string          `json:"query,omitempty"`
+	Vector      []float32       `json:"vector,omitempty"`
+	Search      *searchInputArg `json:"search,omitempty"`
+	Filter      json.RawMessage `json:"filter,omitempty"`
+	Sort        json.RawMessage `json:"sort,omitempty"`
+	Limit       *int            `json:"limit,omitempty"`
+	Offset      *int            `json:"offset,omitempty"`
+	Facets      []string        `json:"facets,omitempty"`
+	GeoSort     *geoSortInput   `json:"geoSort,omitempty"`
+	Fuzziness   *string         `json:"fuzziness,omitempty"`
+	First       *int            `json:"first,omitempty"`
+	After       *string         `json:"after,omitempty"`
+	Last        *int            `json:"last,omitempty"`
+	Before      *string         `json:"before,omitempty"`
+	Prefix      *string         `json:"prefix,omitempty"`
+	IsSuggest   bool            `json:"is_suggest,omitempty"`
 }
 
 type geoSortInput struct {
-	Field     string `json:"field"`
-	Center    struct {
+	Field  string `json:"field"`
+	Center struct {
 		Lat float64 `json:"lat"`
 		Lon float64 `json:"lon"`
 	} `json:"center"`

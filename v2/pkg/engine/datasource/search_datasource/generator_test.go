@@ -12,10 +12,10 @@ func TestGenerateSubgraphSDL(t *testing.T) {
 		config := &ParsedConfig{
 			Entities: []SearchableEntity{
 				{
-					TypeName:         "Product",
-					IndexName:        "products",
-					SearchField:      "searchProducts",
-					KeyFields:        []string{"id"},
+					TypeName:               "Product",
+					IndexName:              "products",
+					SearchField:            "searchProducts",
+					KeyFields:              []string{"id"},
 					ResultsMetaInformation: true,
 					Fields: []IndexedField{
 						{FieldName: "name", GraphQLType: "String!", IndexType: searchindex.FieldTypeText, Filterable: true, Sortable: true},
@@ -78,10 +78,10 @@ func TestGenerateSubgraphSDL(t *testing.T) {
 		config := &ParsedConfig{
 			Entities: []SearchableEntity{
 				{
-					TypeName:         "Article",
-					IndexName:        "articles",
-					SearchField:      "searchArticles",
-					KeyFields:        []string{"id"},
+					TypeName:               "Article",
+					IndexName:              "articles",
+					SearchField:            "searchArticles",
+					KeyFields:              []string{"id"},
 					ResultsMetaInformation: true,
 					Fields: []IndexedField{
 						{FieldName: "title", GraphQLType: "String!", IndexType: searchindex.FieldTypeText, Filterable: true},
@@ -115,10 +115,10 @@ func TestGenerateSubgraphSDL(t *testing.T) {
 		config := &ParsedConfig{
 			Entities: []SearchableEntity{
 				{
-					TypeName:         "Product",
-					IndexName:        "products",
-					SearchField:      "searchProducts",
-					KeyFields:        []string{"id"},
+					TypeName:               "Product",
+					IndexName:              "products",
+					SearchField:            "searchProducts",
+					KeyFields:              []string{"id"},
 					ResultsMetaInformation: false,
 					Fields: []IndexedField{
 						{FieldName: "name", GraphQLType: "String!", IndexType: searchindex.FieldTypeText, Filterable: true, Sortable: true},
@@ -164,10 +164,10 @@ func TestGenerateSubgraphSDL(t *testing.T) {
 		config := &ParsedConfig{
 			Entities: []SearchableEntity{
 				{
-					TypeName:         "Image",
-					IndexName:        "images",
-					SearchField:      "searchImages",
-					KeyFields:        []string{"id"},
+					TypeName:               "Image",
+					IndexName:              "images",
+					SearchField:            "searchImages",
+					KeyFields:              []string{"id"},
 					ResultsMetaInformation: true,
 					Fields: []IndexedField{
 						{FieldName: "caption", GraphQLType: "String!", IndexType: searchindex.FieldTypeText, Filterable: true},

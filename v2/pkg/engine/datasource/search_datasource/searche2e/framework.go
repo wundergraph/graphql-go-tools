@@ -11,12 +11,12 @@ import (
 
 // BackendCaps describes what capabilities a backend supports.
 type BackendCaps struct {
-	HasTextSearch        bool
-	HasFacets            bool
-	HasPrefix            bool
-	HasExists            bool
-	HasVectorSearch      bool
-	HasCursorPagination  bool
+	HasTextSearch       bool
+	HasFacets           bool
+	HasPrefix           bool
+	HasExists           bool
+	HasVectorSearch     bool
+	HasCursorPagination bool
 }
 
 // BackendHooks provides hooks for backend-specific behavior.
@@ -67,9 +67,9 @@ type ConnectionResponse struct {
 
 // ConnectionEdge represents a single edge in a connection response.
 type ConnectionEdge struct {
-	Cursor     string           `json:"cursor"`
-	Node       map[string]any   `json:"node"`
-	Score      float64          `json:"score"`
+	Cursor     string            `json:"cursor"`
+	Node       map[string]any    `json:"node"`
+	Score      float64           `json:"score"`
 	Highlights []SearchHighlight `json:"highlights"`
 }
 

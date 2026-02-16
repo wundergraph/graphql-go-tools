@@ -466,8 +466,8 @@ func (idx *Index) DeleteDocuments(ctx context.Context, ids []searchindex.Documen
 	for _, id := range ids {
 		docIDStr := documentIDString(id)
 		operands = append(operands, map[string]any{
-			"path":        []string{reservedDocIDField},
-			"operator":    "Equal",
+			"path":      []string{reservedDocIDField},
+			"operator":  "Equal",
 			"valueText": docIDStr,
 		})
 	}

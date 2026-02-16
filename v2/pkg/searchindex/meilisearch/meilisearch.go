@@ -471,8 +471,8 @@ func (idx *Index) Autocomplete(ctx context.Context, req searchindex.Autocomplete
 
 	// Search for documents matching the prefix.
 	body := map[string]any{
-		"q":                  prefix,
-		"limit":              100,
+		"q":                    prefix,
+		"limit":                100,
 		"attributesToSearchOn": []string{req.Field},
 		"attributesToRetrieve": []string{req.Field},
 	}

@@ -69,9 +69,6 @@ func TestEntityJoinCompatibility(t *testing.T) {
 			t.Errorf("hit[%d]: id should be string, got %T", i, id)
 		}
 
-		// Score should be set.
-		if hit.Score == 0 && hit.Distance == 0 {
-			// For non-scored queries (e.g., match-all), score may be 0; that's acceptable.
-		}
+		// Score or distance should be set for scored queries; for match-all, 0 is acceptable.
 	}
 }

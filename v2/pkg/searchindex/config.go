@@ -4,14 +4,14 @@ package searchindex
 type FieldType int
 
 const (
-	FieldTypeText    FieldType = iota // Analyzed full-text search
-	FieldTypeKeyword                  // Exact match, not analyzed
-	FieldTypeNumeric                  // Numeric range queries
-	FieldTypeBool                     // Boolean filtering
-	FieldTypeVector                   // Pre-computed embedding vector
-	FieldTypeGeo                      // Latitude/longitude geo-point
-	FieldTypeDate                     // Calendar date (ISO 8601 full-date, e.g. "2024-01-15")
-	FieldTypeDateTime                 // Instant (RFC 3339, e.g. "2024-01-15T10:30:00.000Z")
+	FieldTypeText     FieldType = iota // Analyzed full-text search
+	FieldTypeKeyword                   // Exact match, not analyzed
+	FieldTypeNumeric                   // Numeric range queries
+	FieldTypeBool                      // Boolean filtering
+	FieldTypeVector                    // Pre-computed embedding vector
+	FieldTypeGeo                       // Latitude/longitude geo-point
+	FieldTypeDate                      // Calendar date (ISO 8601 full-date, e.g. "2024-01-15")
+	FieldTypeDateTime                  // Instant (RFC 3339, e.g. "2024-01-15T10:30:00.000Z")
 )
 
 func (f FieldType) String() string {

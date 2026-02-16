@@ -49,7 +49,7 @@ func NewManager(
 ) *Manager {
 	return &Manager{
 		factory:          factory,
-		indexRegistry:     indexRegistry,
+		indexRegistry:    indexRegistry,
 		embedderRegistry: embedderRegistry,
 		executor:         executor,
 		config:           config,

@@ -107,7 +107,7 @@ func TestSubscriptionUpsert(t *testing.T) {
 	if err := manager.Start(ctx); err != nil {
 		t.Fatalf("Manager.Start: %v", err)
 	}
-	defer manager.Stop()
+	defer func() { _ = manager.Stop() }()
 
 	// Verify initial population: search for "shoes" should return 2 hits.
 	idx, ok := manager.GetIndex("products")
@@ -233,7 +233,7 @@ func TestSubscriptionDeletion(t *testing.T) {
 	if err := manager.Start(ctx); err != nil {
 		t.Fatalf("Manager.Start: %v", err)
 	}
-	defer manager.Stop()
+	defer func() { _ = manager.Stop() }()
 
 	idx, ok := manager.GetIndex("products")
 	if !ok {

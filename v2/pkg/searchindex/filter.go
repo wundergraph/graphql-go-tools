@@ -2,12 +2,12 @@ package searchindex
 
 // Filter represents a composable filter tree that translates to each backend's native format.
 type Filter struct {
-	And    []*Filter
-	Or     []*Filter
-	Not    *Filter
-	Term   *TermFilter
-	Terms  *TermsFilter
-	Range  *RangeFilter
+	And            []*Filter
+	Or             []*Filter
+	Not            *Filter
+	Term           *TermFilter
+	Terms          *TermsFilter
+	Range          *RangeFilter
 	Prefix         *PrefixFilter
 	Exists         *ExistsFilter
 	GeoDistance    *GeoDistanceFilter

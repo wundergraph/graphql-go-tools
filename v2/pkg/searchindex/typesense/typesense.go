@@ -628,16 +628,16 @@ func (idx *Index) Search(ctx context.Context, req searchindex.SearchRequest) (*s
 
 // typesenseSearchResponse mirrors the Typesense search result JSON.
 type typesenseSearchResponse struct {
-	Found       int                      `json:"found"`
-	Hits        []typesenseHit           `json:"hits"`
-	FacetCounts []typesenseFacetCount    `json:"facet_counts"`
+	Found       int                   `json:"found"`
+	Hits        []typesenseHit        `json:"hits"`
+	FacetCounts []typesenseFacetCount `json:"facet_counts"`
 }
 
 type typesenseHit struct {
-	Document  map[string]any        `json:"document"`
-	TextMatch json.Number           `json:"text_match"`
-	Highlights []typesenseHighlight `json:"highlights"`
-	VectorDistance *float64          `json:"vector_distance,omitempty"`
+	Document       map[string]any       `json:"document"`
+	TextMatch      json.Number          `json:"text_match"`
+	Highlights     []typesenseHighlight `json:"highlights"`
+	VectorDistance *float64             `json:"vector_distance,omitempty"`
 }
 
 type typesenseHighlight struct {
@@ -647,8 +647,8 @@ type typesenseHighlight struct {
 }
 
 type typesenseFacetCount struct {
-	FieldName string               `json:"field_name"`
-	Counts    []typesenseFacetVal  `json:"counts"`
+	FieldName string              `json:"field_name"`
+	Counts    []typesenseFacetVal `json:"counts"`
 }
 
 type typesenseFacetVal struct {
@@ -1022,12 +1022,12 @@ func (idx *Index) Autocomplete(ctx context.Context, req searchindex.Autocomplete
 	}
 
 	params := url.Values{
-		"q":                 {"*"},
-		"query_by":          {req.Field},
-		"facet_by":          {req.Field},
-		"facet_query":       {req.Field + ":" + strings.ToLower(req.Prefix)},
-		"per_page":          {"0"},
-		"max_facet_values":  {strconv.Itoa(limit)},
+		"q":                {"*"},
+		"query_by":         {req.Field},
+		"facet_by":         {req.Field},
+		"facet_query":      {req.Field + ":" + strings.ToLower(req.Prefix)},
+		"per_page":         {"0"},
+		"max_facet_values": {strconv.Itoa(limit)},
 	}
 
 	path := fmt.Sprintf("/collections/%s/documents/search?%s", url.PathEscape(idx.name), params.Encode())

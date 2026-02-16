@@ -495,10 +495,10 @@ func (idx *Index) Search(ctx context.Context, req searchindex.SearchRequest) (*s
 // textSearch handles text-only and filter-only queries.
 func (idx *Index) textSearch(ctx context.Context, req searchindex.SearchRequest) (*searchindex.SearchResult, error) {
 	var (
-		qb       queryBuilder
-		selCols  []string
-		orderBy  []string
-		hasText  = req.TextQuery != ""
+		qb      queryBuilder
+		selCols []string
+		orderBy []string
+		hasText = req.TextQuery != ""
 	)
 
 	// SELECT clause.
@@ -648,7 +648,7 @@ func (idx *Index) textSearch(ctx context.Context, req searchindex.SearchRequest)
 
 // buildTSVQuery builds the tsquery expression based on text fields configuration.
 func (idx *Index) buildTSVQuery(req searchindex.SearchRequest) string {
-	return fmt.Sprintf("plainto_tsquery('english', $1)")
+	return "plainto_tsquery('english', $1)"
 }
 
 // vectorSearch handles vector-only queries using the <=> distance operator.
@@ -844,7 +844,7 @@ func (idx *Index) hybridSearch(ctx context.Context, req searchindex.SearchReques
 	}
 	sb.WriteString(fmt.Sprintf("  LIMIT %d\n", rrfLimit))
 	sb.WriteString("),\ncombined AS (\n")
-	sb.WriteString(fmt.Sprintf("  SELECT COALESCE(t.doc_id, v.doc_id) AS doc_id,\n"))
+	sb.WriteString("  SELECT COALESCE(t.doc_id, v.doc_id) AS doc_id,\n")
 	sb.WriteString(fmt.Sprintf("    COALESCE(1.0/(%d + t.rank), 0) + COALESCE(1.0/(%d + v.rank), 0) AS rrf_score\n", k, k))
 	sb.WriteString("  FROM text_results t\n")
 	sb.WriteString("  FULL OUTER JOIN vec_results v ON t.doc_id = v.doc_id\n")

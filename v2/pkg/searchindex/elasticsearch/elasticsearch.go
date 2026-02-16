@@ -885,7 +885,7 @@ func (idx *Index) convertHit(hit esHit, hasGeoSort bool) searchindex.SearchHit {
 		Highlights:     highlights,
 		Representation: representation,
 		SortValues:     sortValues,
-		GeoDistance:     geoDistance,
+		GeoDistance:    geoDistance,
 	}
 }
 
@@ -1104,8 +1104,8 @@ type bulkItemErr struct {
 
 // esSearchResponse is the top-level search response from ES.
 type esSearchResponse struct {
-	Hits         esHitsWrapper              `json:"hits"`
-	Aggregations map[string]esAggResult     `json:"aggregations"`
+	Hits         esHitsWrapper          `json:"hits"`
+	Aggregations map[string]esAggResult `json:"aggregations"`
 }
 
 type esHitsWrapper struct {

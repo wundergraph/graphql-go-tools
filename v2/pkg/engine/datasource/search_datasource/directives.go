@@ -319,14 +319,14 @@ func parseSearchableType(doc *ast.Document, def *ast.ObjectTypeDefinition, defId
 
 		// Check for @indexed
 		for _, dirRef := range doc.FieldDefinitions[fieldRef].Directives.Refs {
-			dirName := doc.DirectiveNameString(dirRef)
-			if dirName == "indexed" {
+			switch doc.DirectiveNameString(dirRef) {
+			case "indexed":
 				field, err := parseIndexedDirective(doc, dirRef, fieldName, fieldType)
 				if err != nil {
 					return nil, err
 				}
 				entity.Fields = append(entity.Fields, *field)
-			} else if dirName == "embedding" {
+			case "embedding":
 				emb, err := parseEmbeddingDirective(doc, dirRef, fieldName)
 				if err != nil {
 					return nil, err
@@ -385,14 +385,14 @@ func parseSearchableTypeExtension(doc *ast.Document, ext *ast.ObjectTypeExtensio
 		fieldType := doc.FieldDefinitionTypeNameString(fieldRef)
 
 		for _, dirRef := range doc.FieldDefinitions[fieldRef].Directives.Refs {
-			dirName := doc.DirectiveNameString(dirRef)
-			if dirName == "indexed" {
+			switch doc.DirectiveNameString(dirRef) {
+			case "indexed":
 				field, err := parseIndexedDirective(doc, dirRef, fieldName, fieldType)
 				if err != nil {
 					return nil, err
 				}
 				entity.Fields = append(entity.Fields, *field)
-			} else if dirName == "embedding" {
+			case "embedding":
 				emb, err := parseEmbeddingDirective(doc, dirRef, fieldName)
 				if err != nil {
 					return nil, err
