@@ -9,11 +9,10 @@ import (
 )
 
 type providesInput struct {
-	providesFieldSet, operation, definition *ast.Document
-	report                                  *operationreport.Report
-	operationSelectionSet                   int
-	parentPath                              string
-	dataSource                              DataSource
+	parentTypeName       string
+	providesSelectionSet string
+	definition           *ast.Document
+	parentPath           string
 }
 
 type addTypenamesVisitor struct {
@@ -65,60 +64,53 @@ func providesFragment(fieldTypeName string, providesSelectionSet string, definit
 	return providesFieldSet, report
 }
 
-func providesSuggestions(input *providesInput) []*NodeSuggestion {
+func providesSuggestions(input *providesInput) (map[string]struct{}, *operationreport.Report) {
+	providesFieldSet, report := providesFragment(input.parentTypeName, input.providesSelectionSet, input.definition)
+	if report.HasErrors() {
+		return nil, report
+	}
+
 	walker := astvisitor.NewWalkerWithID(48, "ProvidesVisitor")
 
 	visitor := &providesVisitor{
-		walker: &walker,
-		input:  input,
+		walker:           &walker,
+		suggestions:      make(map[string]struct{}),
+		providesFieldSet: providesFieldSet,
+		definition:       input.definition,
+		parentTypeName:   input.parentTypeName,
+		parentPath:       input.parentPath,
 	}
-	walker.RegisterEnterDocumentVisitor(visitor)
-	walker.RegisterEnterFragmentDefinitionVisitor(visitor)
 	walker.RegisterEnterFieldVisitor(visitor)
 
-	walker.Walk(input.providesFieldSet, input.definition, input.report)
+	walker.Walk(providesFieldSet, input.definition, report)
 
-	return visitor.suggestions
+	return visitor.suggestions, report
 }
 
 type providesVisitor struct {
-	walker *astvisitor.Walker
-	input  *providesInput
+	walker      *astvisitor.Walker
+	suggestions map[string]struct{}
 
-	suggestions []*NodeSuggestion
-	pathPrefix  string
-}
-
-func (v *providesVisitor) EnterFragmentDefinition(ref int) {
-	v.pathPrefix = v.input.providesFieldSet.FragmentDefinitionTypeNameString(ref)
-}
-
-func (v *providesVisitor) EnterDocument(_, _ *ast.Document) {
-
+	providesFieldSet *ast.Document
+	definition       *ast.Document
+	parentTypeName   string
+	parentPath       string
 }
 
 func (v *providesVisitor) EnterField(ref int) {
-	fieldName := v.input.providesFieldSet.FieldNameUnsafeString(ref)
-	typeName := v.walker.EnclosingTypeDefinition.NameString(v.input.definition)
+	fieldName := v.providesFieldSet.FieldNameUnsafeString(ref)
+	typeName := v.walker.EnclosingTypeDefinition.NameString(v.definition)
 
 	currentPathWithoutFragments := v.walker.Path.WithoutInlineFragmentNames().DotDelimitedString()
-	parentPath := v.input.parentPath + strings.TrimPrefix(currentPathWithoutFragments, v.pathPrefix)
+	// remove the parent type name from the path because we are walking a fragment with the provided fields
+	parentPath := v.parentPath + strings.TrimPrefix(currentPathWithoutFragments, v.parentTypeName)
 	currentPath := parentPath + "." + fieldName
 
-	suggestion := &NodeSuggestion{
-		FieldRef:       ast.InvalidRef,
-		TypeName:       typeName,
-		FieldName:      fieldName,
-		DataSourceHash: v.input.dataSource.Hash(),
-		DataSourceID:   v.input.dataSource.Id(),
-		DataSourceName: v.input.dataSource.Name(),
-		Path:           currentPath,
-		ParentPath:     parentPath,
-	}
-
-	v.suggestions = append(v.suggestions, suggestion)
+	v.suggestions[providedFieldKey(typeName, fieldName, currentPath)] = struct{}{}
 }
 
-func (v *providesVisitor) LeaveField(ref int) {
-
+// providedFieldKey returns a unique key for a provided field
+// it consists of the type name, field name and dot delimited path from a query
+func providedFieldKey(typeName, fieldName, path string) string {
+	return typeName + "|" + fieldName + "|" + path
 }
