@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 
@@ -97,7 +98,7 @@ func (f *Factory) CreateIndex(ctx context.Context, name string, schema searchind
 	}
 
 	// PUT /{indexName}
-	resp, err := idx.doRequest(ctx, http.MethodPut, "/"+name, bodyBytes)
+	resp, err := idx.doRequest(ctx, http.MethodPut, "/"+url.PathEscape(name), bodyBytes)
 	if err != nil {
 		return nil, fmt.Errorf("elasticsearch: create index %q: %w", name, err)
 	}
@@ -361,7 +362,7 @@ func (idx *Index) Search(ctx context.Context, req searchindex.SearchRequest) (*s
 		return nil, fmt.Errorf("elasticsearch: marshal search body: %w", err)
 	}
 
-	path := "/" + idx.name + "/_search"
+	path := "/" + url.PathEscape(idx.name) + "/_search"
 	resp, err := idx.doRequest(ctx, http.MethodPost, path, bodyBytes)
 	if err != nil {
 		return nil, fmt.Errorf("elasticsearch: search: %w", err)
@@ -954,7 +955,7 @@ func (idx *Index) Autocomplete(ctx context.Context, req searchindex.Autocomplete
 		return nil, fmt.Errorf("elasticsearch: marshal autocomplete body: %w", err)
 	}
 
-	resp, err := idx.doRequest(ctx, "POST", "/"+idx.name+"/_search", bodyJSON)
+	resp, err := idx.doRequest(ctx, "POST", "/"+url.PathEscape(idx.name)+"/_search", bodyJSON)
 	if err != nil {
 		return nil, fmt.Errorf("elasticsearch: autocomplete search request: %w", err)
 	}

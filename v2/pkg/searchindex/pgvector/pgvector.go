@@ -1257,9 +1257,10 @@ func (idx *Index) translateFilter(f *searchindex.Filter, qb *queryBuilder) (stri
 		return idx.translateRangeFilter(f.Range, qb)
 	}
 
-	// Prefix
+	// Prefix: escape LIKE wildcards in the user value before appending %.
 	if f.Prefix != nil {
-		p := qb.addParam(f.Prefix.Value + "%")
+		escaped := strings.NewReplacer("%", "\\%", "_", "\\_").Replace(f.Prefix.Value)
+		p := qb.addParam(escaped + "%")
 		return fmt.Sprintf("%s LIKE %s", quoteIdent(f.Prefix.Field), p), nil
 	}
 

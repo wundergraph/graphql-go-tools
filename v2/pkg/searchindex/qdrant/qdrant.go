@@ -636,14 +636,16 @@ func translateFilter(f *searchindex.Filter) map[string]any {
 		}
 	}
 
-	// Exists
+	// Exists: Qdrant has no direct "exists" condition, so we negate "is_empty".
 	if f.Exists != nil {
 		return map[string]any{
-			"is_empty": map[string]any{
-				"key": f.Exists.Field,
+			"must_not": []map[string]any{
+				{
+					"is_empty": map[string]any{
+						"key": f.Exists.Field,
+					},
+				},
 			},
-			// Actually, Qdrant doesn't have a simple "exists" filter in the same way.
-			// We negate is_empty to check existence. We need to wrap in must_not.
 		}
 	}
 
