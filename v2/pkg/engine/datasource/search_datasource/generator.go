@@ -239,16 +239,11 @@ input DateTimeFilter {
 func writeEntityTypes(b *strings.Builder, entity *SearchableEntity) {
 	typeName := entity.TypeName
 	hasVector := entity.HasVectorSearch()
-	hasText := entity.HasTextSearch()
 
 	// Search input for vector entities
 	if hasVector {
 		fmt.Fprintf(b, "input Search%sInput @oneOf {\n", typeName)
-		if hasText {
-			b.WriteString("  query: String\n")
-		} else {
-			b.WriteString("  query: String\n")
-		}
+		b.WriteString("  query: String\n")
 		b.WriteString("  vector: [Float!]\n")
 		b.WriteString("}\n\n")
 	}

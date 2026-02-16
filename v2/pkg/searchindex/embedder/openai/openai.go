@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -198,12 +199,9 @@ func (e *serverError) Error() string {
 }
 
 func isRetryable(err error) bool {
-	switch err.(type) {
-	case *rateLimitError, *serverError:
-		return true
-	default:
-		return false
-	}
+	var rle *rateLimitError
+	var se *serverError
+	return errors.As(err, &rle) || errors.As(err, &se)
 }
 
 func (e *Embedder) doRequest(ctx context.Context, texts []string) ([]embeddingData, error) {

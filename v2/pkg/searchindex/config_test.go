@@ -13,6 +13,9 @@ func TestParseFieldType(t *testing.T) {
 		{"NUMERIC", FieldTypeNumeric, true},
 		{"BOOL", FieldTypeBool, true},
 		{"VECTOR", FieldTypeVector, true},
+		{"GEO", FieldTypeGeo, true},
+		{"DATE", FieldTypeDate, true},
+		{"DATETIME", FieldTypeDateTime, true},
 		{"UNKNOWN", 0, false},
 		{"", 0, false},
 	}
@@ -40,6 +43,9 @@ func TestFieldTypeString(t *testing.T) {
 		{FieldTypeNumeric, "NUMERIC"},
 		{FieldTypeBool, "BOOL"},
 		{FieldTypeVector, "VECTOR"},
+		{FieldTypeGeo, "GEO"},
+		{FieldTypeDate, "DATE"},
+		{FieldTypeDateTime, "DATETIME"},
 		{FieldType(99), "UNKNOWN"},
 	}
 

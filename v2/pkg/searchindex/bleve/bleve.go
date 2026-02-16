@@ -161,8 +161,8 @@ func documentID(id searchindex.DocumentIdentity) string {
 
 // buildDoc converts an EntityDocument into a flat map suitable for Bleve
 // indexing. It includes all Fields plus internal metadata.
-func buildDoc(doc searchindex.EntityDocument) (map[string]interface{}, error) {
-	m := make(map[string]interface{}, len(doc.Fields)+2)
+func buildDoc(doc searchindex.EntityDocument) (map[string]any, error) {
+	m := make(map[string]any, len(doc.Fields)+2)
 	for k, v := range doc.Fields {
 		m[k] = v
 	}
@@ -738,7 +738,7 @@ func convertHit(hit *search.DocumentMatch) (searchindex.SearchHit, error) {
 }
 
 // extractIdentity reconstructs a DocumentIdentity from stored Bleve fields.
-func extractIdentity(fields map[string]interface{}) (searchindex.DocumentIdentity, error) {
+func extractIdentity(fields map[string]any) (searchindex.DocumentIdentity, error) {
 	typeName, _ := fields[reservedTypeNameField].(string)
 	keyFieldsRaw, _ := fields[reservedKeyFieldsField].(string)
 

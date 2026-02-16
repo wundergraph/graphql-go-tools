@@ -1,6 +1,8 @@
 package search_datasource
 
 import (
+	"log"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
@@ -53,7 +55,10 @@ func (p *Planner) DownstreamResponseFieldAlias(_ int) (alias string, exists bool
 }
 
 func (p *Planner) ConfigureFetch() resolve.FetchConfiguration {
-	source, _ := p.factory.CreateSourceForConfig(p.config)
+	source, err := p.factory.CreateSourceForConfig(p.config)
+	if err != nil {
+		log.Printf("search_datasource: failed to create source: %v", err)
+	}
 
 	input := p.buildFetchInput()
 

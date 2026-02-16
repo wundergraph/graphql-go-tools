@@ -10,7 +10,7 @@ type Filter struct {
 	Range  *RangeFilter
 	Prefix         *PrefixFilter
 	Exists         *ExistsFilter
-	GeoDistance     *GeoDistanceFilter
+	GeoDistance    *GeoDistanceFilter
 	GeoBoundingBox *GeoBoundingBoxFilter
 }
 

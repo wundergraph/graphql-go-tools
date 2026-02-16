@@ -447,8 +447,10 @@ func (idx *Index) buildSearchBody(req searchindex.SearchRequest) map[string]any 
 					},
 				})
 			} else {
+				// Use simple_query_string instead of query_string to prevent
+				// Lucene query syntax injection (field targeting, regex, wildcards).
 				mustClauses = append(mustClauses, map[string]any{
-					"query_string": map[string]any{
+					"simple_query_string": map[string]any{
 						"query": req.TextQuery,
 					},
 				})

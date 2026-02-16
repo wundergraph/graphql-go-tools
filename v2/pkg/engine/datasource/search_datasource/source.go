@@ -58,14 +58,14 @@ type searchInputArg struct {
 func (s *Source) Load(ctx context.Context, _ http.Header, input []byte) ([]byte, error) {
 	var si searchInput
 	if err := json.Unmarshal(input, &si); err != nil {
-		return nil, fmt.Errorf("search_datasource: invalid input: %w (raw: %s)", err, string(input))
+		return nil, fmt.Errorf("search_datasource: invalid input: %w", err)
 	}
 
 	if si.IsSuggest {
 		return s.loadSuggest(ctx, &si)
 	}
 
-	req, err := s.buildSearchRequest(&si)
+	req, err := s.buildSearchRequest(ctx, &si)
 	if err != nil {
 		return nil, fmt.Errorf("search_datasource: building search request: %w", err)
 	}
@@ -82,7 +82,7 @@ func (s *Source) LoadWithFiles(ctx context.Context, headers http.Header, input [
 	return s.Load(ctx, headers, input)
 }
 
-func (s *Source) buildSearchRequest(si *searchInput) (*searchindex.SearchRequest, error) {
+func (s *Source) buildSearchRequest(ctx context.Context, si *searchInput) (*searchindex.SearchRequest, error) {
 	req := &searchindex.SearchRequest{
 		TypeName: s.config.EntityTypeName,
 	}
@@ -93,7 +93,7 @@ func (s *Source) buildSearchRequest(si *searchInput) (*searchindex.SearchRequest
 		if si.Search.Query != nil {
 			if s.embedder != nil {
 				// Auto-embed the text query and keep the text for hybrid search.
-				vec, err := s.embedder.EmbedSingle(context.Background(), *si.Search.Query)
+				vec, err := s.embedder.EmbedSingle(ctx, *si.Search.Query)
 				if err != nil {
 					return nil, fmt.Errorf("embedding query: %w", err)
 				}
@@ -215,6 +215,12 @@ func (s *Source) buildSearchRequest(si *searchInput) (*searchindex.SearchRequest
 		req.Offset = *si.Offset
 	}
 
+	// Enforce upper bound on limit to prevent excessive result sets.
+	const maxLimit = 1000
+	if req.Limit > maxLimit {
+		req.Limit = maxLimit
+	}
+
 	for _, facet := range si.Facets {
 		req.Facets = append(req.Facets, searchindex.FacetRequest{Field: facet})
 	}
@@ -228,11 +234,11 @@ type sortInput struct {
 }
 
 func (s *Source) findVectorField() string {
-	// Check embedding fields first
-	for _, ef := range s.config.EmbeddingFields {
-		return ef.FieldName
+	// Embedding fields take precedence over manually declared VECTOR fields.
+	if len(s.config.EmbeddingFields) > 0 {
+		return s.config.EmbeddingFields[0].FieldName
 	}
-	// Then check VECTOR fields
+	// Then check VECTOR fields.
 	for _, f := range s.config.Fields {
 		if f.IndexType == searchindex.FieldTypeVector {
 			return f.FieldName

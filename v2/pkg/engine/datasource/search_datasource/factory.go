@@ -2,6 +2,7 @@ package search_datasource
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
@@ -63,10 +64,12 @@ func (f *Factory) PlanningBehavior() plan.DataSourcePlanningBehavior {
 }
 
 // CreateSourceForConfig creates a Source for the given configuration.
+// Returns an error if the index is not registered. Callers must ensure
+// Manager.Start() completes before queries are served.
 func (f *Factory) CreateSourceForConfig(config Configuration) (*Source, error) {
 	idx, ok := f.indices[config.IndexName]
 	if !ok {
-		return nil, nil
+		return nil, fmt.Errorf("search_datasource: index %q not registered", config.IndexName)
 	}
 
 	source := &Source{
@@ -74,7 +77,9 @@ func (f *Factory) CreateSourceForConfig(config Configuration) (*Source, error) {
 		config: config,
 	}
 
-	// If the entity has embedding fields, find the appropriate embedder
+	// If the entity has embedding fields, find the appropriate embedder.
+	// Embedding lookup errors are logged but not fatal -- the source will
+	// function without auto-embedding (text-only search instead of hybrid).
 	if len(config.EmbeddingFields) > 0 && f.embedderRegistry != nil {
 		model := config.EmbeddingFields[0].Model
 		embedder, err := f.embedderRegistry.Get(model)
