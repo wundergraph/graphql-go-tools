@@ -9,13 +9,14 @@ import (
 )
 
 type FederationMetaData struct {
-	Keys             FederationFieldConfigurations
-	Requires         FederationFieldConfigurations
-	Provides         FederationFieldConfigurations
-	EntityInterfaces []EntityInterfaceConfiguration
-	InterfaceObjects []EntityInterfaceConfiguration
-	EntityCaching    EntityCacheConfigurations
-	RootFieldCaching RootFieldCacheConfigurations
+	Keys                         FederationFieldConfigurations
+	Requires                     FederationFieldConfigurations
+	Provides                     FederationFieldConfigurations
+	EntityInterfaces             []EntityInterfaceConfiguration
+	InterfaceObjects             []EntityInterfaceConfiguration
+	EntityCaching                EntityCacheConfigurations
+	RootFieldCaching             RootFieldCacheConfigurations
+	SubscriptionEntityPopulation SubscriptionEntityPopulationConfigurations
 
 	entityTypeNames map[string]struct{}
 }
@@ -176,6 +177,44 @@ type RootFieldCacheConfigurations []RootFieldCacheConfiguration
 func (c RootFieldCacheConfigurations) FindByTypeAndField(typeName, fieldName string) *RootFieldCacheConfiguration {
 	for i := range c {
 		if c[i].TypeName == typeName && c[i].FieldName == fieldName {
+			return &c[i]
+		}
+	}
+	return nil
+}
+
+// SubscriptionEntityPopulationConfiguration defines how a subscription should
+// manage L2 cache entries for root entities received via subscription events.
+//
+// Two modes are supported:
+//   - Populate: When the subscription selects entity fields beyond @key, write those
+//     fields to L2 on each event. This allows subsequent queries to hit the L2 cache.
+//   - Invalidate: When the subscription only provides @key fields (and
+//     EnableInvalidationOnKeyOnly is true), DELETE the L2 cache entry on each event.
+//     This ensures stale data is evicted when the entity changes.
+type SubscriptionEntityPopulationConfiguration struct {
+	// TypeName is the entity type managed by this subscription (e.g., "Product").
+	TypeName string `json:"type_name"`
+	// CacheName identifies which LoaderCache instance to use.
+	CacheName string `json:"cache_name"`
+	// TTL is the time-to-live for populated cache entries.
+	TTL time.Duration `json:"ttl"`
+	// IncludeSubgraphHeaderPrefix controls whether forwarded headers affect cache keys.
+	IncludeSubgraphHeaderPrefix bool `json:"include_subgraph_header_prefix"`
+	// EnableInvalidationOnKeyOnly: when true and the subscription only provides
+	// @key fields (no additional entity fields), DELETE the L2 cache entry on
+	// each subscription event instead of populating it.
+	EnableInvalidationOnKeyOnly bool `json:"enable_invalidation_on_key_only"`
+}
+
+// SubscriptionEntityPopulationConfigurations is a collection of subscription entity population configurations.
+type SubscriptionEntityPopulationConfigurations []SubscriptionEntityPopulationConfiguration
+
+// FindByTypeName returns the subscription entity population config for the given entity type.
+// Returns nil if no configuration exists.
+func (c SubscriptionEntityPopulationConfigurations) FindByTypeName(typeName string) *SubscriptionEntityPopulationConfiguration {
+	for i := range c {
+		if c[i].TypeName == typeName {
 			return &c[i]
 		}
 	}

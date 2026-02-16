@@ -806,7 +806,9 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 	// Skip L2 cache reads for mutations - always fetch fresh data from subgraph.
 	// We check l.info (root operation type), not info (per-fetch type), because
 	// nested entity fetches within mutations have OperationType=Query.
-	if l.info != nil && l.info.OperationType != ast.OperationTypeQuery {
+	// Subscriptions are allowed to read from L2 cache because their child entity
+	// fetches are read operations, just like queries.
+	if l.info != nil && l.info.OperationType == ast.OperationTypeMutation {
 		res.cacheMustBeUpdated = true
 		return false, nil
 	}
@@ -1027,10 +1029,8 @@ func (l *Loader) populateL1CacheForRootFieldEntities(fetchItem *FetchItem) {
 		if typenameValue == nil {
 			continue
 		}
-		typename := string(typenameValue.GetStringBytes())
-
 		// Look up template for this typename
-		template, ok := templates[typename]
+		template, ok := templates[string(typenameValue.GetStringBytes())]
 		if !ok {
 			continue
 		}

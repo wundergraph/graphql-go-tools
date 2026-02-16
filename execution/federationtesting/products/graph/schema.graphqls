@@ -10,11 +10,31 @@ type Mutation {
 type Subscription {
     updatedPrice: Product!
     updateProductPrice(upc: String!): Product!
+    updatedPrices(first: Int = 3): [Product!]!
+    updateProductPriceUnion(upc: String!): ProductUpdate!
+    updateProductPriceInterface(upc: String!): ProductInterface!
+    updateDigitalProductPriceUnion(upc: String!): ProductUpdate!
+    updateDigitalProductPriceInterface(upc: String!): ProductInterface!
 }
 
-type Product @key(fields: "upc") {
+union ProductUpdate = Product | DigitalProduct
+
+interface ProductInterface {
+    upc: String!
+    name: String!
+    price: Int!
+}
+
+type Product implements ProductInterface @key(fields: "upc") {
     upc: String!
     name: String!
     price: Int!
     inStock: Int!
+}
+
+type DigitalProduct implements ProductInterface @key(fields: "upc") {
+    upc: String!
+    name: String!
+    price: Int!
+    downloadUrl: String!
 }

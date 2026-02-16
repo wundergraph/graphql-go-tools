@@ -20,6 +20,16 @@ var reviews = []*model.Review{
 		Product: &model.Product{Upc: "top-3"},
 		Author:  &model.User{ID: "7777", Username: "User 7777"},
 	},
+	{
+		Body:    "Perfect summer hat.",
+		Product: &model.Product{Upc: "top-4"},
+		Author:  &model.User{ID: "5678", Username: "User 5678"},
+	},
+	{
+		Body:    "A bit too fancy for my taste.",
+		Product: &model.Product{Upc: "top-4"},
+		Author:  &model.User{ID: "8888", Username: "User 8888"},
+	},
 }
 
 // errorReview is a separate review used for cache error testing.
@@ -47,6 +57,16 @@ var initialReviews = []*model.Review{
 		Body:    "This is the last straw. Hat you will wear. 11/10",
 		Product: &model.Product{Upc: "top-3"},
 		Author:  &model.User{ID: "7777", Username: "User 7777"},
+	},
+	{
+		Body:    "Perfect summer hat.",
+		Product: &model.Product{Upc: "top-4"},
+		Author:  &model.User{ID: "5678", Username: "User 5678"},
+	},
+	{
+		Body:    "A bit too fancy for my taste.",
+		Product: &model.Product{Upc: "top-4"},
+		Author:  &model.User{ID: "8888", Username: "User 8888"},
 	},
 }
 

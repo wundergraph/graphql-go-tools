@@ -32,9 +32,10 @@ type SubgraphConfiguration struct {
 // SubgraphCachingConfig defines L2 caching configuration for a specific subgraph.
 // This allows fine-grained control over which entities and root fields are cached per subgraph.
 type SubgraphCachingConfig struct {
-	SubgraphName     string                            // Name of the subgraph (must match SubgraphConfiguration.Name)
-	EntityCaching    plan.EntityCacheConfigurations    // Caching config for entity types in this subgraph
-	RootFieldCaching plan.RootFieldCacheConfigurations // Caching config for root fields in this subgraph
+	SubgraphName                 string                                          // Name of the subgraph (must match SubgraphConfiguration.Name)
+	EntityCaching                plan.EntityCacheConfigurations                  // Caching config for entity types in this subgraph
+	RootFieldCaching             plan.RootFieldCacheConfigurations               // Caching config for root fields in this subgraph
+	SubscriptionEntityPopulation plan.SubscriptionEntityPopulationConfigurations // Caching config for subscription entity population/invalidation
 }
 
 // SubgraphCachingConfigs is a list of per-subgraph caching configurations.
@@ -487,6 +488,7 @@ func (f *FederationEngineConfigFactory) dataSourceMetaData(in *nodev1.DataSource
 	if subgraphCachingConfig != nil {
 		out.FederationMetaData.EntityCaching = subgraphCachingConfig.EntityCaching
 		out.FederationMetaData.RootFieldCaching = subgraphCachingConfig.RootFieldCaching
+		out.FederationMetaData.SubscriptionEntityPopulation = subgraphCachingConfig.SubscriptionEntityPopulation
 	}
 
 	return out

@@ -9,6 +9,7 @@ import (
 	"github.com/gobwas/ws/wsutil"
 	"github.com/jensneuse/abstractlogger"
 
+	"github.com/wundergraph/graphql-go-tools/execution/engine"
 	"github.com/wundergraph/graphql-go-tools/execution/subscription"
 )
 
@@ -152,7 +153,18 @@ func (g *GraphQLHTTPRequestHandler) handleWebsocket(connInitReqCtx context.Conte
 	done := make(chan bool)
 	errChan := make(chan error)
 
-	executorPool := subscription.NewExecutorV2Pool(g.engine, connInitReqCtx)
+	var opts []engine.ExecutionOptions
+	if g.cachingOptions.EnableL1Cache || g.cachingOptions.EnableL2Cache {
+		opts = append(opts, engine.WithCachingOptions(g.cachingOptions))
+	}
+	if g.subgraphHeadersBuilder != nil {
+		opts = append(opts, engine.WithSubgraphHeadersBuilder(g.subgraphHeadersBuilder))
+	}
+	if g.debugMode {
+		opts = append(opts, engine.WithDebugMode())
+	}
+
+	executorPool := subscription.NewExecutorV2Pool(g.engine, connInitReqCtx, opts...)
 	go HandleWebsocket(done, errChan, conn, executorPool, g.log)
 	select {
 	case err := <-errChan:

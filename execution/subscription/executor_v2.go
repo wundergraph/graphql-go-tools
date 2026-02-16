@@ -16,17 +16,19 @@ type ExecutorV2Pool struct {
 	engine               *engine.ExecutionEngine
 	executorPool         *sync.Pool
 	connectionInitReqCtx context.Context // connectionInitReqCtx - holds original request context used to establish websocket connection
+	executionOptions     []engine.ExecutionOptions
 }
 
-func NewExecutorV2Pool(engine *engine.ExecutionEngine, connectionInitReqCtx context.Context) *ExecutorV2Pool {
+func NewExecutorV2Pool(eng *engine.ExecutionEngine, connectionInitReqCtx context.Context, opts ...engine.ExecutionOptions) *ExecutorV2Pool {
 	return &ExecutorV2Pool{
-		engine: engine,
+		engine: eng,
 		executorPool: &sync.Pool{
 			New: func() interface{} {
 				return &ExecutorV2{}
 			},
 		},
 		connectionInitReqCtx: connectionInitReqCtx,
+		executionOptions:     opts,
 	}
 }
 
@@ -38,10 +40,11 @@ func (e *ExecutorV2Pool) Get(payload []byte) (Executor, error) {
 	}
 
 	return &ExecutorV2{
-		engine:    e.engine,
-		operation: &operation,
-		context:   context.Background(),
-		reqCtx:    e.connectionInitReqCtx,
+		engine:           e.engine,
+		operation:        &operation,
+		context:          context.Background(),
+		reqCtx:           e.connectionInitReqCtx,
+		executionOptions: e.executionOptions,
 	}, nil
 }
 
@@ -52,18 +55,20 @@ func (e *ExecutorV2Pool) Put(executor Executor) error {
 }
 
 type ExecutorV2 struct {
-	engine    *engine.ExecutionEngine
-	operation *graphql.Request
-	context   context.Context
-	reqCtx    context.Context
+	engine           *engine.ExecutionEngine
+	operation        *graphql.Request
+	context          context.Context
+	reqCtx           context.Context
+	executionOptions []engine.ExecutionOptions
 }
 
 func (e *ExecutorV2) Execute(writer resolve.SubscriptionResponseWriter) error {
-	options := make([]engine.ExecutionOptions, 0)
+	options := make([]engine.ExecutionOptions, 0, len(e.executionOptions)+1)
 	switch ctx := e.reqCtx.(type) {
 	case *InitialHttpRequestContext:
 		options = append(options, engine.WithAdditionalHttpHeaders(ctx.Request.Header))
 	}
+	options = append(options, e.executionOptions...)
 
 	return e.engine.Execute(e.context, e.operation, writer, options...)
 }
@@ -86,4 +91,5 @@ func (e *ExecutorV2) Reset() {
 	e.operation = nil
 	e.context = context.Background()
 	e.reqCtx = context.TODO()
+	e.executionOptions = nil
 }

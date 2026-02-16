@@ -1355,17 +1355,24 @@ func (v *Visitor) isEntityBoundaryField(plannerID int, fieldRef int) bool {
 	}
 
 	// Check if this is a nested fetch (has "." in response path)
-	responsePath := "query." + fetchConfig.fetchItem.ResponsePath
-	if !strings.Contains(responsePath, ".") {
+	if fetchConfig.fetchItem.ResponsePath == "" {
 		return false // Root fetch, no boundary field to skip
 	}
+
+	// Determine the root path prefix from the walker path.
+	// For queries this is "query", for mutations "mutation", for subscriptions "subscription".
+	currentPath := v.Walker.Path.DotDelimitedString()
+	rootPrefix := "query"
+	if idx := strings.IndexByte(currentPath, '.'); idx > 0 {
+		rootPrefix = currentPath[:idx]
+	}
+	responsePath := rootPrefix + "." + fetchConfig.fetchItem.ResponsePath
 
 	// Normalize the response path by removing array index markers (@.)
 	// e.g., "query.topProducts.@.reviews.@.author" -> "query.topProducts.reviews.author"
 	normalizedResponsePath := strings.ReplaceAll(responsePath, ".@", "")
 
 	// For nested fetches, check if this field is at the entity boundary
-	currentPath := v.Walker.Path.DotDelimitedString()
 	fieldName := v.Operation.FieldAliasOrNameString(fieldRef)
 	fullFieldPath := currentPath + "." + fieldName
 
@@ -1632,6 +1639,206 @@ func (v *Visitor) configureSubscription(config *objectFetchConfiguration) {
 	v.subscription.Trigger.SourceName = config.sourceName
 	v.subscription.Trigger.SourceID = config.sourceID
 	v.subscription.Filter = config.filter
+
+	v.configureSubscriptionEntityCachePopulation(config)
+}
+
+// configureSubscriptionEntityCachePopulation determines whether the subscription
+// should populate or invalidate L2 cache entries for root entities.
+func (v *Visitor) configureSubscriptionEntityCachePopulation(config *objectFetchConfiguration) {
+	if len(config.rootFields) == 0 {
+		return
+	}
+
+	ds := v.findDataSourceByID(config.sourceID)
+	if ds == nil {
+		return
+	}
+
+	fedConfigVal := ds.FederationConfiguration()
+	fedConfig := &fedConfigVal
+	if len(fedConfig.SubscriptionEntityPopulation) == 0 {
+		return
+	}
+
+	// Get the subscription field's return type from the definition
+	subscriptionField := config.rootFields[0]
+	entityTypeName := v.subscriptionFieldReturnTypeName(subscriptionField.TypeName, subscriptionField.FieldName)
+	if entityTypeName == "" {
+		return
+	}
+
+	popConfig := fedConfig.SubscriptionEntityPopulation.FindByTypeName(entityTypeName)
+	if popConfig == nil {
+		// If the return type is a union, check if any union member has a matching config.
+		resolvedName, resolvedConfig := v.resolveUnionEntityPopulation(entityTypeName, fedConfig)
+		if resolvedConfig != nil {
+			entityTypeName = resolvedName
+			popConfig = resolvedConfig
+		} else {
+			// If the return type is an interface, check if any implementor has a matching config.
+			resolvedName, resolvedConfig = v.resolveInterfaceEntityPopulation(entityTypeName, fedConfig)
+			if resolvedConfig != nil {
+				entityTypeName = resolvedName
+				popConfig = resolvedConfig
+			} else {
+				return
+			}
+		}
+	}
+	// Build EntityQueryCacheKeyTemplate from entity's @key fields
+	entityKeys := fedConfig.RequiredFieldsByKey(entityTypeName)
+	if len(entityKeys) == 0 {
+		return
+	}
+
+	var objects []*resolve.Object
+	for _, key := range entityKeys {
+		node, err := BuildRepresentationVariableNode(v.Definition, key, *fedConfig)
+		if err != nil {
+			continue
+		}
+		objects = append(objects, node)
+	}
+	if len(objects) == 0 {
+		return
+	}
+
+	mergedObject := MergeRepresentationVariableNodes(objects)
+	cacheKeyTemplate := &resolve.EntityQueryCacheKeyTemplate{
+		Keys: resolve.NewResolvableObjectVariable(mergedObject),
+	}
+
+	// Determine populate vs invalidate mode:
+	// Check if the subscription selects any non-key fields from this datasource for the entity type
+	keyFieldNames := v.entityKeyFieldNames(entityKeys)
+	hasNonKeyFields := v.subscriptionSelectsNonKeyFields(ds, entityTypeName, keyFieldNames)
+
+	mode := resolve.SubscriptionCacheModePopulate
+	if !hasNonKeyFields {
+		if popConfig.EnableInvalidationOnKeyOnly {
+			mode = resolve.SubscriptionCacheModeInvalidate
+		} else {
+			// No non-key fields and invalidation not enabled — nothing to do
+			return
+		}
+	}
+
+	// Use the alias (or name if no alias) from the operation AST, because
+	// resolvable.data uses the response field name (alias) as the JSON key.
+	subscriptionResponseFieldName := v.Operation.FieldAliasOrNameString(config.fieldRef)
+
+	v.subscription.EntityCachePopulation = &resolve.SubscriptionEntityCachePopulation{
+		Mode:                        mode,
+		CacheKeyTemplate:            cacheKeyTemplate,
+		CacheName:                   popConfig.CacheName,
+		TTL:                         popConfig.TTL,
+		IncludeSubgraphHeaderPrefix: popConfig.IncludeSubgraphHeaderPrefix,
+		DataSourceName:              config.sourceName,
+		SubscriptionFieldName:       subscriptionResponseFieldName,
+		EntityTypeName:              entityTypeName,
+	}
+}
+
+// resolveUnionEntityPopulation checks if typeName is a union type and returns the first
+// union member that has a SubscriptionEntityPopulation config.
+func (v *Visitor) resolveUnionEntityPopulation(typeName string, fedConfig *FederationMetaData) (string, *SubscriptionEntityPopulationConfiguration) {
+	node, exists := v.Definition.Index.FirstNodeByNameStr(typeName)
+	if !exists || node.Kind != ast.NodeKindUnionTypeDefinition {
+		return "", nil
+	}
+	memberNames, ok := v.Definition.UnionTypeDefinitionMemberTypeNames(node.Ref)
+	if !ok {
+		return "", nil
+	}
+	for _, memberName := range memberNames {
+		if cfg := fedConfig.SubscriptionEntityPopulation.FindByTypeName(memberName); cfg != nil {
+			return memberName, cfg
+		}
+	}
+	return "", nil
+}
+
+// resolveInterfaceEntityPopulation checks if typeName is an interface type and returns the first
+// implementor that has a SubscriptionEntityPopulation config.
+func (v *Visitor) resolveInterfaceEntityPopulation(typeName string, fedConfig *FederationMetaData) (string, *SubscriptionEntityPopulationConfiguration) {
+	node, exists := v.Definition.Index.FirstNodeByNameStr(typeName)
+	if !exists || node.Kind != ast.NodeKindInterfaceTypeDefinition {
+		return "", nil
+	}
+	implementorNames, ok := v.Definition.InterfaceTypeDefinitionImplementedByObjectWithNames(node.Ref)
+	if !ok {
+		return "", nil
+	}
+	for _, implementorName := range implementorNames {
+		if cfg := fedConfig.SubscriptionEntityPopulation.FindByTypeName(implementorName); cfg != nil {
+			return implementorName, cfg
+		}
+	}
+	return "", nil
+}
+
+// subscriptionFieldReturnTypeName returns the named return type of a subscription field.
+func (v *Visitor) subscriptionFieldReturnTypeName(typeName, fieldName string) string {
+	node, exists := v.Definition.Index.FirstNodeByNameStr(typeName)
+	if !exists {
+		return ""
+	}
+	if node.Kind != ast.NodeKindObjectTypeDefinition {
+		return ""
+	}
+	for _, fieldDefRef := range v.Definition.ObjectTypeDefinitions[node.Ref].FieldsDefinition.Refs {
+		if v.Definition.FieldDefinitionNameString(fieldDefRef) == fieldName {
+			return v.Definition.FieldDefinitionTypeNameString(fieldDefRef)
+		}
+	}
+	return ""
+}
+
+// entityKeyFieldNames extracts all field names from @key configurations.
+func (v *Visitor) entityKeyFieldNames(keys []FederationFieldConfiguration) map[string]struct{} {
+	result := make(map[string]struct{})
+	for _, key := range keys {
+		// Parse the selection set to get individual field names
+		// Selection sets are like "id" or "id name" or "id { subfield }"
+		// For simple cases, split by whitespace
+		fields := strings.Fields(key.SelectionSet)
+		for _, f := range fields {
+			// Strip braces for nested fields
+			f = strings.TrimLeft(f, "{")
+			f = strings.TrimRight(f, "}")
+			f = strings.TrimSpace(f)
+			if f != "" {
+				result[f] = struct{}{}
+			}
+		}
+	}
+	return result
+}
+
+// subscriptionSelectsNonKeyFields checks if the operation selects any fields
+// from the given datasource for the entity type that are NOT @key fields.
+// It uses HasChildNode to check if each selected field belongs to this datasource.
+func (v *Visitor) subscriptionSelectsNonKeyFields(ds DataSource, entityTypeName string, keyFieldNames map[string]struct{}) bool {
+	// Iterate all fields in the operation and find those on the entity type
+	// owned by this datasource that are not @key fields
+	for i := range v.Operation.Fields {
+		opFieldName := v.Operation.FieldNameString(i)
+		if opFieldName == "__typename" {
+			continue
+		}
+		if _, isKey := keyFieldNames[opFieldName]; isKey {
+			continue
+		}
+		// Check if this field is on the entity type
+		if et, ok := v.fieldEnclosingTypeNames[i]; ok && et == entityTypeName {
+			// Check if this field belongs to the subscription's datasource
+			if ds.HasChildNode(entityTypeName, opFieldName) || ds.HasRootNode(entityTypeName, opFieldName) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (v *Visitor) configureObjectFetch(config *objectFetchConfiguration) {

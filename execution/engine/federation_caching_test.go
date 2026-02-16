@@ -2661,7 +2661,7 @@ func sortCacheLogKeys(log []CacheLogEntry) []CacheLogEntry {
 			Keys:      make([]string, len(pairs)),
 			Hits:      nil,
 		}
-		if entry.Hits != nil && len(entry.Hits) > 0 {
+		if len(entry.Hits) > 0 {
 			sorted[i].Hits = make([]bool, len(pairs))
 		}
 		for j := range pairs {
@@ -2708,7 +2708,7 @@ func sortCacheLogKeysWithCaller(log []CacheLogEntry) []CacheLogEntry {
 			Hits:      nil,
 			Caller:    entry.Caller,
 		}
-		if entry.Hits != nil && len(entry.Hits) > 0 {
+		if len(entry.Hits) > 0 {
 			sorted[i].Hits = make([]bool, len(pairs))
 		}
 		for j := range pairs {

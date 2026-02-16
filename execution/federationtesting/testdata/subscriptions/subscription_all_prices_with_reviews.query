@@ -1,0 +1,13 @@
+subscription AllPricesWithReviews {
+    updatedPrices {
+        upc
+        name
+        price
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+            }
+        }
+    }
+}

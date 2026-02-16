@@ -26,12 +26,7 @@ func (r *queryResolver) TopProducts(ctx context.Context, first *int) ([]*model.P
 
 // Product is the resolver for the product field.
 func (r *queryResolver) Product(ctx context.Context, upc string) (*model.Product, error) {
-	for _, h := range hats {
-		if h.Upc == upc {
-			return h, nil
-		}
-	}
-	return nil, nil
+	return findProduct(upc), nil
 }
 
 // UpdatedPrice is the resolver for the updatedPrice field.
@@ -43,17 +38,18 @@ func (r *subscriptionResolver) UpdatedPrice(ctx context.Context) (<-chan *model.
 			case <-ctx.Done():
 				return
 			case <-time.After(updateInterval):
-				product := hats[len(hats)-1]
+				src := hats[len(hats)-1]
 				if randomnessEnabled {
-					product = hats[rand.Intn(len(hats)-1)]
-					product.Price = rand.Intn(maxPrice-minPrice+1) + minPrice
-					updatedPrice <- product
-					continue
+					src = hats[rand.Intn(len(hats)-1)]
 				}
-
-				product.Price = currentPrice
-				currentPrice += 1
-				updatedPrice <- product
+				p := *src
+				if randomnessEnabled {
+					p.Price = rand.Intn(maxPrice-minPrice+1) + minPrice
+				} else {
+					p.Price = currentPrice
+					currentPrice += 1
+				}
+				updatedPrice <- &p
 			}
 		}
 	}()
@@ -63,14 +59,7 @@ func (r *subscriptionResolver) UpdatedPrice(ctx context.Context) (<-chan *model.
 // UpdateProductPrice is the resolver for the updateProductPrice field.
 func (r *subscriptionResolver) UpdateProductPrice(ctx context.Context, upc string) (<-chan *model.Product, error) {
 	updatedPrice := make(chan *model.Product)
-	var product *model.Product
-
-	for _, hat := range hats {
-		if hat.Upc == upc {
-			product = hat
-			break
-		}
-	}
+	product := findProduct(upc)
 
 	if product == nil {
 		return nil, fmt.Errorf("unknown product upc: %s", upc)
@@ -86,13 +75,153 @@ func (r *subscriptionResolver) UpdateProductPrice(ctx context.Context, upc strin
 			case <-ctx.Done():
 				return
 			case <-time.After(100 * time.Millisecond):
-				product.Price = num
-				updatedPrice <- product
+				p := *product
+				p.Price = num
+				updatedPrice <- &p
 			}
 		}
 	}()
 
 	return updatedPrice, nil
+}
+
+// UpdatedPrices is the resolver for the updatedPrices field.
+func (r *subscriptionResolver) UpdatedPrices(ctx context.Context, first *int) (<-chan []*model.Product, error) {
+	limit := 3
+	if first != nil && *first > 0 {
+		limit = *first
+	}
+	if limit > len(hats) {
+		limit = len(hats)
+	}
+
+	// Capture a snapshot of hats to avoid racing with Reset()
+	snapshot := make([]*model.Product, limit)
+	for i := 0; i < limit; i++ {
+		h := *hats[i]
+		snapshot[i] = &h
+	}
+
+	ch := make(chan []*model.Product)
+	go func() {
+		var num int
+		for {
+			num++
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(100 * time.Millisecond):
+				batch := make([]*model.Product, limit)
+				for i := 0; i < limit; i++ {
+					p := *snapshot[i]
+					p.Price = num + i
+					batch[i] = &p
+				}
+				ch <- batch
+			}
+		}
+	}()
+	return ch, nil
+}
+
+// UpdateProductPriceUnion is the resolver for the updateProductPriceUnion field.
+func (r *subscriptionResolver) UpdateProductPriceUnion(ctx context.Context, upc string) (<-chan model.ProductUpdate, error) {
+	product := findProduct(upc)
+	if product == nil {
+		return nil, fmt.Errorf("unknown product upc: %s", upc)
+	}
+
+	ch := make(chan model.ProductUpdate)
+	go func() {
+		var num int
+		for {
+			num++
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(100 * time.Millisecond):
+				p := *product
+				p.Price = num
+				ch <- &p
+			}
+		}
+	}()
+	return ch, nil
+}
+
+// UpdateProductPriceInterface is the resolver for the updateProductPriceInterface field.
+func (r *subscriptionResolver) UpdateProductPriceInterface(ctx context.Context, upc string) (<-chan model.ProductInterface, error) {
+	product := findProduct(upc)
+	if product == nil {
+		return nil, fmt.Errorf("unknown product upc: %s", upc)
+	}
+
+	ch := make(chan model.ProductInterface)
+	go func() {
+		var num int
+		for {
+			num++
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(100 * time.Millisecond):
+				p := *product
+				p.Price = num
+				ch <- &p
+			}
+		}
+	}()
+	return ch, nil
+}
+
+// UpdateDigitalProductPriceUnion is the resolver for the updateDigitalProductPriceUnion field.
+func (r *subscriptionResolver) UpdateDigitalProductPriceUnion(ctx context.Context, upc string) (<-chan model.ProductUpdate, error) {
+	dp := findDigitalProduct(upc)
+	if dp == nil {
+		return nil, fmt.Errorf("unknown digital product upc: %s", upc)
+	}
+
+	ch := make(chan model.ProductUpdate)
+	go func() {
+		var num int
+		for {
+			num++
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(100 * time.Millisecond):
+				p := *dp
+				p.Price = num
+				ch <- &p
+			}
+		}
+	}()
+	return ch, nil
+}
+
+// UpdateDigitalProductPriceInterface is the resolver for the updateDigitalProductPriceInterface field.
+func (r *subscriptionResolver) UpdateDigitalProductPriceInterface(ctx context.Context, upc string) (<-chan model.ProductInterface, error) {
+	dp := findDigitalProduct(upc)
+	if dp == nil {
+		return nil, fmt.Errorf("unknown digital product upc: %s", upc)
+	}
+
+	ch := make(chan model.ProductInterface)
+	go func() {
+		var num int
+		for {
+			num++
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(100 * time.Millisecond):
+				p := *dp
+				p.Price = num
+				ch <- &p
+			}
+		}
+	}()
+	return ch, nil
 }
 
 // Mutation returns generated.MutationResolver implementation.

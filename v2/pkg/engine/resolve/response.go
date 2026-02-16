@@ -2,16 +2,50 @@ package resolve
 
 import (
 	"io"
+	"time"
 
 	"github.com/gobwas/ws"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
 
+// SubscriptionCacheMode determines how subscription events manage L2 cache entries.
+type SubscriptionCacheMode int
+
+const (
+	// SubscriptionCacheModePopulate writes entity data to L2 on each subscription event.
+	SubscriptionCacheModePopulate SubscriptionCacheMode = iota
+	// SubscriptionCacheModeInvalidate deletes the L2 cache entry on each subscription event.
+	SubscriptionCacheModeInvalidate
+)
+
+// SubscriptionEntityCachePopulation configures how the resolver manages L2 cache
+// entries for root entities received via subscription events.
+type SubscriptionEntityCachePopulation struct {
+	// Mode determines whether to populate or invalidate L2 cache entries.
+	Mode SubscriptionCacheMode
+	// CacheKeyTemplate generates cache keys from entity @key fields.
+	CacheKeyTemplate *EntityQueryCacheKeyTemplate
+	// CacheName identifies which LoaderCache instance to use.
+	CacheName string
+	// TTL is the time-to-live for populated cache entries (only used in Populate mode).
+	TTL time.Duration
+	// IncludeSubgraphHeaderPrefix controls whether forwarded headers affect cache keys.
+	IncludeSubgraphHeaderPrefix bool
+	// DataSourceName is the subgraph name for SubgraphHeadersBuilder lookup.
+	DataSourceName string
+	// SubscriptionFieldName is the name of the subscription root field (e.g., "updateProductPrice").
+	// Used to navigate from the subscription data root to the entity data.
+	SubscriptionFieldName string
+	// EntityTypeName is the entity type name (e.g., "Product") used to set __typename in cache keys.
+	EntityTypeName string
+}
+
 type GraphQLSubscription struct {
-	Trigger  GraphQLSubscriptionTrigger
-	Response *GraphQLResponse
-	Filter   *SubscriptionFilter
+	Trigger               GraphQLSubscriptionTrigger
+	Response              *GraphQLResponse
+	Filter                *SubscriptionFilter
+	EntityCachePopulation *SubscriptionEntityCachePopulation
 }
 
 type GraphQLSubscriptionTrigger struct {
