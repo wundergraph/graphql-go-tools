@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	accounts "github.com/wundergraph/graphql-go-tools/execution/federationtesting/accounts/graph"
 	products "github.com/wundergraph/graphql-go-tools/execution/federationtesting/products/graph"
@@ -47,11 +46,7 @@ func LoadTestingSubgraphSDL(upstream Upstream) ([]byte, error) {
 	return os.ReadFile(absolutePath)
 }
 
-var lock sync.Mutex
-
 func NewFederationSetup(addGateway ...func(s *FederationSetup) *httptest.Server) *FederationSetup {
-	lock.Lock()
-
 	accountUpstreamServer := httptest.NewServer(accounts.GraphQLEndpointHandler(accounts.TestOptions))
 	productsUpstreamServer := httptest.NewServer(products.GraphQLEndpointHandler(products.TestOptions))
 	reviewsUpstreamServer := httptest.NewServer(reviews.GraphQLEndpointHandler(reviews.TestOptions))
@@ -83,5 +78,4 @@ func (f *FederationSetup) Close() {
 	if f.GatewayServer != nil {
 		f.GatewayServer.Close()
 	}
-	lock.Unlock()
 }
