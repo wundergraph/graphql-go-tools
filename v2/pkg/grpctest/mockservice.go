@@ -238,7 +238,7 @@ func (s *MockService) QueryUser(ctx context.Context, in *productv1.QueryUserRequ
 	userId := in.GetId()
 	md, ok := metadata.FromIncomingContext(ctx)
 	if ok {
-		if values := md.Get("x-testheader"); len(values) > 0 {
+		if values := md.Get("x-user-id"); len(values) > 0 {
 			userId = values[0]
 		}
 	}

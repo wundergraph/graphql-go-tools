@@ -5265,7 +5265,7 @@ func Test_Datasource_Load_WithHeaders(t *testing.T) {
 			vars:  `{"variables":{"id":"original-user-123"}}`,
 			headers: func() http.Header {
 				h := make(http.Header)
-				h.Set("X-TestHeader", "header-user-42")
+				h.Set("X-User-ID", "header-user-42")
 				return h
 			}(),
 			validate: func(t *testing.T, data map[string]interface{}) {
@@ -5284,7 +5284,7 @@ func Test_Datasource_Load_WithHeaders(t *testing.T) {
 			vars:  `{"variables":{"id":"valid-user-123"}}`,
 			headers: func() http.Header {
 				h := make(http.Header)
-				h.Set("X-TestHeader", "error-user")
+				h.Set("X-User-ID", "error-user")
 				return h
 			}(),
 			validate: func(t *testing.T, data map[string]interface{}) {
@@ -5415,14 +5415,10 @@ func Test_Datasource_Load_WithHeaders(t *testing.T) {
 
 			// Parse the GraphQL query
 			queryDoc, report := astparser.ParseGraphqlDocumentString(tc.query)
-			if report.HasErrors() {
-				t.Fatalf("failed to parse query: %s", report.Error())
-			}
+			require.False(t, report.HasErrors(), "failed to parse query: %s", report.Error())
 
 			compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
-			if err != nil {
-				t.Fatalf("failed to compile proto: %v", err)
-			}
+			require.NoError(t, err)
 
 			// Create the datasource
 			ds, err := NewDataSource(conn, DataSourceConfig{
