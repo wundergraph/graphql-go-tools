@@ -236,10 +236,15 @@ func (s *MockService) QueryUsers(ctx context.Context, in *productv1.QueryUsersRe
 
 func (s *MockService) QueryUser(ctx context.Context, in *productv1.QueryUserRequest) (*productv1.QueryUserResponse, error) {
 	userId := in.GetId()
+	existingValue := ""
 	md, ok := metadata.FromIncomingContext(ctx)
 	if ok {
 		if values := md.Get("x-user-id"); len(values) > 0 {
 			userId = values[0]
+		}
+		// Check for existing metadata that was in the context before headers were added
+		if values := md.Get("x-existing-key"); len(values) > 0 {
+			existingValue = values[0]
 		}
 	}
 
@@ -248,10 +253,16 @@ func (s *MockService) QueryUser(ctx context.Context, in *productv1.QueryUserRequ
 		return nil, status.Errorf(codes.NotFound, "user not found: %s", userId)
 	}
 
+	// Include existing metadata value in the name if present
+	userName := fmt.Sprintf("User %s", userId)
+	if existingValue != "" {
+		userName = fmt.Sprintf("User %s (existing: %s)", userId, existingValue)
+	}
+
 	return &productv1.QueryUserResponse{
 		User: &productv1.User{
 			Id:   userId,
-			Name: fmt.Sprintf("User %s", userId),
+			Name: userName,
 		},
 	}, nil
 }

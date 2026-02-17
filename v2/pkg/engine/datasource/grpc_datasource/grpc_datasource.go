@@ -117,11 +117,15 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 
 	// convert headers to grpc metadata and attach to ctx
 	if len(headers) > 0 {
-		md := make(metadata.MD, len(headers))
-		for k, v := range headers {
-			md.Set(strings.ToLower(k), v...)
+		// assume that each header has exactly one value for default pairs size
+		pairs := make([]string, 0, len(headers)*2)
+		for headerName, headerValues := range headers {
+			headerName = strings.ToLower(headerName)
+			for _, v := range headerValues {
+				pairs = append(pairs, headerName, v)
+			}
 		}
-		ctx = metadata.NewOutgoingContext(ctx, md)
+		ctx = metadata.AppendToOutgoingContext(ctx, pairs...)
 	}
 
 	graph := NewDependencyGraph(d.plan)

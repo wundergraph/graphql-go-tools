@@ -14,6 +14,7 @@ import (
 	"github.com/tidwall/gjson"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/encoding/protojson"
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
@@ -5444,4 +5445,70 @@ func Test_Datasource_Load_WithHeaders(t *testing.T) {
 			tc.validateError(t, resp.Errors)
 		})
 	}
+}
+
+func Test_Datasource_Load_PreservesExistingContextMetadata(t *testing.T) {
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
+
+	type graphqlError struct {
+		Message string `json:"message"`
+	}
+	type graphqlResponse struct {
+		Data   map[string]interface{} `json:"data"`
+		Errors []graphqlError         `json:"errors,omitempty"`
+	}
+
+	// Parse the GraphQL schema
+	schemaDoc := grpctest.MustGraphQLSchema(t)
+
+	query := `query UserQuery($id: ID!) { user(id: $id) { id name } }`
+	vars := `{"variables":{"id":"test-user-123"}}`
+
+	// Parse the GraphQL query
+	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
+	require.False(t, report.HasErrors(), "failed to parse query: %s", report.Error())
+
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+	require.NoError(t, err)
+
+	// Create the datasource
+	ds, err := NewDataSource(conn, DataSourceConfig{
+		Operation:    &queryDoc,
+		Definition:   &schemaDoc,
+		SubgraphName: "Products",
+		Mapping:      testMapping(),
+		Compiler:     compiler,
+	})
+	require.NoError(t, err)
+
+	// Create a context with existing metadata
+	ctx := metadata.NewOutgoingContext(
+		context.Background(),
+		metadata.Pairs("x-existing-key", "existing-value"),
+	)
+
+	// Create HTTP headers to be forwarded
+	headers := make(http.Header)
+	headers.Set("X-User-ID", "header-user-456")
+
+	// Execute the query with both existing context metadata and new HTTP headers
+	input := fmt.Sprintf(`{"query":%q,"body":%s}`, query, vars)
+	output, err := ds.Load(ctx, headers, []byte(input))
+	require.NoError(t, err)
+
+	// Parse the response
+	var resp graphqlResponse
+	err = json.Unmarshal(output, &resp)
+	require.NoError(t, err, "Failed to unmarshal response")
+
+	// Verify no errors
+	require.Empty(t, resp.Errors, "Should not have GraphQL errors")
+
+	// Verify the response includes both the header-derived ID and the existing metadata value
+	user, ok := resp.Data["user"].(map[string]interface{})
+	require.True(t, ok, "user should be an object")
+	require.Equal(t, "header-user-456", user["id"], "user ID should come from HTTP header")
+	require.Equal(t, "User header-user-456 (existing: existing-value)", user["name"],
+		"user name should include both header-derived ID and existing context metadata")
 }
