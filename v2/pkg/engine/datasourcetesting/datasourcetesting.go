@@ -34,6 +34,7 @@ type testOptions struct {
 	withPrintPlan         bool
 	withFieldDependencies bool
 	withFetchReasons      bool
+	validationOptions     []astvalidation.Option
 }
 
 func WithPostProcessors(postProcessors ...*postprocess.Processor) func(*testOptions) {
@@ -81,6 +82,12 @@ func WithFetchReasons() func(*testOptions) {
 		o.withFieldInfo = true
 		o.withFieldDependencies = true
 		o.withFetchReasons = true
+	}
+}
+
+func WithValidationOptions(options ...astvalidation.Option) func(*testOptions) {
+	return func(o *testOptions) {
+		o.validationOptions = options
 	}
 }
 
@@ -181,7 +188,7 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 		normalized := unsafeprinter.PrettyPrint(&op)
 		_ = normalized
 
-		valid := astvalidation.DefaultOperationValidator()
+		valid := astvalidation.DefaultOperationValidator(opts.validationOptions...)
 		valid.Validate(&op, &def, &report)
 
 		p, err := plan.NewPlanner(config)
