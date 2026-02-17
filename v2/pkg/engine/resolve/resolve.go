@@ -316,10 +316,12 @@ type GraphQLResolveInfo struct {
 	// ResolveAcquireWaitTime is the time spent waiting to acquire the resolver semaphore
 	// the semaphore limits the number of concurrent resolve operations
 	ResolveAcquireWaitTime time.Duration
+
 	// ResolveDeduplicated indicates whether the resolution of the entire operation was deduplicated via single flight
 	ResolveDeduplicated bool
-	// ActualListSizes is a map of json paths to the actual list size in the response.
-	// Used for calculating the actual costs.
+
+	// ActualListSizes maps the JSON path to the actual list size in the response.
+	// Used to compute the actual cost.
 	ActualListSizes map[string]int
 }
 

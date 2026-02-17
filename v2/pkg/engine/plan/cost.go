@@ -334,12 +334,12 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 		// The cost of a field on an interface can be calculated based on the costs of
 		// the corresponding field on each concrete type implementing that interface,
 		// either directly or indirectly through other interfaces.
-		if fieldWeight != nil && node.isEnclosingTypeAbstract && parent.returnsAbstractType {
-			// Composition should not let interface fields have weights, so we assume that
-			// the enclosing type is concrete.
-			// Maybe we somehow want to log this? Or just ignore it?
-			fmt.Printf("WARNING: cost directive on field %v of interface %v\n", node.fieldCoord, parent.fieldCoord)
-		}
+		//
+		// Composition should not let interface fields have weights, so we assume that
+		// the enclosing type is concrete.
+		// Maybe we somehow want to log this? Or just ignore it?
+		// Commented condition is a good check for that. Might be needed later:
+		// fieldWeight != nil && node.isEnclosingTypeAbstract && parent.returnsAbstractType
 		if node.isEnclosingTypeAbstract && parent.returnsAbstractType {
 			// This field is part of the enclosing interface/union.
 			// We look into implementing types and find the max-weighted field.
@@ -499,6 +499,7 @@ func (c *CostCalculator) EstimateCost(config Configuration, variables *astjson.V
 	}
 	defaultListSize := config.StaticCostDefaultListSize
 	if defaultListSize < 1 {
+		// Zero would estimate all lists as zero.
 		defaultListSize = 1
 	}
 	return c.tree.cost(costConfigs, variables, defaultListSize, nil)

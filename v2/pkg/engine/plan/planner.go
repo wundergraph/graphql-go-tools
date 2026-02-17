@@ -61,11 +61,8 @@ func NewPlanner(config Configuration) (*Planner, error) {
 
 	planningWalker := astvisitor.NewWalkerWithID(48, "PlanningWalker")
 
-	planningVisitor := &Visitor{
-		Walker:                       &planningWalker,
-		fieldConfigs:                 map[int]*FieldConfiguration{},
-		disableResolveFieldPositions: config.DisableResolveFieldPositions,
-	}
+	planningVisitor := NewVisitor(&planningWalker)
+	planningVisitor.disableResolveFieldPositions = config.DisableResolveFieldPositions
 
 	p := &Planner{
 		config:                 config,
@@ -166,7 +163,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	if p.config.ComputeCosts {
 		p.costVisitor = NewCostVisitor(p.planningWalker, operation, definition)
 		p.costVisitor.planners = plannersConfigurations
-		p.costVisitor.fieldPlanners = &p.planningVisitor.fieldPlanners
+		p.costVisitor.fieldPlanners = p.planningVisitor.fieldPlanners
 		p.costVisitor.operationDefinition = &p.planningVisitor.operationDefinitionRef
 
 		p.planningWalker.RegisterEnterFieldVisitor(p.costVisitor)

@@ -17,8 +17,10 @@ type CostVisitor struct {
 	Definition *ast.Document
 
 	// References to planning visitor data - set before walking
-	planners      []PlannerConfiguration
-	fieldPlanners *map[int][]int // Pointer to Visitor.fieldPlanners
+	planners []PlannerConfiguration
+
+	// Pointer to Visitor.fieldPlanners. We capture this early before this map is actually filled.
+	fieldPlanners map[int][]int
 
 	// Pointer to the main visitor's operationDefinition (set during EnterDocument)
 	operationDefinition *int
@@ -146,7 +148,7 @@ func (v *CostVisitor) LeaveField(fieldRef int) {
 // getFieldDataSourceHashes returns all data source hashes for the field.
 // A field can be planned on multiple data sources in federation scenarios.
 func (v *CostVisitor) getFieldDataSourceHashes(fieldRef int) []DSHash {
-	plannerIDs, ok := (*v.fieldPlanners)[fieldRef]
+	plannerIDs, ok := v.fieldPlanners[fieldRef]
 	if !ok || len(plannerIDs) == 0 {
 		return nil
 	}

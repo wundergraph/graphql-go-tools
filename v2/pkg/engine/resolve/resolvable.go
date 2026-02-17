@@ -62,6 +62,8 @@ type Resolvable struct {
 
 	currentFieldInfo *FieldInfo
 
+	// actualListSizes maps the JSON path to the list size in the final response.
+	// Used to compute the actual cost of the operation.
 	actualListSizes map[string]int
 }
 
