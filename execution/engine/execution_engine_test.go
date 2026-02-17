@@ -258,6 +258,7 @@ func computeStaticCost() executionTestOptions {
 func relaxFieldSelectionMergingNullability() executionTestOptions {
 	return func(options *_executionTestOptions) {
 		options.relaxFieldSelectionMergingNullability = true
+	}
 }
 
 func withStreamingResponse() executionTestOptions {
@@ -266,120 +267,131 @@ func withStreamingResponse() executionTestOptions {
 	}
 }
 
+func runExecutionEngineTest(testCase ExecutionEngineTestCase, withError bool, expectedErrorMessage string, options ...executionTestOptions) func(t *testing.T) {
+	return func(t *testing.T) {
+		t.Helper()
+
+		if testCase.skipReason != "" {
+			t.Skip(testCase.skipReason)
+		}
+
+		engineConf := NewConfiguration(testCase.schema)
+		engineConf.SetDataSources(testCase.dataSources)
+		engineConf.SetFieldConfigurations(testCase.fields)
+		engineConf.SetCustomResolveMap(testCase.customResolveMap)
+
+		engineConf.plannerConfig.Debug = plan.DebugConfiguration{
+			// PrintOperationTransformations: true,
+			// PrintPlanningPaths:            true,
+			// PrintNodeSuggestions:          true,
+			// PrintQueryPlans:               true,
+			// ConfigurationVisitor:          true,
+			// PlanningVisitor:               true,
+			// DatasourceVisitor:             true,
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		var opts _executionTestOptions
+		for _, option := range options {
+			option(&opts)
+		}
+		engineConf.plannerConfig.BuildFetchReasons = opts.propagateFetchReasons
+		engineConf.plannerConfig.ValidateRequiredExternalFields = opts.validateRequiredExternalFields
+		engineConf.plannerConfig.ComputeStaticCost = opts.computeStaticCost
+		engineConf.plannerConfig.StaticCostDefaultListSize = 10
+		engineConf.plannerConfig.RelaxSubgraphOperationFieldSelectionMergingNullability = opts.relaxFieldSelectionMergingNullability
+		resolveOpts := resolve.ResolverOptions{
+			MaxConcurrency:    1024,
+			ResolvableOptions: opts.resolvableOptions,
+			ApolloRouterCompatibilitySubrequestHTTPError: opts.apolloRouterCompatibilitySubrequestHTTPError,
+			PropagateFetchReasons:                        opts.propagateFetchReasons,
+			ValidateRequiredExternalFields:               opts.validateRequiredExternalFields,
+		}
+		engine, err := NewExecutionEngine(ctx, abstractlogger.Noop{}, engineConf, resolveOpts)
+		require.NoError(t, err)
+
+		operation := testCase.operation(t)
+		resultWriter := graphql.NewEngineResultWriter()
+
+		streamingBuf := bytes.NewBuffer(nil)
+		if opts.streamingResponse {
+			resultWriter.SetFlushCallback(func(data []byte) {
+				streamingBuf.Write(data)
+			})
+		}
+
+		execCtx, execCtxCancel := context.WithCancel(context.Background())
+		defer execCtxCancel()
+		err = engine.Execute(execCtx, &operation, &resultWriter, testCase.engineOptions...)
+		actualResponse := resultWriter.String()
+
+		if testCase.indentJSON {
+			dst := new(bytes.Buffer)
+			require.NoError(t, json.Indent(dst, []byte(actualResponse), "", "  "))
+			actualResponse = dst.String()
+		}
+
+		if testCase.expectedFixture != "" {
+			g := goldie.New(t, goldie.WithFixtureDir("testdata"), goldie.WithNameSuffix(".json"))
+			g.Assert(t, testCase.expectedFixture, []byte(actualResponse))
+			return
+		}
+
+		if withError {
+			require.Error(t, err)
+			if expectedErrorMessage != "" {
+				assert.Equal(t, expectedErrorMessage, err.Error())
+			}
+		} else {
+			require.NoError(t, err)
+		}
+
+		if testCase.expectedJSONResponse != "" {
+			assert.JSONEq(t, testCase.expectedJSONResponse, actualResponse)
+		}
+
+		if testCase.expectedResponse != "" {
+			if opts.streamingResponse {
+				streamingResponse := streamingBuf.String()
+				assert.Equal(t, testCase.expectedResponse, streamingResponse)
+			} else {
+				assert.Equal(t, testCase.expectedResponse, actualResponse)
+			}
+		}
+
+		if testCase.expectedStaticCost != 0 {
+			gotCost := operation.StaticCost()
+			require.Equal(t, testCase.expectedStaticCost, gotCost)
+		}
+
+	}
+}
+
+func runExecutionEngineTestWithError(testCase ExecutionEngineTestCase, expectedErrorMessage string, options ...executionTestOptions) func(t *testing.T) {
+	return runExecutionEngineTest(testCase, true, expectedErrorMessage, options...)
+}
+
+func runExecutionEngineTestWithoutError(testCase ExecutionEngineTestCase, options ...executionTestOptions) func(t *testing.T) {
+	return runExecutionEngineTest(testCase, false, "", options...)
+}
+
 func TestExecutionEngine_Execute(t *testing.T) {
 	run := func(testCase ExecutionEngineTestCase, withError bool, expectedErrorMessage string, options ...executionTestOptions) func(t *testing.T) {
 		t.Helper()
 
-		return func(t *testing.T) {
-			t.Helper()
-
-			if testCase.skipReason != "" {
-				t.Skip(testCase.skipReason)
-			}
-
-			engineConf := NewConfiguration(testCase.schema)
-			engineConf.SetDataSources(testCase.dataSources)
-			engineConf.SetFieldConfigurations(testCase.fields)
-			engineConf.SetCustomResolveMap(testCase.customResolveMap)
-
-			engineConf.plannerConfig.Debug = plan.DebugConfiguration{
-				// PrintOperationTransformations: true,
-				// PrintPlanningPaths:            true,
-				// PrintNodeSuggestions:          true,
-				// PrintQueryPlans:               true,
-				// ConfigurationVisitor:          true,
-				// PlanningVisitor:               true,
-				// DatasourceVisitor:             true,
-			}
-
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			var opts _executionTestOptions
-			for _, option := range options {
-				option(&opts)
-			}
-			engineConf.plannerConfig.BuildFetchReasons = opts.propagateFetchReasons
-			engineConf.plannerConfig.ValidateRequiredExternalFields = opts.validateRequiredExternalFields
-			engineConf.plannerConfig.ComputeStaticCost = opts.computeStaticCost
-			engineConf.plannerConfig.StaticCostDefaultListSize = 10
-			engineConf.plannerConfig.RelaxSubgraphOperationFieldSelectionMergingNullability = opts.relaxFieldSelectionMergingNullability
-			resolveOpts := resolve.ResolverOptions{
-				MaxConcurrency:    1024,
-				ResolvableOptions: opts.resolvableOptions,
-				ApolloRouterCompatibilitySubrequestHTTPError: opts.apolloRouterCompatibilitySubrequestHTTPError,
-				PropagateFetchReasons:                        opts.propagateFetchReasons,
-				ValidateRequiredExternalFields:               opts.validateRequiredExternalFields,
-			}
-			engine, err := NewExecutionEngine(ctx, abstractlogger.Noop{}, engineConf, resolveOpts)
-			require.NoError(t, err)
-
-			operation := testCase.operation(t)
-			resultWriter := graphql.NewEngineResultWriter()
-
-			streamingBuf := bytes.NewBuffer(nil)
-			if opts.streamingResponse {
-				resultWriter.SetFlushCallback(func(data []byte) {
-					streamingBuf.Write(data)
-				})
-			}
-
-			execCtx, execCtxCancel := context.WithCancel(context.Background())
-			defer execCtxCancel()
-			err = engine.Execute(execCtx, &operation, &resultWriter, testCase.engineOptions...)
-			actualResponse := resultWriter.String()
-
-			if testCase.indentJSON {
-				dst := new(bytes.Buffer)
-				require.NoError(t, json.Indent(dst, []byte(actualResponse), "", "  "))
-				actualResponse = dst.String()
-			}
-
-			if testCase.expectedFixture != "" {
-				g := goldie.New(t, goldie.WithFixtureDir("testdata"), goldie.WithNameSuffix(".json"))
-				g.Assert(t, testCase.expectedFixture, []byte(actualResponse))
-				return
-			}
-
-			if withError {
-				require.Error(t, err)
-				if expectedErrorMessage != "" {
-					assert.Equal(t, expectedErrorMessage, err.Error())
-				}
-			} else {
-				require.NoError(t, err)
-			}
-
-			if testCase.expectedJSONResponse != "" {
-				assert.JSONEq(t, testCase.expectedJSONResponse, actualResponse)
-			}
-
-			if testCase.expectedResponse != "" {
-				if opts.streamingResponse {
-					streamingResponse := streamingBuf.String()
-					assert.Equal(t, testCase.expectedResponse, streamingResponse)
-				} else {
-					assert.Equal(t, testCase.expectedResponse, actualResponse)
-				}
-			}
-
-			if testCase.expectedStaticCost != 0 {
-				gotCost := operation.StaticCost()
-				require.Equal(t, testCase.expectedStaticCost, gotCost)
-			}
-
-		}
+		return runExecutionEngineTest(testCase, withError, expectedErrorMessage, options...)
 	}
 
 	runWithAndCompareError := func(testCase ExecutionEngineTestCase, expectedErrorMessage string, options ...executionTestOptions) func(t *testing.T) {
 		t.Helper()
 
-		return run(testCase, true, expectedErrorMessage, options...)
+		return runExecutionEngineTest(testCase, true, expectedErrorMessage, options...)
 	}
 
 	runWithoutError := func(testCase ExecutionEngineTestCase, options ...executionTestOptions) func(t *testing.T) {
 		t.Helper()
-
-		return run(testCase, false, "", options...)
+		return runExecutionEngineTest(testCase, false, "", options...)
 	}
 
 	t.Run("apollo router compatibility subrequest HTTP error enabled", runWithoutError(
@@ -7042,383 +7054,6 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			},
 			relaxFieldSelectionMergingNullability(),
 		))
-	})
-	
-	t.Run("defer", func(t *testing.T) {
-		t.Run("simple", func(t *testing.T) {
-
-			definition := `
-				type User {
-					id: ID!
-					name: String!
-					title: String!
-					info: Info!
-				}
-
-				type Info {
-					email: String!
-					phone: String!
-				}
-
-				type Query {
-					user: User!
-				}
-			`
-
-			makeDataSource := func(t *testing.T, expectFetchReasons bool) []plan.DataSource {
-				return []plan.DataSource{
-					mustGraphqlDataSourceConfiguration(t,
-						"id-1",
-						mustFactory(t,
-							testConditionalNetHttpClient(t, conditionalTestCase{
-								expectedHost: "first",
-								expectedPath: "/",
-								responses: map[string]sendResponse{
-									`{"query":"{user {name}}"}`: {
-										statusCode: 200,
-										body:       `{"data":{"user":{"name":"Black"}}}`,
-									},
-									`{"query":"{user {__internal__typename_placeholder: __typename}}"}`: {
-										statusCode: 200,
-										body:       `{"data":{"user":{"__internal__typename_placeholder":"User"}}}`,
-									},
-									`{"query":"{user {title}}"}`: {
-										statusCode: 200,
-										body:       `{"data":{"user":{"title":"Sabbat"}}}`,
-									},
-									`{"query":"{user {id}}"}`: {
-										statusCode: 200,
-										body:       `{"data":{"user":{"id":"1"}}}`,
-									},
-									`{"query":"{user {title id}}"}`: {
-										statusCode: 200,
-										body:       `{"data":{"user":{"title":"Sabbat","id":"1"}}}`,
-									},
-									`{"query":"{user {name title id}}"}`: {
-										statusCode: 200,
-										body:       `{"data":{"user":{"name":"Black","title":"Sabbat","id":"1"}}}`,
-									},
-									`{"query":"{user {info {email phone}}}"}`: {
-										statusCode: 200,
-										body:       `{"data":{"user":{"info":{"email":"black@sabbat","phone":"123"}}}}`,
-									},
-									`{"query":"{user {info {phone} title}}"}`: {
-										statusCode: 200,
-										body:       `{"data":{"user":{"info":{"phone":"123"},"title":"Sabbat"}}}`,
-									},
-									`{"query":"{user {name info {email}}}"}`: {
-										statusCode: 200,
-										body:       `{"data":{"user":{"name":"Black","info":{"email":"black@sabbat"}}}}`,
-									},
-									`{"query":"{user {name info {__internal__typename_placeholder: __typename}}}"}`: {
-										statusCode: 200,
-										body:       `{"data":{"user":{"name":"Black","info":{"__internal__typename_placeholder":"Info"}}}}`,
-									},
-								},
-							}),
-						),
-						&plan.DataSourceMetadata{
-							RootNodes: []plan.TypeField{
-								{
-									TypeName:   "Query",
-									FieldNames: []string{"user"},
-								},
-							},
-							ChildNodes: []plan.TypeField{
-								{
-									TypeName:   "User",
-									FieldNames: []string{"id", "title", "name", "info"},
-								},
-								{
-									TypeName:   "Info",
-									FieldNames: []string{"email", "phone"},
-								},
-							},
-						},
-						mustConfiguration(t, graphql_datasource.ConfigurationInput{
-							Fetch: &graphql_datasource.FetchConfiguration{
-								URL:    "https://first/",
-								Method: "POST",
-							},
-							SchemaConfiguration: mustSchemaConfig(
-								t,
-								&graphql_datasource.FederationConfiguration{
-									Enabled:    true,
-									ServiceSDL: definition,
-								},
-								definition,
-							),
-						}),
-					),
-				}
-			}
-
-			t.Run("single deffered field", runWithoutError(ExecutionEngineTestCase{
-				schema: func(t *testing.T) *graphql.Schema {
-					t.Helper()
-					parseSchema, err := graphql.NewSchemaFromString(definition)
-					require.NoError(t, err)
-					return parseSchema
-				}(t),
-				operation: func(t *testing.T) graphql.Request {
-					return graphql.Request{
-						OperationName: "DeferUserTitle",
-						Query: `
-						query DeferUserTitle {
-							user {
-								name
-								... @defer {
-									title
-								}
-							}
-						}`,
-					}
-				},
-				dataSources: makeDataSource(t, false),
-				expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
-{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":false}
-`,
-			}, withStreamingResponse()))
-
-			t.Run("single deffered field between regular fields", runWithoutError(ExecutionEngineTestCase{
-				schema: func(t *testing.T) *graphql.Schema {
-					t.Helper()
-					parseSchema, err := graphql.NewSchemaFromString(definition)
-					require.NoError(t, err)
-					return parseSchema
-				}(t),
-				operation: func(t *testing.T) graphql.Request {
-					return graphql.Request{
-						OperationName: "DeferUserTitle",
-						Query: `
-						query DeferUserTitle {
-							user {
-								title
-								... @defer {
-									name
-								}
-								id
-							}
-						}`,
-					}
-				},
-				dataSources: makeDataSource(t, false),
-				expectedResponse: `{"data":{"user":{"title":"Sabbat","id":"1"}},"hasNext":true}
-{"incremental":[{"data":{"name":"Black"},"path":["user"]}],"hasNext":false}
-`,
-			}, withStreamingResponse()))
-
-			t.Run("multiple deffered fields", runWithoutError(ExecutionEngineTestCase{
-				schema: func(t *testing.T) *graphql.Schema {
-					t.Helper()
-					parseSchema, err := graphql.NewSchemaFromString(definition)
-					require.NoError(t, err)
-					return parseSchema
-				}(t),
-				operation: func(t *testing.T) graphql.Request {
-					return graphql.Request{
-						OperationName: "DeferUserTitle",
-						Query: `
-						query DeferUserTitle {
-							user {
-								name
-								... @defer {
-									title
-									id
-								}
-							}
-						}`,
-					}
-				},
-				dataSources: makeDataSource(t, false),
-				expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
-{"incremental":[{"data":{"title":"Sabbat","id":"1"},"path":["user"]}],"hasNext":false}
-`,
-			}, withStreamingResponse()))
-
-			t.Run("multiple deffered fields - all object fields deferred", runWithoutError(ExecutionEngineTestCase{
-				schema: func(t *testing.T) *graphql.Schema {
-					t.Helper()
-					parseSchema, err := graphql.NewSchemaFromString(definition)
-					require.NoError(t, err)
-					return parseSchema
-				}(t),
-				operation: func(t *testing.T) graphql.Request {
-					return graphql.Request{
-						OperationName: "DeferUserTitle",
-						Query: `
-						query DeferUserTitle {
-							user {
-								... @defer {
-									name
-									title
-									id
-								}
-							}
-						}`,
-					}
-				},
-				dataSources: makeDataSource(t, false),
-				expectedResponse: `{"data":{"user":{}},"hasNext":true}
-{"incremental":[{"data":{"name":"Black","title":"Sabbat","id":"1"},"path":["user"]}],"hasNext":false}
-`,
-			}, withStreamingResponse()))
-
-			t.Run("nested defers", runWithoutError(ExecutionEngineTestCase{
-				schema: func(t *testing.T) *graphql.Schema {
-					t.Helper()
-					parseSchema, err := graphql.NewSchemaFromString(definition)
-					require.NoError(t, err)
-					return parseSchema
-				}(t),
-				operation: func(t *testing.T) graphql.Request {
-					return graphql.Request{
-						OperationName: "DeferUserTitle",
-						Query: `
-						query DeferUserTitle {
-							user {
-								name
-								... @defer {
-									title
-									... @defer {
-										id
-									}
-								}
-							}
-						}`,
-					}
-				},
-				dataSources: makeDataSource(t, false),
-				expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
-{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"id":"1"},"path":["user"]}],"hasNext":false}
-`,
-			}, withStreamingResponse()))
-
-			t.Run("parallel defers", runWithoutError(ExecutionEngineTestCase{
-				schema: func(t *testing.T) *graphql.Schema {
-					t.Helper()
-					parseSchema, err := graphql.NewSchemaFromString(definition)
-					require.NoError(t, err)
-					return parseSchema
-				}(t),
-				operation: func(t *testing.T) graphql.Request {
-					return graphql.Request{
-						OperationName: "DeferUserTitle",
-						Query: `
-						query DeferUserTitle {
-							user {
-								name
-								... @defer {
-									title
-								}
-								... @defer {
-									id
-								}
-							}
-						}`,
-					}
-				},
-				dataSources: makeDataSource(t, false),
-				expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
-{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"id":"1"},"path":["user"]}],"hasNext":false}
-`,
-			}, withStreamingResponse()))
-
-			t.Run("defer nested object", runWithoutError(ExecutionEngineTestCase{
-				schema: func(t *testing.T) *graphql.Schema {
-					t.Helper()
-					parseSchema, err := graphql.NewSchemaFromString(definition)
-					require.NoError(t, err)
-					return parseSchema
-				}(t),
-				operation: func(t *testing.T) graphql.Request {
-					return graphql.Request{
-						OperationName: "DeferUserTitle",
-						Query: `
-						query DeferUserTitle {
-							user {
-								name
-								... @defer {
-									info {
-										email
-										phone
-									}
-								}
-							}
-						}`,
-					}
-				},
-				dataSources: makeDataSource(t, false),
-				expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
-{"incremental":[{"data":{"info":{"email":"black@sabbat","phone":"123"}},"path":["user"]}],"hasNext":false}
-`,
-			}, withStreamingResponse()))
-
-			t.Run("defer nested object with duplicated non defered object", runWithoutError(ExecutionEngineTestCase{
-				schema: func(t *testing.T) *graphql.Schema {
-					t.Helper()
-					parseSchema, err := graphql.NewSchemaFromString(definition)
-					require.NoError(t, err)
-					return parseSchema
-				}(t),
-				operation: func(t *testing.T) graphql.Request {
-					return graphql.Request{
-						OperationName: "DeferUserTitle",
-						Query: `
-						query DeferUserTitle {
-							user {
-								name
-								info {
-									email
-								}
-								... @defer {
-									info {
-										phone
-									}
-									title
-								}
-							}
-						}`,
-					}
-				},
-				dataSources: makeDataSource(t, false),
-				expectedResponse: `{"data":{"user":{"name":"Black","info":{"email":"black@sabbat"}}},"hasNext":true}
-{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]},{"data":{"phone":"123"},"path":["user","info"]}],"hasNext":false}
-`,
-			}, withStreamingResponse()))
-
-			t.Run("defer nested object fields", runWithoutError(ExecutionEngineTestCase{
-				schema: func(t *testing.T) *graphql.Schema {
-					t.Helper()
-					parseSchema, err := graphql.NewSchemaFromString(definition)
-					require.NoError(t, err)
-					return parseSchema
-				}(t),
-				operation: func(t *testing.T) graphql.Request {
-					return graphql.Request{
-						OperationName: "DeferUserTitle",
-						Query: `
-						query DeferUserTitle {
-							user {
-								name
-								info {
-									... @defer {
-										email
-										phone
-									}
-								}
-							}
-						}`,
-					}
-				},
-				dataSources: makeDataSource(t, false),
-				expectedResponse: `{"data":{"user":{"name":"Black","info":{}}},"hasNext":true}
-{"incremental":[{"data":{"email":"black@sabbat","phone":"123"},"path":["user","info"]}],"hasNext":false}
-`,
-			}, withStreamingResponse()))
-		})
 	})
 }
 

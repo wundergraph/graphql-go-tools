@@ -2,7 +2,6 @@ package plan
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"slices"
 
