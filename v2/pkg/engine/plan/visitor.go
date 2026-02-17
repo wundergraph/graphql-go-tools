@@ -73,7 +73,6 @@ func NewVisitor(w *astvisitor.Walker) *Visitor {
 		Walker:                  w,
 		fieldConfigs:            map[int]*FieldConfiguration{},
 		exportedVariables:       map[string]struct{}{},
-		skipIncludeOnFragments:  map[int]skipIncludeInfo{},
 		indirectInterfaceFields: map[int]indirectInterfaceField{},
 		pathCache:               map[astvisitor.VisitorKind]map[int]string{},
 		plannerFields:           map[int][]int{},

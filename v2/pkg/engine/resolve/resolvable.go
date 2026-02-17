@@ -1057,7 +1057,7 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 	}
 	values := value.GetArray()
 
-	if !r.print {
+	if !r.render() {
 		pathKey := r.currentFieldPath()
 		r.actualListSizes[pathKey] += len(values)
 	}
