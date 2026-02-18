@@ -507,6 +507,16 @@ func TestFederationIntegrationTest(t *testing.T) {
 		expected := `{"data":{"cat":{"name":"Pepper"},"me":{"id":"1234","username":"Me","realName":"User Usington","reviews":[{"body":"A highly effective form of birth control."},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits."}],"history":[{},{"rating":5},{}]}}}`
 		assert.Equal(t, compact(expected), string(resp))
 	})
+
+	// Regression test for https://github.com/wundergraph/cosmo/issues/991
+	t.Run("introspection ofType returns fields", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/introspection_oftype_fields.query"), nil, t)
+		expected := `{"data":{"__type":{"name":"User","kind":"OBJECT","fields":[{"name":"id","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"ID","fields":null}}},{"name":"username","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","fields":null}}},{"name":"history","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"LIST","name":null,"fields":null}}},{"name":"realName","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","fields":null}}},{"name":"reviews","type":{"kind":"LIST","name":null,"ofType":{"kind":"OBJECT","name":"Review","fields":[{"name":"body"},{"name":"author"},{"name":"product"},{"name":"attachments"},{"name":"comment"}]}}}]}}}`
+		assert.Equal(t, compact(expected), string(resp))
+	})
 }
 
 func compact(input string) string {

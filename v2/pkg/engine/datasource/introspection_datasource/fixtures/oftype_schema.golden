@@ -1,20 +1,43 @@
 {
   "queryType": {
     "kind": "OBJECT",
-    "name": "CustomQuery",
+    "name": "Query",
     "description": "",
     "fields": [
       {
-        "name": "me",
+        "name": "user",
         "description": "",
         "args": [],
         "type": {
           "kind": "OBJECT",
-          "name": "Droid",
+          "name": "User",
           "ofType": null,
           "__typename": "__Type",
           "description": "",
           "fields": [
+            {
+              "name": "id",
+              "description": "",
+              "args": [],
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "ID",
+                  "ofType": null,
+                  "__typename": "__Type",
+                  "description": "The 'ID' scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as '4') or integer (such as 4) input value will be accepted as an ID.",
+                  "inputFields": [],
+                  "interfaces": [],
+                  "possibleTypes": []
+                },
+                "__typename": "__Type"
+              },
+              "isDeprecated": false,
+              "deprecationReason": null,
+              "__typename": "__Field"
+            },
             {
               "name": "name",
               "description": "",
@@ -37,67 +60,29 @@
               "isDeprecated": false,
               "deprecationReason": null,
               "__typename": "__Field"
-            }
-          ],
-          "inputFields": [],
-          "interfaces": [],
-          "possibleTypes": []
-        },
-        "isDeprecated": true,
-        "deprecationReason": "No longer supported",
-        "__typename": "__Field"
-      },
-      {
-        "name": "droid",
-        "description": "",
-        "args": [
-          {
-            "name": "id",
-            "description": "",
-            "type": {
-              "kind": "NON_NULL",
-              "name": null,
-              "ofType": {
-                "kind": "SCALAR",
-                "name": "ID",
-                "ofType": null,
-                "__typename": "__Type",
-                "description": "The 'ID' scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as '4') or integer (such as 4) input value will be accepted as an ID.",
-                "inputFields": [],
-                "interfaces": [],
-                "possibleTypes": []
-              },
-              "__typename": "__Type"
             },
-            "defaultValue": null,
-            "isDeprecated": false,
-            "deprecationReason": null,
-            "__typename": "__InputValue"
-          }
-        ],
-        "type": {
-          "kind": "OBJECT",
-          "name": "Droid",
-          "ofType": null,
-          "__typename": "__Type",
-          "description": "",
-          "fields": [
             {
-              "name": "name",
+              "name": "friends",
               "description": "",
               "args": [],
               "type": {
                 "kind": "NON_NULL",
                 "name": null,
                 "ofType": {
-                  "kind": "SCALAR",
-                  "name": "String",
-                  "ofType": null,
-                  "__typename": "__Type",
-                  "description": "The 'String' scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.",
-                  "inputFields": [],
-                  "interfaces": [],
-                  "possibleTypes": []
+                  "kind": "LIST",
+                  "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "OBJECT",
+                      "name": "User",
+                      "ofType": null,
+                      "__typename": "__Type"
+                    },
+                    "__typename": "__Type"
+                  },
+                  "__typename": "__Type"
                 },
                 "__typename": "__Type"
               },
@@ -122,25 +107,25 @@
   },
   "mutationType": {
     "kind": "OBJECT",
-    "name": "CustomMutation",
+    "name": "Mutation",
     "description": "",
     "fields": [
       {
-        "name": "destroyDroid",
+        "name": "createUser",
         "description": "",
         "args": [
           {
-            "name": "id",
+            "name": "name",
             "description": "",
             "type": {
               "kind": "NON_NULL",
               "name": null,
               "ofType": {
                 "kind": "SCALAR",
-                "name": "ID",
+                "name": "String",
                 "ofType": null,
                 "__typename": "__Type",
-                "description": "The 'ID' scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as '4') or integer (such as 4) input value will be accepted as an ID.",
+                "description": "The 'String' scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.",
                 "inputFields": [],
                 "interfaces": [],
                 "possibleTypes": []
@@ -157,98 +142,35 @@
           "kind": "NON_NULL",
           "name": null,
           "ofType": {
-            "kind": "SCALAR",
-            "name": "Boolean",
-            "ofType": null,
-            "__typename": "__Type",
-            "description": "The 'Boolean' scalar type represents 'true' or 'false' .",
-            "inputFields": [],
-            "interfaces": [],
-            "possibleTypes": []
-          },
-          "__typename": "__Type"
-        },
-        "isDeprecated": false,
-        "deprecationReason": null,
-        "__typename": "__Field"
-      }
-    ],
-    "inputFields": [],
-    "interfaces": [],
-    "possibleTypes": [],
-    "__typename": "__Type"
-  },
-  "subscriptionType": {
-    "kind": "OBJECT",
-    "name": "CustomSubscription",
-    "description": "",
-    "fields": [
-      {
-        "name": "destroyedDroid",
-        "description": "",
-        "args": [],
-        "type": {
-          "kind": "OBJECT",
-          "name": "Droid",
-          "ofType": null,
-          "__typename": "__Type",
-          "description": "",
-          "fields": [
-            {
-              "name": "name",
-              "description": "",
-              "args": [],
-              "type": {
-                "kind": "NON_NULL",
-                "name": null,
-                "ofType": {
-                  "kind": "SCALAR",
-                  "name": "String",
-                  "ofType": null,
-                  "__typename": "__Type",
-                  "description": "The 'String' scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.",
-                  "inputFields": [],
-                  "interfaces": [],
-                  "possibleTypes": []
-                },
-                "__typename": "__Type"
-              },
-              "isDeprecated": false,
-              "deprecationReason": null,
-              "__typename": "__Field"
-            }
-          ],
-          "inputFields": [],
-          "interfaces": [],
-          "possibleTypes": []
-        },
-        "isDeprecated": false,
-        "deprecationReason": null,
-        "__typename": "__Field"
-      }
-    ],
-    "inputFields": [],
-    "interfaces": [],
-    "possibleTypes": [],
-    "__typename": "__Type"
-  },
-  "types": [
-    {
-      "kind": "OBJECT",
-      "name": "CustomQuery",
-      "description": "",
-      "fields": [
-        {
-          "name": "me",
-          "description": "",
-          "args": [],
-          "type": {
             "kind": "OBJECT",
-            "name": "Droid",
+            "name": "User",
             "ofType": null,
             "__typename": "__Type",
             "description": "",
             "fields": [
+              {
+                "name": "id",
+                "description": "",
+                "args": [],
+                "type": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "SCALAR",
+                    "name": "ID",
+                    "ofType": null,
+                    "__typename": "__Type",
+                    "description": "The 'ID' scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as '4') or integer (such as 4) input value will be accepted as an ID.",
+                    "inputFields": [],
+                    "interfaces": [],
+                    "possibleTypes": []
+                  },
+                  "__typename": "__Type"
+                },
+                "isDeprecated": false,
+                "deprecationReason": null,
+                "__typename": "__Field"
+              },
               {
                 "name": "name",
                 "description": "",
@@ -271,51 +193,94 @@
                 "isDeprecated": false,
                 "deprecationReason": null,
                 "__typename": "__Field"
+              },
+              {
+                "name": "friends",
+                "description": "",
+                "args": [],
+                "type": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "LIST",
+                    "name": null,
+                    "ofType": {
+                      "kind": "NON_NULL",
+                      "name": null,
+                      "ofType": {
+                        "kind": "OBJECT",
+                        "name": "User",
+                        "ofType": null,
+                        "__typename": "__Type"
+                      },
+                      "__typename": "__Type"
+                    },
+                    "__typename": "__Type"
+                  },
+                  "__typename": "__Type"
+                },
+                "isDeprecated": false,
+                "deprecationReason": null,
+                "__typename": "__Field"
               }
             ],
             "inputFields": [],
             "interfaces": [],
             "possibleTypes": []
           },
-          "isDeprecated": true,
-          "deprecationReason": "No longer supported",
-          "__typename": "__Field"
+          "__typename": "__Type"
         },
+        "isDeprecated": false,
+        "deprecationReason": null,
+        "__typename": "__Field"
+      }
+    ],
+    "inputFields": [],
+    "interfaces": [],
+    "possibleTypes": [],
+    "__typename": "__Type"
+  },
+  "subscriptionType": null,
+  "types": [
+    {
+      "kind": "OBJECT",
+      "name": "Query",
+      "description": "",
+      "fields": [
         {
-          "name": "droid",
+          "name": "user",
           "description": "",
-          "args": [
-            {
-              "name": "id",
-              "description": "",
-              "type": {
-                "kind": "NON_NULL",
-                "name": null,
-                "ofType": {
-                  "kind": "SCALAR",
-                  "name": "ID",
-                  "ofType": null,
-                  "__typename": "__Type",
-                  "description": "The 'ID' scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as '4') or integer (such as 4) input value will be accepted as an ID.",
-                  "inputFields": [],
-                  "interfaces": [],
-                  "possibleTypes": []
-                },
-                "__typename": "__Type"
-              },
-              "defaultValue": null,
-              "isDeprecated": false,
-              "deprecationReason": null,
-              "__typename": "__InputValue"
-            }
-          ],
+          "args": [],
           "type": {
             "kind": "OBJECT",
-            "name": "Droid",
+            "name": "User",
             "ofType": null,
             "__typename": "__Type",
             "description": "",
             "fields": [
+              {
+                "name": "id",
+                "description": "",
+                "args": [],
+                "type": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "SCALAR",
+                    "name": "ID",
+                    "ofType": null,
+                    "__typename": "__Type",
+                    "description": "The 'ID' scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as '4') or integer (such as 4) input value will be accepted as an ID.",
+                    "inputFields": [],
+                    "interfaces": [],
+                    "possibleTypes": []
+                  },
+                  "__typename": "__Type"
+                },
+                "isDeprecated": false,
+                "deprecationReason": null,
+                "__typename": "__Field"
+              },
               {
                 "name": "name",
                 "description": "",
@@ -332,6 +297,35 @@
                     "inputFields": [],
                     "interfaces": [],
                     "possibleTypes": []
+                  },
+                  "__typename": "__Type"
+                },
+                "isDeprecated": false,
+                "deprecationReason": null,
+                "__typename": "__Field"
+              },
+              {
+                "name": "friends",
+                "description": "",
+                "args": [],
+                "type": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "LIST",
+                    "name": null,
+                    "ofType": {
+                      "kind": "NON_NULL",
+                      "name": null,
+                      "ofType": {
+                        "kind": "OBJECT",
+                        "name": "User",
+                        "ofType": null,
+                        "__typename": "__Type"
+                      },
+                      "__typename": "__Type"
+                    },
+                    "__typename": "__Type"
                   },
                   "__typename": "__Type"
                 },
@@ -356,25 +350,25 @@
     },
     {
       "kind": "OBJECT",
-      "name": "CustomMutation",
+      "name": "Mutation",
       "description": "",
       "fields": [
         {
-          "name": "destroyDroid",
+          "name": "createUser",
           "description": "",
           "args": [
             {
-              "name": "id",
+              "name": "name",
               "description": "",
               "type": {
                 "kind": "NON_NULL",
                 "name": null,
                 "ofType": {
                   "kind": "SCALAR",
-                  "name": "ID",
+                  "name": "String",
                   "ofType": null,
                   "__typename": "__Type",
-                  "description": "The 'ID' scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as '4') or integer (such as 4) input value will be accepted as an ID.",
+                  "description": "The 'String' scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.",
                   "inputFields": [],
                   "interfaces": [],
                   "possibleTypes": []
@@ -391,11 +385,88 @@
             "kind": "NON_NULL",
             "name": null,
             "ofType": {
-              "kind": "SCALAR",
-              "name": "Boolean",
+              "kind": "OBJECT",
+              "name": "User",
               "ofType": null,
               "__typename": "__Type",
-              "description": "The 'Boolean' scalar type represents 'true' or 'false' .",
+              "description": "",
+              "fields": [
+                {
+                  "name": "id",
+                  "description": "",
+                  "args": [],
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "ID",
+                      "ofType": null,
+                      "__typename": "__Type",
+                      "description": "The 'ID' scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as '4') or integer (such as 4) input value will be accepted as an ID.",
+                      "inputFields": [],
+                      "interfaces": [],
+                      "possibleTypes": []
+                    },
+                    "__typename": "__Type"
+                  },
+                  "isDeprecated": false,
+                  "deprecationReason": null,
+                  "__typename": "__Field"
+                },
+                {
+                  "name": "name",
+                  "description": "",
+                  "args": [],
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "String",
+                      "ofType": null,
+                      "__typename": "__Type",
+                      "description": "The 'String' scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.",
+                      "inputFields": [],
+                      "interfaces": [],
+                      "possibleTypes": []
+                    },
+                    "__typename": "__Type"
+                  },
+                  "isDeprecated": false,
+                  "deprecationReason": null,
+                  "__typename": "__Field"
+                },
+                {
+                  "name": "friends",
+                  "description": "",
+                  "args": [],
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "LIST",
+                      "name": null,
+                      "ofType": {
+                        "kind": "NON_NULL",
+                        "name": null,
+                        "ofType": {
+                          "kind": "OBJECT",
+                          "name": "User",
+                          "ofType": null,
+                          "__typename": "__Type"
+                        },
+                        "__typename": "__Type"
+                      },
+                      "__typename": "__Type"
+                    },
+                    "__typename": "__Type"
+                  },
+                  "isDeprecated": false,
+                  "deprecationReason": null,
+                  "__typename": "__Field"
+                }
+              ],
               "inputFields": [],
               "interfaces": [],
               "possibleTypes": []
@@ -414,95 +485,32 @@
     },
     {
       "kind": "OBJECT",
-      "name": "CustomSubscription",
+      "name": "User",
       "description": "",
       "fields": [
         {
-          "name": "destroyedDroid",
+          "name": "id",
           "description": "",
           "args": [],
           "type": {
-            "kind": "OBJECT",
-            "name": "Droid",
-            "ofType": null,
-            "__typename": "__Type",
-            "description": "",
-            "fields": [
-              {
-                "name": "name",
-                "description": "",
-                "args": [],
-                "type": {
-                  "kind": "NON_NULL",
-                  "name": null,
-                  "ofType": {
-                    "kind": "SCALAR",
-                    "name": "String",
-                    "ofType": null,
-                    "__typename": "__Type",
-                    "description": "The 'String' scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.",
-                    "inputFields": [],
-                    "interfaces": [],
-                    "possibleTypes": []
-                  },
-                  "__typename": "__Type"
-                },
-                "isDeprecated": false,
-                "deprecationReason": null,
-                "__typename": "__Field"
-              }
-            ],
-            "inputFields": [],
-            "interfaces": [],
-            "possibleTypes": []
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "ID",
+              "ofType": null,
+              "__typename": "__Type",
+              "description": "The 'ID' scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as '4') or integer (such as 4) input value will be accepted as an ID.",
+              "inputFields": [],
+              "interfaces": [],
+              "possibleTypes": []
+            },
+            "__typename": "__Type"
           },
           "isDeprecated": false,
           "deprecationReason": null,
           "__typename": "__Field"
-        }
-      ],
-      "inputFields": [],
-      "interfaces": [],
-      "possibleTypes": [],
-      "__typename": "__Type"
-    },
-    {
-      "kind": "ENUM",
-      "name": "Episode",
-      "description": "",
-      "inputFields": [],
-      "interfaces": [],
-      "enumValues": [
-        {
-          "name": "NEWHOPE",
-          "description": "",
-          "isDeprecated": false,
-          "deprecationReason": null,
-          "__typename": "__EnumValue"
         },
-        {
-          "name": "EMPIRE",
-          "description": "",
-          "isDeprecated": false,
-          "deprecationReason": null,
-          "__typename": "__EnumValue"
-        },
-        {
-          "name": "JEDI",
-          "description": "",
-          "isDeprecated": true,
-          "deprecationReason": "No longer supported",
-          "__typename": "__EnumValue"
-        }
-      ],
-      "possibleTypes": [],
-      "__typename": "__Type"
-    },
-    {
-      "kind": "OBJECT",
-      "name": "Droid",
-      "description": "",
-      "fields": [
         {
           "name": "name",
           "description": "",
@@ -519,6 +527,35 @@
               "inputFields": [],
               "interfaces": [],
               "possibleTypes": []
+            },
+            "__typename": "__Type"
+          },
+          "isDeprecated": false,
+          "deprecationReason": null,
+          "__typename": "__Field"
+        },
+        {
+          "name": "friends",
+          "description": "",
+          "args": [],
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "LIST",
+              "name": null,
+              "ofType": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "OBJECT",
+                  "name": "User",
+                  "ofType": null,
+                  "__typename": "__Type"
+                },
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
             "__typename": "__Type"
           },
