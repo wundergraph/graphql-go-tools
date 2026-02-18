@@ -80,6 +80,13 @@ func InjectResponseContext(ctx context.Context) (context.Context, *ResponseConte
 	return context.WithValue(ctx, responseContextKey{}, value), value
 }
 
+// GetResponseContext retrieves the ResponseContext previously injected into ctx
+// via InjectResponseContext. Returns nil if no ResponseContext is present.
+func GetResponseContext(ctx context.Context) *ResponseContext {
+	value, _ := ctx.Value(responseContextKey{}).(*ResponseContext)
+	return value
+}
+
 func setRequest(ctx context.Context, request *http.Request) {
 	if value, ok := ctx.Value(responseContextKey{}).(*ResponseContext); ok {
 		value.Request = request

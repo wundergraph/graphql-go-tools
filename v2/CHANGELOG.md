@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.251](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.250...v2.0.0-rc.251) (2026-02-18)
+
+
+### Bug Fixes
+
+* **resolve:** share response headers with singleflight followers ([#1389](https://github.com/wundergraph/graphql-go-tools/issues/1389)) ([ed80a8e](https://github.com/wundergraph/graphql-go-tools/commit/ed80a8e581935241834422414686aa3c31471dc0))
+
 ## [2.0.0-rc.250](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.249...v2.0.0-rc.250) (2026-02-16)
 
 
