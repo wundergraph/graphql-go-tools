@@ -100,8 +100,7 @@ func (r *InboundRequestSingleFlight) GetOrCreate(ctx *Context, response *GraphQL
 			}
 			return request, nil
 		case <-ctx.ctx.Done():
-			request.Err = ctx.ctx.Err()
-			return nil, request.Err
+			return nil, ctx.ctx.Err()
 		}
 	}
 
