@@ -38,8 +38,13 @@ func NewRequestSingleFlight(shardCount int) *InboundRequestSingleFlight {
 type InflightRequest struct {
 	Done chan struct{}
 	Data []byte
-	Err  error
-	ID   uint64
+	// SharedData carries opaque state from the leader to followers (e.g. accumulated
+	// response headers). Set by the leader via Context.GetDeduplicationData, read by
+	// followers via Context.SetDeduplicationData. Typed as "any" because the resolve
+	// package is data-agnostic — the caller decides the concrete type.
+	SharedData any
+	Err        error
+	ID         uint64
 
 	HasFollowers bool
 	Mu           sync.Mutex

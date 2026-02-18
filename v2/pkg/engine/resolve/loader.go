@@ -1717,6 +1717,19 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 		}
 
 		res.out = item.response
+		// Populate the ResponseContext that was injected by executeSourceLoad.
+		// This is the same pointer that executeSourceLoad reads at lines 1899-1900,
+		// so the follower's res.statusCode and res.httpResponseContext will be set
+		// correctly even though no HTTP call was made.
+		if rc := httpclient.GetResponseContext(ctx); rc != nil {
+			rc.StatusCode = item.statusCode
+			if item.responseHeaders != nil {
+				rc.Response = &http.Response{
+					StatusCode: item.statusCode,
+					Header:     item.responseHeaders,
+				}
+			}
+		}
 		return nil
 	}
 
@@ -1733,6 +1746,14 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 	}
 
 	item.response = res.out
+	// Capture the leader's HTTP response metadata so followers can reuse it.
+	// The ResponseContext was populated by the HTTP client during loadByContextDirect.
+	if rc := httpclient.GetResponseContext(ctx); rc != nil {
+		item.statusCode = rc.StatusCode
+		if rc.Response != nil && rc.Response.Header != nil {
+			item.responseHeaders = rc.Response.Header.Clone()
+		}
+	}
 	return nil
 }
 

@@ -362,6 +362,11 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 
 	if inflight != nil && inflight.Data != nil { // follower
 		resp.ResolveDeduplicated = true
+		// Apply the leader's shared state (e.g. response headers) to this follower's context
+		// before writing the response, so the response writer can propagate headers correctly.
+		if ctx.SetDeduplicationData != nil && inflight.SharedData != nil {
+			ctx.SetDeduplicationData(ctx.ctx, inflight.SharedData)
+		}
 		_, err = writer.Write(inflight.Data)
 		return resp, err
 	}
@@ -412,6 +417,12 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 	// as such, it can take some time
 	// which is why we split the arenas and released the first one
 	_, err = writer.Write(buf.Bytes())
+	// Extract data from the leader's context to share with singleflight followers.
+	// This runs after the leader has fully resolved and written its response, so all
+	// subgraph response headers have been accumulated on the leader's context.
+	if inflight != nil && ctx.GetDeduplicationData != nil {
+		inflight.SharedData = ctx.GetDeduplicationData(ctx.ctx)
+	}
 	r.inboundRequestSingleFlight.FinishOk(inflight, buf.Bytes())
 	// all data is written to the client
 	// we're safe to release our buffer

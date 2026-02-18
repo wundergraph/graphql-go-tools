@@ -44,6 +44,38 @@ type Context struct {
 	subgraphErrors map[string]error
 
 	SubgraphHeadersBuilder SubgraphHeadersBuilder
+
+	// GetDeduplicationData is called after the leader of an inbound singleflight request
+	// finishes resolving. It extracts data from the leader's context (e.g. accumulated
+	// response headers) that should be shared with all follower requests.
+	// The returned value is stored on the InflightRequest and passed to each follower's
+	// SetDeduplicationData callback before the follower writes its response.
+	// Use SetDeduplicationCallbacks to set both callbacks with type safety.
+	GetDeduplicationData func(ctx context.Context) any
+	// SetDeduplicationData is called for each follower of an inbound singleflight request,
+	// before the response body is written to the client. The data argument is the value
+	// returned by the leader's GetDeduplicationData call.
+	// Typical use: copy response header propagation state from the leader into the
+	// follower's context so that the response writer can set the correct HTTP headers.
+	// Use SetDeduplicationCallbacks to set both callbacks with type safety.
+	SetDeduplicationData func(ctx context.Context, data any)
+}
+
+// SetDeduplicationCallbacks is a generic helper that configures both GetDeduplicationData
+// and SetDeduplicationData on a Context with compile-time type safety.
+// The resolve package stores the data as "any" internally, but callers get typed callbacks:
+//
+//	resolve.SetDeduplicationCallbacks(ctx,
+//	    func(ctx context.Context) *MyHeaders { return extractHeaders(ctx) },
+//	    func(ctx context.Context, h *MyHeaders) { applyHeaders(ctx, h) },
+//	)
+func SetDeduplicationCallbacks[T any](c *Context, get func(ctx context.Context) T, set func(ctx context.Context, data T)) {
+	c.GetDeduplicationData = func(ctx context.Context) any {
+		return get(ctx)
+	}
+	c.SetDeduplicationData = func(ctx context.Context, data any) {
+		set(ctx, data.(T))
+	}
 }
 
 // SubgraphHeadersBuilder allows the user of the engine to "define" the headers for a subgraph request
@@ -276,6 +308,8 @@ func (c *Context) Free() {
 	c.subgraphErrors = nil
 	c.authorizer = nil
 	c.LoaderHooks = nil
+	c.GetDeduplicationData = nil
+	c.SetDeduplicationData = nil
 }
 
 type traceStartKey struct{}
