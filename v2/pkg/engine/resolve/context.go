@@ -69,12 +69,17 @@ type Context struct {
 //	    func(ctx context.Context) *MyHeaders { return extractHeaders(ctx) },
 //	    func(ctx context.Context, h *MyHeaders) { applyHeaders(ctx, h) },
 //	)
+//
+// The get and set callbacks must use the same concrete type T. If the value returned by
+// get cannot be asserted to T when passed to set, the set callback will be skipped.
 func SetDeduplicationCallbacks[T any](c *Context, get func(ctx context.Context) T, set func(ctx context.Context, data T)) {
 	c.GetDeduplicationData = func(ctx context.Context) any {
 		return get(ctx)
 	}
 	c.SetDeduplicationData = func(ctx context.Context, data any) {
-		set(ctx, data.(T))
+		if typed, ok := data.(T); ok {
+			set(ctx, typed)
+		}
 	}
 }
 

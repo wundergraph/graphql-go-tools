@@ -420,6 +420,8 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 	// Extract data from the leader's context to share with singleflight followers.
 	// This runs after the leader has fully resolved and written its response, so all
 	// subgraph response headers have been accumulated on the leader's context.
+	// SharedData MUST be set BEFORE FinishOk, which closes the Done channel and
+	// unblocks followers. Otherwise followers could read SharedData before it is set.
 	if inflight != nil && ctx.GetDeduplicationData != nil {
 		inflight.SharedData = ctx.GetDeduplicationData(ctx.ctx)
 	}

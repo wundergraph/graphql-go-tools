@@ -1718,15 +1718,17 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 
 		res.out = item.response
 		// Populate the ResponseContext that was injected by executeSourceLoad.
-		// This is the same pointer that executeSourceLoad reads at lines 1899-1900,
-		// so the follower's res.statusCode and res.httpResponseContext will be set
-		// correctly even though no HTTP call was made.
+		// This is the same pointer that executeSourceLoad reads when it assigns
+		// res.statusCode and res.httpResponseContext, so the follower's result
+		// fields will be set correctly even though no HTTP call was made.
 		if rc := httpclient.GetResponseContext(ctx); rc != nil {
 			rc.StatusCode = item.statusCode
 			if item.responseHeaders != nil {
+				// Minimal synthetic http.Response carrying only status and headers.
+				// Clone headers so each concurrent follower gets an independent copy.
 				rc.Response = &http.Response{
 					StatusCode: item.statusCode,
-					Header:     item.responseHeaders,
+					Header:     item.responseHeaders.Clone(),
 				}
 			}
 		}
