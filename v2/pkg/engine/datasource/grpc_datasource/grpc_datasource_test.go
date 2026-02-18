@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/tidwall/gjson"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/encoding/protojson"
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
@@ -5236,4 +5238,277 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			tc.validateError(t, resp.Errors)
 		})
 	}
+}
+
+func Test_Datasource_Load_WithHeaders(t *testing.T) {
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
+
+	type graphqlError struct {
+		Message string `json:"message"`
+	}
+	type graphqlResponse struct {
+		Data   map[string]interface{} `json:"data"`
+		Errors []graphqlError         `json:"errors,omitempty"`
+	}
+
+	testCases := []struct {
+		name          string
+		query         string
+		vars          string
+		headers       http.Header
+		validate      func(t *testing.T, data map[string]interface{})
+		validateError func(t *testing.T, errData []graphqlError)
+	}{
+		{
+			name:  "QueryUser with header override",
+			query: `query UserQuery($id: ID!) { user(id: $id) { id name } }`,
+			vars:  `{"variables":{"id":"original-user-123"}}`,
+			headers: func() http.Header {
+				h := make(http.Header)
+				h.Set("X-User-ID", "header-user-42")
+				return h
+			}(),
+			validate: func(t *testing.T, data map[string]interface{}) {
+				user, ok := data["user"].(map[string]interface{})
+				require.True(t, ok, "user should be an object")
+				require.Equal(t, "header-user-42", user["id"], "user ID should come from header")
+				require.Equal(t, "User header-user-42", user["name"], "user name should use header-derived ID")
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "QueryUser with header triggering error",
+			query: `query UserQuery($id: ID!) { user(id: $id) { id name } }`,
+			vars:  `{"variables":{"id":"valid-user-123"}}`,
+			headers: func() http.Header {
+				h := make(http.Header)
+				h.Set("X-User-ID", "error-user")
+				return h
+			}(),
+			validate: func(t *testing.T, data map[string]interface{}) {
+				// Data might be present but should have errors
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.NotEmpty(t, errData, "should have errors")
+				require.Contains(t, errData[0].Message, "user not found: error-user")
+			},
+		},
+		{
+			name:    "QueryUser without headers (nil) - baseline behavior",
+			query:   `query UserQuery($id: ID!) { user(id: $id) { id name } }`,
+			vars:    `{"variables":{"id":"baseline-user-99"}}`,
+			headers: nil,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				user, ok := data["user"].(map[string]interface{})
+				require.True(t, ok, "user should be an object")
+				require.Equal(t, "baseline-user-99", user["id"], "user ID should come from query variable")
+				require.Equal(t, "User baseline-user-99", user["name"], "user name should use variable-derived ID")
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "QueryUsers with custom prefix header",
+			query: `query UsersQuery { users { id name } }`,
+			vars:  `{"variables":{}}`,
+			headers: func() http.Header {
+				h := make(http.Header)
+				h.Set("X-User-Prefix", "Admin")
+				return h
+			}(),
+			validate: func(t *testing.T, data map[string]interface{}) {
+				users, ok := data["users"].([]interface{})
+				require.True(t, ok, "users should be an array")
+				require.Len(t, users, 3, "should return 3 users")
+
+				for i, u := range users {
+					user, ok := u.(map[string]interface{})
+					require.True(t, ok, "each user should be an object")
+					require.Equal(t, fmt.Sprintf("user-%d", i+1), user["id"])
+					require.Equal(t, fmt.Sprintf("Admin %d", i+1), user["name"], "user name should use custom prefix from header")
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "MutationCreateUser with name override header",
+			query: `mutation CreateUser($input: UserInput!) { createUser(input: $input) { id name } }`,
+			vars:  `{"variables":{"input":{"name":"OriginalName"}}}`,
+			headers: func() http.Header {
+				h := make(http.Header)
+				h.Set("X-Custom-Name", "HeaderName")
+				return h
+			}(),
+			validate: func(t *testing.T, data map[string]interface{}) {
+				createUser, ok := data["createUser"].(map[string]interface{})
+				require.True(t, ok, "createUser should be an object")
+				require.NotEmpty(t, createUser["id"], "created user should have an ID")
+				require.Equal(t, "HeaderName", createUser["name"], "created user name should come from header")
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Categories with productCount field resolver and header offset",
+			query: `query CategoriesWithProductCount($filters: ProductCountFilter) { categories { id name kind productCount(filters: $filters) } }`,
+			vars:  `{"variables":{"filters":{"minPrice":100}}}`,
+			headers: func() http.Header {
+				h := make(http.Header)
+				h.Set("X-Count-Offset", "100")
+				return h
+			}(),
+			validate: func(t *testing.T, data map[string]interface{}) {
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.Len(t, categories, 4, "should return 4 categories")
+
+				// Verify that productCount for each category is offset by 100
+				expectedCounts := []float64{100, 101, 102, 103}
+				for i, c := range categories {
+					category, ok := c.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["id"])
+					require.NotEmpty(t, category["name"])
+					require.Equal(t, expectedCounts[i], category["productCount"], "productCount should be offset by header value")
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:    "Categories with productCount without headers - baseline behavior",
+			query:   `query CategoriesWithProductCount($filters: ProductCountFilter) { categories { id name kind productCount(filters: $filters) } }`,
+			vars:    `{"variables":{"filters":{"minPrice":100}}}`,
+			headers: nil,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.Len(t, categories, 4, "should return 4 categories")
+
+				// Verify default productCount values (no offset)
+				expectedCounts := []float64{0, 1, 2, 3}
+				for i, c := range categories {
+					category, ok := c.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["id"])
+					require.NotEmpty(t, category["name"])
+					require.Equal(t, expectedCounts[i], category["productCount"], "productCount should use default values without header")
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Parse the GraphQL schema
+			schemaDoc := grpctest.MustGraphQLSchema(t)
+
+			// Parse the GraphQL query
+			queryDoc, report := astparser.ParseGraphqlDocumentString(tc.query)
+			require.False(t, report.HasErrors(), "failed to parse query: %s", report.Error())
+
+			compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+			require.NoError(t, err)
+
+			// Create the datasource
+			ds, err := NewDataSource(conn, DataSourceConfig{
+				Operation:    &queryDoc,
+				Definition:   &schemaDoc,
+				SubgraphName: "Products",
+				Mapping:      testMapping(),
+				Compiler:     compiler,
+			})
+			require.NoError(t, err)
+
+			// Execute the query with headers
+			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
+			output, err := ds.Load(context.Background(), tc.headers, []byte(input))
+			require.NoError(t, err)
+
+			// Parse the response
+			var resp graphqlResponse
+			err = json.Unmarshal(output, &resp)
+			require.NoError(t, err, "Failed to unmarshal response")
+
+			tc.validate(t, resp.Data)
+			tc.validateError(t, resp.Errors)
+		})
+	}
+}
+
+func Test_Datasource_Load_PreservesExistingContextMetadata(t *testing.T) {
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
+
+	type graphqlError struct {
+		Message string `json:"message"`
+	}
+	type graphqlResponse struct {
+		Data   map[string]interface{} `json:"data"`
+		Errors []graphqlError         `json:"errors,omitempty"`
+	}
+
+	// Parse the GraphQL schema
+	schemaDoc := grpctest.MustGraphQLSchema(t)
+
+	query := `query UserQuery($id: ID!) { user(id: $id) { id name } }`
+	vars := `{"variables":{"id":"test-user-123"}}`
+
+	// Parse the GraphQL query
+	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
+	require.False(t, report.HasErrors(), "failed to parse query: %s", report.Error())
+
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+	require.NoError(t, err)
+
+	// Create the datasource
+	ds, err := NewDataSource(conn, DataSourceConfig{
+		Operation:    &queryDoc,
+		Definition:   &schemaDoc,
+		SubgraphName: "Products",
+		Mapping:      testMapping(),
+		Compiler:     compiler,
+	})
+	require.NoError(t, err)
+
+	// Create a context with existing metadata
+	ctx := metadata.NewOutgoingContext(
+		context.Background(),
+		metadata.Pairs("x-existing-key", "existing-value"),
+	)
+
+	// Create HTTP headers to be forwarded
+	headers := make(http.Header)
+	headers.Set("X-User-ID", "header-user-456")
+
+	// Execute the query with both existing context metadata and new HTTP headers
+	input := fmt.Sprintf(`{"query":%q,"body":%s}`, query, vars)
+	output, err := ds.Load(ctx, headers, []byte(input))
+	require.NoError(t, err)
+
+	// Parse the response
+	var resp graphqlResponse
+	err = json.Unmarshal(output, &resp)
+	require.NoError(t, err, "Failed to unmarshal response")
+
+	// Verify no errors
+	require.Empty(t, resp.Errors, "Should not have GraphQL errors")
+
+	// Verify the response includes both the header-derived ID and the existing metadata value
+	user, ok := resp.Data["user"].(map[string]interface{})
+	require.True(t, ok, "user should be an object")
+	require.Equal(t, "header-user-456", user["id"], "user ID should come from HTTP header")
+	require.Equal(t, "User header-user-456 (existing: existing-value)", user["name"],
+		"user name should include both header-derived ID and existing context metadata")
 }
