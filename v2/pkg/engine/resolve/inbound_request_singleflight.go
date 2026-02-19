@@ -50,6 +50,14 @@ type InflightRequest struct {
 	followerCount atomic.Int32
 }
 
+func (r *InflightRequest) AddFollower() {
+	r.followerCount.Add(1)
+}
+
+func (r *InflightRequest) HasFollowers() bool {
+	return r.followerCount.Load() > 0
+}
+
 // GetOrCreate creates a new InflightRequest or returns an existing (shared) one
 // The first caller to create an InflightRequest for a given key is a leader, everyone else a follower
 // GetOrCreate blocks until ctx.ctx.Done() returns or InflightRequest.Done is closed
@@ -90,7 +98,7 @@ func (r *InboundRequestSingleFlight) GetOrCreate(ctx *Context, response *GraphQL
 	inflight, shared := shard.m.LoadOrStore(key, request)
 	if shared {
 		request = inflight.(*InflightRequest)
-		request.followerCount.Add(1)
+		request.AddFollower()
 		select {
 		case <-request.Done:
 			if request.Err != nil {
@@ -111,7 +119,7 @@ func (r *InboundRequestSingleFlight) FinishOk(req *InflightRequest, data []byte)
 	}
 	shard := r.shardFor(req.ID)
 	shard.m.Delete(req.ID)
-	if req.followerCount.Load() > 0 {
+	if req.HasFollowers() {
 		// optimization to only copy when we actually have to
 		req.Data = make([]byte, len(data))
 		copy(req.Data, data)
