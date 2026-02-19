@@ -387,27 +387,29 @@ func NewVariablesNormalizer(withFieldArgMapping bool) *VariablesNormalizer {
 
 // NormalizeOperation processes GraphQL operation variables.
 // It detects and removes unused variables, extracts variables from inline values
-// and coerces variable types. It modifies the operation in place and
+// and coerces variable values.
+// https://spec.graphql.org/September2025/#sec-Coercing-Variable-Values
+// It modifies the operation in place and
 // returns metadata including field argument mappings and upload paths.
-// Field argument mapping is done only when v is configured to do so via NewVariablesNormalizer,
+// Field argument mapping is done only when it is enabled in v,
 // else VariablesNormalizerResult.FieldArgumentMapping will be nil.
 // Any errors encountered during normalization are reported via the report parameter.
-func (v *VariablesNormalizer) NormalizeOperation(operation, definition *ast.Document, report *operationreport.Report) VariablesNormalizerResult {
+func (v *VariablesNormalizer) NormalizeOperation(operation, definition *ast.Document, report *operationreport.Report) VariablesNormalizationResult {
 	v.firstDetectUnused.Walk(operation, definition, report)
 	if report.HasErrors() {
-		return VariablesNormalizerResult{}
+		return VariablesNormalizationResult{}
 	}
 	v.secondExtract.Walk(operation, definition, report)
 	if report.HasErrors() {
-		return VariablesNormalizerResult{}
+		return VariablesNormalizationResult{}
 	}
 	v.thirdDeleteUnused.Walk(operation, definition, report)
 	if report.HasErrors() {
-		return VariablesNormalizerResult{}
+		return VariablesNormalizationResult{}
 	}
 	v.fourthCoerce.Walk(operation, definition, report)
 
-	return VariablesNormalizerResult{
+	return VariablesNormalizationResult{
 		UploadsMapping:       v.variablesExtractionVisitor.uploadsPath,
 		FieldArgumentMapping: v.variablesExtractionVisitor.fieldArgumentMapping.result,
 	}

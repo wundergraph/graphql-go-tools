@@ -10,8 +10,8 @@ import (
 // Value: name of variable of field argument after variable normalization.
 type FieldArgumentMapping map[string]string
 
-// VariablesNormalizerResult contains the results of variable normalization.
-type VariablesNormalizerResult struct {
+// VariablesNormalizationResult contains the results of variable normalization.
+type VariablesNormalizationResult struct {
 	// UploadsMapping tracks file upload variables and how their paths change during normalization.
 	UploadsMapping []uploads.UploadPathMapping
 	// FieldArgumentMapping maps field arguments to their variable names for fast lookup.

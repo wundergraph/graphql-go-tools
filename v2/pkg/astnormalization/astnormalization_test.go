@@ -1073,7 +1073,12 @@ func TestVariablesNormalizer(t *testing.T) {
 				viewer: User
 				user(id: ID!, active: Boolean): User
 				users(name: String!, limit: Int!, offset: Int): [User!]!
+				paginatedUsers(paging: Paging!): [String!]!
 				node(id: ID!): Node
+			}
+			input Paging {
+				limit: Int!
+				offset: Int!
 			}
 			interface Node {
 				id: ID!
@@ -1367,6 +1372,17 @@ func TestVariablesNormalizer(t *testing.T) {
 					"query.user.id":          "userId",
 					"query.user.posts.limit": "limit",
 					"query.user.items.limit": "a",
+				},
+			},
+			{
+				name: "inline input object argument is extracted as a variable",
+				operation: `
+				query Search($limit: Int!, $offset: Int!) {
+					paginatedUsers(paging: {limit: $limit, offset: $offset})
+				}`,
+				variables: `{"limit": 10, "offset": 5}`,
+				expectedMapping: FieldArgumentMapping{
+					"query.paginatedUsers.paging": "a",
 				},
 			},
 		}

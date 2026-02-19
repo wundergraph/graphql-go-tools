@@ -181,7 +181,8 @@ func (v *variablesExtractionVisitor) EnterDocument(operation, definition *ast.Do
 // If varName is empty, it looks up the variable name from the operation or stores the literal value.
 func (v *variablesExtractionVisitor) recordFieldArgumentMapping(ref int, varName string) {
 	// Guard to prevent nil panics.
-	// If v.fieldArgumentMapping.result is nil, then field argument mapping is disabled.
+	// v.fieldArgumentMapping.result should always have a value if we are here
+	// but if this changes by accident this prevents a nil panic.
 	if v.fieldArgumentMapping.result == nil {
 		return
 	}
@@ -200,12 +201,8 @@ func (v *variablesExtractionVisitor) recordFieldArgumentMapping(ref int, varName
 	}
 
 	if v.operation.Arguments[ref].Value.Kind != ast.ValueKindVariable {
-		// We expect the operation on this visitor to be normalized before the visitor walks it.
-		// This means that values of any field arguments should be extracted to variables.
-		// If we still land here it means the query hasn't been normalized before.
-		// In this case we ignore mapping the field argument, i.e. we do not support mapping field
-		// arguments with literal values.
-		// It's not impossible to do so, just expensive and not needed at the moment.
+		// We should not land here because at this point all argument values should have become variables.
+		// If we land here for whatever reason we ignore this field argument.
 		return
 	}
 
