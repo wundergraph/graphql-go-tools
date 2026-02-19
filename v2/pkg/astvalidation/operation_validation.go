@@ -69,7 +69,7 @@ func DefaultOperationValidator(options ...Option) *OperationValidator {
 	validator.RegisterRule(LoneAnonymousOperation())
 	validator.RegisterRule(SubscriptionSingleRootField())
 	validator.RegisterRule(FieldSelections())
-	validator.RegisterRule(FieldSelectionMerging(FieldSelectionMergingOptions{
+	validator.RegisterRule(FieldSelectionMerging(&FieldSelectionMergingOptions{
 		RelaxNullabilityCheck:  opts.RelaxFieldSelectionMergingNullabilityCheck,
 		RelaxTypeMismatchCheck: opts.RelaxFieldSelectionMergingTypeMismatchCheck,
 	}))

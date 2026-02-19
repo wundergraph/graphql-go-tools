@@ -23,10 +23,10 @@ type FieldSelectionMergingOptions struct {
 }
 
 // FieldSelectionMerging validates if field selections can be merged
-func FieldSelectionMerging(options ...FieldSelectionMergingOptions) Rule {
+func FieldSelectionMerging(options *FieldSelectionMergingOptions) Rule {
 	var opts FieldSelectionMergingOptions
-	if len(options) > 0 {
-		opts = options[0]
+	if options != nil {
+		opts = *options
 	}
 	return func(walker *astvisitor.Walker) {
 		visitor := fieldSelectionMergingVisitor{
@@ -140,20 +140,7 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 					return
 				}
 			} else if !f.definition.TypesAreCompatibleDeep(f.nonScalarRequirements[i].fieldTypeRef, fieldType) {
-				// Deliberate deviation from SameResponseShape (spec sec 5.3.2): when enclosing
-				// types cannot overlap at runtime (two distinct concrete object types),
-				// we allow type differences because only one branch will ever contribute
-				// to the response. Relaxation has two levels:
-				//   - relaxTypeMismatchCheck (superset): skip the type compatibility check
-				//     entirely, allowing completely different types (e.g. Int vs String).
-				//     Covers nullability differences as a subset.
-				//   - relaxNullabilityCheck: only relax when the underlying named types
-				//     match but differ in nullability wrappers (e.g. String! vs String).
-				// Both require canRelax (enclosing types are distinct concrete objects).
-				canRelax := !f.potentiallySameObject(f.nonScalarRequirements[i].enclosingTypeDefinition, f.EnclosingTypeDefinition)
-				relaxed := canRelax && (f.relaxTypeMismatchCheck ||
-					(f.relaxNullabilityCheck && f.definition.TypesAreCompatibleIgnoringNullability(f.nonScalarRequirements[i].fieldTypeRef, fieldType)))
-				if !relaxed {
+				if !f.canRelaxTypeMismatch(f.nonScalarRequirements[i].enclosingTypeDefinition, f.nonScalarRequirements[i].fieldTypeRef, fieldType) {
 					left, err := f.definition.PrintTypeBytes(f.nonScalarRequirements[i].fieldTypeRef, nil)
 					if err != nil {
 						f.StopWithInternalErr(err)
@@ -200,11 +187,7 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 			}
 		}
 		if !f.definition.TypesAreCompatibleDeep(f.scalarRequirements[i].fieldType, fieldType) {
-			// Same two-level relaxation as the non-scalar path above (see comments there).
-			canRelax := !f.potentiallySameObject(f.scalarRequirements[i].enclosingTypeDefinition, f.EnclosingTypeDefinition)
-			relaxed := canRelax && (f.relaxTypeMismatchCheck ||
-				(f.relaxNullabilityCheck && f.definition.TypesAreCompatibleIgnoringNullability(f.scalarRequirements[i].fieldType, fieldType)))
-			if !relaxed {
+			if !f.canRelaxTypeMismatch(f.scalarRequirements[i].enclosingTypeDefinition, f.scalarRequirements[i].fieldType, fieldType) {
 				left, err := f.definition.PrintTypeBytes(f.scalarRequirements[i].fieldType, nil)
 				if err != nil {
 					f.StopWithInternalErr(err)
@@ -237,6 +220,26 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 		enclosingTypeDefinition: f.EnclosingTypeDefinition,
 		fieldTypeDefinitionNode: fieldDefinitionTypeNode,
 	})
+}
+
+// canRelaxTypeMismatch reports whether a type incompatibility between two fields can
+// be relaxed. This is a deliberate deviation from SameResponseShape (spec sec 5.3.2)
+// for fields on non-overlapping concrete object types within inline fragments.
+// Relaxation has two levels:
+//   - relaxTypeMismatchCheck (superset): skip the type compatibility check entirely,
+//     allowing completely different types (e.g. Int vs String). Covers nullability
+//     differences as a subset.
+//   - relaxNullabilityCheck: only relax when the underlying named types match but
+//     differ in nullability wrappers (e.g. String! vs String).
+//
+// Both require that the enclosing types are distinct concrete objects that cannot
+// overlap at runtime.
+func (f *fieldSelectionMergingVisitor) canRelaxTypeMismatch(enclosingType ast.Node, leftTypeRef, rightTypeRef int) bool {
+	if f.potentiallySameObject(enclosingType, f.EnclosingTypeDefinition) {
+		return false
+	}
+	return f.relaxTypeMismatchCheck ||
+		(f.relaxNullabilityCheck && f.definition.TypesAreCompatibleIgnoringNullability(leftTypeRef, rightTypeRef))
 }
 
 // potentiallySameObject reports whether two enclosing type definitions could apply

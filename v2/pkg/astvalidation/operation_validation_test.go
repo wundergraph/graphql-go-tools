@@ -660,7 +660,7 @@ func TestExecutionValidation(t *testing.T) {
 								}
 							}
 						}
-					}`, FieldSelectionMerging(), Valid)
+					}`, FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("reference implementation tests", func(t *testing.T) {
 				t.Run("Same aliases allowed on non-overlapping fields", func(t *testing.T) {
@@ -672,7 +672,7 @@ func TestExecutionValidation(t *testing.T) {
 								... on Cat {
 								  name: nickname
 								}
-						  	}`, FieldSelectionMerging(), Valid)
+						  	}`, FieldSelectionMerging(nil), Valid)
 				})
 				t.Run("allows different args where no conflict is possible", func(t *testing.T) {
 					run(t, `
@@ -683,7 +683,7 @@ func TestExecutionValidation(t *testing.T) {
 								... on Cat {
 								  name
 								}
-						 	 }`, FieldSelectionMerging(), Valid)
+						 	 }`, FieldSelectionMerging(nil), Valid)
 				})
 				t.Run("encounters conflict in fragments", func(t *testing.T) {
 					run(t, `
@@ -696,7 +696,7 @@ func TestExecutionValidation(t *testing.T) {
 							}
 							fragment B on Query {
 								x: b
-							}`, FieldSelectionMerging(), Invalid,
+							}`, FieldSelectionMerging(nil), Invalid,
 						withValidationErrors(`differing fields for objectName 'x' on (potentially) same type`))
 				})
 				t.Run("reports each conflict once", func(t *testing.T) {
@@ -721,7 +721,7 @@ func TestExecutionValidation(t *testing.T) {
 							  }
 							  fragment B on Field {
 								x: b
-							  }`, FieldSelectionMerging(), Invalid,
+							  }`, FieldSelectionMerging(nil), Invalid,
 						withValidationErrors(`differing fields for objectName 'x' on (potentially) same type`))
 				})
 				t.Run("deep conflict", func(t *testing.T) {
@@ -733,7 +733,7 @@ func TestExecutionValidation(t *testing.T) {
 								field {
 								  x: b
 								}
-						 	 }`, FieldSelectionMerging(), Invalid,
+						 	 }`, FieldSelectionMerging(nil), Invalid,
 						withValidationErrors(`differing fields for objectName 'x' on (potentially) same type`))
 				})
 				t.Run("deep conflict with multiple issues", func(t *testing.T) {
@@ -747,7 +747,7 @@ func TestExecutionValidation(t *testing.T) {
 								  x: b
 								  y: d
 								}
-						 	}`, FieldSelectionMerging(), Invalid,
+						 	}`, FieldSelectionMerging(nil), Invalid,
 						withValidationErrors(`differing fields for objectName 'x' on (potentially) same type`))
 				})
 				t.Run("very deep conflict", func(t *testing.T) {
@@ -763,7 +763,7 @@ func TestExecutionValidation(t *testing.T) {
 									x: b
 								  }
 								}
-						 	 }`, FieldSelectionMerging(), Invalid,
+						 	 }`, FieldSelectionMerging(nil), Invalid,
 						withValidationErrors(`differing fields for objectName 'x' on (potentially) same type`))
 				})
 				t.Run("very deep conflict validated", func(t *testing.T) {
@@ -779,7 +779,7 @@ func TestExecutionValidation(t *testing.T) {
 									x: a
 								  }
 								}
-						 	 }`, FieldSelectionMerging(), Valid)
+						 	 }`, FieldSelectionMerging(nil), Valid)
 				})
 				t.Run("reports deep conflict to nearest common ancestor", func(t *testing.T) {
 					run(t, `
@@ -797,7 +797,7 @@ func TestExecutionValidation(t *testing.T) {
 								y
 							  }
 							}
-						}`, FieldSelectionMerging(), Invalid,
+						}`, FieldSelectionMerging(nil), Invalid,
 						withValidationErrors(`differing fields for objectName 'x' on (potentially) same type`))
 				})
 				t.Run("reports deep conflict to nearest common ancestor in fragments", func(t *testing.T) {
@@ -824,7 +824,7 @@ func TestExecutionValidation(t *testing.T) {
 								y
 							  }
 							}
-					  	}`, FieldSelectionMerging(), Invalid,
+					  	}`, FieldSelectionMerging(nil), Invalid,
 						withValidationErrors(`differing fields for objectName 'x' on (potentially) same type`))
 				})
 				t.Run("reports deep conflict in nested fragments", func(t *testing.T) {
@@ -850,7 +850,7 @@ func TestExecutionValidation(t *testing.T) {
 							  }
 							  fragment J on Field {
 								x: b
-						 	 }`, FieldSelectionMerging(), Invalid,
+						 	 }`, FieldSelectionMerging(nil), Invalid,
 						withValidationErrors(`differing fields for objectName 'y' on (potentially) same type`))
 				})
 				t.Run("ignores unknown fragments", func(t *testing.T) {
@@ -863,7 +863,7 @@ func TestExecutionValidation(t *testing.T) {
 							 	 fragment Known on T {
 									field
 									...OtherUnknown
-							 	 }`, FieldSelectionMerging(), Invalid, withExpectNormalizationError())
+							 	 }`, FieldSelectionMerging(nil), Invalid, withExpectNormalizationError())
 				})
 				t.Run("return types must be unambiguous", func(t *testing.T) {
 					t.Run("conflicting return types which potentially overlap", func(t *testing.T) {
@@ -881,7 +881,7 @@ func TestExecutionValidation(t *testing.T) {
 										scalar
 									}
 								}
-							}`, FieldSelectionMerging(), Invalid,
+							}`, FieldSelectionMerging(nil), Invalid,
 							withValidationErrors(`fields 'scalar' conflict because they return conflicting types 'Int' and 'String!'`))
 					})
 					t.Run("compatible return shapes on different return types", func(t *testing.T) {
@@ -899,7 +899,7 @@ func TestExecutionValidation(t *testing.T) {
 										}
 							  		}
 								}
-							}`, FieldSelectionMerging(), Valid)
+							}`, FieldSelectionMerging(nil), Valid)
 					})
 					t.Run("disallows differing return types despite no overlap", func(t *testing.T) {
 						runWithDefinition(t, boxDefinition, `
@@ -912,7 +912,7 @@ func TestExecutionValidation(t *testing.T) {
 											scalar
 								  		}
 									}
-								}`, FieldSelectionMerging(), Invalid,
+								}`, FieldSelectionMerging(nil), Invalid,
 							withValidationErrors(`fields 'scalar' conflict because they return conflicting types 'Int' and 'String'`))
 					})
 					t.Run("disallows differing return types despite no overlap", func(t *testing.T) {
@@ -929,7 +929,7 @@ func TestExecutionValidation(t *testing.T) {
 											b: scalar
 								  		}
 									}
-								}`, FieldSelectionMerging(), Invalid,
+								}`, FieldSelectionMerging(nil), Invalid,
 							withValidationErrors(`differing fields for objectName 'b' on (potentially) same type`))
 					})
 					t.Run("deeply nested", func(t *testing.T) {
@@ -976,7 +976,7 @@ func TestExecutionValidation(t *testing.T) {
 								}
 								fragment Y on SomeBox {
 									scalar: unrelatedField
-								}`, FieldSelectionMerging(), Invalid,
+								}`, FieldSelectionMerging(nil), Invalid,
 							withValidationErrors(`fields 'scalar' conflict because they return conflicting types 'Int' and 'String'`))
 					})
 					t.Run("disallows differing return type nullability despite no overlap", func(t *testing.T) {
@@ -990,7 +990,7 @@ func TestExecutionValidation(t *testing.T) {
 											scalar
 								  		}
 									}
-								}`, FieldSelectionMerging(), Invalid,
+								}`, FieldSelectionMerging(nil), Invalid,
 							withValidationErrors(`fields 'scalar' conflict because they return conflicting types 'String!' and 'String'`))
 					})
 					t.Run("disallows differing return type list despite no overlap", func(t *testing.T) {
@@ -1008,7 +1008,7 @@ func TestExecutionValidation(t *testing.T) {
 										}
 									  }
 									}
-							 	}`, FieldSelectionMerging(), Invalid,
+							 	}`, FieldSelectionMerging(nil), Invalid,
 							withValidationErrors(`differing types '[StringBox]' and 'StringBox' for objectName 'box'`))
 						runWithDefinition(t, boxDefinition, `
 								{
@@ -1024,7 +1024,7 @@ func TestExecutionValidation(t *testing.T) {
 										}
 									  }
 									}
-								  }`, FieldSelectionMerging(), Invalid,
+								  }`, FieldSelectionMerging(nil), Invalid,
 							withValidationErrors(`differing types 'StringBox' and '[StringBox]' for objectName 'box'`))
 					})
 					t.Run("disallows differing subfields", func(t *testing.T) {
@@ -1043,7 +1043,7 @@ func TestExecutionValidation(t *testing.T) {
 										}
 									  }
 									}
-								}`, FieldSelectionMerging(), Invalid,
+								}`, FieldSelectionMerging(nil), Invalid,
 							withValidationErrors(`differing fields for objectName 'val' on (potentially) same type`))
 					})
 					t.Run("disallows differing deep return types despite no overlap", func(t *testing.T) {
@@ -1061,7 +1061,7 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								  }
 								}
-							}`, FieldSelectionMerging(), Invalid,
+							}`, FieldSelectionMerging(nil), Invalid,
 							withValidationErrors(`fields 'scalar' conflict because they return conflicting types 'String' and 'Int'`))
 					})
 					t.Run("allows non-conflicting overlapping types", func(t *testing.T) {
@@ -1075,7 +1075,7 @@ func TestExecutionValidation(t *testing.T) {
 									scalar
 								  }
 								}
-							}`, FieldSelectionMerging(), Valid)
+							}`, FieldSelectionMerging(nil), Valid)
 					})
 					t.Run("allows differing scalar nullability on non-overlapping object types", func(t *testing.T) {
 						runWithDefinition(t, entityDefinition, `
@@ -1084,7 +1084,7 @@ func TestExecutionValidation(t *testing.T) {
 										... on User { email }
 										... on Organization { email }
 									}
-								}`, FieldSelectionMerging(FieldSelectionMergingOptions{RelaxNullabilityCheck: true}), Valid)
+								}`, FieldSelectionMerging(&FieldSelectionMergingOptions{RelaxNullabilityCheck: true}), Valid)
 					})
 					t.Run("rejects differing scalar nullability on non-overlapping object types without relaxation flag", func(t *testing.T) {
 						runWithDefinition(t, entityDefinition, `
@@ -1093,7 +1093,7 @@ func TestExecutionValidation(t *testing.T) {
 										... on User { email }
 										... on Organization { email }
 									}
-								}`, FieldSelectionMerging(), Invalid,
+								}`, FieldSelectionMerging(nil), Invalid,
 							withValidationErrors(`fields 'email' conflict because they return conflicting types 'String!' and 'String'`))
 					})
 					t.Run("allows differing non-scalar nullability on non-overlapping object types", func(t *testing.T) {
@@ -1103,7 +1103,7 @@ func TestExecutionValidation(t *testing.T) {
 										... on User { profile { name } }
 										... on Organization { profile { name } }
 									}
-								}`, FieldSelectionMerging(FieldSelectionMergingOptions{RelaxNullabilityCheck: true}), Valid)
+								}`, FieldSelectionMerging(&FieldSelectionMergingOptions{RelaxNullabilityCheck: true}), Valid)
 					})
 					t.Run("rejects differing non-scalar nullability on non-overlapping object types without relaxation flag", func(t *testing.T) {
 						runWithDefinition(t, entityDefinition, `
@@ -1112,7 +1112,7 @@ func TestExecutionValidation(t *testing.T) {
 										... on User { profile { name } }
 										... on Organization { profile { name } }
 									}
-								}`, FieldSelectionMerging(), Invalid,
+								}`, FieldSelectionMerging(nil), Invalid,
 							withValidationErrors(`differing types 'Profile!' and 'Profile' for objectName 'profile'`))
 					})
 					// Type mismatch relaxation tests
@@ -1123,7 +1123,7 @@ func TestExecutionValidation(t *testing.T) {
 										... on User { score }
 										... on Organization { score }
 									}
-								}`, FieldSelectionMerging(FieldSelectionMergingOptions{RelaxTypeMismatchCheck: true}), Valid)
+								}`, FieldSelectionMerging(&FieldSelectionMergingOptions{RelaxTypeMismatchCheck: true}), Valid)
 					})
 					t.Run("rejects differing scalar types on non-overlapping object types without flag", func(t *testing.T) {
 						runWithDefinition(t, entityDefinition, `
@@ -1132,7 +1132,7 @@ func TestExecutionValidation(t *testing.T) {
 										... on User { score }
 										... on Organization { score }
 									}
-								}`, FieldSelectionMerging(), Invalid,
+								}`, FieldSelectionMerging(nil), Invalid,
 							withValidationErrors(`fields 'score' conflict because they return conflicting types 'Int' and 'String'`))
 					})
 					t.Run("rejects differing scalar types with only nullability flag", func(t *testing.T) {
@@ -1142,7 +1142,7 @@ func TestExecutionValidation(t *testing.T) {
 										... on User { score }
 										... on Organization { score }
 									}
-								}`, FieldSelectionMerging(FieldSelectionMergingOptions{RelaxNullabilityCheck: true}), Invalid,
+								}`, FieldSelectionMerging(&FieldSelectionMergingOptions{RelaxNullabilityCheck: true}), Invalid,
 							withValidationErrors(`fields 'score' conflict because they return conflicting types 'Int' and 'String'`))
 					})
 					t.Run("allows three-way type mismatch on non-overlapping types", func(t *testing.T) {
@@ -1153,7 +1153,7 @@ func TestExecutionValidation(t *testing.T) {
 										... on Organization { score }
 										... on Bot { score }
 									}
-								}`, FieldSelectionMerging(FieldSelectionMergingOptions{RelaxTypeMismatchCheck: true}), Valid)
+								}`, FieldSelectionMerging(&FieldSelectionMergingOptions{RelaxTypeMismatchCheck: true}), Valid)
 					})
 					t.Run("allows differing enum types on non-overlapping object types", func(t *testing.T) {
 						// Enum types go through the non-scalar path where different enum type
@@ -1165,7 +1165,7 @@ func TestExecutionValidation(t *testing.T) {
 										... on User { role }
 										... on Organization { role }
 									}
-								}`, FieldSelectionMerging(), Valid)
+								}`, FieldSelectionMerging(nil), Valid)
 					})
 					t.Run("allows differing enum types on non-overlapping object types with type mismatch flag", func(t *testing.T) {
 						runWithDefinition(t, entityDefinition, `
@@ -1174,7 +1174,7 @@ func TestExecutionValidation(t *testing.T) {
 										... on User { role }
 										... on Organization { role }
 									}
-								}`, FieldSelectionMerging(FieldSelectionMergingOptions{RelaxTypeMismatchCheck: true}), Valid)
+								}`, FieldSelectionMerging(&FieldSelectionMergingOptions{RelaxTypeMismatchCheck: true}), Valid)
 					})
 					t.Run("rejects nullability mismatch when interface could overlap even with type mismatch flag", func(t *testing.T) {
 						// NonNullStringBox1 is an interface, so potentiallySameObject returns true
@@ -1189,17 +1189,29 @@ func TestExecutionValidation(t *testing.T) {
 											scalar
 										}
 									}
-								}`, FieldSelectionMerging(FieldSelectionMergingOptions{RelaxTypeMismatchCheck: true}), Invalid,
+								}`, FieldSelectionMerging(&FieldSelectionMergingOptions{RelaxTypeMismatchCheck: true}), Invalid,
 							withValidationErrors(`fields 'scalar' conflict because they return conflicting types 'String!' and 'String'`))
 					})
-					t.Run("type mismatch flag also relaxes nullability differences", func(t *testing.T) {
+					t.Run("allows nullability differences with type mismatch flag", func(t *testing.T) {
 						runWithDefinition(t, entityDefinition, `
 								{
 									entity {
 										... on User { email }
 										... on Organization { email }
 									}
-								}`, FieldSelectionMerging(FieldSelectionMergingOptions{RelaxTypeMismatchCheck: true}), Valid)
+								}`, FieldSelectionMerging(&FieldSelectionMergingOptions{RelaxTypeMismatchCheck: true}), Valid)
+					})
+					t.Run("allows differing scalar types with both flags set", func(t *testing.T) {
+						runWithDefinition(t, entityDefinition, `
+								{
+									entity {
+										... on User { score }
+										... on Organization { score }
+									}
+								}`, FieldSelectionMerging(&FieldSelectionMergingOptions{
+							RelaxNullabilityCheck:  true,
+							RelaxTypeMismatchCheck: true,
+						}), Valid)
 					})
 					t.Run("disallows differing return type nullability when interface could overlap", func(t *testing.T) {
 						runWithDefinition(t, boxDefinition, `
@@ -1212,7 +1224,7 @@ func TestExecutionValidation(t *testing.T) {
 											scalar
 										}
 									}
-								}`, FieldSelectionMerging(), Invalid,
+								}`, FieldSelectionMerging(nil), Invalid,
 							withValidationErrors(`fields 'scalar' conflict because they return conflicting types 'String!' and 'String'`))
 					})
 					t.Run("same wrapped scalar return types", func(t *testing.T) {
@@ -1226,7 +1238,7 @@ func TestExecutionValidation(t *testing.T) {
 									scalar
 								  }
 								}
-							}`, FieldSelectionMerging(), Valid)
+							}`, FieldSelectionMerging(nil), Valid)
 					})
 					t.Run("allows inline typeless fragments", func(t *testing.T) {
 						run(t, `
@@ -1235,7 +1247,7 @@ func TestExecutionValidation(t *testing.T) {
 								... {
 								  a
 								}
-							  }`, FieldSelectionMerging(), Valid)
+							  }`, FieldSelectionMerging(nil), Valid)
 					})
 					t.Run("compares deep types including list", func(t *testing.T) {
 						runWithDefinition(t, boxDefinition, `
@@ -1255,7 +1267,7 @@ func TestExecutionValidation(t *testing.T) {
 								id
 							  }
 								}
-							}`, FieldSelectionMerging(), Invalid,
+							}`, FieldSelectionMerging(nil), Invalid,
 							withValidationErrors(`differing fields for objectName 'id' on (potentially) same type`))
 					})
 					t.Run("ignores unknown types", func(t *testing.T) {
@@ -1269,7 +1281,7 @@ func TestExecutionValidation(t *testing.T) {
 									scalar
 								  }
 								}
-								}`, FieldSelectionMerging(), Invalid, withExpectNormalizationError())
+								}`, FieldSelectionMerging(nil), Invalid, withExpectNormalizationError())
 					})
 				})
 			})
@@ -1283,7 +1295,7 @@ func TestExecutionValidation(t *testing.T) {
   								otherName: name
   								otherName: name
   							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("107 variant", func(t *testing.T) {
 				run(t, `	
@@ -1299,7 +1311,7 @@ func TestExecutionValidation(t *testing.T) {
   									otherName: name
 								}
   							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("108", func(t *testing.T) {
 				run(t, `
@@ -1307,7 +1319,7 @@ func TestExecutionValidation(t *testing.T) {
   								name: nickname
   								name
   							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing fields for objectName 'name' on (potentially) same type`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
@@ -1318,7 +1330,7 @@ func TestExecutionValidation(t *testing.T) {
   									name
 								}
   							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing fields for objectName 'name' on (potentially) same type`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
@@ -1328,7 +1340,7 @@ func TestExecutionValidation(t *testing.T) {
   									extra { string }
 								}
   							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("108 variant", func(t *testing.T) {
 				run(t, `
@@ -1338,7 +1350,7 @@ func TestExecutionValidation(t *testing.T) {
   									extra { string }
 								}
   							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("108 variant", func(t *testing.T) {
 				run(t, `
@@ -1348,7 +1360,7 @@ func TestExecutionValidation(t *testing.T) {
   									extra { string }
 								}
   							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("108 variant", func(t *testing.T) {
 				run(t, `	
@@ -1358,7 +1370,7 @@ func TestExecutionValidation(t *testing.T) {
   									extra { noString: string }
 								}
   							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("108 variant", func(t *testing.T) {
 				run(t, `	
@@ -1368,7 +1380,7 @@ func TestExecutionValidation(t *testing.T) {
   									extra { string: noString }
 								}
   							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing fields for objectName 'string' on (potentially) same type`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
@@ -1378,7 +1390,7 @@ func TestExecutionValidation(t *testing.T) {
   									extra: extras { string }
 								}
   							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing types 'DogExtra' and '[DogExtra]' for objectName 'extra'`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
@@ -1388,7 +1400,7 @@ func TestExecutionValidation(t *testing.T) {
   									extras: mustExtras { string }
 								}
   							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing types '[DogExtra]' and '[DogExtra]!' for objectName 'extras'`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
@@ -1399,7 +1411,7 @@ func TestExecutionValidation(t *testing.T) {
   									x: mustExtras { string }
 								}
   							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing types '[DogExtra]' and '[DogExtra]!' for objectName 'x'`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
@@ -1410,7 +1422,7 @@ func TestExecutionValidation(t *testing.T) {
   									extras { string,string3: string }
 								}
   							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("108 variant", func(t *testing.T) {
 				run(t, `	
@@ -1420,7 +1432,7 @@ func TestExecutionValidation(t *testing.T) {
   									extras { string,string2: string }
 								}
   							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("108 variant", func(t *testing.T) {
 				run(t, `	
@@ -1430,7 +1442,7 @@ func TestExecutionValidation(t *testing.T) {
   									extras { string,string2: string,string3: string }
 								}
   							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing fields for objectName 'string2' on (potentially) same type`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
@@ -1441,7 +1453,7 @@ func TestExecutionValidation(t *testing.T) {
   									extras { ... { string },... { string },string2: string }
 								}
   							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("108 variant", func(t *testing.T) {
 				run(t, `	query conflictingBecauseAlias {
@@ -1450,7 +1462,7 @@ func TestExecutionValidation(t *testing.T) {
   									extras { ... { string1: string },string2: string }
 								}
   							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing fields for objectName 'string' on (potentially) same type`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
@@ -1462,7 +1474,7 @@ func TestExecutionValidation(t *testing.T) {
 								}
   							}
 							fragment frag on DogExtra { string }`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("108 variant", func(t *testing.T) {
 				run(t, `	query conflictingBecauseAlias {
@@ -1479,7 +1491,7 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}
   							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing fields for objectName 'string1' on (potentially) same type`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
@@ -1492,7 +1504,7 @@ func TestExecutionValidation(t *testing.T) {
   							}
 							fragment frag on DogExtra { string1 }
 							fragment frag2 on DogExtra { string1: string }`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing fields for objectName 'string1' on (potentially) same type`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
@@ -1502,7 +1514,7 @@ func TestExecutionValidation(t *testing.T) {
   									extra { looksLikeString: bool }
 								}
   							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing fields for objectName 'looksLikeString' on (potentially) same type`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
@@ -1515,7 +1527,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment nameFrag on Dog {
 								name
 							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing fields for objectName 'name' on (potentially) same type`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
@@ -1531,7 +1543,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment nameFrag2 on Dog {
 								name
 							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing fields for objectName 'name' on (potentially) same type`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
@@ -1546,7 +1558,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment nameFrag on Dog {
 								name
 							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing fields for objectName 'name' on (potentially) same type`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
@@ -1558,7 +1570,7 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}
   							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing fields for objectName 'name' on (potentially) same type`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
@@ -1570,7 +1582,7 @@ func TestExecutionValidation(t *testing.T) {
 												}
 											}
 			  							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing fields for objectName 'name' on (potentially) same type`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
@@ -1582,7 +1594,7 @@ func TestExecutionValidation(t *testing.T) {
 												}
 											}
 			  							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("109", func(t *testing.T) {
 				run(t, `
@@ -1594,14 +1606,14 @@ func TestExecutionValidation(t *testing.T) {
   								doesKnowCommand(dogCommand: $dogCommand)
     							doesKnowCommand(dogCommand: $dogCommand)
   							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("109 variant", func(t *testing.T) {
 				run(t, `	fragment mergeIdenticalFieldsWithIdenticalValues on Dog {
   								doesKnowCommand(dogCommand: 1)
     							doesKnowCommand(dogCommand: 1)
   							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("109 variant", func(t *testing.T) {
 				run(t, `	
@@ -1609,7 +1621,7 @@ func TestExecutionValidation(t *testing.T) {
   								doesKnowCommand(dogCommand: 1)
     							doesKnowCommand(dogCommand: 0)
   							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing fields for objectName 'doesKnowCommand' on (potentially) same type`))
 			})
 			t.Run("109 variant", func(t *testing.T) {
@@ -1617,14 +1629,14 @@ func TestExecutionValidation(t *testing.T) {
   								doesKnowCommand(dogCommand: 1.1)
     							doesKnowCommand(dogCommand: 1.1)
   							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("109 variant", func(t *testing.T) {
 				run(t, `	fragment mergeIdenticalFieldsWithIdenticalValues on Dog {
   								doesKnowCommand(dogCommand: 1.1)
     							doesKnowCommand(dogCommand: 0.1)
   							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing fields for objectName 'doesKnowCommand' on (potentially) same type`))
 			})
 			t.Run("109 variant", func(t *testing.T) {
@@ -1632,14 +1644,14 @@ func TestExecutionValidation(t *testing.T) {
   								doesKnowCommand(dogCommand: "foo")
     							doesKnowCommand(dogCommand: "foo")
   							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("109 variant", func(t *testing.T) {
 				run(t, `	fragment mergeIdenticalFieldsWithIdenticalValues on Dog {
   								doesKnowCommand(dogCommand: "foo")
     							doesKnowCommand(dogCommand: "bar")
   							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing fields for objectName 'doesKnowCommand' on (potentially) same type`))
 			})
 			t.Run("109 variant", func(t *testing.T) {
@@ -1647,14 +1659,14 @@ func TestExecutionValidation(t *testing.T) {
   								doesKnowCommand(dogCommand: null)
     							doesKnowCommand(dogCommand: null)
   							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("109 variant", func(t *testing.T) {
 				run(t, `	fragment mergeIdenticalFieldsWithIdenticalValues on Dog {
   								doesKnowCommand(dogCommand: null)
     							doesKnowCommand(dogCommand: 0)
   							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing fields for objectName 'doesKnowCommand' on (potentially) same type`))
 			})
 			t.Run("109 variant", func(t *testing.T) {
@@ -1662,14 +1674,14 @@ func TestExecutionValidation(t *testing.T) {
   								doesKnowCommand(dogCommand: [1.1])
     							doesKnowCommand(dogCommand: [1.1])
   							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("109 variant", func(t *testing.T) {
 				run(t, `	fragment mergeIdenticalFieldsWithIdenticalValues on Dog {
   								doesKnowCommand(dogCommand: [1.1])
     							doesKnowCommand(dogCommand: [0.1])
   							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing fields for objectName 'doesKnowCommand' on (potentially) same type`))
 			})
 			t.Run("109 variant", func(t *testing.T) {
@@ -1677,7 +1689,7 @@ func TestExecutionValidation(t *testing.T) {
   								doesKnowCommand(dogCommand: [1.1])
     							doesKnowCommand(dogCommand: [1.1,1.1])
   							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing fields for objectName 'doesKnowCommand' on (potentially) same type`))
 			})
 			t.Run("109 variant", func(t *testing.T) {
@@ -1686,7 +1698,7 @@ func TestExecutionValidation(t *testing.T) {
   								doesKnowCommand(dogCommand: {foo: "bar"})
     							doesKnowCommand(dogCommand: {foo: "bar"})
   							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("109 variant", func(t *testing.T) {
 				run(t, `	
@@ -1694,7 +1706,7 @@ func TestExecutionValidation(t *testing.T) {
   								doesKnowCommand(dogCommand: {foo: "bar"})
     							doesKnowCommand(dogCommand: {bar: "bar"})
   							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing fields for objectName 'doesKnowCommand' on (potentially) same type`))
 			})
 			t.Run("109 variant", func(t *testing.T) {
@@ -1703,7 +1715,7 @@ func TestExecutionValidation(t *testing.T) {
     							doesKnowCommand(dogCommand: {foo: "baz"})
     							doesKnowCommand(dogCommand: {bar: "baz"})
   							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing fields for objectName 'doesKnowCommand' on (potentially) same type`))
 			})
 			t.Run("109 variant", func(t *testing.T) {
@@ -1711,7 +1723,7 @@ func TestExecutionValidation(t *testing.T) {
   								doesKnowCommand(dogCommand: {foo: "bar"})
     							doesKnowCommand(dogCommand: {foo: "baz",bar: "bat"})
   							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing fields for objectName 'doesKnowCommand' on (potentially) same type`))
 			})
 			t.Run("110", func(t *testing.T) {
@@ -1719,31 +1731,31 @@ func TestExecutionValidation(t *testing.T) {
 								doesKnowCommand(dogCommand: SIT)
 								doesKnowCommand(dogCommand: HEEL)
 							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing fields for objectName 'doesKnowCommand' on (potentially) same type`))
 				run(t, `	fragment conflictingArgsOnValues on Dog {
 								doesKnowCommand(dogCommand: SIT)
 								doesKnowCommand(dogCommand1: HEEL)
 							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing fields for objectName 'doesKnowCommand' on (potentially) same type`))
 				run(t, `	fragment conflictingArgsValueAndVar on Dog {
 								doesKnowCommand(dogCommand: SIT)
 								doesKnowCommand(dogCommand: $dogCommand)
 							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing fields for objectName 'doesKnowCommand' on (potentially) same type`))
 				run(t, `	fragment conflictingArgsWithVars on Dog {
 								doesKnowCommand(dogCommand: $varOne)
 								doesKnowCommand(dogCommand: $varTwo)
 							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing fields for objectName 'doesKnowCommand' on (potentially) same type`))
 				run(t, `	fragment differingArgs on Dog {
 								doesKnowCommand(dogCommand: SIT)
 								doesKnowCommand
 							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`differing fields for objectName 'doesKnowCommand' on (potentially) same type`))
 			})
 			t.Run("111", func(t *testing.T) {
@@ -1764,7 +1776,7 @@ func TestExecutionValidation(t *testing.T) {
 									doesKnowCommand(catCommand: JUMP)
 								}
 							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("112", func(t *testing.T) {
 				run(t, `
@@ -1776,7 +1788,7 @@ func TestExecutionValidation(t *testing.T) {
 									someValue: meowVolume
 								}
 							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`fields 'someValue' conflict because they return conflicting types 'String!' and 'Int'`))
 			})
 			t.Run("112 variant", func(t *testing.T) {
@@ -1793,7 +1805,7 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}
 							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(t, `
@@ -1809,7 +1821,7 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}
 							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(t, `	fragment conflictingDifferingResponses on Pet {
@@ -1824,7 +1836,7 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}
 							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`fields 'string' conflict because they return conflicting types 'String' and '[String]'`))
 			})
 			t.Run("112 variant", func(t *testing.T) {
@@ -1840,7 +1852,7 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}
 							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`fields 'string' conflict because they return conflicting types 'String' and '[String]!'`))
 			})
 			t.Run("112 variant", func(t *testing.T) {
@@ -1856,7 +1868,7 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}
 							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(t, `
@@ -1872,7 +1884,7 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}
 							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(t, `	fragment conflictingDifferingResponses on Pet {
@@ -1887,7 +1899,7 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}
 							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`fields 'string' conflict because they return conflicting types 'String' and 'Boolean'`))
 			})
 			t.Run("112 variant", func(t *testing.T) {
@@ -1905,7 +1917,7 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}
 							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`fields 'string' conflict because they return conflicting types 'String' and 'Boolean'`))
 			})
 			t.Run("112 variant", func(t *testing.T) {
@@ -1923,7 +1935,7 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}
 							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(t, `	fragment conflictingDifferingResponses on Pet {
@@ -1940,7 +1952,7 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}
 							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(t, `query conflictingDifferingResponses {
@@ -1959,7 +1971,7 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}
 							}`,
-					FieldSelectionMerging(), Invalid, withExpectNormalizationError())
+					FieldSelectionMerging(nil), Invalid, withExpectNormalizationError())
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(t, `
@@ -1977,7 +1989,7 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}
 							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(t, `
@@ -1993,7 +2005,7 @@ func TestExecutionValidation(t *testing.T) {
 								fragment catFrag on Cat {
 									someValue: meowVolume
 								}`,
-					FieldSelectionMerging(), Invalid, withExpectNormalizationError())
+					FieldSelectionMerging(nil), Invalid, withExpectNormalizationError())
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(t, `	query conflictingDifferingResponses {
@@ -2008,7 +2020,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment catFrag on Cat {
 								someValue: meowVolume
 							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`fields 'someValue' conflict because they return conflicting types 'String!' and 'Int'`))
 			})
 			t.Run("112 variant", func(t *testing.T) {
@@ -2027,7 +2039,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment dogFrag on Dog {
 								someValue: barkVolume
 							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(t, `	query conflictingDifferingResponses {
@@ -2042,7 +2054,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment pet2 on Pet {
 								name
 							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(t, `	query conflictingDifferingResponses {
@@ -2057,7 +2069,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment pet2 on Pet {
 								name1: nickname
 							}`,
-					FieldSelectionMerging(), Invalid, withExpectNormalizationError())
+					FieldSelectionMerging(nil), Invalid, withExpectNormalizationError())
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(t, `	
@@ -2076,7 +2088,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment dogFrag on Dog {
 								someValue: name
 							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`fields 'someValue' conflict because they return conflicting types 'Int' and 'String!'`))
 			})
 			t.Run("112 variant", func(t *testing.T) {
@@ -2090,7 +2102,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment catFrag on Cat {
 								someValue: meowVolume
 							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(t, `query conflictingDifferingResponses {
@@ -2105,7 +2117,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment catFrag on Cat {
 								someValue: name
 							}`,
-					FieldSelectionMerging(), Invalid, withExpectNormalizationError())
+					FieldSelectionMerging(nil), Invalid, withExpectNormalizationError())
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(t, `
@@ -2119,7 +2131,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment catFrag on Cat {
 								someValue: meowVolume
 							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(t, `	
@@ -2132,7 +2144,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment dogFrag on Dog {
 								someValue: barkVolume
 							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(t, `	query conflictingDifferingResponses {
@@ -2147,7 +2159,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment catFrag on Cat {
 								someValue: meowVolume
 							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(t, `	query conflictingDifferingResponses {
@@ -2161,7 +2173,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment dogFrag on Dog {
 								someValue: barkVolume
 							}`,
-					FieldSelectionMerging(), Valid)
+					FieldSelectionMerging(nil), Valid)
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(t, `
@@ -2176,7 +2188,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment dogFrag on Dog {
 								someValue: barkVolume
 							}`,
-					FieldSelectionMerging(), Invalid, withExpectNormalizationError())
+					FieldSelectionMerging(nil), Invalid, withExpectNormalizationError())
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(t, `	query conflictingDifferingResponses {
@@ -2185,7 +2197,7 @@ func TestExecutionValidation(t *testing.T) {
 									... on DogExtra { value: bool }
 								}	
 							}`,
-					FieldSelectionMerging(), Invalid,
+					FieldSelectionMerging(nil), Invalid,
 					withValidationErrors(`fields 'value' conflict because they return conflicting types 'Boolean' and 'Int'`))
 			})
 			t.Run("skip/include do not creates conflicts", func(t *testing.T) {
@@ -2197,7 +2209,7 @@ func TestExecutionValidation(t *testing.T) {
 											nickname @skip(if: false)
 										}
 									}`,
-					FieldSelectionMerging(), Valid, withDisableNormalization())
+					FieldSelectionMerging(nil), Valid, withDisableNormalization())
 			})
 			t.Run("execution directives do not creates conflicts", func(t *testing.T) {
 				// it is questionable if this is correct, but spec do not check directives at all
@@ -2207,7 +2219,7 @@ func TestExecutionValidation(t *testing.T) {
 											nickname @tag(name: "b")
 										}
 									}`,
-					FieldSelectionMerging(), Valid, withDisableNormalization())
+					FieldSelectionMerging(nil), Valid, withDisableNormalization())
 			})
 			t.Run("different stream directives creates conflicts", func(t *testing.T) {
 				run(t, `query noConflictOnDifferentFieldIncludeSkip {
@@ -2216,7 +2228,7 @@ func TestExecutionValidation(t *testing.T) {
 											nickname @stream(label: "b")
 										}
 									}`,
-					FieldSelectionMerging(), Invalid, withDisableNormalization())
+					FieldSelectionMerging(nil), Invalid, withDisableNormalization())
 			})
 		})
 		t.Run("5.3.3 Leaf Field Selections", func(t *testing.T) {

@@ -71,7 +71,7 @@ var rulesMap = map[string][]astvalidation.Rule{
 	LoneAnonymousOperationRule:                {astvalidation.LoneAnonymousOperation()},
 	NoUndefinedVariablesRule:                  {astvalidation.AllVariableUsesDefined()},
 	NoUnusedVariablesRule:                     {astvalidation.AllVariablesUsed()},
-	OverlappingFieldsCanBeMergedRule:          {astvalidation.FieldSelectionMerging()},
+	OverlappingFieldsCanBeMergedRule:          {astvalidation.FieldSelectionMerging(nil)},
 	ProvidedRequiredArgumentsRule:             {astvalidation.RequiredArguments()},
 	ProvidedRequiredArgumentsOnDirectivesRule: {},
 	SingleFieldSubscriptionsRule:              {astvalidation.SubscriptionSingleRootField()},
