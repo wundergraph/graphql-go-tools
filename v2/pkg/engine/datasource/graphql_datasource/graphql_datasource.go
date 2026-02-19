@@ -1832,8 +1832,11 @@ func (f *Factory[T]) EnableSubgraphFieldSelectionMergingNullabilityRelaxation() 
 
 // EnableSubgraphFieldSelectionMergingTypeMismatchRelaxation implements
 // plan.SubgraphFieldSelectionMergingTypeMismatchRelaxer. It configures the
-// factory to use a shared pool whose validator allows completely differing
-// field types on non-overlapping concrete types.
+// factory to use a shared process-global pool (created via sync.Once) whose
+// validator allows completely differing field types on non-overlapping concrete
+// types. This is a superset of the nullability relaxation — callers should not
+// also call EnableSubgraphFieldSelectionMergingNullabilityRelaxation, as the
+// type mismatch pool already covers nullability differences.
 func (f *Factory[T]) EnableSubgraphFieldSelectionMergingTypeMismatchRelaxation() {
 	f.printKitPool = getTypeMismatchRelaxedPrintKitPool()
 }

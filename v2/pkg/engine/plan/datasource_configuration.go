@@ -300,14 +300,15 @@ func (d *dataSourceConfiguration[T]) CustomConfiguration() T {
 }
 
 func (d *dataSourceConfiguration[T]) CreatePlannerConfiguration(logger abstractlogger.Logger, fetchConfig *objectFetchConfiguration, pathConfig *plannerPathsConfiguration, configuration *Configuration) PlannerConfiguration {
-	if configuration.RelaxSubgraphOperationFieldSelectionMergingNullability {
-		if relaxer, ok := d.factory.(SubgraphFieldSelectionMergingNullabilityRelaxer); ok {
-			relaxer.EnableSubgraphFieldSelectionMergingNullabilityRelaxation()
-		}
-	}
+	// Type mismatch relaxation is a superset of nullability relaxation, so only
+	// one pool should be applied. Prefer the broader type mismatch pool when set.
 	if configuration.RelaxSubgraphOperationFieldSelectionMergingTypeMismatch {
 		if relaxer, ok := d.factory.(SubgraphFieldSelectionMergingTypeMismatchRelaxer); ok {
 			relaxer.EnableSubgraphFieldSelectionMergingTypeMismatchRelaxation()
+		}
+	} else if configuration.RelaxSubgraphOperationFieldSelectionMergingNullability {
+		if relaxer, ok := d.factory.(SubgraphFieldSelectionMergingNullabilityRelaxer); ok {
+			relaxer.EnableSubgraphFieldSelectionMergingNullabilityRelaxation()
 		}
 	}
 
