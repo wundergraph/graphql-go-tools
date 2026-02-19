@@ -56,9 +56,12 @@ func stringValueOnArena(a arena.Arena, s string) *astjson.Value {
 }
 
 type LoaderHooks interface {
-	// OnLoad is called before the fetch is executed
+	// OnLoad is called before a fetch is executed.
+	// The returned context is passed to OnFinished after the fetch completes.
+	// OnLoad is not called when the fetch is skipped (e.g. null parent data, auth rejection).
 	OnLoad(ctx context.Context, ds DataSourceInfo) context.Context
-	// OnFinished is called after the fetch has been executed and the response has been processed and merged
+	// OnFinished is called after a fetch has been executed and the response has been processed and merged.
+	// It is only called when OnLoad was called, i.e. when the fetch was not skipped.
 	OnFinished(ctx context.Context, ds DataSourceInfo, info *ResponseInfo)
 }
 
