@@ -548,6 +548,85 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 		}, *NewContext(context.Background()), `{"errors":[{"message":"errorMessage","extensions":{"code":"DOWNSTREAM_SERVICE_ERROR"}},{"message":"errorMessage2","extensions":{"code":"DOWNSTREAM_SERVICE_ERROR"}}],"data":{"name":null}}`
 	}))
 
+	t.Run("skipped fetch does not call OnFinished with nil loaderHookContext", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+		// First data source returns data where the "user" field is null
+		userService := NewMockDataSource(ctrl)
+		userService.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"user":null}}`), nil
+			})
+
+		// Second data source should never be called — the fetch is skipped because parent data is null
+		detailsService := NewMockDataSource(ctrl)
+		detailsService.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			Times(0)
+
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.LoaderHooks = NewTestLoaderHooks()
+
+		return &GraphQLResponse{
+				Info: &GraphQLResponseInfo{
+					OperationType: ast.OperationTypeQuery,
+				},
+				Fetches: Sequence(
+					Single(&SingleFetch{
+						FetchConfiguration: FetchConfiguration{
+							DataSource: userService,
+							PostProcessing: PostProcessingConfiguration{
+								SelectResponseDataPath: []string{"data"},
+							},
+						},
+						Info: &FetchInfo{
+							DataSourceID:   "Users",
+							DataSourceName: "Users",
+						},
+					}),
+					SingleWithPath(&SingleFetch{
+						FetchConfiguration: FetchConfiguration{
+							DataSource: detailsService,
+							PostProcessing: PostProcessingConfiguration{
+								SelectResponseDataPath: []string{"data"},
+							},
+						},
+						Info: &FetchInfo{
+							DataSourceID:   "Details",
+							DataSourceName: "Details",
+						},
+					}, "query.user", ObjectPath("user")),
+				),
+				Data: &Object{
+					Fields: []*Field{
+						{
+							Name: []byte("user"),
+							Value: &Object{
+								Nullable: true,
+								Path:     []string{"user"},
+								Fields: []*Field{
+									{
+										Name: []byte("name"),
+										Value: &String{
+											Path:     []string{"name"},
+											Nullable: true,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, resolveCtx, `{"data":{"user":null}}`,
+			func(t *testing.T) {
+				loaderHooks := resolveCtx.LoaderHooks.(*TestLoaderHooks)
+				// Only the first fetch should trigger OnLoad/OnFinished.
+				// The second fetch is skipped (null parent), so OnFinished must NOT be called
+				// (its loaderHookContext would be nil, which previously caused a panic in the router).
+				assert.Equal(t, int64(1), loaderHooks.preFetchCalls.Load())
+				assert.Equal(t, int64(1), loaderHooks.postFetchCalls.Load())
+			}
+	}))
+
 	t.Run("Fallback to default extension code value when extensions is an empty object", testFnSubgraphErrorsWithExtensionDefaultCode(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().

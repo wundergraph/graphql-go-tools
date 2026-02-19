@@ -139,8 +139,9 @@ type result struct {
 	rateLimitRejected       bool
 	rateLimitRejectedReason string
 
-	// loaderHookContext used to share data between the OnLoad and OnFinished hooks
-	// It should be valid even when OnLoad isn't called
+	// loaderHookContext is set by OnLoad during fetch execution.
+	// It is nil when the fetch was skipped (e.g. null parent data, auth rejection),
+	// in which case OnFinished must not be called.
 	loaderHookContext context.Context
 
 	httpResponseContext *httpclient.ResponseContext
@@ -281,7 +282,7 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 			}
 		} else {
 			err = l.mergeResult(nodes[i].Item, results[i], itemsItems[i])
-			if l.ctx.LoaderHooks != nil {
+			if l.ctx.LoaderHooks != nil && results[i].loaderHookContext != nil {
 				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].ds, newResponseInfo(results[i], l.ctx.subgraphErrors))
 			}
 			if err != nil {
@@ -316,7 +317,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 			return err
 		}
 		err = l.mergeResult(item, res, items)
-		if l.ctx.LoaderHooks != nil {
+		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
 			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.subgraphErrors))
 		}
 		return err
@@ -328,7 +329,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 			return errors.WithStack(err)
 		}
 		err = l.mergeResult(item, res, items)
-		if l.ctx.LoaderHooks != nil {
+		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
 			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.subgraphErrors))
 		}
 		return err
@@ -339,7 +340,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 			return errors.WithStack(err)
 		}
 		err = l.mergeResult(item, res, items)
-		if l.ctx.LoaderHooks != nil {
+		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
 			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.subgraphErrors))
 		}
 		return err
