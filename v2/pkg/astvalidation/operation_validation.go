@@ -12,8 +12,9 @@ import (
 )
 
 type OperationValidatorOptions struct {
-	ApolloCompatibilityFlags                   apollocompatibility.Flags
-	RelaxFieldSelectionMergingNullabilityCheck bool
+	ApolloCompatibilityFlags                    apollocompatibility.Flags
+	RelaxFieldSelectionMergingNullabilityCheck  bool
+	RelaxFieldSelectionMergingTypeMismatchCheck bool
 }
 
 func WithApolloCompatibilityFlags(flags apollocompatibility.Flags) Option {
@@ -29,6 +30,16 @@ func WithApolloCompatibilityFlags(flags apollocompatibility.Flags) Option {
 func WithRelaxFieldSelectionMergingNullability() Option {
 	return func(options *OperationValidatorOptions) {
 		options.RelaxFieldSelectionMergingNullabilityCheck = true
+	}
+}
+
+// WithRelaxFieldSelectionMergingTypeMismatch enables a deliberate spec deviation that allows
+// completely differing field types (e.g. IssueState vs PullRequestReviewState, or String vs Int)
+// on fields in non-overlapping concrete object types within inline fragments.
+// This is a superset of WithRelaxFieldSelectionMergingNullability.
+func WithRelaxFieldSelectionMergingTypeMismatch() Option {
+	return func(options *OperationValidatorOptions) {
+		options.RelaxFieldSelectionMergingTypeMismatchCheck = true
 	}
 }
 
@@ -58,7 +69,10 @@ func DefaultOperationValidator(options ...Option) *OperationValidator {
 	validator.RegisterRule(LoneAnonymousOperation())
 	validator.RegisterRule(SubscriptionSingleRootField())
 	validator.RegisterRule(FieldSelections())
-	validator.RegisterRule(FieldSelectionMerging(opts.RelaxFieldSelectionMergingNullabilityCheck))
+	validator.RegisterRule(FieldSelectionMerging(FieldSelectionMergingOptions{
+		RelaxNullabilityCheck:  opts.RelaxFieldSelectionMergingNullabilityCheck,
+		RelaxTypeMismatchCheck: opts.RelaxFieldSelectionMergingTypeMismatchCheck,
+	}))
 	validator.RegisterRule(KnownArguments())
 	validator.RegisterRule(Values())
 	validator.RegisterRule(ArgumentUniqueness())

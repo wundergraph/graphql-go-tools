@@ -9,11 +9,24 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
+// FieldSelectionMergingOptions configures relaxation flags for the FieldSelectionMerging rule.
+type FieldSelectionMergingOptions struct {
+	RelaxNullabilityCheck  bool
+	RelaxTypeMismatchCheck bool
+}
+
 // FieldSelectionMerging validates if field selections can be merged
-func FieldSelectionMerging(relaxNullabilityCheck ...bool) Rule {
-	relax := len(relaxNullabilityCheck) > 0 && relaxNullabilityCheck[0]
+func FieldSelectionMerging(options ...FieldSelectionMergingOptions) Rule {
+	var opts FieldSelectionMergingOptions
+	if len(options) > 0 {
+		opts = options[0]
+	}
 	return func(walker *astvisitor.Walker) {
-		visitor := fieldSelectionMergingVisitor{Walker: walker, relaxNullabilityCheck: relax}
+		visitor := fieldSelectionMergingVisitor{
+			Walker:                 walker,
+			relaxNullabilityCheck:  opts.RelaxNullabilityCheck,
+			relaxTypeMismatchCheck: opts.RelaxTypeMismatchCheck,
+		}
 		walker.RegisterEnterDocumentVisitor(&visitor)
 		walker.RegisterEnterFieldVisitor(&visitor)
 		walker.RegisterEnterOperationVisitor(&visitor)
@@ -24,11 +37,12 @@ func FieldSelectionMerging(relaxNullabilityCheck ...bool) Rule {
 type fieldSelectionMergingVisitor struct {
 	*astvisitor.Walker
 
-	definition, operation *ast.Document
-	scalarRequirements    scalarRequirements
-	nonScalarRequirements nonScalarRequirements
-	refs                  []int
-	relaxNullabilityCheck bool
+	definition, operation  *ast.Document
+	scalarRequirements     scalarRequirements
+	nonScalarRequirements  nonScalarRequirements
+	refs                   []int
+	relaxNullabilityCheck  bool
+	relaxTypeMismatchCheck bool
 }
 type nonScalarRequirement struct {
 	path                    ast.Path
@@ -121,11 +135,12 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 			} else if !f.definition.TypesAreCompatibleDeep(f.nonScalarRequirements[i].fieldTypeRef, fieldType) {
 				// Deliberate deviation from SameResponseShape (spec sec 5.3.2): when enclosing
 				// types cannot overlap at runtime (two distinct concrete object types),
-				// we allow nullability differences because only one branch will ever
-				// contribute to the response. This is gated behind relaxNullabilityCheck.
-				if !f.relaxNullabilityCheck ||
-					f.potentiallySameObject(f.nonScalarRequirements[i].enclosingTypeDefinition, f.EnclosingTypeDefinition) ||
-					!f.definition.TypesAreCompatibleIgnoringNullability(f.nonScalarRequirements[i].fieldTypeRef, fieldType) {
+				// we allow nullability or type differences because only one branch will ever
+				// contribute to the response.
+				canRelax := !f.potentiallySameObject(f.nonScalarRequirements[i].enclosingTypeDefinition, f.EnclosingTypeDefinition)
+				relaxed := canRelax && (f.relaxTypeMismatchCheck ||
+					(f.relaxNullabilityCheck && f.definition.TypesAreCompatibleIgnoringNullability(f.nonScalarRequirements[i].fieldTypeRef, fieldType)))
+				if !relaxed {
 					left, err := f.definition.PrintTypeBytes(f.nonScalarRequirements[i].fieldTypeRef, nil)
 					if err != nil {
 						f.StopWithInternalErr(err)
@@ -173,12 +188,12 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 		}
 		if !f.definition.TypesAreCompatibleDeep(f.scalarRequirements[i].fieldType, fieldType) {
 			// Per SameResponseShape (spec sec 5.3.2), when enclosing types cannot overlap
-			// at runtime (two distinct concrete object types), nullability differences are
-			// acceptable because only one branch will ever contribute to the response.
-			// This relaxation is gated behind the relaxNullabilityCheck flag.
-			if !f.relaxNullabilityCheck ||
-				f.potentiallySameObject(f.scalarRequirements[i].enclosingTypeDefinition, f.EnclosingTypeDefinition) ||
-				!f.definition.TypesAreCompatibleIgnoringNullability(f.scalarRequirements[i].fieldType, fieldType) {
+			// at runtime (two distinct concrete object types), nullability or type differences
+			// are acceptable because only one branch will ever contribute to the response.
+			canRelax := !f.potentiallySameObject(f.scalarRequirements[i].enclosingTypeDefinition, f.EnclosingTypeDefinition)
+			relaxed := canRelax && (f.relaxTypeMismatchCheck ||
+				(f.relaxNullabilityCheck && f.definition.TypesAreCompatibleIgnoringNullability(f.scalarRequirements[i].fieldType, fieldType)))
+			if !relaxed {
 				left, err := f.definition.PrintTypeBytes(f.scalarRequirements[i].fieldType, nil)
 				if err != nil {
 					f.StopWithInternalErr(err)

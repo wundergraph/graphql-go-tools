@@ -1084,7 +1084,7 @@ func TestExecutionValidation(t *testing.T) {
 										... on User { email }
 										... on Organization { email }
 									}
-								}`, FieldSelectionMerging(true), Valid)
+								}`, FieldSelectionMerging(FieldSelectionMergingOptions{RelaxNullabilityCheck: true}), Valid)
 					})
 					t.Run("rejects differing scalar nullability on non-overlapping object types without relaxation flag", func(t *testing.T) {
 						runWithDefinition(t, entityDefinition, `
@@ -1103,7 +1103,7 @@ func TestExecutionValidation(t *testing.T) {
 										... on User { profile { name } }
 										... on Organization { profile { name } }
 									}
-								}`, FieldSelectionMerging(true), Valid)
+								}`, FieldSelectionMerging(FieldSelectionMergingOptions{RelaxNullabilityCheck: true}), Valid)
 					})
 					t.Run("rejects differing non-scalar nullability on non-overlapping object types without relaxation flag", func(t *testing.T) {
 						runWithDefinition(t, entityDefinition, `
@@ -1114,6 +1114,92 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}`, FieldSelectionMerging(), Invalid,
 							withValidationErrors(`differing types 'Profile!' and 'Profile' for objectName 'profile'`))
+					})
+					// Type mismatch relaxation tests
+					t.Run("allows differing scalar types on non-overlapping object types with type mismatch flag", func(t *testing.T) {
+						runWithDefinition(t, entityDefinition, `
+								{
+									entity {
+										... on User { score }
+										... on Organization { score }
+									}
+								}`, FieldSelectionMerging(FieldSelectionMergingOptions{RelaxTypeMismatchCheck: true}), Valid)
+					})
+					t.Run("rejects differing scalar types on non-overlapping object types without flag", func(t *testing.T) {
+						runWithDefinition(t, entityDefinition, `
+								{
+									entity {
+										... on User { score }
+										... on Organization { score }
+									}
+								}`, FieldSelectionMerging(), Invalid,
+							withValidationErrors(`fields 'score' conflict because they return conflicting types 'Int' and 'String'`))
+					})
+					t.Run("rejects differing scalar types with only nullability flag", func(t *testing.T) {
+						runWithDefinition(t, entityDefinition, `
+								{
+									entity {
+										... on User { score }
+										... on Organization { score }
+									}
+								}`, FieldSelectionMerging(FieldSelectionMergingOptions{RelaxNullabilityCheck: true}), Invalid,
+							withValidationErrors(`fields 'score' conflict because they return conflicting types 'Int' and 'String'`))
+					})
+					t.Run("allows three-way type mismatch on non-overlapping types", func(t *testing.T) {
+						runWithDefinition(t, entityDefinition, `
+								{
+									entity {
+										... on User { score }
+										... on Organization { score }
+										... on Bot { score }
+									}
+								}`, FieldSelectionMerging(FieldSelectionMergingOptions{RelaxTypeMismatchCheck: true}), Valid)
+					})
+					t.Run("allows differing enum types on non-overlapping object types", func(t *testing.T) {
+						// Enum types go through the non-scalar path where different enum type
+						// definition nodes hit potentiallySameObject=false on the field types,
+						// so no error is produced even without relaxation flags.
+						runWithDefinition(t, entityDefinition, `
+								{
+									entity {
+										... on User { role }
+										... on Organization { role }
+									}
+								}`, FieldSelectionMerging(), Valid)
+					})
+					t.Run("allows differing enum types on non-overlapping object types with type mismatch flag", func(t *testing.T) {
+						runWithDefinition(t, entityDefinition, `
+								{
+									entity {
+										... on User { role }
+										... on Organization { role }
+									}
+								}`, FieldSelectionMerging(FieldSelectionMergingOptions{RelaxTypeMismatchCheck: true}), Valid)
+					})
+					t.Run("rejects nullability mismatch when interface could overlap even with type mismatch flag", func(t *testing.T) {
+						// NonNullStringBox1 is an interface, so potentiallySameObject returns true
+						// for the enclosing types — relaxation must not apply.
+						runWithDefinition(t, boxDefinition, `
+								{
+									someBox {
+										... on NonNullStringBox1 {
+											scalar
+										}
+										... on StringBox {
+											scalar
+										}
+									}
+								}`, FieldSelectionMerging(FieldSelectionMergingOptions{RelaxTypeMismatchCheck: true}), Invalid,
+							withValidationErrors(`fields 'scalar' conflict because they return conflicting types 'String!' and 'String'`))
+					})
+					t.Run("type mismatch flag also relaxes nullability differences", func(t *testing.T) {
+						runWithDefinition(t, entityDefinition, `
+								{
+									entity {
+										... on User { email }
+										... on Organization { email }
+									}
+								}`, FieldSelectionMerging(FieldSelectionMergingOptions{RelaxTypeMismatchCheck: true}), Valid)
 					})
 					t.Run("disallows differing return type nullability when interface could overlap", func(t *testing.T) {
 						runWithDefinition(t, boxDefinition, `
@@ -5701,7 +5787,12 @@ schema {
 const entityDefinition = `
 scalar String
 scalar Int
+scalar Boolean
 scalar ID
+
+enum UserRole { ADMIN MEMBER }
+enum OrgRole { OWNER CONTRIBUTOR }
+enum BotKind { CI CD }
 
 interface Node {
 	id: ID!
@@ -5711,19 +5802,28 @@ type User implements Node {
 	id: ID!
 	email: String!
 	profile: Profile!
+	role: UserRole
+	score: Int
 }
 
 type Organization implements Node {
 	id: ID!
 	email: String
 	profile: Profile
+	role: OrgRole
+	score: String
+}
+
+type Bot implements Node {
+	id: ID!
+	score: Boolean
 }
 
 type Profile {
 	name: String
 }
 
-union Entity = User | Organization
+union Entity = User | Organization | Bot
 
 type Query {
 	entity: Entity

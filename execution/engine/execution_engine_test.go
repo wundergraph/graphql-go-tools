@@ -224,6 +224,7 @@ type _executionTestOptions struct {
 	validateRequiredExternalFields               bool
 	computeStaticCost                            bool
 	relaxFieldSelectionMergingNullability        bool
+	relaxFieldSelectionMergingTypeMismatch       bool
 }
 
 type executionTestOptions func(*_executionTestOptions)
@@ -257,6 +258,12 @@ func computeStaticCost() executionTestOptions {
 func relaxFieldSelectionMergingNullability() executionTestOptions {
 	return func(options *_executionTestOptions) {
 		options.relaxFieldSelectionMergingNullability = true
+	}
+}
+
+func relaxFieldSelectionMergingTypeMismatch() executionTestOptions {
+	return func(options *_executionTestOptions) {
+		options.relaxFieldSelectionMergingTypeMismatch = true
 	}
 }
 
@@ -297,6 +304,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			engineConf.plannerConfig.ComputeStaticCost = opts.computeStaticCost
 			engineConf.plannerConfig.StaticCostDefaultListSize = 10
 			engineConf.plannerConfig.RelaxSubgraphOperationFieldSelectionMergingNullability = opts.relaxFieldSelectionMergingNullability
+			engineConf.plannerConfig.RelaxSubgraphOperationFieldSelectionMergingTypeMismatch = opts.relaxFieldSelectionMergingTypeMismatch
 			resolveOpts := resolve.ResolverOptions{
 				MaxConcurrency:    1024,
 				ResolvableOptions: opts.resolvableOptions,
@@ -6916,7 +6924,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			relaxFieldSelectionMergingNullability(),
 		))
 
-		t.Run("null email from Organization type", runWithoutError(
+		t.Run("null email from Organization type with nullability relaxation", runWithoutError(
 			ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
@@ -6946,6 +6954,134 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				expectedResponse: `{"data":{"entity":{"email":null}}}`,
 			},
 			relaxFieldSelectionMergingNullability(),
+		))
+	})
+
+	t.Run("field merging with different types on non-overlapping union types", func(t *testing.T) {
+		unionSchema := `
+			union Entity = User | Organization
+			type Query { entity: Entity }
+			type User { id: ID!, score: Int }
+			type Organization { id: ID!, score: String }
+		`
+		schema, err := graphql.NewSchemaFromString(unionSchema)
+		require.NoError(t, err)
+
+		rootNodes := []plan.TypeField{
+			{TypeName: "Query", FieldNames: []string{"entity"}},
+			{TypeName: "User", FieldNames: []string{"id", "score"}},
+			{TypeName: "Organization", FieldNames: []string{"id", "score"}},
+		}
+
+		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+			Fetch: &graphql_datasource.FetchConfiguration{
+				URL:    "https://example.com/",
+				Method: "POST",
+			},
+			SchemaConfiguration: mustSchemaConfig(t, nil, unionSchema),
+		})
+
+		fieldConfig := []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "entity",
+				Path:      []string{"entity"},
+			},
+		}
+
+		t.Run("without relaxation flag, validation rejects differing types", runWithAndCompareError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "O",
+						Query:         `query O { entity { ... on User { score } ... on Organization { score } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "ds-id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"entity":{"__typename":"User","score":42}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: rootNodes,
+						},
+						customConfig,
+					),
+				},
+				fields: fieldConfig,
+			},
+			`fields 'score' conflict because they return conflicting types 'Int' and 'String', locations: [], path: [query,entity,$1Organization]`,
+		))
+
+		t.Run("integer score from User type with type mismatch relaxation", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "O",
+						Query:         `query O { entity { ... on User { score } ... on Organization { score } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "ds-id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"entity":{"__typename":"User","score":42}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: rootNodes,
+						},
+						customConfig,
+					),
+				},
+				fields:           fieldConfig,
+				expectedResponse: `{"data":{"entity":{"score":42}}}`,
+			},
+			relaxFieldSelectionMergingTypeMismatch(),
+		))
+
+		t.Run("string score from Organization type with type mismatch relaxation", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "O",
+						Query:         `query O { entity { ... on User { score } ... on Organization { score } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "ds-id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"entity":{"__typename":"Organization","score":"high"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: rootNodes,
+						},
+						customConfig,
+					),
+				},
+				fields:           fieldConfig,
+				expectedResponse: `{"data":{"entity":{"score":"high"}}}`,
+			},
+			relaxFieldSelectionMergingTypeMismatch(),
 		))
 	})
 }

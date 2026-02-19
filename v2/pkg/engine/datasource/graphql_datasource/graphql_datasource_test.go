@@ -8233,6 +8233,125 @@ func TestGraphQLDataSource(t *testing.T) {
 		DisableResolveFieldPositions: true,
 	}, WithDefaultPostProcessor()))
 
+	t.Run("inline fragments on non-overlapping types with different field types", func(t *testing.T) {
+		definition := `
+			scalar String
+			scalar Int
+			scalar ID
+
+			type User {
+				id: ID!
+				score: Int
+			}
+
+			type Organization {
+				id: ID!
+				score: String
+			}
+
+			union Entity = User | Organization
+
+			type Query {
+				entity: Entity
+			}
+
+			schema {
+				query: Query
+			}
+		`
+
+		t.Run("run", RunTest(definition, `
+			query MyQuery {
+				entity {
+					... on User { score }
+					... on Organization { score }
+				}
+			}`,
+			"MyQuery",
+			&plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Fetches: resolve.Sequence(
+						resolve.Single(&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								DataSource:     &Source{},
+								Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"{entity {__typename ... on User {score} ... on Organization {score}}}"}}`,
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						})),
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("entity"),
+								Value: &resolve.Object{
+									Path:     []string{"entity"},
+									Nullable: true,
+									PossibleTypes: map[string]struct{}{
+										"User":         {},
+										"Organization": {},
+									},
+									TypeName: "Entity",
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("score"),
+											Value: &resolve.Integer{
+												Path:     []string{"score"},
+												Nullable: true,
+											},
+											OnTypeNames: [][]byte{[]byte("User")},
+										},
+										{
+											Name: []byte("score"),
+											Value: &resolve.String{
+												Path:     []string{"score"},
+												Nullable: true,
+											},
+											OnTypeNames: [][]byte{[]byte("Organization")},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, plan.Configuration{
+				DataSources: []plan.DataSource{
+					mustDataSourceConfiguration(
+						t,
+						"ds-id",
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"entity"},
+								},
+							},
+							ChildNodes: []plan.TypeField{
+								{
+									TypeName:   "User",
+									FieldNames: []string{"id", "score"},
+								},
+								{
+									TypeName:   "Organization",
+									FieldNames: []string{"id", "score"},
+								},
+							},
+						},
+						mustCustomConfiguration(t, ConfigurationInput{
+							Fetch: &FetchConfiguration{
+								URL: "https://example.com/graphql",
+							},
+							SchemaConfiguration: mustSchema(t, nil, definition),
+						}),
+					),
+				},
+				DisableResolveFieldPositions:                            true,
+				RelaxSubgraphOperationFieldSelectionMergingTypeMismatch: true,
+			}, WithDefaultPostProcessor(),
+			WithValidationOptions(astvalidation.WithRelaxFieldSelectionMergingTypeMismatch()),
+		))
+	})
+
 	t.Run("inline fragments on non-overlapping types with different field nullability", func(t *testing.T) {
 		definition := `
 			scalar String

@@ -59,6 +59,14 @@ type Configuration struct {
 	// When true, factories that support it will allow differing nullability
 	// (e.g. String! vs String) on fields in non-overlapping inline fragments.
 	RelaxSubgraphOperationFieldSelectionMergingNullability bool
+
+	// RelaxSubgraphOperationFieldSelectionMergingTypeMismatch relaxes the type mismatch validation
+	// for field selection merging in upstream (subgraph) operations when enclosing types are
+	// non-overlapping concrete object types. This is a deliberate spec deviation.
+	// When true, factories that support it will allow completely differing field types
+	// (e.g. IssueState vs PullRequestReviewState) on fields in non-overlapping inline fragments.
+	// This is a superset of RelaxSubgraphOperationFieldSelectionMergingNullability.
+	RelaxSubgraphOperationFieldSelectionMergingTypeMismatch bool
 }
 
 type DebugConfiguration struct {

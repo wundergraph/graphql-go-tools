@@ -1715,9 +1715,11 @@ func newPrintKitPool(validationOptions ...astvalidation.Option) *sync.Pool {
 }
 
 var (
-	defaultPrintKitPool     = newPrintKitPool()
-	relaxedPrintKitPool     *sync.Pool
-	relaxedPrintKitPoolOnce sync.Once
+	defaultPrintKitPool                 = newPrintKitPool()
+	relaxedPrintKitPool                 *sync.Pool
+	relaxedPrintKitPoolOnce             sync.Once
+	typeMismatchRelaxedPrintKitPool     *sync.Pool
+	typeMismatchRelaxedPrintKitPoolOnce sync.Once
 )
 
 func getRelaxedPrintKitPool() *sync.Pool {
@@ -1725,6 +1727,13 @@ func getRelaxedPrintKitPool() *sync.Pool {
 		relaxedPrintKitPool = newPrintKitPool(astvalidation.WithRelaxFieldSelectionMergingNullability())
 	})
 	return relaxedPrintKitPool
+}
+
+func getTypeMismatchRelaxedPrintKitPool() *sync.Pool {
+	typeMismatchRelaxedPrintKitPoolOnce.Do(func() {
+		typeMismatchRelaxedPrintKitPool = newPrintKitPool(astvalidation.WithRelaxFieldSelectionMergingTypeMismatch())
+	})
+	return typeMismatchRelaxedPrintKitPool
 }
 
 type Factory[T Configuration] struct {
@@ -1819,6 +1828,14 @@ func (p *Planner[T]) releaseKit(kit *printKit) {
 // on fields in non-overlapping concrete types.
 func (f *Factory[T]) EnableSubgraphFieldSelectionMergingNullabilityRelaxation() {
 	f.printKitPool = getRelaxedPrintKitPool()
+}
+
+// EnableSubgraphFieldSelectionMergingTypeMismatchRelaxation implements
+// plan.SubgraphFieldSelectionMergingTypeMismatchRelaxer. It configures the
+// factory to use a shared pool whose validator allows completely differing
+// field types on non-overlapping concrete types.
+func (f *Factory[T]) EnableSubgraphFieldSelectionMergingTypeMismatchRelaxation() {
+	f.printKitPool = getTypeMismatchRelaxedPrintKitPool()
 }
 
 func (f *Factory[T]) getPrintKitPool() *sync.Pool {

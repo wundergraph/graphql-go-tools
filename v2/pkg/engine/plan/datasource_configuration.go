@@ -305,6 +305,11 @@ func (d *dataSourceConfiguration[T]) CreatePlannerConfiguration(logger abstractl
 			relaxer.EnableSubgraphFieldSelectionMergingNullabilityRelaxation()
 		}
 	}
+	if configuration.RelaxSubgraphOperationFieldSelectionMergingTypeMismatch {
+		if relaxer, ok := d.factory.(SubgraphFieldSelectionMergingTypeMismatchRelaxer); ok {
+			relaxer.EnableSubgraphFieldSelectionMergingTypeMismatchRelaxation()
+		}
+	}
 
 	planner := d.factory.Planner(logger)
 
@@ -487,6 +492,14 @@ type Identifyable interface {
 // on fields in non-overlapping concrete types.
 type SubgraphFieldSelectionMergingNullabilityRelaxer interface {
 	EnableSubgraphFieldSelectionMergingNullabilityRelaxation()
+}
+
+// SubgraphFieldSelectionMergingTypeMismatchRelaxer is an optional interface that a PlannerFactory
+// can implement to support relaxed type mismatch checks when validating upstream operations.
+// When called, the factory should configure its internal validator to allow completely differing
+// field types on non-overlapping concrete types.
+type SubgraphFieldSelectionMergingTypeMismatchRelaxer interface {
+	EnableSubgraphFieldSelectionMergingTypeMismatchRelaxation()
 }
 
 type DataSourcePlanner[T any] interface {
