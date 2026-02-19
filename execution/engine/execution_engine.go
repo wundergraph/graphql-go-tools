@@ -237,8 +237,8 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 		if err != nil {
 			return err
 		}
-		if resp != nil && resp.ActualListSizes != nil {
-			operation.ComputeActualCost(costCalculator, e.config.plannerConfig, execContext.resolveContext.Variables, resp.ActualListSizes)
+		if resp != nil {
+			operation.ComputeActualCost(costCalculator, e.config.plannerConfig, resp.ActualListSizes)
 		}
 		return nil
 	case *plan.SubscriptionResponsePlan:
