@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.0.0-rc.251](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.250...v2.0.0-rc.251) (2026-02-18)
+
+
+### Bug Fixes
+
+* **resolve:** share response headers with singleflight followers ([#1389](https://github.com/wundergraph/graphql-go-tools/issues/1389)) ([ed80a8e](https://github.com/wundergraph/graphql-go-tools/commit/ed80a8e581935241834422414686aa3c31471dc0))
+
+## [2.0.0-rc.250](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.249...v2.0.0-rc.250) (2026-02-16)
+
+
+### Features
+
+* add flag for relaxed nullability checks on same shape ([#1378](https://github.com/wundergraph/graphql-go-tools/issues/1378)) ([6be2e74](https://github.com/wundergraph/graphql-go-tools/commit/6be2e74036a027f44adaff7f6bfbdbce1d1fb03b))
+
+## [2.0.0-rc.249](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.248...v2.0.0-rc.249) (2026-02-13)
+
+
+### Bug Fixes
+
+* ensure GC safety for arena-allocated string values ([#1383](https://github.com/wundergraph/graphql-go-tools/issues/1383)) ([608be72](https://github.com/wundergraph/graphql-go-tools/commit/608be72c12b7e308a4134d3a7fe1205f7f491bf5))
+
 ## [2.0.0-rc.248](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.247...v2.0.0-rc.248) (2026-02-11)
 
 

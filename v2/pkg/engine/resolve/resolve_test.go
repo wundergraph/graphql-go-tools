@@ -892,6 +892,91 @@ func TestResolver_ResolveNode(t *testing.T) {
 			}, *NewContext(context.Background()),
 			`{"data":{"pets":[{"name":"Woofie"},{}]}}`
 	}))
+	t.Run("resolve fields with differing nullability on non-overlapping types", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
+		// This test verifies that the resolver correctly handles fields where the same field name
+		// has different nullability on non-overlapping concrete types (e.g. User.email: String! vs Organization.email: String).
+		// A User object should resolve email as non-null, and an Organization object should resolve email as nullable.
+		return &GraphQLResponse{
+				Fetches: Single(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"entity":{"__typename":"User","email":"user@example.com"}}`)},
+				}),
+				Data: &Object{
+					Fields: []*Field{
+						{
+							Name: []byte("entity"),
+							Value: &Object{
+								Path: []string{"entity"},
+								PossibleTypes: map[string]struct{}{
+									"User":         {},
+									"Organization": {},
+								},
+								TypeName: "Entity",
+								Fields: []*Field{
+									{
+										OnTypeNames: [][]byte{[]byte("User")},
+										Name:        []byte("email"),
+										Value: &String{
+											Path: []string{"email"},
+										},
+									},
+									{
+										OnTypeNames: [][]byte{[]byte("Organization")},
+										Name:        []byte("email"),
+										Value: &String{
+											Path:     []string{"email"},
+											Nullable: true,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, *NewContext(context.Background()),
+			`{"data":{"entity":{"email":"user@example.com"}}}`
+	}))
+	t.Run("resolve fields with differing nullability on non-overlapping types - nullable variant", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
+		// Same scenario but the runtime object is Organization (nullable email) with a null email value
+		return &GraphQLResponse{
+				Fetches: Single(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"entity":{"__typename":"Organization","email":null}}`)},
+				}),
+				Data: &Object{
+					Fields: []*Field{
+						{
+							Name: []byte("entity"),
+							Value: &Object{
+								Path: []string{"entity"},
+								PossibleTypes: map[string]struct{}{
+									"User":         {},
+									"Organization": {},
+								},
+								TypeName: "Entity",
+								Fields: []*Field{
+									{
+										OnTypeNames: [][]byte{[]byte("User")},
+										Name:        []byte("email"),
+										Value: &String{
+											Path: []string{"email"},
+										},
+									},
+									{
+										OnTypeNames: [][]byte{[]byte("Organization")},
+										Name:        []byte("email"),
+										Value: &String{
+											Path:     []string{"email"},
+											Nullable: true,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, *NewContext(context.Background()),
+			`{"data":{"entity":{"email":null}}}`
+	}))
+
 	t.Run("with unescape json enabled", func(t *testing.T) {
 		t.Run("json object within a string", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 			return &GraphQLResponse{
@@ -4658,6 +4743,149 @@ func TestResolver_ArenaResolveGraphQLResponse_RequestDeduplication(t *testing.T)
 	for i := 1; i < requestCount; i++ {
 		assert.True(t, results[i].info.ResolveDeduplicated)
 		assert.Equal(t, expectedOutput, results[i].output)
+	}
+}
+
+func TestResolver_ArenaResolveGraphQLResponse_RequestDeduplication_SharedData(t *testing.T) {
+	rCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	r := newResolver(rCtx)
+
+	ds := newBlockingDataSource([]byte(`{"value":"slow"}`))
+	defer ds.Release()
+
+	response := &GraphQLResponse{
+		Info: &GraphQLResponseInfo{
+			OperationType: ast.OperationTypeQuery,
+		},
+		Fetches: Single(&SingleFetch{
+			FetchConfiguration: FetchConfiguration{
+				DataSource: ds,
+			},
+		}),
+		Data: &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("value"),
+					Value: &String{
+						Path:     []string{"value"},
+						Nullable: false,
+					},
+				},
+			},
+		},
+	}
+
+	type sharedHeaders struct {
+		CacheControl string
+	}
+
+	// Tracks which contexts received shared data
+	var followerData sync.Map
+
+	ctxTemplateBase := NewContext(context.Background())
+	ctxTemplateBase.Request.ID = 42
+	ctxTemplateBase.VariablesHash = 1337
+
+	const requestCount = 3
+
+	type result struct {
+		info   *GraphQLResolveInfo
+		output string
+		err    error
+	}
+
+	results := make([]result, requestCount)
+
+	var wg sync.WaitGroup
+	wg.Add(requestCount)
+
+	leaderWriter := newBlockingWriter()
+
+	go func() {
+		defer wg.Done()
+		ctx := *ctxTemplateBase
+		SetDeduplicationCallbacks(&ctx,
+			func(ctx context.Context) *sharedHeaders {
+				return &sharedHeaders{CacheControl: "max-age=120"}
+			},
+			func(ctx context.Context, data *sharedHeaders) {
+				followerData.Store("leader", data)
+			},
+		)
+		info, err := r.ArenaResolveGraphQLResponse(&ctx, response, leaderWriter)
+		results[0] = result{info: info, output: leaderWriter.String(), err: err}
+	}()
+
+	select {
+	case <-ds.Ready():
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for leader data source load")
+	}
+
+	startFollowers := make(chan struct{})
+	followersEntered := make(chan struct{}, requestCount-1)
+
+	for i := 1; i < requestCount; i++ {
+		go func(i int) {
+			defer wg.Done()
+			ctx := *ctxTemplateBase
+			SetDeduplicationCallbacks(&ctx,
+				func(ctx context.Context) *sharedHeaders {
+					return &sharedHeaders{CacheControl: "max-age=120"}
+				},
+				func(ctx context.Context, data *sharedHeaders) {
+					followerData.Store(i, data)
+				},
+			)
+			<-startFollowers
+			followersEntered <- struct{}{}
+			buf := &bytes.Buffer{}
+			info, err := r.ArenaResolveGraphQLResponse(&ctx, response, buf)
+			results[i] = result{info: info, output: buf.String(), err: err}
+		}(i)
+	}
+
+	close(startFollowers)
+
+	for i := 1; i < requestCount; i++ {
+		select {
+		case <-followersEntered:
+		case <-time.After(time.Second):
+			t.Fatalf("timeout waiting for follower %d to start", i)
+		}
+	}
+
+	ds.Release()
+
+	select {
+	case <-leaderWriter.Ready():
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for leader to start writing response")
+	}
+
+	leaderWriter.Release()
+	wg.Wait()
+
+	for _, res := range results {
+		require.NoError(t, res.err)
+		require.NotNil(t, res.info)
+	}
+
+	assert.False(t, results[0].info.ResolveDeduplicated)
+
+	// Leader should not have SetDeduplicationData called
+	_, leaderReceived := followerData.Load("leader")
+	assert.False(t, leaderReceived, "leader should not receive shared data via SetDeduplicationData")
+
+	// Each follower should have received the shared data
+	for i := 1; i < requestCount; i++ {
+		assert.True(t, results[i].info.ResolveDeduplicated)
+		data, ok := followerData.Load(i)
+		require.True(t, ok, "follower %d should have received shared data", i)
+		shared, ok := data.(*sharedHeaders)
+		require.True(t, ok, "shared data should be *sharedHeaders")
+		assert.Equal(t, "max-age=120", shared.CacheControl)
 	}
 }
 
