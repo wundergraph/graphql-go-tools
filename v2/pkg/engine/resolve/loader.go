@@ -56,9 +56,12 @@ func stringValueOnArena(a arena.Arena, s string) *astjson.Value {
 }
 
 type LoaderHooks interface {
-	// OnLoad is called before the fetch is executed
+	// OnLoad is called before a fetch is executed.
+	// The returned context is passed to OnFinished after the fetch completes.
+	// OnLoad is not called when the fetch is skipped (e.g. null parent data, auth rejection).
 	OnLoad(ctx context.Context, ds DataSourceInfo) context.Context
-	// OnFinished is called after the fetch has been executed and the response has been processed and merged
+	// OnFinished is called after a fetch has been executed and the response has been processed and merged.
+	// It is only called when OnLoad was called, i.e. when the fetch was not skipped.
 	OnFinished(ctx context.Context, ds DataSourceInfo, info *ResponseInfo)
 }
 
@@ -139,8 +142,9 @@ type result struct {
 	rateLimitRejected       bool
 	rateLimitRejectedReason string
 
-	// loaderHookContext used to share data between the OnLoad and OnFinished hooks
-	// It should be valid even when OnLoad isn't called
+	// loaderHookContext is set by OnLoad during fetch execution.
+	// It is nil when the fetch was skipped (e.g. null parent data, auth rejection),
+	// in which case OnFinished must not be called.
 	loaderHookContext context.Context
 
 	httpResponseContext *httpclient.ResponseContext
@@ -270,20 +274,14 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 		if results[i].nestedMergeItems != nil {
 			for j := range results[i].nestedMergeItems {
 				err = l.mergeResult(nodes[i].Item, results[i].nestedMergeItems[j], itemsItems[i][j:j+1])
-				if l.ctx.LoaderHooks != nil && results[i].nestedMergeItems[j].loaderHookContext != nil {
-					l.ctx.LoaderHooks.OnFinished(results[i].nestedMergeItems[j].loaderHookContext,
-						results[i].nestedMergeItems[j].ds,
-						newResponseInfo(results[i].nestedMergeItems[j], l.ctx.subgraphErrors))
-				}
+				l.callOnFinished(results[i].nestedMergeItems[j])
 				if err != nil {
 					return errors.WithStack(err)
 				}
 			}
 		} else {
 			err = l.mergeResult(nodes[i].Item, results[i], itemsItems[i])
-			if l.ctx.LoaderHooks != nil {
-				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].ds, newResponseInfo(results[i], l.ctx.subgraphErrors))
-			}
+			l.callOnFinished(results[i])
 			if err != nil {
 				return errors.WithStack(err)
 			}
@@ -316,9 +314,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 			return err
 		}
 		err = l.mergeResult(item, res, items)
-		if l.ctx.LoaderHooks != nil {
-			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.subgraphErrors))
-		}
+		l.callOnFinished(res)
 		return err
 	case *BatchEntityFetch:
 		res := &result{}
@@ -328,9 +324,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 			return errors.WithStack(err)
 		}
 		err = l.mergeResult(item, res, items)
-		if l.ctx.LoaderHooks != nil {
-			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.subgraphErrors))
-		}
+		l.callOnFinished(res)
 		return err
 	case *EntityFetch:
 		res := &result{}
@@ -339,12 +333,16 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 			return errors.WithStack(err)
 		}
 		err = l.mergeResult(item, res, items)
-		if l.ctx.LoaderHooks != nil {
-			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.subgraphErrors))
-		}
+		l.callOnFinished(res)
 		return err
 	default:
 		return nil
+	}
+}
+
+func (l *Loader) callOnFinished(res *result) {
+	if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
+		l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.subgraphErrors))
 	}
 }
 
@@ -1717,6 +1715,21 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 		}
 
 		res.out = item.response
+		// Populate the ResponseContext that was injected by executeSourceLoad.
+		// This is the same pointer that executeSourceLoad reads when it assigns
+		// res.statusCode and res.httpResponseContext, so the follower's result
+		// fields will be set correctly even though no HTTP call was made.
+		if rc := httpclient.GetResponseContext(ctx); rc != nil {
+			rc.StatusCode = item.statusCode
+			if item.responseHeaders != nil {
+				// Minimal synthetic http.Response carrying only status and headers.
+				// Clone headers so each concurrent follower gets an independent copy.
+				rc.Response = &http.Response{
+					StatusCode: item.statusCode,
+					Header:     item.responseHeaders.Clone(),
+				}
+			}
+		}
 		return nil
 	}
 
@@ -1733,6 +1746,14 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 	}
 
 	item.response = res.out
+	// Capture the leader's HTTP response metadata so followers can reuse it.
+	// The ResponseContext was populated by the HTTP client during loadByContextDirect.
+	if rc := httpclient.GetResponseContext(ctx); rc != nil {
+		item.statusCode = rc.StatusCode
+		if rc.Response != nil && rc.Response.Header != nil {
+			item.responseHeaders = rc.Response.Header.Clone()
+		}
+	}
 	return nil
 }
 
