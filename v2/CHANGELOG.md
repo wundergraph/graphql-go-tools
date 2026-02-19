@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.0.0-rc.252](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.251...v2.0.0-rc.252) (2026-02-19)
+
+
+### Features
+
+* forward headers to grpc subgraphs ([#1382](https://github.com/wundergraph/graphql-go-tools/issues/1382)) ([8459b34](https://github.com/wundergraph/graphql-go-tools/commit/8459b349eb80b75ae3d90f0df5dfe45bc0e1cea8))
+
+
+### Bug Fixes
+
+* **resolve:** fix flaky singleflight deduplication tests ([#1393](https://github.com/wundergraph/graphql-go-tools/issues/1393)) ([4105082](https://github.com/wundergraph/graphql-go-tools/commit/41050822e677ec4f1e04b4541f078a976ffbee15))
+* **resolve:** guard OnFinished against nil loaderHookContext on skipped fetches ([#1394](https://github.com/wundergraph/graphql-go-tools/issues/1394)) ([f79d071](https://github.com/wundergraph/graphql-go-tools/commit/f79d07105440ee2f59242dff7e81e909b550a9d6))
+
 ## [2.0.0-rc.251](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.250...v2.0.0-rc.251) (2026-02-18)
 
 
