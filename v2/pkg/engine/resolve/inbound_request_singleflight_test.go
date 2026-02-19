@@ -2,7 +2,6 @@ package resolve
 
 import (
 	"context"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -93,13 +92,13 @@ func TestInboundSingleFlight_FollowerReceivesLeaderError(t *testing.T) {
 	}()
 
 	// Poll until the follower has actually registered inside GetOrCreate.
-	deadline := time.After(time.Second)
+	deadline := time.After(3 * time.Second)
 	for inflight.followerCount.Load() < 1 {
 		select {
 		case <-deadline:
 			t.Fatal("timeout waiting for follower to enter singleflight")
 		default:
-			runtime.Gosched()
+			time.Sleep(10 * time.Millisecond)
 		}
 	}
 

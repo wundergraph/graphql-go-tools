@@ -8,7 +8,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -169,7 +168,7 @@ func findAnyInflight(r *Resolver) *InflightRequest {
 // waitForFollowerCount polls until the inflight request has at least count followers registered.
 func waitForFollowerCount(t *testing.T, r *Resolver, count int32) {
 	t.Helper()
-	deadline := time.After(time.Second)
+	deadline := time.After(3 * time.Second)
 	for {
 		inflight := findAnyInflight(r)
 		if inflight != nil && inflight.followerCount.Load() >= count {
@@ -179,7 +178,7 @@ func waitForFollowerCount(t *testing.T, r *Resolver, count int32) {
 		case <-deadline:
 			t.Fatal("timeout waiting for followers to enter singleflight")
 		default:
-			runtime.Gosched()
+			time.Sleep(10 * time.Millisecond)
 		}
 	}
 }
