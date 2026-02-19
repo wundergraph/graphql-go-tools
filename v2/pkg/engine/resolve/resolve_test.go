@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -147,6 +148,40 @@ func (w *blockingWriter) Release() {
 
 func (w *blockingWriter) String() string {
 	return w.buf.String()
+}
+
+// findAnyInflight iterates through all singleflight shards and returns
+// the first inflight request found. Used in tests to poll followerCount.
+func findAnyInflight(r *Resolver) *InflightRequest {
+	for i := range r.inboundRequestSingleFlight.shards {
+		var found *InflightRequest
+		r.inboundRequestSingleFlight.shards[i].m.Range(func(_, value any) bool {
+			found = value.(*InflightRequest)
+			return false
+		})
+		if found != nil {
+			return found
+		}
+	}
+	return nil
+}
+
+// waitForFollowerCount polls until the inflight request has at least count followers registered.
+func waitForFollowerCount(t *testing.T, r *Resolver, count int32) {
+	t.Helper()
+	deadline := time.After(time.Second)
+	for {
+		inflight := findAnyInflight(r)
+		if inflight != nil && inflight.followerCount.Load() >= count {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatal("timeout waiting for followers to enter singleflight")
+		default:
+			runtime.Gosched()
+		}
+	}
 }
 
 type TestErrorWriter struct {
@@ -4694,30 +4729,20 @@ func TestResolver_ArenaResolveGraphQLResponse_RequestDeduplication(t *testing.T)
 		t.Fatalf("timeout waiting for leader data source load")
 	}
 
-	startFollowers := make(chan struct{})
-	followersEntered := make(chan struct{}, requestCount-1)
-
 	for i := 1; i < requestCount; i++ {
 		go func(i int) {
 			defer wg.Done()
 			ctx := ctxTemplate
-			<-startFollowers
-			followersEntered <- struct{}{}
 			buf := &bytes.Buffer{}
 			info, err := r.ArenaResolveGraphQLResponse(&ctx, response, buf)
 			results[i] = result{info: info, output: buf.String(), err: err}
 		}(i)
 	}
 
-	close(startFollowers)
-
-	for i := 1; i < requestCount; i++ {
-		select {
-		case <-followersEntered:
-		case <-time.After(time.Second):
-			t.Fatalf("timeout waiting for follower %d to start", i)
-		}
-	}
+	// Wait until all followers have entered the singleflight (called LoadOrStore)
+	// before releasing the data source. This guarantees they join the leader's
+	// inflight request rather than creating their own.
+	waitForFollowerCount(t, r, int32(requestCount-1))
 
 	ds.Release()
 
@@ -4823,9 +4848,6 @@ func TestResolver_ArenaResolveGraphQLResponse_RequestDeduplication_SharedData(t 
 		t.Fatalf("timeout waiting for leader data source load")
 	}
 
-	startFollowers := make(chan struct{})
-	followersEntered := make(chan struct{}, requestCount-1)
-
 	for i := 1; i < requestCount; i++ {
 		go func(i int) {
 			defer wg.Done()
@@ -4838,23 +4860,16 @@ func TestResolver_ArenaResolveGraphQLResponse_RequestDeduplication_SharedData(t 
 					followerData.Store(i, data)
 				},
 			)
-			<-startFollowers
-			followersEntered <- struct{}{}
 			buf := &bytes.Buffer{}
 			info, err := r.ArenaResolveGraphQLResponse(&ctx, response, buf)
 			results[i] = result{info: info, output: buf.String(), err: err}
 		}(i)
 	}
 
-	close(startFollowers)
-
-	for i := 1; i < requestCount; i++ {
-		select {
-		case <-followersEntered:
-		case <-time.After(time.Second):
-			t.Fatalf("timeout waiting for follower %d to start", i)
-		}
-	}
+	// Wait until all followers have entered the singleflight (called LoadOrStore)
+	// before releasing the data source. This guarantees they join the leader's
+	// inflight request rather than creating their own.
+	waitForFollowerCount(t, r, int32(requestCount-1))
 
 	ds.Release()
 

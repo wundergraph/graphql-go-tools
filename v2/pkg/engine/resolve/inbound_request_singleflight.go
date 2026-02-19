@@ -3,6 +3,7 @@ package resolve
 import (
 	"encoding/binary"
 	"sync"
+	"sync/atomic"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
@@ -46,8 +47,9 @@ type InflightRequest struct {
 	Err        error
 	ID         uint64
 
-	HasFollowers bool
-	Mu           sync.Mutex
+	HasFollowers  bool
+	Mu            sync.Mutex
+	followerCount atomic.Int32
 }
 
 // GetOrCreate creates a new InflightRequest or returns an existing (shared) one
@@ -90,6 +92,7 @@ func (r *InboundRequestSingleFlight) GetOrCreate(ctx *Context, response *GraphQL
 	inflight, shared := shard.m.LoadOrStore(key, request)
 	if shared {
 		request = inflight.(*InflightRequest)
+		request.followerCount.Add(1)
 		request.Mu.Lock()
 		request.HasFollowers = true
 		request.Mu.Unlock()
