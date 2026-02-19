@@ -6441,10 +6441,21 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
+		// sub2Ready gates the data source goroutine so that it doesn't start
+		// emitting before sub2 has been registered on the trigger. Without this,
+		// the emitting goroutine's first triggerUpdate can race sub2's
+		// addSubscription on the unbuffered events channel, causing sub2 to
+		// miss counter=0.
+		sub2Ready := make(chan struct{})
 		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 100
 		}, 1*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+			// Block the data source goroutine until sub2 is registered.
+			// onStart runs inside the goroutine that calls Start(), not the
+			// event loop, so blocking here is safe — the event loop remains
+			// free to process sub2's addSubscription event.
+			<-sub2Ready
 		}, func(ctx StartupHookContext, input []byte) (err error) {
 			return nil
 		})
@@ -6466,6 +6477,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		err2 := resolver1.AsyncResolveGraphQLSubscription(ctx2, plan1, recorder2, id2)
 		assert.NoError(t, err2)
+		close(sub2Ready)
 
 		// complete is called only on the last recorder
 		recorder1.AwaitComplete(t, defaultTimeout)
