@@ -68,6 +68,20 @@ type Visitor struct {
 	fieldEnclosingTypeNames map[int]string
 }
 
+func NewVisitor(w *astvisitor.Walker) *Visitor {
+	return &Visitor{
+		Walker:                  w,
+		fieldConfigs:            map[int]*FieldConfiguration{},
+		exportedVariables:       map[string]struct{}{},
+		skipIncludeOnFragments:  map[int]skipIncludeInfo{},
+		indirectInterfaceFields: map[int]indirectInterfaceField{},
+		pathCache:               map[astvisitor.VisitorKind]map[int]string{},
+		plannerFields:           map[int][]int{},
+		fieldPlanners:           map[int][]int{},
+		fieldEnclosingTypeNames: map[int]string{},
+	}
+}
+
 type indirectInterfaceField struct {
 	interfaceName string
 	node          ast.Node
@@ -136,7 +150,7 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any
 		// main planner visitor should always be allowed
 		return true
 	}
-	if _, isCostVisitor := visitor.(*StaticCostVisitor); isCostVisitor {
+	if _, isCostVisitor := visitor.(*CostVisitor); isCostVisitor {
 		// cost tree visitor should always be allowed
 		return true
 	}
@@ -1068,14 +1082,6 @@ func (v *Visitor) resolveFieldPath(ref int) []string {
 
 func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.Operation, v.Definition = operation, definition
-	v.fieldConfigs = map[int]*FieldConfiguration{}
-	v.exportedVariables = map[string]struct{}{}
-	v.skipIncludeOnFragments = map[int]skipIncludeInfo{}
-	v.indirectInterfaceFields = map[int]indirectInterfaceField{}
-	v.pathCache = map[astvisitor.VisitorKind]map[int]string{}
-	v.plannerFields = map[int][]int{}
-	v.fieldPlanners = map[int][]int{}
-	v.fieldEnclosingTypeNames = map[int]string{}
 }
 
 func (v *Visitor) LeaveDocument(_, _ *ast.Document) {
