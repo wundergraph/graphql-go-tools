@@ -517,6 +517,58 @@ func TestFederationIntegrationTest(t *testing.T) {
 		expected := `{"data":{"__type":{"name":"User","kind":"OBJECT","fields":[{"name":"id","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"ID","fields":null}}},{"name":"username","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","fields":null}}},{"name":"history","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"LIST","name":null,"fields":null}}},{"name":"realName","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","fields":null}}},{"name":"reviews","type":{"kind":"LIST","name":null,"ofType":{"kind":"OBJECT","name":"Review","fields":[{"name":"body"},{"name":"author"},{"name":"product"},{"name":"attachments"},{"name":"comment"}]}}}]}}}`
 		assert.Equal(t, compact(expected), string(resp))
 	})
+
+	// Complex nested introspection proving enrichment works end-to-end:
+	// - Aliases (review:, attachment:)
+	// - Deep ofType nesting: ofType.fields.type.ofType with full type resolution
+	// - Union possibleTypes with fields (Attachment → Question, Rating, Video)
+	// - Cycle prevention: User.reviews and Product.reviews both reference Review,
+	//   which is already being serialized → "fields": null proves truncation
+	t.Run("introspection nested enriched types", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/introspection_nested_enriched.query"), nil, t)
+		expected := `{"data":{
+			"review":{
+				"kind":"OBJECT","name":"Review",
+				"fields":[
+					{"name":"body","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","fields":null,"possibleTypes":[]}}},
+					{"name":"author","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"OBJECT","name":"User",
+						"fields":[
+							{"name":"id","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"ID","fields":null}}},
+							{"name":"username","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","fields":null}}},
+							{"name":"history","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"LIST","name":null,"fields":null}}},
+							{"name":"realName","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","fields":null}}},
+							{"name":"reviews","type":{"kind":"LIST","name":null,"ofType":{"kind":"OBJECT","name":"Review","fields":null}}}
+						],
+						"possibleTypes":[]
+					}}},
+					{"name":"product","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"OBJECT","name":"Product",
+						"fields":[
+							{"name":"upc","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","fields":null}}},
+							{"name":"name","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","fields":null}}},
+							{"name":"price","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Int","fields":null}}},
+							{"name":"inStock","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Int","fields":null}}},
+							{"name":"reviews","type":{"kind":"LIST","name":null,"ofType":{"kind":"OBJECT","name":"Review","fields":null}}}
+						],
+						"possibleTypes":[]
+					}}},
+					{"name":"attachments","type":{"kind":"LIST","name":null,"ofType":{"kind":"UNION","name":"Attachment","fields":null,"possibleTypes":[{"kind":"OBJECT","name":"Question"},{"kind":"OBJECT","name":"Rating"},{"kind":"OBJECT","name":"Video"}]}}},
+					{"name":"comment","type":{"kind":"INTERFACE","name":"Comment","ofType":null}}
+				]
+			},
+			"attachment":{
+				"kind":"UNION","name":"Attachment",
+				"possibleTypes":[
+					{"kind":"OBJECT","name":"Question","fields":[{"name":"upc"},{"name":"body"},{"name":"subject"}]},
+					{"kind":"OBJECT","name":"Rating","fields":[{"name":"upc"},{"name":"body"},{"name":"score"}]},
+					{"kind":"OBJECT","name":"Video","fields":[{"name":"upc"},{"name":"size"},{"name":"subject"}]}
+				]
+			}
+		}}`
+		assert.Equal(t, compact(expected), string(resp))
+	})
 }
 
 func compact(input string) string {
