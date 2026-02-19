@@ -274,20 +274,14 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 		if results[i].nestedMergeItems != nil {
 			for j := range results[i].nestedMergeItems {
 				err = l.mergeResult(nodes[i].Item, results[i].nestedMergeItems[j], itemsItems[i][j:j+1])
-				if l.ctx.LoaderHooks != nil && results[i].nestedMergeItems[j].loaderHookContext != nil {
-					l.ctx.LoaderHooks.OnFinished(results[i].nestedMergeItems[j].loaderHookContext,
-						results[i].nestedMergeItems[j].ds,
-						newResponseInfo(results[i].nestedMergeItems[j], l.ctx.subgraphErrors))
-				}
+				l.callOnFinished(results[i].nestedMergeItems[j])
 				if err != nil {
 					return errors.WithStack(err)
 				}
 			}
 		} else {
 			err = l.mergeResult(nodes[i].Item, results[i], itemsItems[i])
-			if l.ctx.LoaderHooks != nil && results[i].loaderHookContext != nil {
-				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].ds, newResponseInfo(results[i], l.ctx.subgraphErrors))
-			}
+			l.callOnFinished(results[i])
 			if err != nil {
 				return errors.WithStack(err)
 			}
@@ -320,9 +314,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 			return err
 		}
 		err = l.mergeResult(item, res, items)
-		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
-			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.subgraphErrors))
-		}
+		l.callOnFinished(res)
 		return err
 	case *BatchEntityFetch:
 		res := &result{}
@@ -332,9 +324,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 			return errors.WithStack(err)
 		}
 		err = l.mergeResult(item, res, items)
-		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
-			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.subgraphErrors))
-		}
+		l.callOnFinished(res)
 		return err
 	case *EntityFetch:
 		res := &result{}
@@ -343,12 +333,16 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 			return errors.WithStack(err)
 		}
 		err = l.mergeResult(item, res, items)
-		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
-			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.subgraphErrors))
-		}
+		l.callOnFinished(res)
 		return err
 	default:
 		return nil
+	}
+}
+
+func (l *Loader) callOnFinished(res *result) {
+	if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
+		l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.subgraphErrors))
 	}
 }
 
