@@ -1,7 +1,6 @@
 package federationtesting
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -40,7 +39,7 @@ func TestSkippedFetchOnNullParent(t *testing.T) {
 	const usersSDL = `type Query { user(id: ID!): User } type User @key(fields: "id") { id: ID! name: String! }`
 	const reviewsSDL = `type User @key(fields: "id") { id: ID! @external reviews: [Review] } type Review { body: String! }`
 
-	ctx := context.Background()
+	ctx := t.Context()
 	factory := engine.NewFederationEngineConfigFactory(ctx, []engine.SubgraphConfiguration{
 		{Name: "users", URL: usersServer.URL, SDL: usersSDL},
 		{Name: "reviews", URL: reviewsServer.URL, SDL: reviewsSDL},
