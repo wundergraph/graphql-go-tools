@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
@@ -75,8 +76,7 @@ func TestInboundSingleFlight_FollowerReceivesLeaderError(t *testing.T) {
 	}
 
 	// The follower calls GetOrCreate which blocks on inflight.Done.
-	// We wait for HasFollowers to be set before calling FinishErr.
-	followerReady := make(chan struct{})
+	// We wait for followerCount to confirm it has entered before calling FinishErr.
 	var wg sync.WaitGroup
 	wg.Add(1)
 
@@ -85,25 +85,20 @@ func TestInboundSingleFlight_FollowerReceivesLeaderError(t *testing.T) {
 		followerCtx := NewContext(context.Background())
 		followerCtx.Request.ID = 2
 
-		// Signal that we're about to enter GetOrCreate. HasFollowers will be
-		// set inside GetOrCreate before the select blocks, so closing
-		// followerReady here is slightly early, but we poll HasFollowers below.
-		close(followerReady)
-
 		_, followerErr := sf.GetOrCreate(followerCtx, response)
 		if followerErr == nil {
 			t.Error("expected error from follower after leader FinishErr")
 		}
 	}()
 
-	<-followerReady
-	// Spin until the follower has actually registered (set HasFollowers)
-	for {
-		inflight.Mu.Lock()
-		ready := inflight.HasFollowers
-		inflight.Mu.Unlock()
-		if ready {
-			break
+	// Poll until the follower has actually registered inside GetOrCreate.
+	deadline := time.After(3 * time.Second)
+	for !inflight.HasFollowers() {
+		select {
+		case <-deadline:
+			t.Fatal("timeout waiting for follower to enter singleflight")
+		default:
+			time.Sleep(10 * time.Millisecond)
 		}
 	}
 
