@@ -15,10 +15,15 @@ type VariablesNormalizer struct {
 	variablesExtractionVisitor *variablesExtractionVisitor
 }
 
+// VariablesNormalizerOptions allows to configure a VariablesNormalizer.
+type VariablesNormalizerOptions struct {
+	// EnableFieldArgumentMapping enables field argument mapping.
+	// If true it contains the map as part of the NormalizeOperation result.
+	EnableFieldArgumentMapping bool
+}
+
 // NewVariablesNormalizer creates a new variable normalizer.
-// If withFieldArgMapping is true then the normalizer creates a
-// mapping of field arguments as a "side product" when NormalizeOperation is called.
-func NewVariablesNormalizer(withFieldArgMapping bool) *VariablesNormalizer {
+func NewVariablesNormalizer(options VariablesNormalizerOptions) *VariablesNormalizer {
 	// delete unused modifying variables refs,
 	// so it is safer to run it sequentially with the extraction
 	thirdDeleteUnused := astvisitor.NewWalkerWithID(8, "DeleteUnusedVariables")
@@ -32,7 +37,7 @@ func NewVariablesNormalizer(withFieldArgMapping bool) *VariablesNormalizer {
 	detectVariableUsage(&firstDetectUnused, del)
 
 	secondExtract := astvisitor.NewWalkerWithID(8, "ExtractVariables")
-	variablesExtractionVisitor := extractVariables(&secondExtract, withFieldArgMapping)
+	variablesExtractionVisitor := extractVariables(&secondExtract, options.EnableFieldArgumentMapping)
 	extractVariablesDefaultValue(&secondExtract)
 
 	fourthCoerce := astvisitor.NewWalkerWithID(0, "VariablesCoercion")
