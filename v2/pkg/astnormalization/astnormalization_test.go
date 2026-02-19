@@ -1018,7 +1018,7 @@ func TestVariablesNormalizer(t *testing.T) {
 		operationDocument := unsafeparser.ParseGraphqlDocumentString(input)
 		operationDocument.Input.Variables = []byte(`{}`)
 
-		normalizer := NewVariablesNormalizer(false)
+		normalizer := NewVariablesNormalizer(VariablesNormalizerOptions{EnableFieldArgumentMapping: false})
 		report := operationreport.Report{}
 		normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
 		require.False(t, report.HasErrors(), report.Error())
@@ -1041,7 +1041,7 @@ func TestVariablesNormalizer(t *testing.T) {
 		operationDocument.Input.Variables = []byte(`{"varOne":[{"oneList":[{"list":[null,null],"value":null}],"one":{"list":[null],"value":null}}],"varTwo":{"oneList":[{"list":[null,null],"value":null}],"one":{"list":[null],"value":null}}}`)
 
 		// create normalizer without field arg mapping
-		normalizer := NewVariablesNormalizer(false)
+		normalizer := NewVariablesNormalizer(VariablesNormalizerOptions{EnableFieldArgumentMapping: false})
 		report := operationreport.Report{}
 		result := normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
 		require.False(t, report.HasErrors(), report.Error())
@@ -1393,7 +1393,7 @@ func TestVariablesNormalizer(t *testing.T) {
 				operationDocument := unsafeparser.ParseGraphqlDocumentString(tc.operation)
 				operationDocument.Input.Variables = []byte(tc.variables)
 
-				normalizer := NewVariablesNormalizer(true)
+				normalizer := NewVariablesNormalizer(VariablesNormalizerOptions{EnableFieldArgumentMapping: true})
 				report := operationreport.Report{}
 				result := normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
 				require.False(t, report.HasErrors(), report.Error())
