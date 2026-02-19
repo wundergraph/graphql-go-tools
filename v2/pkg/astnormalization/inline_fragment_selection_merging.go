@@ -88,6 +88,8 @@ func (f *inlineFragmentSelectionMergeVisitor) mergeFields(left, right int) (ok b
 		return false
 	}
 
+	f.operation.MergeFieldsDefer(left, right)
+
 	f.operation.AppendSelectionSet(leftSet, rightSet)
 	return true
 }
@@ -119,6 +121,7 @@ func (f *inlineFragmentSelectionMergeVisitor) EnterSelectionSet(ref int) {
 				if !f.fragmentsCanBeMerged(leftRef, rightRef) {
 					continue
 				}
+
 				if f.mergeInlineFragments(leftRef, rightRef) {
 					f.operation.RemoveFromSelectionSet(ref, j)
 					f.RevisitNode()

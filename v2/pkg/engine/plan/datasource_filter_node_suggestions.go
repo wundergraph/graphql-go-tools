@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"iter"
+	"slices"
 
 	"github.com/kingledion/go-tools/tree"
 	"github.com/phf/go-queue/queue"
@@ -37,7 +38,17 @@ type NodeSuggestion struct {
 	treeNodeId                uint
 	possibleTypeNames         []string
 
+	deferInfo       *DeferInfo
+	deferParentPath bool
+	deferIDs        []string
+
 	requiresKey *SourceConnection
+}
+
+type DeferInfo struct {
+	ID       string
+	Label    string
+	ParentID string
 }
 
 func (n *NodeSuggestion) treeNodeID() uint {
@@ -135,6 +146,79 @@ func NewNodeSuggestionsWithSize(size int) *NodeSuggestions {
 		pathSuggestions: make(map[string][]*NodeSuggestion),
 		responseTree:    *responseTree,
 		providedFields:  make(map[DSHash]map[string]struct{}),
+	}
+}
+
+func (f *NodeSuggestions) ProcessDefer() {
+	for i := range f.items {
+		if !f.items[i].Selected {
+			continue
+		}
+
+		if f.items[i].deferInfo == nil {
+			continue
+		}
+
+		// TODO: node should not be deffered in case it is a dependency for not deffered node or another defer on the same level?
+
+		f.propagateDeferParentsUpToRootNode(i)
+	}
+}
+
+func (f *NodeSuggestions) propagateDeferParentsUpToRootNode(i int) {
+	if f.items[i].IsRootNode {
+		return
+	}
+
+	parentIndexesToAddDeferID := make([]int, 0, 2)
+	current := i
+	for {
+		treeNode := f.treeNode(current)
+		parentNodeIndexes := treeNode.GetParent().GetData()
+
+		parentIdToUpdate := -1
+		for _, parentIdx := range parentNodeIndexes {
+			if f.items[parentIdx].DataSourceHash != f.items[current].DataSourceHash {
+				continue
+			}
+
+			if f.items[parentIdx].deferInfo != nil && f.items[parentIdx].deferInfo.ID == f.items[i].deferInfo.ID {
+				// if parent item is in the same defer -
+				// we should not mark it as a defer parent,
+				// because defer parents are planned twice - in a deffered planner and regular
+				break
+			}
+
+			if slices.Contains(f.items[parentIdx].deferIDs, f.items[i].deferInfo.ID) {
+				// no need to update already contains this defer id
+				break
+			} else {
+				parentIdToUpdate = parentIdx
+			}
+		}
+
+		if parentIdToUpdate == -1 {
+			// could happen if we haven't set it
+			// because it already contains this defer id
+			break
+		}
+
+		parentIndexesToAddDeferID = append(parentIndexesToAddDeferID, parentIdToUpdate)
+
+		if f.items[parentIdToUpdate].IsRootNode {
+			// we have found a root node from which we could branch out
+			break
+		}
+
+		current = parentIdToUpdate
+	}
+
+	for _, parentIdx := range parentIndexesToAddDeferID {
+		f.items[parentIdx].deferParentPath = true
+
+		if !slices.Contains(f.items[parentIdx].deferIDs, f.items[i].deferInfo.ID) {
+			f.items[parentIdx].deferIDs = append(f.items[parentIdx].deferIDs, f.items[i].deferInfo.ID)
+		}
 	}
 }
 

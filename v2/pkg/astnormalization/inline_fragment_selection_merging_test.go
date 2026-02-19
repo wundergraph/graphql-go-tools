@@ -216,6 +216,24 @@ func TestMergeInlineFragmentFieldSelections(t *testing.T) {
 						}
 					}`)
 		})
+
+		t.Run("fields with the same directives but in different order", func(t *testing.T) {
+			run(t, mergeInlineFragmentSelections, testDefinition, `
+					{
+						field @skip(if: $foo) @include(if: $foo) {
+							subfieldA
+						}
+						field  @include(if: $foo) @skip(if: $foo) {
+							subfieldB
+						}
+					}`, `
+					{
+						field @skip(if: $foo) @include(if: $foo) {
+							subfieldA
+							subfieldB
+						}
+					}`)
+		})
 	})
 	t.Run("fragments and fields", func(t *testing.T) {
 		t.Run("field field fragment", func(t *testing.T) {
@@ -329,6 +347,75 @@ func TestMergeInlineFragmentFieldSelections(t *testing.T) {
 							}
 						}
 					}`)
+		})
+
+		t.Run("with internal defer", func(t *testing.T) {
+			runWithOptions(t, mergeInlineFragmentSelections, testDefinition, `
+					query pet {
+						pet {
+							... on Dog {
+								name @__defer_internal(id: "1")
+								nickname @__defer_internal(id: "1")
+								nickname @__defer_internal(id: "2", parentDeferId: "1")
+								barkVolume @__defer_internal(id: "2", parentDeferId: "1")
+							}
+							... on Dog {
+								extra @__defer_internal(id: "3") {	
+									noString @__defer_internal(id: "3")
+								}
+								extra @__defer_internal(id: "4") {	
+									string @__defer_internal(id: "4")
+									noString @__defer_internal(id: "4")
+								}
+							}
+							... on Cat {
+								name
+								extra {
+									bool
+								}
+							}
+							... on Cat {
+								name @__defer_internal(id: "5")
+								meowVolume @__defer_internal(id: "5")
+								extra @__defer_internal(id: "5") {
+									bool @__defer_internal(id: "5")
+								}
+							}
+							... on Cat {
+								name @__defer_internal(id: "6")
+								nickname @__defer_internal(id: "6")
+								meowVolume @__defer_internal(id: "6")
+							}
+						}
+					}`,
+				`
+					query pet {
+						pet {
+							... on Dog {
+								name @__defer_internal(id: "1")
+								nickname @__defer_internal(id: "1")
+								nickname @__defer_internal(id: "2", parentDeferId: "1")
+								barkVolume @__defer_internal(id: "2", parentDeferId: "1")
+								extra @__defer_internal(id: "3") {	
+									noString @__defer_internal(id: "3")
+									string @__defer_internal(id: "4")
+									noString @__defer_internal(id: "4")
+								}
+							}
+							... on Cat {
+								name
+								extra {
+									bool
+									bool @__defer_internal(id: "5")
+								}
+								name @__defer_internal(id: "5")
+								meowVolume @__defer_internal(id: "5")
+								name @__defer_internal(id: "6")
+								nickname @__defer_internal(id: "6")
+								meowVolume @__defer_internal(id: "6")
+							}
+						}
+					}`, runOptions{indent: true})
 		})
 
 	})

@@ -41,8 +41,9 @@ type Visitor struct {
 	OperationName                string
 	operationDefinitionRef       int
 	objects                      []*resolve.Object
-	currentFields                []objectFields
+	currentObjectFields          []objectFields
 	currentField                 *resolve.Field
+	currentFields                []*resolve.Field
 	planners                     []PlannerConfiguration
 	skipFieldsRefs               []int
 	fieldRefDependsOnFieldRefs   map[int][]int
@@ -50,7 +51,6 @@ type Visitor struct {
 	fieldRefDependants           map[int][]int // inverse of fieldRefDependsOnFieldRefs
 	fieldConfigs                 map[int]*FieldConfiguration
 	exportedVariables            map[string]struct{}
-	skipIncludeOnFragments       map[int]skipIncludeInfo
 	disableResolveFieldPositions bool
 	includeQueryPlans            bool
 	indirectInterfaceFields      map[int]indirectInterfaceField
@@ -117,13 +117,6 @@ func (v *Visitor) debugPrint(args ...interface{}) {
 	allArgs := []interface{}{"[Visitor]: "}
 	allArgs = append(allArgs, args...)
 	fmt.Println(allArgs...)
-}
-
-type skipIncludeInfo struct {
-	skip                bool
-	skipVariableName    string
-	include             bool
-	includeVariableName string
 }
 
 type objectFields struct {
@@ -211,7 +204,7 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any
 			}
 		}
 
-		if !v.Config.DisableIncludeFieldDependencies && kind == astvisitor.LeaveField {
+		if !v.Config.DisableCalculateFieldDependencies && kind == astvisitor.LeaveField {
 			// we don't need to do this twice, so we only do it on leave
 
 			// store which fields are planned on which planners
@@ -272,34 +265,6 @@ func (v *Visitor) currentFullPath(skipFragments bool) string {
 }
 
 func (v *Visitor) EnterDirective(ref int) {
-	directiveName := v.Operation.DirectiveNameString(ref)
-	ancestor := v.Walker.Ancestors[len(v.Walker.Ancestors)-1]
-	switch ancestor.Kind {
-	case ast.NodeKindOperationDefinition:
-		switch directiveName {
-		case "flushInterval":
-			if value, ok := v.Operation.DirectiveArgumentValueByName(ref, literal.MILLISECONDS); ok {
-				if value.Kind == ast.ValueKindInteger {
-					v.plan.SetFlushInterval(v.Operation.IntValueAsInt(value.Ref))
-				}
-			}
-		}
-	case ast.NodeKindField:
-		switch directiveName {
-		case "stream":
-			initialBatchSize := 0
-			if value, ok := v.Operation.DirectiveArgumentValueByName(ref, literal.INITIAL_BATCH_SIZE); ok {
-				if value.Kind == ast.ValueKindInteger {
-					initialBatchSize = int(v.Operation.IntValueAsInt32(value.Ref))
-				}
-			}
-			v.currentField.Stream = &resolve.StreamField{
-				InitialBatchSize: initialBatchSize,
-			}
-		case "defer":
-			v.currentField.Defer = &resolve.DeferField{}
-		}
-	}
 }
 
 func (v *Visitor) EnterInlineFragment(ref int) {
@@ -311,23 +276,6 @@ func (v *Visitor) EnterInlineFragment(ref int) {
 			node:          v.Walker.EnclosingTypeDefinition,
 		}
 		v.indirectInterfaceFields[v.Operation.InlineFragments[ref].SelectionSet] = field
-	}
-
-	directives := v.Operation.InlineFragments[ref].Directives.Refs
-	skipVariableName, skip := v.Operation.ResolveSkipDirectiveVariable(directives)
-	includeVariableName, include := v.Operation.ResolveIncludeDirectiveVariable(directives)
-	setRef := v.Operation.InlineFragments[ref].SelectionSet
-	if setRef == ast.InvalidRef {
-		return
-	}
-
-	if skip || include {
-		v.skipIncludeOnFragments[ref] = skipIncludeInfo{
-			skip:                skip,
-			skipVariableName:    skipVariableName,
-			include:             include,
-			includeVariableName: includeVariableName,
-		}
 	}
 }
 
@@ -357,11 +305,6 @@ func (v *Visitor) EnterField(ref int) {
 
 	fieldName := v.Operation.FieldNameBytes(ref)
 	fieldAliasOrName := v.Operation.FieldAliasOrNameBytes(ref)
-
-	if bytes.Equal(fieldAliasOrName, []byte("__internal__typename_placeholder")) {
-		// we should skip such typename as it was added as a placeholder to keep query valid
-		return
-	}
 
 	fieldDefinition, ok := v.Walker.FieldDefinition(ref)
 	if !ok {
@@ -402,7 +345,10 @@ func (v *Visitor) EnterField(ref int) {
 	}
 
 	// append the field to the current object
-	*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
+	*v.currentObjectFields[len(v.currentObjectFields)-1].fields = append(*v.currentObjectFields[len(v.currentObjectFields)-1].fields, v.currentField)
+
+	// append the current field to the list of current fields
+	v.currentFields = append(v.currentFields, v.currentField)
 
 	v.mapFieldConfig(ref)
 }
@@ -462,6 +408,12 @@ func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *reso
 			sourceNames = append(sourceNames, v.planners[i].DataSourceConfiguration().Name())
 		}
 	}
+	// deduplicate
+	slices.Sort(sourceIDs)
+	sourceIDs = slices.Compact(sourceIDs)
+	slices.Sort(sourceNames)
+	sourceNames = slices.Compact(sourceNames)
+
 	fieldInfo := &resolve.FieldInfo{
 		Name:            fieldName,
 		NamedType:       typeName,
@@ -497,24 +449,6 @@ func (v *Visitor) resolveFieldPosition(ref int) resolve.Position {
 		Line:   v.Operation.Fields[ref].Position.LineStart,
 		Column: v.Operation.Fields[ref].Position.CharStart,
 	}
-}
-
-func (v *Visitor) resolveSkipIncludeOnParent() (info skipIncludeInfo, ok bool) {
-	if len(v.skipIncludeOnFragments) == 0 {
-		return skipIncludeInfo{}, false
-	}
-
-	for i := len(v.Walker.Ancestors) - 1; i >= 0; i-- {
-		ancestor := v.Walker.Ancestors[i]
-		if ancestor.Kind != ast.NodeKindInlineFragment {
-			continue
-		}
-		if info, ok := v.skipIncludeOnFragments[ancestor.Ref]; ok {
-			return info, true
-		}
-	}
-
-	return skipIncludeInfo{}, false
 }
 
 func (v *Visitor) resolveOnTypeNames(fieldRef int, fieldName ast.ByteSlice) (onTypeNames [][]byte) {
@@ -626,8 +560,14 @@ func (v *Visitor) LeaveField(fieldRef int) {
 		return
 	}
 
-	if v.currentFields[len(v.currentFields)-1].popOnField == fieldRef {
-		v.currentFields = v.currentFields[:len(v.currentFields)-1]
+	v.assignDefer(fieldRef)
+
+	// remove the current field from the current fields stack
+	v.currentFields = v.currentFields[:len(v.currentFields)-1]
+
+	// remove the current field from the list of current object fields if they belong to this field
+	if v.currentObjectFields[len(v.currentObjectFields)-1].popOnField == fieldRef {
+		v.currentObjectFields = v.currentObjectFields[:len(v.currentObjectFields)-1]
 	}
 	fieldDefinitionRef, ok := v.Walker.FieldDefinition(fieldRef)
 	if !ok {
@@ -637,6 +577,31 @@ func (v *Visitor) LeaveField(fieldRef int) {
 	switch fieldDefinitionTypeNode.Kind {
 	case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
 		v.objects = v.objects[:len(v.objects)-1]
+	}
+}
+
+func (v *Visitor) assignDefer(fieldRef int) {
+	currentField := v.currentFields[len(v.currentFields)-1]
+
+	// ignore existence check - we should always have planners for the field
+	plannerIds, _ := v.fieldPlanners[fieldRef]
+
+	for _, plannerId := range plannerIds {
+		planner := v.planners[plannerId]
+
+		fieldPathConfiguration, ok := planner.PathWithFieldRef(fieldRef)
+		if !ok {
+			continue
+		}
+
+		if fieldPathConfiguration.deferredField {
+			currentField.Defer = &resolve.DeferField{
+				DeferID: fieldPathConfiguration.deferID,
+			}
+
+			// after the normalization we should have only one planner per deferred field
+			break
+		}
 	}
 }
 
@@ -867,8 +832,13 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 			}
 
 			v.objects = append(v.objects, object)
+
+			// When the current field has an object type, we need to push its fields slice to the stack.
+			// However, we can do that only after the field, which we are currently creating, will be added to the parent object fields.
+			// So we defer this action to be executed right after the current field is added to the parent object fields slice.
+			// This is more simple than analyzing resolve.Node, because this object could be nested in a list.
 			v.Walker.DefferOnEnterField(func() {
-				v.currentFields = append(v.currentFields, objectFields{
+				v.currentObjectFields = append(v.currentObjectFields, objectFields{
 					popOnField: fieldRef,
 					fields:     &object.Fields,
 				})
@@ -989,28 +959,40 @@ func (v *Visitor) EnterOperationDefinition(opRef int) {
 	}
 
 	v.objects = append(v.objects, rootObject)
-	v.currentFields = append(v.currentFields, objectFields{
+	v.currentObjectFields = append(v.currentObjectFields, objectFields{
 		fields:     &rootObject.Fields,
 		popOnField: -1,
 	})
 
-	operationKind, _, err := AnalyzePlanKind(v.Operation, v.Definition, v.OperationName)
-	if err != nil {
-		v.Walker.StopWithInternalErr(err)
-		return
+	isSubscription := false
+	isDefer := false
+
+	for i := range v.planners {
+		if v.planners[i].ObjectFetchConfiguration().isSubscription {
+			isSubscription = true
+			break
+		}
+
+		if v.planners[i].DeferID() != "" {
+			isDefer = true
+			break
+		}
 	}
 
 	v.response = &resolve.GraphQLResponse{
 		Data:       rootObject,
 		RawFetches: make([]*resolve.FetchItem, 0, len(v.planners)),
 	}
+
 	if !v.Config.DisableIncludeInfo {
+		operationType := v.Operation.OperationDefinitions[0].OperationType
 		v.response.Info = &resolve.GraphQLResponseInfo{
-			OperationType: operationKind,
+			OperationType: operationType,
 		}
 	}
 
-	if operationKind == ast.OperationTypeSubscription {
+	switch {
+	case isSubscription:
 		v.subscription = &resolve.GraphQLSubscription{
 			Response: v.response,
 		}
@@ -1018,59 +1000,36 @@ func (v *Visitor) EnterOperationDefinition(opRef int) {
 			FlushInterval: v.Config.DefaultFlushIntervalMillis,
 			Response:      v.subscription,
 		}
-		return
-	}
-
-	v.plan = &SynchronousResponsePlan{
-		Response: v.response,
-	}
-}
-
-// TODO: cleanup - field alias override logic is disabled
-func (v *Visitor) resolveFieldPath(ref int) []string {
-	typeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
-	fieldName := v.Operation.FieldNameUnsafeString(ref)
-	plannerConfig := v.currentOrParentPlannerConfiguration(ref)
-
-	aliasOverride := false
-	if plannerConfig != nil && plannerConfig.Planner() != nil {
-		behavior := plannerConfig.DataSourceConfiguration().PlanningBehavior()
-		aliasOverride = behavior.OverrideFieldPathFromAlias
-	}
-
-	for i := range v.Config.Fields {
-		if v.Config.Fields[i].TypeName == typeName && v.Config.Fields[i].FieldName == fieldName {
-			if aliasOverride {
-				override, exists := plannerConfig.DownstreamResponseFieldAlias(ref)
-				if exists {
-					return []string{override}
-				}
+	case isDefer:
+		if !v.Config.DisableIncludeInfo {
+			v.response.Info = &resolve.GraphQLResponseInfo{
+				OperationType: ast.OperationTypeQuery,
 			}
-			if aliasOverride && v.Operation.FieldAliasIsDefined(ref) {
-				return []string{v.Operation.FieldAliasString(ref)}
-			}
-			if v.Config.Fields[i].DisableDefaultMapping {
-				return nil
-			}
-			if len(v.Config.Fields[i].Path) != 0 {
-				return v.Config.Fields[i].Path
-			}
-			return []string{fieldName}
 		}
-	}
 
-	if aliasOverride {
-		return []string{v.Operation.FieldAliasOrNameString(ref)}
-	}
+		v.plan = &DeferResponsePlan{
+			Response: &resolve.GraphQLDeferResponse{
+				Response: v.response,
+			},
+		}
+	default:
+		if !v.Config.DisableIncludeInfo {
+			v.response.Info = &resolve.GraphQLResponseInfo{
+				OperationType: ast.OperationTypeQuery,
+			}
+		}
 
-	return []string{fieldName}
+		v.plan = &SynchronousResponsePlan{
+			Response: v.response,
+		}
+
+	}
 }
 
 func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.Operation, v.Definition = operation, definition
 	v.fieldConfigs = map[int]*FieldConfiguration{}
 	v.exportedVariables = map[string]struct{}{}
-	v.skipIncludeOnFragments = map[int]skipIncludeInfo{}
 	v.indirectInterfaceFields = map[int]indirectInterfaceField{}
 	v.pathCache = map[astvisitor.VisitorKind]map[int]string{}
 	v.plannerFields = map[int][]int{}
@@ -1092,43 +1051,6 @@ var (
 	templateRegex = regexp.MustCompile(`{{.*?}}`)
 	selectorRegex = regexp.MustCompile(`{{\s*\.(.*?)\s*}}`)
 )
-
-func (v *Visitor) currentOrParentPlannerConfiguration(fieldRef int) PlannerConfiguration {
-	// TODO: this method should be dropped it is unnecessary expensive
-
-	const none = -1
-	currentPath := v.currentFullPath(false)
-	plannerIndex := none
-	plannerPathDeepness := none
-
-	for i := range v.planners {
-		v.planners[i].ForEachPath(func(plannerPath *pathConfiguration) bool {
-			if v.isCurrentOrParentPath(currentPath, plannerPath.path) {
-				currentPlannerPathDeepness := v.pathDeepness(plannerPath.path)
-				if currentPlannerPathDeepness > plannerPathDeepness {
-					plannerPathDeepness = currentPlannerPathDeepness
-					plannerIndex = i
-					return true
-				}
-			}
-			return false
-		})
-	}
-
-	if plannerIndex != none {
-		return v.planners[plannerIndex]
-	}
-
-	return nil
-}
-
-func (v *Visitor) isCurrentOrParentPath(currentPath string, parentPath string) bool {
-	return strings.HasPrefix(currentPath, parentPath)
-}
-
-func (v *Visitor) pathDeepness(path string) int {
-	return strings.Count(path, ".")
-}
 
 func (v *Visitor) resolveInputTemplates(config *objectFetchConfiguration, input *string, variables *resolve.Variables) {
 	*input = templateRegex.ReplaceAllStringFunc(*input, func(s string) string {
@@ -1331,6 +1253,7 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 		FetchDependencies: resolve.FetchDependencies{
 			FetchID:           internal.fetchID,
 			DependsOnFetchIDs: internal.dependsOnFetchIDs,
+			DeferID:           internal.deferID,
 		},
 		DataSourceIdentifier: []byte(dataSourceType),
 	}

@@ -224,6 +224,7 @@ type _executionTestOptions struct {
 	validateRequiredExternalFields               bool
 	computeStaticCost                            bool
 	relaxFieldSelectionMergingNullability        bool
+	streamingResponse                            bool
 }
 
 type executionTestOptions func(*_executionTestOptions)
@@ -260,107 +261,137 @@ func relaxFieldSelectionMergingNullability() executionTestOptions {
 	}
 }
 
+func withStreamingResponse() executionTestOptions {
+	return func(options *_executionTestOptions) {
+		options.streamingResponse = true
+	}
+}
+
+func runExecutionEngineTest(testCase ExecutionEngineTestCase, withError bool, expectedErrorMessage string, options ...executionTestOptions) func(t *testing.T) {
+	return func(t *testing.T) {
+		t.Helper()
+
+		if testCase.skipReason != "" {
+			t.Skip(testCase.skipReason)
+		}
+
+		engineConf := NewConfiguration(testCase.schema)
+		engineConf.SetDataSources(testCase.dataSources)
+		engineConf.SetFieldConfigurations(testCase.fields)
+		engineConf.SetCustomResolveMap(testCase.customResolveMap)
+
+		engineConf.plannerConfig.Debug = plan.DebugConfiguration{
+			// PrintOperationTransformations: true,
+			// PrintPlanningPaths:            true,
+			// PrintNodeSuggestions:          true,
+			// PrintQueryPlans:               true,
+			// ConfigurationVisitor:          true,
+			// PlanningVisitor:               true,
+			// DatasourceVisitor:             true,
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		var opts _executionTestOptions
+		for _, option := range options {
+			option(&opts)
+		}
+		engineConf.plannerConfig.BuildFetchReasons = opts.propagateFetchReasons
+		engineConf.plannerConfig.ValidateRequiredExternalFields = opts.validateRequiredExternalFields
+		engineConf.plannerConfig.ComputeStaticCost = opts.computeStaticCost
+		engineConf.plannerConfig.StaticCostDefaultListSize = 10
+		engineConf.plannerConfig.RelaxSubgraphOperationFieldSelectionMergingNullability = opts.relaxFieldSelectionMergingNullability
+		resolveOpts := resolve.ResolverOptions{
+			MaxConcurrency:    1024,
+			ResolvableOptions: opts.resolvableOptions,
+			ApolloRouterCompatibilitySubrequestHTTPError: opts.apolloRouterCompatibilitySubrequestHTTPError,
+			PropagateFetchReasons:                        opts.propagateFetchReasons,
+			ValidateRequiredExternalFields:               opts.validateRequiredExternalFields,
+		}
+		engine, err := NewExecutionEngine(ctx, abstractlogger.Noop{}, engineConf, resolveOpts)
+		require.NoError(t, err)
+
+		operation := testCase.operation(t)
+		resultWriter := graphql.NewEngineResultWriter()
+
+		streamingBuf := bytes.NewBuffer(nil)
+		if opts.streamingResponse {
+			resultWriter.SetFlushCallback(func(data []byte) {
+				streamingBuf.Write(data)
+			})
+		}
+
+		execCtx, execCtxCancel := context.WithCancel(context.Background())
+		defer execCtxCancel()
+		err = engine.Execute(execCtx, &operation, &resultWriter, testCase.engineOptions...)
+		actualResponse := resultWriter.String()
+
+		if testCase.indentJSON {
+			dst := new(bytes.Buffer)
+			require.NoError(t, json.Indent(dst, []byte(actualResponse), "", "  "))
+			actualResponse = dst.String()
+		}
+
+		if testCase.expectedFixture != "" {
+			g := goldie.New(t, goldie.WithFixtureDir("testdata"), goldie.WithNameSuffix(".json"))
+			g.Assert(t, testCase.expectedFixture, []byte(actualResponse))
+			return
+		}
+
+		if withError {
+			require.Error(t, err)
+			if expectedErrorMessage != "" {
+				assert.Equal(t, expectedErrorMessage, err.Error())
+			}
+		} else {
+			require.NoError(t, err)
+		}
+
+		if testCase.expectedJSONResponse != "" {
+			assert.JSONEq(t, testCase.expectedJSONResponse, actualResponse)
+		}
+
+		if testCase.expectedResponse != "" {
+			if opts.streamingResponse {
+				streamingResponse := streamingBuf.String()
+				assert.Equal(t, testCase.expectedResponse, streamingResponse)
+			} else {
+				assert.Equal(t, testCase.expectedResponse, actualResponse)
+			}
+		}
+
+		if testCase.expectedStaticCost != 0 {
+			gotCost := operation.StaticCost()
+			require.Equal(t, testCase.expectedStaticCost, gotCost)
+		}
+
+	}
+}
+
+func runExecutionEngineTestWithError(testCase ExecutionEngineTestCase, expectedErrorMessage string, options ...executionTestOptions) func(t *testing.T) {
+	return runExecutionEngineTest(testCase, true, expectedErrorMessage, options...)
+}
+
+func runExecutionEngineTestWithoutError(testCase ExecutionEngineTestCase, options ...executionTestOptions) func(t *testing.T) {
+	return runExecutionEngineTest(testCase, false, "", options...)
+}
+
 func TestExecutionEngine_Execute(t *testing.T) {
 	run := func(testCase ExecutionEngineTestCase, withError bool, expectedErrorMessage string, options ...executionTestOptions) func(t *testing.T) {
 		t.Helper()
 
-		return func(t *testing.T) {
-			t.Helper()
-
-			if testCase.skipReason != "" {
-				t.Skip(testCase.skipReason)
-			}
-
-			engineConf := NewConfiguration(testCase.schema)
-			engineConf.SetDataSources(testCase.dataSources)
-			engineConf.SetFieldConfigurations(testCase.fields)
-			engineConf.SetCustomResolveMap(testCase.customResolveMap)
-
-			engineConf.plannerConfig.Debug = plan.DebugConfiguration{
-				// PrintOperationTransformations: true,
-				// PrintPlanningPaths:            true,
-				// PrintNodeSuggestions:          true,
-				// PrintQueryPlans:               true,
-				// ConfigurationVisitor:          true,
-				// PlanningVisitor:               true,
-				// DatasourceVisitor:             true,
-			}
-
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			var opts _executionTestOptions
-			for _, option := range options {
-				option(&opts)
-			}
-			engineConf.plannerConfig.BuildFetchReasons = opts.propagateFetchReasons
-			engineConf.plannerConfig.ValidateRequiredExternalFields = opts.validateRequiredExternalFields
-			engineConf.plannerConfig.ComputeStaticCost = opts.computeStaticCost
-			engineConf.plannerConfig.StaticCostDefaultListSize = 10
-			engineConf.plannerConfig.RelaxSubgraphOperationFieldSelectionMergingNullability = opts.relaxFieldSelectionMergingNullability
-			resolveOpts := resolve.ResolverOptions{
-				MaxConcurrency:    1024,
-				ResolvableOptions: opts.resolvableOptions,
-				ApolloRouterCompatibilitySubrequestHTTPError: opts.apolloRouterCompatibilitySubrequestHTTPError,
-				PropagateFetchReasons:                        opts.propagateFetchReasons,
-				ValidateRequiredExternalFields:               opts.validateRequiredExternalFields,
-			}
-			engine, err := NewExecutionEngine(ctx, abstractlogger.Noop{}, engineConf, resolveOpts)
-			require.NoError(t, err)
-
-			operation := testCase.operation(t)
-			resultWriter := graphql.NewEngineResultWriter()
-			execCtx, execCtxCancel := context.WithCancel(context.Background())
-			defer execCtxCancel()
-			err = engine.Execute(execCtx, &operation, &resultWriter, testCase.engineOptions...)
-			actualResponse := resultWriter.String()
-
-			if testCase.indentJSON {
-				dst := new(bytes.Buffer)
-				require.NoError(t, json.Indent(dst, []byte(actualResponse), "", "  "))
-				actualResponse = dst.String()
-			}
-
-			if testCase.expectedFixture != "" {
-				g := goldie.New(t, goldie.WithFixtureDir("testdata"), goldie.WithNameSuffix(".json"))
-				g.Assert(t, testCase.expectedFixture, []byte(actualResponse))
-				return
-			}
-
-			if withError {
-				require.Error(t, err)
-				if expectedErrorMessage != "" {
-					assert.Equal(t, expectedErrorMessage, err.Error())
-				}
-			} else {
-				require.NoError(t, err)
-			}
-
-			if testCase.expectedJSONResponse != "" {
-				assert.JSONEq(t, testCase.expectedJSONResponse, actualResponse)
-			}
-
-			if testCase.expectedResponse != "" {
-				assert.Equal(t, testCase.expectedResponse, actualResponse)
-			}
-
-			if testCase.expectedStaticCost != 0 {
-				gotCost := operation.StaticCost()
-				require.Equal(t, testCase.expectedStaticCost, gotCost)
-			}
-
-		}
+		return runExecutionEngineTest(testCase, withError, expectedErrorMessage, options...)
 	}
 
 	runWithAndCompareError := func(testCase ExecutionEngineTestCase, expectedErrorMessage string, options ...executionTestOptions) func(t *testing.T) {
 		t.Helper()
 
-		return run(testCase, true, expectedErrorMessage, options...)
+		return runExecutionEngineTest(testCase, true, expectedErrorMessage, options...)
 	}
 
 	runWithoutError := func(testCase ExecutionEngineTestCase, options ...executionTestOptions) func(t *testing.T) {
 		t.Helper()
-
-		return run(testCase, false, "", options...)
+		return runExecutionEngineTest(testCase, false, "", options...)
 	}
 
 	t.Run("apollo router compatibility subrequest HTTP error enabled", runWithoutError(
@@ -1632,7 +1663,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						expectedHost:     "example.com",
 						expectedPath:     "/",
 						expectedBody:     "",
-						sendResponseBody: `{"data":{"__internal__typename_placeholder":"Query"}}`,
+						sendResponseBody: `doesn't matter, no fetch will be done, as query typename resolved by engine`,
 						sendStatusCode:   200,
 					}),
 				),
@@ -1668,6 +1699,82 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			},
 		},
 		expectedResponse: `{"data":{}}`,
+	}))
+
+	t.Run("execute operation with all nested fields skipped", runWithoutError(ExecutionEngineTestCase{
+		schema: func(t *testing.T) *graphql.Schema {
+			t.Helper()
+			schema := `
+			type Query {
+				hero(name: String!): Hero!
+			}
+
+			type Hero {
+				name: String!
+			}
+			`
+			parseSchema, err := graphql.NewSchemaFromString(schema)
+			require.NoError(t, err)
+			return parseSchema
+		}(t),
+		operation: func(t *testing.T) graphql.Request {
+			return graphql.Request{
+				OperationName: "MyHero",
+				Variables:     []byte(`{"heroName": "Luke"}`),
+				Query: `query MyHero($heroName: String!){
+						hero(name: $heroName) {
+							name @skip(if: true)
+						}
+					}`,
+			}
+		},
+		dataSources: []plan.DataSource{
+			mustGraphqlDataSourceConfiguration(t,
+				"id",
+				mustFactory(t,
+					testNetHttpClient(t, roundTripperTestCase{
+						expectedHost:     "example.com",
+						expectedPath:     "/",
+						expectedBody:     "",
+						sendResponseBody: `{"data":{"hero":{"__typename":"Hero"}}}`,
+						sendStatusCode:   200,
+					}),
+				),
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"hero"}},
+					},
+					ChildNodes: []plan.TypeField{
+						{TypeName: "Hero", FieldNames: []string{"name"}},
+					},
+				},
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{
+						URL:    "https://example.com/",
+						Method: "POST",
+					},
+					SchemaConfiguration: mustSchemaConfig(
+						t,
+						nil,
+						`type Query { hero(name: String!): Hero! } type Hero { name: String! }`,
+					),
+				}),
+			),
+		},
+		fields: []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "hero",
+				Path:      []string{"hero"},
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "name",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+		},
+		expectedResponse: `{"data":{"hero":{}}}`,
 	}))
 
 	t.Run("execute operation and apply input coercion for lists without variables", runWithoutError(ExecutionEngineTestCase{

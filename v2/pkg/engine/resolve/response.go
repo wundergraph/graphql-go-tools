@@ -56,6 +56,16 @@ func (g *GraphQLResponse) SingleFlightAllowed() bool {
 	return false
 }
 
+type GraphQLDeferResponse struct {
+	Response *GraphQLResponse
+	Defers   []*DeferFetchGroup
+}
+
+type DeferFetchGroup struct {
+	DeferID string
+	Fetches *FetchTreeNode
+}
+
 type GraphQLResponseInfo struct {
 	OperationType ast.OperationType
 }
@@ -66,6 +76,11 @@ type RenameTypeName struct {
 
 type ResponseWriter interface {
 	io.Writer
+}
+
+type DeferResponseWriter interface {
+	ResponseWriter
+	Flush() error
 }
 
 type SubscriptionCloseKind struct {
