@@ -76,7 +76,10 @@ func marshalSchema(s *Schema, typeMap map[string]*FullType, visited map[string]s
 // marshalFullType serializes a FullType as a top-level JSON object.
 // Key order matches json.Marshal of the FullType struct.
 func marshalFullType(ft *FullType, typeMap map[string]*FullType, visited map[string]struct{}) *astjson.Value {
+	// Track DFS ancestry for cycle detection. Defer cleanup so sibling
+	// branches can independently expand this type.
 	visited[ft.Name] = struct{}{}
+	defer func() { delete(visited, ft.Name) }()
 
 	obj := astjson.ObjectValue(nil)
 	obj.Set(nil, "kind", kindValue(ft.Kind))
@@ -87,7 +90,6 @@ func marshalFullType(ft *FullType, typeMap map[string]*FullType, visited map[str
 		obj.Set(nil, "specifiedByURL", astjson.StringValue(nil, *ft.SpecifiedByURL))
 	}
 
-	delete(visited, ft.Name)
 	return obj
 }
 
@@ -126,12 +128,13 @@ func marshalTypeRef(tr TypeRef, typeMap map[string]*FullType, visited map[string
 	}
 
 	// Resolve: append full type data after the TypeRef keys.
+	// Defer cleanup so sibling branches can independently expand this type.
 	visited[name] = struct{}{}
+	defer func() { delete(visited, name) }()
 	appendFullTypeBody(obj, ft, typeMap, visited)
 	if ft.SpecifiedByURL != nil {
 		obj.Set(nil, "specifiedByURL", astjson.StringValue(nil, *ft.SpecifiedByURL))
 	}
-	delete(visited, name)
 
 	return obj
 }
@@ -232,8 +235,7 @@ func marshalInputValueArray(ivs []InputValue, typeMap map[string]*FullType, visi
 }
 
 func kindValue(k __TypeKind) *astjson.Value {
-	text, _ := k.MarshalText()
-	return astjson.StringValue(nil, string(text))
+	return astjson.StringValue(nil, k.String())
 }
 
 func boolValue(b bool) *astjson.Value {
