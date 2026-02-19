@@ -47,8 +47,6 @@ type InflightRequest struct {
 	Err        error
 	ID         uint64
 
-	HasFollowers  bool
-	Mu            sync.Mutex
 	followerCount atomic.Int32
 }
 
@@ -93,9 +91,6 @@ func (r *InboundRequestSingleFlight) GetOrCreate(ctx *Context, response *GraphQL
 	if shared {
 		request = inflight.(*InflightRequest)
 		request.followerCount.Add(1)
-		request.Mu.Lock()
-		request.HasFollowers = true
-		request.Mu.Unlock()
 		select {
 		case <-request.Done:
 			if request.Err != nil {
@@ -116,10 +111,7 @@ func (r *InboundRequestSingleFlight) FinishOk(req *InflightRequest, data []byte)
 	}
 	shard := r.shardFor(req.ID)
 	shard.m.Delete(req.ID)
-	req.Mu.Lock()
-	hasFollowers := req.HasFollowers
-	req.Mu.Unlock()
-	if hasFollowers {
+	if req.followerCount.Load() > 0 {
 		// optimization to only copy when we actually have to
 		req.Data = make([]byte, len(data))
 		copy(req.Data, data)
