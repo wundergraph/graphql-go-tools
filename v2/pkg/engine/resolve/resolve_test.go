@@ -2454,6 +2454,67 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, *NewContext(context.Background()), `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.name'.","path":["name"]}],"data":null}`
 	}))
+	t.Run("entity fetch with null data field in subgraph response", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		mockDataSource := NewMockDataSource(ctrl)
+		mockDataSource.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
+				// Subgraph returns null for the data field itself (not an _entities array)
+				return []byte(`{"data":null}`), nil
+			})
+		return &GraphQLResponse{
+			Fetches: SingleWithPath(&EntityFetch{
+				Input: EntityInput{
+					Header: InputTemplate{
+						Segments: []TemplateSegment{
+							{
+								Data:        []byte(`{"method":"POST","url":"http://users","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {name}}}","variables":{"representations":[`),
+								SegmentType: StaticSegmentType,
+							},
+						},
+					},
+					Item: InputTemplate{
+						Segments: []TemplateSegment{
+							{
+								Data:        []byte(`{"__typename":"User","id":"1"}`),
+								SegmentType: StaticSegmentType,
+							},
+						},
+					},
+					SkipErrItem: true,
+					Footer: InputTemplate{
+						Segments: []TemplateSegment{
+							{
+								Data:        []byte(`]}}}`),
+								SegmentType: StaticSegmentType,
+							},
+						},
+					},
+				},
+				DataSource: mockDataSource,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data", "_entities", "0"},
+					SelectResponseErrorsPath: []string{"errors"},
+				},
+				Info: &FetchInfo{
+					DataSourceID:   "Users",
+					DataSourceName: "Users",
+				},
+			}, "query"),
+			Data: &Object{
+				Nullable: false,
+				Fields: []*Field{
+					{
+						Name: []byte("name"),
+						Value: &String{
+							Path:     []string{"name"},
+							Nullable: true,
+						},
+					},
+				},
+			},
+		}, *NewContext(context.Background()), `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at Path 'query', Reason: no data or errors in response."}],"data":{"name":null}}`
+	}))
 	t.Run("root field with nested non-nullable fields returns null", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
