@@ -663,12 +663,12 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 					path := obj.Fields[i].Value.NodePath()
 					field := value.Get(path...)
 					if field != nil {
-						astjson.SetNull(value, path...)
+						astjson.SetNull(r.astjsonArena, value, path...)
 					}
 				} else if obj.Nullable && len(obj.Path) > 0 {
 					// if the field value is not nullable, but the object is nullable
 					// we can just set the whole object to null
-					astjson.SetNull(parent, obj.Path...)
+					astjson.SetNull(r.astjsonArena, parent, obj.Path...)
 					return false
 				} else {
 					// if the field value is not nullable and the object is not nullable
@@ -692,7 +692,7 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 		if err {
 			if obj.Nullable {
 				if len(obj.Path) > 0 {
-					astjson.SetNull(parent, obj.Path...)
+					astjson.SetNull(r.astjsonArena, parent, obj.Path...)
 					return false
 				}
 			}
@@ -882,7 +882,7 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 				continue
 			}
 			if arr.Nullable {
-				astjson.SetNull(parent, arr.Path...)
+				astjson.SetNull(r.astjsonArena, parent, arr.Path...)
 				return false
 			}
 			return err
