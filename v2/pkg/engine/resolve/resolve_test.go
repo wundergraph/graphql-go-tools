@@ -2269,13 +2269,38 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				return []byte(`{"data":{"_entities":[null]}}`), nil
 			})
 		return &GraphQLResponse{
-			Fetches: SingleWithPath(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: mockDataSource,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath:   []string{"data", "_entities", "0"},
-						SelectResponseErrorsPath: []string{"errors"},
+			Fetches: SingleWithPath(&EntityFetch{
+				Input: EntityInput{
+					Header: InputTemplate{
+						Segments: []TemplateSegment{
+							{
+								Data:        []byte(`{"method":"POST","url":"http://users","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {name}}}","variables":{"representations":[`),
+								SegmentType: StaticSegmentType,
+							},
+						},
 					},
+					Item: InputTemplate{
+						Segments: []TemplateSegment{
+							{
+								Data:        []byte(`{"__typename":"User","id":"1"}`),
+								SegmentType: StaticSegmentType,
+							},
+						},
+					},
+					SkipErrItem: true,
+					Footer: InputTemplate{
+						Segments: []TemplateSegment{
+							{
+								Data:        []byte(`]}}}`),
+								SegmentType: StaticSegmentType,
+							},
+						},
+					},
+				},
+				DataSource: mockDataSource,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data", "_entities", "0"},
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "Users",
@@ -2305,13 +2330,38 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				return []byte(`{"data":{"_entities":[null]}}`), nil
 			})
 		return &GraphQLResponse{
-			Fetches: SingleWithPath(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: mockDataSource,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath:   []string{"data", "_entities", "0"},
-						SelectResponseErrorsPath: []string{"errors"},
+			Fetches: SingleWithPath(&EntityFetch{
+				Input: EntityInput{
+					Header: InputTemplate{
+						Segments: []TemplateSegment{
+							{
+								Data:        []byte(`{"method":"POST","url":"http://users","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {name}}}","variables":{"representations":[`),
+								SegmentType: StaticSegmentType,
+							},
+						},
 					},
+					Item: InputTemplate{
+						Segments: []TemplateSegment{
+							{
+								Data:        []byte(`{"__typename":"User","id":"1"}`),
+								SegmentType: StaticSegmentType,
+							},
+						},
+					},
+					SkipErrItem: true,
+					Footer: InputTemplate{
+						Segments: []TemplateSegment{
+							{
+								Data:        []byte(`]}}}`),
+								SegmentType: StaticSegmentType,
+							},
+						},
+					},
+				},
+				DataSource: mockDataSource,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data", "_entities", "0"},
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "Users",
