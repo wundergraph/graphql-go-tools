@@ -773,20 +773,21 @@ func (l *Loader) optionallyAllowCustomExtensionProperties(values []*astjson.Valu
 			if extensions.Type() != astjson.TypeObject {
 				continue
 			}
-			extObj := extensions.GetObject()
-
-			extObj.Visit(func(k []byte, v *astjson.Value) {
-				kb := unsafebytes.BytesToString(k)
-				if _, ok := l.allowedErrorExtensionFields[kb]; !ok {
-					extensions.Del(kb)
-				}
-			})
-
-			// If there are no more properties, we remove the extensions object
-			if len(l.allowedErrorExtensionFields) == 0 || extObj.Len() == 0 {
+			if len(l.allowedErrorExtensionFields) == 0 {
 				value.Del("extensions")
 				continue
 			}
+			newExt := astjson.ObjectValue(l.jsonArena)
+			for key := range l.allowedErrorExtensionFields {
+				if v := extensions.Get(key); v != nil {
+					newExt.Set(l.jsonArena, key, v)
+				}
+			}
+			if newExt.GetObject().Len() == 0 {
+				value.Del("extensions")
+				continue
+			}
+			value.Set(l.jsonArena, "extensions", newExt)
 		}
 	}
 }
@@ -850,9 +851,7 @@ func (l *Loader) optionallyOmitErrorExtensions(values []*astjson.Value) {
 		return
 	}
 	for _, value := range values {
-		if value.Exists("extensions") {
-			value.Del("extensions")
-		}
+		value.Del("extensions")
 	}
 }
 
