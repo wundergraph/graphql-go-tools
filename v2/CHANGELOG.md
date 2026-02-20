@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.254](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.253...v2.0.0-rc.254) (2026-02-20)
+
+
+### Features
+
+* **resolve:** update astjson to arena-safe API, remove redundant copies ([#1400](https://github.com/wundergraph/graphql-go-tools/issues/1400)) ([850ce6e](https://github.com/wundergraph/graphql-go-tools/commit/850ce6e49f4d5c630630e27ec27f49e7a3283a23))
+
 ## [2.0.0-rc.253](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.252...v2.0.0-rc.253) (2026-02-19)
 
 
