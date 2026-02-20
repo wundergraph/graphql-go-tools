@@ -157,7 +157,7 @@ func Benchmark_ArenaGCSafety(b *testing.B) {
 			},
 		},
 		{
-			// Codepath 3: Subgraph returns errors with wrap mode (default) → mergeErrors wrap path → parseStringOnArena
+			// Codepath 3: Subgraph returns errors with wrap mode (default) → mergeErrors wrap path → astjson.ParseWithArena
 			name:         "subgraphErrorsWrapMode",
 			resolverOpts: baseResolverOpts,
 			setupCtx: func() *Context {
@@ -185,7 +185,7 @@ func Benchmark_ArenaGCSafety(b *testing.B) {
 			},
 		},
 		{
-			// Codepath 12: defaultErrorExtensionCode set + subgraph errors → stringValueOnArena
+			// Codepath 12: defaultErrorExtensionCode set + subgraph errors → astjson.StringValue
 			name: "subgraphErrorsWithExtensionCode",
 			resolverOpts: func() ResolverOptions {
 				opts := baseResolverOpts()
@@ -202,7 +202,7 @@ func Benchmark_ArenaGCSafety(b *testing.B) {
 			},
 		},
 		{
-			// Codepath 13: attachServiceNameToErrorExtension set → stringValueOnArena
+			// Codepath 13: attachServiceNameToErrorExtension set → astjson.StringValue
 			name: "subgraphErrorsWithServiceName",
 			resolverOpts: func() ResolverOptions {
 				opts := baseResolverOpts()
@@ -237,7 +237,7 @@ func Benchmark_ArenaGCSafety(b *testing.B) {
 			},
 		},
 		{
-			// Codepath 9: Authorization rejected → renderAuthorizationRejectedErrors → parseStringOnArena
+			// Codepath 9: Authorization rejected → renderAuthorizationRejectedErrors → astjson.ParseWithArena
 			name:         "authorizationRejected",
 			resolverOpts: baseResolverOpts,
 			setupCtx: func() *Context {
@@ -259,7 +259,7 @@ func Benchmark_ArenaGCSafety(b *testing.B) {
 			},
 		},
 		{
-			// Codepath 10: Rate limit rejected → renderRateLimitRejectedErrors → parseStringOnArena
+			// Codepath 10: Rate limit rejected → renderRateLimitRejectedErrors → astjson.ParseWithArena
 			name:         "rateLimitRejected",
 			resolverOpts: baseResolverOpts,
 			setupCtx: func() *Context {
@@ -278,7 +278,7 @@ func Benchmark_ArenaGCSafety(b *testing.B) {
 			},
 		},
 		{
-			// Codepath 14: Rate limit with extension code → extra parseStringOnArena for extension
+			// Codepath 14: Rate limit with extension code → extra astjson.ParseWithArena for extension
 			name:         "rateLimitWithExtensionCode",
 			resolverOpts: baseResolverOpts,
 			setupCtx: func() *Context {

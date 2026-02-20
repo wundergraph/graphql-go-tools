@@ -36,10 +36,6 @@ const (
 	IntrospectionTypeEnumValuesDataSourceID = "introspection__type__enumValues"
 )
 
-// Note: parseStringOnArena and stringValueOnArena were removed.
-// astjson now copies input bytes onto the arena internally in ParseWithArena,
-// ParseBytesWithArena, StringValue, and StringValueBytes.
-
 type LoaderHooks interface {
 	// OnLoad is called before a fetch is executed.
 	// The returned context is passed to OnFinished after the fetch completes.
@@ -183,8 +179,12 @@ type Loader struct {
 	// jsonArena is the arena for JSON allocation, supplied by the Resolver.
 	// Not thread safe — only use from the main goroutine.
 	// Don't Reset or Release; the Resolver handles this.
-	// astjson copies input bytes onto the arena internally in ParseWithArena,
-	// ParseBytesWithArena, StringValue, and StringValueBytes.
+	//
+	// IMPORTANT: All astjson *Value nodes returned by ParseWithArena,
+	// ParseBytesWithArena, StringValue, etc. live on this arena.
+	// Never store heap-allocated *Value into an arena-owned container —
+	// the GC cannot trace pointers inside arena (noscan) memory, so
+	// a heap *Value could be collected while still referenced.
 	jsonArena arena.Arena
 
 	// singleFlight is the SubgraphRequestSingleFlight object shared across all client requests.
