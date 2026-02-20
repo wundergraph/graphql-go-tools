@@ -20,7 +20,11 @@ var TestOptions = EndpointOptions{
 }
 
 func GraphQLEndpointHandler(opts EndpointOptions) http.Handler {
-	srv := handler.New(generated.NewExecutableSchema(generated.Config{Resolvers: &Resolver{}}))
+	resolver := &Resolver{
+		reviews:     newReviews(),
+		attachments: newAttachments(),
+	}
+	srv := handler.New(generated.NewExecutableSchema(generated.Config{Resolvers: resolver}))
 	srv.AddTransport(transport.POST{})
 	srv.Use(extension.Introspection{})
 	if opts.EnableDebug {

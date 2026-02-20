@@ -417,7 +417,7 @@ func TestHandler_Handle(t *testing.T) {
 				time.Sleep(10 * time.Millisecond)
 				cancelFunc()
 
-				go sendChatMutation(t, chatServer.URL)
+				sendChatMutation(t, chatServer.URL)
 
 				require.Eventually(t, func() bool {
 					return client.hasMoreMessagesThan(0)
@@ -481,7 +481,7 @@ func TestHandler_Handle(t *testing.T) {
 				time.Sleep(10 * time.Millisecond)
 				cancelFunc()
 
-				go sendChatMutation(t, chatServer.URL)
+				sendChatMutation(t, chatServer.URL)
 
 				require.Eventually(t, func() bool {
 					return client.hasMoreMessagesThan(0)

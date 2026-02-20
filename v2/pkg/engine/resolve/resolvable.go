@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/pkg/errors"
@@ -60,6 +61,10 @@ type Resolvable struct {
 	enclosingTypeNames []string
 
 	currentFieldInfo *FieldInfo
+
+	// actualListSizes maps the JSON path to the list size in the final response.
+	// Used to compute the actual cost of the operation.
+	actualListSizes map[string]int
 }
 
 type ResolvableOptions struct {
@@ -76,6 +81,7 @@ func NewResolvable(a arena.Arena, options ResolvableOptions) *Resolvable {
 		authorizationAllow: make(map[uint64]struct{}),
 		authorizationDeny:  make(map[uint64]string),
 		astjsonArena:       a,
+		actualListSizes:    make(map[string]int),
 	}
 }
 
@@ -104,6 +110,9 @@ func (r *Resolvable) Reset() {
 	}
 	for k := range r.authorizationDeny {
 		delete(r.authorizationDeny, k)
+	}
+	for k := range r.actualListSizes {
+		delete(r.actualListSizes, k)
 	}
 }
 
@@ -842,6 +851,11 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 	}
 	values := value.GetArray()
 
+	if !r.print {
+		pathKey := r.currentFieldPath()
+		r.actualListSizes[pathKey] += len(values)
+	}
+
 	hasPrintedValue := false
 	for i, arrayValue := range values {
 		skip := false
@@ -878,6 +892,17 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 		r.printBytes(rBrack)
 	}
 	return false
+}
+
+// Helper to build JSON path (field names only, no array indices)
+func (r *Resolvable) currentFieldPath() string {
+	var parts []string
+	for _, elem := range r.path {
+		if elem.Name != "" {
+			parts = append(parts, elem.Name)
+		}
+	}
+	return strings.Join(parts, ".")
 }
 
 func (r *Resolvable) walkNull() bool {
