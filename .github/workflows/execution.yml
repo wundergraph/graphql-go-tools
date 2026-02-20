@@ -20,7 +20,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        go: [ "1.26" ]
+        go: [ "1.25" ]
         os: [ubuntu-latest, windows-latest]
     steps:
       - name: Set git to use LF
@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go: [ "1.26" ]
+        go: [ "1.25" ]
     steps:
       - name: Check out code into the Go module directory
         uses: actions/checkout@v4

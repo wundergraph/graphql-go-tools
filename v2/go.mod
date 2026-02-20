@@ -1,6 +1,6 @@
 module github.com/wundergraph/graphql-go-tools/v2
 
-go 1.26
+go 1.25
 
 require (
 	github.com/99designs/gqlgen v0.17.76
@@ -29,7 +29,7 @@ require (
 	github.com/tidwall/gjson v1.17.0
 	github.com/tidwall/sjson v1.0.4
 	github.com/vektah/gqlparser/v2 v2.5.30
-	github.com/wundergraph/astjson v1.0.1-0.20260220093008-42f452497346
+	github.com/wundergraph/astjson v1.1.0
 	github.com/wundergraph/go-arena v1.1.0
 	go.uber.org/atomic v1.11.0
 	go.uber.org/goleak v1.3.0
