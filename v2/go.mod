@@ -1,6 +1,6 @@
 module github.com/wundergraph/graphql-go-tools/v2
 
-go 1.25
+go 1.26
 
 require (
 	github.com/99designs/gqlgen v0.17.76
@@ -20,6 +20,7 @@ require (
 	github.com/jensneuse/diffview v1.0.0
 	github.com/kingledion/go-tools v0.6.0
 	github.com/kylelemons/godebug v1.1.0
+	github.com/phf/go-queue v0.0.0-20170504031614-9abe38d0371d
 	github.com/pkg/errors v0.9.1
 	github.com/r3labs/sse/v2 v2.8.1
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
@@ -28,7 +29,7 @@ require (
 	github.com/tidwall/gjson v1.17.0
 	github.com/tidwall/sjson v1.0.4
 	github.com/vektah/gqlparser/v2 v2.5.30
-	github.com/wundergraph/astjson v1.0.0
+	github.com/wundergraph/astjson v1.0.1-0.20260220093008-42f452497346
 	github.com/wundergraph/go-arena v1.1.0
 	go.uber.org/atomic v1.11.0
 	go.uber.org/goleak v1.3.0
@@ -57,7 +58,6 @@ require (
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/oklog/run v1.0.0 // indirect
-	github.com/phf/go-queue v0.0.0-20170504031614-9abe38d0371d // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rogpeppe/go-internal v1.13.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect

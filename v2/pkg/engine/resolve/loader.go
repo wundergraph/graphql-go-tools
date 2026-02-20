@@ -36,24 +36,9 @@ const (
 	IntrospectionTypeEnumValuesDataSourceID = "introspection__type__enumValues"
 )
 
-// parseStringOnArena copies the string bytes onto the arena before parsing.
-// This is critical because arena-allocated Values store references to the input's
-// backing bytes, and Go's GC cannot trace pointers stored in arena memory (which
-// is backed by []byte buffers). Without this, the GC may collect the input string
-// while Values still reference it, causing segfaults.
-func parseStringOnArena(a arena.Arena, s string) (*astjson.Value, error) {
-	b := arena.AllocateSlice[byte](a, len(s), len(s))
-	copy(b, s)
-	return astjson.ParseBytesWithArena(a, b)
-}
-
-// stringValueOnArena copies the string bytes onto the arena before creating
-// a StringValue. Same GC safety reasoning as parseStringOnArena.
-func stringValueOnArena(a arena.Arena, s string) *astjson.Value {
-	b := arena.AllocateSlice[byte](a, len(s), len(s))
-	copy(b, s)
-	return astjson.StringValueBytes(a, b)
-}
+// Note: parseStringOnArena and stringValueOnArena were removed.
+// astjson now copies input bytes onto the arena internally in ParseWithArena,
+// ParseBytesWithArena, StringValue, and StringValueBytes.
 
 type LoaderHooks interface {
 	// OnLoad is called before a fetch is executed.
@@ -195,14 +180,11 @@ type Loader struct {
 
 	taintedObjs taintedObjects
 
-	// jsonArena is the arena to allocation json, supplied by the Resolver
-	// Disclaimer: this arena is NOT thread safe!
-	// Only use from main goroutine
-	// Don't Reset or Release, the Resolver handles this
-	// Disclaimer: When parsing json into the arena, the underlying bytes must also be allocated on the arena!
-	// This is very important to "tie" their lifecycles together
-	// If you're not doing this, you will see segfaults
-	// Example of correct usage in func "mergeResult"
+	// jsonArena is the arena for JSON allocation, supplied by the Resolver.
+	// Not thread safe — only use from the main goroutine.
+	// Don't Reset or Release; the Resolver handles this.
+	// astjson copies input bytes onto the arena internally in ParseWithArena,
+	// ParseBytesWithArena, StringValue, and StringValueBytes.
 	jsonArena arena.Arena
 
 	// singleFlight is the SubgraphRequestSingleFlight object shared across all client requests.
@@ -477,12 +459,12 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		if err != nil {
 			return err
 		}
-		trueValue := astjson.MustParse(`true`)
+		trueValue := astjson.TrueValue(l.jsonArena)
 		skipErrorsPath := make([]string, len(res.postProcessing.MergePath)+1)
 		copy(skipErrorsPath, res.postProcessing.MergePath)
 		skipErrorsPath[len(skipErrorsPath)-1] = "__skipErrors"
 		for _, item := range items {
-			astjson.SetValue(item, trueValue, skipErrorsPath...)
+			astjson.SetValue(l.jsonArena, item, trueValue, skipErrorsPath...)
 		}
 		return nil
 	}
@@ -491,12 +473,12 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		if err != nil {
 			return err
 		}
-		trueValue := astjson.MustParse(`true`)
+		trueValue := astjson.TrueValue(l.jsonArena)
 		skipErrorsPath := make([]string, len(res.postProcessing.MergePath)+1)
 		copy(skipErrorsPath, res.postProcessing.MergePath)
 		skipErrorsPath[len(skipErrorsPath)-1] = "__skipErrors"
 		for _, item := range items {
-			astjson.SetValue(item, trueValue, skipErrorsPath...)
+			astjson.SetValue(l.jsonArena, item, trueValue, skipErrorsPath...)
 		}
 		return nil
 	}
@@ -506,12 +488,9 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	if len(res.out) == 0 {
 		return l.renderErrorsFailedToFetch(fetchItem, res, emptyGraphQLResponse)
 	}
-	// before parsing bytes with an arena.Arena, it's important to first allocate the bytes ON the same arena.Arena
-	// this ties their lifecycles together
-	// if you don't do this, you'll get segfaults
-	slice := arena.AllocateSlice[byte](l.jsonArena, len(res.out), len(res.out))
-	copy(slice, res.out)
-	response, err := astjson.ParseBytesWithArena(l.jsonArena, slice)
+	// astjson.ParseBytesWithArena copies bytes onto the arena internally,
+	// tying the byte lifecycle to the arena and preventing GC-related segfaults.
+	response, err := astjson.ParseBytesWithArena(l.jsonArena, res.out)
 	if err != nil {
 		// Fall back to status code if parsing fails and non-2XX
 		if (res.statusCode > 0 && res.statusCode < 200) || res.statusCode >= 300 {
@@ -740,7 +719,7 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 		// downside: we have to verify it's initialized before appending to it
 		l.resolvable.ensureErrorsInitialized()
 		// If the error propagation mode is pass-through, we append the errors to the root array
-		l.resolvable.errors.AppendArrayItems(value)
+		l.resolvable.errors.AppendArrayItems(l.jsonArena, value)
 		return nil
 	}
 
@@ -752,14 +731,14 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 	}
 
 	// Wrap mode (default)
-	errorObject, err := parseStringOnArena(l.jsonArena, l.renderSubgraphBaseError(res.ds, fetchItem.ResponsePath, failedToFetchNoReason))
+	errorObject, err := astjson.ParseWithArena(l.jsonArena, l.renderSubgraphBaseError(res.ds, fetchItem.ResponsePath, failedToFetchNoReason))
 	if err != nil {
 		return err
 	}
 
 	if l.propagateSubgraphErrors {
 		// Attach all errors to the root array in the "errors" extension field
-		astjson.SetValue(errorObject, value, "extensions", "errors")
+		astjson.SetValue(l.jsonArena, errorObject, value, "extensions", "errors")
 	}
 
 	v := []*astjson.Value{errorObject}
@@ -779,7 +758,7 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 	// don't change this, it's measurable
 	// downside: we have to verify it's initialized before appending to it
 	l.resolvable.ensureErrorsInitialized()
-	astjson.AppendToArray(l.resolvable.errors, errorObject)
+	astjson.AppendToArray(l.jsonArena, l.resolvable.errors, errorObject)
 
 	return nil
 }
@@ -824,16 +803,16 @@ func (l *Loader) optionallyEnsureExtensionErrorCode(values []*astjson.Value) {
 			switch extensions.Type() {
 			case astjson.TypeObject:
 				if !extensions.Exists("code") {
-					extensions.Set(l.jsonArena, "code", stringValueOnArena(l.jsonArena, l.defaultErrorExtensionCode))
+					extensions.Set(l.jsonArena, "code", astjson.StringValue(l.jsonArena, l.defaultErrorExtensionCode))
 				}
 			case astjson.TypeNull:
 				extensionsObj := astjson.ObjectValue(l.jsonArena)
-				extensionsObj.Set(l.jsonArena, "code", stringValueOnArena(l.jsonArena, l.defaultErrorExtensionCode))
+				extensionsObj.Set(l.jsonArena, "code", astjson.StringValue(l.jsonArena, l.defaultErrorExtensionCode))
 				value.Set(l.jsonArena, "extensions", extensionsObj)
 			}
 		} else {
 			extensionsObj := astjson.ObjectValue(l.jsonArena)
-			extensionsObj.Set(l.jsonArena, "code", stringValueOnArena(l.jsonArena, l.defaultErrorExtensionCode))
+			extensionsObj.Set(l.jsonArena, "code", astjson.StringValue(l.jsonArena, l.defaultErrorExtensionCode))
 			value.Set(l.jsonArena, "extensions", extensionsObj)
 		}
 	}
@@ -851,15 +830,15 @@ func (l *Loader) optionallyAttachServiceNameToErrorExtension(values []*astjson.V
 			extensions := value.Get("extensions")
 			switch extensions.Type() {
 			case astjson.TypeObject:
-				extensions.Set(l.jsonArena, "serviceName", stringValueOnArena(l.jsonArena, serviceName))
+				extensions.Set(l.jsonArena, "serviceName", astjson.StringValue(l.jsonArena, serviceName))
 			case astjson.TypeNull:
 				extensionsObj := astjson.ObjectValue(l.jsonArena)
-				extensionsObj.Set(l.jsonArena, "serviceName", stringValueOnArena(l.jsonArena, serviceName))
+				extensionsObj.Set(l.jsonArena, "serviceName", astjson.StringValue(l.jsonArena, serviceName))
 				value.Set(l.jsonArena, "extensions", extensionsObj)
 			}
 		} else {
 			extensionsObj := astjson.ObjectValue(l.jsonArena)
-			extensionsObj.Set(l.jsonArena, "serviceName", stringValueOnArena(l.jsonArena, serviceName))
+			extensionsObj.Set(l.jsonArena, "serviceName", astjson.StringValue(l.jsonArena, serviceName))
 			value.Set(l.jsonArena, "extensions", extensionsObj)
 		}
 	}
@@ -965,7 +944,7 @@ func rewriteErrorPaths(a arena.Arena, fetchItem *FetchItem, values []*astjson.Va
 			}
 			arr := astjson.ArrayValue(a)
 			for j := range pathPrefix {
-				astjson.AppendToArray(arr, stringValueOnArena(a, pathPrefix[j]))
+				astjson.AppendToArray(a, arr, astjson.StringValue(a, pathPrefix[j]))
 			}
 			for j := i + 1; j < len(pathItems); j++ {
 				// If the item after _entities is an index (number), we should ignore it.
@@ -974,7 +953,7 @@ func rewriteErrorPaths(a arena.Arena, fetchItem *FetchItem, values []*astjson.Va
 				}
 				switch pathItems[j].Type() {
 				case astjson.TypeString, astjson.TypeNumber:
-					astjson.AppendToArray(arr, pathItems[j])
+					astjson.AppendToArray(a, arr, pathItems[j])
 				}
 			}
 			value.Set(a, "path", arr)
@@ -998,13 +977,13 @@ func (l *Loader) setSubgraphStatusCode(values []*astjson.Value, statusCode int) 
 			if extensions.Type() != astjson.TypeObject {
 				continue
 			}
-			v, err := parseStringOnArena(l.jsonArena, strconv.Itoa(statusCode))
+			v, err := astjson.ParseWithArena(l.jsonArena, strconv.Itoa(statusCode))
 			if err != nil {
 				continue
 			}
 			extensions.Set(l.jsonArena, "statusCode", v)
 		} else {
-			v, err := parseStringOnArena(l.jsonArena, `{"statusCode":`+strconv.Itoa(statusCode)+`}`)
+			v, err := astjson.ParseWithArena(l.jsonArena, `{"statusCode":`+strconv.Itoa(statusCode)+`}`)
 			if err != nil {
 				continue
 			}
@@ -1045,7 +1024,7 @@ func (l *Loader) addApolloRouterCompatibilityError(res *result) error {
 				}
 			}
 		}`, res.ds.Name, http.StatusText(res.statusCode), res.statusCode)
-	apolloRouterStatusError, err := parseStringOnArena(l.jsonArena, apolloRouterStatusErrorJSON)
+	apolloRouterStatusError, err := astjson.ParseWithArena(l.jsonArena, apolloRouterStatusErrorJSON)
 	if err != nil {
 		return err
 	}
@@ -1053,7 +1032,7 @@ func (l *Loader) addApolloRouterCompatibilityError(res *result) error {
 	// don't change this, it's measurable
 	// downside: we have to verify it's initialized before appending to it
 	l.resolvable.ensureErrorsInitialized()
-	astjson.AppendToArray(l.resolvable.errors, apolloRouterStatusError)
+	astjson.AppendToArray(l.jsonArena, l.resolvable.errors, apolloRouterStatusError)
 
 	return nil
 }
@@ -1061,7 +1040,7 @@ func (l *Loader) addApolloRouterCompatibilityError(res *result) error {
 func (l *Loader) renderErrorsFailedDeps(fetchItem *FetchItem, res *result) error {
 	path := l.renderAtPathErrorPart(fetchItem.ResponsePath)
 	msg := fmt.Sprintf(`{"message":"Failed to obtain field dependencies from Subgraph '%s'%s."}`, res.ds.Name, path)
-	errorObject, err := parseStringOnArena(l.jsonArena, msg)
+	errorObject, err := astjson.ParseWithArena(l.jsonArena, msg)
 	if err != nil {
 		return err
 	}
@@ -1070,13 +1049,13 @@ func (l *Loader) renderErrorsFailedDeps(fetchItem *FetchItem, res *result) error
 	// don't change this, it's measurable
 	// downside: we have to verify it's initialized before appending to it
 	l.resolvable.ensureErrorsInitialized()
-	astjson.AppendToArray(l.resolvable.errors, errorObject)
+	astjson.AppendToArray(l.jsonArena, l.resolvable.errors, errorObject)
 	return nil
 }
 
 func (l *Loader) renderErrorsFailedToFetch(fetchItem *FetchItem, res *result, reason string) error {
 	l.ctx.appendSubgraphErrors(res.ds, res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode))
-	errorObject, err := parseStringOnArena(l.jsonArena, l.renderSubgraphBaseError(res.ds, fetchItem.ResponsePath, reason))
+	errorObject, err := astjson.ParseWithArena(l.jsonArena, l.renderSubgraphBaseError(res.ds, fetchItem.ResponsePath, reason))
 	if err != nil {
 		return err
 	}
@@ -1085,7 +1064,7 @@ func (l *Loader) renderErrorsFailedToFetch(fetchItem *FetchItem, res *result, re
 	// don't change this, it's measurable
 	// downside: we have to verify it's initialized before appending to it
 	l.resolvable.ensureErrorsInitialized()
-	astjson.AppendToArray(l.resolvable.errors, errorObject)
+	astjson.AppendToArray(l.jsonArena, l.resolvable.errors, errorObject)
 	return nil
 }
 
@@ -1097,7 +1076,7 @@ func (l *Loader) renderErrorsStatusFallback(fetchItem *FetchItem, res *result, s
 
 	l.ctx.appendSubgraphErrors(res.ds, res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode))
 
-	errorObject, err := parseStringOnArena(l.jsonArena, fmt.Sprintf(`{"message":"%s"}`, reason))
+	errorObject, err := astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"message":"%s"}`, reason))
 	if err != nil {
 		return err
 	}
@@ -1107,7 +1086,7 @@ func (l *Loader) renderErrorsStatusFallback(fetchItem *FetchItem, res *result, s
 	// don't change this, it's measurable
 	// downside: we have to verify it's initialized before appending to it
 	l.resolvable.ensureErrorsInitialized()
-	astjson.AppendToArray(l.resolvable.errors, errorObject)
+	astjson.AppendToArray(l.jsonArena, l.resolvable.errors, errorObject)
 	return nil
 }
 
@@ -1138,33 +1117,33 @@ func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *re
 	if res.ds.Name == "" {
 		for _, reason := range res.authorizationRejectedReasons {
 			if reason == "" {
-				errorObject, err := parseStringOnArena(l.jsonArena, fmt.Sprintf(`{"message":"Unauthorized Subgraph request%s.",%s}`, pathPart, extensionErrorCode))
+				errorObject, err := astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"message":"Unauthorized Subgraph request%s.",%s}`, pathPart, extensionErrorCode))
 				if err != nil {
 					continue
 				}
-				astjson.AppendToArray(l.resolvable.errors, errorObject)
+				astjson.AppendToArray(l.jsonArena, l.resolvable.errors, errorObject)
 			} else {
-				errorObject, err := parseStringOnArena(l.jsonArena, fmt.Sprintf(`{"message":"Unauthorized Subgraph request%s, Reason: %s.",%s}`, pathPart, reason, extensionErrorCode))
+				errorObject, err := astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"message":"Unauthorized Subgraph request%s, Reason: %s.",%s}`, pathPart, reason, extensionErrorCode))
 				if err != nil {
 					continue
 				}
-				astjson.AppendToArray(l.resolvable.errors, errorObject)
+				astjson.AppendToArray(l.jsonArena, l.resolvable.errors, errorObject)
 			}
 		}
 	} else {
 		for _, reason := range res.authorizationRejectedReasons {
 			if reason == "" {
-				errorObject, err := parseStringOnArena(l.jsonArena, fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s'%s.",%s}`, res.ds.Name, pathPart, extensionErrorCode))
+				errorObject, err := astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s'%s.",%s}`, res.ds.Name, pathPart, extensionErrorCode))
 				if err != nil {
 					continue
 				}
-				astjson.AppendToArray(l.resolvable.errors, errorObject)
+				astjson.AppendToArray(l.jsonArena, l.resolvable.errors, errorObject)
 			} else {
-				errorObject, err := parseStringOnArena(l.jsonArena, fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s'%s, Reason: %s.",%s}`, res.ds.Name, pathPart, reason, extensionErrorCode))
+				errorObject, err := astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s'%s, Reason: %s.",%s}`, res.ds.Name, pathPart, reason, extensionErrorCode))
 				if err != nil {
 					continue
 				}
-				astjson.AppendToArray(l.resolvable.errors, errorObject)
+				astjson.AppendToArray(l.jsonArena, l.resolvable.errors, errorObject)
 			}
 		}
 	}
@@ -1180,31 +1159,31 @@ func (l *Loader) renderRateLimitRejectedErrors(fetchItem *FetchItem, res *result
 	)
 	if res.ds.Name == "" {
 		if res.rateLimitRejectedReason == "" {
-			errorObject, err = parseStringOnArena(l.jsonArena, fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request%s."}`, pathPart))
+			errorObject, err = astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request%s."}`, pathPart))
 			if err != nil {
 				return err
 			}
 		} else {
-			errorObject, err = parseStringOnArena(l.jsonArena, fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request%s, Reason: %s."}`, pathPart, res.rateLimitRejectedReason))
+			errorObject, err = astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request%s, Reason: %s."}`, pathPart, res.rateLimitRejectedReason))
 			if err != nil {
 				return err
 			}
 		}
 	} else {
 		if res.rateLimitRejectedReason == "" {
-			errorObject, err = parseStringOnArena(l.jsonArena, fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s'%s."}`, res.ds.Name, pathPart))
+			errorObject, err = astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s'%s."}`, res.ds.Name, pathPart))
 			if err != nil {
 				return err
 			}
 		} else {
-			errorObject, err = parseStringOnArena(l.jsonArena, fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s'%s, Reason: %s."}`, res.ds.Name, pathPart, res.rateLimitRejectedReason))
+			errorObject, err = astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s'%s, Reason: %s."}`, res.ds.Name, pathPart, res.rateLimitRejectedReason))
 			if err != nil {
 				return err
 			}
 		}
 	}
 	if l.ctx.RateLimitOptions.ErrorExtensionCode.Enabled {
-		extension, err := parseStringOnArena(l.jsonArena, fmt.Sprintf(`{"code":"%s"}`, l.ctx.RateLimitOptions.ErrorExtensionCode.Code))
+		extension, err := astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"code":"%s"}`, l.ctx.RateLimitOptions.ErrorExtensionCode.Code))
 		if err != nil {
 			return err
 		}
@@ -1217,7 +1196,7 @@ func (l *Loader) renderRateLimitRejectedErrors(fetchItem *FetchItem, res *result
 	// don't change this, it's measurable
 	// downside: we have to verify it's initialized before appending to it
 	l.resolvable.ensureErrorsInitialized()
-	astjson.AppendToArray(l.resolvable.errors, errorObject)
+	astjson.AppendToArray(l.jsonArena, l.resolvable.errors, errorObject)
 	return nil
 }
 
