@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.255](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.254...v2.0.0-rc.255) (2026-02-21)
+
+
+### Bug Fixes
+
+* **resolve:** fix mutation-during-iteration bug in optionallyAllowCustomExtensionProperties ([#1402](https://github.com/wundergraph/graphql-go-tools/issues/1402)) ([4c4bfc8](https://github.com/wundergraph/graphql-go-tools/commit/4c4bfc8aa04c0059fc2956cc5794ada6d1a12997))
+
 ## [2.0.0-rc.254](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.253...v2.0.0-rc.254) (2026-02-20)
 
 
