@@ -53,10 +53,6 @@ func (e *internalExecutionContext) setVariables(variables []byte) {
 	}
 }
 
-func (e *internalExecutionContext) reset() {
-	e.resolveContext.Free()
-}
-
 type ExecutionEngine struct {
 	logger                   abstractlogger.Logger
 	config                   Configuration

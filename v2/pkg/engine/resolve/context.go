@@ -320,6 +320,7 @@ func (c *Context) Free() {
 	c.LoaderHooks = nil
 	c.GetDeduplicationData = nil
 	c.SetDeduplicationData = nil
+	c.ActualListSizes = nil
 }
 
 type traceStartKey struct{}
