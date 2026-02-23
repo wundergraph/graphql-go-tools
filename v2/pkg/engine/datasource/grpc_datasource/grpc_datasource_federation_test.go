@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
@@ -115,21 +116,18 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 		{
 			name:  "Query Product with field resolvers",
 			query: `query($representations: [_Any!]!, $input: ShippingEstimateInput!) { _entities(representations: $representations) { ...on Product { id name price shippingEstimate(input: $input) } } }`,
-			vars: `
-			{
-			  "variables":
-			  {
-			    "representations":[
-				  {"__typename":"Product","id":"1"},
-				  {"__typename":"Product","id":"2"},
-				  {"__typename":"Product","id":"3"}
+			vars: `{"variables":{
+				"representations":[
+					{"__typename":"Product","id":"1"},
+					{"__typename":"Product","id":"2"},
+					{"__typename":"Product","id":"3"}
 				],
 				"input":{
-				  "destination":"INTERNATIONAL",
-				  "weight":10.0,
-				  "expedited":true
+					"destination":"INTERNATIONAL",
+					"weight":10.0,
+					"expedited":true
 				}
-			}`,
+			}}`,
 			federationConfigs: plan.FederationFieldConfigurations{
 				{
 					TypeName:     "Product",
@@ -163,6 +161,8 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			require.True(t, gjson.Valid(tc.vars))
+
 			// Parse the GraphQL schema
 			schemaDoc := grpctest.MustGraphQLSchema(t)
 
