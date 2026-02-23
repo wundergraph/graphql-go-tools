@@ -45,6 +45,11 @@ type Context struct {
 
 	SubgraphHeadersBuilder SubgraphHeadersBuilder
 
+	// ActualListSizes is populated by the resolver after resolution completes,
+	// before the response body is written. Maps JSON path to actual list size.
+	// Used to compute the actual cost.
+	ActualListSizes map[string]int
+
 	// GetDeduplicationData is called after the leader of an inbound singleflight request
 	// finishes resolving. It extracts data from the leader's context (e.g. accumulated
 	// response headers) that should be shared with all follower requests.
