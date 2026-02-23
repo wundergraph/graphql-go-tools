@@ -27,7 +27,7 @@ func TestWSConnection_Subscribe(t *testing.T) {
 
 		conn, _ := newTestConn(t)
 		proto := newMockProtocol()
-		wsc := transport.NewWSConnection(t.Context(), conn, proto, nil, nil)
+		wsc := transport.NewWSConnection(t.Context(), conn, proto)
 
 		ch, cancel, err := wsc.Subscribe(context.Background(), "sub-1", &common.Request{
 			Query: "subscription { test }",
@@ -45,7 +45,7 @@ func TestWSConnection_Subscribe(t *testing.T) {
 
 		conn, _ := newTestConn(t)
 		proto := newMockProtocol()
-		wsc := transport.NewWSConnection(t.Context(), conn, proto, nil, nil)
+		wsc := transport.NewWSConnection(t.Context(), conn, proto)
 
 		_, cancel, err := wsc.Subscribe(context.Background(), "sub-1", &common.Request{})
 		require.NoError(t, err)
@@ -61,7 +61,7 @@ func TestWSConnection_Subscribe(t *testing.T) {
 
 		conn, _ := newTestConn(t)
 		proto := newMockProtocol()
-		wsc := transport.NewWSConnection(t.Context(), conn, proto, nil, nil)
+		wsc := transport.NewWSConnection(t.Context(), conn, proto)
 		wsc.Close()
 
 		_, _, err := wsc.Subscribe(context.Background(), "sub-1", &common.Request{})
@@ -75,7 +75,7 @@ func TestWSConnection_Subscribe(t *testing.T) {
 		conn, _ := newTestConn(t)
 		proto := newMockProtocol()
 		proto.subscribeErr = assert.AnError
-		wsc := transport.NewWSConnection(t.Context(), conn, proto, nil, nil)
+		wsc := transport.NewWSConnection(t.Context(), conn, proto)
 
 		_, _, err := wsc.Subscribe(context.Background(), "sub-1", &common.Request{})
 
@@ -92,7 +92,7 @@ func TestWSConnection_ReadLoop(t *testing.T) {
 
 		conn, _ := newTestConn(t)
 		proto := newMockProtocol()
-		wsc := transport.NewWSConnection(t.Context(), conn, proto, nil, nil)
+		wsc := transport.NewWSConnection(t.Context(), conn, proto)
 
 		ch, cancel, err := wsc.Subscribe(context.Background(), "sub-1", &common.Request{})
 		require.NoError(t, err)
@@ -116,7 +116,7 @@ func TestWSConnection_ReadLoop(t *testing.T) {
 
 		conn, _ := newTestConn(t)
 		proto := newMockProtocol()
-		wsc := transport.NewWSConnection(t.Context(), conn, proto, nil, nil)
+		wsc := transport.NewWSConnection(t.Context(), conn, proto)
 
 		ch, _, err := wsc.Subscribe(context.Background(), "sub-1", &common.Request{})
 		require.NoError(t, err)
@@ -140,7 +140,7 @@ func TestWSConnection_ReadLoop(t *testing.T) {
 
 		conn, _ := newTestConn(t)
 		proto := newMockProtocol()
-		wsc := transport.NewWSConnection(t.Context(), conn, proto, nil, nil)
+		wsc := transport.NewWSConnection(t.Context(), conn, proto)
 
 		go wsc.ReadLoop()
 
@@ -156,7 +156,7 @@ func TestWSConnection_ReadLoop(t *testing.T) {
 
 		conn, _ := newTestConn(t)
 		proto := newMockProtocol()
-		wsc := transport.NewWSConnection(t.Context(), conn, proto, nil, nil)
+		wsc := transport.NewWSConnection(t.Context(), conn, proto)
 
 		ch, cancel, err := wsc.Subscribe(context.Background(), "sub-1", &common.Request{})
 		require.NoError(t, err)
@@ -189,7 +189,7 @@ func TestWSConnection_Unsubscribe(t *testing.T) {
 
 		conn, _ := newTestConn(t)
 		proto := newMockProtocol()
-		wsc := transport.NewWSConnection(t.Context(), conn, proto, nil, nil)
+		wsc := transport.NewWSConnection(t.Context(), conn, proto)
 
 		ch, cancel, err := wsc.Subscribe(context.Background(), "sub-1", &common.Request{})
 		require.NoError(t, err)
@@ -206,7 +206,7 @@ func TestWSConnection_Unsubscribe(t *testing.T) {
 
 		conn, _ := newTestConn(t)
 		proto := newMockProtocol()
-		wsc := transport.NewWSConnection(t.Context(), conn, proto, nil, nil)
+		wsc := transport.NewWSConnection(t.Context(), conn, proto)
 
 		_, cancel, err := wsc.Subscribe(context.Background(), "sub-1", &common.Request{})
 		require.NoError(t, err)
@@ -224,8 +224,9 @@ func TestWSConnection_Unsubscribe(t *testing.T) {
 		conn, _ := newTestConn(t)
 		proto := newMockProtocol()
 		proto.unsubscribeDelay = 500 * time.Millisecond
-		wsc := transport.NewWSConnection(t.Context(), conn, proto, nil, nil)
-		wsc.WriteTimeout = 50 * time.Millisecond
+		wsc := transport.NewWSConnection(t.Context(), conn, proto,
+			transport.WithConnWriteTimeout(50*time.Millisecond),
+		)
 
 		_, cancel, err := wsc.Subscribe(context.Background(), "sub-1", &common.Request{})
 		require.NoError(t, err)
@@ -248,9 +249,9 @@ func TestWSConnection_OnEmpty(t *testing.T) {
 		proto := newMockProtocol()
 
 		emptyCalled := make(chan struct{}, 1)
-		wsc := transport.NewWSConnection(t.Context(), conn, proto, nil, func() {
-			emptyCalled <- struct{}{}
-		})
+		wsc := transport.NewWSConnection(t.Context(), conn, proto,
+			transport.WithOnEmpty(func() { emptyCalled <- struct{}{} }),
+		)
 
 		_, cancel, _ := wsc.Subscribe(context.Background(), "sub-1", &common.Request{})
 		cancel()
@@ -272,9 +273,9 @@ func TestWSConnection_OnEmpty(t *testing.T) {
 		proto := newMockProtocol()
 
 		emptyCalled := make(chan struct{}, 1)
-		wsc := transport.NewWSConnection(t.Context(), conn, proto, nil, func() {
-			emptyCalled <- struct{}{}
-		})
+		wsc := transport.NewWSConnection(t.Context(), conn, proto,
+			transport.WithOnEmpty(func() { emptyCalled <- struct{}{} }),
+		)
 
 		_, cancel1, _ := wsc.Subscribe(context.Background(), "sub-1", &common.Request{})
 		_, cancel2, _ := wsc.Subscribe(context.Background(), "sub-2", &common.Request{})
@@ -305,9 +306,9 @@ func TestWSConnection_OnEmpty(t *testing.T) {
 		proto := newMockProtocol()
 
 		emptyCalled := make(chan struct{}, 1)
-		wsc := transport.NewWSConnection(t.Context(), conn, proto, nil, func() {
-			emptyCalled <- struct{}{}
-		})
+		wsc := transport.NewWSConnection(t.Context(), conn, proto,
+			transport.WithOnEmpty(func() { emptyCalled <- struct{}{} }),
+		)
 
 		wsc.Close()
 
@@ -327,9 +328,9 @@ func TestWSConnection_OnEmpty(t *testing.T) {
 
 		emptyCalled := make(chan struct{}, 1)
 		ctx, cancel := context.WithCancel(context.Background())
-		wsc := transport.NewWSConnection(ctx, conn, proto, nil, func() {
-			emptyCalled <- struct{}{}
-		})
+		wsc := transport.NewWSConnection(ctx, conn, proto,
+			transport.WithOnEmpty(func() { emptyCalled <- struct{}{} }),
+		)
 
 		go wsc.ReadLoop()
 
@@ -353,7 +354,7 @@ func TestWSConnection_Close(t *testing.T) {
 
 		conn, _ := newTestConn(t)
 		proto := newMockProtocol()
-		wsc := transport.NewWSConnection(t.Context(), conn, proto, nil, nil)
+		wsc := transport.NewWSConnection(t.Context(), conn, proto)
 
 		ch1, _, _ := wsc.Subscribe(context.Background(), "sub-1", &common.Request{})
 		ch2, _, _ := wsc.Subscribe(context.Background(), "sub-2", &common.Request{})
@@ -378,7 +379,7 @@ func TestWSConnection_Close(t *testing.T) {
 
 		conn, _ := newTestConn(t)
 		proto := newMockProtocol()
-		wsc := transport.NewWSConnection(t.Context(), conn, proto, nil, nil)
+		wsc := transport.NewWSConnection(t.Context(), conn, proto)
 
 		assert.NoError(t, wsc.Close())
 		assert.NoError(t, wsc.Close())
@@ -394,7 +395,7 @@ func TestWSConnection_SubCount(t *testing.T) {
 
 		conn, _ := newTestConn(t)
 		proto := newMockProtocol()
-		wsc := transport.NewWSConnection(t.Context(), conn, proto, nil, nil)
+		wsc := transport.NewWSConnection(t.Context(), conn, proto)
 
 		assert.Equal(t, 0, wsc.SubCount())
 
@@ -421,8 +422,9 @@ func TestWSConnection_WriteTimeout(t *testing.T) {
 		conn, _ := newTestConn(t)
 		proto := newMockProtocol()
 		proto.pongDelay = 500 * time.Millisecond
-		wsc := transport.NewWSConnection(t.Context(), conn, proto, nil, nil)
-		wsc.WriteTimeout = 50 * time.Millisecond
+		wsc := transport.NewWSConnection(t.Context(), conn, proto,
+			transport.WithConnWriteTimeout(50*time.Millisecond),
+		)
 
 		ch, cancel, err := wsc.Subscribe(context.Background(), "sub-1", &common.Request{})
 		require.NoError(t, err)
@@ -444,6 +446,56 @@ func TestWSConnection_WriteTimeout(t *testing.T) {
 		// If pong blocked for 500ms, this would timeout
 		msg := receiveWithTimeout(t, ch, 150*time.Millisecond)
 		assert.NotNil(t, msg.Payload)
+	})
+}
+
+func TestWSConnection_Defaults(t *testing.T) {
+	t.Parallel()
+
+	t.Run("applies default write timeout when omitted", func(t *testing.T) {
+		t.Parallel()
+
+		conn, _ := newTestConn(t)
+		proto := newMockProtocol()
+		wsc := transport.NewWSConnection(t.Context(), conn, proto)
+
+		assert.Equal(t, transport.DefaultWriteTimeout, wsc.WriteTimeout())
+	})
+
+	t.Run("applies default write timeout for zero value", func(t *testing.T) {
+		t.Parallel()
+
+		conn, _ := newTestConn(t)
+		proto := newMockProtocol()
+		wsc := transport.NewWSConnection(t.Context(), conn, proto,
+			transport.WithConnWriteTimeout(0),
+		)
+
+		assert.Equal(t, transport.DefaultWriteTimeout, wsc.WriteTimeout())
+	})
+
+	t.Run("overrides write timeout when provided", func(t *testing.T) {
+		t.Parallel()
+
+		conn, _ := newTestConn(t)
+		proto := newMockProtocol()
+		wsc := transport.NewWSConnection(t.Context(), conn, proto,
+			transport.WithConnWriteTimeout(10*time.Second),
+		)
+
+		assert.Equal(t, 10*time.Second, wsc.WriteTimeout())
+	})
+
+	t.Run("ignores negative write timeout", func(t *testing.T) {
+		t.Parallel()
+
+		conn, _ := newTestConn(t)
+		proto := newMockProtocol()
+		wsc := transport.NewWSConnection(t.Context(), conn, proto,
+			transport.WithConnWriteTimeout(-1*time.Second),
+		)
+
+		assert.Equal(t, transport.DefaultWriteTimeout, wsc.WriteTimeout())
 	})
 }
 

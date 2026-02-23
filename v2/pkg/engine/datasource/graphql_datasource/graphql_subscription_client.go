@@ -26,6 +26,8 @@ type SubscriptionClientConfig struct {
 	PingInterval time.Duration
 	PingTimeout  time.Duration
 	AckTimeout   time.Duration
+	WriteTimeout time.Duration
+	ReadLimit    int64
 }
 
 func defaultSubscriptionClientConfig() *SubscriptionClientConfig {
@@ -96,6 +98,22 @@ func WithAckTimeout(d time.Duration) SubscriptionClientOption {
 	}
 }
 
+// WithWriteTimeout sets the timeout for WebSocket write operations (subscribe, unsubscribe, ping, pong).
+// Default: 5s.
+func WithWriteTimeout(d time.Duration) SubscriptionClientOption {
+	return func(cfg *SubscriptionClientConfig) {
+		cfg.WriteTimeout = d
+	}
+}
+
+// WithReadLimit sets the maximum size in bytes for incoming WebSocket messages.
+// Default: 1MB.
+func WithReadLimit(n int64) SubscriptionClientOption {
+	return func(cfg *SubscriptionClientConfig) {
+		cfg.ReadLimit = n
+	}
+}
+
 // subscriptionClientV2 implements GraphQLSubscriptionClient using the new
 // channel-based subscription client.
 type subscriptionClientV2 struct {
@@ -116,6 +134,9 @@ func NewGraphQLSubscriptionClient(ctx context.Context, opts ...SubscriptionClien
 			Logger:          cfg.Logger,
 			PingInterval:    cfg.PingInterval,
 			PingTimeout:     cfg.PingTimeout,
+			AckTimeout:      cfg.AckTimeout,
+			WriteTimeout:    cfg.WriteTimeout,
+			ReadLimit:       cfg.ReadLimit,
 		}),
 	}
 }

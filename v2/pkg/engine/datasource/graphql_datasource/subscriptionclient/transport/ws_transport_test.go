@@ -44,7 +44,7 @@ func TestWSTransport_Subscribe(t *testing.T) {
 			})
 		})
 
-		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil, 0, 0)
+		tr := transport.NewWSTransport(t.Context())
 
 		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
@@ -85,7 +85,7 @@ func TestWSTransport_Subscribe(t *testing.T) {
 			}
 		})
 
-		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil, 0, 0)
+		tr := transport.NewWSTransport(t.Context())
 
 		opts := common.Options{
 			Endpoint:  server.URL,
@@ -132,7 +132,7 @@ func TestWSTransport_Subscribe(t *testing.T) {
 			}
 		})
 
-		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil, 0, 0)
+		tr := transport.NewWSTransport(t.Context())
 
 		headers1 := http.Header{"Authorization": []string{"Bearer token1"}}
 		headers2 := http.Header{"Authorization": []string{"Bearer token2"}}
@@ -184,7 +184,7 @@ func TestWSTransport_Subscribe(t *testing.T) {
 			}
 		})
 
-		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil, 0, 0)
+		tr := transport.NewWSTransport(t.Context())
 
 		ch1, cancel1, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, common.Options{
 			Endpoint:    server.URL,
@@ -222,7 +222,7 @@ func TestWSTransport_Subscribe(t *testing.T) {
 			}
 		})
 
-		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil, 0, 0)
+		tr := transport.NewWSTransport(t.Context())
 
 		opts := common.Options{
 			Endpoint:  server.URL,
@@ -271,7 +271,7 @@ func TestWSTransport_Subscribe(t *testing.T) {
 			}
 		})
 
-		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil, 0, 0)
+		tr := transport.NewWSTransport(t.Context())
 
 		opts := common.Options{
 			Endpoint:  server.URL,
@@ -315,7 +315,7 @@ func TestWSTransport_ContextCancellation(t *testing.T) {
 		})
 
 		ctx, cancel := context.WithCancel(context.Background())
-		tr := transport.NewWSTransport(ctx, http.DefaultClient, nil, 0, 0)
+		tr := transport.NewWSTransport(ctx)
 
 		_, _, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, common.Options{
 			Endpoint:  server.URL,
@@ -346,7 +346,7 @@ func TestWSTransport_ContextCancellation(t *testing.T) {
 		})
 
 		ctx, cancel := context.WithCancel(context.Background())
-		tr := transport.NewWSTransport(ctx, http.DefaultClient, nil, 0, 0)
+		tr := transport.NewWSTransport(ctx)
 
 		ch, _, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, common.Options{
 			Endpoint:  server.URL,
@@ -388,7 +388,7 @@ func TestWSTransport_ConcurrentSubscribe(t *testing.T) {
 			}
 		})
 
-		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil, 0, 0)
+		tr := transport.NewWSTransport(t.Context())
 
 		opts := common.Options{
 			Endpoint:  server.URL,
@@ -463,7 +463,7 @@ func TestWSTransport_InitPayloadForwarding(t *testing.T) {
 		}))
 		t.Cleanup(server.Close)
 
-		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil, 0, 0)
+		tr := transport.NewWSTransport(t.Context())
 
 		initPayload := map[string]any{
 			"Authorization": "Bearer secret-token",
@@ -547,7 +547,7 @@ func TestWSTransport_InitPayloadForwarding(t *testing.T) {
 		}))
 		t.Cleanup(server.Close)
 
-		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil, 0, 0)
+		tr := transport.NewWSTransport(t.Context())
 
 		initPayload := map[string]any{
 			"token":   "legacy-auth-token",
@@ -625,7 +625,7 @@ func TestWSTransport_InitPayloadForwarding(t *testing.T) {
 		}))
 		t.Cleanup(server.Close)
 
-		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil, 0, 0)
+		tr := transport.NewWSTransport(t.Context())
 
 		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
@@ -703,7 +703,7 @@ func TestWSTransport_InitPayloadForwarding(t *testing.T) {
 		}))
 		t.Cleanup(server.Close)
 
-		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil, 0, 0)
+		tr := transport.NewWSTransport(t.Context())
 
 		// First subscription with user1 token
 		ch1, cancel1, err := tr.Subscribe(context.Background(), &common.Request{
@@ -776,7 +776,7 @@ func TestWSTransport_LegacyProtocol(t *testing.T) {
 			})
 		})
 
-		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil, 0, 0)
+		tr := transport.NewWSTransport(t.Context())
 
 		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
@@ -820,7 +820,7 @@ func TestWSTransport_LegacyProtocol(t *testing.T) {
 			})
 		})
 
-		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil, 0, 0)
+		tr := transport.NewWSTransport(t.Context())
 
 		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
@@ -860,7 +860,7 @@ func TestWSTransport_LegacyProtocol(t *testing.T) {
 			})
 		})
 
-		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil, 0, 0)
+		tr := transport.NewWSTransport(t.Context())
 
 		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
@@ -902,7 +902,7 @@ func TestWSTransport_Heartbeat(t *testing.T) {
 			}
 		})
 
-		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil, 50*time.Millisecond, 0)
+		tr := transport.NewWSTransport(t.Context(), transport.WithPingInterval(50*time.Millisecond))
 
 		_, cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
@@ -936,7 +936,7 @@ func TestWSTransport_Heartbeat(t *testing.T) {
 			}
 		})
 
-		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil, 100*time.Millisecond, 50*time.Millisecond)
+		tr := transport.NewWSTransport(t.Context(), transport.WithPingInterval(100*time.Millisecond), transport.WithPingTimeout(50*time.Millisecond))
 
 		ch, _, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
@@ -954,6 +954,48 @@ func TestWSTransport_Heartbeat(t *testing.T) {
 		assert.Eventually(t, func() bool {
 			return tr.ConnCount() == 0
 		}, time.Second, 10*time.Millisecond)
+	})
+
+	t.Run("does not kill connection when ping timeout is disabled", func(t *testing.T) {
+		t.Parallel()
+
+		var pingCount atomic.Int32
+		server := newGraphQLWSServer(t, func(ctx context.Context, conn *websocket.Conn) {
+			// Read subscribe
+			var msg map[string]any
+			_ = wsjson.Read(ctx, conn, &msg)
+
+			// Read pings but never respond with pong
+			for {
+				var incoming map[string]any
+				if err := wsjson.Read(ctx, conn, &incoming); err != nil {
+					return
+				}
+				if incoming["type"] == "ping" {
+					pingCount.Add(1)
+				}
+			}
+		})
+
+		// PingInterval set, PingTimeout left at zero (disabled)
+		tr := transport.NewWSTransport(t.Context(), transport.WithPingInterval(50*time.Millisecond))
+
+		_, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+			Query: "subscription { test }",
+		}, common.Options{
+			Endpoint:  server.URL,
+			Transport: common.TransportWS,
+		})
+		require.NoError(t, err)
+		defer cancel()
+
+		// Wait for several ping cycles without any pong responses
+		assert.Eventually(t, func() bool {
+			return pingCount.Load() >= 3
+		}, time.Second, 10*time.Millisecond)
+
+		// Connection must still be alive despite no pongs
+		assert.Equal(t, 1, tr.ConnCount())
 	})
 
 	t.Run("keeps connection alive when pongs arrive", func(t *testing.T) {
@@ -976,7 +1018,7 @@ func TestWSTransport_Heartbeat(t *testing.T) {
 			}
 		})
 
-		tr := transport.NewWSTransport(t.Context(), http.DefaultClient, nil, 50*time.Millisecond, 200*time.Millisecond)
+		tr := transport.NewWSTransport(t.Context(), transport.WithPingInterval(50*time.Millisecond), transport.WithPingTimeout(200*time.Millisecond))
 
 		_, cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
@@ -990,6 +1032,59 @@ func TestWSTransport_Heartbeat(t *testing.T) {
 		// Connection should remain alive after several ping cycles
 		time.Sleep(250 * time.Millisecond)
 		assert.Equal(t, 1, tr.ConnCount())
+	})
+}
+
+func TestWSTransport_Defaults(t *testing.T) {
+	t.Parallel()
+
+	t.Run("applies default read limit when omitted", func(t *testing.T) {
+		t.Parallel()
+
+		tr := transport.NewWSTransport(t.Context())
+
+		assert.Equal(t, transport.DefaultReadLimit, tr.ReadLimit())
+	})
+
+	t.Run("applies default read limit for zero value", func(t *testing.T) {
+		t.Parallel()
+
+		tr := transport.NewWSTransport(t.Context(), transport.WithReadLimit(0))
+
+		assert.Equal(t, transport.DefaultReadLimit, tr.ReadLimit())
+	})
+
+	t.Run("overrides read limit when provided", func(t *testing.T) {
+		t.Parallel()
+
+		tr := transport.NewWSTransport(t.Context(), transport.WithReadLimit(2*1024*1024))
+
+		assert.Equal(t, int64(2*1024*1024), tr.ReadLimit())
+	})
+
+	t.Run("ignores negative read limit", func(t *testing.T) {
+		t.Parallel()
+
+		tr := transport.NewWSTransport(t.Context(), transport.WithReadLimit(-1))
+
+		assert.Equal(t, transport.DefaultReadLimit, tr.ReadLimit())
+	})
+
+	t.Run("applies zero write timeout by default", func(t *testing.T) {
+		t.Parallel()
+
+		tr := transport.NewWSTransport(t.Context())
+
+		// Zero means connections use their own DefaultWriteTimeout
+		assert.Equal(t, time.Duration(0), tr.WriteTimeout())
+	})
+
+	t.Run("overrides write timeout when provided", func(t *testing.T) {
+		t.Parallel()
+
+		tr := transport.NewWSTransport(t.Context(), transport.WithWriteTimeout(10*time.Second))
+
+		assert.Equal(t, 10*time.Second, tr.WriteTimeout())
 	})
 }
 

@@ -19,7 +19,42 @@ var (
 	ErrSubscriptionExists = errors.New("subscription ID already exists")
 
 	DefaultWriteTimeout = 5 * time.Second
+	DefaultReadLimit    = int64(1024 * 1024) // 1MB
 )
+
+type wsConnectionOptions struct {
+	logger       abstractlogger.Logger
+	writeTimeout time.Duration
+	onEmpty      func()
+}
+
+// WSConnectionOption configures a WSConnection.
+type WSConnectionOption func(*wsConnectionOptions)
+
+// WithConnLogger sets the logger for connection-level debug output.
+func WithConnLogger(l abstractlogger.Logger) WSConnectionOption {
+	return func(o *wsConnectionOptions) {
+		if l != nil {
+			o.logger = l
+		}
+	}
+}
+
+// WithConnWriteTimeout sets the timeout for write operations (subscribe, unsubscribe, pong).
+func WithConnWriteTimeout(d time.Duration) WSConnectionOption {
+	return func(o *wsConnectionOptions) {
+		if d > 0 {
+			o.writeTimeout = d
+		}
+	}
+}
+
+// WithOnEmpty sets a callback invoked when the last subscription is removed or the connection shuts down.
+func WithOnEmpty(f func()) WSConnectionOption {
+	return func(o *wsConnectionOptions) {
+		o.onEmpty = f
+	}
+}
 
 type WSConnection struct {
 	ctx      context.Context
@@ -36,7 +71,7 @@ type WSConnection struct {
 
 	onEmpty func()
 
-	WriteTimeout time.Duration
+	writeTimeout time.Duration
 
 	// Ping/pong tracking for client-initiated heartbeats.
 	// Values stored as UnixNano timestamps.
@@ -44,21 +79,26 @@ type WSConnection struct {
 	lastPongAt     atomic.Int64
 }
 
-func NewWSConnection(ctx context.Context, conn *websocket.Conn, protocol protocol.Protocol, log abstractlogger.Logger, onEmpty func()) *WSConnection {
-	if log == nil {
-		log = abstractlogger.NoopLogger
+// NewWSConnection creates a new WSConnection.
+func NewWSConnection(ctx context.Context, conn *websocket.Conn, proto protocol.Protocol, opts ...WSConnectionOption) *WSConnection {
+	o := wsConnectionOptions{
+		logger:       abstractlogger.NoopLogger,
+		writeTimeout: DefaultWriteTimeout,
+	}
+	for _, apply := range opts {
+		apply(&o)
 	}
 
 	c := &WSConnection{
 		ctx:      ctx,
 		conn:     conn,
-		protocol: protocol,
-		log:      log,
+		protocol: proto,
+		log:      o.logger,
 		subs:     make(map[string]chan<- *common.Message),
 		done:     make(chan struct{}),
-		onEmpty:  onEmpty,
+		onEmpty:  o.onEmpty,
 
-		WriteTimeout: DefaultWriteTimeout,
+		writeTimeout: o.writeTimeout,
 	}
 
 	c.lastPongAt.Store(time.Now().UnixNano())
@@ -130,7 +170,7 @@ func (c *WSConnection) unsubscribe(id string) {
 
 	c.log.Debug("wsConnection.unsubscribe", abstractlogger.String("id", id))
 
-	unsubscribeCtx, cancel := context.WithTimeout(context.Background(), c.WriteTimeout)
+	unsubscribeCtx, cancel := context.WithTimeout(context.Background(), c.writeTimeout)
 	defer cancel()
 
 	_ = c.protocol.Unsubscribe(unsubscribeCtx, c.conn, id)
@@ -159,7 +199,7 @@ func (c *WSConnection) ReadLoop() {
 		switch msg.Type {
 		case protocol.MessagePing:
 			c.log.Debug("wsConnection.ReadLoop", abstractlogger.String("message", "ping"))
-			pongCtx, cancel := context.WithTimeout(c.ctx, c.WriteTimeout)
+			pongCtx, cancel := context.WithTimeout(c.ctx, c.writeTimeout)
 			_ = c.protocol.Pong(pongCtx, c.conn)
 			cancel()
 		case protocol.MessagePong:
@@ -233,6 +273,11 @@ func (c *WSConnection) Done() <-chan struct{} {
 
 func (c *WSConnection) Err() error {
 	return c.closeErr
+}
+
+// WriteTimeout returns the configured write timeout.
+func (c *WSConnection) WriteTimeout() time.Duration {
+	return c.writeTimeout
 }
 
 func (c *WSConnection) SubCount() int {

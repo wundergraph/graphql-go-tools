@@ -38,6 +38,9 @@ type Config struct {
 	Logger          abstractlogger.Logger
 	PingInterval    time.Duration
 	PingTimeout     time.Duration
+	AckTimeout      time.Duration
+	WriteTimeout    time.Duration
+	ReadLimit       int64
 }
 
 // New creates a new subscription client with the provided config.
@@ -56,7 +59,15 @@ func New(ctx context.Context, cfg Config) *Client {
 		ctx: ctx,
 		log: cfg.Logger,
 
-		ws:  transport.NewWSTransport(ctx, cfg.UpgradeClient, cfg.Logger, cfg.PingInterval, cfg.PingTimeout),
+		ws: transport.NewWSTransport(ctx,
+			transport.WithUpgradeClient(cfg.UpgradeClient),
+			transport.WithLogger(cfg.Logger),
+			transport.WithPingInterval(cfg.PingInterval),
+			transport.WithPingTimeout(cfg.PingTimeout),
+			transport.WithAckTimeout(cfg.AckTimeout),
+			transport.WithWriteTimeout(cfg.WriteTimeout),
+			transport.WithReadLimit(cfg.ReadLimit),
+		),
 		sse: transport.NewSSETransport(ctx, cfg.StreamingClient, cfg.Logger),
 	}
 
