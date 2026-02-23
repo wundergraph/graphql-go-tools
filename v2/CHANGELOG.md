@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.0.0-rc.255](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.254...v2.0.0-rc.255) (2026-02-21)
+
+
+### Bug Fixes
+
+* **resolve:** fix mutation-during-iteration bug in optionallyAllowCustomExtensionProperties ([#1402](https://github.com/wundergraph/graphql-go-tools/issues/1402)) ([4c4bfc8](https://github.com/wundergraph/graphql-go-tools/commit/4c4bfc8aa04c0059fc2956cc5794ada6d1a12997))
+
+## [2.0.0-rc.254](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.253...v2.0.0-rc.254) (2026-02-20)
+
+
+### Features
+
+* **resolve:** update astjson to arena-safe API, remove redundant copies ([#1400](https://github.com/wundergraph/graphql-go-tools/issues/1400)) ([850ce6e](https://github.com/wundergraph/graphql-go-tools/commit/850ce6e49f4d5c630630e27ec27f49e7a3283a23))
+
+## [2.0.0-rc.253](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.252...v2.0.0-rc.253) (2026-02-19)
+
+
+### Features
+
+* compute dynamic (actual) cost ([#1376](https://github.com/wundergraph/graphql-go-tools/issues/1376)) ([d6dc786](https://github.com/wundergraph/graphql-go-tools/commit/d6dc786c0505e396b9fab3adbee0c11693b1a123))
+
 ## [2.0.0-rc.252](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.251...v2.0.0-rc.252) (2026-02-19)
 
 

@@ -26,6 +26,30 @@ func (d *_errorReturningDataSource) LoadWithFiles(ctx context.Context, headers h
 	return nil, d.err
 }
 
+// _statusCodeDataSource implements DataSource and injects an HTTP status code into the response context.
+type _statusCodeDataSource struct {
+	data       string
+	statusCode int
+}
+
+func (d *_statusCodeDataSource) Load(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
+	if rc := httpclient.GetResponseContext(ctx); rc != nil {
+		rc.StatusCode = d.statusCode
+	}
+	return []byte(d.data), nil
+}
+
+func (d *_statusCodeDataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) ([]byte, error) {
+	return d.Load(ctx, headers, input)
+}
+
+// _testCustomResolve implements CustomResolve by returning the input unchanged.
+type _testCustomResolve struct{}
+
+func (r *_testCustomResolve) Resolve(ctx *Context, value []byte) ([]byte, error) {
+	return value, nil
+}
+
 // gcTestResponse builds a minimal GraphQLResponse with a single fetch using the given DataSource.
 // Callers can override FetchConfiguration and Info fields on the returned SingleFetch.
 func gcTestResponse(ds DataSource) (*GraphQLResponse, *SingleFetch) {
@@ -63,20 +87,10 @@ func gcTestResponse(ds DataSource) (*GraphQLResponse, *SingleFetch) {
 	}, fetch
 }
 
-// Benchmark_ArenaGCSafety exercises all error codepaths that produce arena-allocated
-// JSON values via parseStringOnArena / stringValueOnArena. Each sub-benchmark resolves
-// a GraphQLResponse through ArenaResolveGraphQLResponse with runtime.GC() calls between
-// iterations to maximize GC pressure on any dangling pointers.
-//
-// If the GC safety fix (copying string bytes onto the arena before parsing) were reverted,
-// these benchmarks would SIGSEGV.
-//
-// Codepaths NOT directly covered (require HTTP status codes injected by loadByContext):
-//   - renderErrorsStatusFallback (status code fallback)
-//   - addApolloRouterCompatibilityError (Apollo compat error)
-//   - setSubgraphStatusCode (subgraph status code propagation)
-//
-// These use the same parseStringOnArena helper and are covered transitively.
+// Benchmark_ArenaGCSafety exercises error codepaths that produce arena-allocated
+// JSON values. Each sub-benchmark resolves a GraphQLResponse through
+// ArenaResolveGraphQLResponse with runtime.GC() calls between iterations to
+// maximize GC pressure on any dangling pointers.
 func Benchmark_ArenaGCSafety(b *testing.B) {
 	type testCase struct {
 		name         string
@@ -143,7 +157,7 @@ func Benchmark_ArenaGCSafety(b *testing.B) {
 			},
 		},
 		{
-			// Codepath 3: Subgraph returns errors with wrap mode (default) → mergeErrors wrap path → parseStringOnArena
+			// Codepath 3: Subgraph returns errors with wrap mode (default) → mergeErrors wrap path → astjson.ParseWithArena
 			name:         "subgraphErrorsWrapMode",
 			resolverOpts: baseResolverOpts,
 			setupCtx: func() *Context {
@@ -171,7 +185,7 @@ func Benchmark_ArenaGCSafety(b *testing.B) {
 			},
 		},
 		{
-			// Codepath 12: defaultErrorExtensionCode set + subgraph errors → stringValueOnArena
+			// Codepath 12: defaultErrorExtensionCode set + subgraph errors → astjson.StringValue
 			name: "subgraphErrorsWithExtensionCode",
 			resolverOpts: func() ResolverOptions {
 				opts := baseResolverOpts()
@@ -188,7 +202,7 @@ func Benchmark_ArenaGCSafety(b *testing.B) {
 			},
 		},
 		{
-			// Codepath 13: attachServiceNameToErrorExtension set → stringValueOnArena
+			// Codepath 13: attachServiceNameToErrorExtension set → astjson.StringValue
 			name: "subgraphErrorsWithServiceName",
 			resolverOpts: func() ResolverOptions {
 				opts := baseResolverOpts()
@@ -223,7 +237,7 @@ func Benchmark_ArenaGCSafety(b *testing.B) {
 			},
 		},
 		{
-			// Codepath 9: Authorization rejected → renderAuthorizationRejectedErrors → parseStringOnArena
+			// Codepath 9: Authorization rejected → renderAuthorizationRejectedErrors → astjson.ParseWithArena
 			name:         "authorizationRejected",
 			resolverOpts: baseResolverOpts,
 			setupCtx: func() *Context {
@@ -245,7 +259,7 @@ func Benchmark_ArenaGCSafety(b *testing.B) {
 			},
 		},
 		{
-			// Codepath 10: Rate limit rejected → renderRateLimitRejectedErrors → parseStringOnArena
+			// Codepath 10: Rate limit rejected → renderRateLimitRejectedErrors → astjson.ParseWithArena
 			name:         "rateLimitRejected",
 			resolverOpts: baseResolverOpts,
 			setupCtx: func() *Context {
@@ -264,7 +278,7 @@ func Benchmark_ArenaGCSafety(b *testing.B) {
 			},
 		},
 		{
-			// Codepath 14: Rate limit with extension code → extra parseStringOnArena for extension
+			// Codepath 14: Rate limit with extension code → extra astjson.ParseWithArena for extension
 			name:         "rateLimitWithExtensionCode",
 			resolverOpts: baseResolverOpts,
 			setupCtx: func() *Context {

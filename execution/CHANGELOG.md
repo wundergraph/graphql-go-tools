@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.8.1...execution/v1.9.0) (2026-02-20)
+
+
+### Features
+
+* compute dynamic (actual) cost ([#1376](https://github.com/wundergraph/graphql-go-tools/issues/1376)) ([d6dc786](https://github.com/wundergraph/graphql-go-tools/commit/d6dc786c0505e396b9fab3adbee0c11693b1a123))
+
 ## [1.8.1](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.8.0...execution/v1.8.1) (2026-02-19)
 
 
