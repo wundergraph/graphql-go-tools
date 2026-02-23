@@ -143,7 +143,7 @@ func (d *graphqlDataSourceGenerator) Generate(dsID string, config graphql_dataso
 		return nil, err
 	}
 
-	return plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+	return plan.NewDataSourceConfiguration(
 		dsID,
 		factory,
 		&plan.DataSourceMetadata{
@@ -155,27 +155,16 @@ func (d *graphqlDataSourceGenerator) Generate(dsID string, config graphql_dataso
 }
 
 func (d *graphqlDataSourceGenerator) generateSubscriptionClient(httpClient *http.Client, definedOptions *dataSourceGeneratorOptions) (graphql_datasource.GraphQLSubscriptionClient, error) {
-	var graphqlSubscriptionClient graphql_datasource.GraphQLSubscriptionClient
-	switch definedOptions.subscriptionType {
-	case SubscriptionTypeGraphQLTransportWS:
-		graphqlSubscriptionClient = definedOptions.subscriptionClientFactory.NewSubscriptionClient(
-			httpClient,
-			definedOptions.streamingClient,
-			nil,
-		)
-	default:
-		// for compatibility reasons we fall back to graphql-ws protocol
-		graphqlSubscriptionClient = definedOptions.subscriptionClientFactory.NewSubscriptionClient(
-			httpClient,
-			definedOptions.streamingClient,
-			nil,
-		)
-	}
+	graphqlSubscriptionClient := definedOptions.subscriptionClientFactory.NewSubscriptionClient(d.engineCtx,
+		graphql_datasource.WithUpgradeClient(httpClient),
+		graphql_datasource.WithStreamingClient(definedOptions.streamingClient),
+	)
 
 	ok := graphql_datasource.IsDefaultGraphQLSubscriptionClient(graphqlSubscriptionClient)
 	if !ok {
 		return nil, errors.New("invalid subscriptionClient was instantiated")
 	}
+
 	return graphqlSubscriptionClient, nil
 }
 
