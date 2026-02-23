@@ -3,6 +3,7 @@ package resolve
 import (
 	"bytes"
 	"fmt"
+	"net/http"
 	"testing"
 )
 
@@ -205,5 +206,61 @@ func TestSubgraphRequestSingleFlight_SizeHintRollingWindow(t *testing.T) {
 	expected := 150
 	if next.sizeHint != expected {
 		t.Fatalf("expected rolling average size hint %d, got %d", expected, next.sizeHint)
+	}
+}
+
+func TestSubgraphRequestSingleFlight_LeaderFollowerResponseHeaders(t *testing.T) {
+	flight := NewSingleFlight(2)
+	fetchInfo := &FetchInfo{
+		DataSourceID: "accounts",
+		RootFields: []GraphCoordinate{
+			{TypeName: "Query", FieldName: "viewer"},
+		},
+	}
+	fetchItem := newFetchItem(fetchInfo)
+
+	item, shared := flight.GetOrCreateItem(fetchItem, []byte("query { viewer { id } }"), 42)
+	if shared {
+		t.Fatalf("expected leader to be first caller")
+	}
+
+	follower, followerShared := flight.GetOrCreateItem(fetchItem, []byte("query { viewer { id } }"), 42)
+	if !followerShared {
+		t.Fatalf("expected second caller to be follower")
+	}
+	if follower != item {
+		t.Fatalf("expected follower to receive same item instance")
+	}
+
+	// Leader sets response, headers, and status code
+	item.response = []byte(`{"data":{"viewer":{"id":"1"}}}`)
+	item.statusCode = 200
+	item.responseHeaders = http.Header{
+		"Cache-Control": []string{"max-age=120"},
+		"X-Custom":      []string{"value"},
+	}
+	flight.Finish(item)
+
+	select {
+	case <-item.loaded:
+	default:
+		t.Fatalf("expected leader to close loaded channel")
+	}
+
+	// Verify follower can access all shared data
+	if string(follower.response) != `{"data":{"viewer":{"id":"1"}}}` {
+		t.Fatalf("expected follower to get leader's response body")
+	}
+	if follower.statusCode != 200 {
+		t.Fatalf("expected follower to get leader's status code, got %d", follower.statusCode)
+	}
+	if follower.responseHeaders == nil {
+		t.Fatalf("expected follower to get leader's response headers")
+	}
+	if follower.responseHeaders.Get("Cache-Control") != "max-age=120" {
+		t.Fatalf("expected Cache-Control header, got %q", follower.responseHeaders.Get("Cache-Control"))
+	}
+	if follower.responseHeaders.Get("X-Custom") != "value" {
+		t.Fatalf("expected X-Custom header, got %q", follower.responseHeaders.Get("X-Custom"))
 	}
 }

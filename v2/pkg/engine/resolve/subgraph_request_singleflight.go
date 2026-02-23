@@ -2,6 +2,7 @@ package resolve
 
 import (
 	"encoding/binary"
+	"net/http"
 	"sync"
 
 	"github.com/cespare/xxhash/v2"
@@ -30,6 +31,10 @@ type SingleFlightItem struct {
 	loaded chan struct{}
 	// response is the shared result, it must not be modified
 	response []byte
+	// responseHeaders contains the cloned subgraph response headers from the leader's HTTP call
+	responseHeaders http.Header
+	// statusCode is the HTTP status code from the leader's subgraph response
+	statusCode int
 	// err is non nil if the leader produced an error while doing the work
 	err error
 	// sizeHint keeps track of the last 50 responses per fetchKey to give an estimate on the size

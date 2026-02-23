@@ -17,6 +17,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/introspection_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/postprocess"
@@ -62,6 +63,7 @@ type ExecutionEngine struct {
 	resolver                 *resolve.Resolver
 	executionPlanCache       *lru.Cache
 	apolloCompatibilityFlags apollocompatibility.Flags
+	validationOptions        []astvalidation.Option
 }
 
 type WebsocketBeforeStartHook interface {
@@ -130,6 +132,11 @@ func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engin
 		dsIDs[ds.Id()] = struct{}{}
 	}
 
+	var validationOpts []astvalidation.Option
+	if engineConfig.plannerConfig.RelaxSubgraphOperationFieldSelectionMergingNullability {
+		validationOpts = append(validationOpts, astvalidation.WithRelaxFieldSelectionMergingNullability())
+	}
+
 	return &ExecutionEngine{
 		logger:             logger,
 		config:             engineConfig,
@@ -138,6 +145,7 @@ func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engin
 		apolloCompatibilityFlags: apollocompatibility.Flags{
 			ReplaceInvalidVarError: resolverOptions.ResolvableOptions.ApolloCompatibilityReplaceInvalidVarError,
 		},
+		validationOptions: validationOpts,
 	}, nil
 }
 
@@ -159,7 +167,7 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 	}
 
 	// Validate the operation against the schema.
-	if result, err := operation.ValidateForSchema(e.config.schema); err != nil {
+	if result, err := operation.ValidateForSchema(e.config.schema, e.validationOptions...); err != nil {
 		return err
 	} else if !result.Valid {
 		return result.Errors
@@ -211,9 +219,7 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 	if report.HasErrors() {
 		return report
 	}
-	operation.ComputeStaticCost(costCalculator, e.config.plannerConfig, execContext.resolveContext.Variables)
-	// Debugging of cost trees. Do not remove.
-	// fmt.Println(costCalculator.DebugPrint(e.config.plannerConfig, execContext.resolveContext.Variables))
+	operation.ComputeEstimatedCost(costCalculator, e.config.plannerConfig, execContext.resolveContext.Variables)
 
 	if execContext.resolveContext.TracingOptions.Enable && !execContext.resolveContext.TracingOptions.ExcludePlannerStats {
 		planningTime := resolve.GetDurationNanoSinceTraceStart(execContext.resolveContext.Context()) - tracePlanStart
@@ -227,12 +233,18 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 
 	switch p := cachedPlan.(type) {
 	case *plan.SynchronousResponsePlan:
-		_, err := e.resolver.ResolveGraphQLResponse(execContext.resolveContext, p.Response, nil, writer)
-		return err
+		resp, err := e.resolver.ResolveGraphQLResponse(execContext.resolveContext, p.Response, nil, writer)
+		if err != nil {
+			return err
+		}
+		if resp != nil {
+			operation.ComputeActualCost(costCalculator, e.config.plannerConfig, resp.ActualListSizes)
+		}
+		return nil
 	case *plan.SubscriptionResponsePlan:
 		return e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer)
 	default:
-		return errors.New("execution of operation is not possible")
+		return errors.New("execution impossible: unknown type of operation")
 	}
 }
 
@@ -250,7 +262,7 @@ func (e *ExecutionEngine) getCachedPlan(ctx *internalExecutionContext, operation
 
 	if cached, ok := e.executionPlanCache.Get(cacheKey); ok {
 		if p, ok := cached.(plan.Plan); ok {
-			return p, p.GetStaticCostCalculator()
+			return p, p.GetCostCalculator()
 		}
 	}
 
@@ -262,7 +274,7 @@ func (e *ExecutionEngine) getCachedPlan(ctx *internalExecutionContext, operation
 
 	ctx.postProcessor.Process(planResult)
 	e.executionPlanCache.Add(cacheKey, planResult)
-	return planResult, planResult.GetStaticCostCalculator()
+	return planResult, planResult.GetCostCalculator()
 }
 
 func (e *ExecutionEngine) GetWebsocketBeforeStartHook() WebsocketBeforeStartHook {

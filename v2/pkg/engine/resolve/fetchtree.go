@@ -383,6 +383,6 @@ func (p *PlanPrinter) printRepresentations(reps []Representation) {
 
 func (p *PlanPrinter) print(lines ...string) {
 	for _, l := range lines {
-		p.buf.WriteString(fmt.Sprintf("%s%s\n", strings.Repeat("  ", p.depth), l))
+		fmt.Fprintf(&p.buf, "%s%s\n", strings.Repeat("  ", p.depth), l)
 	}
 }

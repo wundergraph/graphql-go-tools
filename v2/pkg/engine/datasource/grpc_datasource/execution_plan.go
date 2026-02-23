@@ -295,7 +295,7 @@ func (r *RPCExecutionPlan) String() string {
 	result.WriteString("RPCExecutionPlan:\n")
 
 	for _, call := range r.Calls {
-		result.WriteString(fmt.Sprintf("    Call %d:\n", call.ID))
+		fmt.Fprintf(&result, "    Call %d:\n", call.ID)
 
 		if len(call.DependentCalls) > 0 {
 			result.WriteString("      DependentCalls: [")
@@ -303,15 +303,15 @@ func (r *RPCExecutionPlan) String() string {
 				if k > 0 {
 					result.WriteString(", ")
 				}
-				result.WriteString(fmt.Sprintf("%d", depID))
+				fmt.Fprintf(&result, "%d", depID)
 			}
 			result.WriteString("]\n")
 		} else {
 			result.WriteString("      DependentCalls: []\n")
 		}
 
-		result.WriteString(fmt.Sprintf("      Service: %s\n", call.ServiceName))
-		result.WriteString(fmt.Sprintf("      Method: %s\n", call.MethodName))
+		fmt.Fprintf(&result, "      Service: %s\n", call.ServiceName)
+		fmt.Fprintf(&result, "      Method: %s\n", call.MethodName)
 
 		result.WriteString("      Request:\n")
 		formatRPCMessage(&result, call.Request, 8)
