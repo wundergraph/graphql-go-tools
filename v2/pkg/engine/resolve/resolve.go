@@ -316,8 +316,13 @@ type GraphQLResolveInfo struct {
 	// ResolveAcquireWaitTime is the time spent waiting to acquire the resolver semaphore
 	// the semaphore limits the number of concurrent resolve operations
 	ResolveAcquireWaitTime time.Duration
+
 	// ResolveDeduplicated indicates whether the resolution of the entire operation was deduplicated via single flight
 	ResolveDeduplicated bool
+
+	// ActualListSizes maps the JSON path to the actual list size in the response.
+	// Used to compute the actual cost.
+	ActualListSizes map[string]int
 }
 
 func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (*GraphQLResolveInfo, error) {
@@ -348,6 +353,8 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	if err != nil {
 		return nil, err
 	}
+
+	resp.ActualListSizes = t.resolvable.actualListSizes
 
 	return resp, err
 }
@@ -429,6 +436,9 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 	// all data is written to the client
 	// we're safe to release our buffer
 	r.responseBufferPool.Release(responseArena)
+
+	resp.ActualListSizes = t.resolvable.actualListSizes
+
 	return resp, err
 }
 

@@ -149,6 +149,40 @@ func (w *blockingWriter) String() string {
 	return w.buf.String()
 }
 
+// findAnyInflight iterates through all singleflight shards and returns
+// the first inflight request found. Used in tests to poll followerCount.
+func findAnyInflight(r *Resolver) *InflightRequest {
+	for i := range r.inboundRequestSingleFlight.shards {
+		var found *InflightRequest
+		r.inboundRequestSingleFlight.shards[i].m.Range(func(_, value any) bool {
+			found = value.(*InflightRequest)
+			return false
+		})
+		if found != nil {
+			return found
+		}
+	}
+	return nil
+}
+
+// waitForFollowerCount polls until the inflight request has at least count followers registered.
+func waitForFollowerCount(t *testing.T, r *Resolver, count int32) {
+	t.Helper()
+	deadline := time.After(3 * time.Second)
+	for {
+		inflight := findAnyInflight(r)
+		if inflight != nil && inflight.followerCount.Load() >= count {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatal("timeout waiting for followers to enter singleflight")
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}
+
 type TestErrorWriter struct {
 }
 
@@ -4694,30 +4728,20 @@ func TestResolver_ArenaResolveGraphQLResponse_RequestDeduplication(t *testing.T)
 		t.Fatalf("timeout waiting for leader data source load")
 	}
 
-	startFollowers := make(chan struct{})
-	followersEntered := make(chan struct{}, requestCount-1)
-
 	for i := 1; i < requestCount; i++ {
 		go func(i int) {
 			defer wg.Done()
 			ctx := ctxTemplate
-			<-startFollowers
-			followersEntered <- struct{}{}
 			buf := &bytes.Buffer{}
 			info, err := r.ArenaResolveGraphQLResponse(&ctx, response, buf)
 			results[i] = result{info: info, output: buf.String(), err: err}
 		}(i)
 	}
 
-	close(startFollowers)
-
-	for i := 1; i < requestCount; i++ {
-		select {
-		case <-followersEntered:
-		case <-time.After(time.Second):
-			t.Fatalf("timeout waiting for follower %d to start", i)
-		}
-	}
+	// Wait until all followers have entered the singleflight (called LoadOrStore)
+	// before releasing the data source. This guarantees they join the leader's
+	// inflight request rather than creating their own.
+	waitForFollowerCount(t, r, int32(requestCount-1))
 
 	ds.Release()
 
@@ -4823,9 +4847,6 @@ func TestResolver_ArenaResolveGraphQLResponse_RequestDeduplication_SharedData(t 
 		t.Fatalf("timeout waiting for leader data source load")
 	}
 
-	startFollowers := make(chan struct{})
-	followersEntered := make(chan struct{}, requestCount-1)
-
 	for i := 1; i < requestCount; i++ {
 		go func(i int) {
 			defer wg.Done()
@@ -4838,23 +4859,16 @@ func TestResolver_ArenaResolveGraphQLResponse_RequestDeduplication_SharedData(t 
 					followerData.Store(i, data)
 				},
 			)
-			<-startFollowers
-			followersEntered <- struct{}{}
 			buf := &bytes.Buffer{}
 			info, err := r.ArenaResolveGraphQLResponse(&ctx, response, buf)
 			results[i] = result{info: info, output: buf.String(), err: err}
 		}(i)
 	}
 
-	close(startFollowers)
-
-	for i := 1; i < requestCount; i++ {
-		select {
-		case <-followersEntered:
-		case <-time.After(time.Second):
-			t.Fatalf("timeout waiting for follower %d to start", i)
-		}
-	}
+	// Wait until all followers have entered the singleflight (called LoadOrStore)
+	// before releasing the data source. This guarantees they join the leader's
+	// inflight request rather than creating their own.
+	waitForFollowerCount(t, r, int32(requestCount-1))
 
 	ds.Release()
 
@@ -6426,10 +6440,21 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
+		// sub2Ready gates the data source goroutine so that it doesn't start
+		// emitting before sub2 has been registered on the trigger. Without this,
+		// the emitting goroutine's first triggerUpdate can race sub2's
+		// addSubscription on the unbuffered events channel, causing sub2 to
+		// miss counter=0.
+		sub2Ready := make(chan struct{})
 		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 100
 		}, 1*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+			// Block the data source goroutine until sub2 is registered.
+			// onStart runs inside the goroutine that calls Start(), not the
+			// event loop, so blocking here is safe — the event loop remains
+			// free to process sub2's addSubscription event.
+			<-sub2Ready
 		}, func(ctx StartupHookContext, input []byte) (err error) {
 			return nil
 		})
@@ -6451,6 +6476,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		err2 := resolver1.AsyncResolveGraphQLSubscription(ctx2, plan1, recorder2, id2)
 		assert.NoError(t, err2)
+		close(sub2Ready)
 
 		// complete is called only on the last recorder
 		recorder1.AwaitComplete(t, defaultTimeout)

@@ -333,6 +333,111 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 		}, *NewContext(context.Background()), `{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"errorMessage2","extensions":{"code":"BAD_USER_INPUT"}}],"data":{"name":null}}`
 	}))
 
+	t.Run("Delete multiple non-allowed extension fields without crash", testFnSubgraphErrorsWithExtensionFieldCode(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		mockDataSource := NewMockDataSource(ctrl)
+		mockDataSource.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
+				return []byte(`{"errors":[{"message":"err","extensions":{"code":"SOME_CODE","a":"1","b":"2","c":"3"}}]}`), nil
+			})
+		return &GraphQLResponse{
+			Fetches: Single(&SingleFetch{
+				FetchConfiguration: FetchConfiguration{
+					DataSource: mockDataSource,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseErrorsPath: []string{"errors"},
+					},
+				},
+				Info: &FetchInfo{
+					DataSourceID:   "Users",
+					DataSourceName: "Users",
+				},
+			}),
+			Data: &Object{
+				Nullable: false,
+				Fields: []*Field{
+					{
+						Name: []byte("name"),
+						Value: &String{
+							Path:     []string{"name"},
+							Nullable: true,
+						},
+					},
+				},
+			},
+		}, *NewContext(context.Background()), `{"errors":[{"message":"err","extensions":{"code":"SOME_CODE"}}],"data":{"name":null}}`
+	}))
+
+	t.Run("Null extensions value is preserved as-is", testFnSubgraphErrorsWithExtensionFieldCode(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		mockDataSource := NewMockDataSource(ctrl)
+		mockDataSource.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
+				return []byte(`{"errors":[{"message":"err","extensions":null}]}`), nil
+			})
+		return &GraphQLResponse{
+			Fetches: Single(&SingleFetch{
+				FetchConfiguration: FetchConfiguration{
+					DataSource: mockDataSource,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseErrorsPath: []string{"errors"},
+					},
+				},
+				Info: &FetchInfo{
+					DataSourceID:   "Users",
+					DataSourceName: "Users",
+				},
+			}),
+			Data: &Object{
+				Nullable: false,
+				Fields: []*Field{
+					{
+						Name: []byte("name"),
+						Value: &String{
+							Path:     []string{"name"},
+							Nullable: true,
+						},
+					},
+				},
+			},
+		}, *NewContext(context.Background()), `{"errors":[{"message":"err","extensions":null}],"data":{"name":null}}`
+	}))
+
+	t.Run("Extensions removed when no allowed fields match", testFnSubgraphErrorsWithExtensionFieldCode(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		mockDataSource := NewMockDataSource(ctrl)
+		mockDataSource.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
+				return []byte(`{"errors":[{"message":"err","extensions":{"foo":"bar"}}]}`), nil
+			})
+		return &GraphQLResponse{
+			Fetches: Single(&SingleFetch{
+				FetchConfiguration: FetchConfiguration{
+					DataSource: mockDataSource,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseErrorsPath: []string{"errors"},
+					},
+				},
+				Info: &FetchInfo{
+					DataSourceID:   "Users",
+					DataSourceName: "Users",
+				},
+			}),
+			Data: &Object{
+				Nullable: false,
+				Fields: []*Field{
+					{
+						Name: []byte("name"),
+						Value: &String{
+							Path:     []string{"name"},
+							Nullable: true,
+						},
+					},
+				},
+			},
+		}, *NewContext(context.Background()), `{"errors":[{"message":"err"}],"data":{"name":null}}`
+	}))
+
 	t.Run("Propagate all extension fields from subgraph errors when allow all option is enabled", testFnSubgraphErrorsWithAllowAllExtensionFields(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
