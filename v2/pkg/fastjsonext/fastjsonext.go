@@ -2,27 +2,28 @@ package fastjsonext
 
 import (
 	"github.com/wundergraph/astjson"
+	"github.com/wundergraph/go-arena"
 )
 
-func AppendErrorToArray(arena *astjson.Arena, v *astjson.Value, msg string, path []PathElement) {
+func AppendErrorToArray(a arena.Arena, v *astjson.Value, msg string, path []PathElement) {
 	if v.Type() != astjson.TypeArray {
 		return
 	}
-	errorObject := CreateErrorObjectWithPath(arena, msg, path)
+	errorObject := CreateErrorObjectWithPath(a, msg, path)
 	items, _ := v.Array()
-	v.SetArrayItem(len(items), errorObject)
+	v.SetArrayItem(a, len(items), errorObject)
 }
 
-func AppendErrorWithExtensionsCodeToArray(arena *astjson.Arena, v *astjson.Value, msg, code string, path []PathElement) {
+func AppendErrorWithExtensionsCodeToArray(a arena.Arena, v *astjson.Value, msg, code string, path []PathElement) {
 	if v.Type() != astjson.TypeArray {
 		return
 	}
-	errorObject := CreateErrorObjectWithPath(arena, msg, path)
-	extensions := arena.NewObject()
-	extensions.Set("code", arena.NewString(code))
-	errorObject.Set("extensions", extensions)
+	errorObject := CreateErrorObjectWithPath(a, msg, path)
+	extensions := astjson.ObjectValue(a)
+	extensions.Set(a, "code", astjson.StringValue(a, code))
+	errorObject.Set(a, "extensions", extensions)
 	items, _ := v.Array()
-	v.SetArrayItem(len(items), errorObject)
+	v.SetArrayItem(a, len(items), errorObject)
 }
 
 type PathElement struct {
@@ -30,29 +31,29 @@ type PathElement struct {
 	Idx  int
 }
 
-func CreateErrorObjectWithPath(arena *astjson.Arena, message string, path []PathElement) *astjson.Value {
-	errorObject := arena.NewObject()
-	errorObject.Set("message", arena.NewString(message))
+func CreateErrorObjectWithPath(a arena.Arena, message string, path []PathElement) *astjson.Value {
+	errorObject := astjson.ObjectValue(a)
+	errorObject.Set(a, "message", astjson.StringValue(a, message))
 	if len(path) == 0 {
 		return errorObject
 	}
-	errorPath := arena.NewArray()
+	errorPath := astjson.ArrayValue(a)
 	for i := range path {
 		if path[i].Name != "" {
-			errorPath.SetArrayItem(i, arena.NewString(path[i].Name))
+			errorPath.SetArrayItem(a, i, astjson.StringValue(a, path[i].Name))
 		} else {
-			errorPath.SetArrayItem(i, arena.NewNumberInt(path[i].Idx))
+			errorPath.SetArrayItem(a, i, astjson.IntValue(a, path[i].Idx))
 		}
 	}
-	errorObject.Set("path", errorPath)
+	errorObject.Set(a, "path", errorPath)
 	return errorObject
 }
 
 func PrintGraphQLResponse(data, errors *astjson.Value) string {
 	out := astjson.MustParse(`{}`)
 	if astjson.ValueIsNonNull(errors) {
-		out.Set("errors", errors)
+		out.Set(nil, "errors", errors)
 	}
-	out.Set("data", data)
+	out.Set(nil, "data", data)
 	return string(out.MarshalTo(nil))
 }
