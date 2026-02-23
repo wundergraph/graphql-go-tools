@@ -1310,13 +1310,6 @@ func (r *rpcPlanningContext) createRequiredFieldsRPCCall(callIndex int, subgraph
 		return RPCCall{}, fmt.Errorf("unable to build required field: field definition not found for field %s", requiredField.fieldName)
 	}
 
-	field, err := r.buildField(typeName, fieldDefRef, requiredField.fieldName, "")
-	if err != nil {
-		return RPCCall{}, err
-	}
-
-	field.Name = rpcConfig.TargetName
-
 	call := RPCCall{
 		ID:          callIndex,
 		ServiceName: r.resolveServiceName(subgraphName),

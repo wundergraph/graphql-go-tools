@@ -542,7 +542,7 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires(t *testing.T) {
 				{"__typename":"Storage","id":"1","itemCount":100,"restockData":{"lastRestockDate":"2021-01-01"}},
 				{"__typename":"Storage","id":"2","itemCount":200,"restockData":{"lastRestockDate":"2021-01-02"}},
 				{"__typename":"Storage","id":"3","itemCount":300,"restockData":{"lastRestockDate":"2021-01-03"}},
-				{"__typename":"Storage","id":"4","itemCount":400,"restockData":{"lastRestockDate":"2021-01-04"}},
+				{"__typename":"Storage","id":"4","itemCount":400,"restockData":{"lastRestockDate":"2021-01-04"}}
 			]}}`,
 			federationConfigs: plan.FederationFieldConfigurations{
 				{
