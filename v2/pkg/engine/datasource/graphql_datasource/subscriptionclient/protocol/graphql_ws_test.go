@@ -56,7 +56,7 @@ func TestGraphQLWS_Init(t *testing.T) {
 		p := &GraphQLWS{AckTimeout: 50 * time.Millisecond}
 		err := p.Init(t.Context(), conn, nil)
 
-		require.ErrorIs(t, err, errAckTimeout)
+		require.ErrorIs(t, err, ErrAckTimeout)
 	})
 
 	t.Run("handles keep-alive before ack", func(t *testing.T) {
@@ -115,7 +115,7 @@ func TestGraphQLWS_Init(t *testing.T) {
 		p := NewGraphQLWS()
 		err := p.Init(t.Context(), conn, nil)
 
-		assert.ErrorIs(t, err, errAckNotReceived)
+		assert.ErrorIs(t, err, ErrAckNotReceived)
 	})
 }
 

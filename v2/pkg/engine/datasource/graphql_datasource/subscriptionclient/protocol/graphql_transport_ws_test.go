@@ -56,7 +56,7 @@ func TestGraphQLTransportWS_Init(t *testing.T) {
 		p := &GraphQLTransportWS{AckTimeout: 50 * time.Millisecond}
 		err := p.Init(t.Context(), conn, nil)
 
-		require.ErrorIs(t, err, errAckTimeout)
+		require.ErrorIs(t, err, ErrAckTimeout)
 	})
 
 	t.Run("handles ping before ack", func(t *testing.T) {
@@ -106,7 +106,7 @@ func TestGraphQLTransportWS_Init(t *testing.T) {
 		p := NewGraphQLTransportWS()
 		err := p.Init(t.Context(), conn, nil)
 
-		assert.ErrorIs(t, err, errAckNotReceived)
+		assert.ErrorIs(t, err, ErrAckNotReceived)
 	})
 }
 

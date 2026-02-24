@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	errSubscriptionExists = errors.New("subscription ID already exists")
+	ErrSubscriptionExists = errors.New("subscription ID already exists")
 
 	defaultWriteTimeout = 5 * time.Second
 	defaultReadLimit    = int64(1024 * 1024) // 1MB
@@ -121,7 +121,7 @@ func (c *wsConnection) subscribe(ctx context.Context, id string, req *common.Req
 
 	if _, exists := c.subs[id]; exists {
 		c.subsMu.Unlock()
-		return nil, nil, errSubscriptionExists
+		return nil, nil, ErrSubscriptionExists
 	}
 
 	c.subs[id] = ch

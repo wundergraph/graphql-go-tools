@@ -52,7 +52,7 @@ func TestWSConnection_Subscribe(t *testing.T) {
 
 		_, _, err = wsc.subscribe(context.Background(), "sub-1", &common.Request{})
 
-		assert.ErrorIs(t, err, errSubscriptionExists)
+		assert.ErrorIs(t, err, ErrSubscriptionExists)
 	})
 
 	t.Run("returns error when connection is closed", func(t *testing.T) {
