@@ -680,7 +680,6 @@ func (r *Resolver) executeStartupHooks(add *addSubscription, updater *subscripti
 	return nil
 }
 
-
 func (r *Resolver) addSubscriptionIndex(s *subscriptionState) {
 	id := s.id
 	r.subscriptionsByID[id] = s
@@ -1318,6 +1317,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	select {
 	case <-ctx.ctx.Done():
 		// Client disconnected, request context canceled.
+		_ = r.UnsubscribeSubscription(id)
 		select {
 		case <-completed:
 			// Wait for the subscription to be completed to avoid race conditions
