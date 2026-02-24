@@ -12,10 +12,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/transport"
 )
 
-var (
-	ErrClientClosed       = errors.New("client closed")
-	ErrSubscriptionClosed = errors.New("subscription closed")
-)
+var ErrClientClosed = errors.New("client closed")
 
 type Client struct {
 	ctx context.Context

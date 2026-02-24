@@ -680,16 +680,6 @@ func (r *Resolver) executeStartupHooks(add *addSubscription, updater *subscripti
 	return nil
 }
 
-func (r *Resolver) watchSubscriptionCancellation(ctx context.Context, id SubscriptionIdentifier, completed <-chan struct{}) {
-	go func() {
-		select {
-		case <-ctx.Done():
-			_ = r.UnsubscribeSubscription(id)
-		case <-completed:
-		case <-r.ctx.Done():
-		}
-	}()
-}
 
 func (r *Resolver) addSubscriptionIndex(s *subscriptionState) {
 	id := s.id
@@ -744,7 +734,6 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		trig.subscriptions[add.id] = s
 		trig.mu.Unlock()
 		r.addSubscriptionIndex(s)
-		r.watchSubscriptionCancellation(add.ctx.Context(), add.id, add.completed)
 		// Execute the startup hooks in a goroutine to avoid holding the lock
 		go func() {
 			_ = r.executeStartupHooks(add, trig.updater)
@@ -776,7 +765,6 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 	trig.mu.Unlock()
 	updater.subsFn = trig.subscriptionIds
 	r.addSubscriptionIndex(s)
-	r.watchSubscriptionCancellation(add.ctx.Context(), add.id, add.completed)
 
 	if r.reporter != nil {
 		r.reporter.SubscriptionCountInc(1)
@@ -866,7 +854,13 @@ func (r *Resolver) handleRemoveSubscription(id SubscriptionIdentifier) (int, []s
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:remove:%d:%d\n", id.ConnectionID, id.SubscriptionID)
 	}
-	return r.removeSubscriptionByID(id, false, SubscriptionCloseKindNormal)
+	// When the resolver context is canceled (server shutting down), use GoingAway
+	// instead of Normal to ensure clients receive the correct 1001 close code.
+	closeKind := SubscriptionCloseKindNormal
+	if r.ctx.Err() != nil {
+		closeKind = SubscriptionCloseKindGoingAway
+	}
+	return r.removeSubscriptionByID(id, false, closeKind)
 }
 
 func (r *Resolver) handleRemoveClient(id int64, closeKind SubscriptionCloseKind) (int, []subscriptionFinalizer, []context.CancelFunc, int) {

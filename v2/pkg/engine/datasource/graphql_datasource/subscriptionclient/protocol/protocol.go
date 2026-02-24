@@ -24,8 +24,8 @@ type Protocol interface {
 }
 
 var (
-	ErrAckTimeout      = errors.New("connection_ack timeout")
-	ErrAckNotReceived  = errors.New("expected connection_ack")
+	errAckTimeout      = errors.New("connection_ack timeout")
+	errAckNotReceived  = errors.New("expected connection_ack")
 	ErrConnectionError = errors.New("connection error from server")
 )
 

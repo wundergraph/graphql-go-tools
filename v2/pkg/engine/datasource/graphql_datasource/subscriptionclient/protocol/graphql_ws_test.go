@@ -1,4 +1,4 @@
-package protocol_test
+package protocol
 
 import (
 	"context"
@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/protocol"
 )
 
 func TestGraphQLWS_Init(t *testing.T) {
@@ -33,12 +32,12 @@ func TestGraphQLWS_Init(t *testing.T) {
 
 		conn := dialGWS(t, server)
 
-		p := protocol.NewGraphQLWS()
+		p := NewGraphQLWS()
 
 		err := p.Init(t.Context(), conn, map[string]any{"secret": "token"})
 		require.NoError(t, err)
 
-		AwaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
+		awaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
 			assert.Equal(t, "connection_init", msg["type"])
 			payload, _ := msg["payload"].(map[string]any)
 			assert.Equal(t, "token", payload["secret"])
@@ -54,10 +53,10 @@ func TestGraphQLWS_Init(t *testing.T) {
 
 		conn := dialGWS(t, server)
 
-		p := &protocol.GraphQLWS{AckTimeout: 50 * time.Millisecond}
+		p := &GraphQLWS{AckTimeout: 50 * time.Millisecond}
 		err := p.Init(t.Context(), conn, nil)
 
-		require.ErrorIs(t, err, protocol.ErrAckTimeout)
+		require.ErrorIs(t, err, errAckTimeout)
 	})
 
 	t.Run("handles keep-alive before ack", func(t *testing.T) {
@@ -76,7 +75,7 @@ func TestGraphQLWS_Init(t *testing.T) {
 
 		conn := dialGWS(t, server)
 
-		p := protocol.NewGraphQLWS()
+		p := NewGraphQLWS()
 		err := p.Init(t.Context(), conn, nil)
 		require.NoError(t, err)
 	})
@@ -95,10 +94,10 @@ func TestGraphQLWS_Init(t *testing.T) {
 
 		conn := dialGWS(t, server)
 
-		p := protocol.NewGraphQLWS()
+		p := NewGraphQLWS()
 		err := p.Init(t.Context(), conn, nil)
 
-		require.ErrorIs(t, err, protocol.ErrConnectionError)
+		require.ErrorIs(t, err, ErrConnectionError)
 		assert.Contains(t, err.Error(), "auth failed")
 	})
 
@@ -113,10 +112,10 @@ func TestGraphQLWS_Init(t *testing.T) {
 
 		conn := dialGWS(t, server)
 
-		p := protocol.NewGraphQLWS()
+		p := NewGraphQLWS()
 		err := p.Init(t.Context(), conn, nil)
 
-		assert.ErrorIs(t, err, protocol.ErrAckNotReceived)
+		assert.ErrorIs(t, err, errAckNotReceived)
 	})
 }
 
@@ -136,14 +135,14 @@ func TestGraphQLWSLegacy_Subscribe(t *testing.T) {
 
 		conn := dialGWS(t, server)
 
-		p := protocol.NewGraphQLWS()
+		p := NewGraphQLWS()
 		err := p.Subscribe(t.Context(), conn, "sub-1", &common.Request{
 			Query:     "subscription { test }",
 			Variables: []byte(`{"id": 123}`),
 		})
 		require.NoError(t, err)
 
-		AwaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
+		awaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
 			assert.Equal(t, "start", msg["type"])
 			assert.Equal(t, "sub-1", msg["id"])
 
@@ -172,11 +171,11 @@ func TestGraphQLWSLegacy_Unsubscribe(t *testing.T) {
 
 		conn := dialGWS(t, server)
 
-		p := protocol.NewGraphQLWS()
+		p := NewGraphQLWS()
 		err := p.Unsubscribe(t.Context(), conn, "sub-1")
 		require.NoError(t, err)
 
-		AwaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
+		awaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
 			assert.Equal(t, "stop", msg["type"])
 			assert.Equal(t, "sub-1", msg["id"])
 		})
@@ -201,12 +200,12 @@ func TestGraphQLWSLegacy_Read(t *testing.T) {
 
 		conn := dialGWS(t, server)
 
-		p := protocol.NewGraphQLWS()
+		p := NewGraphQLWS()
 		msg, err := p.Read(t.Context(), conn)
 
 		require.NoError(t, err)
 		assert.Equal(t, "sub-1", msg.ID)
-		assert.Equal(t, protocol.MessageData, msg.Type)
+		assert.Equal(t, MessageData, msg.Type)
 		require.NotNil(t, msg.Payload)
 		assert.Contains(t, string(msg.Payload.Data), "42")
 	})
@@ -226,11 +225,11 @@ func TestGraphQLWSLegacy_Read(t *testing.T) {
 
 		conn := dialGWS(t, server)
 
-		p := protocol.NewGraphQLWS()
+		p := NewGraphQLWS()
 		msg, err := p.Read(t.Context(), conn)
 
 		require.NoError(t, err)
-		assert.Equal(t, protocol.MessageError, msg.Type)
+		assert.Equal(t, MessageError, msg.Type)
 		require.NotNil(t, msg.Payload)
 		assert.Contains(t, string(msg.Payload.Errors), "something went wrong")
 	})
@@ -247,12 +246,12 @@ func TestGraphQLWSLegacy_Read(t *testing.T) {
 
 		conn := dialGWS(t, server)
 
-		p := protocol.NewGraphQLWS()
+		p := NewGraphQLWS()
 		msg, err := p.Read(t.Context(), conn)
 
 		require.NoError(t, err)
 		assert.Equal(t, "sub-1", msg.ID)
-		assert.Equal(t, protocol.MessageComplete, msg.Type)
+		assert.Equal(t, MessageComplete, msg.Type)
 	})
 
 	t.Run("decodes keep-alive message as ping", func(t *testing.T) {
@@ -264,11 +263,11 @@ func TestGraphQLWSLegacy_Read(t *testing.T) {
 
 		conn := dialGWS(t, server)
 
-		p := protocol.NewGraphQLWS()
+		p := NewGraphQLWS()
 		msg, err := p.Read(t.Context(), conn)
 
 		require.NoError(t, err)
-		assert.Equal(t, protocol.MessagePing, msg.Type)
+		assert.Equal(t, MessagePing, msg.Type)
 	})
 
 	t.Run("decodes connection_error message", func(t *testing.T) {
@@ -283,11 +282,11 @@ func TestGraphQLWSLegacy_Read(t *testing.T) {
 
 		conn := dialGWS(t, server)
 
-		p := protocol.NewGraphQLWS()
+		p := NewGraphQLWS()
 		msg, err := p.Read(t.Context(), conn)
 
 		require.NoError(t, err)
-		assert.Equal(t, protocol.MessageError, msg.Type)
+		assert.Equal(t, MessageError, msg.Type)
 		require.Error(t, msg.Err)
 		assert.Contains(t, msg.Err.Error(), "session expired")
 	})
@@ -303,7 +302,7 @@ func TestGraphQLWSLegacy_Read(t *testing.T) {
 
 		conn := dialGWS(t, server)
 
-		p := protocol.NewGraphQLWS()
+		p := NewGraphQLWS()
 		_, err := p.Read(t.Context(), conn)
 
 		require.Error(t, err)
@@ -318,7 +317,7 @@ func TestGraphQLWSLegacy_PingPong(t *testing.T) {
 		t.Parallel()
 
 		// Legacy protocol doesn't support client-initiated ping
-		p := protocol.NewGraphQLWS()
+		p := NewGraphQLWS()
 
 		// This should not error, just be a no-op
 		err := p.Ping(context.Background(), nil)
@@ -329,7 +328,7 @@ func TestGraphQLWSLegacy_PingPong(t *testing.T) {
 		t.Parallel()
 
 		// Legacy protocol doesn't support pong
-		p := protocol.NewGraphQLWS()
+		p := NewGraphQLWS()
 
 		// This should not error, just be a no-op
 		err := p.Pong(context.Background(), nil)

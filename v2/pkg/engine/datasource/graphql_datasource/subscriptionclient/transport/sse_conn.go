@@ -17,24 +17,24 @@ var (
 	headerEvent = []byte("event:")
 )
 
-// SSEConnection handles a single SSE subscription stream.
-type SSEConnection struct {
+// sseConnection handles a single SSE subscription stream.
+type sseConnection struct {
 	resp   *http.Response
 	ch     chan *common.Message
 	done   chan struct{}
 	closed atomic.Bool
 }
 
-func newSSEConnection(resp *http.Response) *SSEConnection {
-	return &SSEConnection{
+func newSSEConnection(resp *http.Response) *sseConnection {
+	return &sseConnection{
 		resp: resp,
 		ch:   make(chan *common.Message, 8),
 		done: make(chan struct{}),
 	}
 }
 
-// ReadLoop reads SSE events from the response body and sends them to the channel.
-func (c *SSEConnection) ReadLoop() {
+// readLoop reads SSE events from the response body and sends them to the channel.
+func (c *sseConnection) readLoop() {
 	defer c.cleanup()
 
 	reader := sse.NewEventStreamReader(c.resp.Body, 1<<16) // 64KB
@@ -79,7 +79,7 @@ func (c *SSEConnection) ReadLoop() {
 
 // parseEventBytes extracts the event type and data from raw SSE event bytes.
 // Based on r3labs/sse's processEvent but simplified for our needs.
-func (c *SSEConnection) parseEventBytes(msg []byte) (eventType string, data []byte) {
+func (c *sseConnection) parseEventBytes(msg []byte) (eventType string, data []byte) {
 	if len(msg) == 0 {
 		return "", nil
 	}
@@ -124,7 +124,7 @@ func trimHeader(size int, data []byte) []byte {
 }
 
 // parseEvent converts parsed SSE event data into a shared.Message.
-func (c *SSEConnection) parseEvent(eventType string, data []byte) *common.Message {
+func (c *sseConnection) parseEvent(eventType string, data []byte) *common.Message {
 	switch eventType {
 	case "next":
 		var resp common.ExecutionResult
@@ -162,7 +162,7 @@ func (c *SSEConnection) parseEvent(eventType string, data []byte) *common.Messag
 	}
 }
 
-func (c *SSEConnection) sendError(err error) {
+func (c *sseConnection) sendError(err error) {
 	if c.closed.Load() {
 		return
 	}
@@ -172,15 +172,15 @@ func (c *SSEConnection) sendError(err error) {
 	}
 }
 
-func (c *SSEConnection) cleanup() {
+func (c *sseConnection) cleanup() {
 	c.closed.Store(true)
 
 	c.resp.Body.Close()
 	close(c.ch) // Close channel so fanout exits
 }
 
-// Close terminates the SSE connection.
-func (c *SSEConnection) Close() error {
+// closeConn terminates the SSE connection.
+func (c *sseConnection) closeConn() error {
 	if !c.closed.CompareAndSwap(false, true) {
 		return nil
 	}

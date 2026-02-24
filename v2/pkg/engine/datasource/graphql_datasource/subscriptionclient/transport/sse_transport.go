@@ -28,7 +28,7 @@ type SSETransport struct {
 	log    abstractlogger.Logger
 
 	mu    sync.Mutex
-	conns map[*SSEConnection]struct{}
+	conns map[*sseConnection]struct{}
 }
 
 // NewSSETransport creates a new SSETransport with the provided http.Client.
@@ -42,7 +42,7 @@ func NewSSETransport(ctx context.Context, client *http.Client, log abstractlogge
 		ctx:    ctx,
 		client: client,
 		log:    log,
-		conns:  make(map[*SSEConnection]struct{}),
+		conns:  make(map[*sseConnection]struct{}),
 	}
 
 	context.AfterFunc(ctx, t.closeAll)
@@ -131,10 +131,10 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 	t.conns[conn] = struct{}{}
 	t.mu.Unlock()
 
-	go conn.ReadLoop()
+	go conn.readLoop()
 
 	cancelFn := func() {
-		conn.Close()
+		conn.closeConn()
 		t.removeConn(conn)
 	}
 
@@ -226,7 +226,7 @@ func (t *SSETransport) validateContentType(resp *http.Response) error {
 	return fmt.Errorf("unexpected content-type: %s", contentType)
 }
 
-func (t *SSETransport) removeConn(conn *SSEConnection) {
+func (t *SSETransport) removeConn(conn *sseConnection) {
 	t.mu.Lock()
 	delete(t.conns, conn)
 	t.mu.Unlock()
@@ -235,11 +235,11 @@ func (t *SSETransport) removeConn(conn *SSEConnection) {
 // closeAll terminates all active SSE connections. Called automatically when context is cancelled.
 func (t *SSETransport) closeAll() {
 	t.mu.Lock()
-	conns := make([]*SSEConnection, 0, len(t.conns))
+	conns := make([]*sseConnection, 0, len(t.conns))
 	for conn := range t.conns {
 		conns = append(conns, conn)
 	}
-	t.conns = make(map[*SSEConnection]struct{})
+	t.conns = make(map[*sseConnection]struct{})
 	t.mu.Unlock()
 
 	t.log.Debug("sseTransport.closeAll",
@@ -247,7 +247,7 @@ func (t *SSETransport) closeAll() {
 	)
 
 	for _, conn := range conns {
-		conn.Close()
+		conn.closeConn()
 	}
 }
 

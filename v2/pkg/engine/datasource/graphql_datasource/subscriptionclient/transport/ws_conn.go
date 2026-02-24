@@ -16,10 +16,10 @@ import (
 )
 
 var (
-	ErrSubscriptionExists = errors.New("subscription ID already exists")
+	errSubscriptionExists = errors.New("subscription ID already exists")
 
-	DefaultWriteTimeout = 5 * time.Second
-	DefaultReadLimit    = int64(1024 * 1024) // 1MB
+	defaultWriteTimeout = 5 * time.Second
+	defaultReadLimit    = int64(1024 * 1024) // 1MB
 )
 
 type wsConnectionOptions struct {
@@ -28,11 +28,11 @@ type wsConnectionOptions struct {
 	onEmpty      func()
 }
 
-// WSConnectionOption configures a WSConnection.
-type WSConnectionOption func(*wsConnectionOptions)
+// wsConnectionOption configures a wsConnection.
+type wsConnectionOption func(*wsConnectionOptions)
 
-// WithConnLogger sets the logger for connection-level debug output.
-func WithConnLogger(l abstractlogger.Logger) WSConnectionOption {
+// withConnLogger sets the logger for connection-level debug output.
+func withConnLogger(l abstractlogger.Logger) wsConnectionOption {
 	return func(o *wsConnectionOptions) {
 		if l != nil {
 			o.logger = l
@@ -40,8 +40,8 @@ func WithConnLogger(l abstractlogger.Logger) WSConnectionOption {
 	}
 }
 
-// WithConnWriteTimeout sets the timeout for write operations (subscribe, unsubscribe, pong).
-func WithConnWriteTimeout(d time.Duration) WSConnectionOption {
+// withConnWriteTimeout sets the timeout for write operations (subscribe, unsubscribe, pong).
+func withConnWriteTimeout(d time.Duration) wsConnectionOption {
 	return func(o *wsConnectionOptions) {
 		if d > 0 {
 			o.writeTimeout = d
@@ -49,25 +49,27 @@ func WithConnWriteTimeout(d time.Duration) WSConnectionOption {
 	}
 }
 
-// WithOnEmpty sets a callback invoked when the last subscription is removed or the connection shuts down.
-func WithOnEmpty(f func()) WSConnectionOption {
+// withOnEmpty sets a callback invoked when the last subscription is removed or the connection shuts down.
+func withOnEmpty(f func()) wsConnectionOption {
 	return func(o *wsConnectionOptions) {
 		o.onEmpty = f
 	}
 }
 
-type WSConnection struct {
-	ctx      context.Context
+type wsConnection struct {
 	conn     *websocket.Conn
 	protocol protocol.Protocol
 	log      abstractlogger.Logger
 
+	// cancel cancels the connection-scoped context, unblocking readLoop and
+	// any in-flight writes. It is called exactly once inside shutdown().
+	cancel context.CancelFunc
+	ctx    context.Context
+
 	subsMu sync.RWMutex
 	subs   map[string]chan<- *common.Message
 
-	closed   atomic.Bool
-	closeErr error
-	done     chan struct{}
+	closed atomic.Bool
 
 	onEmpty func()
 
@@ -79,23 +81,24 @@ type WSConnection struct {
 	lastPongAt     atomic.Int64
 }
 
-// NewWSConnection creates a new WSConnection.
-func NewWSConnection(ctx context.Context, conn *websocket.Conn, proto protocol.Protocol, opts ...WSConnectionOption) *WSConnection {
+func newWSConnection(conn *websocket.Conn, proto protocol.Protocol, opts ...wsConnectionOption) *wsConnection {
 	o := wsConnectionOptions{
 		logger:       abstractlogger.NoopLogger,
-		writeTimeout: DefaultWriteTimeout,
+		writeTimeout: defaultWriteTimeout,
 	}
 	for _, apply := range opts {
 		apply(&o)
 	}
 
-	c := &WSConnection{
-		ctx:      ctx,
+	ctx, cancel := context.WithCancel(context.Background())
+
+	c := &wsConnection{
 		conn:     conn,
 		protocol: proto,
 		log:      o.logger,
+		cancel:   cancel,
+		ctx:      ctx,
 		subs:     make(map[string]chan<- *common.Message),
-		done:     make(chan struct{}),
 		onEmpty:  o.onEmpty,
 
 		writeTimeout: o.writeTimeout,
@@ -106,7 +109,7 @@ func NewWSConnection(ctx context.Context, conn *websocket.Conn, proto protocol.P
 	return c
 }
 
-func (c *WSConnection) Subscribe(ctx context.Context, id string, req *common.Request) (<-chan *common.Message, func(), error) {
+func (c *wsConnection) subscribe(ctx context.Context, id string, req *common.Request) (<-chan *common.Message, func(), error) {
 	if c.closed.Load() {
 		return nil, nil, common.ErrConnectionClosed
 	}
@@ -118,7 +121,7 @@ func (c *WSConnection) Subscribe(ctx context.Context, id string, req *common.Req
 
 	if _, exists := c.subs[id]; exists {
 		c.subsMu.Unlock()
-		return nil, nil, ErrSubscriptionExists
+		return nil, nil, errSubscriptionExists
 	}
 
 	c.subs[id] = ch
@@ -143,7 +146,7 @@ func (c *WSConnection) Subscribe(ctx context.Context, id string, req *common.Req
 	return ch, cancel, nil
 }
 
-func (c *WSConnection) removeSub(id string) {
+func (c *wsConnection) removeSub(id string) {
 	c.subsMu.Lock()
 	ch, exists := c.subs[id]
 	delete(c.subs, id)
@@ -155,11 +158,11 @@ func (c *WSConnection) removeSub(id string) {
 	}
 
 	if isEmpty {
-		c.Close()
+		c.closeConn()
 	}
 }
 
-func (c *WSConnection) unsubscribe(id string) {
+func (c *wsConnection) unsubscribe(id string) {
 	c.subsMu.Lock()
 	_, exists := c.subs[id]
 	c.subsMu.Unlock()
@@ -178,7 +181,7 @@ func (c *WSConnection) unsubscribe(id string) {
 	c.removeSub(id)
 }
 
-func (c *WSConnection) ReadLoop() {
+func (c *wsConnection) readLoop() {
 	defer c.shutdown(errors.New("read loop exited"))
 
 	for {
@@ -211,7 +214,7 @@ func (c *WSConnection) ReadLoop() {
 	}
 }
 
-func (c *WSConnection) dispatch(msg *protocol.Message) {
+func (c *wsConnection) dispatch(msg *protocol.Message) {
 	c.subsMu.RLock()
 	ch, exists := c.subs[msg.ID]
 	c.subsMu.RUnlock()
@@ -227,18 +230,17 @@ func (c *WSConnection) dispatch(msg *protocol.Message) {
 	}
 }
 
-func (c *WSConnection) shutdown(err error) {
+func (c *wsConnection) shutdown(err error) {
 	if !c.closed.CompareAndSwap(false, true) {
 		return
 	}
-
-	c.closeErr = err
 
 	c.log.Debug("wsConnection.shutdown",
 		abstractlogger.Error(err),
 	)
 
-	close(c.done)
+	// Cancel the connection-scoped context so readLoop's Read unblocks.
+	c.cancel()
 
 	c.conn.Close(websocket.StatusNormalClosure, "shutdown")
 
@@ -262,32 +264,23 @@ func (c *WSConnection) shutdown(err error) {
 	}
 }
 
-func (c *WSConnection) Close() error {
+func (c *wsConnection) closeConn() {
 	c.shutdown(common.ErrConnectionClosed)
-	return nil
 }
 
-func (c *WSConnection) Done() <-chan struct{} {
-	return c.done
-}
-
-func (c *WSConnection) Err() error {
-	return c.closeErr
-}
-
-// WriteTimeout returns the configured write timeout.
-func (c *WSConnection) WriteTimeout() time.Duration {
+// writeTimeoutDuration returns the configured write timeout.
+func (c *wsConnection) writeTimeoutDuration() time.Duration {
 	return c.writeTimeout
 }
 
-func (c *WSConnection) SubCount() int {
+func (c *wsConnection) subCount() int {
 	c.subsMu.RLock()
 	defer c.subsMu.RUnlock()
 	return len(c.subs)
 }
 
-// SendPing sends a protocol-level ping message and records the timestamp.
-func (c *WSConnection) SendPing(timeout time.Duration) error {
+// sendPing sends a protocol-level ping message and records the timestamp.
+func (c *wsConnection) sendPing(timeout time.Duration) error {
 	pingCtx, cancel := context.WithTimeout(c.ctx, timeout)
 	defer cancel()
 
@@ -300,9 +293,9 @@ func (c *WSConnection) SendPing(timeout time.Duration) error {
 	return nil
 }
 
-// PongOverdue returns true if a pong has not been received since the last ping
+// pongOverdue returns true if a pong has not been received since the last ping
 // and the ping timeout has elapsed.
-func (c *WSConnection) PongOverdue(timeout time.Duration) bool {
+func (c *wsConnection) pongOverdue(timeout time.Duration) bool {
 	pingSent := c.lastPingSentAt.Load()
 	if pingSent == 0 {
 		return false
@@ -310,6 +303,6 @@ func (c *WSConnection) PongOverdue(timeout time.Duration) bool {
 	return c.lastPongAt.Load() < pingSent && time.Since(time.Unix(0, pingSent)) > timeout
 }
 
-func (c *WSConnection) IsClosed() bool {
+func (c *wsConnection) isClosed() bool {
 	return c.closed.Load()
 }

@@ -11,8 +11,6 @@ import (
 	"github.com/jensneuse/abstractlogger"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/client"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/protocol"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
@@ -160,7 +158,7 @@ func (c *subscriptionClientV2) Subscribe(ctx *resolve.Context, options GraphQLSu
 }
 
 // readLoop bridges the channel-based API to the callback-based updater.
-func (c *subscriptionClientV2) readLoop(ctx context.Context, msgCh <-chan *common.Message, cancel func(), updater resolve.SubscriptionUpdater) {
+func (c *subscriptionClientV2) readLoop(ctx context.Context, msgCh <-chan *client.Message, cancel func(), updater resolve.SubscriptionUpdater) {
 	defer cancel()
 
 	for {
@@ -204,8 +202,8 @@ func (c *subscriptionClientV2) readLoop(ctx context.Context, msgCh <-chan *commo
 
 func closeKindForMessageError(err error) (resolve.SubscriptionCloseKind, bool) {
 	// Connection-level errors should map to close reasons that imply reconnect.
-	if errors.Is(err, common.ErrConnectionClosed) ||
-		errors.Is(err, protocol.ErrConnectionError) ||
+	if errors.Is(err, client.ErrConnectionClosed) ||
+		errors.Is(err, client.ErrConnectionError) ||
 		errors.Is(err, context.Canceled) ||
 		errors.Is(err, context.DeadlineExceeded) {
 		return resolve.SubscriptionCloseKindDownstreamServiceError, false
@@ -216,22 +214,22 @@ func closeKindForMessageError(err error) (resolve.SubscriptionCloseKind, bool) {
 }
 
 // convertToClientOptions converts GraphQLSubscriptionOptions to the new client's types.
-func convertToClientOptions(options GraphQLSubscriptionOptions) (common.Options, *common.Request, error) {
-	opts := common.Options{
+func convertToClientOptions(options GraphQLSubscriptionOptions) (client.Options, *client.Request, error) {
+	opts := client.Options{
 		Endpoint: options.URL,
 		Headers:  options.Header,
 	}
 
 	// Transport selection
 	if options.UseSSE {
-		opts.Transport = common.TransportSSE
+		opts.Transport = client.TransportSSE
 		if options.SSEMethodPost {
-			opts.SSEMethod = common.SSEMethodPOST
+			opts.SSEMethod = client.SSEMethodPOST
 		} else {
-			opts.SSEMethod = common.SSEMethodGET
+			opts.SSEMethod = client.SSEMethodGET
 		}
 	} else {
-		opts.Transport = common.TransportWS
+		opts.Transport = client.TransportWS
 		opts.WSSubprotocol = mapWSSubprotocol(options.WsSubProtocol)
 	}
 
@@ -239,12 +237,12 @@ func convertToClientOptions(options GraphQLSubscriptionOptions) (common.Options,
 	if len(options.InitialPayload) > 0 {
 		var initPayload map[string]any
 		if err := json.Unmarshal(options.InitialPayload, &initPayload); err != nil {
-			return common.Options{}, nil, fmt.Errorf("failed to unmarshal initial payload: %w", err)
+			return client.Options{}, nil, fmt.Errorf("failed to unmarshal initial payload: %w", err)
 		}
 		opts.InitPayload = initPayload
 	}
 
-	req := &common.Request{
+	req := &client.Request{
 		Query:         options.Body.Query,
 		OperationName: options.Body.OperationName,
 		Variables:     options.Body.Variables,
@@ -254,15 +252,15 @@ func convertToClientOptions(options GraphQLSubscriptionOptions) (common.Options,
 	return opts, req, nil
 }
 
-// mapWSSubprotocol maps the string subprotocol to the common.WSSubprotocol type.
-func mapWSSubprotocol(proto string) common.WSSubprotocol {
+// mapWSSubprotocol maps the string subprotocol to the client.WSSubprotocol type.
+func mapWSSubprotocol(proto string) client.WSSubprotocol {
 	switch proto {
 	case "graphql-ws":
-		return common.SubprotocolGraphQLWS
+		return client.SubprotocolGraphQLWS
 	case "graphql-transport-ws":
-		return common.SubprotocolGraphQLTransportWS
+		return client.SubprotocolGraphQLTransportWS
 	default:
-		return common.SubprotocolAuto
+		return client.SubprotocolAuto
 	}
 }
 

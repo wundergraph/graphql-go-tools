@@ -1,4 +1,4 @@
-package transport_test
+package transport
 
 import (
 	"testing"

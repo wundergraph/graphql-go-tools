@@ -68,7 +68,7 @@ func (p *GraphQLTransportWS) Init(ctx context.Context, conn *websocket.Conn, pay
 		var ackMessage incomingMessage
 		if err := wsjson.Read(ackCtx, conn, &ackMessage); err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
-				return ErrAckTimeout
+				return errAckTimeout
 			}
 			return fmt.Errorf("read connection_ack: %w", err)
 		}
@@ -82,7 +82,7 @@ func (p *GraphQLTransportWS) Init(ctx context.Context, conn *websocket.Conn, pay
 			}
 			continue
 		default:
-			return fmt.Errorf("%w: got %q", ErrAckNotReceived, ackMessage.Type)
+			return fmt.Errorf("%w: got %q", errAckNotReceived, ackMessage.Type)
 		}
 	}
 }

@@ -94,7 +94,7 @@ func WithAckTimeout(d time.Duration) WSTransportOption {
 }
 
 // WithWriteTimeout sets the timeout for WebSocket write operations on new connections.
-// Zero uses DefaultWriteTimeout (5s).
+// Zero uses defaultWriteTimeout (5s) at the connection level.
 func WithWriteTimeout(d time.Duration) WSTransportOption {
 	return func(o *wsTransportOptions) {
 		if d > 0 {
@@ -104,7 +104,7 @@ func WithWriteTimeout(d time.Duration) WSTransportOption {
 }
 
 // WithReadLimit sets the maximum size in bytes for incoming WebSocket messages.
-// Zero uses DefaultReadLimit (1MB).
+// Zero uses the defaultReadLimit (1MB).
 func WithReadLimit(n int64) WSTransportOption {
 	return func(o *wsTransportOptions) {
 		if n > 0 {
@@ -119,17 +119,18 @@ type WSTransport struct {
 
 	mu      sync.Mutex
 	dialing map[uint64]*dialResult
-	conns   map[uint64]*WSConnection
+	conns   map[uint64]*wsConnection
 }
 
 type dialResult struct {
 	done chan struct{}
-	conn *WSConnection
+	conn *wsConnection
 	err  error
 }
 
-// NewWSTransport creates a new WSTransport. The transport will automatically close
-// all connections when ctx is cancelled.
+// NewWSTransport creates a new WSTransport. Connections are not closed when ctx
+// is cancelled; instead they close themselves when their last subscriber is
+// removed via the resolver's drain chain. The ping loop exits on ctx cancellation.
 //
 // If WithPingInterval is set, a single goroutine sends protocol-level pings to all
 // connections at that cadence. If WithPingTimeout is also set, connections that fail
@@ -138,7 +139,7 @@ func NewWSTransport(ctx context.Context, opts ...WSTransportOption) *WSTransport
 	o := wsTransportOptions{
 		upgradeClient: http.DefaultClient,
 		logger:        abstractlogger.NoopLogger,
-		readLimit:     DefaultReadLimit,
+		readLimit:     defaultReadLimit,
 	}
 	for _, apply := range opts {
 		apply(&o)
@@ -147,11 +148,9 @@ func NewWSTransport(ctx context.Context, opts ...WSTransportOption) *WSTransport
 	t := &WSTransport{
 		ctx:     ctx,
 		opts:    o,
-		conns:   make(map[uint64]*WSConnection),
+		conns:   make(map[uint64]*wsConnection),
 		dialing: make(map[uint64]*dialResult),
 	}
-
-	context.AfterFunc(ctx, t.closeAll)
 
 	if o.pingInterval > 0 {
 		go t.pingLoop()
@@ -167,28 +166,7 @@ func (t *WSTransport) Subscribe(ctx context.Context, req *common.Request, opts c
 	}
 
 	id := xid.New().String()
-	return conn.Subscribe(ctx, id, req)
-}
-
-// closeAll closes all connections. Called automatically when context is cancelled.
-func (t *WSTransport) closeAll() {
-	t.mu.Lock()
-	conns := make([]*WSConnection, 0, len(t.conns))
-	for _, conn := range t.conns {
-		conns = append(conns, conn)
-	}
-
-	t.conns = make(map[uint64]*WSConnection)
-
-	t.mu.Unlock()
-
-	t.opts.logger.Debug("wsTransport.closeAll",
-		abstractlogger.Int("connections", len(conns)),
-	)
-
-	for _, conn := range conns {
-		conn.Close()
-	}
+	return conn.subscribe(ctx, id, req)
 }
 
 // pingLoop sends periodic pings to all active connections and shuts down
@@ -201,26 +179,26 @@ func (t *WSTransport) pingLoop() {
 			return
 		case <-tick:
 			t.mu.Lock()
-			conns := make([]*WSConnection, 0, len(t.conns))
+			conns := make([]*wsConnection, 0, len(t.conns))
 			for _, conn := range t.conns {
 				conns = append(conns, conn)
 			}
 			t.mu.Unlock()
 
 			for _, conn := range conns {
-				if conn.IsClosed() {
+				if conn.isClosed() {
 					continue
 				}
 
-				if t.opts.pingTimeout > 0 && conn.PongOverdue(t.opts.pingTimeout) {
+				if t.opts.pingTimeout > 0 && conn.pongOverdue(t.opts.pingTimeout) {
 					t.opts.logger.Debug("wsTransport.pingLoop",
 						abstractlogger.String("action", "pong_timeout"),
 					)
-					conn.Close()
+					conn.closeConn()
 					continue
 				}
 
-				if err := conn.SendPing(DefaultWriteTimeout); err != nil {
+				if err := conn.sendPing(defaultWriteTimeout); err != nil {
 					t.opts.logger.Debug("wsTransport.pingLoop",
 						abstractlogger.String("action", "ping_failed"),
 						abstractlogger.Error(err),
@@ -248,12 +226,12 @@ func (t *WSTransport) ConnCount() int {
 	return len(t.conns)
 }
 
-func (t *WSTransport) getOrDial(ctx context.Context, opts common.Options) (*WSConnection, error) {
+func (t *WSTransport) getOrDial(ctx context.Context, opts common.Options) (*wsConnection, error) {
 	key := connKey(opts)
 
 	t.mu.Lock()
 
-	if conn, ok := t.conns[key]; ok && !conn.IsClosed() {
+	if conn, ok := t.conns[key]; ok && !conn.isClosed() {
 		t.mu.Unlock()
 		return conn, nil
 	}
@@ -290,7 +268,7 @@ func (t *WSTransport) getOrDial(ctx context.Context, opts common.Options) (*WSCo
 	return conn, err
 }
 
-func (t *WSTransport) dial(ctx context.Context, key uint64, opts common.Options) (*WSConnection, error) {
+func (t *WSTransport) dial(ctx context.Context, key uint64, opts common.Options) (*wsConnection, error) {
 	t.opts.logger.Debug("wsTransport.dial",
 		abstractlogger.String("endpoint", opts.Endpoint),
 		abstractlogger.String("subprotocol", string(opts.WSSubprotocol)),
@@ -344,13 +322,13 @@ func (t *WSTransport) dial(ctx context.Context, key uint64, opts common.Options)
 		abstractlogger.String("negotiated_subprotocol", wsConn.Subprotocol()),
 	)
 
-	conn := NewWSConnection(t.ctx, wsConn, proto,
-		WithConnLogger(t.opts.logger),
-		WithConnWriteTimeout(t.opts.writeTimeout),
-		WithOnEmpty(func() { t.removeConn(key) }),
+	conn := newWSConnection(wsConn, proto,
+		withConnLogger(t.opts.logger),
+		withConnWriteTimeout(t.opts.writeTimeout),
+		withOnEmpty(func() { t.removeConn(key) }),
 	)
 
-	go conn.ReadLoop()
+	go conn.readLoop()
 
 	return conn, nil
 }

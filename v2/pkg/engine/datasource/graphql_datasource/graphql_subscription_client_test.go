@@ -8,8 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/protocol"
+	subclient "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/client"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
@@ -44,13 +43,13 @@ func (t *testBridgeUpdater) Subscriptions() map[context.Context]resolve.Subscrip
 
 func TestCloseKindForMessageError(t *testing.T) {
 	t.Run("connection closed uses downstream service error close kind", func(t *testing.T) {
-		closeKind, sendPayload := closeKindForMessageError(common.ErrConnectionClosed)
+		closeKind, sendPayload := closeKindForMessageError(subclient.ErrConnectionClosed)
 		require.Equal(t, resolve.SubscriptionCloseKindDownstreamServiceError, closeKind)
 		require.False(t, sendPayload)
 	})
 
 	t.Run("connection error uses downstream service error close kind", func(t *testing.T) {
-		err := fmt.Errorf("wrapped: %w", protocol.ErrConnectionError)
+		err := fmt.Errorf("wrapped: %w", subclient.ErrConnectionError)
 		closeKind, sendPayload := closeKindForMessageError(err)
 		require.Equal(t, resolve.SubscriptionCloseKindDownstreamServiceError, closeKind)
 		require.False(t, sendPayload)
@@ -66,8 +65,8 @@ func TestCloseKindForMessageError(t *testing.T) {
 func TestSubscriptionClientV2ReadLoopCloseKinds(t *testing.T) {
 	t.Run("connection errors close as downstream service error without payload", func(t *testing.T) {
 		updater := &testBridgeUpdater{}
-		msgCh := make(chan *common.Message, 1)
-		msgCh <- &common.Message{Err: common.ErrConnectionClosed}
+		msgCh := make(chan *subclient.Message, 1)
+		msgCh <- &subclient.Message{Err: subclient.ErrConnectionClosed}
 		close(msgCh)
 
 		client := &subscriptionClientV2{}
@@ -81,8 +80,8 @@ func TestSubscriptionClientV2ReadLoopCloseKinds(t *testing.T) {
 
 	t.Run("non-connection errors send payload and close normally", func(t *testing.T) {
 		updater := &testBridgeUpdater{}
-		msgCh := make(chan *common.Message, 1)
-		msgCh <- &common.Message{Err: errors.New("validation failed")}
+		msgCh := make(chan *subclient.Message, 1)
+		msgCh <- &subclient.Message{Err: errors.New("validation failed")}
 		close(msgCh)
 
 		client := &subscriptionClientV2{}

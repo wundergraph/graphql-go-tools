@@ -20,7 +20,7 @@ func TestSSEConnection_ReadLoop(t *testing.T) {
 		resp := &http.Response{Body: body}
 		conn := newSSEConnection(resp)
 
-		go conn.ReadLoop()
+		go conn.readLoop()
 
 		msg := <-conn.ch
 		require.NotNil(t, msg.Payload)
@@ -33,7 +33,7 @@ func TestSSEConnection_ReadLoop(t *testing.T) {
 		resp := &http.Response{Body: body}
 		conn := newSSEConnection(resp)
 
-		go conn.ReadLoop()
+		go conn.readLoop()
 
 		select {
 		case _, ok := <-conn.ch:
@@ -48,7 +48,7 @@ func TestSSEConnection_ReadLoop(t *testing.T) {
 		resp := &http.Response{Body: io.NopCloser(body)}
 		conn := newSSEConnection(resp)
 
-		go conn.ReadLoop()
+		go conn.readLoop()
 
 		msg := <-conn.ch
 		require.Error(t, msg.Err)
@@ -64,7 +64,7 @@ func TestSSEConnection_ReadLoop(t *testing.T) {
 		resp := &http.Response{Body: body}
 		conn := newSSEConnection(resp)
 
-		go conn.ReadLoop()
+		go conn.readLoop()
 
 		// First message
 		msg1 := <-conn.ch
@@ -92,9 +92,9 @@ func TestSSEConnection_Close(t *testing.T) {
 		resp := &http.Response{Body: body}
 		conn := newSSEConnection(resp)
 
-		go conn.ReadLoop()
+		go conn.readLoop()
 
-		err := conn.Close()
+		err := conn.closeConn()
 		require.NoError(t, err)
 		pw.Close() // Ensure pipe is fully closed
 
@@ -114,8 +114,8 @@ func TestSSEConnection_Close(t *testing.T) {
 		resp := &http.Response{Body: body}
 		conn := newSSEConnection(resp)
 
-		err1 := conn.Close()
-		err2 := conn.Close()
+		err1 := conn.closeConn()
+		err2 := conn.closeConn()
 
 		assert.NoError(t, err1)
 		assert.NoError(t, err2)

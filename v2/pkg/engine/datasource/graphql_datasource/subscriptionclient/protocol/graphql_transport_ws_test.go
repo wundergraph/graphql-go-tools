@@ -1,4 +1,4 @@
-package protocol_test
+package protocol
 
 import (
 	"context"
@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/protocol"
 )
 
 func TestGraphQLTransportWS_Init(t *testing.T) {
@@ -33,12 +32,12 @@ func TestGraphQLTransportWS_Init(t *testing.T) {
 
 		conn := dialGTWS(t, server)
 
-		p := protocol.NewGraphQLTransportWS()
+		p := NewGraphQLTransportWS()
 
 		err := p.Init(t.Context(), conn, map[string]any{"secret": "token"})
 		require.NoError(t, err)
 
-		AwaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
+		awaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
 			assert.Equal(t, "connection_init", msg["type"])
 			payload, _ := msg["payload"].(map[string]any)
 			assert.Equal(t, "token", payload["secret"])
@@ -54,10 +53,10 @@ func TestGraphQLTransportWS_Init(t *testing.T) {
 
 		conn := dialGTWS(t, server)
 
-		p := &protocol.GraphQLTransportWS{AckTimeout: 50 * time.Millisecond}
+		p := &GraphQLTransportWS{AckTimeout: 50 * time.Millisecond}
 		err := p.Init(t.Context(), conn, nil)
 
-		require.ErrorIs(t, err, protocol.ErrAckTimeout)
+		require.ErrorIs(t, err, errAckTimeout)
 	})
 
 	t.Run("handles ping before ack", func(t *testing.T) {
@@ -80,15 +79,15 @@ func TestGraphQLTransportWS_Init(t *testing.T) {
 
 		conn := dialGTWS(t, server)
 
-		p := protocol.NewGraphQLTransportWS()
+		p := NewGraphQLTransportWS()
 		err := p.Init(t.Context(), conn, nil)
 		require.NoError(t, err)
 
-		AwaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
+		awaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
 			assert.Equal(t, "connection_init", msg["type"])
 		})
 
-		AwaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
+		awaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
 			assert.Equal(t, "pong", msg["type"])
 		})
 	})
@@ -104,10 +103,10 @@ func TestGraphQLTransportWS_Init(t *testing.T) {
 
 		conn := dialGTWS(t, server)
 
-		p := protocol.NewGraphQLTransportWS()
+		p := NewGraphQLTransportWS()
 		err := p.Init(t.Context(), conn, nil)
 
-		assert.ErrorIs(t, err, protocol.ErrAckNotReceived)
+		assert.ErrorIs(t, err, errAckNotReceived)
 	})
 }
 
@@ -127,14 +126,14 @@ func TestGraphQLWS_Subscribe(t *testing.T) {
 
 		conn := dialGTWS(t, server)
 
-		p := protocol.NewGraphQLTransportWS()
+		p := NewGraphQLTransportWS()
 		err := p.Subscribe(t.Context(), conn, "sub-1", &common.Request{
 			Query:     "subscription { test }",
 			Variables: []byte(`{"id": 123}`),
 		})
 		require.NoError(t, err)
 
-		AwaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
+		awaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
 			assert.Equal(t, "subscribe", msg["type"])
 			assert.Equal(t, "sub-1", msg["id"])
 
@@ -163,11 +162,11 @@ func TestGraphQLWS_Unsubscribe(t *testing.T) {
 
 		conn := dialGTWS(t, server)
 
-		p := protocol.NewGraphQLTransportWS()
+		p := NewGraphQLTransportWS()
 		err := p.Unsubscribe(t.Context(), conn, "sub-1")
 		require.NoError(t, err)
 
-		AwaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
+		awaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
 			assert.Equal(t, "complete", msg["type"])
 			assert.Equal(t, "sub-1", msg["id"])
 		})
@@ -192,12 +191,12 @@ func TestGraphQLWS_Read(t *testing.T) {
 
 		conn := dialGTWS(t, server)
 
-		p := protocol.NewGraphQLTransportWS()
+		p := NewGraphQLTransportWS()
 		msg, err := p.Read(t.Context(), conn)
 
 		require.NoError(t, err)
 		assert.Equal(t, "sub-1", msg.ID)
-		assert.Equal(t, protocol.MessageData, msg.Type)
+		assert.Equal(t, MessageData, msg.Type)
 		require.NotNil(t, msg.Payload)
 		assert.Contains(t, string(msg.Payload.Data), "42")
 	})
@@ -217,11 +216,11 @@ func TestGraphQLWS_Read(t *testing.T) {
 
 		conn := dialGTWS(t, server)
 
-		p := protocol.NewGraphQLTransportWS()
+		p := NewGraphQLTransportWS()
 		msg, err := p.Read(t.Context(), conn)
 
 		require.NoError(t, err)
-		assert.Equal(t, protocol.MessageError, msg.Type)
+		assert.Equal(t, MessageError, msg.Type)
 		require.NotNil(t, msg.Payload)
 		assert.Contains(t, string(msg.Payload.Errors), "something went wrong")
 	})
@@ -238,12 +237,12 @@ func TestGraphQLWS_Read(t *testing.T) {
 
 		conn := dialGTWS(t, server)
 
-		p := protocol.NewGraphQLTransportWS()
+		p := NewGraphQLTransportWS()
 		msg, err := p.Read(t.Context(), conn)
 
 		require.NoError(t, err)
 		assert.Equal(t, "sub-1", msg.ID)
-		assert.Equal(t, protocol.MessageComplete, msg.Type)
+		assert.Equal(t, MessageComplete, msg.Type)
 	})
 
 	t.Run("decodes ping message", func(t *testing.T) {
@@ -255,11 +254,11 @@ func TestGraphQLWS_Read(t *testing.T) {
 
 		conn := dialGTWS(t, server)
 
-		p := protocol.NewGraphQLTransportWS()
+		p := NewGraphQLTransportWS()
 		msg, err := p.Read(t.Context(), conn)
 
 		require.NoError(t, err)
-		assert.Equal(t, protocol.MessagePing, msg.Type)
+		assert.Equal(t, MessagePing, msg.Type)
 	})
 
 	t.Run("returns error for unknown message type", func(t *testing.T) {
@@ -271,7 +270,7 @@ func TestGraphQLWS_Read(t *testing.T) {
 
 		conn := dialGTWS(t, server)
 
-		p := protocol.NewGraphQLTransportWS()
+		p := NewGraphQLTransportWS()
 		_, err := p.Read(t.Context(), conn)
 
 		require.Error(t, err)
@@ -296,11 +295,11 @@ func TestGraphQLTransportWS_PingPong(t *testing.T) {
 
 		conn := dialGTWS(t, server)
 
-		p := protocol.NewGraphQLTransportWS()
+		p := NewGraphQLTransportWS()
 		err := p.Ping(t.Context(), conn)
 		require.NoError(t, err)
 
-		AwaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
+		awaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
 			assert.Equal(t, "ping", msg["type"])
 		})
 	})
@@ -319,11 +318,11 @@ func TestGraphQLTransportWS_PingPong(t *testing.T) {
 
 		conn := dialGTWS(t, server)
 
-		p := protocol.NewGraphQLTransportWS()
+		p := NewGraphQLTransportWS()
 		err := p.Pong(t.Context(), conn)
 		require.NoError(t, err)
 
-		AwaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
+		awaitChannelWithT(t, time.Second, received, func(t *testing.T, msg map[string]any) {
 			assert.Equal(t, "pong", msg["type"])
 		})
 	})
@@ -367,7 +366,7 @@ func dialGTWS(t *testing.T, server *httptest.Server) *websocket.Conn {
 	return conn
 }
 
-func AwaitChannelWithT[A any](t *testing.T, timeout time.Duration, ch <-chan A, f func(*testing.T, A), msgAndArgs ...any) {
+func awaitChannelWithT[A any](t *testing.T, timeout time.Duration, ch <-chan A, f func(*testing.T, A), msgAndArgs ...any) {
 	t.Helper()
 
 	select {

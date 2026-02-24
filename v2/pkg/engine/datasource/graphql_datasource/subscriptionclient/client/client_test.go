@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -47,19 +46,18 @@ func TestClient(t *testing.T) {
 	})
 }
 
-func TestClient_ContextCancellation(t *testing.T) {
-	// These tests verify that cancelling the client's context properly cleans up all goroutines
+func TestClient_SubscriberDrain(t *testing.T) {
+	// These tests verify that cancelling all subscriptions properly cleans up all goroutines.
+	// Connections close themselves when their last subscriber is removed.
 
-	t.Run("context cancellation cleans up", func(t *testing.T) {
+	t.Run("subscriber drain cleans up", func(t *testing.T) {
 		defer goleak.VerifyNone(t, goleak.IgnoreAnyFunction("net/http/httptest.(*Server).goServe.func1"))
 
 		server := newTestWSServer(t)
 
-		ctx, cancel := context.WithCancel(context.Background())
+		c := New(t.Context(), Config{})
 
-		c := New(ctx, Config{})
-
-		ch, _, err := c.Subscribe(context.Background(), &common.Request{
+		ch, subCancel, err := c.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
 		}, common.Options{
 			Endpoint:  server.URL,
@@ -75,22 +73,26 @@ func TestClient_ContextCancellation(t *testing.T) {
 			t.Fatal("timeout waiting for message")
 		}
 
-		cancel()
+		subCancel()
+
+		// Give ReadLoop goroutine time to exit after connection close
+		assert.Eventually(t, func() bool {
+			return c.Stats().WSConns == 0
+		}, time.Second, 10*time.Millisecond)
 	})
 
-	t.Run("context cancellation cleans up multiple connections", func(t *testing.T) {
+	t.Run("subscriber drain cleans up multiple connections", func(t *testing.T) {
 		defer goleak.VerifyNone(t, goleak.IgnoreAnyFunction("net/http/httptest.(*Server).goServe.func1"))
 
 		server := newTestWSServer(t)
 
-		ctx, cancel := context.WithCancel(context.Background())
+		c := New(t.Context(), Config{})
 
-		c := New(ctx, Config{})
-
+		cancels := make([]func(), 3)
 		// Start subscriptions with different headers (forces multiple connections)
 		for i := range 3 {
 			headers := http.Header{"X-Request-ID": []string{string(rune('A' + i))}}
-			ch, _, err := c.Subscribe(context.Background(), &common.Request{
+			ch, subCancel, err := c.Subscribe(context.Background(), &common.Request{
 				Query: "subscription { test }",
 			}, common.Options{
 				Endpoint:  server.URL,
@@ -98,6 +100,7 @@ func TestClient_ContextCancellation(t *testing.T) {
 				Headers:   headers,
 			})
 			require.NoError(t, err)
+			cancels[i] = subCancel
 
 			// Drain first message
 			select {
@@ -111,13 +114,21 @@ func TestClient_ContextCancellation(t *testing.T) {
 		stats := c.Stats()
 		require.Equal(t, 3, stats.WSConns)
 
-		cancel()
+		for _, fn := range cancels {
+			fn()
+		}
+
+		assert.Eventually(t, func() bool {
+			return c.Stats().WSConns == 0
+		}, time.Second, 10*time.Millisecond)
 	})
 }
 
 func TestClient_CancelSendsComplete(t *testing.T) {
 	t.Run("cancel sends complete to server", func(t *testing.T) {
-		defer goleak.VerifyNone(t, goleak.IgnoreAnyFunction("net/http/httptest.(*Server).goServe.func1"))
+		defer goleak.VerifyNone(t,
+			goleak.IgnoreAnyFunction("net/http/httptest.(*Server).goServe.func1"),
+		)
 
 		completeReceived := make(chan string, 1)
 
@@ -200,45 +211,12 @@ func TestClient_CancelSendsComplete(t *testing.T) {
 		case <-time.After(time.Second):
 			t.Fatal("timeout waiting for complete message on server")
 		}
+
+		// Wait for ReadLoop goroutine to exit after connection close
+		assert.Eventually(t, func() bool {
+			return c.Stats().WSConns == 0
+		}, time.Second, 10*time.Millisecond)
 	})
-}
-
-// Test helper: creates an SSE server that sends periodic messages
-func newTestSSEServer(t *testing.T) *httptest.Server {
-	t.Helper()
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Connection", "keep-alive")
-
-		flusher, ok := w.(http.Flusher)
-		if !ok {
-			http.Error(w, "SSE not supported", http.StatusInternalServerError)
-			return
-		}
-
-		// Send initial message
-		fmt.Fprintf(w, "event: next\ndata: {\"data\":{\"test\":\"value\"}}\n\n")
-		flusher.Flush()
-
-		// Send periodic messages until client disconnects
-		ticker := time.NewTicker(100 * time.Millisecond)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-r.Context().Done():
-				return
-			case <-ticker.C:
-				fmt.Fprintf(w, "event: next\ndata: {\"data\":{\"test\":\"value\"}}\n\n")
-				flusher.Flush()
-			}
-		}
-	}))
-
-	t.Cleanup(server.Close)
-	return server
 }
 
 // Test helper: creates a WebSocket server that sends periodic messages

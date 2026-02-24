@@ -1,8 +1,12 @@
 package client
 
-import "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
+import (
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/protocol"
+)
 
 // Re-export common types for single-import convenience.
+
 type (
 	Message         = common.Message
 	ExecutionResult = common.ExecutionResult
@@ -25,4 +29,10 @@ const (
 	SSEMethodAuto = common.SSEMethodAuto
 	SSEMethodPOST = common.SSEMethodPOST
 	SSEMethodGET  = common.SSEMethodGET
+)
+
+// Re-export sentinel errors.
+var (
+	ErrConnectionClosed = common.ErrConnectionClosed
+	ErrConnectionError  = protocol.ErrConnectionError
 )
