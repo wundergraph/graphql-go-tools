@@ -180,13 +180,11 @@ func (c *sseConnection) cleanup() {
 }
 
 // closeConn terminates the SSE connection.
-func (c *sseConnection) closeConn() error {
+func (c *sseConnection) closeConn() {
 	if !c.closed.CompareAndSwap(false, true) {
-		return nil
+		return
 	}
 
 	close(c.done)
 	c.resp.Body.Close()
-
-	return nil
 }

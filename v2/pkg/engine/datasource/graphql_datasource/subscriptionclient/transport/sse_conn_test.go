@@ -94,8 +94,7 @@ func TestSSEConnection_Close(t *testing.T) {
 
 		go conn.readLoop()
 
-		err := conn.closeConn()
-		require.NoError(t, err)
+		conn.closeConn()
 		pw.Close() // Ensure pipe is fully closed
 
 		// Channel close signals cleanup completed
@@ -114,11 +113,8 @@ func TestSSEConnection_Close(t *testing.T) {
 		resp := &http.Response{Body: body}
 		conn := newSSEConnection(resp)
 
-		err1 := conn.closeConn()
-		err2 := conn.closeConn()
-
-		assert.NoError(t, err1)
-		assert.NoError(t, err2)
+		conn.closeConn()
+		conn.closeConn() // second call is a no-op
 	})
 }
 
