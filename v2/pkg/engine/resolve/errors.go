@@ -2,8 +2,11 @@ package resolve
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"slices"
+
+	"github.com/wundergraph/astjson"
 )
 
 type GraphQLError struct {
@@ -11,12 +14,50 @@ type GraphQLError struct {
 	Locations []Location `json:"locations,omitempty"`
 	// Path is a list of path segments that lead to the error, can be number or string
 	Path       []any          `json:"path"`
-	Extensions map[string]any `json:"extensions,omitempty"`
+	Extensions *astjson.Value `json:"extensions,omitempty"`
 }
 
 type Location struct {
 	Line   uint32 `json:"line"`
 	Column uint32 `json:"column"`
+}
+
+func (e *GraphQLError) UnmarshalJSON(data []byte) error {
+	type Alias GraphQLError
+
+	aux := &struct {
+		*Alias
+
+		Extensions json.RawMessage `json:"extensions,omitempty"`
+	}{
+		Alias: (*Alias)(e),
+	}
+
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+
+	if len(aux.Extensions) > 0 {
+		e.Extensions = astjson.MustParseBytes(aux.Extensions)
+	}
+
+	return nil
+}
+
+func (e GraphQLError) MarshalJSON() ([]byte, error) {
+	aux := &struct {
+		*GraphQLError
+
+		Extensions json.RawMessage `json:"extensions,omitempty"`
+	}{
+		GraphQLError: &e,
+	}
+
+	if e.Extensions != nil {
+		aux.Extensions = e.Extensions.MarshalTo(nil)
+	}
+
+	return json.Marshal(aux)
 }
 
 type SubgraphError struct {
@@ -45,11 +86,9 @@ func (e *SubgraphError) Codes() []string {
 	codes := make([]string, 0, len(e.DownstreamErrors))
 
 	for _, downstreamError := range e.DownstreamErrors {
-		if downstreamError.Extensions != nil {
-			if ok := downstreamError.Extensions["code"]; ok != nil {
-				if code, ok := downstreamError.Extensions["code"].(string); ok && !slices.Contains(codes, code) {
-					codes = append(codes, code)
-				}
+		if code := downstreamError.Extensions.Get("code"); code != nil {
+			if !slices.Contains(codes, code.String()) {
+				codes = append(codes, code.String())
 			}
 		}
 	}
