@@ -682,7 +682,6 @@ func (l *Loader) appendSubgraphError(res *result, fetchItem *FetchItem, value *a
 }
 
 func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.Value) error {
-	fmt.Println("mergeErrors", string(value.String()))
 	values := value.GetArray()
 	l.optionallyOmitErrorLocations(values)
 	if l.rewriteSubgraphErrorPaths {

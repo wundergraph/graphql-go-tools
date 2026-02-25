@@ -22,6 +22,9 @@ type Location struct {
 	Column uint32 `json:"column"`
 }
 
+// UnmarshalJSON unmarshals the GraphQLError from JSON.
+// It unmarshals the Extensions field as a json.RawMessage and then parses it into an astjson.Value.
+// This is necessary because we want to be able to keep the orginal order of the extensions fields.
 func (e *GraphQLError) UnmarshalJSON(data []byte) error {
 	type Alias GraphQLError
 
@@ -38,19 +41,27 @@ func (e *GraphQLError) UnmarshalJSON(data []byte) error {
 	}
 
 	if len(aux.Extensions) > 0 {
-		e.Extensions = astjson.MustParseBytes(aux.Extensions)
+		extensions, err := astjson.ParseBytes(aux.Extensions)
+		if err != nil {
+			return err
+		}
+
+		e.Extensions = extensions
 	}
 
 	return nil
 }
 
+// MarshalJSON marshals the GraphQLError to JSON.
+// This is necessary because we need to marshal the Extensions field from an astjson.Value to a json.RawMessage.
 func (e GraphQLError) MarshalJSON() ([]byte, error) {
+	type Alias GraphQLError
 	aux := &struct {
-		*GraphQLError
+		*Alias
 
 		Extensions json.RawMessage `json:"extensions,omitempty"`
 	}{
-		GraphQLError: &e,
+		Alias: (*Alias)(&e),
 	}
 
 	if e.Extensions != nil {
