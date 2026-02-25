@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.257](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.256...v2.0.0-rc.257) (2026-02-25)
+
+
+### Bug Fixes
+
+* keep order of error extension fields after sanitization ([#1407](https://github.com/wundergraph/graphql-go-tools/issues/1407)) ([e974cd3](https://github.com/wundergraph/graphql-go-tools/commit/e974cd34d03fdcb10f36d2b636981700a2c20450))
+
 ## [2.0.0-rc.256](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.255...v2.0.0-rc.256) (2026-02-23)
 
 
