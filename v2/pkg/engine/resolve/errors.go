@@ -46,7 +46,9 @@ func (e *GraphQLError) UnmarshalJSON(data []byte) error {
 			return err
 		}
 
-		e.Extensions = extensions
+		if extensions.Type() != astjson.TypeNull {
+			e.Extensions = extensions
+		}
 	}
 
 	return nil
