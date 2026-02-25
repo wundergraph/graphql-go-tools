@@ -98,8 +98,9 @@ func (e *SubgraphError) Codes() []string {
 
 	for _, downstreamError := range e.DownstreamErrors {
 		if code := downstreamError.Extensions.Get("code"); code != nil {
-			if !slices.Contains(codes, code.String()) {
-				codes = append(codes, code.String())
+			codeStr := string(code.GetStringBytes())
+			if !slices.Contains(codes, codeStr) {
+				codes = append(codes, codeStr)
 			}
 		}
 	}
