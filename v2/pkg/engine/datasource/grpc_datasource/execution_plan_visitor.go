@@ -57,6 +57,8 @@ type rpcPlanVisitor struct {
 	resolverFields         []resolverField // contains information about the resolver fields. These are used to create the resolver calls when leaving the document.
 
 	fieldPath ast.Path
+
+	inlineFragmentRef int
 }
 
 type rpcPlanVisitorConfig struct {
@@ -77,6 +79,7 @@ func newRPCPlanVisitor(config rpcPlanVisitorConfig) *rpcPlanVisitor {
 		resolverFields:         make([]resolverField, 0),
 		fieldResolverAncestors: newStack[int](0),
 		fieldPath:              make(ast.Path, 0),
+		inlineFragmentRef:      ast.InvalidRef,
 	}
 
 	walker.RegisterDocumentVisitor(visitor)
@@ -84,8 +87,17 @@ func newRPCPlanVisitor(config rpcPlanVisitorConfig) *rpcPlanVisitor {
 	walker.RegisterFieldVisitor(visitor)
 	walker.RegisterSelectionSetVisitor(visitor)
 	walker.RegisterEnterArgumentVisitor(visitor)
+	walker.RegisterInlineFragmentVisitor(visitor)
 
 	return visitor
+}
+
+func (r *rpcPlanVisitor) EnterInlineFragment(ref int) {
+	r.inlineFragmentRef = ref
+}
+
+func (r *rpcPlanVisitor) LeaveInlineFragment(ref int) {
+	r.inlineFragmentRef = ast.InvalidRef
 }
 
 func (r *rpcPlanVisitor) PlanOperation(operation, definition *ast.Document) (*RPCExecutionPlan, error) {
@@ -193,6 +205,8 @@ func (r *rpcPlanVisitor) EnterArgument(ref int) {
 // EnterSelectionSet implements astvisitor.EnterSelectionSetVisitor.
 // Checks if this is in the root level below the operation definition.
 func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
+
+	fmt.Println("DEBUG:", r.walker.Ancestor().NameString(r.operation))
 	if r.walker.Ancestor().Kind == ast.NodeKindOperationDefinition {
 		return
 	}
@@ -225,16 +239,32 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 		return
 	}
 
-	lastIndex := len(r.planInfo.currentResponseMessage.Fields) - 1
+	if r.inlineFragmentRef == ast.InvalidRef {
+		lastIndex := len(r.planInfo.currentResponseMessage.Fields) - 1
 
-	// In nested selection sets, a new message needs to be created, which will be added to the current response message.
-	if r.planInfo.currentResponseMessage.Fields[lastIndex].Message == nil {
-		r.planInfo.currentResponseMessage.Fields[lastIndex].Message = r.planCtx.newMessageFromSelectionSet(r.walker.EnclosingTypeDefinition, ref)
+		// In nested selection sets, a new message needs to be created, which will be added to the current response message.
+		if r.planInfo.currentResponseMessage.Fields[lastIndex].Message == nil {
+			r.planInfo.currentResponseMessage.Fields[lastIndex].Message = r.planCtx.newMessageFromSelectionSet(r.walker.EnclosingTypeDefinition, ref)
+		}
+
+		// Add the current response message to the ancestors and set the current response message to the current field message
+		r.planInfo.responseMessageAncestors = append(r.planInfo.responseMessageAncestors, r.planInfo.currentResponseMessage)
+		r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.Fields[lastIndex].Message
+	} else {
+		// We have the problem here, that r.InlineFragmentRef could be
+
+		inlineFragmentName := r.operation.InlineFragmentTypeConditionNameString(r.inlineFragmentRef)
+		lastIndex := len(r.planInfo.currentResponseMessage.FieldSelectionSet[inlineFragmentName]) - 1
+
+		// In nested selection sets, a new message needs to be created, which will be added to the current response message.
+		if r.planInfo.currentResponseMessage.FieldSelectionSet[inlineFragmentName][lastIndex].Message == nil {
+			r.planInfo.currentResponseMessage.FieldSelectionSet[inlineFragmentName][lastIndex].Message = r.planCtx.newMessageFromSelectionSet(r.walker.EnclosingTypeDefinition, ref)
+		}
+
+		// Add the current response message to the ancestors and set the current response message to the current field message
+		r.planInfo.responseMessageAncestors = append(r.planInfo.responseMessageAncestors, r.planInfo.currentResponseMessage)
+		r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.FieldSelectionSet[inlineFragmentName][lastIndex].Message
 	}
-
-	// Add the current response message to the ancestors and set the current response message to the current field message
-	r.planInfo.responseMessageAncestors = append(r.planInfo.responseMessageAncestors, r.planInfo.currentResponseMessage)
-	r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.Fields[lastIndex].Message
 
 	// Check if the ancestor type is a composite type (interface or union)
 	// and set the oneof type and member types.
