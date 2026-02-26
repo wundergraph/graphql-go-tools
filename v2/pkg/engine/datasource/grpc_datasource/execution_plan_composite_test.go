@@ -910,6 +910,130 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 				},
 			},
 		},
+		{
+			// query OwnerPetQuery {
+			//   randomPet {
+			//     ... on Cat {
+			//       owner {
+			//         name
+			//         pet {
+			//           ... on Cat {
+			//             breed {
+			//               name
+			//               origin
+			//             }
+			//           }
+			//           ... on Dog {
+			//             barkVolume
+			//           }
+			//         }
+			//       }
+			//     }
+			//   }
+			// }
+			//
+			// Verifies that r.inlineFragmentRef does not become stale when descending into a
+			// nested message inside a fragment. The outer Cat fragment ref must be saved and
+			// cleared when entering owner's selection set so that the inner fields (name, pet)
+			// are treated as regular Owner fields, not as Cat fragment fields. The inner
+			// Animal interface on pet must then correctly handle its own nested inline fragments.
+			name:  "Should create an execution plan for nested inline fragments through an intermediate regular message",
+			query: "query OwnerPetQuery { randomPet { ... on Cat { owner { name pet { ... on Cat { breed { name origin } } ... on Dog { barkVolume } } } } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryRandomPet",
+						Request: RPCMessage{
+							Name: "QueryRandomPetRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryRandomPetResponse",
+							Fields: []RPCField{
+								{
+									Name:          "random_pet",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "randomPet",
+									Message: &RPCMessage{
+										Name:      "Animal",
+										OneOfType: OneOfTypeInterface,
+										MemberTypes: []string{
+											"Cat",
+											"Dog",
+										},
+										Fields: RPCFields{},
+										FragmentFields: RPCFieldSelectionSet{
+											"Cat": {
+												{
+													Name:          "owner",
+													ProtoTypeName: DataTypeMessage,
+													JSONPath:      "owner",
+													Message: &RPCMessage{
+														Name: "Owner",
+														Fields: []RPCField{
+															{
+																Name:          "name",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "name",
+															},
+															{
+																Name:          "pet",
+																ProtoTypeName: DataTypeMessage,
+																JSONPath:      "pet",
+																Message: &RPCMessage{
+																	Name:      "Animal",
+																	OneOfType: OneOfTypeInterface,
+																	MemberTypes: []string{
+																		"Cat",
+																		"Dog",
+																	},
+																	Fields: RPCFields{},
+																	FragmentFields: RPCFieldSelectionSet{
+																		"Cat": {
+																			{
+																				Name:          "breed",
+																				ProtoTypeName: DataTypeMessage,
+																				JSONPath:      "breed",
+																				Message: &RPCMessage{
+																					Name: "CatBreed",
+																					Fields: []RPCField{
+																						{
+																							Name:          "name",
+																							ProtoTypeName: DataTypeString,
+																							JSONPath:      "name",
+																						},
+																						{
+																							Name:          "origin",
+																							ProtoTypeName: DataTypeString,
+																							JSONPath:      "origin",
+																						},
+																					},
+																				},
+																			},
+																		},
+																		"Dog": {
+																			{
+																				Name:          "bark_volume",
+																				ProtoTypeName: DataTypeInt32,
+																				JSONPath:      "barkVolume",
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
