@@ -188,6 +188,7 @@ type Owner {
   id: ID!
   name: String!
   contact: ContactInfo!
+  pet: Animal!
 }
 
 type ContactInfo {

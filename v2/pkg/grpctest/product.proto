@@ -1343,6 +1343,7 @@ message Owner {
   string id = 1;
   string name = 2;
   ContactInfo contact = 3;
+  Animal pet = 4;
 }
 
 message ContactInfo {

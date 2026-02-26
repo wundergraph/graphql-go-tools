@@ -1071,6 +1071,9 @@ func testMapping() *GRPCMapping {
 				"contact": {
 					TargetName: "contact",
 				},
+				"pet": {
+					TargetName: "pet",
+				},
 			},
 			"ContactInfo": {
 				"email": {
