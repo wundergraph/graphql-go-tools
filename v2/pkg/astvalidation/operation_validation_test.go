@@ -1084,7 +1084,7 @@ func TestExecutionValidation(t *testing.T) {
 										... on User { email }
 										... on Organization { email }
 									}
-								}`, FieldSelectionMerging(true), Valid)
+								}`, FieldSelectionMerging(FieldSelectionMergingConfig{RelaxNullabilityCheck: true}), Valid)
 					})
 					t.Run("rejects differing scalar nullability on non-overlapping object types without relaxation flag", func(t *testing.T) {
 						runWithDefinition(t, entityDefinition, `
@@ -1103,7 +1103,7 @@ func TestExecutionValidation(t *testing.T) {
 										... on User { profile { name } }
 										... on Organization { profile { name } }
 									}
-								}`, FieldSelectionMerging(true), Valid)
+								}`, FieldSelectionMerging(FieldSelectionMergingConfig{RelaxNullabilityCheck: true}), Valid)
 					})
 					t.Run("rejects differing non-scalar nullability on non-overlapping object types without relaxation flag", func(t *testing.T) {
 						runWithDefinition(t, entityDefinition, `
@@ -1128,6 +1128,96 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}`, FieldSelectionMerging(), Invalid,
 							withValidationErrors(`fields 'scalar' conflict because they return conflicting types 'String!' and 'String'`))
+					})
+					// Type mismatch relaxation tests
+					t.Run("rejects differing enum types on union members without type mismatch flag", func(t *testing.T) {
+						runWithDefinition(t, typeMismatchDefinition, `
+								{
+									entity {
+										... on User { priority }
+										... on Organization { priority }
+									}
+								}`, FieldSelectionMerging(), Invalid,
+							withValidationErrors(`fields 'priority' conflict because they return conflicting types 'Int' and 'String'`))
+					})
+					t.Run("allows differing enum types on union members with type mismatch flag", func(t *testing.T) {
+						runWithDefinition(t, typeMismatchDefinition, `
+								{
+									entity {
+										... on User { priority }
+										... on Organization { priority }
+									}
+								}`, FieldSelectionMerging(FieldSelectionMergingConfig{RelaxTypeMismatchCheck: true}), Valid)
+					})
+					t.Run("allows differing enum types on interface implementors with type mismatch flag via union", func(t *testing.T) {
+						runWithDefinition(t, typeMismatchDefinition, `
+								{
+									entity {
+										... on User { id }
+										... on Organization { id }
+									}
+								}`, FieldSelectionMerging(FieldSelectionMergingConfig{RelaxTypeMismatchCheck: true}), Valid)
+					})
+					t.Run("rejects differing types when enclosing type is interface (could overlap)", func(t *testing.T) {
+						// NonNullStringBox1 is an interface (scalar: String!), IntBox is a
+						// concrete type (scalar: Int). Because one enclosing type is an
+						// interface, potentiallySameObject returns true (conservative) and
+						// the relaxation must NOT apply.
+						runWithDefinition(t, boxDefinition, `
+								{
+									someBox {
+										... on NonNullStringBox1 {
+											scalar
+										}
+										... on IntBox {
+											scalar
+										}
+									}
+								}`, FieldSelectionMerging(FieldSelectionMergingConfig{RelaxTypeMismatchCheck: true}), Invalid,
+							withValidationErrors(`fields 'scalar' conflict because they return conflicting types 'String!' and 'Int'`))
+					})
+					t.Run("allows differing enum types on interface implementors with type mismatch flag", func(t *testing.T) {
+						// This is the exact GitHub use case: Updatable is an interface,
+						// Issue and PullRequestReview implement it with different enum types
+						// for the state field. The inline fragments narrow to concrete types.
+						runWithDefinition(t, typeMismatchDefinition, `
+								{
+									updatable {
+										... on Issue { state }
+										... on PullRequestReview { state }
+									}
+								}`, FieldSelectionMerging(FieldSelectionMergingConfig{RelaxTypeMismatchCheck: true}), Valid)
+					})
+					t.Run("type mismatch flag also covers nullability differences on disjoint types", func(t *testing.T) {
+						runWithDefinition(t, entityDefinition, `
+								{
+									entity {
+										... on User { email }
+										... on Organization { email }
+									}
+								}`, FieldSelectionMerging(FieldSelectionMergingConfig{RelaxTypeMismatchCheck: true}), Valid)
+					})
+					t.Run("only nullability flag does not cover type mismatches", func(t *testing.T) {
+						runWithDefinition(t, typeMismatchDefinition, `
+								{
+									entity {
+										... on User { priority }
+										... on Organization { priority }
+									}
+								}`, FieldSelectionMerging(FieldSelectionMergingConfig{RelaxNullabilityCheck: true}), Invalid,
+							withValidationErrors(`fields 'priority' conflict because they return conflicting types 'Int' and 'String'`))
+					})
+					t.Run("both flags enabled together", func(t *testing.T) {
+						runWithDefinition(t, typeMismatchDefinition, `
+								{
+									entity {
+										... on User { priority }
+										... on Organization { priority }
+									}
+								}`, FieldSelectionMerging(FieldSelectionMergingConfig{
+							RelaxNullabilityCheck:  true,
+							RelaxTypeMismatchCheck: true,
+						}), Valid)
 					})
 					t.Run("same wrapped scalar return types", func(t *testing.T) {
 						runWithDefinition(t, boxDefinition, `
@@ -5728,6 +5818,49 @@ union Entity = User | Organization
 type Query {
 	entity: Entity
 	node: Node
+}
+
+schema {
+	query: Query
+}`
+
+const typeMismatchDefinition = `
+scalar String
+scalar Int
+scalar ID
+
+enum IssueState { OPEN CLOSED }
+enum PullRequestReviewState { PENDING APPROVED }
+
+interface Updatable {
+	id: ID!
+}
+
+type Issue implements Updatable {
+	id: ID!
+	state: IssueState
+}
+
+type PullRequestReview implements Updatable {
+	id: ID!
+	state: PullRequestReviewState
+}
+
+type User {
+	id: ID!
+	priority: Int
+}
+
+type Organization {
+	id: ID!
+	priority: String
+}
+
+union Entity = User | Organization
+
+type Query {
+	updatable: Updatable
+	entity: Entity
 }
 
 schema {

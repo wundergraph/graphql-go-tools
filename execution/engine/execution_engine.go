@@ -132,6 +132,9 @@ func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engin
 	if engineConfig.plannerConfig.RelaxSubgraphOperationFieldSelectionMergingNullability {
 		validationOpts = append(validationOpts, astvalidation.WithRelaxFieldSelectionMergingNullability())
 	}
+	if engineConfig.plannerConfig.RelaxSubgraphOperationFieldSelectionMergingTypeMismatch {
+		validationOpts = append(validationOpts, astvalidation.WithRelaxFieldSelectionMergingTypeMismatch())
+	}
 
 	return &ExecutionEngine{
 		logger:             logger,

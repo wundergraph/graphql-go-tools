@@ -1718,6 +1718,12 @@ var (
 	defaultPrintKitPool     = newPrintKitPool()
 	relaxedPrintKitPool     *sync.Pool
 	relaxedPrintKitPoolOnce sync.Once
+
+	typeMismatchPrintKitPool     *sync.Pool
+	typeMismatchPrintKitPoolOnce sync.Once
+
+	bothRelaxedPrintKitPool     *sync.Pool
+	bothRelaxedPrintKitPoolOnce sync.Once
 )
 
 func getRelaxedPrintKitPool() *sync.Pool {
@@ -1727,6 +1733,23 @@ func getRelaxedPrintKitPool() *sync.Pool {
 	return relaxedPrintKitPool
 }
 
+func getTypeMismatchPrintKitPool() *sync.Pool {
+	typeMismatchPrintKitPoolOnce.Do(func() {
+		typeMismatchPrintKitPool = newPrintKitPool(astvalidation.WithRelaxFieldSelectionMergingTypeMismatch())
+	})
+	return typeMismatchPrintKitPool
+}
+
+func getBothRelaxedPrintKitPool() *sync.Pool {
+	bothRelaxedPrintKitPoolOnce.Do(func() {
+		bothRelaxedPrintKitPool = newPrintKitPool(
+			astvalidation.WithRelaxFieldSelectionMergingNullability(),
+			astvalidation.WithRelaxFieldSelectionMergingTypeMismatch(),
+		)
+	})
+	return bothRelaxedPrintKitPool
+}
+
 type Factory[T Configuration] struct {
 	executionContext   context.Context
 	httpClient         *http.Client
@@ -1734,6 +1757,9 @@ type Factory[T Configuration] struct {
 	grpcClientProvider func() grpc.ClientConnInterface
 	subscriptionClient GraphQLSubscriptionClient
 	printKitPool       *sync.Pool
+
+	relaxNullabilityCheck  bool
+	relaxTypeMismatchCheck bool
 }
 
 // NewFactory (HTTP) creates a new factory for the GraphQL datasource planner
@@ -1813,12 +1839,35 @@ func (p *Planner[T]) releaseKit(kit *printKit) {
 	pool.Put(kit)
 }
 
+func (f *Factory[T]) resolvePool() *sync.Pool {
+	switch {
+	case f.relaxNullabilityCheck && f.relaxTypeMismatchCheck:
+		return getBothRelaxedPrintKitPool()
+	case f.relaxNullabilityCheck:
+		return getRelaxedPrintKitPool()
+	case f.relaxTypeMismatchCheck:
+		return getTypeMismatchPrintKitPool()
+	default:
+		return defaultPrintKitPool
+	}
+}
+
 // EnableSubgraphFieldSelectionMergingNullabilityRelaxation implements
 // plan.SubgraphFieldSelectionMergingNullabilityRelaxer. It configures the
 // factory to use a shared pool whose validator allows differing nullability
 // on fields in non-overlapping concrete types.
 func (f *Factory[T]) EnableSubgraphFieldSelectionMergingNullabilityRelaxation() {
-	f.printKitPool = getRelaxedPrintKitPool()
+	f.relaxNullabilityCheck = true
+	f.printKitPool = f.resolvePool()
+}
+
+// EnableSubgraphFieldSelectionMergingTypeMismatchRelaxation implements
+// plan.SubgraphFieldSelectionMergingTypeMismatchRelaxer. It configures the
+// factory to use a shared pool whose validator allows completely different types
+// on fields in non-overlapping concrete types.
+func (f *Factory[T]) EnableSubgraphFieldSelectionMergingTypeMismatchRelaxation() {
+	f.relaxTypeMismatchCheck = true
+	f.printKitPool = f.resolvePool()
 }
 
 func (f *Factory[T]) getPrintKitPool() *sync.Pool {

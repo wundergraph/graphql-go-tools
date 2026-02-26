@@ -225,6 +225,7 @@ type _executionTestOptions struct {
 	validateRequiredExternalFields               bool
 	computeCosts                                 bool
 	relaxFieldSelectionMergingNullability        bool
+	relaxFieldSelectionMergingTypeMismatch       bool
 }
 
 type executionTestOptions func(*_executionTestOptions)
@@ -258,6 +259,12 @@ func computeCosts() executionTestOptions {
 func relaxFieldSelectionMergingNullability() executionTestOptions {
 	return func(options *_executionTestOptions) {
 		options.relaxFieldSelectionMergingNullability = true
+	}
+}
+
+func relaxFieldSelectionMergingTypeMismatch() executionTestOptions {
+	return func(options *_executionTestOptions) {
+		options.relaxFieldSelectionMergingTypeMismatch = true
 	}
 }
 
@@ -298,6 +305,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			engineConf.plannerConfig.ComputeCosts = opts.computeCosts
 			engineConf.plannerConfig.StaticCostDefaultListSize = 10
 			engineConf.plannerConfig.RelaxSubgraphOperationFieldSelectionMergingNullability = opts.relaxFieldSelectionMergingNullability
+			engineConf.plannerConfig.RelaxSubgraphOperationFieldSelectionMergingTypeMismatch = opts.relaxFieldSelectionMergingTypeMismatch
 			resolveOpts := resolve.ResolverOptions{
 				MaxConcurrency:    1024,
 				ResolvableOptions: opts.resolvableOptions,
@@ -7713,6 +7721,73 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				expectedResponse: `{"data":{"entity":{"email":null}}}`,
 			},
 			relaxFieldSelectionMergingNullability(),
+		))
+	})
+
+	t.Run("field merging with different types on non-overlapping union types", func(t *testing.T) {
+		unionSchema := `
+			enum IssueState { OPEN CLOSED }
+			enum PullRequestReviewState { PENDING APPROVED }
+			union Updatable = Issue | PullRequestReview
+			type Query { updatable: Updatable }
+			type Issue { id: ID!, state: IssueState }
+			type PullRequestReview { id: ID!, state: PullRequestReviewState }
+		`
+		schema, err := graphql.NewSchemaFromString(unionSchema)
+		require.NoError(t, err)
+
+		rootNodes := []plan.TypeField{
+			{TypeName: "Query", FieldNames: []string{"updatable"}},
+			{TypeName: "Issue", FieldNames: []string{"id", "state"}},
+			{TypeName: "PullRequestReview", FieldNames: []string{"id", "state"}},
+		}
+
+		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+			Fetch: &graphql_datasource.FetchConfiguration{
+				URL:    "https://example.com/",
+				Method: "POST",
+			},
+			SchemaConfiguration: mustSchemaConfig(t, nil, unionSchema),
+		})
+
+		fieldConfig := []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "updatable",
+				Path:      []string{"updatable"},
+			},
+		}
+
+		t.Run("with relaxation flag, different enum types work", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "O",
+						Query:         `query O { updatable { ... on Issue { state } ... on PullRequestReview { state } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "ds-id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"updatable":{"__typename":"Issue","state":"OPEN"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: rootNodes,
+						},
+						customConfig,
+					),
+				},
+				fields:           fieldConfig,
+				expectedResponse: `{"data":{"updatable":{"state":"OPEN"}}}`,
+			},
+			relaxFieldSelectionMergingTypeMismatch(),
 		))
 	})
 }
