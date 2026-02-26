@@ -248,6 +248,15 @@ func (v *keyInfoVisitor) EnterField(ref int) {
 			// so we have to bypass this case
 
 			isExternal = false
+		} else if !v.input.keyIsConditional && v.input.dataSource.HasNonExternalFieldsForType(v.input.typeName) {
+			// When the entity type has non-external fields on this datasource,
+			// it means the datasource actively resolves this entity type
+			// (not just a stub with only external key fields).
+			// In this case, the datasource can provide key fields in its response
+			// because the planner always includes key fields in subgraph queries.
+			// This handles newer composition where key fields are only in
+			// ExternalFieldNames (not in both FieldNames and ExternalFieldNames).
+			isExternal = false
 		}
 
 	}

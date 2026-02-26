@@ -496,6 +496,15 @@ func (f *collectNodesDSVisitor) EnterField(fieldRef int, itemIds []int, treeNode
 	if isExternal && f.isNotExternalKeyField(info.currentPath) {
 		// external fields which are part of the key should not be marked as external
 		isExternal = false
+		// When an external field becomes non-external due to being a key field,
+		// we still need to create a suggestion for it. Promote the external root/child
+		// node status so the field passes the suggestion condition below.
+		if isExternalRootNode && !hasRootNode {
+			hasRootNode = true
+		}
+		if isExternalChildNode && !hasChildNode {
+			hasChildNode = true
+		}
 	}
 
 	if hasRootNode || hasChildNode || isExternal || isProvided {

@@ -77,6 +77,7 @@ type NodesInfo interface {
 	HasChildNode(typeName, fieldName string) bool
 	HasExternalChildNode(typeName, fieldName string) bool
 	HasChildNodeWithTypename(typeName string) bool
+	HasNonExternalFieldsForType(typeName string) bool
 	RequireFetchReasons() map[FieldCoordinate]struct{}
 }
 
@@ -224,6 +225,24 @@ func (d *DataSourceMetadata) HasChildNodeWithTypename(typeName string) bool {
 	}
 	_, ok := d.childNodesIndex[typeName]
 	return ok
+}
+
+// HasNonExternalFieldsForType returns true if the datasource has at least one
+// non-external field for the given type (in either root or child nodes).
+// This indicates the datasource actively resolves this entity type, not just
+// a stub with only external key fields.
+func (d *DataSourceMetadata) HasNonExternalFieldsForType(typeName string) bool {
+	if d.rootNodesIndex != nil {
+		if index, ok := d.rootNodesIndex[typeName]; ok && len(index.fields) > 0 {
+			return true
+		}
+	}
+	if d.childNodesIndex != nil {
+		if index, ok := d.childNodesIndex[typeName]; ok && len(index.fields) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func (d *DataSourceMetadata) ListRootNodes() TypeFields {
