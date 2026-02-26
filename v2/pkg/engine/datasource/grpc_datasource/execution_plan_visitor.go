@@ -58,7 +58,8 @@ type rpcPlanVisitor struct {
 
 	fieldPath ast.Path
 
-	inlineFragmentRef int
+	inlineFragmentRef          int
+	inlineFragmentRefAncestors []int
 }
 
 type rpcPlanVisitorConfig struct {
@@ -72,14 +73,15 @@ type rpcPlanVisitorConfig struct {
 func newRPCPlanVisitor(config rpcPlanVisitorConfig) *rpcPlanVisitor {
 	walker := astvisitor.NewWalker(48)
 	visitor := &rpcPlanVisitor{
-		walker:                 &walker,
-		plan:                   &RPCExecutionPlan{},
-		subgraphName:           cases.Title(language.Und, cases.NoLower).String(config.subgraphName),
-		mapping:                config.mapping,
-		resolverFields:         make([]resolverField, 0),
-		fieldResolverAncestors: newStack[int](0),
-		fieldPath:              make(ast.Path, 0),
-		inlineFragmentRef:      ast.InvalidRef,
+		walker:                     &walker,
+		plan:                       &RPCExecutionPlan{},
+		subgraphName:               cases.Title(language.Und, cases.NoLower).String(config.subgraphName),
+		mapping:                    config.mapping,
+		resolverFields:             make([]resolverField, 0),
+		fieldResolverAncestors:     newStack[int](0),
+		fieldPath:                  make(ast.Path, 0),
+		inlineFragmentRef:          ast.InvalidRef,
+		inlineFragmentRefAncestors: make([]int, 0),
 	}
 
 	walker.RegisterDocumentVisitor(visitor)
@@ -234,7 +236,7 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 		return
 	}
 
-	// If we select on a field, we can return.
+	// If we don't select on a field, we can return.
 	if r.walker.Ancestor().Kind != ast.NodeKindField {
 		return
 	}
@@ -255,9 +257,11 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 			r.planInfo.currentResponseMessage.Fields[lastIndex].Message = r.planCtx.newMessageFromSelectionSet(r.walker.EnclosingTypeDefinition, ref)
 		}
 
-		// Add the current response message to the ancestors and set the current response message to the current field message
+		// Save inlineFragmentRef and descend into the nested message.
+		r.inlineFragmentRefAncestors = append(r.inlineFragmentRefAncestors, r.inlineFragmentRef)
 		r.planInfo.responseMessageAncestors = append(r.planInfo.responseMessageAncestors, r.planInfo.currentResponseMessage)
 		r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.Fields[lastIndex].Message
+		r.inlineFragmentRef = ast.InvalidRef
 	} else {
 		inlineFragmentName := r.operation.InlineFragmentTypeConditionNameString(r.inlineFragmentRef)
 		lastIndex := len(r.planInfo.currentResponseMessage.FragmentFields[inlineFragmentName]) - 1
@@ -267,9 +271,11 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 			r.planInfo.currentResponseMessage.FragmentFields[inlineFragmentName][lastIndex].Message = r.planCtx.newMessageFromSelectionSet(r.walker.EnclosingTypeDefinition, ref)
 		}
 
-		// Add the current response message to the ancestors and set the current response message to the current field message
+		// Save inlineFragmentRef and descend into the nested message.
+		r.inlineFragmentRefAncestors = append(r.inlineFragmentRefAncestors, r.inlineFragmentRef)
 		r.planInfo.responseMessageAncestors = append(r.planInfo.responseMessageAncestors, r.planInfo.currentResponseMessage)
 		r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.FragmentFields[inlineFragmentName][lastIndex].Message
+		r.inlineFragmentRef = ast.InvalidRef
 	}
 
 	// Check if the ancestor type is a composite type (interface or union)
@@ -329,6 +335,8 @@ func (r *rpcPlanVisitor) LeaveSelectionSet(ref int) {
 	if len(r.planInfo.responseMessageAncestors) > 0 {
 		r.planInfo.currentResponseMessage = r.planInfo.responseMessageAncestors[len(r.planInfo.responseMessageAncestors)-1]
 		r.planInfo.responseMessageAncestors = r.planInfo.responseMessageAncestors[:len(r.planInfo.responseMessageAncestors)-1]
+		r.inlineFragmentRef = r.inlineFragmentRefAncestors[len(r.inlineFragmentRefAncestors)-1]
+		r.inlineFragmentRefAncestors = r.inlineFragmentRefAncestors[:len(r.inlineFragmentRefAncestors)-1]
 	}
 }
 

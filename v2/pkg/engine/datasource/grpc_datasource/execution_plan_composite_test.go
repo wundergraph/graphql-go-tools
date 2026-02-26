@@ -605,7 +605,7 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 			//     }
 			//   }
 			// }
-			name:  "#1",
+			name:  "Should create an execution plan for a nested message inside an interface fragment with common fields",
 			query: "query CatOwnerQuery { randomPet { name kind ... on Cat { meowVolume owner { id name } } } }",
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
@@ -692,7 +692,7 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 			//     kind
 			//   }
 			// }
-			name:  "#2",
+			name:  "Should create an execution plan for a nested message inside an interface fragment with common fields on both sides",
 			query: "query CatOwnerQuery { randomPet { name ... on Cat { meowVolume owner { id name } } kind } }",
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
@@ -779,7 +779,7 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 			//
 			// verifies that inline fragments are handled correctly when no other shared field on the same parent is accessed.
 			// fixes a bug on an a guard, which made sure to return early on empty fields for the current selection set
-			name:  "#3",
+			name:  "Should create an execution plan for a nested message inside an interface fragment without common fields",
 			query: "query CatBreedQuery { randomPet { ... on Cat { breed { name origin } } } }",
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
@@ -836,80 +836,80 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 				},
 			},
 		},
-		// {
-		// 	// query CatBreedCharacteristicsQuery {
-		// 	//   randomPet {
-		// 	//     ... on Cat {
-		// 	//       breed {
-		// 	//         characteristics {
-		// 	//           temperament
-		// 	//         }
-		// 	//       }
-		// 	//     }
-		// 	//   }
-		// 	// }
-		// 	name:  "#5",
-		// 	query: "query CatBreedCharacteristicsQuery { randomPet { ... on Cat { breed { characteristics { temperament } } } } }",
-		// 	expectedPlan: &RPCExecutionPlan{
-		// 		Calls: []RPCCall{
-		// 			{
-		// 				ServiceName: "Products",
-		// 				MethodName:  "QueryRandomPet",
-		// 				Request: RPCMessage{
-		// 					Name: "QueryRandomPetRequest",
-		// 				},
-		// 				Response: RPCMessage{
-		// 					Name: "QueryRandomPetResponse",
-		// 					Fields: []RPCField{
-		// 						{
-		// 							Name:          "random_pet",
-		// 							ProtoTypeName: DataTypeMessage,
-		// 							JSONPath:      "randomPet",
-		// 							Message: &RPCMessage{
-		// 								Name:      "Animal",
-		// 								OneOfType: OneOfTypeInterface,
-		// 								MemberTypes: []string{
-		// 									"Cat",
-		// 									"Dog",
-		// 								},
-		// 								Fields: RPCFields{},
-		// 								FragmentFields: RPCFieldSelectionSet{
-		// 									"Cat": {
-		// 										{
-		// 											Name:          "breed",
-		// 											ProtoTypeName: DataTypeMessage,
-		// 											JSONPath:      "breed",
-		// 											Message: &RPCMessage{
-		// 												Name: "CatBreed",
-		// 												Fields: []RPCField{
-		// 													{
-		// 														Name:          "characteristics",
-		// 														ProtoTypeName: DataTypeMessage,
-		// 														JSONPath:      "characteristics",
-		// 														Message: &RPCMessage{
-		// 															Name: "BreedCharacteristics",
-		// 															Fields: []RPCField{
-		// 																{
-		// 																	Name:          "temperament",
-		// 																	ProtoTypeName: DataTypeString,
-		// 																	JSONPath:      "temperament",
-		// 																},
-		// 															},
-		// 														},
-		// 													},
-		// 												},
-		// 											},
-		// 										},
-		// 									},
-		// 								},
-		// 							},
-		// 						},
-		// 					},
-		// 				},
-		// 			},
-		// 		},
-		// 	},
-		// },
+		{
+			// query CatBreedCharacteristicsQuery {
+			//   randomPet {
+			//     ... on Cat {
+			//       breed {
+			//         characteristics {
+			//           temperament
+			//         }
+			//       }
+			//     }
+			//   }
+			// }
+			name:  "Should create an execution plan for a deeply nested message inside an inline fragment",
+			query: "query CatBreedCharacteristicsQuery { randomPet { ... on Cat { breed { characteristics { temperament } } } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryRandomPet",
+						Request: RPCMessage{
+							Name: "QueryRandomPetRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryRandomPetResponse",
+							Fields: []RPCField{
+								{
+									Name:          "random_pet",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "randomPet",
+									Message: &RPCMessage{
+										Name:      "Animal",
+										OneOfType: OneOfTypeInterface,
+										MemberTypes: []string{
+											"Cat",
+											"Dog",
+										},
+										Fields: RPCFields{},
+										FragmentFields: RPCFieldSelectionSet{
+											"Cat": {
+												{
+													Name:          "breed",
+													ProtoTypeName: DataTypeMessage,
+													JSONPath:      "breed",
+													Message: &RPCMessage{
+														Name: "CatBreed",
+														Fields: []RPCField{
+															{
+																Name:          "characteristics",
+																ProtoTypeName: DataTypeMessage,
+																JSONPath:      "characteristics",
+																Message: &RPCMessage{
+																	Name: "BreedCharacteristics",
+																	Fields: []RPCField{
+																		{
+																			Name:          "temperament",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "temperament",
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
