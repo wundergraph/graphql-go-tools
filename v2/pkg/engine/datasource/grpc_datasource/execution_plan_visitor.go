@@ -234,12 +234,16 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 		return
 	}
 
-	// If we don't have any fields or selecting on a field, we can return.
-	if len(r.planInfo.currentResponseMessage.Fields) == 0 || r.walker.Ancestor().Kind != ast.NodeKindField {
+	// If we select on a field, we can return.
+	if r.walker.Ancestor().Kind != ast.NodeKindField {
 		return
 	}
 
 	if r.inlineFragmentRef == ast.InvalidRef {
+		// If we don't have any fields on complex types we can return.
+		if len(r.planInfo.currentResponseMessage.Fields) == 0 {
+			return
+		}
 		// r.inlineFragmentRef can be stale. Its set via an inline fragment visitor
 		// but it's leave function is called only after we exit the fragment.
 		// We might still be inside an fragment but inside of that we could be in a complex type,

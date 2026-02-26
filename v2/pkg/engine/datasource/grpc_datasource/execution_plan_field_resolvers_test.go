@@ -4053,10 +4053,10 @@ func TestExecutionPlanFieldResolvers_CustomSchemas(t *testing.T) {
 												ProtoTypeName: DataTypeMessage,
 												JSONPath:      "fooResolver",
 												Message: &RPCMessage{
-													Name:              "Bar",
+													Name:           "Bar",
 													FragmentFields: RPCFieldSelectionSet{"Baz": {}},
-													OneOfType:         OneOfTypeInterface,
-													MemberTypes:       []string{"Baz"},
+													OneOfType:      OneOfTypeInterface,
+													MemberTypes:    []string{"Baz"},
 												},
 											},
 										},
