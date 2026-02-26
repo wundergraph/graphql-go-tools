@@ -102,8 +102,8 @@ type RPCMessage struct {
 	Name string
 	// Fields is a list of fields in the message
 	Fields RPCFields
-	// FieldSelectionSet are field selections based on inline fragments
-	FieldSelectionSet RPCFieldSelectionSet
+	// FragmentFields are field selections based on inline fragments
+	FragmentFields RPCFieldSelectionSet
 	// OneOfType indicates the type of the oneof field
 	OneOfType OneOfType
 	// MemberTypes provides the names of the types that are implemented by the Interface or Union
@@ -769,11 +769,11 @@ func (r *rpcPlanningContext) buildFieldMessage(fieldTypeNode ast.Node, fieldRef 
 			return nil, err
 		}
 
-		if message.FieldSelectionSet == nil {
-			message.FieldSelectionSet = make(RPCFieldSelectionSet)
+		if message.FragmentFields == nil {
+			message.FragmentFields = make(RPCFieldSelectionSet)
 		}
 
-		message.FieldSelectionSet.Add(typeName, fields...)
+		message.FragmentFields.Add(typeName, fields...)
 	}
 
 	for _, fieldRef := range fieldRefs {
@@ -1081,7 +1081,7 @@ func (r *rpcPlanningContext) buildFieldResolverTypeMessage(typeName string, reso
 
 	// If the resolved field returns a composite type we need to handle the selection set for the inline fragment.
 	if len(resolverField.fragmentSelections) > 0 {
-		message.FieldSelectionSet = make(RPCFieldSelectionSet, len(resolverField.fragmentSelections))
+		message.FragmentFields = make(RPCFieldSelectionSet, len(resolverField.fragmentSelections))
 
 		for _, fragmentSelection := range resolverField.fragmentSelections {
 			inlineFragmentTypeNode, found := r.definition.NodeByNameStr(fragmentSelection.typeName)
@@ -1094,7 +1094,7 @@ func (r *rpcPlanningContext) buildFieldResolverTypeMessage(typeName string, reso
 				return nil, err
 			}
 
-			message.FieldSelectionSet[fragmentSelection.typeName] = fields
+			message.FragmentFields[fragmentSelection.typeName] = fields
 		}
 	}
 

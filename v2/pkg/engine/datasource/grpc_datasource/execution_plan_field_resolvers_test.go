@@ -2966,7 +2966,7 @@ func TestExecutionPlanFieldResolvers_WithCompositeTypes(t *testing.T) {
 													Name:        "Animal",
 													OneOfType:   OneOfTypeInterface,
 													MemberTypes: []string{"Cat", "Dog"},
-													FieldSelectionSet: RPCFieldSelectionSet{
+													FragmentFields: RPCFieldSelectionSet{
 														"Cat": {
 															{
 																Name:          "name",
@@ -3087,7 +3087,7 @@ func TestExecutionPlanFieldResolvers_WithCompositeTypes(t *testing.T) {
 													Name:        "ActionResult",
 													OneOfType:   OneOfTypeUnion,
 													MemberTypes: []string{"ActionSuccess", "ActionError"},
-													FieldSelectionSet: RPCFieldSelectionSet{
+													FragmentFields: RPCFieldSelectionSet{
 														"ActionSuccess": {
 															{
 																Name:          "message",
@@ -3247,7 +3247,7 @@ func TestExecutionPlanFieldResolvers_WithCompositeTypes(t *testing.T) {
 																Name:        "Animal",
 																OneOfType:   OneOfTypeInterface,
 																MemberTypes: []string{"Cat", "Dog"},
-																FieldSelectionSet: RPCFieldSelectionSet{
+																FragmentFields: RPCFieldSelectionSet{
 																	"Cat": {
 																		{
 																			Name:          "name",
@@ -3410,7 +3410,7 @@ func TestExecutionPlanFieldResolvers_WithCompositeTypes(t *testing.T) {
 																Name:        "ActionResult",
 																OneOfType:   OneOfTypeUnion,
 																MemberTypes: []string{"ActionSuccess", "ActionError"},
-																FieldSelectionSet: RPCFieldSelectionSet{
+																FragmentFields: RPCFieldSelectionSet{
 																	"ActionSuccess": {
 																		{
 																			Name:          "message",
@@ -3573,7 +3573,7 @@ func TestExecutionPlanFieldResolvers_WithCompositeTypes(t *testing.T) {
 																Name:        "Animal",
 																OneOfType:   OneOfTypeInterface,
 																MemberTypes: []string{"Cat", "Dog"},
-																FieldSelectionSet: RPCFieldSelectionSet{
+																FragmentFields: RPCFieldSelectionSet{
 																	"Cat": {
 																		{
 																			Name:          "name",
@@ -3609,7 +3609,7 @@ func TestExecutionPlanFieldResolvers_WithCompositeTypes(t *testing.T) {
 																Name:        "ActionResult",
 																OneOfType:   OneOfTypeUnion,
 																MemberTypes: []string{"ActionSuccess", "ActionError"},
-																FieldSelectionSet: RPCFieldSelectionSet{
+																FragmentFields: RPCFieldSelectionSet{
 																	"ActionSuccess": {
 																		{
 																			Name:          "message",
@@ -3772,7 +3772,7 @@ func TestExecutionPlanFieldResolvers_WithCompositeTypes(t *testing.T) {
 																Name:        "Animal",
 																OneOfType:   OneOfTypeInterface,
 																MemberTypes: []string{"Cat", "Dog"},
-																FieldSelectionSet: RPCFieldSelectionSet{
+																FragmentFields: RPCFieldSelectionSet{
 																	"Cat": {
 																		{
 																			Name:          "id",
@@ -4054,7 +4054,7 @@ func TestExecutionPlanFieldResolvers_CustomSchemas(t *testing.T) {
 												JSONPath:      "fooResolver",
 												Message: &RPCMessage{
 													Name:              "Bar",
-													FieldSelectionSet: RPCFieldSelectionSet{"Baz": {}},
+													FragmentFields: RPCFieldSelectionSet{"Baz": {}},
 													OneOfType:         OneOfTypeInterface,
 													MemberTypes:       []string{"Baz"},
 												},

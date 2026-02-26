@@ -351,12 +351,12 @@ func (r *rpcPlanVisitorFederation) EnterField(ref int) {
 
 	// check if we are inside of an inline fragment and not the entity inline fragment
 	if ref, ok := r.walker.ResolveInlineFragment(); ok && r.entityInfo.entityInlineFragmentRef != ref {
-		if r.planInfo.currentResponseMessage.FieldSelectionSet == nil {
-			r.planInfo.currentResponseMessage.FieldSelectionSet = make(RPCFieldSelectionSet)
+		if r.planInfo.currentResponseMessage.FragmentFields == nil {
+			r.planInfo.currentResponseMessage.FragmentFields = make(RPCFieldSelectionSet)
 		}
 
 		inlineFragmentName := r.operation.InlineFragmentTypeConditionNameString(ref)
-		r.planInfo.currentResponseMessage.FieldSelectionSet.Add(inlineFragmentName, field)
+		r.planInfo.currentResponseMessage.FragmentFields.Add(inlineFragmentName, field)
 		return
 	}
 

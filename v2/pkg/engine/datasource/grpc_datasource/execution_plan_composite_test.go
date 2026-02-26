@@ -43,7 +43,7 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 											"Cat",
 											"Dog",
 										},
-										FieldSelectionSet: RPCFieldSelectionSet{
+										FragmentFields: RPCFieldSelectionSet{
 											"Cat": {
 												{
 													Name:          "meow_volume",
@@ -102,7 +102,7 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 											"Cat",
 											"Dog",
 										},
-										FieldSelectionSet: RPCFieldSelectionSet{
+										FragmentFields: RPCFieldSelectionSet{
 											"Cat": {
 												{
 													Name:          "meow_volume",
@@ -169,7 +169,7 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 											"Cat",
 											"Dog",
 										},
-										FieldSelectionSet: RPCFieldSelectionSet{
+										FragmentFields: RPCFieldSelectionSet{
 											"Cat": {
 												{
 													Name:          "meow_volume",
@@ -237,7 +237,7 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 											"Dog",
 										},
 										Fields: RPCFields{},
-										FieldSelectionSet: RPCFieldSelectionSet{
+										FragmentFields: RPCFieldSelectionSet{
 											"Animal": {
 												{
 													Name:          "id",
@@ -365,7 +365,7 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 											"Category",
 										},
 										Fields: RPCFields{},
-										FieldSelectionSet: RPCFieldSelectionSet{
+										FragmentFields: RPCFieldSelectionSet{
 											"Product": {
 												{
 													Name:          "id",
@@ -449,7 +449,7 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 											"Category",
 										},
 										Fields: RPCFields{},
-										FieldSelectionSet: RPCFieldSelectionSet{
+										FragmentFields: RPCFieldSelectionSet{
 											"Product": {
 												{
 													Name:          "id",
@@ -557,7 +557,7 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 											"Category",
 										},
 										Fields: RPCFields{},
-										FieldSelectionSet: RPCFieldSelectionSet{
+										FragmentFields: RPCFieldSelectionSet{
 											"Product": {
 												{
 													Name:          "id",
@@ -641,7 +641,7 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 												JSONPath:      "kind",
 											},
 										},
-										FieldSelectionSet: RPCFieldSelectionSet{
+										FragmentFields: RPCFieldSelectionSet{
 											"Cat": {
 												{
 													Name:          "meow_volume",
@@ -728,7 +728,7 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 												JSONPath:      "kind",
 											},
 										},
-										FieldSelectionSet: RPCFieldSelectionSet{
+										FragmentFields: RPCFieldSelectionSet{
 											"Cat": {
 												{
 													Name:          "meow_volume",
@@ -765,217 +765,217 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 				},
 			},
 		},
-		// {
-		// 	// query CatBreedQuery {
-		// 	//   randomPet {
-		// 	//     ... on Cat {
-		// 	//       breed {
-		// 	//         name
-		// 	//         origin
-		// 	//       }
-		// 	//     }
-		// 	//   }
-		// 	// }
-		// 	name:  "Should create an execution plan for a nested object inside an inline fragment",
-		// 	query: "query CatBreedQuery { randomPet { ... on Cat { breed { name origin } } } }",
-		// 	expectedPlan: &RPCExecutionPlan{
-		// 		Calls: []RPCCall{
-		// 			{
-		// 				ServiceName: "Products",
-		// 				MethodName:  "QueryRandomPet",
-		// 				Request: RPCMessage{
-		// 					Name: "QueryRandomPetRequest",
-		// 				},
-		// 				Response: RPCMessage{
-		// 					Name: "QueryRandomPetResponse",
-		// 					Fields: []RPCField{
-		// 						{
-		// 							Name:          "random_pet",
-		// 							ProtoTypeName: DataTypeMessage,
-		// 							JSONPath:      "randomPet",
-		// 							Message: &RPCMessage{
-		// 								Name:      "Animal",
-		// 								OneOfType: OneOfTypeInterface,
-		// 								MemberTypes: []string{
-		// 									"Cat",
-		// 									"Dog",
-		// 								},
-		// 								Fields: RPCFields{},
-		// 								FieldSelectionSet: RPCFieldSelectionSet{
-		// 									"Cat": {
-		// 										{
-		// 											Name:          "breed",
-		// 											ProtoTypeName: DataTypeMessage,
-		// 											JSONPath:      "breed",
-		// 											Message: &RPCMessage{
-		// 												Name: "CatBreed",
-		// 												Fields: []RPCField{
-		// 													{
-		// 														Name:          "name",
-		// 														ProtoTypeName: DataTypeString,
-		// 														JSONPath:      "name",
-		// 													},
-		// 													{
-		// 														Name:          "origin",
-		// 														ProtoTypeName: DataTypeString,
-		// 														JSONPath:      "origin",
-		// 													},
-		// 												},
-		// 											},
-		// 										},
-		// 									},
-		// 								},
-		// 							},
-		// 						},
-		// 					},
-		// 				},
-		// 			},
-		// 		},
-		// 	},
-		// },
-		// {
-		// 	// query CatBreedWithSharedQuery {
-		// 	//   randomPet {
-		// 	//     id
-		// 	//     ... on Cat {
-		// 	//       breed {
-		// 	//         name
-		// 	//       }
-		// 	//     }
-		// 	//   }
-		// 	// }
-		// 	name:  "Should create an execution plan for shared fields mixed with a nested object inside an inline fragment",
-		// 	query: "query CatBreedWithSharedQuery { randomPet { id ... on Cat { breed { name } } } }",
-		// 	expectedPlan: &RPCExecutionPlan{
-		// 		Calls: []RPCCall{
-		// 			{
-		// 				ServiceName: "Products",
-		// 				MethodName:  "QueryRandomPet",
-		// 				Request: RPCMessage{
-		// 					Name: "QueryRandomPetRequest",
-		// 				},
-		// 				Response: RPCMessage{
-		// 					Name: "QueryRandomPetResponse",
-		// 					Fields: []RPCField{
-		// 						{
-		// 							Name:          "random_pet",
-		// 							ProtoTypeName: DataTypeMessage,
-		// 							JSONPath:      "randomPet",
-		// 							Message: &RPCMessage{
-		// 								Name:      "Animal",
-		// 								OneOfType: OneOfTypeInterface,
-		// 								MemberTypes: []string{
-		// 									"Cat",
-		// 									"Dog",
-		// 								},
-		// 								Fields: []RPCField{
-		// 									{
-		// 										Name:          "id",
-		// 										ProtoTypeName: DataTypeString,
-		// 										JSONPath:      "id",
-		// 									},
-		// 								},
-		// 								FieldSelectionSet: RPCFieldSelectionSet{
-		// 									"Cat": {
-		// 										{
-		// 											Name:          "breed",
-		// 											ProtoTypeName: DataTypeMessage,
-		// 											JSONPath:      "breed",
-		// 											Message: &RPCMessage{
-		// 												Name: "CatBreed",
-		// 												Fields: []RPCField{
-		// 													{
-		// 														Name:          "name",
-		// 														ProtoTypeName: DataTypeString,
-		// 														JSONPath:      "name",
-		// 													},
-		// 												},
-		// 											},
-		// 										},
-		// 									},
-		// 								},
-		// 							},
-		// 						},
-		// 					},
-		// 				},
-		// 			},
-		// 		},
-		// 	},
-		// },
-		// {
-		// 	// query CatBreedCharacteristicsQuery {
-		// 	//   randomPet {
-		// 	//     ... on Cat {
-		// 	//       breed {
-		// 	//         characteristics {
-		// 	//           temperament
-		// 	//         }
-		// 	//       }
-		// 	//     }
-		// 	//   }
-		// 	// }
-		// 	name:  "Should create an execution plan for deeply nested objects inside an inline fragment",
-		// 	query: "query CatBreedCharacteristicsQuery { randomPet { ... on Cat { breed { characteristics { temperament } } } } }",
-		// 	expectedPlan: &RPCExecutionPlan{
-		// 		Calls: []RPCCall{
-		// 			{
-		// 				ServiceName: "Products",
-		// 				MethodName:  "QueryRandomPet",
-		// 				Request: RPCMessage{
-		// 					Name: "QueryRandomPetRequest",
-		// 				},
-		// 				Response: RPCMessage{
-		// 					Name: "QueryRandomPetResponse",
-		// 					Fields: []RPCField{
-		// 						{
-		// 							Name:          "random_pet",
-		// 							ProtoTypeName: DataTypeMessage,
-		// 							JSONPath:      "randomPet",
-		// 							Message: &RPCMessage{
-		// 								Name:      "Animal",
-		// 								OneOfType: OneOfTypeInterface,
-		// 								MemberTypes: []string{
-		// 									"Cat",
-		// 									"Dog",
-		// 								},
-		// 								Fields: RPCFields{},
-		// 								FieldSelectionSet: RPCFieldSelectionSet{
-		// 									"Cat": {
-		// 										{
-		// 											Name:          "breed",
-		// 											ProtoTypeName: DataTypeMessage,
-		// 											JSONPath:      "breed",
-		// 											Message: &RPCMessage{
-		// 												Name: "CatBreed",
-		// 												Fields: []RPCField{
-		// 													{
-		// 														Name:          "characteristics",
-		// 														ProtoTypeName: DataTypeMessage,
-		// 														JSONPath:      "characteristics",
-		// 														Message: &RPCMessage{
-		// 															Name: "BreedCharacteristics",
-		// 															Fields: []RPCField{
-		// 																{
-		// 																	Name:          "temperament",
-		// 																	ProtoTypeName: DataTypeString,
-		// 																	JSONPath:      "temperament",
-		// 																},
-		// 															},
-		// 														},
-		// 													},
-		// 												},
-		// 											},
-		// 										},
-		// 									},
-		// 								},
-		// 							},
-		// 						},
-		// 					},
-		// 				},
-		// 			},
-		// 		},
-		// 	},
-		// },
+		{
+			// query CatBreedQuery {
+			//   randomPet {
+			//     ... on Cat {
+			//       breed {
+			//         name
+			//         origin
+			//       }
+			//     }
+			//   }
+			// }
+			name:  "Should create an execution plan for a nested object inside an inline fragment",
+			query: "query CatBreedQuery { randomPet { ... on Cat { breed { name origin } } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryRandomPet",
+						Request: RPCMessage{
+							Name: "QueryRandomPetRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryRandomPetResponse",
+							Fields: []RPCField{
+								{
+									Name:          "random_pet",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "randomPet",
+									Message: &RPCMessage{
+										Name:      "Animal",
+										OneOfType: OneOfTypeInterface,
+										MemberTypes: []string{
+											"Cat",
+											"Dog",
+										},
+										Fields: RPCFields{},
+										FragmentFields: RPCFieldSelectionSet{
+											"Cat": {
+												{
+													Name:          "breed",
+													ProtoTypeName: DataTypeMessage,
+													JSONPath:      "breed",
+													Message: &RPCMessage{
+														Name: "CatBreed",
+														Fields: []RPCField{
+															{
+																Name:          "name",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "name",
+															},
+															{
+																Name:          "origin",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "origin",
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// query CatBreedWithSharedQuery {
+			//   randomPet {
+			//     id
+			//     ... on Cat {
+			//       breed {
+			//         name
+			//       }
+			//     }
+			//   }
+			// }
+			name:  "Should create an execution plan for shared fields mixed with a nested object inside an inline fragment",
+			query: "query CatBreedWithSharedQuery { randomPet { id ... on Cat { breed { name } } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryRandomPet",
+						Request: RPCMessage{
+							Name: "QueryRandomPetRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryRandomPetResponse",
+							Fields: []RPCField{
+								{
+									Name:          "random_pet",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "randomPet",
+									Message: &RPCMessage{
+										Name:      "Animal",
+										OneOfType: OneOfTypeInterface,
+										MemberTypes: []string{
+											"Cat",
+											"Dog",
+										},
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+										},
+										FragmentFields: RPCFieldSelectionSet{
+											"Cat": {
+												{
+													Name:          "breed",
+													ProtoTypeName: DataTypeMessage,
+													JSONPath:      "breed",
+													Message: &RPCMessage{
+														Name: "CatBreed",
+														Fields: []RPCField{
+															{
+																Name:          "name",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "name",
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			// query CatBreedCharacteristicsQuery {
+			//   randomPet {
+			//     ... on Cat {
+			//       breed {
+			//         characteristics {
+			//           temperament
+			//         }
+			//       }
+			//     }
+			//   }
+			// }
+			name:  "Should create an execution plan for deeply nested objects inside an inline fragment",
+			query: "query CatBreedCharacteristicsQuery { randomPet { ... on Cat { breed { characteristics { temperament } } } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryRandomPet",
+						Request: RPCMessage{
+							Name: "QueryRandomPetRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryRandomPetResponse",
+							Fields: []RPCField{
+								{
+									Name:          "random_pet",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "randomPet",
+									Message: &RPCMessage{
+										Name:      "Animal",
+										OneOfType: OneOfTypeInterface,
+										MemberTypes: []string{
+											"Cat",
+											"Dog",
+										},
+										Fields: RPCFields{},
+										FragmentFields: RPCFieldSelectionSet{
+											"Cat": {
+												{
+													Name:          "breed",
+													ProtoTypeName: DataTypeMessage,
+													JSONPath:      "breed",
+													Message: &RPCMessage{
+														Name: "CatBreed",
+														Fields: []RPCField{
+															{
+																Name:          "characteristics",
+																ProtoTypeName: DataTypeMessage,
+																JSONPath:      "characteristics",
+																Message: &RPCMessage{
+																	Name: "BreedCharacteristics",
+																	Fields: []RPCField{
+																		{
+																			Name:          "temperament",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "temperament",
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1068,7 +1068,7 @@ func TestMutationUnionExecutionPlan(t *testing.T) {
 											"ActionError",
 										},
 										Fields: RPCFields{},
-										FieldSelectionSet: RPCFieldSelectionSet{
+										FragmentFields: RPCFieldSelectionSet{
 											"ActionSuccess": {
 												{
 													Name:          "message",
@@ -1150,7 +1150,7 @@ func TestMutationUnionExecutionPlan(t *testing.T) {
 											"ActionError",
 										},
 										Fields: RPCFields{},
-										FieldSelectionSet: RPCFieldSelectionSet{
+										FragmentFields: RPCFieldSelectionSet{
 											"ActionSuccess": {
 												{
 													Name:          "message",
@@ -1220,7 +1220,7 @@ func TestMutationUnionExecutionPlan(t *testing.T) {
 											"ActionError",
 										},
 										Fields: RPCFields{},
-										FieldSelectionSet: RPCFieldSelectionSet{
+										FragmentFields: RPCFieldSelectionSet{
 											"ActionError": {
 												{
 													Name:          "message",

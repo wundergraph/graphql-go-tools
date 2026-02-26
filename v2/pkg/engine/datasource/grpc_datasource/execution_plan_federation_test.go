@@ -1598,7 +1598,7 @@ func TestEntityLookupWithFieldResolvers_WithCompositeTypes(t *testing.T) {
 													Name:        "Animal",
 													OneOfType:   OneOfTypeInterface,
 													MemberTypes: []string{"Cat", "Dog"},
-													FieldSelectionSet: RPCFieldSelectionSet{
+													FragmentFields: RPCFieldSelectionSet{
 														"Cat": {
 															{
 																Name:          "name",
@@ -1781,7 +1781,7 @@ func TestEntityLookupWithFieldResolvers_WithCompositeTypes(t *testing.T) {
 													Name:        "ActionResult",
 													OneOfType:   OneOfTypeUnion,
 													MemberTypes: []string{"ActionSuccess", "ActionError"},
-													FieldSelectionSet: RPCFieldSelectionSet{
+													FragmentFields: RPCFieldSelectionSet{
 														"ActionSuccess": {
 															{
 																Name:          "message",
@@ -1987,7 +1987,7 @@ func TestEntityLookupWithFieldResolvers_WithCompositeTypes(t *testing.T) {
 																Name:        "Animal",
 																OneOfType:   OneOfTypeInterface,
 																MemberTypes: []string{"Cat", "Dog"},
-																FieldSelectionSet: RPCFieldSelectionSet{
+																FragmentFields: RPCFieldSelectionSet{
 																	"Cat": {
 																		{
 																			Name:          "name",
@@ -2023,7 +2023,7 @@ func TestEntityLookupWithFieldResolvers_WithCompositeTypes(t *testing.T) {
 																Name:        "ActionResult",
 																OneOfType:   OneOfTypeUnion,
 																MemberTypes: []string{"ActionSuccess", "ActionError"},
-																FieldSelectionSet: RPCFieldSelectionSet{
+																FragmentFields: RPCFieldSelectionSet{
 																	"ActionSuccess": {
 																		{
 																			Name:          "message",

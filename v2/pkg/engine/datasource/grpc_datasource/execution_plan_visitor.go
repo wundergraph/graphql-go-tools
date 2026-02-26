@@ -240,6 +240,10 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 	}
 
 	if r.inlineFragmentRef == ast.InvalidRef {
+		// r.inlineFragmentRef can be stale. Its set via an inline fragment visitor
+		// but it's leave function is called only after we exit the fragment.
+		// We might still be inside an fragment but inside of that we could be in a complex type,
+		// in which case we do not want to enter the else state.
 		lastIndex := len(r.planInfo.currentResponseMessage.Fields) - 1
 
 		// In nested selection sets, a new message needs to be created, which will be added to the current response message.
@@ -251,19 +255,17 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 		r.planInfo.responseMessageAncestors = append(r.planInfo.responseMessageAncestors, r.planInfo.currentResponseMessage)
 		r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.Fields[lastIndex].Message
 	} else {
-		// We have the problem here, that r.InlineFragmentRef could be
-
 		inlineFragmentName := r.operation.InlineFragmentTypeConditionNameString(r.inlineFragmentRef)
-		lastIndex := len(r.planInfo.currentResponseMessage.FieldSelectionSet[inlineFragmentName]) - 1
+		lastIndex := len(r.planInfo.currentResponseMessage.FragmentFields[inlineFragmentName]) - 1
 
 		// In nested selection sets, a new message needs to be created, which will be added to the current response message.
-		if r.planInfo.currentResponseMessage.FieldSelectionSet[inlineFragmentName][lastIndex].Message == nil {
-			r.planInfo.currentResponseMessage.FieldSelectionSet[inlineFragmentName][lastIndex].Message = r.planCtx.newMessageFromSelectionSet(r.walker.EnclosingTypeDefinition, ref)
+		if r.planInfo.currentResponseMessage.FragmentFields[inlineFragmentName][lastIndex].Message == nil {
+			r.planInfo.currentResponseMessage.FragmentFields[inlineFragmentName][lastIndex].Message = r.planCtx.newMessageFromSelectionSet(r.walker.EnclosingTypeDefinition, ref)
 		}
 
 		// Add the current response message to the ancestors and set the current response message to the current field message
 		r.planInfo.responseMessageAncestors = append(r.planInfo.responseMessageAncestors, r.planInfo.currentResponseMessage)
-		r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.FieldSelectionSet[inlineFragmentName][lastIndex].Message
+		r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.FragmentFields[inlineFragmentName][lastIndex].Message
 	}
 
 	// Check if the ancestor type is a composite type (interface or union)
@@ -415,12 +417,12 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 
 	// check if we are inside of an inline fragment
 	if ref, ok := r.walker.ResolveInlineFragment(); ok {
-		if r.planInfo.currentResponseMessage.FieldSelectionSet == nil {
-			r.planInfo.currentResponseMessage.FieldSelectionSet = make(RPCFieldSelectionSet)
+		if r.planInfo.currentResponseMessage.FragmentFields == nil {
+			r.planInfo.currentResponseMessage.FragmentFields = make(RPCFieldSelectionSet)
 		}
 
 		inlineFragmentName := r.operation.InlineFragmentTypeConditionNameString(ref)
-		r.planInfo.currentResponseMessage.FieldSelectionSet.Add(inlineFragmentName, field)
+		r.planInfo.currentResponseMessage.FragmentFields.Add(inlineFragmentName, field)
 		return
 	}
 
