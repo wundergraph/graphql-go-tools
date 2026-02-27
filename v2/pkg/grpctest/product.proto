@@ -1328,6 +1328,7 @@ message Cat {
   int32 meow_volume = 4;
   Owner owner = 5;
   CatBreed breed = 6;
+  AnimalHabitat habitat = 7;
 }
 
 message Dog {
@@ -1337,6 +1338,12 @@ message Dog {
   int32 bark_volume = 4;
   Owner owner = 5;
   DogBreed breed = 6;
+  AnimalHabitat habitat = 7;
+}
+
+message AnimalHabitat {
+  string region = 1;
+  string climate = 2;
 }
 
 message Owner {

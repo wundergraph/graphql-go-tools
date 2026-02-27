@@ -164,6 +164,7 @@ interface Animal {
   id: ID!
   name: String!
   kind: String!
+  habitat: AnimalHabitat!
 }
 
 type Cat implements Animal {
@@ -173,6 +174,7 @@ type Cat implements Animal {
   meowVolume: Int!
   owner: Owner!
   breed: CatBreed!
+  habitat: AnimalHabitat!
 }
 
 type Dog implements Animal {
@@ -182,6 +184,12 @@ type Dog implements Animal {
   barkVolume: Int!
   owner: Owner!
   breed: DogBreed!
+  habitat: AnimalHabitat!
+}
+
+type AnimalHabitat {
+  region: String!
+  climate: String!
 }
 
 type Owner {
