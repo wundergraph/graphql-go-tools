@@ -1040,9 +1040,6 @@ func testMapping() *GRPCMapping {
 				"breed": {
 					TargetName: "breed",
 				},
-				"habitat": {
-					TargetName: "habitat",
-				},
 			},
 			"Dog": {
 				"id": {
@@ -1062,17 +1059,6 @@ func testMapping() *GRPCMapping {
 				},
 				"breed": {
 					TargetName: "breed",
-				},
-				"habitat": {
-					TargetName: "habitat",
-				},
-			},
-			"AnimalHabitat": {
-				"region": {
-					TargetName: "region",
-				},
-				"climate": {
-					TargetName: "climate",
 				},
 			},
 			"Owner": {

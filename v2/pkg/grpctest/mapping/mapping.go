@@ -1047,9 +1047,6 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				"breed": {
 					TargetName: "breed",
 				},
-				"habitat": {
-					TargetName: "habitat",
-				},
 			},
 			"Dog": {
 				"id": {
@@ -1069,17 +1066,6 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"breed": {
 					TargetName: "breed",
-				},
-				"habitat": {
-					TargetName: "habitat",
-				},
-			},
-			"AnimalHabitat": {
-				"region": {
-					TargetName: "region",
-				},
-				"climate": {
-					TargetName: "climate",
 				},
 			},
 			"Owner": {
