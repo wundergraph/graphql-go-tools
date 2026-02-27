@@ -70,10 +70,7 @@ func newRPCPlanVisitorFederation(config rpcPlanVisitorConfig) *rpcPlanVisitorFed
 			entityRootFieldRef:      ast.InvalidRef,
 			entityInlineFragmentRef: ast.InvalidRef,
 		},
-		planInfo: planningInfo{
-			inlineFragmentRef:          ast.InvalidRef,
-			inlineFragmentRefAncestors: newStack[int](0),
-		},
+		planInfo:               planningInfo{},
 		federationConfigData:   parseFederationConfigData(config.federationConfigs),
 		resolverFields:         make([]resolverField, 0),
 		fieldResolverAncestors: newStack[int](0),
@@ -139,7 +136,6 @@ func (r *rpcPlanVisitorFederation) EnterInlineFragment(ref int) {
 	fragmentName := r.operation.InlineFragmentTypeConditionNameString(ref)
 	fc, ok := r.FederationConfigDataByEntityTypeName(fragmentName)
 	if !ok {
-		r.planInfo.inlineFragmentRef = ref
 		return
 	}
 
@@ -167,7 +163,6 @@ func (r *rpcPlanVisitorFederation) EnterInlineFragment(ref int) {
 // LeaveInlineFragment implements astvisitor.InlineFragmentVisitor.
 func (r *rpcPlanVisitorFederation) LeaveInlineFragment(ref int) {
 	if r.entityInfo.entityInlineFragmentRef != ref {
-		r.planInfo.inlineFragmentRef = ast.InvalidRef
 		return
 	}
 
@@ -175,13 +170,11 @@ func (r *rpcPlanVisitorFederation) LeaveInlineFragment(ref int) {
 	r.currentCall = &RPCCall{}
 
 	r.planInfo = planningInfo{
-		operationType:              r.planInfo.operationType,
-		operationFieldName:         r.planInfo.operationFieldName,
-		currentRequestMessage:      &RPCMessage{},
-		currentResponseMessage:     &RPCMessage{},
-		responseMessageAncestors:   []*RPCMessage{},
-		inlineFragmentRef:          ast.InvalidRef,
-		inlineFragmentRefAncestors: newStack[int](0),
+		operationType:            r.planInfo.operationType,
+		operationFieldName:       r.planInfo.operationFieldName,
+		currentRequestMessage:    &RPCMessage{},
+		currentResponseMessage:   &RPCMessage{},
+		responseMessageAncestors: []*RPCMessage{},
 	}
 
 	r.entityInfo.entityInlineFragmentRef = ast.InvalidRef
@@ -220,7 +213,15 @@ func (r *rpcPlanVisitorFederation) EnterSelectionSet(ref int) {
 		return
 	}
 
-	if !r.planCtx.descendIntoResponseField(&r.planInfo, r.walker.EnclosingTypeDefinition, ref) {
+	// Determine which inline fragment directly contains the field we are about
+	// to descend into, excluding the entity inline fragment whose fields are
+	// treated as regular (non-fragment) fields.
+	inlineFragmentRef := inlineFragmentRefFromAncestors(r.walker.Ancestors)
+	if inlineFragmentRef == r.entityInfo.entityInlineFragmentRef {
+		inlineFragmentRef = ast.InvalidRef
+	}
+
+	if !r.planCtx.descendIntoResponseField(&r.planInfo, r.walker.EnclosingTypeDefinition, ref, inlineFragmentRef) {
 		return
 	}
 

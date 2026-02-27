@@ -23,9 +23,6 @@ type planningInfo struct {
 
 	responseMessageAncestors []*RPCMessage
 	currentResponseMessage   *RPCMessage
-
-	inlineFragmentRef          int
-	inlineFragmentRefAncestors stack[int]
 }
 
 type contextField struct {
@@ -80,10 +77,7 @@ func newRPCPlanVisitor(config rpcPlanVisitorConfig) *rpcPlanVisitor {
 		resolverFields:         make([]resolverField, 0),
 		fieldResolverAncestors: newStack[int](0),
 		fieldPath:              make(ast.Path, 0),
-		planInfo: planningInfo{
-			inlineFragmentRef:          ast.InvalidRef,
-			inlineFragmentRefAncestors: newStack[int](0),
-		},
+		planInfo:               planningInfo{},
 	}
 
 	walker.RegisterDocumentVisitor(visitor)
@@ -91,17 +85,8 @@ func newRPCPlanVisitor(config rpcPlanVisitorConfig) *rpcPlanVisitor {
 	walker.RegisterFieldVisitor(visitor)
 	walker.RegisterSelectionSetVisitor(visitor)
 	walker.RegisterEnterArgumentVisitor(visitor)
-	walker.RegisterInlineFragmentVisitor(visitor)
 
 	return visitor
-}
-
-func (r *rpcPlanVisitor) EnterInlineFragment(ref int) {
-	r.planInfo.inlineFragmentRef = ref
-}
-
-func (r *rpcPlanVisitor) LeaveInlineFragment(ref int) {
-	r.planInfo.inlineFragmentRef = ast.InvalidRef
 }
 
 func (r *rpcPlanVisitor) PlanOperation(operation, definition *ast.Document) (*RPCExecutionPlan, error) {
@@ -241,7 +226,12 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 		return
 	}
 
-	if !r.planCtx.descendIntoResponseField(&r.planInfo, r.walker.EnclosingTypeDefinition, ref) {
+	// Determine which inline fragment directly contains the field we are about
+	// to descend into. When entering a field's selection set, the walker Ancestors
+	// are: [..., (maybe inline fragment), parent selection set, field].
+	// Ancestors[-3] is therefore the inline fragment directly wrapping the field, if any.
+	inlineFragmentRef := inlineFragmentRefFromAncestors(r.walker.Ancestors)
+	if !r.planCtx.descendIntoResponseField(&r.planInfo, r.walker.EnclosingTypeDefinition, ref, inlineFragmentRef) {
 		return
 	}
 

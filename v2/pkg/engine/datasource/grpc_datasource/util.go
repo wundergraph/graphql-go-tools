@@ -1,5 +1,7 @@
 package grpcdatasource
 
+import "github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+
 // initializeSlice initializes a slice with a given length and a given value.
 func initializeSlice[T any](len int, zero T) []T {
 	s := make([]T, len)
@@ -46,4 +48,25 @@ func (a *stack[T]) len() int {
 // capacity returns the capacity of the stack.
 func (a *stack[T]) capacity() int {
 	return cap(*a)
+}
+
+// inlineFragmentRefFromAncestors returns the inline fragment ref for the field
+// at the top of the walker's ancestor stack, or ast.InvalidRef if the field is
+// not a direct child of an inline fragment.
+//
+// When entering a field's selection set, the walker Ancestors slice has the shape:
+//
+//	[..., (maybe inline fragment), parent selection set, field]
+//
+// Ancestors[-3] is therefore the node that directly contains the parent selection
+// set — an inline fragment if and only if the field is a direct child of one.
+func inlineFragmentRefFromAncestors(ancestors []ast.Node) int {
+	if len(ancestors) < 3 {
+		return ast.InvalidRef
+	}
+	ancestor := ancestors[len(ancestors)-3]
+	if ancestor.Kind != ast.NodeKindInlineFragment {
+		return ast.InvalidRef
+	}
+	return ancestor.Ref
 }
