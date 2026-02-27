@@ -70,7 +70,6 @@ func newRPCPlanVisitorFederation(config rpcPlanVisitorConfig) *rpcPlanVisitorFed
 			entityRootFieldRef:      ast.InvalidRef,
 			entityInlineFragmentRef: ast.InvalidRef,
 		},
-		planInfo:               planningInfo{},
 		federationConfigData:   parseFederationConfigData(config.federationConfigs),
 		resolverFields:         make([]resolverField, 0),
 		fieldResolverAncestors: newStack[int](0),

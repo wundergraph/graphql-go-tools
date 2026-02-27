@@ -77,7 +77,6 @@ func newRPCPlanVisitor(config rpcPlanVisitorConfig) *rpcPlanVisitor {
 		resolverFields:         make([]resolverField, 0),
 		fieldResolverAncestors: newStack[int](0),
 		fieldPath:              make(ast.Path, 0),
-		planInfo:               planningInfo{},
 	}
 
 	walker.RegisterDocumentVisitor(visitor)

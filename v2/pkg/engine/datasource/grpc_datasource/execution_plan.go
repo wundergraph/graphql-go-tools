@@ -458,36 +458,38 @@ func (r *rpcPlanningContext) resolveRPCMethodMapping(operationType ast.Operation
 // that directly contains the field being descended into (ast.InvalidRef if none).
 // Returns true if it descended into a nested message, false if there was nothing
 // to descend into.
-func (r *rpcPlanningContext) descendIntoResponseField(info *planningInfo, enclosingTypeNode ast.Node, selectionSetRef int, inlineFragmentRef int) bool {
+func (r *rpcPlanningContext) descendIntoResponseField(info *planningInfo, enclosingTypeNode ast.Node, selectionSetRef, inlineFragmentRef int) bool {
+	lastField := r.lastResponseField(info.currentResponseMessage, inlineFragmentRef)
+	if lastField == nil {
+		return false
+	}
+
+	if lastField.Message == nil {
+		lastField.Message = r.newMessageFromSelectionSet(enclosingTypeNode, selectionSetRef)
+	}
+
+	info.responseMessageAncestors = append(info.responseMessageAncestors, info.currentResponseMessage)
+	info.currentResponseMessage = lastField.Message
+	return true
+}
+
+// lastResponseField returns a pointer to the last field (or fragment field) of the message,
+// or nil if there are no fields.
+func (r *rpcPlanningContext) lastResponseField(msg *RPCMessage, inlineFragmentRef int) *RPCField {
+	var fields RPCFields
+
 	if inlineFragmentRef == ast.InvalidRef {
-		if len(info.currentResponseMessage.Fields) == 0 {
-			return false
-		}
-
-		lastIndex := len(info.currentResponseMessage.Fields) - 1
-
-		if info.currentResponseMessage.Fields[lastIndex].Message == nil {
-			info.currentResponseMessage.Fields[lastIndex].Message = r.newMessageFromSelectionSet(enclosingTypeNode, selectionSetRef)
-		}
-
-		info.responseMessageAncestors = append(info.responseMessageAncestors, info.currentResponseMessage)
-		info.currentResponseMessage = info.currentResponseMessage.Fields[lastIndex].Message
+		fields = msg.Fields
 	} else {
 		inlineFragmentName := r.operation.InlineFragmentTypeConditionNameString(inlineFragmentRef)
-		fragmentFields := info.currentResponseMessage.FragmentFields[inlineFragmentName]
-		if len(fragmentFields) == 0 {
-			return false
-		}
-		lastIndex := len(fragmentFields) - 1
-
-		if fragmentFields[lastIndex].Message == nil {
-			info.currentResponseMessage.FragmentFields[inlineFragmentName][lastIndex].Message = r.newMessageFromSelectionSet(enclosingTypeNode, selectionSetRef)
-		}
-
-		info.responseMessageAncestors = append(info.responseMessageAncestors, info.currentResponseMessage)
-		info.currentResponseMessage = info.currentResponseMessage.FragmentFields[inlineFragmentName][lastIndex].Message
+		fields = msg.FragmentFields[inlineFragmentName]
 	}
-	return true
+
+	if len(fields) == 0 {
+		return nil
+	}
+
+	return &fields[len(fields)-1]
 }
 
 // ascendFromResponseField pops the response message ancestors when leaving a selection set.
