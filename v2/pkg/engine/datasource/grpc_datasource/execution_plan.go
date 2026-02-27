@@ -469,7 +469,7 @@ func (r *rpcPlanningContext) descendIntoResponseField(info *planningInfo, enclos
 			info.currentResponseMessage.Fields[lastIndex].Message = r.newMessageFromSelectionSet(enclosingTypeNode, selectionSetRef)
 		}
 
-		info.inlineFragmentRefAncestors = append(info.inlineFragmentRefAncestors, info.inlineFragmentRef)
+		info.inlineFragmentRefAncestors.push(info.inlineFragmentRef)
 		info.responseMessageAncestors = append(info.responseMessageAncestors, info.currentResponseMessage)
 		info.currentResponseMessage = info.currentResponseMessage.Fields[lastIndex].Message
 		info.inlineFragmentRef = ast.InvalidRef
@@ -485,7 +485,7 @@ func (r *rpcPlanningContext) descendIntoResponseField(info *planningInfo, enclos
 			info.currentResponseMessage.FragmentFields[inlineFragmentName][lastIndex].Message = r.newMessageFromSelectionSet(enclosingTypeNode, selectionSetRef)
 		}
 
-		info.inlineFragmentRefAncestors = append(info.inlineFragmentRefAncestors, info.inlineFragmentRef)
+		info.inlineFragmentRefAncestors.push(info.inlineFragmentRef)
 		info.responseMessageAncestors = append(info.responseMessageAncestors, info.currentResponseMessage)
 		info.currentResponseMessage = info.currentResponseMessage.FragmentFields[inlineFragmentName][lastIndex].Message
 		info.inlineFragmentRef = ast.InvalidRef
@@ -499,8 +499,8 @@ func (r *rpcPlanningContext) ascendFromResponseField(info *planningInfo) {
 	if len(info.responseMessageAncestors) > 0 {
 		info.currentResponseMessage = info.responseMessageAncestors[len(info.responseMessageAncestors)-1]
 		info.responseMessageAncestors = info.responseMessageAncestors[:len(info.responseMessageAncestors)-1]
-		info.inlineFragmentRef = info.inlineFragmentRefAncestors[len(info.inlineFragmentRefAncestors)-1]
-		info.inlineFragmentRefAncestors = info.inlineFragmentRefAncestors[:len(info.inlineFragmentRefAncestors)-1]
+		info.inlineFragmentRef = info.inlineFragmentRefAncestors.peek()
+		info.inlineFragmentRefAncestors.pop()
 	}
 }
 

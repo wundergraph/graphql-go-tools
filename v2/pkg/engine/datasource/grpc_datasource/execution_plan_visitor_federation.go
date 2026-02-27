@@ -72,7 +72,7 @@ func newRPCPlanVisitorFederation(config rpcPlanVisitorConfig) *rpcPlanVisitorFed
 		},
 		planInfo: planningInfo{
 			inlineFragmentRef:          ast.InvalidRef,
-			inlineFragmentRefAncestors: make([]int, 0),
+			inlineFragmentRefAncestors: newStack[int](0),
 		},
 		federationConfigData:   parseFederationConfigData(config.federationConfigs),
 		resolverFields:         make([]resolverField, 0),
@@ -181,7 +181,7 @@ func (r *rpcPlanVisitorFederation) LeaveInlineFragment(ref int) {
 		currentResponseMessage:     &RPCMessage{},
 		responseMessageAncestors:   []*RPCMessage{},
 		inlineFragmentRef:          ast.InvalidRef,
-		inlineFragmentRefAncestors: make([]int, 0),
+		inlineFragmentRefAncestors: newStack[int](0),
 	}
 
 	r.entityInfo.entityInlineFragmentRef = ast.InvalidRef

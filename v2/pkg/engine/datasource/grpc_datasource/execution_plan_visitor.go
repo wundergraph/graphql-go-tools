@@ -25,7 +25,7 @@ type planningInfo struct {
 	currentResponseMessage   *RPCMessage
 
 	inlineFragmentRef          int
-	inlineFragmentRefAncestors []int
+	inlineFragmentRefAncestors stack[int]
 }
 
 type contextField struct {
@@ -82,7 +82,7 @@ func newRPCPlanVisitor(config rpcPlanVisitorConfig) *rpcPlanVisitor {
 		fieldPath:              make(ast.Path, 0),
 		planInfo: planningInfo{
 			inlineFragmentRef:          ast.InvalidRef,
-			inlineFragmentRefAncestors: make([]int, 0),
+			inlineFragmentRefAncestors: newStack[int](0),
 		},
 	}
 
