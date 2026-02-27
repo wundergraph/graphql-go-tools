@@ -393,28 +393,45 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 
 		}
 
-		// Return early, since we do not support sizedFields yet. That parameter means
-		// that lisSize could be applied to fields that return non-lists.
-		if !node.returnsListType {
+		if !node.returnsListType || !isEstimation {
 			continue
 		}
 
-		// Compute multiplier as the maximum of data sources.
-		if isEstimation && listSize != nil {
-			localMultiplier := float64(listSize.multiplier(node.arguments, variables, defaultListSize))
+		// This field returns a list, and we are in estimation mode.
+		// Pick the maximum multiplier of all data sources.
+
+		if listSize != nil {
+			m := float64(listSize.multiplier(node.arguments, variables, defaultListSize))
 			// If this node returns a list of abstract types, then it could have listSize defined.
 			// Spec allows defining listSize on the fields of interfaces.
-			if localMultiplier > multiplier {
-				multiplier = localMultiplier
+			if m > multiplier {
+				multiplier = m
+			}
+			continue
+		}
+		// This node does not have listSize. If its parent has the sizedField pointing to the child,
+		// calculate multiplier from the parent POV.
+		if node.parent == nil {
+			continue
+		}
+		if parentLS := dsCostConfig.ListSizes[node.parent.fieldCoord]; parentLS != nil {
+			for _, sf := range parentLS.SizedFields {
+				if sf != node.fieldCoord.FieldName {
+					continue // to the next sf
+				}
+				m := float64(parentLS.multiplier(node.parent.arguments, variables, defaultListSize))
+				if m > multiplier {
+					multiplier = m
+				}
 			}
 		}
-
 	}
 
 	if !node.returnsListType {
 		return
 	}
-	if !isEstimation { // actual or dynamic
+	if !isEstimation {
+		// actual or dynamic cost
 		totalCount, ok := actualListSizes[node.jsonPath]
 		if ok && totalCount != 0 {
 			parentCount := 1
