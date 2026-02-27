@@ -1021,60 +1021,60 @@ func testMapping() *GRPCMapping {
 					TargetName: "related_category",
 				},
 			},
-		"Cat": {
-			"id": {
-				TargetName: "id",
+			"Cat": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"kind": {
+					TargetName: "kind",
+				},
+				"meowVolume": {
+					TargetName: "meow_volume",
+				},
+				"owner": {
+					TargetName: "owner",
+				},
+				"breed": {
+					TargetName: "breed",
+				},
+				"habitat": {
+					TargetName: "habitat",
+				},
 			},
-			"name": {
-				TargetName: "name",
+			"Dog": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"kind": {
+					TargetName: "kind",
+				},
+				"barkVolume": {
+					TargetName: "bark_volume",
+				},
+				"owner": {
+					TargetName: "owner",
+				},
+				"breed": {
+					TargetName: "breed",
+				},
+				"habitat": {
+					TargetName: "habitat",
+				},
 			},
-			"kind": {
-				TargetName: "kind",
+			"AnimalHabitat": {
+				"region": {
+					TargetName: "region",
+				},
+				"climate": {
+					TargetName: "climate",
+				},
 			},
-			"meowVolume": {
-				TargetName: "meow_volume",
-			},
-			"owner": {
-				TargetName: "owner",
-			},
-			"breed": {
-				TargetName: "breed",
-			},
-			"habitat": {
-				TargetName: "habitat",
-			},
-		},
-		"Dog": {
-			"id": {
-				TargetName: "id",
-			},
-			"name": {
-				TargetName: "name",
-			},
-			"kind": {
-				TargetName: "kind",
-			},
-			"barkVolume": {
-				TargetName: "bark_volume",
-			},
-			"owner": {
-				TargetName: "owner",
-			},
-			"breed": {
-				TargetName: "breed",
-			},
-			"habitat": {
-				TargetName: "habitat",
-			},
-		},
-		"AnimalHabitat": {
-			"region": {
-				TargetName: "region",
-			},
-			"climate": {
-				TargetName: "climate",
-			},
-		},
 			"Owner": {
 				"id": {
 					TargetName: "id",
