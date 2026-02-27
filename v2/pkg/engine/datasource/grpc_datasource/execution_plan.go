@@ -453,6 +453,57 @@ func (r *rpcPlanningContext) resolveRPCMethodMapping(operationType ast.Operation
 	return rpcConfig, nil
 }
 
+// descendIntoResponseField handles descending into a nested response message
+// when entering a selection set. It branches on whether we are inside an inline
+// fragment or not. Returns true if it descended into a nested message,
+// false if there was nothing to descend into.
+func (r *rpcPlanningContext) descendIntoResponseField(info *planningInfo, enclosingTypeNode ast.Node, selectionSetRef int) bool {
+	if info.inlineFragmentRef == ast.InvalidRef {
+		if len(info.currentResponseMessage.Fields) == 0 {
+			return false
+		}
+
+		lastIndex := len(info.currentResponseMessage.Fields) - 1
+
+		if info.currentResponseMessage.Fields[lastIndex].Message == nil {
+			info.currentResponseMessage.Fields[lastIndex].Message = r.newMessageFromSelectionSet(enclosingTypeNode, selectionSetRef)
+		}
+
+		info.inlineFragmentRefAncestors = append(info.inlineFragmentRefAncestors, info.inlineFragmentRef)
+		info.responseMessageAncestors = append(info.responseMessageAncestors, info.currentResponseMessage)
+		info.currentResponseMessage = info.currentResponseMessage.Fields[lastIndex].Message
+		info.inlineFragmentRef = ast.InvalidRef
+	} else {
+		inlineFragmentName := r.operation.InlineFragmentTypeConditionNameString(info.inlineFragmentRef)
+		fragmentFields := info.currentResponseMessage.FragmentFields[inlineFragmentName]
+		if len(fragmentFields) == 0 {
+			return false
+		}
+		lastIndex := len(fragmentFields) - 1
+
+		if fragmentFields[lastIndex].Message == nil {
+			info.currentResponseMessage.FragmentFields[inlineFragmentName][lastIndex].Message = r.newMessageFromSelectionSet(enclosingTypeNode, selectionSetRef)
+		}
+
+		info.inlineFragmentRefAncestors = append(info.inlineFragmentRefAncestors, info.inlineFragmentRef)
+		info.responseMessageAncestors = append(info.responseMessageAncestors, info.currentResponseMessage)
+		info.currentResponseMessage = info.currentResponseMessage.FragmentFields[inlineFragmentName][lastIndex].Message
+		info.inlineFragmentRef = ast.InvalidRef
+	}
+	return true
+}
+
+// ascendFromResponseField pops the response message ancestors and restores the
+// inline fragment ref when leaving a selection set.
+func (r *rpcPlanningContext) ascendFromResponseField(info *planningInfo) {
+	if len(info.responseMessageAncestors) > 0 {
+		info.currentResponseMessage = info.responseMessageAncestors[len(info.responseMessageAncestors)-1]
+		info.responseMessageAncestors = info.responseMessageAncestors[:len(info.responseMessageAncestors)-1]
+		info.inlineFragmentRef = info.inlineFragmentRefAncestors[len(info.inlineFragmentRefAncestors)-1]
+		info.inlineFragmentRefAncestors = info.inlineFragmentRefAncestors[:len(info.inlineFragmentRefAncestors)-1]
+	}
+}
+
 // newMessageFromSelectionSet creates a new message from the enclosing type node and the selection set reference.
 func (r *rpcPlanningContext) newMessageFromSelectionSet(enclosingTypeNode ast.Node, selectSetRef int) *RPCMessage {
 	message := &RPCMessage{

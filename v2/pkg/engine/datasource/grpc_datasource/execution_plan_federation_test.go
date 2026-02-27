@@ -2094,6 +2094,580 @@ func TestEntityLookupWithFieldResolvers_WithCompositeTypes(t *testing.T) {
 	}
 }
 
+var nestedInlineFragmentFederationSchema = testFederationSchemaString(`
+			type Query {
+				_entities(representations: [_Any!]!): [_Entity]!
+			}
+			type User @key(fields: "id") {
+				id: ID!
+				name: String!
+				pet: Animal
+			}
+			interface Animal {
+				id: ID!
+				name: String!
+				kind: String!
+			}
+			type Cat implements Animal {
+				id: ID!
+				name: String!
+				kind: String!
+				meowVolume: Int!
+				owner: Owner!
+				breed: CatBreed!
+			}
+			type Dog implements Animal {
+				id: ID!
+				name: String!
+				kind: String!
+				barkVolume: Int!
+			}
+			type Owner {
+				id: ID!
+				name: String!
+				pet: Animal!
+			}
+			type CatBreed {
+				id: ID!
+				name: String!
+				origin: String!
+				characteristics: BreedCharacteristics!
+			}
+			type BreedCharacteristics {
+				temperament: String!
+			}
+			`, []string{"User"})
+
+var nestedInlineFragmentFederationMapping = &GRPCMapping{
+	Service: "Products",
+	EntityRPCs: map[string][]EntityRPCConfig{
+		"User": {
+			{
+				Key: "id",
+				RPCConfig: RPCConfig{
+					RPC:      "LookupUserById",
+					Request:  "LookupUserByIdRequest",
+					Response: "LookupUserByIdResponse",
+				},
+			},
+		},
+	},
+	Fields: map[string]FieldMap{
+		"Cat": {
+			"meowVolume": {TargetName: "meow_volume"},
+		},
+		"Dog": {
+			"barkVolume": {TargetName: "bark_volume"},
+		},
+	},
+}
+
+var nestedInlineFragmentFederationConfigs = plan.FederationFieldConfigurations{
+	{
+		TypeName:     "User",
+		SelectionSet: "id",
+	},
+}
+
+func TestEntityLookupWithNestedInlineFragments(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name              string
+		query             string
+		schema            string
+		expectedPlan      *RPCExecutionPlan
+		mapping           *GRPCMapping
+		federationConfigs plan.FederationFieldConfigurations
+	}{
+		{
+			name:              "Should create an execution plan for a nested message inside an entity with interface fragment and common fields",
+			query:             `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on User { __typename id name pet { name kind ... on Cat { meowVolume owner { id name } } } } } }`,
+			schema:            nestedInlineFragmentFederationSchema,
+			mapping:           nestedInlineFragmentFederationMapping,
+			federationConfigs: nestedInlineFragmentFederationConfigs,
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "LookupUserById",
+						Kind:        CallKindEntity,
+						Request: RPCMessage{
+							Name: "LookupUserByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "keys",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name:        "LookupUserByIdKey",
+										MemberTypes: []string{"User"},
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "LookupUserByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
+									Message: &RPCMessage{
+										Name: "User",
+										Fields: []RPCField{
+											{
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "User",
+											},
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+											},
+											{
+												Name:          "pet",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "pet",
+												Optional:      true,
+												Message: &RPCMessage{
+													Name:      "Animal",
+													OneOfType: OneOfTypeInterface,
+													MemberTypes: []string{
+														"Cat",
+														"Dog",
+													},
+													Fields: []RPCField{
+														{
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
+														},
+														{
+															Name:          "kind",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "kind",
+														},
+													},
+													FragmentFields: RPCFieldSelectionSet{
+														"Cat": {
+															{
+																Name:          "meow_volume",
+																ProtoTypeName: DataTypeInt32,
+																JSONPath:      "meowVolume",
+															},
+															{
+																Name:          "owner",
+																ProtoTypeName: DataTypeMessage,
+																JSONPath:      "owner",
+																Message: &RPCMessage{
+																	Name: "Owner",
+																	Fields: []RPCField{
+																		{
+																			Name:          "id",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "id",
+																		},
+																		{
+																			Name:          "name",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "name",
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:              "Should create an execution plan for a nested message inside an entity with interface fragment without common fields",
+			query:             `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on User { __typename id pet { ... on Cat { breed { name origin } } } } } }`,
+			schema:            nestedInlineFragmentFederationSchema,
+			mapping:           nestedInlineFragmentFederationMapping,
+			federationConfigs: nestedInlineFragmentFederationConfigs,
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "LookupUserById",
+						Kind:        CallKindEntity,
+						Request: RPCMessage{
+							Name: "LookupUserByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "keys",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name:        "LookupUserByIdKey",
+										MemberTypes: []string{"User"},
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "LookupUserByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
+									Message: &RPCMessage{
+										Name: "User",
+										Fields: []RPCField{
+											{
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "User",
+											},
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+											{
+												Name:          "pet",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "pet",
+												Optional:      true,
+												Message: &RPCMessage{
+													Name:      "Animal",
+													OneOfType: OneOfTypeInterface,
+													MemberTypes: []string{
+														"Cat",
+														"Dog",
+													},
+													Fields: RPCFields{},
+													FragmentFields: RPCFieldSelectionSet{
+														"Cat": {
+															{
+																Name:          "breed",
+																ProtoTypeName: DataTypeMessage,
+																JSONPath:      "breed",
+																Message: &RPCMessage{
+																	Name: "CatBreed",
+																	Fields: []RPCField{
+																		{
+																			Name:          "name",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "name",
+																		},
+																		{
+																			Name:          "origin",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "origin",
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:              "Should create an execution plan for a deeply nested message inside an entity with inline fragment",
+			query:             `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on User { __typename id pet { ... on Cat { breed { characteristics { temperament } } } } } } }`,
+			schema:            nestedInlineFragmentFederationSchema,
+			mapping:           nestedInlineFragmentFederationMapping,
+			federationConfigs: nestedInlineFragmentFederationConfigs,
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "LookupUserById",
+						Kind:        CallKindEntity,
+						Request: RPCMessage{
+							Name: "LookupUserByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "keys",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name:        "LookupUserByIdKey",
+										MemberTypes: []string{"User"},
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "LookupUserByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
+									Message: &RPCMessage{
+										Name: "User",
+										Fields: []RPCField{
+											{
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "User",
+											},
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+											{
+												Name:          "pet",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "pet",
+												Optional:      true,
+												Message: &RPCMessage{
+													Name:      "Animal",
+													OneOfType: OneOfTypeInterface,
+													MemberTypes: []string{
+														"Cat",
+														"Dog",
+													},
+													Fields: RPCFields{},
+													FragmentFields: RPCFieldSelectionSet{
+														"Cat": {
+															{
+																Name:          "breed",
+																ProtoTypeName: DataTypeMessage,
+																JSONPath:      "breed",
+																Message: &RPCMessage{
+																	Name: "CatBreed",
+																	Fields: []RPCField{
+																		{
+																			Name:          "characteristics",
+																			ProtoTypeName: DataTypeMessage,
+																			JSONPath:      "characteristics",
+																			Message: &RPCMessage{
+																				Name: "BreedCharacteristics",
+																				Fields: []RPCField{
+																					{
+																						Name:          "temperament",
+																						ProtoTypeName: DataTypeString,
+																						JSONPath:      "temperament",
+																					},
+																				},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:              "Should create an execution plan for nested inline fragments through an intermediate regular message in entity",
+			query:             `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on User { __typename id pet { ... on Cat { owner { name pet { ... on Cat { breed { name origin } } ... on Dog { barkVolume } } } } } } } }`,
+			schema:            nestedInlineFragmentFederationSchema,
+			mapping:           nestedInlineFragmentFederationMapping,
+			federationConfigs: nestedInlineFragmentFederationConfigs,
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "LookupUserById",
+						Kind:        CallKindEntity,
+						Request: RPCMessage{
+							Name: "LookupUserByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "keys",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name:        "LookupUserByIdKey",
+										MemberTypes: []string{"User"},
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "LookupUserByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
+									Message: &RPCMessage{
+										Name: "User",
+										Fields: []RPCField{
+											{
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "User",
+											},
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+											{
+												Name:          "pet",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "pet",
+												Optional:      true,
+												Message: &RPCMessage{
+													Name:      "Animal",
+													OneOfType: OneOfTypeInterface,
+													MemberTypes: []string{
+														"Cat",
+														"Dog",
+													},
+													Fields: RPCFields{},
+													FragmentFields: RPCFieldSelectionSet{
+														"Cat": {
+															{
+																Name:          "owner",
+																ProtoTypeName: DataTypeMessage,
+																JSONPath:      "owner",
+																Message: &RPCMessage{
+																	Name: "Owner",
+																	Fields: []RPCField{
+																		{
+																			Name:          "name",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "name",
+																		},
+																		{
+																			Name:          "pet",
+																			ProtoTypeName: DataTypeMessage,
+																			JSONPath:      "pet",
+																			Message: &RPCMessage{
+																				Name:      "Animal",
+																				OneOfType: OneOfTypeInterface,
+																				MemberTypes: []string{
+																					"Cat",
+																					"Dog",
+																				},
+																				Fields: RPCFields{},
+																				FragmentFields: RPCFieldSelectionSet{
+																					"Cat": {
+																						{
+																							Name:          "breed",
+																							ProtoTypeName: DataTypeMessage,
+																							JSONPath:      "breed",
+																							Message: &RPCMessage{
+																								Name: "CatBreed",
+																								Fields: []RPCField{
+																									{
+																										Name:          "name",
+																										ProtoTypeName: DataTypeString,
+																										JSONPath:      "name",
+																									},
+																									{
+																										Name:          "origin",
+																										ProtoTypeName: DataTypeString,
+																										JSONPath:      "origin",
+																									},
+																								},
+																							},
+																						},
+																					},
+																					"Dog": {
+																						{
+																							Name:          "bark_volume",
+																							ProtoTypeName: DataTypeInt32,
+																							JSONPath:      "barkVolume",
+																						},
+																					},
+																				},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		runFederationTest(t, tt)
+	}
+}
+
 func runFederationTest(t *testing.T, tt struct {
 	name              string
 	query             string

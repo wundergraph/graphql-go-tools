@@ -70,6 +70,10 @@ func newRPCPlanVisitorFederation(config rpcPlanVisitorConfig) *rpcPlanVisitorFed
 			entityRootFieldRef:      ast.InvalidRef,
 			entityInlineFragmentRef: ast.InvalidRef,
 		},
+		planInfo: planningInfo{
+			inlineFragmentRef:          ast.InvalidRef,
+			inlineFragmentRefAncestors: make([]int, 0),
+		},
 		federationConfigData:   parseFederationConfigData(config.federationConfigs),
 		resolverFields:         make([]resolverField, 0),
 		fieldResolverAncestors: newStack[int](0),
@@ -135,6 +139,7 @@ func (r *rpcPlanVisitorFederation) EnterInlineFragment(ref int) {
 	fragmentName := r.operation.InlineFragmentTypeConditionNameString(ref)
 	fc, ok := r.FederationConfigDataByEntityTypeName(fragmentName)
 	if !ok {
+		r.planInfo.inlineFragmentRef = ref
 		return
 	}
 
@@ -162,7 +167,7 @@ func (r *rpcPlanVisitorFederation) EnterInlineFragment(ref int) {
 // LeaveInlineFragment implements astvisitor.InlineFragmentVisitor.
 func (r *rpcPlanVisitorFederation) LeaveInlineFragment(ref int) {
 	if r.entityInfo.entityInlineFragmentRef != ref {
-		// We only handle the entity inline fragment
+		r.planInfo.inlineFragmentRef = ast.InvalidRef
 		return
 	}
 
@@ -170,11 +175,13 @@ func (r *rpcPlanVisitorFederation) LeaveInlineFragment(ref int) {
 	r.currentCall = &RPCCall{}
 
 	r.planInfo = planningInfo{
-		operationType:            r.planInfo.operationType,
-		operationFieldName:       r.planInfo.operationFieldName,
-		currentRequestMessage:    &RPCMessage{},
-		currentResponseMessage:   &RPCMessage{},
-		responseMessageAncestors: []*RPCMessage{},
+		operationType:              r.planInfo.operationType,
+		operationFieldName:         r.planInfo.operationFieldName,
+		currentRequestMessage:      &RPCMessage{},
+		currentResponseMessage:     &RPCMessage{},
+		responseMessageAncestors:   []*RPCMessage{},
+		inlineFragmentRef:          ast.InvalidRef,
+		inlineFragmentRefAncestors: make([]int, 0),
 	}
 
 	r.entityInfo.entityInlineFragmentRef = ast.InvalidRef
@@ -209,21 +216,13 @@ func (r *rpcPlanVisitorFederation) EnterSelectionSet(ref int) {
 		return
 	}
 
-	if r.planInfo.currentRequestMessage == nil || len(r.planInfo.currentResponseMessage.Fields) == 0 || r.walker.Ancestor().Kind != ast.NodeKindField {
+	if r.planInfo.currentRequestMessage == nil || r.walker.Ancestor().Kind != ast.NodeKindField {
 		return
 	}
 
-	// We ignore selection sets from inline fragments or fragment spreads.
-	lastIndex := len(r.planInfo.currentResponseMessage.Fields) - 1
-
-	// In nested selection sets, a new message needs to be created, which will be added to the current response message.
-	if r.planInfo.currentResponseMessage.Fields[lastIndex].Message == nil {
-		r.planInfo.currentResponseMessage.Fields[lastIndex].Message = r.planCtx.newMessageFromSelectionSet(r.walker.EnclosingTypeDefinition, ref)
+	if !r.planCtx.descendIntoResponseField(&r.planInfo, r.walker.EnclosingTypeDefinition, ref) {
+		return
 	}
-
-	// Add the current response message to the ancestors and set the current response message to the current field message
-	r.planInfo.responseMessageAncestors = append(r.planInfo.responseMessageAncestors, r.planInfo.currentResponseMessage)
-	r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.Fields[lastIndex].Message
 
 	// Check if the ancestor type is a composite type (interface or union)
 	// and set the oneof type and member types.
@@ -233,7 +232,6 @@ func (r *rpcPlanVisitorFederation) EnterSelectionSet(ref int) {
 		r.walker.StopWithInternalErr(err)
 		return
 	}
-
 }
 
 func (r *rpcPlanVisitorFederation) handleCompositeType(node ast.Node) error {
@@ -278,10 +276,7 @@ func (r *rpcPlanVisitorFederation) LeaveSelectionSet(ref int) {
 		return
 	}
 
-	if len(r.planInfo.responseMessageAncestors) > 0 {
-		r.planInfo.currentResponseMessage = r.planInfo.responseMessageAncestors[len(r.planInfo.responseMessageAncestors)-1]
-		r.planInfo.responseMessageAncestors = r.planInfo.responseMessageAncestors[:len(r.planInfo.responseMessageAncestors)-1]
-	}
+	r.planCtx.ascendFromResponseField(&r.planInfo)
 }
 
 // EnterField implements astvisitor.FieldVisitor.
