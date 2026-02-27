@@ -2,7 +2,7 @@ package plan
 
 /*
 
-Cost Analysis.
+Cost Control.
 
 Planning visitor collects information for the costCalculator via EnterField and LeaveField hooks.
 Calculator builds a tree of nodes, each node corresponding to the requested field.
