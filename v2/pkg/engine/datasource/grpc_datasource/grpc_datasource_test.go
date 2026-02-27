@@ -79,21 +79,20 @@ func Benchmark_DataSource_Load_WithFieldArguments(b *testing.B) {
 	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(b), testMapping())
 	require.NoError(b, err)
 
-	b.ReportAllocs()
-	b.ResetTimer()
 	const subgraphName = "Products"
 
-	mapping := testMapping()
-	for b.Loop() {
-		ds, err := NewDataSource(conn, DataSourceConfig{
-			Operation:    &queryDoc,
-			Definition:   &schemaDoc,
-			SubgraphName: subgraphName,
-			Compiler:     compiler,
-			Mapping:      mapping,
-		})
-		require.NoError(b, err)
+	ds, err := NewDataSource(conn, DataSourceConfig{
+		Operation:    &queryDoc,
+		Definition:   &schemaDoc,
+		SubgraphName: subgraphName,
+		Compiler:     compiler,
+		Mapping:      testMapping(),
+	})
+	require.NoError(b, err)
 
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
 		_, err = ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","body":`+variables+`}`))
 		require.NoError(b, err)
 	}
