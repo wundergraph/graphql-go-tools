@@ -12548,3 +12548,84 @@ input UpdateRegionGameInput {
 input UserPreferencesInput {
     notifications: PreNotificationsInput!
 }`
+
+// TestSetFieldSelectionMergingConfig proves that a single DefaultOperationValidator
+// can be reconfigured between Validate calls. This is the foundation for using a
+// single sync.Pool of validators instead of one pool per relaxation-flag combination.
+func TestSetFieldSelectionMergingConfig(t *testing.T) {
+	// Helper: parse and normalize, then validate with the given validator.
+	validate := func(t *testing.T, validator *OperationValidator, definitionStr, operationStr string) ValidationState {
+		t.Helper()
+		definition, report := astparser.ParseGraphqlDocumentString(definitionStr)
+		require.False(t, report.HasErrors(), report.Error())
+		operation, report2 := astparser.ParseGraphqlDocumentString(operationStr)
+		require.False(t, report2.HasErrors(), report2.Error())
+		var validationReport operationreport.Report
+		normalizer := astnormalization.NewWithOpts(astnormalization.WithInlineFragmentSpreads())
+		normalizer.NormalizeOperation(&operation, &definition, &validationReport)
+		return validator.Validate(&operation, &definition, &validationReport)
+	}
+
+	// nullabilityOp: User.email is String!, Organization.email is String → differs in nullability
+	const nullabilityOp = `{ entity { ... on User { email } ... on Organization { email } } }`
+	// typeMismatchOp: User.priority is Int, Organization.priority is String → completely different types
+	const typeMismatchOp = `{ entity { ... on User { priority } ... on Organization { priority } } }`
+
+	t.Run("nullability relaxation cycle", func(t *testing.T) {
+		validator := DefaultOperationValidator()
+
+		// Strict (default) → reject
+		require.Equal(t, Invalid, validate(t, validator, entityDefinition, nullabilityOp))
+
+		// Enable nullability relaxation → accept
+		validator.SetFieldSelectionMergingConfig(FieldSelectionMergingConfig{RelaxNullabilityCheck: true})
+		require.Equal(t, Valid, validate(t, validator, entityDefinition, nullabilityOp))
+
+		// Reset to strict → reject again
+		validator.SetFieldSelectionMergingConfig(FieldSelectionMergingConfig{})
+		require.Equal(t, Invalid, validate(t, validator, entityDefinition, nullabilityOp))
+	})
+
+	t.Run("type mismatch relaxation cycle", func(t *testing.T) {
+		validator := DefaultOperationValidator()
+
+		// Strict → reject
+		require.Equal(t, Invalid, validate(t, validator, typeMismatchDefinition, typeMismatchOp))
+
+		// Enable type mismatch relaxation → accept
+		validator.SetFieldSelectionMergingConfig(FieldSelectionMergingConfig{RelaxTypeMismatchCheck: true})
+		require.Equal(t, Valid, validate(t, validator, typeMismatchDefinition, typeMismatchOp))
+
+		// Reset → reject
+		validator.SetFieldSelectionMergingConfig(FieldSelectionMergingConfig{})
+		require.Equal(t, Invalid, validate(t, validator, typeMismatchDefinition, typeMismatchOp))
+	})
+
+	t.Run("both flags together", func(t *testing.T) {
+		validator := DefaultOperationValidator()
+
+		// Both operations fail under strict
+		require.Equal(t, Invalid, validate(t, validator, entityDefinition, nullabilityOp))
+		require.Equal(t, Invalid, validate(t, validator, typeMismatchDefinition, typeMismatchOp))
+
+		// Enable both → both pass
+		validator.SetFieldSelectionMergingConfig(FieldSelectionMergingConfig{
+			RelaxNullabilityCheck:  true,
+			RelaxTypeMismatchCheck: true,
+		})
+		require.Equal(t, Valid, validate(t, validator, entityDefinition, nullabilityOp))
+		require.Equal(t, Valid, validate(t, validator, typeMismatchDefinition, typeMismatchOp))
+	})
+
+	t.Run("nullability flag alone does not cover type mismatches", func(t *testing.T) {
+		validator := DefaultOperationValidator()
+		validator.SetFieldSelectionMergingConfig(FieldSelectionMergingConfig{RelaxNullabilityCheck: true})
+		require.Equal(t, Invalid, validate(t, validator, typeMismatchDefinition, typeMismatchOp))
+	})
+
+	t.Run("type mismatch flag covers nullability differences", func(t *testing.T) {
+		validator := DefaultOperationValidator()
+		validator.SetFieldSelectionMergingConfig(FieldSelectionMergingConfig{RelaxTypeMismatchCheck: true})
+		require.Equal(t, Valid, validate(t, validator, entityDefinition, nullabilityOp))
+	})
+}

@@ -31,11 +31,17 @@ func FieldSelectionMerging(config ...FieldSelectionMergingConfig) Rule {
 	if len(config) > 0 {
 		cfg = config[0]
 	}
+	return fieldSelectionMergingRule(&cfg)
+}
+
+// fieldSelectionMergingRule creates the rule with a shared config pointer.
+// The visitor reads from the pointer on each walk, so the caller can update
+// the config between Validate calls without recreating the validator.
+func fieldSelectionMergingRule(cfg *FieldSelectionMergingConfig) Rule {
 	return func(walker *astvisitor.Walker) {
 		visitor := fieldSelectionMergingVisitor{
-			Walker:                 walker,
-			relaxNullabilityCheck:  cfg.RelaxNullabilityCheck,
-			relaxTypeMismatchCheck: cfg.RelaxTypeMismatchCheck,
+			Walker: walker,
+			config: cfg,
 		}
 		walker.RegisterEnterDocumentVisitor(&visitor)
 		walker.RegisterEnterFieldVisitor(&visitor)
@@ -47,12 +53,11 @@ func FieldSelectionMerging(config ...FieldSelectionMergingConfig) Rule {
 type fieldSelectionMergingVisitor struct {
 	*astvisitor.Walker
 
-	definition, operation  *ast.Document
-	scalarRequirements     scalarRequirements
-	nonScalarRequirements  nonScalarRequirements
-	refs                   []int
-	relaxNullabilityCheck  bool
-	relaxTypeMismatchCheck bool
+	definition, operation *ast.Document
+	scalarRequirements    scalarRequirements
+	nonScalarRequirements nonScalarRequirements
+	refs                  []int
+	config                *FieldSelectionMergingConfig
 }
 type nonScalarRequirement struct {
 	path                    ast.Path
@@ -259,12 +264,12 @@ func (f *fieldSelectionMergingVisitor) checkTypeMismatch(existingEnclosing ast.N
 	sameObject := f.potentiallySameObject(existingEnclosing, f.EnclosingTypeDefinition)
 	// Type mismatch relaxation (spec sec 5.3.2, SameResponseShape): when enclosing
 	// types are provably non-overlapping, any type difference is safe.
-	if f.relaxTypeMismatchCheck && !sameObject {
+	if f.config.RelaxTypeMismatchCheck && !sameObject {
 		return typeMismatchSkip
 	}
 	// Nullability relaxation (spec sec 5.3.2, SameResponseShape): when enclosing
 	// types cannot overlap at runtime, we allow nullability differences.
-	if f.relaxNullabilityCheck && !sameObject &&
+	if f.config.RelaxNullabilityCheck && !sameObject &&
 		f.definition.TypesAreCompatibleIgnoringNullability(existingFieldType, currentFieldType) {
 		return typeMismatchAccept
 	}

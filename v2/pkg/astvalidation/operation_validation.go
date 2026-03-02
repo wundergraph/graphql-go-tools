@@ -69,10 +69,11 @@ func DefaultOperationValidator(options ...Option) *OperationValidator {
 	validator.RegisterRule(LoneAnonymousOperation())
 	validator.RegisterRule(SubscriptionSingleRootField())
 	validator.RegisterRule(FieldSelections())
-	validator.RegisterRule(FieldSelectionMerging(FieldSelectionMergingConfig{
+	validator.fieldSelectionMergingConfig = FieldSelectionMergingConfig{
 		RelaxNullabilityCheck:  opts.RelaxFieldSelectionMergingNullabilityCheck,
 		RelaxTypeMismatchCheck: opts.RelaxFieldSelectionMergingTypeMismatchCheck,
-	}))
+	}
+	validator.RegisterRule(fieldSelectionMergingRule(&validator.fieldSelectionMergingConfig))
 	validator.RegisterRule(KnownArguments())
 	validator.RegisterRule(Values())
 	validator.RegisterRule(ArgumentUniqueness())
@@ -101,12 +102,20 @@ func NewOperationValidator(rules []Rule) *OperationValidator {
 
 // OperationValidator orchestrates the validation process of Operations
 type OperationValidator struct {
-	walker astvisitor.Walker
+	walker                      astvisitor.Walker
+	fieldSelectionMergingConfig FieldSelectionMergingConfig
 }
 
 // RegisterRule registers a rule to the OperationValidator
 func (o *OperationValidator) RegisterRule(rule Rule) {
 	rule(&o.walker)
+}
+
+// SetFieldSelectionMergingConfig updates the field selection merging relaxation flags.
+// This allows reusing a single validator (e.g. from a sync.Pool) with different
+// relaxation settings per call, instead of maintaining separate validator instances.
+func (o *OperationValidator) SetFieldSelectionMergingConfig(config FieldSelectionMergingConfig) {
+	o.fieldSelectionMergingConfig = config
 }
 
 // Validate validates the operation against the definition using the registered ruleset.
