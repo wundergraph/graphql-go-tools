@@ -5194,6 +5194,32 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 				require.Empty(t, errData)
 			},
 		},
+		{
+			// nullMetrics is always null. The field resolvers at two levels of nesting (normalizedScore on CategoryMetrics,
+			// and relatedCategory on CategoryMetrics which itself carries the productCount field resolver on Category)
+			// should not be invoked.
+			name:  "Query with nullMetrics and two levels of nested field resolvers",
+			query: "query CategoriesWithNullMetrics($baseline: Float!, $include: Boolean) { categories { id name nullMetrics { id normalizedScore(baseline: $baseline) relatedCategory(include: $include) { id name productCount } } } }",
+			vars:  `{"variables":{"baseline":100,"include":true}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.NotEmpty(t, categories, "categories should not be empty")
+				require.Len(t, categories, 4, "Should return 4 categories")
+
+				for _, cat := range categories {
+					category, ok := cat.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["id"], "category id should not be empty")
+					require.NotEmpty(t, category["name"], "category name should not be empty")
+					require.Empty(t, category["nullMetrics"], "nullMetrics should be null since it is never populated")
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
 	}
 
 	for _, tc := range testCases {
