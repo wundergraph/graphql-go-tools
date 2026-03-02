@@ -7730,16 +7730,16 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			enum PullRequestReviewState { PENDING APPROVED }
 			union Updatable = Issue | PullRequestReview
 			type Query { updatable: Updatable }
-			type Issue { id: ID!, state: IssueState }
-			type PullRequestReview { id: ID!, state: PullRequestReviewState }
+			type Issue { id: ID!, state: IssueState, title: String! }
+			type PullRequestReview { id: ID!, state: PullRequestReviewState, title: String }
 		`
 		schema, err := graphql.NewSchemaFromString(unionSchema)
 		require.NoError(t, err)
 
 		rootNodes := []plan.TypeField{
 			{TypeName: "Query", FieldNames: []string{"updatable"}},
-			{TypeName: "Issue", FieldNames: []string{"id", "state"}},
-			{TypeName: "PullRequestReview", FieldNames: []string{"id", "state"}},
+			{TypeName: "Issue", FieldNames: []string{"id", "state", "title"}},
+			{TypeName: "PullRequestReview", FieldNames: []string{"id", "state", "title"}},
 		}
 
 		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
@@ -7854,13 +7854,13 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			relaxFieldSelectionMergingTypeMismatch(),
 		))
 
-		t.Run("with both relaxation flags, different enum types work", runWithoutError(
+		t.Run("with both relaxation flags, different enum types and nullability work", runWithoutError(
 			ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
 						OperationName: "O",
-						Query:         `query O { updatable { ... on Issue { state } ... on PullRequestReview { state } } }`,
+						Query:         `query O { updatable { ... on Issue { state title } ... on PullRequestReview { state title } } }`,
 					}
 				},
 				dataSources: []plan.DataSource{
@@ -7870,7 +7870,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 								expectedHost:     "example.com",
 								expectedPath:     "/",
 								expectedBody:     "",
-								sendResponseBody: `{"data":{"updatable":{"__typename":"Issue","state":"OPEN"}}}`,
+								sendResponseBody: `{"data":{"updatable":{"__typename":"Issue","state":"OPEN","title":"Bug report"}}}`,
 								sendStatusCode:   200,
 							}),
 						),
@@ -7881,7 +7881,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					),
 				},
 				fields:           fieldConfig,
-				expectedResponse: `{"data":{"updatable":{"state":"OPEN"}}}`,
+				expectedResponse: `{"data":{"updatable":{"state":"OPEN","title":"Bug report"}}}`,
 			},
 			relaxFieldSelectionMergingNullability(),
 			relaxFieldSelectionMergingTypeMismatch(),

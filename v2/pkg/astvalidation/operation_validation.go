@@ -114,6 +114,11 @@ func (o *OperationValidator) RegisterRule(rule Rule) {
 // SetFieldSelectionMergingConfig updates the field selection merging relaxation flags.
 // This allows reusing a single validator (e.g. from a sync.Pool) with different
 // relaxation settings per call, instead of maintaining separate validator instances.
+//
+// Note: This only works when the validator was created via DefaultOperationValidator,
+// which binds the FieldSelectionMerging rule to the validator's config field.
+// Validators created via NewOperationValidator with FieldSelectionMerging() will
+// have an independent config copy and will not be affected by this method.
 func (o *OperationValidator) SetFieldSelectionMergingConfig(config FieldSelectionMergingConfig) {
 	o.fieldSelectionMergingConfig = config
 }

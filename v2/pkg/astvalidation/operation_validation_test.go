@@ -1143,9 +1143,9 @@ func TestExecutionValidation(t *testing.T) {
 					t.Run("allows differing enum types on union members with type mismatch flag", func(t *testing.T) {
 						runWithDefinition(t, typeMismatchDefinition, `
 								{
-									entity {
-										... on User { priority }
-										... on Organization { priority }
+									searchable {
+										... on Issue { state }
+										... on PullRequestReview { state }
 									}
 								}`, FieldSelectionMerging(FieldSelectionMergingConfig{RelaxTypeMismatchCheck: true}), Valid)
 					})
@@ -5872,9 +5872,12 @@ type Organization {
 
 union Entity = User | Organization
 
+union Searchable = Issue | PullRequestReview
+
 type Query {
 	updatable: Updatable
 	entity: Entity
+	searchable: Searchable
 }
 
 schema {
