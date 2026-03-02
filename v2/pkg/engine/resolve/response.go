@@ -81,6 +81,7 @@ type ResponseWriter interface {
 type DeferResponseWriter interface {
 	ResponseWriter
 	Flush() error
+	Complete()
 }
 
 type SubscriptionCloseKind struct {
