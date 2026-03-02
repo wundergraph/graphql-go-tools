@@ -8433,9 +8433,9 @@ func TestFieldSelectionMergingRelaxationCombinations(t *testing.T) {
 					}),
 				),
 			},
-			DisableResolveFieldPositions:                              true,
-			RelaxSubgraphOperationFieldSelectionMergingNullability:    relaxNullability,
-			RelaxSubgraphOperationFieldSelectionMergingTypeMismatch:   relaxTypeMismatch,
+			DisableResolveFieldPositions:                            true,
+			RelaxSubgraphOperationFieldSelectionMergingNullability:  relaxNullability,
+			RelaxSubgraphOperationFieldSelectionMergingTypeMismatch: relaxTypeMismatch,
 		}
 	}
 
