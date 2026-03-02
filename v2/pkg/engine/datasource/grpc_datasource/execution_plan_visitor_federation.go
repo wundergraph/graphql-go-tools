@@ -272,6 +272,9 @@ func (r *rpcPlanVisitorFederation) handleCompositeType(node ast.Node) error {
 
 // LeaveSelectionSet implements astvisitor.SelectionSetVisitor.
 func (r *rpcPlanVisitorFederation) LeaveSelectionSet(ref int) {
+	if r.fieldResolverAncestors.len() > 0 && r.walker.Ancestor().Kind == ast.NodeKindField {
+		return
+	}
 	if r.walker.Ancestor().Kind == ast.NodeKindInlineFragment {
 		return
 	}

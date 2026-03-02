@@ -140,6 +140,7 @@ type Subcategory {
   description: String
   isActive: Boolean!
   itemCount(filters: SubcategoryItemFilter): Int! @connect__fieldResolver(context: "id")
+  featuredCategory(includeChildren: Boolean!): Category @connect__fieldResolver(context: "id")
 }
 
 type CategoryMetrics {

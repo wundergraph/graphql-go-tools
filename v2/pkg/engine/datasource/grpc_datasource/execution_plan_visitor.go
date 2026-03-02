@@ -284,6 +284,9 @@ func (r *rpcPlanVisitor) handleCompositeType(node ast.Node) error {
 // It updates the current response field index and response message ancestors.
 // If the ancestor is an operation definition, it adds the current call to the group.
 func (r *rpcPlanVisitor) LeaveSelectionSet(ref int) {
+	if r.fieldResolverAncestors.len() > 0 && r.walker.Ancestor().Kind == ast.NodeKindField {
+		return
+	}
 	if r.walker.Ancestor().Kind == ast.NodeKindInlineFragment {
 		return
 	}
