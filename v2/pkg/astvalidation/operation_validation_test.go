@@ -1149,12 +1149,12 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}`, FieldSelectionMerging(FieldSelectionMergingConfig{RelaxTypeMismatchCheck: true}), Valid)
 					})
-					t.Run("allows differing enum types on interface implementors with type mismatch flag via union", func(t *testing.T) {
+					t.Run("allows differing base types on union members with type mismatch flag", func(t *testing.T) {
 						runWithDefinition(t, typeMismatchDefinition, `
 								{
 									entity {
-										... on User { id }
-										... on Organization { id }
+										... on User { priority }
+										... on Organization { priority }
 									}
 								}`, FieldSelectionMerging(FieldSelectionMergingConfig{RelaxTypeMismatchCheck: true}), Valid)
 					})
@@ -1218,6 +1218,20 @@ func TestExecutionValidation(t *testing.T) {
 							RelaxNullabilityCheck:  true,
 							RelaxTypeMismatchCheck: true,
 						}), Valid)
+					})
+					// Narrow-scope tests: verify that the type mismatch relaxation is limited to
+					// disjoint concrete object types. These checks must still fail with the flag enabled.
+					t.Run("with type mismatch flag, nullability on overlapping interface types still rejects", func(t *testing.T) {
+						// Even a pure nullability difference (String! vs String) is rejected
+						// when one enclosing type is an interface (could overlap at runtime).
+						runWithDefinition(t, boxDefinition, `
+								{
+									someBox {
+										... on NonNullStringBox1 { scalar }
+										... on StringBox { scalar }
+									}
+								}`, FieldSelectionMerging(FieldSelectionMergingConfig{RelaxTypeMismatchCheck: true}), Invalid,
+							withValidationErrors(`fields 'scalar' conflict because they return conflicting types 'String!' and 'String'`))
 					})
 					t.Run("same wrapped scalar return types", func(t *testing.T) {
 						runWithDefinition(t, boxDefinition, `

@@ -247,6 +247,14 @@ const (
 // checkTypeMismatch decides how to handle a type incompatibility between an
 // existing requirement's field type and the current field's type. It applies
 // type mismatch relaxation first (broader), then nullability relaxation (narrower).
+//
+// Examples:
+//   - typeMismatchAccept: User.email is String!, Organization.email is String
+//     → types differ only in nullability, RelaxNullabilityCheck allows it
+//   - typeMismatchSkip: Issue.state is IssueState, PullRequestReview.state is PullRequestReviewState
+//     → enclosing types are disjoint concrete objects, RelaxTypeMismatchCheck skips the check entirely
+//   - typeMismatchReject: NonNullStringBox1.scalar is String!, IntBox.scalar is Int
+//     → one enclosing type is an interface (could overlap), difference must be reported as error
 func (f *fieldSelectionMergingVisitor) checkTypeMismatch(existingEnclosing ast.Node, existingFieldType, currentFieldType int) typeMismatchResult {
 	sameObject := f.potentiallySameObject(existingEnclosing, f.EnclosingTypeDefinition)
 	// Type mismatch relaxation (spec sec 5.3.2, SameResponseShape): when enclosing

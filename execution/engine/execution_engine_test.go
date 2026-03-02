@@ -7758,6 +7758,70 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			},
 		}
 
+		// Strict-mode failure test: use scalar type mismatch (Int vs String) to
+		// verify that validation rejects different types without the relaxation flag.
+		scalarMismatchSchema := `
+			type User { id: ID!, priority: Int }
+			type Organization { id: ID!, priority: String }
+			union Entity = User | Organization
+			type Query { entity: Entity }
+		`
+		scalarMismatchParsedSchema, err2 := graphql.NewSchemaFromString(scalarMismatchSchema)
+		require.NoError(t, err2)
+
+		scalarMismatchRootNodes := []plan.TypeField{
+			{TypeName: "Query", FieldNames: []string{"entity"}},
+			{TypeName: "User", FieldNames: []string{"id", "priority"}},
+			{TypeName: "Organization", FieldNames: []string{"id", "priority"}},
+		}
+
+		scalarMismatchConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+			Fetch: &graphql_datasource.FetchConfiguration{
+				URL:    "https://example.com/",
+				Method: "POST",
+			},
+			SchemaConfiguration: mustSchemaConfig(t, nil, scalarMismatchSchema),
+		})
+
+		scalarMismatchFieldConfig := []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "entity",
+				Path:      []string{"entity"},
+			},
+		}
+
+		t.Run("without relaxation flag, validation rejects different scalar types", runWithAndCompareError(
+			ExecutionEngineTestCase{
+				schema: scalarMismatchParsedSchema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "O",
+						Query:         `query O { entity { ... on User { priority } ... on Organization { priority } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "ds-id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"entity":{"__typename":"User","priority":1}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: scalarMismatchRootNodes,
+						},
+						scalarMismatchConfig,
+					),
+				},
+				fields: scalarMismatchFieldConfig,
+			},
+			`fields 'priority' conflict because they return conflicting types 'Int' and 'String', locations: [], path: [query,entity,$1Organization]`,
+		))
+
 		t.Run("with relaxation flag, different enum types work", runWithoutError(
 			ExecutionEngineTestCase{
 				schema: schema,
