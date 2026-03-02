@@ -263,7 +263,7 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 		r.printErr = r.printExtensions(ctx, fetchTree)
 	}
 
-	if r.deferMode {
+	if r.deferMode && !r.hasErrors() {
 		r.printHasNext(true)
 	}
 

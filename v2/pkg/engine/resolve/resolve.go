@@ -436,11 +436,11 @@ func (r *Resolvable) printHasNext(hasNext bool) {
 }
 
 func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDeferResponse, writer DeferResponseWriter) (*GraphQLResolveInfo, error) {
-	resp := &GraphQLResolveInfo{}
+	resolveInfo := &GraphQLResolveInfo{}
 
 	start := time.Now()
 	<-r.maxConcurrency
-	resp.ResolveAcquireWaitTime = time.Since(start)
+	resolveInfo.ResolveAcquireWaitTime = time.Since(start)
 	defer func() {
 		r.maxConcurrency <- struct{}{}
 	}()
@@ -475,6 +475,10 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 			return nil, err
 		}
 
+		if t.resolvable.hasErrors() {
+			return resolveInfo, nil
+		}
+
 		// fetch deferred responses
 
 		for i, deferGroup := range response.Defers {
@@ -495,10 +499,16 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 			if err != nil {
 				return nil, err
 			}
+
+			if t.resolvable.hasErrors() {
+				return resolveInfo, nil
+			}
 		}
+
+		writer.Complete()
 	}
 
-	return resp, err
+	return resolveInfo, err
 }
 
 type trigger struct {
