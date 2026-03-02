@@ -290,9 +290,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 				assert.Equal(t, 0, subgraphError.ResponseCode)
 				assert.Len(t, subgraphError.DownstreamErrors, 2)
 				assert.Equal(t, "errorMessage", subgraphError.DownstreamErrors[0].Message)
-				assert.Empty(t, subgraphError.DownstreamErrors[0].Extensions["code"])
+				assert.Nil(t, subgraphError.DownstreamErrors[0].Extensions.Get("code"))
 				assert.Equal(t, "errorMessage2", subgraphError.DownstreamErrors[1].Message)
-				assert.Empty(t, subgraphError.DownstreamErrors[1].Extensions["code"])
+				assert.Nil(t, subgraphError.DownstreamErrors[1].Extensions.Get("code"))
 
 				assert.NotNil(t, resolveCtx.SubgraphErrors())
 			}
@@ -1057,5 +1057,84 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 				assert.Equal(t, int64(1), loaderHooks.postFetchCalls.Load())
 			}
 	}))
+
+	t.Run("fetch with subgraph error propagates only allowed extension fields to downstream errors in hooks",
+		testFnWithPostEvaluationAndOptions(ResolverOptions{
+			MaxConcurrency:               1024,
+			PropagateSubgraphErrors:      true,
+			PropagateSubgraphStatusCodes: true,
+			AllowedErrorExtensionFields:  []string{"code", "serviceName"},
+			SubgraphErrorPropagationMode: SubgraphErrorPropagationModePassThrough,
+		}, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+			mockDataSource := NewMockDataSource(ctrl)
+			mockDataSource.EXPECT().
+				Load(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
+					return []byte(`{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED","serviceName":"products","internalTrace":"abc123","sensitiveField":"secret"}},{"message":"errorMessage2","extensions":{"code":"BAD_USER_INPUT","serviceName":"users","internalTrace":"def456"}}]}`), nil
+				})
+			resolveCtx := NewContext(context.Background())
+			resolveCtx.LoaderHooks = NewTestLoaderHooks()
+			return &GraphQLResponse{
+					Info: &GraphQLResponseInfo{
+						OperationType: ast.OperationTypeQuery,
+					},
+					Fetches: SingleWithPath(&SingleFetch{
+						FetchConfiguration: FetchConfiguration{
+							DataSource: mockDataSource,
+							PostProcessing: PostProcessingConfiguration{
+								SelectResponseErrorsPath: []string{"errors"},
+							},
+						},
+						Info: &FetchInfo{
+							DataSourceID:   "Products",
+							DataSourceName: "Products",
+						},
+					}, "query"),
+					Data: &Object{
+						Nullable: false,
+						Fields: []*Field{
+							{
+								Name: []byte("name"),
+								Value: &String{
+									Path:     []string{"name"},
+									Nullable: true,
+								},
+							},
+						},
+					},
+				}, resolveCtx, `{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED","serviceName":"products"}},{"message":"errorMessage2","extensions":{"code":"BAD_USER_INPUT","serviceName":"users"}}],"data":{"name":null}}`,
+				func(t *testing.T) {
+					loaderHooks := resolveCtx.LoaderHooks.(*TestLoaderHooks)
+
+					assert.Equal(t, int64(1), loaderHooks.preFetchCalls.Load())
+					assert.Equal(t, int64(1), loaderHooks.postFetchCalls.Load())
+
+					var subgraphError *SubgraphError
+					assert.Len(t, loaderHooks.errors, 1)
+					assert.ErrorAs(t, loaderHooks.errors[0], &subgraphError)
+					assert.Equal(t, "Products", subgraphError.DataSourceInfo.Name)
+					assert.Equal(t, "query", subgraphError.Path)
+					assert.Len(t, subgraphError.DownstreamErrors, 2)
+
+					// First error: allowed fields "code" and "serviceName" are present,
+					// non-allowed fields "internalTrace" and "sensitiveField" are absent.
+					assert.Equal(t, "errorMessage", subgraphError.DownstreamErrors[0].Message)
+					assert.NotNil(t, subgraphError.DownstreamErrors[0].Extensions)
+					assert.Equal(t, `"GRAPHQL_VALIDATION_FAILED"`, subgraphError.DownstreamErrors[0].Extensions.Get("code").String())
+					assert.Equal(t, `"products"`, subgraphError.DownstreamErrors[0].Extensions.Get("serviceName").String())
+					assert.Nil(t, subgraphError.DownstreamErrors[0].Extensions.Get("internalTrace"))
+					assert.Nil(t, subgraphError.DownstreamErrors[0].Extensions.Get("sensitiveField"))
+
+					// Second error: allowed fields "code" and "serviceName" are present,
+					// non-allowed field "internalTrace" is absent.
+					assert.Equal(t, "errorMessage2", subgraphError.DownstreamErrors[1].Message)
+					assert.NotNil(t, subgraphError.DownstreamErrors[1].Extensions)
+					assert.Equal(t, `"BAD_USER_INPUT"`, subgraphError.DownstreamErrors[1].Extensions.Get("code").String())
+					assert.Equal(t, `"users"`, subgraphError.DownstreamErrors[1].Extensions.Get("serviceName").String())
+					assert.Nil(t, subgraphError.DownstreamErrors[1].Extensions.Get("internalTrace"))
+
+					assert.NotNil(t, resolveCtx.SubgraphErrors())
+				}
+		}))
 
 }

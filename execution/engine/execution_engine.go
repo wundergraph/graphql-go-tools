@@ -53,10 +53,6 @@ func (e *internalExecutionContext) setVariables(variables []byte) {
 	}
 }
 
-func (e *internalExecutionContext) reset() {
-	e.resolveContext.Free()
-}
-
 type ExecutionEngine struct {
 	logger                   abstractlogger.Logger
 	config                   Configuration
@@ -238,7 +234,7 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 			return err
 		}
 		if resp != nil {
-			operation.ComputeActualCost(costCalculator, e.config.plannerConfig, resp.ActualListSizes)
+			operation.ComputeActualCost(costCalculator, e.config.plannerConfig, execContext.resolveContext.ActualListSizes)
 		}
 		return nil
 	case *plan.SubscriptionResponsePlan:

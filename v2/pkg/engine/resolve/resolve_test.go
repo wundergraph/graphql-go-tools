@@ -1624,6 +1624,32 @@ func testFnSubgraphErrorsPassthroughAndOmitCustomFields(fn func(t *testing.T, ct
 	}
 }
 
+// testFnWithPostEvaluationAndOptions is like testFnWithPostEvaluation but allows
+// configuring arbitrary ResolverOptions, enabling tests that need specific settings
+// such as AllowedErrorExtensionFields.
+func testFnWithPostEvaluationAndOptions(opts ResolverOptions, fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T))) func(t *testing.T) {
+	return func(t *testing.T) {
+		t.Helper()
+
+		ctrl := gomock.NewController(t)
+		rCtx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		r := New(rCtx, opts)
+		node, ctx, expectedOutput, postEvaluation := fn(t, ctrl)
+
+		if t.Skipped() {
+			return
+		}
+
+		buf := &bytes.Buffer{}
+		_, err := r.ResolveGraphQLResponse(ctx, node, nil, buf)
+		assert.NoError(t, err)
+		assert.Equal(t, expectedOutput, buf.String())
+		ctrl.Finish()
+		postEvaluation(t)
+	}
+}
+
 func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 
 	t.Run("empty graphql response", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {

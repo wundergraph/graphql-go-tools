@@ -777,12 +777,14 @@ func (l *Loader) optionallyAllowCustomExtensionProperties(values []*astjson.Valu
 				value.Del("extensions")
 				continue
 			}
+
 			newExt := astjson.ObjectValue(l.jsonArena)
-			for key := range l.allowedErrorExtensionFields {
-				if v := extensions.Get(key); v != nil {
-					newExt.Set(l.jsonArena, key, v)
+			extensions.GetObject().Visit(func(key []byte, v *astjson.Value) {
+				if _, ok := l.allowedErrorExtensionFields[unsafebytes.BytesToString(key)]; ok {
+					newExt.Set(l.jsonArena, string(key), v)
 				}
-			}
+			})
+
 			if newExt.GetObject().Len() == 0 {
 				value.Del("extensions")
 				continue
