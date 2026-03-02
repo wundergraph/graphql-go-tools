@@ -592,19 +592,6 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 			},
 		},
 		{
-			// query CatOwnerQuery {
-			//   randomPet {
-			//     name
-			//     kind
-			//     ... on Cat {
-			//       meowVolume
-			//       owner {
-			//         id
-			//         name
-			//       }
-			//     }
-			//   }
-			// }
 			name:  "Should create an execution plan for a nested message inside an interface fragment with common fields",
 			query: "query CatOwnerQuery { randomPet { name kind ... on Cat { meowVolume owner { id name } } } }",
 			expectedPlan: &RPCExecutionPlan{
@@ -679,19 +666,6 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 			},
 		},
 		{
-			// query CatOwnerQuery {
-			//   randomPet {
-			//     name
-			//     ... on Cat {
-			//       meowVolume
-			//       owner {
-			//         id
-			//         name
-			//       }
-			//     }
-			//     kind
-			//   }
-			// }
 			name:  "Should create an execution plan for a nested message inside an interface fragment with common fields on both sides",
 			query: "query CatOwnerQuery { randomPet { name ... on Cat { meowVolume owner { id name } } kind } }",
 			expectedPlan: &RPCExecutionPlan{
@@ -766,19 +740,6 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 			},
 		},
 		{
-			// query CatBreedQuery {
-			//   randomPet {
-			//     ... on Cat {
-			//       breed {
-			//         name
-			//         origin
-			//       }
-			//     }
-			//   }
-			// }
-			//
-			// verifies that inline fragments are handled correctly when no other shared field on the same parent is accessed.
-			// fixes a bug on an a guard, which made sure to return early on empty fields for the current selection set
 			name:  "Should create an execution plan for a nested message inside an interface fragment without common fields",
 			query: "query CatBreedQuery { randomPet { ... on Cat { breed { name origin } } } }",
 			expectedPlan: &RPCExecutionPlan{
@@ -837,17 +798,6 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 			},
 		},
 		{
-			// query CatBreedCharacteristicsQuery {
-			//   randomPet {
-			//     ... on Cat {
-			//       breed {
-			//         characteristics {
-			//           temperament
-			//         }
-			//       }
-			//     }
-			//   }
-			// }
 			name:  "Should create an execution plan for a deeply nested message inside an inline fragment",
 			query: "query CatBreedCharacteristicsQuery { randomPet { ... on Cat { breed { characteristics { temperament } } } } }",
 			expectedPlan: &RPCExecutionPlan{
@@ -911,32 +861,6 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 			},
 		},
 		{
-			// query OwnerPetQuery {
-			//   randomPet {
-			//     ... on Cat {
-			//       owner {
-			//         name
-			//         pet {
-			//           ... on Cat {
-			//             breed {
-			//               name
-			//               origin
-			//             }
-			//           }
-			//           ... on Dog {
-			//             barkVolume
-			//           }
-			//         }
-			//       }
-			//     }
-			//   }
-			// }
-			//
-			// Verifies that r.inlineFragmentRef does not become stale when descending into a
-			// nested message inside a fragment. The outer Cat fragment ref must be saved and
-			// cleared when entering owner's selection set so that the inner fields (name, pet)
-			// are treated as regular Owner fields, not as Cat fragment fields. The inner
-			// Animal interface on pet must then correctly handle its own nested inline fragments.
 			name:  "Should create an execution plan for nested inline fragments through an intermediate regular message",
 			query: "query OwnerPetQuery { randomPet { ... on Cat { owner { name pet { ... on Cat { breed { name origin } } ... on Dog { barkVolume } } } } } }",
 			expectedPlan: &RPCExecutionPlan{
