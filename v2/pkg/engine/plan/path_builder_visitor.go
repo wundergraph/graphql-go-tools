@@ -548,29 +548,31 @@ func (c *pathBuilderVisitor) EnterField(fieldRef int) {
 		field.ds = ds
 		field.suggestion = suggestion
 
-		switch {
-		case len(suggestion.deferIDs) > 0:
-			for _, deferID := range suggestion.deferIDs {
+		// the field was deffered, but it also could be a parent path for some other defer
+		hasDeferInfo := suggestion.DeferInfo != nil
+		// the field may be not deferred, but it is a parent for the child node which was deferred
+		isDeferParent := len(suggestion.DeferIDs) > 0
+
+		// plan defer parent paths
+		if isDeferParent {
+			for _, deferID := range suggestion.DeferIDs {
 				field.deferID = deferID
 				field.deferField = false
 				// defer parent path planning - should be planned as a deferred path
 				c.handlePlanningField(field)
 			}
-			// and as a normal path
+		}
 
-			// NOTE: when all child fields was deferred - we should not plan normal path?
-			// where to detect it?
-
-			field.deferID = ""
-			field.deferField = false
-			c.handlePlanningField(field)
-		case suggestion.deferInfo != nil:
-			field.deferID = suggestion.deferInfo.ID
+		// plan deferred field
+		if hasDeferInfo {
+			field.deferID = suggestion.DeferInfo.ID
 			field.deferField = true
 			// should be planned only as a deferred path
 			c.handlePlanningField(field)
-		default:
-			// normal field planning
+		}
+
+		// normal field planning is handled if the field itself is not deferred
+		if !hasDeferInfo {
 			field.deferID = ""
 			field.deferField = false
 			c.handlePlanningField(field)
