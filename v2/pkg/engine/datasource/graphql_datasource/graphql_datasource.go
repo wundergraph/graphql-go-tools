@@ -93,6 +93,9 @@ type Planner[T Configuration] struct {
 	// gRPC
 	grpcClient grpc.ClientConnInterface
 
+	relaxNullabilityCheck  bool
+	relaxTypeMismatchCheck bool
+
 	printKitPool *sync.Pool
 }
 
@@ -1468,6 +1471,10 @@ func (p *Planner[T]) printOperation() (operationBytes []byte, variablesBytes []b
 		copy(variablesBytes, p.upstreamOperation.Input.Variables)
 	}
 
+	kit.validator.SetFieldSelectionMergingConfig(astvalidation.FieldSelectionMergingConfig{
+		RelaxNullabilityCheck:  p.relaxNullabilityCheck,
+		RelaxTypeMismatchCheck: p.relaxTypeMismatchCheck,
+	})
 	kit.validator.Validate(p.upstreamOperation, definition, kit.report)
 	if kit.report.HasErrors() {
 		p.stopWithError(errors.WithStack(fmt.Errorf("printOperation planner id: %d: validation failed: %w", p.id, kit.report)))
@@ -1687,10 +1694,10 @@ type printKit struct {
 	report     *operationreport.Report
 }
 
-func newPrintKitPool(validationOptions ...astvalidation.Option) *sync.Pool {
+func newPrintKitPool() *sync.Pool {
 	return &sync.Pool{
 		New: func() any {
-			validator := astvalidation.DefaultOperationValidator(validationOptions...)
+			validator := astvalidation.DefaultOperationValidator()
 			// as we are creating operation programmatically in the graphql datasource planner,
 			// we need to catch incorrect behavior of the planner
 			// as graphql datasource planner should visit only selection sets which has fields,
@@ -1714,26 +1721,25 @@ func newPrintKitPool(validationOptions ...astvalidation.Option) *sync.Pool {
 	}
 }
 
-var (
-	defaultPrintKitPool     = newPrintKitPool()
-	relaxedPrintKitPool     *sync.Pool
-	relaxedPrintKitPoolOnce sync.Once
-)
-
-func getRelaxedPrintKitPool() *sync.Pool {
-	relaxedPrintKitPoolOnce.Do(func() {
-		relaxedPrintKitPool = newPrintKitPool(astvalidation.WithRelaxFieldSelectionMergingNullability())
-	})
-	return relaxedPrintKitPool
-}
-
 type Factory[T Configuration] struct {
 	executionContext   context.Context
 	httpClient         *http.Client
 	grpcClient         grpc.ClientConnInterface
 	grpcClientProvider func() grpc.ClientConnInterface
 	subscriptionClient GraphQLSubscriptionClient
-	printKitPool       *sync.Pool
+
+	relaxNullabilityCheck  bool
+	relaxTypeMismatchCheck bool
+
+	printKitPool *sync.Pool
+	poolOnce     sync.Once
+}
+
+func (f *Factory[T]) getPrintKitPool() *sync.Pool {
+	f.poolOnce.Do(func() {
+		f.printKitPool = newPrintKitPool()
+	})
+	return f.printKitPool
 }
 
 // NewFactory (HTTP) creates a new factory for the GraphQL datasource planner
@@ -1796,36 +1802,25 @@ func NewFactoryGRPCClientProvider(executionContext context.Context, clientProvid
 }
 
 func (p *Planner[T]) getKit() *printKit {
-	pool := p.printKitPool
-	if pool == nil {
-		pool = defaultPrintKitPool
-	}
-	return pool.Get().(*printKit)
+	return p.printKitPool.Get().(*printKit)
 }
 
 func (p *Planner[T]) releaseKit(kit *printKit) {
 	kit.buf.Reset()
 	kit.report.Reset()
-	pool := p.printKitPool
-	if pool == nil {
-		pool = defaultPrintKitPool
-	}
-	pool.Put(kit)
+	p.printKitPool.Put(kit)
 }
 
 // EnableSubgraphFieldSelectionMergingNullabilityRelaxation implements
-// plan.SubgraphFieldSelectionMergingNullabilityRelaxer. It configures the
-// factory to use a shared pool whose validator allows differing nullability
-// on fields in non-overlapping concrete types.
+// plan.SubgraphFieldSelectionMergingNullabilityRelaxer.
 func (f *Factory[T]) EnableSubgraphFieldSelectionMergingNullabilityRelaxation() {
-	f.printKitPool = getRelaxedPrintKitPool()
+	f.relaxNullabilityCheck = true
 }
 
-func (f *Factory[T]) getPrintKitPool() *sync.Pool {
-	if f.printKitPool != nil {
-		return f.printKitPool
-	}
-	return defaultPrintKitPool
+// EnableSubgraphFieldSelectionMergingTypeMismatchRelaxation implements
+// plan.SubgraphFieldSelectionMergingTypeMismatchRelaxer.
+func (f *Factory[T]) EnableSubgraphFieldSelectionMergingTypeMismatchRelaxation() {
+	f.relaxTypeMismatchCheck = true
 }
 
 func (f *Factory[T]) Planner(logger abstractlogger.Logger) plan.DataSourcePlanner[T] {
@@ -1835,10 +1830,12 @@ func (f *Factory[T]) Planner(logger abstractlogger.Logger) plan.DataSourcePlanne
 	}
 
 	return &Planner[T]{
-		fetchClient:        f.httpClient,
-		grpcClient:         grpcClient,
-		subscriptionClient: f.subscriptionClient,
-		printKitPool:       f.getPrintKitPool(),
+		fetchClient:            f.httpClient,
+		grpcClient:             grpcClient,
+		subscriptionClient:     f.subscriptionClient,
+		relaxNullabilityCheck:  f.relaxNullabilityCheck,
+		relaxTypeMismatchCheck: f.relaxTypeMismatchCheck,
+		printKitPool:           f.getPrintKitPool(),
 	}
 }
 

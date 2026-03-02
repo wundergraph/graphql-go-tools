@@ -9,11 +9,40 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
+// FieldSelectionMergingConfig controls which spec-deviation relaxations are active.
+//
+// Note: RelaxTypeMismatchCheck is strictly broader than RelaxNullabilityCheck —
+// when RelaxTypeMismatchCheck is true on non-overlapping types, all type differences
+// (including nullability) are allowed, making RelaxNullabilityCheck redundant for
+// those cases. Both flags exist because callers may want the narrower nullability-only
+// relaxation without the broader type mismatch relaxation.
+type FieldSelectionMergingConfig struct {
+	// RelaxNullabilityCheck allows differing nullability (e.g. String! vs String)
+	// on fields in non-overlapping concrete object types.
+	RelaxNullabilityCheck bool
+	// RelaxTypeMismatchCheck allows completely different types (e.g. IssueState vs
+	// PullRequestReviewState) on fields in non-overlapping concrete object types.
+	RelaxTypeMismatchCheck bool
+}
+
 // FieldSelectionMerging validates if field selections can be merged
-func FieldSelectionMerging(relaxNullabilityCheck ...bool) Rule {
-	relax := len(relaxNullabilityCheck) > 0 && relaxNullabilityCheck[0]
+func FieldSelectionMerging(config ...FieldSelectionMergingConfig) Rule {
+	var cfg FieldSelectionMergingConfig
+	if len(config) > 0 {
+		cfg = config[0]
+	}
+	return fieldSelectionMergingRule(&cfg)
+}
+
+// fieldSelectionMergingRule creates the rule with a shared config pointer.
+// The visitor reads from the pointer on each walk, so the caller can update
+// the config between Validate calls without recreating the validator.
+func fieldSelectionMergingRule(cfg *FieldSelectionMergingConfig) Rule {
 	return func(walker *astvisitor.Walker) {
-		visitor := fieldSelectionMergingVisitor{Walker: walker, relaxNullabilityCheck: relax}
+		visitor := fieldSelectionMergingVisitor{
+			Walker: walker,
+			config: cfg,
+		}
 		walker.RegisterEnterDocumentVisitor(&visitor)
 		walker.RegisterEnterFieldVisitor(&visitor)
 		walker.RegisterEnterOperationVisitor(&visitor)
@@ -28,7 +57,7 @@ type fieldSelectionMergingVisitor struct {
 	scalarRequirements    scalarRequirements
 	nonScalarRequirements nonScalarRequirements
 	refs                  []int
-	relaxNullabilityCheck bool
+	config                *FieldSelectionMergingConfig
 }
 type nonScalarRequirement struct {
 	path                    ast.Path
@@ -119,13 +148,12 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 					return
 				}
 			} else if !f.definition.TypesAreCompatibleDeep(f.nonScalarRequirements[i].fieldTypeRef, fieldType) {
-				// Deliberate deviation from SameResponseShape (spec sec 5.3.2): when enclosing
-				// types cannot overlap at runtime (two distinct concrete object types),
-				// we allow nullability differences because only one branch will ever
-				// contribute to the response. This is gated behind relaxNullabilityCheck.
-				if !f.relaxNullabilityCheck ||
-					f.potentiallySameObject(f.nonScalarRequirements[i].enclosingTypeDefinition, f.EnclosingTypeDefinition) ||
-					!f.definition.TypesAreCompatibleIgnoringNullability(f.nonScalarRequirements[i].fieldTypeRef, fieldType) {
+				switch f.checkTypeMismatch(f.nonScalarRequirements[i].enclosingTypeDefinition, f.nonScalarRequirements[i].fieldTypeRef, fieldType) {
+				case typeMismatchAccept:
+					// Types differ only in nullability; allowed by relaxation config.
+				case typeMismatchSkip:
+					continue
+				case typeMismatchReject:
 					left, err := f.definition.PrintTypeBytes(f.nonScalarRequirements[i].fieldTypeRef, nil)
 					if err != nil {
 						f.StopWithInternalErr(err)
@@ -172,13 +200,12 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 			}
 		}
 		if !f.definition.TypesAreCompatibleDeep(f.scalarRequirements[i].fieldType, fieldType) {
-			// Per SameResponseShape (spec sec 5.3.2), when enclosing types cannot overlap
-			// at runtime (two distinct concrete object types), nullability differences are
-			// acceptable because only one branch will ever contribute to the response.
-			// This relaxation is gated behind the relaxNullabilityCheck flag.
-			if !f.relaxNullabilityCheck ||
-				f.potentiallySameObject(f.scalarRequirements[i].enclosingTypeDefinition, f.EnclosingTypeDefinition) ||
-				!f.definition.TypesAreCompatibleIgnoringNullability(f.scalarRequirements[i].fieldType, fieldType) {
+			switch f.checkTypeMismatch(f.scalarRequirements[i].enclosingTypeDefinition, f.scalarRequirements[i].fieldType, fieldType) {
+			case typeMismatchAccept:
+				// Types differ only in nullability; allowed by relaxation config.
+			case typeMismatchSkip:
+				continue
+			case typeMismatchReject:
 				left, err := f.definition.PrintTypeBytes(f.scalarRequirements[i].fieldType, nil)
 				if err != nil {
 					f.StopWithInternalErr(err)
@@ -213,6 +240,46 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 	})
 }
 
+type typeMismatchResult int
+
+const (
+	// typeMismatchAccept means the types differ only in nullability and the
+	// relaxation flag allowed it — no error, but keep processing this requirement.
+	typeMismatchAccept typeMismatchResult = iota
+	// typeMismatchSkip means the enclosing types are provably disjoint and
+	// the relaxation flag allowed the full type mismatch — skip this requirement.
+	typeMismatchSkip
+	// typeMismatchReject means the type difference must be reported as an error.
+	typeMismatchReject
+)
+
+// checkTypeMismatch decides how to handle a type incompatibility between an
+// existing requirement's field type and the current field's type. It applies
+// type mismatch relaxation first (broader), then nullability relaxation (narrower).
+//
+// Examples:
+//   - typeMismatchAccept: User.email is String!, Organization.email is String
+//     → types differ only in nullability, RelaxNullabilityCheck allows it
+//   - typeMismatchSkip: Issue.state is IssueState, PullRequestReview.state is PullRequestReviewState
+//     → enclosing types are disjoint concrete objects, RelaxTypeMismatchCheck skips the check entirely
+//   - typeMismatchReject: NonNullStringBox1.scalar is String!, IntBox.scalar is Int
+//     → one enclosing type is an interface (could overlap), difference must be reported as error
+func (f *fieldSelectionMergingVisitor) checkTypeMismatch(existingEnclosing ast.Node, existingFieldType, currentFieldType int) typeMismatchResult {
+	sameObject := f.potentiallySameObject(existingEnclosing, f.EnclosingTypeDefinition)
+	// Type mismatch relaxation (spec sec 5.3.2, SameResponseShape): when enclosing
+	// types are provably non-overlapping, any type difference is safe.
+	if f.config.RelaxTypeMismatchCheck && !sameObject {
+		return typeMismatchSkip
+	}
+	// Nullability relaxation (spec sec 5.3.2, SameResponseShape): when enclosing
+	// types cannot overlap at runtime, we allow nullability differences.
+	if f.config.RelaxNullabilityCheck && !sameObject &&
+		f.definition.TypesAreCompatibleIgnoringNullability(existingFieldType, currentFieldType) {
+		return typeMismatchAccept
+	}
+	return typeMismatchReject
+}
+
 // potentiallySameObject reports whether two enclosing type definitions could apply
 // to the same runtime object. This determines whether field merging must enforce
 // strict type equality (including nullability) or may relax it.
@@ -221,6 +288,11 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 //     type might implement that interface).
 //   - Two object types overlap only when they share the same name.
 //   - All other combinations return false.
+//
+// Union types are not handled explicitly because the AST walker resolves inline
+// fragment type conditions to their concrete member types before visiting fields;
+// the enclosing type definition seen here is always the concrete type from the
+// inline fragment, never the union itself.
 func (f *fieldSelectionMergingVisitor) potentiallySameObject(left, right ast.Node) bool {
 	switch {
 	case left.Kind == ast.NodeKindInterfaceTypeDefinition || right.Kind == ast.NodeKindInterfaceTypeDefinition:

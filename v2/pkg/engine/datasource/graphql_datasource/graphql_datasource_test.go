@@ -8366,6 +8366,283 @@ func TestGraphQLDataSource(t *testing.T) {
 	})
 }
 
+func TestFactorySinglePrintKitPool(t *testing.T) {
+	factory := &Factory[Configuration]{}
+
+	p1 := factory.Planner(nil).(*Planner[Configuration])
+	p2 := factory.Planner(nil).(*Planner[Configuration])
+	p3 := factory.Planner(nil).(*Planner[Configuration])
+
+	// All planners must share the exact same pool instance.
+	require.Same(t, p1.printKitPool, p2.printKitPool)
+	require.Same(t, p2.printKitPool, p3.printKitPool)
+
+	// Get and return a kit to verify the pool works.
+	kit := p1.getKit()
+	require.NotNil(t, kit)
+	p2.releaseKit(kit)
+
+	// Getting from another planner may return the same kit (same pool).
+	kit2 := p3.getKit()
+	require.NotNil(t, kit2)
+	p3.releaseKit(kit2)
+}
+
+func TestFieldSelectionMergingRelaxationCombinations(t *testing.T) {
+	// Schema where User.priority is Int and Organization.priority is String (type mismatch)
+	// and User.email is String! vs Organization.email is String (nullability mismatch).
+	definition := `
+		type User {
+			id: ID!
+			email: String!
+			priority: Int
+		}
+
+		type Organization {
+			id: ID!
+			email: String
+			priority: String
+		}
+
+		union Entity = User | Organization
+
+		type Query {
+			entity: Entity
+		}
+	`
+
+	makePlanConfig := func(t *testing.T, relaxNullability, relaxTypeMismatch bool) plan.Configuration {
+		t.Helper()
+		return plan.Configuration{
+			DataSources: []plan.DataSource{
+				mustDataSourceConfiguration(
+					t,
+					"ds-id",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{TypeName: "Query", FieldNames: []string{"entity"}},
+						},
+						ChildNodes: []plan.TypeField{
+							{TypeName: "User", FieldNames: []string{"id", "email", "priority"}},
+							{TypeName: "Organization", FieldNames: []string{"id", "email", "priority"}},
+						},
+					},
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch:               &FetchConfiguration{URL: "https://example.com/graphql"},
+						SchemaConfiguration: mustSchema(t, nil, definition),
+					}),
+				),
+			},
+			DisableResolveFieldPositions:                            true,
+			RelaxSubgraphOperationFieldSelectionMergingNullability:  relaxNullability,
+			RelaxSubgraphOperationFieldSelectionMergingTypeMismatch: relaxTypeMismatch,
+		}
+	}
+
+	t.Run("nullability relaxation only", func(t *testing.T) {
+		t.Run("run", RunTest(definition, `
+			query MyQuery {
+				entity {
+					... on User { email }
+					... on Organization { email }
+				}
+			}`,
+			"MyQuery",
+			&plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Fetches: resolve.Sequence(
+						resolve.Single(&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								DataSource:     &Source{},
+								Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"{entity {__typename ... on User {email} ... on Organization {email}}}"}}`,
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						})),
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("entity"),
+								Value: &resolve.Object{
+									Path:     []string{"entity"},
+									Nullable: true,
+									PossibleTypes: map[string]struct{}{
+										"User":         {},
+										"Organization": {},
+									},
+									TypeName: "Entity",
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("email"),
+											Value: &resolve.String{
+												Path: []string{"email"},
+											},
+											OnTypeNames: [][]byte{[]byte("User")},
+										},
+										{
+											Name: []byte("email"),
+											Value: &resolve.String{
+												Path:     []string{"email"},
+												Nullable: true,
+											},
+											OnTypeNames: [][]byte{[]byte("Organization")},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			makePlanConfig(t, true, false),
+			WithDefaultPostProcessor(),
+			WithValidationOptions(astvalidation.WithRelaxFieldSelectionMergingNullability()),
+		))
+	})
+
+	t.Run("type mismatch relaxation only", func(t *testing.T) {
+		t.Run("run", RunTest(definition, `
+			query MyQuery {
+				entity {
+					... on User { priority }
+					... on Organization { priority }
+				}
+			}`,
+			"MyQuery",
+			&plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Fetches: resolve.Sequence(
+						resolve.Single(&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								DataSource:     &Source{},
+								Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"{entity {__typename ... on User {priority} ... on Organization {priority}}}"}}`,
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						})),
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("entity"),
+								Value: &resolve.Object{
+									Path:     []string{"entity"},
+									Nullable: true,
+									PossibleTypes: map[string]struct{}{
+										"User":         {},
+										"Organization": {},
+									},
+									TypeName: "Entity",
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("priority"),
+											Value: &resolve.Integer{
+												Path:     []string{"priority"},
+												Nullable: true,
+											},
+											OnTypeNames: [][]byte{[]byte("User")},
+										},
+										{
+											Name: []byte("priority"),
+											Value: &resolve.String{
+												Path:     []string{"priority"},
+												Nullable: true,
+											},
+											OnTypeNames: [][]byte{[]byte("Organization")},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			makePlanConfig(t, false, true),
+			WithDefaultPostProcessor(),
+			WithValidationOptions(astvalidation.WithRelaxFieldSelectionMergingTypeMismatch()),
+		))
+	})
+
+	t.Run("both relaxations", func(t *testing.T) {
+		t.Run("run", RunTest(definition, `
+			query MyQuery {
+				entity {
+					... on User { email priority }
+					... on Organization { email priority }
+				}
+			}`,
+			"MyQuery",
+			&plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Fetches: resolve.Sequence(
+						resolve.Single(&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								DataSource:     &Source{},
+								Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"{entity {__typename ... on User {email priority} ... on Organization {email priority}}}"}}`,
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						})),
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("entity"),
+								Value: &resolve.Object{
+									Path:     []string{"entity"},
+									Nullable: true,
+									PossibleTypes: map[string]struct{}{
+										"User":         {},
+										"Organization": {},
+									},
+									TypeName: "Entity",
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("email"),
+											Value: &resolve.String{
+												Path: []string{"email"},
+											},
+											OnTypeNames: [][]byte{[]byte("User")},
+										},
+										{
+											Name: []byte("priority"),
+											Value: &resolve.Integer{
+												Path:     []string{"priority"},
+												Nullable: true,
+											},
+											OnTypeNames: [][]byte{[]byte("User")},
+										},
+										{
+											Name: []byte("email"),
+											Value: &resolve.String{
+												Path:     []string{"email"},
+												Nullable: true,
+											},
+											OnTypeNames: [][]byte{[]byte("Organization")},
+										},
+										{
+											Name: []byte("priority"),
+											Value: &resolve.String{
+												Path:     []string{"priority"},
+												Nullable: true,
+											},
+											OnTypeNames: [][]byte{[]byte("Organization")},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			makePlanConfig(t, true, true),
+			WithDefaultPostProcessor(),
+			WithValidationOptions(
+				astvalidation.WithRelaxFieldSelectionMergingNullability(),
+				astvalidation.WithRelaxFieldSelectionMergingTypeMismatch(),
+			),
+		))
+	})
+}
+
 var errSubscriptionClientFail = errors.New("subscription client fail error")
 
 type FailingSubscriptionClient struct{}

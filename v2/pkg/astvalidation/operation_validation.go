@@ -12,8 +12,9 @@ import (
 )
 
 type OperationValidatorOptions struct {
-	ApolloCompatibilityFlags                   apollocompatibility.Flags
-	RelaxFieldSelectionMergingNullabilityCheck bool
+	ApolloCompatibilityFlags                    apollocompatibility.Flags
+	RelaxFieldSelectionMergingNullabilityCheck  bool
+	RelaxFieldSelectionMergingTypeMismatchCheck bool
 }
 
 func WithApolloCompatibilityFlags(flags apollocompatibility.Flags) Option {
@@ -29,6 +30,16 @@ func WithApolloCompatibilityFlags(flags apollocompatibility.Flags) Option {
 func WithRelaxFieldSelectionMergingNullability() Option {
 	return func(options *OperationValidatorOptions) {
 		options.RelaxFieldSelectionMergingNullabilityCheck = true
+	}
+}
+
+// WithRelaxFieldSelectionMergingTypeMismatch enables a deliberate spec deviation that allows
+// completely different types (e.g. IssueState vs PullRequestReviewState) on fields in
+// non-overlapping concrete object types within inline fragments. Without this option, the
+// validator enforces the strict GraphQL spec behavior where leaf types must be identical.
+func WithRelaxFieldSelectionMergingTypeMismatch() Option {
+	return func(options *OperationValidatorOptions) {
+		options.RelaxFieldSelectionMergingTypeMismatchCheck = true
 	}
 }
 
@@ -58,7 +69,11 @@ func DefaultOperationValidator(options ...Option) *OperationValidator {
 	validator.RegisterRule(LoneAnonymousOperation())
 	validator.RegisterRule(SubscriptionSingleRootField())
 	validator.RegisterRule(FieldSelections())
-	validator.RegisterRule(FieldSelectionMerging(opts.RelaxFieldSelectionMergingNullabilityCheck))
+	validator.fieldSelectionMergingConfig = FieldSelectionMergingConfig{
+		RelaxNullabilityCheck:  opts.RelaxFieldSelectionMergingNullabilityCheck,
+		RelaxTypeMismatchCheck: opts.RelaxFieldSelectionMergingTypeMismatchCheck,
+	}
+	validator.RegisterRule(fieldSelectionMergingRule(&validator.fieldSelectionMergingConfig))
 	validator.RegisterRule(KnownArguments())
 	validator.RegisterRule(Values())
 	validator.RegisterRule(ArgumentUniqueness())
@@ -87,12 +102,25 @@ func NewOperationValidator(rules []Rule) *OperationValidator {
 
 // OperationValidator orchestrates the validation process of Operations
 type OperationValidator struct {
-	walker astvisitor.Walker
+	walker                      astvisitor.Walker
+	fieldSelectionMergingConfig FieldSelectionMergingConfig
 }
 
 // RegisterRule registers a rule to the OperationValidator
 func (o *OperationValidator) RegisterRule(rule Rule) {
 	rule(&o.walker)
+}
+
+// SetFieldSelectionMergingConfig updates the field selection merging relaxation flags.
+// This allows reusing a single validator (e.g. from a sync.Pool) with different
+// relaxation settings per call, instead of maintaining separate validator instances.
+//
+// Note: This only works when the validator was created via DefaultOperationValidator,
+// which binds the FieldSelectionMerging rule to the validator's config field.
+// Validators created via NewOperationValidator with FieldSelectionMerging() will
+// have an independent config copy and will not be affected by this method.
+func (o *OperationValidator) SetFieldSelectionMergingConfig(config FieldSelectionMergingConfig) {
+	o.fieldSelectionMergingConfig = config
 }
 
 // Validate validates the operation against the definition using the registered ruleset.

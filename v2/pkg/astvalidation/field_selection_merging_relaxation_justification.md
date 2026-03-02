@@ -1,4 +1,4 @@
-# Justification: Relaxed Nullability Validation on Non-Overlapping Concrete Types
+# Justification: Relaxed Field Selection Merging on Non-Overlapping Concrete Types
 
 ## Problem Statement
 
@@ -130,9 +130,12 @@ fails (e.g. `String!` vs `String`), we now check:
    - Same object type: YES (strict check)
    - Different object types: NO (relaxed check)
 
-2. **If they can't overlap**: use `TypesAreCompatibleIgnoringNullability` which
-   strips `NonNull` wrappers at every nesting level but still requires the same
-   list structure and base named type.
+2. **If they can't overlap** (nullability relaxation only): use
+   `TypesAreCompatibleIgnoringNullability` which strips `NonNull` wrappers at
+   every nesting level but still requires the same list structure and base named
+   type. Note: this "base types must match" guarantee applies only to
+   `RelaxNullabilityCheck`. The broader `RelaxTypeMismatchCheck` permits
+   entirely different base named types on non-overlapping concrete types.
 
 Existing test cases are unaffected:
 
@@ -142,10 +145,47 @@ Existing test cases are unaffected:
 | `IntBox.scalar: Int` + `StringBox.scalar: String` | Different base types | **Still Invalid** |
 | All "112" tests with `String` vs `Int` on Dog/Cat | Different base types | **Still Invalid** |
 
+## Type Mismatch Relaxation (RelaxTypeMismatchCheck)
+
+In addition to the nullability relaxation above, a broader relaxation is
+available via `RelaxTypeMismatchCheck`. This allows **completely different types**
+(e.g. `IssueState` vs `PullRequestReviewState`) on fields in non-overlapping
+concrete object types.
+
+### Problem
+
+Schemas like GitHub's define interfaces (e.g. `Updatable`) whose implementing
+types have same-named fields returning different leaf types:
+
+```graphql
+interface Updatable { id: ID! }
+type Issue implements Updatable { id: ID!, state: IssueState }
+type PullRequestReview implements Updatable { id: ID!, state: PullRequestReviewState }
+```
+
+The spec's `SameResponseShape` algorithm rejects `state` across inline fragments
+even though only one branch executes at runtime.
+
+### Safety
+
+The same `potentiallySameObject` guard applies: the relaxation only fires when
+both enclosing types are different concrete Object types (never for interfaces).
+At runtime, the response object can only match one concrete type, so different
+field types cannot both appear for the same object.
+
+### Relationship to nullability relaxation
+
+`RelaxTypeMismatchCheck` is strictly broader than `RelaxNullabilityCheck`. When
+the type mismatch flag is enabled on non-overlapping types, **all** type
+differences (including nullability) are skipped because the code `continue`s
+before reaching the nullability check. Both flags exist because callers may want
+the narrower nullability-only relaxation without the broader type mismatch
+relaxation.
+
 ## Conclusion
 
-This is a **deliberate, targeted deviation** from the GraphQL specification. It
-addresses a real-world pain point that has been independently reported across
-multiple GraphQL implementations. The relaxation is narrowly scoped (only
-different concrete object types, only nullability differences) and preserves all
-existing rejection behavior for genuinely conflicting types.
+These are **deliberate, targeted deviations** from the GraphQL specification.
+They address real-world pain points that have been independently reported across
+multiple GraphQL implementations. Both relaxations are narrowly scoped (only
+different concrete object types) and preserve all existing rejection behavior
+for genuinely conflicting types on overlapping or same types.
