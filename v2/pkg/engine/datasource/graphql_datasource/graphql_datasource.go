@@ -1714,40 +1714,40 @@ func newPrintKitPool(validationOptions ...astvalidation.Option) *sync.Pool {
 	}
 }
 
+// Each combination of relaxation flags requires its own pool because the
+// validator configuration is baked into the printKit at pool-creation time.
+// Mixing printKits with different validator settings in the same pool would
+// cause non-deterministic validation behavior.
 var (
-	defaultPrintKitPool     = newPrintKitPool()
-	relaxedPrintKitPool     *sync.Pool
-	relaxedPrintKitPoolOnce sync.Once
-
-	typeMismatchPrintKitPool     *sync.Pool
-	typeMismatchPrintKitPoolOnce sync.Once
-
-	bothRelaxedPrintKitPool     *sync.Pool
-	bothRelaxedPrintKitPoolOnce sync.Once
+	defaultPrintKitPool = newPrintKitPool()
+	printKitPools       sync.Map // printKitPoolKey -> *sync.Pool
 )
 
-func getRelaxedPrintKitPool() *sync.Pool {
-	relaxedPrintKitPoolOnce.Do(func() {
-		relaxedPrintKitPool = newPrintKitPool(astvalidation.WithRelaxFieldSelectionMergingNullability())
-	})
-	return relaxedPrintKitPool
+// printKitPoolKey identifies a unique pool for a given set of relaxation flags.
+type printKitPoolKey struct {
+	relaxNullability  bool
+	relaxTypeMismatch bool
 }
 
-func getTypeMismatchPrintKitPool() *sync.Pool {
-	typeMismatchPrintKitPoolOnce.Do(func() {
-		typeMismatchPrintKitPool = newPrintKitPool(astvalidation.WithRelaxFieldSelectionMergingTypeMismatch())
-	})
-	return typeMismatchPrintKitPool
-}
-
-func getBothRelaxedPrintKitPool() *sync.Pool {
-	bothRelaxedPrintKitPoolOnce.Do(func() {
-		bothRelaxedPrintKitPool = newPrintKitPool(
-			astvalidation.WithRelaxFieldSelectionMergingNullability(),
-			astvalidation.WithRelaxFieldSelectionMergingTypeMismatch(),
-		)
-	})
-	return bothRelaxedPrintKitPool
+// getPrintKitPoolForConfig returns a lazily-initialized pool for the given
+// relaxation flag combination. The zero-value key returns defaultPrintKitPool.
+func getPrintKitPoolForConfig(key printKitPoolKey) *sync.Pool {
+	if !key.relaxNullability && !key.relaxTypeMismatch {
+		return defaultPrintKitPool
+	}
+	if v, ok := printKitPools.Load(key); ok {
+		return v.(*sync.Pool)
+	}
+	var opts []astvalidation.Option
+	if key.relaxNullability {
+		opts = append(opts, astvalidation.WithRelaxFieldSelectionMergingNullability())
+	}
+	if key.relaxTypeMismatch {
+		opts = append(opts, astvalidation.WithRelaxFieldSelectionMergingTypeMismatch())
+	}
+	pool := newPrintKitPool(opts...)
+	v, _ := printKitPools.LoadOrStore(key, pool)
+	return v.(*sync.Pool)
 }
 
 type Factory[T Configuration] struct {
@@ -1840,16 +1840,10 @@ func (p *Planner[T]) releaseKit(kit *printKit) {
 }
 
 func (f *Factory[T]) resolvePool() *sync.Pool {
-	switch {
-	case f.relaxNullabilityCheck && f.relaxTypeMismatchCheck:
-		return getBothRelaxedPrintKitPool()
-	case f.relaxNullabilityCheck:
-		return getRelaxedPrintKitPool()
-	case f.relaxTypeMismatchCheck:
-		return getTypeMismatchPrintKitPool()
-	default:
-		return defaultPrintKitPool
-	}
+	return getPrintKitPoolForConfig(printKitPoolKey{
+		relaxNullability:  f.relaxNullabilityCheck,
+		relaxTypeMismatch: f.relaxTypeMismatchCheck,
+	})
 }
 
 // EnableSubgraphFieldSelectionMergingNullabilityRelaxation implements

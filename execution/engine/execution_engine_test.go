@@ -7789,6 +7789,39 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			},
 			relaxFieldSelectionMergingTypeMismatch(),
 		))
+
+		t.Run("with both relaxation flags, different enum types work", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "O",
+						Query:         `query O { updatable { ... on Issue { state } ... on PullRequestReview { state } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "ds-id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"updatable":{"__typename":"Issue","state":"OPEN"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: rootNodes,
+						},
+						customConfig,
+					),
+				},
+				fields:           fieldConfig,
+				expectedResponse: `{"data":{"updatable":{"state":"OPEN"}}}`,
+			},
+			relaxFieldSelectionMergingNullability(),
+			relaxFieldSelectionMergingTypeMismatch(),
+		))
 	})
 }
 
