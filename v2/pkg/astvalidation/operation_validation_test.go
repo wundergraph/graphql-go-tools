@@ -1233,6 +1233,42 @@ func TestExecutionValidation(t *testing.T) {
 								}`, FieldSelectionMerging(FieldSelectionMergingConfig{RelaxTypeMismatchCheck: true}), Invalid,
 							withValidationErrors(`fields 'scalar' conflict because they return conflicting types 'String!' and 'String'`))
 					})
+					t.Run("with both flags, field selected at interface level conflicts with concrete fragment field", func(t *testing.T) {
+						// SomeBox.scalar is String (interface), IntBox.scalar is Int (concrete fragment).
+						// The interface-level selection causes potentiallySameObject to return true,
+						// so relaxation does not apply even with both flags enabled.
+						runWithDefinition(t, boxDefinition, `
+								{
+									someBox {
+										scalar
+										... on IntBox { scalar }
+									}
+								}`, FieldSelectionMerging(FieldSelectionMergingConfig{
+							RelaxNullabilityCheck:  true,
+							RelaxTypeMismatchCheck: true,
+						}), Invalid,
+							withValidationErrors(`fields 'scalar' conflict because they return conflicting types 'String' and 'Int'`))
+					})
+					t.Run("with both flags, type mismatch on same concrete type still rejects", func(t *testing.T) {
+						// IntBox.scalar is Int, StringBox.scalar is String. Both concrete types
+						// implement SomeBox, but the type condition in inline fragments narrows
+						// to concrete types. Without the inline fragments the scalar is accessed
+						// at the SomeBox interface level where it's String.
+						// Test that the field selected at the interface level (String) conflicts
+						// with the concrete fragment field (Int) even with both flags.
+						runWithDefinition(t, boxDefinition, `
+								{
+									someBox {
+										scalar
+										... on StringBox { scalar }
+										... on IntBox { scalar }
+									}
+								}`, FieldSelectionMerging(FieldSelectionMergingConfig{
+							RelaxNullabilityCheck:  true,
+							RelaxTypeMismatchCheck: true,
+						}), Invalid,
+							withValidationErrors(`fields 'scalar' conflict because they return conflicting types 'String' and 'Int'`))
+					})
 					t.Run("same wrapped scalar return types", func(t *testing.T) {
 						runWithDefinition(t, boxDefinition, `
 							{

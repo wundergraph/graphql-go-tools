@@ -7730,16 +7730,16 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			enum PullRequestReviewState { PENDING APPROVED }
 			union Updatable = Issue | PullRequestReview
 			type Query { updatable: Updatable }
-			type Issue { id: ID!, state: IssueState, title: String! }
-			type PullRequestReview { id: ID!, state: PullRequestReviewState, title: String }
+			type Issue { id: ID!, state: IssueState, title: String!, priority: Int }
+			type PullRequestReview { id: ID!, state: PullRequestReviewState, title: String, priority: String }
 		`
 		schema, err := graphql.NewSchemaFromString(unionSchema)
 		require.NoError(t, err)
 
 		rootNodes := []plan.TypeField{
 			{TypeName: "Query", FieldNames: []string{"updatable"}},
-			{TypeName: "Issue", FieldNames: []string{"id", "state", "title"}},
-			{TypeName: "PullRequestReview", FieldNames: []string{"id", "state", "title"}},
+			{TypeName: "Issue", FieldNames: []string{"id", "state", "title", "priority"}},
+			{TypeName: "PullRequestReview", FieldNames: []string{"id", "state", "title", "priority"}},
 		}
 
 		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
@@ -7820,6 +7820,37 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				fields: scalarMismatchFieldConfig,
 			},
 			`fields 'priority' conflict because they return conflicting types 'Int' and 'String', locations: [], path: [query,entity,$1Organization]`,
+		))
+
+		t.Run("without relaxation flag, validation rejects different scalar types on union members", runWithAndCompareError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "O",
+						Query:         `query O { updatable { ... on Issue { priority } ... on PullRequestReview { priority } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "ds-id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"updatable":{"__typename":"Issue","priority":1}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: rootNodes,
+						},
+						customConfig,
+					),
+				},
+				fields: fieldConfig,
+			},
+			`fields 'priority' conflict because they return conflicting types 'Int' and 'String', locations: [], path: [query,updatable,$1PullRequestReview]`,
 		))
 
 		t.Run("with relaxation flag, different enum types work", runWithoutError(

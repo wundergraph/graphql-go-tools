@@ -130,9 +130,12 @@ fails (e.g. `String!` vs `String`), we now check:
    - Same object type: YES (strict check)
    - Different object types: NO (relaxed check)
 
-2. **If they can't overlap**: use `TypesAreCompatibleIgnoringNullability` which
-   strips `NonNull` wrappers at every nesting level but still requires the same
-   list structure and base named type.
+2. **If they can't overlap** (nullability relaxation only): use
+   `TypesAreCompatibleIgnoringNullability` which strips `NonNull` wrappers at
+   every nesting level but still requires the same list structure and base named
+   type. Note: this "base types must match" guarantee applies only to
+   `RelaxNullabilityCheck`. The broader `RelaxTypeMismatchCheck` permits
+   entirely different base named types on non-overlapping concrete types.
 
 Existing test cases are unaffected:
 
