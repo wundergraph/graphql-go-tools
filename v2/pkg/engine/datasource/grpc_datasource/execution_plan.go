@@ -275,6 +275,15 @@ func (r RPCFields) Exists(name, alias string) bool {
 	return false
 }
 
+// Last returns the last element of r or nil if r has no elements.
+func (r RPCFields) Last() *RPCField {
+	if len(r) == 0 {
+		return nil
+	}
+
+	return &r[len(r)-1]
+}
+
 func (r *RPCExecutionPlan) String() string {
 	var result strings.Builder
 
@@ -453,12 +462,12 @@ func (r *rpcPlanningContext) resolveRPCMethodMapping(operationType ast.Operation
 	return rpcConfig, nil
 }
 
-// descendIntoResponseField handles descending into a nested response message
+// enterNestedField handles descending into a nested response message
 // when entering a selection set. inlineFragmentRef identifies the inline fragment
 // that directly contains the field being descended into (ast.InvalidRef if none).
 // Returns true if it descended into a nested message, false if there was nothing
 // to descend into.
-func (r *rpcPlanningContext) descendIntoResponseField(info *planningInfo, enclosingTypeNode ast.Node, selectionSetRef, inlineFragmentRef int) bool {
+func (r *rpcPlanningContext) enterNestedField(info *planningInfo, enclosingTypeNode ast.Node, selectionSetRef, inlineFragmentRef int) bool {
 	lastField := r.lastResponseField(info.currentResponseMessage, inlineFragmentRef)
 	if lastField == nil {
 		return false
@@ -476,24 +485,16 @@ func (r *rpcPlanningContext) descendIntoResponseField(info *planningInfo, enclos
 // lastResponseField returns a pointer to the last field (or fragment field) of the message,
 // or nil if there are no fields.
 func (r *rpcPlanningContext) lastResponseField(msg *RPCMessage, inlineFragmentRef int) *RPCField {
-	var fields RPCFields
-
 	if inlineFragmentRef == ast.InvalidRef {
-		fields = msg.Fields
-	} else {
-		inlineFragmentName := r.operation.InlineFragmentTypeConditionNameString(inlineFragmentRef)
-		fields = msg.FragmentFields[inlineFragmentName]
+		return msg.Fields.Last()
 	}
 
-	if len(fields) == 0 {
-		return nil
-	}
-
-	return &fields[len(fields)-1]
+	inlineFragmentName := r.operation.InlineFragmentTypeConditionNameString(inlineFragmentRef)
+	return msg.FragmentFields[inlineFragmentName].Last()
 }
 
-// ascendFromResponseField pops the response message ancestors when leaving a selection set.
-func (r *rpcPlanningContext) ascendFromResponseField(info *planningInfo) {
+// leaveNestedField pops the response message ancestors when leaving a selection set.
+func (r *rpcPlanningContext) leaveNestedField(info *planningInfo) {
 	if len(info.responseMessageAncestors) > 0 {
 		info.currentResponseMessage = info.responseMessageAncestors[len(info.responseMessageAncestors)-1]
 		info.responseMessageAncestors = info.responseMessageAncestors[:len(info.responseMessageAncestors)-1]

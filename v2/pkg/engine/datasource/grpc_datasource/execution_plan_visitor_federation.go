@@ -220,7 +220,7 @@ func (r *rpcPlanVisitorFederation) EnterSelectionSet(ref int) {
 		inlineFragmentRef = ast.InvalidRef
 	}
 
-	if !r.planCtx.descendIntoResponseField(&r.planInfo, r.walker.EnclosingTypeDefinition, ref, inlineFragmentRef) {
+	if !r.planCtx.enterNestedField(&r.planInfo, r.walker.EnclosingTypeDefinition, ref, inlineFragmentRef) {
 		return
 	}
 
@@ -276,7 +276,7 @@ func (r *rpcPlanVisitorFederation) LeaveSelectionSet(ref int) {
 		return
 	}
 
-	r.planCtx.ascendFromResponseField(&r.planInfo)
+	r.planCtx.leaveNestedField(&r.planInfo)
 }
 
 // EnterField implements astvisitor.FieldVisitor.

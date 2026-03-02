@@ -230,7 +230,7 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 	// are: [..., (maybe inline fragment), parent selection set, field].
 	// Ancestors[-3] is therefore the inline fragment directly wrapping the field, if any.
 	inlineFragmentRef := inlineFragmentRefFromAncestors(r.walker.Ancestors)
-	if !r.planCtx.descendIntoResponseField(&r.planInfo, r.walker.EnclosingTypeDefinition, ref, inlineFragmentRef) {
+	if !r.planCtx.enterNestedField(&r.planInfo, r.walker.EnclosingTypeDefinition, ref, inlineFragmentRef) {
 		return
 	}
 
@@ -288,7 +288,7 @@ func (r *rpcPlanVisitor) LeaveSelectionSet(ref int) {
 		return
 	}
 
-	r.planCtx.ascendFromResponseField(&r.planInfo)
+	r.planCtx.leaveNestedField(&r.planInfo)
 }
 
 func (r *rpcPlanVisitor) handleRootField(isRootField bool, ref int) error {
