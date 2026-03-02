@@ -149,6 +149,8 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 				}
 			} else if !f.definition.TypesAreCompatibleDeep(f.nonScalarRequirements[i].fieldTypeRef, fieldType) {
 				switch f.checkTypeMismatch(f.nonScalarRequirements[i].enclosingTypeDefinition, f.nonScalarRequirements[i].fieldTypeRef, fieldType) {
+				case typeMismatchAccept:
+					// Types differ only in nullability; allowed by relaxation config.
 				case typeMismatchSkip:
 					continue
 				case typeMismatchReject:
@@ -199,6 +201,8 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 		}
 		if !f.definition.TypesAreCompatibleDeep(f.scalarRequirements[i].fieldType, fieldType) {
 			switch f.checkTypeMismatch(f.scalarRequirements[i].enclosingTypeDefinition, f.scalarRequirements[i].fieldType, fieldType) {
+			case typeMismatchAccept:
+				// Types differ only in nullability; allowed by relaxation config.
 			case typeMismatchSkip:
 				continue
 			case typeMismatchReject:
