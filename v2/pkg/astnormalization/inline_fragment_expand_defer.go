@@ -21,6 +21,7 @@ func inlineFragmentExpandDefer(walker *astvisitor.Walker) {
 
 type inlineFragmentExpandDeferVisitor struct {
 	*astvisitor.Walker
+
 	operation      *ast.Document
 	defers         []deferInfo
 	currentDeferId int

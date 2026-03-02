@@ -19,6 +19,7 @@ func deferEnsureTypename(walker *astvisitor.Walker) {
 
 type deferEnsureTypenameVisitor struct {
 	*astvisitor.Walker
+
 	operation *ast.Document
 }
 
@@ -51,6 +52,13 @@ func (f *deferEnsureTypenameVisitor) EnterSelectionSet(ref int) {
 			break
 		}
 	}
+
+	// TODO: need more checks
+	// we don't have to do it if:
+	// if we have an intersection between parent defer ids and field defer ids
+
+	// if we under deferred path
+	// field should also have defer id from parent
 
 	if allFragmentsHasDefer {
 		addInternalTypeNamePlaceholder(f.operation, ref)

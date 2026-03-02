@@ -191,7 +191,7 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any
 		}
 
 		shouldWalkFieldsOnPath :=
-			// check if the field path has type condition and matches the enclosing type
+		// check if the field path has type condition and matches the enclosing type
 			config.ShouldWalkFieldsOnPath(path, enclosingTypeName) ||
 				// check if the planner has path without type condition
 				// this could happen in case of union type
@@ -584,7 +584,7 @@ func (v *Visitor) assignDefer(fieldRef int) {
 	currentField := v.currentFields[len(v.currentFields)-1]
 
 	// ignore existence check - we should always have planners for the field
-	plannerIds, _ := v.fieldPlanners[fieldRef]
+	plannerIds := v.fieldPlanners[fieldRef]
 
 	for _, plannerId := range plannerIds {
 		planner := v.planners[plannerId]
