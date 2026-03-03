@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"path"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -5311,9 +5312,9 @@ func TestCacheAnalyticsE2E(t *testing.T) {
 		keyTopProducts = `{"__typename":"Query","field":"topProducts"}`
 		keyUser1234    = `{"__typename":"User","key":{"id":"1234"}}`
 		keyMe          = `{"__typename":"Query","field":"me"}`
-		dsAccounts     = "0"
-		dsProducts     = "1"
-		dsReviews      = "2"
+		dsAccounts     = "accounts"
+		dsProducts     = "products"
+		dsReviews      = "reviews"
 	)
 
 	// Field hash constants — xxhash of the rendered scalar field values.
@@ -5589,9 +5590,9 @@ func TestShadowCacheE2E(t *testing.T) {
 		keyProductTop2 = `{"__typename":"Product","key":{"upc":"top-2"}}`
 		keyTopProducts = `{"__typename":"Query","field":"topProducts"}`
 		keyUser1234    = `{"__typename":"User","key":{"id":"1234"}}`
-		dsAccounts     = "0"
-		dsProducts     = "1"
-		dsReviews      = "2"
+		dsAccounts     = "accounts"
+		dsProducts     = "products"
+		dsReviews      = "reviews"
 	)
 
 	// Field hash constants

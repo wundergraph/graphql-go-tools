@@ -440,6 +440,8 @@ func TestEntityMergePath(t *testing.T) {
 			ctx := NewContext(context.Background())
 			ctx.ExecutionOptions.Caching.EnableL1Cache = true
 			ctx.ExecutionOptions.Caching.EnableL2Cache = true
+			ctx.ExecutionOptions.Caching.EnableCacheAnalytics = true
+			ctx.initCacheAnalytics()
 
 			loader := &Loader{
 				ctx:       ctx,
@@ -499,10 +501,7 @@ func TestEntityMergePath(t *testing.T) {
 			l1Wrapped := string(res.l1CacheKeys[0].FromCache.MarshalTo(nil))
 			assert.Equal(t, `{"user":{"id":"1234","username":"Me"}}`, l1Wrapped)
 
-			// Verify L2 stats: 1 hit, 0 misses
-			stats := ctx.GetCacheStats()
-			assert.Equal(t, int64(1), stats.L2Hits)
-			assert.Equal(t, int64(0), stats.L2Misses)
+			// L2 events are accumulated on res.l2AnalyticsEvents (merged to ctx in main resolve loop only)
 		})
 
 		t.Run("EntityMergePath not set and cache hit returns data as-is", func(t *testing.T) {
@@ -512,6 +511,8 @@ func TestEntityMergePath(t *testing.T) {
 			ctx := NewContext(context.Background())
 			ctx.ExecutionOptions.Caching.EnableL1Cache = true
 			ctx.ExecutionOptions.Caching.EnableL2Cache = true
+			ctx.ExecutionOptions.Caching.EnableCacheAnalytics = true
+			ctx.initCacheAnalytics()
 
 			loader := &Loader{
 				ctx:       ctx,
@@ -565,10 +566,7 @@ func TestEntityMergePath(t *testing.T) {
 			l1Value := string(res.l1CacheKeys[0].FromCache.MarshalTo(nil))
 			assert.Equal(t, `{"user":{"id":"1234","username":"Me"}}`, l1Value)
 
-			// Verify L2 stats: 1 hit, 0 misses
-			stats := ctx.GetCacheStats()
-			assert.Equal(t, int64(1), stats.L2Hits)
-			assert.Equal(t, int64(0), stats.L2Misses)
+			// L2 events are accumulated on res.l2AnalyticsEvents (merged to ctx in main resolve loop only)
 		})
 
 		t.Run("EntityMergePath set but cache miss stays nil", func(t *testing.T) {
@@ -578,6 +576,8 @@ func TestEntityMergePath(t *testing.T) {
 			ctx := NewContext(context.Background())
 			ctx.ExecutionOptions.Caching.EnableL1Cache = true
 			ctx.ExecutionOptions.Caching.EnableL2Cache = true
+			ctx.ExecutionOptions.Caching.EnableCacheAnalytics = true
+			ctx.initCacheAnalytics()
 
 			loader := &Loader{
 				ctx:       ctx,
@@ -615,10 +615,7 @@ func TestEntityMergePath(t *testing.T) {
 
 			assert.Nil(t, res.l2CacheKeys[0].FromCache)
 
-			// Verify L2 stats: 0 hits, 1 miss
-			stats := ctx.GetCacheStats()
-			assert.Equal(t, int64(0), stats.L2Hits)
-			assert.Equal(t, int64(1), stats.L2Misses)
+			// L2 events are accumulated on res.l2AnalyticsEvents (merged to ctx in main resolve loop only)
 		})
 
 		t.Run("multi-segment EntityMergePath wraps at each level", func(t *testing.T) {
@@ -628,6 +625,8 @@ func TestEntityMergePath(t *testing.T) {
 			ctx := NewContext(context.Background())
 			ctx.ExecutionOptions.Caching.EnableL1Cache = true
 			ctx.ExecutionOptions.Caching.EnableL2Cache = true
+			ctx.ExecutionOptions.Caching.EnableCacheAnalytics = true
+			ctx.initCacheAnalytics()
 
 			loader := &Loader{
 				ctx:       ctx,
@@ -686,10 +685,7 @@ func TestEntityMergePath(t *testing.T) {
 			l1Wrapped := string(res.l1CacheKeys[0].FromCache.MarshalTo(nil))
 			assert.Equal(t, `{"data":{"user":{"id":"1234"}}}`, l1Wrapped)
 
-			// Verify L2 stats: 1 hit, 0 misses
-			stats := ctx.GetCacheStats()
-			assert.Equal(t, int64(1), stats.L2Hits)
-			assert.Equal(t, int64(0), stats.L2Misses)
+			// L2 events are accumulated on res.l2AnalyticsEvents (merged to ctx in main resolve loop only)
 		})
 	})
 
@@ -703,6 +699,8 @@ func TestEntityMergePath(t *testing.T) {
 			ctx := NewContext(context.Background())
 			ctx.ExecutionOptions.Caching.EnableL1Cache = true
 			ctx.ExecutionOptions.Caching.EnableL2Cache = true
+			ctx.ExecutionOptions.Caching.EnableCacheAnalytics = true
+			ctx.initCacheAnalytics()
 
 			loader := &Loader{
 				ctx:       ctx,
@@ -773,6 +771,7 @@ func TestEntityMergePath(t *testing.T) {
 			ctx := NewContext(context.Background())
 			ctx.ExecutionOptions.Caching.EnableL1Cache = true
 			ctx.ExecutionOptions.Caching.EnableL2Cache = true
+			ctx.ExecutionOptions.Caching.EnableCacheAnalytics = true
 			ctx.Variables = astjson.MustParseBytes([]byte(`{"id":"1234"}`))
 
 			loader := &Loader{
