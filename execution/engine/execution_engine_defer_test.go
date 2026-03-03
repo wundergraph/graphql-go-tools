@@ -379,7 +379,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}
 			},
 			dataSources: makeDataSource(t, false),
-			expectedResponse: `{"data":{"user":{}},"hasNext":true}
+			expectedResponse: `{"data":{},"hasNext":true}
+{"incremental":[{"data":{"user":{}},"path":[]}],"hasNext":true}
 {"incremental":[{"data":{"id":"1"},"path":["user"]}],"hasNext":true}
 {"incremental":[{"data":{"name":"Black"},"path":["user"]}],"hasNext":true}
 {"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":true}
@@ -423,7 +424,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}
 			},
 			dataSources: makeDataSource(t, false),
-			expectedResponse: `{"data":{"user":{}},"hasNext":true}
+			expectedResponse: `{"data":{},"hasNext":true}
+{"incremental":[{"data":{"user":{}},"path":[]}],"hasNext":true}
 {"incremental":[{"data":{"id":"1"},"path":["user"]}],"hasNext":true}
 {"incremental":[{"data":{"name":"Black"},"path":["user"]}],"hasNext":true}
 {"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":true}

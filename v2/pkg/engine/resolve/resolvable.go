@@ -194,27 +194,6 @@ func (r *Resolvable) ResolveNode(node Node, data *astjson.Value, out io.Writer) 
 	return nil
 }
 
-func (r *Resolvable) renderPath() {
-	r.printBytes(lBrack)
-	for i, p := range r.path {
-		if i > 0 {
-			r.printBytes(comma)
-		}
-		if p.Name != "" {
-			r.printBytes(quote)
-			r.printBytes(unsafebytes.StringToBytes(p.Name))
-			r.printBytes(quote)
-		} else {
-			r.printBytes(unsafebytes.StringToBytes(strconv.Itoa(p.Idx)))
-		}
-	}
-	r.printBytes(rBrack)
-}
-
-func (r *Resolvable) printDeferDelimeter() {
-	r.printBytes(literalNewLine)
-}
-
 func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *FetchTreeNode, out io.Writer) error {
 	r.out = out
 	r.enableRender = false
@@ -269,10 +248,6 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 
 	r.printBytes(rBrace)
 
-	if r.deferMode {
-		r.printDeferDelimeter()
-	}
-
 	return r.printErr
 }
 
@@ -288,6 +263,7 @@ func (r *Resolvable) ResolveDefer(rootData *Object, out io.Writer, hasNext bool)
 	r.enableRender = false
 	r.deferMode = true
 	r.enableDeferRender = false
+	r.incrementalItemWritten = false
 
 	_ = r.walkObject(rootData, r.data)
 	if r.authorizationError != nil {
@@ -324,9 +300,69 @@ func (r *Resolvable) ResolveDefer(rootData *Object, out io.Writer, hasNext bool)
 
 	r.printBytes(rBrace)
 
-	r.printDeferDelimeter()
-
 	return r.printErr
+}
+
+func (r *Resolvable) renderPath() {
+	r.printBytes(lBrack)
+	for i, p := range r.path {
+		if i > 0 {
+			r.printBytes(comma)
+		}
+		if p.Name != "" {
+			r.printBytes(quote)
+			r.printBytes(unsafebytes.StringToBytes(p.Name))
+			r.printBytes(quote)
+		} else {
+			r.printBytes(unsafebytes.StringToBytes(strconv.Itoa(p.Idx)))
+		}
+	}
+	r.printBytes(rBrack)
+}
+
+func (r *Resolvable) printHasNext(hasNext bool) {
+	if r.printErr != nil {
+		return
+	}
+	r.printBytes(comma)
+	r.printBytes(quote)
+	r.printBytes(literalHasNext)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	if hasNext {
+		r.printBytes(literalTrue)
+	} else {
+		r.printBytes(literalFalse)
+	}
+}
+
+func (r *Resolvable) printDeferEnvelopeOpen() {
+	if !r.render() {
+		return
+	}
+
+	// Render Incremental Item Envelope: {"data":{...},"path":[...]}
+	r.printBytes(lBrace)
+	r.printBytes(quote)
+	r.printBytes(literalData)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(lBrace)
+}
+
+func (r *Resolvable) printDeferEnvelopeClose() {
+	if !r.render() {
+		return
+	}
+
+	r.printBytes(rBrace)
+	r.printBytes(comma)
+	r.printBytes(quote)
+	r.printBytes(literalPath)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.renderPath()
+	r.printBytes(rBrace)
 }
 
 // ensureErrorsInitialized is used to lazily init r.errors if needed
@@ -728,126 +764,175 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 	if r.render() && !isRoot {
 		r.printBytes(lBrace)
 	}
-	addComma := false
 
 	r.typeNames = append(r.typeNames, typeName)
 	defer func() {
 		r.typeNames = r.typeNames[:len(r.typeNames)-1]
 	}()
 
-	// In Defer Seeking Mode, we first identify and render all matching fields for the current DeferID as a single incremental item.
-	if r.deferMode && !r.enableDeferRender {
-		var (
-			deferFieldIndices []int
-		)
+	if r.deferMode {
+		deferFields, seekFiels := r.collectDeferFields(obj)
 
-		for k := range obj.Fields {
-			if obj.Fields[k].Defer == nil || obj.Fields[k].Defer.DeferID != r.deferID {
-				continue
-			}
+		if len(deferFields) > 0 {
+			startedRender := false
 
-			// Duplicate skip checks to ensure we only include valid fields
-			if obj.Fields[k].ParentOnTypeNames != nil {
-				if r.skipFieldOnParentTypeNames(obj.Fields[k]) {
-					continue
-				}
-			}
-			if obj.Fields[k].OnTypeNames != nil {
-				if r.skipFieldOnTypeNames(obj.Fields[k]) {
-					continue
-				}
-			}
+			if !r.enableDeferRender {
+				r.enableDeferRender = true
+				startedRender = true
 
-			deferFieldIndices = append(deferFieldIndices, k)
-		}
-
-		if len(deferFieldIndices) > 0 && r.enableRender {
-			if r.incrementalItemWritten {
-				r.printBytes(comma)
-			}
-
-			// Render Incremental Item Envelope: {"data":{...},"path":[...]}
-			r.printBytes(lBrace)
-
-			r.printBytes(quote)
-			r.printBytes(literalData)
-			r.printBytes(quote)
-			r.printBytes(colon)
-			r.printBytes(lBrace)
-
-			for k, fieldIdx := range deferFieldIndices {
-				if k > 0 {
+				if r.enableRender && r.incrementalItemWritten {
 					r.printBytes(comma)
 				}
 
-				r.enableDeferRender = true
-				r.printBytes(quote)
-				r.printBytes(obj.Fields[fieldIdx].Name)
-				r.printBytes(quote)
-				r.printBytes(colon)
-
-				r.currentFieldInfo = obj.Fields[fieldIdx].Info
-				_ = r.walkNode(obj.Fields[fieldIdx].Value, value)
-				r.enableDeferRender = false
+				if r.deferID != "" {
+					r.printDeferEnvelopeOpen()
+				}
 			}
 
-			r.printBytes(rBrace)
+			// render initial batch of fields
+			if r.walkFields(obj, value, parent, walkFieldsFilter{deferFields: deferFields, seek: false, enabled: true}) {
+				return true
+			}
 
-			r.printBytes(comma)
-			r.printBytes(quote)
-			r.printBytes(literalPath)
-			r.printBytes(quote)
-			r.printBytes(colon)
-			r.renderPath()
+			if startedRender {
+				if r.deferID != "" {
+					r.printDeferEnvelopeClose()
+					r.incrementalItemWritten = true
+				}
+				r.enableDeferRender = false
+			}
+		}
 
-			r.printBytes(rBrace)
+		if r.deferID != "" && len(seekFiels) > 0 {
+			// seek for additional nested defer fields
+			if r.walkFields(obj, value, parent, walkFieldsFilter{seekFields: seekFiels, seek: true, enabled: true}) {
+				return true
+			}
+		}
 
-			r.wroteData = true
-			r.incrementalItemWritten = true
+	} else {
+		if r.walkFields(obj, value, parent, walkFieldsFilter{}) {
+			return true
 		}
 	}
 
+	if r.render() && !isRoot {
+		r.printBytes(rBrace)
+	}
+	return false
+}
+
+func (r *Resolvable) collectDeferFields(obj *Object) (deferFields map[int]struct{}, seekFields map[int]struct{}) {
+	deferFields = make(map[int]struct{})
+	seekFields = make(map[int]struct{})
+
 	for i := range obj.Fields {
-		if obj.Fields[i].ParentOnTypeNames != nil {
-			if r.skipFieldOnParentTypeNames(obj.Fields[i]) {
-				continue
-			}
-		}
-		if obj.Fields[i].OnTypeNames != nil {
-			if r.skipFieldOnTypeNames(obj.Fields[i]) {
-				continue
-			}
-		}
-
-		// When NOT in defer mode (initial response), skip fields that are deferred.
-		// They will be handled by the deferred response.
-		// Also if in deferMode but deferID is empty, it means we are in the initial response of a deferred request.
-		if obj.Fields[i].Defer != nil {
-			if !r.deferMode || (r.deferMode && r.deferID == "") {
-				continue
-			}
-		}
-
-		if r.deferMode && !r.enableDeferRender {
-			// DEFER SEEKING MODE
-
-			// Check if this field matches the current defer ID
-			isMatch := obj.Fields[i].Defer != nil && obj.Fields[i].Defer.DeferID == r.deferID
-
-			if isMatch {
-				// Match found - already rendered in pre-scan
-				continue
-			}
-
-			// No match - recurse to find nested defers
-			// We only need to recurse if the node is an Object or Array, as Scalars cannot have nested defers.
-			// Recursing into Scalars would trigger "non-nullable field returned null" error in handleNodeNotRendered because we are not rendering them.
-			kind := obj.Fields[i].Value.NodeKind()
-			if kind == NodeKindObject || kind == NodeKindArray {
-				r.currentFieldInfo = obj.Fields[i].Info
-				_ = r.walkNode(obj.Fields[i].Value, value)
-			}
+		if r.shoulSkipObjectFieldByTypenames(obj.Fields[i]) {
 			continue
+		}
+
+		if r.deferID == "" {
+			// we are rendering the initial response
+
+			// skip all fields with defer
+			if obj.Fields[i].Defer != nil {
+				continue
+			}
+
+			// collect object fields without defer
+			deferFields[i] = struct{}{}
+		}
+
+		// we are rendering defer response
+
+		// collect fields without defer into seek fields
+		if obj.Fields[i].Defer == nil {
+			if !r.fieldNodeKindAllowsSeek(obj.Fields[i]) {
+				continue
+			}
+
+			seekFields[i] = struct{}{}
+			continue
+		}
+
+		// allow to seek fields with other defer ids
+		if obj.Fields[i].Defer.DeferID != r.deferID {
+			// but only if their id is smaller than current,
+			// which means this nodes already was fetched,
+			// as defers ordered by id
+
+			fieldDeferId, _ := strconv.Atoi(obj.Fields[i].Defer.DeferID)
+			currentDeferIDInt, _ := strconv.Atoi(r.deferID)
+
+			// TODO: it is a temporary solution,
+			// because defer could be parallel
+			if currentDeferIDInt < fieldDeferId {
+				continue
+			}
+
+			if !r.fieldNodeKindAllowsSeek(obj.Fields[i]) {
+				continue
+			}
+
+			seekFields[i] = struct{}{}
+			continue
+		}
+
+		// store fields with matching defer id
+		deferFields[i] = struct{}{}
+	}
+
+	return
+}
+
+func (r *Resolvable) fieldNodeKindAllowsSeek(field *Field) bool {
+	kind := field.Value.NodeKind()
+	if kind != NodeKindObject {
+		if kind != NodeKindArray {
+			// skip scalar fields
+			return false
+		}
+
+		// skip array if it's item do not have an object kind
+		if field.Value.(*Array).Item.NodeKind() != NodeKindObject {
+			// we could have a nested array,
+			// but we do not care for now
+			return false
+		}
+	}
+
+	return true
+}
+
+type walkFieldsFilter struct {
+	deferFields map[int]struct{}
+	seekFields  map[int]struct{}
+	seek        bool
+	enabled     bool
+}
+
+func (r *Resolvable) walkFields(obj *Object, value *astjson.Value, parent *astjson.Value, filter walkFieldsFilter) (hasErrors bool) {
+	addComma := false
+
+	for i := range obj.Fields {
+		if filter.enabled {
+			// if mode is seek
+			if filter.seek {
+				// skip all fields to which we should not go into
+				if _, ok := filter.seekFields[i]; !ok {
+					continue
+				}
+			} else {
+				// if mode is render
+				// skip all fields that we should not render
+				if _, ok := filter.deferFields[i]; !ok {
+					continue
+				}
+			}
+		} else {
+			if r.shoulSkipObjectFieldByTypenames(obj.Fields[i]) {
+				continue
+			}
 		}
 
 		if !r.render() {
@@ -861,17 +946,18 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 					if field != nil {
 						astjson.SetNull(value, path...)
 					}
+
+					continue
 				} else if obj.Nullable && len(obj.Path) > 0 {
 					// if the field value is not nullable, but the object is nullable
 					// we can just set the whole object to null
 					astjson.SetNull(parent, obj.Path...)
 					return false
-				} else {
-					// if the field value is not nullable and the object is not nullable
-					// we return true to indicate an error
-					return true
 				}
-				continue
+
+				// if the field value is not nullable and the object is not nullable
+				// we return true to indicate an error
+				return true
 			}
 		}
 		if r.render() {
@@ -896,9 +982,19 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 		}
 		addComma = true
 	}
-	if r.render() && !isRoot {
-		r.printBytes(rBrace)
+
+	return false
+}
+
+func (r *Resolvable) shoulSkipObjectFieldByTypenames(field *Field) bool {
+	if field.ParentOnTypeNames != nil && r.skipFieldOnParentTypeNames(field) {
+		return true
 	}
+
+	if field.OnTypeNames != nil && r.skipFieldOnTypeNames(field) {
+		return true
+	}
+
 	return false
 }
 

@@ -419,22 +419,6 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 	return resp, err
 }
 
-func (r *Resolvable) printHasNext(hasNext bool) {
-	if r.printErr != nil {
-		return
-	}
-	r.printBytes(comma)
-	r.printBytes(quote)
-	r.printBytes(literalHasNext)
-	r.printBytes(quote)
-	r.printBytes(colon)
-	if hasNext {
-		r.printBytes(literalTrue)
-	} else {
-		r.printBytes(literalFalse)
-	}
-}
-
 func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDeferResponse, writer DeferResponseWriter) (*GraphQLResolveInfo, error) {
 	resolveInfo := &GraphQLResolveInfo{}
 
@@ -462,7 +446,6 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 
 		t.resolvable.deferMode = true
 		t.resolvable.deferID = ""
-		t.resolvable.enableDeferRender = true
 
 		// render initial response
 		err = t.resolvable.Resolve(ctx.ctx, response.Response.Data, response.Response.Fetches, writer)

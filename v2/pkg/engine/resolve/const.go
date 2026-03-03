@@ -33,7 +33,6 @@ var (
 	literalAuthorization      = []byte("authorization")
 	literalIncremental        = []byte("incremental")
 	literalHasNext            = []byte("hasNext")
-	literalNewLine            = []byte("\n")
 
 	emptyArray  = []byte("[]")
 	emptyObject = []byte("{}")
