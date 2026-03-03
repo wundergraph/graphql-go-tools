@@ -60,12 +60,15 @@ type CacheWriteEvent struct {
 
 // FetchTimingEvent records the duration of a subgraph fetch or cache lookup.
 type FetchTimingEvent struct {
-	DataSource    string      // subgraph name
-	EntityType    string      // entity type (empty for root fetches)
-	DurationMs    int64       // time spent on this operation in milliseconds
-	Source        FieldSource // what handled this: Subgraph (fetch), L2 (cache GET)
-	ItemCount     int         // number of entities in this fetch/lookup
-	IsEntityFetch bool        // true for _entities, false for root field
+	DataSource     string      // subgraph name
+	EntityType     string      // entity type (empty for root fetches)
+	DurationMs     int64       // time spent on this operation in milliseconds
+	Source         FieldSource // what handled this: Subgraph (fetch), L2 (cache GET)
+	ItemCount      int         // number of entities in this fetch/lookup
+	IsEntityFetch  bool        // true for _entities, false for root field
+	HTTPStatusCode int         // HTTP status code from subgraph response (0 for cache hits)
+	ResponseBytes  int         // response body size in bytes (0 for cache hits)
+	TTFBMs         int64       // time to first byte in milliseconds (0 when unavailable)
 }
 
 // SubgraphErrorEvent records a subgraph error for analytics.
@@ -822,6 +825,69 @@ func (s *CacheAnalyticsSnapshot) ShadowFreshnessRateByEntityType() map[string]fl
 		result[typeName] = float64(c.fresh) / float64(c.total)
 	}
 	return result
+}
+
+// SubgraphRequestMetrics holds per-subgraph aggregate metrics for a single request.
+// Designed for export to external SLO systems (e.g., schema registry).
+type SubgraphRequestMetrics struct {
+	SubgraphName       string
+	RequestCount       int   // number of fetches to this subgraph
+	ErrorCount         int   // number of errors from this subgraph
+	TotalDurationMs    int64 // sum of fetch durations
+	MaxDurationMs      int64 // max single-fetch duration
+	TotalResponseBytes int64 // sum of response body sizes
+}
+
+// SubgraphMetrics returns per-subgraph aggregate metrics for this request.
+// Only considers actual subgraph fetches (not cache hits).
+// Returns nil if there are no subgraph fetches or errors.
+func (s *CacheAnalyticsSnapshot) SubgraphMetrics() []SubgraphRequestMetrics {
+	// Collect metrics by subgraph name, preserving insertion order
+	type entry struct {
+		metrics SubgraphRequestMetrics
+		index   int
+	}
+	byName := make(map[string]*entry)
+	var order []string
+
+	for _, ft := range s.FetchTimings {
+		if ft.Source != FieldSourceSubgraph {
+			continue
+		}
+		e, ok := byName[ft.DataSource]
+		if !ok {
+			e = &entry{metrics: SubgraphRequestMetrics{SubgraphName: ft.DataSource}, index: len(order)}
+			byName[ft.DataSource] = e
+			order = append(order, ft.DataSource)
+		}
+		e.metrics.RequestCount++
+		e.metrics.TotalDurationMs += ft.DurationMs
+		if ft.DurationMs > e.metrics.MaxDurationMs {
+			e.metrics.MaxDurationMs = ft.DurationMs
+		}
+		e.metrics.TotalResponseBytes += int64(ft.ResponseBytes)
+	}
+
+	for _, ev := range s.ErrorEvents {
+		e, ok := byName[ev.DataSource]
+		if !ok {
+			e = &entry{metrics: SubgraphRequestMetrics{SubgraphName: ev.DataSource}, index: len(order)}
+			byName[ev.DataSource] = e
+			order = append(order, ev.DataSource)
+		}
+		e.metrics.ErrorCount++
+	}
+
+	if len(order) == 0 {
+		return nil
+	}
+
+	results := make([]SubgraphRequestMetrics, len(order))
+	for _, name := range order {
+		e := byName[name]
+		results[e.index] = e.metrics
+	}
+	return results
 }
 
 // computeCacheAgeMs computes cache age in milliseconds from remaining TTL and original TTL.

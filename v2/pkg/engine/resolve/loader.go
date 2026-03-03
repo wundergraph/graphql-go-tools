@@ -2260,12 +2260,14 @@ func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, so
 			isEntityFetch = info.OperationType == ast.OperationTypeQuery && (entityType != "Query" && entityType != "Mutation" && entityType != "Subscription")
 		}
 		res.l2FetchTimings = append(res.l2FetchTimings, FetchTimingEvent{
-			DataSource:    res.ds.Name,
-			EntityType:    entityType,
-			DurationMs:    time.Since(fetchStart).Milliseconds(),
-			Source:        FieldSourceSubgraph,
-			ItemCount:     1,
-			IsEntityFetch: isEntityFetch,
+			DataSource:     res.ds.Name,
+			EntityType:     entityType,
+			DurationMs:     time.Since(fetchStart).Milliseconds(),
+			Source:         FieldSourceSubgraph,
+			ItemCount:      1,
+			IsEntityFetch:  isEntityFetch,
+			HTTPStatusCode: res.statusCode,
+			ResponseBytes:  len(res.out),
 		})
 	}
 
