@@ -1,5 +1,3 @@
-//go:build !race
-
 package engine_test
 
 import (
@@ -21,8 +19,6 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting"
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/gateway"
-	products "github.com/wundergraph/graphql-go-tools/execution/federationtesting/products/graph"
-	reviewsgraph "github.com/wundergraph/graphql-go-tools/execution/federationtesting/reviews/graph"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
@@ -102,17 +98,16 @@ func TestFederationIntegrationTestWithArt(t *testing.T) {
 	})
 }
 
-// This tests produces data races in the generated gql code. Disable it when the race
-// detector is enabled.
 func TestFederationIntegrationTest(t *testing.T) {
-	// Reset reviews to clean state — mutations in this and other test functions may have added reviews.
-	reviewsgraph.ResetReviews()
-	t.Cleanup(reviewsgraph.ResetReviews)
+	t.Parallel()
+
+	// Shared setup for all read-only tests (minimizes open ports)
+	setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
+	t.Cleanup(setup.Close)
+	gqlClient := NewGraphqlClient(http.DefaultClient)
 
 	t.Run("single upstream query operation", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
-		t.Cleanup(setup.Close)
-		gqlClient := NewGraphqlClient(http.DefaultClient)
+		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/single_upstream.query"), nil, t)
@@ -120,22 +115,22 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("query spans multiple federated servers", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
-		t.Cleanup(setup.Close)
-		gqlClient := NewGraphqlClient(http.DefaultClient)
+		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/multiple_upstream.query"), nil, t)
 		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","author":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","author":{"username":"Me"}}]}]}}`, string(resp))
 	})
 
+	// Mutation test needs its own setup because AddReview modifies the reviews resolver state
 	t.Run("mutation operation with variables", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
-		t.Cleanup(setup.Close)
-		gqlClient := NewGraphqlClient(http.DefaultClient)
+		t.Parallel()
+		mutSetup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
+		t.Cleanup(mutSetup.Close)
+		mutClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
-		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("mutations/mutation_with_variables.query"), queryVariables{
+		resp := mutClient.Query(ctx, mutSetup.GatewayServer.URL, testQueryPath("mutations/mutation_with_variables.query"), queryVariables{
 			"authorID": "3210",
 			"upc":      "top-1",
 			"review":   "This is the last straw. Hat you will wear. 11/10",
@@ -144,9 +139,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("union query", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
-		t.Cleanup(setup.Close)
-		gqlClient := NewGraphqlClient(http.DefaultClient)
+		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/union.query"), nil, t)
@@ -154,9 +147,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("interface query", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
-		t.Cleanup(setup.Close)
-		gqlClient := NewGraphqlClient(http.DefaultClient)
+		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/interface.query"), nil, t)
@@ -164,16 +155,11 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("subscription query through WebSocket transport", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
-		t.Cleanup(setup.Close)
-		gqlClient := NewGraphqlClient(http.DefaultClient)
+		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
-		// Reset the products slice to the original state
-		defer products.Reset()
 
 		wsAddr := strings.ReplaceAll(setup.GatewayServer.URL, "http://", "ws://")
-		// fmt.Println("setup.GatewayServer.URL", wsAddr)
 		messages := gqlClient.Subscription(ctx, wsAddr, testQueryPath("subscriptions/subscription.query"), queryVariables{
 			"upc": "top-1",
 		}, t)
@@ -183,9 +169,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Multiple queries and nested fragments", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
-		t.Cleanup(setup.Close)
-		gqlClient := NewGraphqlClient(http.DefaultClient)
+		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/multiple_queries_with_nested_fragments.query"), nil, t)
@@ -233,9 +217,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Multiple queries with __typename", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
-		t.Cleanup(setup.Close)
-		gqlClient := NewGraphqlClient(http.DefaultClient)
+		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/multiple_queries.query"), nil, t)
@@ -265,9 +247,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Query that returns union", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
-		t.Cleanup(setup.Close)
-		gqlClient := NewGraphqlClient(http.DefaultClient)
+		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/multiple_queries_with_union_return.query"), nil, t)
@@ -344,9 +324,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Object response type with interface and object fragment", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
-		t.Cleanup(setup.Close)
-		gqlClient := NewGraphqlClient(http.DefaultClient)
+		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/interface_fragment_on_object.graphql"), nil, t)
@@ -363,9 +341,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Interface response type with object fragment", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
-		t.Cleanup(setup.Close)
-		gqlClient := NewGraphqlClient(http.DefaultClient)
+		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/object_fragment_on_interface.graphql"), nil, t)
@@ -383,9 +359,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("recursive fragment", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
-		t.Cleanup(setup.Close)
-		gqlClient := NewGraphqlClient(http.DefaultClient)
+		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.QueryStatusCode(ctx, setup.GatewayServer.URL, testQueryPath("queries/recursive_fragment.graphql"), nil, http.StatusInternalServerError, t)
@@ -393,9 +367,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("empty fragment", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
-		t.Cleanup(setup.Close)
-		gqlClient := NewGraphqlClient(http.DefaultClient)
+		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.QueryStatusCode(ctx, setup.GatewayServer.URL, testQueryPath("queries/empty_fragment.graphql"), nil, http.StatusInternalServerError, t)
@@ -403,9 +375,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("empty fragment variant", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
-		t.Cleanup(setup.Close)
-		gqlClient := NewGraphqlClient(http.DefaultClient)
+		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.QueryStatusCode(ctx, setup.GatewayServer.URL, testQueryPath("queries/empty_fragment_variant.graphql"), nil, http.StatusInternalServerError, t)
@@ -413,9 +383,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Union response type with interface fragments", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
-		t.Cleanup(setup.Close)
-		gqlClient := NewGraphqlClient(http.DefaultClient)
+		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/interface_fragments_on_union.graphql"), nil, t)
@@ -457,10 +425,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	// Duplicated properties (and therefore invalid JSON) are usually removed during normalization processes.
 	// It is not yet decided whether this should be addressed before these normalization processes.
 	t.Run("Complex nesting", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
-		defer setup.Close()
-
-		gqlClient := NewGraphqlClient(http.DefaultClient)
+		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/complex_nesting.graphql"), nil, t)
@@ -469,10 +434,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("More complex nesting", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
-		defer setup.Close()
-
-		gqlClient := NewGraphqlClient(http.DefaultClient)
+		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/more_complex_nesting.graphql"), nil, t)
@@ -481,10 +443,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Multiple nested interfaces", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
-		defer setup.Close()
-
-		gqlClient := NewGraphqlClient(http.DefaultClient)
+		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/titlename.graphql"), nil, t)
@@ -493,10 +452,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Multiple nested unions", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
-		defer setup.Close()
-
-		gqlClient := NewGraphqlClient(http.DefaultClient)
+		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/cd.graphql"), nil, t)
@@ -505,10 +461,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("More complex nesting typename variant", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
-		defer setup.Close()
-
-		gqlClient := NewGraphqlClient(http.DefaultClient)
+		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/more_complex_nesting_typename_variant.graphql"), nil, t)
@@ -517,10 +470,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Abstract object", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
-		defer setup.Close()
-
-		gqlClient := NewGraphqlClient(http.DefaultClient)
+		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/abstract_object.graphql"), nil, t)
@@ -529,10 +479,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Abstract object non shared", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
-		defer setup.Close()
-
-		gqlClient := NewGraphqlClient(http.DefaultClient)
+		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/abstract_object_non_shared.graphql"), nil, t)
@@ -541,10 +488,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Abstract object nested", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
-		defer setup.Close()
-
-		gqlClient := NewGraphqlClient(http.DefaultClient)
+		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/abstract_object_nested.graphql"), nil, t)
@@ -553,10 +497,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Abstract object nested reverse", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
-		defer setup.Close()
-
-		gqlClient := NewGraphqlClient(http.DefaultClient)
+		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/abstract_object_nested_reverse.graphql"), nil, t)
@@ -565,10 +506,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Abstract object mixed", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
-		defer setup.Close()
-
-		gqlClient := NewGraphqlClient(http.DefaultClient)
+		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/abstract_object_mixed.graphql"), nil, t)
@@ -577,10 +515,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Abstract interface field", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
-		defer setup.Close()
-
-		gqlClient := NewGraphqlClient(http.DefaultClient)
+		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/ab.graphql"), nil, t)
@@ -589,9 +524,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Merged fields are still resolved", func(t *testing.T) {
-		setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
-		t.Cleanup(setup.Close)
-		gqlClient := NewGraphqlClient(http.DefaultClient)
+		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/merged_field.graphql"), nil, t)

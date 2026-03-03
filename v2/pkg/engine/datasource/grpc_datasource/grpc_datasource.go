@@ -11,11 +11,13 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/tidwall/gjson"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/go-arena"
@@ -41,7 +43,6 @@ var _ resolve.DataSource = (*DataSource)(nil)
 // transforms the responses back to GraphQL format.
 type DataSource struct {
 	plan              *RPCExecutionPlan
-	graph             *DependencyGraph
 	cc                grpc.ClientConnInterface
 	rc                *RPCCompiler
 	mapping           *GRPCMapping
@@ -78,7 +79,6 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 
 	return &DataSource{
 		plan:              plan,
-		graph:             NewDependencyGraph(plan),
 		cc:                client,
 		rc:                config.Compiler,
 		mapping:           config.Mapping,
@@ -91,6 +91,8 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 // Load implements resolve.DataSource interface.
 // It processes the input JSON data to make gRPC calls and returns
 // the response data.
+//
+// Headers are converted to gRPC metadata and part of gRPC calls.
 //
 // The input is expected to contain the necessary information to make
 // a gRPC call, including service name, method name, and request data.
@@ -113,10 +115,25 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 		return builder.writeErrorBytes(fmt.Errorf("gRPC datasource needs to be enabled to be used")), nil
 	}
 
+	// convert headers to grpc metadata and attach to ctx
+	if len(headers) > 0 {
+		// assume that each header has exactly one value for default pairs size
+		pairs := make([]string, 0, len(headers)*2)
+		for headerName, headerValues := range headers {
+			headerName = strings.ToLower(headerName)
+			for _, v := range headerValues {
+				pairs = append(pairs, headerName, v)
+			}
+		}
+		ctx = metadata.AppendToOutgoingContext(ctx, pairs...)
+	}
+
+	graph := NewDependencyGraph(d.plan)
+
 	root := astjson.ObjectValue(nil)
 
-	if err := d.graph.TopologicalSortResolve(func(nodes []FetchItem) error {
-		serviceCalls, err := d.rc.CompileFetches(d.graph, nodes, variables)
+	if err := graph.TopologicalSortResolve(func(nodes []FetchItem) error {
+		serviceCalls, err := d.rc.CompileFetches(graph, nodes, variables)
 		if err != nil {
 			return err
 		}

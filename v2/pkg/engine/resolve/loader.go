@@ -37,9 +37,12 @@ const (
 )
 
 type LoaderHooks interface {
-	// OnLoad is called before the fetch is executed
+	// OnLoad is called before a fetch is executed.
+	// The returned context is passed to OnFinished after the fetch completes.
+	// OnLoad is not called when the fetch is skipped (e.g. null parent data, auth rejection).
 	OnLoad(ctx context.Context, ds DataSourceInfo) context.Context
-	// OnFinished is called after the fetch has been executed and the response has been processed and merged
+	// OnFinished is called after a fetch has been executed and the response has been processed and merged.
+	// It is only called when OnLoad was called, i.e. when the fetch was not skipped.
 	OnFinished(ctx context.Context, ds DataSourceInfo, info *ResponseInfo)
 }
 
@@ -120,8 +123,9 @@ type result struct {
 	rateLimitRejected       bool
 	rateLimitRejectedReason string
 
-	// loaderHookContext used to share data between the OnLoad and OnFinished hooks
-	// It should be valid even when OnLoad isn't called
+	// loaderHookContext is set by OnLoad during fetch execution.
+	// It is nil when the fetch was skipped (e.g. null parent data, auth rejection),
+	// in which case OnFinished must not be called.
 	loaderHookContext context.Context
 
 	httpResponseContext *httpclient.ResponseContext
@@ -175,6 +179,17 @@ type shadowCacheEntry struct {
 	remainingTTL time.Duration  // remaining TTL from L2 CacheEntry (0 = unknown)
 }
 
+func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInfo) {
+	r.postProcessing = postProcessing
+	if info != nil {
+		r.ds = DataSourceInfo{
+			ID:   info.DataSourceID,
+			Name: info.DataSourceName,
+		}
+		r.fetchInfo = info
+	}
+}
+
 func (l *Loader) createOrInitResult(res *result, postProcessing PostProcessingConfiguration, info *FetchInfo) *result {
 	if res == nil {
 		res = &result{}
@@ -223,14 +238,15 @@ type Loader struct {
 
 	taintedObjs taintedObjects
 
-	// jsonArena is the arena to allocation json, supplied by the Resolver
-	// Disclaimer: this arena is NOT thread safe!
-	// Only use from main goroutine
-	// Don't Reset or Release, the Resolver handles this
-	// Disclaimer: When parsing json into the arena, the underlying bytes must also be allocated on the arena!
-	// This is very important to "tie" their lifecycles together
-	// If you're not doing this, you will see segfaults
-	// Example of correct usage in func "mergeResult"
+	// jsonArena is the arena for JSON allocation, supplied by the Resolver.
+	// Not thread safe — only use from the main goroutine.
+	// Don't Reset or Release; the Resolver handles this.
+	//
+	// IMPORTANT: All astjson *Value nodes returned by ParseWithArena,
+	// ParseBytesWithArena, StringValue, etc. live on this arena.
+	// Never store heap-allocated *Value into an arena-owned container —
+	// the GC cannot trace pointers inside arena (noscan) memory, so
+	// a heap *Value could be collected while still referenced.
 	jsonArena arena.Arena
 
 	// singleFlight is the SubgraphRequestSingleFlight object shared across all client requests.
@@ -380,20 +396,14 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 		if results[i].nestedMergeItems != nil {
 			for j := range results[i].nestedMergeItems {
 				err = l.mergeResult(nodes[i].Item, results[i].nestedMergeItems[j], itemsItems[i][j:j+1])
-				if l.ctx.LoaderHooks != nil && results[i].nestedMergeItems[j].loaderHookContext != nil {
-					l.ctx.LoaderHooks.OnFinished(results[i].nestedMergeItems[j].loaderHookContext,
-						results[i].nestedMergeItems[j].ds,
-						newResponseInfo(results[i].nestedMergeItems[j], l.ctx.subgraphErrors))
-				}
+				l.callOnFinished(results[i].nestedMergeItems[j])
 				if err != nil {
 					return errors.WithStack(err)
 				}
 			}
 		} else {
 			err = l.mergeResult(nodes[i].Item, results[i], itemsItems[i])
-			if l.ctx.LoaderHooks != nil {
-				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].ds, newResponseInfo(results[i], l.ctx.subgraphErrors))
-			}
+			l.callOnFinished(results[i])
 			if err != nil {
 				return errors.WithStack(err)
 			}
@@ -432,9 +442,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 			}
 		}
 		err = l.mergeResult(item, res, items)
-		if l.ctx.LoaderHooks != nil {
-			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.subgraphErrors))
-		}
+		l.callOnFinished(res)
 		return err
 	case *BatchEntityFetch:
 		res := l.createOrInitResult(nil, f.PostProcessing, f.Info)
@@ -450,9 +458,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 			}
 		}
 		err = l.mergeResult(item, res, items)
-		if l.ctx.LoaderHooks != nil {
-			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.subgraphErrors))
-		}
+		l.callOnFinished(res)
 		return err
 	case *EntityFetch:
 		res := l.createOrInitResult(nil, f.PostProcessing, f.Info)
@@ -467,12 +473,16 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 			}
 		}
 		err = l.mergeResult(item, res, items)
-		if l.ctx.LoaderHooks != nil {
-			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.subgraphErrors))
-		}
+		l.callOnFinished(res)
 		return err
 	default:
 		return nil
+	}
+}
+
+func (l *Loader) callOnFinished(res *result) {
+	if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
+		l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.subgraphErrors))
 	}
 }
 
@@ -602,6 +612,18 @@ func (l *Loader) loadFetchL2Only(ctx context.Context, fetch Fetch, fetchItem *Fe
 	return nil
 }
 
+func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, fetchItem *FetchItem, items []*astjson.Value, res *result) error {
+	switch f := fetch.(type) {
+	case *SingleFetch:
+		return l.loadSingleFetch(ctx, f, fetchItem, items, res)
+	case *EntityFetch:
+		return l.loadEntityFetch(ctx, fetchItem, f, items, res)
+	case *BatchEntityFetch:
+		return l.loadBatchEntityFetch(ctx, fetchItem, f, items, res)
+	}
+	return nil
+}
+
 type ErrMergeResult struct {
 	Subgraph string
 	Reason   error
@@ -660,12 +682,9 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	if len(res.out) == 0 {
 		return l.renderErrorsFailedToFetch(fetchItem, res, emptyGraphQLResponse)
 	}
-	// before parsing bytes with an arena.Arena, it's important to first allocate the bytes ON the same arena.Arena
-	// this ties their lifecycles together
-	// if you don't do this, you'll get segfaults
-	slice := arena.AllocateSlice[byte](l.jsonArena, len(res.out), len(res.out))
-	copy(slice, res.out)
-	response, err := astjson.ParseBytesWithArena(l.jsonArena, slice)
+	// astjson.ParseBytesWithArena copies bytes onto the arena internally,
+	// tying the byte lifecycle to the arena and preventing GC-related segfaults.
+	response, err := astjson.ParseBytesWithArena(l.jsonArena, res.out)
 	if err != nil {
 		// Fall back to status code if parsing fails and non-2XX
 		if (res.statusCode > 0 && res.statusCode < 200) || res.statusCode >= 300 {
@@ -898,7 +917,7 @@ func (l *Loader) setSkipErrors(res *result, items []*astjson.Value) {
 	copy(skipErrorsPath, res.postProcessing.MergePath)
 	skipErrorsPath[len(skipErrorsPath)-1] = "__skipErrors"
 	for _, item := range items {
-		astjson.SetValue(item, trueValue, skipErrorsPath...)
+		astjson.SetValue(l.jsonArena, item, trueValue, skipErrorsPath...)
 	}
 }
 
@@ -992,7 +1011,7 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 		// downside: we have to verify it's initialized before appending to it
 		l.resolvable.ensureErrorsInitialized()
 		// If the error propagation mode is pass-through, we append the errors to the root array
-		l.resolvable.errors.AppendArrayItems(value)
+		l.resolvable.errors.AppendArrayItems(l.jsonArena, value)
 		return nil
 	}
 
@@ -1011,7 +1030,7 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 
 	if l.propagateSubgraphErrors {
 		// Attach all errors to the root array in the "errors" extension field
-		astjson.SetValue(errorObject, value, "extensions", "errors")
+		astjson.SetValue(l.jsonArena, errorObject, value, "extensions", "errors")
 	}
 
 	v := []*astjson.Value{errorObject}
@@ -1031,7 +1050,7 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 	// don't change this, it's measurable
 	// downside: we have to verify it's initialized before appending to it
 	l.resolvable.ensureErrorsInitialized()
-	astjson.AppendToArray(l.resolvable.errors, errorObject)
+	astjson.AppendToArray(l.jsonArena, l.resolvable.errors, errorObject)
 
 	return nil
 }
@@ -1046,20 +1065,23 @@ func (l *Loader) optionallyAllowCustomExtensionProperties(values []*astjson.Valu
 			if extensions.Type() != astjson.TypeObject {
 				continue
 			}
-			extObj := extensions.GetObject()
-
-			extObj.Visit(func(k []byte, v *astjson.Value) {
-				kb := unsafebytes.BytesToString(k)
-				if _, ok := l.allowedErrorExtensionFields[kb]; !ok {
-					extensions.Del(kb)
-				}
-			})
-
-			// If there are no more properties, we remove the extensions object
-			if len(l.allowedErrorExtensionFields) == 0 || extObj.Len() == 0 {
+			if len(l.allowedErrorExtensionFields) == 0 {
 				value.Del("extensions")
 				continue
 			}
+
+			newExt := astjson.ObjectValue(l.jsonArena)
+			extensions.GetObject().Visit(func(key []byte, v *astjson.Value) {
+				if _, ok := l.allowedErrorExtensionFields[unsafebytes.BytesToString(key)]; ok {
+					newExt.Set(l.jsonArena, string(key), v)
+				}
+			})
+
+			if newExt.GetObject().Len() == 0 {
+				value.Del("extensions")
+				continue
+			}
+			value.Set(l.jsonArena, "extensions", newExt)
 		}
 	}
 }
@@ -1123,9 +1145,7 @@ func (l *Loader) optionallyOmitErrorExtensions(values []*astjson.Value) {
 		return
 	}
 	for _, value := range values {
-		if value.Exists("extensions") {
-			value.Del("extensions")
-		}
+		value.Del("extensions")
 	}
 }
 
@@ -1218,7 +1238,7 @@ func rewriteErrorPaths(a arena.Arena, fetchItem *FetchItem, values []*astjson.Va
 			}
 			arr := astjson.ArrayValue(a)
 			for j := range pathPrefix {
-				astjson.AppendToArray(arr, astjson.StringValue(a, pathPrefix[j]))
+				astjson.AppendToArray(a, arr, astjson.StringValue(a, pathPrefix[j]))
 			}
 			for j := i + 1; j < len(pathItems); j++ {
 				// If the item after _entities is an index (number), we should ignore it.
@@ -1227,7 +1247,7 @@ func rewriteErrorPaths(a arena.Arena, fetchItem *FetchItem, values []*astjson.Va
 				}
 				switch pathItems[j].Type() {
 				case astjson.TypeString, astjson.TypeNumber:
-					astjson.AppendToArray(arr, pathItems[j])
+					astjson.AppendToArray(a, arr, pathItems[j])
 				}
 			}
 			value.Set(a, "path", arr)
@@ -1306,7 +1326,7 @@ func (l *Loader) addApolloRouterCompatibilityError(res *result) error {
 	// don't change this, it's measurable
 	// downside: we have to verify it's initialized before appending to it
 	l.resolvable.ensureErrorsInitialized()
-	astjson.AppendToArray(l.resolvable.errors, apolloRouterStatusError)
+	astjson.AppendToArray(l.jsonArena, l.resolvable.errors, apolloRouterStatusError)
 
 	return nil
 }
@@ -1323,7 +1343,7 @@ func (l *Loader) renderErrorsFailedDeps(fetchItem *FetchItem, res *result) error
 	// don't change this, it's measurable
 	// downside: we have to verify it's initialized before appending to it
 	l.resolvable.ensureErrorsInitialized()
-	astjson.AppendToArray(l.resolvable.errors, errorObject)
+	astjson.AppendToArray(l.jsonArena, l.resolvable.errors, errorObject)
 	return nil
 }
 
@@ -1349,7 +1369,7 @@ func (l *Loader) renderErrorsFailedToFetch(fetchItem *FetchItem, res *result, re
 	// don't change this, it's measurable
 	// downside: we have to verify it's initialized before appending to it
 	l.resolvable.ensureErrorsInitialized()
-	astjson.AppendToArray(l.resolvable.errors, errorObject)
+	astjson.AppendToArray(l.jsonArena, l.resolvable.errors, errorObject)
 	return nil
 }
 
@@ -1395,7 +1415,7 @@ func (l *Loader) renderErrorsStatusFallback(fetchItem *FetchItem, res *result, s
 	// don't change this, it's measurable
 	// downside: we have to verify it's initialized before appending to it
 	l.resolvable.ensureErrorsInitialized()
-	astjson.AppendToArray(l.resolvable.errors, errorObject)
+	astjson.AppendToArray(l.jsonArena, l.resolvable.errors, errorObject)
 	return nil
 }
 
@@ -1430,13 +1450,13 @@ func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *re
 				if err != nil {
 					continue
 				}
-				astjson.AppendToArray(l.resolvable.errors, errorObject)
+				astjson.AppendToArray(l.jsonArena, l.resolvable.errors, errorObject)
 			} else {
 				errorObject, err := astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"message":"Unauthorized Subgraph request%s, Reason: %s.",%s}`, pathPart, reason, extensionErrorCode))
 				if err != nil {
 					continue
 				}
-				astjson.AppendToArray(l.resolvable.errors, errorObject)
+				astjson.AppendToArray(l.jsonArena, l.resolvable.errors, errorObject)
 			}
 		}
 	} else {
@@ -1446,13 +1466,13 @@ func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *re
 				if err != nil {
 					continue
 				}
-				astjson.AppendToArray(l.resolvable.errors, errorObject)
+				astjson.AppendToArray(l.jsonArena, l.resolvable.errors, errorObject)
 			} else {
 				errorObject, err := astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s'%s, Reason: %s.",%s}`, res.ds.Name, pathPart, reason, extensionErrorCode))
 				if err != nil {
 					continue
 				}
-				astjson.AppendToArray(l.resolvable.errors, errorObject)
+				astjson.AppendToArray(l.jsonArena, l.resolvable.errors, errorObject)
 			}
 		}
 	}
@@ -1505,7 +1525,7 @@ func (l *Loader) renderRateLimitRejectedErrors(fetchItem *FetchItem, res *result
 	// don't change this, it's measurable
 	// downside: we have to verify it's initialized before appending to it
 	l.resolvable.ensureErrorsInitialized()
-	astjson.AppendToArray(l.resolvable.errors, errorObject)
+	astjson.AppendToArray(l.jsonArena, l.resolvable.errors, errorObject)
 	return nil
 }
 
@@ -1574,6 +1594,7 @@ func (l *Loader) validatePreFetch(input []byte, info *FetchInfo, res *result) (a
 }
 
 func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, fetchItem *FetchItem, items []*astjson.Value, res *result) error {
+	res.init(fetch.PostProcessing, fetch.Info)
 	buf := bytes.NewBuffer(nil)
 	inputData := l.itemsData(items)
 	if l.ctx.TracingOptions.Enable {
@@ -1613,6 +1634,7 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, fetchI
 }
 
 func (l *Loader) loadEntityFetch(ctx context.Context, fetchItem *FetchItem, fetch *EntityFetch, items []*astjson.Value, res *result) error {
+	res.init(fetch.PostProcessing, fetch.Info)
 	input := l.itemsData(items)
 	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
@@ -1733,6 +1755,7 @@ var (
 )
 
 func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetchItem *FetchItem, fetch *BatchEntityFetch, items []*astjson.Value, res *result) error {
+	res.init(fetch.PostProcessing, fetch.Info)
 	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
 		if !l.ctx.TracingOptions.ExcludeRawInputData && len(items) != 0 {
@@ -2015,6 +2038,21 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 		}
 
 		res.out = item.response
+		// Populate the ResponseContext that was injected by executeSourceLoad.
+		// This is the same pointer that executeSourceLoad reads when it assigns
+		// res.statusCode and res.httpResponseContext, so the follower's result
+		// fields will be set correctly even though no HTTP call was made.
+		if rc := httpclient.GetResponseContext(ctx); rc != nil {
+			rc.StatusCode = item.statusCode
+			if item.responseHeaders != nil {
+				// Minimal synthetic http.Response carrying only status and headers.
+				// Clone headers so each concurrent follower gets an independent copy.
+				rc.Response = &http.Response{
+					StatusCode: item.statusCode,
+					Header:     item.responseHeaders.Clone(),
+				}
+			}
+		}
 		return nil
 	}
 
@@ -2031,6 +2069,14 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 	}
 
 	item.response = res.out
+	// Capture the leader's HTTP response metadata so followers can reuse it.
+	// The ResponseContext was populated by the HTTP client during loadByContextDirect.
+	if rc := httpclient.GetResponseContext(ctx); rc != nil {
+		item.statusCode = rc.StatusCode
+		if rc.Response != nil && rc.Response.Header != nil {
+			item.responseHeaders = rc.Response.Header.Clone()
+		}
+	}
 	return nil
 }
 

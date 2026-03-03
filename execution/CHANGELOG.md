@@ -1,5 +1,45 @@
 # Changelog
 
+## [1.9.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.8.1...execution/v1.9.0) (2026-02-20)
+
+
+### Features
+
+* compute dynamic (actual) cost ([#1376](https://github.com/wundergraph/graphql-go-tools/issues/1376)) ([d6dc786](https://github.com/wundergraph/graphql-go-tools/commit/d6dc786c0505e396b9fab3adbee0c11693b1a123))
+
+## [1.8.1](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.8.0...execution/v1.8.1) (2026-02-19)
+
+
+### Bug Fixes
+
+* **resolve:** fix flaky singleflight deduplication tests ([#1393](https://github.com/wundergraph/graphql-go-tools/issues/1393)) ([4105082](https://github.com/wundergraph/graphql-go-tools/commit/41050822e677ec4f1e04b4541f078a976ffbee15))
+* **resolve:** guard OnFinished against nil loaderHookContext on skipped fetches ([#1394](https://github.com/wundergraph/graphql-go-tools/issues/1394)) ([f79d071](https://github.com/wundergraph/graphql-go-tools/commit/f79d07105440ee2f59242dff7e81e909b550a9d6))
+
+## [1.8.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.7.0...execution/v1.8.0) (2026-02-16)
+
+
+### Features
+
+* add flag for relaxed nullability checks on same shape ([#1378](https://github.com/wundergraph/graphql-go-tools/issues/1378)) ([6be2e74](https://github.com/wundergraph/graphql-go-tools/commit/6be2e74036a027f44adaff7f6bfbdbce1d1fb03b))
+
+
+### Bug Fixes
+
+* enable parallel execution for federation integration tests ([#1385](https://github.com/wundergraph/graphql-go-tools/issues/1385)) ([09d9348](https://github.com/wundergraph/graphql-go-tools/commit/09d934802ed1549881123c2e805159ec81981c37))
+
+## [1.7.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.6.0...execution/v1.7.0) (2026-02-06)
+
+
+### Features
+
+* compute static costs ([#1359](https://github.com/wundergraph/graphql-go-tools/issues/1359)) ([004f68e](https://github.com/wundergraph/graphql-go-tools/commit/004f68e2253c9f2ae9d20aa4488041c7551c84d7))
+* improve memory management & request deduplication ([#1336](https://github.com/wundergraph/graphql-go-tools/issues/1336)) ([938d1a9](https://github.com/wundergraph/graphql-go-tools/commit/938d1a9e13ef066fb514eb149e9aa44b886030c5))
+
+
+### Bug Fixes
+
+* add ability to exclude introspection queries from complexity limits ([#1342](https://github.com/wundergraph/graphql-go-tools/issues/1342)) ([19c8693](https://github.com/wundergraph/graphql-go-tools/commit/19c86930482956b2d5f96f2feae6d015d1052ef4))
+
 ## [1.6.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.5.0...execution/v1.6.0) (2025-10-21)
 
 

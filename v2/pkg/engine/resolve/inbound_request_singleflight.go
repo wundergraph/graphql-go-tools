@@ -3,6 +3,7 @@ package resolve
 import (
 	"encoding/binary"
 	"sync"
+	"sync/atomic"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
@@ -38,11 +39,23 @@ func NewRequestSingleFlight(shardCount int) *InboundRequestSingleFlight {
 type InflightRequest struct {
 	Done chan struct{}
 	Data []byte
-	Err  error
-	ID   uint64
+	// SharedData carries opaque state from the leader to followers (e.g. accumulated
+	// response headers). Set by the leader via Context.GetDeduplicationData, read by
+	// followers via Context.SetDeduplicationData. Typed as "any" because the resolve
+	// package is data-agnostic — the caller decides the concrete type.
+	SharedData any
+	Err        error
+	ID         uint64
 
-	HasFollowers bool
-	Mu           sync.Mutex
+	followerCount atomic.Int32
+}
+
+func (r *InflightRequest) AddFollower() {
+	r.followerCount.Add(1)
+}
+
+func (r *InflightRequest) HasFollowers() bool {
+	return r.followerCount.Load() > 0
 }
 
 // GetOrCreate creates a new InflightRequest or returns an existing (shared) one
@@ -85,9 +98,7 @@ func (r *InboundRequestSingleFlight) GetOrCreate(ctx *Context, response *GraphQL
 	inflight, shared := shard.m.LoadOrStore(key, request)
 	if shared {
 		request = inflight.(*InflightRequest)
-		request.Mu.Lock()
-		request.HasFollowers = true
-		request.Mu.Unlock()
+		request.AddFollower()
 		select {
 		case <-request.Done:
 			if request.Err != nil {
@@ -95,8 +106,7 @@ func (r *InboundRequestSingleFlight) GetOrCreate(ctx *Context, response *GraphQL
 			}
 			return request, nil
 		case <-ctx.ctx.Done():
-			request.Err = ctx.ctx.Err()
-			return nil, request.Err
+			return nil, ctx.ctx.Err()
 		}
 	}
 
@@ -109,10 +119,7 @@ func (r *InboundRequestSingleFlight) FinishOk(req *InflightRequest, data []byte)
 	}
 	shard := r.shardFor(req.ID)
 	shard.m.Delete(req.ID)
-	req.Mu.Lock()
-	hasFollowers := req.HasFollowers
-	req.Mu.Unlock()
-	if hasFollowers {
+	if req.HasFollowers() {
 		// optimization to only copy when we actually have to
 		req.Data = make([]byte, len(data))
 		copy(req.Data, data)

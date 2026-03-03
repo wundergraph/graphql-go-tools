@@ -202,6 +202,7 @@ func TestEntityLookup(t *testing.T) {
 						},
 					},
 					{
+						ID:          1,
 						ServiceName: "Products",
 						MethodName:  "LookupStorageById",
 						Kind:        CallKindEntity,
@@ -1078,6 +1079,7 @@ func TestEntityLookupWithFieldResolvers(t *testing.T) {
 						},
 					},
 					{
+						ID:             1,
 						ServiceName:    "Products",
 						MethodName:     "ResolveProductShippingEstimate",
 						Kind:           CallKindResolve,
@@ -1254,6 +1256,7 @@ func TestEntityLookupWithFieldResolvers(t *testing.T) {
 						},
 					},
 					{
+						ID:          1,
 						ServiceName: "Products",
 						MethodName:  "LookupProductById",
 						Kind:        CallKindEntity,
@@ -1318,6 +1321,7 @@ func TestEntityLookupWithFieldResolvers(t *testing.T) {
 						},
 					},
 					{
+						ID:             2,
 						ServiceName:    "Products",
 						MethodName:     "ResolveProductShippingEstimate",
 						Kind:           CallKindResolve,
@@ -1525,6 +1529,7 @@ func TestEntityLookupWithFieldResolvers_WithCompositeTypes(t *testing.T) {
 						},
 					},
 					{
+						ID:             1,
 						ServiceName:    "Products",
 						MethodName:     "ResolveProductMascotRecommendation",
 						Kind:           CallKindResolve,
@@ -1702,6 +1707,7 @@ func TestEntityLookupWithFieldResolvers_WithCompositeTypes(t *testing.T) {
 						},
 					},
 					{
+						ID:             1,
 						ServiceName:    "Products",
 						MethodName:     "ResolveProductStockStatus",
 						Kind:           CallKindResolve,
@@ -1889,6 +1895,7 @@ func TestEntityLookupWithFieldResolvers_WithCompositeTypes(t *testing.T) {
 						},
 					},
 					{
+						ID:             1,
 						ServiceName:    "Products",
 						MethodName:     "ResolveProductProductDetails",
 						Kind:           CallKindResolve,

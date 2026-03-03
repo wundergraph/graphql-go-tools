@@ -38,10 +38,10 @@ func NewDependencyGraph(executionPlan *RPCExecutionPlan) *DependencyGraph {
 
 	// Initialize the graph with the calls in the execution plan.
 	// We create a FetchItem for each call and store the dependent call references.
-	for index, call := range executionPlan.Calls {
-		graph.nodes[index] = call.DependentCalls
-		graph.fetches[index] = FetchItem{
-			ID:               index,
+	for _, call := range executionPlan.Calls {
+		graph.nodes[call.ID] = call.DependentCalls
+		graph.fetches[call.ID] = FetchItem{
+			ID:               call.ID,
 			Plan:             &call,
 			ServiceCall:      nil,
 			DependentFetches: call.DependentCalls,

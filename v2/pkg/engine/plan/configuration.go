@@ -51,6 +51,19 @@ type Configuration struct {
 	DisableEntityCaching bool
 	// DisableFetchProvidesData disables planning of meta information about which fields are provided by a fetch
 	DisableFetchProvidesData bool
+
+	// ComputeCosts enables static cost computation for operations.
+	ComputeCosts bool
+
+	// When the list size is unknown from directives, this value is used as a default for static cost.
+	StaticCostDefaultListSize int
+
+	// RelaxSubgraphOperationFieldSelectionMergingNullability relaxes the nullability validation
+	// for field selection merging in upstream (subgraph) operations when enclosing types are
+	// non-overlapping concrete object types. This is a deliberate spec deviation.
+	// When true, factories that support it will allow differing nullability
+	// (e.g. String! vs String) on fields in non-overlapping inline fragments.
+	RelaxSubgraphOperationFieldSelectionMergingNullability bool
 }
 
 type DebugConfiguration struct {

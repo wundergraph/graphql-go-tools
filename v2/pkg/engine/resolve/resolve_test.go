@@ -149,6 +149,41 @@ func (w *blockingWriter) String() string {
 	return w.buf.String()
 }
 
+// findAnyInflight iterates through all singleflight shards and returns
+// the first inflight request found. Used in tests to poll followerCount.
+func findAnyInflight(r *Resolver) *InflightRequest {
+	for i := range r.inboundRequestSingleFlight.shards {
+		var found *InflightRequest
+		r.inboundRequestSingleFlight.shards[i].m.Range(func(_, value any) bool {
+			found = value.(*InflightRequest)
+			return false
+		})
+		if found != nil {
+			return found
+		}
+	}
+	return nil
+}
+
+// waitForFollowerCount polls until the inflight request has at least count followers registered.
+func waitForFollowerCount(t *testing.T, r *Resolver, count int32) {
+	t.Helper()
+	deadline := time.After(3 * time.Second)
+	for {
+		inflight := findAnyInflight(r)
+		if inflight != nil && inflight.followerCount.Load() >= count {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatal("timeout waiting for followers to enter singleflight")
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}
+
+
 type TestErrorWriter struct {
 }
 
@@ -892,6 +927,91 @@ func TestResolver_ResolveNode(t *testing.T) {
 			}, *NewContext(context.Background()),
 			`{"data":{"pets":[{"name":"Woofie"},{}]}}`
 	}))
+	t.Run("resolve fields with differing nullability on non-overlapping types", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
+		// This test verifies that the resolver correctly handles fields where the same field name
+		// has different nullability on non-overlapping concrete types (e.g. User.email: String! vs Organization.email: String).
+		// A User object should resolve email as non-null, and an Organization object should resolve email as nullable.
+		return &GraphQLResponse{
+				Fetches: Single(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"entity":{"__typename":"User","email":"user@example.com"}}`)},
+				}),
+				Data: &Object{
+					Fields: []*Field{
+						{
+							Name: []byte("entity"),
+							Value: &Object{
+								Path: []string{"entity"},
+								PossibleTypes: map[string]struct{}{
+									"User":         {},
+									"Organization": {},
+								},
+								TypeName: "Entity",
+								Fields: []*Field{
+									{
+										OnTypeNames: [][]byte{[]byte("User")},
+										Name:        []byte("email"),
+										Value: &String{
+											Path: []string{"email"},
+										},
+									},
+									{
+										OnTypeNames: [][]byte{[]byte("Organization")},
+										Name:        []byte("email"),
+										Value: &String{
+											Path:     []string{"email"},
+											Nullable: true,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, *NewContext(context.Background()),
+			`{"data":{"entity":{"email":"user@example.com"}}}`
+	}))
+	t.Run("resolve fields with differing nullability on non-overlapping types - nullable variant", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
+		// Same scenario but the runtime object is Organization (nullable email) with a null email value
+		return &GraphQLResponse{
+				Fetches: Single(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"entity":{"__typename":"Organization","email":null}}`)},
+				}),
+				Data: &Object{
+					Fields: []*Field{
+						{
+							Name: []byte("entity"),
+							Value: &Object{
+								Path: []string{"entity"},
+								PossibleTypes: map[string]struct{}{
+									"User":         {},
+									"Organization": {},
+								},
+								TypeName: "Entity",
+								Fields: []*Field{
+									{
+										OnTypeNames: [][]byte{[]byte("User")},
+										Name:        []byte("email"),
+										Value: &String{
+											Path: []string{"email"},
+										},
+									},
+									{
+										OnTypeNames: [][]byte{[]byte("Organization")},
+										Name:        []byte("email"),
+										Value: &String{
+											Path:     []string{"email"},
+											Nullable: true,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, *NewContext(context.Background()),
+			`{"data":{"entity":{"email":null}}}`
+	}))
+
 	t.Run("with unescape json enabled", func(t *testing.T) {
 		t.Run("json object within a string", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 			return &GraphQLResponse{
@@ -1502,6 +1622,32 @@ func testFnSubgraphErrorsPassthroughAndOmitCustomFields(fn func(t *testing.T, ct
 		assert.NoError(t, err)
 		assert.Equal(t, expectedOutput, buf.String())
 		ctrl.Finish()
+	}
+}
+
+// testFnWithPostEvaluationAndOptions is like testFnWithPostEvaluation but allows
+// configuring arbitrary ResolverOptions, enabling tests that need specific settings
+// such as AllowedErrorExtensionFields.
+func testFnWithPostEvaluationAndOptions(opts ResolverOptions, fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T))) func(t *testing.T) {
+	return func(t *testing.T) {
+		t.Helper()
+
+		ctrl := gomock.NewController(t)
+		rCtx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		r := New(rCtx, opts)
+		node, ctx, expectedOutput, postEvaluation := fn(t, ctrl)
+
+		if t.Skipped() {
+			return
+		}
+
+		buf := &bytes.Buffer{}
+		_, err := r.ResolveGraphQLResponse(ctx, node, nil, buf)
+		assert.NoError(t, err)
+		assert.Equal(t, expectedOutput, buf.String())
+		ctrl.Finish()
+		postEvaluation(t)
 	}
 }
 
@@ -4609,30 +4755,20 @@ func TestResolver_ArenaResolveGraphQLResponse_RequestDeduplication(t *testing.T)
 		t.Fatalf("timeout waiting for leader data source load")
 	}
 
-	startFollowers := make(chan struct{})
-	followersEntered := make(chan struct{}, requestCount-1)
-
 	for i := 1; i < requestCount; i++ {
 		go func(i int) {
 			defer wg.Done()
 			ctx := ctxTemplate
-			<-startFollowers
-			followersEntered <- struct{}{}
 			buf := &bytes.Buffer{}
 			info, err := r.ArenaResolveGraphQLResponse(&ctx, response, buf)
 			results[i] = result{info: info, output: buf.String(), err: err}
 		}(i)
 	}
 
-	close(startFollowers)
-
-	for i := 1; i < requestCount; i++ {
-		select {
-		case <-followersEntered:
-		case <-time.After(time.Second):
-			t.Fatalf("timeout waiting for follower %d to start", i)
-		}
-	}
+	// Wait until all followers have entered the singleflight (called LoadOrStore)
+	// before releasing the data source. This guarantees they join the leader's
+	// inflight request rather than creating their own.
+	waitForFollowerCount(t, r, int32(requestCount-1))
 
 	ds.Release()
 
@@ -4658,6 +4794,139 @@ func TestResolver_ArenaResolveGraphQLResponse_RequestDeduplication(t *testing.T)
 	for i := 1; i < requestCount; i++ {
 		assert.True(t, results[i].info.ResolveDeduplicated)
 		assert.Equal(t, expectedOutput, results[i].output)
+	}
+}
+
+func TestResolver_ArenaResolveGraphQLResponse_RequestDeduplication_SharedData(t *testing.T) {
+	rCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	r := newResolver(rCtx)
+
+	ds := newBlockingDataSource([]byte(`{"value":"slow"}`))
+	defer ds.Release()
+
+	response := &GraphQLResponse{
+		Info: &GraphQLResponseInfo{
+			OperationType: ast.OperationTypeQuery,
+		},
+		Fetches: Single(&SingleFetch{
+			FetchConfiguration: FetchConfiguration{
+				DataSource: ds,
+			},
+		}),
+		Data: &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("value"),
+					Value: &String{
+						Path:     []string{"value"},
+						Nullable: false,
+					},
+				},
+			},
+		},
+	}
+
+	type sharedHeaders struct {
+		CacheControl string
+	}
+
+	// Tracks which contexts received shared data
+	var followerData sync.Map
+
+	ctxTemplateBase := NewContext(context.Background())
+	ctxTemplateBase.Request.ID = 42
+	ctxTemplateBase.VariablesHash = 1337
+
+	const requestCount = 3
+
+	type result struct {
+		info   *GraphQLResolveInfo
+		output string
+		err    error
+	}
+
+	results := make([]result, requestCount)
+
+	var wg sync.WaitGroup
+	wg.Add(requestCount)
+
+	leaderWriter := newBlockingWriter()
+
+	go func() {
+		defer wg.Done()
+		ctx := *ctxTemplateBase
+		SetDeduplicationCallbacks(&ctx,
+			func(ctx context.Context) *sharedHeaders {
+				return &sharedHeaders{CacheControl: "max-age=120"}
+			},
+			func(ctx context.Context, data *sharedHeaders) {
+				followerData.Store("leader", data)
+			},
+		)
+		info, err := r.ArenaResolveGraphQLResponse(&ctx, response, leaderWriter)
+		results[0] = result{info: info, output: leaderWriter.String(), err: err}
+	}()
+
+	select {
+	case <-ds.Ready():
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for leader data source load")
+	}
+
+	for i := 1; i < requestCount; i++ {
+		go func(i int) {
+			defer wg.Done()
+			ctx := *ctxTemplateBase
+			SetDeduplicationCallbacks(&ctx,
+				func(ctx context.Context) *sharedHeaders {
+					return &sharedHeaders{CacheControl: "max-age=120"}
+				},
+				func(ctx context.Context, data *sharedHeaders) {
+					followerData.Store(i, data)
+				},
+			)
+			buf := &bytes.Buffer{}
+			info, err := r.ArenaResolveGraphQLResponse(&ctx, response, buf)
+			results[i] = result{info: info, output: buf.String(), err: err}
+		}(i)
+	}
+
+	// Wait until all followers have entered the singleflight (called LoadOrStore)
+	// before releasing the data source. This guarantees they join the leader's
+	// inflight request rather than creating their own.
+	waitForFollowerCount(t, r, int32(requestCount-1))
+
+	ds.Release()
+
+	select {
+	case <-leaderWriter.Ready():
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for leader to start writing response")
+	}
+
+	leaderWriter.Release()
+	wg.Wait()
+
+	for _, res := range results {
+		require.NoError(t, res.err)
+		require.NotNil(t, res.info)
+	}
+
+	assert.False(t, results[0].info.ResolveDeduplicated)
+
+	// Leader should not have SetDeduplicationData called
+	_, leaderReceived := followerData.Load("leader")
+	assert.False(t, leaderReceived, "leader should not receive shared data via SetDeduplicationData")
+
+	// Each follower should have received the shared data
+	for i := 1; i < requestCount; i++ {
+		assert.True(t, results[i].info.ResolveDeduplicated)
+		data, ok := followerData.Load(i)
+		require.True(t, ok, "follower %d should have received shared data", i)
+		shared, ok := data.(*sharedHeaders)
+		require.True(t, ok, "shared data should be *sharedHeaders")
+		assert.Equal(t, "max-age=120", shared.CacheControl)
 	}
 }
 
@@ -6198,10 +6467,21 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
+		// sub2Ready gates the data source goroutine so that it doesn't start
+		// emitting before sub2 has been registered on the trigger. Without this,
+		// the emitting goroutine's first triggerUpdate can race sub2's
+		// addSubscription on the unbuffered events channel, causing sub2 to
+		// miss counter=0.
+		sub2Ready := make(chan struct{})
 		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 100
 		}, 1*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+			// Block the data source goroutine until sub2 is registered.
+			// onStart runs inside the goroutine that calls Start(), not the
+			// event loop, so blocking here is safe — the event loop remains
+			// free to process sub2's addSubscription event.
+			<-sub2Ready
 		}, func(ctx StartupHookContext, input []byte) (err error) {
 			return nil
 		})
@@ -6223,6 +6503,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		err2 := resolver1.AsyncResolveGraphQLSubscription(ctx2, plan1, recorder2, id2)
 		assert.NoError(t, err2)
+		close(sub2Ready)
 
 		// complete is called only on the last recorder
 		recorder1.AwaitComplete(t, defaultTimeout)

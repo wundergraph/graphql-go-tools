@@ -26,7 +26,7 @@ func (r *mutationResolver) AddReview(ctx context.Context, authorID string, upc s
 		Product: &model.Product{Upc: upc},
 	}
 
-	reviews = append(reviews, record)
+	r.reviews = append(r.reviews, record)
 
 	return record, nil
 }
@@ -35,7 +35,7 @@ func (r *mutationResolver) AddReview(ctx context.Context, authorID string, upc s
 func (r *productResolver) Reviews(ctx context.Context, obj *model.Product) ([]*model.Review, error) {
 	var res []*model.Review
 
-	for _, review := range reviews {
+	for _, review := range r.reviews {
 		if review.Product.Upc == obj.Upc {
 			res = append(res, review)
 		}
@@ -77,7 +77,7 @@ func (r *reviewResolver) AuthorWithoutProvides(ctx context.Context, obj *model.R
 func (r *reviewResolver) Attachments(ctx context.Context, obj *model.Review) ([]model.Attachment, error) {
 	var res []model.Attachment
 
-	for _, attachment := range attachments {
+	for _, attachment := range r.attachments {
 		switch v := attachment.(type) {
 		case model.Question:
 			if v.Upc == obj.Product.Upc {
@@ -110,7 +110,7 @@ func (r *reviewResolver) Comment(ctx context.Context, obj *model.Review) (model.
 func (r *userResolver) Reviews(ctx context.Context, obj *model.User) ([]*model.Review, error) {
 	var res []*model.Review
 
-	for _, review := range reviews {
+	for _, review := range r.reviews {
 		if review.Author.ID == obj.ID {
 			res = append(res, review)
 		}

@@ -13,12 +13,12 @@ import (
 
 // FindDigitalProductByUpc is the resolver for the findDigitalProductByUpc field.
 func (r *entityResolver) FindDigitalProductByUpc(ctx context.Context, upc string) (*model.DigitalProduct, error) {
-	return findDigitalProduct(upc), nil
+	return r.findDigitalProduct(upc), nil
 }
 
 // FindProductByUpc is the resolver for the findProductByUpc field.
 func (r *entityResolver) FindProductByUpc(ctx context.Context, upc string) (*model.Product, error) {
-	return findProduct(upc), nil
+	return r.findProduct(upc), nil
 }
 
 // Entity returns generated.EntityResolver implementation.

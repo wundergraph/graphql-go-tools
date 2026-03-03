@@ -1309,6 +1309,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				RootNode("Query", "iface").
 				RootNode("User", "id", "isUser").
 				RootNode("Admin", "id").
+				ChildNode("Node", "id", "name").
 				KeysMetadata(FederationFieldConfigurations{
 					{
 						TypeName:     "User",
@@ -1357,6 +1358,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				RootNode("Query", "iface").
 				RootNode("User", "id", "name").
 				RootNode("Admin", "id", "name").
+				ChildNode("Node", "id", "name").
 				KeysMetadata(FederationFieldConfigurations{
 					{
 						TypeName:     "User",
@@ -1443,6 +1445,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				RootNode("Query", "iface").
 				RootNode("User", "id", "name", "isUser").
 				RootNode("Admin", "id", "name").
+				ChildNode("Node", "id", "name").
 				KeysMetadata(FederationFieldConfigurations{
 					{
 						TypeName:     "User",
@@ -1480,6 +1483,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			upstreamDefinition: definition,
 			dsBuilder: dsb().
 				RootNode("Query", "iface").
+				ChildNode("Node", "id", "name").
 				ChildNode("User", "id", "name", "isUser").
 				ChildNode("Admin", "id", "name"),
 			operation: `
@@ -4069,6 +4073,75 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						... on User {
 							name
 							surname
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name: "field is an interface, which do not have all fields in this datasource",
+			definition: `
+				interface Named {
+					id: ID!
+					name: String!
+				}
+
+				type User implements Named {
+					id: ID!
+					name: String!
+					surname: String!
+				}
+		
+				type Admin implements Named {
+					id: ID!
+					name: String!
+					title: String!
+				}
+
+				type Query {
+					user: Named!
+				}`,
+			upstreamDefinition: `
+				interface Named {
+					id: ID!
+				}
+
+				type User implements Named {
+					id: ID!
+					name: String!
+					surname: String!
+				}
+		
+				type Admin implements Named {
+					id: ID!
+					name: String!
+					title: String!
+				}
+
+				type Query {
+					user: Named!
+				}`,
+			dsBuilder: dsb().
+				RootNode("Admin", "id", "name", "title").
+				RootNode("User", "id", "name", "surname").
+				ChildNode("Named", "id"),
+			fieldName: "user",
+			operation: `
+				query {
+					__typename
+					user {
+						name
+					}
+				}`,
+			expectedOperation: `
+				query {
+					__typename
+					user {
+						... on Admin {
+							name
+						}
+						... on User {
+							name
 						}
 					}
 				}`,

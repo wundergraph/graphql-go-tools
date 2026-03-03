@@ -643,13 +643,7 @@ func TestGraphQLDataSourceFederation_Mutations(t *testing.T) {
 				),
 			},
 			DisableResolveFieldPositions: true,
-			Debug:                        plan.DebugConfiguration{
-				// PrintOperationTransformations: true,
-				// PrintOperationEnableASTRefs:   true,
-				// PrintPlanningPaths:            true,
-				// PrintQueryPlans:               true,
-				// PrintNodeSuggestions:          true,
-			},
+			Debug:                        plan.DebugConfiguration{},
 		}
 
 		t.Run("with entity call", RunTest(
@@ -994,6 +988,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				address: Address
 				deliveryAddress: Address
 				secretAddress: Address
+				providedAddress: Address
 				shippingInfo: ShippingInfo
 			}
 			type Address {
@@ -1165,6 +1160,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				info: Info
 				shippingInfo: ShippingInfo
 				secretAddress: Address
+				providedAddress: Address @provides(fields: "line1 line2 line3(test:\"BOOM\") zip")
 			}
 
 			type Info {
@@ -1198,7 +1194,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					},
 					{
 						TypeName:   "Account",
-						FieldNames: []string{"id", "name", "info", "shippingInfo", "secretAddress"},
+						FieldNames: []string{"id", "name", "info", "shippingInfo", "secretAddress", "providedAddress"},
 					},
 					{
 						TypeName:   "Address",
@@ -1246,6 +1242,13 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							CacheName:                   "default",
 							TTL:                         30 * time.Second,
 							IncludeSubgraphHeaderPrefix: true,
+						},
+					},
+					Provides: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "Account",
+							FieldName:    "providedAddress",
+							SelectionSet: "zip line1 line2 line3(test:\"BOOM\")",
 						},
 					},
 				},
@@ -1344,7 +1347,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					Keys: plan.FederationFieldConfigurations{
 						{
 							TypeName:     "Address",
-							FieldName:    "",
 							SelectionSet: "id",
 						},
 					},
@@ -4595,7 +4597,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {oldAccount {deliveryAddress {line1} shippingInfo {zip} __typename id info {a b}}}}"}}`,
+										Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {oldAccount {deliveryAddress {line1}}}}"}}`,
 										DataSource:     &Source{},
 										PostProcessing: DefaultPostProcessingConfiguration,
 									},
@@ -4637,6 +4639,187 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																			Name: []byte("line1"),
 																			Value: &resolve.String{
 																				Path: []string{"line1"},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					}
+				}
+
+				RunWithPermutations(
+					t,
+					definition,
+					operation,
+					operationName,
+					expectedPlan(),
+					plan.Configuration{
+						Debug: plan.DebugConfiguration{},
+						DataSources: []plan.DataSource{
+							usersDatasourceConfiguration,
+							accountsDatasourceConfiguration,
+							addressesDatasourceConfiguration,
+							addressesEnricherDatasourceConfiguration,
+						},
+						DisableResolveFieldPositions: true,
+						Fields: plan.FieldConfigurations{
+							{
+								TypeName:  "Address",
+								FieldName: "line3",
+								Arguments: plan.ArgumentsConfigurations{
+									{
+										Name:       "test",
+										SourceType: plan.FieldArgumentSource,
+									},
+								},
+							},
+						},
+					},
+					WithDefaultPostProcessor(),
+				)
+			})
+
+			t.Run("nested selection set - but requirements are provided with entity query", func(t *testing.T) {
+				operation := `
+				query Requires {
+					user {
+						account {
+							providedAddress {
+								secretLine
+								fullAddress
+							}
+						}
+					}
+				}`
+
+				operationName := "Requires"
+
+				expectedPlan := func() *plan.SynchronousResponsePlan {
+					return &plan.SynchronousResponsePlan{
+						Response: &resolve.GraphQLResponse{
+							Fetches: resolve.Sequence(
+								resolve.Single(&resolve.SingleFetch{
+									FetchDependencies: resolve.FetchDependencies{
+										FetchID: 0,
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+									FetchConfiguration: resolve.FetchConfiguration{
+										Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}}}}"}}`,
+										DataSource:     &Source{},
+										PostProcessing: DefaultPostProcessingConfiguration,
+									},
+								}),
+								resolve.SingleWithPath(&resolve.SingleFetch{
+									FetchDependencies: resolve.FetchDependencies{
+										FetchID:           1,
+										DependsOnFetchIDs: []int{0},
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+									FetchConfiguration: resolve.FetchConfiguration{
+										Input:               `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {__typename providedAddress {secretLine fullAddress}}}}","variables":{"representations":[$$0$$]}}}`,
+										DataSource:          &Source{},
+										PostProcessing:      SingleEntityPostProcessingConfiguration,
+										RequiresEntityFetch: true,
+										Variables: []resolve.Variable{
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
+															},
+															OnTypeNames: [][]byte{[]byte("Account")},
+														},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("Account")},
+														},
+														{
+															Name: []byte("info"),
+															Value: &resolve.Object{
+																Path:     []string{"info"},
+																Nullable: true,
+																Fields: []*resolve.Field{
+																	{
+																		Name: []byte("a"),
+																		Value: &resolve.Scalar{
+																			Path: []string{"a"},
+																		},
+																	},
+																	{
+																		Name: []byte("b"),
+																		Value: &resolve.Scalar{
+																			Path: []string{"b"},
+																		},
+																	},
+																},
+															},
+															OnTypeNames: [][]byte{[]byte("Account")},
+														},
+													},
+												}),
+											},
+										},
+										SetTemplateOutputToNullOnVariableNull: true,
+									},
+								}, "user.account", resolve.ObjectPath("user"), resolve.ObjectPath("account")),
+							),
+							Data: &resolve.Object{
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("user"),
+										Value: &resolve.Object{
+											Path:     []string{"user"},
+											Nullable: true,
+											PossibleTypes: map[string]struct{}{
+												"User": {},
+											},
+											TypeName: "User",
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("account"),
+													Value: &resolve.Object{
+														Path:     []string{"account"},
+														Nullable: true,
+														PossibleTypes: map[string]struct{}{
+															"Account": {},
+														},
+														TypeName: "Account",
+														Fields: []*resolve.Field{
+															{
+																Name: []byte("providedAddress"),
+																Value: &resolve.Object{
+																	Path:     []string{"providedAddress"},
+																	Nullable: true,
+																	PossibleTypes: map[string]struct{}{
+																		"Address": {},
+																	},
+																	TypeName: "Address",
+																	Fields: []*resolve.Field{
+																		{
+																			Name: []byte("secretLine"),
+																			Value: &resolve.String{
+																				Path: []string{"secretLine"},
+																			},
+																		},
+																		{
+																			Name: []byte("fullAddress"),
+																			Value: &resolve.String{
+																				Path: []string{"fullAddress"},
 																			},
 																		},
 																	},
@@ -18810,7 +18993,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 		})
 	})
 
-	t.Run("parent based selection when no child nodes selected", func(t *testing.T) {
+	t.Run("parent based selections", func(t *testing.T) {
 		t.Run("image should be selected based on parent not child selection", func(t *testing.T) {
 			definition := `
 				type User {
@@ -19164,6 +19347,1159 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					},
 					planConfiguration,
 					WithDefaultPostProcessor(),
+				)
+			})
+		})
+
+		t.Run("nested selections of shared nodes", func(t *testing.T) {
+			// When nested nodes are not unique, we could mistakenly select them based on a parent nodes selection from the first subgraph
+			// while the first subgraph can't provide any nested leafs fields requested in a query, it could select only it's parents
+			// Note: shareable directive are not added to the subgraphs schemas, while duplicated nodes are shared
+			// Note: Entity2 in subgraph 3 is not reachable, the only goal of that subgraph is to have shared nodes
+
+			definition := `
+				type Entity {
+					id: ID!
+					nested: NestedType1!
+				}
+
+				type NestedType1 {
+					nested: NestedType2!
+				}
+
+				type NestedType2 {
+					id: ID!
+					fieldOne: String!
+					fieldTwo: String!
+				}
+
+				type Query {
+					entity: Entity!
+				}
+			`
+
+			firstSubgraphSDL := `	
+				type Entity @key(fields: "id") {
+					id: ID!
+					nested: NestedType1!
+				}
+
+				type NestedType1 {
+					nested: NestedType2!
+				}
+
+				type NestedType2 {
+					id: ID!
+				}
+
+				type Query {
+					entity: Entity!
+				}
+			`
+
+			firstDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
+				"first-service",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"entity"},
+						},
+						{
+							TypeName:   "Entity",
+							FieldNames: []string{"id", "nested"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "NestedType1",
+							FieldNames: []string{"nested"},
+						},
+						{
+							TypeName:   "NestedType2",
+							FieldNames: []string{"id"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "Entity",
+								SelectionSet: "id",
+							},
+						},
+					},
+				},
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://first.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: firstSubgraphSDL,
+							},
+							firstSubgraphSDL,
+						),
+					},
+				),
+			)
+
+			secondSubgraphSDL := `	
+				type Entity @key(fields: "id") {
+					id: ID!
+					nested: NestedType1!
+				}
+
+				type NestedType1 {
+					nested: NestedType2!
+				}
+
+				type NestedType2 {
+					id: ID!
+					fieldOne: String!
+					fieldTwo: String!
+				}
+			`
+
+			secondDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
+				"second-service",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Entity",
+							FieldNames: []string{"id", "nested"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "NestedType1",
+							FieldNames: []string{"nested"},
+						},
+						{
+							TypeName:   "NestedType2",
+							FieldNames: []string{"id", "fieldOne", "fieldTwo"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "Entity",
+								SelectionSet: "id",
+							},
+						},
+					},
+				},
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://second.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: secondSubgraphSDL,
+							},
+							secondSubgraphSDL,
+						),
+					},
+				),
+			)
+
+			thirdSubgraphSDL := `	
+				type Entity2 @key(fields: "id") {
+					id: ID!
+					nested: NestedType1!
+				}
+
+				type NestedType1 {
+					nested: NestedType2!
+				}
+
+				type NestedType2 {
+					id: ID!
+					fieldOne: String!
+					fieldTwo: String!
+				}
+			`
+
+			thirdDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
+				"third-service",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Entity2",
+							FieldNames: []string{"id", "nested"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "NestedType1",
+							FieldNames: []string{"nested"},
+						},
+						{
+							TypeName:   "NestedType2",
+							FieldNames: []string{"id", "fieldOne", "fieldTwo"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "Entity2",
+								SelectionSet: "id",
+							},
+						},
+					},
+				},
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://third.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: thirdSubgraphSDL,
+							},
+							thirdSubgraphSDL,
+						),
+					},
+				),
+			)
+
+			planConfiguration := plan.Configuration{
+				DataSources: []plan.DataSource{
+					firstDatasourceConfiguration,
+					secondDatasourceConfiguration,
+					thirdDatasourceConfiguration,
+				},
+				DisableResolveFieldPositions: true,
+				Debug:                        plan.DebugConfiguration{},
+			}
+
+			t.Run("without possible nested selections on first datasource", func(t *testing.T) {
+				RunWithPermutations(
+					t,
+					definition,
+					`
+						query User {
+							entity {
+								nested {
+									nested {
+										fieldOne
+										fieldTwo
+									}
+								}
+							}
+						}`,
+					"User",
+					&plan.SynchronousResponsePlan{
+						Response: &resolve.GraphQLResponse{
+							Fetches: resolve.Sequence(
+								resolve.Single(&resolve.SingleFetch{
+									FetchConfiguration: resolve.FetchConfiguration{
+										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{entity {__typename id}}"}}`,
+										PostProcessing: DefaultPostProcessingConfiguration,
+										DataSource:     &Source{},
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								}),
+								resolve.SingleWithPath(&resolve.SingleFetch{
+									FetchDependencies: resolve.FetchDependencies{
+										FetchID:           1,
+										DependsOnFetchIDs: []int{0},
+									}, FetchConfiguration: resolve.FetchConfiguration{
+										RequiresEntityBatchFetch:              false,
+										RequiresEntityFetch:                   true,
+										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename nested {nested {fieldOne fieldTwo}}}}}","variables":{"representations":[$$0$$]}}}`,
+										DataSource:                            &Source{},
+										SetTemplateOutputToNullOnVariableNull: true,
+										Variables: []resolve.Variable{
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
+															},
+															OnTypeNames: [][]byte{[]byte("Entity")},
+														},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("Entity")},
+														},
+													},
+												}),
+											},
+										},
+										PostProcessing: SingleEntityPostProcessingConfiguration,
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								}, "entity", resolve.ObjectPath("entity")),
+							),
+							Data: &resolve.Object{
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("entity"),
+										Value: &resolve.Object{
+											Path:     []string{"entity"},
+											Nullable: false,
+											PossibleTypes: map[string]struct{}{
+												"Entity": {},
+											},
+											TypeName: "Entity",
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("nested"),
+													Value: &resolve.Object{
+														Path:     []string{"nested"},
+														Nullable: false,
+														PossibleTypes: map[string]struct{}{
+															"NestedType1": {},
+														},
+														TypeName: "NestedType1",
+														Fields: []*resolve.Field{
+															{
+																Name: []byte("nested"),
+																Value: &resolve.Object{
+																	Path: []string{"nested"},
+																	PossibleTypes: map[string]struct{}{
+																		"NestedType2": {},
+																	},
+																	TypeName: "NestedType2",
+																	Fields: []*resolve.Field{
+																		{
+																			Name: []byte("fieldOne"),
+																			Value: &resolve.String{
+																				Path: []string{"fieldOne"},
+																			},
+																		},
+																		{
+																			Name: []byte("fieldTwo"),
+																			Value: &resolve.String{
+																				Path: []string{"fieldTwo"},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					planConfiguration,
+					WithDefaultPostProcessor(),
+				)
+			})
+
+			t.Run("with possible nested selections on first datasource", func(t *testing.T) {
+				RunWithPermutations(
+					t,
+					definition,
+					`
+						query User {
+							entity {
+								nested {
+									nested {
+										id
+										fieldOne
+										fieldTwo
+									}
+								}
+							}
+						}`,
+					"User",
+					&plan.SynchronousResponsePlan{
+						Response: &resolve.GraphQLResponse{
+							Fetches: resolve.Sequence(
+								resolve.Single(&resolve.SingleFetch{
+									FetchConfiguration: resolve.FetchConfiguration{
+										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{entity {nested {nested {id}} __typename id}}"}}`,
+										PostProcessing: DefaultPostProcessingConfiguration,
+										DataSource:     &Source{},
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								}),
+								resolve.SingleWithPath(&resolve.SingleFetch{
+									FetchDependencies: resolve.FetchDependencies{
+										FetchID:           1,
+										DependsOnFetchIDs: []int{0},
+									}, FetchConfiguration: resolve.FetchConfiguration{
+										RequiresEntityBatchFetch:              false,
+										RequiresEntityFetch:                   true,
+										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename nested {nested {fieldOne fieldTwo}}}}}","variables":{"representations":[$$0$$]}}}`,
+										DataSource:                            &Source{},
+										SetTemplateOutputToNullOnVariableNull: true,
+										Variables: []resolve.Variable{
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
+															},
+															OnTypeNames: [][]byte{[]byte("Entity")},
+														},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("Entity")},
+														},
+													},
+												}),
+											},
+										},
+										PostProcessing: SingleEntityPostProcessingConfiguration,
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								}, "entity", resolve.ObjectPath("entity")),
+							),
+							Data: &resolve.Object{
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("entity"),
+										Value: &resolve.Object{
+											Path:     []string{"entity"},
+											Nullable: false,
+											PossibleTypes: map[string]struct{}{
+												"Entity": {},
+											},
+											TypeName: "Entity",
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("nested"),
+													Value: &resolve.Object{
+														Path:     []string{"nested"},
+														Nullable: false,
+														PossibleTypes: map[string]struct{}{
+															"NestedType1": {},
+														},
+														TypeName: "NestedType1",
+														Fields: []*resolve.Field{
+															{
+																Name: []byte("nested"),
+																Value: &resolve.Object{
+																	Path: []string{"nested"},
+																	PossibleTypes: map[string]struct{}{
+																		"NestedType2": {},
+																	},
+																	TypeName: "NestedType2",
+																	Fields: []*resolve.Field{
+																		{
+																			Name: []byte("id"),
+																			Value: &resolve.Scalar{
+																				Path: []string{"id"},
+																			},
+																		},
+																		{
+																			Name: []byte("fieldOne"),
+																			Value: &resolve.String{
+																				Path: []string{"fieldOne"},
+																			},
+																		},
+																		{
+																			Name: []byte("fieldTwo"),
+																			Value: &resolve.String{
+																				Path: []string{"fieldTwo"},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					planConfiguration,
+					WithDefaultPostProcessor(),
+				)
+			})
+		})
+	})
+
+	t.Run("jump over the parent entity", func(t *testing.T) {
+		t.Run("unselectable parent node", func(t *testing.T) {
+			definition := `
+				type NestedEntity implements Node {
+					id: ID!
+					nodeTitle: NodeTitle!
+				}
+
+				interface Node {
+					id: ID!
+					nodeTitle: NodeTitle!
+				}
+
+				interface NodeTitle {
+					title: TitleValue!
+				}
+
+				type Title1 implements NodeTitle {
+					title: TitleValue!
+				}
+
+				type Title2 implements NodeTitle {
+					title: TitleValue!
+				}
+
+				type Title3 implements NodeTitle {
+					title: TitleValue!
+				}
+
+
+				type TitleValue {
+					value: String!
+				}
+
+				type Entity {
+					id: ID!
+					nested: Node!
+				}
+
+				type Query {
+					entity: Entity!
+				}
+			`
+
+			firstSubgraphSDL := `	
+				type Entity @key(fields: "id") {
+					id: ID!
+				}
+
+				type Query {
+					entity: Entity!
+				}
+
+				interface NodeTitle {
+					title: TitleValue!
+				}
+
+				type Title1 implements NodeTitle {
+					title: TitleValue!
+				}
+
+				type Title2 {
+					title: TitleValue!
+				}
+			`
+
+			firstDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
+				"first-service",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"entity"},
+						},
+						{
+							TypeName:   "Entity",
+							FieldNames: []string{"id"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "NodeTitle",
+							FieldNames: []string{"title"},
+						},
+						{
+							TypeName:   "Title1",
+							FieldNames: []string{"title"},
+						},
+						{
+							TypeName:   "Title2",
+							FieldNames: []string{"title"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "Entity",
+								SelectionSet: "id",
+							},
+						},
+					},
+				},
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://first.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: firstSubgraphSDL,
+							},
+							firstSubgraphSDL,
+						),
+					},
+				),
+			)
+
+			secondSubgraphSDL := `	
+				type Entity @key(fields: "id") {
+					id: ID!
+					nested: Node!
+				}
+
+				type NestedEntity implements Node @key(fields: "id") {
+					id: ID!
+					nodeTitle: NodeTitle! @external
+				}
+
+				interface Node {
+					id: ID!
+					nodeTitle: NodeTitle!
+				}
+
+				interface NodeTitle {
+					title: TitleValue!
+				}
+
+				type Title1 {
+					title: TitleValue!
+				}
+
+				type Title2 implements NodeTitle {
+					title: TitleValue!
+				}
+
+				type TitleValue {
+					value: String!
+				}
+			`
+
+			secondDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
+				"second-service",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Entity",
+							FieldNames: []string{"id", "nested"},
+						},
+						{
+							TypeName:           "NestedEntity",
+							FieldNames:         []string{"id"},
+							ExternalFieldNames: []string{"nodeTitle"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Node",
+							FieldNames: []string{"id", "nodeTitle"},
+						},
+						{
+							TypeName:   "NodeTitle",
+							FieldNames: []string{"title"},
+						},
+						{
+							TypeName:   "Title1",
+							FieldNames: []string{"title"},
+						},
+						{
+							TypeName:   "Title2",
+							FieldNames: []string{"title"},
+						},
+						{
+							TypeName:   "TitleValue",
+							FieldNames: []string{"value"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "Entity",
+								SelectionSet: "id",
+							},
+							{
+								TypeName:     "NestedEntity",
+								SelectionSet: "id",
+							},
+						},
+					},
+				},
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://second.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: secondSubgraphSDL,
+							},
+							secondSubgraphSDL,
+						),
+					},
+				),
+			)
+
+			thirdSubgraphSDL := `	
+				type NestedEntity implements Node @key(fields: "id") {
+					id: ID!
+					nodeTitle: NodeTitle!
+				}
+
+				interface Node {
+					id: ID!
+					nodeTitle: NodeTitle!
+				}
+
+				interface NodeTitle {
+					title: TitleValue!
+				}
+
+				type Title3 implements NodeTitle {
+					title: TitleValue!
+				}
+
+				type TitleValue {
+					value: String!
+				}
+			`
+
+			thirdDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
+				"third-service",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "NestedEntity",
+							FieldNames: []string{"id", "nodeTitle"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Node",
+							FieldNames: []string{"id", "nodeTitle"},
+						},
+						{
+							TypeName:   "NodeTitle",
+							FieldNames: []string{"title"},
+						},
+						{
+							TypeName:   "Title3",
+							FieldNames: []string{"title"},
+						},
+						{
+							TypeName:   "TitleValue",
+							FieldNames: []string{"value"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "NestedEntity",
+								SelectionSet: "id",
+							},
+						},
+					},
+				},
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://third.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: thirdSubgraphSDL,
+							},
+							thirdSubgraphSDL,
+						),
+					},
+				),
+			)
+
+			planConfiguration := plan.Configuration{
+				DataSources: []plan.DataSource{
+					firstDatasourceConfiguration,
+					secondDatasourceConfiguration,
+					thirdDatasourceConfiguration,
+				},
+				DisableResolveFieldPositions: true,
+				Debug:                        plan.DebugConfiguration{},
+			}
+
+			t.Run("run", func(t *testing.T) {
+				RunWithPermutations(
+					t,
+					definition,
+					`
+						query User {
+							entity {
+								nested {
+									... on NestedEntity {
+										id
+										nodeTitle { # this node can't be selected from the second subgraph as it is external there
+											__typename
+											... on Title2 {
+												# we are adding fragment on Title2 to been able to trigger initial node suggestions confusion
+												# It won't be possible to get Title2 from the third subgraph as it is not implementing NodeTitle interface
+												# but as type itself is not external in second subgraph, on initial node selections before abstract selection rewrite we will try to select it
+												# but the only way to select it is through the parent entity, so wrong parent entity selection bug will be triggered
+												__typename
+												title {
+													__typename
+													value
+												}
+											}
+										}
+									}
+								}
+							}
+						}`,
+					"User",
+					&plan.SynchronousResponsePlan{
+						Response: &resolve.GraphQLResponse{
+							Fetches: resolve.Sequence(
+								resolve.Single(&resolve.SingleFetch{
+									FetchConfiguration: resolve.FetchConfiguration{
+										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{entity {__typename id}}"}}`,
+										PostProcessing: DefaultPostProcessingConfiguration,
+										DataSource:     &Source{},
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								}),
+								resolve.SingleWithPath(&resolve.SingleFetch{
+									FetchDependencies: resolve.FetchDependencies{
+										FetchID:           1,
+										DependsOnFetchIDs: []int{0},
+									}, FetchConfiguration: resolve.FetchConfiguration{
+										RequiresEntityBatchFetch:              false,
+										RequiresEntityFetch:                   true,
+										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename nested {__typename ... on NestedEntity {id __typename}}}}}","variables":{"representations":[$$0$$]}}}`,
+										DataSource:                            &Source{},
+										SetTemplateOutputToNullOnVariableNull: true,
+										Variables: []resolve.Variable{
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
+															},
+															OnTypeNames: [][]byte{[]byte("Entity")},
+														},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("Entity")},
+														},
+													},
+												}),
+											},
+										},
+										PostProcessing: SingleEntityPostProcessingConfiguration,
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								}, "entity", resolve.ObjectPath("entity")),
+								resolve.SingleWithPath(&resolve.SingleFetch{
+									FetchDependencies: resolve.FetchDependencies{
+										FetchID:           2,
+										DependsOnFetchIDs: []int{1},
+									}, FetchConfiguration: resolve.FetchConfiguration{
+										RequiresEntityBatchFetch:              false,
+										RequiresEntityFetch:                   true,
+										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on NestedEntity {__typename nodeTitle {__typename ... on Title3 {__typename}}}}}","variables":{"representations":[$$0$$]}}}`,
+										DataSource:                            &Source{},
+										SetTemplateOutputToNullOnVariableNull: true,
+										Variables: []resolve.Variable{
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
+															},
+															OnTypeNames: [][]byte{[]byte("NestedEntity")},
+														},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("NestedEntity")},
+														},
+													},
+												}),
+											},
+										},
+										PostProcessing: SingleEntityPostProcessingConfiguration,
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								}, "entity.nested", resolve.ObjectPath("entity"), resolve.ObjectPath("nested")),
+							),
+							Data: &resolve.Object{
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("entity"),
+										Value: &resolve.Object{
+											Path:     []string{"entity"},
+											Nullable: false,
+											PossibleTypes: map[string]struct{}{
+												"Entity": {},
+											},
+											TypeName: "Entity",
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("nested"),
+													Value: &resolve.Object{
+														Path:     []string{"nested"},
+														Nullable: false,
+														PossibleTypes: map[string]struct{}{
+															"NestedEntity": {},
+														},
+														TypeName: "Node",
+														Fields: []*resolve.Field{
+															{
+																Name:        []byte("id"),
+																OnTypeNames: [][]byte{[]byte("NestedEntity")},
+																Value: &resolve.Scalar{
+																	Path: []string{"id"},
+																},
+															},
+															{
+																Name:        []byte("nodeTitle"),
+																OnTypeNames: [][]byte{[]byte("NestedEntity")},
+																Value: &resolve.Object{
+																	Path: []string{"nodeTitle"},
+																	PossibleTypes: map[string]struct{}{
+																		"Title1": {},
+																		"Title2": {},
+																		"Title3": {},
+																	},
+																	TypeName: "NodeTitle",
+																	Fields: []*resolve.Field{
+																		{
+																			Name: []byte("__typename"),
+																			Value: &resolve.String{
+																				Path:       []string{"__typename"},
+																				IsTypeName: true,
+																			},
+																			OnTypeNames: [][]byte{[]byte("Title3")},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					planConfiguration,
+					WithDefaultPostProcessor(),
+				)
+			})
+
+			t.Run("empty return object", func(t *testing.T) {
+				RunWithPermutations(
+					t,
+					definition,
+					`
+						query User {
+							entity {
+								nested {
+									... on NestedEntity {
+										id
+										nodeTitle {
+											# __typename # without selectable field can't plan a query
+											... on Title2 {
+												__typename
+											}
+										}
+									}
+								}
+							}
+						}`,
+					"User",
+					&plan.SynchronousResponsePlan{
+						Response: &resolve.GraphQLResponse{
+							Fetches: resolve.Sequence(
+								resolve.Single(&resolve.SingleFetch{
+									FetchConfiguration: resolve.FetchConfiguration{
+										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{entity {__typename id}}"}}`,
+										PostProcessing: DefaultPostProcessingConfiguration,
+										DataSource:     &Source{},
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								}),
+								resolve.SingleWithPath(&resolve.SingleFetch{
+									FetchDependencies: resolve.FetchDependencies{
+										FetchID:           1,
+										DependsOnFetchIDs: []int{0},
+									}, FetchConfiguration: resolve.FetchConfiguration{
+										RequiresEntityBatchFetch:              false,
+										RequiresEntityFetch:                   true,
+										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename nested {__typename ... on NestedEntity {id __typename}}}}}","variables":{"representations":[$$0$$]}}}`,
+										DataSource:                            &Source{},
+										SetTemplateOutputToNullOnVariableNull: true,
+										Variables: []resolve.Variable{
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
+															},
+															OnTypeNames: [][]byte{[]byte("Entity")},
+														},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("Entity")},
+														},
+													},
+												}),
+											},
+										},
+										PostProcessing: SingleEntityPostProcessingConfiguration,
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								}, "entity", resolve.ObjectPath("entity")),
+								resolve.SingleWithPath(&resolve.SingleFetch{
+									FetchDependencies: resolve.FetchDependencies{
+										FetchID:           2,
+										DependsOnFetchIDs: []int{1},
+									}, FetchConfiguration: resolve.FetchConfiguration{
+										RequiresEntityBatchFetch:              false,
+										RequiresEntityFetch:                   true,
+										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on NestedEntity {__typename nodeTitle {__typename ... on Title3 {__typename}}}}}","variables":{"representations":[$$0$$]}}}`,
+										DataSource:                            &Source{},
+										SetTemplateOutputToNullOnVariableNull: true,
+										Variables: []resolve.Variable{
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
+															},
+															OnTypeNames: [][]byte{[]byte("NestedEntity")},
+														},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("NestedEntity")},
+														},
+													},
+												}),
+											},
+										},
+										PostProcessing: SingleEntityPostProcessingConfiguration,
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								}, "entity.nested", resolve.ObjectPath("entity"), resolve.ObjectPath("nested")),
+							),
+							Data: &resolve.Object{
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("entity"),
+										Value: &resolve.Object{
+											Path:     []string{"entity"},
+											Nullable: false,
+											PossibleTypes: map[string]struct{}{
+												"Entity": {},
+											},
+											TypeName: "Entity",
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("nested"),
+													Value: &resolve.Object{
+														Path:     []string{"nested"},
+														Nullable: false,
+														PossibleTypes: map[string]struct{}{
+															"NestedEntity": {},
+														},
+														TypeName: "Node",
+														Fields: []*resolve.Field{
+															{
+																Name:        []byte("id"),
+																OnTypeNames: [][]byte{[]byte("NestedEntity")},
+																Value: &resolve.Scalar{
+																	Path: []string{"id"},
+																},
+															},
+															{
+																Name:        []byte("nodeTitle"),
+																OnTypeNames: [][]byte{[]byte("NestedEntity")},
+																Value: &resolve.Object{
+																	Path: []string{"nodeTitle"},
+																	PossibleTypes: map[string]struct{}{
+																		"Title1": {},
+																		"Title2": {},
+																		"Title3": {},
+																	},
+																	TypeName: "NodeTitle",
+																	Fields: []*resolve.Field{
+																		{
+																			Name: []byte("__typename"),
+																			Value: &resolve.String{
+																				Path:       []string{"__typename"},
+																				IsTypeName: true,
+																			},
+																			OnTypeNames: [][]byte{[]byte("Title3")},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					planConfiguration,
+					WithDefaultPostProcessor(),
+					WithSkipReason("fix me"),
 				)
 			})
 		})

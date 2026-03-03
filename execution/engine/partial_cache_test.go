@@ -20,7 +20,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/execution/engine"
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting"
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/gateway"
-	reviewsgraph "github.com/wundergraph/graphql-go-tools/execution/federationtesting/reviews/graph"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
@@ -84,8 +83,6 @@ func partialCacheTestQueryPath(name string) string {
 // When disabled (default), all entities are fetched if any are missing.
 func TestPartialCacheLoading(t *testing.T) {
 	t.Run("L2 partial cache loading enabled - only missing entities fetched", func(t *testing.T) {
-		// Reset reviews to ensure clean state (other tests may add reviews via mutation)
-		reviewsgraph.ResetReviews()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -156,8 +153,6 @@ func TestPartialCacheLoading(t *testing.T) {
 	})
 
 	t.Run("L2 partial cache loading enabled - partial cache hit fetches only missing", func(t *testing.T) {
-		// Reset reviews to ensure clean state (other tests may add reviews via mutation)
-		reviewsgraph.ResetReviews()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -236,8 +231,6 @@ func TestPartialCacheLoading(t *testing.T) {
 	})
 
 	t.Run("L2 partial cache loading disabled - all entities fetched even with partial cache hit", func(t *testing.T) {
-		// Reset reviews to ensure clean state (other tests may add reviews via mutation)
-		reviewsgraph.ResetReviews()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,

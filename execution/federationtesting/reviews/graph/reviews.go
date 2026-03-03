@@ -4,32 +4,34 @@ import (
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/reviews/graph/model"
 )
 
-var reviews = []*model.Review{
-	{
-		Body:    "A highly effective form of birth control.",
-		Product: &model.Product{Upc: "top-1"},
-		Author:  &model.User{ID: "1234", Username: "Me"},
-	},
-	{
-		Body:    "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.",
-		Product: &model.Product{Upc: "top-2"},
-		Author:  &model.User{ID: "1234", Username: "Me"},
-	},
-	{
-		Body:    "This is the last straw. Hat you will wear. 11/10",
-		Product: &model.Product{Upc: "top-3"},
-		Author:  &model.User{ID: "7777", Username: "User 7777"},
-	},
-	{
-		Body:    "Perfect summer hat.",
-		Product: &model.Product{Upc: "top-4"},
-		Author:  &model.User{ID: "5678", Username: "User 5678"},
-	},
-	{
-		Body:    "A bit too fancy for my taste.",
-		Product: &model.Product{Upc: "top-4"},
-		Author:  &model.User{ID: "8888", Username: "User 8888"},
-	},
+func newReviews() []*model.Review {
+	return []*model.Review{
+		{
+			Body:    "A highly effective form of birth control.",
+			Product: &model.Product{Upc: "top-1"},
+			Author:  &model.User{ID: "1234", Username: "Me"},
+		},
+		{
+			Body:    "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.",
+			Product: &model.Product{Upc: "top-2"},
+			Author:  &model.User{ID: "1234", Username: "Me"},
+		},
+		{
+			Body:    "This is the last straw. Hat you will wear. 11/10",
+			Product: &model.Product{Upc: "top-3"},
+			Author:  &model.User{ID: "7777", Username: "User 7777"},
+		},
+		{
+			Body:    "Perfect summer hat.",
+			Product: &model.Product{Upc: "top-4"},
+			Author:  &model.User{ID: "5678", Username: "User 5678"},
+		},
+		{
+			Body:    "A bit too fancy for my taste.",
+			Product: &model.Product{Upc: "top-4"},
+			Author:  &model.User{ID: "8888", Username: "User 8888"},
+		},
+	}
 }
 
 // errorReview is a separate review used for cache error testing.
@@ -39,40 +41,4 @@ var errorReview = &model.Review{
 	Body:    "This review triggers an error when resolving the author",
 	Product: &model.Product{Upc: "error-product"},
 	Author:  &model.User{ID: "error-user", Username: ""},
-}
-
-// initialReviews stores the original reviews for reset purposes
-var initialReviews = []*model.Review{
-	{
-		Body:    "A highly effective form of birth control.",
-		Product: &model.Product{Upc: "top-1"},
-		Author:  &model.User{ID: "1234", Username: "Me"},
-	},
-	{
-		Body:    "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.",
-		Product: &model.Product{Upc: "top-2"},
-		Author:  &model.User{ID: "1234", Username: "Me"},
-	},
-	{
-		Body:    "This is the last straw. Hat you will wear. 11/10",
-		Product: &model.Product{Upc: "top-3"},
-		Author:  &model.User{ID: "7777", Username: "User 7777"},
-	},
-	{
-		Body:    "Perfect summer hat.",
-		Product: &model.Product{Upc: "top-4"},
-		Author:  &model.User{ID: "5678", Username: "User 5678"},
-	},
-	{
-		Body:    "A bit too fancy for my taste.",
-		Product: &model.Product{Upc: "top-4"},
-		Author:  &model.User{ID: "8888", Username: "User 8888"},
-	},
-}
-
-// ResetReviews resets the reviews slice to its initial state.
-// This is used by tests to ensure a clean state before each test.
-func ResetReviews() {
-	reviews = make([]*model.Review, len(initialReviews))
-	copy(reviews, initialReviews)
 }

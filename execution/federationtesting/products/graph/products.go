@@ -4,16 +4,8 @@ import (
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/products/graph/model"
 )
 
-var hats []*model.Product
-
-// extraProducts holds products not returned by TopProducts but accessible by UPC
-// (e.g. subscription-specific test products).
-var extraProducts []*model.Product
-
-var digitalProducts []*model.DigitalProduct
-
-func Reset() {
-	hats = []*model.Product{
+func newProducts() []*model.Product {
+	return []*model.Product{
 		{
 			Upc:     "top-1",
 			Name:    "Trilby",
@@ -33,7 +25,11 @@ func Reset() {
 			InStock: 850,
 		},
 	}
-	extraProducts = []*model.Product{
+}
+
+// newExtraProducts returns products not listed in TopProducts but findable by UPC.
+func newExtraProducts() []*model.Product {
+	return []*model.Product{
 		{
 			Upc:     "top-4",
 			Name:    "Bowler",
@@ -41,7 +37,10 @@ func Reset() {
 			InStock: 12,
 		},
 	}
-	digitalProducts = []*model.DigitalProduct{
+}
+
+func newDigitalProducts() []*model.DigitalProduct {
+	return []*model.DigitalProduct{
 		{
 			Upc:         "digital-1",
 			Name:        "eBook: GraphQL in Action",
@@ -49,32 +48,4 @@ func Reset() {
 			DownloadURL: "https://example.com/downloads/graphql-in-action",
 		},
 	}
-}
-
-// findProduct looks up a product by UPC from both hats and extraProducts.
-func findProduct(upc string) *model.Product {
-	for _, h := range hats {
-		if h.Upc == upc {
-			return h
-		}
-	}
-	for _, p := range extraProducts {
-		if p.Upc == upc {
-			return p
-		}
-	}
-	return nil
-}
-
-func findDigitalProduct(upc string) *model.DigitalProduct {
-	for _, d := range digitalProducts {
-		if d.Upc == upc {
-			return d
-		}
-	}
-	return nil
-}
-
-func init() {
-	Reset()
 }

@@ -37,6 +37,7 @@ type testOptions struct {
 	withEntityCaching     bool
 	withFetchProvidesData bool
 	withCacheKeyTemplates bool
+	validationOptions     []astvalidation.Option
 }
 
 func WithPostProcessors(postProcessors ...*postprocess.Processor) func(*testOptions) {
@@ -106,6 +107,12 @@ func WithFetchProvidesData() func(*testOptions) {
 func WithCacheKeyTemplates() func(*testOptions) {
 	return func(o *testOptions) {
 		o.withCacheKeyTemplates = true
+	}
+}
+
+func WithValidationOptions(options ...astvalidation.Option) func(*testOptions) {
+	return func(o *testOptions) {
+		o.validationOptions = options
 	}
 }
 
@@ -216,7 +223,7 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 		normalized := unsafeprinter.PrettyPrint(&op)
 		_ = normalized
 
-		valid := astvalidation.DefaultOperationValidator()
+		valid := astvalidation.DefaultOperationValidator(opts.validationOptions...)
 		valid.Validate(&op, &def, &report)
 
 		p, err := plan.NewPlanner(config)

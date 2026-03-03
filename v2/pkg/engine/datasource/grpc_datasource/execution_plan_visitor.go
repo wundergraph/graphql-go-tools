@@ -1,6 +1,7 @@
 package grpcdatasource
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"strings"
@@ -20,11 +21,8 @@ type planningInfo struct {
 
 	currentRequestMessage *RPCMessage
 
-	responseMessageAncestors  []*RPCMessage
-	currentResponseMessage    *RPCMessage
-	currentResponseFieldIndex int
-
-	responseFieldIndexAncestors []int
+	responseMessageAncestors []*RPCMessage
+	currentResponseMessage   *RPCMessage
 }
 
 type contextField struct {
@@ -46,17 +44,17 @@ type rpcPlanVisitor struct {
 	planInfo   planningInfo
 	planCtx    *rpcPlanningContext
 
-	subgraphName       string
-	mapping            *GRPCMapping
-	plan               *RPCExecutionPlan
-	operationFieldRef  int
+	subgraphName string
+	mapping      *GRPCMapping
+	plan         *RPCExecutionPlan
+	// The field reference to all operation fields in the operation.
+	// The first element is always pointing to the current root operation and shifts when a call is finalized.
 	operationFieldRefs []int
 	currentCall        *RPCCall
-	currentCallID      int
+	callIndex          int // Global counter for all calls.
 
-	parentCallID           int
-	fieldResolverAncestors stack[int]
-	resolverFields         []resolverField
+	fieldResolverAncestors stack[int]      // contains the indices of the resolver fields in the resolverFields slice
+	resolverFields         []resolverField // contains information about the resolver fields. These are used to create the resolver calls when leaving the document.
 
 	fieldPath ast.Path
 }
@@ -76,9 +74,7 @@ func newRPCPlanVisitor(config rpcPlanVisitorConfig) *rpcPlanVisitor {
 		plan:                   &RPCExecutionPlan{},
 		subgraphName:           cases.Title(language.Und, cases.NoLower).String(config.subgraphName),
 		mapping:                config.mapping,
-		operationFieldRef:      ast.InvalidRef,
 		resolverFields:         make([]resolverField, 0),
-		parentCallID:           ast.InvalidRef,
 		fieldResolverAncestors: newStack[int](0),
 		fieldPath:              make(ast.Path, 0),
 	}
@@ -135,9 +131,14 @@ func (r *rpcPlanVisitor) EnterOperationDefinition(ref int) {
 	// These fields determine the names for the RPC functions to call.
 	// TODO: handle fragments on root level `... on Query {}`
 	selectionSetRef := r.operation.OperationDefinitions[ref].SelectionSet
-	r.operationFieldRefs = r.operation.SelectionSetFieldSelections(selectionSetRef)
+	r.operationFieldRefs = r.operation.SelectionSetFieldRefs(selectionSetRef)
 
-	r.plan.Calls = make([]RPCCall, len(r.operationFieldRefs))
+	if len(r.operationFieldRefs) == 0 {
+		r.walker.StopWithInternalErr(fmt.Errorf("internal: unexpected operation definition with no fields"))
+		return
+	}
+
+	r.plan.Calls = make([]RPCCall, 0, len(r.operationFieldRefs))
 	r.planInfo.operationType = r.operation.OperationDefinitions[ref].OperationType
 }
 
@@ -146,7 +147,7 @@ func (r *rpcPlanVisitor) EnterOperationDefinition(ref int) {
 // and builds the request message from the input argument.
 func (r *rpcPlanVisitor) EnterArgument(ref int) {
 	ancestor := r.walker.Ancestor()
-	if ancestor.Kind != ast.NodeKindField || ancestor.Ref != r.operationFieldRef {
+	if ancestor.Kind != ast.NodeKindField || ancestor.Ref != r.operationFieldRefs[0] {
 		return
 	}
 	argumentInputValueDefinitionRef, exists := r.walker.ArgumentInputValueDefinition(ref)
@@ -219,18 +220,21 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 		return
 	}
 
-	if len(r.planInfo.currentResponseMessage.Fields) == 0 || len(r.planInfo.currentResponseMessage.Fields) <= r.planInfo.currentResponseFieldIndex {
+	// If we don't have any fields or selecting on a field, we can return.
+	if len(r.planInfo.currentResponseMessage.Fields) == 0 || r.walker.Ancestor().Kind != ast.NodeKindField {
 		return
 	}
 
+	lastIndex := len(r.planInfo.currentResponseMessage.Fields) - 1
+
 	// In nested selection sets, a new message needs to be created, which will be added to the current response message.
-	if r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message == nil {
-		r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message = r.planCtx.newMessageFromSelectionSet(r.walker.EnclosingTypeDefinition, ref)
+	if r.planInfo.currentResponseMessage.Fields[lastIndex].Message == nil {
+		r.planInfo.currentResponseMessage.Fields[lastIndex].Message = r.planCtx.newMessageFromSelectionSet(r.walker.EnclosingTypeDefinition, ref)
 	}
 
 	// Add the current response message to the ancestors and set the current response message to the current field message
 	r.planInfo.responseMessageAncestors = append(r.planInfo.responseMessageAncestors, r.planInfo.currentResponseMessage)
-	r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message
+	r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.Fields[lastIndex].Message
 
 	// Check if the ancestor type is a composite type (interface or union)
 	// and set the oneof type and member types.
@@ -240,13 +244,6 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 		r.walker.StopWithInternalErr(err)
 		return
 	}
-
-	// Keep track of the field indices for the current response message.
-	// This is used to set the correct field index for the current response message
-	// when leaving the selection set.
-	r.planInfo.responseFieldIndexAncestors = append(r.planInfo.responseFieldIndexAncestors, r.planInfo.currentResponseFieldIndex)
-
-	r.planInfo.currentResponseFieldIndex = 0 // reset the field index for the current selection set
 }
 
 func (r *rpcPlanVisitor) handleCompositeType(node ast.Node) error {
@@ -293,11 +290,6 @@ func (r *rpcPlanVisitor) LeaveSelectionSet(ref int) {
 		return
 	}
 
-	if len(r.planInfo.responseFieldIndexAncestors) > 0 {
-		r.planInfo.currentResponseFieldIndex = r.planInfo.responseFieldIndexAncestors[len(r.planInfo.responseFieldIndexAncestors)-1]
-		r.planInfo.responseFieldIndexAncestors = r.planInfo.responseFieldIndexAncestors[:len(r.planInfo.responseFieldIndexAncestors)-1]
-	}
-
 	if len(r.planInfo.responseMessageAncestors) > 0 {
 		r.planInfo.currentResponseMessage = r.planInfo.responseMessageAncestors[len(r.planInfo.responseMessageAncestors)-1]
 		r.planInfo.responseMessageAncestors = r.planInfo.responseMessageAncestors[:len(r.planInfo.responseMessageAncestors)-1]
@@ -309,14 +301,14 @@ func (r *rpcPlanVisitor) handleRootField(isRootField bool, ref int) error {
 		return nil
 	}
 
-	r.operationFieldRef = ref
 	r.planInfo.operationFieldName = r.operation.FieldNameString(ref)
 
 	r.currentCall = &RPCCall{
+		ID:          r.callIndex,
 		ServiceName: r.planCtx.resolveServiceName(r.subgraphName),
 	}
 
-	r.parentCallID = r.currentCallID
+	r.callIndex++
 
 	r.planInfo.currentRequestMessage = &r.currentCall.Request
 	r.planInfo.currentResponseMessage = &r.currentCall.Response
@@ -429,58 +421,65 @@ func (r *rpcPlanVisitor) LeaveField(ref int) {
 	if r.planCtx.isFieldResolver(fieldDefRef, inRootField) {
 		// Pop the field resolver ancestor only when leaving a field resolver field.
 		r.fieldResolverAncestors.pop()
-
-		// If the field has arguments, we need to decrement the related call ID.
-		// This is because we can also have nested arguments, which require the underlying field to be resolved
-		// by values provided by the parent call.
-		r.parentCallID--
-
-		// We handle field resolvers differently, so we don't want to increment the response field index.
-		return
 	}
-
-	// If we are not in the operation field, we can increment the response field index.
-	r.planInfo.currentResponseFieldIndex++
 }
 
 // finalizeCall finalizes the current call and resets the current call.
 func (r *rpcPlanVisitor) finalizeCall() {
-	r.plan.Calls[r.currentCallID] = *r.currentCall
+	r.plan.Calls = append(r.plan.Calls, *r.currentCall)
 	r.currentCall = nil
 
-	r.currentCallID++
-	if r.currentCallID < len(r.operationFieldRefs) {
-		r.operationFieldRef = r.operationFieldRefs[r.currentCallID]
+	// If we have more than one root level operation field we remove the first one.
+	if len(r.operationFieldRefs) > 1 {
+		r.operationFieldRefs = r.operationFieldRefs[1:]
 	}
-
-	r.planInfo.currentResponseFieldIndex = 0
 }
 
 // enterFieldResolver enters a field resolver.
 // ref is the field reference in the operation document.
 // fieldDefRef is the field definition reference in the definition document.
+// TODO: extract to planCtx
 func (r *rpcPlanVisitor) enterFieldResolver(ref int, fieldDefRef int) {
+	defaultContextPath := ast.Path{{Kind: ast.FieldName, FieldName: []byte("result")}}
 	// Field arguments for non root types will be handled as resolver calls.
 	// We need to make sure to handle a hierarchy of arguments in order to perform parallel calls in order to retrieve the data.
 	fieldArgs := r.operation.FieldArguments(ref)
+
+	parentID := r.currentCall.ID
+	fieldPath := r.fieldPath
+	if r.fieldResolverAncestors.len() > 0 {
+		fieldPath = r.resolverFields[r.fieldResolverAncestors.peek()].contextPath
+		parentID = r.resolverFields[r.fieldResolverAncestors.peek()].id
+	}
+
 	// We don't want to add fields from the selection set to the actual call
 	resolvedField := resolverField{
-		callerRef:              r.parentCallID,
+		id:                     r.callIndex,
+		callerRef:              parentID,
 		parentTypeNode:         r.walker.EnclosingTypeDefinition,
 		fieldRef:               ref,
 		responsePath:           r.walker.Path[1:].WithoutInlineFragmentNames().WithFieldNameItem(r.operation.FieldAliasOrNameBytes(ref)),
 		fieldDefinitionTypeRef: r.definition.FieldDefinitionType(fieldDefRef),
 	}
 
-	if err := r.planCtx.setResolvedField(r.walker, fieldDefRef, fieldArgs, r.fieldPath, &resolvedField); err != nil {
+	r.callIndex++
+
+	if err := r.planCtx.setResolvedField(r.walker, fieldDefRef, fieldArgs, fieldPath, &resolvedField); err != nil {
 		r.walker.StopWithInternalErr(err)
 		return
 	}
 
+	buf := bytes.Buffer{}
+	buf.Write(bytes.Repeat([]byte("@"), resolvedField.listNestingLevel))
+	buf.WriteString(r.planCtx.findResolverFieldMapping(
+		r.walker.EnclosingTypeDefinition.NameString(r.definition),
+		r.definition.FieldDefinitionNameString(fieldDefRef),
+	))
+
+	resolvedField.contextPath = defaultContextPath.WithFieldNameItem(buf.Bytes())
+
 	r.resolverFields = append(r.resolverFields, resolvedField)
 	r.fieldResolverAncestors.push(len(r.resolverFields) - 1)
-	r.fieldPath = r.fieldPath.WithFieldNameItem(r.operation.FieldNameBytes(ref))
 
-	// In case of nested fields with arguments, we need to increment the related call ID.
-	r.parentCallID++
+	r.fieldPath = r.fieldPath.WithFieldNameItem(buf.Bytes())
 }

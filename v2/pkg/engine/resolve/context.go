@@ -16,13 +16,20 @@ import (
 
 // Context should not ever be initialized directly, and should be initialized via the NewContext function
 type Context struct {
-	ctx              context.Context
-	Variables        *astjson.Value
+	ctx context.Context
+
+	// Variables contains the variables to be used to render values of variables for the subgraph.
+	// Resolver takes into account RemapVariables for variable names.
+	Variables *astjson.Value
+
+	// RemapVariables contains a map from new names to old names. When variables are renamed,
+	// the resolver will use the new name to look up the old name to render the variable in the query.
+	RemapVariables map[string]string
+
 	VariablesHash    uint64
 	Files            []*httpclient.FileUpload
 	Request          Request
 	RenameTypeNames  []RenameTypeName
-	RemapVariables   map[string]string
 	TracingOptions   TraceOptions
 	RateLimitOptions RateLimitOptions
 	ExecutionOptions ExecutionOptions
@@ -45,6 +52,48 @@ type Context struct {
 	// cacheAnalytics collects detailed cache analytics when EnableCacheAnalytics is true.
 	// Nil when analytics is disabled. Use cacheAnalyticsEnabled() as a fast guard.
 	cacheAnalytics *CacheAnalyticsCollector
+
+	// ActualListSizes is populated by the resolver after resolution completes,
+	// before the response body is written. Maps JSON path to actual list size.
+	// Used to compute the actual cost.
+	ActualListSizes map[string]int
+
+	// GetDeduplicationData is called after the leader of an inbound singleflight request
+	// finishes resolving. It extracts data from the leader's context (e.g. accumulated
+	// response headers) that should be shared with all follower requests.
+	// The returned value is stored on the InflightRequest and passed to each follower's
+	// SetDeduplicationData callback before the follower writes its response.
+	// Use SetDeduplicationCallbacks to set both callbacks with type safety.
+	GetDeduplicationData func(ctx context.Context) any
+	// SetDeduplicationData is called for each follower of an inbound singleflight request,
+	// before the response body is written to the client. The data argument is the value
+	// returned by the leader's GetDeduplicationData call.
+	// Typical use: copy response header propagation state from the leader into the
+	// follower's context so that the response writer can set the correct HTTP headers.
+	// Use SetDeduplicationCallbacks to set both callbacks with type safety.
+	SetDeduplicationData func(ctx context.Context, data any)
+}
+
+// SetDeduplicationCallbacks is a generic helper that configures both GetDeduplicationData
+// and SetDeduplicationData on a Context with compile-time type safety.
+// The resolve package stores the data as "any" internally, but callers get typed callbacks:
+//
+//	resolve.SetDeduplicationCallbacks(ctx,
+//	    func(ctx context.Context) *MyHeaders { return extractHeaders(ctx) },
+//	    func(ctx context.Context, h *MyHeaders) { applyHeaders(ctx, h) },
+//	)
+//
+// The get and set callbacks must use the same concrete type T. If the value returned by
+// get cannot be asserted to T when passed to set, the set callback will be skipped.
+func SetDeduplicationCallbacks[T any](c *Context, get func(ctx context.Context) T, set func(ctx context.Context, data T)) {
+	c.GetDeduplicationData = func(ctx context.Context) any {
+		return get(ctx)
+	}
+	c.SetDeduplicationData = func(ctx context.Context, data any) {
+		if typed, ok := data.(T); ok {
+			set(ctx, typed)
+		}
+	}
 }
 
 // SubgraphHeadersBuilder allows the user of the engine to "define" the headers for a subgraph request
@@ -349,6 +398,9 @@ func (c *Context) Free() {
 	c.authorizer = nil
 	c.LoaderHooks = nil
 	c.cacheAnalytics = nil
+	c.GetDeduplicationData = nil
+	c.SetDeduplicationData = nil
+	c.ActualListSizes = nil
 }
 
 type traceStartKey struct{}

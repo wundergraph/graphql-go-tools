@@ -406,7 +406,7 @@ func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfa
 		4) for types which have inline-fragment - add not selected shared fields to existing inline fragment
 	*/
 
-	interfaceTypeNames, isInterfaceObject, err := r.getAllowedInterfaceMemberTypeNames(fieldRef, interfaceDefRef, enclosingTypeName)
+	interfaceTypeName, interfaceTypeNames, isInterfaceObject, err := r.getAllowedInterfaceMemberTypeNames(fieldRef, interfaceDefRef, enclosingTypeName)
 	if err != nil {
 		return resultNotRewritten, err
 	}
@@ -418,7 +418,7 @@ func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfa
 	}
 	selectionSetInfo.isInterfaceObject = isInterfaceObject
 
-	needRewrite := r.interfaceFieldSelectionNeedsRewrite(selectionSetInfo, interfaceTypeNames, entityNames)
+	needRewrite := r.interfaceFieldSelectionNeedsRewrite(selectionSetInfo, interfaceTypeNames, entityNames, interfaceTypeName)
 	if !needRewrite {
 		return resultNotRewritten, nil
 	}
@@ -444,9 +444,41 @@ func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfa
 	}, nil
 }
 
-func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(selectionSetInfo selectionSetInfo, interfaceTypeNames []string, entityNames []string) (needRewrite bool) {
+func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(selectionSetInfo selectionSetInfo, interfaceTypeNames []string, entityNames []string, interfaceTypeName string) (needRewrite bool) {
 	if r.mustRewrite(selectionSetInfo) {
 		return true
+	}
+
+	if selectionSetInfo.hasFields {
+		// We check that all selected fields are defined on the interface type.
+		// If all implementing types have the field local to the datasource, but interface does not define it - we won't be able to plan such fields.
+		// example:
+		//
+		// current datasource schema:
+		// interface Node {
+		//   id: ID!
+		// }
+		//
+		// type User implements Node {
+		//   id: ID!          <-- local to the current datasource
+		//   name: String!    <-- local to the current datasource, but not defined on the interface
+		// }
+		//
+		// other datasource schema:
+		// interface Node {
+		//   id: ID!
+		//   name: String! <-- defined on the interface and concrete type
+		// }
+		//
+		// type User implements Node {
+		//   id: ID!
+		//   name: String!
+		// }
+		//
+
+		if !r.typeHasAllFieldLocal(interfaceTypeName, selectionSetInfo.fields) {
+			return true
+		}
 	}
 
 	// when we do not have fragments

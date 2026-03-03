@@ -23,7 +23,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting"
 	accounts "github.com/wundergraph/graphql-go-tools/execution/federationtesting/accounts/graph"
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/gateway"
-	reviewsgraph "github.com/wundergraph/graphql-go-tools/execution/federationtesting/reviews/graph"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
@@ -2172,9 +2171,6 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 }
 
 func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
-	// Ensure reviews are reset after all subtests complete to avoid polluting other test functions.
-	t.Cleanup(reviewsgraph.ResetReviews)
-
 	// Shared caching config for all subtests: only entity caching for User on accounts
 	subgraphCachingConfigs := engine.SubgraphCachingConfigs{
 		{
@@ -2192,8 +2188,6 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 	}
 
 	t.Run("mutation skips L2 cache read and writes updated entity", func(t *testing.T) {
-		reviewsgraph.ResetReviews()
-
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{"default": defaultCache}
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
@@ -2266,8 +2260,6 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 	})
 
 	t.Run("mutation with no prior cache writes to L2 for subsequent query", func(t *testing.T) {
-		reviewsgraph.ResetReviews()
-
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{"default": defaultCache}
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
@@ -2318,8 +2310,6 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 	})
 
 	t.Run("consecutive mutations never read from L2 cache", func(t *testing.T) {
-		reviewsgraph.ResetReviews()
-
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{"default": defaultCache}
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
@@ -2379,8 +2369,6 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 		// not just the fields selected in the current query. So a mutation that triggers entity resolution
 		// for User populates L2 with full User data, and a subsequent query selecting different fields
 		// (e.g., nickname) will still get a cache HIT.
-		reviewsgraph.ResetReviews()
-
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{"default": defaultCache}
 		tracker := newSubgraphCallTracker(http.DefaultTransport)

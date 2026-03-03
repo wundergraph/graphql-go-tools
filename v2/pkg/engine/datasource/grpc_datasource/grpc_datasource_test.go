@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/tidwall/gjson"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/encoding/protojson"
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
@@ -4543,6 +4545,655 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 				require.Empty(t, errData)
 			},
 		},
+		{
+			name:  "Query with nested field resolver",
+			query: "query CategoriesWithNestedResolvers($metricType: String, $baseline: Float!) { categories { categoryMetrics(metricType: $metricType) { id normalizedScore(baseline: $baseline) metricType value } } }",
+			vars:  `{"variables":{"metricType":"popularity_score","baseline":100}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.NotEmpty(t, categories, "categories should not be empty")
+				require.Len(t, categories, 4, "Should return 4 categories")
+
+				for i, cat := range categories {
+					category, ok := cat.(map[string]interface{})
+					require.True(t, ok, "category[%d] should be an object", i)
+
+					// Validate categoryMetrics is present (returns a single object, not an array)
+					require.Contains(t, category, "categoryMetrics", "category[%d] should have 'categoryMetrics' field", i)
+					metric, ok := category["categoryMetrics"].(map[string]interface{})
+					require.True(t, ok, "category[%d].categoryMetrics should be an object, got %T", i, category["categoryMetrics"])
+
+					// Validate id field is present and non-empty
+					require.Contains(t, metric, "id", "category[%d].categoryMetrics should have 'id' field", i)
+					require.NotEmpty(t, metric["id"], "category[%d].categoryMetrics.id should not be empty", i)
+
+					// Validate normalizedScore is a numeric value (baseline was provided)
+					require.Contains(t, metric, "normalizedScore", "category[%d].categoryMetrics should have 'normalizedScore' field", i)
+					normalizedScore, ok := metric["normalizedScore"].(float64)
+					require.True(t, ok, "category[%d].categoryMetrics.normalizedScore should be a float64, got %T", i, metric["normalizedScore"])
+					require.GreaterOrEqual(t, normalizedScore, float64(0), "category[%d].categoryMetrics.normalizedScore should be >= 0", i)
+
+					// Validate metricType equals the requested value "popularity_score"
+					require.Contains(t, metric, "metricType", "category[%d].categoryMetrics should have 'metricType' field", i)
+					require.Equal(t, "popularity_score", metric["metricType"], "category[%d].categoryMetrics.metricType should equal 'popularity_score'", i)
+
+					// Validate value field is present and is numeric
+					require.Contains(t, metric, "value", "category[%d].categoryMetrics should have 'value' field", i)
+					_, ok = metric["value"].(float64)
+					require.True(t, ok, "category[%d].categoryMetrics.value should be a float64, got %T", i, metric["value"])
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with recursive child categories field resolver",
+			query: "query CategoriesWithRecursiveChildCategoriesFieldResolver { categories { id name kind childCategories { id name kind childCategories { id name kind } } } }",
+			vars:  `{"variables":{}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.NotEmpty(t, categories, "categories should not be empty")
+				require.Len(t, categories, 4, "Should return 4 categories")
+
+				// Traverse child categories recursively until no more children found
+				currentLevel := categories
+				depth, maxDepth := 0, 3
+
+				for depth < maxDepth {
+					var nextChildren []interface{}
+
+					for _, cat := range currentLevel {
+						category, ok := cat.(map[string]interface{})
+						require.True(t, ok, "category at depth %d should be an object", depth)
+						require.NotEmpty(t, category["id"], "category id at depth %d should not be empty", depth)
+						require.NotEmpty(t, category["name"], "category name at depth %d should not be empty", depth)
+						require.NotEmpty(t, category["kind"], "category kind at depth %d should not be empty", depth)
+
+						if children, ok := category["childCategories"].([]interface{}); ok {
+							nextChildren = append(nextChildren, children...)
+						}
+					}
+
+					if len(nextChildren) == 0 {
+						break
+					}
+
+					depth++
+					currentLevel = nextChildren
+				}
+
+				require.Equal(t, 2, depth, "expected 2 levels of child categories")
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with optional categories field resolver without providing include argument",
+			query: "query CategoriesWithOptionalCategories { categories { id name optionalCategories { id name kind } } }",
+			vars:  `{"variables":{}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.Len(t, categories, 4, "Should return 4 categories")
+
+				for _, cat := range categories {
+					category, ok := cat.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["id"], "category id should not be empty")
+					require.NotEmpty(t, category["name"], "category name should not be empty")
+
+					// optionalCategories uses a wrapper type (ListOfCategory) for nullable list support
+					// The field resolver was called successfully if the field is present
+					require.Contains(t, category, "optionalCategories", "optionalCategories field should be present")
+					require.Len(t, category["optionalCategories"], 2, "optionalCategories should return 2 categories")
+					for _, optionalCategory := range category["optionalCategories"].([]interface{}) {
+						optionalCategory, ok := optionalCategory.(map[string]interface{})
+						require.True(t, ok, "optionalCategory should be an object")
+						require.NotEmpty(t, optionalCategory["id"], "optionalCategory id should not be empty")
+						require.NotEmpty(t, optionalCategory["name"], "optionalCategory name should not be empty")
+						require.NotEmpty(t, optionalCategory["kind"], "optionalCategory kind should not be empty")
+					}
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with optional categories and nested optional categories field resolver",
+			query: "query CategoriesWithOptionalCategories { categories { id name optionalCategories { id name kind optionalCategories { id name kind } } } }",
+			vars:  `{"variables":{}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.Len(t, categories, 4, "Should return 4 categories")
+
+				for _, cat := range categories {
+					category, ok := cat.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["id"], "category id should not be empty")
+					require.NotEmpty(t, category["name"], "category name should not be empty")
+
+					// optionalCategories uses a wrapper type (ListOfCategory) for nullable list support
+					// The field resolver was called successfully if the field is present
+					require.Contains(t, category, "optionalCategories", "optionalCategories field should be present")
+					require.Len(t, category["optionalCategories"], 2, "optionalCategories should return 2 categories")
+					for _, optionalCategory := range category["optionalCategories"].([]interface{}) {
+						optionalCategory, ok := optionalCategory.(map[string]interface{})
+						require.True(t, ok, "optionalCategory should be an object")
+						require.NotEmpty(t, optionalCategory["id"], "optionalCategory id should not be empty")
+						require.NotEmpty(t, optionalCategory["name"], "optionalCategory name should not be empty")
+						require.NotEmpty(t, optionalCategory["kind"], "optionalCategory kind should not be empty")
+
+						// nested optionalCategories uses a wrapper type (ListOfCategory) for nullable list support
+						// The field resolver was called successfully if the field is present
+						require.Contains(t, optionalCategory, "optionalCategories", "optionalCategories field should be present")
+						require.Len(t, optionalCategory["optionalCategories"], 2, "optionalCategories should return 2 categories")
+						for _, nestedOptionalCategory := range optionalCategory["optionalCategories"].([]interface{}) {
+							nestedOptionalCategory, ok := nestedOptionalCategory.(map[string]interface{})
+							require.True(t, ok, "nestedOptionalCategory should be an object")
+							require.NotEmpty(t, nestedOptionalCategory["id"], "nestedOptionalCategory id should not be empty")
+							require.NotEmpty(t, nestedOptionalCategory["name"], "nestedOptionalCategory name should not be empty")
+							require.NotEmpty(t, nestedOptionalCategory["kind"], "nestedOptionalCategory kind should not be empty")
+						}
+					}
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with optional categories with 3 levels of recursion",
+			query: "query CategoriesWithDeepOptionalCategories { categories { id name optionalCategories { id name optionalCategories { id name optionalCategories { id name kind } } } } }",
+			vars:  `{"variables":{}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.Len(t, categories, 4, "Should return 4 categories")
+
+				for _, cat := range categories {
+					category, ok := cat.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["id"], "category id should not be empty")
+					require.NotEmpty(t, category["name"], "category name should not be empty")
+
+					// Level 1: optionalCategories
+					require.Contains(t, category, "optionalCategories", "optionalCategories field should be present")
+					level1, ok := category["optionalCategories"].([]interface{})
+					require.True(t, ok, "level1 optionalCategories should be an array")
+					require.Len(t, level1, 2, "level1 optionalCategories should return 2 categories")
+
+					for _, l1 := range level1 {
+						l1Cat, ok := l1.(map[string]interface{})
+						require.True(t, ok, "level1 category should be an object")
+						require.NotEmpty(t, l1Cat["id"], "level1 category id should not be empty")
+						require.NotEmpty(t, l1Cat["name"], "level1 category name should not be empty")
+
+						// Level 2: nested optionalCategories
+						require.Contains(t, l1Cat, "optionalCategories", "level2 optionalCategories field should be present")
+						level2, ok := l1Cat["optionalCategories"].([]interface{})
+						require.True(t, ok, "level2 optionalCategories should be an array")
+						require.Len(t, level2, 2, "level2 optionalCategories should return 2 categories")
+
+						for _, l2 := range level2 {
+							l2Cat, ok := l2.(map[string]interface{})
+							require.True(t, ok, "level2 category should be an object")
+							require.NotEmpty(t, l2Cat["id"], "level2 category id should not be empty")
+							require.NotEmpty(t, l2Cat["name"], "level2 category name should not be empty")
+
+							// Level 3: deeply nested optionalCategories
+							require.Contains(t, l2Cat, "optionalCategories", "level3 optionalCategories field should be present")
+							level3, ok := l2Cat["optionalCategories"].([]interface{})
+							require.True(t, ok, "level3 optionalCategories should be an array")
+							require.Len(t, level3, 2, "level3 optionalCategories should return 2 categories")
+
+							for _, l3 := range level3 {
+								l3Cat, ok := l3.(map[string]interface{})
+								require.True(t, ok, "level3 category should be an object")
+								require.NotEmpty(t, l3Cat["id"], "level3 category id should not be empty")
+								require.NotEmpty(t, l3Cat["name"], "level3 category name should not be empty")
+								require.NotEmpty(t, l3Cat["kind"], "level3 category kind should not be empty")
+							}
+						}
+					}
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with both childCategories and optionalCategories at root level",
+			query: "query CategoriesWithBothFieldResolvers { categories { id name childCategories { id name kind } optionalCategories { id name kind } } }",
+			vars:  `{"variables":{}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.Len(t, categories, 4, "Should return 4 categories")
+
+				for _, cat := range categories {
+					category, ok := cat.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["id"], "category id should not be empty")
+					require.NotEmpty(t, category["name"], "category name should not be empty")
+
+					// Validate childCategories
+					childCategories, ok := category["childCategories"].([]interface{})
+					require.True(t, ok, "childCategories should be an array")
+					require.NotEmpty(t, childCategories, "childCategories should not be empty")
+
+					for _, child := range childCategories {
+						childCat, ok := child.(map[string]interface{})
+						require.True(t, ok, "childCategory should be an object")
+						require.NotEmpty(t, childCat["id"], "childCategory id should not be empty")
+						require.NotEmpty(t, childCat["name"], "childCategory name should not be empty")
+						require.NotEmpty(t, childCat["kind"], "childCategory kind should not be empty")
+					}
+
+					// Validate optionalCategories
+					optionalCategories, ok := category["optionalCategories"].([]interface{})
+					require.True(t, ok, "optionalCategories should be an array")
+					require.Len(t, optionalCategories, 2, "optionalCategories should return 2 categories")
+
+					for _, optional := range optionalCategories {
+						optionalCat, ok := optional.(map[string]interface{})
+						require.True(t, ok, "optionalCategory should be an object")
+						require.NotEmpty(t, optionalCat["id"], "optionalCategory id should not be empty")
+						require.NotEmpty(t, optionalCat["name"], "optionalCategory name should not be empty")
+						require.NotEmpty(t, optionalCat["kind"], "optionalCategory kind should not be empty")
+					}
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with sibling field resolvers - nested optionalCategories only in childCategories",
+			query: "query CategoriesWithBothFieldResolversNested { categories { id name childCategories { id name kind optionalCategories { id name kind } } optionalCategories { id name kind } } }",
+			vars:  `{"variables":{}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.Len(t, categories, 4, "Should return 4 categories")
+
+				for _, cat := range categories {
+					category, ok := cat.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["id"], "category id should not be empty")
+					require.NotEmpty(t, category["name"], "category name should not be empty")
+
+					// Validate childCategories with nested optionalCategories
+					childCategories, ok := category["childCategories"].([]interface{})
+					require.True(t, ok, "childCategories should be an array")
+					require.NotEmpty(t, childCategories, "childCategories should not be empty")
+
+					for _, child := range childCategories {
+						childCat, ok := child.(map[string]interface{})
+						require.True(t, ok, "childCategory should be an object")
+						require.NotEmpty(t, childCat["id"], "childCategory id should not be empty")
+						require.NotEmpty(t, childCat["name"], "childCategory name should not be empty")
+						require.NotEmpty(t, childCat["kind"], "childCategory kind should not be empty")
+
+						nestedOptional, ok := childCat["optionalCategories"].([]interface{})
+						require.True(t, ok, "nested optionalCategories should be an array")
+						require.Len(t, nestedOptional, 2, "nested optionalCategories should return 2 categories")
+					}
+
+					// Validate optionalCategories with nested childCategories
+					optionalCategories, ok := category["optionalCategories"].([]interface{})
+					require.True(t, ok, "optionalCategories should be an array")
+					require.Len(t, optionalCategories, 2, "optionalCategories should return 2 categories")
+
+					for _, optional := range optionalCategories {
+						optionalCat, ok := optional.(map[string]interface{})
+						require.True(t, ok, "optionalCategory should be an object")
+						require.NotEmpty(t, optionalCat["id"], "optionalCategory id should not be empty")
+						require.NotEmpty(t, optionalCat["name"], "optionalCategory name should not be empty")
+						require.NotEmpty(t, optionalCat["kind"], "optionalCategory kind should not be empty")
+
+						require.NotContains(t, optionalCat, "childCategories", "childCategories should not be present")
+					}
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with sibling field resolvers - nested resolvers in both branches",
+			query: "query CategoriesWithBothFieldResolversNested { categories { id name childCategories { id name kind optionalCategories { id name kind } } optionalCategories { id name kind childCategories { id name kind } } } }",
+			vars:  `{"variables":{}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.Len(t, categories, 4, "Should return 4 categories")
+
+				for _, cat := range categories {
+					category, ok := cat.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["id"], "category id should not be empty")
+					require.NotEmpty(t, category["name"], "category name should not be empty")
+
+					// Validate childCategories with nested optionalCategories
+					childCategories, ok := category["childCategories"].([]interface{})
+					require.True(t, ok, "childCategories should be an array")
+					require.NotEmpty(t, childCategories, "childCategories should not be empty")
+
+					for _, child := range childCategories {
+						childCat, ok := child.(map[string]interface{})
+						require.True(t, ok, "childCategory should be an object")
+						require.NotEmpty(t, childCat["id"], "childCategory id should not be empty")
+						require.NotEmpty(t, childCat["name"], "childCategory name should not be empty")
+						require.NotEmpty(t, childCat["kind"], "childCategory kind should not be empty")
+
+						nestedOptional, ok := childCat["optionalCategories"].([]interface{})
+						require.True(t, ok, "nested optionalCategories should be an array")
+						require.Len(t, nestedOptional, 2, "nested optionalCategories should return 2 categories")
+					}
+
+					// Validate optionalCategories with nested childCategories
+					optionalCategories, ok := category["optionalCategories"].([]interface{})
+					require.True(t, ok, "optionalCategories should be an array")
+					require.Len(t, optionalCategories, 2, "optionalCategories should return 2 categories")
+
+					for _, optional := range optionalCategories {
+						optionalCat, ok := optional.(map[string]interface{})
+						require.True(t, ok, "optionalCategory should be an object")
+						require.NotEmpty(t, optionalCat["id"], "optionalCategory id should not be empty")
+						require.NotEmpty(t, optionalCat["name"], "optionalCategory name should not be empty")
+						require.NotEmpty(t, optionalCat["kind"], "optionalCategory kind should not be empty")
+
+						nestedChildren, ok := optionalCat["childCategories"].([]interface{})
+						require.True(t, ok, "nested childCategories should be an array")
+						require.NotEmpty(t, nestedChildren, "nested childCategories should not be empty")
+					}
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with childCategories containing nested optionalCategories",
+			query: "query CategoriesWithChildThenOptional { categories { id name childCategories { id name kind optionalCategories { id name kind } } } }",
+			vars:  `{"variables":{}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.Len(t, categories, 4, "Should return 4 categories")
+
+				for _, cat := range categories {
+					category, ok := cat.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["id"], "category id should not be empty")
+					require.NotEmpty(t, category["name"], "category name should not be empty")
+
+					// Validate childCategories with nested optionalCategories
+					childCategories, ok := category["childCategories"].([]interface{})
+					require.True(t, ok, "childCategories should be an array")
+					require.NotEmpty(t, childCategories, "childCategories should not be empty")
+
+					for _, child := range childCategories {
+						childCat, ok := child.(map[string]interface{})
+						require.True(t, ok, "childCategory should be an object")
+						require.NotEmpty(t, childCat["id"], "childCategory id should not be empty")
+						require.NotEmpty(t, childCat["name"], "childCategory name should not be empty")
+						require.NotEmpty(t, childCat["kind"], "childCategory kind should not be empty")
+
+						// Nested optionalCategories inside childCategories
+						require.Contains(t, childCat, "optionalCategories", "optionalCategories inside childCategories should be present")
+						nestedOptional, ok := childCat["optionalCategories"].([]interface{})
+						require.True(t, ok, "nested optionalCategories should be an array")
+						require.Len(t, nestedOptional, 2, "nested optionalCategories should return 2 categories")
+
+						for _, nested := range nestedOptional {
+							nestedCat, ok := nested.(map[string]interface{})
+							require.True(t, ok, "nested optionalCategory should be an object")
+							require.NotEmpty(t, nestedCat["id"], "nested optionalCategory id should not be empty")
+							require.NotEmpty(t, nestedCat["name"], "nested optionalCategory name should not be empty")
+							require.NotEmpty(t, nestedCat["kind"], "nested optionalCategory kind should not be empty")
+						}
+					}
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with optionalCategories containing nested childCategories",
+			query: "query CategoriesWithOptionalThenChild { categories { id name optionalCategories { id name kind childCategories { id name kind } } } }",
+			vars:  `{"variables":{}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.Len(t, categories, 4, "Should return 4 categories")
+
+				for _, cat := range categories {
+					category, ok := cat.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["id"], "category id should not be empty")
+					require.NotEmpty(t, category["name"], "category name should not be empty")
+
+					// Validate optionalCategories with nested childCategories
+					optionalCategories, ok := category["optionalCategories"].([]interface{})
+					require.True(t, ok, "optionalCategories should be an array")
+					require.Len(t, optionalCategories, 2, "optionalCategories should return 2 categories")
+
+					for _, optional := range optionalCategories {
+						optionalCat, ok := optional.(map[string]interface{})
+						require.True(t, ok, "optionalCategory should be an object")
+						require.NotEmpty(t, optionalCat["id"], "optionalCategory id should not be empty")
+						require.NotEmpty(t, optionalCat["name"], "optionalCategory name should not be empty")
+						require.NotEmpty(t, optionalCat["kind"], "optionalCategory kind should not be empty")
+
+						// Nested childCategories inside optionalCategories
+						nestedChildren, ok := optionalCat["childCategories"].([]interface{})
+						require.True(t, ok, "childCategories inside optionalCategories should be an array")
+						require.NotEmpty(t, nestedChildren, "nested childCategories should not be empty")
+
+						for _, nested := range nestedChildren {
+							nestedCat, ok := nested.(map[string]interface{})
+							require.True(t, ok, "nested childCategory should be an object")
+							require.NotEmpty(t, nestedCat["id"], "nested childCategory id should not be empty")
+							require.NotEmpty(t, nestedCat["name"], "nested childCategory name should not be empty")
+							require.NotEmpty(t, nestedCat["kind"], "nested childCategory kind should not be empty")
+						}
+					}
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with alternating childCategories and optionalCategories at multiple levels",
+			query: "query CategoriesWithAlternatingResolvers { categories { id childCategories { id optionalCategories { id childCategories { id kind } } } } }",
+			vars:  `{"variables":{}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.Len(t, categories, 4, "Should return 4 categories")
+
+				for _, cat := range categories {
+					category, ok := cat.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["id"], "category id should not be empty")
+
+					// Level 1: childCategories
+					childCategories, ok := category["childCategories"].([]interface{})
+					require.True(t, ok, "childCategories should be an array")
+					require.NotEmpty(t, childCategories, "childCategories should not be empty")
+
+					for _, child := range childCategories {
+						childCat, ok := child.(map[string]interface{})
+						require.True(t, ok, "level1 childCategory should be an object")
+						require.NotEmpty(t, childCat["id"], "level1 childCategory id should not be empty")
+
+						// Level 2: optionalCategories
+						optionalCats, ok := childCat["optionalCategories"].([]interface{})
+						require.True(t, ok, "level2 optionalCategories should be an array")
+						require.Len(t, optionalCats, 2, "level2 optionalCategories should return 2 categories")
+
+						for _, optional := range optionalCats {
+							optionalCat, ok := optional.(map[string]interface{})
+							require.True(t, ok, "level2 optionalCategory should be an object")
+							require.NotEmpty(t, optionalCat["id"], "level2 optionalCategory id should not be empty")
+
+							// Level 3: childCategories again
+							nestedChildren, ok := optionalCat["childCategories"].([]interface{})
+							require.True(t, ok, "level3 childCategories should be an array")
+							require.NotEmpty(t, nestedChildren, "level3 childCategories should not be empty")
+
+							for _, nestedChild := range nestedChildren {
+								nestedChildCat, ok := nestedChild.(map[string]interface{})
+								require.True(t, ok, "level3 childCategory should be an object")
+								require.NotEmpty(t, nestedChildCat["id"], "level3 childCategory id should not be empty")
+								require.NotEmpty(t, nestedChildCat["kind"], "level3 childCategory kind should not be empty")
+							}
+						}
+					}
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with optional categories field resolver (include=true)",
+			query: "query CategoriesWithOptionalCategories($include: Boolean) { categories { id name optionalCategories(include: $include) { id name kind } } }",
+			vars:  `{"variables":{"include":true}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.Len(t, categories, 4, "Should return 4 categories")
+
+				for _, cat := range categories {
+					category, ok := cat.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["id"], "category id should not be empty")
+					require.NotEmpty(t, category["name"], "category name should not be empty")
+
+					// optionalCategories uses a wrapper type (ListOfCategory) for nullable list support
+					// The field resolver was called successfully if the field is present
+					require.Contains(t, category, "optionalCategories", "optionalCategories field should be present")
+					require.Len(t, category["optionalCategories"], 2, "optionalCategories should return 2 categories")
+					for _, optionalCategory := range category["optionalCategories"].([]interface{}) {
+						optionalCategory, ok := optionalCategory.(map[string]interface{})
+						require.True(t, ok, "optionalCategory should be an object")
+						require.NotEmpty(t, optionalCategory["id"], "optionalCategory id should not be empty")
+						require.NotEmpty(t, optionalCategory["name"], "optionalCategory name should not be empty")
+						require.NotEmpty(t, optionalCategory["kind"], "optionalCategory kind should not be empty")
+					}
+
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with optional categories field resolver (include=false)",
+			query: "query CategoriesWithOptionalCategories($include: Boolean) { categories { id name optionalCategories(include: $include) { id name kind } } }",
+			vars:  `{"variables":{"include":false}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.Len(t, categories, 4, "Should return 4 categories")
+
+				for _, cat := range categories {
+					category, ok := cat.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["id"], "category id should not be empty")
+					require.NotEmpty(t, category["name"], "category name should not be empty")
+
+					// When include=false, optionalCategories should be null
+					require.Nil(t, category["optionalCategories"], "optionalCategories should be null when include=false")
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with recursive child categories field resolver and aliases",
+			query: "query CategoriesWithRecursiveChildCategoriesFieldResolverAndAliases { categories { child: childCategories { id name kind childchild: childCategories { id name kind } } } }",
+			vars:  `{"variables":{}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.NotEmpty(t, categories, "categories should not be empty")
+				require.Len(t, categories, 4, "Should return 4 categories")
+
+				for _, cat := range categories {
+					category, ok := cat.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+
+					// Check aliased field "child" (childCategories)
+					child, ok := category["child"].([]interface{})
+					require.True(t, ok, "child (aliased childCategories) should be an array")
+					require.NotEmpty(t, child, "child should not be empty")
+
+					for _, ch := range child {
+						childCategory, ok := ch.(map[string]interface{})
+						require.True(t, ok, "child category should be an object")
+						require.NotEmpty(t, childCategory["id"], "child category id should not be empty")
+						require.NotEmpty(t, childCategory["name"], "child category name should not be empty")
+						require.NotEmpty(t, childCategory["kind"], "child category kind should not be empty")
+
+						// Check nested aliased field "childchild" (childCategories)
+						childchild, ok := childCategory["childchild"].([]interface{})
+						require.True(t, ok, "childchild (aliased childCategories) should be an array")
+						require.NotEmpty(t, childchild, "childchild should not be empty")
+
+						for _, chch := range childchild {
+							childchildCategory, ok := chch.(map[string]interface{})
+							require.True(t, ok, "childchild category should be an object")
+							require.NotEmpty(t, childchildCategory["id"], "childchild category id should not be empty")
+							require.NotEmpty(t, childchildCategory["name"], "childchild category name should not be empty")
+							require.NotEmpty(t, childchildCategory["kind"], "childchild category kind should not be empty")
+						}
+					}
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -4587,4 +5238,277 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			tc.validateError(t, resp.Errors)
 		})
 	}
+}
+
+func Test_Datasource_Load_WithHeaders(t *testing.T) {
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
+
+	type graphqlError struct {
+		Message string `json:"message"`
+	}
+	type graphqlResponse struct {
+		Data   map[string]interface{} `json:"data"`
+		Errors []graphqlError         `json:"errors,omitempty"`
+	}
+
+	testCases := []struct {
+		name          string
+		query         string
+		vars          string
+		headers       http.Header
+		validate      func(t *testing.T, data map[string]interface{})
+		validateError func(t *testing.T, errData []graphqlError)
+	}{
+		{
+			name:  "QueryUser with header override",
+			query: `query UserQuery($id: ID!) { user(id: $id) { id name } }`,
+			vars:  `{"variables":{"id":"original-user-123"}}`,
+			headers: func() http.Header {
+				h := make(http.Header)
+				h.Set("X-User-ID", "header-user-42")
+				return h
+			}(),
+			validate: func(t *testing.T, data map[string]interface{}) {
+				user, ok := data["user"].(map[string]interface{})
+				require.True(t, ok, "user should be an object")
+				require.Equal(t, "header-user-42", user["id"], "user ID should come from header")
+				require.Equal(t, "User header-user-42", user["name"], "user name should use header-derived ID")
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "QueryUser with header triggering error",
+			query: `query UserQuery($id: ID!) { user(id: $id) { id name } }`,
+			vars:  `{"variables":{"id":"valid-user-123"}}`,
+			headers: func() http.Header {
+				h := make(http.Header)
+				h.Set("X-User-ID", "error-user")
+				return h
+			}(),
+			validate: func(t *testing.T, data map[string]interface{}) {
+				// Data might be present but should have errors
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.NotEmpty(t, errData, "should have errors")
+				require.Contains(t, errData[0].Message, "user not found: error-user")
+			},
+		},
+		{
+			name:    "QueryUser without headers (nil) - baseline behavior",
+			query:   `query UserQuery($id: ID!) { user(id: $id) { id name } }`,
+			vars:    `{"variables":{"id":"baseline-user-99"}}`,
+			headers: nil,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				user, ok := data["user"].(map[string]interface{})
+				require.True(t, ok, "user should be an object")
+				require.Equal(t, "baseline-user-99", user["id"], "user ID should come from query variable")
+				require.Equal(t, "User baseline-user-99", user["name"], "user name should use variable-derived ID")
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "QueryUsers with custom prefix header",
+			query: `query UsersQuery { users { id name } }`,
+			vars:  `{"variables":{}}`,
+			headers: func() http.Header {
+				h := make(http.Header)
+				h.Set("X-User-Prefix", "Admin")
+				return h
+			}(),
+			validate: func(t *testing.T, data map[string]interface{}) {
+				users, ok := data["users"].([]interface{})
+				require.True(t, ok, "users should be an array")
+				require.Len(t, users, 3, "should return 3 users")
+
+				for i, u := range users {
+					user, ok := u.(map[string]interface{})
+					require.True(t, ok, "each user should be an object")
+					require.Equal(t, fmt.Sprintf("user-%d", i+1), user["id"])
+					require.Equal(t, fmt.Sprintf("Admin %d", i+1), user["name"], "user name should use custom prefix from header")
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "MutationCreateUser with name override header",
+			query: `mutation CreateUser($input: UserInput!) { createUser(input: $input) { id name } }`,
+			vars:  `{"variables":{"input":{"name":"OriginalName"}}}`,
+			headers: func() http.Header {
+				h := make(http.Header)
+				h.Set("X-Custom-Name", "HeaderName")
+				return h
+			}(),
+			validate: func(t *testing.T, data map[string]interface{}) {
+				createUser, ok := data["createUser"].(map[string]interface{})
+				require.True(t, ok, "createUser should be an object")
+				require.NotEmpty(t, createUser["id"], "created user should have an ID")
+				require.Equal(t, "HeaderName", createUser["name"], "created user name should come from header")
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Categories with productCount field resolver and header offset",
+			query: `query CategoriesWithProductCount($filters: ProductCountFilter) { categories { id name kind productCount(filters: $filters) } }`,
+			vars:  `{"variables":{"filters":{"minPrice":100}}}`,
+			headers: func() http.Header {
+				h := make(http.Header)
+				h.Set("X-Count-Offset", "100")
+				return h
+			}(),
+			validate: func(t *testing.T, data map[string]interface{}) {
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.Len(t, categories, 4, "should return 4 categories")
+
+				// Verify that productCount for each category is offset by 100
+				expectedCounts := []float64{100, 101, 102, 103}
+				for i, c := range categories {
+					category, ok := c.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["id"])
+					require.NotEmpty(t, category["name"])
+					require.Equal(t, expectedCounts[i], category["productCount"], "productCount should be offset by header value")
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:    "Categories with productCount without headers - baseline behavior",
+			query:   `query CategoriesWithProductCount($filters: ProductCountFilter) { categories { id name kind productCount(filters: $filters) } }`,
+			vars:    `{"variables":{"filters":{"minPrice":100}}}`,
+			headers: nil,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.Len(t, categories, 4, "should return 4 categories")
+
+				// Verify default productCount values (no offset)
+				expectedCounts := []float64{0, 1, 2, 3}
+				for i, c := range categories {
+					category, ok := c.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["id"])
+					require.NotEmpty(t, category["name"])
+					require.Equal(t, expectedCounts[i], category["productCount"], "productCount should use default values without header")
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Parse the GraphQL schema
+			schemaDoc := grpctest.MustGraphQLSchema(t)
+
+			// Parse the GraphQL query
+			queryDoc, report := astparser.ParseGraphqlDocumentString(tc.query)
+			require.False(t, report.HasErrors(), "failed to parse query: %s", report.Error())
+
+			compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+			require.NoError(t, err)
+
+			// Create the datasource
+			ds, err := NewDataSource(conn, DataSourceConfig{
+				Operation:    &queryDoc,
+				Definition:   &schemaDoc,
+				SubgraphName: "Products",
+				Mapping:      testMapping(),
+				Compiler:     compiler,
+			})
+			require.NoError(t, err)
+
+			// Execute the query with headers
+			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
+			output, err := ds.Load(context.Background(), tc.headers, []byte(input))
+			require.NoError(t, err)
+
+			// Parse the response
+			var resp graphqlResponse
+			err = json.Unmarshal(output, &resp)
+			require.NoError(t, err, "Failed to unmarshal response")
+
+			tc.validate(t, resp.Data)
+			tc.validateError(t, resp.Errors)
+		})
+	}
+}
+
+func Test_Datasource_Load_PreservesExistingContextMetadata(t *testing.T) {
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
+
+	type graphqlError struct {
+		Message string `json:"message"`
+	}
+	type graphqlResponse struct {
+		Data   map[string]interface{} `json:"data"`
+		Errors []graphqlError         `json:"errors,omitempty"`
+	}
+
+	// Parse the GraphQL schema
+	schemaDoc := grpctest.MustGraphQLSchema(t)
+
+	query := `query UserQuery($id: ID!) { user(id: $id) { id name } }`
+	vars := `{"variables":{"id":"test-user-123"}}`
+
+	// Parse the GraphQL query
+	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
+	require.False(t, report.HasErrors(), "failed to parse query: %s", report.Error())
+
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+	require.NoError(t, err)
+
+	// Create the datasource
+	ds, err := NewDataSource(conn, DataSourceConfig{
+		Operation:    &queryDoc,
+		Definition:   &schemaDoc,
+		SubgraphName: "Products",
+		Mapping:      testMapping(),
+		Compiler:     compiler,
+	})
+	require.NoError(t, err)
+
+	// Create a context with existing metadata
+	ctx := metadata.NewOutgoingContext(
+		context.Background(),
+		metadata.Pairs("x-existing-key", "existing-value"),
+	)
+
+	// Create HTTP headers to be forwarded
+	headers := make(http.Header)
+	headers.Set("X-User-ID", "header-user-456")
+
+	// Execute the query with both existing context metadata and new HTTP headers
+	input := fmt.Sprintf(`{"query":%q,"body":%s}`, query, vars)
+	output, err := ds.Load(ctx, headers, []byte(input))
+	require.NoError(t, err)
+
+	// Parse the response
+	var resp graphqlResponse
+	err = json.Unmarshal(output, &resp)
+	require.NoError(t, err, "Failed to unmarshal response")
+
+	// Verify no errors
+	require.Empty(t, resp.Errors, "Should not have GraphQL errors")
+
+	// Verify the response includes both the header-derived ID and the existing metadata value
+	user, ok := resp.Data["user"].(map[string]interface{})
+	require.True(t, ok, "user should be an object")
+	require.Equal(t, "header-user-456", user["id"], "user ID should come from HTTP header")
+	require.Equal(t, "User header-user-456 (existing: existing-value)", user["name"],
+		"user name should include both header-derived ID and existing context metadata")
 }

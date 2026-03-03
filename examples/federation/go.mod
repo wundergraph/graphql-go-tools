@@ -9,7 +9,7 @@ require (
 	github.com/jensneuse/abstractlogger v0.0.4
 	github.com/vektah/gqlparser/v2 v2.5.30
 	github.com/wundergraph/graphql-go-tools/execution v1.0.1
-	github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.230
+	github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.231
 	go.uber.org/atomic v1.11.0
 	go.uber.org/zap v1.27.0
 )
@@ -49,9 +49,10 @@ require (
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/urfave/cli/v2 v2.27.7 // indirect
-	github.com/wundergraph/astjson v0.0.0-20250106123708-be463c97e083 // indirect
+	github.com/wundergraph/astjson v1.0.0 // indirect
 	github.com/wundergraph/cosmo/composition-go v0.0.0-20241020204711-78f240a77c99 // indirect
 	github.com/wundergraph/cosmo/router v0.0.0-20251013094319-c611abf26b17 // indirect
+	github.com/wundergraph/go-arena v1.1.0 // indirect
 	github.com/xrash/smetrics v0.0.0-20250705151800-55b8f293f342 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/mod v0.29.0 // indirect

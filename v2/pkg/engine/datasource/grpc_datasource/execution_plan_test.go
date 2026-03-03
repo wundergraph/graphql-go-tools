@@ -191,6 +191,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 						},
 					},
 					{
+						ID:          1,
 						ServiceName: "Products",
 						MethodName:  "QueryUser",
 						Request: RPCMessage{
@@ -1647,6 +1648,7 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 						},
 					},
 					{
+						ID:          1,
 						ServiceName: "Products",
 						MethodName:  "QueryCategories",
 						Request: RPCMessage{
@@ -2165,6 +2167,7 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 						},
 					},
 					{
+						ID:          1,
 						ServiceName: "Products",
 						MethodName:  "QueryUser",
 						Request: RPCMessage{
@@ -2206,6 +2209,7 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 						},
 					},
 					{
+						ID:          2,
 						ServiceName: "Products",
 						MethodName:  "QueryUser",
 						Request: RPCMessage{

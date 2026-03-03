@@ -42,9 +42,9 @@ func HandlerWithCaching(
 	subgraphEntityCachingConfigs engine.SubgraphCachingConfigs,
 	debugMode bool,
 ) *Gateway {
-	upgrader := &ws.DefaultHTTPUpgrader
-	upgrader.Header = http.Header{}
-	// upgrader.Header.Add("Sec-Websocket-Protocol", "graphql-ws")
+	upgrader := &ws.HTTPUpgrader{
+		Header: http.Header{},
+	}
 
 	datasourceWatcher := datasourcePoller
 

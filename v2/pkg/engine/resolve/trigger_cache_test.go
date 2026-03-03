@@ -11,9 +11,9 @@ import (
 	"github.com/wundergraph/go-arena"
 )
 
-// newTestResolver constructs a minimal Resolver for handleTriggerEntityCache tests.
+// newTestResolverWithCaches constructs a minimal Resolver for handleTriggerEntityCache tests.
 // It avoids New() which spawns the event-loop goroutine.
-func newTestResolver(caches map[string]LoaderCache) *Resolver {
+func newTestResolverWithCaches(caches map[string]LoaderCache) *Resolver {
 	return &Resolver{
 		ctx: context.Background(),
 		options: ResolverOptions{
@@ -50,7 +50,7 @@ func productCacheKeyTemplate() *EntityQueryCacheKeyTemplate {
 func TestHandleTriggerEntityCache(t *testing.T) {
 	t.Run("populate single entity", func(t *testing.T) {
 		cache := NewFakeLoaderCache()
-		r := newTestResolver(map[string]LoaderCache{"default": cache})
+		r := newTestResolverWithCaches(map[string]LoaderCache{"default": cache})
 
 		resolveCtx := NewContext(context.Background())
 		resolveCtx.ExecutionOptions.Caching.EnableL2Cache = true
@@ -93,7 +93,7 @@ func TestHandleTriggerEntityCache(t *testing.T) {
 
 	t.Run("populate array of entities", func(t *testing.T) {
 		cache := NewFakeLoaderCache()
-		r := newTestResolver(map[string]LoaderCache{"default": cache})
+		r := newTestResolverWithCaches(map[string]LoaderCache{"default": cache})
 
 		resolveCtx := NewContext(context.Background())
 		resolveCtx.ExecutionOptions.Caching.EnableL2Cache = true
@@ -132,7 +132,7 @@ func TestHandleTriggerEntityCache(t *testing.T) {
 		// Before the fix, using items[:0] to filter in-place corrupted the parsed JSON
 		// array because GetArray() returns a slice over the parser's internal buffer.
 		cache := NewFakeLoaderCache()
-		r := newTestResolver(map[string]LoaderCache{"default": cache})
+		r := newTestResolverWithCaches(map[string]LoaderCache{"default": cache})
 
 		resolveCtx := NewContext(context.Background())
 		resolveCtx.ExecutionOptions.Caching.EnableL2Cache = true
@@ -181,7 +181,7 @@ func TestHandleTriggerEntityCache(t *testing.T) {
 
 	t.Run("missing typename gets injected", func(t *testing.T) {
 		cache := NewFakeLoaderCache()
-		r := newTestResolver(map[string]LoaderCache{"default": cache})
+		r := newTestResolverWithCaches(map[string]LoaderCache{"default": cache})
 
 		resolveCtx := NewContext(context.Background())
 		resolveCtx.ExecutionOptions.Caching.EnableL2Cache = true
@@ -222,7 +222,7 @@ func TestHandleTriggerEntityCache(t *testing.T) {
 
 	t.Run("invalidate mode deletes cache entry", func(t *testing.T) {
 		cache := NewFakeLoaderCache()
-		r := newTestResolver(map[string]LoaderCache{"default": cache})
+		r := newTestResolverWithCaches(map[string]LoaderCache{"default": cache})
 
 		// Pre-populate cache with an entity
 		err := cache.Set(context.Background(), []*CacheEntry{
@@ -272,7 +272,7 @@ func TestHandleTriggerEntityCache(t *testing.T) {
 	t.Run("missing cache name returns early", func(t *testing.T) {
 		cache := NewFakeLoaderCache()
 		// Resolver has "default" cache, but config references "nonexistent"
-		r := newTestResolver(map[string]LoaderCache{"default": cache})
+		r := newTestResolverWithCaches(map[string]LoaderCache{"default": cache})
 
 		resolveCtx := NewContext(context.Background())
 		resolveCtx.ExecutionOptions.Caching.EnableL2Cache = true

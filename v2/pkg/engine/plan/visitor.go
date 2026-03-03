@@ -39,7 +39,7 @@ type Visitor struct {
 	response                     *resolve.GraphQLResponse
 	subscription                 *resolve.GraphQLSubscription
 	OperationName                string
-	operationDefinition          int
+	operationDefinitionRef       int
 	objects                      []*resolve.Object
 	currentFields                []objectFields
 	currentField                 *resolve.Field
@@ -57,9 +57,11 @@ type Visitor struct {
 	pathCache                    map[astvisitor.VisitorKind]map[int]string
 
 	// plannerFields maps plannerID to fieldRefs planned on this planner.
+	// Values added in AllowVisitor callback which is fired before calling LeaveField
 	plannerFields map[int][]int
 
 	// fieldPlanners maps fieldRef to the plannerIDs where it was planned on.
+	// Values added in AllowVisitor callback which is fired before calling LeaveField
 	fieldPlanners map[int][]int
 
 	// fieldEnclosingTypeNames maps fieldRef to the enclosing type name.
@@ -80,6 +82,20 @@ type Visitor struct {
 	// entityAnalyticsCache is a lazy cache for entity analytics config lookup across all datasources.
 	// typeName → config (nil = not entity)
 	entityAnalyticsCache map[string]*resolve.ObjectCacheAnalytics
+}
+
+func NewVisitor(w *astvisitor.Walker) *Visitor {
+	return &Visitor{
+		Walker:                  w,
+		fieldConfigs:            map[int]*FieldConfiguration{},
+		exportedVariables:       map[string]struct{}{},
+		skipIncludeOnFragments:  map[int]skipIncludeInfo{},
+		indirectInterfaceFields: map[int]indirectInterfaceField{},
+		pathCache:               map[astvisitor.VisitorKind]map[int]string{},
+		plannerFields:           map[int][]int{},
+		fieldPlanners:           map[int][]int{},
+		fieldEnclosingTypeNames: map[int]string{},
+	}
 }
 
 type indirectInterfaceField struct {
@@ -148,6 +164,10 @@ type objectFields struct {
 func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any, skipFor astvisitor.SkipVisitors) bool {
 	if visitor == v {
 		// main planner visitor should always be allowed
+		return true
+	}
+	if _, isCostVisitor := visitor.(*CostVisitor); isCostVisitor {
+		// cost tree visitor should always be allowed
 		return true
 	}
 	var (
@@ -640,29 +660,29 @@ func (v *Visitor) addInterfaceObjectNameToTypeNames(fieldRef int, typeName []byt
 	return onTypeNames
 }
 
-func (v *Visitor) LeaveField(ref int) {
-	v.debugOnLeaveNode(ast.NodeKindField, ref)
+func (v *Visitor) LeaveField(fieldRef int) {
+	v.debugOnLeaveNode(ast.NodeKindField, fieldRef)
 
 	// Pop fields for each planner that tracked this field
 	for plannerID := range v.planners {
-		v.popFieldsForPlanner(plannerID, ref)
+		v.popFieldsForPlanner(plannerID, fieldRef)
 	}
 
-	if v.skipField(ref) {
+	if v.skipField(fieldRef) {
 		// we should also check skips on field leave
 		// cause on nested keys we could mistakenly remove wrong object
 		// from the stack of the current objects
 		return
 	}
 
-	if v.currentFields[len(v.currentFields)-1].popOnField == ref {
+	if v.currentFields[len(v.currentFields)-1].popOnField == fieldRef {
 		v.currentFields = v.currentFields[:len(v.currentFields)-1]
 	}
-	fieldDefinition, ok := v.Walker.FieldDefinition(ref)
+	fieldDefinitionRef, ok := v.Walker.FieldDefinition(fieldRef)
 	if !ok {
 		return
 	}
-	fieldDefinitionTypeNode := v.Definition.FieldDefinitionTypeNode(fieldDefinition)
+	fieldDefinitionTypeNode := v.Definition.FieldDefinitionTypeNode(fieldDefinitionRef)
 	switch fieldDefinitionTypeNode.Kind {
 	case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
 		v.objects = v.objects[:len(v.objects)-1]
@@ -1027,14 +1047,14 @@ func (v *Visitor) valueRequiresExportedVariable(value ast.Value) bool {
 	}
 }
 
-func (v *Visitor) EnterOperationDefinition(ref int) {
-	operationName := v.Operation.OperationDefinitionNameString(ref)
+func (v *Visitor) EnterOperationDefinition(opRef int) {
+	operationName := v.Operation.OperationDefinitionNameString(opRef)
 	if v.OperationName != operationName {
 		v.Walker.SkipNode()
 		return
 	}
 
-	v.operationDefinition = ref
+	v.operationDefinitionRef = opRef
 
 	rootObject := &resolve.Object{
 		Fields: []*resolve.Field{},
@@ -1129,7 +1149,8 @@ func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.indirectInterfaceFields = map[int]indirectInterfaceField{}
 	v.pathCache = map[astvisitor.VisitorKind]map[int]string{}
 	v.plannerFields = map[int][]int{}
-	v.fieldPlanners = map[int][]int{}
+	// NOTE: Do NOT reset fieldPlanners here — the cost visitor captures a reference
+	// to this map before the walk starts and would lose the shared reference.
 	v.fieldEnclosingTypeNames = map[int]string{}
 	v.plannerObjects = map[int]*resolve.Object{}
 	v.plannerCurrentFields = map[int][]objectFields{}
@@ -1551,10 +1572,10 @@ func (v *Visitor) resolveInputTemplates(config *objectFetchConfiguration, input 
 				return v.renderJSONValueTemplate(value, variables, inputValueDefinition)
 			}
 			variableValue := v.Operation.VariableValueNameString(value.Ref)
-			if !v.Operation.OperationDefinitionHasVariableDefinition(v.operationDefinition, variableValue) {
+			if !v.Operation.OperationDefinitionHasVariableDefinition(v.operationDefinitionRef, variableValue) {
 				break // omit optional argument when variable is not defined
 			}
-			variableDefinition, exists := v.Operation.VariableDefinitionByNameAndOperation(v.operationDefinition, v.Operation.VariableValueNameBytes(value.Ref))
+			variableDefinition, exists := v.Operation.VariableDefinitionByNameAndOperation(v.operationDefinitionRef, v.Operation.VariableValueNameBytes(value.Ref))
 			if !exists {
 				break
 			}

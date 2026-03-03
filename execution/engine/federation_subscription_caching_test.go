@@ -13,8 +13,6 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/execution/engine"
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting"
-	products "github.com/wundergraph/graphql-go-tools/execution/federationtesting/products/graph"
-	reviewsgraph "github.com/wundergraph/graphql-go-tools/execution/federationtesting/reviews/graph"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
@@ -81,8 +79,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
 		))
 		t.Cleanup(setup.Close)
-		defer products.Reset()
-		defer reviewsgraph.ResetReviews()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -175,8 +171,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
 		))
 		t.Cleanup(setup.Close)
-		defer products.Reset()
-		defer reviewsgraph.ResetReviews()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -250,8 +244,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
 		))
 		t.Cleanup(setup.Close)
-		defer products.Reset()
-		defer reviewsgraph.ResetReviews()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -303,8 +295,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
 		))
 		t.Cleanup(setup.Close)
-		defer products.Reset()
-		defer reviewsgraph.ResetReviews()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -359,8 +349,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
 		))
 		t.Cleanup(setup.Close)
-		defer products.Reset()
-		defer reviewsgraph.ResetReviews()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -416,8 +404,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
 		))
 		t.Cleanup(setup.Close)
-		defer products.Reset()
-		defer reviewsgraph.ResetReviews()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -474,8 +460,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
 		))
 		t.Cleanup(setup.Close)
-		defer products.Reset()
-		defer reviewsgraph.ResetReviews()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -548,8 +532,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
 		))
 		t.Cleanup(setup.Close)
-		defer products.Reset()
-		defer reviewsgraph.ResetReviews()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -619,8 +601,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
 		))
 		t.Cleanup(setup.Close)
-		defer products.Reset()
-		defer reviewsgraph.ResetReviews()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -695,8 +675,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
 		))
 		t.Cleanup(setup.Close)
-		defer products.Reset()
-		defer reviewsgraph.ResetReviews()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -761,8 +739,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
 		))
 		t.Cleanup(setup.Close)
-		defer products.Reset()
-		defer reviewsgraph.ResetReviews()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -845,8 +821,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
 		))
 		t.Cleanup(setup.Close)
-		defer products.Reset()
-		defer reviewsgraph.ResetReviews()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -924,8 +898,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
 		))
 		t.Cleanup(setup.Close)
-		defer products.Reset()
-		defer reviewsgraph.ResetReviews()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -1016,8 +988,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
 		))
 		t.Cleanup(setup.Close)
-		defer products.Reset()
-		defer reviewsgraph.ResetReviews()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -1086,8 +1056,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
 		))
 		t.Cleanup(setup.Close)
-		defer products.Reset()
-		defer reviewsgraph.ResetReviews()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -1142,8 +1110,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
 		))
 		t.Cleanup(setup.Close)
-		defer products.Reset()
-		defer reviewsgraph.ResetReviews()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -1199,8 +1165,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
 		))
 		t.Cleanup(setup.Close)
-		defer products.Reset()
-		defer reviewsgraph.ResetReviews()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -1257,8 +1221,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
 		))
 		t.Cleanup(setup.Close)
-		defer products.Reset()
-		defer reviewsgraph.ResetReviews()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -1315,8 +1277,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
 		))
 		t.Cleanup(setup.Close)
-		defer products.Reset()
-		defer reviewsgraph.ResetReviews()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -1376,8 +1336,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
 		))
 		t.Cleanup(setup.Close)
-		defer products.Reset()
-		defer reviewsgraph.ResetReviews()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -1433,8 +1391,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
 		))
 		t.Cleanup(setup.Close)
-		defer products.Reset()
-		defer reviewsgraph.ResetReviews()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -1490,8 +1446,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
 		))
 		t.Cleanup(setup.Close)
-		defer products.Reset()
-		defer reviewsgraph.ResetReviews()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -1617,8 +1571,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
 		))
 		t.Cleanup(setup.Close)
-		defer products.Reset()
-		defer reviewsgraph.ResetReviews()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -1743,8 +1695,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
 		))
 		t.Cleanup(setup.Close)
-		defer products.Reset()
-		defer reviewsgraph.ResetReviews()
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())

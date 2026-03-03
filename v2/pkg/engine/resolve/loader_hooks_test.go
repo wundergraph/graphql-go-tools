@@ -21,13 +21,8 @@ type TestLoaderHooks struct {
 	mu             sync.Mutex
 }
 
-func NewTestLoaderHooks() LoaderHooks {
-	return &TestLoaderHooks{
-		preFetchCalls:  atomic.Int64{},
-		postFetchCalls: atomic.Int64{},
-		errors:         make([]error, 0),
-		mu:             sync.Mutex{},
-	}
+func NewTestLoaderHooks() *TestLoaderHooks {
+	return &TestLoaderHooks{}
 }
 
 func (f *TestLoaderHooks) OnLoad(ctx context.Context, ds DataSourceInfo) context.Context {
@@ -295,9 +290,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 				assert.Equal(t, 0, subgraphError.ResponseCode)
 				assert.Len(t, subgraphError.DownstreamErrors, 2)
 				assert.Equal(t, "errorMessage", subgraphError.DownstreamErrors[0].Message)
-				assert.Empty(t, subgraphError.DownstreamErrors[0].Extensions["code"])
+				assert.Nil(t, subgraphError.DownstreamErrors[0].Extensions.Get("code"))
 				assert.Equal(t, "errorMessage2", subgraphError.DownstreamErrors[1].Message)
-				assert.Empty(t, subgraphError.DownstreamErrors[1].Extensions["code"])
+				assert.Nil(t, subgraphError.DownstreamErrors[1].Extensions.Get("code"))
 
 				assert.NotNil(t, resolveCtx.SubgraphErrors())
 			}
@@ -336,6 +331,111 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 				},
 			},
 		}, *NewContext(context.Background()), `{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"errorMessage2","extensions":{"code":"BAD_USER_INPUT"}}],"data":{"name":null}}`
+	}))
+
+	t.Run("Delete multiple non-allowed extension fields without crash", testFnSubgraphErrorsWithExtensionFieldCode(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		mockDataSource := NewMockDataSource(ctrl)
+		mockDataSource.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
+				return []byte(`{"errors":[{"message":"err","extensions":{"code":"SOME_CODE","a":"1","b":"2","c":"3"}}]}`), nil
+			})
+		return &GraphQLResponse{
+			Fetches: Single(&SingleFetch{
+				FetchConfiguration: FetchConfiguration{
+					DataSource: mockDataSource,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseErrorsPath: []string{"errors"},
+					},
+				},
+				Info: &FetchInfo{
+					DataSourceID:   "Users",
+					DataSourceName: "Users",
+				},
+			}),
+			Data: &Object{
+				Nullable: false,
+				Fields: []*Field{
+					{
+						Name: []byte("name"),
+						Value: &String{
+							Path:     []string{"name"},
+							Nullable: true,
+						},
+					},
+				},
+			},
+		}, *NewContext(context.Background()), `{"errors":[{"message":"err","extensions":{"code":"SOME_CODE"}}],"data":{"name":null}}`
+	}))
+
+	t.Run("Null extensions value is preserved as-is", testFnSubgraphErrorsWithExtensionFieldCode(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		mockDataSource := NewMockDataSource(ctrl)
+		mockDataSource.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
+				return []byte(`{"errors":[{"message":"err","extensions":null}]}`), nil
+			})
+		return &GraphQLResponse{
+			Fetches: Single(&SingleFetch{
+				FetchConfiguration: FetchConfiguration{
+					DataSource: mockDataSource,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseErrorsPath: []string{"errors"},
+					},
+				},
+				Info: &FetchInfo{
+					DataSourceID:   "Users",
+					DataSourceName: "Users",
+				},
+			}),
+			Data: &Object{
+				Nullable: false,
+				Fields: []*Field{
+					{
+						Name: []byte("name"),
+						Value: &String{
+							Path:     []string{"name"},
+							Nullable: true,
+						},
+					},
+				},
+			},
+		}, *NewContext(context.Background()), `{"errors":[{"message":"err","extensions":null}],"data":{"name":null}}`
+	}))
+
+	t.Run("Extensions removed when no allowed fields match", testFnSubgraphErrorsWithExtensionFieldCode(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		mockDataSource := NewMockDataSource(ctrl)
+		mockDataSource.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
+				return []byte(`{"errors":[{"message":"err","extensions":{"foo":"bar"}}]}`), nil
+			})
+		return &GraphQLResponse{
+			Fetches: Single(&SingleFetch{
+				FetchConfiguration: FetchConfiguration{
+					DataSource: mockDataSource,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseErrorsPath: []string{"errors"},
+					},
+				},
+				Info: &FetchInfo{
+					DataSourceID:   "Users",
+					DataSourceName: "Users",
+				},
+			}),
+			Data: &Object{
+				Nullable: false,
+				Fields: []*Field{
+					{
+						Name: []byte("name"),
+						Value: &String{
+							Path:     []string{"name"},
+							Nullable: true,
+						},
+					},
+				},
+			},
+		}, *NewContext(context.Background()), `{"errors":[{"message":"err"}],"data":{"name":null}}`
 	}))
 
 	t.Run("Propagate all extension fields from subgraph errors when allow all option is enabled", testFnSubgraphErrorsWithAllowAllExtensionFields(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
@@ -548,6 +648,99 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 		}, *NewContext(context.Background()), `{"errors":[{"message":"errorMessage","extensions":{"code":"DOWNSTREAM_SERVICE_ERROR"}},{"message":"errorMessage2","extensions":{"code":"DOWNSTREAM_SERVICE_ERROR"}}],"data":{"name":null}}`
 	}))
 
+	// Test that skipped fetches (null parent) don't call OnFinished with nil loaderHookContext.
+	// Covers both the serial (resolveSingle) and parallel (resolveParallel) code paths.
+	for _, tc := range []struct {
+		name            string
+		wrapSecondFetch func(node *FetchTreeNode) *FetchTreeNode
+	}{
+		{
+			name:            "skipped fetch does not call OnFinished with nil loaderHookContext",
+			wrapSecondFetch: func(node *FetchTreeNode) *FetchTreeNode { return node },
+		},
+		{
+			name:            "parallel skipped fetch does not call OnFinished with nil loaderHookContext",
+			wrapSecondFetch: func(node *FetchTreeNode) *FetchTreeNode { return Parallel(node) },
+		},
+	} {
+		t.Run(tc.name, testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+			userService := NewMockDataSource(ctrl)
+			userService.EXPECT().
+				Load(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
+					return []byte(`{"data":{"user":null}}`), nil
+				})
+
+			detailsService := NewMockDataSource(ctrl)
+			detailsService.EXPECT().
+				Load(gomock.Any(), gomock.Any(), gomock.Any()).
+				Times(0)
+
+			resolveCtx := NewContext(context.Background())
+			resolveCtx.LoaderHooks = NewTestLoaderHooks()
+
+			return &GraphQLResponse{
+					Info: &GraphQLResponseInfo{
+						OperationType: ast.OperationTypeQuery,
+					},
+					Fetches: Sequence(
+						Single(&SingleFetch{
+							FetchConfiguration: FetchConfiguration{
+								DataSource: userService,
+								PostProcessing: PostProcessingConfiguration{
+									SelectResponseDataPath: []string{"data"},
+								},
+							},
+							Info: &FetchInfo{
+								DataSourceID:   "Users",
+								DataSourceName: "Users",
+							},
+						}),
+						tc.wrapSecondFetch(SingleWithPath(&SingleFetch{
+							FetchConfiguration: FetchConfiguration{
+								DataSource: detailsService,
+								PostProcessing: PostProcessingConfiguration{
+									SelectResponseDataPath: []string{"data"},
+								},
+							},
+							Info: &FetchInfo{
+								DataSourceID:   "Details",
+								DataSourceName: "Details",
+							},
+						}, "query.user", ObjectPath("user"))),
+					),
+					Data: &Object{
+						Fields: []*Field{
+							{
+								Name: []byte("user"),
+								Value: &Object{
+									Nullable: true,
+									Path:     []string{"user"},
+									Fields: []*Field{
+										{
+											Name: []byte("name"),
+											Value: &String{
+												Path:     []string{"name"},
+												Nullable: true,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				}, resolveCtx, `{"data":{"user":null}}`,
+				func(t *testing.T) {
+					loaderHooks := resolveCtx.LoaderHooks.(*TestLoaderHooks)
+					// Only the first fetch should trigger OnLoad/OnFinished.
+					// The second fetch is skipped (null parent), so OnFinished must NOT be called
+					// (its loaderHookContext would be nil, which previously caused a panic in the router).
+					assert.Equal(t, int64(1), loaderHooks.preFetchCalls.Load())
+					assert.Equal(t, int64(1), loaderHooks.postFetchCalls.Load())
+				}
+		}))
+	}
+
 	t.Run("Fallback to default extension code value when extensions is an empty object", testFnSubgraphErrorsWithExtensionDefaultCode(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
@@ -582,5 +775,366 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 			},
 		}, *NewContext(context.Background()), `{"errors":[{"message":"errorMessage","extensions":{"code":"DOWNSTREAM_SERVICE_ERROR"}},{"message":"errorMessage2","extensions":{"code":"DOWNSTREAM_SERVICE_ERROR"}}],"data":{"name":null}}`
 	}))
+
+	t.Run("skipped entity fetch does not call OnFinished with nil loaderHookContext", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+		userService := NewMockDataSource(ctrl)
+		userService.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"user":{"name":"Bill","info":null}}}`), nil
+			})
+
+		infoService := NewMockDataSource(ctrl)
+		infoService.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			Times(0)
+
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.LoaderHooks = NewTestLoaderHooks()
+
+		return &GraphQLResponse{
+				Info: &GraphQLResponseInfo{
+					OperationType: ast.OperationTypeQuery,
+				},
+				Fetches: Sequence(
+					Single(&SingleFetch{
+						FetchConfiguration: FetchConfiguration{
+							DataSource: userService,
+							PostProcessing: PostProcessingConfiguration{
+								SelectResponseDataPath: []string{"data"},
+							},
+						},
+						Info: &FetchInfo{
+							DataSourceID:   "Users",
+							DataSourceName: "Users",
+						},
+					}),
+					SingleWithPath(&EntityFetch{
+						FetchDependencies: FetchDependencies{
+							FetchID:           1,
+							DependsOnFetchIDs: []int{0},
+						},
+						Input: EntityInput{
+							Header: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations) { ... on Info { age }}}","variables":{"representations":[`),
+										SegmentType: StaticSegmentType,
+									},
+								},
+							},
+							Item: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										SegmentType:  VariableSegmentType,
+										VariableKind: ResolvableObjectVariableKind,
+										Renderer: NewGraphQLVariableResolveRenderer(&Object{
+											Fields: []*Field{
+												{
+													Name: []byte("id"),
+													Value: &Integer{
+														Path: []string{"id"},
+													},
+													OnTypeNames: [][]byte{[]byte("Info")},
+												},
+												{
+													Name: []byte("__typename"),
+													Value: &String{
+														Path: []string{"__typename"},
+													},
+													OnTypeNames: [][]byte{[]byte("Info")},
+												},
+											},
+										}),
+									},
+								},
+							},
+							Footer: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										Data:        []byte(`]}}}`),
+										SegmentType: StaticSegmentType,
+									},
+								},
+							},
+							SkipErrItem: true,
+						},
+						DataSource: infoService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data", "_entities", "0"},
+						},
+						Info: &FetchInfo{
+							DataSourceID:   "Info",
+							DataSourceName: "Info",
+						},
+					}, "user.info", ObjectPath("user"), ObjectPath("info")),
+				),
+				Data: &Object{
+					Fields: []*Field{
+						{
+							Name: []byte("user"),
+							Value: &Object{
+								Path: []string{"user"},
+								Fields: []*Field{
+									{
+										Name: []byte("name"),
+										Value: &String{
+											Path: []string{"name"},
+										},
+									},
+									{
+										Name: []byte("info"),
+										Value: &Object{
+											Nullable: true,
+											Path:     []string{"info"},
+											Fields: []*Field{
+												{
+													Name: []byte("age"),
+													Value: &Integer{
+														Path: []string{"age"},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, resolveCtx, `{"data":{"user":{"name":"Bill","info":null}}}`,
+			func(t *testing.T) {
+				loaderHooks := resolveCtx.LoaderHooks.(*TestLoaderHooks)
+				assert.Equal(t, int64(1), loaderHooks.preFetchCalls.Load())
+				assert.Equal(t, int64(1), loaderHooks.postFetchCalls.Load())
+			}
+	}))
+
+	t.Run("skipped batch entity fetch does not call OnFinished with nil loaderHookContext", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+		userService := NewMockDataSource(ctrl)
+		userService.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"user":{"name":"Bill","infoList":[{"id":1,"__typename":"Unknown"}]}}}`), nil
+			})
+
+		infoService := NewMockDataSource(ctrl)
+		infoService.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			Times(0)
+
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.LoaderHooks = NewTestLoaderHooks()
+
+		return &GraphQLResponse{
+				Info: &GraphQLResponseInfo{
+					OperationType: ast.OperationTypeQuery,
+				},
+				Fetches: Sequence(
+					Single(&SingleFetch{
+						FetchConfiguration: FetchConfiguration{
+							DataSource: userService,
+							PostProcessing: PostProcessingConfiguration{
+								SelectResponseDataPath: []string{"data"},
+							},
+						},
+						Info: &FetchInfo{
+							DataSourceID:   "Users",
+							DataSourceName: "Users",
+						},
+					}),
+					SingleWithPath(&BatchEntityFetch{
+						FetchDependencies: FetchDependencies{
+							FetchID:           1,
+							DependsOnFetchIDs: []int{0},
+						},
+						Input: BatchInput{
+							Header: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations) { ... on Info { age }}}","variables":{"representations":[`),
+										SegmentType: StaticSegmentType,
+									},
+								},
+							},
+							Items: []InputTemplate{
+								{
+									Segments: []TemplateSegment{
+										{
+											SegmentType:  VariableSegmentType,
+											VariableKind: ResolvableObjectVariableKind,
+											Renderer: NewGraphQLVariableResolveRenderer(&Object{
+												Fields: []*Field{
+													{
+														Name: []byte("id"),
+														Value: &Integer{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("Info")},
+													},
+													{
+														Name: []byte("__typename"),
+														Value: &String{
+															Path: []string{"__typename"},
+														},
+														OnTypeNames: [][]byte{[]byte("Info")},
+													},
+												},
+											}),
+										},
+									},
+								},
+							},
+							Separator: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										Data:        []byte(`,`),
+										SegmentType: StaticSegmentType,
+									},
+								},
+							},
+							Footer: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										Data:        []byte(`]}}}`),
+										SegmentType: StaticSegmentType,
+									},
+								},
+							},
+							SkipNullItems:        true,
+							SkipEmptyObjectItems: true,
+							SkipErrItems:         true,
+						},
+						DataSource: infoService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data", "_entities"},
+						},
+						Info: &FetchInfo{
+							DataSourceID:   "Info",
+							DataSourceName: "Info",
+						},
+					}, "user.infoList", ObjectPath("user"), ArrayPath("infoList")),
+				),
+				Data: &Object{
+					Fields: []*Field{
+						{
+							Name: []byte("user"),
+							Value: &Object{
+								Path: []string{"user"},
+								Fields: []*Field{
+									{
+										Name: []byte("name"),
+										Value: &String{
+											Path: []string{"name"},
+										},
+									},
+									{
+										Name: []byte("infoList"),
+										Value: &Array{
+											Path: []string{"infoList"},
+											Item: &Object{
+												Fields: []*Field{
+													{
+														Name: []byte("age"),
+														Value: &Integer{
+															Path: []string{"age"},
+														},
+														OnTypeNames: [][]byte{[]byte("Info")},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, resolveCtx, `{"data":{"user":{"name":"Bill","infoList":[{}]}}}`,
+			func(t *testing.T) {
+				loaderHooks := resolveCtx.LoaderHooks.(*TestLoaderHooks)
+				assert.Equal(t, int64(1), loaderHooks.preFetchCalls.Load())
+				assert.Equal(t, int64(1), loaderHooks.postFetchCalls.Load())
+			}
+	}))
+
+	t.Run("fetch with subgraph error propagates only allowed extension fields to downstream errors in hooks",
+		testFnWithPostEvaluationAndOptions(ResolverOptions{
+			MaxConcurrency:               1024,
+			PropagateSubgraphErrors:      true,
+			PropagateSubgraphStatusCodes: true,
+			AllowedErrorExtensionFields:  []string{"code", "serviceName"},
+			SubgraphErrorPropagationMode: SubgraphErrorPropagationModePassThrough,
+		}, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+			mockDataSource := NewMockDataSource(ctrl)
+			mockDataSource.EXPECT().
+				Load(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
+					return []byte(`{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED","serviceName":"products","internalTrace":"abc123","sensitiveField":"secret"}},{"message":"errorMessage2","extensions":{"code":"BAD_USER_INPUT","serviceName":"users","internalTrace":"def456"}}]}`), nil
+				})
+			resolveCtx := NewContext(context.Background())
+			resolveCtx.LoaderHooks = NewTestLoaderHooks()
+			return &GraphQLResponse{
+					Info: &GraphQLResponseInfo{
+						OperationType: ast.OperationTypeQuery,
+					},
+					Fetches: SingleWithPath(&SingleFetch{
+						FetchConfiguration: FetchConfiguration{
+							DataSource: mockDataSource,
+							PostProcessing: PostProcessingConfiguration{
+								SelectResponseErrorsPath: []string{"errors"},
+							},
+						},
+						Info: &FetchInfo{
+							DataSourceID:   "Products",
+							DataSourceName: "Products",
+						},
+					}, "query"),
+					Data: &Object{
+						Nullable: false,
+						Fields: []*Field{
+							{
+								Name: []byte("name"),
+								Value: &String{
+									Path:     []string{"name"},
+									Nullable: true,
+								},
+							},
+						},
+					},
+				}, resolveCtx, `{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED","serviceName":"products"}},{"message":"errorMessage2","extensions":{"code":"BAD_USER_INPUT","serviceName":"users"}}],"data":{"name":null}}`,
+				func(t *testing.T) {
+					loaderHooks := resolveCtx.LoaderHooks.(*TestLoaderHooks)
+
+					assert.Equal(t, int64(1), loaderHooks.preFetchCalls.Load())
+					assert.Equal(t, int64(1), loaderHooks.postFetchCalls.Load())
+
+					var subgraphError *SubgraphError
+					assert.Len(t, loaderHooks.errors, 1)
+					assert.ErrorAs(t, loaderHooks.errors[0], &subgraphError)
+					assert.Equal(t, "Products", subgraphError.DataSourceInfo.Name)
+					assert.Equal(t, "query", subgraphError.Path)
+					assert.Len(t, subgraphError.DownstreamErrors, 2)
+
+					// First error: allowed fields "code" and "serviceName" are present,
+					// non-allowed fields "internalTrace" and "sensitiveField" are absent.
+					assert.Equal(t, "errorMessage", subgraphError.DownstreamErrors[0].Message)
+					assert.NotNil(t, subgraphError.DownstreamErrors[0].Extensions)
+					assert.Equal(t, `"GRAPHQL_VALIDATION_FAILED"`, subgraphError.DownstreamErrors[0].Extensions.Get("code").String())
+					assert.Equal(t, `"products"`, subgraphError.DownstreamErrors[0].Extensions.Get("serviceName").String())
+					assert.Nil(t, subgraphError.DownstreamErrors[0].Extensions.Get("internalTrace"))
+					assert.Nil(t, subgraphError.DownstreamErrors[0].Extensions.Get("sensitiveField"))
+
+					// Second error: allowed fields "code" and "serviceName" are present,
+					// non-allowed field "internalTrace" is absent.
+					assert.Equal(t, "errorMessage2", subgraphError.DownstreamErrors[1].Message)
+					assert.NotNil(t, subgraphError.DownstreamErrors[1].Extensions)
+					assert.Equal(t, `"BAD_USER_INPUT"`, subgraphError.DownstreamErrors[1].Extensions.Get("code").String())
+					assert.Equal(t, `"users"`, subgraphError.DownstreamErrors[1].Extensions.Get("serviceName").String())
+					assert.Nil(t, subgraphError.DownstreamErrors[1].Extensions.Get("internalTrace"))
+
+					assert.NotNil(t, resolveCtx.SubgraphErrors())
+				}
+		}))
 
 }

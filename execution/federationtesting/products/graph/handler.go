@@ -32,7 +32,24 @@ var TestOptions = EndpointOptions{
 
 func GraphQLEndpointHandler(opts EndpointOptions) http.Handler {
 	websocketConnections.Store(0)
-	srv := handler.New(generated.NewExecutableSchema(generated.Config{Resolvers: &Resolver{}}))
+
+	updateInterval := time.Second
+	if opts.OverrideUpdateInterval > 0 {
+		updateInterval = opts.OverrideUpdateInterval
+	}
+
+	resolver := &Resolver{
+		products:          newProducts(),
+		extraProducts:     newExtraProducts(),
+		digitalProducts:   newDigitalProducts(),
+		randomnessEnabled: opts.EnableRandomness,
+		minPrice:          10,
+		maxPrice:          1499,
+		currentPrice:      10,
+		updateInterval:    updateInterval,
+	}
+
+	srv := handler.New(generated.NewExecutableSchema(generated.Config{Resolvers: resolver}))
 
 	srv.AddTransport(transport.POST{})
 	srv.AddTransport(transport.Websocket{
@@ -55,12 +72,6 @@ func GraphQLEndpointHandler(opts EndpointOptions) http.Handler {
 
 	if opts.EnableDebug {
 		srv.Use(&debug.Tracer{})
-	}
-
-	randomnessEnabled = opts.EnableRandomness
-
-	if opts.OverrideUpdateInterval > 0 {
-		updateInterval = opts.OverrideUpdateInterval
 	}
 
 	return srv

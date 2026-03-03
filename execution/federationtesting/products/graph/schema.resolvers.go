@@ -21,34 +21,49 @@ func (r *mutationResolver) SetPrice(ctx context.Context, upc string, price int) 
 
 // TopProducts is the resolver for the topProducts field.
 func (r *queryResolver) TopProducts(ctx context.Context, first *int) ([]*model.Product, error) {
-	return hats[:len(hats)-1], nil
+	if len(r.products) == 0 {
+		return nil, nil
+	}
+	end := len(r.products) - 1
+	if first != nil && *first >= 0 && *first < end {
+		end = *first
+	}
+	return r.products[:end], nil
 }
 
 // Product is the resolver for the product field.
 func (r *queryResolver) Product(ctx context.Context, upc string) (*model.Product, error) {
-	return findProduct(upc), nil
+	return r.findProduct(upc), nil
 }
 
 // UpdatedPrice is the resolver for the updatedPrice field.
 func (r *subscriptionResolver) UpdatedPrice(ctx context.Context) (<-chan *model.Product, error) {
+	if len(r.products) == 0 {
+		return nil, fmt.Errorf("no products configured")
+	}
 	updatedPrice := make(chan *model.Product)
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(updateInterval):
-				src := hats[len(hats)-1]
-				if randomnessEnabled {
-					src = hats[rand.Intn(len(hats)-1)]
+			case <-time.After(r.updateInterval):
+				product := r.products[len(r.products)-1]
+				if r.randomnessEnabled {
+					if len(r.products) > 1 {
+						product = r.products[rand.Intn(len(r.products)-1)]
+					}
+					p := *product
+					p.Price = rand.Intn(r.maxPrice-r.minPrice+1) + r.minPrice
+					updatedPrice <- &p
+					continue
 				}
-				p := *src
-				if randomnessEnabled {
-					p.Price = rand.Intn(maxPrice-minPrice+1) + minPrice
-				} else {
-					p.Price = currentPrice
-					currentPrice += 1
-				}
+
+				r.priceMu.Lock()
+				p := *product
+				p.Price = r.currentPrice
+				r.currentPrice++
+				r.priceMu.Unlock()
 				updatedPrice <- &p
 			}
 		}
@@ -59,7 +74,7 @@ func (r *subscriptionResolver) UpdatedPrice(ctx context.Context) (<-chan *model.
 // UpdateProductPrice is the resolver for the updateProductPrice field.
 func (r *subscriptionResolver) UpdateProductPrice(ctx context.Context, upc string) (<-chan *model.Product, error) {
 	updatedPrice := make(chan *model.Product)
-	product := findProduct(upc)
+	product := r.findProduct(upc)
 
 	if product == nil {
 		return nil, fmt.Errorf("unknown product upc: %s", upc)
@@ -91,14 +106,13 @@ func (r *subscriptionResolver) UpdatedPrices(ctx context.Context, first *int) (<
 	if first != nil && *first > 0 {
 		limit = *first
 	}
-	if limit > len(hats) {
-		limit = len(hats)
+	if limit > len(r.products) {
+		limit = len(r.products)
 	}
 
-	// Capture a snapshot of hats to avoid racing with Reset()
 	snapshot := make([]*model.Product, limit)
 	for i := 0; i < limit; i++ {
-		h := *hats[i]
+		h := *r.products[i]
 		snapshot[i] = &h
 	}
 
@@ -126,7 +140,7 @@ func (r *subscriptionResolver) UpdatedPrices(ctx context.Context, first *int) (<
 
 // UpdateProductPriceUnion is the resolver for the updateProductPriceUnion field.
 func (r *subscriptionResolver) UpdateProductPriceUnion(ctx context.Context, upc string) (<-chan model.ProductUpdate, error) {
-	product := findProduct(upc)
+	product := r.findProduct(upc)
 	if product == nil {
 		return nil, fmt.Errorf("unknown product upc: %s", upc)
 	}
@@ -151,7 +165,7 @@ func (r *subscriptionResolver) UpdateProductPriceUnion(ctx context.Context, upc 
 
 // UpdateProductPriceInterface is the resolver for the updateProductPriceInterface field.
 func (r *subscriptionResolver) UpdateProductPriceInterface(ctx context.Context, upc string) (<-chan model.ProductInterface, error) {
-	product := findProduct(upc)
+	product := r.findProduct(upc)
 	if product == nil {
 		return nil, fmt.Errorf("unknown product upc: %s", upc)
 	}
@@ -176,7 +190,7 @@ func (r *subscriptionResolver) UpdateProductPriceInterface(ctx context.Context, 
 
 // UpdateDigitalProductPriceUnion is the resolver for the updateDigitalProductPriceUnion field.
 func (r *subscriptionResolver) UpdateDigitalProductPriceUnion(ctx context.Context, upc string) (<-chan model.ProductUpdate, error) {
-	dp := findDigitalProduct(upc)
+	dp := r.findDigitalProduct(upc)
 	if dp == nil {
 		return nil, fmt.Errorf("unknown digital product upc: %s", upc)
 	}
@@ -201,7 +215,7 @@ func (r *subscriptionResolver) UpdateDigitalProductPriceUnion(ctx context.Contex
 
 // UpdateDigitalProductPriceInterface is the resolver for the updateDigitalProductPriceInterface field.
 func (r *subscriptionResolver) UpdateDigitalProductPriceInterface(ctx context.Context, upc string) (<-chan model.ProductInterface, error) {
-	dp := findDigitalProduct(upc)
+	dp := r.findDigitalProduct(upc)
 	if dp == nil {
 		return nil, fmt.Errorf("unknown digital product upc: %s", upc)
 	}
