@@ -2739,8 +2739,8 @@ var complexResolverInNestedMessageFederationMapping = &GRPCMapping{
 			"specs": {TargetName: "specs"},
 		},
 		"ProductSpecs": {
-			"id":        {TargetName: "id"},
-			"weight":    {TargetName: "weight"},
+			"id":         {TargetName: "id"},
+			"weight":     {TargetName: "weight"},
 			"dimensions": {TargetName: "dimensions"},
 			"relatedProduct": {
 				TargetName: "related_product",

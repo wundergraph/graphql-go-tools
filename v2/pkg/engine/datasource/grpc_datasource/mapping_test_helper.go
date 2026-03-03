@@ -378,30 +378,30 @@ func testMapping() *GRPCMapping {
 					Response: "ResolveProductProductDetailsResponse",
 				},
 			},
-		"Subcategory": {
-			"itemCount": {
-				FieldMappingData: FieldMapData{
-					TargetName: "item_count",
-					ArgumentMappings: FieldArgumentMap{
-						"filters": "filters",
+			"Subcategory": {
+				"itemCount": {
+					FieldMappingData: FieldMapData{
+						TargetName: "item_count",
+						ArgumentMappings: FieldArgumentMap{
+							"filters": "filters",
+						},
 					},
+					RPC:      "ResolveSubcategoryItemCount",
+					Request:  "ResolveSubcategoryItemCountRequest",
+					Response: "ResolveSubcategoryItemCountResponse",
 				},
-				RPC:      "ResolveSubcategoryItemCount",
-				Request:  "ResolveSubcategoryItemCountRequest",
-				Response: "ResolveSubcategoryItemCountResponse",
-			},
-			"featuredCategory": {
-				FieldMappingData: FieldMapData{
-					TargetName: "featured_category",
-					ArgumentMappings: FieldArgumentMap{
-						"includeChildren": "include_children",
+				"featuredCategory": {
+					FieldMappingData: FieldMapData{
+						TargetName: "featured_category",
+						ArgumentMappings: FieldArgumentMap{
+							"includeChildren": "include_children",
+						},
 					},
+					RPC:      "ResolveSubcategoryFeaturedCategory",
+					Request:  "ResolveSubcategoryFeaturedCategoryRequest",
+					Response: "ResolveSubcategoryFeaturedCategoryResponse",
 				},
-				RPC:      "ResolveSubcategoryFeaturedCategory",
-				Request:  "ResolveSubcategoryFeaturedCategoryRequest",
-				Response: "ResolveSubcategoryFeaturedCategoryResponse",
 			},
-		},
 			"TestContainer": {
 				"details": {
 					FieldMappingData: FieldMapData{
@@ -986,32 +986,32 @@ func testMapping() *GRPCMapping {
 					},
 				},
 			},
-		"Subcategory": {
-			"id": {
-				TargetName: "id",
-			},
-			"name": {
-				TargetName: "name",
-			},
-			"description": {
-				TargetName: "description",
-			},
-			"isActive": {
-				TargetName: "is_active",
-			},
-			"itemCount": {
-				TargetName: "item_count",
-				ArgumentMappings: FieldArgumentMap{
-					"filters": "filters",
+			"Subcategory": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"description": {
+					TargetName: "description",
+				},
+				"isActive": {
+					TargetName: "is_active",
+				},
+				"itemCount": {
+					TargetName: "item_count",
+					ArgumentMappings: FieldArgumentMap{
+						"filters": "filters",
+					},
+				},
+				"featuredCategory": {
+					TargetName: "featured_category",
+					ArgumentMappings: FieldArgumentMap{
+						"includeChildren": "include_children",
+					},
 				},
 			},
-			"featuredCategory": {
-				TargetName: "featured_category",
-				ArgumentMappings: FieldArgumentMap{
-					"includeChildren": "include_children",
-				},
-			},
-		},
 			"CategoryMetrics": {
 				"id": {
 					TargetName: "id",
