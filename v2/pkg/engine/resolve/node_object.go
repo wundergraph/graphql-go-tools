@@ -5,14 +5,46 @@ import (
 	"slices"
 )
 
+// KeyField represents a field in an @key directive. Supports nested keys:
+// @key(fields: "id")           → [{Name:"id"}]
+// @key(fields: "id address { city }") → [{Name:"id"}, {Name:"address", Children:[{Name:"city"}]}]
+type KeyField struct {
+	Name     string
+	Children []KeyField // non-nil for nested object key fields
+}
+
+// ObjectCacheAnalytics holds entity analytics configuration set at plan time.
+// Nil for non-entity types. For polymorphic types (interface/union), ByTypeName
+// maps concrete type names to their analytics config.
+type ObjectCacheAnalytics struct {
+	// Concrete entity type (ByTypeName == nil): use KeyFields/HashKeys directly
+	KeyFields []KeyField // full @key structure (without __typename)
+	HashKeys  bool       // true = hash entity keys, false = raw (default)
+
+	// Polymorphic type (ByTypeName != nil): resolve __typename at runtime, then look up
+	// Only populated for interface/union types where at least one implementor is an entity
+	ByTypeName map[string]*ObjectCacheAnalytics // concreteName → analytics (nil = not entity)
+}
+
+// IsKeyField returns true if fieldName is a top-level @key field.
+func (a *ObjectCacheAnalytics) IsKeyField(name string) bool {
+	for _, kf := range a.KeyFields {
+		if kf.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
 type Object struct {
 	Nullable bool
 	Path     []string
 	Fields   []*Field
 
-	PossibleTypes map[string]struct{} `json:"-"`
-	SourceName    string              `json:"-"`
-	TypeName      string              `json:"-"`
+	PossibleTypes  map[string]struct{}   `json:"-"`
+	SourceName     string                `json:"-"`
+	TypeName       string                `json:"-"`
+	CacheAnalytics *ObjectCacheAnalytics `json:"-"` // nil for non-entity types
 }
 
 func (o *Object) Copy() Node {
@@ -149,6 +181,10 @@ type FieldInfo struct {
 	// IndirectInterfaceNames is set to the interfaces name if the field is on a concrete type that implements an interface which wraps it
 	// It's plural because interfaces and be overlapping with types that implement multiple interfaces
 	IndirectInterfaceNames []string
+	// CacheAnalyticsHash is true if this field should be hashed for cache analytics.
+	// Set at plan time for non-key scalar fields on concrete entity types.
+	// At runtime, replaces both IsEntityType() and IsKeyField() checks with a single bool.
+	CacheAnalyticsHash bool
 }
 
 func (i *FieldInfo) Merge(other *FieldInfo) {

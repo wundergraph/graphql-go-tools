@@ -17,6 +17,10 @@ type Query {
     someNestedInterfaces: [SomeNestedInterface]
 }
 
+type Mutation {
+    updateUsername(id: ID!, newUsername: String!): User!
+}
+
 type Cat {
     name: String!
 }

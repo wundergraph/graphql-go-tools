@@ -217,6 +217,21 @@ assert.LessOrEqual(t, calls, 5)        // DON'T DO THIS
 
 Exact assertions catch regressions that vague assertions miss. If the expected value changes, update the test to reflect the new exact value.
 
+### Snapshot Comments
+
+**IMPORTANT**: Every event line in a `CacheAnalyticsSnapshot` assertion MUST have a brief comment explaining **why** that event occurred. Focus on causation, not field values.
+
+```go
+// GOOD: explains the "why"
+L2Reads: []resolve.CacheKeyEvent{
+    {CacheKey: keyUser, Kind: resolve.CacheKeyMiss, ...}, // First request, L2 empty
+    {CacheKey: keyUser, Kind: resolve.CacheKeyHit, ...},  // Populated by Request 1
+},
+
+// BAD: restates the field value
+{CacheKey: keyUser, Kind: resolve.CacheKeyMiss, ...}, // this is a miss
+```
+
 ## Federation Test Setup
 
 Test services: `accounts`, `products`, `reviews` in `execution/federationtesting/`

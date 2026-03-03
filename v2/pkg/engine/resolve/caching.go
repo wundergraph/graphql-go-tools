@@ -211,6 +211,36 @@ type EntityQueryCacheKeyTemplate struct {
 	Keys *ResolvableObjectVariable
 }
 
+// KeyFields extracts the full @key structure from the template's Object tree.
+func (e *EntityQueryCacheKeyTemplate) KeyFields() []KeyField {
+	if e.Keys == nil || e.Keys.Renderer == nil {
+		return nil
+	}
+	obj, ok := e.Keys.Renderer.Node.(*Object)
+	if !ok {
+		return nil
+	}
+	return objectToKeyFields(obj)
+}
+
+// objectToKeyFields converts an Object node tree to a KeyField tree.
+func objectToKeyFields(obj *Object) []KeyField {
+	var fields []KeyField
+	for _, f := range obj.Fields {
+		name := string(f.Name)
+		if name == "__typename" {
+			continue
+		}
+		kf := KeyField{Name: name}
+		// Check if value is a nested Object (composite key field)
+		if childObj, ok := f.Value.(*Object); ok {
+			kf.Children = objectToKeyFields(childObj)
+		}
+		fields = append(fields, kf)
+	}
+	return fields
+}
+
 // RenderCacheKeys implements CacheKeyTemplate interface.
 // Uses Keys template (only @key fields) for stable entity identity.
 // Prefix is used for L2 cache isolation (typically subgraph header hash).

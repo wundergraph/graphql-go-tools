@@ -335,6 +335,33 @@ type FetchCacheConfiguration struct {
 	// Set by postprocessor based on whether a prior fetch can populate L1
 	// for this entity type. Defaults to true for backward compatibility.
 	UseL1Cache bool
+
+	// HashAnalyticsKeys controls whether entity keys are hashed (true) or stored raw (false)
+	// in cache analytics EntityFieldHash entries. Propagated from EntityCacheConfiguration.
+	HashAnalyticsKeys bool
+
+	// KeyFields holds the full @key structure, pre-extracted at plan time.
+	// Used for entity source tracking during cache analytics.
+	KeyFields []KeyField
+
+	// ShadowMode enables shadow caching for this fetch.
+	// When true, L2 cache reads and writes still occur, but cached data is never served.
+	// Fresh data is always fetched from the subgraph and compared against the cached value
+	// to detect staleness. L1 cache works normally (not affected by shadow mode).
+	ShadowMode bool
+
+	// MutationEntityImpactConfig is set when this fetch is a mutation that returns a cached entity.
+	// Used by detectMutationEntityImpact() to proactively compare mutation response with L2 cache.
+	MutationEntityImpactConfig *MutationEntityImpactConfig
+}
+
+// MutationEntityImpactConfig holds information for detecting entity cache changes from mutations.
+// Set at plan time when a mutation returns a federation entity with L2 caching configured.
+type MutationEntityImpactConfig struct {
+	EntityTypeName              string     // "User"
+	KeyFields                   []KeyField // [{Name: "id"}]
+	CacheName                   string     // "default"
+	IncludeSubgraphHeaderPrefix bool
 }
 
 // FetchDependency explains how a GraphCoordinate depends on other GraphCoordinates from other fetches

@@ -1275,6 +1275,7 @@ func TestL1CacheUseL1CacheFlagDisabled(t *testing.T) {
 		ctx := NewContext(context.Background())
 		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
 		ctx.ExecutionOptions.Caching.EnableL1Cache = true // L1 globally ENABLED
+		ctx.ExecutionOptions.Caching.EnableCacheAnalytics = true
 
 		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
 		resolvable := NewResolvable(ar, ResolvableOptions{})
@@ -1289,6 +1290,6 @@ func TestL1CacheUseL1CacheFlagDisabled(t *testing.T) {
 
 		// Verify L1 cache stats show no hits (both fetches went to subgraph)
 		stats := ctx.GetCacheStats()
-		assert.Equal(t, int64(0), stats.L1Hits, "should have 0 L1 hits when UseL1Cache=false")
+		assert.Equal(t, 0, len(stats.L1Reads), "should have 0 L1 reads when UseL1Cache=false")
 	})
 }

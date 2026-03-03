@@ -160,6 +160,9 @@ func (D) IsCd() {}
 func (D) IsCDer()                {}
 func (this D) GetName() *CDerObj { return this.Name }
 
+type Mutation struct {
+}
+
 type Product struct {
 	Upc string `json:"upc"`
 }

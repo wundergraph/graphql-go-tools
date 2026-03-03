@@ -12,11 +12,20 @@ import (
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/accounts/graph/model"
 )
 
+// UpdateUsername is the resolver for the updateUsername field.
+func (r *mutationResolver) UpdateUsername(ctx context.Context, id string, newUsername string) (*model.User, error) {
+	SetUsername(id, newUsername)
+	return &model.User{
+		ID:       id,
+		Username: newUsername,
+	}, nil
+}
+
 // Me is the resolver for the me field.
 func (r *queryResolver) Me(ctx context.Context) (*model.User, error) {
 	return &model.User{
 		ID:       "1234",
-		Username: "Me",
+		Username: GetUsername("1234"),
 		Nickname: "nick-Me",
 		History:  histories,
 		RealName: "User Usington",
@@ -258,7 +267,11 @@ func (r *queryResolver) SomeNestedInterfaces(ctx context.Context) ([]model.SomeN
 	}, nil
 }
 
+// Mutation returns generated.MutationResolver implementation.
+func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResolver{r} }
+
 // Query returns generated.QueryResolver implementation.
 func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 
+type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }

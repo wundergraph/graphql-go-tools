@@ -110,6 +110,16 @@ type EntityCacheConfiguration struct {
 	// directly from cache. This reduces subgraph load but cached entities may become stale
 	// within their TTL window. Use when cache freshness is acceptable within TTL bounds.
 	EnablePartialCacheLoad bool `json:"enable_partial_cache_load"`
+
+	// HashAnalyticsKeys controls whether entity keys are hashed (true) or stored raw (false)
+	// in cache analytics EntityFieldHash entries. When true, KeyHash is populated instead of KeyRaw.
+	HashAnalyticsKeys bool `json:"hash_analytics_keys"`
+
+	// ShadowMode enables shadow caching for this entity type.
+	// When true, L2 cache reads and writes still occur, but cached data is never served.
+	// Instead, fresh data is always fetched from the subgraph and compared against the cached value
+	// to detect staleness. L1 cache works normally (not affected by shadow mode).
+	ShadowMode bool `json:"shadow_mode"`
 }
 
 // EntityCacheConfigurations is a collection of entity cache configurations.
@@ -144,6 +154,12 @@ type RootFieldCacheConfiguration struct {
 	// When set, the L2 cache key uses entity key format instead of root field format,
 	// enabling cache sharing between root field queries and entity fetches.
 	EntityKeyMappings []EntityKeyMapping `json:"entity_key_mappings,omitempty"`
+
+	// ShadowMode enables shadow caching for this root field.
+	// When true, L2 cache reads and writes still occur, but cached data is never served.
+	// Instead, fresh data is always fetched from the subgraph and compared against the cached value.
+	// Note: shadow mode behavior is currently implemented for entity fetches only.
+	ShadowMode bool `json:"shadow_mode"`
 }
 
 // EntityKeyMapping defines how a root field's arguments map to entity @key fields.

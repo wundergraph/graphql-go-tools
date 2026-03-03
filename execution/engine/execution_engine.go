@@ -29,7 +29,7 @@ import (
 type internalExecutionContext struct {
 	resolveContext   *resolve.Context
 	postProcessor    *postprocess.Processor
-	cacheStatsOutput *resolve.CacheStatsSnapshot // Optional pointer to capture cache stats after execution
+	cacheStatsOutput *resolve.CacheAnalyticsSnapshot // Optional pointer to capture cache stats after execution
 }
 
 func newInternalExecutionContext() *internalExecutionContext {
@@ -128,18 +128,18 @@ func WithCachingOptions(options resolve.CachingOptions) ExecutionOptions {
 	}
 }
 
-// WithCacheStatsOutput provides a pointer to a CacheStatsSnapshot struct that will be
+// WithCacheStatsOutput provides a pointer to a CacheAnalyticsSnapshot struct that will be
 // populated with cache statistics after query execution completes.
 // This is useful for monitoring, debugging, and testing cache effectiveness.
 //
 // Example usage:
 //
-//	var stats resolve.CacheStatsSnapshot
+//	var stats resolve.CacheAnalyticsSnapshot
 //	err := engine.Execute(ctx, operation, writer, WithCacheStatsOutput(&stats))
 //	if err == nil {
 //	    fmt.Printf("L1 hits: %d, L1 misses: %d\n", stats.L1Hits, stats.L1Misses)
 //	}
-func WithCacheStatsOutput(stats *resolve.CacheStatsSnapshot) ExecutionOptions {
+func WithCacheStatsOutput(stats *resolve.CacheAnalyticsSnapshot) ExecutionOptions {
 	return func(ctx *internalExecutionContext) {
 		ctx.cacheStatsOutput = stats
 	}

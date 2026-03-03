@@ -76,6 +76,10 @@ type Visitor struct {
 	// plannerEntityBoundaryPaths stores the entity boundary paths for each planner
 	// map plannerID -> entity boundary path
 	plannerEntityBoundaryPaths map[int]string
+
+	// entityAnalyticsCache is a lazy cache for entity analytics config lookup across all datasources.
+	// typeName → config (nil = not entity)
+	entityAnalyticsCache map[string]*resolve.ObjectCacheAnalytics
 }
 
 type indirectInterfaceField struct {
@@ -493,6 +497,14 @@ func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *reso
 		}
 	}
 
+	// Mark non-key fields on CONCRETE entity types for cache analytics hashing.
+	// For interface/union parents, leave false — runtime fallback handles it.
+	if v.Walker.EnclosingTypeDefinition.Kind == ast.NodeKindObjectTypeDefinition {
+		if analytics := v.entityCacheAnalytics(enclosingTypeName); analytics != nil {
+			fieldInfo.CacheAnalyticsHash = !analytics.IsKeyField(fieldName)
+		}
+	}
+
 	return fieldInfo
 }
 
@@ -880,6 +892,29 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 					object.SourceName = v.currentField.Info.Source.Names[0]
 				} else if len(v.currentField.Info.Source.IDs) > 0 {
 					object.SourceName = v.currentField.Info.Source.IDs[0]
+				}
+			}
+
+			// Annotate entity types with cache analytics config (plan-time)
+			switch typeDefinitionNode.Kind {
+			case ast.NodeKindObjectTypeDefinition:
+				// Concrete type: direct lookup
+				if typeName != "" {
+					object.CacheAnalytics = v.entityCacheAnalytics(typeName)
+				}
+			case ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
+				// Polymorphic type: check if any PossibleType is an entity
+				byTypeName := make(map[string]*resolve.ObjectCacheAnalytics)
+				hasEntity := false
+				for possibleType := range object.PossibleTypes {
+					analytics := v.entityCacheAnalytics(possibleType)
+					if analytics != nil {
+						byTypeName[possibleType] = analytics
+						hasEntity = true
+					}
+				}
+				if hasEntity {
+					object.CacheAnalytics = &resolve.ObjectCacheAnalytics{ByTypeName: byTypeName}
 				}
 			}
 
@@ -2196,6 +2231,14 @@ func (v *Visitor) configureFetchCaching(internal *objectFetchConfiguration, exte
 		RootFieldL1EntityCacheKeyTemplates: external.Caching.RootFieldL1EntityCacheKeyTemplates,
 	}
 
+	// For mutations returning cached entities: enable mutation impact detection.
+	// This runs before the L2 caching checks because mutations don't have CacheKeyTemplate
+	// (they go through a separate path), but we still want to annotate the fetch for
+	// runtime mutation impact detection.
+	if internal.operationType == ast.OperationTypeMutation && len(internal.rootFields) > 0 && !v.Config.DisableEntityCaching {
+		v.configureMutationEntityImpact(internal, &result)
+	}
+
 	// Global disable takes precedence for L2 cache
 	if v.Config.DisableEntityCaching {
 		return result
@@ -2225,9 +2268,18 @@ func (v *Visitor) configureFetchCaching(internal *objectFetchConfiguration, exte
 		// All root fields in an entity fetch belong to the same entity type
 		entityTypeName := internal.rootFields[0].TypeName
 		cacheConfig := fedConfig.EntityCacheConfig(entityTypeName)
+
+		// Extract key fields from cache key template (plan time)
+		var keyFields []resolve.KeyField
+		if entityTemplate, ok := external.Caching.CacheKeyTemplate.(*resolve.EntityQueryCacheKeyTemplate); ok {
+			keyFields = entityTemplate.KeyFields()
+		}
+
 		if cacheConfig == nil {
 			// No config = L2 caching disabled for this entity (opt-in model)
 			// L1 cache can still work since CacheKeyTemplate is preserved
+			// Still provide key fields for analytics
+			result.KeyFields = keyFields
 			return result
 		}
 
@@ -2240,6 +2292,9 @@ func (v *Visitor) configureFetchCaching(internal *objectFetchConfiguration, exte
 			CacheKeyTemplate:            external.Caching.CacheKeyTemplate,
 			IncludeSubgraphHeaderPrefix: cacheConfig.IncludeSubgraphHeaderPrefix,
 			EnablePartialCacheLoad:      cacheConfig.EnablePartialCacheLoad,
+			HashAnalyticsKeys:           cacheConfig.HashAnalyticsKeys,
+			KeyFields:                   keyFields,
+			ShadowMode:                  cacheConfig.ShadowMode,
 		}
 	}
 
@@ -2296,4 +2351,111 @@ func (v *Visitor) findDataSourceByID(sourceID string) DataSource {
 		}
 	}
 	return nil
+}
+
+// configureMutationEntityImpact checks if a mutation returns a cached entity and annotates
+// the fetch config with MutationEntityImpactConfig for runtime cache staleness detection.
+func (v *Visitor) configureMutationEntityImpact(internal *objectFetchConfiguration, result *resolve.FetchCacheConfiguration) {
+	returnTypeName := v.resolveMutationReturnType(internal.fieldDefinitionRef)
+	if returnTypeName == "" {
+		return
+	}
+
+	ds := v.findDataSourceByID(internal.sourceID)
+	if ds == nil {
+		return
+	}
+
+	fedConfig := ds.FederationConfiguration()
+	entityCacheConfig := fedConfig.EntityCacheConfig(returnTypeName)
+	if entityCacheConfig == nil {
+		return
+	}
+
+	// Extract key fields from federation metadata
+	keyConfigs := fedConfig.RequiredFieldsByKey(returnTypeName)
+	var keyFields []resolve.KeyField
+	if len(keyConfigs) > 0 {
+		keyFields = resolve.ParseKeyFields(keyConfigs[0].SelectionSet)
+	}
+
+	result.MutationEntityImpactConfig = &resolve.MutationEntityImpactConfig{
+		EntityTypeName:              returnTypeName,
+		KeyFields:                   keyFields,
+		CacheName:                   entityCacheConfig.CacheName,
+		IncludeSubgraphHeaderPrefix: entityCacheConfig.IncludeSubgraphHeaderPrefix,
+	}
+}
+
+// resolveMutationReturnType resolves the return type name of a mutation field definition.
+func (v *Visitor) resolveMutationReturnType(fieldDefinitionRef int) string {
+	if fieldDefinitionRef < 0 {
+		return ""
+	}
+	typeRef := v.Definition.FieldDefinitionType(fieldDefinitionRef)
+	underlyingType := v.Definition.ResolveUnderlyingType(typeRef)
+	if underlyingType != -1 {
+		return v.Definition.ResolveTypeNameString(underlyingType)
+	}
+	return v.Definition.ResolveTypeNameString(typeRef)
+}
+
+// entityCacheAnalytics returns the ObjectCacheAnalytics for a given type name.
+// Uses a lazy cache to avoid repeated scans across datasources.
+// Returns nil if the type is not an entity.
+func (v *Visitor) entityCacheAnalytics(typeName string) *resolve.ObjectCacheAnalytics {
+	if v.entityAnalyticsCache == nil {
+		v.entityAnalyticsCache = make(map[string]*resolve.ObjectCacheAnalytics)
+	}
+	if cached, ok := v.entityAnalyticsCache[typeName]; ok {
+		return cached // may be nil (not entity)
+	}
+
+	// Scan all datasources for this entity type
+	for i := range v.Config.DataSources {
+		ds := v.Config.DataSources[i]
+		fedConfig := ds.FederationConfiguration()
+		if !fedConfig.HasEntity(typeName) {
+			continue
+		}
+		// Extract full key structure from @key SelectionSets
+		keys := fedConfig.Keys.FilterByTypeAndResolvability(typeName, true)
+		keyFields := extractKeyFields(keys, typeName)
+		// Get hash mode from entity cache config (default false)
+		var hashKeys bool
+		if cacheConfig := fedConfig.EntityCacheConfig(typeName); cacheConfig != nil {
+			hashKeys = cacheConfig.HashAnalyticsKeys
+		}
+		result := &resolve.ObjectCacheAnalytics{
+			KeyFields: keyFields,
+			HashKeys:  hashKeys,
+		}
+		v.entityAnalyticsCache[typeName] = result
+		return result
+	}
+
+	v.entityAnalyticsCache[typeName] = nil // not an entity
+	return nil
+}
+
+// extractKeyFields extracts the full structured key from @key SelectionSets.
+// Merges all @key directives for the type, deduplicating top-level names.
+func extractKeyFields(keys []FederationFieldConfiguration, typeName string) []resolve.KeyField {
+	var result []resolve.KeyField
+	seen := make(map[string]struct{})
+	for i := range keys {
+		if keys[i].TypeName != typeName || keys[i].FieldName != "" {
+			continue
+		}
+		for _, kf := range resolve.ParseKeyFields(keys[i].SelectionSet) {
+			if kf.Name == "__typename" {
+				continue
+			}
+			if _, ok := seen[kf.Name]; !ok {
+				seen[kf.Name] = struct{}{}
+				result = append(result, kf)
+			}
+		}
+	}
+	return result
 }

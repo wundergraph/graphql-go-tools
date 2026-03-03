@@ -3,8 +3,8 @@ package http
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/http"
-	"strconv"
 
 	log "github.com/jensneuse/abstractlogger"
 
@@ -16,12 +16,6 @@ import (
 const (
 	httpHeaderContentType          string = "Content-Type"
 	httpContentTypeApplicationJson string = "application/json"
-
-	// Cache stats headers - used for testing L1/L2 cache behavior
-	httpHeaderCacheL1Hits   string = "X-Cache-L1-Hits"
-	httpHeaderCacheL1Misses string = "X-Cache-L1-Misses"
-	httpHeaderCacheL2Hits   string = "X-Cache-L2-Hits"
-	httpHeaderCacheL2Misses string = "X-Cache-L2-Misses"
 )
 
 func (g *GraphQLHTTPRequestHandler) handleHTTP(w http.ResponseWriter, r *http.Request) {
@@ -66,7 +60,7 @@ func (g *GraphQLHTTPRequestHandler) handleHTTP(w http.ResponseWriter, r *http.Re
 	}
 
 	// Capture cache stats for debugging/testing
-	var cacheStats resolve.CacheStatsSnapshot
+	var cacheStats resolve.CacheAnalyticsSnapshot
 	opts = append(opts, engine.WithCacheStatsOutput(&cacheStats))
 
 	buf := bytes.NewBuffer(make([]byte, 0, 4096))
@@ -79,11 +73,12 @@ func (g *GraphQLHTTPRequestHandler) handleHTTP(w http.ResponseWriter, r *http.Re
 
 	w.Header().Add(httpHeaderContentType, httpContentTypeApplicationJson)
 
-	// Add cache stats headers for debugging/testing
-	w.Header().Add(httpHeaderCacheL1Hits, strconv.FormatInt(cacheStats.L1Hits, 10))
-	w.Header().Add(httpHeaderCacheL1Misses, strconv.FormatInt(cacheStats.L1Misses, 10))
-	w.Header().Add(httpHeaderCacheL2Hits, strconv.FormatInt(cacheStats.L2Hits, 10))
-	w.Header().Add(httpHeaderCacheL2Misses, strconv.FormatInt(cacheStats.L2Misses, 10))
+	// Add full analytics snapshot as JSON header when analytics is enabled
+	if g.cachingOptions.EnableCacheAnalytics {
+		if analyticsJSON, jsonErr := json.Marshal(cacheStats); jsonErr == nil {
+			w.Header().Add("X-Cache-Analytics", string(analyticsJSON))
+		}
+	}
 
 	w.WriteHeader(http.StatusOK)
 	if _, err = w.Write(buf.Bytes()); err != nil {

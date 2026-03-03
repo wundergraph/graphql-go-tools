@@ -2,13 +2,13 @@ package engine_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"path"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -20,6 +20,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/execution/engine"
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting"
+	accounts "github.com/wundergraph/graphql-go-tools/execution/federationtesting/accounts/graph"
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/gateway"
 	reviewsgraph "github.com/wundergraph/graphql-go-tools/execution/federationtesting/reviews/graph"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
@@ -2762,10 +2763,18 @@ func (f *FakeLoaderCache) Get(ctx context.Context, keys []string) ([]*resolve.Ca
 			// Make a copy of the data to prevent external modifications
 			dataCopy := make([]byte, len(entry.data))
 			copy(dataCopy, entry.data)
-			result[i] = &resolve.CacheEntry{
+			ce := &resolve.CacheEntry{
 				Key:   key,
 				Value: dataCopy,
 			}
+			// Populate RemainingTTL from expiresAt for cache age analytics
+			if entry.expiresAt != nil {
+				remaining := time.Until(*entry.expiresAt)
+				if remaining > 0 {
+					ce.RemainingTTL = remaining
+				}
+			}
+			result[i] = ce
 			hits[i] = true
 		} else {
 			result[i] = nil
@@ -3197,17 +3206,9 @@ func TestL1CacheReducesHTTPCalls(t *testing.T) {
 		accountsHost := accountsURLParsed.Host
 
 		tracker.Reset()
-		out, headers := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+		out, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
 
 		assert.Equal(t, expectedResponse, string(out))
-
-		// Verify NO L1 activity
-		l1Hits := headers.Get("X-Cache-L1-Hits")
-		l1Misses := headers.Get("X-Cache-L1-Misses")
-		l1HitsInt, _ := strconv.ParseInt(l1Hits, 10, 64)
-		l1MissesInt, _ := strconv.ParseInt(l1Misses, 10, 64)
-		assert.Equal(t, int64(0), l1HitsInt, "L1 hits should be 0 when disabled")
-		assert.Equal(t, int64(0), l1MissesInt, "L1 misses should be 0 when disabled")
 
 		// KEY ASSERTION: With L1 disabled, 2 accounts calls!
 		// The authorWithoutProvides.username requires another fetch since L1 is disabled.
@@ -3313,17 +3314,9 @@ func TestL1CacheReducesHTTPCallsInterface(t *testing.T) {
 		accountsHost := accountsURLParsed.Host
 
 		tracker.Reset()
-		out, headers := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+		out, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
 
 		assert.Equal(t, expectedResponse, string(out))
-
-		// Verify NO L1 activity
-		l1Hits := headers.Get("X-Cache-L1-Hits")
-		l1Misses := headers.Get("X-Cache-L1-Misses")
-		l1HitsInt, _ := strconv.ParseInt(l1Hits, 10, 64)
-		l1MissesInt, _ := strconv.ParseInt(l1Misses, 10, 64)
-		assert.Equal(t, int64(0), l1HitsInt, "L1 hits should be 0 when disabled")
-		assert.Equal(t, int64(0), l1MissesInt, "L1 misses should be 0 when disabled")
 
 		// KEY ASSERTION: With L1 disabled, 2 accounts calls!
 		accountsCalls := tracker.GetCount(accountsHost)
@@ -3428,17 +3421,9 @@ func TestL1CacheReducesHTTPCallsUnion(t *testing.T) {
 		accountsHost := accountsURLParsed.Host
 
 		tracker.Reset()
-		out, headers := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+		out, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
 
 		assert.Equal(t, expectedResponse, string(out))
-
-		// Verify NO L1 activity
-		l1Hits := headers.Get("X-Cache-L1-Hits")
-		l1Misses := headers.Get("X-Cache-L1-Misses")
-		l1HitsInt, _ := strconv.ParseInt(l1Hits, 10, 64)
-		l1MissesInt, _ := strconv.ParseInt(l1Misses, 10, 64)
-		assert.Equal(t, int64(0), l1HitsInt, "L1 hits should be 0 when disabled")
-		assert.Equal(t, int64(0), l1MissesInt, "L1 misses should be 0 when disabled")
 
 		// KEY ASSERTION: With L1 disabled, 2 accounts calls!
 		accountsCalls := tracker.GetCount(accountsHost)
@@ -4348,7 +4333,7 @@ func TestL1CacheChildFieldEntityList(t *testing.T) {
 		reviewsHost := reviewsURLParsed.Host
 
 		tracker.Reset()
-		out, headers := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+		out, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
 
 		assert.Equal(t, expectedResponse, string(out))
 
@@ -4369,15 +4354,6 @@ func TestL1CacheChildFieldEntityList(t *testing.T) {
 		assert.Equal(t, 1, accountsCalls,
 			"With L1 enabled: only 1 accounts call (sameUserReviewers entity fetch skipped via L1)")
 
-		// Verify L1 cache activity
-		l1Hits := headers.Get("X-Cache-L1-Hits")
-		l1Misses := headers.Get("X-Cache-L1-Misses")
-		l1HitsInt, _ := strconv.ParseInt(l1Hits, 10, 64)
-		l1MissesInt, _ := strconv.ParseInt(l1Misses, 10, 64)
-		// L1 hits for User 1234 in sameUserReviewers (twice, once per product's review)
-		// L1 misses: User entity fetches (Product fetch has UseL1Cache=false due to optimization)
-		assert.Equal(t, int64(2), l1HitsInt, "Should have exactly 2 L1 hits for User 1234 in sameUserReviewers")
-		assert.Equal(t, int64(2), l1MissesInt, "Should have exactly 2 L1 misses (User entity fetches)")
 	})
 
 	t.Run("L1 disabled - accounts called for sameUserReviewers", func(t *testing.T) {
@@ -4405,7 +4381,7 @@ func TestL1CacheChildFieldEntityList(t *testing.T) {
 		accountsHost := accountsURLParsed.Host
 
 		tracker.Reset()
-		out, headers := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+		out, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
 
 		assert.Equal(t, expectedResponse, string(out))
 
@@ -4417,13 +4393,6 @@ func TestL1CacheChildFieldEntityList(t *testing.T) {
 		assert.Equal(t, 2, accountsCalls,
 			"With L1 disabled: 2 accounts calls (sameUserReviewers requires separate fetch)")
 
-		// Verify NO L1 activity
-		l1Hits := headers.Get("X-Cache-L1-Hits")
-		l1Misses := headers.Get("X-Cache-L1-Misses")
-		l1HitsInt, _ := strconv.ParseInt(l1Hits, 10, 64)
-		l1MissesInt, _ := strconv.ParseInt(l1Misses, 10, 64)
-		assert.Equal(t, int64(0), l1HitsInt, "L1 hits should be 0 when disabled")
-		assert.Equal(t, int64(0), l1MissesInt, "L1 misses should be 0 when disabled")
 	})
 }
 
@@ -4499,7 +4468,7 @@ func TestL1CacheNestedEntityListDeduplication(t *testing.T) {
 		accountsHost := accountsURLParsed.Host
 
 		tracker.Reset()
-		out, headers := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+		out, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
 
 		assert.Equal(t, expectedResponse, string(out))
 
@@ -4509,22 +4478,10 @@ func TestL1CacheNestedEntityListDeduplication(t *testing.T) {
 		// - Call 3: nested coReviewers entity resolution - all users are in L1!
 		//   This call should be fully served from L1 cache.
 		accountsCalls := tracker.GetCount(accountsHost)
-		l1Hits := headers.Get("X-Cache-L1-Hits")
-		l1Misses := headers.Get("X-Cache-L1-Misses")
-		l1HitsInt, _ := strconv.ParseInt(l1Hits, 10, 64)
-		l1MissesInt, _ := strconv.ParseInt(l1Misses, 10, 64)
 		// With L1 enabled, the nested coReviewers should be served from L1
 		// Only 2 accounts calls needed because nested coReviewers is fully served from L1
 		assert.Equal(t, 2, accountsCalls,
 			"With L1 enabled: exactly 2 accounts calls (nested coReviewers served entirely from L1)")
-
-		// We expect significant L1 hits for the nested level where all users are already cached
-		// The L1 optimization reduces misses by skipping L1 operations for entity types
-		// that have no valid provider/consumer relationship.
-		assert.Equal(t, int64(12), l1HitsInt,
-			"Should have exactly 12 L1 hits for nested coReviewers deduplication")
-		assert.Equal(t, int64(8), l1MissesInt,
-			"Should have exactly 8 L1 misses (reduced by optimization)")
 	})
 
 	t.Run("L1 disabled - more accounts calls without deduplication", func(t *testing.T) {
@@ -4552,7 +4509,7 @@ func TestL1CacheNestedEntityListDeduplication(t *testing.T) {
 		accountsHost := accountsURLParsed.Host
 
 		tracker.Reset()
-		out, headers := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+		out, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
 
 		assert.Equal(t, expectedResponse, string(out))
 
@@ -4561,17 +4518,9 @@ func TestL1CacheNestedEntityListDeduplication(t *testing.T) {
 		// - Call 2: coReviewers entity resolution for User 1234 and User 7777 (no L1 dedup)
 		// - Call 3: nested coReviewers entity resolution (no L1 dedup)
 		accountsCalls := tracker.GetCount(accountsHost)
-		l1Hits := headers.Get("X-Cache-L1-Hits")
-		l1Misses := headers.Get("X-Cache-L1-Misses")
-		l1HitsInt, _ := strconv.ParseInt(l1Hits, 10, 64)
-		l1MissesInt, _ := strconv.ParseInt(l1Misses, 10, 64)
 		// Without L1 cache, we need 3 accounts calls (no deduplication at nested level)
 		assert.Equal(t, 3, accountsCalls,
 			"With L1 disabled: exactly 3 accounts calls (no deduplication)")
-
-		// Verify NO L1 activity
-		assert.Equal(t, int64(0), l1HitsInt, "L1 hits should be 0 when disabled")
-		assert.Equal(t, int64(0), l1MissesInt, "L1 misses should be 0 when disabled")
 	})
 }
 
@@ -4642,7 +4591,7 @@ func TestL1CacheRootFieldEntityListPopulation(t *testing.T) {
 		accountsHost := accountsURLParsed.Host
 
 		tracker.Reset()
-		out, headers := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+		out, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
 
 		assert.Equal(t, expectedResponse, string(out))
 
@@ -4662,24 +4611,6 @@ func TestL1CacheRootFieldEntityListPopulation(t *testing.T) {
 		assert.Equal(t, 1, accountsCalls,
 			"With L1 enabled: only 1 accounts call (sameUserReviewers entity fetch skipped via L1)")
 
-		// Verify L1 cache activity
-		l1Hits := headers.Get("X-Cache-L1-Hits")
-		l1Misses := headers.Get("X-Cache-L1-Misses")
-		l1HitsInt, _ := strconv.ParseInt(l1Hits, 10, 64)
-		l1MissesInt, _ := strconv.ParseInt(l1Misses, 10, 64)
-		// L1 cache flow:
-		// - Product entity fetch (reviews subgraph): 2 products, batched as 1 fetch
-		//   Each product checked L1 → miss, then populated after fetch
-		// - User entity fetch (authorWithoutProvides): User 1234 fetched twice (same user, 2 reviews)
-		//   First: miss, populate L1. Second: hit!
-		// - User entity fetch (sameUserReviewers): 2 hits for User 1234
-		// Total: 2 L1 hits (second authorWithoutProvides + sameUserReviewers uses same User 1234)
-		assert.Equal(t, int64(2), l1HitsInt, "Should have exactly 2 L1 hits for User 1234 in sameUserReviewers")
-		// L1 misses: Product and User entity fetches on first encounter
-		// - Product fetch: 2 products in batch = 2 individual L1 lookups = 2 misses
-		// - User fetch: 1 miss for first User 1234, then hits
-		// With batching, we see 2 misses total (Product misses are now skipped due to optimization)
-		assert.Equal(t, int64(2), l1MissesInt, "Should have exactly 2 L1 misses (User entity fetches)")
 	})
 
 	t.Run("L1 disabled - more accounts calls without L1 optimization", func(t *testing.T) {
@@ -4711,7 +4642,7 @@ func TestL1CacheRootFieldEntityListPopulation(t *testing.T) {
 		accountsHost := accountsURLParsed.Host
 
 		tracker.Reset()
-		out, headers := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+		out, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
 
 		assert.Equal(t, expectedResponse, string(out))
 
@@ -4731,13 +4662,6 @@ func TestL1CacheRootFieldEntityListPopulation(t *testing.T) {
 		assert.Equal(t, 2, accountsCalls,
 			"With L1 disabled: 2 accounts calls (sameUserReviewers requires separate fetch)")
 
-		// Verify NO L1 activity
-		l1Hits := headers.Get("X-Cache-L1-Hits")
-		l1Misses := headers.Get("X-Cache-L1-Misses")
-		l1HitsInt, _ := strconv.ParseInt(l1Hits, 10, 64)
-		l1MissesInt, _ := strconv.ParseInt(l1Misses, 10, 64)
-		assert.Equal(t, int64(0), l1HitsInt, "L1 hits should be 0 when disabled")
-		assert.Equal(t, int64(0), l1MissesInt, "L1 misses should be 0 when disabled")
 	})
 }
 
@@ -5138,7 +5062,7 @@ func TestL1CacheOptimizationReducesSubgraphCalls(t *testing.T) {
 		reviewsHost := reviewsURLParsed.Host
 
 		tracker.Reset()
-		out, headers := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+		out, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
 
 		assert.Equal(t, expectedResponse, string(out))
 
@@ -5160,21 +5084,6 @@ func TestL1CacheOptimizationReducesSubgraphCalls(t *testing.T) {
 			"L1 optimization: only 1 accounts call (sameUserReviewers resolved from L1 cache)")
 		assert.Equal(t, 1, reviewsCalls,
 			"Should call reviews subgraph once for User.sameUserReviewers")
-
-		// Verify L1 cache was used
-		l1Hits := headers.Get("X-Cache-L1-Hits")
-		l1Misses := headers.Get("X-Cache-L1-Misses")
-		l1HitsInt, _ := strconv.ParseInt(l1Hits, 10, 64)
-		l1MissesInt, _ := strconv.ParseInt(l1Misses, 10, 64)
-		// L1 hit: User 1234 found in cache during sameUserReviewers resolution
-		// Query.me populates L1 via RootFieldL1EntityCacheKeyTemplates (write-only, no miss)
-		// sameUserReviewers entity fetch finds User 1234 in L1 → HIT
-		assert.Equal(t, int64(1), l1HitsInt,
-			"Should have exactly 1 L1 hit (User 1234 in sameUserReviewers)")
-		// L1 misses: 0 because Query.me populates L1 without going through entity fetch path
-		// Root field L1 population is write-only, doesn't register as a miss
-		assert.Equal(t, int64(0), l1MissesInt,
-			"Should have exactly 0 L1 misses (root field population doesn't count as miss)")
 	})
 
 	t.Run("Without L1, same query requires more subgraph calls", func(t *testing.T) {
@@ -5204,7 +5113,7 @@ func TestL1CacheOptimizationReducesSubgraphCalls(t *testing.T) {
 		reviewsHost := reviewsURLParsed.Host
 
 		tracker.Reset()
-		out, headers := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+		out, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
 
 		assert.Equal(t, expectedResponse, string(out))
 
@@ -5221,13 +5130,1104 @@ func TestL1CacheOptimizationReducesSubgraphCalls(t *testing.T) {
 			"Without L1: 2 accounts calls (sameUserReviewers requires separate fetch)")
 		assert.Equal(t, 1, reviewsCalls,
 			"Should call reviews subgraph once for User.sameUserReviewers")
-
-		// Verify NO L1 activity
-		l1Hits := headers.Get("X-Cache-L1-Hits")
-		l1Misses := headers.Get("X-Cache-L1-Misses")
-		l1HitsInt, _ := strconv.ParseInt(l1Hits, 10, 64)
-		l1MissesInt, _ := strconv.ParseInt(l1Misses, 10, 64)
-		assert.Equal(t, int64(0), l1HitsInt, "L1 hits should be 0 when L1 disabled")
-		assert.Equal(t, int64(0), l1MissesInt, "L1 misses should be 0 when L1 disabled")
 	})
+}
+
+// withCacheAnalytics returns an option that enables cache analytics collection.
+// parseCacheAnalytics extracts and parses the X-Cache-Analytics JSON header.
+func parseCacheAnalytics(t *testing.T, headers http.Header) resolve.CacheAnalyticsSnapshot {
+	t.Helper()
+	raw := headers.Get("X-Cache-Analytics")
+	require.NotEmpty(t, raw, "X-Cache-Analytics header should be present")
+	var snap resolve.CacheAnalyticsSnapshot
+	err := json.Unmarshal([]byte(raw), &snap)
+	require.NoError(t, err, "X-Cache-Analytics header should be valid JSON")
+	return snap
+}
+
+// normalizeSnapshot makes a CacheAnalyticsSnapshot deterministically comparable by
+// sorting EntityTypes, L1Reads, L2Reads, L1Writes, L2Writes, and FieldHashes.
+func normalizeSnapshot(snap resolve.CacheAnalyticsSnapshot) resolve.CacheAnalyticsSnapshot {
+	// Sort EntityTypes by TypeName
+	if snap.EntityTypes != nil {
+		sorted := make([]resolve.EntityTypeInfo, len(snap.EntityTypes))
+		copy(sorted, snap.EntityTypes)
+		sort.Slice(sorted, func(i, j int) bool {
+			return sorted[i].TypeName < sorted[j].TypeName
+		})
+		snap.EntityTypes = sorted
+	}
+
+	// Sort L1Reads and zero out non-deterministic CacheAgeMs
+	if snap.L1Reads != nil {
+		sorted := make([]resolve.CacheKeyEvent, len(snap.L1Reads))
+		copy(sorted, snap.L1Reads)
+		for i := range sorted {
+			sorted[i].CacheAgeMs = 0
+		}
+		sort.Slice(sorted, func(i, j int) bool {
+			if sorted[i].CacheKey != sorted[j].CacheKey {
+				return sorted[i].CacheKey < sorted[j].CacheKey
+			}
+			return sorted[i].Kind < sorted[j].Kind
+		})
+		snap.L1Reads = sorted
+	}
+
+	// Sort L2Reads and zero out non-deterministic CacheAgeMs
+	if snap.L2Reads != nil {
+		sorted := make([]resolve.CacheKeyEvent, len(snap.L2Reads))
+		copy(sorted, snap.L2Reads)
+		for i := range sorted {
+			sorted[i].CacheAgeMs = 0
+		}
+		sort.Slice(sorted, func(i, j int) bool {
+			if sorted[i].CacheKey != sorted[j].CacheKey {
+				return sorted[i].CacheKey < sorted[j].CacheKey
+			}
+			return sorted[i].Kind < sorted[j].Kind
+		})
+		snap.L2Reads = sorted
+	}
+
+	// Sort L1Writes
+	if snap.L1Writes != nil {
+		sorted := make([]resolve.CacheWriteEvent, len(snap.L1Writes))
+		copy(sorted, snap.L1Writes)
+		sort.Slice(sorted, func(i, j int) bool {
+			if sorted[i].CacheKey != sorted[j].CacheKey {
+				return sorted[i].CacheKey < sorted[j].CacheKey
+			}
+			return sorted[i].CacheLevel < sorted[j].CacheLevel
+		})
+		snap.L1Writes = sorted
+	}
+
+	// Sort L2Writes
+	if snap.L2Writes != nil {
+		sorted := make([]resolve.CacheWriteEvent, len(snap.L2Writes))
+		copy(sorted, snap.L2Writes)
+		sort.Slice(sorted, func(i, j int) bool {
+			if sorted[i].CacheKey != sorted[j].CacheKey {
+				return sorted[i].CacheKey < sorted[j].CacheKey
+			}
+			return sorted[i].CacheLevel < sorted[j].CacheLevel
+		})
+		snap.L2Writes = sorted
+	}
+
+	// Sort FieldHashes for deterministic comparison
+	if snap.FieldHashes != nil {
+		sorted := make([]resolve.EntityFieldHash, len(snap.FieldHashes))
+		copy(sorted, snap.FieldHashes)
+		sort.Slice(sorted, func(i, j int) bool {
+			if sorted[i].EntityType != sorted[j].EntityType {
+				return sorted[i].EntityType < sorted[j].EntityType
+			}
+			if sorted[i].FieldName != sorted[j].FieldName {
+				return sorted[i].FieldName < sorted[j].FieldName
+			}
+			if sorted[i].KeyRaw != sorted[j].KeyRaw {
+				return sorted[i].KeyRaw < sorted[j].KeyRaw
+			}
+			if sorted[i].KeyHash != sorted[j].KeyHash {
+				return sorted[i].KeyHash < sorted[j].KeyHash
+			}
+			return sorted[i].FieldHash < sorted[j].FieldHash
+		})
+		snap.FieldHashes = sorted
+	}
+
+	// Sort ShadowComparisons by CacheKey and zero out non-deterministic CacheAgeMs
+	if snap.ShadowComparisons != nil {
+		sorted := make([]resolve.ShadowComparisonEvent, len(snap.ShadowComparisons))
+		copy(sorted, snap.ShadowComparisons)
+		for i := range sorted {
+			sorted[i].CacheAgeMs = 0
+		}
+		sort.Slice(sorted, func(i, j int) bool {
+			if sorted[i].CacheKey != sorted[j].CacheKey {
+				return sorted[i].CacheKey < sorted[j].CacheKey
+			}
+			return sorted[i].EntityType < sorted[j].EntityType
+		})
+		snap.ShadowComparisons = sorted
+	}
+
+	// Sort MutationEvents for deterministic comparison
+	if snap.MutationEvents != nil {
+		sorted := make([]resolve.MutationEvent, len(snap.MutationEvents))
+		copy(sorted, snap.MutationEvents)
+		sort.Slice(sorted, func(i, j int) bool {
+			if sorted[i].MutationRootField != sorted[j].MutationRootField {
+				return sorted[i].MutationRootField < sorted[j].MutationRootField
+			}
+			return sorted[i].EntityCacheKey < sorted[j].EntityCacheKey
+		})
+		snap.MutationEvents = sorted
+	}
+
+	// Zero out non-deterministic FetchTimings (DurationMs varies between runs)
+	snap.FetchTimings = nil
+
+	// Normalize empty slices to nil for consistent comparison
+	// (JSON unmarshalling produces empty slices, expected literals produce nil)
+	if len(snap.L1Reads) == 0 {
+		snap.L1Reads = nil
+	}
+	if len(snap.L2Reads) == 0 {
+		snap.L2Reads = nil
+	}
+	if len(snap.L1Writes) == 0 {
+		snap.L1Writes = nil
+	}
+	if len(snap.L2Writes) == 0 {
+		snap.L2Writes = nil
+	}
+	if len(snap.EntityTypes) == 0 {
+		snap.EntityTypes = nil
+	}
+	if len(snap.FieldHashes) == 0 {
+		snap.FieldHashes = nil
+	}
+	if len(snap.ErrorEvents) == 0 {
+		snap.ErrorEvents = nil
+	}
+	if len(snap.ShadowComparisons) == 0 {
+		snap.ShadowComparisons = nil
+	}
+	if len(snap.MutationEvents) == 0 {
+		snap.MutationEvents = nil
+	}
+
+	return snap
+}
+
+func TestCacheAnalyticsE2E(t *testing.T) {
+	// Common cache key constants used across subtests
+	const (
+		keyProductTop1 = `{"__typename":"Product","key":{"upc":"top-1"}}`
+		keyProductTop2 = `{"__typename":"Product","key":{"upc":"top-2"}}`
+		keyTopProducts = `{"__typename":"Query","field":"topProducts"}`
+		keyUser1234    = `{"__typename":"User","key":{"id":"1234"}}`
+		keyMe          = `{"__typename":"Query","field":"me"}`
+		dsAccounts     = "0"
+		dsProducts     = "1"
+		dsReviews      = "2"
+	)
+
+	// Field hash constants — xxhash of the rendered scalar field values.
+	// These are deterministic because xxhash is seeded identically each time.
+	const (
+		hashProductNameTrilby uint64 = 1032923585965781586 // xxhash("Trilby")
+		hashProductNameFedora uint64 = 2432227032303632641 // xxhash("Fedora")
+		hashUserUsernameMe    uint64 = 4957449860898447395 // xxhash("Me")
+	)
+
+	// Entity key constants for field hash assertions
+	const (
+		entityKeyProductTop1 = `{"upc":"top-1"}`
+		entityKeyProductTop2 = `{"upc":"top-2"}`
+		entityKeyUser1234    = `{"id":"1234"}`
+	)
+
+	// Byte sizes of cached entities (measured from actual JSON marshalling)
+	const (
+		byteSizeProductTop1  = 177 // Product top-1 entity (reviews subgraph response)
+		byteSizeProductTop2  = 233 // Product top-2 entity (reviews subgraph response)
+		byteSizeTopProducts  = 127 // Query.topProducts root field (products subgraph response)
+		byteSizeUser1234     = 49  // User 1234 entity (accounts subgraph response)
+		byteSizeUser1234Full = 105 // User 1234 entity from L1 (includes sameUserReviewers data)
+		byteSizeQueryMe      = 56  // Query.me root field (accounts subgraph response)
+	)
+
+	// Shared field hashes for the multi-upstream query (topProducts with reviews).
+	// Product.name: 2 products (Trilby, Fedora) → 2 distinct hashes
+	// User.username: 2 reviews both by "Me" → 2 identical hashes
+	// All FieldSourceSubgraph by default (overridden in specific tests)
+	multiUpstreamFieldHashes := []resolve.EntityFieldHash{
+		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameTrilby, KeyRaw: entityKeyProductTop1, Source: resolve.FieldSourceSubgraph},
+		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameFedora, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceSubgraph},
+		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceSubgraph},
+		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceSubgraph},
+	}
+
+	// L2 hit field hashes — same data but all sourced from L2 cache
+	multiUpstreamFieldHashesL2 := []resolve.EntityFieldHash{
+		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameTrilby, KeyRaw: entityKeyProductTop1, Source: resolve.FieldSourceL2},
+		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameFedora, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceL2},
+		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceL2},
+		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceL2},
+	}
+
+	multiUpstreamEntityTypes := []resolve.EntityTypeInfo{
+		{TypeName: "Product", Count: 2, UniqueKeys: 2},
+		{TypeName: "User", Count: 2, UniqueKeys: 1},
+	}
+
+	// Standard subgraph caching configs used by L2 and L1+L2 tests
+	multiUpstreamCachingConfigs := engine.SubgraphCachingConfigs{
+		{
+			SubgraphName: "products",
+			RootFieldCaching: plan.RootFieldCacheConfigurations{
+				{TypeName: "Query", FieldName: "topProducts", CacheName: "default", TTL: 30 * time.Second},
+			},
+		},
+		{
+			SubgraphName: "reviews",
+			EntityCaching: plan.EntityCacheConfigurations{
+				{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second},
+			},
+		},
+		{
+			SubgraphName: "accounts",
+			EntityCaching: plan.EntityCacheConfigurations{
+				{TypeName: "User", CacheName: "default", TTL: 30 * time.Second},
+			},
+		},
+	}
+
+	expectedResponseBody := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`
+
+	t.Run("L2 miss then hit with analytics", func(t *testing.T) {
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{
+			"default": defaultCache,
+		}
+
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true, EnableCacheAnalytics: true}),
+			withSubgraphEntityCachingConfigs(multiUpstreamCachingConfigs),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// First query — all L2 misses, populates L2 cache
+		tracker.Reset()
+		resp, headers := gqlClient.QueryWithHeaders(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		assert.Equal(t, expectedResponseBody, string(resp))
+
+		expected1 := normalizeSnapshot(resolve.CacheAnalyticsSnapshot{
+			L2Reads: []resolve.CacheKeyEvent{
+				{CacheKey: keyProductTop1, EntityType: "Product", Kind: resolve.CacheKeyMiss, DataSource: dsReviews}, // L2 miss: first request, cache empty
+				{CacheKey: keyProductTop2, EntityType: "Product", Kind: resolve.CacheKeyMiss, DataSource: dsReviews}, // L2 miss: first request, cache empty
+				{CacheKey: keyTopProducts, EntityType: "Query", Kind: resolve.CacheKeyMiss, DataSource: dsProducts},  // L2 miss: root field not yet cached
+				{CacheKey: keyUser1234, EntityType: "User", Kind: resolve.CacheKeyMiss, DataSource: dsAccounts},      // L2 miss: User entity not yet cached (second review's User 1234 deduplicated in batch)
+			},
+			L2Writes: []resolve.CacheWriteEvent{
+				{CacheKey: keyProductTop1, EntityType: "Product", ByteSize: byteSizeProductTop1, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Written after subgraph fetch on miss
+				{CacheKey: keyProductTop2, EntityType: "Product", ByteSize: byteSizeProductTop2, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Written after subgraph fetch on miss
+				{CacheKey: keyTopProducts, EntityType: "Query", ByteSize: byteSizeTopProducts, DataSource: dsProducts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},  // Root field written to L2 after fetch
+				{CacheKey: keyUser1234, EntityType: "User", ByteSize: byteSizeUser1234, DataSource: dsAccounts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},         // User entity written after accounts fetch
+			},
+			FieldHashes: multiUpstreamFieldHashes,
+			EntityTypes: multiUpstreamEntityTypes,
+		})
+		assert.Equal(t, expected1, normalizeSnapshot(parseCacheAnalytics(t, headers)))
+
+		// Second query — all L2 hits from populated cache
+		tracker.Reset()
+		resp, headers = gqlClient.QueryWithHeaders(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		assert.Equal(t, expectedResponseBody, string(resp))
+
+		expected2 := normalizeSnapshot(resolve.CacheAnalyticsSnapshot{
+			L2Reads: []resolve.CacheKeyEvent{
+				{CacheKey: keyProductTop1, EntityType: "Product", Kind: resolve.CacheKeyHit, DataSource: dsReviews, ByteSize: byteSizeProductTop1}, // L2 hit: populated by Request 1
+				{CacheKey: keyProductTop2, EntityType: "Product", Kind: resolve.CacheKeyHit, DataSource: dsReviews, ByteSize: byteSizeProductTop2}, // L2 hit: populated by Request 1
+				{CacheKey: keyTopProducts, EntityType: "Query", Kind: resolve.CacheKeyHit, DataSource: dsProducts, ByteSize: byteSizeTopProducts},  // L2 hit: root field cached by Request 1
+				{CacheKey: keyUser1234, EntityType: "User", Kind: resolve.CacheKeyHit, DataSource: dsAccounts, ByteSize: byteSizeUser1234},         // L2 hit: User entity cached by Request 1 (second review's User 1234 deduplicated)
+			},
+			// No L2Writes: all served from cache, no fetches needed
+			FieldHashes: multiUpstreamFieldHashesL2,
+			EntityTypes: multiUpstreamEntityTypes,
+		})
+		assert.Equal(t, expected2, normalizeSnapshot(parseCacheAnalytics(t, headers)))
+	})
+
+	t.Run("L1 cache analytics with entity reuse", func(t *testing.T) {
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(resolve.CachingOptions{
+				EnableL1Cache:        true,
+				EnableL2Cache:        false,
+				EnableCacheAnalytics: true,
+			}),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// Query that triggers L1 entity reuse:
+		// 1. Query.me -> accounts subgraph -> returns User 1234 -> populates L1
+		// 2. User.sameUserReviewers -> reviews subgraph -> returns [User 1234]
+		// 3. Entity fetch for User 1234 -> L1 HIT (no subgraph call)
+		query := `query {
+			me {
+				id
+				username
+				sameUserReviewers {
+					id
+					username
+				}
+			}
+		}`
+
+		tracker.Reset()
+		resp, headers := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+		assert.Equal(t, `{"data":{"me":{"id":"1234","username":"Me","sameUserReviewers":[{"id":"1234","username":"Me"}]}}}`, string(resp))
+
+		expected := normalizeSnapshot(resolve.CacheAnalyticsSnapshot{
+			L1Reads: []resolve.CacheKeyEvent{
+				// L1 hit: User 1234 was populated by Query.me root fetch, reused for sameUserReviewers
+				{CacheKey: keyUser1234, EntityType: "User", Kind: resolve.CacheKeyHit, DataSource: dsAccounts, ByteSize: byteSizeUser1234Full},
+			},
+			L1Writes: []resolve.CacheWriteEvent{
+				// Query.me root field written to L1 after accounts subgraph fetch
+				{CacheKey: keyMe, EntityType: "Query", ByteSize: byteSizeQueryMe, DataSource: dsAccounts, CacheLevel: resolve.CacheLevelL1},
+			},
+			FieldHashes: []resolve.EntityFieldHash{
+				// Both username entries show L1 source because the entity key resolves to
+				// the L1 source recorded during the entity fetch L1 HIT
+				{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceL1}, // me.username: entity came from L1
+				{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceL1}, // sameUserReviewers[0].username: same L1 entity
+			},
+			EntityTypes: []resolve.EntityTypeInfo{
+				{TypeName: "User", Count: 2, UniqueKeys: 1}, // 2 User instances, but only 1 unique key (1234)
+			},
+		})
+		assert.Equal(t, expected, normalizeSnapshot(parseCacheAnalytics(t, headers)))
+	})
+
+	t.Run("L1+L2 combined analytics", func(t *testing.T) {
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{
+			"default": defaultCache,
+		}
+
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(resolve.CachingOptions{
+				EnableL1Cache:        true,
+				EnableL2Cache:        true,
+				EnableCacheAnalytics: true,
+			}),
+			withSubgraphEntityCachingConfigs(multiUpstreamCachingConfigs),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// First query — L2 misses (L1 is per-request, always fresh)
+		tracker.Reset()
+		resp, headers := gqlClient.QueryWithHeaders(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		assert.Equal(t, expectedResponseBody, string(resp))
+
+		expected1 := normalizeSnapshot(resolve.CacheAnalyticsSnapshot{
+			L2Reads: []resolve.CacheKeyEvent{
+				{CacheKey: keyProductTop1, EntityType: "Product", Kind: resolve.CacheKeyMiss, DataSource: dsReviews}, // L2 miss: first request, cache empty
+				{CacheKey: keyProductTop2, EntityType: "Product", Kind: resolve.CacheKeyMiss, DataSource: dsReviews}, // L2 miss: first request, cache empty
+				{CacheKey: keyTopProducts, EntityType: "Query", Kind: resolve.CacheKeyMiss, DataSource: dsProducts},  // L2 miss: root field not yet cached
+				{CacheKey: keyUser1234, EntityType: "User", Kind: resolve.CacheKeyMiss, DataSource: dsAccounts},      // L2 miss: User entity not yet cached (second review's User 1234 hits L1 after this fetch)
+			},
+			L2Writes: []resolve.CacheWriteEvent{
+				{CacheKey: keyProductTop1, EntityType: "Product", ByteSize: byteSizeProductTop1, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Written after reviews subgraph fetch
+				{CacheKey: keyProductTop2, EntityType: "Product", ByteSize: byteSizeProductTop2, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Written after reviews subgraph fetch
+				{CacheKey: keyTopProducts, EntityType: "Query", ByteSize: byteSizeTopProducts, DataSource: dsProducts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},  // Root field written after products fetch
+				{CacheKey: keyUser1234, EntityType: "User", ByteSize: byteSizeUser1234, DataSource: dsAccounts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},         // User entity written after accounts fetch
+			},
+			FieldHashes: multiUpstreamFieldHashes,
+			EntityTypes: multiUpstreamEntityTypes,
+		})
+		assert.Equal(t, expected1, normalizeSnapshot(parseCacheAnalytics(t, headers)))
+
+		// Second query — L2 hits (L1 is per-request, reset between requests)
+		tracker.Reset()
+		resp, headers = gqlClient.QueryWithHeaders(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		assert.Equal(t, expectedResponseBody, string(resp))
+
+		expected2 := normalizeSnapshot(resolve.CacheAnalyticsSnapshot{
+			L2Reads: []resolve.CacheKeyEvent{
+				{CacheKey: keyProductTop1, EntityType: "Product", Kind: resolve.CacheKeyHit, DataSource: dsReviews, ByteSize: byteSizeProductTop1}, // L2 hit: populated by Request 1
+				{CacheKey: keyProductTop2, EntityType: "Product", Kind: resolve.CacheKeyHit, DataSource: dsReviews, ByteSize: byteSizeProductTop2}, // L2 hit: populated by Request 1
+				{CacheKey: keyTopProducts, EntityType: "Query", Kind: resolve.CacheKeyHit, DataSource: dsProducts, ByteSize: byteSizeTopProducts},  // L2 hit: root field cached by Request 1
+				{CacheKey: keyUser1234, EntityType: "User", Kind: resolve.CacheKeyHit, DataSource: dsAccounts, ByteSize: byteSizeUser1234},         // L2 hit: User entity cached by Request 1 (second review's User 1234 hits L1)
+			},
+			// No L2Writes: all entities served from L2 cache
+			FieldHashes: multiUpstreamFieldHashesL2,
+			EntityTypes: multiUpstreamEntityTypes,
+		})
+		assert.Equal(t, expected2, normalizeSnapshot(parseCacheAnalytics(t, headers)))
+	})
+}
+
+func TestShadowCacheE2E(t *testing.T) {
+	// Cache key constants (same as TestCacheAnalyticsE2E — same federation setup)
+	const (
+		keyProductTop1 = `{"__typename":"Product","key":{"upc":"top-1"}}`
+		keyProductTop2 = `{"__typename":"Product","key":{"upc":"top-2"}}`
+		keyTopProducts = `{"__typename":"Query","field":"topProducts"}`
+		keyUser1234    = `{"__typename":"User","key":{"id":"1234"}}`
+		dsAccounts     = "0"
+		dsProducts     = "1"
+		dsReviews      = "2"
+	)
+
+	// Field hash constants
+	const (
+		hashProductNameTrilby uint64 = 1032923585965781586
+		hashProductNameFedora uint64 = 2432227032303632641
+		hashUserUsernameMe    uint64 = 4957449860898447395
+	)
+
+	// Entity key constants
+	const (
+		entityKeyProductTop1 = `{"upc":"top-1"}`
+		entityKeyProductTop2 = `{"upc":"top-2"}`
+		entityKeyUser1234    = `{"id":"1234"}`
+	)
+
+	// Byte sizes
+	const (
+		byteSizeProductTop1 = 177
+		byteSizeProductTop2 = 233
+		byteSizeTopProducts = 127
+		byteSizeUser1234    = 49
+	)
+
+	// Shadow comparison hash constants
+	const (
+		shadowHashProductTop1  uint64 = 8656108128396512717
+		shadowHashProductTop2  uint64 = 4671066427758823003
+		shadowHashUser1234     uint64 = 188937276969638005
+		shadowBytesProductTop1        = 124
+		shadowBytesProductTop2        = 180
+		shadowBytesUser1234           = 17
+	)
+
+	// Shadow cached field hash constants (ProvidesData fields hashed from cached value during shadow comparison)
+	const (
+		shadowFieldHashProductReviewsTop1 uint64 = 13894521258004960943 // xxhash of Product reviews field for top-1
+		shadowFieldHashProductReviewsTop2 uint64 = 3182276346310063647  // xxhash of Product reviews field for top-2
+	)
+
+	// Field hashes when all data comes from subgraph (first request, all misses)
+	fieldHashesSubgraph := []resolve.EntityFieldHash{
+		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameTrilby, KeyRaw: entityKeyProductTop1, Source: resolve.FieldSourceSubgraph},
+		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameFedora, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceSubgraph},
+		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceSubgraph},
+		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceSubgraph},
+	}
+
+	// Field hashes when all data comes from L2 (second request, all hits — no shadow entities)
+	fieldHashesL2 := []resolve.EntityFieldHash{
+		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameTrilby, KeyRaw: entityKeyProductTop1, Source: resolve.FieldSourceL2},
+		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameFedora, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceL2},
+		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceL2},
+		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceL2},
+	}
+
+	// Field hashes when all entities are in shadow mode (second request):
+	// L2 source hashes from resolution + ShadowCached hashes from compareShadowValues
+	fieldHashesL2AllShadow := []resolve.EntityFieldHash{
+		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameTrilby, KeyRaw: entityKeyProductTop1, Source: resolve.FieldSourceL2},
+		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameFedora, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceL2},
+		{EntityType: "Product", FieldName: "reviews", FieldHash: shadowFieldHashProductReviewsTop1, KeyRaw: entityKeyProductTop1, Source: resolve.FieldSourceShadowCached}, // Cached Product reviews field for per-field staleness detection
+		{EntityType: "Product", FieldName: "reviews", FieldHash: shadowFieldHashProductReviewsTop2, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceShadowCached}, // Cached Product reviews field for per-field staleness detection
+		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceShadowCached},                     // Cached User username for per-field staleness detection
+		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceShadowCached},                     // Cached User username (second review)
+		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceL2},
+		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceL2},
+	}
+
+	// Field hashes when only User is in shadow mode (mixed mode, second request):
+	// Product/root L2 source hashes + User L2 + User ShadowCached hashes
+	fieldHashesL2MixedShadow := []resolve.EntityFieldHash{
+		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameTrilby, KeyRaw: entityKeyProductTop1, Source: resolve.FieldSourceL2},
+		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameFedora, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceL2},
+		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceShadowCached}, // Cached User username for per-field staleness detection
+		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceShadowCached}, // Cached User username (second review)
+		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceL2},
+		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceL2},
+	}
+
+	entityTypes := []resolve.EntityTypeInfo{
+		{TypeName: "Product", Count: 2, UniqueKeys: 2},
+		{TypeName: "User", Count: 2, UniqueKeys: 1},
+	}
+
+	expectedResponseBody := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`
+
+	t.Run("shadow all entities - always fetches", func(t *testing.T) {
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{"default": defaultCache}
+
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		// Shadow mode for all entity types, real caching for root fields
+		shadowConfigs := engine.SubgraphCachingConfigs{
+			{
+				SubgraphName: "products",
+				RootFieldCaching: plan.RootFieldCacheConfigurations{
+					{TypeName: "Query", FieldName: "topProducts", CacheName: "default", TTL: 30 * time.Second},
+				},
+			},
+			{
+				SubgraphName: "reviews",
+				EntityCaching: plan.EntityCacheConfigurations{
+					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second, ShadowMode: true},
+				},
+			},
+			{
+				SubgraphName: "accounts",
+				EntityCaching: plan.EntityCacheConfigurations{
+					{TypeName: "User", CacheName: "default", TTL: 30 * time.Second, ShadowMode: true},
+				},
+			},
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true, EnableCacheAnalytics: true}),
+			withSubgraphEntityCachingConfigs(shadowConfigs),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		accountsHost := mustParseHost(setup.AccountsUpstreamServer.URL)
+		productsHost := mustParseHost(setup.ProductsUpstreamServer.URL)
+		reviewsHost := mustParseHost(setup.ReviewsUpstreamServer.URL)
+
+		// Request 1: All L2 misses → all 3 subgraphs called
+		tracker.Reset()
+		resp, headers := gqlClient.QueryWithHeaders(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		assert.Equal(t, expectedResponseBody, string(resp))
+
+		assert.Equal(t, 1, tracker.GetCount(productsHost), "request 1: should call products exactly once")
+		assert.Equal(t, 1, tracker.GetCount(reviewsHost), "request 1: should call reviews exactly once")
+		assert.Equal(t, 1, tracker.GetCount(accountsHost), "request 1: should call accounts exactly once")
+
+		assert.Equal(t, normalizeSnapshot(resolve.CacheAnalyticsSnapshot{
+			L2Reads: []resolve.CacheKeyEvent{
+				{CacheKey: keyProductTop1, EntityType: "Product", Kind: resolve.CacheKeyMiss, DataSource: dsReviews, Shadow: true}, // Shadow L2 miss: cache empty, subgraph fetched
+				{CacheKey: keyProductTop2, EntityType: "Product", Kind: resolve.CacheKeyMiss, DataSource: dsReviews, Shadow: true}, // Shadow L2 miss: cache empty, subgraph fetched
+				{CacheKey: keyTopProducts, EntityType: "Query", Kind: resolve.CacheKeyMiss, DataSource: dsProducts},                // Real L2 miss: root field not shadow, fetched normally
+				{CacheKey: keyUser1234, EntityType: "User", Kind: resolve.CacheKeyMiss, DataSource: dsAccounts, Shadow: true},      // Shadow L2 miss: User not yet cached
+			},
+			L2Writes: []resolve.CacheWriteEvent{
+				{CacheKey: keyProductTop1, EntityType: "Product", ByteSize: byteSizeProductTop1, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Written to L2 even in shadow (populates for comparison)
+				{CacheKey: keyProductTop2, EntityType: "Product", ByteSize: byteSizeProductTop2, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Written to L2 even in shadow
+				{CacheKey: keyTopProducts, EntityType: "Query", ByteSize: byteSizeTopProducts, DataSource: dsProducts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},  // Root field written normally (not shadow)
+				{CacheKey: keyUser1234, EntityType: "User", ByteSize: byteSizeUser1234, DataSource: dsAccounts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},         // User entity written for future shadow comparison
+			},
+			// No ShadowComparisons: nothing cached yet to compare against
+			FieldHashes: fieldHashesSubgraph,
+			EntityTypes: entityTypes,
+		}), normalizeSnapshot(parseCacheAnalytics(t, headers)))
+
+		// Request 2: Entity L2 hits (shadow) → entity subgraphs STILL called
+		// Root field L2 hit → products NOT called (real caching)
+		tracker.Reset()
+		resp, headers = gqlClient.QueryWithHeaders(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		assert.Equal(t, expectedResponseBody, string(resp))
+
+		assert.Equal(t, 0, tracker.GetCount(productsHost), "request 2: products should NOT be called (root field real cache hit)")
+		assert.Equal(t, 1, tracker.GetCount(reviewsHost), "request 2: reviews should be called (Product entity shadow)")
+		assert.Equal(t, 1, tracker.GetCount(accountsHost), "request 2: accounts should be called (User entity shadow)")
+
+		assert.Equal(t, normalizeSnapshot(resolve.CacheAnalyticsSnapshot{
+			L2Reads: []resolve.CacheKeyEvent{
+				{CacheKey: keyProductTop1, EntityType: "Product", Kind: resolve.CacheKeyHit, DataSource: dsReviews, ByteSize: byteSizeProductTop1, Shadow: true}, // Shadow L2 hit: cached by Req 1, but subgraph still called
+				{CacheKey: keyProductTop2, EntityType: "Product", Kind: resolve.CacheKeyHit, DataSource: dsReviews, ByteSize: byteSizeProductTop2, Shadow: true}, // Shadow L2 hit: cached by Req 1, but subgraph still called
+				{CacheKey: keyTopProducts, EntityType: "Query", Kind: resolve.CacheKeyHit, DataSource: dsProducts, ByteSize: byteSizeTopProducts},                // Real L2 hit: root field served from cache (not shadow)
+				{CacheKey: keyUser1234, EntityType: "User", Kind: resolve.CacheKeyHit, DataSource: dsAccounts, ByteSize: byteSizeUser1234, Shadow: true},         // Shadow L2 hit: accounts still called for comparison
+			},
+			L2Writes: []resolve.CacheWriteEvent{
+				// Only shadow entities re-written (refreshed from subgraph); root field NOT re-written (real cache hit)
+				{CacheKey: keyProductTop1, EntityType: "Product", ByteSize: byteSizeProductTop1, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Shadow re-write: fresh data from subgraph
+				{CacheKey: keyProductTop2, EntityType: "Product", ByteSize: byteSizeProductTop2, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Shadow re-write: fresh data from subgraph
+				{CacheKey: keyUser1234, EntityType: "User", ByteSize: byteSizeUser1234, DataSource: dsAccounts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},         // Shadow re-write: fresh User from accounts
+			},
+			ShadowComparisons: []resolve.ShadowComparisonEvent{
+				{CacheKey: keyProductTop1, EntityType: "Product", IsFresh: true, CachedHash: shadowHashProductTop1, FreshHash: shadowHashProductTop1, CachedBytes: shadowBytesProductTop1, FreshBytes: shadowBytesProductTop1, DataSource: dsReviews, ConfiguredTTL: 30 * time.Second}, // Fresh: cached matches subgraph (data unchanged)
+				{CacheKey: keyProductTop2, EntityType: "Product", IsFresh: true, CachedHash: shadowHashProductTop2, FreshHash: shadowHashProductTop2, CachedBytes: shadowBytesProductTop2, FreshBytes: shadowBytesProductTop2, DataSource: dsReviews, ConfiguredTTL: 30 * time.Second}, // Fresh: cached matches subgraph (data unchanged)
+				{CacheKey: keyUser1234, EntityType: "User", IsFresh: true, CachedHash: shadowHashUser1234, FreshHash: shadowHashUser1234, CachedBytes: shadowBytesUser1234, FreshBytes: shadowBytesUser1234, DataSource: dsAccounts, ConfiguredTTL: 30 * time.Second},                  // Fresh: cached User matches subgraph (no mutation)
+			},
+			FieldHashes: fieldHashesL2AllShadow,
+			EntityTypes: entityTypes,
+		}), normalizeSnapshot(parseCacheAnalytics(t, headers)))
+	})
+
+	t.Run("mixed mode - shadow User, real cache Product", func(t *testing.T) {
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{"default": defaultCache}
+
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		// Shadow mode for User only, real caching for Product and root fields
+		mixedConfigs := engine.SubgraphCachingConfigs{
+			{
+				SubgraphName: "products",
+				RootFieldCaching: plan.RootFieldCacheConfigurations{
+					{TypeName: "Query", FieldName: "topProducts", CacheName: "default", TTL: 30 * time.Second},
+				},
+			},
+			{
+				SubgraphName: "reviews",
+				EntityCaching: plan.EntityCacheConfigurations{
+					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second}, // real caching
+				},
+			},
+			{
+				SubgraphName: "accounts",
+				EntityCaching: plan.EntityCacheConfigurations{
+					{TypeName: "User", CacheName: "default", TTL: 30 * time.Second, ShadowMode: true}, // shadow
+				},
+			},
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true, EnableCacheAnalytics: true}),
+			withSubgraphEntityCachingConfigs(mixedConfigs),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		accountsHost := mustParseHost(setup.AccountsUpstreamServer.URL)
+		productsHost := mustParseHost(setup.ProductsUpstreamServer.URL)
+		reviewsHost := mustParseHost(setup.ReviewsUpstreamServer.URL)
+
+		// Request 1: All L2 misses → all 3 subgraphs called
+		tracker.Reset()
+		resp, headers := gqlClient.QueryWithHeaders(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		assert.Equal(t, expectedResponseBody, string(resp))
+
+		assert.Equal(t, 1, tracker.GetCount(productsHost), "request 1: should call products exactly once")
+		assert.Equal(t, 1, tracker.GetCount(reviewsHost), "request 1: should call reviews exactly once")
+		assert.Equal(t, 1, tracker.GetCount(accountsHost), "request 1: should call accounts exactly once")
+
+		assert.Equal(t, normalizeSnapshot(resolve.CacheAnalyticsSnapshot{
+			L2Reads: []resolve.CacheKeyEvent{
+				{CacheKey: keyProductTop1, EntityType: "Product", Kind: resolve.CacheKeyMiss, DataSource: dsReviews},          // Real L2 miss: Product entity not yet cached
+				{CacheKey: keyProductTop2, EntityType: "Product", Kind: resolve.CacheKeyMiss, DataSource: dsReviews},          // Real L2 miss: Product entity not yet cached
+				{CacheKey: keyTopProducts, EntityType: "Query", Kind: resolve.CacheKeyMiss, DataSource: dsProducts},           // Real L2 miss: root field not yet cached
+				{CacheKey: keyUser1234, EntityType: "User", Kind: resolve.CacheKeyMiss, DataSource: dsAccounts, Shadow: true}, // Shadow L2 miss: User entity not yet cached
+			},
+			L2Writes: []resolve.CacheWriteEvent{
+				{CacheKey: keyProductTop1, EntityType: "Product", ByteSize: byteSizeProductTop1, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Product written for real caching
+				{CacheKey: keyProductTop2, EntityType: "Product", ByteSize: byteSizeProductTop2, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Product written for real caching
+				{CacheKey: keyTopProducts, EntityType: "Query", ByteSize: byteSizeTopProducts, DataSource: dsProducts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},  // Root field written for real caching
+				{CacheKey: keyUser1234, EntityType: "User", ByteSize: byteSizeUser1234, DataSource: dsAccounts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},         // User written (shadow still populates L2)
+			},
+			FieldHashes: fieldHashesSubgraph,
+			EntityTypes: entityTypes,
+		}), normalizeSnapshot(parseCacheAnalytics(t, headers)))
+
+		// Request 2: Product real cache hit, User shadow → still fetched
+		tracker.Reset()
+		resp, headers = gqlClient.QueryWithHeaders(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		assert.Equal(t, expectedResponseBody, string(resp))
+
+		assert.Equal(t, 0, tracker.GetCount(productsHost), "request 2: products should NOT be called (root field real cache hit)")
+		assert.Equal(t, 0, tracker.GetCount(reviewsHost), "request 2: reviews should NOT be called (Product entity real cache hit)")
+		assert.Equal(t, 1, tracker.GetCount(accountsHost), "request 2: accounts SHOULD be called (User entity shadow)")
+
+		assert.Equal(t, normalizeSnapshot(resolve.CacheAnalyticsSnapshot{
+			L2Reads: []resolve.CacheKeyEvent{
+				{CacheKey: keyProductTop1, EntityType: "Product", Kind: resolve.CacheKeyHit, DataSource: dsReviews, ByteSize: byteSizeProductTop1},       // Real L2 hit: Product served from cache (no subgraph call)
+				{CacheKey: keyProductTop2, EntityType: "Product", Kind: resolve.CacheKeyHit, DataSource: dsReviews, ByteSize: byteSizeProductTop2},       // Real L2 hit: Product served from cache (no subgraph call)
+				{CacheKey: keyTopProducts, EntityType: "Query", Kind: resolve.CacheKeyHit, DataSource: dsProducts, ByteSize: byteSizeTopProducts},        // Real L2 hit: root field served from cache
+				{CacheKey: keyUser1234, EntityType: "User", Kind: resolve.CacheKeyHit, DataSource: dsAccounts, ByteSize: byteSizeUser1234, Shadow: true}, // Shadow L2 hit: accounts still called for comparison
+			},
+			L2Writes: []resolve.CacheWriteEvent{
+				// Only User re-written (shadow always fetches fresh); Product/root NOT re-written (real hit)
+				{CacheKey: keyUser1234, EntityType: "User", ByteSize: byteSizeUser1234, DataSource: dsAccounts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Shadow re-write: fresh data from accounts
+			},
+			ShadowComparisons: []resolve.ShadowComparisonEvent{
+				// Only User has shadow comparisons; Product uses real caching
+				{CacheKey: keyUser1234, EntityType: "User", IsFresh: true, CachedHash: shadowHashUser1234, FreshHash: shadowHashUser1234, CachedBytes: shadowBytesUser1234, FreshBytes: shadowBytesUser1234, DataSource: dsAccounts, ConfiguredTTL: 30 * time.Second}, // Fresh: cached User matches subgraph
+			},
+			FieldHashes: fieldHashesL2MixedShadow,
+			EntityTypes: entityTypes,
+		}), normalizeSnapshot(parseCacheAnalytics(t, headers)))
+	})
+
+	t.Run("shadow mode without analytics - safety only", func(t *testing.T) {
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{"default": defaultCache}
+
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		shadowConfigs := engine.SubgraphCachingConfigs{
+			{
+				SubgraphName: "products",
+				RootFieldCaching: plan.RootFieldCacheConfigurations{
+					{TypeName: "Query", FieldName: "topProducts", CacheName: "default", TTL: 30 * time.Second},
+				},
+			},
+			{
+				SubgraphName: "accounts",
+				EntityCaching: plan.EntityCacheConfigurations{
+					{TypeName: "User", CacheName: "default", TTL: 30 * time.Second, ShadowMode: true},
+				},
+			},
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}), // analytics NOT enabled
+			withSubgraphEntityCachingConfigs(shadowConfigs),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		accountsHost := mustParseHost(setup.AccountsUpstreamServer.URL)
+
+		// Request 1: Populate cache
+		tracker.Reset()
+		resp, headers := gqlClient.QueryWithHeaders(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		assert.Equal(t, expectedResponseBody, string(resp))
+		// No stats when analytics is disabled
+		assert.Empty(t, headers.Get("X-Cache-Analytics"), "analytics header should not be set when analytics disabled")
+
+		// Request 2: Shadow mode — accounts still fetched (data not served from cache)
+		tracker.Reset()
+		resp, headers = gqlClient.QueryWithHeaders(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		assert.Equal(t, expectedResponseBody, string(resp))
+		assert.Equal(t, 1, tracker.GetCount(accountsHost), "request 2: accounts should be called (shadow mode)")
+		// No stats when analytics is disabled
+		assert.Empty(t, headers.Get("X-Cache-Analytics"), "analytics header should not be set when analytics disabled")
+	})
+
+	t.Run("graduation - shadow to real", func(t *testing.T) {
+		// Same FakeLoaderCache shared across both engine setups
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{"default": defaultCache}
+
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		// Phase 1: Shadow mode for User
+		shadowConfigs := engine.SubgraphCachingConfigs{
+			{SubgraphName: "products", RootFieldCaching: plan.RootFieldCacheConfigurations{
+				{TypeName: "Query", FieldName: "topProducts", CacheName: "default", TTL: 30 * time.Second},
+			}},
+			{SubgraphName: "reviews", EntityCaching: plan.EntityCacheConfigurations{
+				{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second},
+			}},
+			{SubgraphName: "accounts", EntityCaching: plan.EntityCacheConfigurations{
+				{TypeName: "User", CacheName: "default", TTL: 30 * time.Second, ShadowMode: true},
+			}},
+		}
+
+		setup1 := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true, EnableCacheAnalytics: true}),
+			withSubgraphEntityCachingConfigs(shadowConfigs),
+		))
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		accountsHost1 := mustParseHost(setup1.AccountsUpstreamServer.URL)
+
+		// Phase 1, Request 1: Populate L2 cache
+		tracker.Reset()
+		resp, headers := gqlClient.QueryWithHeaders(ctx, setup1.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		assert.Equal(t, expectedResponseBody, string(resp))
+
+		assert.Equal(t, normalizeSnapshot(resolve.CacheAnalyticsSnapshot{
+			L2Reads: []resolve.CacheKeyEvent{
+				{CacheKey: keyProductTop1, EntityType: "Product", Kind: resolve.CacheKeyMiss, DataSource: dsReviews},          // Real L2 miss: first request, cache empty
+				{CacheKey: keyProductTop2, EntityType: "Product", Kind: resolve.CacheKeyMiss, DataSource: dsReviews},          // Real L2 miss: first request, cache empty
+				{CacheKey: keyTopProducts, EntityType: "Query", Kind: resolve.CacheKeyMiss, DataSource: dsProducts},           // Real L2 miss: root field not yet cached
+				{CacheKey: keyUser1234, EntityType: "User", Kind: resolve.CacheKeyMiss, DataSource: dsAccounts, Shadow: true}, // Shadow L2 miss: User not yet cached
+			},
+			L2Writes: []resolve.CacheWriteEvent{
+				{CacheKey: keyProductTop1, EntityType: "Product", ByteSize: byteSizeProductTop1, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Product written for real caching
+				{CacheKey: keyProductTop2, EntityType: "Product", ByteSize: byteSizeProductTop2, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Product written for real caching
+				{CacheKey: keyTopProducts, EntityType: "Query", ByteSize: byteSizeTopProducts, DataSource: dsProducts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},  // Root field written for real caching
+				{CacheKey: keyUser1234, EntityType: "User", ByteSize: byteSizeUser1234, DataSource: dsAccounts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},         // User written (shadow still populates L2)
+			},
+			FieldHashes: fieldHashesSubgraph,
+			EntityTypes: entityTypes,
+		}), normalizeSnapshot(parseCacheAnalytics(t, headers)))
+
+		// Phase 1, Request 2: Shadow — accounts still called
+		tracker.Reset()
+		resp, headers = gqlClient.QueryWithHeaders(ctx, setup1.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		assert.Equal(t, expectedResponseBody, string(resp))
+		assert.Equal(t, 1, tracker.GetCount(accountsHost1), "phase 1 request 2: accounts should be called (shadow mode)")
+
+		assert.Equal(t, normalizeSnapshot(resolve.CacheAnalyticsSnapshot{
+			L2Reads: []resolve.CacheKeyEvent{
+				{CacheKey: keyProductTop1, EntityType: "Product", Kind: resolve.CacheKeyHit, DataSource: dsReviews, ByteSize: byteSizeProductTop1},       // Real L2 hit: Product served from cache
+				{CacheKey: keyProductTop2, EntityType: "Product", Kind: resolve.CacheKeyHit, DataSource: dsReviews, ByteSize: byteSizeProductTop2},       // Real L2 hit: Product served from cache
+				{CacheKey: keyTopProducts, EntityType: "Query", Kind: resolve.CacheKeyHit, DataSource: dsProducts, ByteSize: byteSizeTopProducts},        // Real L2 hit: root field from cache
+				{CacheKey: keyUser1234, EntityType: "User", Kind: resolve.CacheKeyHit, DataSource: dsAccounts, ByteSize: byteSizeUser1234, Shadow: true}, // Shadow L2 hit: cached but accounts still called
+			},
+			L2Writes: []resolve.CacheWriteEvent{
+				// Only shadow User re-written; Product/root use real caching (no re-write on hit)
+				{CacheKey: keyUser1234, EntityType: "User", ByteSize: byteSizeUser1234, DataSource: dsAccounts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Shadow re-write with fresh data from accounts
+			},
+			ShadowComparisons: []resolve.ShadowComparisonEvent{
+				{CacheKey: keyUser1234, EntityType: "User", IsFresh: true, CachedHash: shadowHashUser1234, FreshHash: shadowHashUser1234, CachedBytes: shadowBytesUser1234, FreshBytes: shadowBytesUser1234, DataSource: dsAccounts, ConfiguredTTL: 30 * time.Second}, // Fresh: cached User matches subgraph (safe to graduate)
+			},
+			FieldHashes: fieldHashesL2MixedShadow,
+			EntityTypes: entityTypes,
+		}), normalizeSnapshot(parseCacheAnalytics(t, headers)))
+
+		setup1.Close()
+
+		// Phase 2: Graduated to real caching (same cache, new engine)
+		realConfigs := engine.SubgraphCachingConfigs{
+			{SubgraphName: "products", RootFieldCaching: plan.RootFieldCacheConfigurations{
+				{TypeName: "Query", FieldName: "topProducts", CacheName: "default", TTL: 30 * time.Second},
+			}},
+			{SubgraphName: "reviews", EntityCaching: plan.EntityCacheConfigurations{
+				{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second},
+			}},
+			{SubgraphName: "accounts", EntityCaching: plan.EntityCacheConfigurations{
+				{TypeName: "User", CacheName: "default", TTL: 30 * time.Second}, // No ShadowMode!
+			}},
+		}
+
+		tracker2 := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient2 := &http.Client{Transport: tracker2}
+
+		setup2 := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches), // SAME cache
+			withHTTPClient(trackingClient2),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true, EnableCacheAnalytics: true}),
+			withSubgraphEntityCachingConfigs(realConfigs),
+		))
+		t.Cleanup(setup2.Close)
+
+		accountsHost2 := mustParseHost(setup2.AccountsUpstreamServer.URL)
+
+		// Phase 2, Request 3: Real L2 hit — accounts NOT called
+		tracker2.Reset()
+		resp, headers = gqlClient.QueryWithHeaders(ctx, setup2.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		assert.Equal(t, expectedResponseBody, string(resp))
+		assert.Equal(t, 0, tracker2.GetCount(accountsHost2), "phase 2: accounts should NOT be called (real L2 hit)")
+
+		assert.Equal(t, normalizeSnapshot(resolve.CacheAnalyticsSnapshot{
+			L2Reads: []resolve.CacheKeyEvent{
+				{CacheKey: keyProductTop1, EntityType: "Product", Kind: resolve.CacheKeyHit, DataSource: dsReviews, ByteSize: byteSizeProductTop1}, // Real L2 hit: cached by Phase 1
+				{CacheKey: keyProductTop2, EntityType: "Product", Kind: resolve.CacheKeyHit, DataSource: dsReviews, ByteSize: byteSizeProductTop2}, // Real L2 hit: cached by Phase 1
+				{CacheKey: keyTopProducts, EntityType: "Query", Kind: resolve.CacheKeyHit, DataSource: dsProducts, ByteSize: byteSizeTopProducts},  // Real L2 hit: root field cached by Phase 1
+				{CacheKey: keyUser1234, EntityType: "User", Kind: resolve.CacheKeyHit, DataSource: dsAccounts, ByteSize: byteSizeUser1234},         // Real L2 hit: graduated from shadow, no longer calls accounts
+			},
+			// No L2Writes: all real cache hits, no fetches needed
+			// No ShadowComparisons: User is no longer in shadow mode
+			FieldHashes: fieldHashesL2,
+			EntityTypes: entityTypes,
+		}), normalizeSnapshot(parseCacheAnalytics(t, headers)))
+	})
+}
+
+func TestMutationImpactE2E(t *testing.T) {
+	accounts.ResetUsers()
+	t.Cleanup(accounts.ResetUsers)
+
+	// Configure entity caching for User on accounts subgraph
+	subgraphCachingConfigs := engine.SubgraphCachingConfigs{
+		{
+			SubgraphName: "accounts",
+			EntityCaching: plan.EntityCacheConfigurations{
+				{TypeName: "User", CacheName: "default", TTL: 30 * time.Second},
+			},
+		},
+	}
+
+	mutationQuery := `mutation { updateUsername(id: "1234", newUsername: "UpdatedMe") { id username } }`
+
+	// Uses a simple query that causes an entity fetch for User 1234
+	// me { id username } triggers: accounts root fetch for Query.me, no entity fetch
+	// We need a query that triggers entity caching for User - topProducts with reviews + authorWithoutProvides
+	entityQuery := `query { topProducts { name reviews { body authorWithoutProvides { username } } } }`
+
+	t.Run("mutation with prior cache shows stale entity", func(t *testing.T) {
+		accounts.ResetUsers()
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{"default": defaultCache}
+
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true, EnableCacheAnalytics: true}),
+			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// Request 1: Query to populate L2 cache with User entity
+		tracker.Reset()
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, entityQuery, nil, t)
+		assert.Contains(t, string(resp), `"username":"Me"`)
+
+		// Request 2: Mutation — should detect stale cached entity
+		tracker.Reset()
+		defaultCache.ClearLog()
+		respMut, headersMut := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, mutationQuery, nil, t)
+		assert.Contains(t, string(respMut), `"UpdatedMe"`)
+
+		snap := normalizeSnapshot(parseCacheAnalytics(t, headersMut))
+		require.NotNil(t, snap.MutationEvents, "should have mutation impact events")
+		require.Equal(t, 1, len(snap.MutationEvents), "should have exactly 1 mutation impact event")
+
+		event := snap.MutationEvents[0]
+		assert.Equal(t, "updateUsername", event.MutationRootField)
+		assert.Equal(t, "User", event.EntityType)
+		assert.Equal(t, `{"__typename":"User","key":{"id":"1234"}}`, event.EntityCacheKey)
+		assert.Equal(t, true, event.HadCachedValue, "should have found cached value")
+		assert.Equal(t, true, event.IsStale, "cached value should be stale (username changed)")
+
+		// Record discovered values for exact assertion
+		t.Logf("MutationImpact event: %+v", event)
+
+		assert.Equal(t, normalizeSnapshot(resolve.CacheAnalyticsSnapshot{
+			FieldHashes: []resolve.EntityFieldHash{
+				// Hash of "UpdatedMe" (post-mutation username)
+				{EntityType: "User", FieldName: "username", FieldHash: 16932466035575627600, KeyRaw: `{"id":"1234"}`},
+			},
+			EntityTypes: []resolve.EntityTypeInfo{
+				{TypeName: "User", Count: 1, UniqueKeys: 1}, // Mutation returned 1 User entity
+			},
+			MutationEvents: []resolve.MutationEvent{
+				{
+					MutationRootField: "updateUsername",
+					EntityType:        "User",
+					EntityCacheKey:    `{"__typename":"User","key":{"id":"1234"}}`,
+					HadCachedValue:    true, // L2 had cached value from Request 1 query
+					IsStale:           true, // Cached "Me" differs from fresh "UpdatedMe"
+					CachedHash:        event.CachedHash,
+					FreshHash:         event.FreshHash,
+					CachedBytes:       event.CachedBytes,
+					FreshBytes:        event.FreshBytes,
+				},
+			},
+		}), snap)
+	})
+
+	t.Run("mutation without prior cache shows no-cache event", func(t *testing.T) {
+		accounts.ResetUsers()
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{"default": defaultCache}
+
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true, EnableCacheAnalytics: true}),
+			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// NO prior query — L2 cache is empty
+		// Send mutation directly
+		tracker.Reset()
+		respMut, headersMut := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, mutationQuery, nil, t)
+		assert.Contains(t, string(respMut), `"UpdatedMe"`)
+
+		snap := normalizeSnapshot(parseCacheAnalytics(t, headersMut))
+		require.NotNil(t, snap.MutationEvents, "should have mutation impact events")
+		require.Equal(t, 1, len(snap.MutationEvents), "should have exactly 1 mutation impact event")
+
+		event := snap.MutationEvents[0]
+		assert.Equal(t, "updateUsername", event.MutationRootField)
+		assert.Equal(t, "User", event.EntityType)
+		assert.Equal(t, `{"__typename":"User","key":{"id":"1234"}}`, event.EntityCacheKey)
+		assert.Equal(t, false, event.HadCachedValue, "should NOT have found cached value")
+		assert.Equal(t, false, event.IsStale, "cannot be stale without cached value")
+		assert.Equal(t, uint64(0), event.CachedHash, "no cached value = no hash")
+		assert.Equal(t, 0, event.CachedBytes, "no cached value = no bytes")
+
+		assert.Equal(t, normalizeSnapshot(resolve.CacheAnalyticsSnapshot{
+			FieldHashes: []resolve.EntityFieldHash{
+				// Hash of "UpdatedMe" (post-mutation username)
+				{EntityType: "User", FieldName: "username", FieldHash: 16932466035575627600, KeyRaw: `{"id":"1234"}`},
+			},
+			EntityTypes: []resolve.EntityTypeInfo{
+				{TypeName: "User", Count: 1, UniqueKeys: 1}, // Mutation returned 1 User entity
+			},
+			MutationEvents: []resolve.MutationEvent{
+				{
+					MutationRootField: "updateUsername",
+					EntityType:        "User",
+					EntityCacheKey:    `{"__typename":"User","key":{"id":"1234"}}`,
+					HadCachedValue:    false, // No prior query, L2 cache was empty
+					IsStale:           false, // Cannot be stale without a cached value to compare
+					FreshHash:         event.FreshHash,
+					FreshBytes:        event.FreshBytes,
+				},
+			},
+		}), snap)
+	})
+}
+
+func mustParseHost(rawURL string) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		panic(fmt.Sprintf("failed to parse URL %q: %v", rawURL, err))
+	}
+	return parsed.Host
 }

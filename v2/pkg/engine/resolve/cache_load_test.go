@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/golang/mock/gomock"
@@ -1142,10 +1143,18 @@ func (f *FakeLoaderCache) Get(ctx context.Context, keys []string) ([]*CacheEntry
 			// Make a copy of the data to prevent external modifications
 			dataCopy := make([]byte, len(entry.data))
 			copy(dataCopy, entry.data)
-			result[i] = &CacheEntry{
+			ce := &CacheEntry{
 				Key:   key,
 				Value: dataCopy,
 			}
+			// Populate RemainingTTL from expiresAt for cache age analytics
+			if entry.expiresAt != nil {
+				remaining := time.Until(*entry.expiresAt)
+				if remaining > 0 {
+					ce.RemainingTTL = remaining
+				}
+			}
+			result[i] = ce
 			hits[i] = true
 		} else {
 			result[i] = nil
@@ -1247,4 +1256,720 @@ func (f *FakeLoaderCache) Clear() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.storage = make(map[string]cacheEntry)
+}
+
+// SetRawData directly injects data into the cache for testing purposes.
+// This bypasses the normal Set path and allows injecting stale/modified data.
+func (f *FakeLoaderCache) SetRawData(key string, value []byte, ttl time.Duration) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	ce := cacheEntry{
+		data: make([]byte, len(value)),
+	}
+	copy(ce.data, value)
+	if ttl > 0 {
+		expiresAt := time.Now().Add(ttl)
+		ce.expiresAt = &expiresAt
+	}
+	f.storage[key] = ce
+}
+
+// =============================================================================
+// Shadow Mode Integration Tests
+// =============================================================================
+
+// normalizeShadowSnap zeroes out non-deterministic fields (FetchTimings.DurationMs)
+// and normalizes empty slices to nil for consistent assert.Equal comparison.
+// CacheAgeMs is deterministic when tests run inside synctest.Test (fake clock).
+func normalizeShadowSnap(snap CacheAnalyticsSnapshot) CacheAnalyticsSnapshot {
+	// Zero out non-deterministic FetchTimings (DurationMs varies between runs)
+	snap.FetchTimings = nil
+
+	// Normalize empty slices to nil
+	if len(snap.L1Reads) == 0 {
+		snap.L1Reads = nil
+	}
+	if len(snap.L2Reads) == 0 {
+		snap.L2Reads = nil
+	}
+	if len(snap.L1Writes) == 0 {
+		snap.L1Writes = nil
+	}
+	if len(snap.L2Writes) == 0 {
+		snap.L2Writes = nil
+	}
+	if len(snap.ErrorEvents) == 0 {
+		snap.ErrorEvents = nil
+	}
+	if len(snap.FieldHashes) == 0 {
+		snap.FieldHashes = nil
+	}
+	if len(snap.EntityTypes) == 0 {
+		snap.EntityTypes = nil
+	}
+	if len(snap.ShadowComparisons) == 0 {
+		snap.ShadowComparisons = nil
+	}
+
+	return snap
+}
+
+const (
+	shadowTestKeyProduct = `{"__typename":"Product","key":{"id":"prod-1"}}`
+	shadowTestKeyUser    = `{"__typename":"User","key":{"id":"u1"}}`
+)
+
+func TestShadowMode_L2_AlwaysFetches(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		cache := NewFakeLoaderCache()
+
+		// Root fetch (not cached)
+		rootDS := NewMockDataSource(ctrl)
+		rootDS.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"product":{"__typename":"Product","id":"prod-1"}}}`), nil
+			}).Times(2) // called twice (once per request)
+
+		// Entity fetch - called BOTH times (shadow mode prevents cache serving)
+		entityDS := NewMockDataSource(ctrl)
+		entityDS.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"_entities":[{"__typename":"Product","id":"prod-1","name":"Product One"}]}}`), nil
+			}).Times(2) // called twice because shadow mode
+
+		productCacheKeyTemplate := &EntityQueryCacheKeyTemplate{
+			Keys: NewResolvableObjectVariable(&Object{
+				Fields: []*Field{
+					{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+					{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+				},
+			}),
+		}
+
+		providesData := &Object{
+			Fields: []*Field{
+				{Name: []byte("id"), Value: &Scalar{Path: []string{"id"}, Nullable: false}},
+				{Name: []byte("name"), Value: &Scalar{Path: []string{"name"}, Nullable: false}},
+			},
+		}
+
+		buildResponse := func() *GraphQLResponse {
+			return &GraphQLResponse{
+				Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
+				Fetches: Sequence(
+					SingleWithPath(&SingleFetch{
+						FetchConfiguration: FetchConfiguration{
+							DataSource:     rootDS,
+							PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data"}},
+						},
+						InputTemplate: InputTemplate{Segments: []TemplateSegment{
+							{Data: []byte(`{"method":"POST","url":"http://root.service","body":{"query":"{product {__typename id}}"}}`), SegmentType: StaticSegmentType},
+						}},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					}, "query"),
+					SingleWithPath(&SingleFetch{
+						FetchConfiguration: FetchConfiguration{
+							DataSource:     entityDS,
+							PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data", "_entities", "0"}},
+							Caching: FetchCacheConfiguration{
+								Enabled:          true,
+								CacheName:        "default",
+								TTL:              30 * time.Second,
+								CacheKeyTemplate: productCacheKeyTemplate,
+								UseL1Cache:       true,
+								ShadowMode:       true,
+								KeyFields:        []KeyField{{Name: "id"}},
+							},
+						},
+						InputTemplate: InputTemplate{Segments: []TemplateSegment{
+							{Data: []byte(`{"method":"POST","url":"http://products.service","body":{"query":"...","variables":{"representations":[`), SegmentType: StaticSegmentType},
+							{SegmentType: VariableSegmentType, VariableKind: ResolvableObjectVariableKind, Renderer: NewGraphQLVariableResolveRenderer(&Object{
+								Fields: []*Field{
+									{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+									{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+								},
+							})},
+							{Data: []byte(`]}}}`), SegmentType: StaticSegmentType},
+						}},
+						Info: &FetchInfo{
+							DataSourceID: "products", DataSourceName: "products",
+							RootFields:    []GraphCoordinate{{TypeName: "Product", FieldName: "name"}},
+							OperationType: ast.OperationTypeQuery, ProvidesData: providesData,
+						},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					}, "query.product", ObjectPath("product")),
+				),
+				Data: &Object{
+					Fields: []*Field{{
+						Name: []byte("product"),
+						Value: &Object{
+							Path: []string{"product"},
+							Fields: []*Field{
+								{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+								{Name: []byte("name"), Value: &String{Path: []string{"name"}}},
+							},
+						},
+					}},
+				},
+			}
+		}
+
+		// Request 1: L2 miss -> DataSource called -> L2 populated
+		loader := &Loader{caches: map[string]LoaderCache{"default": cache}}
+		ctx1 := NewContext(context.Background())
+		ctx1.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+		ctx1.ExecutionOptions.Caching.EnableL1Cache = true
+		ctx1.ExecutionOptions.Caching.EnableL2Cache = true
+		ctx1.ExecutionOptions.Caching.EnableCacheAnalytics = true
+
+		ar1 := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		resolvable1 := NewResolvable(ar1, ResolvableOptions{})
+		err := resolvable1.Init(ctx1, nil, ast.OperationTypeQuery)
+		require.NoError(t, err)
+
+		err = loader.LoadGraphQLResponseData(ctx1, buildResponse(), resolvable1)
+		require.NoError(t, err)
+
+		out1 := fastjsonext.PrintGraphQLResponse(resolvable1.data, resolvable1.errors)
+		assert.Equal(t, `{"data":{"product":{"__typename":"Product","id":"prod-1","name":"Product One"}}}`, out1)
+
+		assert.Equal(t, normalizeShadowSnap(CacheAnalyticsSnapshot{
+			L1Reads: []CacheKeyEvent{
+				{CacheKey: shadowTestKeyProduct, EntityType: "Product", Kind: CacheKeyMiss, DataSource: "products"}, // First request, L1 is empty
+			},
+			L2Reads: []CacheKeyEvent{
+				{CacheKey: shadowTestKeyProduct, EntityType: "Product", Kind: CacheKeyMiss, DataSource: "products", Shadow: true}, // First request, L2 is empty; Shadow marks shadow-mode fetch
+			},
+			L1Writes: []CacheWriteEvent{
+				{CacheKey: shadowTestKeyProduct, EntityType: "Product", ByteSize: 59, DataSource: "products", CacheLevel: CacheLevelL1}, // Miss triggered subgraph fetch, result written to L1
+			},
+			L2Writes: []CacheWriteEvent{
+				{CacheKey: shadowTestKeyProduct, EntityType: "Product", ByteSize: 59, DataSource: "products", CacheLevel: CacheLevelL2, TTL: 30 * time.Second}, // Miss triggered subgraph fetch, result written to L2
+			},
+		}), normalizeShadowSnap(ctx1.GetCacheStats()))
+
+		// Advance fake clock by 5s so Request 2's L2 hit has a measurable CacheAgeMs
+		time.Sleep(5 * time.Second)
+
+		// Request 2: L2 hit (shadow) -> DataSource STILL called
+		loader2 := &Loader{caches: map[string]LoaderCache{"default": cache}}
+		ctx2 := NewContext(context.Background())
+		ctx2.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+		ctx2.ExecutionOptions.Caching.EnableL1Cache = true
+		ctx2.ExecutionOptions.Caching.EnableL2Cache = true
+		ctx2.ExecutionOptions.Caching.EnableCacheAnalytics = true
+
+		ar2 := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		resolvable2 := NewResolvable(ar2, ResolvableOptions{})
+		err = resolvable2.Init(ctx2, nil, ast.OperationTypeQuery)
+		require.NoError(t, err)
+
+		err = loader2.LoadGraphQLResponseData(ctx2, buildResponse(), resolvable2)
+		require.NoError(t, err)
+
+		out2 := fastjsonext.PrintGraphQLResponse(resolvable2.data, resolvable2.errors)
+		assert.Equal(t, `{"data":{"product":{"__typename":"Product","id":"prod-1","name":"Product One"}}}`, out2)
+
+		assert.Equal(t, normalizeShadowSnap(CacheAnalyticsSnapshot{
+			L1Reads: []CacheKeyEvent{
+				{CacheKey: shadowTestKeyProduct, EntityType: "Product", Kind: CacheKeyMiss, DataSource: "products"}, // New Loader instance, L1 is per-request and empty
+			},
+			L2Reads: []CacheKeyEvent{
+				{CacheKey: shadowTestKeyProduct, EntityType: "Product", Kind: CacheKeyHit, DataSource: "products", ByteSize: 59, Shadow: true, CacheAgeMs: 5000}, // L2 populated by Request 1, 5s ago; Shadow=true so subgraph is still fetched
+			},
+			L1Writes: []CacheWriteEvent{
+				{CacheKey: shadowTestKeyProduct, EntityType: "Product", ByteSize: 59, DataSource: "products", CacheLevel: CacheLevelL1}, // Written from subgraph response (shadow mode always fetches)
+			},
+			L2Writes: []CacheWriteEvent{
+				{CacheKey: shadowTestKeyProduct, EntityType: "Product", ByteSize: 59, DataSource: "products", CacheLevel: CacheLevelL2, TTL: 30 * time.Second}, // Overwritten in L2 with fresh subgraph response
+			},
+			ShadowComparisons: []ShadowComparisonEvent{
+				{CacheKey: shadowTestKeyProduct, EntityType: "Product", IsFresh: true, CachedHash: 16331343294028781429, FreshHash: 16331343294028781429, CachedBytes: 36, FreshBytes: 36, DataSource: "products", ConfiguredTTL: 30 * time.Second, CacheAgeMs: 5000}, // Cached data matches subgraph (same hash), no staleness; entry was 5s old
+			},
+			FieldHashes: []EntityFieldHash{
+				{EntityType: "Product", FieldName: "id", FieldHash: 4016270444951293489, KeyRaw: `{"id":"prod-1"}`, Source: FieldSourceShadowCached},   // Cached "id" field from shadow comparison
+				{EntityType: "Product", FieldName: "name", FieldHash: 8385814294091472045, KeyRaw: `{"id":"prod-1"}`, Source: FieldSourceShadowCached}, // Cached "name" field from shadow comparison
+			},
+		}), normalizeShadowSnap(ctx2.GetCacheStats()))
+	})
+}
+
+func TestShadowMode_StalenessDetection(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		cache := NewFakeLoaderCache()
+
+		rootDS := NewMockDataSource(ctrl)
+		rootDS.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"user":{"__typename":"User","id":"u1"}}}`), nil
+			}).Times(2)
+
+		entityDS := NewMockDataSource(ctrl)
+		// First call returns "Alice"
+		entityDS.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"_entities":[{"__typename":"User","id":"u1","username":"Alice"}]}}`), nil
+			}).Times(1)
+		// Second call returns "AliceUpdated" (subgraph data changed)
+		entityDS.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"_entities":[{"__typename":"User","id":"u1","username":"AliceUpdated"}]}}`), nil
+			}).Times(1)
+
+		userCacheKeyTemplate := &EntityQueryCacheKeyTemplate{
+			Keys: NewResolvableObjectVariable(&Object{
+				Fields: []*Field{
+					{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+					{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+				},
+			}),
+		}
+
+		providesData := &Object{
+			Fields: []*Field{
+				{Name: []byte("id"), Value: &Scalar{Path: []string{"id"}, Nullable: false}},
+				{Name: []byte("username"), Value: &Scalar{Path: []string{"username"}, Nullable: false}},
+			},
+		}
+
+		buildResponse := func() *GraphQLResponse {
+			return &GraphQLResponse{
+				Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
+				Fetches: Sequence(
+					SingleWithPath(&SingleFetch{
+						FetchConfiguration: FetchConfiguration{
+							DataSource:     rootDS,
+							PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data"}},
+						},
+						InputTemplate: InputTemplate{Segments: []TemplateSegment{
+							{Data: []byte(`{"method":"POST"}`), SegmentType: StaticSegmentType},
+						}},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					}, "query"),
+					SingleWithPath(&SingleFetch{
+						FetchConfiguration: FetchConfiguration{
+							DataSource:     entityDS,
+							PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data", "_entities", "0"}},
+							Caching: FetchCacheConfiguration{
+								Enabled:          true,
+								CacheName:        "default",
+								TTL:              30 * time.Second,
+								CacheKeyTemplate: userCacheKeyTemplate,
+								UseL1Cache:       true,
+								ShadowMode:       true,
+								KeyFields:        []KeyField{{Name: "id"}},
+							},
+						},
+						InputTemplate: InputTemplate{Segments: []TemplateSegment{
+							{Data: []byte(`{"method":"POST","url":"http://accounts.service","body":{"query":"...","variables":{"representations":[`), SegmentType: StaticSegmentType},
+							{SegmentType: VariableSegmentType, VariableKind: ResolvableObjectVariableKind, Renderer: NewGraphQLVariableResolveRenderer(&Object{
+								Fields: []*Field{
+									{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+									{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+								},
+							})},
+							{Data: []byte(`]}}}`), SegmentType: StaticSegmentType},
+						}},
+						Info: &FetchInfo{
+							DataSourceID: "accounts", DataSourceName: "accounts",
+							RootFields:    []GraphCoordinate{{TypeName: "User", FieldName: "username"}},
+							OperationType: ast.OperationTypeQuery, ProvidesData: providesData,
+						},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					}, "query.user", ObjectPath("user")),
+				),
+				Data: &Object{
+					Fields: []*Field{{
+						Name: []byte("user"),
+						Value: &Object{
+							Path: []string{"user"},
+							Fields: []*Field{
+								{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+								{Name: []byte("username"), Value: &String{Path: []string{"username"}}},
+							},
+						},
+					}},
+				},
+			}
+		}
+
+		// Request 1: Populate L2 cache with "Alice"
+		loader1 := &Loader{caches: map[string]LoaderCache{"default": cache}}
+		ctx1 := NewContext(context.Background())
+		ctx1.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+		ctx1.ExecutionOptions.Caching.EnableL1Cache = true
+		ctx1.ExecutionOptions.Caching.EnableL2Cache = true
+		ctx1.ExecutionOptions.Caching.EnableCacheAnalytics = true
+
+		ar1 := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		resolvable1 := NewResolvable(ar1, ResolvableOptions{})
+		err := resolvable1.Init(ctx1, nil, ast.OperationTypeQuery)
+		require.NoError(t, err)
+
+		err = loader1.LoadGraphQLResponseData(ctx1, buildResponse(), resolvable1)
+		require.NoError(t, err)
+
+		assert.Equal(t, normalizeShadowSnap(CacheAnalyticsSnapshot{
+			L1Reads: []CacheKeyEvent{
+				{CacheKey: shadowTestKeyUser, EntityType: "User", Kind: CacheKeyMiss, DataSource: "accounts"}, // First request, L1 is empty
+			},
+			L2Reads: []CacheKeyEvent{
+				{CacheKey: shadowTestKeyUser, EntityType: "User", Kind: CacheKeyMiss, DataSource: "accounts", Shadow: true}, // First request, L2 is empty; Shadow marks shadow-mode fetch
+			},
+			L1Writes: []CacheWriteEvent{
+				{CacheKey: shadowTestKeyUser, EntityType: "User", ByteSize: 50, DataSource: "accounts", CacheLevel: CacheLevelL1}, // "Alice" written to L1 after subgraph fetch
+			},
+			L2Writes: []CacheWriteEvent{
+				{CacheKey: shadowTestKeyUser, EntityType: "User", ByteSize: 50, DataSource: "accounts", CacheLevel: CacheLevelL2, TTL: 30 * time.Second}, // "Alice" written to L2 after subgraph fetch
+			},
+		}), normalizeShadowSnap(ctx1.GetCacheStats()))
+
+		// Advance fake clock by 5s so Request 2's L2 hit has a measurable CacheAgeMs
+		time.Sleep(5 * time.Second)
+
+		// Request 2: L2 has "Alice" but subgraph returns "AliceUpdated"
+		loader2 := &Loader{caches: map[string]LoaderCache{"default": cache}}
+		ctx2 := NewContext(context.Background())
+		ctx2.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+		ctx2.ExecutionOptions.Caching.EnableL1Cache = true
+		ctx2.ExecutionOptions.Caching.EnableL2Cache = true
+		ctx2.ExecutionOptions.Caching.EnableCacheAnalytics = true
+
+		ar2 := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		resolvable2 := NewResolvable(ar2, ResolvableOptions{})
+		err = resolvable2.Init(ctx2, nil, ast.OperationTypeQuery)
+		require.NoError(t, err)
+
+		err = loader2.LoadGraphQLResponseData(ctx2, buildResponse(), resolvable2)
+		require.NoError(t, err)
+
+		// Verify fresh data is served (not stale cache)
+		out2 := fastjsonext.PrintGraphQLResponse(resolvable2.data, resolvable2.errors)
+		assert.Equal(t, `{"data":{"user":{"__typename":"User","id":"u1","username":"AliceUpdated"}}}`, out2)
+
+		assert.Equal(t, normalizeShadowSnap(CacheAnalyticsSnapshot{
+			L1Reads: []CacheKeyEvent{
+				{CacheKey: shadowTestKeyUser, EntityType: "User", Kind: CacheKeyMiss, DataSource: "accounts"}, // New Loader instance, L1 is per-request and empty
+			},
+			L2Reads: []CacheKeyEvent{
+				{CacheKey: shadowTestKeyUser, EntityType: "User", Kind: CacheKeyHit, DataSource: "accounts", ByteSize: 50, Shadow: true, CacheAgeMs: 5000}, // L2 has "Alice" from Request 1, 5s ago; Shadow=true so subgraph is still fetched
+			},
+			L1Writes: []CacheWriteEvent{
+				{CacheKey: shadowTestKeyUser, EntityType: "User", ByteSize: 57, DataSource: "accounts", CacheLevel: CacheLevelL1}, // "AliceUpdated" written to L1 from fresh subgraph response
+			},
+			L2Writes: []CacheWriteEvent{
+				{CacheKey: shadowTestKeyUser, EntityType: "User", ByteSize: 57, DataSource: "accounts", CacheLevel: CacheLevelL2, TTL: 30 * time.Second}, // "AliceUpdated" overwrites "Alice" in L2
+			},
+			ShadowComparisons: []ShadowComparisonEvent{
+				{CacheKey: shadowTestKeyUser, EntityType: "User", IsFresh: false, CachedHash: 272931794584083561, FreshHash: 4550742678894771079, CachedBytes: 30, FreshBytes: 37, DataSource: "accounts", ConfiguredTTL: 30 * time.Second, CacheAgeMs: 5000}, // Cached "Alice" differs from fresh "AliceUpdated" (different hashes); entry was 5s old
+			},
+			FieldHashes: []EntityFieldHash{
+				{EntityType: "User", FieldName: "id", FieldHash: 13311642224980425257, KeyRaw: `{"id":"u1"}`, Source: FieldSourceShadowCached},      // Cached "id" field from "Alice" entity
+				{EntityType: "User", FieldName: "username", FieldHash: 5631231822564450273, KeyRaw: `{"id":"u1"}`, Source: FieldSourceShadowCached}, // Cached "username"="Alice" (stale value)
+			},
+		}), normalizeShadowSnap(ctx2.GetCacheStats()))
+	})
+}
+
+func TestShadowMode_L1_WorksNormally(t *testing.T) {
+	t.Run("L1 cache serves data normally even with shadow mode entity", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		cache := NewFakeLoaderCache()
+
+		rootDS := NewMockDataSource(ctrl)
+		rootDS.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"product":{"__typename":"Product","id":"prod-1"}}}`), nil
+			}).Times(1)
+
+		// Entity fetch called only ONCE (second occurrence served from L1)
+		entityDS := NewMockDataSource(ctrl)
+		entityDS.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"_entities":[{"__typename":"Product","id":"prod-1","name":"Product One"}]}}`), nil
+			}).Times(1)
+
+		// Second entity fetch for SAME entity - should hit L1 (not called)
+		entityDS2 := NewMockDataSource(ctrl)
+		entityDS2.EXPECT().Load(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
+		productCacheKeyTemplate := &EntityQueryCacheKeyTemplate{
+			Keys: NewResolvableObjectVariable(&Object{
+				Fields: []*Field{
+					{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+					{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+				},
+			}),
+		}
+
+		providesData := &Object{
+			Fields: []*Field{
+				{Name: []byte("id"), Value: &Scalar{Path: []string{"id"}, Nullable: false}},
+				{Name: []byte("name"), Value: &Scalar{Path: []string{"name"}, Nullable: false}},
+			},
+		}
+
+		response := &GraphQLResponse{
+			Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
+			Fetches: Sequence(
+				SingleWithPath(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource:     rootDS,
+						PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data"}},
+					},
+					InputTemplate: InputTemplate{Segments: []TemplateSegment{
+						{Data: []byte(`{"method":"POST"}`), SegmentType: StaticSegmentType},
+					}},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+				}, "query"),
+				// First entity fetch (shadow mode + L1)
+				SingleWithPath(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource:     entityDS,
+						PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data", "_entities", "0"}},
+						Caching: FetchCacheConfiguration{
+							Enabled:          true,
+							CacheName:        "default",
+							TTL:              30 * time.Second,
+							CacheKeyTemplate: productCacheKeyTemplate,
+							UseL1Cache:       true,
+							ShadowMode:       true,
+						},
+					},
+					InputTemplate: InputTemplate{Segments: []TemplateSegment{
+						{Data: []byte(`{"method":"POST","url":"http://products.service","body":{"query":"...","variables":{"representations":[`), SegmentType: StaticSegmentType},
+						{SegmentType: VariableSegmentType, VariableKind: ResolvableObjectVariableKind, Renderer: NewGraphQLVariableResolveRenderer(&Object{
+							Fields: []*Field{
+								{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+								{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+							},
+						})},
+						{Data: []byte(`]}}}`), SegmentType: StaticSegmentType},
+					}},
+					Info: &FetchInfo{
+						DataSourceID: "products", DataSourceName: "products",
+						RootFields:    []GraphCoordinate{{TypeName: "Product", FieldName: "name"}},
+						OperationType: ast.OperationTypeQuery, ProvidesData: providesData,
+					},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+				}, "query.product", ObjectPath("product")),
+				// Second entity fetch for SAME entity - should hit L1 (shadow doesn't affect L1)
+				SingleWithPath(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource:     entityDS2,
+						PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data", "_entities", "0"}},
+						Caching: FetchCacheConfiguration{
+							Enabled:          true,
+							CacheName:        "default",
+							TTL:              30 * time.Second,
+							CacheKeyTemplate: productCacheKeyTemplate,
+							UseL1Cache:       true,
+							ShadowMode:       true,
+						},
+					},
+					InputTemplate: InputTemplate{Segments: []TemplateSegment{
+						{Data: []byte(`{"method":"POST","url":"http://products.service","body":{"query":"...","variables":{"representations":[`), SegmentType: StaticSegmentType},
+						{SegmentType: VariableSegmentType, VariableKind: ResolvableObjectVariableKind, Renderer: NewGraphQLVariableResolveRenderer(&Object{
+							Fields: []*Field{
+								{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+								{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+							},
+						})},
+						{Data: []byte(`]}}}`), SegmentType: StaticSegmentType},
+					}},
+					Info: &FetchInfo{
+						DataSourceID: "products", DataSourceName: "products",
+						RootFields:    []GraphCoordinate{{TypeName: "Product", FieldName: "name"}},
+						OperationType: ast.OperationTypeQuery, ProvidesData: providesData,
+					},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+				}, "query.product", ObjectPath("product")),
+			),
+			Data: &Object{
+				Fields: []*Field{{
+					Name: []byte("product"),
+					Value: &Object{
+						Path: []string{"product"},
+						Fields: []*Field{
+							{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+							{Name: []byte("name"), Value: &String{Path: []string{"name"}}},
+						},
+					},
+				}},
+			},
+		}
+
+		loader := &Loader{caches: map[string]LoaderCache{"default": cache}}
+		ctx := NewContext(context.Background())
+		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+		ctx.ExecutionOptions.Caching.EnableL1Cache = true
+		ctx.ExecutionOptions.Caching.EnableL2Cache = false // L2 disabled — only L1 can serve the second fetch
+
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		resolvable := NewResolvable(ar, ResolvableOptions{})
+		err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+		require.NoError(t, err)
+
+		err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+		require.NoError(t, err)
+
+		out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
+		assert.Equal(t, `{"data":{"product":{"__typename":"Product","id":"prod-1","name":"Product One"}}}`, out)
+
+		// No stats when analytics disabled — EnableCacheAnalytics not set, so no events are collected
+		assert.Equal(t, CacheAnalyticsSnapshot{}, ctx.GetCacheStats())
+	})
+}
+
+func TestShadowMode_WithoutAnalytics(t *testing.T) {
+	t.Run("shadow mode works without analytics - safety only", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		cache := NewFakeLoaderCache()
+
+		rootDS := NewMockDataSource(ctrl)
+		rootDS.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"product":{"__typename":"Product","id":"prod-1"}}}`), nil
+			}).Times(2)
+
+		entityDS := NewMockDataSource(ctrl)
+		entityDS.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"_entities":[{"__typename":"Product","id":"prod-1","name":"Product One"}]}}`), nil
+			}).Times(2) // Called both times (shadow mode)
+
+		productCacheKeyTemplate := &EntityQueryCacheKeyTemplate{
+			Keys: NewResolvableObjectVariable(&Object{
+				Fields: []*Field{
+					{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+					{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+				},
+			}),
+		}
+
+		providesData := &Object{
+			Fields: []*Field{
+				{Name: []byte("id"), Value: &Scalar{Path: []string{"id"}, Nullable: false}},
+				{Name: []byte("name"), Value: &Scalar{Path: []string{"name"}, Nullable: false}},
+			},
+		}
+
+		buildResponse := func() *GraphQLResponse {
+			return &GraphQLResponse{
+				Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
+				Fetches: Sequence(
+					SingleWithPath(&SingleFetch{
+						FetchConfiguration: FetchConfiguration{
+							DataSource:     rootDS,
+							PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data"}},
+						},
+						InputTemplate: InputTemplate{Segments: []TemplateSegment{
+							{Data: []byte(`{"method":"POST"}`), SegmentType: StaticSegmentType},
+						}},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					}, "query"),
+					SingleWithPath(&SingleFetch{
+						FetchConfiguration: FetchConfiguration{
+							DataSource:     entityDS,
+							PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data", "_entities", "0"}},
+							Caching: FetchCacheConfiguration{
+								Enabled:          true,
+								CacheName:        "default",
+								TTL:              30 * time.Second,
+								CacheKeyTemplate: productCacheKeyTemplate,
+								UseL1Cache:       true,
+								ShadowMode:       true,
+							},
+						},
+						InputTemplate: InputTemplate{Segments: []TemplateSegment{
+							{Data: []byte(`{"method":"POST","url":"http://products.service","body":{"query":"...","variables":{"representations":[`), SegmentType: StaticSegmentType},
+							{SegmentType: VariableSegmentType, VariableKind: ResolvableObjectVariableKind, Renderer: NewGraphQLVariableResolveRenderer(&Object{
+								Fields: []*Field{
+									{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+									{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+								},
+							})},
+							{Data: []byte(`]}}}`), SegmentType: StaticSegmentType},
+						}},
+						Info: &FetchInfo{
+							DataSourceID: "products", DataSourceName: "products",
+							RootFields:    []GraphCoordinate{{TypeName: "Product", FieldName: "name"}},
+							OperationType: ast.OperationTypeQuery, ProvidesData: providesData,
+						},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					}, "query.product", ObjectPath("product")),
+				),
+				Data: &Object{
+					Fields: []*Field{{
+						Name: []byte("product"),
+						Value: &Object{
+							Path: []string{"product"},
+							Fields: []*Field{
+								{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+								{Name: []byte("name"), Value: &String{Path: []string{"name"}}},
+							},
+						},
+					}},
+				},
+			}
+		}
+
+		// Request 1: Populate cache
+		loader1 := &Loader{caches: map[string]LoaderCache{"default": cache}}
+		ctx1 := NewContext(context.Background())
+		ctx1.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+		ctx1.ExecutionOptions.Caching.EnableL1Cache = true
+		ctx1.ExecutionOptions.Caching.EnableL2Cache = true
+		// Analytics disabled
+
+		ar1 := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		resolvable1 := NewResolvable(ar1, ResolvableOptions{})
+		err := resolvable1.Init(ctx1, nil, ast.OperationTypeQuery)
+		require.NoError(t, err)
+		err = loader1.LoadGraphQLResponseData(ctx1, buildResponse(), resolvable1)
+		require.NoError(t, err)
+
+		// Empty: EnableCacheAnalytics not set, so no L1/L2 events are recorded
+		assert.Equal(t, CacheAnalyticsSnapshot{}, ctx1.GetCacheStats())
+
+		// Request 2: Shadow mode - still fetches from subgraph
+		loader2 := &Loader{caches: map[string]LoaderCache{"default": cache}}
+		ctx2 := NewContext(context.Background())
+		ctx2.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+		ctx2.ExecutionOptions.Caching.EnableL1Cache = true
+		ctx2.ExecutionOptions.Caching.EnableL2Cache = true
+		// Analytics disabled
+
+		ar2 := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		resolvable2 := NewResolvable(ar2, ResolvableOptions{})
+		err = resolvable2.Init(ctx2, nil, ast.OperationTypeQuery)
+		require.NoError(t, err)
+		err = loader2.LoadGraphQLResponseData(ctx2, buildResponse(), resolvable2)
+		require.NoError(t, err)
+
+		out2 := fastjsonext.PrintGraphQLResponse(resolvable2.data, resolvable2.errors)
+		assert.Equal(t, `{"data":{"product":{"__typename":"Product","id":"prod-1","name":"Product One"}}}`, out2)
+
+		// Empty: EnableCacheAnalytics not set, so no events or shadow comparisons collected
+		assert.Equal(t, CacheAnalyticsSnapshot{}, ctx2.GetCacheStats())
+	})
 }

@@ -2,7 +2,6 @@ package resolve
 
 import (
 	"context"
-	"sync"
 	"testing"
 	"time"
 
@@ -611,7 +610,7 @@ func TestL1L2CacheEndToEnd(t *testing.T) {
 		cache := NewFakeLoaderCache()
 
 		// Pre-populate L2 cache with correct key format: {"__typename":"Product","key":{"id":"prod-1"}}
-		cache.Set(context.Background(), []*CacheEntry{
+		_ = cache.Set(context.Background(), []*CacheEntry{
 			{Key: `{"__typename":"Product","key":{"id":"prod-1"}}`, Value: []byte(`{"__typename":"Product","id":"prod-1","name":"L2 Cached Product"}`)},
 		}, time.Minute)
 		cache.ClearLog() // Clear the set log
@@ -894,75 +893,6 @@ func TestL1L2CacheEndToEnd(t *testing.T) {
 	})
 }
 
-// TestCacheStatsThreadSafety verifies that L2 cache stats are thread-safe.
-// This test should be run with -race flag: go test -race -run TestCacheStatsThreadSafety
-//
-// The test demonstrates that:
-// - L1 stats are only accessed from the main thread (non-atomic, but safe due to single-thread access)
-// - L2 stats use atomic operations (safe for concurrent access from goroutines)
-func TestCacheStatsThreadSafety(t *testing.T) {
-	t.Run("L2 stats concurrent access", func(t *testing.T) {
-		// This test verifies no race conditions when multiple goroutines update L2 stats
-		ctx := NewContext(context.Background())
-		ctx.ExecutionOptions.Caching.EnableL2Cache = true
-
-		const numGoroutines = 100
-
-		var wg sync.WaitGroup
-		wg.Add(numGoroutines * 2) // Each goroutine does both hit and miss
-
-		for i := 0; i < numGoroutines; i++ {
-			go func() {
-				defer wg.Done()
-				ctx.trackL2Hit()
-			}()
-			go func() {
-				defer wg.Done()
-				ctx.trackL2Miss()
-			}()
-		}
-		wg.Wait()
-
-		stats := ctx.GetCacheStats()
-		assert.Equal(t, int64(numGoroutines), stats.L2Hits, "All L2 hits should be counted")
-		assert.Equal(t, int64(numGoroutines), stats.L2Misses, "All L2 misses should be counted")
-	})
-
-	t.Run("L1 and L2 stats isolation", func(t *testing.T) {
-		// This test verifies that L1 stats (main thread) and L2 stats (goroutines) are properly isolated
-		ctx := NewContext(context.Background())
-		ctx.ExecutionOptions.Caching.EnableL1Cache = true
-		ctx.ExecutionOptions.Caching.EnableL2Cache = true
-
-		// L1 stats on main thread
-		ctx.trackL1Hit()
-		ctx.trackL1Hit()
-		ctx.trackL1Miss()
-
-		// L2 stats from goroutines
-		var wg sync.WaitGroup
-		wg.Add(2)
-		go func() {
-			defer wg.Done()
-			ctx.trackL2Hit()
-			ctx.trackL2Hit()
-			ctx.trackL2Hit()
-		}()
-		go func() {
-			defer wg.Done()
-			ctx.trackL2Miss()
-			ctx.trackL2Miss()
-		}()
-		wg.Wait()
-
-		stats := ctx.GetCacheStats()
-		assert.Equal(t, int64(2), stats.L1Hits, "L1 hits should be 2")
-		assert.Equal(t, int64(1), stats.L1Misses, "L1 misses should be 1")
-		assert.Equal(t, int64(3), stats.L2Hits, "L2 hits should be 3")
-		assert.Equal(t, int64(2), stats.L2Misses, "L2 misses should be 2")
-	})
-}
-
 // TestL1CacheSkipsParallelFetch verifies that parallel fetches are skipped when L1 cache has complete hits.
 // This tests the optimization at loader.go:296 where goroutines are not spawned for parallel fetch nodes
 // that have all entities already in L1 cache from a previous sequential fetch.
@@ -1109,6 +1039,7 @@ func TestL1CacheSkipsParallelFetch(t *testing.T) {
 		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
 		ctx.ExecutionOptions.Caching.EnableL1Cache = true
 		ctx.ExecutionOptions.Caching.EnableL2Cache = false // L1 only for this test
+		ctx.ExecutionOptions.Caching.EnableCacheAnalytics = true
 
 		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
 		resolvable := NewResolvable(ar, ResolvableOptions{})
@@ -1127,7 +1058,15 @@ func TestL1CacheSkipsParallelFetch(t *testing.T) {
 		// - 2 misses from first entity fetch (sequential, populates L1)
 		// - 2 hits from second entity fetch in parallel (same products, skipped via L1)
 		stats := ctx.GetCacheStats()
-		assert.Equal(t, int64(2), stats.L1Hits, "L1 should have 2 hits (parallel fetch for same entities skipped)")
-		assert.Equal(t, int64(2), stats.L1Misses, "L1 should have 2 misses (first entity fetch)")
+		var l1Hits, l1Misses int
+		for _, ev := range stats.L1Reads {
+			if ev.Kind == CacheKeyHit {
+				l1Hits++
+			} else {
+				l1Misses++
+			}
+		}
+		assert.Equal(t, 2, l1Hits, "L1 should have 2 hits (parallel fetch for same entities skipped)")
+		assert.Equal(t, 2, l1Misses, "L1 should have 2 misses (first entity fetch)")
 	})
 }
