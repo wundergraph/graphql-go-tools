@@ -593,7 +593,7 @@ func TestCacheAnalytics_L1Integration(t *testing.T) {
 			assert.Equal(t, "products", ev.DataSource)
 			if ev.Kind == CacheKeyHit {
 				l1Hits++
-				assert.Greater(t, ev.ByteSize, 0, "hit should have non-zero byte size")
+				assert.Equal(t, 59, ev.ByteSize, "hit should have correct byte size")
 			} else {
 				l1Misses++
 			}
@@ -602,10 +602,10 @@ func TestCacheAnalytics_L1Integration(t *testing.T) {
 		assert.Equal(t, 1, l1Misses, "should have exactly 1 L1 miss event")
 
 		// L1 writes occur after 1st entity fetch resolved from subgraph
-		assert.Greater(t, len(snap.L1Writes), 0, "should have L1 write events")
+		assert.Equal(t, 1, len(snap.L1Writes), "should have exactly 1 L1 write event")
 		for _, we := range snap.L1Writes {
 			assert.Equal(t, "Product", we.EntityType)
-			assert.Greater(t, we.ByteSize, 0)
+			assert.Equal(t, 59, we.ByteSize, "L1 write should have correct byte size")
 		}
 	})
 }
@@ -756,7 +756,7 @@ func TestCacheAnalytics_L2Integration(t *testing.T) {
 		// Entity written to L2 after subgraph fetch; TTL from FetchCacheConfiguration
 		assert.Equal(t, 1, len(snap.L2Writes), "should have exactly 1 L2 write event")
 		assert.Equal(t, 30*time.Second, snap.L2Writes[0].TTL, "L2 write should have correct TTL")
-		assert.Greater(t, snap.L2Writes[0].ByteSize, 0, "L2 write should have non-zero byte size")
+		assert.Equal(t, 59, snap.L2Writes[0].ByteSize, "L2 write should have correct byte size")
 	})
 }
 

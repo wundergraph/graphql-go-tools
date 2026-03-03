@@ -6120,7 +6120,6 @@ func TestMutationImpactE2E(t *testing.T) {
 
 		// Request 2: Mutation — should detect stale cached entity
 		tracker.Reset()
-		defaultCache.ClearLog()
 		respMut, headersMut := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, mutationQuery, nil, t)
 		assert.Contains(t, string(respMut), `"UpdatedMe"`)
 

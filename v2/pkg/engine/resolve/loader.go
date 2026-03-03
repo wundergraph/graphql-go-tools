@@ -337,7 +337,6 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 	// L2 stats use atomic operations - thread-safe
 	g, ctx := errgroup.WithContext(l.ctx.ctx)
 	for i := range nodes {
-		i := i
 		f := nodes[i].Item.Fetch
 		item := nodes[i].Item
 		items := itemsItems[i]
@@ -744,10 +743,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		l.resolvable.data = responseData
 		// Only populate caches on success (no errors)
 		if !hasErrors {
-			l.compareShadowValues(res, getFetchInfo(fetchItem.Fetch))
-			l.detectMutationEntityImpact(res, getFetchInfo(fetchItem.Fetch), responseData)
-			l.populateL1Cache(fetchItem, res, items)
-			l.updateL2Cache(res)
+			l.populateCachesAfterFetch(fetchItem, res, items, responseData)
 		}
 		return nil
 	}
@@ -773,10 +769,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		// Only populate caches on success (no errors)
 		if !hasErrors {
 			defer func() {
-				l.compareShadowValues(res, getFetchInfo(fetchItem.Fetch))
-				l.detectMutationEntityImpact(res, getFetchInfo(fetchItem.Fetch), responseData)
-				l.populateL1Cache(fetchItem, res, items)
-				l.updateL2Cache(res)
+				l.populateCachesAfterFetch(fetchItem, res, items, responseData)
 			}()
 		}
 		return nil
@@ -832,10 +825,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		}
 		// Only populate caches on success (no errors)
 		if !hasErrors {
-			l.compareShadowValues(res, getFetchInfo(fetchItem.Fetch))
-			l.detectMutationEntityImpact(res, getFetchInfo(fetchItem.Fetch), responseData)
-			l.populateL1Cache(fetchItem, res, items)
-			l.updateL2Cache(res)
+			l.populateCachesAfterFetch(fetchItem, res, items, responseData)
 		}
 		return nil
 	}
@@ -867,12 +857,18 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 
 	// Only populate caches on success (no errors)
 	if !hasErrors {
-		l.compareShadowValues(res, getFetchInfo(fetchItem.Fetch))
-		l.detectMutationEntityImpact(res, getFetchInfo(fetchItem.Fetch), responseData)
-		l.populateL1Cache(fetchItem, res, items)
-		l.updateL2Cache(res)
+		l.populateCachesAfterFetch(fetchItem, res, items, responseData)
 	}
 	return nil
+}
+
+// populateCachesAfterFetch runs shadow comparison, mutation impact detection,
+// and L1/L2 cache population. Called after a successful (error-free) fetch merge.
+func (l *Loader) populateCachesAfterFetch(fetchItem *FetchItem, res *result, items []*astjson.Value, responseData *astjson.Value) {
+	l.compareShadowValues(res, getFetchInfo(fetchItem.Fetch))
+	l.detectMutationEntityImpact(res, getFetchInfo(fetchItem.Fetch), responseData)
+	l.populateL1Cache(fetchItem, res, items)
+	l.updateL2Cache(res)
 }
 
 func (l *Loader) evaluateRejected(fetchItem *FetchItem, res *result, items []*astjson.Value) (bool, error) {
