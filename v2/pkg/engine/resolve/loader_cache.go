@@ -795,6 +795,12 @@ func (l *Loader) updateL2Cache(res *result) {
 	if !l.ctx.ExecutionOptions.Caching.EnableL2Cache {
 		return
 	}
+	// Skip L2 cache writes for mutations unless explicitly opted in per-mutation-field.
+	// The flag is set in resolveSingle when processing the mutation root fetch.
+	if l.info != nil && l.info.OperationType == ast.OperationTypeMutation &&
+		!l.enableMutationL2CachePopulation {
+		return
+	}
 	if res.cache == nil || !res.cacheMustBeUpdated {
 		return
 	}
