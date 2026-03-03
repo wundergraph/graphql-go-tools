@@ -1284,6 +1284,9 @@ func (v *Visitor) trackFieldForPlanner(plannerID int, fieldRef int) {
 		Value:       fieldValue,
 		OnTypeNames: onTypeNames,
 	}
+	if v.Operation.FieldAliasIsDefined(fieldRef) {
+		field.OriginalName = v.Operation.FieldNameBytes(fieldRef)
+	}
 
 	// Add the field to the current object for this planner
 	if len(v.plannerCurrentFields[plannerID]) > 0 {
@@ -1926,6 +1929,7 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 	if !v.Config.DisableFetchProvidesData {
 		// Set ProvidesData from the planner's object structure
 		if providesData, ok := v.plannerObjects[internal.fetchID]; ok {
+			resolve.ComputeHasAliases(providesData)
 			singleFetch.Info.ProvidesData = providesData
 		}
 	}

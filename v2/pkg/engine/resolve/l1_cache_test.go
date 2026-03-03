@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/go-arena"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -1292,4 +1293,285 @@ func TestL1CacheUseL1CacheFlagDisabled(t *testing.T) {
 		stats := ctx.GetCacheStats()
 		assert.Equal(t, 0, len(stats.L1Reads), "should have 0 L1 reads when UseL1Cache=false")
 	})
+}
+
+func TestNormalizeForCache(t *testing.T) {
+	t.Run("no aliases - fast path returns same value", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{
+			jsonArena: ar,
+		}
+
+		obj := &Object{
+			HasAliases: false,
+			Fields: []*Field{
+				{Name: []byte("username"), Value: &Scalar{}},
+			},
+		}
+
+		item := mustParseJSON(ar, `{"username":"Alice"}`)
+		result := loader.normalizeForCache(item, obj)
+
+		// Fast path: should return the same pointer
+		assert.Equal(t, item, result, "should return same pointer when no aliases")
+	})
+
+	t.Run("with aliases - normalizes to original names", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{
+			jsonArena: ar,
+		}
+
+		obj := &Object{
+			HasAliases: true,
+			Fields: []*Field{
+				{Name: []byte("userName"), OriginalName: []byte("username"), Value: &Scalar{}},
+			},
+		}
+
+		item := mustParseJSON(ar, `{"userName":"Alice"}`)
+		result := loader.normalizeForCache(item, obj)
+
+		resultJSON := string(result.MarshalTo(nil))
+		assert.Equal(t, `{"username":"Alice"}`, resultJSON, "should normalize alias to original name")
+	})
+
+	t.Run("mixed aliases and non-aliases", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{
+			jsonArena: ar,
+		}
+
+		obj := &Object{
+			HasAliases: true,
+			Fields: []*Field{
+				{Name: []byte("userName"), OriginalName: []byte("username"), Value: &Scalar{}},
+				{Name: []byte("id"), Value: &Scalar{}},
+			},
+		}
+
+		item := mustParseJSON(ar, `{"userName":"Alice","id":"123"}`)
+		result := loader.normalizeForCache(item, obj)
+
+		resultJSON := string(result.MarshalTo(nil))
+		assert.Equal(t, `{"username":"Alice","id":"123"}`, resultJSON, "should normalize alias to original name and keep non-aliased fields")
+	})
+
+	t.Run("nested object with aliases", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{
+			jsonArena: ar,
+		}
+
+		innerObj := &Object{
+			HasAliases: true,
+			Fields: []*Field{
+				{Name: []byte("n"), OriginalName: []byte("name"), Value: &Scalar{}},
+			},
+		}
+		obj := &Object{
+			HasAliases: true,
+			Fields: []*Field{
+				{Name: []byte("p"), OriginalName: []byte("product"), Value: innerObj},
+			},
+		}
+
+		item := mustParseJSON(ar, `{"p":{"n":"Widget"}}`)
+		result := loader.normalizeForCache(item, obj)
+
+		resultJSON := string(result.MarshalTo(nil))
+		assert.Equal(t, `{"product":{"name":"Widget"}}`, resultJSON)
+	})
+
+	t.Run("preserves __typename", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{
+			jsonArena: ar,
+		}
+
+		obj := &Object{
+			HasAliases: true,
+			Fields: []*Field{
+				{Name: []byte("userName"), OriginalName: []byte("username"), Value: &Scalar{}},
+			},
+		}
+
+		item := mustParseJSON(ar, `{"__typename":"User","userName":"Alice"}`)
+		result := loader.normalizeForCache(item, obj)
+
+		resultJSON := string(result.MarshalTo(nil))
+		assert.Equal(t, `{"username":"Alice","__typename":"User"}`, resultJSON, "should normalize alias and preserve __typename")
+	})
+}
+
+func TestDenormalizeFromCache(t *testing.T) {
+	t.Run("no aliases - fast path returns same value", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{
+			jsonArena: ar,
+		}
+
+		obj := &Object{
+			HasAliases: false,
+			Fields: []*Field{
+				{Name: []byte("username"), Value: &Scalar{}},
+			},
+		}
+
+		item := mustParseJSON(ar, `{"username":"Alice"}`)
+		result := loader.denormalizeFromCache(item, obj)
+
+		assert.Equal(t, item, result, "should return same pointer when no aliases")
+	})
+
+	t.Run("with aliases - converts original names to aliases", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{
+			jsonArena: ar,
+		}
+
+		obj := &Object{
+			HasAliases: true,
+			Fields: []*Field{
+				{Name: []byte("userName"), OriginalName: []byte("username"), Value: &Scalar{}},
+			},
+		}
+
+		// Cache stores normalized data with original name "username"
+		item := mustParseJSON(ar, `{"username":"Alice"}`)
+		result := loader.denormalizeFromCache(item, obj)
+
+		resultJSON := string(result.MarshalTo(nil))
+		assert.Equal(t, `{"userName":"Alice"}`, resultJSON, "should convert original name to alias")
+	})
+}
+
+func TestValidateFieldDataWithAliases(t *testing.T) {
+	t.Run("validates using original name on normalized data", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{
+			jsonArena: ar,
+		}
+
+		field := &Field{
+			Name:         []byte("userName"),
+			OriginalName: []byte("username"),
+			Value:        &Scalar{},
+		}
+
+		// Cache data is normalized (uses original name "username")
+		item := mustParseJSON(ar, `{"username":"Alice"}`)
+
+		result := loader.validateFieldData(item, field)
+		assert.True(t, result, "should validate using original name from normalized cache data")
+	})
+
+	t.Run("fails when original name missing from cached data", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{
+			jsonArena: ar,
+		}
+
+		field := &Field{
+			Name:         []byte("userName"),
+			OriginalName: []byte("username"),
+			Value:        &Scalar{},
+		}
+
+		// Cache data doesn't have "username"
+		item := mustParseJSON(ar, `{"realName":"Alice"}`)
+
+		result := loader.validateFieldData(item, field)
+		assert.False(t, result, "should fail when original field name is missing from cache data")
+	})
+}
+
+func TestShallowCopyWithAliases(t *testing.T) {
+	t.Run("reads original name writes alias", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{
+			jsonArena: ar,
+		}
+
+		obj := &Object{
+			HasAliases: true,
+			Fields: []*Field{
+				{Name: []byte("userName"), OriginalName: []byte("username"), Value: &Scalar{}},
+			},
+		}
+
+		// Cache stores data with original field name
+		cached := mustParseJSON(ar, `{"username":"Alice"}`)
+		result := loader.shallowCopyProvidedFields(cached, obj)
+
+		resultJSON := string(result.MarshalTo(nil))
+		assert.Equal(t, `{"userName":"Alice"}`, resultJSON,
+			"should read 'username' from cache and write as 'userName' alias")
+	})
+}
+
+func TestComputeHasAliases(t *testing.T) {
+	t.Run("no aliases", func(t *testing.T) {
+		obj := &Object{
+			Fields: []*Field{
+				{Name: []byte("id"), Value: &Scalar{}},
+				{Name: []byte("name"), Value: &Scalar{}},
+			},
+		}
+		result := ComputeHasAliases(obj)
+		assert.False(t, result)
+		assert.False(t, obj.HasAliases)
+	})
+
+	t.Run("direct alias", func(t *testing.T) {
+		obj := &Object{
+			Fields: []*Field{
+				{Name: []byte("myId"), OriginalName: []byte("id"), Value: &Scalar{}},
+			},
+		}
+		result := ComputeHasAliases(obj)
+		assert.True(t, result)
+		assert.True(t, obj.HasAliases)
+	})
+
+	t.Run("nested alias", func(t *testing.T) {
+		innerObj := &Object{
+			Fields: []*Field{
+				{Name: []byte("n"), OriginalName: []byte("name"), Value: &Scalar{}},
+			},
+		}
+		obj := &Object{
+			Fields: []*Field{
+				{Name: []byte("product"), Value: innerObj},
+			},
+		}
+		result := ComputeHasAliases(obj)
+		assert.True(t, result)
+		assert.True(t, obj.HasAliases)
+		assert.True(t, innerObj.HasAliases)
+	})
+
+	t.Run("alias in array item", func(t *testing.T) {
+		innerObj := &Object{
+			Fields: []*Field{
+				{Name: []byte("n"), OriginalName: []byte("name"), Value: &Scalar{}},
+			},
+		}
+		obj := &Object{
+			Fields: []*Field{
+				{Name: []byte("items"), Value: &Array{Item: innerObj}},
+			},
+		}
+		result := ComputeHasAliases(obj)
+		assert.True(t, result)
+		assert.True(t, obj.HasAliases)
+	})
+}
+
+func mustParseJSON(a arena.Arena, jsonStr string) *astjson.Value {
+	v, err := astjson.ParseBytesWithArena(a, []byte(jsonStr))
+	if err != nil {
+		panic(err)
+	}
+	return v
 }

@@ -138,6 +138,7 @@ type result struct {
 	l2CacheKeys        []*CacheKey // L2 cache keys (with subgraph header prefix)
 	cacheSkipFetch     bool
 	cacheConfig        FetchCacheConfiguration
+	providesData       *Object // ProvidesData for alias normalization in L2 cache storage
 
 	// Partial cache loading fields
 	partialCacheEnabled bool  // Whether partial loading is enabled for this fetch

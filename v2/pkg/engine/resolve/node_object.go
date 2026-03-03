@@ -3,6 +3,8 @@ package resolve
 import (
 	"bytes"
 	"slices"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 )
 
 // KeyField represents a field in an @key directive. Supports nested keys:
@@ -37,9 +39,10 @@ func (a *ObjectCacheAnalytics) IsKeyField(name string) bool {
 }
 
 type Object struct {
-	Nullable bool
-	Path     []string
-	Fields   []*Field
+	Nullable   bool
+	Path       []string
+	Fields     []*Field
+	HasAliases bool // True if any field in this object or descendants has an alias (OriginalName set)
 
 	PossibleTypes  map[string]struct{}   `json:"-"`
 	SourceName     string                `json:"-"`
@@ -53,9 +56,10 @@ func (o *Object) Copy() Node {
 		fields[i] = f.Copy()
 	}
 	return &Object{
-		Nullable: o.Nullable,
-		Path:     o.Path,
-		Fields:   fields,
+		Nullable:   o.Nullable,
+		Path:       o.Path,
+		Fields:     fields,
+		HasAliases: o.HasAliases,
 	}
 }
 
@@ -120,6 +124,7 @@ func (*EmptyObject) Copy() Node {
 
 type Field struct {
 	Name              []byte
+	OriginalName      []byte // Schema field name when Name is an alias; nil if Name IS the original
 	Value             Node
 	Position          Position
 	Defer             *DeferField
@@ -136,14 +141,25 @@ type ParentOnTypeNames struct {
 
 func (f *Field) Copy() *Field {
 	return &Field{
-		Name:        f.Name,
-		Value:       f.Value.Copy(),
-		Position:    f.Position,
-		Defer:       f.Defer,
-		Stream:      f.Stream,
-		OnTypeNames: f.OnTypeNames,
-		Info:        f.Info,
+		Name:         f.Name,
+		OriginalName: f.OriginalName,
+		Value:        f.Value.Copy(),
+		Position:     f.Position,
+		Defer:        f.Defer,
+		Stream:       f.Stream,
+		OnTypeNames:  f.OnTypeNames,
+		Info:         f.Info,
 	}
+}
+
+// SchemaFieldName returns the original schema field name.
+// If OriginalName is set (field has an alias), returns OriginalName.
+// Otherwise returns Name (which IS the original name).
+func (f *Field) SchemaFieldName() string {
+	if f.OriginalName != nil {
+		return unsafebytes.BytesToString(f.OriginalName)
+	}
+	return unsafebytes.BytesToString(f.Name)
 }
 
 func (f *Field) Equals(n *Field) bool {
@@ -216,3 +232,34 @@ type StreamField struct {
 }
 
 type DeferField struct{}
+
+// ComputeHasAliases recursively checks whether any field in the object tree has an alias
+// and sets HasAliases on each Object accordingly. Returns true if any alias was found.
+func ComputeHasAliases(obj *Object) bool {
+	if obj == nil {
+		return false
+	}
+	hasAliases := false
+	for _, field := range obj.Fields {
+		if field.OriginalName != nil {
+			hasAliases = true
+		}
+		if computeNodeHasAliases(field.Value) {
+			hasAliases = true
+		}
+	}
+	obj.HasAliases = hasAliases
+	return hasAliases
+}
+
+func computeNodeHasAliases(node Node) bool {
+	switch n := node.(type) {
+	case *Object:
+		return ComputeHasAliases(n)
+	case *Array:
+		if n != nil && n.Item != nil {
+			return computeNodeHasAliases(n.Item)
+		}
+	}
+	return false
+}

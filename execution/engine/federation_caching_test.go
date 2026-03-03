@@ -6231,3 +6231,307 @@ func mustParseHost(rawURL string) string {
 	}
 	return parsed.Host
 }
+
+func TestFederationCachingAliases(t *testing.T) {
+	// Helper to create a standard setup for alias caching tests
+	setupAliasCachingTest := func(t *testing.T) (
+		*federationtesting.FederationSetup,
+		*GraphqlClient,
+		context.Context,
+		context.CancelFunc,
+		*subgraphCallTracker,
+		*FakeLoaderCache,
+		string, // accountsHost
+	) {
+		t.Helper()
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{
+			"default": defaultCache,
+		}
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{
+			Transport: tracker,
+		}
+		subgraphCachingConfigs := engine.SubgraphCachingConfigs{
+			{
+				SubgraphName: "products",
+				RootFieldCaching: plan.RootFieldCacheConfigurations{
+					{TypeName: "Query", FieldName: "topProducts", CacheName: "default", TTL: 30 * time.Second},
+				},
+			},
+			{
+				SubgraphName: "reviews",
+				EntityCaching: plan.EntityCacheConfigurations{
+					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second},
+				},
+			},
+			{
+				SubgraphName: "accounts",
+				EntityCaching: plan.EntityCacheConfigurations{
+					{TypeName: "User", CacheName: "default", TTL: 30 * time.Second},
+				},
+			},
+		}
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
+			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
+		))
+		t.Cleanup(setup.Close)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+		return setup, gqlClient, ctx, cancel, tracker, defaultCache, accountsHost
+	}
+
+	t.Run("L2 hit - alias then no alias", func(t *testing.T) {
+		setup, gqlClient, ctx, _, tracker, defaultCache, accountsHost := setupAliasCachingTest(t)
+
+		// Request 1: Use alias userName for username
+		defaultCache.ClearLog()
+		tracker.Reset()
+		query1 := `query { topProducts { name reviews { body authorWithoutProvides { userName: username } } } }`
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, query1, nil, t)
+		assert.Equal(t,
+			`{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"userName":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"userName":"Me"}}]}]}}`,
+			string(resp))
+
+		accountsCalls1 := tracker.GetCount(accountsHost)
+		assert.Equal(t, 1, accountsCalls1, "Request 1 should call accounts subgraph once")
+
+		// Request 2: No alias (original field name)
+		defaultCache.ClearLog()
+		tracker.Reset()
+		query2 := `query { topProducts { name reviews { body authorWithoutProvides { username } } } }`
+		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, query2, nil, t)
+		assert.Equal(t,
+			`{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`,
+			string(resp))
+
+		accountsCalls2 := tracker.GetCount(accountsHost)
+		assert.Equal(t, 0, accountsCalls2, "Request 2 should skip accounts (L2 hit from normalized cache)")
+	})
+
+	t.Run("L2 hit - two different aliases for same field", func(t *testing.T) {
+		setup, gqlClient, ctx, _, tracker, defaultCache, accountsHost := setupAliasCachingTest(t)
+
+		// Request 1: alias u1 for username
+		defaultCache.ClearLog()
+		tracker.Reset()
+		query1 := `query { topProducts { name reviews { body authorWithoutProvides { u1: username } } } }`
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, query1, nil, t)
+		assert.Equal(t,
+			`{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"u1":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"u1":"Me"}}]}]}}`,
+			string(resp))
+
+		accountsCalls1 := tracker.GetCount(accountsHost)
+		assert.Equal(t, 1, accountsCalls1, "Request 1 should call accounts subgraph once")
+
+		// Request 2: alias u2 for username
+		defaultCache.ClearLog()
+		tracker.Reset()
+		query2 := `query { topProducts { name reviews { body authorWithoutProvides { u2: username } } } }`
+		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, query2, nil, t)
+		assert.Equal(t,
+			`{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"u2":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"u2":"Me"}}]}]}}`,
+			string(resp))
+
+		accountsCalls2 := tracker.GetCount(accountsHost)
+		assert.Equal(t, 0, accountsCalls2, "Request 2 should skip accounts (L2 hit - same underlying field)")
+	})
+
+	t.Run("no collision - alias matches another field name", func(t *testing.T) {
+		setup, gqlClient, ctx, _, tracker, defaultCache, accountsHost := setupAliasCachingTest(t)
+
+		// Request 1: alias realName for username (realName is another real field on User)
+		// This triggers an accounts entity fetch for username, stores normalized {"username":"Me"} in L2
+		defaultCache.ClearLog()
+		tracker.Reset()
+		query1 := `query { topProducts { name reviews { body authorWithoutProvides { realName: username } } } }`
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, query1, nil, t)
+		assert.Equal(t,
+			`{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"realName":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"realName":"Me"}}]}]}}`,
+			string(resp))
+
+		accountsCalls1 := tracker.GetCount(accountsHost)
+		assert.Equal(t, 1, accountsCalls1, "Request 1 should call accounts subgraph once for username")
+
+		// Request 2: actual username field (no alias) - same underlying field
+		// Should be an L2 hit because both resolve username from accounts
+		defaultCache.ClearLog()
+		tracker.Reset()
+		query2 := `query { topProducts { name reviews { body authorWithoutProvides { username } } } }`
+		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, query2, nil, t)
+		assert.Equal(t,
+			`{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`,
+			string(resp))
+
+		accountsCalls2 := tracker.GetCount(accountsHost)
+		assert.Equal(t, 0, accountsCalls2, "Request 2 should skip accounts (L2 hit - same underlying field username)")
+	})
+
+	t.Run("no collision - field name used as alias for another field", func(t *testing.T) {
+		setup, gqlClient, ctx, _, tracker, defaultCache, accountsHost := setupAliasCachingTest(t)
+
+		// Request 1: username field (no alias) - triggers accounts entity fetch for username
+		defaultCache.ClearLog()
+		tracker.Reset()
+		query1 := `query { topProducts { name reviews { body authorWithoutProvides { username } } } }`
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, query1, nil, t)
+		assert.Equal(t,
+			`{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`,
+			string(resp))
+
+		accountsCalls1 := tracker.GetCount(accountsHost)
+		assert.Equal(t, 1, accountsCalls1, "Request 1 should call accounts subgraph once")
+
+		// Request 2: different alias (u1) for same field (username)
+		// Should be an L2 hit because the underlying field is the same
+		defaultCache.ClearLog()
+		tracker.Reset()
+		query2 := `query { topProducts { name reviews { body authorWithoutProvides { u1: username } } } }`
+		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, query2, nil, t)
+		assert.Equal(t,
+			`{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"u1":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"u1":"Me"}}]}]}}`,
+			string(resp))
+
+		accountsCalls2 := tracker.GetCount(accountsHost)
+		assert.Equal(t, 0, accountsCalls2, "Request 2 should skip accounts (L2 hit - same underlying field)")
+	})
+
+	t.Run("L2 hit - multiple fields some aliased some not", func(t *testing.T) {
+		setup, gqlClient, ctx, _, tracker, defaultCache, accountsHost := setupAliasCachingTest(t)
+
+		// Request 1: alias username and include realName (realName comes from reviews, not accounts)
+		defaultCache.ClearLog()
+		tracker.Reset()
+		query1 := `query { topProducts { name reviews { body authorWithoutProvides { userName: username realName } } } }`
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, query1, nil, t)
+		assert.Equal(t,
+			`{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"userName":"Me","realName":"User Usington"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"userName":"Me","realName":"User Usington"}}]}]}}`,
+			string(resp))
+
+		accountsCalls1 := tracker.GetCount(accountsHost)
+		assert.Equal(t, 1, accountsCalls1, "Request 1 should call accounts subgraph once")
+
+		// Request 2: no alias on username, different alias on realName
+		// accounts entity cache should be L2 hit (same username field)
+		defaultCache.ClearLog()
+		tracker.Reset()
+		query2 := `query { topProducts { name reviews { body authorWithoutProvides { username name: realName } } } }`
+		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, query2, nil, t)
+		assert.Equal(t,
+			`{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","name":"User Usington"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","name":"User Usington"}}]}]}}`,
+			string(resp))
+
+		accountsCalls2 := tracker.GetCount(accountsHost)
+		assert.Equal(t, 0, accountsCalls2, "Request 2 should skip accounts (L2 hit - same underlying username field)")
+	})
+
+	t.Run("L1 hit within single request with aliases", func(t *testing.T) {
+		// Tests L1 cache with aliased fields across entity fetches within the same request.
+		// Flow:
+		// 1. topProducts -> products
+		// 2. reviews -> reviews (entity fetch for Products)
+		// 3. authorWithoutProvides -> accounts (entity fetch for User 1234, aliased userName: username)
+		//    -> User 1234 stored in L1 with normalized field names
+		// 4. sameUserReviewers -> reviews (returns [User 1234] reference)
+		// 5. Entity resolution for sameUserReviewers -> accounts
+		//    -> User 1234 is L1 HIT (already fetched in step 3), entire accounts call skipped
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL1Cache: true, EnableL2Cache: false}),
+		))
+		t.Cleanup(setup.Close)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		// Query with alias on username - sameUserReviewers returns same user,
+		// should be L1 hit from the first entity fetch
+		tracker.Reset()
+		query := `query {
+			topProducts {
+				reviews {
+					authorWithoutProvides {
+						id
+						userName: username
+						sameUserReviewers {
+							id
+							userName: username
+						}
+					}
+				}
+			}
+		}`
+		resp, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+		assert.Equal(t,
+			`{"data":{"topProducts":[{"reviews":[{"authorWithoutProvides":{"id":"1234","userName":"Me","sameUserReviewers":[{"id":"1234","userName":"Me"}]}}]},{"reviews":[{"authorWithoutProvides":{"id":"1234","userName":"Me","sameUserReviewers":[{"id":"1234","userName":"Me"}]}}]}]}}`,
+			string(resp))
+
+		// With L1 enabled: first accounts call fetches User 1234 for authorWithoutProvides
+		// sameUserReviewers entity resolution hits L1 -> accounts call skipped
+		accountsCalls := tracker.GetCount(accountsHost)
+		assert.Equal(t, 1, accountsCalls, "Should call accounts subgraph once (sameUserReviewers skipped via L1)")
+	})
+
+	t.Run("L1 hit within single request with mixed alias and no alias", func(t *testing.T) {
+		// Same as above, but the nested sameUserReviewers uses the original field name (no alias)
+		// while the outer authorWithoutProvides uses an alias. L1 cache stores normalized data,
+		// so the nested fetch should still hit L1 despite the different field naming.
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL1Cache: true, EnableL2Cache: false}),
+		))
+		t.Cleanup(setup.Close)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		// Outer authorWithoutProvides uses alias "userName: username"
+		// Nested sameUserReviewers uses plain "username" (no alias)
+		// L1 should still hit because cache stores normalized (original) field names
+		tracker.Reset()
+		query := `query {
+			topProducts {
+				reviews {
+					authorWithoutProvides {
+						id
+						userName: username
+						sameUserReviewers {
+							id
+							username
+						}
+					}
+				}
+			}
+		}`
+		resp, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+		assert.Equal(t,
+			`{"data":{"topProducts":[{"reviews":[{"authorWithoutProvides":{"id":"1234","userName":"Me","sameUserReviewers":[{"id":"1234","username":"Me"}]}}]},{"reviews":[{"authorWithoutProvides":{"id":"1234","userName":"Me","sameUserReviewers":[{"id":"1234","username":"Me"}]}}]}]}}`,
+			string(resp))
+
+		// With L1 enabled: first accounts call fetches User 1234 for authorWithoutProvides
+		// sameUserReviewers entity resolution hits L1 -> accounts call skipped
+		accountsCalls := tracker.GetCount(accountsHost)
+		assert.Equal(t, 1, accountsCalls, "Should call accounts subgraph once (sameUserReviewers skipped via L1)")
+	})
+}

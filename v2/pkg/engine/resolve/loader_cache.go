@@ -123,6 +123,9 @@ func (l *Loader) prepareCacheKeys(info *FetchInfo, cfg FetchCacheConfiguration, 
 	}
 
 	res.cacheConfig = cfg
+	if info != nil {
+		res.providesData = info.ProvidesData
+	}
 
 	// Check if this is an entity fetch (L1 only applies to entity fetches)
 	_, isEntity := cfg.CacheKeyTemplate.(*EntityQueryCacheKeyTemplate)
@@ -457,6 +460,7 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 	// Copy FromCache values from L2 keys to L1 keys (if L1 keys exist) and track per-entity hits/misses
 	// The keys have the same structure, just different key strings
 	allComplete := true
+	hasAliases := info != nil && info.ProvidesData != nil && info.ProvidesData.HasAliases
 	if len(res.l1CacheKeys) > 0 {
 		// Entity fetch with L1 keys - copy to L1 keys for merging
 		for i := range res.l1CacheKeys {
@@ -465,6 +469,10 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 				// Track per-entity L2 hit/miss (atomic operations - thread-safe)
 				if res.l1CacheKeys[i].FromCache != nil {
 					if info != nil && info.ProvidesData != nil && l.validateItemHasRequiredData(res.l1CacheKeys[i].FromCache, info.ProvidesData) {
+						// Denormalize from original field names to current query aliases for merging
+						if hasAliases {
+							res.l1CacheKeys[i].FromCache = l.denormalizeFromCache(res.l1CacheKeys[i].FromCache, info.ProvidesData)
+						}
 						if analyticsEnabled && len(res.l1CacheKeys[i].Keys) > 0 {
 							byteSize := len(res.l1CacheKeys[i].FromCache.MarshalTo(nil))
 							var cacheAgeMs int64
@@ -534,6 +542,10 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 		for i, ck := range res.l2CacheKeys {
 			if ck.FromCache != nil {
 				if info != nil && info.ProvidesData != nil && l.validateItemHasRequiredData(ck.FromCache, info.ProvidesData) {
+					// Denormalize from original field names to current query aliases for merging
+					if hasAliases {
+						res.l2CacheKeys[i].FromCache = l.denormalizeFromCache(ck.FromCache, info.ProvidesData)
+					}
 					if analyticsEnabled && len(ck.Keys) > 0 {
 						byteSize := len(ck.FromCache.MarshalTo(nil))
 						cacheAgeMs := computeCacheAgeMs(remainingTTLs[ck.Keys[0]], res.cacheConfig.TTL)
@@ -632,13 +644,18 @@ func (l *Loader) populateL1Cache(fetchItem *FetchItem, res *result, _ []*astjson
 		}
 	}
 
+	info := getFetchInfo(fetchItem.Fetch)
 	for _, ck := range res.l1CacheKeys {
 		if ck.Item == nil {
 			continue
 		}
+		itemToStore := ck.Item
+		if info != nil && info.ProvidesData != nil && info.ProvidesData.HasAliases {
+			itemToStore = l.normalizeForCache(ck.Item, info.ProvidesData)
+		}
 		for _, keyStr := range ck.Keys {
 			// LoadOrStore only writes if key is missing, minimizing map operations
-			l.l1Cache.LoadOrStore(keyStr, ck.Item)
+			l.l1Cache.LoadOrStore(keyStr, itemToStore)
 			if l.ctx.cacheAnalyticsEnabled() {
 				byteSize := len(ck.Item.MarshalTo(nil))
 				l.ctx.cacheAnalytics.RecordWrite(CacheLevelL1, entityType, keyStr, dataSource, byteSize, 0)
@@ -791,6 +808,15 @@ func (l *Loader) updateL2Cache(res *result) {
 	}
 	if len(keysToStore) == 0 {
 		return
+	}
+
+	// Normalize aliased fields to original schema names before storing
+	if res.providesData != nil && res.providesData.HasAliases {
+		for _, ck := range keysToStore {
+			if ck.Item != nil {
+				ck.Item = l.normalizeForCache(ck.Item, res.providesData)
+			}
+		}
 	}
 
 	// Convert CacheKeys to CacheEntries
@@ -1102,9 +1128,10 @@ func (l *Loader) validateItemHasRequiredData(item *astjson.Value, obj *Object) b
 	return true
 }
 
-// validateFieldData validates a single field against the item data
+// validateFieldData validates a single field against the item data.
+// Uses SchemaFieldName() to look up by original name since cached data is normalized.
 func (l *Loader) validateFieldData(item *astjson.Value, field *Field) bool {
-	fieldValue := item.Get(unsafebytes.BytesToString(field.Name))
+	fieldValue := item.Get(field.SchemaFieldName())
 
 	// Check if field exists
 	if fieldValue == nil {
@@ -1189,4 +1216,112 @@ func (l *Loader) validateNodeValue(value *astjson.Value, nodeSpec Node) bool {
 		// Unknown type - assume invalid
 		return false
 	}
+}
+
+// normalizeForCache renames aliased field keys to original schema field names.
+// Returns input unchanged if obj.HasAliases is false (fast path).
+// This ensures cached data always uses original field names regardless of query aliases.
+func (l *Loader) normalizeForCache(item *astjson.Value, obj *Object) *astjson.Value {
+	if item == nil || obj == nil || !obj.HasAliases {
+		return item
+	}
+	if item.Type() != astjson.TypeObject {
+		return item
+	}
+	result := astjson.ObjectValue(l.jsonArena)
+	for _, field := range obj.Fields {
+		aliasName := unsafebytes.BytesToString(field.Name)
+		fieldValue := item.Get(aliasName)
+		if fieldValue == nil {
+			continue
+		}
+		normalizedValue := l.normalizeNode(fieldValue, field.Value)
+		result.Set(l.jsonArena, field.SchemaFieldName(), normalizedValue)
+	}
+	// Preserve __typename if present and not already in fields
+	if typenameValue := item.Get("__typename"); typenameValue != nil {
+		hasTypenameField := false
+		for _, field := range obj.Fields {
+			if field.SchemaFieldName() == "__typename" {
+				hasTypenameField = true
+				break
+			}
+		}
+		if !hasTypenameField {
+			result.Set(l.jsonArena, "__typename", typenameValue)
+		}
+	}
+	return result
+}
+
+// normalizeNode recursively normalizes nested objects/arrays.
+func (l *Loader) normalizeNode(val *astjson.Value, node Node) *astjson.Value {
+	if val == nil || node == nil {
+		return val
+	}
+	switch n := node.(type) {
+	case *Object:
+		return l.normalizeForCache(val, n)
+	case *Array:
+		if n.Item != nil && val.Type() == astjson.TypeArray {
+			for i, item := range val.GetArray() {
+				val.SetArrayItem(l.jsonArena, i, l.normalizeNode(item, n.Item))
+			}
+		}
+	}
+	return val
+}
+
+// denormalizeFromCache renames original schema field names back to query aliases.
+// Returns input unchanged if obj.HasAliases is false (fast path).
+func (l *Loader) denormalizeFromCache(item *astjson.Value, obj *Object) *astjson.Value {
+	if item == nil || obj == nil || !obj.HasAliases {
+		return item
+	}
+	if item.Type() != astjson.TypeObject {
+		return item
+	}
+	result := astjson.ObjectValue(l.jsonArena)
+	for _, field := range obj.Fields {
+		lookupName := field.SchemaFieldName()
+		outputName := unsafebytes.BytesToString(field.Name)
+		fieldValue := item.Get(lookupName)
+		if fieldValue == nil {
+			continue
+		}
+		denormalizedValue := l.denormalizeNode(fieldValue, field.Value)
+		result.Set(l.jsonArena, outputName, denormalizedValue)
+	}
+	// Preserve __typename if present
+	if typenameValue := item.Get("__typename"); typenameValue != nil {
+		hasTypenameField := false
+		for _, field := range obj.Fields {
+			if field.SchemaFieldName() == "__typename" {
+				hasTypenameField = true
+				break
+			}
+		}
+		if !hasTypenameField {
+			result.Set(l.jsonArena, "__typename", typenameValue)
+		}
+	}
+	return result
+}
+
+// denormalizeNode recursively denormalizes nested objects/arrays.
+func (l *Loader) denormalizeNode(val *astjson.Value, node Node) *astjson.Value {
+	if val == nil || node == nil {
+		return val
+	}
+	switch n := node.(type) {
+	case *Object:
+		return l.denormalizeFromCache(val, n)
+	case *Array:
+		if n.Item != nil && val.Type() == astjson.TypeArray {
+			for i, item := range val.GetArray() {
+				val.SetArrayItem(l.jsonArena, i, l.denormalizeNode(item, n.Item))
+			}
+		}
+	}
+	return val
 }
