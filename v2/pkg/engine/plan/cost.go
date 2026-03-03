@@ -243,6 +243,27 @@ func (node *CostTreeNode) maxMultiplierImplementingField(config *DataSourceCostC
 	return maxListSize
 }
 
+// sizedFieldImplementingFields returns all listSizes from implementing types
+// whose SizedFields contains childFieldName.
+// Used when the parent field belongs to an interface but @listSize is only on concrete types.
+func (node *CostTreeNode) sizedFieldImplementingFields(config *DataSourceCostConfig, parentFieldName, childFieldName string) []*FieldListSize {
+	var result []*FieldListSize
+	for _, implTypeName := range node.implementingTypeNames {
+		coord := FieldCoordinate{implTypeName, parentFieldName}
+		listSize := config.ListSizes[coord]
+		if listSize == nil {
+			continue
+		}
+		for _, sf := range listSize.SizedFields {
+			if sf == childFieldName {
+				result = append(result, listSize)
+				break
+			}
+		}
+	}
+	return result
+}
+
 // cost calculates the estimated/actual cost of this node and all descendants.
 //
 // defaultListSize designates the mode of operation.
@@ -411,15 +432,31 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 		}
 		// This node does not have listSize. If its parent has the sizedField pointing to the child,
 		// calculate multiplier from the parent POV.
-		if node.parent == nil {
+		if parent == nil {
 			continue
 		}
-		if parentLS := dsCostConfig.ListSizes[node.parent.fieldCoord]; parentLS != nil {
+		parentLS := dsCostConfig.ListSizes[parent.fieldCoord]
+		if parentLS == nil && parent.isEnclosingTypeAbstract {
+			// SizedFields only on concrete types, accessed through interface.
+			grandParent := parent.parent
+			if grandParent != nil {
+				implementing := grandParent.sizedFieldImplementingFields(
+					dsCostConfig, parent.fieldCoord.FieldName, node.fieldCoord.FieldName,
+				)
+				for _, implLS := range implementing {
+					m := float64(implLS.multiplier(parent.arguments, variables, defaultListSize))
+					if m > multiplier {
+						multiplier = m
+					}
+				}
+			}
+		}
+		if parentLS != nil {
 			for _, sf := range parentLS.SizedFields {
 				if sf != node.fieldCoord.FieldName {
-					continue // to the next sf
+					continue
 				}
-				m := float64(parentLS.multiplier(node.parent.arguments, variables, defaultListSize))
+				m := float64(parentLS.multiplier(parent.arguments, variables, defaultListSize))
 				if m > multiplier {
 					multiplier = m
 				}
