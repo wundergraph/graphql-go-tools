@@ -547,7 +547,7 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 						res.l2CacheKeys[i].FromCache = l.denormalizeFromCache(ck.FromCache, info.ProvidesData)
 					}
 					if analyticsEnabled && len(ck.Keys) > 0 {
-						byteSize := len(ck.FromCache.MarshalTo(nil))
+						byteSize := len(res.l2CacheKeys[i].FromCache.MarshalTo(nil))
 						cacheAgeMs := computeCacheAgeMs(remainingTTLs[ck.Keys[0]], res.cacheConfig.TTL)
 						res.l2AnalyticsEvents = append(res.l2AnalyticsEvents, CacheKeyEvent{
 							CacheKey: ck.Keys[0], EntityType: entityType,
@@ -556,7 +556,7 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 						})
 						// Record entity sources from cached root field response
 						if len(res.cacheConfig.KeyFields) > 0 {
-							walkCachedResponseForSources(ck.FromCache, res.cacheConfig.KeyFields, entityType, FieldSourceL2, &res.l2EntitySources)
+							walkCachedResponseForSources(res.l2CacheKeys[i].FromCache, res.cacheConfig.KeyFields, entityType, FieldSourceL2, &res.l2EntitySources)
 						}
 					}
 					// Track cached item index when partial loading enabled
@@ -632,19 +632,15 @@ func (l *Loader) populateL1Cache(fetchItem *FetchItem, res *result, _ []*astjson
 		l.populateL1CacheForRootFieldEntities(fetchItem)
 		return
 	}
-	// Extract entity type and data source for analytics
-	var entityType, dataSource string
-	if l.ctx.cacheAnalyticsEnabled() {
-		info := getFetchInfo(fetchItem.Fetch)
-		if info != nil {
-			if len(info.RootFields) > 0 {
-				entityType = info.RootFields[0].TypeName
-			}
-			dataSource = info.DataSourceName
-		}
-	}
-
+	// Extract fetch info (used for both analytics and alias normalization)
 	info := getFetchInfo(fetchItem.Fetch)
+	var entityType, dataSource string
+	if l.ctx.cacheAnalyticsEnabled() && info != nil {
+		if len(info.RootFields) > 0 {
+			entityType = info.RootFields[0].TypeName
+		}
+		dataSource = info.DataSourceName
+	}
 	for _, ck := range res.l1CacheKeys {
 		if ck.Item == nil {
 			continue
@@ -1264,9 +1260,11 @@ func (l *Loader) normalizeNode(val *astjson.Value, node Node) *astjson.Value {
 		return l.normalizeForCache(val, n)
 	case *Array:
 		if n.Item != nil && val.Type() == astjson.TypeArray {
+			arr := astjson.ArrayValue(l.jsonArena)
 			for i, item := range val.GetArray() {
-				val.SetArrayItem(l.jsonArena, i, l.normalizeNode(item, n.Item))
+				arr.SetArrayItem(l.jsonArena, i, l.normalizeNode(item, n.Item))
 			}
+			return arr
 		}
 	}
 	return val
@@ -1318,9 +1316,11 @@ func (l *Loader) denormalizeNode(val *astjson.Value, node Node) *astjson.Value {
 		return l.denormalizeFromCache(val, n)
 	case *Array:
 		if n.Item != nil && val.Type() == astjson.TypeArray {
+			arr := astjson.ArrayValue(l.jsonArena)
 			for i, item := range val.GetArray() {
-				val.SetArrayItem(l.jsonArena, i, l.denormalizeNode(item, n.Item))
+				arr.SetArrayItem(l.jsonArena, i, l.denormalizeNode(item, n.Item))
 			}
+			return arr
 		}
 	}
 	return val
