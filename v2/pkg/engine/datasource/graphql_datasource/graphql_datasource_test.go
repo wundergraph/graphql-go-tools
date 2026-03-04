@@ -786,7 +786,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							FieldNames: []string{"name", "primaryFunction", "friends"},
 						},
 					},
-					},
+				},
 				mustCustomConfiguration(t, ConfigurationInput{
 					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
