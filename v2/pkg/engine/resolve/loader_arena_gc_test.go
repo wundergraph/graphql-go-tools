@@ -8,6 +8,14 @@ import (
 	"net/http"
 	"runtime"
 	"testing"
+	"time"
+
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/wundergraph/astjson"
+	"github.com/wundergraph/go-arena"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
@@ -299,6 +307,109 @@ func Benchmark_ArenaGCSafety(b *testing.B) {
 				return resp
 			},
 		},
+		{
+			// Codepath: L1 cache population — entity fetch with UseL1Cache stores
+			// arena-allocated *astjson.Value pointers in Loader.l1Cache (sync.Map).
+			// After ArenaResolveGraphQLResponse releases the arena, those pointers
+			// become dangling. runtime.GC() should detect them.
+			name: "l1CacheDanglingPointers",
+			resolverOpts: func() ResolverOptions {
+				return ResolverOptions{
+					MaxConcurrency: 1024,
+				}
+			},
+			setupCtx: func() *Context {
+				ctx := NewContext(context.Background())
+				ctx.ExecutionOptions.Caching.EnableL1Cache = true
+				ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+				return ctx
+			},
+			setupResp: func() *GraphQLResponse {
+				productCacheKeyTemplate := &EntityQueryCacheKeyTemplate{
+					Keys: NewResolvableObjectVariable(&Object{
+						Fields: []*Field{
+							{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+							{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+						},
+					}),
+				}
+				providesData := &Object{
+					Fields: []*Field{
+						{Name: []byte("id"), Value: &Scalar{Path: []string{"id"}}},
+						{Name: []byte("name"), Value: &Scalar{Path: []string{"name"}}},
+					},
+				}
+				return &GraphQLResponse{
+					Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
+					Fetches: Sequence(
+						// Root fetch
+						SingleWithPath(&SingleFetch{
+							FetchConfiguration: FetchConfiguration{
+								DataSource: FakeDataSource(`{"data":{"product":{"__typename":"Product","id":"prod-1"}}}`),
+								PostProcessing: PostProcessingConfiguration{
+									SelectResponseDataPath: []string{"data"},
+								},
+							},
+							InputTemplate: InputTemplate{
+								Segments: []TemplateSegment{
+									{Data: []byte(`{"method":"POST","url":"http://root.service","body":{"query":"{product {__typename id}}"}}`), SegmentType: StaticSegmentType},
+								},
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						}, "query"),
+						// Entity fetch — populates L1 cache with arena-allocated pointers
+						SingleWithPath(&SingleFetch{
+							FetchConfiguration: FetchConfiguration{
+								DataSource: FakeDataSource(`{"data":{"_entities":[{"__typename":"Product","id":"prod-1","name":"Product One"}]}}`),
+								PostProcessing: PostProcessingConfiguration{
+									SelectResponseDataPath: []string{"data", "_entities", "0"},
+								},
+								Caching: FetchCacheConfiguration{
+									Enabled:          true,
+									CacheName:        "default",
+									TTL:              30 * time.Second,
+									CacheKeyTemplate: productCacheKeyTemplate,
+									UseL1Cache:       true,
+								},
+							},
+							InputTemplate: InputTemplate{
+								Segments: []TemplateSegment{
+									{Data: []byte(`{"method":"POST","url":"http://products.service","body":{"query":"...","variables":{"representations":[`), SegmentType: StaticSegmentType},
+									{SegmentType: VariableSegmentType, VariableKind: ResolvableObjectVariableKind, Renderer: NewGraphQLVariableResolveRenderer(&Object{
+										Fields: []*Field{
+											{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+											{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+										},
+									})},
+									{Data: []byte(`]}}}`), SegmentType: StaticSegmentType},
+								},
+							},
+							Info: &FetchInfo{
+								DataSourceID:   "products",
+								DataSourceName: "products",
+								OperationType:  ast.OperationTypeQuery,
+								ProvidesData:   providesData,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						}, "query.product", ObjectPath("product")),
+					),
+					Data: &Object{
+						Fields: []*Field{
+							{
+								Name: []byte("product"),
+								Value: &Object{
+									Path: []string{"product"},
+									Fields: []*Field{
+										{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+										{Name: []byte("name"), Value: &String{Path: []string{"name"}}},
+									},
+								},
+							},
+						},
+					},
+				}
+			},
+		},
 	}
 
 	for _, tc := range cases {
@@ -329,4 +440,198 @@ func Benchmark_ArenaGCSafety(b *testing.B) {
 			}
 		})
 	}
+}
+
+// TestL1CacheStalePointersAfterArenaReset deterministically proves that L1 cache
+// entries become stale when the arena is reset and reused. This is the root cause
+// of the CI crash "found pointer to free object": the Loader's l1Cache (sync.Map)
+// holds *astjson.Value pointers into arena memory that becomes invalid after
+// resolveArenaPool.Release() resets the arena.
+func TestL1CacheStalePointersAfterArenaReset(t *testing.T) {
+	// Shared entity fetch setup — same as l1_cache_test.go
+	productCacheKeyTemplate := &EntityQueryCacheKeyTemplate{
+		Keys: NewResolvableObjectVariable(&Object{
+			Fields: []*Field{
+				{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+				{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+			},
+		}),
+	}
+	providesData := &Object{
+		Fields: []*Field{
+			{Name: []byte("id"), Value: &Scalar{Path: []string{"id"}}},
+			{Name: []byte("name"), Value: &Scalar{Path: []string{"name"}}},
+		},
+	}
+
+	// buildResponse creates a GraphQLResponse with a root fetch + entity fetch that populates L1 cache.
+	buildResponse := func(rootDS, entityDS DataSource) *GraphQLResponse {
+		return &GraphQLResponse{
+			Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
+			Fetches: Sequence(
+				SingleWithPath(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource: rootDS,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data"},
+						},
+					},
+					InputTemplate: InputTemplate{
+						Segments: []TemplateSegment{
+							{Data: []byte(`{"method":"POST","url":"http://root.service","body":{"query":"{product {__typename id}}"}}`), SegmentType: StaticSegmentType},
+						},
+					},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+				}, "query"),
+				SingleWithPath(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource: entityDS,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data", "_entities", "0"},
+						},
+						Caching: FetchCacheConfiguration{
+							Enabled:          true,
+							CacheName:        "default",
+							TTL:              30 * time.Second,
+							CacheKeyTemplate: productCacheKeyTemplate,
+							UseL1Cache:       true,
+						},
+					},
+					InputTemplate: InputTemplate{
+						Segments: []TemplateSegment{
+							{Data: []byte(`{"method":"POST","url":"http://products.service","body":{"query":"...","variables":{"representations":[`), SegmentType: StaticSegmentType},
+							{SegmentType: VariableSegmentType, VariableKind: ResolvableObjectVariableKind, Renderer: NewGraphQLVariableResolveRenderer(&Object{
+								Fields: []*Field{
+									{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+									{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+								},
+							})},
+							{Data: []byte(`]}}}`), SegmentType: StaticSegmentType},
+						},
+					},
+					Info: &FetchInfo{
+						DataSourceID:   "products",
+						DataSourceName: "products",
+						OperationType:  ast.OperationTypeQuery,
+						ProvidesData:   providesData,
+					},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+				}, "query.product", ObjectPath("product")),
+			),
+			Data: &Object{
+				Fields: []*Field{
+					{
+						Name: []byte("product"),
+						Value: &Object{
+							Path: []string{"product"},
+							Fields: []*Field{
+								{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+								{Name: []byte("name"), Value: &String{Path: []string{"name"}}},
+							},
+						},
+					},
+				},
+			},
+		}
+	}
+
+	t.Run("stale pointers after arena reset", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		rootDS := NewMockDataSource(ctrl)
+		rootDS.EXPECT().Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return([]byte(`{"data":{"product":{"__typename":"Product","id":"prod-1"}}}`), nil).Times(1)
+
+		entityDS := NewMockDataSource(ctrl)
+		entityDS.EXPECT().Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return([]byte(`{"data":{"_entities":[{"__typename":"Product","id":"prod-1","name":"Product One"}]}}`), nil).Times(1)
+
+		response := buildResponse(rootDS, entityDS)
+
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(4096))
+		loader := &Loader{jsonArena: ar}
+
+		ctx := NewContext(context.Background())
+		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+		ctx.ExecutionOptions.Caching.EnableL1Cache = true
+
+		resolvable := NewResolvable(ar, ResolvableOptions{})
+		err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+		require.NoError(t, err)
+
+		err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+		require.NoError(t, err)
+
+		// Verify L1 cache was populated with correct data
+		var cacheCount int
+		var originalBytes []byte
+		loader.l1Cache.Range(func(key, value any) bool {
+			cacheCount++
+			originalBytes = value.(*astjson.Value).MarshalTo(nil)
+			return true
+		})
+		require.Equal(t, 1, cacheCount, "entity fetch should populate exactly 1 L1 cache entry")
+		assert.Contains(t, string(originalBytes), `Product One`)
+
+		// Simulate arena reuse after resolveArenaPool.Release():
+		// Reset zeroes the offset (same as Pool.Release → Arena.Reset)
+		ar.Reset()
+		// A subsequent request reuses the arena, overwriting old allocations
+		_, _ = astjson.ParseBytesWithArena(ar, []byte(`{"__typename":"Product","id":"STALE","name":"CORRUPTED DATA"}`))
+
+		// The l1Cache still holds pointers into the arena buffer.
+		// Those pointers now reference the overwritten memory → stale data.
+		var staleBytes []byte
+		loader.l1Cache.Range(func(key, value any) bool {
+			staleBytes = value.(*astjson.Value).MarshalTo(nil)
+			return true
+		})
+		assert.NotEqual(t, string(originalBytes), string(staleBytes),
+			"L1 cache entries should be stale after arena reset+reuse — "+
+				"this proves the bug: l1Cache holds dangling pointers into reused arena memory")
+	})
+
+	t.Run("Free prevents stale pointer access", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		rootDS := NewMockDataSource(ctrl)
+		rootDS.EXPECT().Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return([]byte(`{"data":{"product":{"__typename":"Product","id":"prod-1"}}}`), nil).Times(1)
+
+		entityDS := NewMockDataSource(ctrl)
+		entityDS.EXPECT().Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return([]byte(`{"data":{"_entities":[{"__typename":"Product","id":"prod-1","name":"Product One"}]}}`), nil).Times(1)
+
+		response := buildResponse(rootDS, entityDS)
+
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(4096))
+		loader := &Loader{jsonArena: ar}
+
+		ctx := NewContext(context.Background())
+		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+		ctx.ExecutionOptions.Caching.EnableL1Cache = true
+
+		resolvable := NewResolvable(ar, ResolvableOptions{})
+		err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+		require.NoError(t, err)
+
+		err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+		require.NoError(t, err)
+
+		// Verify L1 cache was populated
+		var cacheCount int
+		loader.l1Cache.Range(func(key, value any) bool {
+			cacheCount++
+			return true
+		})
+		require.Equal(t, 1, cacheCount, "entity fetch should populate exactly 1 L1 cache entry")
+
+		// The fix: Free() nils l1Cache before arena release
+		loader.Free()
+		assert.Nil(t, loader.l1Cache,
+			"Free() must nil l1Cache to sever all references to arena-allocated values — "+
+				"this prevents the GC crash when the arena is released and reused")
+	})
 }
