@@ -5381,6 +5381,7 @@ func normalizeSnapshot(snap resolve.CacheAnalyticsSnapshot) resolve.CacheAnalyti
 	}
 
 	// Zero out non-deterministic FetchTimings (DurationMs varies between runs)
+	// Use normalizeFetchTimings() when you need to assert FetchTimings fields.
 	snap.FetchTimings = nil
 
 	// Normalize empty slices to nil for consistent comparison
@@ -5414,6 +5415,24 @@ func normalizeSnapshot(snap resolve.CacheAnalyticsSnapshot) resolve.CacheAnalyti
 	}
 
 	return snap
+}
+
+// normalizeFetchTimings sorts FetchTimings deterministically and zeros DurationMs
+// (the only non-deterministic field). Unlike normalizeSnapshot, this preserves
+// all other fields (HTTPStatusCode, ResponseBytes, etc.) for assertion.
+func normalizeFetchTimings(timings []resolve.FetchTimingEvent) []resolve.FetchTimingEvent {
+	sorted := make([]resolve.FetchTimingEvent, len(timings))
+	copy(sorted, timings)
+	for i := range sorted {
+		sorted[i].DurationMs = 0
+	}
+	sort.Slice(sorted, func(i, j int) bool {
+		if sorted[i].DataSource != sorted[j].DataSource {
+			return sorted[i].DataSource < sorted[j].DataSource
+		}
+		return sorted[i].Source < sorted[j].Source
+	})
+	return sorted
 }
 
 func TestCacheAnalyticsE2E(t *testing.T) {
@@ -5899,6 +5918,102 @@ func TestCacheAnalyticsE2E(t *testing.T) {
 			EntityTypes: multiUpstreamEntityTypes,
 		})
 		assert.Equal(t, expected2, normalizeSnapshot(parseCacheAnalytics(t, headers)))
+	})
+
+	t.Run("subgraph fetch records HTTPStatusCode and ResponseBytes", func(t *testing.T) {
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{
+			"default": defaultCache,
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true, EnableCacheAnalytics: true}),
+			withSubgraphEntityCachingConfigs(multiUpstreamCachingConfigs),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// First request — all L2 misses, subgraph fetches happen
+		resp, headers := gqlClient.QueryWithHeaders(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		assert.Equal(t, expectedResponseBody, string(resp))
+
+		snap := parseCacheAnalytics(t, headers)
+
+		// Filter to subgraph fetch events only (exclude L2 read events)
+		var subgraphTimings []resolve.FetchTimingEvent
+		for _, ft := range snap.FetchTimings {
+			if ft.Source == resolve.FieldSourceSubgraph {
+				subgraphTimings = append(subgraphTimings, ft)
+			}
+		}
+		timings := normalizeFetchTimings(subgraphTimings)
+
+		assert.Equal(t, 3, len(timings), "should have exactly 3 fetch timing events (one per subgraph)")
+		for i, ft := range timings {
+			assert.Equal(t, resolve.FieldSourceSubgraph, ft.Source, "entry %d should be a subgraph fetch", i)
+			assert.Equal(t, 200, ft.HTTPStatusCode, "entry %d should have HTTP 200", i)
+			assert.Equal(t, int64(0), ft.TTFBMs, "entry %d TTFB not yet instrumented", i)
+		}
+
+		// Sorted by DataSource: accounts, products, reviews
+		assert.Equal(t, dsAccounts, timings[0].DataSource)
+		assert.Equal(t, "User", timings[0].EntityType)
+		assert.Equal(t, true, timings[0].IsEntityFetch)
+
+		assert.Equal(t, dsProducts, timings[1].DataSource)
+		assert.Equal(t, "Query", timings[1].EntityType)
+		assert.Equal(t, false, timings[1].IsEntityFetch)
+
+		assert.Equal(t, dsReviews, timings[2].DataSource)
+		assert.Equal(t, "Product", timings[2].EntityType)
+		assert.Equal(t, true, timings[2].IsEntityFetch)
+
+		// ResponseBytes = full GraphQL response body from each subgraph
+		assert.Equal(t, 62, timings[0].ResponseBytes, "accounts subgraph response size")
+		assert.Equal(t, 136, timings[1].ResponseBytes, "products subgraph response size")
+		assert.Equal(t, 376, timings[2].ResponseBytes, "reviews subgraph response size")
+	})
+
+	t.Run("cache hit has zero HTTPStatusCode and ResponseBytes", func(t *testing.T) {
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{
+			"default": defaultCache,
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true, EnableCacheAnalytics: true}),
+			withSubgraphEntityCachingConfigs(multiUpstreamCachingConfigs),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// First request — populates L2 cache
+		resp, _ := gqlClient.QueryWithHeaders(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		assert.Equal(t, expectedResponseBody, string(resp))
+
+		// Second request — all L2 hits
+		resp, headers := gqlClient.QueryWithHeaders(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		assert.Equal(t, expectedResponseBody, string(resp))
+
+		snap := parseCacheAnalytics(t, headers)
+		timings := normalizeFetchTimings(snap.FetchTimings)
+
+		// All entries should be L2 cache hits with zero HTTP fields
+		for i, ft := range timings {
+			assert.Equal(t, resolve.FieldSourceL2, ft.Source, "entry %d should be an L2 cache hit", i)
+			assert.Equal(t, 0, ft.HTTPStatusCode, "entry %d cache hit should have zero HTTPStatusCode", i)
+			assert.Equal(t, 0, ft.ResponseBytes, "entry %d cache hit should have zero ResponseBytes", i)
+		}
 	})
 }
 

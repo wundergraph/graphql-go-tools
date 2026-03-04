@@ -444,6 +444,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 				return err
 			}
 		}
+		l.mergeResultAnalytics(res)
 		err = l.mergeResult(item, res, items)
 		l.callOnFinished(res)
 		return err
@@ -460,6 +461,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 				return errors.WithStack(err)
 			}
 		}
+		l.mergeResultAnalytics(res)
 		err = l.mergeResult(item, res, items)
 		l.callOnFinished(res)
 		return err
@@ -475,11 +477,27 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 				return errors.WithStack(err)
 			}
 		}
+		l.mergeResultAnalytics(res)
 		err = l.mergeResult(item, res, items)
 		l.callOnFinished(res)
 		return err
 	default:
 		return nil
+	}
+}
+
+// mergeResultAnalytics merges analytics events accumulated on a result into the collector.
+// In resolveParallel, this happens in bulk after all goroutines complete.
+// In resolveSingle, we must call this per-result since there's no bulk merge phase.
+func (l *Loader) mergeResultAnalytics(res *result) {
+	if !l.ctx.cacheAnalyticsEnabled() {
+		return
+	}
+	if len(res.l2FetchTimings) > 0 {
+		l.ctx.cacheAnalytics.MergeL2FetchTimings(res.l2FetchTimings)
+	}
+	if len(res.l2ErrorEvents) > 0 {
+		l.ctx.cacheAnalytics.MergeL2Errors(res.l2ErrorEvents)
 	}
 }
 
