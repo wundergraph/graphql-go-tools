@@ -306,6 +306,10 @@ func TestGraphQLDataSourceFederation_NestedRequiresProvides(t *testing.T) {
 										Path:          []string{"order"},
 										Nullable:      true,
 										TypeName:      "Order",
+										CacheAnalytics: &resolve.ObjectCacheAnalytics{
+											KeyFields:  []resolve.KeyField{{Name: "id"}},
+											ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+										},
 										PossibleTypes: map[string]struct{}{"Order": {}},
 										Fields: []*resolve.Field{
 											{
@@ -314,6 +318,10 @@ func TestGraphQLDataSourceFederation_NestedRequiresProvides(t *testing.T) {
 													Path:          []string{"shippingInfo"},
 													Nullable:      true,
 													TypeName:      "ShippingInfo",
+													CacheAnalytics: &resolve.ObjectCacheAnalytics{
+														KeyFields: []resolve.KeyField{{Name: "id"}},
+														ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+													},
 													PossibleTypes: map[string]struct{}{"ShippingInfo": {}},
 													Fields: []*resolve.Field{
 														{
@@ -387,6 +395,10 @@ func TestGraphQLDataSourceFederation_NestedRequiresProvides(t *testing.T) {
 										Path:          []string{"order"},
 										Nullable:      true,
 										TypeName:      "Order",
+										CacheAnalytics: &resolve.ObjectCacheAnalytics{
+											KeyFields:  []resolve.KeyField{{Name: "id"}},
+											ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+										},
 										PossibleTypes: map[string]struct{}{"Order": {}},
 										Fields: []*resolve.Field{
 											{
@@ -395,6 +407,10 @@ func TestGraphQLDataSourceFederation_NestedRequiresProvides(t *testing.T) {
 													Path:          []string{"shippingInfo"},
 													Nullable:      true,
 													TypeName:      "ShippingInfo",
+													CacheAnalytics: &resolve.ObjectCacheAnalytics{
+														KeyFields: []resolve.KeyField{{Name: "id"}},
+														ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+													},
 													PossibleTypes: map[string]struct{}{"ShippingInfo": {}},
 													Fields: []*resolve.Field{
 														{

@@ -416,6 +416,10 @@ func TestGraphQLDataSourceFederation_Typenames(t *testing.T) {
 										"User": {},
 									},
 									TypeName: "User",
+									CacheAnalytics: &resolve.ObjectCacheAnalytics{
+										KeyFields: []resolve.KeyField{{Name: "id"}},
+										ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+									},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("__typename"),
@@ -500,6 +504,10 @@ func TestGraphQLDataSourceFederation_Typenames(t *testing.T) {
 										"User": {},
 									},
 									TypeName: "User",
+									CacheAnalytics: &resolve.ObjectCacheAnalytics{
+										KeyFields: []resolve.KeyField{{Name: "id"}},
+										ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+									},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("__typename"),
@@ -805,6 +813,10 @@ func TestGraphQLDataSourceFederation_Mutations(t *testing.T) {
 										"Object": {},
 									},
 									TypeName: "Object",
+									CacheAnalytics: &resolve.ObjectCacheAnalytics{
+										KeyFields: []resolve.KeyField{{Name: "id"}},
+										ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+									},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("__typename"),
@@ -848,6 +860,10 @@ func TestGraphQLDataSourceFederation_Mutations(t *testing.T) {
 										"Object": {},
 									},
 									TypeName: "Object",
+									CacheAnalytics: &resolve.ObjectCacheAnalytics{
+										KeyFields: []resolve.KeyField{{Name: "id"}},
+										ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+									},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("__typename"),
@@ -955,6 +971,10 @@ func TestGraphQLDataSourceFederation_Mutations(t *testing.T) {
 										"Object": {},
 									},
 									TypeName: "Object",
+									CacheAnalytics: &resolve.ObjectCacheAnalytics{
+										KeyFields: []resolve.KeyField{{Name: "id"}},
+										ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+									},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("field"),
@@ -1500,6 +1520,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 											"User": {},
 										},
 										TypeName: "User",
+										CacheAnalytics: &resolve.ObjectCacheAnalytics{
+											KeyFields:  []resolve.KeyField{{Name: "id"}},
+											ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+										},
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("account"),
@@ -1510,6 +1534,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														"Account": {},
 													},
 													TypeName: "Account",
+													CacheAnalytics: &resolve.ObjectCacheAnalytics{
+														KeyFields: []resolve.KeyField{{Name: "id"}, {Name: "info"}, {Name: "{a"}, {Name: "b}"}},
+														ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+													},
 													Fields: []*resolve.Field{
 														{
 															Name: []byte("name"),
@@ -1784,6 +1812,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									},
 									OperationType: ast.OperationTypeQuery,
 									ProvidesData: &resolve.Object{
+										HasAliases: true,
 										Fields: []*resolve.Field{
 											{
 												Name:        []byte("name"),
@@ -1793,14 +1822,16 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												},
 											},
 											{
-												Name:        []byte("shippingInfo"),
-												OnTypeNames: [][]byte{[]byte("Account")},
+												Name:         []byte("shippingInfo"),
+												OnTypeNames:  [][]byte{[]byte("Account")},
 												Value: &resolve.Object{
-													Path:     []string{"shippingInfo"},
-													Nullable: true,
+													Path:       []string{"shippingInfo"},
+													Nullable:   true,
+													HasAliases: true,
 													Fields: []*resolve.Field{
 														{
-															Name: []byte("z"),
+															Name:         []byte("z"),
+															OriginalName: []byte("zip"),
 															Value: &resolve.Scalar{
 																Path: []string{"z"},
 															},
@@ -1912,6 +1943,13 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												},
 											}),
 										},
+										KeyFields: []resolve.KeyField{
+											{Name: "id"},
+											{Name: "info", Children: []resolve.KeyField{
+												{Name: "a"},
+												{Name: "b"},
+											}},
+										},
 									},
 								},
 							}, "user.account", resolve.ObjectPath("user"), resolve.ObjectPath("account")),
@@ -1940,6 +1978,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 											"User": {},
 										},
 										TypeName:   "User",
+										CacheAnalytics: &resolve.ObjectCacheAnalytics{
+											KeyFields: []resolve.KeyField{{Name: "id"}},
+											ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+										},
 										SourceName: "user.service",
 										Fields: []*resolve.Field{
 											{
@@ -1953,6 +1995,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														Names: []string{"user.service"},
 													},
 													ExactParentTypeName: "User",
+													CacheAnalyticsHash:  true,
 												},
 												Value: &resolve.Object{
 													Path:     []string{"account"},
@@ -1961,6 +2004,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														"Account": {},
 													},
 													TypeName:   "Account",
+													CacheAnalytics: &resolve.ObjectCacheAnalytics{
+														KeyFields:  []resolve.KeyField{{Name: "id"}, {Name: "info"}, {Name: "{a"}, {Name: "b}"}},
+														ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+													},
 													SourceName: "user.service",
 													Fields: []*resolve.Field{
 														{
@@ -1974,6 +2021,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																	Names: []string{"user.service"},
 																},
 																ExactParentTypeName: "Account",
+																CacheAnalyticsHash:  true,
 															},
 															Value: &resolve.String{
 																Path:       []string{"__typename"},
@@ -1991,6 +2039,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																	Names: []string{"account.service"},
 																},
 																ExactParentTypeName: "Account",
+																CacheAnalyticsHash:  true,
 															},
 															Value: &resolve.String{
 																Path: []string{"name"},
@@ -2008,6 +2057,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																},
 																ExactParentTypeName:  "Account",
 																HasAuthorizationRule: true,
+																CacheAnalyticsHash:   true,
 															},
 															Value: &resolve.Object{
 																Path:     []string{"shippingInfo"},
@@ -2341,6 +2391,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User": {},
 											},
 											TypeName: "User",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields: []resolve.KeyField{{Name: "account", Children: []resolve.KeyField{{Name: "id"}}}, {Name: "id"}},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("foo"),
@@ -2359,6 +2413,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User": {},
 											},
 											TypeName: "User",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields: []resolve.KeyField{{Name: "account", Children: []resolve.KeyField{{Name: "id"}}}, {Name: "id"}},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("foo"),
@@ -2523,6 +2581,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													"User": {},
 												},
 												TypeName: "User",
+												CacheAnalytics: &resolve.ObjectCacheAnalytics{
+													KeyFields: []resolve.KeyField{{Name: "account", Children: []resolve.KeyField{{Name: "id"}}}, {Name: "id"}},
+													ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+												},
 												Path:     []string{"user"},
 												Fields: []*resolve.Field{
 													{
@@ -2541,6 +2603,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													"User": {},
 												},
 												TypeName: "User",
+												CacheAnalytics: &resolve.ObjectCacheAnalytics{
+													KeyFields: []resolve.KeyField{{Name: "account", Children: []resolve.KeyField{{Name: "id"}}}, {Name: "id"}},
+													ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+												},
 												Path:     []string{"otherUser"},
 												Fields: []*resolve.Field{
 													{
@@ -2711,6 +2777,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													"User": {},
 												},
 												TypeName: "User",
+												CacheAnalytics: &resolve.ObjectCacheAnalytics{
+													KeyFields: []resolve.KeyField{{Name: "account", Children: []resolve.KeyField{{Name: "id"}}}, {Name: "id"}},
+													ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+												},
 												Path:     []string{"user"},
 												Fields: []*resolve.Field{
 													{
@@ -2729,6 +2799,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													"User": {},
 												},
 												TypeName: "User",
+												CacheAnalytics: &resolve.ObjectCacheAnalytics{
+													KeyFields: []resolve.KeyField{{Name: "account", Children: []resolve.KeyField{{Name: "id"}}}, {Name: "id"}},
+													ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+												},
 												Path:     []string{"otherUser"},
 												Fields: []*resolve.Field{
 													{
@@ -2849,6 +2923,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User": {},
 											},
 											TypeName: "User",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields: []resolve.KeyField{{Name: "account", Children: []resolve.KeyField{{Name: "id"}}}, {Name: "id"}},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("id"),
@@ -2972,6 +3050,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User": {},
 											},
 											TypeName: "User",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields: []resolve.KeyField{{Name: "account", Children: []resolve.KeyField{{Name: "id"}}}, {Name: "id"}},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("id"),
@@ -2999,6 +3081,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															"Account": {},
 														},
 														TypeName: "Account",
+														CacheAnalytics: &resolve.ObjectCacheAnalytics{
+															KeyFields: []resolve.KeyField{{Name: "id"}},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("type"),
@@ -3306,6 +3392,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User": {},
 											},
 											TypeName: "User",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields: []resolve.KeyField{{Name: "account", Children: []resolve.KeyField{{Name: "id"}}}, {Name: "id"}},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Path:     []string{"user"},
 											Fields: []*resolve.Field{
 												{
@@ -3324,6 +3414,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User": {},
 											},
 											TypeName: "User",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields: []resolve.KeyField{{Name: "account", Children: []resolve.KeyField{{Name: "id"}}}, {Name: "id"}},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Path:     []string{"otherUser"},
 											Fields: []*resolve.Field{
 												{
@@ -3902,6 +3996,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 											},
 											SourceName: "user.service",
 											TypeName:   "User",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields: []resolve.KeyField{{Name: "id"}},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("account"),
@@ -3914,6 +4012,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															IDs:   []string{"user.service"},
 															Names: []string{"user.service"},
 														},
+														CacheAnalyticsHash: true,
 													},
 													Value: &resolve.Object{
 														Path:     []string{"account"},
@@ -3923,6 +4022,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														},
 														SourceName: "user.service",
 														TypeName:   "Account",
+														CacheAnalytics: &resolve.ObjectCacheAnalytics{
+															KeyFields: []resolve.KeyField{{Name: "id"}, {Name: "info"}, {Name: "{a"}, {Name: "b}"}},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("address"),
@@ -3935,6 +4038,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																		IDs:   []string{"user.service"},
 																		Names: []string{"user.service"},
 																	},
+																	CacheAnalyticsHash: true,
 																},
 																Value: &resolve.Object{
 																	Path:     []string{"address"},
@@ -3944,6 +4048,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																	},
 																	SourceName: "user.service",
 																	TypeName:   "Address",
+																	CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																		KeyFields: []resolve.KeyField{{Name: "id"}},
+																		ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																	},
 																	Fields: []*resolve.Field{
 																		{
 																			Name: []byte("fullAddress"),
@@ -3959,6 +4067,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																					IDs:   []string{"account.service"},
 																					Names: []string{"account.service"},
 																				},
+																				CacheAnalyticsHash: true,
 																			},
 																		},
 																	},
@@ -4251,6 +4360,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User": {},
 											},
 											TypeName: "User",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields: []resolve.KeyField{{Name: "id"}},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("account"),
@@ -4261,6 +4374,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															"Account": {},
 														},
 														TypeName: "Account",
+														CacheAnalytics: &resolve.ObjectCacheAnalytics{
+															KeyFields: []resolve.KeyField{{Name: "id"}, {Name: "info"}, {Name: "{a"}, {Name: "b}"}},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("secretAddress"),
@@ -4271,6 +4388,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																		"Address": {},
 																	},
 																	TypeName: "Address",
+																	CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																		KeyFields: []resolve.KeyField{{Name: "id"}},
+																		ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																	},
 																	Fields: []*resolve.Field{
 																		{
 																			Name: []byte("secretLine"),
@@ -4499,6 +4620,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User": {},
 											},
 											TypeName: "User",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields: []resolve.KeyField{{Name: "id"}},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("account"),
@@ -4509,6 +4634,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															"Account": {},
 														},
 														TypeName: "Account",
+														CacheAnalytics: &resolve.ObjectCacheAnalytics{
+															KeyFields: []resolve.KeyField{{Name: "id"}, {Name: "info"}, {Name: "{a"}, {Name: "b}"}},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("deliveryAddress"),
@@ -4519,6 +4648,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																		"Address": {},
 																	},
 																	TypeName: "Address",
+																	CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																		KeyFields: []resolve.KeyField{{Name: "id"}},
+																		ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																	},
 																	Fields: []*resolve.Field{
 																		{
 																			Name: []byte("line1"),
@@ -4614,6 +4747,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User": {},
 											},
 											TypeName: "User",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields: []resolve.KeyField{{Name: "id"}},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("oldAccount"),
@@ -4624,6 +4761,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															"Account": {},
 														},
 														TypeName: "Account",
+														CacheAnalytics: &resolve.ObjectCacheAnalytics{
+															KeyFields: []resolve.KeyField{{Name: "id"}, {Name: "info"}, {Name: "{a"}, {Name: "b}"}},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("deliveryAddress"),
@@ -4634,6 +4775,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																		"Address": {},
 																	},
 																	TypeName: "Address",
+																	CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																		KeyFields: []resolve.KeyField{{Name: "id"}},
+																		ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																	},
 																	Fields: []*resolve.Field{
 																		{
 																			Name: []byte("line1"),
@@ -4789,6 +4934,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User": {},
 											},
 											TypeName: "User",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields: []resolve.KeyField{{Name: "id"}},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("account"),
@@ -4799,6 +4948,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															"Account": {},
 														},
 														TypeName: "Account",
+														CacheAnalytics: &resolve.ObjectCacheAnalytics{
+															KeyFields: []resolve.KeyField{{Name: "id"}, {Name: "info"}, {Name: "{a"}, {Name: "b}"}},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("providedAddress"),
@@ -4809,6 +4962,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																		"Address": {},
 																	},
 																	TypeName: "Address",
+																	CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																		KeyFields: []resolve.KeyField{{Name: "id"}},
+																		ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																	},
 																	Fields: []*resolve.Field{
 																		{
 																			Name: []byte("secretLine"),
@@ -5119,6 +5276,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													"User": {},
 												},
 												TypeName: "User",
+												CacheAnalytics: &resolve.ObjectCacheAnalytics{
+													KeyFields: []resolve.KeyField{{Name: "id"}},
+													ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+												},
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("fullName"),
@@ -5266,6 +5427,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														"User": {},
 													},
 													TypeName: "User",
+													CacheAnalytics: &resolve.ObjectCacheAnalytics{
+														KeyFields: []resolve.KeyField{{Name: "id"}},
+														ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+													},
 													Fields: []*resolve.Field{
 														{
 															Name: []byte("firstName"),
@@ -5423,6 +5588,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														"User": {},
 													},
 													TypeName: "User",
+													CacheAnalytics: &resolve.ObjectCacheAnalytics{
+														KeyFields: []resolve.KeyField{{Name: "id"}},
+														ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+													},
 													Fields: []*resolve.Field{
 														{
 															Name: []byte("fullName"),
@@ -5580,6 +5749,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														"User": {},
 													},
 													TypeName: "User",
+													CacheAnalytics: &resolve.ObjectCacheAnalytics{
+														KeyFields: []resolve.KeyField{{Name: "id"}},
+														ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+													},
 													Fields: []*resolve.Field{
 														{
 															Name: []byte("firstName"),
@@ -5747,17 +5920,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 
 				t.Run("select field with requires directive", func(t *testing.T) {
-					RunWithPermutations(
-						t,
-						definition,
-						`
-						query Entities {
-							entities {
-								property
-							}
-						}`,
-						"Entities",
-						&plan.SynchronousResponsePlan{
+					expectedPlan := func(keyFields []resolve.KeyField) *plan.SynchronousResponsePlan {
+						return &plan.SynchronousResponsePlan{
 							Response: &resolve.GraphQLResponse{
 								Fetches: resolve.Sequence(
 									resolve.Single(&resolve.SingleFetch{
@@ -5876,6 +6040,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														"Entity": {},
 													},
 													TypeName: "Entity",
+													CacheAnalytics: &resolve.ObjectCacheAnalytics{
+														KeyFields:  keyFields,
+														ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+													},
 													Fields: []*resolve.Field{
 														{
 															Name: []byte("property"),
@@ -5890,6 +6058,22 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									},
 								},
 							},
+						}
+					}
+
+					RunWithPermutationsVariants(
+						t,
+						definition,
+						`
+						query Entities {
+							entities {
+								property
+							}
+						}`,
+						"Entities",
+						[]plan.Plan{
+							expectedPlan([]resolve.KeyField{}),                                    // permutation [0_1]: first subgraph (resolvable: false) processed first
+							expectedPlan([]resolve.KeyField{{Name: "id"}, {Name: "otherID"}}), // permutation [1_0]: second subgraph (resolvable: true) processed first
 						},
 						planConfiguration,
 						WithDefaultPostProcessor(),
@@ -6188,6 +6372,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													"User": {},
 												},
 												TypeName: "User",
+												CacheAnalytics: &resolve.ObjectCacheAnalytics{
+													KeyFields: []resolve.KeyField{{Name: "id"}},
+													ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+												},
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("fullName"),
@@ -6333,6 +6521,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													"User": {},
 												},
 												TypeName: "User",
+												CacheAnalytics: &resolve.ObjectCacheAnalytics{
+													KeyFields: []resolve.KeyField{{Name: "id"}},
+													ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+												},
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("firstName"),
@@ -6695,6 +6887,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														"UserList": {},
 													},
 													TypeName: "UserList",
+													CacheAnalytics: &resolve.ObjectCacheAnalytics{
+														KeyFields: []resolve.KeyField{{Name: "id"}},
+														ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+													},
 													Fields: []*resolve.Field{
 														{
 															Name: []byte("users"),
@@ -6714,6 +6910,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																					"User": {},
 																				},
 																				TypeName: "User",
+																				CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																					KeyFields: []resolve.KeyField{{Name: "id"}},
+																					ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																				},
 																				Fields: []*resolve.Field{
 																					{
 																						Name: []byte("id"),
@@ -6729,6 +6929,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																								"FullName": {},
 																							},
 																							TypeName: "FullName",
+																							CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																								KeyFields: []resolve.KeyField{{Name: "id"}},
+																								ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																							},
 																							Fields: []*resolve.Field{
 																								{
 																									Name: []byte("id"),
@@ -6899,6 +7103,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														"UserList": {},
 													},
 													TypeName: "UserList",
+													CacheAnalytics: &resolve.ObjectCacheAnalytics{
+														KeyFields: []resolve.KeyField{{Name: "id"}},
+														ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+													},
 													Fields: []*resolve.Field{
 														{
 															Name: []byte("users"),
@@ -6918,6 +7126,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																					"User": {},
 																				},
 																				TypeName: "User",
+																				CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																					KeyFields: []resolve.KeyField{{Name: "id"}},
+																					ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																				},
 																				Fields: []*resolve.Field{
 																					{
 																						Name: []byte("id"),
@@ -6933,6 +7145,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																								"FullName": {},
 																							},
 																							TypeName: "FullName",
+																							CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																								KeyFields: []resolve.KeyField{{Name: "id"}},
+																								ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																							},
 																							Fields: []*resolve.Field{
 																								{
 																									Name: []byte("id"),
@@ -7028,6 +7244,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User": {},
 											},
 											TypeName: "User",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields: []resolve.KeyField{{Name: "id"}},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("oldAccount"),
@@ -7038,6 +7258,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															"Account": {},
 														},
 														TypeName: "Account",
+														CacheAnalytics: &resolve.ObjectCacheAnalytics{
+															KeyFields: []resolve.KeyField{{Name: "id"}, {Name: "info"}, {Name: "{a"}, {Name: "b}"}},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("name"),
@@ -7187,6 +7411,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User": {},
 											},
 											TypeName: "User",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields: []resolve.KeyField{{Name: "id"}},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("account"),
@@ -7197,6 +7425,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															"Account": {},
 														},
 														TypeName: "Account",
+				CacheAnalytics: &resolve.ObjectCacheAnalytics{
+					KeyFields: []resolve.KeyField{{Name: "id"}, {Name: "info"}, {Name: "{a"}, {Name: "b}"}},
+					ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+				},
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("name"),
@@ -7235,6 +7467,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															"Account": {},
 														},
 														TypeName: "Account",
+														CacheAnalytics: &resolve.ObjectCacheAnalytics{
+															KeyFields: []resolve.KeyField{{Name: "id"}, {Name: "info"}, {Name: "{a"}, {Name: "b}"}},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("name"),
@@ -7565,6 +7801,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															"User": {},
 														},
 														TypeName: "User",
+														CacheAnalytics: &resolve.ObjectCacheAnalytics{
+															KeyFields: []resolve.KeyField{{Name: "id"}},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("hostedImage"),
@@ -7575,6 +7815,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																		"HostedImage": {},
 																	},
 																	TypeName: "HostedImage",
+																	CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																		KeyFields: []resolve.KeyField{{Name: "id"}},
+																		ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																	},
 																	Fields: []*resolve.Field{
 																		{
 																			Name: []byte("image"),
@@ -7584,6 +7828,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																					"Image": {},
 																				},
 																				TypeName: "Image",
+																				CacheAnalytics: nil,
 																				Fields: []*resolve.Field{
 																					{
 																						Name: []byte("url"),
@@ -7687,6 +7932,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															"User": {},
 														},
 														TypeName: "User",
+														CacheAnalytics: &resolve.ObjectCacheAnalytics{
+															KeyFields: []resolve.KeyField{{Name: "id"}},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("hostedImage"),
@@ -7697,6 +7946,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																		"HostedImage": {},
 																	},
 																	TypeName: "HostedImage",
+																	CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																		KeyFields: []resolve.KeyField{{Name: "id"}},
+																		ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																	},
 																	Fields: []*resolve.Field{
 																		{
 																			Name: []byte("image"),
@@ -7706,6 +7959,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																					"Image": {},
 																				},
 																				TypeName: "Image",
+																				CacheAnalytics: nil,
 																				Fields: []*resolve.Field{
 																					{
 																						Name: []byte("__typename"),
@@ -7819,6 +8073,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															"User": {},
 														},
 														TypeName: "User",
+														CacheAnalytics: &resolve.ObjectCacheAnalytics{
+															KeyFields: []resolve.KeyField{{Name: "id"}},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("hostedImage"),
@@ -7829,6 +8087,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																		"HostedImage": {},
 																	},
 																	TypeName: "HostedImage",
+																	CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																		KeyFields: []resolve.KeyField{{Name: "id"}},
+																		ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																	},
 																	Fields: []*resolve.Field{
 																		{
 																			Name: []byte("image"),
@@ -7838,6 +8100,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																					"Image": {},
 																				},
 																				TypeName: "Image",
+																				CacheAnalytics: nil,
 																				Fields: []*resolve.Field{
 																					{
 																						Name: []byte("__typename"),
@@ -8178,6 +8441,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															"User": {},
 														},
 														TypeName: "User",
+														CacheAnalytics: &resolve.ObjectCacheAnalytics{
+															KeyFields: []resolve.KeyField{{Name: "id"}},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("hostedImage"),
@@ -8188,6 +8455,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																		"HostedImage": {},
 																	},
 																	TypeName: "HostedImage",
+																	CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																		KeyFields: []resolve.KeyField{{Name: "id"}},
+																		ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																	},
 																	Fields: []*resolve.Field{
 																		{
 																			Name: []byte("image"),
@@ -8197,6 +8468,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																					"Image": {},
 																				},
 																				TypeName: "Image",
+																				CacheAnalytics: nil,
 																				Fields: []*resolve.Field{
 																					{
 																						Name: []byte("url"),
@@ -8300,6 +8572,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															"User": {},
 														},
 														TypeName: "User",
+														CacheAnalytics: &resolve.ObjectCacheAnalytics{
+															KeyFields: []resolve.KeyField{{Name: "id"}},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("hostedImage"),
@@ -8310,6 +8586,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																		"HostedImage": {},
 																	},
 																	TypeName: "HostedImage",
+																	CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																		KeyFields: []resolve.KeyField{{Name: "id"}},
+																		ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																	},
 																	Fields: []*resolve.Field{
 																		{
 																			Name: []byte("image"),
@@ -8319,6 +8599,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																					"Image": {},
 																				},
 																				TypeName: "Image",
+																				CacheAnalytics: nil,
 																				Fields: []*resolve.Field{
 																					{
 																						Name: []byte("__typename"),
@@ -8469,6 +8750,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															"User": {},
 														},
 														TypeName: "User",
+														CacheAnalytics: &resolve.ObjectCacheAnalytics{
+															KeyFields: []resolve.KeyField{{Name: "id"}},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("hostedImage"),
@@ -8479,6 +8764,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																		"HostedImage": {},
 																	},
 																	TypeName: "HostedImage",
+																	CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																		KeyFields: []resolve.KeyField{{Name: "id"}},
+																		ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																	},
 																	Fields: []*resolve.Field{
 																		{
 																			Name: []byte("image"),
@@ -8488,6 +8777,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																					"Image": {},
 																				},
 																				TypeName: "Image",
+																				CacheAnalytics: nil,
 																				Fields: []*resolve.Field{
 																					{
 																						Name: []byte("__typename"),
@@ -8800,6 +9090,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															"User": {},
 														},
 														TypeName: "User",
+														CacheAnalytics: &resolve.ObjectCacheAnalytics{
+															KeyFields: []resolve.KeyField{{Name: "id"}},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("hostedImage"),
@@ -8810,6 +9104,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																		"HostedImage": {},
 																	},
 																	TypeName: "HostedImage",
+																	CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																		KeyFields: []resolve.KeyField{{Name: "id"}},
+																		ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																	},
 																	Fields: []*resolve.Field{
 																		{
 																			Name: []byte("image"),
@@ -8819,6 +9117,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																					"Image": {},
 																				},
 																				TypeName: "Image",
+																				CacheAnalytics: nil,
 																				Fields: []*resolve.Field{
 																					{
 																						Name: []byte("url"),
@@ -8885,6 +9184,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															"User": {},
 														},
 														TypeName: "User",
+														CacheAnalytics: &resolve.ObjectCacheAnalytics{
+															KeyFields: []resolve.KeyField{{Name: "id"}},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("hostedImage"),
@@ -8895,6 +9198,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																		"HostedImage": {},
 																	},
 																	TypeName: "HostedImage",
+																	CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																		KeyFields: []resolve.KeyField{{Name: "id"}},
+																		ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																	},
 																	Fields: []*resolve.Field{
 																		{
 																			Name: []byte("image"),
@@ -8904,6 +9211,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																					"Image": {},
 																				},
 																				TypeName: "Image",
+																				CacheAnalytics: nil,
 																				Fields: []*resolve.Field{
 																					{
 																						Name: []byte("__typename"),
@@ -8980,6 +9288,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															"User": {},
 														},
 														TypeName: "User",
+														CacheAnalytics: &resolve.ObjectCacheAnalytics{
+															KeyFields: []resolve.KeyField{{Name: "id"}},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("hostedImage"),
@@ -8990,6 +9302,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																		"HostedImage": {},
 																	},
 																	TypeName: "HostedImage",
+																	CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																		KeyFields: []resolve.KeyField{{Name: "id"}},
+																		ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																	},
 																	Fields: []*resolve.Field{
 																		{
 																			Name: []byte("image"),
@@ -8999,6 +9315,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																					"Image": {},
 																				},
 																				TypeName: "Image",
+																				CacheAnalytics: nil,
 																				Fields: []*resolve.Field{
 																					{
 																						Name: []byte("__typename"),
@@ -9325,6 +9642,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															"User": {},
 														},
 														TypeName: "User",
+														CacheAnalytics: &resolve.ObjectCacheAnalytics{
+															KeyFields: []resolve.KeyField{{Name: "id"}},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("hostedImage"),
@@ -9335,6 +9656,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																		"HostedImage": {},
 																	},
 																	TypeName: "HostedImage",
+																	CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																		KeyFields: []resolve.KeyField{{Name: "id"}},
+																		ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																	},
 																	Fields: []*resolve.Field{
 																		{
 																			Name: []byte("image"),
@@ -9344,6 +9669,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																					"Image": {},
 																				},
 																				TypeName: "Image",
+																				CacheAnalytics: nil,
 																				Fields: []*resolve.Field{
 																					{
 																						Name: []byte("url"),
@@ -9410,6 +9736,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															"User": {},
 														},
 														TypeName: "User",
+														CacheAnalytics: &resolve.ObjectCacheAnalytics{
+															KeyFields: []resolve.KeyField{{Name: "id"}},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("hostedImage"),
@@ -9420,6 +9750,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																		"HostedImage": {},
 																	},
 																	TypeName: "HostedImage",
+																	CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																		KeyFields: []resolve.KeyField{{Name: "id"}},
+																		ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																	},
 																	Fields: []*resolve.Field{
 																		{
 																			Name: []byte("image"),
@@ -9429,6 +9763,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																					"Image": {},
 																				},
 																				TypeName: "Image",
+																				CacheAnalytics: nil,
 																				Fields: []*resolve.Field{
 																					{
 																						Name: []byte("__typename"),
@@ -9542,6 +9877,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															"User": {},
 														},
 														TypeName: "User",
+														CacheAnalytics: &resolve.ObjectCacheAnalytics{
+															KeyFields: []resolve.KeyField{{Name: "id"}},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("hostedImage"),
@@ -9552,6 +9891,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																		"HostedImage": {},
 																	},
 																	TypeName: "HostedImage",
+																	CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																		KeyFields: []resolve.KeyField{{Name: "id"}},
+																		ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																	},
 																	Fields: []*resolve.Field{
 																		{
 																			Name: []byte("image"),
@@ -9561,6 +9904,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																					"Image": {},
 																				},
 																				TypeName: "Image",
+																				CacheAnalytics: nil,
 																				Fields: []*resolve.Field{
 																					{
 																						Name: []byte("__typename"),
@@ -9740,6 +10084,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															"User": {},
 														},
 														TypeName: "User",
+														CacheAnalytics: &resolve.ObjectCacheAnalytics{
+															KeyFields: []resolve.KeyField{{Name: "id"}},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("hostedImage"),
@@ -9750,6 +10098,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																		"HostedImage": {},
 																	},
 																	TypeName: "HostedImage",
+																	CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																		KeyFields: []resolve.KeyField{{Name: "id"}},
+																		ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																	},
 																	Fields: []*resolve.Field{
 																		{
 																			Name: []byte("image"),
@@ -9759,6 +10111,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																					"Image": {},
 																				},
 																				TypeName: "Image",
+																				CacheAnalytics: nil,
 																				Fields: []*resolve.Field{
 																					{
 																						Name: []byte("__typename"),
@@ -9802,6 +10155,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																					"Hosting": {},
 																				},
 																				TypeName: "Hosting",
+																				CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																					KeyFields: []resolve.KeyField{{Name: "id"}, {Name: "category"}},
+																					ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																				},
 																				Fields: []*resolve.Field{
 																					{
 																						Name: []byte("category"),
@@ -10023,6 +10380,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										"User": {},
 									},
 									TypeName: "User",
+			CacheAnalytics: &resolve.ObjectCacheAnalytics{
+				KeyFields: []resolve.KeyField{{Name: "details"}, {Name: "{forename"}, {Name: "surname}"}},
+				ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+			},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("details"),
@@ -10032,6 +10393,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													"Details": {},
 												},
 												TypeName: "Details",
+												CacheAnalytics: &resolve.ObjectCacheAnalytics{
+													KeyFields: []resolve.KeyField{{Name: "forename"}, {Name: "surname"}},
+													ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+												},
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("__typename"),
@@ -10097,6 +10462,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										"User": {},
 									},
 									TypeName: "User",
+									CacheAnalytics: &resolve.ObjectCacheAnalytics{
+										KeyFields: []resolve.KeyField{{Name: "details"}, {Name: "{forename"}, {Name: "surname}"}},
+										ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+									},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("details"),
@@ -10106,6 +10475,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													"Details": {},
 												},
 												TypeName: "Details",
+												CacheAnalytics: &resolve.ObjectCacheAnalytics{
+													KeyFields: []resolve.KeyField{{Name: "forename"}, {Name: "surname"}},
+													ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+												},
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("forename"),
@@ -10175,6 +10548,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										"User": {},
 									},
 									TypeName: "User",
+									CacheAnalytics: &resolve.ObjectCacheAnalytics{
+										KeyFields: []resolve.KeyField{{Name: "details"}, {Name: "{forename"}, {Name: "surname}"}},
+										ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+									},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("details"),
@@ -10184,6 +10561,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													"Details": {},
 												},
 												TypeName: "Details",
+												CacheAnalytics: &resolve.ObjectCacheAnalytics{
+													KeyFields: []resolve.KeyField{{Name: "forename"}, {Name: "surname"}},
+													ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+												},
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("middlename"),
@@ -10250,6 +10631,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										"User": {},
 									},
 									TypeName: "User",
+									CacheAnalytics: &resolve.ObjectCacheAnalytics{
+										KeyFields: []resolve.KeyField{{Name: "details"}, {Name: "{forename"}, {Name: "surname}"}},
+										ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+									},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("details"),
@@ -10259,6 +10644,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													"Details": {},
 												},
 												TypeName: "Details",
+												CacheAnalytics: &resolve.ObjectCacheAnalytics{
+													KeyFields: []resolve.KeyField{{Name: "forename"}, {Name: "surname"}},
+													ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+												},
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("__typename"),
@@ -10550,6 +10939,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User": {},
 											},
 											TypeName: "User",
+			CacheAnalytics: &resolve.ObjectCacheAnalytics{
+				KeyFields: []resolve.KeyField{{Name: "id"}},
+				ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+			},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("details"),
@@ -10641,6 +11034,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													"User": {},
 												},
 												TypeName: "User",
+												CacheAnalytics: &resolve.ObjectCacheAnalytics{
+													KeyFields: []resolve.KeyField{{Name: "id"}},
+													ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+												},
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("details"),
@@ -10743,6 +11140,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													"User": {},
 												},
 												TypeName: "User",
+												CacheAnalytics: &resolve.ObjectCacheAnalytics{
+													KeyFields: []resolve.KeyField{{Name: "id"}},
+													ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+												},
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("details"),
@@ -10884,6 +11285,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													"User": {},
 												},
 												TypeName: "User",
+												CacheAnalytics: &resolve.ObjectCacheAnalytics{
+													KeyFields: []resolve.KeyField{{Name: "id"}},
+													ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+												},
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("details"),
@@ -11021,6 +11426,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													"User": {},
 												},
 												TypeName: "User",
+												CacheAnalytics: &resolve.ObjectCacheAnalytics{
+													KeyFields: []resolve.KeyField{{Name: "id"}},
+													ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+												},
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("details"),
@@ -11178,6 +11587,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													"User": {},
 												},
 												TypeName: "User",
+												CacheAnalytics: &resolve.ObjectCacheAnalytics{
+													KeyFields: []resolve.KeyField{{Name: "id"}},
+													ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+												},
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("details"),
@@ -11549,6 +11962,13 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User":  {},
 											},
 											TypeName: "Node",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields: []resolve.KeyField{},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
+													"Admin": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
+													"User": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
+												},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("name"),
@@ -11651,6 +12071,13 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User":  {},
 											},
 											TypeName: "Node",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields: []resolve.KeyField{},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
+													"Admin": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
+													"User": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
+												},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("some"),
@@ -11660,6 +12087,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															"User": {},
 														},
 														TypeName: "User",
+														CacheAnalytics: &resolve.ObjectCacheAnalytics{
+															KeyFields: []resolve.KeyField{{Name: "id"}},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("name"),
@@ -11769,6 +12200,13 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User":  {},
 											},
 											TypeName: "Node",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields: []resolve.KeyField{},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
+													"Admin": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
+													"User": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
+												},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("title"),
@@ -11919,6 +12357,13 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													"User":  {},
 												},
 												TypeName: "Node",
+												CacheAnalytics: &resolve.ObjectCacheAnalytics{
+													KeyFields: []resolve.KeyField{},
+													ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
+														"Admin": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
+														"User": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
+													},
+												},
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("some"),
@@ -11928,6 +12373,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																"User": {},
 															},
 															TypeName: "User",
+															CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																KeyFields: []resolve.KeyField{{Name: "id"}},
+																ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+															},
 															Fields: []*resolve.Field{
 																{
 																	Name: []byte("title"),
@@ -11943,6 +12392,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																			"User": {},
 																		},
 																		TypeName: "User",
+																		CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																			KeyFields: []resolve.KeyField{{Name: "id"}},
+																			ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																		},
 																		Fields: []*resolve.Field{
 																			{
 																				Name: []byte("title"),
@@ -11965,6 +12418,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																"User": {},
 															},
 															TypeName: "User",
+															CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																KeyFields: []resolve.KeyField{{Name: "id"}},
+																ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+															},
 															Fields: []*resolve.Field{
 																{
 																	Name: []byte("title"),
@@ -12072,6 +12529,13 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													"User":  {},
 												},
 												TypeName: "Node",
+												CacheAnalytics: &resolve.ObjectCacheAnalytics{
+													KeyFields: []resolve.KeyField{},
+													ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
+														"Admin": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
+														"User": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
+													},
+												},
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("some"),
@@ -12081,6 +12545,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																"User": {},
 															},
 															TypeName: "User",
+															CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																KeyFields: []resolve.KeyField{{Name: "id"}},
+																ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+															},
 															Fields: []*resolve.Field{
 																{
 																	Name: []byte("title"),
@@ -12100,6 +12568,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																"User": {},
 															},
 															TypeName: "User",
+															CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																KeyFields: []resolve.KeyField{{Name: "id"}},
+																ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+															},
 															Fields: []*resolve.Field{
 																{
 																	Name: []byte("id"),
@@ -12324,6 +12796,13 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User":  {},
 											},
 											TypeName: "Account",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields: []resolve.KeyField{},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
+													"Admin": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
+													"User": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
+												},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("id"),
@@ -12750,6 +13229,23 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													"Moderator": {},
 												},
 												TypeName: "Account",
+			CacheAnalytics: &resolve.ObjectCacheAnalytics{
+				KeyFields: []resolve.KeyField{},
+				ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
+					"Admin": {
+						KeyFields: []resolve.KeyField{{Name: "adminID"}},
+						ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+					},
+					"Moderator": {
+						KeyFields: []resolve.KeyField{{Name: "moderatorID"}},
+						ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+					},
+					"User": {
+						KeyFields: []resolve.KeyField{{Name: "id"}},
+						ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+					},
+				},
+			},
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("name"),
@@ -12963,6 +13459,23 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													"User":      {},
 												},
 												TypeName: "Account",
+			CacheAnalytics: &resolve.ObjectCacheAnalytics{
+				KeyFields: []resolve.KeyField{},
+				ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
+					"Admin": {
+						KeyFields: []resolve.KeyField{{Name: "adminID"}},
+						ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+					},
+					"Moderator": {
+						KeyFields: []resolve.KeyField{{Name: "moderatorID"}},
+						ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+					},
+					"User": {
+						KeyFields: []resolve.KeyField{{Name: "id"}},
+						ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+					},
+				},
+			},
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("name"),
@@ -12993,6 +13506,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																"Address": {},
 															},
 															TypeName: "Address",
+															CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																KeyFields: []resolve.KeyField{{Name: "id"}},
+																ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+															},
 															Fields: []*resolve.Field{
 																{
 																	Name: []byte("zip"),
@@ -13136,6 +13653,23 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													"Moderator": {},
 												},
 												TypeName: "Node",
+			CacheAnalytics: &resolve.ObjectCacheAnalytics{
+				KeyFields: []resolve.KeyField{},
+				ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
+					"Admin": {
+						KeyFields: []resolve.KeyField{{Name: "adminID"}},
+						ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+					},
+					"Moderator": {
+						KeyFields: []resolve.KeyField{{Name: "moderatorID"}},
+						ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+					},
+					"User": {
+						KeyFields: []resolve.KeyField{{Name: "id"}},
+						ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+					},
+				},
+			},
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("title"),
@@ -13700,6 +14234,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"NodesWrapper": {},
 											},
 											TypeName: "NodesWrapper",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields: []resolve.KeyField{{Name: "id"}},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("nodes"),
@@ -13714,6 +14252,13 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																"User":  {},
 															},
 															TypeName: "Node",
+															CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																KeyFields: []resolve.KeyField{},
+																ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
+																	"Admin": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
+																	"User":  {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
+																},
+															},
 															Fields: []*resolve.Field{
 																{
 																	Name: []byte("title"),
@@ -13746,6 +14291,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																			"AdditionalInfo": {},
 																		},
 																		TypeName: "AdditionalInfo",
+																		CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																			KeyFields: []resolve.KeyField{{Name: "id"}},
+																			ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																		},
 																	},
 																	OnTypeNames: [][]byte{[]byte("Admin")},
 																},
@@ -13780,6 +14329,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																			"AdditionalInfo": {},
 																		},
 																		TypeName: "AdditionalInfo",
+																		CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																			KeyFields: []resolve.KeyField{{Name: "id"}},
+																			ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																		},
 																	},
 																	OnTypeNames: [][]byte{[]byte("User")},
 																},
@@ -14032,22 +14585,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				DisableResolveFieldPositions: true,
 			}
 
-			RunWithPermutations(
-				t,
-				definition,
-				`
-				query User {
-					user {
-						id
-						name
-						title
-						address {
-							country
-						}
-					}
-				}`,
-				"User",
-				&plan.SynchronousResponsePlan{
+			expectedPlanFn := func(keyFields []resolve.KeyField) *plan.SynchronousResponsePlan {
+				return &plan.SynchronousResponsePlan{
 					Response: &resolve.GraphQLResponse{
 						Fetches: resolve.Sequence(
 							resolve.Single(&resolve.SingleFetch{
@@ -14181,6 +14720,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 											"User": {},
 										},
 										TypeName: "User",
+										CacheAnalytics: &resolve.ObjectCacheAnalytics{
+											KeyFields:  keyFields,
+											ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+										},
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("id"),
@@ -14224,7 +14767,43 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							},
 						},
 					},
-				},
+				}
+			}
+
+			// CacheAnalytics KeyFields depend on which datasource is processed first.
+			// Lexicographic order: 0-5 start with idx 0, 6-11 idx 1, 12-17 idx 2, 18-23 idx 3
+			// idx 0 (first-service, @key "id"): {id}
+			// idx 1 (second-service, @key "id" + @key "uuid"): {id, uuid}
+			// idx 2 (third-service, @key "uuid"): {uuid}
+			// idx 3 (fourth-service, @key "id"): {id}
+			keyVariants := [][]resolve.KeyField{
+				{{Name: "id"}},                              // idx 0 first
+				{{Name: "id"}, {Name: "uuid"}},              // idx 1 first
+				{{Name: "uuid"}},                            // idx 2 first
+				{{Name: "id"}},                              // idx 3 first
+			}
+
+			variants := make([]plan.Plan, 24)
+			for i := range variants {
+				variants[i] = expectedPlanFn(keyVariants[i/6])
+			}
+
+			RunWithPermutationsVariants(
+				t,
+				definition,
+				`
+				query User {
+					user {
+						id
+						name
+						title
+						address {
+							country
+						}
+					}
+				}`,
+				"User",
+				variants,
 				planConfiguration,
 				WithDefaultPostProcessor(),
 			)
@@ -14452,20 +15031,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			}
 
 			t.Run("only fields", func(t *testing.T) {
-				RunWithPermutations(
-					t,
-					definition,
-					`
-				query User {
-					user {
-						field1
-						field2
-						field3
-						field4
-					}
-				}`,
-					"User",
-					&plan.SynchronousResponsePlan{
+				expectedPlanFn := func(keyFields []resolve.KeyField) plan.Plan {
+					return &plan.SynchronousResponsePlan{
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
@@ -14599,6 +15166,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User": {},
 											},
 											TypeName: "User",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields:  keyFields,
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("field1"),
@@ -14630,24 +15201,49 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								},
 							},
 						},
-					},
+					}
+				}
+
+				// CacheAnalytics KeyFields depend on which datasource is processed first.
+				// Lexicographic order: 0-5 start with idx 0, 6-11 idx 1, 12-17 idx 2, 18-23 idx 3
+				// idx 0 (first-service, @key "key1"): {key1}
+				// idx 1 (second-service, @key "key1" + @key "key2"): {key1, key2}
+				// idx 2 (third-service, @key "key2" + @key "key3"): {key2, key3}
+				// idx 3 (fourth-service, @key "key3"): {key3}
+				keyVariants := [][]resolve.KeyField{
+					{{Name: "key1"}},                              // idx 0 first
+					{{Name: "key1"}, {Name: "key2"}},              // idx 1 first
+					{{Name: "key2"}, {Name: "key3"}},              // idx 2 first
+					{{Name: "key3"}},                              // idx 3 first
+				}
+
+				variants := make([]plan.Plan, 24)
+				for i := range variants {
+					variants[i] = expectedPlanFn(keyVariants[i/6])
+				}
+
+				RunWithPermutationsVariants(
+					t,
+					definition,
+					`
+				query User {
+					user {
+						field1
+						field2
+						field3
+						field4
+					}
+				}`,
+					"User",
+					variants,
 					planConfiguration,
 					WithDefaultPostProcessor(),
 				)
 			})
 
 			t.Run("field from the last subgraph in a chain", func(t *testing.T) {
-				RunWithPermutations(
-					t,
-					definition,
-					`
-				query User {
-					user {
-						field4
-					}
-				}`,
-					"User",
-					&plan.SynchronousResponsePlan{
+				expectedPlanFn := func(keyFields []resolve.KeyField) plan.Plan {
+					return &plan.SynchronousResponsePlan{
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
@@ -14781,6 +15377,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User": {},
 											},
 											TypeName: "User",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields:  keyFields,
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("field4"),
@@ -14794,30 +15394,40 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								},
 							},
 						},
-					},
+					}
+				}
+
+				keyVariants := [][]resolve.KeyField{
+					{{Name: "key1"}},                              // idx 0 first
+					{{Name: "key1"}, {Name: "key2"}},              // idx 1 first
+					{{Name: "key2"}, {Name: "key3"}},              // idx 2 first
+					{{Name: "key3"}},                              // idx 3 first
+				}
+
+				variants := make([]plan.Plan, 24)
+				for i := range variants {
+					variants[i] = expectedPlanFn(keyVariants[i/6])
+				}
+
+				RunWithPermutationsVariants(
+					t,
+					definition,
+					`
+				query User {
+					user {
+						field4
+					}
+				}`,
+					"User",
+					variants,
 					planConfiguration,
 					WithDefaultPostProcessor(),
 				)
 			})
 
 			t.Run("fields and keys", func(t *testing.T) {
-				RunWithPermutations(
-					t,
-					definition,
-					`
-				query User {
-					user {
-						key1
-						key2
-						key3
-						field1
-						field2
-						field3
-						field4
-					}
-				}`,
-					"User",
-					&plan.SynchronousResponsePlan{
+				expectedPlanFn := func(keyFields []resolve.KeyField) plan.Plan {
+					return &plan.SynchronousResponsePlan{
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
@@ -14951,6 +15561,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User": {},
 											},
 											TypeName: "User",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields:  keyFields,
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("key1"),
@@ -15000,7 +15614,38 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								},
 							},
 						},
-					},
+					}
+				}
+
+				keyVariants := [][]resolve.KeyField{
+					{{Name: "key1"}},                              // idx 0 first
+					{{Name: "key1"}, {Name: "key2"}},              // idx 1 first
+					{{Name: "key2"}, {Name: "key3"}},              // idx 2 first
+					{{Name: "key3"}},                              // idx 3 first
+				}
+
+				variants := make([]plan.Plan, 24)
+				for i := range variants {
+					variants[i] = expectedPlanFn(keyVariants[i/6])
+				}
+
+				RunWithPermutationsVariants(
+					t,
+					definition,
+					`
+				query User {
+					user {
+						key1
+						key2
+						key3
+						field1
+						field2
+						field3
+						field4
+					}
+				}`,
+					"User",
+					variants,
 					planConfiguration,
 					WithDefaultPostProcessor(),
 				)
@@ -15179,18 +15824,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			}
 
 			t.Run("do not jump to resolvable false", func(t *testing.T) {
-				RunWithPermutations(
-					t,
-					definition,
-					`
-						query User {
-							user {
-								id
-								name
-							}
-						}`,
-					"User",
-					&plan.SynchronousResponsePlan{
+				expectedPlanFn := func(keyFields []resolve.KeyField) plan.Plan {
+					return &plan.SynchronousResponsePlan{
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
@@ -15250,6 +15885,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User": {},
 											},
 											TypeName: "User",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields:  keyFields,
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("id"),
@@ -15269,25 +15908,44 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								},
 							},
 						},
-					},
+					}
+				}
+
+				// CacheAnalytics KeyFields depend on which datasource is processed first.
+				// idx 0 (first-service, @key "id" resolvable): {id}
+				// idx 1 (second-service, @key "id" resolvable: false): {} (empty - non-resolvable key)
+				// idx 2 (third-service, @key "id" resolvable): {id}
+				keyVariants := [][]resolve.KeyField{
+					{{Name: "id"}}, // idx 0 first
+					{},             // idx 1 first (resolvable: false)
+					{{Name: "id"}}, // idx 2 first
+				}
+
+				variants := make([]plan.Plan, 6)
+				for i := range variants {
+					variants[i] = expectedPlanFn(keyVariants[i/2])
+				}
+
+				RunWithPermutationsVariants(
+					t,
+					definition,
+					`
+						query User {
+							user {
+								id
+								name
+							}
+						}`,
+					"User",
+					variants,
 					planConfiguration,
 					WithDefaultPostProcessor(),
 				)
 			})
 
 			t.Run("jump from resolvable false", func(t *testing.T) {
-				RunWithPermutations(
-					t,
-					definition,
-					`
-						query User {
-							userWithName {
-								name
-								title
-							}
-						}`,
-					"User",
-					&plan.SynchronousResponsePlan{
+				expectedPlanFn := func(keyFields []resolve.KeyField) plan.Plan {
+					return &plan.SynchronousResponsePlan{
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
@@ -15347,6 +16005,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User": {},
 											},
 											TypeName: "User",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields:  keyFields,
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("name"),
@@ -15366,7 +16028,32 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								},
 							},
 						},
-					},
+					}
+				}
+
+				keyVariants := [][]resolve.KeyField{
+					{{Name: "id"}}, // idx 0 first
+					{},             // idx 1 first (resolvable: false)
+					{{Name: "id"}}, // idx 2 first
+				}
+
+				variants := make([]plan.Plan, 6)
+				for i := range variants {
+					variants[i] = expectedPlanFn(keyVariants[i/2])
+				}
+
+				RunWithPermutationsVariants(
+					t,
+					definition,
+					`
+						query User {
+							userWithName {
+								name
+								title
+							}
+						}`,
+					"User",
+					variants,
 					planConfiguration,
 					WithDefaultPostProcessor(),
 				)
@@ -15491,20 +16178,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			}
 
 			t.Run("query", func(t *testing.T) {
-				RunWithPermutations(
-					t,
-					definition,
-					`
-						query Query {
-							entity {
-								id
-								name
-								age
-							}
-						}
-					`,
-					"Query",
-					&plan.SynchronousResponsePlan{
+				expectedPlanFn := func(keyFields []resolve.KeyField) plan.Plan {
+					return &plan.SynchronousResponsePlan{
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
@@ -15564,6 +16239,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"Entity": {},
 											},
 											TypeName: "Entity",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields:  keyFields,
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("id"),
@@ -15589,7 +16268,35 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								},
 							},
 						},
-					},
+					}
+				}
+
+				// idx 0 (first-service, DisableEntityResolver): {} (empty)
+				// idx 1 (second-service, @key "id"): {id}
+				keyVariants := [][]resolve.KeyField{
+					{},             // idx 0 first (disabled entity resolver)
+					{{Name: "id"}}, // idx 1 first
+				}
+
+				variants := make([]plan.Plan, 2)
+				for i := range variants {
+					variants[i] = expectedPlanFn(keyVariants[i])
+				}
+
+				RunWithPermutationsVariants(
+					t,
+					definition,
+					`
+						query Query {
+							entity {
+								id
+								name
+								age
+							}
+						}
+					`,
+					"Query",
+					variants,
 					planConfiguration,
 					WithDefaultPostProcessor(),
 				)
@@ -15726,21 +16433,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			}
 
 			t.Run("query", func(t *testing.T) {
-				RunWithPermutations(
-					t,
-					definition,
-					`
-						query Query {
-							entity {
-								id
-								name
-								isEntity
-								age
-							}
-						}
-					`,
-					"Query",
-					&plan.SynchronousResponsePlan{
+				expectedPlanFn := func(keyFields []resolve.KeyField) plan.Plan {
+					return &plan.SynchronousResponsePlan{
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
@@ -15800,6 +16494,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"Entity": {},
 											},
 											TypeName: "Entity",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields:  keyFields,
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("id"),
@@ -15831,7 +16529,36 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								},
 							},
 						},
-					},
+					}
+				}
+
+				// idx 0 (first-service, DisableEntityResolver on both keys): {} (empty)
+				// idx 1 (second-service, @key "id" + @key "name"): {id, name}
+				keyVariants := [][]resolve.KeyField{
+					{},                                          // idx 0 first
+					{{Name: "id"}, {Name: "name"}},              // idx 1 first
+				}
+
+				variants := make([]plan.Plan, 2)
+				for i := range variants {
+					variants[i] = expectedPlanFn(keyVariants[i])
+				}
+
+				RunWithPermutationsVariants(
+					t,
+					definition,
+					`
+						query Query {
+							entity {
+								id
+								name
+								isEntity
+								age
+							}
+						}
+					`,
+					"Query",
+					variants,
 					planConfiguration,
 					WithDefaultPostProcessor(),
 				)
@@ -16297,6 +17024,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					entityTwoFetchTwo resolve.Fetch,
 					entityThreeFetchOne resolve.Fetch,
 					entityThreeFetchTwo resolve.Fetch,
+					keyFields []resolve.KeyField,
 				) plan.Plan {
 					return &plan.SynchronousResponsePlan{
 						Response: &resolve.GraphQLResponse{
@@ -16358,6 +17086,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"Entity": {},
 											},
 											TypeName: "Entity",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields:  keyFields,
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("id"),
@@ -16413,6 +17145,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"Entity": {},
 											},
 											TypeName: "Entity",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields:  keyFields,
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("id"),
@@ -16468,6 +17204,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"Entity": {},
 											},
 											TypeName: "Entity",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields:  keyFields,
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("id"),
@@ -16520,25 +17260,57 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					}
 				}
 
-				variant1 := expectedPlan(
-					entityOneNestedFetch2Second(1, true), entityOneNestedFetch2Third(2, true),
-					entityTwoNestedFetch2First(4), entityTwoNestedFetch2Third(5),
-					entityThreeNestedFetch2Second(7), entityThreeNestedFetch2First(8),
-				)
-
-				variant2 := expectedPlan(
-					entityOneNestedFetch2Second(1, false), entityOneNestedFetch2Third(2, false),
-					entityTwoNestedFetch2First(4), entityTwoNestedFetch2Third(5),
-					entityThreeNestedFetch2Second(7), entityThreeNestedFetch2First(8),
-				)
+				// CacheAnalytics KeyFields depend on which datasource is processed first.
+				// idx 0 (first-service, @key "id"): {id}
+				// idx 1 (second-service, @key "id" + @key "uuid"): {id, uuid}
+				// idx 2 (third-service, @key "name"): {name}
+				keyIdx0 := []resolve.KeyField{{Name: "id"}}
+				keyIdx1 := []resolve.KeyField{{Name: "id"}, {Name: "uuid"}}
+				keyIdx2 := []resolve.KeyField{{Name: "name"}}
 
 				expectedPlans := []plan.Plan{
-					variant1,
-					variant2,
-					variant1,
-					variant1,
-					variant2,
-					variant2,
+					// perm [0_1_2]: idx 0 first, fetch variant1
+					expectedPlan(
+						entityOneNestedFetch2Second(1, true), entityOneNestedFetch2Third(2, true),
+						entityTwoNestedFetch2First(4), entityTwoNestedFetch2Third(5),
+						entityThreeNestedFetch2Second(7), entityThreeNestedFetch2First(8),
+						keyIdx0,
+					),
+					// perm [0_2_1]: idx 0 first, fetch variant2
+					expectedPlan(
+						entityOneNestedFetch2Second(1, false), entityOneNestedFetch2Third(2, false),
+						entityTwoNestedFetch2First(4), entityTwoNestedFetch2Third(5),
+						entityThreeNestedFetch2Second(7), entityThreeNestedFetch2First(8),
+						keyIdx0,
+					),
+					// perm [1_0_2]: idx 1 first, fetch variant1
+					expectedPlan(
+						entityOneNestedFetch2Second(1, true), entityOneNestedFetch2Third(2, true),
+						entityTwoNestedFetch2First(4), entityTwoNestedFetch2Third(5),
+						entityThreeNestedFetch2Second(7), entityThreeNestedFetch2First(8),
+						keyIdx1,
+					),
+					// perm [1_2_0]: idx 1 first, fetch variant1
+					expectedPlan(
+						entityOneNestedFetch2Second(1, true), entityOneNestedFetch2Third(2, true),
+						entityTwoNestedFetch2First(4), entityTwoNestedFetch2Third(5),
+						entityThreeNestedFetch2Second(7), entityThreeNestedFetch2First(8),
+						keyIdx1,
+					),
+					// perm [2_0_1]: idx 2 first, fetch variant2
+					expectedPlan(
+						entityOneNestedFetch2Second(1, false), entityOneNestedFetch2Third(2, false),
+						entityTwoNestedFetch2First(4), entityTwoNestedFetch2Third(5),
+						entityThreeNestedFetch2Second(7), entityThreeNestedFetch2First(8),
+						keyIdx2,
+					),
+					// perm [2_1_0]: idx 2 first, fetch variant2
+					expectedPlan(
+						entityOneNestedFetch2Second(1, false), entityOneNestedFetch2Third(2, false),
+						entityTwoNestedFetch2First(4), entityTwoNestedFetch2Third(5),
+						entityThreeNestedFetch2Second(7), entityThreeNestedFetch2First(8),
+						keyIdx2,
+					),
 				}
 
 				RunWithPermutationsVariants(
@@ -16583,112 +17355,118 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			})
 
 			t.Run("query last field in a chain first-second-third", func(t *testing.T) {
-				expectedPlan := &plan.SynchronousResponsePlan{
-					Response: &resolve.GraphQLResponse{
-						Fetches: resolve.Sequence(
-							resolve.Single(&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID: 0,
-								},
-								FetchConfiguration: resolve.FetchConfiguration{
-									Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{entityOne {__typename id}}"}}`,
-									PostProcessing: DefaultPostProcessingConfiguration,
-									DataSource:     &Source{},
-								},
-								DataSourceIdentifier: []byte("graphql_datasource.Source"),
-							}),
+				expectedPlanFn := func(keyFields []resolve.KeyField) plan.Plan {
+					return &plan.SynchronousResponsePlan{
+						Response: &resolve.GraphQLResponse{
+							Fetches: resolve.Sequence(
+								resolve.Single(&resolve.SingleFetch{
+									FetchDependencies: resolve.FetchDependencies{
+										FetchID: 0,
+									},
+									FetchConfiguration: resolve.FetchConfiguration{
+										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{entityOne {__typename id}}"}}`,
+										PostProcessing: DefaultPostProcessingConfiguration,
+										DataSource:     &Source{},
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								}),
 
-							resolve.SingleWithPath(&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           1,
-									DependsOnFetchIDs: []int{0},
-								}, FetchConfiguration: resolve.FetchConfiguration{
-									RequiresEntityBatchFetch:              false,
-									RequiresEntityFetch:                   true,
-									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename name}}}","variables":{"representations":[$$0$$]}}}`,
-									DataSource:                            &Source{},
-									SetTemplateOutputToNullOnVariableNull: true,
-									Variables: []resolve.Variable{
-										&resolve.ResolvableObjectVariable{
-											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-												Nullable: true,
-												Fields: []*resolve.Field{
-													{
-														Name: []byte("__typename"),
-														Value: &resolve.String{
-															Path: []string{"__typename"},
+								resolve.SingleWithPath(&resolve.SingleFetch{
+									FetchDependencies: resolve.FetchDependencies{
+										FetchID:           1,
+										DependsOnFetchIDs: []int{0},
+									}, FetchConfiguration: resolve.FetchConfiguration{
+										RequiresEntityBatchFetch:              false,
+										RequiresEntityFetch:                   true,
+										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename name}}}","variables":{"representations":[$$0$$]}}}`,
+										DataSource:                            &Source{},
+										SetTemplateOutputToNullOnVariableNull: true,
+										Variables: []resolve.Variable{
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
+															},
+															OnTypeNames: [][]byte{[]byte("Entity")},
 														},
-														OnTypeNames: [][]byte{[]byte("Entity")},
-													},
-													{
-														Name: []byte("id"),
-														Value: &resolve.Scalar{
-															Path: []string{"id"},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("Entity")},
 														},
-														OnTypeNames: [][]byte{[]byte("Entity")},
 													},
-												},
-											}),
+												}),
+											},
 										},
+										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
-									PostProcessing: SingleEntityPostProcessingConfiguration,
-								},
-								DataSourceIdentifier: []byte("graphql_datasource.Source"),
-							}, "entityOne", resolve.ObjectPath("entityOne")),
-							resolve.SingleWithPath(&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           2,
-									DependsOnFetchIDs: []int{1},
-								}, FetchConfiguration: resolve.FetchConfiguration{
-									RequiresEntityBatchFetch:              false,
-									RequiresEntityFetch:                   true,
-									Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename isImportant}}}","variables":{"representations":[$$0$$]}}}`,
-									DataSource:                            &Source{},
-									SetTemplateOutputToNullOnVariableNull: true,
-									Variables: []resolve.Variable{
-										&resolve.ResolvableObjectVariable{
-											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-												Nullable: true,
-												Fields: []*resolve.Field{
-													{
-														Name: []byte("__typename"),
-														Value: &resolve.String{
-															Path: []string{"__typename"},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								}, "entityOne", resolve.ObjectPath("entityOne")),
+								resolve.SingleWithPath(&resolve.SingleFetch{
+									FetchDependencies: resolve.FetchDependencies{
+										FetchID:           2,
+										DependsOnFetchIDs: []int{1},
+									}, FetchConfiguration: resolve.FetchConfiguration{
+										RequiresEntityBatchFetch:              false,
+										RequiresEntityFetch:                   true,
+										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename isImportant}}}","variables":{"representations":[$$0$$]}}}`,
+										DataSource:                            &Source{},
+										SetTemplateOutputToNullOnVariableNull: true,
+										Variables: []resolve.Variable{
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
+															},
+															OnTypeNames: [][]byte{[]byte("Entity")},
 														},
-														OnTypeNames: [][]byte{[]byte("Entity")},
-													},
-													{
-														Name: []byte("name"),
-														Value: &resolve.String{
-															Path: []string{"name"},
+														{
+															Name: []byte("name"),
+															Value: &resolve.String{
+																Path: []string{"name"},
+															},
+															OnTypeNames: [][]byte{[]byte("Entity")},
 														},
-														OnTypeNames: [][]byte{[]byte("Entity")},
 													},
-												},
-											}),
+												}),
+											},
 										},
+										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
-									PostProcessing: SingleEntityPostProcessingConfiguration,
-								},
-								DataSourceIdentifier: []byte("graphql_datasource.Source"),
-							}, "entityOne", resolve.ObjectPath("entityOne")),
-						),
-						Data: &resolve.Object{
-							Fields: []*resolve.Field{
-								{
-									Name: []byte("entityOne"),
-									Value: &resolve.Object{
-										Path:     []string{"entityOne"},
-										Nullable: false,
-										PossibleTypes: map[string]struct{}{
-											"Entity": {},
-										},
-										TypeName: "Entity",
-										Fields: []*resolve.Field{
-											{
-												Name: []byte("isImportant"),
-												Value: &resolve.Boolean{
-													Path: []string{"isImportant"},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								}, "entityOne", resolve.ObjectPath("entityOne")),
+							),
+							Data: &resolve.Object{
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("entityOne"),
+										Value: &resolve.Object{
+											Path:     []string{"entityOne"},
+											Nullable: false,
+											PossibleTypes: map[string]struct{}{
+												"Entity": {},
+											},
+											TypeName: "Entity",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields:  keyFields,
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("isImportant"),
+													Value: &resolve.Boolean{
+														Path: []string{"isImportant"},
+													},
 												},
 											},
 										},
@@ -16696,10 +17474,24 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								},
 							},
 						},
-					},
+					}
 				}
 
-				RunWithPermutations(
+				// idx 0 (first-service, @key "id"): {id}
+				// idx 1 (second-service, @key "id" + @key "uuid"): {id, uuid}
+				// idx 2 (third-service, @key "name"): {name}
+				keyVariants := [][]resolve.KeyField{
+					{{Name: "id"}},                        // idx 0 first
+					{{Name: "id"}, {Name: "uuid"}},        // idx 1 first
+					{{Name: "name"}},                      // idx 2 first
+				}
+
+				variants := make([]plan.Plan, 6)
+				for i := range variants {
+					variants[i] = expectedPlanFn(keyVariants[i/2])
+				}
+
+				RunWithPermutationsVariants(
 					t,
 					definition,
 					`
@@ -16710,118 +17502,124 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						}
 					`,
 					"Query",
-					expectedPlan,
+					variants,
 					planConfiguration,
 					WithDefaultCustomPostProcessor(postprocess.DisableResolveInputTemplates(), postprocess.DisableCreateConcreteSingleFetchTypes(), postprocess.DisableOrderSequenceByDependencies(), postprocess.DisableMergeFields()),
 				)
 			})
 
 			t.Run("query last field in a chain third-second-first", func(t *testing.T) {
-				expectedPlan := &plan.SynchronousResponsePlan{
-					Response: &resolve.GraphQLResponse{
-						Fetches: resolve.Sequence(
-							resolve.Single(&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID: 0,
-								},
-								FetchConfiguration: resolve.FetchConfiguration{
-									Input:          `{"method":"POST","url":"http://third.service","body":{"query":"{entityThree {__typename uuid}}"}}`,
-									PostProcessing: DefaultPostProcessingConfiguration,
-									DataSource:     &Source{},
-								},
-								DataSourceIdentifier: []byte("graphql_datasource.Source"),
-							}),
-							resolve.SingleWithPath(&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           1,
-									DependsOnFetchIDs: []int{0},
-								}, FetchConfiguration: resolve.FetchConfiguration{
-									RequiresEntityBatchFetch:              false,
-									RequiresEntityFetch:                   true,
-									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename id}}}","variables":{"representations":[$$0$$]}}}`,
-									DataSource:                            &Source{},
-									SetTemplateOutputToNullOnVariableNull: true,
-									Variables: []resolve.Variable{
-										&resolve.ResolvableObjectVariable{
-											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-												Nullable: true,
-												Fields: []*resolve.Field{
-													{
-														Name: []byte("__typename"),
-														Value: &resolve.String{
-															Path: []string{"__typename"},
-														},
-														OnTypeNames: [][]byte{[]byte("Entity")},
-													},
-													{
-														Name: []byte("uuid"),
-														Value: &resolve.Scalar{
-															Path: []string{"uuid"},
-														},
-														OnTypeNames: [][]byte{[]byte("Entity")},
-													},
-												},
-											}),
-										},
+				expectedPlanFn := func(keyFields []resolve.KeyField) plan.Plan {
+					return &plan.SynchronousResponsePlan{
+						Response: &resolve.GraphQLResponse{
+							Fetches: resolve.Sequence(
+								resolve.Single(&resolve.SingleFetch{
+									FetchDependencies: resolve.FetchDependencies{
+										FetchID: 0,
 									},
-									PostProcessing: SingleEntityPostProcessingConfiguration,
-								},
-								DataSourceIdentifier: []byte("graphql_datasource.Source"),
-							}, "entityThree", resolve.ObjectPath("entityThree")),
-							resolve.SingleWithPath(&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           2,
-									DependsOnFetchIDs: []int{1},
-								}, FetchConfiguration: resolve.FetchConfiguration{
-									RequiresEntityBatchFetch:              false,
-									RequiresEntityFetch:                   true,
-									Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename isEntity}}}","variables":{"representations":[$$0$$]}}}`,
-									DataSource:                            &Source{},
-									SetTemplateOutputToNullOnVariableNull: true,
-									Variables: []resolve.Variable{
-										&resolve.ResolvableObjectVariable{
-											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-												Nullable: true,
-												Fields: []*resolve.Field{
-													{
-														Name: []byte("__typename"),
-														Value: &resolve.String{
-															Path: []string{"__typename"},
-														},
-														OnTypeNames: [][]byte{[]byte("Entity")},
-													},
-													{
-														Name: []byte("id"),
-														Value: &resolve.Scalar{
-															Path: []string{"id"},
-														},
-														OnTypeNames: [][]byte{[]byte("Entity")},
-													},
-												},
-											}),
-										},
+									FetchConfiguration: resolve.FetchConfiguration{
+										Input:          `{"method":"POST","url":"http://third.service","body":{"query":"{entityThree {__typename uuid}}"}}`,
+										PostProcessing: DefaultPostProcessingConfiguration,
+										DataSource:     &Source{},
 									},
-									PostProcessing: SingleEntityPostProcessingConfiguration,
-								},
-								DataSourceIdentifier: []byte("graphql_datasource.Source"),
-							}, "entityThree", resolve.ObjectPath("entityThree")),
-						),
-						Data: &resolve.Object{
-							Fields: []*resolve.Field{
-								{
-									Name: []byte("entityThree"),
-									Value: &resolve.Object{
-										Path:     []string{"entityThree"},
-										Nullable: false,
-										PossibleTypes: map[string]struct{}{
-											"Entity": {},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								}),
+								resolve.SingleWithPath(&resolve.SingleFetch{
+									FetchDependencies: resolve.FetchDependencies{
+										FetchID:           1,
+										DependsOnFetchIDs: []int{0},
+									}, FetchConfiguration: resolve.FetchConfiguration{
+										RequiresEntityBatchFetch:              false,
+										RequiresEntityFetch:                   true,
+										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename id}}}","variables":{"representations":[$$0$$]}}}`,
+										DataSource:                            &Source{},
+										SetTemplateOutputToNullOnVariableNull: true,
+										Variables: []resolve.Variable{
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
+															},
+															OnTypeNames: [][]byte{[]byte("Entity")},
+														},
+														{
+															Name: []byte("uuid"),
+															Value: &resolve.Scalar{
+																Path: []string{"uuid"},
+															},
+															OnTypeNames: [][]byte{[]byte("Entity")},
+														},
+													},
+												}),
+											},
 										},
-										TypeName: "Entity",
-										Fields: []*resolve.Field{
-											{
-												Name: []byte("isEntity"),
-												Value: &resolve.Boolean{
-													Path: []string{"isEntity"},
+										PostProcessing: SingleEntityPostProcessingConfiguration,
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								}, "entityThree", resolve.ObjectPath("entityThree")),
+								resolve.SingleWithPath(&resolve.SingleFetch{
+									FetchDependencies: resolve.FetchDependencies{
+										FetchID:           2,
+										DependsOnFetchIDs: []int{1},
+									}, FetchConfiguration: resolve.FetchConfiguration{
+										RequiresEntityBatchFetch:              false,
+										RequiresEntityFetch:                   true,
+										Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename isEntity}}}","variables":{"representations":[$$0$$]}}}`,
+										DataSource:                            &Source{},
+										SetTemplateOutputToNullOnVariableNull: true,
+										Variables: []resolve.Variable{
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
+															},
+															OnTypeNames: [][]byte{[]byte("Entity")},
+														},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("Entity")},
+														},
+													},
+												}),
+											},
+										},
+										PostProcessing: SingleEntityPostProcessingConfiguration,
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								}, "entityThree", resolve.ObjectPath("entityThree")),
+							),
+							Data: &resolve.Object{
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("entityThree"),
+										Value: &resolve.Object{
+											Path:     []string{"entityThree"},
+											Nullable: false,
+											PossibleTypes: map[string]struct{}{
+												"Entity": {},
+											},
+											TypeName: "Entity",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields:  keyFields,
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("isEntity"),
+													Value: &resolve.Boolean{
+														Path: []string{"isEntity"},
+													},
 												},
 											},
 										},
@@ -16829,10 +17627,21 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								},
 							},
 						},
-					},
+					}
 				}
 
-				RunWithPermutations(
+				keyVariants := [][]resolve.KeyField{
+					{{Name: "id"}},                        // idx 0 first
+					{{Name: "id"}, {Name: "uuid"}},        // idx 1 first
+					{{Name: "name"}},                      // idx 2 first
+				}
+
+				variants := make([]plan.Plan, 6)
+				for i := range variants {
+					variants[i] = expectedPlanFn(keyVariants[i/2])
+				}
+
+				RunWithPermutationsVariants(
 					t,
 					definition,
 					`
@@ -16843,7 +17652,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						}
 					`,
 					"Query",
-					expectedPlan,
+					variants,
 					planConfiguration,
 					WithDefaultCustomPostProcessor(postprocess.DisableResolveInputTemplates(), postprocess.DisableCreateConcreteSingleFetchTypes(), postprocess.DisableOrderSequenceByDependencies(), postprocess.DisableMergeFields()),
 				)
@@ -17038,6 +17847,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 											"User": {},
 										},
 										TypeName: "User",
+										CacheAnalytics: &resolve.ObjectCacheAnalytics{
+											KeyFields: []resolve.KeyField{{Name: "id"}},
+											ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+										},
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("id"),
@@ -17176,6 +17989,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 											"User": {},
 										},
 										TypeName: "User",
+										CacheAnalytics: &resolve.ObjectCacheAnalytics{
+											KeyFields: []resolve.KeyField{{Name: "id"}},
+											ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+										},
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("id"),
@@ -17201,6 +18018,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 											"User": {},
 										},
 										TypeName: "User",
+										CacheAnalytics: &resolve.ObjectCacheAnalytics{
+											KeyFields: []resolve.KeyField{{Name: "id"}},
+											ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+										},
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("id"),
@@ -17530,21 +18351,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			}
 
 			t.Run("query provided external fields and use them as a conditional implicit key", func(t *testing.T) {
-				RunWithPermutations(
-					t,
-					definition,
-					`
-						query User {
-							user {
-								hostedImageWithProvides {
-									image {
-										cdnUrl
-									}
-								}
-							}
-						}`,
-					"User",
-					&plan.SynchronousResponsePlan{
+				expectedPlanFn := func(imageKeyFields []resolve.KeyField) plan.Plan {
+					return &plan.SynchronousResponsePlan{
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
@@ -17641,6 +18449,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User": {},
 											},
 											TypeName: "User",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields: []resolve.KeyField{{Name: "id"}},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("hostedImageWithProvides"),
@@ -17651,6 +18463,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															"HostedImage": {},
 														},
 														TypeName: "HostedImage",
+														CacheAnalytics: &resolve.ObjectCacheAnalytics{
+															KeyFields: []resolve.KeyField{{Name: "id"}},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("image"),
@@ -17660,6 +18476,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																		"Image": {},
 																	},
 																	TypeName: "Image",
+																	CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																		KeyFields: imageKeyFields,
+																		ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																	},
 																	Fields: []*resolve.Field{
 																		{
 																			Name: []byte("cdnUrl"),
@@ -17679,29 +18499,63 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								},
 							},
 						},
-					},
-					planConfiguration,
-					WithDefaultPostProcessor(),
-				)
-			})
+					}
+				}
 
-			t.Run("do not query external conditional fields - Image.id key field is present in a query", func(t *testing.T) {
-				RunWithPermutations(
+				// Image has keys on ds idx 1 (disabled), idx 2 (disabled), idx 3 (resolvable).
+				// Image gets {id} when idx 3 is the first Image-key-contributing ds in the permutation.
+				imageID := []resolve.KeyField{{Name: "id"}}
+				imageEmpty := []resolve.KeyField{}
+				variants := []plan.Plan{
+					expectedPlanFn(imageEmpty), // [0_1_2_3]: first Image ds = idx 1 (disabled)
+					expectedPlanFn(imageEmpty), // [0_1_3_2]: first Image ds = idx 1 (disabled)
+					expectedPlanFn(imageEmpty), // [0_2_1_3]: first Image ds = idx 2 (disabled)
+					expectedPlanFn(imageEmpty), // [0_2_3_1]: first Image ds = idx 2 (disabled)
+					expectedPlanFn(imageID),    // [0_3_1_2]: first Image ds = idx 3 (resolvable)
+					expectedPlanFn(imageID),    // [0_3_2_1]: first Image ds = idx 3 (resolvable)
+					expectedPlanFn(imageEmpty), // [1_0_2_3]: first Image ds = idx 1 (disabled)
+					expectedPlanFn(imageEmpty), // [1_0_3_2]: first Image ds = idx 1 (disabled)
+					expectedPlanFn(imageEmpty), // [1_2_0_3]: first Image ds = idx 1 (disabled)
+					expectedPlanFn(imageEmpty), // [1_2_3_0]: first Image ds = idx 1 (disabled)
+					expectedPlanFn(imageEmpty), // [1_3_0_2]: first Image ds = idx 1 (disabled)
+					expectedPlanFn(imageEmpty), // [1_3_2_0]: first Image ds = idx 1 (disabled)
+					expectedPlanFn(imageEmpty), // [2_0_1_3]: first Image ds = idx 2 (disabled)
+					expectedPlanFn(imageEmpty), // [2_0_3_1]: first Image ds = idx 2 (disabled)
+					expectedPlanFn(imageEmpty), // [2_1_0_3]: first Image ds = idx 2 (disabled)
+					expectedPlanFn(imageEmpty), // [2_1_3_0]: first Image ds = idx 2 (disabled)
+					expectedPlanFn(imageEmpty), // [2_3_0_1]: first Image ds = idx 2 (disabled)
+					expectedPlanFn(imageEmpty), // [2_3_1_0]: first Image ds = idx 2 (disabled)
+					expectedPlanFn(imageID),    // [3_0_1_2]: first Image ds = idx 3 (resolvable)
+					expectedPlanFn(imageID),    // [3_0_2_1]: first Image ds = idx 3 (resolvable)
+					expectedPlanFn(imageID),    // [3_1_0_2]: first Image ds = idx 3 (resolvable)
+					expectedPlanFn(imageID),    // [3_1_2_0]: first Image ds = idx 3 (resolvable)
+					expectedPlanFn(imageID),    // [3_2_0_1]: first Image ds = idx 3 (resolvable)
+					expectedPlanFn(imageID),    // [3_2_1_0]: first Image ds = idx 3 (resolvable)
+				}
+
+				RunWithPermutationsVariants(
 					t,
 					definition,
 					`
 						query User {
 							user {
-								hostedImage {
+								hostedImageWithProvides {
 									image {
-										id
 										cdnUrl
 									}
 								}
 							}
 						}`,
 					"User",
-					&plan.SynchronousResponsePlan{
+					variants,
+					planConfiguration,
+					WithDefaultPostProcessor(),
+				)
+			})
+
+			t.Run("do not query external conditional fields - Image.id key field is present in a query", func(t *testing.T) {
+				expectedPlanFn := func(imageKeyFields []resolve.KeyField) plan.Plan {
+					return &plan.SynchronousResponsePlan{
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
@@ -17798,6 +18652,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User": {},
 											},
 											TypeName: "User",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields: []resolve.KeyField{{Name: "id"}},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("hostedImage"),
@@ -17808,6 +18666,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															"HostedImage": {},
 														},
 														TypeName: "HostedImage",
+														CacheAnalytics: &resolve.ObjectCacheAnalytics{
+															KeyFields: []resolve.KeyField{{Name: "id"}},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("image"),
@@ -17817,6 +18679,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																		"Image": {},
 																	},
 																	TypeName: "Image",
+																	CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																		KeyFields: imageKeyFields,
+																		ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																	},
 																	Fields: []*resolve.Field{
 																		{
 																			Name: []byte("id"),
@@ -17842,7 +18708,54 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								},
 							},
 						},
-					},
+					}
+				}
+
+				imageID := []resolve.KeyField{{Name: "id"}}
+				imageEmpty := []resolve.KeyField{}
+				variants := []plan.Plan{
+					expectedPlanFn(imageEmpty), // [0_1_2_3]: first Image ds = idx 1 (disabled)
+					expectedPlanFn(imageEmpty), // [0_1_3_2]: first Image ds = idx 1 (disabled)
+					expectedPlanFn(imageEmpty), // [0_2_1_3]: first Image ds = idx 2 (disabled)
+					expectedPlanFn(imageEmpty), // [0_2_3_1]: first Image ds = idx 2 (disabled)
+					expectedPlanFn(imageID),    // [0_3_1_2]: first Image ds = idx 3 (resolvable)
+					expectedPlanFn(imageID),    // [0_3_2_1]: first Image ds = idx 3 (resolvable)
+					expectedPlanFn(imageEmpty), // [1_0_2_3]: first Image ds = idx 1 (disabled)
+					expectedPlanFn(imageEmpty), // [1_0_3_2]: first Image ds = idx 1 (disabled)
+					expectedPlanFn(imageEmpty), // [1_2_0_3]: first Image ds = idx 1 (disabled)
+					expectedPlanFn(imageEmpty), // [1_2_3_0]: first Image ds = idx 1 (disabled)
+					expectedPlanFn(imageEmpty), // [1_3_0_2]: first Image ds = idx 1 (disabled)
+					expectedPlanFn(imageEmpty), // [1_3_2_0]: first Image ds = idx 1 (disabled)
+					expectedPlanFn(imageEmpty), // [2_0_1_3]: first Image ds = idx 2 (disabled)
+					expectedPlanFn(imageEmpty), // [2_0_3_1]: first Image ds = idx 2 (disabled)
+					expectedPlanFn(imageEmpty), // [2_1_0_3]: first Image ds = idx 2 (disabled)
+					expectedPlanFn(imageEmpty), // [2_1_3_0]: first Image ds = idx 2 (disabled)
+					expectedPlanFn(imageEmpty), // [2_3_0_1]: first Image ds = idx 2 (disabled)
+					expectedPlanFn(imageEmpty), // [2_3_1_0]: first Image ds = idx 2 (disabled)
+					expectedPlanFn(imageID),    // [3_0_1_2]: first Image ds = idx 3 (resolvable)
+					expectedPlanFn(imageID),    // [3_0_2_1]: first Image ds = idx 3 (resolvable)
+					expectedPlanFn(imageID),    // [3_1_0_2]: first Image ds = idx 3 (resolvable)
+					expectedPlanFn(imageID),    // [3_1_2_0]: first Image ds = idx 3 (resolvable)
+					expectedPlanFn(imageID),    // [3_2_0_1]: first Image ds = idx 3 (resolvable)
+					expectedPlanFn(imageID),    // [3_2_1_0]: first Image ds = idx 3 (resolvable)
+				}
+
+				RunWithPermutationsVariants(
+					t,
+					definition,
+					`
+						query User {
+							user {
+								hostedImage {
+									image {
+										id
+										cdnUrl
+									}
+								}
+							}
+						}`,
+					"User",
+					variants,
 					planConfiguration,
 					WithDefaultPostProcessor(),
 				)
@@ -17862,21 +18775,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				// TODO: implement same kind of test but with HostedImage type as union and interface
 				// TODO: add test when parent nodes are shareable and should be selected basic on keys to child
 
-				RunWithPermutations(
-					t,
-					definition,
-					`
-						query User {
-							user {
-								hostedImage {
-									image {
-										cdnUrl
-									}
-								}
-							}
-						}`,
-					"User",
-					&plan.SynchronousResponsePlan{
+				expectedPlanFn := func(imageKeyFields []resolve.KeyField) plan.Plan {
+					return &plan.SynchronousResponsePlan{
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
@@ -17973,6 +18873,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User": {},
 											},
 											TypeName: "User",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields: []resolve.KeyField{{Name: "id"}},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("hostedImage"),
@@ -17983,6 +18887,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															"HostedImage": {},
 														},
 														TypeName: "HostedImage",
+														CacheAnalytics: &resolve.ObjectCacheAnalytics{
+															KeyFields: []resolve.KeyField{{Name: "id"}},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("image"),
@@ -17992,6 +18900,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																		"Image": {},
 																	},
 																	TypeName: "Image",
+																	CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																		KeyFields: imageKeyFields,
+																		ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																	},
 																	Fields: []*resolve.Field{
 																		{
 																			Name: []byte("cdnUrl"),
@@ -18011,14 +18923,60 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								},
 							},
 						},
-					},
+					}
+				}
+
+				imageID := []resolve.KeyField{{Name: "id"}}
+				imageEmpty := []resolve.KeyField{}
+				variants := []plan.Plan{
+					expectedPlanFn(imageEmpty), // [0_1_2_3]: first Image ds = idx 1 (disabled)
+					expectedPlanFn(imageEmpty), // [0_1_3_2]: first Image ds = idx 1 (disabled)
+					expectedPlanFn(imageEmpty), // [0_2_1_3]: first Image ds = idx 2 (disabled)
+					expectedPlanFn(imageEmpty), // [0_2_3_1]: first Image ds = idx 2 (disabled)
+					expectedPlanFn(imageID),    // [0_3_1_2]: first Image ds = idx 3 (resolvable)
+					expectedPlanFn(imageID),    // [0_3_2_1]: first Image ds = idx 3 (resolvable)
+					expectedPlanFn(imageEmpty), // [1_0_2_3]: first Image ds = idx 1 (disabled)
+					expectedPlanFn(imageEmpty), // [1_0_3_2]: first Image ds = idx 1 (disabled)
+					expectedPlanFn(imageEmpty), // [1_2_0_3]: first Image ds = idx 1 (disabled)
+					expectedPlanFn(imageEmpty), // [1_2_3_0]: first Image ds = idx 1 (disabled)
+					expectedPlanFn(imageEmpty), // [1_3_0_2]: first Image ds = idx 1 (disabled)
+					expectedPlanFn(imageEmpty), // [1_3_2_0]: first Image ds = idx 1 (disabled)
+					expectedPlanFn(imageEmpty), // [2_0_1_3]: first Image ds = idx 2 (disabled)
+					expectedPlanFn(imageEmpty), // [2_0_3_1]: first Image ds = idx 2 (disabled)
+					expectedPlanFn(imageEmpty), // [2_1_0_3]: first Image ds = idx 2 (disabled)
+					expectedPlanFn(imageEmpty), // [2_1_3_0]: first Image ds = idx 2 (disabled)
+					expectedPlanFn(imageEmpty), // [2_3_0_1]: first Image ds = idx 2 (disabled)
+					expectedPlanFn(imageEmpty), // [2_3_1_0]: first Image ds = idx 2 (disabled)
+					expectedPlanFn(imageID),    // [3_0_1_2]: first Image ds = idx 3 (resolvable)
+					expectedPlanFn(imageID),    // [3_0_2_1]: first Image ds = idx 3 (resolvable)
+					expectedPlanFn(imageID),    // [3_1_0_2]: first Image ds = idx 3 (resolvable)
+					expectedPlanFn(imageID),    // [3_1_2_0]: first Image ds = idx 3 (resolvable)
+					expectedPlanFn(imageID),    // [3_2_0_1]: first Image ds = idx 3 (resolvable)
+					expectedPlanFn(imageID),    // [3_2_1_0]: first Image ds = idx 3 (resolvable)
+				}
+
+				RunWithPermutationsVariants(
+					t,
+					definition,
+					`
+						query User {
+							user {
+								hostedImage {
+									image {
+										cdnUrl
+									}
+								}
+							}
+						}`,
+					"User",
+					variants,
 					planConfiguration,
 					WithDefaultPostProcessor(),
 				)
 			})
 
 			t.Run("it is allowed to query a typename even if other fields are external", func(t *testing.T) {
-				expectedPlan := func(service string) plan.Plan {
+				expectedPlan := func(service string, imageKeyFields []resolve.KeyField) plan.Plan {
 					return &plan.SynchronousResponsePlan{
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
@@ -18079,6 +19037,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User": {},
 											},
 											TypeName: "User",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields: []resolve.KeyField{{Name: "id"}},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("hostedImage"),
@@ -18089,6 +19051,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															"HostedImage": {},
 														},
 														TypeName: "HostedImage",
+														CacheAnalytics: &resolve.ObjectCacheAnalytics{
+															KeyFields: []resolve.KeyField{{Name: "id"}},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("image"),
@@ -18098,6 +19064,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																		"Image": {},
 																	},
 																	TypeName: "Image",
+																	CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																		KeyFields: imageKeyFields,
+																		ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																	},
 																	Fields: []*resolve.Field{
 																		{
 																			Name: []byte("__typename"),
@@ -18121,8 +19091,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					}
 				}
 
-				variant1 := expectedPlan("http://third.service")
-				variant2 := expectedPlan("http://second.service")
+				imageID := []resolve.KeyField{{Name: "id"}}
+				imageEmpty := []resolve.KeyField{}
 
 				RunWithPermutationsVariants(
 					t,
@@ -18139,30 +19109,30 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						}`,
 					"User",
 					[]plan.Plan{
-						variant2,
-						variant2,
-						variant1,
-						variant1,
-						variant2,
-						variant1,
-						variant2,
-						variant2,
-						variant2,
-						variant2,
-						variant2,
-						variant2,
-						variant1,
-						variant1,
-						variant1,
-						variant1,
-						variant1,
-						variant1,
-						variant2,
-						variant1,
-						variant2,
-						variant2,
-						variant1,
-						variant1,
+						expectedPlan("http://second.service", imageEmpty), // [0_1_2_3]: second, idx 1 first Image ds
+						expectedPlan("http://second.service", imageEmpty), // [0_1_3_2]: second, idx 1 first Image ds
+						expectedPlan("http://third.service", imageEmpty),  // [0_2_1_3]: third, idx 2 first Image ds
+						expectedPlan("http://third.service", imageEmpty),  // [0_2_3_1]: third, idx 2 first Image ds
+						expectedPlan("http://second.service", imageID),    // [0_3_1_2]: second, idx 3 first Image ds
+						expectedPlan("http://third.service", imageID),     // [0_3_2_1]: third, idx 3 first Image ds
+						expectedPlan("http://second.service", imageEmpty), // [1_0_2_3]: second, idx 1 first Image ds
+						expectedPlan("http://second.service", imageEmpty), // [1_0_3_2]: second, idx 1 first Image ds
+						expectedPlan("http://second.service", imageEmpty), // [1_2_0_3]: second, idx 1 first Image ds
+						expectedPlan("http://second.service", imageEmpty), // [1_2_3_0]: second, idx 1 first Image ds
+						expectedPlan("http://second.service", imageEmpty), // [1_3_0_2]: second, idx 1 first Image ds
+						expectedPlan("http://second.service", imageEmpty), // [1_3_2_0]: second, idx 1 first Image ds
+						expectedPlan("http://third.service", imageEmpty),  // [2_0_1_3]: third, idx 2 first Image ds
+						expectedPlan("http://third.service", imageEmpty),  // [2_0_3_1]: third, idx 2 first Image ds
+						expectedPlan("http://third.service", imageEmpty),  // [2_1_0_3]: third, idx 2 first Image ds
+						expectedPlan("http://third.service", imageEmpty),  // [2_1_3_0]: third, idx 2 first Image ds
+						expectedPlan("http://third.service", imageEmpty),  // [2_3_0_1]: third, idx 2 first Image ds
+						expectedPlan("http://third.service", imageEmpty),  // [2_3_1_0]: third, idx 2 first Image ds
+						expectedPlan("http://second.service", imageID),    // [3_0_1_2]: second, idx 3 first Image ds
+						expectedPlan("http://third.service", imageID),     // [3_0_2_1]: third, idx 3 first Image ds
+						expectedPlan("http://second.service", imageID),    // [3_1_0_2]: second, idx 3 first Image ds
+						expectedPlan("http://second.service", imageID),    // [3_1_2_0]: second, idx 3 first Image ds
+						expectedPlan("http://third.service", imageID),     // [3_2_0_1]: third, idx 3 first Image ds
+						expectedPlan("http://third.service", imageID),     // [3_2_1_0]: third, idx 3 first Image ds
 					},
 					planConfiguration,
 					WithDefaultPostProcessor(),
@@ -18589,6 +19559,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User": {},
 											},
 											TypeName: "User",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields: []resolve.KeyField{{Name: "id"}},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("hostedImage"),
@@ -18599,6 +19573,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															"HostedImage": {},
 														},
 														TypeName: "HostedImage",
+														CacheAnalytics: &resolve.ObjectCacheAnalytics{
+															KeyFields: []resolve.KeyField{{Name: "id"}},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("image"),
@@ -18608,6 +19586,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																		"Image": {},
 																	},
 																	TypeName: "Image",
+																	CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																		KeyFields: []resolve.KeyField{{Name: "id"}},
+																		ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																	},
 																	Fields: []*resolve.Field{
 																		{
 																			Name: []byte("id"),
@@ -18738,6 +19720,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User": {},
 											},
 											TypeName: "User",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields: []resolve.KeyField{{Name: "id"}},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("hostedImage"),
@@ -18748,6 +19734,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															"HostedImage": {},
 														},
 														TypeName: "HostedImage",
+														CacheAnalytics: &resolve.ObjectCacheAnalytics{
+															KeyFields: []resolve.KeyField{{Name: "id"}},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("image"),
@@ -18757,6 +19747,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																		"Image": {},
 																	},
 																	TypeName: "Image",
+																	CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																		KeyFields: []resolve.KeyField{{Name: "id"}},
+																		ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																	},
 																	Fields: []*resolve.Field{
 																		{
 																			Name: []byte("__typename"),
@@ -18972,6 +19966,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User": {},
 											},
 											TypeName: "User",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields: []resolve.KeyField{{Name: "id"}},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("id"),
@@ -19195,21 +20193,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			}
 
 			t.Run("run", func(t *testing.T) {
-				RunWithPermutations(
-					t,
-					definition,
-					`
-						query User {
-							user {
-								hostedImage {
-									image {
-										url
-									}
-								}
-							}
-						}`,
-					"User",
-					&plan.SynchronousResponsePlan{
+				expectedPlanFn := func(imageKeyFields []resolve.KeyField) plan.Plan {
+					return &plan.SynchronousResponsePlan{
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
@@ -19306,6 +20291,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User": {},
 											},
 											TypeName: "User",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields:  []resolve.KeyField{{Name: "id"}},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("hostedImage"),
@@ -19325,6 +20314,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																		"Image": {},
 																	},
 																	TypeName: "Image",
+																	CacheAnalytics: &resolve.ObjectCacheAnalytics{
+																		KeyFields:  imageKeyFields,
+																		ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+																	},
 																	Fields: []*resolve.Field{
 																		{
 																			Name: []byte("url"),
@@ -19344,7 +20337,45 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								},
 							},
 						},
-					},
+					}
+				}
+
+				// Image KeyFields depend on which datasource first contributes Image keys:
+				// idx 0 (first-service): no Image keys
+				// idx 1 (second-service): Image @key "id" resolvable: false -> empty
+				// idx 2 (third-service): Image @key "id" resolvable -> {id}
+				// perm [0_1_2]: first Image ds = idx 1 -> empty
+				// perm [0_2_1]: first Image ds = idx 2 -> {id}
+				// perm [1_0_2]: first Image ds = idx 1 -> empty
+				// perm [1_2_0]: first Image ds = idx 1 -> empty
+				// perm [2_0_1]: first Image ds = idx 2 -> {id}
+				// perm [2_1_0]: first Image ds = idx 2 -> {id}
+				imageID := []resolve.KeyField{{Name: "id"}}
+				imageEmpty := []resolve.KeyField{}
+				variants := []plan.Plan{
+					expectedPlanFn(imageEmpty), // [0_1_2]
+					expectedPlanFn(imageID),    // [0_2_1]
+					expectedPlanFn(imageEmpty), // [1_0_2]
+					expectedPlanFn(imageEmpty), // [1_2_0]
+					expectedPlanFn(imageID),    // [2_0_1]
+					expectedPlanFn(imageID),    // [2_1_0]
+				}
+
+				RunWithPermutationsVariants(
+					t,
+					definition,
+					`
+						query User {
+							user {
+								hostedImage {
+									image {
+										url
+									}
+								}
+							}
+						}`,
+					"User",
+					variants,
 					planConfiguration,
 					WithDefaultPostProcessor(),
 				)
@@ -19656,6 +20687,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"Entity": {},
 											},
 											TypeName: "Entity",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields: []resolve.KeyField{{Name: "id"}},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("nested"),
@@ -19783,6 +20818,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"Entity": {},
 											},
 											TypeName: "Entity",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields: []resolve.KeyField{{Name: "id"}},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("nested"),
@@ -20272,6 +21311,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"Entity": {},
 											},
 											TypeName: "Entity",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields: []resolve.KeyField{{Name: "id"}},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("nested"),
@@ -20282,6 +21325,12 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															"NestedEntity": {},
 														},
 														TypeName: "Node",
+														CacheAnalytics: &resolve.ObjectCacheAnalytics{
+															KeyFields: []resolve.KeyField{},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
+																"NestedEntity": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
+															},
+														},
 														Fields: []*resolve.Field{
 															{
 																Name:        []byte("id"),
@@ -20446,6 +21495,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"Entity": {},
 											},
 											TypeName: "Entity",
+											CacheAnalytics: &resolve.ObjectCacheAnalytics{
+												KeyFields: []resolve.KeyField{{Name: "id"}},
+												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("nested"),
