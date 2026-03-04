@@ -6543,6 +6543,149 @@ func TestMutationImpactE2E(t *testing.T) {
 	})
 }
 
+func TestMutationCacheInvalidationE2E(t *testing.T) {
+	accounts.ResetUsers()
+	t.Cleanup(accounts.ResetUsers)
+
+	// Configure entity caching for User AND mutation invalidation for updateUsername
+	subgraphCachingConfigs := engine.SubgraphCachingConfigs{
+		{
+			SubgraphName: "accounts",
+			EntityCaching: plan.EntityCacheConfigurations{
+				{TypeName: "User", CacheName: "default", TTL: 30 * time.Second},
+			},
+			MutationCacheInvalidation: plan.MutationCacheInvalidationConfigurations{
+				{FieldName: "updateUsername"},
+			},
+		},
+	}
+
+	// Query that triggers entity caching for User via authorWithoutProvides (no @provides)
+	entityQuery := `query { topProducts { name reviews { body authorWithoutProvides { username } } } }`
+	mutationQuery := `mutation { updateUsername(id: "1234", newUsername: "UpdatedMe") { id username } }`
+
+	t.Run("mutation deletes L2 cache entry", func(t *testing.T) {
+		accounts.ResetUsers()
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{"default": defaultCache}
+
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
+			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		accountsHost := mustParseHost(setup.AccountsUpstreamServer.URL)
+
+		// Request 1: Query to populate L2 cache with User entity
+		tracker.Reset()
+		defaultCache.ClearLog()
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, entityQuery, nil, t)
+		assert.Contains(t, string(resp), `"username":"Me"`)
+		assert.Equal(t, 1, tracker.GetCount(accountsHost), "should call accounts subgraph once to populate cache")
+
+		// Request 2: Same query — should hit L2 cache, no accounts call
+		tracker.Reset()
+		defaultCache.ClearLog()
+		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, entityQuery, nil, t)
+		assert.Contains(t, string(resp), `"username":"Me"`)
+		assert.Equal(t, 0, tracker.GetCount(accountsHost), "should NOT call accounts subgraph (L2 hit)")
+
+		// Request 3: Mutation — should delete the L2 cache entry
+		tracker.Reset()
+		defaultCache.ClearLog()
+		respMut := gqlClient.QueryString(ctx, setup.GatewayServer.URL, mutationQuery, nil, t)
+		assert.Contains(t, string(respMut), `"UpdatedMe"`)
+
+		// Verify the cache log contains a delete operation
+		mutationLog := defaultCache.GetLog()
+		hasDelete := false
+		for _, entry := range mutationLog {
+			if entry.Operation == "delete" {
+				hasDelete = true
+				assert.Equal(t, 1, len(entry.Keys), "delete should have exactly 1 key")
+				assert.Contains(t, entry.Keys[0], `"__typename":"User"`)
+				assert.Contains(t, entry.Keys[0], `"id":"1234"`)
+			}
+		}
+		assert.True(t, hasDelete, "mutation should trigger a cache delete operation")
+
+		// Request 4: Same query again — should miss L2 (entry deleted), re-fetch from subgraph
+		tracker.Reset()
+		defaultCache.ClearLog()
+		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, entityQuery, nil, t)
+		assert.Contains(t, string(resp), `"username":"UpdatedMe"`)
+		assert.Equal(t, 1, tracker.GetCount(accountsHost), "should call accounts subgraph again (L2 entry was deleted)")
+	})
+
+	t.Run("mutation without invalidation config does not delete", func(t *testing.T) {
+		accounts.ResetUsers()
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{"default": defaultCache}
+
+		// Config WITHOUT MutationCacheInvalidation
+		noInvalidationConfigs := engine.SubgraphCachingConfigs{
+			{
+				SubgraphName: "accounts",
+				EntityCaching: plan.EntityCacheConfigurations{
+					{TypeName: "User", CacheName: "default", TTL: 30 * time.Second},
+				},
+				// No MutationCacheInvalidation — mutation should NOT delete cache
+			},
+		}
+
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
+			withSubgraphEntityCachingConfigs(noInvalidationConfigs),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		accountsHost := mustParseHost(setup.AccountsUpstreamServer.URL)
+
+		// Request 1: Query to populate L2 cache
+		tracker.Reset()
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, entityQuery, nil, t)
+		assert.Contains(t, string(resp), `"username":"Me"`)
+
+		// Request 2: Mutation — should NOT delete L2 cache entry
+		tracker.Reset()
+		defaultCache.ClearLog()
+		respMut := gqlClient.QueryString(ctx, setup.GatewayServer.URL, mutationQuery, nil, t)
+		assert.Contains(t, string(respMut), `"UpdatedMe"`)
+
+		// Verify no delete operation in cache log
+		mutationLog := defaultCache.GetLog()
+		for _, entry := range mutationLog {
+			assert.NotEqual(t, "delete", entry.Operation, "should not have any delete operations without invalidation config")
+		}
+
+		// Request 3: Same query — should still hit L2 cache (stale but not deleted)
+		tracker.Reset()
+		_ = gqlClient.QueryString(ctx, setup.GatewayServer.URL, entityQuery, nil, t)
+		assert.Equal(t, 0, tracker.GetCount(accountsHost), "should NOT call accounts subgraph (L2 entry still present)")
+	})
+}
+
 func mustParseHost(rawURL string) string {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {

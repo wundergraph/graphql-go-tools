@@ -945,17 +945,18 @@ func (l *Loader) compareShadowValues(res *result, info *FetchInfo) {
 }
 
 // detectMutationEntityImpact checks if a mutation response contains a cached entity
-// and compares it with the L2 cache to detect staleness.
+// and either invalidates (deletes) the L2 cache entry or compares it for staleness analytics.
 // Called from mergeResult on the main thread after the mutation fetch completes.
 func (l *Loader) detectMutationEntityImpact(res *result, info *FetchInfo, responseData *astjson.Value) {
 	if info == nil || info.OperationType != ast.OperationTypeMutation {
 		return
 	}
-	if !l.ctx.cacheAnalyticsEnabled() {
-		return
-	}
 	cfg := res.cacheConfig.MutationEntityImpactConfig
 	if cfg == nil {
+		return
+	}
+	// Proceed if invalidation is configured or analytics is enabled
+	if !cfg.InvalidateCache && !l.ctx.cacheAnalyticsEnabled() {
 		return
 	}
 	if info.ProvidesData == nil || len(info.RootFields) == 0 {
@@ -991,6 +992,16 @@ func (l *Loader) detectMutationEntityImpact(res *result, info *FetchInfo, respon
 	// Build L2 cache key for lookup
 	cacheKey := l.buildMutationEntityCacheKey(cfg, entityData, info)
 	if cacheKey == "" {
+		return
+	}
+
+	// Invalidate L2 cache entry if configured
+	if cfg.InvalidateCache {
+		_ = cache.Delete(l.ctx.ctx, []string{cacheKey})
+	}
+
+	// Analytics comparison requires cacheAnalytics to be enabled
+	if !l.ctx.cacheAnalyticsEnabled() {
 		return
 	}
 
