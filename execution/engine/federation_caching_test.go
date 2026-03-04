@@ -7479,9 +7479,9 @@ func TestRootFieldSplitByDatasource(t *testing.T) {
 
 		logAfterSecond := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"me"}`}, Hits: []bool{false}},  // Invalidated
-			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"me"}`}},                       // Re-cached
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"cat"}`}, Hits: []bool{true}},   // Still cached
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"me"}`}, Hits: []bool{false}}, // Invalidated
+			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"me"}`}},                      // Re-cached
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"cat"}`}, Hits: []bool{true}}, // Still cached
 		}
 		assert.Equal(t, sortCacheLogEntries(wantLog), sortCacheLogEntries(logAfterSecond))
 

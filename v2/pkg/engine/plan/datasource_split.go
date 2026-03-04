@@ -58,7 +58,7 @@ func splitSingleDataSourceByRootFieldCaching(ds DataSource) ([]DataSource, error
 
 	// Find the Query root node — we only split Query fields, not Mutation/Subscription
 	rootNodes := nodesAccess.ListRootNodes()
-	var queryNodeIdx int = -1
+	queryNodeIdx := -1
 	for i, node := range rootNodes {
 		if node.TypeName == "Query" {
 			queryNodeIdx = i

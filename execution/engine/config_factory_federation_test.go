@@ -453,4 +453,3 @@ type Review {
   product: Product!
 }`
 )
-
