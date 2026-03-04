@@ -827,38 +827,6 @@ func (s *CacheAnalyticsSnapshot) ShadowFreshnessRateByEntityType() map[string]fl
 	return result
 }
 
-// SubgraphFetchMetrics holds metrics for a single subgraph fetch.
-// Designed for export to external SLO systems (e.g., schema registry)
-// where per-fetch granularity is needed for percentile computation.
-type SubgraphFetchMetrics struct {
-	SubgraphName   string
-	EntityType     string
-	DurationMs     int64
-	HTTPStatusCode int
-	ResponseBytes  int
-	IsEntityFetch  bool
-}
-
-// SubgraphFetches returns one entry per actual subgraph fetch for this request.
-// Cache hits (L1/L2) are excluded. Returns nil if there are no subgraph fetches.
-func (s *CacheAnalyticsSnapshot) SubgraphFetches() []SubgraphFetchMetrics {
-	var result []SubgraphFetchMetrics
-	for _, ft := range s.FetchTimings {
-		if ft.Source != FieldSourceSubgraph {
-			continue
-		}
-		result = append(result, SubgraphFetchMetrics{
-			SubgraphName:   ft.DataSource,
-			EntityType:     ft.EntityType,
-			DurationMs:     ft.DurationMs,
-			HTTPStatusCode: ft.HTTPStatusCode,
-			ResponseBytes:  ft.ResponseBytes,
-			IsEntityFetch:  ft.IsEntityFetch,
-		})
-	}
-	return result
-}
-
 // computeCacheAgeMs computes cache age in milliseconds from remaining TTL and original TTL.
 // Returns 0 if either value is zero or if the computed age would be negative.
 func computeCacheAgeMs(remainingTTL, originalTTL time.Duration) int64 {
