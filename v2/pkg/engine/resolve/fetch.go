@@ -362,6 +362,9 @@ type MutationEntityImpactConfig struct {
 	KeyFields                   []KeyField // [{Name: "id"}]
 	CacheName                   string     // "default"
 	IncludeSubgraphHeaderPrefix bool
+	// InvalidateCache when true causes the L2 cache entry for this entity to be deleted
+	// after the mutation completes. Configured per mutation field via MutationCacheInvalidationConfiguration.
+	InvalidateCache bool
 }
 
 // FetchDependency explains how a GraphCoordinate depends on other GraphCoordinates from other fetches
