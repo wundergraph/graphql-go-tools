@@ -274,9 +274,11 @@ func (l *Loader) Free() {
 	l.taintedObjs = nil
 	l.l1Cache = nil
 	l.jsonArena = nil
+	l.enableMutationL2CachePopulation = false
 }
 
 func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, resolvable *Resolvable) (err error) {
+	l.enableMutationL2CachePopulation = false
 	l.resolvable = resolvable
 	l.ctx = ctx
 	l.info = response.Info
