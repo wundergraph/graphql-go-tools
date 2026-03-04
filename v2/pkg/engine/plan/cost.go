@@ -430,13 +430,28 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 			}
 			continue
 		}
+
 		// This node does not have listSize. If its parent has the sizedField pointing to the child,
 		// calculate multiplier from the parent POV.
 		if parent == nil {
 			continue
 		}
 		parentLS := dsCostConfig.ListSizes[parent.fieldCoord]
-		if parentLS == nil && parent.isEnclosingTypeAbstract {
+		if parentLS != nil {
+			for _, sf := range parentLS.SizedFields {
+				if sf != node.fieldCoord.FieldName {
+					continue
+				}
+				m := float64(parentLS.multiplier(parent.arguments, variables, defaultListSize))
+				if m > multiplier {
+					multiplier = m
+				}
+			}
+			continue
+		}
+
+		// This field is on interface, pick the max multiplier among implementing types.
+		if parent.isEnclosingTypeAbstract {
 			// SizedFields only on concrete types, accessed through interface.
 			grandParent := parent.parent
 			if grandParent != nil {
@@ -448,17 +463,6 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 					if m > multiplier {
 						multiplier = m
 					}
-				}
-			}
-		}
-		if parentLS != nil {
-			for _, sf := range parentLS.SizedFields {
-				if sf != node.fieldCoord.FieldName {
-					continue
-				}
-				m := float64(parentLS.multiplier(parent.arguments, variables, defaultListSize))
-				if m > multiplier {
-					multiplier = m
 				}
 			}
 		}
