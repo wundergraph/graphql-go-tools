@@ -36,7 +36,7 @@ type SubgraphCachingConfig struct {
 	EntityCaching                plan.EntityCacheConfigurations                  // Caching config for entity types in this subgraph
 	RootFieldCaching             plan.RootFieldCacheConfigurations               // Caching config for root fields in this subgraph
 	SubscriptionEntityPopulation plan.SubscriptionEntityPopulationConfigurations // Caching config for subscription entity population/invalidation
-	MutationCacheInvalidation    plan.MutationCacheInvalidationConfigurations   // Caching config for mutation-triggered cache invalidation
+	MutationCacheInvalidation    plan.MutationCacheInvalidationConfigurations    // Caching config for mutation-triggered cache invalidation
 }
 
 // SubgraphCachingConfigs is a list of per-subgraph caching configurations.

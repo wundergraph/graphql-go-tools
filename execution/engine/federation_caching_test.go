@@ -6681,7 +6681,7 @@ func TestMutationCacheInvalidationE2E(t *testing.T) {
 
 		// Request 3: Same query — should still hit L2 cache (stale but not deleted)
 		tracker.Reset()
-		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, entityQuery, nil, t)
+		_ = gqlClient.QueryString(ctx, setup.GatewayServer.URL, entityQuery, nil, t)
 		assert.Equal(t, 0, tracker.GetCount(accountsHost), "should NOT call accounts subgraph (L2 entry still present)")
 	})
 }
