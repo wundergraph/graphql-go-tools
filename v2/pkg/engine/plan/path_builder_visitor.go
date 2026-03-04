@@ -110,9 +110,12 @@ type selectionSetTypeInfo struct {
 }
 
 type objectFetchConfiguration struct {
-	filter             *resolve.SubscriptionFilter
-	planner            DataSourceFetchPlanner
-	isSubscription     bool
+	filter         *resolve.SubscriptionFilter
+	planner        DataSourceFetchPlanner
+	isSubscription bool
+	// isolatedRootField marks planners for cached query root fields that must
+	// not merge with other root fields. Set in handlePlanningField; checked in
+	// planWithExistingPlanners to prevent other fields from joining this planner.
 	isolatedRootField  bool
 	fieldRef           int
 	fieldDefinitionRef int

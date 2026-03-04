@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -2627,13 +2626,15 @@ func TestRootFieldSplitByDatasource(t *testing.T) {
 		assert.Equal(t, 4, len(logAfterFirst), "Should have 4 cache operations (get+set for each field)")
 
 		// Verify TTLs are set independently by checking the set operations
+		meKey := `{"__typename":"Query","field":"me"}`
+		catKey := `{"__typename":"Query","field":"cat"}`
 		var meTTL, catTTL time.Duration
 		for _, entry := range logAfterFirst {
 			if entry.Operation == "set" && len(entry.Keys) == 1 {
-				if strings.Contains(entry.Keys[0], `"field":"me"`) {
+				if entry.Keys[0] == meKey {
 					meTTL = entry.TTL
 				}
-				if strings.Contains(entry.Keys[0], `"field":"cat"`) {
+				if entry.Keys[0] == catKey {
 					catTTL = entry.TTL
 				}
 			}
@@ -2783,9 +2784,7 @@ func TestRootFieldSplitByDatasource(t *testing.T) {
 		defaultCache.ClearLog()
 		tracker.Reset()
 		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, query, nil, t)
-		assert.Contains(t, string(resp), `"me":{"id":"1234","username":"Me"}`)
-		assert.Contains(t, string(resp), `"cat":{"name":"Pepper"}`)
-		assert.Contains(t, string(resp), `"topProducts"`)
+		assert.Equal(t, `{"data":{"me":{"id":"1234","username":"Me"},"cat":{"name":"Pepper"},"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
 
 		// accounts: 2 for root field split (me + cat) + 1 for User entity resolution
 		assert.Equal(t, 3, tracker.GetCount(accountsHost), "accounts: once for me, once for cat, once for User entity")
@@ -2796,9 +2795,7 @@ func TestRootFieldSplitByDatasource(t *testing.T) {
 		defaultCache.ClearLog()
 		tracker.Reset()
 		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, query, nil, t)
-		assert.Contains(t, string(resp), `"me":{"id":"1234","username":"Me"}`)
-		assert.Contains(t, string(resp), `"cat":{"name":"Pepper"}`)
-		assert.Contains(t, string(resp), `"topProducts"`)
+		assert.Equal(t, `{"data":{"me":{"id":"1234","username":"Me"},"cat":{"name":"Pepper"},"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
 
 		// All subgraphs should be skipped on second query
 		assert.Equal(t, 0, tracker.GetCount(accountsHost), "accounts: all from cache")
