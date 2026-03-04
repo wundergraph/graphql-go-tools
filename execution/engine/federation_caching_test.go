@@ -2437,4 +2437,3 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 		assert.Equal(t, 1, tracker.GetCount(accountsHost), "Step 2: accounts called once for me root query, entity resolution served from L2 cache")
 	})
 }
-

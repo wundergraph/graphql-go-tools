@@ -536,7 +536,7 @@ func TestCacheAnalyticsE2E(t *testing.T) {
 		timings := normalizeFetchTimings(subgraphTimings)
 
 		assert.Equal(t, []resolve.FetchTimingEvent{
-			{DataSource: dsAccounts, EntityType: "User", Source: resolve.FieldSourceSubgraph, ItemCount: 1, IsEntityFetch: true, HTTPStatusCode: 200, ResponseBytes: 62},   // _entities fetch for User 1234
+			{DataSource: dsAccounts, EntityType: "User", Source: resolve.FieldSourceSubgraph, ItemCount: 1, IsEntityFetch: true, HTTPStatusCode: 200, ResponseBytes: 62},    // _entities fetch for User 1234
 			{DataSource: dsProducts, EntityType: "Query", Source: resolve.FieldSourceSubgraph, ItemCount: 1, IsEntityFetch: false, HTTPStatusCode: 200, ResponseBytes: 136}, // topProducts root field fetch
 			{DataSource: dsReviews, EntityType: "Product", Source: resolve.FieldSourceSubgraph, ItemCount: 1, IsEntityFetch: true, HTTPStatusCode: 200, ResponseBytes: 376}, // _entities fetch for Product top-1 and top-2
 		}, timings)
@@ -572,9 +572,9 @@ func TestCacheAnalyticsE2E(t *testing.T) {
 		timings := normalizeFetchTimings(snap.FetchTimings)
 
 		assert.Equal(t, []resolve.FetchTimingEvent{
-			{DataSource: dsAccounts, EntityType: "User", Source: resolve.FieldSourceL2, ItemCount: 1, IsEntityFetch: true},    // L2 hit for User 1234 entity
-			{DataSource: dsProducts, EntityType: "Query", Source: resolve.FieldSourceL2, ItemCount: 1, IsEntityFetch: true},    // L2 hit for topProducts root field
-			{DataSource: dsReviews, EntityType: "Product", Source: resolve.FieldSourceL2, ItemCount: 2, IsEntityFetch: true},   // L2 hit for Product top-1 and top-2 entities
+			{DataSource: dsAccounts, EntityType: "User", Source: resolve.FieldSourceL2, ItemCount: 1, IsEntityFetch: true},   // L2 hit for User 1234 entity
+			{DataSource: dsProducts, EntityType: "Query", Source: resolve.FieldSourceL2, ItemCount: 1, IsEntityFetch: true},  // L2 hit for topProducts root field
+			{DataSource: dsReviews, EntityType: "Product", Source: resolve.FieldSourceL2, ItemCount: 2, IsEntityFetch: true}, // L2 hit for Product top-1 and top-2 entities
 		}, timings)
 	})
 }
@@ -1219,7 +1219,6 @@ func TestMutationImpactE2E(t *testing.T) {
 		}), snap)
 	})
 }
-
 
 func TestFederationCachingAliases(t *testing.T) {
 	// Helper to create a standard setup for alias caching tests

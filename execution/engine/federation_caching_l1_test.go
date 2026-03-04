@@ -1058,4 +1058,3 @@ func TestL1CacheOptimizationReducesSubgraphCalls(t *testing.T) {
 			"Should call reviews subgraph once for User.sameUserReviewers")
 	})
 }
-
