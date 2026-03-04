@@ -4654,6 +4654,130 @@ func TestL1CacheRootFieldEntityListPopulation(t *testing.T) {
 	})
 }
 
+func TestL1CacheRootFieldNonEntityWithNestedEntities(t *testing.T) {
+	// This test verifies L1 cache behavior when a root field returns a NON-entity type
+	// (Review) that contains nested entities (User via authorWithoutProvides).
+	//
+	// Key difference from TestL1CacheRootFieldEntityListPopulation:
+	// - That test starts with topProducts -> [Product] where Product IS an entity (@key(fields: "upc"))
+	// - This test starts with topReviews -> [Review] where Review is NOT an entity (no @key)
+	// - Both prove L1 entity caching works for nested User entities
+	//
+	// Query flow:
+	// 1. topReviews -> reviews subgraph (root query, returns [Review] — NOT an entity)
+	// 2. authorWithoutProvides -> accounts subgraph (entity fetch for Users, stored in L1)
+	// 3. sameUserReviewers -> reviews subgraph (after username resolved via @requires)
+	// 4. Entity resolution for sameUserReviewers -> accounts subgraph
+	//    - All Users are 100% L1 HITs (already fetched in step 2)
+	//    - THE ENTIRE ACCOUNTS CALL IS SKIPPED!
+
+	query := `query {
+		topReviews {
+			body
+			authorWithoutProvides {
+				id
+				username
+				sameUserReviewers {
+					id
+					username
+				}
+			}
+		}
+	}`
+
+	expectedResponse := `{"data":{"topReviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"id":"1234","username":"Me","sameUserReviewers":[{"id":"1234","username":"Me"}]}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"id":"1234","username":"Me","sameUserReviewers":[{"id":"1234","username":"Me"}]}},{"body":"This is the last straw. Hat you will wear. 11/10","authorWithoutProvides":{"id":"7777","username":"User 7777","sameUserReviewers":[{"id":"7777","username":"User 7777"}]}},{"body":"Perfect summer hat.","authorWithoutProvides":{"id":"5678","username":"User 5678","sameUserReviewers":[{"id":"5678","username":"User 5678"}]}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"id":"8888","username":"User 8888","sameUserReviewers":[{"id":"8888","username":"User 8888"}]}}]}}`
+
+	t.Run("L1 enabled - sameUserReviewers fetch skipped via L1 cache", func(t *testing.T) {
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		cachingOpts := resolve.CachingOptions{
+			EnableL1Cache: true,
+			EnableL2Cache: false,
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(cachingOpts),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// Extract hostnames
+		reviewsURLParsed, _ := url.Parse(setup.ReviewsUpstreamServer.URL)
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		reviewsHost := reviewsURLParsed.Host
+		accountsHost := accountsURLParsed.Host
+
+		tracker.Reset()
+		out, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+
+		assert.Equal(t, expectedResponse, string(out))
+
+		// Query flow with L1 enabled:
+		// 1. reviews subgraph: topReviews root query (Review is NOT an entity)
+		// 2. accounts subgraph: User entity fetch for authorWithoutProvides (Users stored in L1)
+		// 3. reviews subgraph: sameUserReviewers (returns [User] references)
+		// 4. sameUserReviewers entity resolution: all Users are L1 HITs → accounts call SKIPPED!
+		reviewsCalls := tracker.GetCount(reviewsHost)
+		accountsCalls := tracker.GetCount(accountsHost)
+
+		assert.Equal(t, 2, reviewsCalls, "Should call reviews subgraph twice (topReviews + sameUserReviewers)")
+		// KEY ASSERTION: Only 1 accounts call! sameUserReviewers entity resolution skipped via L1.
+		assert.Equal(t, 1, accountsCalls,
+			"With L1 enabled: only 1 accounts call (sameUserReviewers entity fetch skipped via L1)")
+	})
+
+	t.Run("L1 disabled - more accounts calls without L1 optimization", func(t *testing.T) {
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		cachingOpts := resolve.CachingOptions{
+			EnableL1Cache: false,
+			EnableL2Cache: false,
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(cachingOpts),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// Extract hostnames
+		reviewsURLParsed, _ := url.Parse(setup.ReviewsUpstreamServer.URL)
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		reviewsHost := reviewsURLParsed.Host
+		accountsHost := accountsURLParsed.Host
+
+		tracker.Reset()
+		out, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+
+		assert.Equal(t, expectedResponse, string(out))
+
+		// Query flow with L1 disabled:
+		// 1. reviews subgraph: topReviews root query
+		// 2. accounts subgraph: User entity fetch for authorWithoutProvides
+		// 3. reviews subgraph: sameUserReviewers
+		// 4. accounts subgraph: User entity fetch for sameUserReviewers (no L1 → must fetch again!)
+		reviewsCalls := tracker.GetCount(reviewsHost)
+		accountsCalls := tracker.GetCount(accountsHost)
+
+		assert.Equal(t, 2, reviewsCalls, "Should call reviews subgraph twice")
+		// KEY ASSERTION: 2 accounts calls without L1 optimization
+		assert.Equal(t, 2, accountsCalls,
+			"With L1 disabled: 2 accounts calls (sameUserReviewers requires separate fetch)")
+	})
+}
+
 // =============================================================================
 // CACHE ERROR HANDLING TESTS
 // =============================================================================
