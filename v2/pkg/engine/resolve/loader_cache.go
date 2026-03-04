@@ -1,10 +1,14 @@
 package resolve
 
 import (
+	"cmp"
 	"context"
+	"fmt"
+	"slices"
 	"strconv"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/pkg/errors"
 
 	"github.com/wundergraph/astjson"
@@ -652,8 +656,14 @@ func (l *Loader) populateL1Cache(fetchItem *FetchItem, res *result, _ []*astjson
 			itemToStore = l.normalizeForCache(ck.Item, info.ProvidesData)
 		}
 		for _, keyStr := range ck.Keys {
-			// LoadOrStore only writes if key is missing, minimizing map operations
-			l.l1Cache.LoadOrStore(keyStr, itemToStore)
+			// Merge new fields into existing cached entity so that different arg suffixes
+			// (e.g., friends_xxhAAA and friends_xxhBBB) coexist in the same entity.
+			// L1 is only accessed from the main thread, so Load+merge+Store is safe.
+			if existing, loaded := l.l1Cache.Load(keyStr); loaded {
+				l.mergeEntityFields(existing.(*astjson.Value), itemToStore)
+			} else {
+				l.l1Cache.Store(keyStr, itemToStore)
+			}
 			if l.ctx.cacheAnalyticsEnabled() {
 				byteSize := len(ck.Item.MarshalTo(nil))
 				l.ctx.cacheAnalytics.RecordWrite(CacheLevelL1, entityType, keyStr, dataSource, byteSize, 0)
@@ -1138,9 +1148,9 @@ func (l *Loader) validateItemHasRequiredData(item *astjson.Value, obj *Object) b
 }
 
 // validateFieldData validates a single field against the item data.
-// Uses SchemaFieldName() to look up by original name since cached data is normalized.
+// Uses cacheFieldName() to look up by original name + arg suffix since cached data is normalized.
 func (l *Loader) validateFieldData(item *astjson.Value, field *Field) bool {
-	fieldValue := item.Get(field.SchemaFieldName())
+	fieldValue := item.Get(l.cacheFieldName(field))
 
 	// Check if field exists
 	if fieldValue == nil {
@@ -1245,13 +1255,13 @@ func (l *Loader) normalizeForCache(item *astjson.Value, obj *Object) *astjson.Va
 			continue
 		}
 		normalizedValue := l.normalizeNode(fieldValue, field.Value)
-		result.Set(l.jsonArena, field.SchemaFieldName(), normalizedValue)
+		result.Set(l.jsonArena, l.cacheFieldName(field), normalizedValue)
 	}
 	// Preserve __typename if present and not already in fields
 	if typenameValue := item.Get("__typename"); typenameValue != nil {
 		hasTypenameField := false
 		for _, field := range obj.Fields {
-			if field.SchemaFieldName() == "__typename" {
+			if l.cacheFieldName(field) == "__typename" {
 				hasTypenameField = true
 				break
 			}
@@ -1294,7 +1304,7 @@ func (l *Loader) denormalizeFromCache(item *astjson.Value, obj *Object) *astjson
 	}
 	result := astjson.ObjectValue(l.jsonArena)
 	for _, field := range obj.Fields {
-		lookupName := field.SchemaFieldName()
+		lookupName := l.cacheFieldName(field)
 		outputName := unsafebytes.BytesToString(field.Name)
 		fieldValue := item.Get(lookupName)
 		if fieldValue == nil {
@@ -1307,7 +1317,7 @@ func (l *Loader) denormalizeFromCache(item *astjson.Value, obj *Object) *astjson
 	if typenameValue := item.Get("__typename"); typenameValue != nil {
 		hasTypenameField := false
 		for _, field := range obj.Fields {
-			if field.SchemaFieldName() == "__typename" {
+			if l.cacheFieldName(field) == "__typename" {
 				hasTypenameField = true
 				break
 			}
@@ -1337,4 +1347,78 @@ func (l *Loader) denormalizeNode(val *astjson.Value, node Node) *astjson.Value {
 		}
 	}
 	return val
+}
+
+// cacheFieldName returns the field name to use in cached entity data.
+// For fields without arguments, returns SchemaFieldName() (zero overhead).
+// For fields with arguments, appends an xxhash suffix based on resolved arg values,
+// ensuring that e.g. friends(first:5) and friends(first:20) use different cache field names.
+func (l *Loader) cacheFieldName(field *Field) string {
+	if len(field.CacheArgs) == 0 {
+		return field.SchemaFieldName()
+	}
+	return field.SchemaFieldName() + l.computeArgSuffix(field.CacheArgs)
+}
+
+// computeArgSuffix computes "_xxh<16-hex-chars>" from resolved argument values.
+// Args are sorted by ArgName for deterministic output.
+// Each arg value is resolved from ctx.Variables (with RemapVariables support)
+// and serialized as JSON for hashing.
+func (l *Loader) computeArgSuffix(args []CacheFieldArg) string {
+	// Ensure sorted by arg name (should already be sorted at plan time)
+	sorted := args
+	if !slices.IsSortedFunc(sorted, func(a, b CacheFieldArg) int {
+		return cmp.Compare(a.ArgName, b.ArgName)
+	}) {
+		sorted = slices.Clone(args)
+		slices.SortFunc(sorted, func(a, b CacheFieldArg) int {
+			return cmp.Compare(a.ArgName, b.ArgName)
+		})
+	}
+
+	h := xxhash.New()
+	for i, arg := range sorted {
+		if i > 0 {
+			_, _ = h.WriteString(",")
+		}
+		_, _ = h.WriteString(arg.ArgName)
+		_, _ = h.WriteString(":")
+
+		// Resolve variable path from ctx.Variables, applying RemapVariables
+		variablePath := arg.VariablePath
+		if len(variablePath) == 1 && l.ctx.RemapVariables != nil {
+			if nameToUse, hasMapping := l.ctx.RemapVariables[variablePath[0]]; hasMapping && nameToUse != variablePath[0] {
+				variablePath = []string{nameToUse}
+			}
+		}
+
+		argValue := l.ctx.Variables.Get(variablePath...)
+		if argValue == nil {
+			_, _ = h.WriteString("null")
+		} else {
+			// MarshalTo produces canonical JSON for scalars.
+			// For objects, key order depends on insertion order — but after normalization,
+			// the same operation always produces the same key order, so this is stable.
+			_, _ = h.Write(argValue.MarshalTo(nil))
+		}
+	}
+
+	return fmt.Sprintf("_xxh%016x", h.Sum64())
+}
+
+// mergeEntityFields copies all fields from src into dst that aren't already present.
+// Used during L1 cache population to accumulate fields with different arg suffixes.
+func (l *Loader) mergeEntityFields(dst, src *astjson.Value) {
+	if dst == nil || src == nil {
+		return
+	}
+	if dst.Type() != astjson.TypeObject || src.Type() != astjson.TypeObject {
+		return
+	}
+	srcObj, _ := src.Object()
+	srcObj.Visit(func(key []byte, v *astjson.Value) {
+		if dst.Get(string(key)) == nil {
+			dst.Set(l.jsonArena, string(key), v)
+		}
+	})
 }

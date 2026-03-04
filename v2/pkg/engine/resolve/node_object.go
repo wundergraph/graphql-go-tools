@@ -122,6 +122,14 @@ func (*EmptyObject) Copy() Node {
 	return &EmptyObject{}
 }
 
+// CacheFieldArg captures one argument's variable path for cache key suffix computation.
+// At plan time, field arguments become variable references after normalization (e.g., friends(first: $a)).
+// At resolve time, we resolve the variable path from ctx.Variables to compute the actual suffix.
+type CacheFieldArg struct {
+	ArgName      string   // GraphQL argument name (e.g., "first")
+	VariablePath []string // Path in ctx.Variables (e.g., ["a"] for normalized variable $a)
+}
+
 type Field struct {
 	Name              []byte
 	OriginalName      []byte // Schema field name when Name is an alias; nil if Name IS the original
@@ -132,6 +140,7 @@ type Field struct {
 	OnTypeNames       [][]byte
 	ParentOnTypeNames []ParentOnTypeNames
 	Info              *FieldInfo
+	CacheArgs         []CacheFieldArg // nil when field has no arguments; sorted by ArgName
 }
 
 type ParentOnTypeNames struct {
@@ -149,6 +158,7 @@ func (f *Field) Copy() *Field {
 		Stream:       f.Stream,
 		OnTypeNames:  f.OnTypeNames,
 		Info:         f.Info,
+		CacheArgs:    f.CacheArgs,
 	}
 }
 

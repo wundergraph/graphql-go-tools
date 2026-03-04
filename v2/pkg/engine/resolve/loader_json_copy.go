@@ -19,7 +19,7 @@ func (l *Loader) shallowCopyProvidedFields(cached *astjson.Value, providesData *
 }
 
 // shallowCopyObject recursively copies only the fields specified in the Object schema.
-// Reads from cache using original field names (SchemaFieldName) since cached data is normalized.
+// Reads from cache using cacheFieldName (original name + arg suffix) since cached data is normalized.
 // Writes to result using alias names (field.Name) since the result is used in the current query's response.
 func (l *Loader) shallowCopyObject(cached *astjson.Value, obj *Object) *astjson.Value {
 	if cached == nil || obj == nil {
@@ -31,7 +31,7 @@ func (l *Loader) shallowCopyObject(cached *astjson.Value, obj *Object) *astjson.
 
 	result := astjson.ObjectValue(l.jsonArena)
 	for _, field := range obj.Fields {
-		lookupName := field.SchemaFieldName()               // Read from cache using original name
+		lookupName := l.cacheFieldName(field)               // Read from cache using name + arg suffix
 		outputName := unsafebytes.BytesToString(field.Name) // Write to result using alias
 		fieldValue := cached.Get(lookupName)
 		if fieldValue == nil {
