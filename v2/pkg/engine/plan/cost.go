@@ -20,7 +20,6 @@ this weight (along with children's costs) is multiplied too.
 
 A few things on the TBD list:
 
-* Support of SizedFields of @listSize
 * Weights on fields of InputObjects with recursion
 * Weights on arguments of directives
 
