@@ -165,6 +165,19 @@ func (l *Loader) prepareCacheKeys(info *FetchInfo, cfg FetchCacheConfiguration, 
 			if err != nil {
 				return false, err
 			}
+
+			// Apply user-provided L2 cache key interceptor
+			if interceptor := l.ctx.ExecutionOptions.Caching.L2CacheKeyInterceptor; interceptor != nil {
+				interceptorInfo := L2CacheKeyInterceptorInfo{
+					SubgraphName: info.DataSourceName,
+					CacheName:    cfg.CacheName,
+				}
+				for _, ck := range res.l2CacheKeys {
+					for i, key := range ck.Keys {
+						ck.Keys[i] = interceptor(l.ctx.ctx, key, interceptorInfo)
+					}
+				}
+			}
 		}
 	}
 
@@ -795,6 +808,12 @@ func (l *Loader) updateL2Cache(res *result) {
 	if !l.ctx.ExecutionOptions.Caching.EnableL2Cache {
 		return
 	}
+	// Skip L2 cache writes for mutations unless explicitly opted in per-mutation-field.
+	// The flag is set in resolveSingle when processing the mutation root fetch.
+	if l.info != nil && l.info.OperationType == ast.OperationTypeMutation &&
+		!l.enableMutationL2CachePopulation {
+		return
+	}
 	if res.cache == nil || !res.cacheMustBeUpdated {
 		return
 	}
@@ -945,17 +964,18 @@ func (l *Loader) compareShadowValues(res *result, info *FetchInfo) {
 }
 
 // detectMutationEntityImpact checks if a mutation response contains a cached entity
-// and compares it with the L2 cache to detect staleness.
+// and either invalidates (deletes) the L2 cache entry or compares it for staleness analytics.
 // Called from mergeResult on the main thread after the mutation fetch completes.
 func (l *Loader) detectMutationEntityImpact(res *result, info *FetchInfo, responseData *astjson.Value) {
 	if info == nil || info.OperationType != ast.OperationTypeMutation {
 		return
 	}
-	if !l.ctx.cacheAnalyticsEnabled() {
-		return
-	}
 	cfg := res.cacheConfig.MutationEntityImpactConfig
 	if cfg == nil {
+		return
+	}
+	// Proceed if invalidation is configured or analytics is enabled
+	if !cfg.InvalidateCache && !l.ctx.cacheAnalyticsEnabled() {
 		return
 	}
 	if info.ProvidesData == nil || len(info.RootFields) == 0 {
@@ -991,6 +1011,16 @@ func (l *Loader) detectMutationEntityImpact(res *result, info *FetchInfo, respon
 	// Build L2 cache key for lookup
 	cacheKey := l.buildMutationEntityCacheKey(cfg, entityData, info)
 	if cacheKey == "" {
+		return
+	}
+
+	// Invalidate L2 cache entry if configured
+	if cfg.InvalidateCache {
+		_ = cache.Delete(l.ctx.ctx, []string{cacheKey})
+	}
+
+	// Analytics comparison requires cacheAnalytics to be enabled
+	if !l.ctx.cacheAnalyticsEnabled() {
 		return
 	}
 
@@ -1058,12 +1088,23 @@ func (l *Loader) buildMutationEntityCacheKey(cfg *MutationEntityImpactConfig, en
 	keyJSON := string(keyObj.MarshalTo(nil))
 
 	// Add prefix if needed
+	var cacheKey string
 	if cfg.IncludeSubgraphHeaderPrefix && l.ctx.SubgraphHeadersBuilder != nil {
 		_, headersHash := l.ctx.SubgraphHeadersBuilder.HeadersForSubgraph(info.DataSourceName)
 		prefix := strconv.FormatUint(headersHash, 10)
-		return prefix + ":" + keyJSON
+		cacheKey = prefix + ":" + keyJSON
+	} else {
+		cacheKey = keyJSON
 	}
-	return keyJSON
+
+	// Apply user-provided L2 cache key interceptor
+	if interceptor := l.ctx.ExecutionOptions.Caching.L2CacheKeyInterceptor; interceptor != nil {
+		cacheKey = interceptor(l.ctx.ctx, cacheKey, L2CacheKeyInterceptorInfo{
+			SubgraphName: info.DataSourceName,
+			CacheName:    cfg.CacheName,
+		})
+	}
+	return cacheKey
 }
 
 // buildMutationEntityDisplayKey builds a display key (without prefix) for analytics.

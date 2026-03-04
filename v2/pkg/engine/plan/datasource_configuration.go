@@ -351,6 +351,14 @@ func (d *dataSourceConfiguration[T]) RootFieldCacheConfig(typeName, fieldName st
 	return d.FederationMetaData.RootFieldCacheConfig(typeName, fieldName)
 }
 
+func (d *dataSourceConfiguration[T]) MutationCacheInvalidationConfig(fieldName string) *MutationCacheInvalidationConfiguration {
+	return d.FederationMetaData.MutationCacheInvalidationConfig(fieldName)
+}
+
+func (d *dataSourceConfiguration[T]) MutationFieldCacheConfig(fieldName string) *MutationFieldCacheConfiguration {
+	return d.FederationMetaData.MutationFieldCacheConfig(fieldName)
+}
+
 func (d *dataSourceConfiguration[T]) Hash() DSHash {
 	return d.hash
 }

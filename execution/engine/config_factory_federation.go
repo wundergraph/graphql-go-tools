@@ -35,7 +35,9 @@ type SubgraphCachingConfig struct {
 	SubgraphName                 string                                          // Name of the subgraph (must match SubgraphConfiguration.Name)
 	EntityCaching                plan.EntityCacheConfigurations                  // Caching config for entity types in this subgraph
 	RootFieldCaching             plan.RootFieldCacheConfigurations               // Caching config for root fields in this subgraph
+	MutationFieldCaching         plan.MutationFieldCacheConfigurations           // Caching config for mutation field behavior in this subgraph
 	SubscriptionEntityPopulation plan.SubscriptionEntityPopulationConfigurations // Caching config for subscription entity population/invalidation
+	MutationCacheInvalidation    plan.MutationCacheInvalidationConfigurations    // Caching config for mutation-triggered cache invalidation
 }
 
 // SubgraphCachingConfigs is a list of per-subgraph caching configurations.
@@ -488,7 +490,9 @@ func (f *FederationEngineConfigFactory) dataSourceMetaData(in *nodev1.DataSource
 	if subgraphCachingConfig != nil {
 		out.FederationMetaData.EntityCaching = subgraphCachingConfig.EntityCaching
 		out.FederationMetaData.RootFieldCaching = subgraphCachingConfig.RootFieldCaching
+		out.FederationMetaData.MutationFieldCaching = subgraphCachingConfig.MutationFieldCaching
 		out.FederationMetaData.SubscriptionEntityPopulation = subgraphCachingConfig.SubscriptionEntityPopulation
+		out.FederationMetaData.MutationCacheInvalidation = subgraphCachingConfig.MutationCacheInvalidation
 	}
 
 	return out

@@ -353,6 +353,11 @@ type FetchCacheConfiguration struct {
 	// MutationEntityImpactConfig is set when this fetch is a mutation that returns a cached entity.
 	// Used by detectMutationEntityImpact() to proactively compare mutation response with L2 cache.
 	MutationEntityImpactConfig *MutationEntityImpactConfig
+
+	// EnableMutationL2CachePopulation allows mutation entity fetches to write
+	// to the L2 cache. Propagated from MutationFieldCacheConfiguration.
+	// By default, mutations do NOT populate L2.
+	EnableMutationL2CachePopulation bool
 }
 
 // MutationEntityImpactConfig holds information for detecting entity cache changes from mutations.
@@ -362,6 +367,9 @@ type MutationEntityImpactConfig struct {
 	KeyFields                   []KeyField // [{Name: "id"}]
 	CacheName                   string     // "default"
 	IncludeSubgraphHeaderPrefix bool
+	// InvalidateCache when true causes the L2 cache entry for this entity to be deleted
+	// after the mutation completes. Configured per mutation field via MutationCacheInvalidationConfiguration.
+	InvalidateCache bool
 }
 
 // FetchDependency explains how a GraphCoordinate depends on other GraphCoordinates from other fetches

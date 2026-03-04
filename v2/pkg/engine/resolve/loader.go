@@ -259,6 +259,12 @@ type Loader struct {
 	// Thread-safe via sync.Map for parallel fetch support.
 	// Only used for entity fetches, NOT root fetches (root fields have no prior entity data).
 	l1Cache *sync.Map
+
+	// enableMutationL2CachePopulation is set per-mutation-field in resolveSingle
+	// when processing a root mutation fetch. Entity fetches that follow in the
+	// sequence inherit this flag, checked in updateL2Cache.
+	// By default false: mutations do NOT populate L2 cache.
+	enableMutationL2CachePopulation bool
 }
 
 func (l *Loader) Free() {
@@ -268,9 +274,11 @@ func (l *Loader) Free() {
 	l.taintedObjs = nil
 	l.l1Cache = nil
 	l.jsonArena = nil
+	l.enableMutationL2CachePopulation = false
 }
 
 func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, resolvable *Resolvable) (err error) {
+	l.enableMutationL2CachePopulation = false
 	l.resolvable = resolvable
 	l.ctx = ctx
 	l.info = response.Info
@@ -433,6 +441,11 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 
 	switch f := item.Fetch.(type) {
 	case *SingleFetch:
+		// Propagate mutation field cache config to loader for child entity fetches.
+		// Each mutation root fetch updates this flag; subsequent entity fetches inherit it.
+		if f.Info != nil && f.Info.OperationType == ast.OperationTypeMutation {
+			l.enableMutationL2CachePopulation = f.Caching.EnableMutationL2CachePopulation
+		}
 		res := l.createOrInitResult(nil, f.PostProcessing, f.Info)
 		skip, err := l.tryCacheLoad(l.ctx.ctx, f.Info, f.Caching, items, res)
 		if err != nil {
@@ -444,6 +457,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 				return err
 			}
 		}
+		l.mergeResultAnalytics(res)
 		err = l.mergeResult(item, res, items)
 		l.callOnFinished(res)
 		return err
@@ -460,6 +474,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 				return errors.WithStack(err)
 			}
 		}
+		l.mergeResultAnalytics(res)
 		err = l.mergeResult(item, res, items)
 		l.callOnFinished(res)
 		return err
@@ -475,11 +490,27 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 				return errors.WithStack(err)
 			}
 		}
+		l.mergeResultAnalytics(res)
 		err = l.mergeResult(item, res, items)
 		l.callOnFinished(res)
 		return err
 	default:
 		return nil
+	}
+}
+
+// mergeResultAnalytics merges analytics events accumulated on a result into the collector.
+// In resolveParallel, this happens in bulk after all goroutines complete.
+// In resolveSingle, we must call this per-result since there's no bulk merge phase.
+func (l *Loader) mergeResultAnalytics(res *result) {
+	if !l.ctx.cacheAnalyticsEnabled() {
+		return
+	}
+	if len(res.l2FetchTimings) > 0 {
+		l.ctx.cacheAnalytics.MergeL2FetchTimings(res.l2FetchTimings)
+	}
+	if len(res.l2ErrorEvents) > 0 {
+		l.ctx.cacheAnalytics.MergeL2Errors(res.l2ErrorEvents)
 	}
 }
 
@@ -2263,12 +2294,14 @@ func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, so
 			isEntityFetch = info.OperationType == ast.OperationTypeQuery && (entityType != "Query" && entityType != "Mutation" && entityType != "Subscription")
 		}
 		res.l2FetchTimings = append(res.l2FetchTimings, FetchTimingEvent{
-			DataSource:    res.ds.Name,
-			EntityType:    entityType,
-			DurationMs:    time.Since(fetchStart).Milliseconds(),
-			Source:        FieldSourceSubgraph,
-			ItemCount:     1,
-			IsEntityFetch: isEntityFetch,
+			DataSource:     res.ds.Name,
+			EntityType:     entityType,
+			DurationMs:     time.Since(fetchStart).Milliseconds(),
+			Source:         FieldSourceSubgraph,
+			ItemCount:      1,
+			IsEntityFetch:  isEntityFetch,
+			HTTPStatusCode: res.statusCode,
+			ResponseBytes:  len(res.out),
 		})
 	}
 

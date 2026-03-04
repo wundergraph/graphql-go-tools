@@ -60,12 +60,15 @@ type CacheWriteEvent struct {
 
 // FetchTimingEvent records the duration of a subgraph fetch or cache lookup.
 type FetchTimingEvent struct {
-	DataSource    string      // subgraph name
-	EntityType    string      // entity type (empty for root fetches)
-	DurationMs    int64       // time spent on this operation in milliseconds
-	Source        FieldSource // what handled this: Subgraph (fetch), L2 (cache GET)
-	ItemCount     int         // number of entities in this fetch/lookup
-	IsEntityFetch bool        // true for _entities, false for root field
+	DataSource     string      // subgraph name
+	EntityType     string      // entity type (empty for root fetches)
+	DurationMs     int64       // time spent on this operation in milliseconds
+	Source         FieldSource // what handled this: Subgraph (fetch), L2 (cache GET)
+	ItemCount      int         // number of entities in this fetch/lookup
+	IsEntityFetch  bool        // true for _entities, false for root field
+	HTTPStatusCode int         // HTTP status code from subgraph response (0 for cache hits)
+	ResponseBytes  int         // response body size in bytes (0 for cache hits)
+	TTFBMs         int64       // time to first byte in milliseconds (0 when unavailable)
 }
 
 // SubgraphErrorEvent records a subgraph error for analytics.
