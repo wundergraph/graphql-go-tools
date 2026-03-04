@@ -101,6 +101,11 @@ func (b *dsBuilder) Id(id string) *dsBuilder {
 	b.ds.id = id
 	return b
 }
+
+func (b *dsBuilder) Name(name string) *dsBuilder {
+	b.ds.name = name
+	return b
+}
 func (b *dsBuilder) DS() DataSource {
 	if err := b.ds.DataSourceMetadata.Init(); err != nil {
 		panic(err)
