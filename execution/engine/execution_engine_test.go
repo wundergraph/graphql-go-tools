@@ -17,6 +17,7 @@ import (
 	"github.com/sebdah/goldie/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting"
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
@@ -5627,8 +5628,6 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			}, withFetchReasons(), validateRequiredExternalFields()))
 		})
 	})
-
-
 
 	t.Run("field merging with different nullability on non-overlapping union types", func(t *testing.T) {
 		unionSchema := `
