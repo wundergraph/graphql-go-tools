@@ -11,128 +11,12 @@ import (
 )
 
 func TestExecutionEngine_Execute_Defer(t *testing.T) {
-	t.Run("simple - defer on non entity field", func(t *testing.T) {
 
-		definition := `
-				type User {
-					id: ID!
-					name: String!
-					title: String!
-					info: Info!
-				}
-
-				type Info {
-					email: String!
-					phone: String!
-				}
-
-				type Query {
-					user: User!
-				}
-			`
+	runDeferTests := func(t *testing.T, definition string, dataSources []plan.DataSource) {
+		t.Helper()
 
 		schema, err := graphql.NewSchemaFromString(definition)
 		require.NoError(t, err)
-
-		makeDataSource := func(t *testing.T, expectFetchReasons bool) []plan.DataSource {
-			return []plan.DataSource{
-				mustGraphqlDataSourceConfiguration(t,
-					"id-1",
-					mustFactory(t,
-						testConditionalNetHttpClient(t, conditionalTestCase{
-							expectedHost: "first",
-							expectedPath: "/",
-							responses: map[string]sendResponse{
-								`{"query":"{user {name}}"}`: {
-									statusCode: 200,
-									body:       `{"data":{"user":{"name":"Black"}}}`,
-								},
-								`{"query":"{user {__internal__typename_placeholder: __typename}}"}`: {
-									statusCode: 200,
-									body:       `{"data":{"user":{"__internal__typename_placeholder":"User"}}}`,
-								},
-								`{"query":"{user {title}}"}`: {
-									statusCode: 200,
-									body:       `{"data":{"user":{"title":"Sabbat"}}}`,
-								},
-								`{"query":"{user {id}}"}`: {
-									statusCode: 200,
-									body:       `{"data":{"user":{"id":"1"}}}`,
-								},
-								`{"query":"{user {title id}}"}`: {
-									statusCode: 200,
-									body:       `{"data":{"user":{"title":"Sabbat","id":"1"}}}`,
-								},
-								`{"query":"{user {name title id}}"}`: {
-									statusCode: 200,
-									body:       `{"data":{"user":{"name":"Black","title":"Sabbat","id":"1"}}}`,
-								},
-								`{"query":"{user {info {email phone}}}"}`: {
-									statusCode: 200,
-									body:       `{"data":{"user":{"info":{"email":"black@sabbat","phone":"123"}}}}`,
-								},
-								`{"query":"{user {info {phone} title}}"}`: {
-									statusCode: 200,
-									body:       `{"data":{"user":{"info":{"phone":"123"},"title":"Sabbat"}}}`,
-								},
-								`{"query":"{user {name info {email}}}"}`: {
-									statusCode: 200,
-									body:       `{"data":{"user":{"name":"Black","info":{"email":"black@sabbat"}}}}`,
-								},
-								`{"query":"{user {name info {__internal__typename_placeholder: __typename}}}"}`: {
-									statusCode: 200,
-									body:       `{"data":{"user":{"name":"Black","info":{"__internal__typename_placeholder":"Info"}}}}`,
-								},
-								`{"query":"{user {info {__internal__typename_placeholder: __typename}}}"}`: {
-									statusCode: 200,
-									body:       `{"data":{"user":{"info":{"__internal__typename_placeholder":"Info"}}}}`,
-								},
-								`{"query":"{user {info {email}}}"}`: {
-									statusCode: 200,
-									body:       `{"data":{"user":{"info":{"email":"black@sabbat"}}}}`,
-								},
-								`{"query":"{user {info {phone}}}"}`: {
-									statusCode: 200,
-									body:       `{"data":{"user":{"info":{"phone":"123"}}}}`,
-								},
-							},
-						}),
-					),
-					&plan.DataSourceMetadata{
-						RootNodes: []plan.TypeField{
-							{
-								TypeName:   "Query",
-								FieldNames: []string{"user"},
-							},
-						},
-						ChildNodes: []plan.TypeField{
-							{
-								TypeName:   "User",
-								FieldNames: []string{"id", "title", "name", "info"},
-							},
-							{
-								TypeName:   "Info",
-								FieldNames: []string{"email", "phone"},
-							},
-						},
-					},
-					mustConfiguration(t, graphql_datasource.ConfigurationInput{
-						Fetch: &graphql_datasource.FetchConfiguration{
-							URL:    "https://first/",
-							Method: "POST",
-						},
-						SchemaConfiguration: mustSchemaConfig(
-							t,
-							&graphql_datasource.FederationConfiguration{
-								Enabled:    true,
-								ServiceSDL: definition,
-							},
-							definition,
-						),
-					}),
-				),
-			}
-		}
 
 		t.Run("single deffered field", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
 			schema: schema,
@@ -150,7 +34,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 						}`,
 				}
 			},
-			dataSources: makeDataSource(t, false),
+			dataSources: dataSources,
 			expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
 {"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":false}
 `,
@@ -173,7 +57,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 						}`,
 				}
 			},
-			dataSources: makeDataSource(t, false),
+			dataSources: dataSources,
 			expectedResponse: `{"data":{"user":{"title":"Sabbat","id":"1"}},"hasNext":true}
 {"incremental":[{"data":{"name":"Black"},"path":["user"]}],"hasNext":false}
 `,
@@ -196,7 +80,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 						}`,
 				}
 			},
-			dataSources: makeDataSource(t, false),
+			dataSources: dataSources,
 			expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
 {"incremental":[{"data":{"title":"Sabbat","id":"1"},"path":["user"]}],"hasNext":false}
 `,
@@ -219,7 +103,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 						}`,
 				}
 			},
-			dataSources: makeDataSource(t, false),
+			dataSources: dataSources,
 			expectedResponse: `{"data":{"user":{}},"hasNext":true}
 {"incremental":[{"data":{"name":"Black","title":"Sabbat","id":"1"},"path":["user"]}],"hasNext":false}
 `,
@@ -244,10 +128,33 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 						}`,
 				}
 			},
-			dataSources: makeDataSource(t, false),
+			dataSources: dataSources,
 			expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
 {"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":true}
 {"incremental":[{"data":{"id":"1"},"path":["user"]}],"hasNext":false}
+`,
+		}, withStreamingResponse()))
+
+		t.Run("nested defers variation", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			schema: schema,
+			operation: func(t *testing.T) graphql.Request {
+				return graphql.Request{
+					OperationName: "DeferUserNameTitle",
+					Query: `
+						query DeferUserNameTitle {
+							user {
+								... @defer {
+									name
+									... @defer { title }
+								}
+							}
+						}`,
+				}
+			},
+			dataSources: dataSources,
+			expectedResponse: `{"data":{"user":{}},"hasNext":true}
+{"incremental":[{"data":{"name":"Black"},"path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
 
@@ -270,7 +177,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 						}`,
 				}
 			},
-			dataSources: makeDataSource(t, false),
+			dataSources: dataSources,
 			expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
 {"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":true}
 {"incremental":[{"data":{"id":"1"},"path":["user"]}],"hasNext":false}
@@ -296,7 +203,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 						}`,
 				}
 			},
-			dataSources: makeDataSource(t, false),
+			dataSources: dataSources,
 			expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
 {"incremental":[{"data":{"info":{"email":"black@sabbat","phone":"123"}},"path":["user"]}],"hasNext":false}
 `,
@@ -324,7 +231,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 						}`,
 				}
 			},
-			dataSources: makeDataSource(t, false),
+			dataSources: dataSources,
 			expectedResponse: `{"data":{"user":{"name":"Black","info":{"email":"black@sabbat"}}},"hasNext":true}
 {"incremental":[{"data":{"title":"Sabbat"},"path":["user"]},{"data":{"phone":"123"},"path":["user","info"]}],"hasNext":false}
 `,
@@ -349,7 +256,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 						}`,
 				}
 			},
-			dataSources: makeDataSource(t, false),
+			dataSources: dataSources,
 			expectedResponse: `{"data":{"user":{"name":"Black","info":{}}},"hasNext":true}
 {"incremental":[{"data":{"email":"black@sabbat","phone":"123"},"path":["user","info"]}],"hasNext":false}
 `,
@@ -378,7 +285,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 						}`,
 				}
 			},
-			dataSources: makeDataSource(t, false),
+			dataSources: dataSources,
 			expectedResponse: `{"data":{},"hasNext":true}
 {"incremental":[{"data":{"user":{}},"path":[]}],"hasNext":true}
 {"incremental":[{"data":{"id":"1"},"path":["user"]}],"hasNext":true}
@@ -423,7 +330,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 						}`,
 				}
 			},
-			dataSources: makeDataSource(t, false),
+			dataSources: dataSources,
 			expectedResponse: `{"data":{},"hasNext":true}
 {"incremental":[{"data":{"user":{}},"path":[]}],"hasNext":true}
 {"incremental":[{"data":{"id":"1"},"path":["user"]}],"hasNext":true}
@@ -434,5 +341,342 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 {"incremental":[{"data":{"phone":"123"},"path":["user","info"]}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
+	}
+
+	t.Run("simple - defer on non entity field", func(t *testing.T) {
+
+		definition := `
+				type User {
+					id: ID!
+					name: String!
+					title: String!
+					info: Info!
+				}
+
+				type Info {
+					email: String!
+					phone: String!
+				}
+
+				type Query {
+					user: User!
+				}
+			`
+
+		dataSources := []plan.DataSource{
+			mustGraphqlDataSourceConfiguration(t,
+				"id-1",
+				mustFactory(t,
+					testConditionalNetHttpClient(t, conditionalTestCase{
+						expectedHost: "first",
+						expectedPath: "/",
+						responses: map[string]sendResponse{
+							`{"query":"{user {name}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"name":"Black"}}}`,
+							},
+							`{"query":"{user {__internal__typename_placeholder: __typename}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"__internal__typename_placeholder":"User"}}}`,
+							},
+							`{"query":"{user {title}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"title":"Sabbat"}}}`,
+							},
+							`{"query":"{user {id}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"id":"1"}}}`,
+							},
+							`{"query":"{user {title id}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"title":"Sabbat","id":"1"}}}`,
+							},
+							`{"query":"{user {name title id}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"name":"Black","title":"Sabbat","id":"1"}}}`,
+							},
+							`{"query":"{user {info {email phone}}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"info":{"email":"black@sabbat","phone":"123"}}}}`,
+							},
+							`{"query":"{user {info {phone} title}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"info":{"phone":"123"},"title":"Sabbat"}}}`,
+							},
+							`{"query":"{user {name info {email}}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"name":"Black","info":{"email":"black@sabbat"}}}}`,
+							},
+							`{"query":"{user {name info {__internal__typename_placeholder: __typename}}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"name":"Black","info":{"__internal__typename_placeholder":"Info"}}}}`,
+							},
+							`{"query":"{user {info {__internal__typename_placeholder: __typename}}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"info":{"__internal__typename_placeholder":"Info"}}}}`,
+							},
+							`{"query":"{user {info {email}}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"info":{"email":"black@sabbat"}}}}`,
+							},
+							`{"query":"{user {info {phone}}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"info":{"phone":"123"}}}}`,
+							},
+						},
+					}),
+				),
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"user"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "title", "name", "info"},
+						},
+						{
+							TypeName:   "Info",
+							FieldNames: []string{"email", "phone"},
+						},
+					},
+				},
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{
+						URL:    "https://first/",
+						Method: "POST",
+					},
+					SchemaConfiguration: mustSchemaConfig(
+						t,
+						&graphql_datasource.FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: definition,
+						},
+						definition,
+					),
+				}),
+			),
+		}
+
+		runDeferTests(t, definition, dataSources)
+	})
+
+	t.Run("entity - distributed fields", func(t *testing.T) {
+
+		definition := `
+				type User {
+					id: ID!
+					name: String!
+					title: String!
+					info: Info!
+				}
+
+				type Info {
+					email: String!
+					phone: String!
+				}
+
+				type Query {
+					user: User!
+				}
+			`
+
+		firstSubgraphSDL := `
+				type User @key(fields: "id") {
+					id: ID!
+					info: Info!
+				}
+
+				type Info {
+					email: String!
+				}
+
+				type Query {
+					user: User!
+				}
+			`
+
+		secondSubgraphSDL := `
+				type User @key(fields: "id") {
+					id: ID!
+					name: String!
+					title: String!
+					info: Info!
+				}
+
+				type Info {
+					phone: String!
+				}
+			`
+
+		dataSources := []plan.DataSource{
+			mustGraphqlDataSourceConfiguration(t,
+				"id-1",
+				mustFactory(t,
+					testConditionalNetHttpClient(t, conditionalTestCase{
+						expectedHost: "first",
+						expectedPath: "/",
+						responses: map[string]sendResponse{
+							`{"query":"{user {__typename id}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"__typename":"User","id":"1","info":{"email":"black@sabbat"}}}}`,
+							},
+							`{"query":"{user {id __typename}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"__typename":"User","id":"1","info":{"email":"black@sabbat"}}}}`,
+							},
+							`{"query":"{user {__typename}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"__typename":"User","info":{"email":"black@sabbat"}}}}`,
+							},
+							`{"query":"{user {id}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"id":"1","info":{"email":"black@sabbat"}}}}`,
+							},
+							`{"query":"{user {__internal__typename_placeholder: __typename __typename}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"__internal__typename_placeholder":"User","__typename":"User","info":{"email":"black@sabbat"}}}}`,
+							},
+							`{"query":"{user {__internal__typename_placeholder: __typename __typename id}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"__internal__typename_placeholder":"User","__typename":"User","id":"1","info":{"email":"black@sabbat"}}}}`,
+							},
+							`{"query":"{user {info {email}}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"info":{"email":"black@sabbat"}}}}`,
+							},
+							`{"query":"{user {info {__internal__typename_placeholder: __typename}}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"info":{"__internal__typename_placeholder":"Info"}}}}`,
+							},
+						},
+					}),
+				),
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"user"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "info"},
+						},
+						{
+							TypeName:   "Info",
+							FieldNames: []string{"email"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
+							},
+						},
+					},
+				},
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{
+						URL:    "https://first/",
+						Method: "POST",
+					},
+					SchemaConfiguration: mustSchemaConfig(
+						t,
+						&graphql_datasource.FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: firstSubgraphSDL,
+						},
+						firstSubgraphSDL,
+					),
+				}),
+			),
+			mustGraphqlDataSourceConfiguration(t,
+				"id-2",
+				mustFactory(t,
+					testConditionalNetHttpClient(t, conditionalTestCase{
+						expectedHost: "second",
+						expectedPath: "/",
+						responses: map[string]sendResponse{
+							`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
+								statusCode: 200,
+								body:       `{"data":{"_entities":[{"__typename":"User","name":"Black","title":"Sabbat","info":{"phone":"123"}}]}}`,
+							},
+							`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
+								statusCode: 200,
+								body:       `{"data":{"_entities":[{"__typename":"User","name":"Black","title":"Sabbat","info":{"phone":"123"}}]}}`,
+							},
+							`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name title}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
+								statusCode: 200,
+								body:       `{"data":{"_entities":[{"__typename":"User","name":"Black","title":"Sabbat","info":{"phone":"123"}}]}}`,
+							},
+							`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename info {phone} title}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
+								statusCode: 200,
+								body:       `{"data":{"_entities":[{"__typename":"User","name":"Black","title":"Sabbat","info":{"phone":"123"}}]}}`,
+							},
+							`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename info {phone}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
+								statusCode: 200,
+								body:       `{"data":{"_entities":[{"__typename":"User","name":"Black","title":"Sabbat","info":{"phone":"123"}}]}}`,
+							},
+							`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name info {__internal__typename_placeholder: __typename}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
+								statusCode: 200,
+								body:       `{"data":{"_entities":[{"__typename":"User","name":"Black","title":"Sabbat","info":{"phone":"123"}}]}}`,
+							},
+							`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename info {email phone}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
+								statusCode: 200,
+								body:       `{"data":{"_entities":[{"__typename":"User","name":"Black","title":"Sabbat","info":{"phone":"123"}}]}}`,
+							},
+							`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name info {email}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
+								statusCode: 200,
+								body:       `{"data":{"_entities":[{"__typename":"User","name":"Black","title":"Sabbat","info":{"phone":"123"}}]}}`,
+							},
+						},
+					}),
+				),
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "title", "name", "info"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Info",
+							FieldNames: []string{"phone"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
+							},
+						},
+					},
+				},
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{
+						URL:    "https://second/",
+						Method: "POST",
+					},
+					SchemaConfiguration: mustSchemaConfig(
+						t,
+						&graphql_datasource.FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: secondSubgraphSDL,
+						},
+						secondSubgraphSDL,
+					),
+				}),
+			),
+		}
+
+		runDeferTests(t, definition, dataSources)
 	})
 }
