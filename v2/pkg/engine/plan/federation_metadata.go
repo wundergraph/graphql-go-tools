@@ -17,6 +17,7 @@ type FederationMetaData struct {
 	EntityCaching                EntityCacheConfigurations
 	RootFieldCaching             RootFieldCacheConfigurations
 	SubscriptionEntityPopulation SubscriptionEntityPopulationConfigurations
+	MutationCacheInvalidation    MutationCacheInvalidationConfigurations
 
 	entityTypeNames map[string]struct{}
 }
@@ -31,6 +32,7 @@ type FederationInfo interface {
 	EntityInterfaceNames() []string
 	EntityCacheConfig(typeName string) *EntityCacheConfiguration
 	RootFieldCacheConfig(typeName, fieldName string) *RootFieldCacheConfiguration
+	MutationCacheInvalidationConfig(fieldName string) *MutationCacheInvalidationConfiguration
 }
 
 func (d *FederationMetaData) HasKeyRequirement(typeName, requiresFields string) bool {
@@ -237,6 +239,30 @@ func (c SubscriptionEntityPopulationConfigurations) FindByTypeName(typeName stri
 	return nil
 }
 
+// MutationCacheInvalidationConfiguration defines which mutation fields should
+// invalidate (delete) L2 cache entries for the entity they return.
+type MutationCacheInvalidationConfiguration struct {
+	// FieldName is the mutation field name (e.g., "updateUser", "deleteUser").
+	FieldName string `json:"field_name"`
+	// EntityTypeName is the return entity type (e.g., "User").
+	// If empty, it is inferred from the mutation return type at plan time.
+	EntityTypeName string `json:"entity_type_name,omitempty"`
+}
+
+// MutationCacheInvalidationConfigurations is a collection of mutation cache invalidation configurations.
+type MutationCacheInvalidationConfigurations []MutationCacheInvalidationConfiguration
+
+// FindByFieldName returns the invalidation config for the given mutation field.
+// Returns nil if no configuration exists (no invalidation for this field).
+func (c MutationCacheInvalidationConfigurations) FindByFieldName(fieldName string) *MutationCacheInvalidationConfiguration {
+	for i := range c {
+		if c[i].FieldName == fieldName {
+			return &c[i]
+		}
+	}
+	return nil
+}
+
 // EntityCacheConfig returns the cache configuration for the given entity type.
 // Returns nil if no configuration exists (caching should be disabled for this entity).
 func (d *FederationMetaData) EntityCacheConfig(typeName string) *EntityCacheConfiguration {
@@ -247,6 +273,12 @@ func (d *FederationMetaData) EntityCacheConfig(typeName string) *EntityCacheConf
 // Returns nil if no configuration exists (caching should be disabled for this root field).
 func (d *FederationMetaData) RootFieldCacheConfig(typeName, fieldName string) *RootFieldCacheConfiguration {
 	return d.RootFieldCaching.FindByTypeAndField(typeName, fieldName)
+}
+
+// MutationCacheInvalidationConfig returns the invalidation config for the given mutation field.
+// Returns nil if no configuration exists (no invalidation for this field).
+func (d *FederationMetaData) MutationCacheInvalidationConfig(fieldName string) *MutationCacheInvalidationConfiguration {
+	return d.MutationCacheInvalidation.FindByFieldName(fieldName)
 }
 
 type FederationFieldConfiguration struct {

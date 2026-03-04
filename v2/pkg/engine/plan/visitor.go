@@ -2410,6 +2410,13 @@ func (v *Visitor) configureMutationEntityImpact(internal *objectFetchConfigurati
 		CacheName:                   entityCacheConfig.CacheName,
 		IncludeSubgraphHeaderPrefix: entityCacheConfig.IncludeSubgraphHeaderPrefix,
 	}
+
+	// Check if this specific mutation field is configured for cache invalidation
+	if len(internal.rootFields) > 0 {
+		if fedConfig.MutationCacheInvalidationConfig(internal.rootFields[0].FieldName) != nil {
+			result.MutationEntityImpactConfig.InvalidateCache = true
+		}
+	}
 }
 
 // resolveMutationReturnType resolves the return type name of a mutation field definition.
