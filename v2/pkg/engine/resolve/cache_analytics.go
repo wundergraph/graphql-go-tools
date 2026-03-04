@@ -827,67 +827,36 @@ func (s *CacheAnalyticsSnapshot) ShadowFreshnessRateByEntityType() map[string]fl
 	return result
 }
 
-// SubgraphRequestMetrics holds per-subgraph aggregate metrics for a single request.
-// Designed for export to external SLO systems (e.g., schema registry).
-type SubgraphRequestMetrics struct {
-	SubgraphName       string
-	RequestCount       int   // number of fetches to this subgraph
-	ErrorCount         int   // number of errors from this subgraph
-	TotalDurationMs    int64 // sum of fetch durations
-	MaxDurationMs      int64 // max single-fetch duration
-	TotalResponseBytes int64 // sum of response body sizes
+// SubgraphFetchMetrics holds metrics for a single subgraph fetch.
+// Designed for export to external SLO systems (e.g., schema registry)
+// where per-fetch granularity is needed for percentile computation.
+type SubgraphFetchMetrics struct {
+	SubgraphName   string
+	EntityType     string
+	DurationMs     int64
+	HTTPStatusCode int
+	ResponseBytes  int
+	IsEntityFetch  bool
 }
 
-// SubgraphMetrics returns per-subgraph aggregate metrics for this request.
-// Only considers actual subgraph fetches (not cache hits).
-// Returns nil if there are no subgraph fetches or errors.
-func (s *CacheAnalyticsSnapshot) SubgraphMetrics() []SubgraphRequestMetrics {
-	// Collect metrics by subgraph name, preserving insertion order
-	type entry struct {
-		metrics SubgraphRequestMetrics
-		index   int
-	}
-	byName := make(map[string]*entry)
-	var order []string
-
+// SubgraphFetches returns one entry per actual subgraph fetch for this request.
+// Cache hits (L1/L2) are excluded. Returns nil if there are no subgraph fetches.
+func (s *CacheAnalyticsSnapshot) SubgraphFetches() []SubgraphFetchMetrics {
+	var result []SubgraphFetchMetrics
 	for _, ft := range s.FetchTimings {
 		if ft.Source != FieldSourceSubgraph {
 			continue
 		}
-		e, ok := byName[ft.DataSource]
-		if !ok {
-			e = &entry{metrics: SubgraphRequestMetrics{SubgraphName: ft.DataSource}, index: len(order)}
-			byName[ft.DataSource] = e
-			order = append(order, ft.DataSource)
-		}
-		e.metrics.RequestCount++
-		e.metrics.TotalDurationMs += ft.DurationMs
-		if ft.DurationMs > e.metrics.MaxDurationMs {
-			e.metrics.MaxDurationMs = ft.DurationMs
-		}
-		e.metrics.TotalResponseBytes += int64(ft.ResponseBytes)
+		result = append(result, SubgraphFetchMetrics{
+			SubgraphName:   ft.DataSource,
+			EntityType:     ft.EntityType,
+			DurationMs:     ft.DurationMs,
+			HTTPStatusCode: ft.HTTPStatusCode,
+			ResponseBytes:  ft.ResponseBytes,
+			IsEntityFetch:  ft.IsEntityFetch,
+		})
 	}
-
-	for _, ev := range s.ErrorEvents {
-		e, ok := byName[ev.DataSource]
-		if !ok {
-			e = &entry{metrics: SubgraphRequestMetrics{SubgraphName: ev.DataSource}, index: len(order)}
-			byName[ev.DataSource] = e
-			order = append(order, ev.DataSource)
-		}
-		e.metrics.ErrorCount++
-	}
-
-	if len(order) == 0 {
-		return nil
-	}
-
-	results := make([]SubgraphRequestMetrics, len(order))
-	for _, name := range order {
-		e := byName[name]
-		results[e.index] = e.metrics
-	}
-	return results
+	return result
 }
 
 // computeCacheAgeMs computes cache age in milliseconds from remaining TTL and original TTL.
