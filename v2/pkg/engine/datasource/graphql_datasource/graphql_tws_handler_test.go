@@ -65,7 +65,7 @@ func TestWebsocketSubscriptionClient_GQLTWS(t *testing.T) {
 		WithLogger(logger()),
 	).(*subscriptionClient)
 
-	updater := &testSubscriptionUpdater{}
+	updater := newTestSubscriptionUpdaterChan()
 	go func() {
 		rCtx := resolve.NewContext(ctx)
 		err := client.Subscribe(rCtx, GraphQLSubscriptionOptions{
@@ -76,17 +76,22 @@ func TestWebsocketSubscriptionClient_GQLTWS(t *testing.T) {
 		}, updater)
 		assert.NoError(t, err)
 	}()
-	updater.AwaitUpdates(t, time.Second*5, 3)
-	assert.Equal(t, 3, len(updater.updates))
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
+	updater.AwaitUpdateWithT(t, time.Second*5, func(t *testing.T, update string) {
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
+	})
+	updater.AwaitUpdateWithT(t, time.Second*5, func(t *testing.T, update string) {
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, update)
+	})
+	updater.AwaitUpdateWithT(t, time.Second*5, func(t *testing.T, update string) {
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, update)
+	})
 
 	clientCancel()
-	assert.Eventuallyf(t, func() bool {
-		<-serverDone
-		return true
-	}, time.Second, time.Millisecond*10, "server did not close")
+	select {
+	case <-serverDone:
+	case <-time.After(time.Second):
+		t.Fatal("server did not close")
+	}
 	serverCancel()
 }
 
@@ -143,7 +148,7 @@ func TestWebsocketSubscriptionClientPing_GQLTWS(t *testing.T) {
 		WithLogger(logger()),
 	).(*subscriptionClient)
 
-	updater := &testSubscriptionUpdater{}
+	updater := newTestSubscriptionUpdaterChan()
 
 	go func() {
 		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
@@ -155,15 +160,16 @@ func TestWebsocketSubscriptionClientPing_GQLTWS(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	updater.AwaitUpdates(t, time.Second, 1)
-	assert.Equal(t, 1, len(updater.updates))
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
+	})
 
 	clientCancel()
-	assert.Eventuallyf(t, func() bool {
-		<-serverDone
-		return true
-	}, time.Second, time.Millisecond*10, "server did not close")
+	select {
+	case <-serverDone:
+	case <-time.After(time.Second):
+		t.Fatal("server did not close")
+	}
 	serverCancel()
 }
 
@@ -210,7 +216,7 @@ func TestWebsocketSubscriptionClientError_GQLTWS(t *testing.T) {
 		WithLogger(logger()),
 	)
 
-	updater := &testSubscriptionUpdater{}
+	updater := newTestSubscriptionUpdaterChan()
 
 	go func() {
 		err := client.Subscribe(resolve.NewContext(clientCtx), GraphQLSubscriptionOptions{
@@ -222,18 +228,19 @@ func TestWebsocketSubscriptionClientError_GQLTWS(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	updater.AwaitUpdates(t, time.Second, 1)
-	assert.Equal(t, 1, len(updater.updates))
-	assert.Equal(t, `{"errors":[{"message":"Unexpected Name \"wrongQuery\"","locations":[{"line":1,"column":1}],"extensions":{"code":"GRAPHQL_PARSE_FAILED"}}]}`, updater.updates[0])
+	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
+		assert.Equal(t, `{"errors":[{"message":"Unexpected Name \"wrongQuery\"","locations":[{"line":1,"column":1}],"extensions":{"code":"GRAPHQL_PARSE_FAILED"}}]}`, update)
+	})
 
 	clientCancel()
-	updater.AwaitDone(t, time.Second)
+	updater.AwaitComplete(t, time.Second)
 
 	serverCancel()
-	assert.Eventuallyf(t, func() bool {
-		<-serverDone
-		return true
-	}, time.Second, time.Millisecond*10, "server did not close")
+	select {
+	case <-serverDone:
+	case <-time.After(time.Second):
+		t.Fatal("server did not close")
+	}
 }
 
 func TestWebsocketSubscriptionClient_GQLTWS_Upstream_Dies(t *testing.T) {
@@ -287,7 +294,7 @@ func TestWebsocketSubscriptionClient_GQLTWS_Upstream_Dies(t *testing.T) {
 		WithLogger(logger()),
 	).(*subscriptionClient)
 
-	updater := &testSubscriptionUpdater{}
+	updater := newTestSubscriptionUpdaterChan()
 
 	go func() {
 		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
@@ -299,13 +306,15 @@ func TestWebsocketSubscriptionClient_GQLTWS_Upstream_Dies(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	updater.AwaitUpdates(t, time.Second, 1)
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
+	})
 
 	// Kill the upstream here. We should get an End-of-File error.
 	assert.NoError(t, wrappedListener.underlyingConnection.Close())
-	updater.AwaitUpdates(t, time.Second, 2)
-	assert.Equal(t, `{"errors":[{"message":"EOF"}]}`, updater.updates[1])
+	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
+		assert.Equal(t, `{"errors":[{"message":"EOF"}]}`, update)
+	})
 
 	clientCancel()
 	serverCancel()

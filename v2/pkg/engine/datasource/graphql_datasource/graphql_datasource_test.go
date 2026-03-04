@@ -8531,16 +8531,17 @@ func (f *FailingSubscriptionClient) Subscribe(ctx *resolve.Context, options Grap
 }
 
 type testSubscriptionUpdaterChan struct {
-	updates  chan string
-	complete chan struct{}
-	closed   chan resolve.SubscriptionCloseKind
+	updates      chan string
+	complete     chan struct{}
+	completeOnce sync.Once
+	closed       chan resolve.SubscriptionCloseKind
 }
 
 func newTestSubscriptionUpdaterChan() *testSubscriptionUpdaterChan {
 	return &testSubscriptionUpdaterChan{
 		updates:  make(chan string),
 		complete: make(chan struct{}),
-		closed:   make(chan resolve.SubscriptionCloseKind),
+		closed:   make(chan resolve.SubscriptionCloseKind, 1),
 	}
 }
 
@@ -8566,7 +8567,7 @@ func (t *testSubscriptionUpdaterChan) Subscriptions() map[context.Context]resolv
 }
 
 func (t *testSubscriptionUpdaterChan) Complete() {
-	close(t.complete)
+	t.completeOnce.Do(func() { close(t.complete) })
 }
 
 func (t *testSubscriptionUpdaterChan) Close(kind resolve.SubscriptionCloseKind) {
@@ -8613,94 +8614,6 @@ func (t *testSubscriptionUpdaterChan) AwaitComplete(tt *testing.T, timeout time.
 	case <-time.After(timeout):
 		require.Fail(tt, "updater not completed before timeout", msgAndArgs...)
 	}
-}
-
-// !! If you see this in a test you're working on, please replace it with the new testSubscriptionUpdaterChan
-// It's faster, more ergonomic and more reliable. See SSE handler tests for usage examples.
-type testSubscriptionUpdater struct {
-	updates []string
-	done    bool
-	closed  bool
-	mux     sync.Mutex
-}
-
-func (t *testSubscriptionUpdater) AwaitUpdates(tt *testing.T, timeout time.Duration, count int) {
-	tt.Helper()
-
-	ticker := time.NewTicker(timeout)
-	defer ticker.Stop()
-	for {
-		time.Sleep(10 * time.Millisecond)
-		select {
-		case <-ticker.C:
-			tt.Fatalf("timed out waiting for updates")
-		default:
-			t.mux.Lock()
-			if len(t.updates) == count {
-				t.mux.Unlock()
-				return
-			}
-			t.mux.Unlock()
-		}
-	}
-}
-
-func (t *testSubscriptionUpdater) AwaitDone(tt *testing.T, timeout time.Duration) {
-	tt.Helper()
-
-	ticker := time.NewTicker(timeout)
-	defer ticker.Stop()
-	for {
-		time.Sleep(10 * time.Millisecond)
-		select {
-		case <-ticker.C:
-			tt.Fatalf("timed out waiting for done")
-		default:
-			t.mux.Lock()
-			if t.done {
-				t.mux.Unlock()
-				return
-			}
-			t.mux.Unlock()
-		}
-	}
-}
-
-func (t *testSubscriptionUpdater) Heartbeat() {
-	t.mux.Lock()
-	defer t.mux.Unlock()
-	t.updates = append(t.updates, "{}")
-}
-
-func (t *testSubscriptionUpdater) Update(data []byte) {
-	t.mux.Lock()
-	defer t.mux.Unlock()
-	t.updates = append(t.updates, string(data))
-}
-
-func (t *testSubscriptionUpdater) Complete() {
-	t.mux.Lock()
-	defer t.mux.Unlock()
-	t.done = true
-}
-
-func (t *testSubscriptionUpdater) Close(kind resolve.SubscriptionCloseKind) {
-	t.mux.Lock()
-	defer t.mux.Unlock()
-	t.closed = true
-}
-
-// empty method to satisfy the interface, not used in this tests
-func (t *testSubscriptionUpdater) CloseSubscription(kind resolve.SubscriptionCloseKind, id resolve.SubscriptionIdentifier) {
-}
-
-// empty method to satisfy the interface, not used in this tests
-func (t *testSubscriptionUpdater) Subscriptions() map[context.Context]resolve.SubscriptionIdentifier {
-	return make(map[context.Context]resolve.SubscriptionIdentifier)
-}
-
-// empty method to satisfy the interface, not used in this tests
-func (t *testSubscriptionUpdater) UpdateSubscription(id resolve.SubscriptionIdentifier, data []byte) {
 }
 
 func TestSubscriptionSource_Start(t *testing.T) {
@@ -8762,7 +8675,7 @@ func TestSubscriptionSource_Start(t *testing.T) {
 		ctx := resolve.NewContext(context.Background())
 		defer ctx.Context().Done()
 
-		updater := &testSubscriptionUpdater{}
+		updater := newTestSubscriptionUpdaterChan()
 
 		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: "#test") { text createdBy } }"}`)
@@ -8774,16 +8687,16 @@ func TestSubscriptionSource_Start(t *testing.T) {
 		ctx := resolve.NewContext(context.Background())
 		defer ctx.Context().Done()
 
-		updater := &testSubscriptionUpdater{}
+		updater := newTestSubscriptionUpdaterChan()
 
 		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomNam: \"#test\") { text createdBy } }"}`)
 		err := source.Start(ctx, nil, chatSubscriptionOptions, updater)
 		require.NoError(t, err)
-		updater.AwaitUpdates(t, time.Second, 1)
-		assert.Len(t, updater.updates, 1)
-		assert.Equal(t, `{"errors":[{"message":"Unknown argument \"roomNam\" on field \"Subscription.messageAdded\". Did you mean \"roomName\"?","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"Field \"messageAdded\" argument \"roomName\" of type \"String!\" is required, but it was not provided.","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}`, updater.updates[0])
-		updater.AwaitDone(t, time.Second)
+		updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
+			assert.Equal(t, `{"errors":[{"message":"Unknown argument \"roomNam\" on field \"Subscription.messageAdded\". Did you mean \"roomName\"?","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"Field \"messageAdded\" argument \"roomName\" of type \"String!\" is required, but it was not provided.","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}`, update)
+		})
+		updater.AwaitComplete(t, time.Second)
 	})
 
 	t.Run("should close connection on stop message", func(t *testing.T) {
@@ -8791,7 +8704,7 @@ func TestSubscriptionSource_Start(t *testing.T) {
 		resolverLifecycle, cancelResolver := context.WithCancel(context.Background())
 		defer cancelResolver()
 
-		updater := &testSubscriptionUpdater{}
+		updater := newTestSubscriptionUpdaterChan()
 
 		source := newSubscriptionSource(resolverLifecycle)
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
@@ -8803,18 +8716,18 @@ func TestSubscriptionSource_Start(t *testing.T) {
 		message := "hello world!"
 		go sendChatMessage(t, username, message)
 
-		updater.AwaitUpdates(t, time.Second, 1)
+		updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, update)
+		})
 		cancelSubscription()
-		updater.AwaitDone(t, time.Second*5)
-		assert.Len(t, updater.updates, 1)
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, updater.updates[0])
+		updater.AwaitComplete(t, time.Second*5)
 	})
 
 	t.Run("should successfully subscribe with chat example", func(t *testing.T) {
 		ctx := resolve.NewContext(context.Background())
 		defer ctx.Context().Done()
 
-		updater := &testSubscriptionUpdater{}
+		updater := newTestSubscriptionUpdaterChan()
 
 		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
@@ -8825,9 +8738,9 @@ func TestSubscriptionSource_Start(t *testing.T) {
 		username := "myuser"
 		message := "hello world!"
 		go sendChatMessage(t, username, message)
-		updater.AwaitUpdates(t, time.Second, 1)
-		assert.Len(t, updater.updates, 1)
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, updater.updates[0])
+		updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, update)
+		})
 	})
 }
 
@@ -8879,18 +8792,17 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 		ctx := resolve.NewContext(context.Background())
 		defer ctx.Context().Done()
 
-		updater := &testSubscriptionUpdater{}
+		updater := newTestSubscriptionUpdaterChan()
 
 		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomNam: \"#test\") { text createdBy } }"}`)
 		err := source.Start(ctx, nil, chatSubscriptionOptions, updater)
 		require.NoError(t, err)
 
-		updater.AwaitUpdates(t, time.Second, 1)
-		assert.Len(t, updater.updates, 1)
-		assert.Equal(t, `{"errors":[{"message":"Unknown argument \"roomNam\" on field \"Subscription.messageAdded\". Did you mean \"roomName\"?","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"Field \"messageAdded\" argument \"roomName\" of type \"String!\" is required, but it was not provided.","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}`, updater.updates[0])
-		updater.AwaitDone(t, time.Second)
-		assert.Equal(t, true, updater.done)
+		updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
+			assert.Equal(t, `{"errors":[{"message":"Unknown argument \"roomNam\" on field \"Subscription.messageAdded\". Did you mean \"roomName\"?","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"Field \"messageAdded\" argument \"roomName\" of type \"String!\" is required, but it was not provided.","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}`, update)
+		})
+		updater.AwaitComplete(t, time.Second)
 	})
 
 	t.Run("should close connection on stop message", func(t *testing.T) {
@@ -8898,7 +8810,7 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 		resolverLifecycle, cancelResolver := context.WithCancel(context.Background())
 		defer cancelResolver()
 
-		updater := &testSubscriptionUpdater{}
+		updater := newTestSubscriptionUpdaterChan()
 
 		source := newSubscriptionSource(resolverLifecycle)
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
@@ -8910,19 +8822,18 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 		message := "hello world!"
 		go sendChatMessage(t, username, message)
 
-		updater.AwaitUpdates(t, time.Second, 1)
-		assert.Len(t, updater.updates, 1)
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, updater.updates[0])
+		updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, update)
+		})
 		cancelSubscription()
-		updater.AwaitDone(t, time.Second*5)
-		assert.Equal(t, true, updater.done)
+		updater.AwaitComplete(t, time.Second*5)
 	})
 
 	t.Run("should successfully subscribe with chat example", func(t *testing.T) {
 		ctx := resolve.NewContext(context.Background())
 		defer ctx.Context().Done()
 
-		updater := &testSubscriptionUpdater{}
+		updater := newTestSubscriptionUpdaterChan()
 
 		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
@@ -8933,10 +8844,9 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 		username := "myuser"
 		message := "hello world!"
 		go sendChatMessage(t, username, message)
-
-		updater.AwaitUpdates(t, time.Second, 1)
-		assert.Len(t, updater.updates, 1)
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, updater.updates[0])
+		updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, update)
+		})
 	})
 }
 

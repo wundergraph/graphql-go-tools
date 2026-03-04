@@ -55,7 +55,7 @@ func TestGraphQLSubscriptionClientSubscribe_SSE(t *testing.T) {
 		WithLogger(logger()),
 	)
 
-	updater := &testSubscriptionUpdater{}
+	updater := newTestSubscriptionUpdaterChan()
 
 	go func() {
 		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
@@ -68,16 +68,19 @@ func TestGraphQLSubscriptionClientSubscribe_SSE(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	updater.AwaitUpdates(t, time.Second, 2)
-	assert.Equal(t, 2, len(updater.updates))
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
+	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
+	})
+	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, update)
+	})
 
 	clientCancel()
-	assert.Eventuallyf(t, func() bool {
-		<-serverDone
-		return true
-	}, time.Second, time.Millisecond*10, "server did not close")
+	select {
+	case <-serverDone:
+	case <-time.After(time.Second):
+		t.Fatal("server did not close")
+	}
 	serverCancel()
 }
 
