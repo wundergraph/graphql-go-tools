@@ -1135,6 +1135,242 @@ func TestL1CachePartialLoadingL1Only(t *testing.T) {
 	})
 }
 
+func TestL1CacheNestedEntitiesInFetchResponse(t *testing.T) {
+	t.Run("nested entities in entity fetch response are not populated in L1", func(t *testing.T) {
+		// When entity fetch 1 returns User u1 whose response contains a nested User u3
+		// (via bestFriend), only u1 is stored in L1. The nested u3 is NOT extracted and
+		// cached separately. A subsequent entity fetch 2 for u3 must call the subgraph.
+		//
+		// If nested entity L1 population were implemented, entityDS2 would be Times(0)
+		// because u3 would already be in L1 from fetch 1's response.
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		// Root fetch - returns two user references at different paths
+		rootDS := NewMockDataSource(ctrl)
+		rootDS.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"firstUser":{"__typename":"User","id":"u1"},"secondUser":{"__typename":"User","id":"u3"}}}`), nil
+			}).Times(1)
+
+		// Entity fetch 1 - resolves User u1, response includes nested User u3 (bestFriend)
+		entityDS1 := NewMockDataSource(ctrl)
+		entityDS1.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"_entities":[{"__typename":"User","id":"u1","name":"Alice","bestFriend":{"__typename":"User","id":"u3","name":"Charlie"}}]}}`), nil
+			}).Times(1)
+
+		// Entity fetch 2 - resolves User u3
+		// Called because u3 is NOT in L1 (only u1 was cached from fetch 1)
+		entityDS2 := NewMockDataSource(ctrl)
+		entityDS2.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"_entities":[{"__typename":"User","id":"u3","name":"Charlie"}]}}`), nil
+			}).Times(1) // Would be Times(0) if nested entity L1 population were implemented
+
+		userCacheKeyTemplate := &EntityQueryCacheKeyTemplate{
+			Keys: NewResolvableObjectVariable(&Object{
+				Fields: []*Field{
+					{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+					{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+				},
+			}),
+		}
+
+		userProvidesData := &Object{
+			Fields: []*Field{
+				{Name: []byte("id"), Value: &Scalar{Path: []string{"id"}, Nullable: false}},
+				{Name: []byte("name"), Value: &Scalar{Path: []string{"name"}, Nullable: false}},
+			},
+		}
+
+		response := &GraphQLResponse{
+			Info: &GraphQLResponseInfo{
+				OperationType: ast.OperationTypeQuery,
+			},
+			Fetches: Sequence(
+				SingleWithPath(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource: rootDS,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data"},
+						},
+					},
+					InputTemplate: InputTemplate{
+						Segments: []TemplateSegment{
+							{Data: []byte(`{"method":"POST"}`), SegmentType: StaticSegmentType},
+						},
+					},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+				}, "query"),
+
+				// Entity fetch 1: resolves u1 at firstUser path
+				// Response includes nested u3 as bestFriend, but only u1 is cached in L1
+				SingleWithPath(&BatchEntityFetch{
+					Input: BatchInput{
+						Header: InputTemplate{
+							Segments: []TemplateSegment{
+								{Data: []byte(`{"method":"POST","body":{"query":"first fetch","variables":{"representations":[`), SegmentType: StaticSegmentType},
+							},
+						},
+						Items: []InputTemplate{
+							{
+								Segments: []TemplateSegment{
+									{
+										SegmentType:  VariableSegmentType,
+										VariableKind: ResolvableObjectVariableKind,
+										Renderer: NewGraphQLVariableResolveRenderer(&Object{
+											Fields: []*Field{
+												{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+												{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+											},
+										}),
+									},
+								},
+							},
+						},
+						Separator: InputTemplate{
+							Segments: []TemplateSegment{{Data: []byte(`,`), SegmentType: StaticSegmentType}},
+						},
+						Footer: InputTemplate{
+							Segments: []TemplateSegment{{Data: []byte(`]}}}`), SegmentType: StaticSegmentType}},
+						},
+					},
+					DataSource: entityDS1,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data", "_entities"},
+					},
+					Info: &FetchInfo{
+						DataSourceID:   "users",
+						DataSourceName: "users",
+						OperationType:  ast.OperationTypeQuery,
+						ProvidesData:   userProvidesData,
+					},
+					Caching: FetchCacheConfiguration{
+						Enabled:          true,
+						CacheName:        "default",
+						TTL:              30 * time.Second,
+						CacheKeyTemplate: userCacheKeyTemplate,
+						UseL1Cache:       true,
+					},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+				}, "query.firstUser", ObjectPath("firstUser")),
+
+				// Entity fetch 2: resolves u3 at secondUser path
+				// u3 appeared as nested entity in fetch 1's response but is NOT in L1
+				SingleWithPath(&BatchEntityFetch{
+					Input: BatchInput{
+						Header: InputTemplate{
+							Segments: []TemplateSegment{
+								{Data: []byte(`{"method":"POST","body":{"query":"second fetch","variables":{"representations":[`), SegmentType: StaticSegmentType},
+							},
+						},
+						Items: []InputTemplate{
+							{
+								Segments: []TemplateSegment{
+									{
+										SegmentType:  VariableSegmentType,
+										VariableKind: ResolvableObjectVariableKind,
+										Renderer: NewGraphQLVariableResolveRenderer(&Object{
+											Fields: []*Field{
+												{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+												{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+											},
+										}),
+									},
+								},
+							},
+						},
+						Separator: InputTemplate{
+							Segments: []TemplateSegment{{Data: []byte(`,`), SegmentType: StaticSegmentType}},
+						},
+						Footer: InputTemplate{
+							Segments: []TemplateSegment{{Data: []byte(`]}}}`), SegmentType: StaticSegmentType}},
+						},
+					},
+					DataSource: entityDS2,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data", "_entities"},
+					},
+					Info: &FetchInfo{
+						DataSourceID:   "users",
+						DataSourceName: "users",
+						OperationType:  ast.OperationTypeQuery,
+						ProvidesData:   userProvidesData,
+					},
+					Caching: FetchCacheConfiguration{
+						Enabled:          true,
+						CacheName:        "default",
+						TTL:              30 * time.Second,
+						CacheKeyTemplate: userCacheKeyTemplate,
+						UseL1Cache:       true,
+					},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+				}, "query.secondUser", ObjectPath("secondUser")),
+			),
+			Data: &Object{
+				Fields: []*Field{
+					{
+						Name: []byte("firstUser"),
+						Value: &Object{
+							Path: []string{"firstUser"},
+							Fields: []*Field{
+								{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+								{Name: []byte("name"), Value: &String{Path: []string{"name"}}},
+								{
+									Name: []byte("bestFriend"),
+									Value: &Object{
+										Path: []string{"bestFriend"},
+										Fields: []*Field{
+											{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+											{Name: []byte("name"), Value: &String{Path: []string{"name"}}},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						Name: []byte("secondUser"),
+						Value: &Object{
+							Path: []string{"secondUser"},
+							Fields: []*Field{
+								{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+								{Name: []byte("name"), Value: &String{Path: []string{"name"}}},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		loader := &Loader{}
+
+		ctx := NewContext(context.Background())
+		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+		ctx.ExecutionOptions.Caching.EnableL1Cache = true
+		ctx.ExecutionOptions.Caching.EnableL2Cache = false
+
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		resolvable := NewResolvable(ar, ResolvableOptions{})
+		err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+		require.NoError(t, err)
+
+		err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+		require.NoError(t, err)
+
+		out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
+		expectedOutput := `{"data":{"firstUser":{"__typename":"User","id":"u1","name":"Alice","bestFriend":{"__typename":"User","id":"u3","name":"Charlie"}},"secondUser":{"__typename":"User","id":"u3","name":"Charlie"}}}`
+		assert.Equal(t, expectedOutput, out)
+
+		// gomock verifies: entityDS1.Times(1) and entityDS2.Times(1)
+		// entityDS2 being called proves u3 (nested in fetch 1's response) was NOT cached in L1
+	})
+}
+
 func TestL1CacheUseL1CacheFlagDisabled(t *testing.T) {
 	t.Run("UseL1Cache=false bypasses L1 even when globally enabled", func(t *testing.T) {
 		// This test verifies that when UseL1Cache=false is set on a fetch,
