@@ -837,23 +837,45 @@ func TestPlanner_Plan(t *testing.T) {
 				name: String!
 			}
 		`
+		// Minimal CacheKeyTemplate to enable configureFetchCaching to populate cache config.
+		// Without this, configureFetchCaching bails early (CacheKeyTemplate == nil).
+		cacheKeyTpl := &resolve.RootQueryCacheKeyTemplate{}
 
-		t.Run("two cached root fields on same DS get separate fetches", func(t *testing.T) {
-			// With MergeAliasedRootNodes: true, root fields would normally merge.
-			// Root field caching must prevent this.
+		// fetchByRootField finds the fetch whose FetchInfo.RootFields contains the given field.
+		// Returns nil if no matching fetch is found.
+		fetchByRootField := func(t *testing.T, fetches []*resolve.FetchItem, fieldName string) *resolve.SingleFetch {
+			t.Helper()
+			for _, fi := range fetches {
+				sf, ok := fi.Fetch.(*resolve.SingleFetch)
+				if !ok || sf.Info == nil {
+					continue
+				}
+				for _, rf := range sf.Info.RootFields {
+					if rf.FieldName == fieldName {
+						return sf
+					}
+				}
+			}
+			return nil
+		}
+
+		t.Run("two cached root fields get separate fetches with correct cache configs", func(t *testing.T) {
+			// With MergeAliasedRootNodes: true, root fields would normally merge into one fetch.
+			// Root field caching isolation must prevent this so each field gets its own TTL.
 			ds := dsb().
 				Id("accounts").
 				WithBehavior(DataSourcePlanningBehavior{
 					MergeAliasedRootNodes: true,
 				}).
+				CacheKeyTemplate(cacheKeyTpl).
 				RootNode("Query", "me", "cat").
 				ChildNode("User", "id", "username").
 				ChildNode("Cat", "name").
 				Schema(schema).
 				WithMetadata(func(data *FederationMetaData) {
 					data.RootFieldCaching = RootFieldCacheConfigurations{
-						{TypeName: "Query", FieldName: "me", CacheName: "default", TTL: 30 * 1e9},
-						{TypeName: "Query", FieldName: "cat", CacheName: "default", TTL: 60 * 1e9},
+						{TypeName: "Query", FieldName: "me", CacheName: "users", TTL: 30 * 1e9},
+						{TypeName: "Query", FieldName: "cat", CacheName: "pets", TTL: 60 * 1e9},
 					}
 				}).
 				DS()
@@ -861,7 +883,6 @@ func TestPlanner_Plan(t *testing.T) {
 			config := Configuration{
 				DataSources:                  []DataSource{ds},
 				DisableResolveFieldPositions: true,
-				DisableIncludeInfo:           true,
 			}
 
 			var report operationreport.Report
@@ -870,16 +891,34 @@ func TestPlanner_Plan(t *testing.T) {
 
 			syncPlan, ok := p.(*SynchronousResponsePlan)
 			require.True(t, ok)
-			assert.Equal(t, 2, len(syncPlan.Response.RawFetches), "cached root fields should get separate fetches")
+			require.Equal(t, 2, len(syncPlan.Response.RawFetches), "each cached root field needs its own fetch")
+
+			// Verify "me" fetch has correct cache config
+			meFetch := fetchByRootField(t, syncPlan.Response.RawFetches, "me")
+			require.NotNil(t, meFetch, "should have a fetch for 'me'")
+			assert.Equal(t, true, meFetch.FetchConfiguration.Caching.Enabled, "me fetch should have L2 caching enabled")
+			assert.Equal(t, "users", meFetch.FetchConfiguration.Caching.CacheName, "me fetch should use 'users' cache")
+			assert.Equal(t, 30*1e9, float64(meFetch.FetchConfiguration.Caching.TTL), "me fetch should have 30s TTL")
+			assert.Equal(t, 1, len(meFetch.Info.RootFields), "me fetch should have exactly one root field")
+
+			// Verify "cat" fetch has correct cache config
+			catFetch := fetchByRootField(t, syncPlan.Response.RawFetches, "cat")
+			require.NotNil(t, catFetch, "should have a fetch for 'cat'")
+			assert.Equal(t, true, catFetch.FetchConfiguration.Caching.Enabled, "cat fetch should have L2 caching enabled")
+			assert.Equal(t, "pets", catFetch.FetchConfiguration.Caching.CacheName, "cat fetch should use 'pets' cache")
+			assert.Equal(t, 60*1e9, float64(catFetch.FetchConfiguration.Caching.TTL), "cat fetch should have 60s TTL")
+			assert.Equal(t, 1, len(catFetch.Info.RootFields), "cat fetch should have exactly one root field")
 		})
 
-		t.Run("cached field isolated from uncached field on same DS", func(t *testing.T) {
-			// me is cached, user is not — they must not share a fetch
+		t.Run("cached field isolated from uncached field - only cached gets L2", func(t *testing.T) {
+			// "me" is cached, "user" is not — they must not share a fetch.
+			// The cached fetch gets Enabled:true, the uncached fetch gets Enabled:false.
 			ds := dsb().
 				Id("accounts").
 				WithBehavior(DataSourcePlanningBehavior{
 					MergeAliasedRootNodes: true,
 				}).
+				CacheKeyTemplate(cacheKeyTpl).
 				RootNode("Query", "me", "user").
 				ChildNode("User", "id", "username").
 				Schema(schema).
@@ -893,7 +932,6 @@ func TestPlanner_Plan(t *testing.T) {
 			config := Configuration{
 				DataSources:                  []DataSource{ds},
 				DisableResolveFieldPositions: true,
-				DisableIncludeInfo:           true,
 			}
 
 			var report operationreport.Report
@@ -902,18 +940,30 @@ func TestPlanner_Plan(t *testing.T) {
 
 			syncPlan, ok := p.(*SynchronousResponsePlan)
 			require.True(t, ok)
-			assert.Equal(t, 2, len(syncPlan.Response.RawFetches), "cached field should be isolated from uncached field")
+			require.Equal(t, 2, len(syncPlan.Response.RawFetches), "cached and uncached fields need separate fetches")
+
+			// Cached field "me" gets L2 caching
+			meFetch := fetchByRootField(t, syncPlan.Response.RawFetches, "me")
+			require.NotNil(t, meFetch, "should have a fetch for 'me'")
+			assert.Equal(t, true, meFetch.FetchConfiguration.Caching.Enabled, "cached field should have L2 enabled")
+			assert.Equal(t, "default", meFetch.FetchConfiguration.Caching.CacheName)
+			assert.Equal(t, 30*1e9, float64(meFetch.FetchConfiguration.Caching.TTL))
+
+			// Uncached field "user" does NOT get L2 caching
+			userFetch := fetchByRootField(t, syncPlan.Response.RawFetches, "user")
+			require.NotNil(t, userFetch, "should have a fetch for 'user'")
+			assert.Equal(t, false, userFetch.FetchConfiguration.Caching.Enabled, "uncached field should not have L2 enabled")
 		})
 
-		t.Run("DisableEntityCaching disables isolation", func(t *testing.T) {
-			// When DisableEntityCaching is true, cached root fields should NOT be isolated —
-			// they merge normally (default FakePlanner has MergeAliasedRootNodes: false,
-			// so each root field still gets its own planner for unrelated reasons)
+		t.Run("DisableEntityCaching - fields merge and no L2 caching", func(t *testing.T) {
+			// When DisableEntityCaching is true, isolation is skipped and fields merge normally.
+			// configureFetchCaching also returns Enabled:false regardless of RootFieldCaching config.
 			ds := dsb().
 				Id("accounts").
 				WithBehavior(DataSourcePlanningBehavior{
 					MergeAliasedRootNodes: true,
 				}).
+				CacheKeyTemplate(cacheKeyTpl).
 				RootNode("Query", "me", "cat").
 				ChildNode("User", "id", "username").
 				ChildNode("Cat", "name").
@@ -929,7 +979,6 @@ func TestPlanner_Plan(t *testing.T) {
 			config := Configuration{
 				DataSources:                  []DataSource{ds},
 				DisableResolveFieldPositions: true,
-				DisableIncludeInfo:           true,
 				DisableEntityCaching:         true,
 			}
 
@@ -939,8 +988,12 @@ func TestPlanner_Plan(t *testing.T) {
 
 			syncPlan, ok := p.(*SynchronousResponsePlan)
 			require.True(t, ok)
-			// With DisableEntityCaching + MergeAliasedRootNodes: true, fields merge into one fetch
-			assert.Equal(t, 1, len(syncPlan.Response.RawFetches), "DisableEntityCaching should allow fields to merge")
+			// MergeAliasedRootNodes: true + no isolation → fields merge into one fetch
+			require.Equal(t, 1, len(syncPlan.Response.RawFetches), "DisableEntityCaching should allow fields to merge")
+
+			sf, ok := syncPlan.Response.RawFetches[0].Fetch.(*resolve.SingleFetch)
+			require.True(t, ok)
+			assert.Equal(t, false, sf.FetchConfiguration.Caching.Enabled, "DisableEntityCaching disables L2 caching")
 		})
 
 		t.Run("no caching configured - fields merge normally", func(t *testing.T) {
@@ -950,6 +1003,7 @@ func TestPlanner_Plan(t *testing.T) {
 				WithBehavior(DataSourcePlanningBehavior{
 					MergeAliasedRootNodes: true,
 				}).
+				CacheKeyTemplate(cacheKeyTpl).
 				RootNode("Query", "me", "cat").
 				ChildNode("User", "id", "username").
 				ChildNode("Cat", "name").
@@ -959,7 +1013,6 @@ func TestPlanner_Plan(t *testing.T) {
 			config := Configuration{
 				DataSources:                  []DataSource{ds},
 				DisableResolveFieldPositions: true,
-				DisableIncludeInfo:           true,
 			}
 
 			var report operationreport.Report
@@ -968,7 +1021,12 @@ func TestPlanner_Plan(t *testing.T) {
 
 			syncPlan, ok := p.(*SynchronousResponsePlan)
 			require.True(t, ok)
-			assert.Equal(t, 1, len(syncPlan.Response.RawFetches), "without caching, fields should merge into one fetch")
+			require.Equal(t, 1, len(syncPlan.Response.RawFetches), "without caching config, fields should merge into one fetch")
+
+			// Even with CacheKeyTemplate, no RootFieldCaching → L2 disabled
+			sf, ok := syncPlan.Response.RawFetches[0].Fetch.(*resolve.SingleFetch)
+			require.True(t, ok)
+			assert.Equal(t, false, sf.FetchConfiguration.Caching.Enabled, "no caching config means L2 stays disabled")
 		})
 	})
 }
@@ -1166,8 +1224,9 @@ func (s *StatefulSource) Start() {
 }
 
 type FakeFactory[T any] struct {
-	upstreamSchema *ast.Document
-	behavior       *DataSourcePlanningBehavior
+	upstreamSchema   *ast.Document
+	behavior         *DataSourcePlanningBehavior
+	cacheKeyTemplate resolve.CacheKeyTemplate
 }
 
 func (f *FakeFactory[T]) UpstreamSchema(_ DataSourceConfiguration[T]) (*ast.Document, bool) {
@@ -1185,9 +1244,10 @@ func (f *FakeFactory[T]) Planner(_ abstractlogger.Logger) DataSourcePlanner[T] {
 	source := &StatefulSource{}
 	go source.Start()
 	return &FakePlanner[T]{
-		source:         source,
-		upstreamSchema: f.upstreamSchema,
-		behavior:       f.behavior,
+		source:           source,
+		upstreamSchema:   f.upstreamSchema,
+		behavior:         f.behavior,
+		cacheKeyTemplate: f.cacheKeyTemplate,
 	}
 }
 
@@ -1196,10 +1256,11 @@ func (f *FakeFactory[T]) Context() context.Context {
 }
 
 type FakePlanner[T any] struct {
-	id             int
-	source         *StatefulSource
-	upstreamSchema *ast.Document
-	behavior       *DataSourcePlanningBehavior
+	id               int
+	source           *StatefulSource
+	upstreamSchema   *ast.Document
+	behavior         *DataSourcePlanningBehavior
+	cacheKeyTemplate resolve.CacheKeyTemplate
 }
 
 func (f *FakePlanner[T]) ID() int {
@@ -1220,11 +1281,15 @@ func (f *FakePlanner[T]) Register(visitor *Visitor, _ DataSourceConfiguration[T]
 }
 
 func (f *FakePlanner[T]) ConfigureFetch() resolve.FetchConfiguration {
-	return resolve.FetchConfiguration{
+	cfg := resolve.FetchConfiguration{
 		DataSource: &FakeDataSource{
 			source: f.source,
 		},
 	}
+	if f.cacheKeyTemplate != nil {
+		cfg.Caching.CacheKeyTemplate = f.cacheKeyTemplate
+	}
+	return cfg
 }
 
 func (f *FakePlanner[T]) ConfigureSubscription() SubscriptionConfiguration {
