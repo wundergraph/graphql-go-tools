@@ -118,7 +118,7 @@ func TestExtendSchemaWithServiceTypes(t *testing.T) {
 
 		err := ExtendSchemaWithServiceTypes(&schema)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "query type not found")
+		assert.Contains(t, err.Error(), "Query type not found")
 	})
 
 	t.Run("works with custom query type name", func(t *testing.T) {
@@ -264,6 +264,6 @@ func TestNewServiceConfigFactoryWithSchema(t *testing.T) {
 		factory, err := NewServiceConfigFactoryWithSchema(&schema, ServiceOptions{})
 		assert.Error(t, err)
 		assert.Nil(t, factory)
-		assert.Contains(t, err.Error(), "query type not found")
+		assert.Contains(t, err.Error(), "Query type not found")
 	})
 }
