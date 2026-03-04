@@ -1797,12 +1797,12 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												Name:        []byte("shippingInfo"),
 												OnTypeNames: [][]byte{[]byte("Account")},
 												Value: &resolve.Object{
-													Path:     []string{"shippingInfo"},
-													Nullable: true,
-														HasAliases: true,
+													Path:       []string{"shippingInfo"},
+													Nullable:   true,
+													HasAliases: true,
 													Fields: []*resolve.Field{
 														{
-															Name: []byte("z"),
+															Name:         []byte("z"),
 															OriginalName: []byte("zip"),
 															Value: &resolve.Scalar{
 																Path: []string{"z"},
@@ -2037,7 +2037,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																},
 																ExactParentTypeName:  "Account",
 																HasAuthorizationRule: true,
-																CacheAnalyticsHash:  true,
+																CacheAnalyticsHash:   true,
 															},
 															Value: &resolve.Object{
 																Path:     []string{"shippingInfo"},
