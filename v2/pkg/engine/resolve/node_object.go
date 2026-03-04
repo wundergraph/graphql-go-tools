@@ -42,7 +42,7 @@ type Object struct {
 	Nullable   bool
 	Path       []string
 	Fields     []*Field
-	HasAliases bool // True if any field in this object or descendants has an alias (OriginalName set)
+	HasAliases bool // True if any field in this object or descendants has an alias or CacheArgs (triggers cache normalization)
 
 	PossibleTypes  map[string]struct{}   `json:"-"`
 	SourceName     string                `json:"-"`
@@ -122,12 +122,12 @@ func (*EmptyObject) Copy() Node {
 	return &EmptyObject{}
 }
 
-// CacheFieldArg captures one argument's variable path for cache key suffix computation.
+// CacheFieldArg captures one argument's variable name for cache key suffix computation.
 // At plan time, field arguments become variable references after normalization (e.g., friends(first: $a)).
-// At resolve time, we resolve the variable path from ctx.Variables to compute the actual suffix.
+// At resolve time, we resolve the variable from ctx.Variables to compute the actual suffix.
 type CacheFieldArg struct {
-	ArgName      string   // GraphQL argument name (e.g., "first")
-	VariablePath []string // Path in ctx.Variables (e.g., ["a"] for normalized variable $a)
+	ArgName      string // GraphQL argument name (e.g., "first")
+	VariableName string // Variable name in ctx.Variables (e.g., "a" for normalized variable $a)
 }
 
 type Field struct {
@@ -244,14 +244,16 @@ type StreamField struct {
 type DeferField struct{}
 
 // ComputeHasAliases recursively checks whether any field in the object tree has an alias
-// and sets HasAliases on each Object accordingly. Returns true if any alias was found.
+// or CacheArgs, and sets HasAliases on each Object accordingly.
+// HasAliases gates cache normalization: aliased fields need renaming, and fields with
+// CacheArgs need arg-suffix renaming. Both require the normalize/denormalize path.
 func ComputeHasAliases(obj *Object) bool {
 	if obj == nil {
 		return false
 	}
 	hasAliases := false
 	for _, field := range obj.Fields {
-		if field.OriginalName != nil {
+		if field.OriginalName != nil || len(field.CacheArgs) > 0 {
 			hasAliases = true
 		}
 		if computeNodeHasAliases(field.Value) {

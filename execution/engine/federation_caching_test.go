@@ -5798,7 +5798,7 @@ func TestCacheAnalyticsE2E(t *testing.T) {
 				{CacheKey: keyUserById5678, EntityType: "Query", Kind: resolve.CacheKeyMiss, DataSource: dsAccountsLocal}, // L2 miss: different args, not cached
 			},
 			L2Writes: []resolve.CacheWriteEvent{
-				{CacheKey: keyUserById5678, EntityType: "Query", ByteSize: byteSizeUser5678, DataSource: dsAccountsLocal, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // New args written to L2
+				{CacheKey: keyUserById5678, EntityType: "Query", ByteSize: byteSizeUser5678, DataSource: dsAccountsLocal, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // New args written to L2 (different user)
 			},
 			FieldHashes: []resolve.EntityFieldHash{
 				{EntityType: "User", FieldName: "username", FieldHash: hashUsername5678Local, KeyRaw: entityKeyUser5678Local, Source: resolve.FieldSourceSubgraph}, // User 5678 data from subgraph

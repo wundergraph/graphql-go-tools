@@ -1308,9 +1308,14 @@ func (v *Visitor) trackFieldForPlanner(plannerID int, fieldRef int) {
 	if v.Operation.FieldAliasIsDefined(fieldRef) {
 		field.OriginalName = v.Operation.FieldNameBytes(fieldRef)
 	}
-	// Capture field arguments for cache suffix computation at resolve time
+	// Capture field arguments for cache suffix computation at resolve time.
+	// Skip root query fields (Query/Mutation/Subscription) — their args are already
+	// part of the cache key, and suffixing would break entity key mapping.
 	if v.Operation.FieldHasArguments(fieldRef) {
-		field.CacheArgs = v.captureFieldCacheArgs(fieldRef)
+		enclosingType := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
+		if !v.Definition.Index.IsRootOperationTypeNameString(enclosingType) {
+			field.CacheArgs = v.captureFieldCacheArgs(fieldRef)
+		}
 	}
 
 	// Add the field to the current object for this planner
@@ -1357,7 +1362,7 @@ func (v *Visitor) captureFieldCacheArgs(fieldRef int) []resolve.CacheFieldArg {
 			variableName := v.Operation.VariableValueNameString(argValue.Ref)
 			args = append(args, resolve.CacheFieldArg{
 				ArgName:      argName,
-				VariablePath: []string{variableName},
+				VariableName: variableName,
 			})
 		}
 	}

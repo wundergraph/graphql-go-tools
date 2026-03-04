@@ -3,12 +3,10 @@ package resolve
 import (
 	"cmp"
 	"context"
-	"fmt"
 	"slices"
 	"strconv"
 	"time"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/pkg/errors"
 
 	"github.com/wundergraph/astjson"
@@ -16,6 +14,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
 type CacheEntry struct {
@@ -660,7 +659,9 @@ func (l *Loader) populateL1Cache(fetchItem *FetchItem, res *result, _ []*astjson
 			// (e.g., friends_xxhAAA and friends_xxhBBB) coexist in the same entity.
 			// L1 is only accessed from the main thread, so Load+merge+Store is safe.
 			if existing, loaded := l.l1Cache.Load(keyStr); loaded {
-				l.mergeEntityFields(existing.(*astjson.Value), itemToStore)
+				if existingVal, ok := existing.(*astjson.Value); ok {
+					l.mergeEntityFields(existingVal, itemToStore)
+				}
 			} else {
 				l.l1Cache.Store(keyStr, itemToStore)
 			}
@@ -1237,9 +1238,9 @@ func (l *Loader) validateNodeValue(value *astjson.Value, nodeSpec Node) bool {
 	}
 }
 
-// normalizeForCache renames aliased field keys to original schema field names.
-// Returns input unchanged if obj.HasAliases is false (fast path).
-// This ensures cached data always uses original field names regardless of query aliases.
+// normalizeForCache transforms field keys for cache storage: renames aliases to original
+// schema field names, and appends xxhash suffixes for fields with arguments.
+// Returns input unchanged if obj.HasAliases is false (fast path — no aliases or CacheArgs).
 func (l *Loader) normalizeForCache(item *astjson.Value, obj *Object) *astjson.Value {
 	if item == nil || obj == nil || !obj.HasAliases {
 		return item
@@ -1293,8 +1294,8 @@ func (l *Loader) normalizeNode(val *astjson.Value, node Node) *astjson.Value {
 	return val
 }
 
-// denormalizeFromCache renames original schema field names back to query aliases.
-// Returns input unchanged if obj.HasAliases is false (fast path).
+// denormalizeFromCache reverses normalizeForCache: maps suffixed schema field names back
+// to query aliases. Returns input unchanged if obj.HasAliases is false (fast path).
 func (l *Loader) denormalizeFromCache(item *astjson.Value, obj *Object) *astjson.Value {
 	if item == nil || obj == nil || !obj.HasAliases {
 		return item
@@ -1361,7 +1362,7 @@ func (l *Loader) cacheFieldName(field *Field) string {
 }
 
 // computeArgSuffix computes "_xxh<16-hex-chars>" from resolved argument values.
-// Args are sorted by ArgName for deterministic output.
+// Args are sorted by ArgName for deterministic output (guaranteed at plan time).
 // Each arg value is resolved from ctx.Variables (with RemapVariables support)
 // and serialized as JSON for hashing.
 func (l *Loader) computeArgSuffix(args []CacheFieldArg) string {
@@ -1376,7 +1377,8 @@ func (l *Loader) computeArgSuffix(args []CacheFieldArg) string {
 		})
 	}
 
-	h := xxhash.New()
+	h := pool.Hash64.Get()
+	var marshalBuf [64]byte
 	for i, arg := range sorted {
 		if i > 0 {
 			_, _ = h.WriteString(",")
@@ -1384,30 +1386,44 @@ func (l *Loader) computeArgSuffix(args []CacheFieldArg) string {
 		_, _ = h.WriteString(arg.ArgName)
 		_, _ = h.WriteString(":")
 
-		// Resolve variable path from ctx.Variables, applying RemapVariables
-		variablePath := arg.VariablePath
-		if len(variablePath) == 1 && l.ctx.RemapVariables != nil {
-			if nameToUse, hasMapping := l.ctx.RemapVariables[variablePath[0]]; hasMapping && nameToUse != variablePath[0] {
-				variablePath = []string{nameToUse}
+		// Resolve variable from ctx.Variables, applying RemapVariables
+		varName := arg.VariableName
+		if l.ctx.RemapVariables != nil {
+			if nameToUse, hasMapping := l.ctx.RemapVariables[varName]; hasMapping {
+				varName = nameToUse
 			}
 		}
 
-		argValue := l.ctx.Variables.Get(variablePath...)
+		argValue := l.ctx.Variables.Get(varName)
 		if argValue == nil {
 			_, _ = h.WriteString("null")
 		} else {
 			// MarshalTo produces canonical JSON for scalars.
 			// For objects, key order depends on insertion order — but after normalization,
 			// the same operation always produces the same key order, so this is stable.
-			_, _ = h.Write(argValue.MarshalTo(nil))
+			_, _ = h.Write(argValue.MarshalTo(marshalBuf[:0]))
 		}
 	}
 
-	return fmt.Sprintf("_xxh%016x", h.Sum64())
+	sum := h.Sum64()
+	pool.Hash64.Put(h)
+
+	// Format as "_xxh" + 16 zero-padded hex digits without fmt.Sprintf
+	var buf [20]byte
+	copy(buf[:4], "_xxh")
+	const hexDigits = "0123456789abcdef"
+	for i := 15; i >= 0; i-- {
+		buf[4+i] = hexDigits[sum&0xf]
+		sum >>= 4
+	}
+	return string(buf[:])
 }
 
 // mergeEntityFields copies all fields from src into dst that aren't already present.
-// Used during L1 cache population to accumulate fields with different arg suffixes.
+// Used during L1 cache population to accumulate fields with different arg suffixes
+// (e.g., friends_xxhAAA and friends_xxhBBBB coexist in the same cached entity).
+// First-writer-wins: for suffixed fields each arg variant has a unique suffix so no conflict;
+// for key fields (id, __typename) values are identical across fetches for the same entity.
 func (l *Loader) mergeEntityFields(dst, src *astjson.Value) {
 	if dst == nil || src == nil {
 		return

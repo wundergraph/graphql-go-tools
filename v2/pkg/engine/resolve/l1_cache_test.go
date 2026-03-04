@@ -2113,7 +2113,7 @@ func TestCacheFieldName(t *testing.T) {
 
 		field := &Field{
 			Name:      []byte("friends"),
-			CacheArgs: []CacheFieldArg{{ArgName: "first", VariablePath: []string{"a"}}},
+			CacheArgs: []CacheFieldArg{{ArgName: "first", VariableName: "a"}},
 		}
 		name := loader.cacheFieldName(field)
 		assert.Equal(t, "friends", name[:7], "prefix should be field name")
@@ -2129,11 +2129,11 @@ func TestCacheFieldName(t *testing.T) {
 
 		field1 := &Field{
 			Name:      []byte("friends"),
-			CacheArgs: []CacheFieldArg{{ArgName: "first", VariablePath: []string{"a"}}},
+			CacheArgs: []CacheFieldArg{{ArgName: "first", VariableName: "a"}},
 		}
 		field2 := &Field{
 			Name:      []byte("friends"),
-			CacheArgs: []CacheFieldArg{{ArgName: "first", VariablePath: []string{"b"}}},
+			CacheArgs: []CacheFieldArg{{ArgName: "first", VariableName: "b"}},
 		}
 		name1 := loader.cacheFieldName(field1)
 		name2 := loader.cacheFieldName(field2)
@@ -2148,11 +2148,11 @@ func TestCacheFieldName(t *testing.T) {
 
 		field1 := &Field{
 			Name:      []byte("friends"),
-			CacheArgs: []CacheFieldArg{{ArgName: "first", VariablePath: []string{"a"}}},
+			CacheArgs: []CacheFieldArg{{ArgName: "first", VariableName: "a"}},
 		}
 		field2 := &Field{
 			Name:      []byte("friends"),
-			CacheArgs: []CacheFieldArg{{ArgName: "first", VariablePath: []string{"a"}}},
+			CacheArgs: []CacheFieldArg{{ArgName: "first", VariableName: "a"}},
 		}
 		assert.Equal(t, loader.cacheFieldName(field1), loader.cacheFieldName(field2))
 	})
@@ -2167,16 +2167,16 @@ func TestCacheFieldName(t *testing.T) {
 		field1 := &Field{
 			Name: []byte("connection"),
 			CacheArgs: []CacheFieldArg{
-				{ArgName: "after", VariablePath: []string{"a"}},
-				{ArgName: "first", VariablePath: []string{"b"}},
+				{ArgName: "after", VariableName: "a"},
+				{ArgName: "first", VariableName: "b"},
 			},
 		}
 		// Args in reverse order: first, after
 		field2 := &Field{
 			Name: []byte("connection"),
 			CacheArgs: []CacheFieldArg{
-				{ArgName: "first", VariablePath: []string{"b"}},
-				{ArgName: "after", VariablePath: []string{"a"}},
+				{ArgName: "first", VariableName: "b"},
+				{ArgName: "after", VariableName: "a"},
 			},
 		}
 		assert.Equal(t, loader.cacheFieldName(field1), loader.cacheFieldName(field2),
@@ -2192,10 +2192,10 @@ func TestCacheFieldName(t *testing.T) {
 		field := &Field{
 			Name:         []byte("myFriends"), // alias
 			OriginalName: []byte("friends"),   // schema name
-			CacheArgs:    []CacheFieldArg{{ArgName: "first", VariablePath: []string{"a"}}},
+			CacheArgs:    []CacheFieldArg{{ArgName: "first", VariableName: "a"}},
 		}
 		name := loader.cacheFieldName(field)
-		assert.True(t, len(name) > len("friends"), "should have suffix")
+		assert.Equal(t, 27, len(name), "friends(7) + _xxh(4) + 16 hex chars = 27")
 		assert.Equal(t, "friends", name[:7], "should use SchemaFieldName as base")
 	})
 
@@ -2208,11 +2208,11 @@ func TestCacheFieldName(t *testing.T) {
 
 		field := &Field{
 			Name:      []byte("friends"),
-			CacheArgs: []CacheFieldArg{{ArgName: "first", VariablePath: []string{"a"}}},
+			CacheArgs: []CacheFieldArg{{ArgName: "first", VariableName: "a"}},
 		}
 		// Without RemapVariables, "a" wouldn't resolve. With it, "a" → "remapped_a" → 5
 		name := loader.cacheFieldName(field)
-		assert.True(t, len(name) > len("friends"), "should have suffix even with remapped variable")
+		assert.Equal(t, 27, len(name), "friends(7) + _xxh(4) + 16 hex chars = 27")
 
 		// Compare with direct path to remapped_a — should produce same suffix
 		ctx2 := NewContext(context.Background())
@@ -2220,7 +2220,7 @@ func TestCacheFieldName(t *testing.T) {
 		loader2 := &Loader{ctx: ctx2, jsonArena: ar}
 		field2 := &Field{
 			Name:      []byte("friends"),
-			CacheArgs: []CacheFieldArg{{ArgName: "first", VariablePath: []string{"remapped_a"}}},
+			CacheArgs: []CacheFieldArg{{ArgName: "first", VariableName: "remapped_a"}},
 		}
 		assert.Equal(t, name, loader2.cacheFieldName(field2))
 	})
@@ -2236,7 +2236,7 @@ func TestValidateFieldDataWithCacheArgs(t *testing.T) {
 
 		field := &Field{
 			Name:      []byte("friends"),
-			CacheArgs: []CacheFieldArg{{ArgName: "first", VariablePath: []string{"a"}}},
+			CacheArgs: []CacheFieldArg{{ArgName: "first", VariableName: "a"}},
 			Value:     &Scalar{Path: []string{"friends"}, Nullable: true},
 		}
 
@@ -2259,12 +2259,12 @@ func TestValidateFieldDataWithCacheArgs(t *testing.T) {
 
 		fieldA := &Field{
 			Name:      []byte("friends"),
-			CacheArgs: []CacheFieldArg{{ArgName: "first", VariablePath: []string{"a"}}},
+			CacheArgs: []CacheFieldArg{{ArgName: "first", VariableName: "a"}},
 			Value:     &Scalar{Path: []string{"friends"}, Nullable: true},
 		}
 		fieldB := &Field{
 			Name:      []byte("friends"),
-			CacheArgs: []CacheFieldArg{{ArgName: "first", VariablePath: []string{"b"}}},
+			CacheArgs: []CacheFieldArg{{ArgName: "first", VariableName: "b"}},
 			Value:     &Scalar{Path: []string{"friends"}, Nullable: true},
 		}
 
@@ -2294,7 +2294,7 @@ func TestNormalizeAndDenormalizeWithCacheArgs(t *testing.T) {
 		ctx.Variables = astjson.MustParseBytes([]byte(`{"a":5}`))
 		loader := &Loader{ctx: ctx, jsonArena: ar}
 
-		cacheArgs := []CacheFieldArg{{ArgName: "first", VariablePath: []string{"a"}}}
+		cacheArgs := []CacheFieldArg{{ArgName: "first", VariableName: "a"}}
 		obj := &Object{
 			HasAliases: true,
 			Fields: []*Field{
@@ -2311,14 +2311,46 @@ func TestNormalizeAndDenormalizeWithCacheArgs(t *testing.T) {
 
 		// Verify the normalized JSON uses the suffixed name
 		normalizedJSON := string(normalized.MarshalTo(nil))
-		assert.Contains(t, normalizedJSON, suffixedName)
-		assert.NotContains(t, normalizedJSON, "myFriends")
+		assert.Equal(t, `{"`+suffixedName+`":[{"id":"f1"}]}`, normalizedJSON)
 
 		// Denormalize: suffixed schema name → alias
 		denormalized := loader.denormalizeFromCache(normalized, obj)
 		denormalizedJSON := string(denormalized.MarshalTo(nil))
-		assert.Contains(t, denormalizedJSON, "myFriends")
-		assert.NotContains(t, denormalizedJSON, suffixedName)
+		assert.Equal(t, `{"myFriends":[{"id":"f1"}]}`, denormalizedJSON)
+	})
+
+	t.Run("normalize works without aliases when CacheArgs present", func(t *testing.T) {
+		// Critical regression test: CacheArgs should trigger normalization even without aliases.
+		// ComputeHasAliases sets HasAliases=true when CacheArgs is present.
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		ctx := NewContext(context.Background())
+		ctx.Variables = astjson.MustParseBytes([]byte(`{"a":5}`))
+		loader := &Loader{ctx: ctx, jsonArena: ar}
+
+		cacheArgs := []CacheFieldArg{{ArgName: "first", VariableName: "a"}}
+		obj := &Object{
+			Fields: []*Field{
+				{Name: []byte("friends"), Value: &Scalar{}, CacheArgs: cacheArgs},
+			},
+		}
+		// ComputeHasAliases should set HasAliases=true due to CacheArgs
+		ComputeHasAliases(obj)
+		assert.True(t, obj.HasAliases, "HasAliases should be true when CacheArgs is present")
+
+		// Input uses the plain field name (no alias)
+		input := astjson.MustParseBytes([]byte(`{"friends":[{"id":"f1"}]}`))
+
+		// Normalize: plain name → suffixed schema name
+		normalized := loader.normalizeForCache(input, obj)
+		suffixedName := loader.cacheFieldName(obj.Fields[0])
+
+		normalizedJSON := string(normalized.MarshalTo(nil))
+		assert.Equal(t, `{"`+suffixedName+`":[{"id":"f1"}]}`, normalizedJSON)
+
+		// Denormalize: suffixed schema name → plain name
+		denormalized := loader.denormalizeFromCache(normalized, obj)
+		denormalizedJSON := string(denormalized.MarshalTo(nil))
+		assert.Equal(t, `{"friends":[{"id":"f1"}]}`, denormalizedJSON)
 	})
 }
 
@@ -2334,11 +2366,7 @@ func TestMergeEntityFields(t *testing.T) {
 		loader.mergeEntityFields(dst, src)
 
 		result := string(dst.MarshalTo(nil))
-		// Both suffixed fields should be present
-		assert.Contains(t, result, `"friends_xxhAAAA"`)
-		assert.Contains(t, result, `"friends_xxhBBBB"`)
-		// Existing fields not overwritten
-		assert.Contains(t, result, `"id":"1"`)
+		assert.Equal(t, `{"id":"1","friends_xxhAAAA":[{"id":"f1"}],"friends_xxhBBBB":[{"id":"g1"},{"id":"g2"}]}`, result)
 	})
 
 	t.Run("merge does not overwrite existing fields", func(t *testing.T) {
@@ -2351,8 +2379,7 @@ func TestMergeEntityFields(t *testing.T) {
 		loader.mergeEntityFields(dst, src)
 
 		result := string(dst.MarshalTo(nil))
-		assert.Contains(t, result, `"name":"original"`, "existing field should not be overwritten")
-		assert.Contains(t, result, `"email":"test@test.com"`, "new field should be added")
+		assert.Equal(t, `{"id":"1","name":"original","email":"test@test.com"}`, result)
 	})
 }
 
@@ -2621,6 +2648,18 @@ func TestComputeHasAliases(t *testing.T) {
 		obj := &Object{
 			Fields: []*Field{
 				{Name: []byte("items"), Value: &Array{Item: innerObj}},
+			},
+		}
+		result := ComputeHasAliases(obj)
+		assert.True(t, result)
+		assert.True(t, obj.HasAliases)
+	})
+
+	t.Run("CacheArgs triggers HasAliases", func(t *testing.T) {
+		// Fields with CacheArgs need cache normalization even without aliases
+		obj := &Object{
+			Fields: []*Field{
+				{Name: []byte("friends"), Value: &Scalar{}, CacheArgs: []CacheFieldArg{{ArgName: "first", VariableName: "a"}}},
 			},
 		}
 		result := ComputeHasAliases(obj)
