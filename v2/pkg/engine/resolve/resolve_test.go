@@ -183,7 +183,6 @@ func waitForFollowerCount(t *testing.T, r *Resolver, count int32) {
 	}
 }
 
-
 type TestErrorWriter struct {
 }
 
