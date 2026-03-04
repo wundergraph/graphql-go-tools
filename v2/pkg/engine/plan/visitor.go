@@ -2299,8 +2299,17 @@ func (v *Visitor) configureFetchCaching(internal *objectFetchConfiguration, exte
 	// This runs before the L2 caching checks because mutations don't have CacheKeyTemplate
 	// (they go through a separate path), but we still want to annotate the fetch for
 	// runtime mutation impact detection.
-	if internal.operationType == ast.OperationTypeMutation && len(internal.rootFields) > 0 && !v.Config.DisableEntityCaching {
-		v.configureMutationEntityImpact(internal, &result)
+	if internal.operationType == ast.OperationTypeMutation && len(internal.rootFields) > 0 {
+		if !v.Config.DisableEntityCaching {
+			v.configureMutationEntityImpact(internal, &result)
+		}
+		// Look up per-mutation-field cache config from the subgraph that owns the mutation
+		ds := v.findDataSourceByID(internal.sourceID)
+		if ds != nil {
+			if mutConfig := ds.MutationFieldCacheConfig(internal.rootFields[0].FieldName); mutConfig != nil {
+				result.EnableMutationL2CachePopulation = mutConfig.EnableEntityL2CachePopulation
+			}
+		}
 	}
 
 	// Global disable takes precedence for L2 cache
