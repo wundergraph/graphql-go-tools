@@ -113,6 +113,7 @@ type objectFetchConfiguration struct {
 	filter             *resolve.SubscriptionFilter
 	planner            DataSourceFetchPlanner
 	isSubscription     bool
+	isolatedRootField  bool
 	fieldRef           int
 	fieldDefinitionRef int
 	sourceID           string
@@ -560,14 +561,18 @@ func (c *pathBuilderVisitor) handlePlanningField(fieldRef int, typeName, fieldNa
 	}
 
 	isMutationRoot := c.isMutationRoot(currentPath)
+	isCachedQueryRoot := c.isCachedQueryRootField(currentPath, typeName, fieldName, ds)
 
 	var (
 		plannerIdx int
 		planned    bool
 	)
 
-	if isMutationRoot {
+	if isMutationRoot || isCachedQueryRoot {
 		plannerIdx, planned = c.addNewPlanner(fieldRef, typeName, fieldName, currentPath, parentPath, isMutationRoot, ds)
+		if planned && isCachedQueryRoot {
+			c.planners[plannerIdx].ObjectFetchConfiguration().isolatedRootField = true
+		}
 	} else {
 		plannerIdx, planned = c.planWithExistingPlanners(fieldRef, typeName, fieldName, currentPath, parentPath, precedingParentPath, suggestion)
 		if !planned {
@@ -765,6 +770,13 @@ func (c *pathBuilderVisitor) planWithExistingPlanners(fieldRef int, typeName, fi
 		isProvided := suggestion.IsProvided
 		isRootNode := suggestion.IsRootNode
 		isChildNode := !isRootNode
+
+		// Don't merge other query root fields into isolated planners (cached root fields).
+		// Only block at the operation root level (parentPath == "query") —
+		// nested fields (including entity root nodes like Product.name) must still merge.
+		if c.isParentPathIsRootOperationPath(parentPath) && plannerConfig.ObjectFetchConfiguration().isolatedRootField {
+			continue
+		}
 
 		if c.secondaryRun && plannerConfig.HasPath(currentPath) {
 			// on the secondary run we need to process only new fields added by the first run
@@ -1303,6 +1315,25 @@ func (c *pathBuilderVisitor) isMutationRoot(path string) bool {
 		return false
 	}
 	return strings.Count(path, ".") == 1
+}
+
+// isCachedQueryRootField returns true when the field is a direct child of Query
+// and has root field caching configured on the datasource. Such fields must be
+// isolated into their own planner to get independent cache configs per fetch.
+func (c *pathBuilderVisitor) isCachedQueryRootField(currentPath, typeName, fieldName string, ds DataSource) bool {
+	if c.plannerConfiguration.DisableEntityCaching {
+		return false
+	}
+	root := c.walker.Ancestors[0]
+	rootOperationType := c.operation.OperationDefinitions[root.Ref].OperationType
+	if rootOperationType != ast.OperationTypeQuery {
+		return false
+	}
+	if strings.Count(currentPath, ".") != 1 {
+		return false
+	}
+	fedConfig := ds.FederationConfiguration()
+	return fedConfig.RootFieldCacheConfig(typeName, fieldName) != nil
 }
 
 func (c *pathBuilderVisitor) isNotOperationDefinitionRoot() bool {

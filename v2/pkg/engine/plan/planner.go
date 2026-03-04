@@ -41,14 +41,6 @@ func NewPlanner(config Configuration) (*Planner, error) {
 		config.Logger = abstractlogger.Noop{}
 	}
 
-	// Auto-split datasources that have root field caching configured.
-	// This must happen before the duplicate ID check because splitting creates new IDs.
-	var err error
-	config.DataSources, err = SplitDataSourcesByRootFieldCaching(config.DataSources)
-	if err != nil {
-		return nil, err
-	}
-
 	entityInterfaceNames := make([]string, 0, 1)
 	dsIDs := make(map[string]struct{}, len(config.DataSources))
 	for _, ds := range config.DataSources {

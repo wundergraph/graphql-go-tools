@@ -816,13 +816,14 @@ func TestPlanner_Plan(t *testing.T) {
 		assert.Equal(t, plan2Expected, plan2)
 	})
 
-	// Root field datasource splitting tests
-	// These tests prove that when datasources are pre-split (as splitDataSourceByRootFieldCaching
-	// would produce), the planner generates valid plans with separate fetches per datasource.
-	// Note: FakeFactory creates one fetch per root field regardless of DS grouping,
-	// so these tests focus on verifying the planner handles split configurations correctly.
-	t.Run("root field splitting", func(t *testing.T) {
-		const splitSchema = `
+	// Root field caching isolation tests
+	// When a root field has caching configured, the planner must isolate it into its own
+	// planner/fetch so it gets an independent cache config (TTL, cache name, etc.).
+	// This uses the same pattern as mutations: cached root fields skip planWithExistingPlanners
+	// and go straight to addNewPlanner. Other fields are prevented from merging into
+	// isolated planners via the isolatedRootField flag.
+	t.Run("root field caching isolation", func(t *testing.T) {
+		const schema = `
 			type Query {
 				me: User
 				cat: Cat
@@ -837,204 +838,86 @@ func TestPlanner_Plan(t *testing.T) {
 			}
 		`
 
-		t.Run("two split DSs plan correctly", func(t *testing.T) {
-			ds1 := dsb().
-				Id("accounts_rf_me").
-				RootNode("Query", "me").
-				ChildNode("User", "id", "username").
-				Schema(splitSchema).
-				Hash(1).
-				DS()
-
-			ds2 := dsb().
-				Id("accounts_rf_cat").
-				RootNode("Query", "cat").
-				ChildNode("Cat", "name").
-				Schema(splitSchema).
-				Hash(2).
-				DS()
-
-			config := Configuration{
-				DataSources:                  []DataSource{ds1, ds2},
-				DisableResolveFieldPositions: true,
-				DisableIncludeInfo:           true,
-				DisableEntityCaching:         true,
-			}
-
-			var report operationreport.Report
-			p := testLogic(t, splitSchema, `query Q { me { id username } cat { name } }`, "Q", config, &report)
-			require.False(t, report.HasErrors())
-
-			syncPlan, ok := p.(*SynchronousResponsePlan)
-			require.True(t, ok)
-			assert.Equal(t, 2, len(syncPlan.Response.RawFetches), "two split DSs should produce two fetches")
-		})
-
-		t.Run("mixed split - cached field separate, uncached stays on original", func(t *testing.T) {
-			// DS1: only Query.me (simulating split cached field)
-			ds1 := dsb().
-				Id("accounts_rf_me").
-				RootNode("Query", "me").
-				ChildNode("User", "id", "username").
-				Schema(splitSchema).
-				Hash(1).
-				DS()
-
-			// DS2: Query.cat + Query.user (simulating remainder with uncached fields)
-			ds2 := dsb().
-				Id("accounts").
-				RootNode("Query", "cat", "user").
-				ChildNode("User", "id", "username").
-				ChildNode("Cat", "name").
-				Schema(splitSchema).
-				Hash(2).
-				DS()
-
-			config := Configuration{
-				DataSources:                  []DataSource{ds1, ds2},
-				DisableResolveFieldPositions: true,
-				DisableIncludeInfo:           true,
-				DisableEntityCaching:         true,
-			}
-
-			var report operationreport.Report
-			p := testLogic(t, splitSchema, `query Q { me { id username } cat { name } }`, "Q", config, &report)
-			require.False(t, report.HasErrors())
-
-			syncPlan, ok := p.(*SynchronousResponsePlan)
-			require.True(t, ok)
-			assert.Equal(t, 2, len(syncPlan.Response.RawFetches), "mixed split should produce two fetches")
-		})
-
-		t.Run("three separate DSs produce three fetches", func(t *testing.T) {
-			ds1 := dsb().
-				Id("accounts_rf_me").
-				RootNode("Query", "me").
-				ChildNode("User", "id", "username").
-				Schema(splitSchema).
-				Hash(1).
-				DS()
-
-			ds2 := dsb().
-				Id("accounts_rf_cat").
-				RootNode("Query", "cat").
-				ChildNode("Cat", "name").
-				Schema(splitSchema).
-				Hash(2).
-				DS()
-
-			ds3 := dsb().
-				Id("accounts_rf_user").
-				RootNode("Query", "user").
-				ChildNode("User", "id", "username").
-				Schema(splitSchema).
-				Hash(3).
-				DS()
-
-			config := Configuration{
-				DataSources:                  []DataSource{ds1, ds2, ds3},
-				DisableResolveFieldPositions: true,
-				DisableIncludeInfo:           true,
-				DisableEntityCaching:         true,
-			}
-
-			var report operationreport.Report
-			p := testLogic(t, splitSchema, `query Q { me { id username } cat { name } user(id: "1") { username } }`, "Q", config, &report)
-			require.False(t, report.HasErrors())
-
-			syncPlan, ok := p.(*SynchronousResponsePlan)
-			require.True(t, ok)
-			assert.Equal(t, 3, len(syncPlan.Response.RawFetches), "three separate DSs should produce three fetches")
-		})
-
-		t.Run("split DSs with entity root nodes plan correctly", func(t *testing.T) {
-			// Both split DSs share entity root nodes (User) for entity resolution from other subgraphs.
-			// This verifies the planner handles split DSs with shared entity root nodes without errors.
-			ds1 := dsb().
-				Id("accounts_rf_me").
-				RootNode("Query", "me").
-				RootNode("User", "id", "username").
-				ChildNode("User", "id", "username").
-				Schema(splitSchema).
-				Hash(11).
-				KeysMetadata(FederationFieldConfigurations{
-					{TypeName: "User", SelectionSet: "id"},
-				}).
-				DS()
-
-			ds2 := dsb().
-				Id("accounts_rf_cat").
-				RootNode("Query", "cat").
-				RootNode("User", "id", "username").
-				ChildNode("Cat", "name").
-				Schema(splitSchema).
-				Hash(12).
-				KeysMetadata(FederationFieldConfigurations{
-					{TypeName: "User", SelectionSet: "id"},
-				}).
-				DS()
-
-			config := Configuration{
-				DataSources:                  []DataSource{ds1, ds2},
-				DisableResolveFieldPositions: true,
-				DisableIncludeInfo:           true,
-				DisableEntityCaching:         true,
-			}
-
-			var report operationreport.Report
-			p := testLogic(t, splitSchema, `query Q { me { id username } cat { name } }`, "Q", config, &report)
-			require.False(t, report.HasErrors())
-
-			syncPlan, ok := p.(*SynchronousResponsePlan)
-			require.True(t, ok)
-			// 4 fetches: me root from DS1, cat root from DS2,
-			// plus User entity fetches from both DS1 and DS2 (both have User root nodes)
-			assert.Equal(t, 4, len(syncPlan.Response.RawFetches), "split DSs with entity root nodes should produce four fetches")
-		})
-
-		t.Run("query selecting from only one split DS produces single fetch", func(t *testing.T) {
-			ds1 := dsb().
-				Id("accounts_rf_me").
-				RootNode("Query", "me").
-				ChildNode("User", "id", "username").
-				Schema(splitSchema).
-				Hash(1).
-				DS()
-
-			ds2 := dsb().
-				Id("accounts_rf_cat").
-				RootNode("Query", "cat").
-				ChildNode("Cat", "name").
-				Schema(splitSchema).
-				Hash(2).
-				DS()
-
-			config := Configuration{
-				DataSources:                  []DataSource{ds1, ds2},
-				DisableResolveFieldPositions: true,
-				DisableIncludeInfo:           true,
-				DisableEntityCaching:         true,
-			}
-
-			// Query only "me" - should use only DS1
-			var report operationreport.Report
-			p := testLogic(t, splitSchema, `query Q { me { id username } }`, "Q", config, &report)
-			require.False(t, report.HasErrors())
-
-			syncPlan, ok := p.(*SynchronousResponsePlan)
-			require.True(t, ok)
-			assert.Equal(t, 1, len(syncPlan.Response.RawFetches), "query using one split DS should produce single fetch")
-		})
-
-		t.Run("NewPlanner auto-splits DS with RootFieldCaching into separate fetches", func(t *testing.T) {
-			// Single DS with two cached root fields — NewPlanner should auto-split
-			// into two datasources, producing two separate fetches
+		t.Run("two cached root fields on same DS get separate fetches", func(t *testing.T) {
+			// With MergeAliasedRootNodes: true, root fields would normally merge.
+			// Root field caching must prevent this.
 			ds := dsb().
 				Id("accounts").
+				WithBehavior(DataSourcePlanningBehavior{
+					MergeAliasedRootNodes: true,
+				}).
 				RootNode("Query", "me", "cat").
 				ChildNode("User", "id", "username").
 				ChildNode("Cat", "name").
-				Schema(splitSchema).
+				Schema(schema).
+				WithMetadata(func(data *FederationMetaData) {
+					data.RootFieldCaching = RootFieldCacheConfigurations{
+						{TypeName: "Query", FieldName: "me", CacheName: "default", TTL: 30 * 1e9},
+						{TypeName: "Query", FieldName: "cat", CacheName: "default", TTL: 60 * 1e9},
+					}
+				}).
+				DS()
+
+			config := Configuration{
+				DataSources:                  []DataSource{ds},
+				DisableResolveFieldPositions: true,
+				DisableIncludeInfo:           true,
+			}
+
+			var report operationreport.Report
+			p := testLogic(t, schema, `query Q { me { id username } cat { name } }`, "Q", config, &report)
+			require.False(t, report.HasErrors())
+
+			syncPlan, ok := p.(*SynchronousResponsePlan)
+			require.True(t, ok)
+			assert.Equal(t, 2, len(syncPlan.Response.RawFetches), "cached root fields should get separate fetches")
+		})
+
+		t.Run("cached field isolated from uncached field on same DS", func(t *testing.T) {
+			// me is cached, user is not — they must not share a fetch
+			ds := dsb().
+				Id("accounts").
+				WithBehavior(DataSourcePlanningBehavior{
+					MergeAliasedRootNodes: true,
+				}).
+				RootNode("Query", "me", "user").
+				ChildNode("User", "id", "username").
+				Schema(schema).
+				WithMetadata(func(data *FederationMetaData) {
+					data.RootFieldCaching = RootFieldCacheConfigurations{
+						{TypeName: "Query", FieldName: "me", CacheName: "default", TTL: 30 * 1e9},
+					}
+				}).
+				DS()
+
+			config := Configuration{
+				DataSources:                  []DataSource{ds},
+				DisableResolveFieldPositions: true,
+				DisableIncludeInfo:           true,
+			}
+
+			var report operationreport.Report
+			p := testLogic(t, schema, `query Q { me { id } user(id: "1") { username } }`, "Q", config, &report)
+			require.False(t, report.HasErrors())
+
+			syncPlan, ok := p.(*SynchronousResponsePlan)
+			require.True(t, ok)
+			assert.Equal(t, 2, len(syncPlan.Response.RawFetches), "cached field should be isolated from uncached field")
+		})
+
+		t.Run("DisableEntityCaching disables isolation", func(t *testing.T) {
+			// When DisableEntityCaching is true, cached root fields should NOT be isolated —
+			// they merge normally (default FakePlanner has MergeAliasedRootNodes: false,
+			// so each root field still gets its own planner for unrelated reasons)
+			ds := dsb().
+				Id("accounts").
+				WithBehavior(DataSourcePlanningBehavior{
+					MergeAliasedRootNodes: true,
+				}).
+				RootNode("Query", "me", "cat").
+				ChildNode("User", "id", "username").
+				ChildNode("Cat", "name").
+				Schema(schema).
 				WithMetadata(func(data *FederationMetaData) {
 					data.RootFieldCaching = RootFieldCacheConfigurations{
 						{TypeName: "Query", FieldName: "me", CacheName: "default", TTL: 30 * 1e9},
@@ -1051,12 +934,41 @@ func TestPlanner_Plan(t *testing.T) {
 			}
 
 			var report operationreport.Report
-			p := testLogic(t, splitSchema, `query Q { me { id username } cat { name } }`, "Q", config, &report)
+			p := testLogic(t, schema, `query Q { me { id username } cat { name } }`, "Q", config, &report)
 			require.False(t, report.HasErrors())
 
 			syncPlan, ok := p.(*SynchronousResponsePlan)
 			require.True(t, ok)
-			assert.Equal(t, 2, len(syncPlan.Response.RawFetches), "auto-split DS should produce two separate fetches")
+			// With DisableEntityCaching + MergeAliasedRootNodes: true, fields merge into one fetch
+			assert.Equal(t, 1, len(syncPlan.Response.RawFetches), "DisableEntityCaching should allow fields to merge")
+		})
+
+		t.Run("no caching configured - fields merge normally", func(t *testing.T) {
+			// No RootFieldCaching → fields merge if MergeAliasedRootNodes is true
+			ds := dsb().
+				Id("accounts").
+				WithBehavior(DataSourcePlanningBehavior{
+					MergeAliasedRootNodes: true,
+				}).
+				RootNode("Query", "me", "cat").
+				ChildNode("User", "id", "username").
+				ChildNode("Cat", "name").
+				Schema(schema).
+				DS()
+
+			config := Configuration{
+				DataSources:                  []DataSource{ds},
+				DisableResolveFieldPositions: true,
+				DisableIncludeInfo:           true,
+			}
+
+			var report operationreport.Report
+			p := testLogic(t, schema, `query Q { me { id username } cat { name } }`, "Q", config, &report)
+			require.False(t, report.HasErrors())
+
+			syncPlan, ok := p.(*SynchronousResponsePlan)
+			require.True(t, ok)
+			assert.Equal(t, 1, len(syncPlan.Response.RawFetches), "without caching, fields should merge into one fetch")
 		})
 	})
 }

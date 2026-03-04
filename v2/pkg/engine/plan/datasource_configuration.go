@@ -299,12 +299,6 @@ func (d *dataSourceConfiguration[T]) CustomConfiguration() T {
 	return d.custom
 }
 
-// cloneForSplit creates a new dataSourceConfiguration with the same factory and custom config
-// but with a new ID and metadata. Used internally by splitSingleDataSourceByRootFieldCaching.
-func (d *dataSourceConfiguration[T]) cloneForSplit(newID string, metadata *DataSourceMetadata) (DataSource, error) {
-	return NewDataSourceConfigurationWithName[T](newID, d.name, d.factory, metadata, d.custom)
-}
-
 func (d *dataSourceConfiguration[T]) CreatePlannerConfiguration(logger abstractlogger.Logger, fetchConfig *objectFetchConfiguration, pathConfig *plannerPathsConfiguration, configuration *Configuration) PlannerConfiguration {
 	if configuration.RelaxSubgraphOperationFieldSelectionMergingNullability {
 		if relaxer, ok := d.factory.(SubgraphFieldSelectionMergingNullabilityRelaxer); ok {
