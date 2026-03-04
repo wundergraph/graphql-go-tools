@@ -162,6 +162,18 @@ type ExecutionOptions struct {
 //
 // Lookup Order (entity fetches): L1 -> L2 -> Subgraph Fetch
 // Lookup Order (root fetches): L2 -> Subgraph Fetch (no L1)
+// L2CacheKeyInterceptorInfo provides metadata about the cache key being transformed.
+type L2CacheKeyInterceptorInfo struct {
+	SubgraphName string
+	CacheName    string
+}
+
+// L2CacheKeyInterceptor transforms L2 cache key strings before they are used
+// for cache lookups and writes. Called once per cache key during key preparation.
+// The ctx parameter is the request's context.Context, allowing access to
+// request-scoped values (e.g., tenant ID from middleware).
+type L2CacheKeyInterceptor func(ctx context.Context, key string, info L2CacheKeyInterceptorInfo) string
+
 type CachingOptions struct {
 	// EnableL1Cache enables per-request in-memory entity caching.
 	// L1 prevents redundant fetches for the same entity within a single request.
@@ -181,6 +193,12 @@ type CachingOptions struct {
 	// When false (default), GetCacheStats() returns an empty snapshot.
 	// The analytics collector is nil-guarded so the disabled path has zero overhead.
 	EnableCacheAnalytics bool
+	// L2CacheKeyInterceptor, when set, transforms L2 cache key strings before
+	// they are used for lookups, writes, and deletions. This allows library users
+	// to add custom prefixes/suffixes (e.g., tenant isolation) without modifying
+	// graphql-go-tools internals. Does not affect L1 cache keys.
+	// Default: nil (no transformation)
+	L2CacheKeyInterceptor L2CacheKeyInterceptor
 }
 
 type FieldValue struct {

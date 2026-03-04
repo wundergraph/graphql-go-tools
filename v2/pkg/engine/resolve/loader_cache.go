@@ -165,6 +165,19 @@ func (l *Loader) prepareCacheKeys(info *FetchInfo, cfg FetchCacheConfiguration, 
 			if err != nil {
 				return false, err
 			}
+
+			// Apply user-provided L2 cache key interceptor
+			if interceptor := l.ctx.ExecutionOptions.Caching.L2CacheKeyInterceptor; interceptor != nil {
+				interceptorInfo := L2CacheKeyInterceptorInfo{
+					SubgraphName: info.DataSourceName,
+					CacheName:    cfg.CacheName,
+				}
+				for _, ck := range res.l2CacheKeys {
+					for i, key := range ck.Keys {
+						ck.Keys[i] = interceptor(l.ctx.ctx, key, interceptorInfo)
+					}
+				}
+			}
 		}
 	}
 
@@ -1069,12 +1082,23 @@ func (l *Loader) buildMutationEntityCacheKey(cfg *MutationEntityImpactConfig, en
 	keyJSON := string(keyObj.MarshalTo(nil))
 
 	// Add prefix if needed
+	var cacheKey string
 	if cfg.IncludeSubgraphHeaderPrefix && l.ctx.SubgraphHeadersBuilder != nil {
 		_, headersHash := l.ctx.SubgraphHeadersBuilder.HeadersForSubgraph(info.DataSourceName)
 		prefix := strconv.FormatUint(headersHash, 10)
-		return prefix + ":" + keyJSON
+		cacheKey = prefix + ":" + keyJSON
+	} else {
+		cacheKey = keyJSON
 	}
-	return keyJSON
+
+	// Apply user-provided L2 cache key interceptor
+	if interceptor := l.ctx.ExecutionOptions.Caching.L2CacheKeyInterceptor; interceptor != nil {
+		cacheKey = interceptor(l.ctx.ctx, cacheKey, L2CacheKeyInterceptorInfo{
+			SubgraphName: info.DataSourceName,
+			CacheName:    cfg.CacheName,
+		})
+	}
+	return cacheKey
 }
 
 // buildMutationEntityDisplayKey builds a display key (without prefix) for analytics.
