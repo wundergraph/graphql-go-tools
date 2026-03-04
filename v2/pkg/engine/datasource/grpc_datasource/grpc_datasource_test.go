@@ -156,10 +156,8 @@ func setupTestGRPCServer(t testing.TB) (conn *grpc.ClientConn, cleanup func()) {
 	}
 
 	// Connect using bufconn dialer
-	// see https://github.com/grpc/grpc-go/issues/7091
-	// nolint: staticcheck
-	conn, err := grpc.Dial(
-		"bufnet",
+	conn, err := grpc.NewClient(
+		"passthrough:///bufnet",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(bufDialer),
 		grpc.WithLocalDNSResolution(),
@@ -5213,7 +5211,7 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 					require.True(t, ok, "category should be an object")
 					require.NotEmpty(t, category["id"], "category id should not be empty")
 					require.NotEmpty(t, category["name"], "category name should not be empty")
-					require.Empty(t, category["nullMetrics"], "nullMetrics should be null since it is never populated")
+					require.Nil(t, category["nullMetrics"], "nullMetrics should be null since it is never populated")
 				}
 			},
 			validateError: func(t *testing.T, errData []graphqlError) {
