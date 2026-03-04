@@ -462,14 +462,16 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 						ProvidesData: &resolve.Object{
-							Nullable: false,
-							Path:     []string{},
+							Nullable:   false,
+							Path:       []string{},
+							HasAliases: true,
 							Fields: []*resolve.Field{
 								{
 									Name: []byte("droid"),
 									Value: &resolve.Object{
-										Nullable: true,
-										Path:     []string{"droid"},
+										Nullable:   true,
+										Path:       []string{"droid"},
+										HasAliases: true,
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("name"),
@@ -479,7 +481,8 @@ func TestGraphQLDataSource(t *testing.T) {
 												},
 											},
 											{
-												Name: []byte("aliased"),
+												Name:         []byte("aliased"),
+												OriginalName: []byte("name"),
 												Value: &resolve.Scalar{
 													Path:     []string{"aliased"},
 													Nullable: false,

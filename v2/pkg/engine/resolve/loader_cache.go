@@ -44,7 +44,7 @@ func (l *Loader) extractCacheKeysStrings(a arena.Arena, cacheKeys []*CacheKey) [
 			keyLen := len(keyStr)
 			key := arena.AllocateSlice[byte](a, 0, keyLen)
 			key = arena.SliceAppend(a, key, unsafebytes.StringToBytes(keyStr)...)
-			out = arena.SliceAppend(a, out, unsafebytes.BytesToString(key))
+			out = arena.SliceAppend(a, out, string(key))
 		}
 	}
 	return out
@@ -75,7 +75,9 @@ func (l *Loader) populateFromCache(a arena.Arena, cacheKeys []*CacheKey, entries
 // For each CacheKey, creates entries for all its KeyEntries with the same value
 // If includePrefix is true and subgraphName is provided, keys are prefixed with the subgraph header hash.
 func (l *Loader) cacheKeysToEntries(a arena.Arena, cacheKeys []*CacheKey) ([]*CacheEntry, error) {
-	out := arena.AllocateSlice[*CacheEntry](a, 0, len(cacheKeys))
+	// Use heap slice for []*CacheEntry — arena memory is noscan, so GC cannot
+	// trace *CacheEntry pointers stored there, risking premature collection.
+	out := make([]*CacheEntry, 0, len(cacheKeys))
 	buf := arena.AllocateSlice[byte](a, 64, 64)
 	seen := make(map[string]struct{}, len(cacheKeys))
 	for i := range cacheKeys {
@@ -102,7 +104,7 @@ func (l *Loader) cacheKeysToEntries(a arena.Arena, cacheKeys []*CacheKey) ([]*Ca
 				Value: arena.AllocateSlice[byte](a, len(buf), len(buf)),
 			}
 			copy(entry.Value, buf)
-			out = arena.SliceAppend(a, out, entry)
+			out = append(out, entry)
 		}
 	}
 	return out, nil

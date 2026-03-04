@@ -4,6 +4,10 @@ type Query {
     # reviewWithError returns a review whose author (error-user) triggers an error in accounts subgraph.
     # Used for testing cache error handling - caches should NOT be populated on errors.
     reviewWithError: Review
+    # topReviews returns all reviews. Review is NOT an entity (no @key),
+    # but contains entities (author: User, product: Product).
+    # Used for testing L1 cache with non-entity root fields containing nested entities.
+    topReviews: [Review]
 }
 
 type Cat {

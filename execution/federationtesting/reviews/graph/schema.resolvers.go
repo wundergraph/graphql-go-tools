@@ -66,6 +66,14 @@ func (r *queryResolver) ReviewWithError(ctx context.Context) (*model.Review, err
 	return errorReview, nil
 }
 
+// TopReviews is the resolver for the topReviews field.
+// Returns all reviews. Review is NOT an entity (no @key), but contains
+// entities (author: User, product: Product). Used for L1 cache testing
+// with non-entity root fields containing nested entities.
+func (r *queryResolver) TopReviews(ctx context.Context) ([]*model.Review, error) {
+	return r.reviews, nil
+}
+
 // AuthorWithoutProvides is the resolver for the authorWithoutProvides field.
 // Returns the same Author as the regular author field, but without @provides directive
 // in the schema. This forces the gateway to fetch username from accounts subgraph.
