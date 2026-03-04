@@ -7859,6 +7859,23 @@ func TestGraphQLDataSource(t *testing.T) {
 													"Dog": {},
 												},
 												TypeName: "CatOrDog",
+												CacheAnalytics: &resolve.ObjectCacheAnalytics{
+													KeyFields: []resolve.KeyField{},
+													ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
+														"Cat": {
+															KeyFields: []resolve.KeyField{
+																{Name: "id"},
+															},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
+														"Dog": {
+															KeyFields: []resolve.KeyField{
+																{Name: "id"},
+															},
+															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
+														},
+													},
+												},
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("name"),
