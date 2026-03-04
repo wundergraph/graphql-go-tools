@@ -58,13 +58,15 @@ func (r *RootQueryCacheKeyTemplate) RenderCacheKeys(a arena.Arena, ctx *Context,
 	if len(r.RootFields) == 0 {
 		return nil, nil
 	}
-	// Estimate capacity: one CacheKey per item
-	cacheKeys := arena.AllocateSlice[*CacheKey](a, 0, len(items))
+	// Use heap slices for pointer-containing types (*CacheKey, string) because
+	// arena memory is backed by []byte (noscan) — GC cannot trace pointers stored
+	// in arena memory, which can cause premature collection of heap objects.
+	cacheKeys := make([]*CacheKey, 0, len(items))
 	jsonBytes := arena.AllocateSlice[byte](a, 0, 64)
 
 	for _, item := range items {
 		// Create KeyEntry for each root field
-		keyEntries := arena.AllocateSlice[string](a, 0, len(r.RootFields))
+		keyEntries := make([]string, 0, len(r.RootFields))
 		for _, field := range r.RootFields {
 			if len(r.EntityKeyMappings) > 0 {
 				// Entity key mapping configured: use entity key format INSTEAD of root field key
@@ -72,7 +74,7 @@ func (r *RootQueryCacheKeyTemplate) RenderCacheKeys(a arena.Arena, ctx *Context,
 					entityKey, jsonBytesOut := r.renderDerivedEntityKey(a, ctx, jsonBytes, mapping, prefix)
 					jsonBytes = jsonBytesOut
 					if entityKey != "" {
-						keyEntries = arena.SliceAppend(a, keyEntries, entityKey)
+						keyEntries = append(keyEntries, entityKey)
 					}
 					// If entityKey is empty (missing arg), keyEntries stays empty → no caching
 				}
@@ -86,12 +88,12 @@ func (r *RootQueryCacheKeyTemplate) RenderCacheKeys(a arena.Arena, ctx *Context,
 					tmp = arena.SliceAppend(a, tmp, unsafebytes.StringToBytes(prefix)...)
 					tmp = arena.SliceAppend(a, tmp, []byte(`:`)...)
 					tmp = arena.SliceAppend(a, tmp, unsafebytes.StringToBytes(key)...)
-					key = unsafebytes.BytesToString(tmp)
+					key = string(tmp)
 				}
-				keyEntries = arena.SliceAppend(a, keyEntries, key)
+				keyEntries = append(keyEntries, key)
 			}
 		}
-		cacheKeys = arena.SliceAppend(a, cacheKeys, &CacheKey{
+		cacheKeys = append(cacheKeys, &CacheKey{
 			Item: item,
 			Keys: keyEntries,
 		})
@@ -138,7 +140,7 @@ func (r *RootQueryCacheKeyTemplate) renderDerivedEntityKey(a arena.Arena, ctx *C
 		slice = arena.SliceAppend(a, slice, []byte(`:`)...)
 	}
 	slice = arena.SliceAppend(a, slice, jsonBytes...)
-	return unsafebytes.BytesToString(slice), jsonBytes
+	return string(slice), jsonBytes
 }
 
 // renderField renders a single field cache key as JSON
@@ -202,7 +204,7 @@ func (r *RootQueryCacheKeyTemplate) renderField(a arena.Arena, ctx *Context, ite
 	jsonBytes = keyObj.MarshalTo(jsonBytes[:0])
 	slice := arena.AllocateSlice[byte](a, len(jsonBytes), len(jsonBytes))
 	copy(slice, jsonBytes)
-	return unsafebytes.BytesToString(slice), jsonBytes
+	return string(slice), jsonBytes
 }
 
 type EntityQueryCacheKeyTemplate struct {
@@ -252,7 +254,9 @@ func (e *EntityQueryCacheKeyTemplate) RenderCacheKeys(a arena.Arena, ctx *Contex
 // Returns one cache key per item for entity queries with keys nested under "key".
 func (e *EntityQueryCacheKeyTemplate) renderCacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value, keysTemplate *ResolvableObjectVariable, prefix string) ([]*CacheKey, error) {
 	jsonBytes := arena.AllocateSlice[byte](a, 0, 64)
-	cacheKeys := arena.AllocateSlice[*CacheKey](a, 0, len(items))
+	// Use heap slices for pointer-containing types — arena memory is noscan,
+	// so GC cannot trace pointers stored there, risking premature collection.
+	cacheKeys := make([]*CacheKey, 0, len(items))
 
 	for _, item := range items {
 		if item == nil {
@@ -308,10 +312,9 @@ func (e *EntityQueryCacheKeyTemplate) renderCacheKeys(a arena.Arena, ctx *Contex
 		slice = arena.SliceAppend(a, slice, jsonBytes...)
 
 		// Create KeyEntry with empty path for entity queries
-		keyEntries := arena.AllocateSlice[string](a, 0, 1)
-		keyEntries = arena.SliceAppend(a, keyEntries, unsafebytes.BytesToString(slice))
+		keyEntries := []string{string(slice)}
 
-		cacheKeys = arena.SliceAppend(a, cacheKeys, &CacheKey{
+		cacheKeys = append(cacheKeys, &CacheKey{
 			Item: item,
 			Keys: keyEntries,
 		})

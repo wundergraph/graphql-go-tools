@@ -258,7 +258,7 @@ type Loader struct {
 	// Value: *astjson.Value pointer to entity in jsonArena
 	// Thread-safe via sync.Map for parallel fetch support.
 	// Only used for entity fetches, NOT root fetches (root fields have no prior entity data).
-	l1Cache sync.Map
+	l1Cache *sync.Map
 }
 
 func (l *Loader) Free() {
@@ -266,6 +266,8 @@ func (l *Loader) Free() {
 	l.ctx = nil
 	l.resolvable = nil
 	l.taintedObjs = nil
+	l.l1Cache = nil
+	l.jsonArena = nil
 }
 
 func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, resolvable *Resolvable) (err error) {
@@ -273,6 +275,7 @@ func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse
 	l.ctx = ctx
 	l.info = response.Info
 	l.taintedObjs = make(taintedObjects)
+	l.l1Cache = &sync.Map{}
 	ctx.initCacheAnalytics()
 	return l.resolveFetchNode(response.Fetches)
 }
