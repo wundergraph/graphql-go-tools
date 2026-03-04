@@ -259,6 +259,12 @@ type Loader struct {
 	// Thread-safe via sync.Map for parallel fetch support.
 	// Only used for entity fetches, NOT root fetches (root fields have no prior entity data).
 	l1Cache *sync.Map
+
+	// enableMutationL2CachePopulation is set per-mutation-field in resolveSingle
+	// when processing a root mutation fetch. Entity fetches that follow in the
+	// sequence inherit this flag, checked in updateL2Cache.
+	// By default false: mutations do NOT populate L2 cache.
+	enableMutationL2CachePopulation bool
 }
 
 func (l *Loader) Free() {
@@ -268,9 +274,11 @@ func (l *Loader) Free() {
 	l.taintedObjs = nil
 	l.l1Cache = nil
 	l.jsonArena = nil
+	l.enableMutationL2CachePopulation = false
 }
 
 func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, resolvable *Resolvable) (err error) {
+	l.enableMutationL2CachePopulation = false
 	l.resolvable = resolvable
 	l.ctx = ctx
 	l.info = response.Info
@@ -433,6 +441,11 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 
 	switch f := item.Fetch.(type) {
 	case *SingleFetch:
+		// Propagate mutation field cache config to loader for child entity fetches.
+		// Each mutation root fetch updates this flag; subsequent entity fetches inherit it.
+		if f.Info != nil && f.Info.OperationType == ast.OperationTypeMutation {
+			l.enableMutationL2CachePopulation = f.Caching.EnableMutationL2CachePopulation
+		}
 		res := l.createOrInitResult(nil, f.PostProcessing, f.Info)
 		skip, err := l.tryCacheLoad(l.ctx.ctx, f.Info, f.Caching, items, res)
 		if err != nil {

@@ -2171,12 +2171,19 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 }
 
 func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
-	// Shared caching config for all subtests: only entity caching for User on accounts
+	// Shared caching config: entity caching for User on accounts + opt-in L2 population for addReview on reviews.
+	// Mutations do NOT populate L2 by default; subtests that expect L2 population need EnableEntityL2CachePopulation.
 	subgraphCachingConfigs := engine.SubgraphCachingConfigs{
 		{
 			SubgraphName: "accounts",
 			EntityCaching: plan.EntityCacheConfigurations{
 				{TypeName: "User", CacheName: "default", TTL: 30 * time.Second},
+			},
+		},
+		{
+			SubgraphName: "reviews",
+			MutationFieldCaching: plan.MutationFieldCacheConfigurations{
+				{FieldName: "addReview", EnableEntityL2CachePopulation: true},
 			},
 		},
 	}
@@ -2443,6 +2450,77 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 		assert.Equal(t, sortCacheLogKeysWithCaller(wantLogQuery), sortCacheLogKeysWithCaller(logAfterQuery), "Step 2: query should hit L2 cache (entity stores complete data)")
 		// Accounts is called once for the me root query (not cached), but NOT for entity resolution (L2 hit)
 		assert.Equal(t, 1, tracker.GetCount(accountsHost), "Step 2: accounts called once for me root query, entity resolution served from L2 cache")
+	})
+
+	t.Run("mutation skips L2 write by default without EnableEntityL2CachePopulation", func(t *testing.T) {
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{"default": defaultCache}
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		// Entity caching for accounts (User) only. No MutationFieldCaching config for reviews,
+		// so addReview does NOT populate L2 (default behavior).
+		noMutationPopulateConfigs := engine.SubgraphCachingConfigs{
+			{
+				SubgraphName: "accounts",
+				EntityCaching: plan.EntityCacheConfigurations{
+					{TypeName: "User", CacheName: "default", TTL: 30 * time.Second},
+				},
+			},
+		}
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
+			withSubgraphEntityCachingConfigs(noMutationPopulateConfigs),
+		))
+		t.Cleanup(setup.Close)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		// Step 1: Query populates L2 cache (flag does not affect queries).
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/me_reviews_without_provides.query"), nil, t)
+		assert.Equal(t, `{"data":{"me":{"reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}}}`, string(resp))
+
+		logAfterQuery1 := defaultCache.GetLog()
+		assert.Equal(t, 2, len(logAfterQuery1), "Step 1: should have exactly 2 cache operations (get miss + set)")
+		wantLogQuery1 := []CacheLogEntry{
+			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{false}},
+			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogQuery1), sortCacheLogKeys(logAfterQuery1), "Step 1: query should miss then set")
+		assert.Equal(t, 1, tracker.GetCount(accountsHost), "Step 1: should call accounts subgraph exactly once")
+
+		// Step 2: Mutation produces zero cache operations (read skipped because mutation, write skipped because flag).
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp = gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("mutations/add_review_without_provides.query"), mutationVars, t)
+		assert.Equal(t, `{"data":{"addReview":{"body":"Great!","authorWithoutProvides":{"username":"Me"}}}}`, string(resp))
+
+		logAfterMutation := defaultCache.GetLog()
+		assert.Equal(t, 0, len(logAfterMutation), "Step 2: should have zero cache operations (no read AND no write)")
+		assert.Equal(t, 1, tracker.GetCount(accountsHost), "Step 2: should call accounts subgraph (not cached)")
+
+		// Step 3: Query still hits L2 from step 1's write (mutation didn't overwrite it).
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp = gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/me_reviews_without_provides.query"), nil, t)
+		assert.Equal(t, `{"data":{"me":{"reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}},{"body":"Great!","authorWithoutProvides":{"username":"Me"}}]}}}`, string(resp))
+
+		logAfterQuery2 := defaultCache.GetLog()
+		assert.Equal(t, 1, len(logAfterQuery2), "Step 3: should have exactly 1 cache operation (get hit)")
+		wantLogQuery2 := []CacheLogEntry{
+			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogQuery2), sortCacheLogKeys(logAfterQuery2), "Step 3: query should hit L2 from step 1's write")
+		assert.Equal(t, 0, tracker.GetCount(accountsHost), "Step 3: should NOT call accounts subgraph (L2 cache hit)")
 	})
 }
 

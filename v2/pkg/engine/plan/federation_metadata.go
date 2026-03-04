@@ -16,6 +16,7 @@ type FederationMetaData struct {
 	InterfaceObjects             []EntityInterfaceConfiguration
 	EntityCaching                EntityCacheConfigurations
 	RootFieldCaching             RootFieldCacheConfigurations
+	MutationFieldCaching         MutationFieldCacheConfigurations
 	SubscriptionEntityPopulation SubscriptionEntityPopulationConfigurations
 	MutationCacheInvalidation    MutationCacheInvalidationConfigurations
 
@@ -33,6 +34,7 @@ type FederationInfo interface {
 	EntityCacheConfig(typeName string) *EntityCacheConfiguration
 	RootFieldCacheConfig(typeName, fieldName string) *RootFieldCacheConfiguration
 	MutationCacheInvalidationConfig(fieldName string) *MutationCacheInvalidationConfiguration
+	MutationFieldCacheConfig(fieldName string) *MutationFieldCacheConfiguration
 }
 
 func (d *FederationMetaData) HasKeyRequirement(typeName, requiresFields string) bool {
@@ -201,6 +203,33 @@ func (c RootFieldCacheConfigurations) FindByTypeAndField(typeName, fieldName str
 	return nil
 }
 
+// MutationFieldCacheConfiguration controls cache behavior for entity fetches
+// triggered by a specific mutation root field. The subgraph that owns the mutation
+// field decides whether entity data fetched during that mutation populates L2.
+type MutationFieldCacheConfiguration struct {
+	// FieldName is the mutation root field name (e.g., "addReview", "deleteUser").
+	FieldName string `json:"field_name"`
+	// EnableEntityL2CachePopulation allows entity fetches triggered by this
+	// mutation to write to the L2 cache. Mutations always skip L2 reads
+	// (existing behavior). By default, mutations do NOT populate L2.
+	// Set to true to opt in to L2 cache population for this mutation field.
+	EnableEntityL2CachePopulation bool `json:"enable_entity_l2_cache_population"`
+}
+
+// MutationFieldCacheConfigurations is a collection of mutation field cache configurations.
+type MutationFieldCacheConfigurations []MutationFieldCacheConfiguration
+
+// FindByFieldName returns the mutation field cache config for the given field name.
+// Returns nil if no configuration exists.
+func (c MutationFieldCacheConfigurations) FindByFieldName(fieldName string) *MutationFieldCacheConfiguration {
+	for i := range c {
+		if c[i].FieldName == fieldName {
+			return &c[i]
+		}
+	}
+	return nil
+}
+
 // SubscriptionEntityPopulationConfiguration defines how a subscription should
 // manage L2 cache entries for root entities received via subscription events.
 //
@@ -279,6 +308,12 @@ func (d *FederationMetaData) RootFieldCacheConfig(typeName, fieldName string) *R
 // Returns nil if no configuration exists (no invalidation for this field).
 func (d *FederationMetaData) MutationCacheInvalidationConfig(fieldName string) *MutationCacheInvalidationConfiguration {
 	return d.MutationCacheInvalidation.FindByFieldName(fieldName)
+}
+
+// MutationFieldCacheConfig returns the cache configuration for the given mutation field.
+// Returns nil if no configuration exists.
+func (d *FederationMetaData) MutationFieldCacheConfig(fieldName string) *MutationFieldCacheConfiguration {
+	return d.MutationFieldCaching.FindByFieldName(fieldName)
 }
 
 type FederationFieldConfiguration struct {
