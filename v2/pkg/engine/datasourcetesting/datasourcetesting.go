@@ -260,6 +260,12 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 			clearCacheKeyTemplates(actualPlan)
 		}
 
+		// Clear CacheAnalytics from response Object nodes by default since most tests
+		// don't need to verify cache analytics. Tests using WithEntityCaching() opt in.
+		if !opts.withEntityCaching {
+			clearCacheAnalytics(actualPlan)
+		}
+
 		if opts.withPrintPlan {
 			t.Log("\n", actualPlan.(*plan.SynchronousResponsePlan).Response.Fetches.QueryPlan().PrettyPrint())
 		}
@@ -359,5 +365,37 @@ func clearCacheKeyTemplateFromFetch(f resolve.Fetch) {
 		// Clear UseL1Cache to avoid test failures when comparing expected vs actual
 		// since the planner now defaults to true but most tests expect false (zero value)
 		fetch.FetchConfiguration.Caching.UseL1Cache = false
+	}
+}
+
+// clearCacheAnalytics recursively clears CacheAnalytics from all Object nodes in the plan.
+// This is called by default so tests don't need to account for cache analytics.
+// Use WithEntityCaching() to opt in to including cache analytics in tests.
+func clearCacheAnalytics(p plan.Plan) {
+	switch pl := p.(type) {
+	case *plan.SynchronousResponsePlan:
+		if pl.Response != nil && pl.Response.Data != nil {
+			clearCacheAnalyticsFromNode(pl.Response.Data)
+		}
+	case *plan.SubscriptionResponsePlan:
+		if pl.Response != nil && pl.Response.Response != nil && pl.Response.Response.Data != nil {
+			clearCacheAnalyticsFromNode(pl.Response.Response.Data)
+		}
+	}
+}
+
+func clearCacheAnalyticsFromNode(node resolve.Node) {
+	switch n := node.(type) {
+	case *resolve.Object:
+		n.CacheAnalytics = nil
+		for _, field := range n.Fields {
+			if field.Value != nil {
+				clearCacheAnalyticsFromNode(field.Value)
+			}
+		}
+	case *resolve.Array:
+		if n.Item != nil {
+			clearCacheAnalyticsFromNode(n.Item)
+		}
 	}
 }
