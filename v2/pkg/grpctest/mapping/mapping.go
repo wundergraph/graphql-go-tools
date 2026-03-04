@@ -385,6 +385,41 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					Response: "ResolveProductProductDetailsResponse",
 				},
 			},
+			"Storage": {
+				"storageStatus": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName: "storage_status",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{
+							"checkHealth": "check_health",
+						},
+					},
+					RPC:      "ResolveStorageStorageStatus",
+					Request:  "ResolveStorageStorageStatusRequest",
+					Response: "ResolveStorageStorageStatusResponse",
+				},
+				"linkedStorages": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName: "linked_storages",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{
+							"depth": "depth",
+						},
+					},
+					RPC:      "ResolveStorageLinkedStorages",
+					Request:  "ResolveStorageLinkedStoragesRequest",
+					Response: "ResolveStorageLinkedStoragesResponse",
+				},
+				"nearbyStorages": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName: "nearby_storages",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{
+							"radius": "radius",
+						},
+					},
+					RPC:      "ResolveStorageNearbyStorages",
+					Request:  "ResolveStorageNearbyStoragesRequest",
+					Response: "ResolveStorageNearbyStoragesResponse",
+				},
+			},
 			"Subcategory": {
 				"itemCount": {
 					FieldMappingData: grpcdatasource.FieldMapData{
@@ -431,6 +466,80 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 						Request:  "LookupStorageByIdRequest",
 						Response: "LookupStorageByIdResponse",
 					},
+					RequiredFields: grpcdatasource.RequiredFieldsRPCMapping{
+						"stockHealthScore": {
+							TargetName: "stock_health_score",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireStorageStockHealthScoreById",
+								Request:  "RequireStorageStockHealthScoreByIdRequest",
+								Response: "RequireStorageStockHealthScoreByIdResponse",
+							},
+						},
+						"tagSummary": {
+							TargetName: "tag_summary",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireStorageTagSummaryById",
+								Request:  "RequireStorageTagSummaryByIdRequest",
+								Response: "RequireStorageTagSummaryByIdResponse",
+							},
+						},
+						"optionalTagSummary": {
+							TargetName: "optional_tag_summary",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireStorageOptionalTagSummaryById",
+								Request:  "RequireStorageOptionalTagSummaryByIdRequest",
+								Response: "RequireStorageOptionalTagSummaryByIdResponse",
+							},
+						},
+						"metadataScore": {
+							TargetName: "metadata_score",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireStorageMetadataScoreById",
+								Request:  "RequireStorageMetadataScoreByIdRequest",
+								Response: "RequireStorageMetadataScoreByIdResponse",
+							},
+						},
+						"processedMetadata": {
+							TargetName: "processed_metadata",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireStorageProcessedMetadataById",
+								Request:  "RequireStorageProcessedMetadataByIdRequest",
+								Response: "RequireStorageProcessedMetadataByIdResponse",
+							},
+						},
+						"optionalProcessedMetadata": {
+							TargetName: "optional_processed_metadata",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireStorageOptionalProcessedMetadataById",
+								Request:  "RequireStorageOptionalProcessedMetadataByIdRequest",
+								Response: "RequireStorageOptionalProcessedMetadataByIdResponse",
+							},
+						},
+						"processedTags": {
+							TargetName: "processed_tags",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireStorageProcessedTagsById",
+								Request:  "RequireStorageProcessedTagsByIdRequest",
+								Response: "RequireStorageProcessedTagsByIdResponse",
+							},
+						},
+						"optionalProcessedTags": {
+							TargetName: "optional_processed_tags",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireStorageOptionalProcessedTagsById",
+								Request:  "RequireStorageOptionalProcessedTagsByIdRequest",
+								Response: "RequireStorageOptionalProcessedTagsByIdResponse",
+							},
+						},
+						"processedMetadataHistory": {
+							TargetName: "processed_metadata_history",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireStorageProcessedMetadataHistoryById",
+								Request:  "RequireStorageProcessedMetadataHistoryByIdRequest",
+								Response: "RequireStorageProcessedMetadataHistoryByIdResponse",
+							},
+						},
+					},
 				},
 			},
 			"Warehouse": {
@@ -440,6 +549,16 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 						RPC:      "LookupWarehouseById",
 						Request:  "LookupWarehouseByIdRequest",
 						Response: "LookupWarehouseByIdResponse",
+					},
+					RequiredFields: grpcdatasource.RequiredFieldsRPCMapping{
+						"stockHealthScore": {
+							TargetName: "stock_health_score",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireWarehouseStockHealthScoreById",
+								Request:  "RequireWarehouseStockHealthScoreByIdRequest",
+								Response: "RequireWarehouseStockHealthScoreByIdResponse",
+							},
+						},
 					},
 				},
 			},
@@ -753,6 +872,69 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				"location": {
 					TargetName: "location",
 				},
+				"itemCount": {
+					TargetName: "item_count",
+				},
+				"restockData": {
+					TargetName: "restock_data",
+				},
+				"stockHealthScore": {
+					TargetName: "stock_health_score",
+				},
+				"tags": {
+					TargetName: "tags",
+				},
+				"optionalTags": {
+					TargetName: "optional_tags",
+				},
+				"metadata": {
+					TargetName: "metadata",
+				},
+				"metadataHistory": {
+					TargetName: "metadata_history",
+				},
+				"tagSummary": {
+					TargetName: "tag_summary",
+				},
+				"optionalTagSummary": {
+					TargetName: "optional_tag_summary",
+				},
+				"metadataScore": {
+					TargetName: "metadata_score",
+				},
+				"processedMetadata": {
+					TargetName: "processed_metadata",
+				},
+				"optionalProcessedMetadata": {
+					TargetName: "optional_processed_metadata",
+				},
+				"processedTags": {
+					TargetName: "processed_tags",
+				},
+				"optionalProcessedTags": {
+					TargetName: "optional_processed_tags",
+				},
+				"processedMetadataHistory": {
+					TargetName: "processed_metadata_history",
+				},
+				"storageStatus": {
+					TargetName: "storage_status",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"checkHealth": "check_health",
+					},
+				},
+				"linkedStorages": {
+					TargetName: "linked_storages",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"depth": "depth",
+					},
+				},
+				"nearbyStorages": {
+					TargetName: "nearby_storages",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"radius": "radius",
+					},
+				},
 			},
 			"Warehouse": {
 				"id": {
@@ -763,6 +945,31 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"location": {
 					TargetName: "location",
+				},
+				"inventoryCount": {
+					TargetName: "inventory_count",
+				},
+				"restockData": {
+					TargetName: "restock_data",
+				},
+				"stockHealthScore": {
+					TargetName: "stock_health_score",
+				},
+			},
+			"RestockData": {
+				"lastRestockDate": {
+					TargetName: "last_restock_date",
+				},
+			},
+			"StorageMetadata": {
+				"capacity": {
+					TargetName: "capacity",
+				},
+				"zone": {
+					TargetName: "zone",
+				},
+				"priority": {
+					TargetName: "priority",
 				},
 			},
 			"User": {

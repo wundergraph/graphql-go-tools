@@ -23,6 +23,11 @@ lint:
 	golangci-lint run 
 	cd ../execution && make lint
 
+.PHONY: lint-fix
+lint-fix:
+	golangci-lint run --fix
+	cd ../execution && make lint-fix
+
 .PHONY: prepare-merge
 prepare-merge: format test
 
