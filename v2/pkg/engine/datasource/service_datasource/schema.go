@@ -56,7 +56,7 @@ func ExtendSchemaWithServiceTypes(schema *ast.Document) error {
 	// 1. Find Query type first to fail fast
 	queryNode, found := findQueryType(schema)
 	if !found {
-		return fmt.Errorf("query type not found in schema")
+		return fmt.Errorf("Query type not found in schema")
 	}
 
 	// 2. Add _Capability type (must be added before _Service since _Service references it)
