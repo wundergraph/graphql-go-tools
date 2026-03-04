@@ -395,11 +395,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						),
 						PostProcessing: DefaultPostProcessingConfiguration,
 						Caching: resolve.FetchCacheConfiguration{
-							Enabled:                     true,
-							CacheName:                   "default",
-							TTL:                         30 * time.Second,
-							IncludeSubgraphHeaderPrefix: true,
-							// UseL1Cache defaults to false - root query fetches with RootQueryCacheKeyTemplate don't populate entity L1 cache
 							CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{
 								RootFields: []resolve.QueryField{
 									{
@@ -791,15 +786,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							FieldNames: []string{"name", "primaryFunction", "friends"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						RootFieldCaching: plan.RootFieldCacheConfigurations{
-							{TypeName: "Query", FieldName: "droid", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: true},
-							{TypeName: "Query", FieldName: "hero", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: true},
-							{TypeName: "Query", FieldName: "stringList", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: true},
-							{TypeName: "Query", FieldName: "nestedStringList", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: true},
-						},
 					},
-				},
 				mustCustomConfiguration(t, ConfigurationInput{
 					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
