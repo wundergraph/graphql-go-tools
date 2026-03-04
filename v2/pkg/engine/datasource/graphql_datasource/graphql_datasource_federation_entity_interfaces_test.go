@@ -110,15 +110,6 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Account":   {},
 										},
 										TypeName: "Account",
-										CacheAnalytics: &resolve.ObjectCacheAnalytics{
-											KeyFields: []resolve.KeyField{},
-											ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
-												"Account": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Admin": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Moderator": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"User": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-											},
-										},
 									},
 								},
 							},
@@ -240,15 +231,6 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Account":   {},
 										},
 										TypeName: "Account",
-										CacheAnalytics: &resolve.ObjectCacheAnalytics{
-											KeyFields: []resolve.KeyField{},
-											ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
-												"Account": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Admin": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Moderator": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"User": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-											},
-										},
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("id"),
@@ -529,15 +511,6 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Account":   {},
 										},
 										TypeName: "Account",
-										CacheAnalytics: &resolve.ObjectCacheAnalytics{
-											KeyFields: []resolve.KeyField{},
-											ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
-												"Account": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Admin": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Moderator": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"User": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-											},
-										},
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("id"),
@@ -751,15 +724,6 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Account":   {},
 										},
 										TypeName: "Account",
-										CacheAnalytics: &resolve.ObjectCacheAnalytics{
-											KeyFields: []resolve.KeyField{},
-											ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
-												"Account": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Admin": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Moderator": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"User": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-											},
-										},
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("id"),
@@ -881,10 +845,6 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 										"User": {},
 									},
 									TypeName: "User",
-									CacheAnalytics: &resolve.ObjectCacheAnalytics{
-										KeyFields: []resolve.KeyField{{Name: "id"}},
-										ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
-									},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("id"),
@@ -1030,10 +990,6 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 										"User": {},
 									},
 									TypeName: "User",
-									CacheAnalytics: &resolve.ObjectCacheAnalytics{
-										KeyFields: []resolve.KeyField{{Name: "id"}},
-										ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
-									},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("id"),
@@ -1159,10 +1115,6 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 										"Admin": {},
 									},
 									TypeName: "Admin",
-									CacheAnalytics: &resolve.ObjectCacheAnalytics{
-										KeyFields: []resolve.KeyField{{Name: "id"}},
-										ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
-									},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("id"),
@@ -1308,10 +1260,6 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 										"Admin": {},
 									},
 									TypeName: "Admin",
-									CacheAnalytics: &resolve.ObjectCacheAnalytics{
-										KeyFields: []resolve.KeyField{{Name: "id"}},
-										ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
-									},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("id"),
@@ -1503,15 +1451,6 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Account":   {},
 										},
 										TypeName: "Account",
-										CacheAnalytics: &resolve.ObjectCacheAnalytics{
-											KeyFields: []resolve.KeyField{},
-											ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
-												"Account": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Admin": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Moderator": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"User": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-											},
-										},
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("id"),
@@ -1710,14 +1649,6 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"User":      {},
 										},
 										TypeName: "Accounts",
-										CacheAnalytics: &resolve.ObjectCacheAnalytics{
-											KeyFields: []resolve.KeyField{},
-											ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
-												"Admin": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Moderator": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"User": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-											},
-										},
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("id"),
@@ -2057,14 +1988,6 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"User":      {},
 										},
 										TypeName: "Accounts",
-										CacheAnalytics: &resolve.ObjectCacheAnalytics{
-											KeyFields: []resolve.KeyField{},
-											ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
-												"Admin": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Moderator": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"User": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-											},
-										},
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("id"),
@@ -2347,15 +2270,6 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Account":   {},
 										},
 										TypeName: "Account",
-										CacheAnalytics: &resolve.ObjectCacheAnalytics{
-											KeyFields: []resolve.KeyField{},
-											ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
-												"Account": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Admin": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Moderator": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"User": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-											},
-										},
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("id"),
@@ -2551,15 +2465,6 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Account":   {},
 										},
 										TypeName: "Account",
-										CacheAnalytics: &resolve.ObjectCacheAnalytics{
-											KeyFields: []resolve.KeyField{},
-											ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
-												"Account": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Admin": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Moderator": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"User": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-											},
-										},
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("id"),
@@ -2848,15 +2753,6 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Account":   {},
 										},
 										TypeName: "Account",
-										CacheAnalytics: &resolve.ObjectCacheAnalytics{
-											KeyFields: []resolve.KeyField{},
-											ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
-												"Account": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Admin": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Moderator": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"User": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-											},
-										},
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("id"),
@@ -3114,15 +3010,6 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Account":   {},
 										},
 										TypeName: "Account",
-										CacheAnalytics: &resolve.ObjectCacheAnalytics{
-											KeyFields: []resolve.KeyField{},
-											ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
-												"Account": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Admin": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Moderator": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"User": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-											},
-										},
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("id"),
@@ -3463,15 +3350,6 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Account":   {},
 										},
 										TypeName: "Account",
-										CacheAnalytics: &resolve.ObjectCacheAnalytics{
-											KeyFields: []resolve.KeyField{},
-											ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
-												"Account": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Admin": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Moderator": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"User": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-											},
-										},
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("id"),
@@ -3719,15 +3597,6 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Account":   {},
 										},
 										TypeName: "Account",
-										CacheAnalytics: &resolve.ObjectCacheAnalytics{
-											KeyFields: []resolve.KeyField{},
-											ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
-												"Account": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Admin": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Moderator": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"User": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-											},
-										},
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("age"),
@@ -3933,15 +3802,6 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Account":   {},
 										},
 										TypeName: "Account",
-										CacheAnalytics: &resolve.ObjectCacheAnalytics{
-											KeyFields: []resolve.KeyField{},
-											ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
-												"Account": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Admin": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Moderator": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"User": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-											},
-										},
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("age"),
@@ -4097,15 +3957,6 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Account":   {},
 										},
 										TypeName: "Account",
-										CacheAnalytics: &resolve.ObjectCacheAnalytics{
-											KeyFields: []resolve.KeyField{},
-											ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
-												"Account": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Admin": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Moderator": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"User": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-											},
-										},
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("title"),
@@ -4316,15 +4167,6 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Account":   {},
 										},
 										TypeName: "Account",
-										CacheAnalytics: &resolve.ObjectCacheAnalytics{
-											KeyFields: []resolve.KeyField{},
-											ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
-												"Account": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Admin": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Moderator": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"User": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-											},
-										},
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("id"),
@@ -4646,15 +4488,6 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Account":   {},
 										},
 										TypeName: "Account",
-										CacheAnalytics: &resolve.ObjectCacheAnalytics{
-											KeyFields: []resolve.KeyField{},
-											ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
-												"Account": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Admin": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Moderator": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"User": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-											},
-										},
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("age"),
@@ -5025,15 +4858,6 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Account":   {},
 										},
 										TypeName: "Account",
-										CacheAnalytics: &resolve.ObjectCacheAnalytics{
-											KeyFields: []resolve.KeyField{},
-											ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
-												"Account": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Admin": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Moderator": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"User": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-											},
-										},
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("age"),
@@ -5243,15 +5067,6 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Account":   {},
 										},
 										TypeName: "Account",
-										CacheAnalytics: &resolve.ObjectCacheAnalytics{
-											KeyFields: []resolve.KeyField{},
-											ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
-												"Account": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Admin": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"Moderator": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												"User": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-											},
-										},
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("id"),
@@ -5362,15 +5177,6 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												"Account":   {},
 											},
 											TypeName: "Account",
-											CacheAnalytics: &resolve.ObjectCacheAnalytics{
-												KeyFields: []resolve.KeyField{},
-												ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
-													"Account": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-													"Admin": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-													"Moderator": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-													"User": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-												},
-											},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("id"),
@@ -5480,10 +5286,6 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"User": {},
 										},
 										TypeName: "User",
-										CacheAnalytics: &resolve.ObjectCacheAnalytics{
-											KeyFields: []resolve.KeyField{{Name: "id"}},
-											ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
-										},
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("id"),

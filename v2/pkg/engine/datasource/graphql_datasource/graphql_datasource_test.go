@@ -462,15 +462,15 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 						ProvidesData: &resolve.Object{
-							Nullable: false,
-							Path:     []string{},
+							Nullable:   false,
+							Path:       []string{},
 							HasAliases: true,
 							Fields: []*resolve.Field{
 								{
 									Name: []byte("droid"),
 									Value: &resolve.Object{
-										Nullable: true,
-										Path:     []string{"droid"},
+										Nullable:   true,
+										Path:       []string{"droid"},
 										HasAliases: true,
 										Fields: []*resolve.Field{
 											{
@@ -481,7 +481,7 @@ func TestGraphQLDataSource(t *testing.T) {
 												},
 											},
 											{
-												Name: []byte("aliased"),
+												Name:         []byte("aliased"),
 												OriginalName: []byte("name"),
 												Value: &resolve.Scalar{
 													Path:     []string{"aliased"},
@@ -4381,10 +4381,6 @@ func TestGraphQLDataSource(t *testing.T) {
 									"User": {},
 								},
 								TypeName: "User",
-								CacheAnalytics: &resolve.ObjectCacheAnalytics{
-									KeyFields: []resolve.KeyField{{Name: "id"}},
-									ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
-								},
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("id"),
@@ -4424,10 +4420,6 @@ func TestGraphQLDataSource(t *testing.T) {
 																"User": {},
 															},
 															TypeName: "User",
-															CacheAnalytics: &resolve.ObjectCacheAnalytics{
-																KeyFields: []resolve.KeyField{{Name: "id"}},
-																ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
-															},
 															Fields: []*resolve.Field{
 																{
 																	Name: []byte("id"),
@@ -4452,10 +4444,6 @@ func TestGraphQLDataSource(t *testing.T) {
 																"Product": {},
 															},
 															TypeName: "Product",
-															CacheAnalytics: &resolve.ObjectCacheAnalytics{
-																KeyFields: []resolve.KeyField{{Name: "upc"}},
-																ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
-															},
 															Fields: []*resolve.Field{
 																{
 																	Name: []byte("name"),
@@ -4495,10 +4483,6 @@ func TestGraphQLDataSource(t *testing.T) {
 																							"User": {},
 																						},
 																						TypeName: "User",
-																						CacheAnalytics: &resolve.ObjectCacheAnalytics{
-																							KeyFields: []resolve.KeyField{{Name: "id"}},
-																							ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
-																						},
 																						Fields: []*resolve.Field{
 																							{
 																								Name: []byte("id"),
@@ -4983,10 +4967,6 @@ func TestGraphQLDataSource(t *testing.T) {
 									"User": {},
 								},
 								TypeName: "User",
-								CacheAnalytics: &resolve.ObjectCacheAnalytics{
-									KeyFields: []resolve.KeyField{{Name: "id"}},
-									ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
-								},
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("id"),
@@ -5371,10 +5351,6 @@ func TestGraphQLDataSource(t *testing.T) {
 									"User": {},
 								},
 								TypeName: "User",
-								CacheAnalytics: &resolve.ObjectCacheAnalytics{
-									KeyFields: []resolve.KeyField{{Name: "id"}},
-									ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
-								},
 								Path:     []string{"user"},
 								Nullable: true,
 								Fields: []*resolve.Field{
@@ -5740,10 +5716,6 @@ func TestGraphQLDataSource(t *testing.T) {
 									"ServiceOneType": {},
 								},
 								TypeName: "ServiceOneType",
-								CacheAnalytics: &resolve.ObjectCacheAnalytics{
-									KeyFields: []resolve.KeyField{{Name: "id"}},
-									ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
-								},
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("serviceTwoFieldOne"),
@@ -6454,10 +6426,6 @@ func TestGraphQLDataSource(t *testing.T) {
 										"User": {},
 									},
 									TypeName: "User",
-									CacheAnalytics: &resolve.ObjectCacheAnalytics{
-										KeyFields: []resolve.KeyField{{Name: "id"}},
-										ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
-									},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("id"),
@@ -6496,10 +6464,6 @@ func TestGraphQLDataSource(t *testing.T) {
 														"Review": {},
 													},
 													TypeName: "Review",
-													CacheAnalytics: &resolve.ObjectCacheAnalytics{
-														KeyFields: []resolve.KeyField{{Name: "id"}},
-														ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
-													},
 													Fields: []*resolve.Field{
 														{
 															Name: []byte("body"),
@@ -6598,12 +6562,6 @@ func TestGraphQLDataSource(t *testing.T) {
 										"User": {},
 									},
 									TypeName: "Identity",
-									CacheAnalytics: &resolve.ObjectCacheAnalytics{
-										KeyFields: []resolve.KeyField{},
-										ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
-											"User": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-										},
-									},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("id"),
@@ -6644,10 +6602,6 @@ func TestGraphQLDataSource(t *testing.T) {
 														"Review": {},
 													},
 													TypeName: "Review",
-													CacheAnalytics: &resolve.ObjectCacheAnalytics{
-														KeyFields: []resolve.KeyField{{Name: "id"}},
-														ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
-													},
 													Fields: []*resolve.Field{
 														{
 															Name: []byte("body"),
@@ -6751,12 +6705,6 @@ func TestGraphQLDataSource(t *testing.T) {
 										"User": {},
 									},
 									TypeName: "Identity",
-									CacheAnalytics: &resolve.ObjectCacheAnalytics{
-										KeyFields: []resolve.KeyField{},
-										ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
-											"User": {KeyFields: []resolve.KeyField{{Name: "id"}}, ByTypeName: map[string]*resolve.ObjectCacheAnalytics{}},
-										},
-									},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("reviews"),
@@ -6769,10 +6717,6 @@ func TestGraphQLDataSource(t *testing.T) {
 														"Review": {},
 													},
 													TypeName: "Review",
-													CacheAnalytics: &resolve.ObjectCacheAnalytics{
-														KeyFields: []resolve.KeyField{{Name: "id"}},
-														ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
-													},
 													Fields: []*resolve.Field{
 														{
 															Name: []byte("body"),
@@ -7043,10 +6987,6 @@ func TestGraphQLDataSource(t *testing.T) {
 										"User": {},
 									},
 									TypeName: "User",
-									CacheAnalytics: &resolve.ObjectCacheAnalytics{
-										KeyFields: []resolve.KeyField{{Name: "id"}},
-										ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
-									},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("username"),
@@ -7230,10 +7170,6 @@ func TestGraphQLDataSource(t *testing.T) {
 										"User": {},
 									},
 									TypeName: "User",
-									CacheAnalytics: &resolve.ObjectCacheAnalytics{
-										KeyFields: []resolve.KeyField{{Name: "id"}},
-										ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
-									},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("username"),
@@ -7421,10 +7357,6 @@ func TestGraphQLDataSource(t *testing.T) {
 										"User": {},
 									},
 									TypeName: "User",
-									CacheAnalytics: &resolve.ObjectCacheAnalytics{
-										KeyFields: []resolve.KeyField{{Name: "id"}},
-										ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
-									},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("username"),
@@ -7621,10 +7553,6 @@ func TestGraphQLDataSource(t *testing.T) {
 									"User": {},
 								},
 								TypeName: "User",
-								CacheAnalytics: &resolve.ObjectCacheAnalytics{
-									KeyFields: []resolve.KeyField{{Name: "id"}},
-									ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
-								},
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("username"),
@@ -7934,23 +7862,6 @@ func TestGraphQLDataSource(t *testing.T) {
 													"Dog": {},
 												},
 												TypeName: "CatOrDog",
-												CacheAnalytics: &resolve.ObjectCacheAnalytics{
-													KeyFields: []resolve.KeyField{},
-													ByTypeName: map[string]*resolve.ObjectCacheAnalytics{
-														"Cat": {
-															KeyFields: []resolve.KeyField{
-																{Name: "id"},
-															},
-															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
-														},
-														"Dog": {
-															KeyFields: []resolve.KeyField{
-																{Name: "id"},
-															},
-															ByTypeName: map[string]*resolve.ObjectCacheAnalytics{},
-														},
-													},
-												},
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("name"),
