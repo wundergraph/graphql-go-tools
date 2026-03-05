@@ -82,7 +82,7 @@ func TestWebsocketSubscriptionClientImmediateClientCancel(t *testing.T) {
 
 		WithLogger(logger()),
 	).(*subscriptionClient)
-	updater := newTestSubscriptionUpdaterChan()
+	updater := &testSubscriptionUpdater{}
 	go func() {
 		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 			URL: server.URL,
@@ -141,7 +141,7 @@ func TestWebsocketSubscriptionClientWithServerDisconnect(t *testing.T) {
 
 		WithLogger(logger()),
 	).(*subscriptionClient)
-	updater := newTestSubscriptionUpdaterChan()
+	updater := &testSubscriptionUpdater{}
 	go func() {
 		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 			URL: server.URL,
@@ -151,15 +151,11 @@ func TestWebsocketSubscriptionClientWithServerDisconnect(t *testing.T) {
 		}, updater)
 		assert.NoError(t, err)
 	}()
-	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
-	})
-	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, update)
-	})
-	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, update)
-	})
+	updater.AwaitUpdates(t, time.Second, 3)
+	assert.Equal(t, 3, len(updater.updates))
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
 	serverCancel()
 	assert.Eventuallyf(t, func() bool {
 		<-serverDone
@@ -209,7 +205,7 @@ func TestSubprotocolNegotiationWithGraphQLWS(t *testing.T) {
 
 		WithLogger(logger()),
 	).(*subscriptionClient)
-	updater := newTestSubscriptionUpdaterChan()
+	updater := &testSubscriptionUpdater{}
 	go func() {
 		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 			URL: server.URL,
@@ -219,15 +215,11 @@ func TestSubprotocolNegotiationWithGraphQLWS(t *testing.T) {
 		}, updater)
 		assert.NoError(t, err)
 	}()
-	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
-	})
-	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, update)
-	})
-	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, update)
-	})
+	updater.AwaitUpdates(t, time.Second, 3)
+	assert.Equal(t, 3, len(updater.updates))
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
 	clientCancel()
 	assert.Eventuallyf(t, func() bool {
 		<-serverDone
@@ -281,7 +273,7 @@ func TestSubprotocolNegotiationWithGraphQLTransportWS(t *testing.T) {
 
 		WithLogger(logger()),
 	).(*subscriptionClient)
-	updater := newTestSubscriptionUpdaterChan()
+	updater := &testSubscriptionUpdater{}
 	go func() {
 		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 			URL: server.URL,
@@ -291,15 +283,11 @@ func TestSubprotocolNegotiationWithGraphQLTransportWS(t *testing.T) {
 		}, updater)
 		assert.NoError(t, err)
 	}()
-	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
-	})
-	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, update)
-	})
-	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, update)
-	})
+	updater.AwaitUpdates(t, time.Second, 3)
+	assert.Equal(t, 3, len(updater.updates))
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
 	clientCancel()
 	assert.Eventuallyf(t, func() bool {
 		<-serverDone
@@ -348,7 +336,7 @@ func TestSubprotocolNegotiationWithNoSubprotocol(t *testing.T) {
 
 		WithLogger(logger()),
 	).(*subscriptionClient)
-	updater := newTestSubscriptionUpdaterChan()
+	updater := &testSubscriptionUpdater{}
 	go func() {
 		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 			URL: server.URL,
@@ -358,15 +346,11 @@ func TestSubprotocolNegotiationWithNoSubprotocol(t *testing.T) {
 		}, updater)
 		assert.NoError(t, err)
 	}()
-	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
-	})
-	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, update)
-	})
-	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, update)
-	})
+	updater.AwaitUpdates(t, time.Second, 3)
+	assert.Equal(t, 3, len(updater.updates))
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
 	clientCancel()
 	assert.Eventuallyf(t, func() bool {
 		<-serverDone
@@ -414,7 +398,7 @@ func TestSubprotocolNegotiationWithConfiguredGraphQLWS(t *testing.T) {
 
 		WithLogger(logger()),
 	).(*subscriptionClient)
-	updater := newTestSubscriptionUpdaterChan()
+	updater := &testSubscriptionUpdater{}
 	go func() {
 		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 			URL: server.URL,
@@ -425,15 +409,11 @@ func TestSubprotocolNegotiationWithConfiguredGraphQLWS(t *testing.T) {
 		}, updater)
 		assert.NoError(t, err)
 	}()
-	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
-	})
-	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, update)
-	})
-	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, update)
-	})
+	updater.AwaitUpdates(t, time.Second, 3)
+	assert.Equal(t, 3, len(updater.updates))
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
 	clientCancel()
 	assert.Eventuallyf(t, func() bool {
 		<-serverDone
@@ -487,7 +467,7 @@ func TestSubprotocolNegotiationWithConfiguredGraphQLTransportWS(t *testing.T) {
 
 		WithLogger(logger()),
 	).(*subscriptionClient)
-	updater := newTestSubscriptionUpdaterChan()
+	updater := &testSubscriptionUpdater{}
 
 	go func() {
 		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
@@ -500,15 +480,11 @@ func TestSubprotocolNegotiationWithConfiguredGraphQLTransportWS(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
-	})
-	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, update)
-	})
-	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, update)
-	})
+	updater.AwaitUpdates(t, time.Second, 3)
+	assert.Equal(t, 3, len(updater.updates))
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
 	clientCancel()
 	assert.Eventuallyf(t, func() bool {
 		<-serverDone
@@ -577,7 +553,7 @@ func TestWebSocketClientLeaks(t *testing.T) {
 		go func(i int) {
 			ctx, clientCancel := context.WithCancel(context.Background())
 			defer clientCancel()
-			updater := newTestSubscriptionUpdaterChan()
+			updater := &testSubscriptionUpdater{}
 			err := client.SubscribeAsync(resolve.NewContext(ctx), uint64(i), GraphQLSubscriptionOptions{
 				URL: server.URL,
 				Body: GraphQLBody{
@@ -587,15 +563,11 @@ func TestWebSocketClientLeaks(t *testing.T) {
 			}, updater)
 			assert.NoError(t, err)
 
-			updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-				assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
-			})
-			updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-				assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, update)
-			})
-			updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-				assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, update)
-			})
+			updater.AwaitUpdates(t, time.Second*10, 3)
+			assert.Equal(t, 3, len(updater.updates))
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
 			client.Unsubscribe(uint64(i))
 			clientCancel()
 			wg.Done()
@@ -665,7 +637,7 @@ func TestAsyncSubscribe(t *testing.T) {
 		client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 			WithLogger(logger()),
 		).(*subscriptionClient)
-		updater := newTestSubscriptionUpdaterChan()
+		updater := &testSubscriptionUpdater{}
 
 		err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
 			URL: server.URL,
@@ -676,15 +648,11 @@ func TestAsyncSubscribe(t *testing.T) {
 		}, updater)
 		assert.NoError(t, err)
 
-		updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-			assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
-		})
-		updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-			assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, update)
-		})
-		updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-			assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, update)
-		})
+		updater.AwaitUpdates(t, time.Second*10, 3)
+		assert.Equal(t, 3, len(updater.updates))
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
 		client.Unsubscribe(1)
 		clientCancel()
 		assert.Eventuallyf(t, func() bool {
@@ -740,7 +708,7 @@ func TestAsyncSubscribe(t *testing.T) {
 		client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 			WithLogger(logger()),
 		).(*subscriptionClient)
-		updater := newTestSubscriptionUpdaterChan()
+		updater := &testSubscriptionUpdater{}
 
 		err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
 			URL: server.URL,
@@ -751,15 +719,11 @@ func TestAsyncSubscribe(t *testing.T) {
 		}, updater)
 		assert.NoError(t, err)
 
-		updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-			assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
-		})
-		updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-			assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, update)
-		})
-		updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-			assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, update)
-		})
+		updater.AwaitUpdates(t, time.Second*10, 3)
+		assert.Equal(t, 3, len(updater.updates))
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
 		client.Unsubscribe(1)
 		clientCancel()
 		assert.Eventuallyf(t, func() bool {
@@ -805,7 +769,7 @@ func TestAsyncSubscribe(t *testing.T) {
 		client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 			WithLogger(logger()),
 		).(*subscriptionClient)
-		updater := newTestSubscriptionUpdaterChan()
+		updater := &testSubscriptionUpdater{}
 
 		err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
 			URL: server.URL,
@@ -816,9 +780,9 @@ func TestAsyncSubscribe(t *testing.T) {
 		}, updater)
 		assert.NoError(t, err)
 
-		updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-			assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
-		})
+		updater.AwaitUpdates(t, time.Second*10, 1)
+		assert.Equal(t, 1, len(updater.updates))
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
 		client.Unsubscribe(1)
 		clientCancel()
 		assert.Eventuallyf(t, func() bool {
@@ -870,7 +834,7 @@ func TestAsyncSubscribe(t *testing.T) {
 		client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 			WithLogger(logger()),
 		).(*subscriptionClient)
-		updater := newTestSubscriptionUpdaterChan()
+		updater := &testSubscriptionUpdater{}
 
 		err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
 			URL: server.URL,
@@ -881,9 +845,9 @@ func TestAsyncSubscribe(t *testing.T) {
 		}, updater)
 		assert.NoError(t, err)
 
-		updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-			assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
-		})
+		updater.AwaitUpdates(t, time.Second*10, 1)
+		assert.Equal(t, 1, len(updater.updates))
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
 		client.Unsubscribe(1)
 		clientCancel()
 		assert.Eventuallyf(t, func() bool {
@@ -929,7 +893,7 @@ func TestAsyncSubscribe(t *testing.T) {
 		client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 			WithLogger(logger()),
 		).(*subscriptionClient)
-		updater := newTestSubscriptionUpdaterChan()
+		updater := &testSubscriptionUpdater{}
 
 		err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
 			URL: server.URL,
@@ -940,9 +904,9 @@ func TestAsyncSubscribe(t *testing.T) {
 		}, updater)
 		assert.NoError(t, err)
 
-		updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-			assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
-		})
+		updater.AwaitUpdates(t, time.Second*10, 1)
+		assert.Equal(t, 1, len(updater.updates))
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
 		assert.Eventuallyf(t, func() bool {
 			<-serverDone
 			return true
@@ -985,7 +949,7 @@ func TestAsyncSubscribe(t *testing.T) {
 		client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 			WithLogger(logger()),
 		).(*subscriptionClient)
-		updater := newTestSubscriptionUpdaterChan()
+		updater := &testSubscriptionUpdater{}
 
 		err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
 			URL: server.URL,
@@ -996,9 +960,9 @@ func TestAsyncSubscribe(t *testing.T) {
 		}, updater)
 		assert.NoError(t, err)
 
-		updater.AwaitUpdateWithT(t, time.Second*3, func(t *testing.T, update string) {
-			assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
-		})
+		updater.AwaitUpdates(t, time.Second*3, 1)
+		assert.Equal(t, 1, len(updater.updates))
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
 		time.Sleep(time.Second * 2)
 	})
 	t.Run("graphql-ws", func(t *testing.T) {
@@ -1057,7 +1021,7 @@ func TestAsyncSubscribe(t *testing.T) {
 			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 				WithLogger(logger()),
 			).(*subscriptionClient)
-			updater := newTestSubscriptionUpdaterChan()
+			updater := &testSubscriptionUpdater{}
 
 			err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
 				URL: server.URL,
@@ -1068,15 +1032,11 @@ func TestAsyncSubscribe(t *testing.T) {
 			}, updater)
 			assert.NoError(t, err)
 
-			updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-				assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
-			})
-			updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-				assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, update)
-			})
-			updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-				assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, update)
-			})
+			updater.AwaitUpdates(t, time.Second*10, 3)
+			assert.Equal(t, 3, len(updater.updates))
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
 			client.Unsubscribe(1)
 
 			clientCancel()
@@ -1127,7 +1087,7 @@ func TestAsyncSubscribe(t *testing.T) {
 			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 				WithLogger(logger()),
 			).(*subscriptionClient)
-			updater := newTestSubscriptionUpdaterChan()
+			updater := &testSubscriptionUpdater{}
 
 			err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
 				URL: server.URL,
@@ -1138,9 +1098,9 @@ func TestAsyncSubscribe(t *testing.T) {
 			}, updater)
 			assert.NoError(t, err)
 
-			updater.AwaitUpdateWithT(t, time.Second*5, func(t *testing.T, update string) {
-				assert.Equal(t, `{"errors":[{"message":"connection error"}]}`, update)
-			})
+			updater.AwaitUpdates(t, time.Second*5, 1)
+			assert.Equal(t, 1, len(updater.updates))
+			assert.Equal(t, `{"errors":[{"message":"connection error"}]}`, updater.updates[0])
 			client.Unsubscribe(1)
 			clientCancel()
 			assert.Eventuallyf(t, func() bool {
@@ -1192,7 +1152,7 @@ func TestAsyncSubscribe(t *testing.T) {
 			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 				WithLogger(logger()),
 			).(*subscriptionClient)
-			updater := newTestSubscriptionUpdaterChan()
+			updater := &testSubscriptionUpdater{}
 
 			err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
 				URL: server.URL,
@@ -1203,9 +1163,9 @@ func TestAsyncSubscribe(t *testing.T) {
 			}, updater)
 			assert.NoError(t, err)
 
-			updater.AwaitUpdateWithT(t, time.Second*5, func(t *testing.T, update string) {
-				assert.Equal(t, `{"errors":[{"message":"ws error"}]}`, update)
-			})
+			updater.AwaitUpdates(t, time.Second*5, 1)
+			assert.Equal(t, 1, len(updater.updates))
+			assert.Equal(t, `{"errors":[{"message":"ws error"}]}`, updater.updates[0])
 			client.Unsubscribe(1)
 			clientCancel()
 			assert.Eventuallyf(t, func() bool {
@@ -1256,7 +1216,7 @@ func TestAsyncSubscribe(t *testing.T) {
 			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 				WithLogger(logger()),
 			).(*subscriptionClient)
-			updater := newTestSubscriptionUpdaterChan()
+			updater := &testSubscriptionUpdater{}
 
 			err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
 				URL: server.URL,
@@ -1267,9 +1227,9 @@ func TestAsyncSubscribe(t *testing.T) {
 			}, updater)
 			assert.NoError(t, err)
 
-			updater.AwaitUpdateWithT(t, time.Second*5, func(t *testing.T, update string) {
-				assert.Equal(t, `{"errors":[{"message":"ws error"}]}`, update)
-			})
+			updater.AwaitUpdates(t, time.Second*5, 1)
+			assert.Equal(t, 1, len(updater.updates))
+			assert.Equal(t, `{"errors":[{"message":"ws error"}]}`, updater.updates[0])
 			client.Unsubscribe(1)
 			clientCancel()
 			assert.Eventuallyf(t, func() bool {
@@ -1336,7 +1296,7 @@ func TestAsyncSubscribe(t *testing.T) {
 			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 				WithLogger(logger()),
 			).(*subscriptionClient)
-			updater := newTestSubscriptionUpdaterChan()
+			updater := &testSubscriptionUpdater{}
 
 			err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
 				URL: server.URL,
@@ -1347,15 +1307,11 @@ func TestAsyncSubscribe(t *testing.T) {
 			}, updater)
 			assert.NoError(t, err)
 
-			updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-				assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
-			})
-			updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-				assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, update)
-			})
-			updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-				assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, update)
-			})
+			updater.AwaitUpdates(t, time.Second*10, 3)
+			assert.Equal(t, 3, len(updater.updates))
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
 			client.Unsubscribe(1)
 			clientCancel()
 			assert.Eventuallyf(t, func() bool {
@@ -1419,7 +1375,7 @@ func TestAsyncSubscribe(t *testing.T) {
 					Enable: false,
 				}),
 			).(*subscriptionClient)
-			updater := newTestSubscriptionUpdaterChan()
+			updater := &testSubscriptionUpdater{}
 
 			err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
 				URL: server.URL,
@@ -1430,15 +1386,11 @@ func TestAsyncSubscribe(t *testing.T) {
 			}, updater)
 			assert.NoError(t, err)
 
-			updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-				assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
-			})
-			updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-				assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, update)
-			})
-			updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-				assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, update)
-			})
+			updater.AwaitUpdates(t, time.Second*10, 3)
+			assert.Equal(t, 3, len(updater.updates))
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
 			clientCancel()
 			assert.Eventuallyf(t, func() bool {
 				<-serverDone
@@ -1503,7 +1455,7 @@ func TestAsyncSubscribe(t *testing.T) {
 				go func(i int) {
 					ctx, clientCancel := context.WithCancel(context.Background())
 					defer clientCancel()
-					updater := newTestSubscriptionUpdaterChan()
+					updater := &testSubscriptionUpdater{}
 					err := client.SubscribeAsync(resolve.NewContext(ctx), uint64(i), GraphQLSubscriptionOptions{
 						URL: server.URL,
 						Body: GraphQLBody{
@@ -1513,15 +1465,11 @@ func TestAsyncSubscribe(t *testing.T) {
 					}, updater)
 					assert.NoError(t, err)
 
-					updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-						assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
-					})
-					updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-						assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, update)
-					})
-					updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-						assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, update)
-					})
+					updater.AwaitUpdates(t, time.Second*10, 3)
+					assert.Equal(t, 3, len(updater.updates))
+					assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+					assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
+					assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
 					clientCancel()
 					wg.Done()
 				}(i)
@@ -1582,7 +1530,7 @@ func TestAsyncSubscribe(t *testing.T) {
 			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 				WithLogger(logger()),
 			).(*subscriptionClient)
-			updater := newTestSubscriptionUpdaterChan()
+			updater := &testSubscriptionUpdater{}
 
 			err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
 				URL: server.URL,
@@ -1593,15 +1541,11 @@ func TestAsyncSubscribe(t *testing.T) {
 			}, updater)
 			assert.NoError(t, err)
 
-			updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-				assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
-			})
-			updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-				assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, update)
-			})
-			updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-				assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, update)
-			})
+			updater.AwaitUpdates(t, time.Second*10, 3)
+			assert.Equal(t, 3, len(updater.updates))
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
 			client.Unsubscribe(1)
 			clientCancel()
 			assert.Eventuallyf(t, func() bool {
@@ -1661,7 +1605,7 @@ func TestAsyncSubscribe(t *testing.T) {
 			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 				WithLogger(logger()),
 			).(*subscriptionClient)
-			updater := newTestSubscriptionUpdaterChan()
+			updater := &testSubscriptionUpdater{}
 
 			err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
 				URL: server.URL,
@@ -1672,15 +1616,11 @@ func TestAsyncSubscribe(t *testing.T) {
 			}, updater)
 			assert.NoError(t, err)
 
-			updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-				assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
-			})
-			updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-				assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, update)
-			})
-			updater.AwaitUpdateWithT(t, time.Second*10, func(t *testing.T, update string) {
-				assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, update)
-			})
+			updater.AwaitUpdates(t, time.Second*10, 3)
+			assert.Equal(t, 3, len(updater.updates))
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
 			client.Unsubscribe(1)
 			clientCancel()
 			assert.Eventuallyf(t, func() bool {
@@ -1733,7 +1673,7 @@ func TestAsyncSubscribe(t *testing.T) {
 
 				WithLogger(logger()),
 			).(*subscriptionClient)
-			updater := newTestSubscriptionUpdaterChan()
+			updater := &testSubscriptionUpdater{}
 
 			err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
 				URL: server.URL,
@@ -1744,12 +1684,10 @@ func TestAsyncSubscribe(t *testing.T) {
 			}, updater)
 			assert.NoError(t, err)
 
-			updater.AwaitUpdateWithT(t, time.Second*5, func(t *testing.T, update string) {
-				assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
-			})
-			updater.AwaitUpdateWithT(t, time.Second*5, func(t *testing.T, update string) {
-				assert.Equal(t, `{"errors":[{"message":"ws error"}]}`, update)
-			})
+			updater.AwaitUpdates(t, time.Second*5, 2)
+			assert.Equal(t, 2, len(updater.updates))
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+			assert.Equal(t, `{"errors":[{"message":"ws error"}]}`, updater.updates[1])
 			client.Unsubscribe(1)
 			clientCancel()
 			assert.Eventuallyf(t, func() bool {
@@ -1801,7 +1739,7 @@ func TestAsyncSubscribe(t *testing.T) {
 			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 				WithLogger(logger()),
 			).(*subscriptionClient)
-			updater := newTestSubscriptionUpdaterChan()
+			updater := &testSubscriptionUpdater{}
 
 			err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
 				URL: server.URL,
@@ -1812,12 +1750,10 @@ func TestAsyncSubscribe(t *testing.T) {
 			}, updater)
 			assert.NoError(t, err)
 
-			updater.AwaitUpdateWithT(t, time.Second*5, func(t *testing.T, update string) {
-				assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
-			})
-			updater.AwaitUpdateWithT(t, time.Second*5, func(t *testing.T, update string) {
-				assert.Equal(t, `{"errors":[{"message":"ws error"}]}`, update)
-			})
+			updater.AwaitUpdates(t, time.Second*5, 2)
+			assert.Equal(t, 2, len(updater.updates))
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+			assert.Equal(t, `{"errors":[{"message":"ws error"}]}`, updater.updates[1])
 			client.Unsubscribe(1)
 			clientCancel()
 			assert.Eventuallyf(t, func() bool {
@@ -1867,7 +1803,7 @@ func TestAsyncSubscribe(t *testing.T) {
 			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 				WithLogger(logger()),
 			).(*subscriptionClient)
-			updater := newTestSubscriptionUpdaterChan()
+			updater := &testSubscriptionUpdater{}
 
 			err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
 				URL: server.URL,
@@ -1877,9 +1813,9 @@ func TestAsyncSubscribe(t *testing.T) {
 				WsSubProtocol: ProtocolGraphQLTWS,
 			}, updater)
 			assert.NoError(t, err)
-			updater.AwaitUpdateWithT(t, time.Second*5, func(t *testing.T, update string) {
-				assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
-			})
+			updater.AwaitUpdates(t, time.Second*5, 1)
+			assert.Equal(t, 1, len(updater.updates))
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
 			client.Unsubscribe(1)
 			clientCancel()
 			assert.Eventuallyf(t, func() bool {
@@ -1929,7 +1865,7 @@ func TestAsyncSubscribe(t *testing.T) {
 			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 				WithLogger(logger()),
 			).(*subscriptionClient)
-			updater := newTestSubscriptionUpdaterChan()
+			updater := &testSubscriptionUpdater{}
 
 			err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
 				URL: server.URL,
@@ -1939,9 +1875,9 @@ func TestAsyncSubscribe(t *testing.T) {
 				WsSubProtocol: ProtocolGraphQLTWS,
 			}, updater)
 			assert.NoError(t, err)
-			updater.AwaitUpdateWithT(t, time.Second*5, func(t *testing.T, update string) {
-				assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
-			})
+			updater.AwaitUpdates(t, time.Second*5, 1)
+			assert.Equal(t, 1, len(updater.updates))
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
 			client.Unsubscribe(1)
 			clientCancel()
 			assert.Eventuallyf(t, func() bool {
@@ -2070,7 +2006,7 @@ func TestClientToSubgraphPingPong(t *testing.T) {
 			}),
 		).(*subscriptionClient)
 
-		updater := newTestSubscriptionUpdaterChan()
+		updater := &testSubscriptionUpdater{}
 
 		err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
 			URL: server.URL,
@@ -2080,11 +2016,6 @@ func TestClientToSubgraphPingPong(t *testing.T) {
 			WsSubProtocol: ProtocolGraphQLTWS,
 		}, updater)
 		assert.NoError(t, err)
-
-		// Consume the initial data update so the client goroutine isn't blocked
-		updater.AwaitUpdateWithT(t, 2*time.Second, func(t *testing.T, update string) {
-			assert.Equal(t, `{"data":{"messageAdded":{"text":"initial data"}}}`, update)
-		})
 
 		// Wait for ping to be received before unsubscribing
 		select {
@@ -2100,11 +2031,6 @@ func TestClientToSubgraphPingPong(t *testing.T) {
 		case <-time.After(2 * time.Second):
 			t.Log("Timed out waiting for sent payload, will unsubscribe anyway")
 		}
-
-		// Consume the "after ping-pong" update sent by server after pong
-		updater.AwaitUpdateWithT(t, 2*time.Second, func(t *testing.T, update string) {
-			assert.Equal(t, `{"data":{"messageAdded":{"text":"after ping-pong"}}}`, update)
-		})
 
 		// Cleanup
 		client.Unsubscribe(1)
@@ -2215,7 +2141,7 @@ func TestClientToSubgraphPingPong(t *testing.T) {
 			}),
 		).(*subscriptionClient)
 
-		updater := newTestSubscriptionUpdaterChan()
+		updater := &testSubscriptionUpdater{}
 
 		err := client.SubscribeAsync(resolve.NewContext(ctx), 2, GraphQLSubscriptionOptions{
 			URL: server.URL,
@@ -2234,9 +2160,16 @@ func TestClientToSubgraphPingPong(t *testing.T) {
 		}
 
 		// Verify we receive at least the initial data
-		updater.AwaitUpdateWithT(t, 2*time.Second, func(t *testing.T, update string) {
-			assert.Equal(t, `{"data":{"messageAdded":{"text":"initial data"}}}`, update)
-		})
+		updater.mux.Lock()
+		updatesCount := len(updater.updates)
+		firstUpdate := ""
+		if updatesCount > 0 {
+			firstUpdate = updater.updates[0]
+		}
+		updater.mux.Unlock()
+
+		assert.GreaterOrEqual(t, updatesCount, 1)
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"initial data"}}}`, firstUpdate)
 
 		// Cleanup
 		client.Unsubscribe(2)
@@ -2378,7 +2311,7 @@ func TestClientClosesConnectionOnPingTimeout(t *testing.T) {
 		}),
 	).(*subscriptionClient)
 
-	updater := newTestSubscriptionUpdaterChan()
+	updater := &testSubscriptionUpdater{}
 
 	// Use a unique ID for async subscription
 	subscriptionID := uint64(42)
@@ -2393,9 +2326,17 @@ func TestClientClosesConnectionOnPingTimeout(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Wait for initial data
-	updater.AwaitUpdateWithT(t, 3*time.Second, func(t *testing.T, update string) {
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"initial data"}}}`, update)
-	})
+	updater.AwaitUpdates(t, 3*time.Second, 1)
+	updater.mux.Lock()
+	updatesCount := len(updater.updates)
+	firstUpdate := ""
+	if updatesCount > 0 {
+		firstUpdate = updater.updates[0]
+	}
+	updater.mux.Unlock()
+
+	require.Equal(t, 1, updatesCount, "Client should receive initial data")
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"initial data"}}}`, firstUpdate)
 
 	// Wait for the server to confirm it received a ping
 	select {
@@ -2511,7 +2452,7 @@ func TestWebSocketUpgradeFailures(t *testing.T) {
 
 			wsURL := strings.Replace(server.URL, "http://", "ws://", 1)
 
-			updater := newTestSubscriptionUpdaterChan()
+			updater := &testSubscriptionUpdater{}
 			err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 				URL: wsURL,
 				Body: GraphQLBody{
@@ -2614,7 +2555,7 @@ func TestInvalidWebSocketAcceptKey(t *testing.T) {
 
 			wsURL := strings.Replace(server.URL, "http://", "ws://", 1)
 
-			updater := newTestSubscriptionUpdaterChan()
+			updater := &testSubscriptionUpdater{}
 			err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 				URL: wsURL,
 				Body: GraphQLBody{

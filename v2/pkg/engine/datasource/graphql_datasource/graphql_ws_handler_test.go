@@ -75,7 +75,7 @@ func TestWebSocketSubscriptionClientInitIncludeKA_GQLWS(t *testing.T) {
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
 	).(*subscriptionClient)
-	updater := newTestSubscriptionUpdaterChan()
+	updater := &testSubscriptionUpdater{}
 	go func() {
 		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 			URL: server.URL,
@@ -85,18 +85,14 @@ func TestWebSocketSubscriptionClientInitIncludeKA_GQLWS(t *testing.T) {
 		}, updater)
 		assertion.NoError(err)
 	}()
-	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
-	})
-	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, update)
-	})
+	updater.AwaitUpdates(t, time.Second, 2)
+	assertion.Equal(`{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+	assertion.Equal(`{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
 	clientCancel()
-	select {
-	case <-serverDone:
-	case <-time.After(time.Second):
-		t.Fatal("server did not close")
-	}
+	assertion.Eventuallyf(func() bool {
+		<-serverDone
+		return true
+	}, time.Second, time.Millisecond*10, "server did not close")
 	serverCancel()
 }
 
@@ -143,7 +139,7 @@ func TestWebsocketSubscriptionClient_GQLWS(t *testing.T) {
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
 	).(*subscriptionClient)
-	updater := newTestSubscriptionUpdaterChan()
+	updater := &testSubscriptionUpdater{}
 	go func() {
 		rCtx := resolve.NewContext(ctx)
 		err := client.Subscribe(rCtx, GraphQLSubscriptionOptions{
@@ -154,21 +150,16 @@ func TestWebsocketSubscriptionClient_GQLWS(t *testing.T) {
 		}, updater)
 		assert.NoError(t, err)
 	}()
-	updater.AwaitUpdateWithT(t, time.Second*5, func(t *testing.T, update string) {
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
-	})
-	updater.AwaitUpdateWithT(t, time.Second*5, func(t *testing.T, update string) {
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, update)
-	})
-	updater.AwaitUpdateWithT(t, time.Second*5, func(t *testing.T, update string) {
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, update)
-	})
+	updater.AwaitUpdates(t, time.Second*5, 3)
+	assert.Equal(t, 3, len(updater.updates))
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
 	clientCancel()
-	select {
-	case <-serverDone:
-	case <-time.After(time.Second):
-		t.Fatal("server did not close")
-	}
+	assert.Eventuallyf(t, func() bool {
+		<-serverDone
+		return true
+	}, time.Second, time.Millisecond*10, "server did not close")
 	serverCancel()
 }
 
@@ -209,7 +200,7 @@ func TestWebsocketSubscriptionClientErrorArray(t *testing.T) {
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
 	)
-	updater := newTestSubscriptionUpdaterChan()
+	updater := &testSubscriptionUpdater{}
 	go func() {
 		err := client.Subscribe(resolve.NewContext(clientCtx), GraphQLSubscriptionOptions{
 			URL: server.URL,
@@ -219,16 +210,14 @@ func TestWebsocketSubscriptionClientErrorArray(t *testing.T) {
 		}, updater)
 		assert.NoError(t, err)
 	}()
-	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
-		assert.Equal(t, `{"errors":[{"message":"error"},{"message":"error"}]}`, update)
-	})
+	updater.AwaitUpdates(t, time.Second, 1)
+	assert.Equal(t, `{"errors":[{"message":"error"},{"message":"error"}]}`, updater.updates[0])
 	clientCancel()
-	updater.AwaitComplete(t, time.Second)
-	select {
-	case <-serverDone:
-	case <-time.After(time.Second):
-		t.Fatal("server did not close")
-	}
+	updater.AwaitDone(t, time.Second)
+	assert.Eventuallyf(t, func() bool {
+		<-serverDone
+		return true
+	}, time.Second, time.Millisecond*10, "server did not close")
 }
 
 func TestWebsocketSubscriptionClientErrorObject(t *testing.T) {
@@ -268,7 +257,7 @@ func TestWebsocketSubscriptionClientErrorObject(t *testing.T) {
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
 	)
-	updater := newTestSubscriptionUpdaterChan()
+	updater := &testSubscriptionUpdater{}
 	go func() {
 		err := client.Subscribe(resolve.NewContext(clientCtx), GraphQLSubscriptionOptions{
 			URL: server.URL,
@@ -278,16 +267,15 @@ func TestWebsocketSubscriptionClientErrorObject(t *testing.T) {
 		}, updater)
 		assert.NoError(t, err)
 	}()
-	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
-		assert.Equal(t, `{"errors":[{"message":"error"}]}`, update)
-	})
+	updater.AwaitUpdates(t, time.Second, 1)
+	assert.Equal(t, 1, len(updater.updates))
+	assert.Equal(t, `{"errors":[{"message":"error"}]}`, updater.updates[0])
 	clientCancel()
-	updater.AwaitComplete(t, time.Second)
-	select {
-	case <-serverDone:
-	case <-time.After(time.Second):
-		t.Fatal("server did not close")
-	}
+	updater.AwaitDone(t, time.Second)
+	assert.Eventuallyf(t, func() bool {
+		<-serverDone
+		return true
+	}, time.Second, time.Millisecond*10, "server did not close")
 }
 
 func TestWebsocketSubscriptionClient_GQLWS_Upstream_Dies(t *testing.T) {
@@ -335,7 +323,7 @@ func TestWebsocketSubscriptionClient_GQLWS_Upstream_Dies(t *testing.T) {
 		WithReadTimeout(time.Second),
 		WithLogger(logger()),
 	).(*subscriptionClient)
-	updater := newTestSubscriptionUpdaterChan()
+	updater := &testSubscriptionUpdater{}
 	go func() {
 		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 			URL: server.URL,
@@ -345,15 +333,14 @@ func TestWebsocketSubscriptionClient_GQLWS_Upstream_Dies(t *testing.T) {
 		}, updater)
 		assert.NoError(t, err)
 	}()
-	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, update)
-	})
+	updater.AwaitUpdates(t, time.Second, 1)
+	assert.Equal(t, 1, len(updater.updates))
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
 
 	// Kill the upstream here. We should get an End-of-File error.
 	assert.NoError(t, wrappedListener.underlyingConnection.Close())
-	updater.AwaitUpdateWithT(t, time.Second, func(t *testing.T, update string) {
-		assert.Equal(t, `{"errors":[{"message":"EOF"}]}`, update)
-	})
+	updater.AwaitUpdates(t, time.Second, 2)
+	assert.Equal(t, `{"errors":[{"message":"EOF"}]}`, updater.updates[1])
 
 	serverCancel()
 	clientCancel()
