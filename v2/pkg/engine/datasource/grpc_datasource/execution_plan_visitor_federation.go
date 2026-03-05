@@ -162,7 +162,6 @@ func (r *rpcPlanVisitorFederation) EnterInlineFragment(ref int) {
 // LeaveInlineFragment implements astvisitor.InlineFragmentVisitor.
 func (r *rpcPlanVisitorFederation) LeaveInlineFragment(ref int) {
 	if r.entityInfo.entityInlineFragmentRef != ref {
-		// We only handle the entity inline fragment
 		return
 	}
 
@@ -209,21 +208,21 @@ func (r *rpcPlanVisitorFederation) EnterSelectionSet(ref int) {
 		return
 	}
 
-	if r.planInfo.currentRequestMessage == nil || len(r.planInfo.currentResponseMessage.Fields) == 0 || r.walker.Ancestor().Kind != ast.NodeKindField {
+	if r.planInfo.currentRequestMessage == nil || r.walker.Ancestor().Kind != ast.NodeKindField {
 		return
 	}
 
-	// We ignore selection sets from inline fragments or fragment spreads.
-	lastIndex := len(r.planInfo.currentResponseMessage.Fields) - 1
-
-	// In nested selection sets, a new message needs to be created, which will be added to the current response message.
-	if r.planInfo.currentResponseMessage.Fields[lastIndex].Message == nil {
-		r.planInfo.currentResponseMessage.Fields[lastIndex].Message = r.planCtx.newMessageFromSelectionSet(r.walker.EnclosingTypeDefinition, ref)
+	// Determine which inline fragment directly contains the field we are about
+	// to descend into, excluding the entity inline fragment whose fields are
+	// treated as regular (non-fragment) fields.
+	inlineFragmentRef := inlineFragmentRefFromAncestors(r.walker.Ancestors)
+	if inlineFragmentRef == r.entityInfo.entityInlineFragmentRef {
+		inlineFragmentRef = ast.InvalidRef
 	}
 
-	// Add the current response message to the ancestors and set the current response message to the current field message
-	r.planInfo.responseMessageAncestors = append(r.planInfo.responseMessageAncestors, r.planInfo.currentResponseMessage)
-	r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.Fields[lastIndex].Message
+	if !r.planCtx.enterNestedField(&r.planInfo, r.walker.EnclosingTypeDefinition, ref, inlineFragmentRef) {
+		return
+	}
 
 	// Check if the ancestor type is a composite type (interface or union)
 	// and set the oneof type and member types.
@@ -233,7 +232,6 @@ func (r *rpcPlanVisitorFederation) EnterSelectionSet(ref int) {
 		r.walker.StopWithInternalErr(err)
 		return
 	}
-
 }
 
 func (r *rpcPlanVisitorFederation) handleCompositeType(node ast.Node) error {
@@ -274,14 +272,14 @@ func (r *rpcPlanVisitorFederation) handleCompositeType(node ast.Node) error {
 
 // LeaveSelectionSet implements astvisitor.SelectionSetVisitor.
 func (r *rpcPlanVisitorFederation) LeaveSelectionSet(ref int) {
+	if r.fieldResolverAncestors.len() > 0 && r.walker.Ancestor().Kind == ast.NodeKindField {
+		return
+	}
 	if r.walker.Ancestor().Kind == ast.NodeKindInlineFragment {
 		return
 	}
 
-	if len(r.planInfo.responseMessageAncestors) > 0 {
-		r.planInfo.currentResponseMessage = r.planInfo.responseMessageAncestors[len(r.planInfo.responseMessageAncestors)-1]
-		r.planInfo.responseMessageAncestors = r.planInfo.responseMessageAncestors[:len(r.planInfo.responseMessageAncestors)-1]
-	}
+	r.planCtx.leaveNestedField(&r.planInfo)
 }
 
 // EnterField implements astvisitor.FieldVisitor.
@@ -351,12 +349,12 @@ func (r *rpcPlanVisitorFederation) EnterField(ref int) {
 
 	// check if we are inside of an inline fragment and not the entity inline fragment
 	if ref, ok := r.walker.ResolveInlineFragment(); ok && r.entityInfo.entityInlineFragmentRef != ref {
-		if r.planInfo.currentResponseMessage.FieldSelectionSet == nil {
-			r.planInfo.currentResponseMessage.FieldSelectionSet = make(RPCFieldSelectionSet)
+		if r.planInfo.currentResponseMessage.FragmentFields == nil {
+			r.planInfo.currentResponseMessage.FragmentFields = make(RPCFieldSelectionSet)
 		}
 
 		inlineFragmentName := r.operation.InlineFragmentTypeConditionNameString(ref)
-		r.planInfo.currentResponseMessage.FieldSelectionSet.Add(inlineFragmentName, field)
+		r.planInfo.currentResponseMessage.FragmentFields.Add(inlineFragmentName, field)
 		return
 	}
 

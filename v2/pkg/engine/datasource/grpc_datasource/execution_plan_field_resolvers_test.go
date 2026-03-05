@@ -2966,7 +2966,7 @@ func TestExecutionPlanFieldResolvers_WithCompositeTypes(t *testing.T) {
 													Name:        "Animal",
 													OneOfType:   OneOfTypeInterface,
 													MemberTypes: []string{"Cat", "Dog"},
-													FieldSelectionSet: RPCFieldSelectionSet{
+													FragmentFields: RPCFieldSelectionSet{
 														"Cat": {
 															{
 																Name:          "name",
@@ -3087,7 +3087,7 @@ func TestExecutionPlanFieldResolvers_WithCompositeTypes(t *testing.T) {
 													Name:        "ActionResult",
 													OneOfType:   OneOfTypeUnion,
 													MemberTypes: []string{"ActionSuccess", "ActionError"},
-													FieldSelectionSet: RPCFieldSelectionSet{
+													FragmentFields: RPCFieldSelectionSet{
 														"ActionSuccess": {
 															{
 																Name:          "message",
@@ -3247,7 +3247,7 @@ func TestExecutionPlanFieldResolvers_WithCompositeTypes(t *testing.T) {
 																Name:        "Animal",
 																OneOfType:   OneOfTypeInterface,
 																MemberTypes: []string{"Cat", "Dog"},
-																FieldSelectionSet: RPCFieldSelectionSet{
+																FragmentFields: RPCFieldSelectionSet{
 																	"Cat": {
 																		{
 																			Name:          "name",
@@ -3410,7 +3410,7 @@ func TestExecutionPlanFieldResolvers_WithCompositeTypes(t *testing.T) {
 																Name:        "ActionResult",
 																OneOfType:   OneOfTypeUnion,
 																MemberTypes: []string{"ActionSuccess", "ActionError"},
-																FieldSelectionSet: RPCFieldSelectionSet{
+																FragmentFields: RPCFieldSelectionSet{
 																	"ActionSuccess": {
 																		{
 																			Name:          "message",
@@ -3573,7 +3573,7 @@ func TestExecutionPlanFieldResolvers_WithCompositeTypes(t *testing.T) {
 																Name:        "Animal",
 																OneOfType:   OneOfTypeInterface,
 																MemberTypes: []string{"Cat", "Dog"},
-																FieldSelectionSet: RPCFieldSelectionSet{
+																FragmentFields: RPCFieldSelectionSet{
 																	"Cat": {
 																		{
 																			Name:          "name",
@@ -3609,7 +3609,7 @@ func TestExecutionPlanFieldResolvers_WithCompositeTypes(t *testing.T) {
 																Name:        "ActionResult",
 																OneOfType:   OneOfTypeUnion,
 																MemberTypes: []string{"ActionSuccess", "ActionError"},
-																FieldSelectionSet: RPCFieldSelectionSet{
+																FragmentFields: RPCFieldSelectionSet{
 																	"ActionSuccess": {
 																		{
 																			Name:          "message",
@@ -3772,7 +3772,7 @@ func TestExecutionPlanFieldResolvers_WithCompositeTypes(t *testing.T) {
 																Name:        "Animal",
 																OneOfType:   OneOfTypeInterface,
 																MemberTypes: []string{"Cat", "Dog"},
-																FieldSelectionSet: RPCFieldSelectionSet{
+																FragmentFields: RPCFieldSelectionSet{
 																	"Cat": {
 																		{
 																			Name:          "id",
@@ -4053,10 +4053,10 @@ func TestExecutionPlanFieldResolvers_CustomSchemas(t *testing.T) {
 												ProtoTypeName: DataTypeMessage,
 												JSONPath:      "fooResolver",
 												Message: &RPCMessage{
-													Name:              "Bar",
-													FieldSelectionSet: RPCFieldSelectionSet{"Baz": {}},
-													OneOfType:         OneOfTypeInterface,
-													MemberTypes:       []string{"Baz"},
+													Name:           "Bar",
+													FragmentFields: RPCFieldSelectionSet{"Baz": {}},
+													OneOfType:      OneOfTypeInterface,
+													MemberTypes:    []string{"Baz"},
 												},
 											},
 										},
@@ -4375,6 +4375,184 @@ func TestExecutionPlanFieldResolvers_CustomSchemas(t *testing.T) {
 			})
 		})
 	}
+}
+
+// TestExecutionPlanFieldResolvers_ComplexResolverInNestedMessage tests that fields
+// following a complex-return-type resolver inside a nested message are placed into
+// the correct parent message. This is a regression test for a bug where
+// LeaveSelectionSet incorrectly calls leaveNestedField for resolver fields whose
+// selection set never called enterNestedField, corrupting the responseMessageAncestors
+// stack and causing subsequent sibling fields to be added to the wrong message.
+func TestExecutionPlanFieldResolvers_ComplexResolverInNestedMessage(t *testing.T) {
+	t.Parallel()
+
+	// The query fetches categories -> subcategories, where inside the subcategory
+	// selection there is a complex-return-type field resolver (featuredCategory)
+	// followed by a regular scalar field (name).
+	//
+	// With the bug, LeaveSelectionSet for featuredCategory's selection set pops
+	// the Subcategory message off responseMessageAncestors even though
+	// enterNestedField was never called for it. As a result, the "name" field that
+	// comes after featuredCategory ends up in Category.Fields instead of
+	// Subcategory.Fields.
+	runTest(t, testCase{
+		query: `query SubcategoryComplexResolverBug($includeChildren: Boolean!) {
+			categories {
+				id
+				subcategories {
+					id
+					featuredCategory(includeChildren: $includeChildren) {
+						id
+						name
+					}
+					name
+				}
+			}
+		}`,
+		expectedPlan: &RPCExecutionPlan{
+			Calls: []RPCCall{
+				{
+					ServiceName: "Products",
+					MethodName:  "QueryCategories",
+					Request: RPCMessage{
+						Name: "QueryCategoriesRequest",
+					},
+					Response: RPCMessage{
+						Name: "QueryCategoriesResponse",
+						Fields: []RPCField{
+							{
+								Name:          "categories",
+								ProtoTypeName: DataTypeMessage,
+								JSONPath:      "categories",
+								Repeated:      true,
+								Message: &RPCMessage{
+									Name: "Category",
+									Fields: []RPCField{
+										{
+											Name:          "id",
+											ProtoTypeName: DataTypeString,
+											JSONPath:      "id",
+										},
+										{
+											Name:          "subcategories",
+											ProtoTypeName: DataTypeMessage,
+											JSONPath:      "subcategories",
+											IsListType:    true,
+											Optional:      true,
+											ListMetadata: &ListMetadata{
+												NestingLevel: 1,
+												LevelInfo:    []LevelInfo{{Optional: true}},
+											},
+											// Both "id" and "name" must be in Subcategory.Fields.
+											// The bug causes "name" to be placed in Category.Fields
+											// instead, because LeaveSelectionSet for the
+											// featuredCategory resolver selection set incorrectly
+											// pops the Subcategory message from the ancestor stack.
+											Message: &RPCMessage{
+												Name: "Subcategory",
+												Fields: []RPCField{
+													{
+														Name:          "id",
+														ProtoTypeName: DataTypeString,
+														JSONPath:      "id",
+													},
+													{
+														Name:          "name",
+														ProtoTypeName: DataTypeString,
+														JSONPath:      "name",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					ID:             1,
+					DependentCalls: []int{0},
+					ServiceName:    "Products",
+					MethodName:     "ResolveSubcategoryFeaturedCategory",
+					Kind:           CallKindResolve,
+					ResponsePath:   buildPath("categories.subcategories.featuredCategory"),
+					Request: RPCMessage{
+						Name: "ResolveSubcategoryFeaturedCategoryRequest",
+						Fields: []RPCField{
+							{
+								Name:          "context",
+								ProtoTypeName: DataTypeMessage,
+								Repeated:      true,
+								Message: &RPCMessage{
+									Name: "ResolveSubcategoryFeaturedCategoryContext",
+									Fields: []RPCField{
+										{
+											Name:          "id",
+											ProtoTypeName: DataTypeString,
+											JSONPath:      "id",
+											ResolvePath:   buildPath("categories.@subcategories.id"),
+										},
+									},
+								},
+							},
+							{
+								Name:          "field_args",
+								ProtoTypeName: DataTypeMessage,
+								Message: &RPCMessage{
+									Name: "ResolveSubcategoryFeaturedCategoryArgs",
+									Fields: []RPCField{
+										{
+											Name:          "include_children",
+											ProtoTypeName: DataTypeBool,
+											JSONPath:      "includeChildren",
+										},
+									},
+								},
+							},
+						},
+					},
+					Response: RPCMessage{
+						Name: "ResolveSubcategoryFeaturedCategoryResponse",
+						Fields: []RPCField{
+							{
+								Name:          "result",
+								ProtoTypeName: DataTypeMessage,
+								JSONPath:      "result",
+								Repeated:      true,
+								Message: &RPCMessage{
+									Name: "ResolveSubcategoryFeaturedCategoryResult",
+									Fields: []RPCField{
+										{
+											Name:          "featured_category",
+											ProtoTypeName: DataTypeMessage,
+											JSONPath:      "featuredCategory",
+											Optional:      true,
+											Message: &RPCMessage{
+												Name: "Category",
+												Fields: []RPCField{
+													{
+														Name:          "id",
+														ProtoTypeName: DataTypeString,
+														JSONPath:      "id",
+													},
+													{
+														Name:          "name",
+														ProtoTypeName: DataTypeString,
+														JSONPath:      "name",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	})
 }
 
 func schemaWithNestedResolverAndCompositeType(t *testing.T) ast.Document {
