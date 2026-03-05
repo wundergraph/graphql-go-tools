@@ -20,6 +20,14 @@ type CacheEntry struct {
 	RemainingTTL time.Duration // remaining TTL from cache (0 = unknown/not supported)
 }
 
+// EntityCacheInvalidationConfig holds minimal cache settings needed to build
+// invalidation keys for a specific entity type on a specific subgraph.
+// Used by processExtensionsCacheInvalidation at runtime.
+type EntityCacheInvalidationConfig struct {
+	CacheName                   string
+	IncludeSubgraphHeaderPrefix bool
+}
+
 type LoaderCache interface {
 	Get(ctx context.Context, keys []string) ([]*CacheEntry, error)
 	Set(ctx context.Context, entries []*CacheEntry, ttl time.Duration) error
@@ -1132,6 +1140,141 @@ func buildEntityKeyValue(a arena.Arena, data *astjson.Value, keyFields []KeyFiel
 		}
 	}
 	return obj
+}
+
+// processExtensionsCacheInvalidation handles cache invalidation signals from subgraph response extensions.
+//
+// Subgraphs can signal cache invalidation by including an extensions field in their response:
+//
+//	{"extensions": {"cacheInvalidation": {"keys": [{"typename": "User", "key": {"id": "1"}}]}}}
+//
+// This function parses the keys array and deletes the corresponding L2 (and L1) cache entries.
+// Works for both query and mutation responses — not restricted to mutations.
+//
+// The cache key construction pipeline mirrors the storage pipeline:
+//
+//	typename + key fields → build JSON → apply header prefix → apply interceptor → cache.Delete()
+func (l *Loader) processExtensionsCacheInvalidation(res *result, cacheInvalidation *astjson.Value) {
+	// No invalidation data in the response extensions.
+	if cacheInvalidation == nil {
+		return
+	}
+	// Extensions-based invalidation only applies when L2 caching is enabled,
+	// since L2 is the cross-request cache that benefits from explicit invalidation.
+	if !l.ctx.ExecutionOptions.Caching.EnableL2Cache {
+		return
+	}
+	// entityCacheConfigs maps subgraph name → entity type → config (CacheName, IncludeSubgraphHeaderPrefix).
+	// Without this mapping, we don't know which cache to delete from or how to build the key.
+	if l.entityCacheConfigs == nil || l.caches == nil {
+		return
+	}
+
+	// Extract the "keys" array from the cacheInvalidation object.
+	// Each entry has {"typename": "User", "key": {"id": "1"}}.
+	keysArray := cacheInvalidation.GetArray("keys")
+	if len(keysArray) == 0 {
+		return
+	}
+
+	// Look up the entity cache config for the responding subgraph.
+	// The subgraph that sent the invalidation signal is the same one whose entity configs we use,
+	// because in federation, the subgraph that caches an entity is the one that resolves it.
+	subgraphName := res.ds.Name
+	subgraphConfigs := l.entityCacheConfigs[subgraphName]
+	if subgraphConfigs == nil {
+		return
+	}
+
+	// Group invalidation keys by cache name so we can batch-delete per cache instance.
+	type cacheDeleteBatch struct {
+		cache LoaderCache
+		keys  []string
+	}
+	batches := map[string]*cacheDeleteBatch{}
+
+	for _, entry := range keysArray {
+		// Skip malformed entries (must be JSON objects).
+		if entry == nil || entry.Type() != astjson.TypeObject {
+			continue
+		}
+
+		// Extract "typename" (string) and "key" (object) from each invalidation entry.
+		typenameVal := entry.Get("typename")
+		keyVal := entry.Get("key")
+		if typenameVal == nil || keyVal == nil {
+			continue
+		}
+		typename := string(typenameVal.GetStringBytes())
+		if typename == "" {
+			continue
+		}
+
+		// Look up the entity cache config for this typename from the responding subgraph.
+		// This tells us which cache instance to use and whether to apply header prefix.
+		// Unknown typenames are silently skipped — the subgraph may send invalidation
+		// for types that aren't configured for caching on this router.
+		entityConfig := subgraphConfigs[typename]
+		if entityConfig == nil {
+			continue
+		}
+
+		// Resolve the cache instance by name.
+		cache := l.caches[entityConfig.CacheName]
+		if cache == nil {
+			continue
+		}
+
+		// Build the base cache key JSON matching the format used during cache population:
+		// {"__typename":"User","key":{"id":"1"}}
+		// The "key" value is taken directly from the extensions — it's already a JSON object
+		// with the entity's @key field values.
+		keyObj := astjson.ObjectValue(l.jsonArena)
+		keyObj.Set(l.jsonArena, "__typename", astjson.StringValue(l.jsonArena, typename))
+		keyObj.Set(l.jsonArena, "key", keyVal)
+		cacheKey := string(keyObj.MarshalTo(nil))
+
+		// Apply subgraph header prefix if configured for this entity type.
+		// This mirrors prepareCacheKeys() which prefixes L2 keys with a hash of the
+		// HTTP headers sent to the subgraph, enabling per-tenant cache isolation.
+		// Result: "55555:{"__typename":"User","key":{"id":"1"}}"
+		if entityConfig.IncludeSubgraphHeaderPrefix && l.ctx.SubgraphHeadersBuilder != nil {
+			_, headersHash := l.ctx.SubgraphHeadersBuilder.HeadersForSubgraph(subgraphName)
+			var buf [20]byte
+			b := strconv.AppendUint(buf[:0], headersHash, 10)
+			cacheKey = string(b) + ":" + cacheKey
+		}
+
+		// Apply user-provided L2 cache key interceptor if set.
+		// This allows user-defined key transformations (e.g., tenant isolation prefixes)
+		// and mirrors the same interceptor applied during cache population.
+		if interceptor := l.ctx.ExecutionOptions.Caching.L2CacheKeyInterceptor; interceptor != nil {
+			cacheKey = interceptor(l.ctx.ctx, cacheKey, L2CacheKeyInterceptorInfo{
+				SubgraphName: subgraphName,
+				CacheName:    entityConfig.CacheName,
+			})
+		}
+
+		// Accumulate the key into the batch for this cache name.
+		batch, ok := batches[entityConfig.CacheName]
+		if !ok {
+			batch = &cacheDeleteBatch{cache: cache}
+			batches[entityConfig.CacheName] = batch
+		}
+		batch.keys = append(batch.keys, cacheKey)
+
+		// Also evict from L1 (per-request) cache using the unprefixed key.
+		// L1 keys never have prefix or interceptor transformations applied.
+		if l.l1Cache != nil {
+			l1Key := string(keyObj.MarshalTo(nil))
+			l.l1Cache.Delete(l1Key)
+		}
+	}
+
+	// Execute batched L2 cache deletes — one Delete call per cache instance.
+	for _, batch := range batches {
+		_ = batch.cache.Delete(l.ctx.ctx, batch.keys)
+	}
 }
 
 // navigateProvidesDataToField finds the Object within ProvidesData that corresponds

@@ -1,0 +1,596 @@
+package resolve
+
+import (
+	"context"
+	"net/http"
+	"testing"
+	"time"
+
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/wundergraph/go-arena"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastjsonext"
+)
+
+// newUserCacheKeyTemplate returns a cache key template for User entities with @key(fields: "id").
+func newUserCacheKeyTemplate() *EntityQueryCacheKeyTemplate {
+	return &EntityQueryCacheKeyTemplate{
+		Keys: NewResolvableObjectVariable(&Object{
+			Fields: []*Field{
+				{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+				{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+			},
+		}),
+	}
+}
+
+func newUserProvidesData() *Object {
+	return &Object{
+		Fields: []*Field{
+			{Name: []byte("id"), Value: &Scalar{Path: []string{"id"}, Nullable: false}},
+			{Name: []byte("username"), Value: &Scalar{Path: []string{"username"}, Nullable: false}},
+		},
+	}
+}
+
+func newUserEntityFetchSegments() []TemplateSegment {
+	return []TemplateSegment{
+		{
+			Data:        []byte(`{"method":"POST","url":"http://accounts.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {id username}}}","variables":{"representations":[`),
+			SegmentType: StaticSegmentType,
+		},
+		{
+			SegmentType:  VariableSegmentType,
+			VariableKind: ResolvableObjectVariableKind,
+			Renderer: NewGraphQLVariableResolveRenderer(&Object{
+				Fields: []*Field{
+					{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+					{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+				},
+			}),
+		},
+		{
+			Data:        []byte(`]}}}`),
+			SegmentType: StaticSegmentType,
+		},
+	}
+}
+
+// setupExtInvalidationTest creates a standard test setup with a root DS and an entity DS for User entities.
+// The entityResponse is returned by the entity DS and should contain extensions.cacheInvalidation if needed.
+func setupExtInvalidationTest(t *testing.T, entityResponse string, entityCallCount int, opts ...func(*Loader, *Context)) (*Loader, *Context, *GraphQLResponse, *FakeLoaderCache) {
+	t.Helper()
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	cache := NewFakeLoaderCache()
+
+	rootDS := NewMockDataSource(ctrl)
+	rootDS.EXPECT().
+		Load(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+			return []byte(`{"data":{"user":{"__typename":"User","id":"1"}}}`), nil
+		}).Times(1)
+
+	entityDS := NewMockDataSource(ctrl)
+	entityDS.EXPECT().
+		Load(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+			return []byte(entityResponse), nil
+		}).Times(entityCallCount)
+
+	response := &GraphQLResponse{
+		Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
+		Fetches: Sequence(
+			SingleWithPath(&SingleFetch{
+				FetchConfiguration: FetchConfiguration{
+					DataSource: rootDS,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data"},
+					},
+				},
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{Data: []byte(`{"method":"POST","url":"http://root.service","body":{"query":"{user {__typename id}}"}}`), SegmentType: StaticSegmentType},
+					},
+				},
+				DataSourceIdentifier: []byte("graphql_datasource.Source"),
+			}, "query"),
+			SingleWithPath(&SingleFetch{
+				FetchConfiguration: FetchConfiguration{
+					DataSource: entityDS,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data", "_entities", "0"},
+					},
+					Caching: FetchCacheConfiguration{
+						Enabled:          true,
+						CacheName:        "default",
+						TTL:              30 * time.Second,
+						CacheKeyTemplate: newUserCacheKeyTemplate(),
+						UseL1Cache:       true,
+					},
+				},
+				InputTemplate: InputTemplate{Segments: newUserEntityFetchSegments()},
+				Info: &FetchInfo{
+					DataSourceID:   "accounts",
+					DataSourceName: "accounts",
+					OperationType:  ast.OperationTypeQuery,
+					ProvidesData:   newUserProvidesData(),
+				},
+				DataSourceIdentifier: []byte("graphql_datasource.Source"),
+			}, "query.user", ObjectPath("user")),
+		),
+		Data: &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("user"),
+					Value: &Object{
+						Path: []string{"user"},
+						Fields: []*Field{
+							{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+							{Name: []byte("username"), Value: &String{Path: []string{"username"}}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	loader := &Loader{
+		caches: map[string]LoaderCache{"default": cache},
+		entityCacheConfigs: map[string]map[string]*EntityCacheInvalidationConfig{
+			"accounts": {
+				"User": {CacheName: "default", IncludeSubgraphHeaderPrefix: false},
+			},
+		},
+	}
+
+	ctx := NewContext(context.Background())
+	ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+	ctx.ExecutionOptions.Caching.EnableL1Cache = true
+	ctx.ExecutionOptions.Caching.EnableL2Cache = true
+
+	for _, opt := range opts {
+		opt(loader, ctx)
+	}
+
+	return loader, ctx, response, cache
+}
+
+func runLoader(t *testing.T, loader *Loader, ctx *Context, response *GraphQLResponse) string {
+	t.Helper()
+	ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+	resolvable := NewResolvable(ar, ResolvableOptions{})
+	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+	require.NoError(t, err)
+
+	err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+	require.NoError(t, err)
+
+	return fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
+}
+
+func TestExtensionsCacheInvalidation(t *testing.T) {
+	t.Run("single entity invalidation", func(t *testing.T) {
+		entityResponse := `{"data":{"_entities":[{"__typename":"User","id":"1","username":"Alice"}]},"extensions":{"cacheInvalidation":{"keys":[{"typename":"User","key":{"id":"1"}}]}}}`
+		loader, ctx, response, cache := setupExtInvalidationTest(t, entityResponse, 1)
+
+		_ = runLoader(t, loader, ctx, response)
+
+		var deleteKeys []string
+		for _, entry := range cache.GetLog() {
+			if entry.Operation == "delete" {
+				deleteKeys = append(deleteKeys, entry.Keys...)
+			}
+		}
+		require.Equal(t, 1, len(deleteKeys), "should have exactly 1 delete call")
+		assert.Equal(t, `{"__typename":"User","key":{"id":"1"}}`, deleteKeys[0])
+	})
+
+	t.Run("multiple entity invalidation", func(t *testing.T) {
+		entityResponse := `{"data":{"_entities":[{"__typename":"User","id":"1","username":"Alice"}]},"extensions":{"cacheInvalidation":{"keys":[{"typename":"User","key":{"id":"1"}},{"typename":"User","key":{"id":"2"}}]}}}`
+		loader, ctx, response, cache := setupExtInvalidationTest(t, entityResponse, 1)
+
+		_ = runLoader(t, loader, ctx, response)
+
+		var deleteKeys []string
+		for _, entry := range cache.GetLog() {
+			if entry.Operation == "delete" {
+				deleteKeys = append(deleteKeys, entry.Keys...)
+			}
+		}
+		require.Equal(t, 2, len(deleteKeys), "should have exactly 2 delete keys")
+		assert.Contains(t, deleteKeys, `{"__typename":"User","key":{"id":"1"}}`)
+		assert.Contains(t, deleteKeys, `{"__typename":"User","key":{"id":"2"}}`)
+	})
+
+	t.Run("with subgraph header prefix", func(t *testing.T) {
+		entityResponse := `{"data":{"_entities":[{"__typename":"User","id":"1","username":"Alice"}]},"extensions":{"cacheInvalidation":{"keys":[{"typename":"User","key":{"id":"1"}}]}}}`
+
+		loader, ctx, response, cache := setupExtInvalidationTest(t, entityResponse, 1, func(l *Loader, c *Context) {
+			l.entityCacheConfigs["accounts"]["User"].IncludeSubgraphHeaderPrefix = true
+			c.SubgraphHeadersBuilder = &mockSubgraphHeadersBuilder{
+				hashes: map[string]uint64{"accounts": 33333},
+			}
+		})
+
+		_ = runLoader(t, loader, ctx, response)
+
+		var deleteKeys []string
+		for _, entry := range cache.GetLog() {
+			if entry.Operation == "delete" {
+				deleteKeys = append(deleteKeys, entry.Keys...)
+			}
+		}
+		require.Equal(t, 1, len(deleteKeys), "should have exactly 1 delete key")
+		assert.Equal(t, `33333:{"__typename":"User","key":{"id":"1"}}`, deleteKeys[0])
+	})
+
+	t.Run("with L2CacheKeyInterceptor", func(t *testing.T) {
+		entityResponse := `{"data":{"_entities":[{"__typename":"User","id":"1","username":"Alice"}]},"extensions":{"cacheInvalidation":{"keys":[{"typename":"User","key":{"id":"1"}}]}}}`
+
+		loader, ctx, response, cache := setupExtInvalidationTest(t, entityResponse, 1, func(_ *Loader, c *Context) {
+			c.ExecutionOptions.Caching.L2CacheKeyInterceptor = func(_ context.Context, key string, _ L2CacheKeyInterceptorInfo) string {
+				return "tenant-X:" + key
+			}
+		})
+
+		_ = runLoader(t, loader, ctx, response)
+
+		var deleteKeys []string
+		for _, entry := range cache.GetLog() {
+			if entry.Operation == "delete" {
+				deleteKeys = append(deleteKeys, entry.Keys...)
+			}
+		}
+		require.Equal(t, 1, len(deleteKeys), "should have exactly 1 delete key")
+		assert.Equal(t, `tenant-X:{"__typename":"User","key":{"id":"1"}}`, deleteKeys[0])
+	})
+
+	t.Run("with both prefix and interceptor", func(t *testing.T) {
+		entityResponse := `{"data":{"_entities":[{"__typename":"User","id":"1","username":"Alice"}]},"extensions":{"cacheInvalidation":{"keys":[{"typename":"User","key":{"id":"1"}}]}}}`
+
+		loader, ctx, response, cache := setupExtInvalidationTest(t, entityResponse, 1, func(l *Loader, c *Context) {
+			l.entityCacheConfigs["accounts"]["User"].IncludeSubgraphHeaderPrefix = true
+			c.SubgraphHeadersBuilder = &mockSubgraphHeadersBuilder{
+				hashes: map[string]uint64{"accounts": 33333},
+			}
+			c.ExecutionOptions.Caching.L2CacheKeyInterceptor = func(_ context.Context, key string, _ L2CacheKeyInterceptorInfo) string {
+				return "tenant-X:" + key
+			}
+		})
+
+		_ = runLoader(t, loader, ctx, response)
+
+		var deleteKeys []string
+		for _, entry := range cache.GetLog() {
+			if entry.Operation == "delete" {
+				deleteKeys = append(deleteKeys, entry.Keys...)
+			}
+		}
+		require.Equal(t, 1, len(deleteKeys), "should have exactly 1 delete key")
+		// prefix applied first, then interceptor wraps it
+		assert.Equal(t, `tenant-X:33333:{"__typename":"User","key":{"id":"1"}}`, deleteKeys[0])
+	})
+
+	t.Run("query response with invalidation", func(t *testing.T) {
+		// The entity response is from a query (not mutation), but includes invalidation.
+		entityResponse := `{"data":{"_entities":[{"__typename":"User","id":"1","username":"Alice"}]},"extensions":{"cacheInvalidation":{"keys":[{"typename":"User","key":{"id":"1"}}]}}}`
+		loader, ctx, response, cache := setupExtInvalidationTest(t, entityResponse, 1)
+
+		// Verify it's a query
+		assert.Equal(t, ast.OperationTypeQuery, response.Info.OperationType)
+
+		_ = runLoader(t, loader, ctx, response)
+
+		var deleteCount int
+		for _, entry := range cache.GetLog() {
+			if entry.Operation == "delete" {
+				deleteCount++
+			}
+		}
+		assert.Equal(t, 1, deleteCount, "query response should also trigger cache invalidation")
+	})
+
+	t.Run("no extensions in response", func(t *testing.T) {
+		entityResponse := `{"data":{"_entities":[{"__typename":"User","id":"1","username":"Alice"}]}}`
+		loader, ctx, response, cache := setupExtInvalidationTest(t, entityResponse, 1)
+
+		_ = runLoader(t, loader, ctx, response)
+
+		for _, entry := range cache.GetLog() {
+			assert.NotEqual(t, "delete", entry.Operation, "should have zero delete calls")
+		}
+	})
+
+	t.Run("extensions present but no cacheInvalidation key", func(t *testing.T) {
+		entityResponse := `{"data":{"_entities":[{"__typename":"User","id":"1","username":"Alice"}]},"extensions":{"tracing":{"version":1}}}`
+		loader, ctx, response, cache := setupExtInvalidationTest(t, entityResponse, 1)
+
+		_ = runLoader(t, loader, ctx, response)
+
+		for _, entry := range cache.GetLog() {
+			assert.NotEqual(t, "delete", entry.Operation, "should have zero delete calls")
+		}
+	})
+
+	t.Run("empty keys array", func(t *testing.T) {
+		entityResponse := `{"data":{"_entities":[{"__typename":"User","id":"1","username":"Alice"}]},"extensions":{"cacheInvalidation":{"keys":[]}}}`
+		loader, ctx, response, cache := setupExtInvalidationTest(t, entityResponse, 1)
+
+		_ = runLoader(t, loader, ctx, response)
+
+		for _, entry := range cache.GetLog() {
+			assert.NotEqual(t, "delete", entry.Operation, "should have zero delete calls")
+		}
+	})
+
+	t.Run("unknown typename silently skipped", func(t *testing.T) {
+		entityResponse := `{"data":{"_entities":[{"__typename":"User","id":"1","username":"Alice"}]},"extensions":{"cacheInvalidation":{"keys":[{"typename":"UnknownType","key":{"id":"1"}}]}}}`
+		loader, ctx, response, cache := setupExtInvalidationTest(t, entityResponse, 1)
+
+		_ = runLoader(t, loader, ctx, response)
+
+		for _, entry := range cache.GetLog() {
+			assert.NotEqual(t, "delete", entry.Operation, "should have zero delete calls for unknown typename")
+		}
+	})
+
+	t.Run("L2 cache disabled", func(t *testing.T) {
+		entityResponse := `{"data":{"_entities":[{"__typename":"User","id":"1","username":"Alice"}]},"extensions":{"cacheInvalidation":{"keys":[{"typename":"User","key":{"id":"1"}}]}}}`
+		loader, ctx, response, cache := setupExtInvalidationTest(t, entityResponse, 1, func(_ *Loader, c *Context) {
+			c.ExecutionOptions.Caching.EnableL2Cache = false
+		})
+
+		// Since L2 is disabled, the entity fetch won't use caching at all,
+		// and processExtensionsCacheInvalidation should return early.
+		_ = runLoader(t, loader, ctx, response)
+
+		for _, entry := range cache.GetLog() {
+			assert.NotEqual(t, "delete", entry.Operation, "should have zero delete calls when L2 disabled")
+		}
+	})
+
+	t.Run("malformed extensions - keys not an array", func(t *testing.T) {
+		entityResponse := `{"data":{"_entities":[{"__typename":"User","id":"1","username":"Alice"}]},"extensions":{"cacheInvalidation":{"keys":"invalid"}}}`
+		loader, ctx, response, cache := setupExtInvalidationTest(t, entityResponse, 1)
+
+		// Should not panic
+		_ = runLoader(t, loader, ctx, response)
+
+		for _, entry := range cache.GetLog() {
+			assert.NotEqual(t, "delete", entry.Operation, "should have zero delete calls for malformed extensions")
+		}
+	})
+
+	t.Run("malformed extensions - entry missing typename", func(t *testing.T) {
+		entityResponse := `{"data":{"_entities":[{"__typename":"User","id":"1","username":"Alice"}]},"extensions":{"cacheInvalidation":{"keys":[{"key":{"id":"1"}}]}}}`
+		loader, ctx, response, cache := setupExtInvalidationTest(t, entityResponse, 1)
+
+		_ = runLoader(t, loader, ctx, response)
+
+		for _, entry := range cache.GetLog() {
+			assert.NotEqual(t, "delete", entry.Operation, "should have zero delete calls when typename is missing")
+		}
+	})
+
+	t.Run("malformed extensions - entry missing key", func(t *testing.T) {
+		entityResponse := `{"data":{"_entities":[{"__typename":"User","id":"1","username":"Alice"}]},"extensions":{"cacheInvalidation":{"keys":[{"typename":"User"}]}}}`
+		loader, ctx, response, cache := setupExtInvalidationTest(t, entityResponse, 1)
+
+		_ = runLoader(t, loader, ctx, response)
+
+		for _, entry := range cache.GetLog() {
+			assert.NotEqual(t, "delete", entry.Operation, "should have zero delete calls when key is missing")
+		}
+	})
+
+	t.Run("composite key fields", func(t *testing.T) {
+		entityResponse := `{"data":{"_entities":[{"__typename":"User","id":"1","username":"Alice"}]},"extensions":{"cacheInvalidation":{"keys":[{"typename":"User","key":{"id":"1","orgId":"42"}}]}}}`
+		loader, ctx, response, cache := setupExtInvalidationTest(t, entityResponse, 1)
+
+		_ = runLoader(t, loader, ctx, response)
+
+		var deleteKeys []string
+		for _, entry := range cache.GetLog() {
+			if entry.Operation == "delete" {
+				deleteKeys = append(deleteKeys, entry.Keys...)
+			}
+		}
+		require.Equal(t, 1, len(deleteKeys), "should have exactly 1 delete key")
+		assert.Equal(t, `{"__typename":"User","key":{"id":"1","orgId":"42"}}`, deleteKeys[0])
+	})
+
+	t.Run("L1 cache eviction", func(t *testing.T) {
+		// Two sequential entity fetches within one request:
+		// 1. Friend entity fetch (User:2) → populates L1
+		// 2. User entity fetch (User:1) → response includes invalidation for User:2 → evicts from L1
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		cache := NewFakeLoaderCache()
+
+		rootDS := NewMockDataSource(ctrl)
+		rootDS.EXPECT().Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ any, _ []byte) ([]byte, error) {
+				return []byte(`{"data":{"user":{"__typename":"User","id":"1"},"friend":{"__typename":"User","id":"2"}}}`), nil
+			}).Times(1)
+
+		// Friend entity fetch: resolves User:2, no invalidation
+		friendDS := NewMockDataSource(ctrl)
+		friendDS.EXPECT().Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ any, _ []byte) ([]byte, error) {
+				return []byte(`{"data":{"_entities":[{"__typename":"User","id":"2","username":"Bob"}]}}`), nil
+			}).Times(1)
+
+		// User entity fetch: resolves User:1, invalidates User:2
+		userDS := NewMockDataSource(ctrl)
+		userDS.EXPECT().Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ any, _ []byte) ([]byte, error) {
+				return []byte(`{"data":{"_entities":[{"__typename":"User","id":"1","username":"Alice"}]},"extensions":{"cacheInvalidation":{"keys":[{"typename":"User","key":{"id":"2"}}]}}}`), nil
+			}).Times(1)
+
+		response := &GraphQLResponse{
+			Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
+			Fetches: Sequence(
+				SingleWithPath(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource: rootDS,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data"},
+						},
+					},
+					InputTemplate: InputTemplate{
+						Segments: []TemplateSegment{
+							{Data: []byte(`{"method":"POST","url":"http://root.service","body":{"query":"{user {__typename id} friend {__typename id}}"}}`), SegmentType: StaticSegmentType},
+						},
+					},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+				}, "query"),
+				// Friend entity fetch runs first → populates L1 with User:2
+				SingleWithPath(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource: friendDS,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data", "_entities", "0"},
+						},
+						Caching: FetchCacheConfiguration{
+							Enabled:          true,
+							CacheName:        "default",
+							TTL:              30 * time.Second,
+							CacheKeyTemplate: newUserCacheKeyTemplate(),
+							UseL1Cache:       true,
+						},
+					},
+					InputTemplate: InputTemplate{Segments: newUserEntityFetchSegments()},
+					Info: &FetchInfo{
+						DataSourceID:   "accounts",
+						DataSourceName: "accounts",
+						OperationType:  ast.OperationTypeQuery,
+						ProvidesData:   newUserProvidesData(),
+					},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+				}, "query.friend", ObjectPath("friend")),
+				// User entity fetch runs second → invalidates User:2 from L1
+				SingleWithPath(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource: userDS,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data", "_entities", "0"},
+						},
+						Caching: FetchCacheConfiguration{
+							Enabled:          true,
+							CacheName:        "default",
+							TTL:              30 * time.Second,
+							CacheKeyTemplate: newUserCacheKeyTemplate(),
+							UseL1Cache:       true,
+						},
+					},
+					InputTemplate: InputTemplate{Segments: newUserEntityFetchSegments()},
+					Info: &FetchInfo{
+						DataSourceID:   "accounts",
+						DataSourceName: "accounts",
+						OperationType:  ast.OperationTypeQuery,
+						ProvidesData:   newUserProvidesData(),
+					},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+				}, "query.user", ObjectPath("user")),
+			),
+			Data: &Object{
+				Fields: []*Field{
+					{
+						Name: []byte("user"),
+						Value: &Object{
+							Path: []string{"user"},
+							Fields: []*Field{
+								{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+								{Name: []byte("username"), Value: &String{Path: []string{"username"}}},
+							},
+						},
+					},
+					{
+						Name: []byte("friend"),
+						Value: &Object{
+							Path: []string{"friend"},
+							Fields: []*Field{
+								{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+								{Name: []byte("username"), Value: &String{Path: []string{"username"}}},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		loader := &Loader{
+			caches: map[string]LoaderCache{"default": cache},
+			entityCacheConfigs: map[string]map[string]*EntityCacheInvalidationConfig{
+				"accounts": {
+					"User": {CacheName: "default", IncludeSubgraphHeaderPrefix: false},
+				},
+			},
+		}
+
+		ctx := NewContext(context.Background())
+		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+		ctx.ExecutionOptions.Caching.EnableL1Cache = true
+		ctx.ExecutionOptions.Caching.EnableL2Cache = true
+
+		_ = runLoader(t, loader, ctx, response)
+
+		// User:2 was populated by friend entity fetch, then evicted by user entity fetch's invalidation
+		l1Key2 := `{"__typename":"User","key":{"id":"2"}}`
+		_, found := loader.l1Cache.Load(l1Key2)
+		assert.False(t, found, "L1 cache entry for User:2 should be evicted after invalidation")
+
+		// User:1 should still be present (populated by user entity fetch)
+		l1Key1 := `{"__typename":"User","key":{"id":"1"}}`
+		_, found = loader.l1Cache.Load(l1Key1)
+		assert.True(t, found, "L1 cache entry for User:1 should still be present")
+	})
+
+	t.Run("interceptor receives correct SubgraphName and CacheName", func(t *testing.T) {
+		entityResponse := `{"data":{"_entities":[{"__typename":"User","id":"1","username":"Alice"}]},"extensions":{"cacheInvalidation":{"keys":[{"typename":"User","key":{"id":"1"}}]}}}`
+
+		var capturedInfos []L2CacheKeyInterceptorInfo
+		loader, ctx, response, _ := setupExtInvalidationTest(t, entityResponse, 1, func(_ *Loader, c *Context) {
+			c.ExecutionOptions.Caching.L2CacheKeyInterceptor = func(_ context.Context, key string, info L2CacheKeyInterceptorInfo) string {
+				capturedInfos = append(capturedInfos, info)
+				return key
+			}
+		})
+
+		_ = runLoader(t, loader, ctx, response)
+
+		// The interceptor is called for both the regular cache key (from entity fetch)
+		// and the invalidation key. Find the one from invalidation.
+		var found bool
+		for _, info := range capturedInfos {
+			if info.SubgraphName == "accounts" && info.CacheName == "default" {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "interceptor should be called with SubgraphName=accounts, CacheName=default")
+	})
+}
+
+// mockSubgraphHeadersBuilder is a test mock for SubgraphHeadersBuilder.
+type mockSubgraphHeadersBuilder struct {
+	hashes map[string]uint64
+}
+
+func (m *mockSubgraphHeadersBuilder) HeadersForSubgraph(subgraphName string) (http.Header, uint64) {
+	return nil, m.hashes[subgraphName]
+}
+
+func (m *mockSubgraphHeadersBuilder) HashAll() uint64 {
+	return 0
+}
+
+// Ensure mockSubgraphHeadersBuilder satisfies the SubgraphHeadersBuilder interface.
+var _ SubgraphHeadersBuilder = (*mockSubgraphHeadersBuilder)(nil)

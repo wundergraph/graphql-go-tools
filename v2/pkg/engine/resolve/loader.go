@@ -216,6 +216,10 @@ type Loader struct {
 
 	caches map[string]LoaderCache
 
+	// entityCacheConfigs maps subgraphName → entityTypeName → config.
+	// Used by processExtensionsCacheInvalidation to look up cache settings at runtime.
+	entityCacheConfigs map[string]map[string]*EntityCacheInvalidationConfig
+
 	propagateSubgraphErrors           bool
 	propagateSubgraphStatusCodes      bool
 	subgraphErrorPropagationMode      SubgraphErrorPropagationMode
@@ -727,6 +731,10 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponse)
 	}
 
+	// Extract cache invalidation signal from subgraph response extensions.
+	// This is not restricted to mutations — any subgraph response can signal invalidation.
+	cacheInvalidation := response.Get("extensions", "cacheInvalidation")
+
 	var responseData *astjson.Value
 	if res.postProcessing.SelectResponseDataPath != nil {
 		responseData = response.Get(res.postProcessing.SelectResponseDataPath...)
@@ -797,7 +805,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		l.resolvable.data = responseData
 		// Only populate caches on success (no errors)
 		if !hasErrors {
-			l.populateCachesAfterFetch(fetchItem, res, items, responseData)
+			l.populateCachesAfterFetch(fetchItem, res, items, responseData, cacheInvalidation)
 		}
 		return nil
 	}
@@ -823,7 +831,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		// Only populate caches on success (no errors)
 		if !hasErrors {
 			defer func() {
-				l.populateCachesAfterFetch(fetchItem, res, items, responseData)
+				l.populateCachesAfterFetch(fetchItem, res, items, responseData, cacheInvalidation)
 			}()
 		}
 		return nil
@@ -879,7 +887,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		}
 		// Only populate caches on success (no errors)
 		if !hasErrors {
-			l.populateCachesAfterFetch(fetchItem, res, items, responseData)
+			l.populateCachesAfterFetch(fetchItem, res, items, responseData, cacheInvalidation)
 		}
 		return nil
 	}
@@ -911,16 +919,18 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 
 	// Only populate caches on success (no errors)
 	if !hasErrors {
-		l.populateCachesAfterFetch(fetchItem, res, items, responseData)
+		l.populateCachesAfterFetch(fetchItem, res, items, responseData, cacheInvalidation)
 	}
 	return nil
 }
 
 // populateCachesAfterFetch runs shadow comparison, mutation impact detection,
-// and L1/L2 cache population. Called after a successful (error-free) fetch merge.
-func (l *Loader) populateCachesAfterFetch(fetchItem *FetchItem, res *result, items []*astjson.Value, responseData *astjson.Value) {
+// extensions-based cache invalidation, and L1/L2 cache population.
+// Called after a successful (error-free) fetch merge.
+func (l *Loader) populateCachesAfterFetch(fetchItem *FetchItem, res *result, items []*astjson.Value, responseData *astjson.Value, cacheInvalidation *astjson.Value) {
 	l.compareShadowValues(res, getFetchInfo(fetchItem.Fetch))
 	l.detectMutationEntityImpact(res, getFetchInfo(fetchItem.Fetch), responseData)
+	l.processExtensionsCacheInvalidation(res, cacheInvalidation)
 	l.populateL1Cache(fetchItem, res, items)
 	l.updateL2Cache(res)
 }

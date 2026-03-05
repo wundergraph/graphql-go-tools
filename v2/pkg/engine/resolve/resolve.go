@@ -192,6 +192,10 @@ type ResolverOptions struct {
 
 	Caches map[string]LoaderCache
 
+	// EntityCacheConfigs maps subgraphName → entityTypeName → config.
+	// Used by extensions-based cache invalidation to look up cache settings at runtime.
+	EntityCacheConfigs map[string]map[string]*EntityCacheInvalidationConfig
+
 	// SubgraphRequestDeduplicationShardCount defines the number of shards to use for subgraph request deduplication
 	SubgraphRequestDeduplicationShardCount int
 	// InboundRequestDeduplicationShardCount defines the number of shards to use for inbound request deduplication
@@ -326,6 +330,7 @@ func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{
 			singleFlight:                                 sf,
 			jsonArena:                                    a,
 			caches:                                       options.Caches,
+			entityCacheConfigs:                           options.EntityCacheConfigs,
 		},
 	}
 }
