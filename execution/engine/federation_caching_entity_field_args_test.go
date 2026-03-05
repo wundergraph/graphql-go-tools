@@ -124,13 +124,66 @@ func newEntityFieldArgsSetup(t *testing.T) *entityFieldArgsSetup {
 }
 
 func TestEntityFieldArgsCaching(t *testing.T) {
+	const queryFormal = `query EntityFieldArgsFormal {
+		topProducts {
+			name
+			reviews {
+				body
+				authorWithoutProvides {
+					username
+					greeting(style: "formal")
+				}
+			}
+		}
+	}`
+
+	const queryCasual = `query EntityFieldArgsCasual {
+		topProducts {
+			name
+			reviews {
+				body
+				authorWithoutProvides {
+					username
+					greeting(style: "casual")
+				}
+			}
+		}
+	}`
+
+	const queryAliases = `query EntityFieldArgsAliases {
+		topProducts {
+			name
+			reviews {
+				body
+				authorWithoutProvides {
+					username
+					formalGreeting: greeting(style: "formal")
+					casualGreeting: greeting(style: "casual")
+				}
+			}
+		}
+	}`
+
+	const queryCustomGreeting = `query EntityFieldArgsCustomGreeting($input: GreetingInput!) {
+		topProducts {
+			name
+			reviews {
+				body
+				authorWithoutProvides {
+					username
+					customGreeting(input: $input)
+				}
+			}
+		}
+	}`
+
 	t.Run("same args - L2 miss then hit", func(t *testing.T) {
 		s := newEntityFieldArgsSetup(t)
 
 		// Request 1: greeting(style: "formal") - should miss cache
 		s.defaultCache.ClearLog()
 		s.tracker.Reset()
-		resp := s.gqlClient.Query(s.ctx, s.setup.GatewayServer.URL, cachingTestQueryPath("queries/entity_field_args_formal.query"), nil, t)
+		resp := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, queryFormal, nil, t)
 
 		expectedResp := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","greeting":"Good day, Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","greeting":"Good day, Me"}}]}]}}`
 		assert.Equal(t, expectedResp, string(resp), "Response should contain formal greeting")
@@ -158,7 +211,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		// Request 2: same query - should hit cache
 		s.defaultCache.ClearLog()
 		s.tracker.Reset()
-		resp = s.gqlClient.Query(s.ctx, s.setup.GatewayServer.URL, cachingTestQueryPath("queries/entity_field_args_formal.query"), nil, t)
+		resp = s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, queryFormal, nil, t)
 		assert.Equal(t, expectedResp, string(resp), "Second request should return identical response from cache")
 
 		logAfterSecond := s.defaultCache.GetLog()
@@ -185,7 +238,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		// Request 1: greeting(style: "formal")
 		s.defaultCache.ClearLog()
 		s.tracker.Reset()
-		resp1 := s.gqlClient.Query(s.ctx, s.setup.GatewayServer.URL, cachingTestQueryPath("queries/entity_field_args_formal.query"), nil, t)
+		resp1 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, queryFormal, nil, t)
 
 		expectedFormal := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","greeting":"Good day, Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","greeting":"Good day, Me"}}]}]}}`
 		assert.Equal(t, expectedFormal, string(resp1), "First request should return formal greeting")
@@ -210,7 +263,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		// The entity key is the same, but the cached entity lacks greeting_xxh<casualHash>
 		s.defaultCache.ClearLog()
 		s.tracker.Reset()
-		resp2 := s.gqlClient.Query(s.ctx, s.setup.GatewayServer.URL, cachingTestQueryPath("queries/entity_field_args_casual.query"), nil, t)
+		resp2 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, queryCasual, nil, t)
 
 		expectedCasual := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","greeting":"Hey, Me!"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","greeting":"Hey, Me!"}}]}]}}`
 		assert.Equal(t, expectedCasual, string(resp2), "Second request should return casual greeting, not formal")
@@ -245,7 +298,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		// Request 1: formalGreeting + casualGreeting aliases - both variants in single fetch
 		s.defaultCache.ClearLog()
 		s.tracker.Reset()
-		resp1 := s.gqlClient.Query(s.ctx, s.setup.GatewayServer.URL, cachingTestQueryPath("queries/entity_field_args_aliases.query"), nil, t)
+		resp1 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, queryAliases, nil, t)
 
 		expectedAliases := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","formalGreeting":"Good day, Me","casualGreeting":"Hey, Me!"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","formalGreeting":"Good day, Me","casualGreeting":"Hey, Me!"}}]}]}}`
 		assert.Equal(t, expectedAliases, string(resp1), "First request should return both greeting variants")
@@ -268,7 +321,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		// Request 2: same aliases query - should fully hit cache
 		s.defaultCache.ClearLog()
 		s.tracker.Reset()
-		resp2 := s.gqlClient.Query(s.ctx, s.setup.GatewayServer.URL, cachingTestQueryPath("queries/entity_field_args_aliases.query"), nil, t)
+		resp2 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, queryAliases, nil, t)
 		assert.Equal(t, expectedAliases, string(resp2), "Second request should return identical response from cache")
 
 		logAfterSecond := s.defaultCache.GetLog()
@@ -290,7 +343,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		// Request 1: cache both variants via aliases
 		s.defaultCache.ClearLog()
 		s.tracker.Reset()
-		resp1 := s.gqlClient.Query(s.ctx, s.setup.GatewayServer.URL, cachingTestQueryPath("queries/entity_field_args_aliases.query"), nil, t)
+		resp1 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, queryAliases, nil, t)
 
 		expectedAliases := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","formalGreeting":"Good day, Me","casualGreeting":"Hey, Me!"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","formalGreeting":"Good day, Me","casualGreeting":"Hey, Me!"}}]}]}}`
 		assert.Equal(t, expectedAliases, string(resp1), "Aliases request should return both greeting variants")
@@ -314,7 +367,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		// The cached entity has both greeting_xxh<formalHash> and greeting_xxh<casualHash>
 		s.defaultCache.ClearLog()
 		s.tracker.Reset()
-		resp2 := s.gqlClient.Query(s.ctx, s.setup.GatewayServer.URL, cachingTestQueryPath("queries/entity_field_args_formal.query"), nil, t)
+		resp2 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, queryFormal, nil, t)
 
 		expectedFormal := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","greeting":"Good day, Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","greeting":"Good day, Me"}}]}]}}`
 		assert.Equal(t, expectedFormal, string(resp2), "Single field request should return formal greeting from cache")
@@ -341,7 +394,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		// Request 1: customGreeting with enum FORMAL - should miss
 		s.defaultCache.ClearLog()
 		s.tracker.Reset()
-		resp1 := s.gqlClient.Query(s.ctx, s.setup.GatewayServer.URL, cachingTestQueryPath("queries/entity_field_args_custom_greeting.query"), vars, t)
+		resp1 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, queryCustomGreeting, vars, t)
 
 		expectedResp := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","customGreeting":"Good day, Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","customGreeting":"Good day, Me"}}]}]}}`
 		assert.Equal(t, expectedResp, string(resp1), "First request should return formal customGreeting")
@@ -364,7 +417,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		// Request 2: same enum value - should hit cache
 		s.defaultCache.ClearLog()
 		s.tracker.Reset()
-		resp2 := s.gqlClient.Query(s.ctx, s.setup.GatewayServer.URL, cachingTestQueryPath("queries/entity_field_args_custom_greeting.query"), vars, t)
+		resp2 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, queryCustomGreeting, vars, t)
 		assert.Equal(t, expectedResp, string(resp2), "Second request should return identical response from cache")
 
 		logAfterSecond := s.defaultCache.GetLog()
@@ -392,7 +445,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		// Request 1: FORMAL enum
 		s.defaultCache.ClearLog()
 		s.tracker.Reset()
-		resp1 := s.gqlClient.Query(s.ctx, s.setup.GatewayServer.URL, cachingTestQueryPath("queries/entity_field_args_custom_greeting.query"), varsFormal, t)
+		resp1 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, queryCustomGreeting, varsFormal, t)
 		assert.Equal(t, expectedFormal, string(resp1), "FORMAL should produce formal greeting")
 
 		logAfterFirst := s.defaultCache.GetLog()
@@ -413,7 +466,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		// Request 2: CASUAL enum - different hash, should miss User cache
 		s.defaultCache.ClearLog()
 		s.tracker.Reset()
-		resp2 := s.gqlClient.Query(s.ctx, s.setup.GatewayServer.URL, cachingTestQueryPath("queries/entity_field_args_custom_greeting.query"), varsCasual, t)
+		resp2 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, queryCustomGreeting, varsCasual, t)
 		assert.Equal(t, expectedCasual, string(resp2), "CASUAL should produce casual greeting, not formal")
 
 		logAfterSecond := s.defaultCache.GetLog()
@@ -450,7 +503,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		// Request 1: uppercase=true
 		s.defaultCache.ClearLog()
 		s.tracker.Reset()
-		resp1 := s.gqlClient.Query(s.ctx, s.setup.GatewayServer.URL, cachingTestQueryPath("queries/entity_field_args_custom_greeting.query"), varsUppercase, t)
+		resp1 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, queryCustomGreeting, varsUppercase, t)
 		assert.Equal(t, expectedUppercase, string(resp1), "uppercase=true should produce uppercased greeting")
 
 		logAfterFirst := s.defaultCache.GetLog()
@@ -471,7 +524,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		// Request 2: uppercase=false - different nested field value, different hash
 		s.defaultCache.ClearLog()
 		s.tracker.Reset()
-		resp2 := s.gqlClient.Query(s.ctx, s.setup.GatewayServer.URL, cachingTestQueryPath("queries/entity_field_args_custom_greeting.query"), varsNoUppercase, t)
+		resp2 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, queryCustomGreeting, varsNoUppercase, t)
 		assert.Equal(t, expectedNormal, string(resp2), "uppercase=false should produce normal greeting")
 
 		logAfterSecond := s.defaultCache.GetLog()
@@ -507,7 +560,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		// Request 1: formatting with uppercase
 		s.defaultCache.ClearLog()
 		s.tracker.Reset()
-		resp1 := s.gqlClient.Query(s.ctx, s.setup.GatewayServer.URL, cachingTestQueryPath("queries/entity_field_args_custom_greeting.query"), varsUppercase, t)
+		resp1 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, queryCustomGreeting, varsUppercase, t)
 		assert.Equal(t, expectedUppercase, string(resp1), "uppercase should produce uppercased greeting")
 
 		logAfterFirst := s.defaultCache.GetLog()
@@ -528,7 +581,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		// Request 2: formatting with prefix - different fields present, different hash
 		s.defaultCache.ClearLog()
 		s.tracker.Reset()
-		resp2 := s.gqlClient.Query(s.ctx, s.setup.GatewayServer.URL, cachingTestQueryPath("queries/entity_field_args_custom_greeting.query"), varsPrefix, t)
+		resp2 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, queryCustomGreeting, varsPrefix, t)
 		assert.Equal(t, expectedPrefix, string(resp2), "prefix should produce prefixed greeting")
 
 		logAfterSecond := s.defaultCache.GetLog()
@@ -549,26 +602,13 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 	t.Run("nested input object - same fields different key order produces same hash", func(t *testing.T) {
 		s := newEntityFieldArgsSetup(t)
 
-		customGreetingQuery := `query EntityFieldArgsCustomGreeting($input: GreetingInput!) {
-			topProducts {
-				name
-				reviews {
-					body
-					authorWithoutProvides {
-						username
-						customGreeting(input: $input)
-					}
-				}
-			}
-		}`
-
 		expectedResp := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","customGreeting":"GOOD DAY, ME"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","customGreeting":"GOOD DAY, ME"}}]}]}}`
 
 		// Request 1: style first, then formatting (raw JSON to preserve key order)
 		s.defaultCache.ClearLog()
 		s.tracker.Reset()
 		resp1 := queryWithRawVariables(t, s.ctx, s.setup.GatewayServer.URL,
-			customGreetingQuery,
+			queryCustomGreeting,
 			`{"input":{"style":"FORMAL","formatting":{"uppercase":true}}}`)
 		assert.Equal(t, expectedResp, string(resp1), "Order 1 should produce uppercased greeting")
 
@@ -592,7 +632,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		s.defaultCache.ClearLog()
 		s.tracker.Reset()
 		resp2 := queryWithRawVariables(t, s.ctx, s.setup.GatewayServer.URL,
-			customGreetingQuery,
+			queryCustomGreeting,
 			`{"input":{"formatting":{"uppercase":true},"style":"FORMAL"}}`)
 		assert.Equal(t, expectedResp, string(resp2), "Order 2 should produce same uppercased greeting")
 
