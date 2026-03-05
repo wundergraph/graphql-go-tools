@@ -251,7 +251,18 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		assert.Equal(t, expectedAliases, string(resp1), "First request should return both greeting variants")
 
 		logAfterFirst := s.defaultCache.GetLog()
-		assert.Equal(t, 6, len(logAfterFirst), "Should have 6 cache operations for first request")
+		wantLogFirst := []CacheLogEntry{
+			// Root field Query.topProducts - MISS (first request, L2 empty)
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{false}},
+			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}},
+			// Product entity fetches - MISS (first request, L2 empty)
+			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{false, false}},
+			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}},
+			// User entity fetches - MISS (first request, L2 empty; entity stored with both arg-suffixed fields)
+			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{false}},
+			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "First request should show all misses")
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Accounts should be called once (single entity batch)")
 
 		// Request 2: same aliases query - should fully hit cache
@@ -280,11 +291,23 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		s.defaultCache.ClearLog()
 		s.tracker.Reset()
 		resp1 := s.gqlClient.Query(s.ctx, s.setup.GatewayServer.URL, cachingTestQueryPath("queries/entity_field_args_aliases.query"), nil, t)
-		require.Contains(t, string(resp1), `"formalGreeting":"Good day, Me"`, "Aliases request should have formal greeting")
-		require.Contains(t, string(resp1), `"casualGreeting":"Hey, Me!"`, "Aliases request should have casual greeting")
+
+		expectedAliases := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","formalGreeting":"Good day, Me","casualGreeting":"Hey, Me!"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","formalGreeting":"Good day, Me","casualGreeting":"Hey, Me!"}}]}]}}`
+		assert.Equal(t, expectedAliases, string(resp1), "Aliases request should return both greeting variants")
 
 		logAfterFirst := s.defaultCache.GetLog()
-		assert.Equal(t, 6, len(logAfterFirst), "Should have 6 cache operations for first request")
+		wantLogFirst := []CacheLogEntry{
+			// Root field Query.topProducts - MISS (first request, L2 empty)
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{false}},
+			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}},
+			// Product entity fetches - MISS (first request, L2 empty)
+			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{false, false}},
+			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}},
+			// User entity fetches - MISS (first request, L2 empty)
+			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{false}},
+			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "First request should show all misses")
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Accounts should be called once")
 
 		// Request 2: single field greeting(style: "formal") - should hit cache
@@ -324,7 +347,18 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		assert.Equal(t, expectedResp, string(resp1), "First request should return formal customGreeting")
 
 		logAfterFirst := s.defaultCache.GetLog()
-		assert.Equal(t, 6, len(logAfterFirst), "Should have 6 cache operations for first request")
+		wantLogFirst := []CacheLogEntry{
+			// Root field Query.topProducts - MISS (first request, L2 empty)
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{false}},
+			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}},
+			// Product entity fetches - MISS (first request, L2 empty)
+			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{false, false}},
+			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}},
+			// User entity fetches - MISS (first request, L2 empty)
+			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{false}},
+			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "First request should show all misses")
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Accounts should be called once")
 
 		// Request 2: same enum value - should hit cache
@@ -334,7 +368,15 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		assert.Equal(t, expectedResp, string(resp2), "Second request should return identical response from cache")
 
 		logAfterSecond := s.defaultCache.GetLog()
-		assert.Equal(t, 3, len(logAfterSecond), "Should have 3 cache get operations (all hits)")
+		wantLogSecond := []CacheLogEntry{
+			// Root field Query.topProducts - HIT (populated by Request 1)
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
+			// Product entity fetches - HIT (populated by Request 1)
+			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
+			// User entity fetches - HIT (customGreeting_xxh<formalHash> found in cached entity)
+			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Second request should show all cache hits")
 		assert.Equal(t, 0, s.tracker.GetCount(s.accountsHost), "Accounts should not be called on cache hit")
 	})
 
@@ -344,24 +386,49 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		varsFormal := queryVariables{"input": map[string]interface{}{"style": "FORMAL"}}
 		varsCasual := queryVariables{"input": map[string]interface{}{"style": "CASUAL"}}
 
+		expectedFormal := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","customGreeting":"Good day, Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","customGreeting":"Good day, Me"}}]}]}}`
+		expectedCasual := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","customGreeting":"Hey, Me!"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","customGreeting":"Hey, Me!"}}]}]}}`
+
 		// Request 1: FORMAL enum
 		s.defaultCache.ClearLog()
 		s.tracker.Reset()
 		resp1 := s.gqlClient.Query(s.ctx, s.setup.GatewayServer.URL, cachingTestQueryPath("queries/entity_field_args_custom_greeting.query"), varsFormal, t)
-		assert.Contains(t, string(resp1), `"customGreeting":"Good day, Me"`, "FORMAL should produce formal greeting")
+		assert.Equal(t, expectedFormal, string(resp1), "FORMAL should produce formal greeting")
 
 		logAfterFirst := s.defaultCache.GetLog()
-		assert.Equal(t, 6, len(logAfterFirst), "Should have 6 cache operations for first request")
+		wantLogFirst := []CacheLogEntry{
+			// Root field Query.topProducts - MISS (first request, L2 empty)
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{false}},
+			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}},
+			// Product entity fetches - MISS (first request, L2 empty)
+			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{false, false}},
+			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}},
+			// User entity fetches - MISS (first request, L2 empty)
+			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{false}},
+			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "First request should show all misses")
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Accounts should be called once for FORMAL")
 
 		// Request 2: CASUAL enum - different hash, should miss User cache
 		s.defaultCache.ClearLog()
 		s.tracker.Reset()
 		resp2 := s.gqlClient.Query(s.ctx, s.setup.GatewayServer.URL, cachingTestQueryPath("queries/entity_field_args_custom_greeting.query"), varsCasual, t)
-		assert.Contains(t, string(resp2), `"customGreeting":"Hey, Me!"`, "CASUAL should produce casual greeting, not formal")
+		assert.Equal(t, expectedCasual, string(resp2), "CASUAL should produce casual greeting, not formal")
+
+		logAfterSecond := s.defaultCache.GetLog()
+		wantLogSecond := []CacheLogEntry{
+			// Root field Query.topProducts - HIT (populated by Request 1)
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
+			// Product entity fetches - HIT (populated by Request 1)
+			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
+			// User entity - L2 returns data (HIT) but Loader rejects it (missing casual enum hash) → re-fetch → SET
+			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
+			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Second request: User entity found but missing casual enum variant → re-fetch + re-store")
 
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Accounts should be called again for different enum value")
-		// topProducts and Products should still hit cache from first request
 		assert.Equal(t, 0, s.tracker.GetCount(s.productsHost), "Products should hit cache")
 	})
 
@@ -377,22 +444,47 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 			"formatting": map[string]interface{}{"uppercase": false},
 		}}
 
+		expectedUppercase := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","customGreeting":"GOOD DAY, ME"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","customGreeting":"GOOD DAY, ME"}}]}]}}`
+		expectedNormal := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","customGreeting":"Good day, Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","customGreeting":"Good day, Me"}}]}]}}`
+
 		// Request 1: uppercase=true
 		s.defaultCache.ClearLog()
 		s.tracker.Reset()
 		resp1 := s.gqlClient.Query(s.ctx, s.setup.GatewayServer.URL, cachingTestQueryPath("queries/entity_field_args_custom_greeting.query"), varsUppercase, t)
-		assert.Contains(t, string(resp1), `"customGreeting":"GOOD DAY, ME"`, "uppercase=true should produce uppercased greeting")
-
-		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Accounts should be called once")
+		assert.Equal(t, expectedUppercase, string(resp1), "uppercase=true should produce uppercased greeting")
 
 		logAfterFirst := s.defaultCache.GetLog()
-		assert.Equal(t, 6, len(logAfterFirst), "Should have 6 cache operations")
+		wantLogFirst := []CacheLogEntry{
+			// Root field Query.topProducts - MISS (first request, L2 empty)
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{false}},
+			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}},
+			// Product entity fetches - MISS (first request, L2 empty)
+			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{false, false}},
+			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}},
+			// User entity fetches - MISS (first request, L2 empty)
+			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{false}},
+			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "First request should show all misses")
+		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Accounts should be called once")
 
 		// Request 2: uppercase=false - different nested field value, different hash
 		s.defaultCache.ClearLog()
 		s.tracker.Reset()
 		resp2 := s.gqlClient.Query(s.ctx, s.setup.GatewayServer.URL, cachingTestQueryPath("queries/entity_field_args_custom_greeting.query"), varsNoUppercase, t)
-		assert.Contains(t, string(resp2), `"customGreeting":"Good day, Me"`, "uppercase=false should produce normal greeting")
+		assert.Equal(t, expectedNormal, string(resp2), "uppercase=false should produce normal greeting")
+
+		logAfterSecond := s.defaultCache.GetLog()
+		wantLogSecond := []CacheLogEntry{
+			// Root field Query.topProducts - HIT (populated by Request 1)
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
+			// Product entity fetches - HIT (populated by Request 1)
+			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
+			// User entity - L2 returns data (HIT) but Loader rejects it (different nested field hash) → re-fetch → SET
+			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
+			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Second request: User entity found but missing uppercase=false variant → re-fetch + re-store")
 
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Accounts should be called again for different nested field value")
 	})
@@ -409,22 +501,47 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 			"formatting": map[string]interface{}{"prefix": "Dr."},
 		}}
 
+		expectedUppercase := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","customGreeting":"GOOD DAY, ME"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","customGreeting":"GOOD DAY, ME"}}]}]}}`
+		expectedPrefix := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","customGreeting":"Dr. Good day, Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","customGreeting":"Dr. Good day, Me"}}]}]}}`
+
 		// Request 1: formatting with uppercase
 		s.defaultCache.ClearLog()
 		s.tracker.Reset()
 		resp1 := s.gqlClient.Query(s.ctx, s.setup.GatewayServer.URL, cachingTestQueryPath("queries/entity_field_args_custom_greeting.query"), varsUppercase, t)
-		assert.Contains(t, string(resp1), `"customGreeting":"GOOD DAY, ME"`, "uppercase should produce uppercased greeting")
-
-		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Accounts should be called once")
+		assert.Equal(t, expectedUppercase, string(resp1), "uppercase should produce uppercased greeting")
 
 		logAfterFirst := s.defaultCache.GetLog()
-		assert.Equal(t, 6, len(logAfterFirst), "Should have 6 cache operations")
+		wantLogFirst := []CacheLogEntry{
+			// Root field Query.topProducts - MISS (first request, L2 empty)
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{false}},
+			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}},
+			// Product entity fetches - MISS (first request, L2 empty)
+			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{false, false}},
+			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}},
+			// User entity fetches - MISS (first request, L2 empty)
+			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{false}},
+			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "First request should show all misses")
+		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Accounts should be called once")
 
 		// Request 2: formatting with prefix - different fields present, different hash
 		s.defaultCache.ClearLog()
 		s.tracker.Reset()
 		resp2 := s.gqlClient.Query(s.ctx, s.setup.GatewayServer.URL, cachingTestQueryPath("queries/entity_field_args_custom_greeting.query"), varsPrefix, t)
-		assert.Contains(t, string(resp2), `"customGreeting":"Dr. Good day, Me"`, "prefix should produce prefixed greeting")
+		assert.Equal(t, expectedPrefix, string(resp2), "prefix should produce prefixed greeting")
+
+		logAfterSecond := s.defaultCache.GetLog()
+		wantLogSecond := []CacheLogEntry{
+			// Root field Query.topProducts - HIT (populated by Request 1)
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
+			// Product entity fetches - HIT (populated by Request 1)
+			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
+			// User entity - L2 returns data (HIT) but Loader rejects it (different nested fields hash) → re-fetch → SET
+			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
+			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Second request: User entity found but missing prefix variant → re-fetch + re-store")
 
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Accounts should be called again for different nested fields")
 	})
@@ -445,18 +562,30 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 			}
 		}`
 
+		expectedResp := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","customGreeting":"GOOD DAY, ME"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","customGreeting":"GOOD DAY, ME"}}]}]}}`
+
 		// Request 1: style first, then formatting (raw JSON to preserve key order)
 		s.defaultCache.ClearLog()
 		s.tracker.Reset()
 		resp1 := queryWithRawVariables(t, s.ctx, s.setup.GatewayServer.URL,
 			customGreetingQuery,
 			`{"input":{"style":"FORMAL","formatting":{"uppercase":true}}}`)
-		assert.Contains(t, string(resp1), `"customGreeting":"GOOD DAY, ME"`, "Order 1 should produce uppercased greeting")
-
-		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Accounts should be called once for order 1")
+		assert.Equal(t, expectedResp, string(resp1), "Order 1 should produce uppercased greeting")
 
 		logAfterFirst := s.defaultCache.GetLog()
-		assert.Equal(t, 6, len(logAfterFirst), "Should have 6 cache operations")
+		wantLogFirst := []CacheLogEntry{
+			// Root field Query.topProducts - MISS (first request, L2 empty)
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{false}},
+			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}},
+			// Product entity fetches - MISS (first request, L2 empty)
+			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{false, false}},
+			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}},
+			// User entity fetches - MISS (first request, L2 empty)
+			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{false}},
+			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "First request should show all misses")
+		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Accounts should be called once for order 1")
 
 		// Request 2: formatting first, then style (same logical input, different JSON key order)
 		// Raw JSON ensures the key order is preserved as-is (Go's json.Marshal would sort keys)
@@ -465,9 +594,19 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		resp2 := queryWithRawVariables(t, s.ctx, s.setup.GatewayServer.URL,
 			customGreetingQuery,
 			`{"input":{"formatting":{"uppercase":true},"style":"FORMAL"}}`)
-		assert.Contains(t, string(resp2), `"customGreeting":"GOOD DAY, ME"`, "Order 2 should produce same uppercased greeting")
+		assert.Equal(t, expectedResp, string(resp2), "Order 2 should produce same uppercased greeting")
 
-		// This should be a cache hit - same logical input regardless of key order
+		logAfterSecond := s.defaultCache.GetLog()
+		wantLogSecond := []CacheLogEntry{
+			// Root field Query.topProducts - HIT (populated by Request 1)
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
+			// Product entity fetches - HIT (populated by Request 1)
+			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
+			// User entity - HIT (canonical JSON hashing makes key order irrelevant)
+			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Second request should show all cache hits (key order canonicalized)")
+
 		assert.Equal(t, 0, s.tracker.GetCount(s.accountsHost), "Accounts should NOT be called when same input is sent with different key order")
 	})
 }
