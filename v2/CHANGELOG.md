@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.260](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.259...v2.0.0-rc.260) (2026-03-05)
+
+
+### Bug Fixes
+
+* invalid data resolution for null parent types ([#1428](https://github.com/wundergraph/graphql-go-tools/issues/1428)) ([b7863be](https://github.com/wundergraph/graphql-go-tools/commit/b7863bed652a9324c0b1d02b3b11ce548c1b8fcc))
+
 ## [2.0.0-rc.259](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.258...v2.0.0-rc.259) (2026-03-05)
 
 
