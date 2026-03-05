@@ -56,6 +56,11 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				Request:  "QueryCategoriesRequest",
 				Response: "QueryCategoriesResponse",
 			},
+			"category": {
+				RPC:      "QueryCategory",
+				Request:  "QueryCategoryRequest",
+				Response: "QueryCategoryResponse",
+			},
 			"categoriesByKind": {
 				RPC:      "QueryCategoriesByKind",
 				Request:  "QueryCategoriesByKindRequest",
@@ -408,6 +413,17 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					Request:  "ResolveSubcategoryItemCountRequest",
 					Response: "ResolveSubcategoryItemCountResponse",
 				},
+				"featuredCategory": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName: "featured_category",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{
+							"includeChildren": "include_children",
+						},
+					},
+					RPC:      "ResolveSubcategoryFeaturedCategory",
+					Request:  "ResolveSubcategoryFeaturedCategoryRequest",
+					Response: "ResolveSubcategoryFeaturedCategoryResponse",
+				},
 			},
 			"TestContainer": {
 				"details": {
@@ -512,6 +528,12 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"categories": {
 					TargetName: "categories",
+				},
+				"category": {
+					TargetName: "category",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"id": "id",
+					},
 				},
 				"categoriesByKind": {
 					TargetName: "categories_by_kind",
@@ -1013,6 +1035,12 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					TargetName: "item_count",
 					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"filters": "filters",
+					},
+				},
+				"featuredCategory": {
+					TargetName: "featured_category",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"includeChildren": "include_children",
 					},
 				},
 			},

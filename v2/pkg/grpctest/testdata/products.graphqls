@@ -458,6 +458,7 @@ type Query {
   ): [TypeWithComplexFilterInput!]!
   calculateTotals(orders: [OrderInput!]!): [Order!]!
   categories: [Category!]!
+  category(id: ID!): Category
   categoriesByKind(kind: CategoryKind!): [Category!]!
   categoriesByKinds(kinds: [CategoryKind!]!): [Category!]!
   filterCategories(filter: CategoryFilter!): [Category!]!

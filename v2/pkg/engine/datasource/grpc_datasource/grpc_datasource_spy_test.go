@@ -22,14 +22,28 @@ type mockServiceSpy struct {
 	grpctest.MockService
 
 	categoriesCalls      atomic.Int64
+	categoryCalls        atomic.Int64
 	normalizedScoreCalls atomic.Int64
 	relatedCategoryCalls atomic.Int64
 	productCountCalls    atomic.Int64
+	popularityScoreCalls atomic.Int64
+	categoryMetricsCalls atomic.Int64
+	mascotCalls          atomic.Int64
+
+	queryCategoryFunc func(ctx context.Context, req *productv1.QueryCategoryRequest) (*productv1.QueryCategoryResponse, error)
 }
 
 func (s *mockServiceSpy) QueryCategories(ctx context.Context, req *productv1.QueryCategoriesRequest) (*productv1.QueryCategoriesResponse, error) {
 	s.categoriesCalls.Add(1)
 	return s.MockService.QueryCategories(ctx, req)
+}
+
+func (s *mockServiceSpy) QueryCategory(ctx context.Context, req *productv1.QueryCategoryRequest) (*productv1.QueryCategoryResponse, error) {
+	s.categoryCalls.Add(1)
+	if s.queryCategoryFunc != nil {
+		return s.queryCategoryFunc(ctx, req)
+	}
+	return s.MockService.QueryCategory(ctx, req)
 }
 
 func (s *mockServiceSpy) ResolveCategoryMetricsNormalizedScore(ctx context.Context, req *productv1.ResolveCategoryMetricsNormalizedScoreRequest) (*productv1.ResolveCategoryMetricsNormalizedScoreResponse, error) {
@@ -45,6 +59,21 @@ func (s *mockServiceSpy) ResolveCategoryMetricsRelatedCategory(ctx context.Conte
 func (s *mockServiceSpy) ResolveCategoryProductCount(ctx context.Context, req *productv1.ResolveCategoryProductCountRequest) (*productv1.ResolveCategoryProductCountResponse, error) {
 	s.productCountCalls.Add(1)
 	return s.MockService.ResolveCategoryProductCount(ctx, req)
+}
+
+func (s *mockServiceSpy) ResolveCategoryPopularityScore(ctx context.Context, req *productv1.ResolveCategoryPopularityScoreRequest) (*productv1.ResolveCategoryPopularityScoreResponse, error) {
+	s.popularityScoreCalls.Add(1)
+	return s.MockService.ResolveCategoryPopularityScore(ctx, req)
+}
+
+func (s *mockServiceSpy) ResolveCategoryCategoryMetrics(ctx context.Context, req *productv1.ResolveCategoryCategoryMetricsRequest) (*productv1.ResolveCategoryCategoryMetricsResponse, error) {
+	s.categoryMetricsCalls.Add(1)
+	return s.MockService.ResolveCategoryCategoryMetrics(ctx, req)
+}
+
+func (s *mockServiceSpy) ResolveCategoryMascot(ctx context.Context, req *productv1.ResolveCategoryMascotRequest) (*productv1.ResolveCategoryMascotResponse, error) {
+	s.mascotCalls.Add(1)
+	return s.MockService.ResolveCategoryMascot(ctx, req)
 }
 
 func setupSpyServer(t *testing.T) (*mockServiceSpy, *grpc.ClientConn, func()) {
@@ -107,4 +136,45 @@ func Test_DataSource_Load_NullMetrics_NestedResolversNotInvoked(t *testing.T) {
 	require.Zero(t, spy.normalizedScoreCalls.Load(), "ResolveCategoryMetricsNormalizedScore must not be called when parent nullMetrics is null")
 	require.Zero(t, spy.relatedCategoryCalls.Load(), "ResolveCategoryMetricsRelatedCategory must not be called when parent nullMetrics is null")
 	require.Zero(t, spy.productCountCalls.Load(), "ResolveCategoryProductCount must not be called when parent nullMetrics is null")
+}
+
+// Test_DataSource_Load_NullCategory_FieldResolversNotInvoked verifies that when the top-level
+// category query returns null, no nested field resolver RPCs are invoked by the engine.
+func Test_DataSource_Load_NullCategory_FieldResolversNotInvoked(t *testing.T) {
+	spy, conn, cleanup := setupSpyServer(t)
+	t.Cleanup(cleanup)
+
+	spy.queryCategoryFunc = func(_ context.Context, _ *productv1.QueryCategoryRequest) (*productv1.QueryCategoryResponse, error) {
+		return &productv1.QueryCategoryResponse{
+			Category: nil,
+		}, nil
+	}
+
+	query := `query CategoryQuery($id: ID!, $threshold: Int, $metricType: String!, $includeVolume: Boolean!) { category(id: $id) { id name popularityScore(threshold: $threshold) categoryMetrics(metricType: $metricType) { id } mascot(includeVolume: $includeVolume) { ... on Cat { id } } } }`
+	vars := `{"variables":{"id":"cat-1","threshold":10,"metricType":"views","includeVolume":true}}`
+
+	schemaDoc := grpctest.MustGraphQLSchema(t)
+	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
+	require.False(t, report.HasErrors(), "failed to parse query: %s", report.Error())
+
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+	require.NoError(t, err)
+
+	ds, err := NewDataSource(conn, DataSourceConfig{
+		Operation:    &queryDoc,
+		Definition:   &schemaDoc,
+		SubgraphName: "Products",
+		Mapping:      testMapping(),
+		Compiler:     compiler,
+	})
+	require.NoError(t, err)
+
+	input := fmt.Sprintf(`{"query":%q,"body":%s}`, query, vars)
+	_, err = ds.Load(context.Background(), nil, []byte(input))
+	require.NoError(t, err)
+
+	require.Equal(t, int64(1), spy.categoryCalls.Load(), "QueryCategory must be called once")
+	require.Zero(t, spy.popularityScoreCalls.Load(), "ResolveCategoryPopularityScore must not be called when category is null")
+	require.Zero(t, spy.categoryMetricsCalls.Load(), "ResolveCategoryCategoryMetrics must not be called when category is null")
+	require.Zero(t, spy.mascotCalls.Load(), "ResolveCategoryMascot must not be called when category is null")
 }
