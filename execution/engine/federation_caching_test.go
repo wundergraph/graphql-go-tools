@@ -2515,3 +2515,342 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 		assert.Equal(t, 0, tracker.GetCount(accountsHost), "Step 3: should NOT call accounts subgraph (L2 cache hit)")
 	})
 }
+
+func TestRootFieldSplitByDatasource(t *testing.T) {
+	t.Run("two root fields same subgraph both cached", func(t *testing.T) {
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{
+			"default": defaultCache,
+		}
+
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		subgraphCachingConfigs := engine.SubgraphCachingConfigs{
+			{
+				SubgraphName: "accounts",
+				RootFieldCaching: plan.RootFieldCacheConfigurations{
+					{TypeName: "Query", FieldName: "me", CacheName: "default", TTL: 30 * time.Second},
+					{TypeName: "Query", FieldName: "cat", CacheName: "default", TTL: 30 * time.Second},
+				},
+			},
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
+			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
+		))
+		t.Cleanup(setup.Close)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		// First query - both fields miss cache, get set
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, `{ me { id username } cat { name } }`, nil, t)
+		assert.Equal(t, `{"data":{"me":{"id":"1234","username":"Me"},"cat":{"name":"Pepper"}}}`, string(resp))
+
+		logAfterFirst := defaultCache.GetLog()
+		// Each cached root field gets its own fetch: get+set for me, get+set for cat
+		assert.Equal(t, 4, len(logAfterFirst), "Should have 4 cache operations (get+set for me, get+set for cat)")
+
+		wantLogFirst := []CacheLogEntry{
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"me"}`}, Hits: []bool{false}},
+			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"me"}`}},
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"cat"}`}, Hits: []bool{false}},
+			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"cat"}`}},
+		}
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst))
+
+		// Isolated root fields cause 2 separate calls to accounts subgraph
+		assert.Equal(t, 2, tracker.GetCount(accountsHost), "Should call accounts subgraph twice (once per root field)")
+
+		// Second query - both fields hit cache
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, `{ me { id username } cat { name } }`, nil, t)
+		assert.Equal(t, `{"data":{"me":{"id":"1234","username":"Me"},"cat":{"name":"Pepper"}}}`, string(resp))
+
+		logAfterSecond := defaultCache.GetLog()
+		assert.Equal(t, 2, len(logAfterSecond), "Should have 2 cache get operations (both hits)")
+
+		wantLogSecond := []CacheLogEntry{
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"me"}`}, Hits: []bool{true}},
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"cat"}`}, Hits: []bool{true}},
+		}
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond))
+
+		assert.Equal(t, 0, tracker.GetCount(accountsHost), "Should not call accounts subgraph (both cache hits)")
+	})
+
+	t.Run("two root fields different TTLs", func(t *testing.T) {
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{
+			"default": defaultCache,
+		}
+
+		subgraphCachingConfigs := engine.SubgraphCachingConfigs{
+			{
+				SubgraphName: "accounts",
+				RootFieldCaching: plan.RootFieldCacheConfigurations{
+					{TypeName: "Query", FieldName: "me", CacheName: "default", TTL: 10 * time.Second},
+					{TypeName: "Query", FieldName: "cat", CacheName: "default", TTL: 60 * time.Second},
+				},
+			},
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
+			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
+		))
+		t.Cleanup(setup.Close)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// First query populates cache
+		defaultCache.ClearLog()
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, `{ me { id username } cat { name } }`, nil, t)
+		assert.Equal(t, `{"data":{"me":{"id":"1234","username":"Me"},"cat":{"name":"Pepper"}}}`, string(resp))
+
+		logAfterFirst := defaultCache.GetLog()
+		meKey := `{"__typename":"Query","field":"me"}`
+		catKey := `{"__typename":"Query","field":"cat"}`
+		wantLogFirst := []CacheLogEntry{
+			{Operation: "get", Keys: []string{meKey}, Hits: []bool{false}},    // me: L2 miss
+			{Operation: "set", Keys: []string{meKey}, TTL: 10 * time.Second},  // me: cached with 10s TTL
+			{Operation: "get", Keys: []string{catKey}, Hits: []bool{false}},   // cat: L2 miss
+			{Operation: "set", Keys: []string{catKey}, TTL: 60 * time.Second}, // cat: cached with 60s TTL
+		}
+		assert.Equal(t, sortCacheLogEntriesWithTTL(wantLogFirst), sortCacheLogEntriesWithTTL(logAfterFirst))
+	})
+
+	t.Run("mixed cached and uncached root fields", func(t *testing.T) {
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{
+			"default": defaultCache,
+		}
+
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		// Only me has caching, cat does not
+		subgraphCachingConfigs := engine.SubgraphCachingConfigs{
+			{
+				SubgraphName: "accounts",
+				RootFieldCaching: plan.RootFieldCacheConfigurations{
+					{TypeName: "Query", FieldName: "me", CacheName: "default", TTL: 30 * time.Second},
+				},
+			},
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
+			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
+		))
+		t.Cleanup(setup.Close)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		// First query
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, `{ me { id username } cat { name } }`, nil, t)
+		assert.Equal(t, `{"data":{"me":{"id":"1234","username":"Me"},"cat":{"name":"Pepper"}}}`, string(resp))
+
+		logAfterFirst := defaultCache.GetLog()
+		// Only "me" has caching: get (miss) + set
+		assert.Equal(t, 2, len(logAfterFirst), "Should have 2 cache operations (get+set for me only)")
+
+		wantLogFirst := []CacheLogEntry{
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"me"}`}, Hits: []bool{false}},
+			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"me"}`}},
+		}
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst))
+
+		// accounts called twice: once for me (isolated planner), once for cat (separate planner)
+		assert.Equal(t, 2, tracker.GetCount(accountsHost), "Should call accounts subgraph twice (once per isolated root field)")
+
+		// Second query - me hits cache, cat still fetches
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, `{ me { id username } cat { name } }`, nil, t)
+		assert.Equal(t, `{"data":{"me":{"id":"1234","username":"Me"},"cat":{"name":"Pepper"}}}`, string(resp))
+
+		logAfterSecond := defaultCache.GetLog()
+		assert.Equal(t, 1, len(logAfterSecond), "Should have 1 cache get (me hit)")
+
+		wantLogSecond := []CacheLogEntry{
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"me"}`}, Hits: []bool{true}},
+		}
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond))
+
+		// Only cat (uncached) needs subgraph call
+		assert.Equal(t, 1, tracker.GetCount(accountsHost), "Should call accounts subgraph once (cat only, me from cache)")
+	})
+
+	t.Run("root field split with entity caching", func(t *testing.T) {
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{
+			"default": defaultCache,
+		}
+
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		subgraphCachingConfigs := engine.SubgraphCachingConfigs{
+			{
+				SubgraphName: "accounts",
+				RootFieldCaching: plan.RootFieldCacheConfigurations{
+					{TypeName: "Query", FieldName: "me", CacheName: "default", TTL: 30 * time.Second},
+					{TypeName: "Query", FieldName: "cat", CacheName: "default", TTL: 30 * time.Second},
+				},
+				EntityCaching: plan.EntityCacheConfigurations{
+					{TypeName: "User", CacheName: "default", TTL: 30 * time.Second},
+				},
+			},
+			{
+				SubgraphName: "products",
+				RootFieldCaching: plan.RootFieldCacheConfigurations{
+					{TypeName: "Query", FieldName: "topProducts", CacheName: "default", TTL: 30 * time.Second},
+				},
+			},
+			{
+				SubgraphName: "reviews",
+				EntityCaching: plan.EntityCacheConfigurations{
+					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second},
+				},
+			},
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
+			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
+		))
+		t.Cleanup(setup.Close)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		productsURLParsed, _ := url.Parse(setup.ProductsUpstreamServer.URL)
+		reviewsURLParsed, _ := url.Parse(setup.ReviewsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+		productsHost := productsURLParsed.Host
+		reviewsHost := reviewsURLParsed.Host
+
+		// Query that exercises root field split (me + cat from accounts) and entity caching (User from accounts)
+		query := `{
+			me { id username }
+			cat { name }
+			topProducts {
+				name
+				reviews {
+					body
+					authorWithoutProvides { username }
+				}
+			}
+		}`
+
+		// First query - all misses
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, query, nil, t)
+		assert.Equal(t, `{"data":{"me":{"id":"1234","username":"Me"},"cat":{"name":"Pepper"},"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
+
+		// accounts: 2 for root field split (me + cat) + 1 for User entity resolution
+		assert.Equal(t, 3, tracker.GetCount(accountsHost), "accounts: once for me, once for cat, once for User entity")
+		assert.Equal(t, 1, tracker.GetCount(productsHost), "products: once for topProducts")
+		assert.Equal(t, 1, tracker.GetCount(reviewsHost), "reviews: once for Product entity")
+
+		// Second query - all cache hits
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, query, nil, t)
+		assert.Equal(t, `{"data":{"me":{"id":"1234","username":"Me"},"cat":{"name":"Pepper"},"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
+
+		// All subgraphs should be skipped on second query
+		assert.Equal(t, 0, tracker.GetCount(accountsHost), "accounts: all from cache")
+		assert.Equal(t, 0, tracker.GetCount(productsHost), "products: root field from cache")
+		assert.Equal(t, 0, tracker.GetCount(reviewsHost), "reviews: entity from cache")
+	})
+
+	t.Run("independent cache invalidation", func(t *testing.T) {
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{
+			"default": defaultCache,
+		}
+
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		subgraphCachingConfigs := engine.SubgraphCachingConfigs{
+			{
+				SubgraphName: "accounts",
+				RootFieldCaching: plan.RootFieldCacheConfigurations{
+					{TypeName: "Query", FieldName: "me", CacheName: "default", TTL: 30 * time.Second},
+					{TypeName: "Query", FieldName: "cat", CacheName: "default", TTL: 30 * time.Second},
+				},
+			},
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
+			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
+		))
+		t.Cleanup(setup.Close)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		// First query - populate cache for both fields
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, `{ me { id username } cat { name } }`, nil, t)
+		assert.Equal(t, `{"data":{"me":{"id":"1234","username":"Me"},"cat":{"name":"Pepper"}}}`, string(resp))
+
+		// Invalidate only the "me" cache entry
+		err := defaultCache.Delete(ctx, []string{`{"__typename":"Query","field":"me"}`})
+		require.NoError(t, err)
+
+		// Second query - me should miss (re-fetch), cat should hit
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, `{ me { id username } cat { name } }`, nil, t)
+		assert.Equal(t, `{"data":{"me":{"id":"1234","username":"Me"},"cat":{"name":"Pepper"}}}`, string(resp))
+
+		logAfterSecond := defaultCache.GetLog()
+		wantLog := []CacheLogEntry{
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"me"}`}, Hits: []bool{false}}, // Invalidated
+			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"me"}`}},                      // Re-cached
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"cat"}`}, Hits: []bool{true}}, // Still cached
+		}
+		assert.Equal(t, sortCacheLogEntries(wantLog), sortCacheLogEntries(logAfterSecond))
+
+		// Only me needs re-fetch, cat served from cache
+		assert.Equal(t, 1, tracker.GetCount(accountsHost), "Should call accounts once (me re-fetch only)")
+	})
+}
