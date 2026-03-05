@@ -851,6 +851,9 @@ func TestPlanner_Plan(t *testing.T) {
 					RawFetches: []*resolve.FetchItem{
 						{
 							Fetch: &resolve.SingleFetch{
+								FetchDependencies: resolve.FetchDependencies{
+									FetchID: 0,
+								},
 								FetchConfiguration: resolve.FetchConfiguration{
 									DataSource: &FakeDataSource{&StatefulSource{}},
 									Caching: resolve.FetchCacheConfiguration{
@@ -952,6 +955,9 @@ func TestPlanner_Plan(t *testing.T) {
 					RawFetches: []*resolve.FetchItem{
 						{
 							Fetch: &resolve.SingleFetch{
+								FetchDependencies: resolve.FetchDependencies{
+									FetchID: 0,
+								},
 								FetchConfiguration: resolve.FetchConfiguration{
 									DataSource: &FakeDataSource{&StatefulSource{}},
 									Caching: resolve.FetchCacheConfiguration{
