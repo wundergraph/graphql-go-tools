@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.258](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.257...v2.0.0-rc.258) (2026-03-05)
+
+
+### Bug Fixes
+
+* handle complex types inside inline fragments in gRPC execution plan ([#1411](https://github.com/wundergraph/graphql-go-tools/issues/1411)) ([3b4dbcb](https://github.com/wundergraph/graphql-go-tools/commit/3b4dbcb2df54dd6fd2bc51094e0fee12cf7fd9a0))
+
 ## [2.0.0-rc.257](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.256...v2.0.0-rc.257) (2026-02-25)
 
 
