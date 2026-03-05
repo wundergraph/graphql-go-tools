@@ -124,6 +124,16 @@ func newEntityFieldArgsSetup(t *testing.T) *entityFieldArgsSetup {
 }
 
 func TestEntityFieldArgsCaching(t *testing.T) {
+	// getCachedUserEntity retrieves the cached User entity and returns its raw JSON.
+	// Uses Peek (not Get) to avoid adding log entries that would pollute cache log assertions.
+	getCachedUserEntity := func(t *testing.T, s *entityFieldArgsSetup) string {
+		t.Helper()
+		userKey := `{"__typename":"User","key":{"id":"1234"}}`
+		data, ok := s.defaultCache.Peek(userKey)
+		require.True(t, ok, "User entity should be present in cache")
+		return string(data)
+	}
+
 	t.Run("same args - L2 miss then hit", func(t *testing.T) {
 		s := newEntityFieldArgsSetup(t)
 
@@ -147,6 +157,11 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 
 		expectedResp := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","greeting":"Good day, Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","greeting":"Good day, Me"}}]}]}}`
 		assert.Equal(t, expectedResp, string(resp), "Response should contain formal greeting")
+
+		// Verify cached entity: greeting stored with xxhash suffix derived from args {"style":"formal"}
+		assert.Equal(t,
+			`{"username":"Me","greeting_xxh1dc2e714f80c47e8":"Good day, Me","__typename":"User"}`,
+			getCachedUserEntity(t, s))
 
 		logAfterFirst := s.defaultCache.GetLog()
 		assert.Equal(t, 6, len(logAfterFirst), "Should have 6 cache operations (get+set for topProducts, Products, Users)")
@@ -229,6 +244,11 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		expectedFormal := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","greeting":"Good day, Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","greeting":"Good day, Me"}}]}]}}`
 		assert.Equal(t, expectedFormal, string(resp1), "First request should return formal greeting")
 
+		// Cached entity has greeting with formal-args suffix
+		assert.Equal(t,
+			`{"username":"Me","greeting_xxh1dc2e714f80c47e8":"Good day, Me","__typename":"User"}`,
+			getCachedUserEntity(t, s))
+
 		logAfterFirst := s.defaultCache.GetLog()
 		assert.Equal(t, 6, len(logAfterFirst), "Should have 6 cache operations for first request")
 
@@ -253,6 +273,11 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 
 		expectedCasual := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","greeting":"Hey, Me!"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","greeting":"Hey, Me!"}}]}]}}`
 		assert.Equal(t, expectedCasual, string(resp2), "Second request should return casual greeting, not formal")
+
+		// L2 overwrites (does not merge): entity now has only the casual-args suffix, formal is gone
+		assert.Equal(t,
+			`{"username":"Me","greeting_xxhe4956d127c0d173e":"Hey, Me!","__typename":"User"}`,
+			getCachedUserEntity(t, s))
 
 		logAfterSecond := s.defaultCache.GetLog()
 
@@ -302,6 +327,11 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 
 		expectedAliases := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","formalGreeting":"Good day, Me","casualGreeting":"Hey, Me!"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","formalGreeting":"Good day, Me","casualGreeting":"Hey, Me!"}}]}]}}`
 		assert.Equal(t, expectedAliases, string(resp1), "First request should return both greeting variants")
+
+		// Both alias variants stored with their respective arg-hash suffixes in a single entity
+		assert.Equal(t,
+			`{"username":"Me","greeting_xxh1dc2e714f80c47e8":"Good day, Me","greeting_xxhe4956d127c0d173e":"Hey, Me!","__typename":"User"}`,
+			getCachedUserEntity(t, s))
 
 		logAfterFirst := s.defaultCache.GetLog()
 		wantLogFirst := []CacheLogEntry{
@@ -375,6 +405,11 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		expectedAliases := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","formalGreeting":"Good day, Me","casualGreeting":"Hey, Me!"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","formalGreeting":"Good day, Me","casualGreeting":"Hey, Me!"}}]}]}}`
 		assert.Equal(t, expectedAliases, string(resp1), "Aliases request should return both greeting variants")
 
+		// Entity has both greeting variants: aliases resolve to same schema field with different arg hashes
+		assert.Equal(t,
+			`{"username":"Me","greeting_xxh1dc2e714f80c47e8":"Good day, Me","greeting_xxhe4956d127c0d173e":"Hey, Me!","__typename":"User"}`,
+			getCachedUserEntity(t, s))
+
 		logAfterFirst := s.defaultCache.GetLog()
 		wantLogFirst := []CacheLogEntry{
 			// Root field Query.topProducts - MISS (first request, L2 empty)
@@ -439,6 +474,11 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		expectedResp := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","customGreeting":"Good day, Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","customGreeting":"Good day, Me"}}]}]}}`
 		assert.Equal(t, expectedResp, string(resp1), "First request should return formal customGreeting")
 
+		// Enum value "FORMAL" produces a distinct hash suffix for customGreeting
+		assert.Equal(t,
+			`{"username":"Me","customGreeting_xxh5c96b2bdff7784c6":"Good day, Me","__typename":"User"}`,
+			getCachedUserEntity(t, s))
+
 		logAfterFirst := s.defaultCache.GetLog()
 		wantLogFirst := []CacheLogEntry{
 			// Root field Query.topProducts - MISS (first request, L2 empty)
@@ -501,6 +541,11 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		resp1 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, query, varsFormal, t)
 		assert.Equal(t, expectedFormal, string(resp1), "FORMAL should produce formal greeting")
 
+		// Same hash suffix as enum test above: input {style: FORMAL}
+		assert.Equal(t,
+			`{"username":"Me","customGreeting_xxh5c96b2bdff7784c6":"Good day, Me","__typename":"User"}`,
+			getCachedUserEntity(t, s))
+
 		logAfterFirst := s.defaultCache.GetLog()
 		wantLogFirst := []CacheLogEntry{
 			// Root field Query.topProducts - MISS (first request, L2 empty)
@@ -521,6 +566,11 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		s.tracker.Reset()
 		resp2 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, query, varsCasual, t)
 		assert.Equal(t, expectedCasual, string(resp2), "CASUAL should produce casual greeting, not formal")
+
+		// Different enum value → different hash suffix; L2 overwrites so only CASUAL variant remains
+		assert.Equal(t,
+			`{"username":"Me","customGreeting_xxh3fe84620597916f8":"Hey, Me!","__typename":"User"}`,
+			getCachedUserEntity(t, s))
 
 		logAfterSecond := s.defaultCache.GetLog()
 		wantLogSecond := []CacheLogEntry{
@@ -572,6 +622,11 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		resp1 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, query, varsUppercase, t)
 		assert.Equal(t, expectedUppercase, string(resp1), "uppercase=true should produce uppercased greeting")
 
+		// Nested input {style:FORMAL, formatting:{uppercase:true}} produces unique hash
+		assert.Equal(t,
+			`{"username":"Me","customGreeting_xxhf26a2578aca5e6a1":"GOOD DAY, ME","__typename":"User"}`,
+			getCachedUserEntity(t, s))
+
 		logAfterFirst := s.defaultCache.GetLog()
 		wantLogFirst := []CacheLogEntry{
 			// Root field Query.topProducts - MISS (first request, L2 empty)
@@ -592,6 +647,11 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		s.tracker.Reset()
 		resp2 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, query, varsNoUppercase, t)
 		assert.Equal(t, expectedNormal, string(resp2), "uppercase=false should produce normal greeting")
+
+		// Changing nested field value (true→false) produces different hash; L2 overwrites
+		assert.Equal(t,
+			`{"username":"Me","customGreeting_xxhe5bb1eb0d1896f64":"Good day, Me","__typename":"User"}`,
+			getCachedUserEntity(t, s))
 
 		logAfterSecond := s.defaultCache.GetLog()
 		wantLogSecond := []CacheLogEntry{
@@ -642,6 +702,11 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		resp1 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, query, varsUppercase, t)
 		assert.Equal(t, expectedUppercase, string(resp1), "uppercase should produce uppercased greeting")
 
+		// Same hash as "changing nested field" test: {style:FORMAL, formatting:{uppercase:true}}
+		assert.Equal(t,
+			`{"username":"Me","customGreeting_xxhf26a2578aca5e6a1":"GOOD DAY, ME","__typename":"User"}`,
+			getCachedUserEntity(t, s))
+
 		logAfterFirst := s.defaultCache.GetLog()
 		wantLogFirst := []CacheLogEntry{
 			// Root field Query.topProducts - MISS (first request, L2 empty)
@@ -662,6 +727,11 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		s.tracker.Reset()
 		resp2 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, query, varsPrefix, t)
 		assert.Equal(t, expectedPrefix, string(resp2), "prefix should produce prefixed greeting")
+
+		// Different nested fields ({prefix} vs {uppercase}) → completely different hash; L2 overwrites
+		assert.Equal(t,
+			`{"username":"Me","customGreeting_xxhcc61634e04b7fbf6":"Dr. Good day, Me","__typename":"User"}`,
+			getCachedUserEntity(t, s))
 
 		logAfterSecond := s.defaultCache.GetLog()
 		wantLogSecond := []CacheLogEntry{
@@ -703,6 +773,11 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 			query,
 			`{"input":{"style":"FORMAL","formatting":{"uppercase":true}}}`)
 		assert.Equal(t, expectedResp, string(resp1), "Order 1 should produce uppercased greeting")
+
+		// Same hash as other uppercase=true tests: canonical JSON sorts keys before hashing
+		assert.Equal(t,
+			`{"username":"Me","customGreeting_xxhf26a2578aca5e6a1":"GOOD DAY, ME","__typename":"User"}`,
+			getCachedUserEntity(t, s))
 
 		logAfterFirst := s.defaultCache.GetLog()
 		wantLogFirst := []CacheLogEntry{
