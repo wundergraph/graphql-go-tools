@@ -669,7 +669,7 @@ func (l *Loader) populateL1Cache(fetchItem *FetchItem, res *result, _ []*astjson
 		}
 		for _, keyStr := range ck.Keys {
 			// Merge new fields into existing cached entity so that different arg suffixes
-			// (e.g., friends_xxhAAA and friends_xxhBBB) coexist in the same entity.
+			// (e.g., friends_AAA and friends_BBB) coexist in the same entity.
 			// L1 is only accessed from the main thread, so Load+merge+Store is safe.
 			if existing, loaded := l.l1Cache.Load(keyStr); loaded {
 				if existingVal, ok := existing.(*astjson.Value); ok {
@@ -1391,7 +1391,7 @@ func (l *Loader) cacheFieldName(field *Field) string {
 	return field.SchemaFieldName() + l.computeArgSuffix(field.CacheArgs)
 }
 
-// computeArgSuffix computes "_xxh<16-hex-chars>" from resolved argument values.
+// computeArgSuffix computes "_<16-hex-chars>" from resolved argument values.
 // Args are sorted by ArgName for deterministic output (guaranteed at plan time).
 // Each arg value is resolved from ctx.Variables (with RemapVariables support)
 // and serialized as JSON for hashing.
@@ -1434,12 +1434,12 @@ func (l *Loader) computeArgSuffix(args []CacheFieldArg) string {
 	sum := h.Sum64()
 	pool.Hash64.Put(h)
 
-	// Format as "_xxh" + 16 zero-padded hex digits without fmt.Sprintf
-	var buf [20]byte
-	copy(buf[:4], "_xxh")
+	// Format as "_" + 16 zero-padded hex digits without fmt.Sprintf
+	var buf [17]byte
+	buf[0] = '_'
 	const hexDigits = "0123456789abcdef"
 	for i := 15; i >= 0; i-- {
-		buf[4+i] = hexDigits[sum&0xf]
+		buf[1+i] = hexDigits[sum&0xf]
 		sum >>= 4
 	}
 	return string(buf[:])
@@ -1499,7 +1499,7 @@ func writeCanonicalJSON(w interface{ WriteString(string) (int, error) }, v *astj
 
 // mergeEntityFields copies all fields from src into dst that aren't already present.
 // Used during L1 cache population to accumulate fields with different arg suffixes
-// (e.g., friends_xxhAAA and friends_xxhBBBB coexist in the same cached entity).
+// (e.g., friends_AAA and friends_BBBB coexist in the same cached entity).
 // First-writer-wins: for suffixed fields each arg variant has a unique suffix so no conflict;
 // for key fields (id, __typename) values are identical across fetches for the same entity.
 func (l *Loader) mergeEntityFields(dst, src *astjson.Value) {
