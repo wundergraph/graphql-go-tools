@@ -47,6 +47,19 @@ func injectCacheInvalidation(t *testing.T, body []byte, cacheInvalidationJSON st
 	return modified
 }
 
+// injectErrorsAndCacheInvalidation injects both errors and cacheInvalidation extensions
+// into a subgraph response body. Used to test that invalidation runs even when errors are present.
+func injectErrorsAndCacheInvalidation(t *testing.T, body []byte, errorsJSON string, cacheInvalidationJSON string) []byte {
+	t.Helper()
+	var resp map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(body, &resp))
+	resp["errors"] = json.RawMessage(errorsJSON)
+	resp["extensions"] = json.RawMessage(`{"cacheInvalidation":` + cacheInvalidationJSON + `}`)
+	modified, err := json.Marshal(resp)
+	require.NoError(t, err)
+	return modified
+}
+
 // subgraphResponseInterceptor wraps a subgraph HTTP handler and applies a modifier
 // function to every response body when set. When modifier is nil, responses pass through.
 type subgraphResponseInterceptor struct {
@@ -123,6 +136,7 @@ type extInvalidationConfig struct {
 	headerPrefixHash               uint64
 	useHeaderPrefix                bool
 	l2KeyInterceptor               func(ctx context.Context, key string, info resolve.L2CacheKeyInterceptorInfo) string
+	enableAnalytics                bool
 }
 
 // withMutationCacheInvalidation enables the config-based MutationCacheInvalidation
@@ -139,6 +153,14 @@ func withHeaderPrefix(hash uint64) extInvalidationOption {
 	return func(c *extInvalidationConfig) {
 		c.useHeaderPrefix = true
 		c.headerPrefixHash = hash
+	}
+}
+
+// withExtInvAnalytics enables cache analytics collection on the gateway,
+// allowing tests to assert on MutationEvent and other analytics data.
+func withExtInvAnalytics() extInvalidationOption {
+	return func(c *extInvalidationConfig) {
+		c.enableAnalytics = true
 	}
 }
 
@@ -193,6 +215,9 @@ func newExtInvalidationEnv(t *testing.T, opts ...extInvalidationOption) *extInva
 	}
 
 	cachingOpts := resolve.CachingOptions{EnableL2Cache: true}
+	if cfg.enableAnalytics {
+		cachingOpts.EnableCacheAnalytics = true
+	}
 	if cfg.l2KeyInterceptor != nil {
 		cachingOpts.L2CacheKeyInterceptor = cfg.l2KeyInterceptor
 	}
@@ -249,6 +274,15 @@ func (e *extInvalidationEnv) mutate() string {
 	e.t.Helper()
 	e.resetCounters()
 	return string(e.gqlClient.QueryString(e.ctx, e.setup.GatewayServer.URL, extInvMutationQuery, nil, e.t))
+}
+
+// mutateWithHeaders sends the standard mutation and returns both the response body
+// and HTTP headers (for cache analytics inspection). Resets counters first.
+func (e *extInvalidationEnv) mutateWithHeaders() (string, http.Header) {
+	e.t.Helper()
+	e.resetCounters()
+	resp, headers := e.gqlClient.QueryStringWithHeaders(e.ctx, e.setup.GatewayServer.URL, extInvMutationQuery, nil, e.t)
+	return string(resp), headers
 }
 
 // onAccountsResponse sets a modifier on the accounts subgraph interceptor.
