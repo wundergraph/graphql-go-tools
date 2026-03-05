@@ -519,16 +519,16 @@ func testMapping() *GRPCMapping {
 						"orders": "orders",
 					},
 				},
-			"categories": {
-				TargetName: "categories",
-			},
-			"category": {
-				TargetName: "category",
-				ArgumentMappings: FieldArgumentMap{
-					"id": "id",
+				"categories": {
+					TargetName: "categories",
 				},
-			},
-			"categoriesByKind": {
+				"category": {
+					TargetName: "category",
+					ArgumentMappings: FieldArgumentMap{
+						"id": "id",
+					},
+				},
+				"categoriesByKind": {
 					TargetName: "categories_by_kind",
 					ArgumentMappings: FieldArgumentMap{
 						"kind": "kind",
