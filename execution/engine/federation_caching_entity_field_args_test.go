@@ -306,7 +306,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		expectedCasual := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","greeting":"Hey, Me!"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","greeting":"Hey, Me!"}}]}]}}`
 		assert.Equal(t, expectedCasual, string(resp2), "Second request should return casual greeting, not formal")
 
-		// Cache content after Request 2 (User overwritten with casual variant, formal is gone):
+		// Cache content after Request 2 (User merged: both formal and casual variants present):
 		assert.Equal(t,
 			`{"topProducts":[{"name":"Trilby","__typename":"Product","upc":"top-1"},{"name":"Fedora","__typename":"Product","upc":"top-2"}]}`,
 			peekCache(t, s, `{"__typename":"Query","field":"topProducts"}`))
@@ -317,7 +317,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 			`{"name":"Fedora","__typename":"Product","upc":"top-2","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"__typename":"User","id":"1234"}}]}`,
 			peekCache(t, s, `{"__typename":"Product","key":{"upc":"top-2"}}`))
 		assert.Equal(t,
-			`{"username":"Me","greeting_e4956d127c0d173e":"Hey, Me!","__typename":"User"}`,
+			`{"username":"Me","greeting_1dc2e714f80c47e8":"Good day, Me","__typename":"User","greeting_e4956d127c0d173e":"Hey, Me!"}`,
 			peekCache(t, s, `{"__typename":"User","key":{"id":"1234"}}`))
 
 		logAfterSecond := s.defaultCache.GetLog()
@@ -325,7 +325,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		// The L2 cache GET returns the User entity (key exists → FakeLoaderCache reports HIT),
 		// but the Loader's validateItemHasRequiredData fails because greeting_<casualHash>
 		// is missing from the cached entity. The Loader treats it as a miss, re-fetches from
-		// accounts, and stores the new data. So we expect: GET (hit at L2 layer) + SET.
+		// accounts, and merges the new data with the old cached entity. So we expect: GET (hit at L2 layer) + SET.
 		wantLogSecond := []CacheLogEntry{
 			// topProducts root field - HIT
 			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
@@ -686,7 +686,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		resp2 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, query, varsCasual, t)
 		assert.Equal(t, expectedCasual, string(resp2), "CASUAL should produce casual greeting, not formal")
 
-		// Cache content after Request 2 (User overwritten with CASUAL variant):
+		// Cache content after Request 2 (User merged: both FORMAL and CASUAL variants present):
 		assert.Equal(t,
 			`{"topProducts":[{"name":"Trilby","__typename":"Product","upc":"top-1"},{"name":"Fedora","__typename":"Product","upc":"top-2"}]}`,
 			peekCache(t, s, `{"__typename":"Query","field":"topProducts"}`))
@@ -697,7 +697,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 			`{"name":"Fedora","__typename":"Product","upc":"top-2","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"__typename":"User","id":"1234"}}]}`,
 			peekCache(t, s, `{"__typename":"Product","key":{"upc":"top-2"}}`))
 		assert.Equal(t,
-			`{"username":"Me","customGreeting_3fe84620597916f8":"Hey, Me!","__typename":"User"}`,
+			`{"username":"Me","customGreeting_5c96b2bdff7784c6":"Good day, Me","__typename":"User","customGreeting_3fe84620597916f8":"Hey, Me!"}`,
 			peekCache(t, s, `{"__typename":"User","key":{"id":"1234"}}`))
 
 		logAfterSecond := s.defaultCache.GetLog()
@@ -706,7 +706,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
 			// Product entity fetches - HIT (populated by Request 1)
 			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
-			// User entity - L2 returns data (HIT) but Loader rejects it (missing casual enum hash) → re-fetch → SET
+			// User entity - L2 returns data (HIT) but Loader rejects it (missing casual enum hash) → re-fetch + merge → SET
 			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
 			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
 		}
@@ -785,7 +785,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		resp2 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, query, varsNoUppercase, t)
 		assert.Equal(t, expectedNormal, string(resp2), "uppercase=false should produce normal greeting")
 
-		// Cache content after Request 2 (User overwritten with uppercase=false variant):
+		// Cache content after Request 2 (User merged: both uppercase=true and uppercase=false variants present):
 		assert.Equal(t,
 			`{"topProducts":[{"name":"Trilby","__typename":"Product","upc":"top-1"},{"name":"Fedora","__typename":"Product","upc":"top-2"}]}`,
 			peekCache(t, s, `{"__typename":"Query","field":"topProducts"}`))
@@ -796,7 +796,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 			`{"name":"Fedora","__typename":"Product","upc":"top-2","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"__typename":"User","id":"1234"}}]}`,
 			peekCache(t, s, `{"__typename":"Product","key":{"upc":"top-2"}}`))
 		assert.Equal(t,
-			`{"username":"Me","customGreeting_e5bb1eb0d1896f64":"Good day, Me","__typename":"User"}`,
+			`{"username":"Me","customGreeting_f26a2578aca5e6a1":"GOOD DAY, ME","__typename":"User","customGreeting_e5bb1eb0d1896f64":"Good day, Me"}`,
 			peekCache(t, s, `{"__typename":"User","key":{"id":"1234"}}`))
 
 		logAfterSecond := s.defaultCache.GetLog()
@@ -805,7 +805,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
 			// Product entity fetches - HIT (populated by Request 1)
 			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
-			// User entity - L2 returns data (HIT) but Loader rejects it (different nested field hash) → re-fetch → SET
+			// User entity - L2 returns data (HIT) but Loader rejects it (different nested field hash) → re-fetch + merge → SET
 			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
 			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
 		}
@@ -883,7 +883,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		resp2 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, query, varsPrefix, t)
 		assert.Equal(t, expectedPrefix, string(resp2), "prefix should produce prefixed greeting")
 
-		// Cache content after Request 2 (User overwritten with prefix variant):
+		// Cache content after Request 2 (User merged: both uppercase and prefix variants present):
 		assert.Equal(t,
 			`{"topProducts":[{"name":"Trilby","__typename":"Product","upc":"top-1"},{"name":"Fedora","__typename":"Product","upc":"top-2"}]}`,
 			peekCache(t, s, `{"__typename":"Query","field":"topProducts"}`))
@@ -894,7 +894,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 			`{"name":"Fedora","__typename":"Product","upc":"top-2","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"__typename":"User","id":"1234"}}]}`,
 			peekCache(t, s, `{"__typename":"Product","key":{"upc":"top-2"}}`))
 		assert.Equal(t,
-			`{"username":"Me","customGreeting_cc61634e04b7fbf6":"Dr. Good day, Me","__typename":"User"}`,
+			`{"username":"Me","customGreeting_f26a2578aca5e6a1":"GOOD DAY, ME","__typename":"User","customGreeting_cc61634e04b7fbf6":"Dr. Good day, Me"}`,
 			peekCache(t, s, `{"__typename":"User","key":{"id":"1234"}}`))
 
 		logAfterSecond := s.defaultCache.GetLog()
@@ -903,7 +903,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
 			// Product entity fetches - HIT (populated by Request 1)
 			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
-			// User entity - L2 returns data (HIT) but Loader rejects it (different nested fields hash) → re-fetch → SET
+			// User entity - L2 returns data (HIT) but Loader rejects it (different nested fields hash) → re-fetch + merge → SET
 			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
 			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
 		}
@@ -1002,5 +1002,349 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Second request should show all cache hits (key order canonicalized)")
 
 		assert.Equal(t, 0, s.tracker.GetCount(s.accountsHost), "Accounts should NOT be called when same input is sent with different key order")
+	})
+
+	t.Run("different args merge enables third request cache hit", func(t *testing.T) {
+		s := newEntityFieldArgsSetup(t)
+
+		queryFormal := `query EntityFieldArgsFormal {
+			topProducts {
+				name
+				reviews {
+					body
+					authorWithoutProvides {
+						username
+						greeting(style: "formal")
+					}
+				}
+			}
+		}`
+
+		queryCasual := `query EntityFieldArgsCasual {
+			topProducts {
+				name
+				reviews {
+					body
+					authorWithoutProvides {
+						username
+						greeting(style: "casual")
+					}
+				}
+			}
+		}`
+
+		// Request 1: greeting(style: "formal") → L2 miss → fetch → store
+		s.defaultCache.ClearLog()
+		s.tracker.Reset()
+		resp1 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, queryFormal, nil, t)
+
+		expectedFormal := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","greeting":"Good day, Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","greeting":"Good day, Me"}}]}]}}`
+		assert.Equal(t, expectedFormal, string(resp1), "Request 1 should return formal greeting")
+
+		// Cache content after Request 1:
+		assert.Equal(t,
+			`{"topProducts":[{"name":"Trilby","__typename":"Product","upc":"top-1"},{"name":"Fedora","__typename":"Product","upc":"top-2"}]}`,
+			peekCache(t, s, `{"__typename":"Query","field":"topProducts"}`))
+		assert.Equal(t,
+			`{"name":"Trilby","__typename":"Product","upc":"top-1","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"__typename":"User","id":"1234"}}]}`,
+			peekCache(t, s, `{"__typename":"Product","key":{"upc":"top-1"}}`))
+		assert.Equal(t,
+			`{"name":"Fedora","__typename":"Product","upc":"top-2","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"__typename":"User","id":"1234"}}]}`,
+			peekCache(t, s, `{"__typename":"Product","key":{"upc":"top-2"}}`))
+		assert.Equal(t,
+			`{"username":"Me","greeting_1dc2e714f80c47e8":"Good day, Me","__typename":"User"}`,
+			peekCache(t, s, `{"__typename":"User","key":{"id":"1234"}}`))
+
+		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Request 1 should call accounts once")
+
+		// Request 2: greeting(style: "casual") → L2 validation fails → fetch → merge-store
+		s.defaultCache.ClearLog()
+		s.tracker.Reset()
+		resp2 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, queryCasual, nil, t)
+
+		expectedCasual := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","greeting":"Hey, Me!"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","greeting":"Hey, Me!"}}]}]}}`
+		assert.Equal(t, expectedCasual, string(resp2), "Request 2 should return casual greeting")
+
+		// Cache content after Request 2 (merged: both formal and casual variants present):
+		assert.Equal(t,
+			`{"topProducts":[{"name":"Trilby","__typename":"Product","upc":"top-1"},{"name":"Fedora","__typename":"Product","upc":"top-2"}]}`,
+			peekCache(t, s, `{"__typename":"Query","field":"topProducts"}`))
+		assert.Equal(t,
+			`{"name":"Trilby","__typename":"Product","upc":"top-1","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"__typename":"User","id":"1234"}}]}`,
+			peekCache(t, s, `{"__typename":"Product","key":{"upc":"top-1"}}`))
+		assert.Equal(t,
+			`{"name":"Fedora","__typename":"Product","upc":"top-2","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"__typename":"User","id":"1234"}}]}`,
+			peekCache(t, s, `{"__typename":"Product","key":{"upc":"top-2"}}`))
+		assert.Equal(t,
+			`{"username":"Me","greeting_1dc2e714f80c47e8":"Good day, Me","__typename":"User","greeting_e4956d127c0d173e":"Hey, Me!"}`,
+			peekCache(t, s, `{"__typename":"User","key":{"id":"1234"}}`))
+
+		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Request 2 should call accounts once (casual variant missing)")
+
+		// Request 3: greeting(style: "formal") again → L2 HIT (formal variant exists in merged entity)
+		s.defaultCache.ClearLog()
+		s.tracker.Reset()
+		resp3 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, queryFormal, nil, t)
+		assert.Equal(t, expectedFormal, string(resp3), "Request 3 should return formal greeting from cache")
+
+		// Cache content after Request 3 (unchanged - full cache hit, no write):
+		assert.Equal(t,
+			`{"topProducts":[{"name":"Trilby","__typename":"Product","upc":"top-1"},{"name":"Fedora","__typename":"Product","upc":"top-2"}]}`,
+			peekCache(t, s, `{"__typename":"Query","field":"topProducts"}`))
+		assert.Equal(t,
+			`{"name":"Trilby","__typename":"Product","upc":"top-1","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"__typename":"User","id":"1234"}}]}`,
+			peekCache(t, s, `{"__typename":"Product","key":{"upc":"top-1"}}`))
+		assert.Equal(t,
+			`{"name":"Fedora","__typename":"Product","upc":"top-2","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"__typename":"User","id":"1234"}}]}`,
+			peekCache(t, s, `{"__typename":"Product","key":{"upc":"top-2"}}`))
+		assert.Equal(t,
+			`{"username":"Me","greeting_1dc2e714f80c47e8":"Good day, Me","__typename":"User","greeting_e4956d127c0d173e":"Hey, Me!"}`,
+			peekCache(t, s, `{"__typename":"User","key":{"id":"1234"}}`))
+
+		logAfterThird := s.defaultCache.GetLog()
+		wantLogThird := []CacheLogEntry{
+			// All GETs are hits - no SETs needed
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
+			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
+			// User entity - HIT (formal variant exists in merged entity from Request 2)
+			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogThird), sortCacheLogKeys(logAfterThird), "Request 3: all cache hits, no fetches needed")
+
+		assert.Equal(t, 0, s.tracker.GetCount(s.accountsHost), "Request 3 should NOT call accounts (formal variant in merged cache)")
+	})
+
+	t.Run("different args merge enables combined alias cache hit", func(t *testing.T) {
+		s := newEntityFieldArgsSetup(t)
+
+		queryFormal := `query EntityFieldArgsFormal {
+			topProducts {
+				name
+				reviews {
+					body
+					authorWithoutProvides {
+						username
+						greeting(style: "formal")
+					}
+				}
+			}
+		}`
+
+		queryCasual := `query EntityFieldArgsCasual {
+			topProducts {
+				name
+				reviews {
+					body
+					authorWithoutProvides {
+						username
+						greeting(style: "casual")
+					}
+				}
+			}
+		}`
+
+		queryBothAliases := `query EntityFieldArgsBothAliases {
+			topProducts {
+				name
+				reviews {
+					body
+					authorWithoutProvides {
+						username
+						formalGreeting: greeting(style: "formal")
+						casualGreeting: greeting(style: "casual")
+					}
+				}
+			}
+		}`
+
+		// Request 1: greeting(style: "formal") → L2 miss → fetch → store
+		s.defaultCache.ClearLog()
+		s.tracker.Reset()
+		resp1 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, queryFormal, nil, t)
+
+		expectedFormal := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","greeting":"Good day, Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","greeting":"Good day, Me"}}]}]}}`
+		assert.Equal(t, expectedFormal, string(resp1), "Request 1 should return formal greeting")
+
+		// Cache content after Request 1:
+		assert.Equal(t,
+			`{"username":"Me","greeting_1dc2e714f80c47e8":"Good day, Me","__typename":"User"}`,
+			peekCache(t, s, `{"__typename":"User","key":{"id":"1234"}}`))
+
+		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Request 1 should call accounts once")
+
+		// Request 2: greeting(style: "casual") → L2 validation fails → fetch → merge-store
+		s.defaultCache.ClearLog()
+		s.tracker.Reset()
+		resp2 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, queryCasual, nil, t)
+
+		expectedCasual := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","greeting":"Hey, Me!"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","greeting":"Hey, Me!"}}]}]}}`
+		assert.Equal(t, expectedCasual, string(resp2), "Request 2 should return casual greeting")
+
+		// Cache content after Request 2 (merged: both variants present):
+		assert.Equal(t,
+			`{"username":"Me","greeting_1dc2e714f80c47e8":"Good day, Me","__typename":"User","greeting_e4956d127c0d173e":"Hey, Me!"}`,
+			peekCache(t, s, `{"__typename":"User","key":{"id":"1234"}}`))
+
+		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Request 2 should call accounts once (casual variant missing)")
+
+		// Request 3: combined alias query with both variants → L2 HIT (both variants exist in merged entity)
+		s.defaultCache.ClearLog()
+		s.tracker.Reset()
+		resp3 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, queryBothAliases, nil, t)
+
+		expectedBoth := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","formalGreeting":"Good day, Me","casualGreeting":"Hey, Me!"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","formalGreeting":"Good day, Me","casualGreeting":"Hey, Me!"}}]}]}}`
+		assert.Equal(t, expectedBoth, string(resp3), "Request 3 should return both greeting variants from cache")
+
+		// Cache content after Request 3 (unchanged - full cache hit, no write):
+		assert.Equal(t,
+			`{"username":"Me","greeting_1dc2e714f80c47e8":"Good day, Me","__typename":"User","greeting_e4956d127c0d173e":"Hey, Me!"}`,
+			peekCache(t, s, `{"__typename":"User","key":{"id":"1234"}}`))
+
+		logAfterThird := s.defaultCache.GetLog()
+		wantLogThird := []CacheLogEntry{
+			// All GETs are hits - no SETs needed
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
+			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
+			// User entity - HIT (both variants exist in merged entity)
+			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogThird), sortCacheLogKeys(logAfterThird), "Request 3: all cache hits, both variants served from merged entity")
+
+		assert.Equal(t, 0, s.tracker.GetCount(s.accountsHost), "Request 3 should NOT call accounts (both variants in merged cache)")
+	})
+
+	t.Run("non-arg fields merge across fetches", func(t *testing.T) {
+		s := newEntityFieldArgsSetup(t)
+
+		queryUsernameOnly := `query UsernameOnly {
+			topProducts {
+				name
+				reviews {
+					body
+					authorWithoutProvides {
+						username
+					}
+				}
+			}
+		}`
+
+		queryUsernameAndNickname := `query UsernameAndNickname {
+			topProducts {
+				name
+				reviews {
+					body
+					authorWithoutProvides {
+						username
+						nickname
+					}
+				}
+			}
+		}`
+
+		queryNicknameOnly := `query NicknameOnly {
+			topProducts {
+				name
+				reviews {
+					body
+					authorWithoutProvides {
+						nickname
+					}
+				}
+			}
+		}`
+
+		// Request 1: username only → L2 miss → fetch → store
+		s.defaultCache.ClearLog()
+		s.tracker.Reset()
+		resp1 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, queryUsernameOnly, nil, t)
+
+		expectedUsernameOnly := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`
+		assert.Equal(t, expectedUsernameOnly, string(resp1), "Request 1 should return username only")
+
+		// Cache content after Request 1:
+		assert.Equal(t,
+			`{"topProducts":[{"name":"Trilby","__typename":"Product","upc":"top-1"},{"name":"Fedora","__typename":"Product","upc":"top-2"}]}`,
+			peekCache(t, s, `{"__typename":"Query","field":"topProducts"}`))
+		assert.Equal(t,
+			`{"name":"Trilby","__typename":"Product","upc":"top-1","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"__typename":"User","id":"1234"}}]}`,
+			peekCache(t, s, `{"__typename":"Product","key":{"upc":"top-1"}}`))
+		assert.Equal(t,
+			`{"name":"Fedora","__typename":"Product","upc":"top-2","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"__typename":"User","id":"1234"}}]}`,
+			peekCache(t, s, `{"__typename":"Product","key":{"upc":"top-2"}}`))
+		assert.Equal(t,
+			`{"__typename":"User","id":"1234","username":"Me"}`,
+			peekCache(t, s, `{"__typename":"User","key":{"id":"1234"}}`))
+
+		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Request 1 should call accounts once")
+
+		// Request 2: username + nickname → L2 validation fails (missing nickname) → fetch → merge-store
+		s.defaultCache.ClearLog()
+		s.tracker.Reset()
+		resp2 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, queryUsernameAndNickname, nil, t)
+
+		expectedUsernameAndNickname := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","nickname":"nick-Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","nickname":"nick-Me"}}]}]}}`
+		assert.Equal(t, expectedUsernameAndNickname, string(resp2), "Request 2 should return username and nickname")
+
+		// Cache content after Request 2 (merged: both username and nickname present):
+		assert.Equal(t,
+			`{"topProducts":[{"name":"Trilby","__typename":"Product","upc":"top-1"},{"name":"Fedora","__typename":"Product","upc":"top-2"}]}`,
+			peekCache(t, s, `{"__typename":"Query","field":"topProducts"}`))
+		assert.Equal(t,
+			`{"name":"Trilby","__typename":"Product","upc":"top-1","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"__typename":"User","id":"1234"}}]}`,
+			peekCache(t, s, `{"__typename":"Product","key":{"upc":"top-1"}}`))
+		assert.Equal(t,
+			`{"name":"Fedora","__typename":"Product","upc":"top-2","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"__typename":"User","id":"1234"}}]}`,
+			peekCache(t, s, `{"__typename":"Product","key":{"upc":"top-2"}}`))
+		assert.Equal(t,
+			`{"__typename":"User","id":"1234","username":"Me","nickname":"nick-Me"}`,
+			peekCache(t, s, `{"__typename":"User","key":{"id":"1234"}}`))
+
+		logAfterSecond := s.defaultCache.GetLog()
+		wantLogSecond := []CacheLogEntry{
+			// Root field Query.topProducts - HIT (populated by Request 1)
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
+			// Product entity fetches - HIT (populated by Request 1)
+			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
+			// User entity - L2 returns data (HIT) but Loader rejects it (missing nickname) → re-fetch + merge → SET
+			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
+			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Request 2: User entity found but missing nickname → re-fetch + merge")
+
+		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Request 2 should call accounts once (nickname missing)")
+
+		// Request 3: nickname only → L2 HIT (nickname exists in merged entity)
+		s.defaultCache.ClearLog()
+		s.tracker.Reset()
+		resp3 := s.gqlClient.QueryString(s.ctx, s.setup.GatewayServer.URL, queryNicknameOnly, nil, t)
+
+		expectedNicknameOnly := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"nickname":"nick-Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"nickname":"nick-Me"}}]}]}}`
+		assert.Equal(t, expectedNicknameOnly, string(resp3), "Request 3 should return nickname from cache")
+
+		// Cache content after Request 3 (unchanged - full cache hit, no write):
+		assert.Equal(t,
+			`{"topProducts":[{"name":"Trilby","__typename":"Product","upc":"top-1"},{"name":"Fedora","__typename":"Product","upc":"top-2"}]}`,
+			peekCache(t, s, `{"__typename":"Query","field":"topProducts"}`))
+		assert.Equal(t,
+			`{"name":"Trilby","__typename":"Product","upc":"top-1","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"__typename":"User","id":"1234"}}]}`,
+			peekCache(t, s, `{"__typename":"Product","key":{"upc":"top-1"}}`))
+		assert.Equal(t,
+			`{"name":"Fedora","__typename":"Product","upc":"top-2","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"__typename":"User","id":"1234"}}]}`,
+			peekCache(t, s, `{"__typename":"Product","key":{"upc":"top-2"}}`))
+		assert.Equal(t,
+			`{"__typename":"User","id":"1234","username":"Me","nickname":"nick-Me"}`,
+			peekCache(t, s, `{"__typename":"User","key":{"id":"1234"}}`))
+
+		logAfterThird := s.defaultCache.GetLog()
+		wantLogThird := []CacheLogEntry{
+			// All GETs are hits - no SETs needed
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
+			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
+			// User entity - HIT (nickname exists in merged entity from Request 2)
+			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogThird), sortCacheLogKeys(logAfterThird), "Request 3: all cache hits, nickname served from merged entity")
+
+		assert.Equal(t, 0, s.tracker.GetCount(s.accountsHost), "Request 3 should NOT call accounts (nickname in merged cache)")
 	})
 }

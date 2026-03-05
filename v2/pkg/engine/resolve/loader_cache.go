@@ -847,6 +847,17 @@ func (l *Loader) updateL2Cache(res *result) {
 		}
 	}
 
+	// Merge existing cached fields to preserve other arg variants.
+	// ck.FromCache holds the old L2 entity (set by tryL2CacheLoad when validation failed),
+	// ck.Item holds the newly fetched and normalized entity.
+	// MergeValues(old, new) keeps old fields not in new; new wins on conflicts.
+	for _, ck := range keysToStore {
+		if ck.Item != nil && ck.FromCache != nil {
+			_, _, _ = astjson.MergeValues(l.jsonArena, ck.FromCache, ck.Item)
+			ck.Item = ck.FromCache
+		}
+	}
+
 	// Convert CacheKeys to CacheEntries
 	cacheEntries, err := l.cacheKeysToEntries(l.jsonArena, keysToStore)
 	if err != nil {
