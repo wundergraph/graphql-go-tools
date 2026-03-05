@@ -6,6 +6,7 @@ import (
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"sync"
 	"testing"
@@ -169,8 +170,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		t.Cleanup(setup.Close)
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
-		ctx, cancel := context.WithCancel(context.Background())
-		t.Cleanup(cancel)
+		ctx := t.Context()
 
 		accountsHost := mustParseHost(setup.AccountsUpstreamServer.URL)
 
@@ -208,7 +208,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		for _, entry := range mutationLog {
 			if entry.Operation == "delete" {
 				hasDelete = true
-				assert.Equal(t, 1, len(entry.Keys), "delete should have exactly 1 key")
+				assert.Len(t, entry.Keys, 1, "delete should have exactly 1 key")
 				assert.Equal(t, `{"__typename":"User","key":{"id":"1234"}}`, entry.Keys[0])
 			}
 		}
@@ -252,8 +252,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		t.Cleanup(setup.Close)
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
-		ctx, cancel := context.WithCancel(context.Background())
-		t.Cleanup(cancel)
+		ctx := t.Context()
 
 		// Populate cache with User:1234.
 		tracker.Reset()
@@ -323,8 +322,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		t.Cleanup(setup.Close)
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
-		ctx, cancel := context.WithCancel(context.Background())
-		t.Cleanup(cancel)
+		ctx := t.Context()
 
 		// Populate cache.
 		defaultCache.ClearLog()
@@ -353,9 +351,11 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 				deleteKeys = append(deleteKeys, entry.Keys...)
 			}
 		}
-		assert.Equal(t, 2, len(deleteKeys), "should have 2 delete keys")
-		assert.Contains(t, deleteKeys, `{"__typename":"User","key":{"id":"1234"}}`)
-		assert.Contains(t, deleteKeys, `{"__typename":"User","key":{"id":"2345"}}`)
+		slices.Sort(deleteKeys)
+		assert.Equal(t, []string{
+			`{"__typename":"User","key":{"id":"1234"}}`,
+			`{"__typename":"User","key":{"id":"2345"}}`,
+		}, deleteKeys)
 
 		// Verify User:1234 is re-fetched.
 		accountsHost := mustParseHost(setup.AccountsUpstreamServer.URL)
@@ -393,8 +393,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		t.Cleanup(setup.Close)
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
-		ctx, cancel := context.WithCancel(context.Background())
-		t.Cleanup(cancel)
+		ctx := t.Context()
 
 		accountsHost := mustParseHost(setup.AccountsUpstreamServer.URL)
 
@@ -460,8 +459,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		t.Cleanup(setup.Close)
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
-		ctx, cancel := context.WithCancel(context.Background())
-		t.Cleanup(cancel)
+		ctx := t.Context()
 
 		accountsHost := mustParseHost(setup.AccountsUpstreamServer.URL)
 
@@ -489,7 +487,8 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 
 		middleware.ClearInvalidationKeys()
 
-		// Both mechanisms should fire — verify at least one delete occurred.
+		// Both mechanisms should fire — one delete from detectMutationEntityImpact
+		// and one from extensions-based invalidation.
 		mutationLog := defaultCache.GetLog()
 		deleteCount := 0
 		for _, entry := range mutationLog {
@@ -497,7 +496,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 				deleteCount++
 			}
 		}
-		assert.True(t, deleteCount >= 1, "at least one delete should occur from combined mechanisms")
+		assert.Equal(t, 2, deleteCount, "should have exactly 2 delete calls: one from mutation impact, one from extensions")
 
 		// Cache should be invalidated — query should re-fetch.
 		tracker.Reset()
@@ -535,8 +534,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		t.Cleanup(setup.Close)
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
-		ctx, cancel := context.WithCancel(context.Background())
-		t.Cleanup(cancel)
+		ctx := t.Context()
 
 		accountsHost := mustParseHost(setup.AccountsUpstreamServer.URL)
 
@@ -555,7 +553,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		// Step 3: Clear the cache entry so the next query calls accounts again.
 		// Then enable extensions injection to verify that a QUERY response (not mutation)
 		// can also trigger invalidation.
-		_ = defaultCache.Delete(context.Background(), []string{`{"__typename":"User","key":{"id":"1234"}}`})
+		_ = defaultCache.Delete(ctx, []string{`{"__typename":"User","key":{"id":"1234"}}`})
 
 		// Enable invalidation — the accounts subgraph _entities response will now include:
 		// "extensions": {"cacheInvalidation": {"keys": [{"typename": "User", "key": {"id": "1234"}}]}}
@@ -618,8 +616,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		t.Cleanup(setup.Close)
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
-		ctx, cancel := context.WithCancel(context.Background())
-		t.Cleanup(cancel)
+		ctx := t.Context()
 
 		accountsHost := mustParseHost(setup.AccountsUpstreamServer.URL)
 
@@ -652,7 +649,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		for _, entry := range mutationLog {
 			if entry.Operation == "delete" {
 				hasDelete = true
-				assert.Equal(t, 1, len(entry.Keys))
+				assert.Len(t, entry.Keys, 1)
 				assert.Equal(t, `55555:{"__typename":"User","key":{"id":"1234"}}`, entry.Keys[0],
 					"delete key should include header prefix")
 			}
@@ -700,8 +697,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		t.Cleanup(setup.Close)
 
 		gqlClient := NewGraphqlClient(http.DefaultClient)
-		ctx, cancel := context.WithCancel(context.Background())
-		t.Cleanup(cancel)
+		ctx := t.Context()
 
 		accountsHost := mustParseHost(setup.AccountsUpstreamServer.URL)
 
@@ -734,7 +730,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		for _, entry := range mutationLog {
 			if entry.Operation == "delete" {
 				hasDelete = true
-				assert.Equal(t, 1, len(entry.Keys))
+				assert.Len(t, entry.Keys, 1)
 				assert.Equal(t, `tenant-X:{"__typename":"User","key":{"id":"1234"}}`, entry.Keys[0],
 					"delete key should include interceptor prefix")
 			}

@@ -3,6 +3,7 @@ package resolve
 import (
 	"context"
 	"net/http"
+	"slices"
 	"testing"
 	"time"
 
@@ -149,7 +150,7 @@ func setupExtInvalidationTest(t *testing.T, entityResponse string, entityCallCou
 		},
 	}
 
-	ctx := NewContext(context.Background())
+	ctx := NewContext(t.Context())
 	ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
 	ctx.ExecutionOptions.Caching.EnableL1Cache = true
 	ctx.ExecutionOptions.Caching.EnableL2Cache = true
@@ -187,7 +188,7 @@ func TestExtensionsCacheInvalidation(t *testing.T) {
 				deleteKeys = append(deleteKeys, entry.Keys...)
 			}
 		}
-		require.Equal(t, 1, len(deleteKeys), "should have exactly 1 delete call")
+		require.Len(t, deleteKeys, 1, "should have exactly 1 delete call")
 		assert.Equal(t, `{"__typename":"User","key":{"id":"1"}}`, deleteKeys[0])
 	})
 
@@ -203,9 +204,12 @@ func TestExtensionsCacheInvalidation(t *testing.T) {
 				deleteKeys = append(deleteKeys, entry.Keys...)
 			}
 		}
-		require.Equal(t, 2, len(deleteKeys), "should have exactly 2 delete keys")
-		assert.Contains(t, deleteKeys, `{"__typename":"User","key":{"id":"1"}}`)
-		assert.Contains(t, deleteKeys, `{"__typename":"User","key":{"id":"2"}}`)
+		require.Len(t, deleteKeys, 2, "should have exactly 2 delete keys")
+		slices.Sort(deleteKeys)
+		assert.Equal(t, []string{
+			`{"__typename":"User","key":{"id":"1"}}`,
+			`{"__typename":"User","key":{"id":"2"}}`,
+		}, deleteKeys)
 	})
 
 	t.Run("with subgraph header prefix", func(t *testing.T) {
@@ -226,7 +230,7 @@ func TestExtensionsCacheInvalidation(t *testing.T) {
 				deleteKeys = append(deleteKeys, entry.Keys...)
 			}
 		}
-		require.Equal(t, 1, len(deleteKeys), "should have exactly 1 delete key")
+		require.Len(t, deleteKeys, 1, "should have exactly 1 delete key")
 		assert.Equal(t, `33333:{"__typename":"User","key":{"id":"1"}}`, deleteKeys[0])
 	})
 
@@ -247,7 +251,7 @@ func TestExtensionsCacheInvalidation(t *testing.T) {
 				deleteKeys = append(deleteKeys, entry.Keys...)
 			}
 		}
-		require.Equal(t, 1, len(deleteKeys), "should have exactly 1 delete key")
+		require.Len(t, deleteKeys, 1, "should have exactly 1 delete key")
 		assert.Equal(t, `tenant-X:{"__typename":"User","key":{"id":"1"}}`, deleteKeys[0])
 	})
 
@@ -272,7 +276,7 @@ func TestExtensionsCacheInvalidation(t *testing.T) {
 				deleteKeys = append(deleteKeys, entry.Keys...)
 			}
 		}
-		require.Equal(t, 1, len(deleteKeys), "should have exactly 1 delete key")
+		require.Len(t, deleteKeys, 1, "should have exactly 1 delete key")
 		// prefix applied first, then interceptor wraps it
 		assert.Equal(t, `tenant-X:33333:{"__typename":"User","key":{"id":"1"}}`, deleteKeys[0])
 	})
@@ -401,7 +405,7 @@ func TestExtensionsCacheInvalidation(t *testing.T) {
 				deleteKeys = append(deleteKeys, entry.Keys...)
 			}
 		}
-		require.Equal(t, 1, len(deleteKeys), "should have exactly 1 delete key")
+		require.Len(t, deleteKeys, 1, "should have exactly 1 delete key")
 		assert.Equal(t, `{"__typename":"User","key":{"id":"1","orgId":"42"}}`, deleteKeys[0])
 	})
 
@@ -535,7 +539,7 @@ func TestExtensionsCacheInvalidation(t *testing.T) {
 			},
 		}
 
-		ctx := NewContext(context.Background())
+		ctx := NewContext(t.Context())
 		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
 		ctx.ExecutionOptions.Caching.EnableL1Cache = true
 		ctx.ExecutionOptions.Caching.EnableL2Cache = true
@@ -566,16 +570,11 @@ func TestExtensionsCacheInvalidation(t *testing.T) {
 
 		_ = runLoader(t, loader, ctx, response)
 
-		// The interceptor is called for both the regular cache key (from entity fetch)
-		// and the invalidation key. Find the one from invalidation.
-		var found bool
-		for _, info := range capturedInfos {
-			if info.SubgraphName == "accounts" && info.CacheName == "default" {
-				found = true
-				break
-			}
-		}
-		assert.True(t, found, "interceptor should be called with SubgraphName=accounts, CacheName=default")
+		// The interceptor is called for the invalidation key (and possibly the regular cache key).
+		// All calls should use the same subgraph name and cache name.
+		require.Len(t, capturedInfos, 2, "interceptor should be called exactly twice (cache set + invalidation)")
+		assert.Equal(t, L2CacheKeyInterceptorInfo{SubgraphName: "accounts", CacheName: "default"}, capturedInfos[0])
+		assert.Equal(t, L2CacheKeyInterceptorInfo{SubgraphName: "accounts", CacheName: "default"}, capturedInfos[1])
 	})
 }
 

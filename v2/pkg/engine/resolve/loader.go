@@ -927,6 +927,10 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 // populateCachesAfterFetch runs shadow comparison, mutation impact detection,
 // extensions-based cache invalidation, and L1/L2 cache population.
 // Called after a successful (error-free) fetch merge.
+//
+// Ordering: invalidation runs before cache population so that stale entries are
+// cleared first. If the current response also provides data for an invalidated entity,
+// populateL1Cache/updateL2Cache will re-cache it with the fresh data from this response.
 func (l *Loader) populateCachesAfterFetch(fetchItem *FetchItem, res *result, items []*astjson.Value, responseData *astjson.Value, cacheInvalidation *astjson.Value) {
 	l.compareShadowValues(res, getFetchInfo(fetchItem.Fetch))
 	l.detectMutationEntityImpact(res, getFetchInfo(fetchItem.Fetch), responseData)

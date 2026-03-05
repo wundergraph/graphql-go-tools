@@ -81,6 +81,8 @@ func WithSubgraphEntityCachingConfigs(configs engine.SubgraphCachingConfigs) Gat
 
 // buildEntityCacheConfigs converts SubgraphCachingConfigs into the runtime lookup map
 // needed by the resolver for extensions-based cache invalidation.
+// Only EntityCaching entries are processed — RootFieldCaching uses a different key format
+// and is not eligible for extensions-based invalidation.
 func buildEntityCacheConfigs(configs engine.SubgraphCachingConfigs) map[string]map[string]*resolve.EntityCacheInvalidationConfig {
 	if len(configs) == 0 {
 		return nil

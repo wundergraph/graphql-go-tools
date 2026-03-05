@@ -20,9 +20,10 @@ type CacheEntry struct {
 	RemainingTTL time.Duration // remaining TTL from cache (0 = unknown/not supported)
 }
 
-// EntityCacheInvalidationConfig holds minimal cache settings needed to build
+// EntityCacheInvalidationConfig holds the minimal cache settings needed to build
 // invalidation keys for a specific entity type on a specific subgraph.
-// Used by processExtensionsCacheInvalidation at runtime.
+// Separate from plan.EntityCacheConfiguration to avoid a resolve → plan dependency;
+// only CacheName and IncludeSubgraphHeaderPrefix are needed at invalidation time.
 type EntityCacheInvalidationConfig struct {
 	CacheName                   string
 	IncludeSubgraphHeaderPrefix bool
@@ -1232,7 +1233,8 @@ func (l *Loader) processExtensionsCacheInvalidation(res *result, cacheInvalidati
 		keyObj := astjson.ObjectValue(l.jsonArena)
 		keyObj.Set(l.jsonArena, "__typename", astjson.StringValue(l.jsonArena, typename))
 		keyObj.Set(l.jsonArena, "key", keyVal)
-		cacheKey := string(keyObj.MarshalTo(nil))
+		baseKey := string(keyObj.MarshalTo(nil))
+		cacheKey := baseKey
 
 		// Apply subgraph header prefix if configured for this entity type.
 		// This mirrors prepareCacheKeys() which prefixes L2 keys with a hash of the
@@ -1263,11 +1265,10 @@ func (l *Loader) processExtensionsCacheInvalidation(res *result, cacheInvalidati
 		}
 		batch.keys = append(batch.keys, cacheKey)
 
-		// Also evict from L1 (per-request) cache using the unprefixed key.
+		// Also evict from L1 (per-request) cache using the base key (before prefix/interceptor).
 		// L1 keys never have prefix or interceptor transformations applied.
 		if l.l1Cache != nil {
-			l1Key := string(keyObj.MarshalTo(nil))
-			l.l1Cache.Delete(l1Key)
+			l.l1Cache.Delete(baseKey)
 		}
 	}
 
