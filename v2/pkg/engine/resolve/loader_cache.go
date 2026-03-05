@@ -1023,6 +1023,12 @@ func (l *Loader) detectMutationEntityImpact(res *result, info *FetchInfo, respon
 		return nil
 	}
 
+	// Read cached value for analytics BEFORE deleting, so analytics sees the real pre-delete value.
+	var analyticsEntries []*CacheEntry
+	if l.ctx.cacheAnalyticsEnabled() {
+		analyticsEntries, _ = cache.Get(l.ctx.ctx, []string{cacheKey})
+	}
+
 	// Invalidate L2 cache entry if configured
 	var deletedKeys map[string]struct{}
 	if cfg.InvalidateCache {
@@ -1046,9 +1052,8 @@ func (l *Loader) detectMutationEntityImpact(res *result, info *FetchInfo, respon
 	_, _ = xxh.Write(freshBytes)
 	freshHash := xxh.Sum64()
 
-	// Look up L2 cache
-	entries, err := cache.Get(l.ctx.ctx, []string{cacheKey})
-	hadCachedValue := err == nil && len(entries) > 0 && entries[0] != nil && len(entries[0].Value) > 0
+	// Use the pre-delete cached value for analytics comparison
+	hadCachedValue := len(analyticsEntries) > 0 && analyticsEntries[0] != nil && len(analyticsEntries[0].Value) > 0
 
 	if !hadCachedValue {
 		// No cached value — record event showing entity was returned but not previously cached
@@ -1065,7 +1070,7 @@ func (l *Loader) detectMutationEntityImpact(res *result, info *FetchInfo, respon
 	}
 
 	// Parse cached value and compare
-	cachedValue, parseErr := astjson.ParseBytesWithArena(l.jsonArena, entries[0].Value)
+	cachedValue, parseErr := astjson.ParseBytesWithArena(l.jsonArena, analyticsEntries[0].Value)
 	if parseErr != nil {
 		return deletedKeys
 	}
@@ -1152,7 +1157,7 @@ func buildEntityKeyValue(a arena.Arena, data *astjson.Value, keyFields []KeyFiel
 //
 //	{"extensions": {"cacheInvalidation": {"keys": [{"typename": "User", "key": {"id": "1"}}]}}}
 //
-// This function parses the keys array and deletes the corresponding L2 (and L1) cache entries.
+// This function parses the keys array and deletes the corresponding L2 cache entries.
 // Works for both query and mutation responses — not restricted to mutations.
 //
 // The cache key construction pipeline mirrors the storage pipeline:
@@ -1207,10 +1212,10 @@ func (l *Loader) processExtensionsCacheInvalidation(res *result, cacheInvalidati
 			continue
 		}
 
-		// Extract "typename" (string) and "key" (object) from each invalidation entry.
+		// Extract "typename" (string) and "key" (JSON object) from each invalidation entry.
 		typenameVal := entry.Get("typename")
 		keyVal := entry.Get("key")
-		if typenameVal == nil || keyVal == nil {
+		if typenameVal == nil || keyVal == nil || keyVal.Type() != astjson.TypeObject {
 			continue
 		}
 		typename := string(typenameVal.GetStringBytes())
@@ -1262,13 +1267,6 @@ func (l *Loader) processExtensionsCacheInvalidation(res *result, cacheInvalidati
 				SubgraphName: subgraphName,
 				CacheName:    entityConfig.CacheName,
 			})
-		}
-
-		// Always evict from L1 (per-request) cache using the base key (before prefix/interceptor).
-		// L1 keys never have prefix or interceptor transformations applied.
-		// L1 eviction is cheap and prevents stale reads within the same request via LoadOrStore.
-		if l.l1Cache != nil {
-			l.l1Cache.Delete(baseKey)
 		}
 
 		// Skip L2 delete if:
