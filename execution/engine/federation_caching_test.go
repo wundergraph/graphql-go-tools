@@ -2623,24 +2623,15 @@ func TestRootFieldSplitByDatasource(t *testing.T) {
 		assert.Equal(t, `{"data":{"me":{"id":"1234","username":"Me"},"cat":{"name":"Pepper"}}}`, string(resp))
 
 		logAfterFirst := defaultCache.GetLog()
-		assert.Equal(t, 4, len(logAfterFirst), "Should have 4 cache operations (get+set for each field)")
-
-		// Verify TTLs are set independently by checking the set operations
 		meKey := `{"__typename":"Query","field":"me"}`
 		catKey := `{"__typename":"Query","field":"cat"}`
-		var meTTL, catTTL time.Duration
-		for _, entry := range logAfterFirst {
-			if entry.Operation == "set" && len(entry.Keys) == 1 {
-				if entry.Keys[0] == meKey {
-					meTTL = entry.TTL
-				}
-				if entry.Keys[0] == catKey {
-					catTTL = entry.TTL
-				}
-			}
+		wantLogFirst := []CacheLogEntry{
+			{Operation: "get", Keys: []string{meKey}, Hits: []bool{false}},    // me: L2 miss
+			{Operation: "set", Keys: []string{meKey}, TTL: 10 * time.Second},  // me: cached with 10s TTL
+			{Operation: "get", Keys: []string{catKey}, Hits: []bool{false}},   // cat: L2 miss
+			{Operation: "set", Keys: []string{catKey}, TTL: 60 * time.Second}, // cat: cached with 60s TTL
 		}
-		assert.Equal(t, 10*time.Second, meTTL, "me field should have 10s TTL")
-		assert.Equal(t, 60*time.Second, catTTL, "cat field should have 60s TTL")
+		assert.Equal(t, sortCacheLogEntriesWithTTL(wantLogFirst), sortCacheLogEntriesWithTTL(logAfterFirst))
 	})
 
 	t.Run("mixed cached and uncached root fields", func(t *testing.T) {

@@ -310,6 +310,73 @@ func sortCacheLogEntries(log []CacheLogEntry) []CacheLogEntry {
 	return sorted
 }
 
+// sortCacheLogKeysWithTTL is like sortCacheLogKeys but preserves the TTL field.
+// Use this when assertions need to verify TTL values on set operations.
+func sortCacheLogKeysWithTTL(log []CacheLogEntry) []CacheLogEntry {
+	sorted := make([]CacheLogEntry, len(log))
+	for i, entry := range log {
+		if len(entry.Keys) <= 1 {
+			sorted[i] = CacheLogEntry{
+				Operation: entry.Operation,
+				Keys:      entry.Keys,
+				Hits:      entry.Hits,
+				TTL:       entry.TTL,
+			}
+			continue
+		}
+
+		pairs := make([]struct {
+			key string
+			hit bool
+		}, len(entry.Keys))
+		for j := range entry.Keys {
+			pairs[j].key = entry.Keys[j]
+			if entry.Hits != nil && j < len(entry.Hits) {
+				pairs[j].hit = entry.Hits[j]
+			}
+		}
+		sort.Slice(pairs, func(a, b int) bool {
+			return pairs[a].key < pairs[b].key
+		})
+		sorted[i] = CacheLogEntry{
+			Operation: entry.Operation,
+			Keys:      make([]string, len(pairs)),
+			Hits:      nil,
+			TTL:       entry.TTL,
+		}
+		if len(entry.Hits) > 0 {
+			sorted[i].Hits = make([]bool, len(pairs))
+		}
+		for j := range pairs {
+			sorted[i].Keys[j] = pairs[j].key
+			if sorted[i].Hits != nil {
+				sorted[i].Hits[j] = pairs[j].hit
+			}
+		}
+	}
+	return sorted
+}
+
+// sortCacheLogEntriesWithTTL sorts both entries and keys while preserving TTL.
+// Use this when entry order is non-deterministic and TTL values need to be verified.
+func sortCacheLogEntriesWithTTL(log []CacheLogEntry) []CacheLogEntry {
+	sorted := sortCacheLogKeysWithTTL(log)
+	sort.Slice(sorted, func(a, b int) bool {
+		if sorted[a].Operation != sorted[b].Operation {
+			return sorted[a].Operation < sorted[b].Operation
+		}
+		keyA, keyB := "", ""
+		if len(sorted[a].Keys) > 0 {
+			keyA = sorted[a].Keys[0]
+		}
+		if len(sorted[b].Keys) > 0 {
+			keyB = sorted[b].Keys[0]
+		}
+		return keyA < keyB
+	})
+	return sorted
+}
+
 type cacheEntry struct {
 	data      []byte
 	expiresAt *time.Time

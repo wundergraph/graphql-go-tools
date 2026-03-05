@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/jensneuse/abstractlogger"
 	"github.com/kylelemons/godebug/diff"
@@ -841,193 +842,350 @@ func TestPlanner_Plan(t *testing.T) {
 		// Without this, configureFetchCaching bails early (CacheKeyTemplate == nil).
 		cacheKeyTpl := &resolve.RootQueryCacheKeyTemplate{}
 
-		// fetchByRootField finds the fetch whose FetchInfo.RootFields contains the given field.
-		// Returns nil if no matching fetch is found.
-		fetchByRootField := func(t *testing.T, fetches []*resolve.FetchItem, fieldName string) *resolve.SingleFetch {
-			t.Helper()
-			for _, fi := range fetches {
-				sf, ok := fi.Fetch.(*resolve.SingleFetch)
-				if !ok || sf.Info == nil {
-					continue
-				}
-				for _, rf := range sf.Info.RootFields {
-					if rf.FieldName == fieldName {
-						return sf
-					}
-				}
-			}
-			return nil
-		}
-
-		t.Run("two cached root fields get separate fetches with correct cache configs", func(t *testing.T) {
-			// With MergeAliasedRootNodes: true, root fields would normally merge into one fetch.
-			// Root field caching isolation must prevent this so each field gets its own TTL.
-			ds := dsb().
-				Id("accounts").
-				WithBehavior(DataSourcePlanningBehavior{
-					MergeAliasedRootNodes: true,
-				}).
-				CacheKeyTemplate(cacheKeyTpl).
-				RootNode("Query", "me", "cat").
-				ChildNode("User", "id", "username").
-				ChildNode("Cat", "name").
-				Schema(schema).
-				WithMetadata(func(data *FederationMetaData) {
-					data.RootFieldCaching = RootFieldCacheConfigurations{
-						{TypeName: "Query", FieldName: "me", CacheName: "users", TTL: 30 * 1e9},
-						{TypeName: "Query", FieldName: "cat", CacheName: "pets", TTL: 60 * 1e9},
-					}
-				}).
-				DS()
-
-			config := Configuration{
-				DataSources:                  []DataSource{ds},
+		// Two cached root fields produce parallel, independent fetches (FetchID 0 and 1, no DependsOnFetchIDs).
+		// Each fetch gets its own cache config (Enabled, CacheName, TTL).
+		t.Run("two cached root fields get separate parallel fetches with correct cache configs", test(schema,
+			`query Q { me { id username } cat { name } }`, "Q",
+			&SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					RawFetches: []*resolve.FetchItem{
+						{
+							Fetch: &resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource: &FakeDataSource{&StatefulSource{}},
+									Caching: resolve.FetchCacheConfiguration{
+										Enabled:          true,
+										CacheName:        "users",
+										TTL:              30 * time.Second,
+										CacheKeyTemplate: cacheKeyTpl,
+									},
+								},
+								DataSourceIdentifier: []byte("plan.FakeDataSource"),
+							},
+						},
+						{
+							Fetch: &resolve.SingleFetch{
+								FetchDependencies: resolve.FetchDependencies{
+									FetchID: 1,
+								},
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource: &FakeDataSource{&StatefulSource{}},
+									Caching: resolve.FetchCacheConfiguration{
+										Enabled:          true,
+										CacheName:        "pets",
+										TTL:              60 * time.Second,
+										CacheKeyTemplate: cacheKeyTpl,
+									},
+								},
+								DataSourceIdentifier: []byte("plan.FakeDataSource"),
+							},
+						},
+					},
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("me"),
+								Value: &resolve.Object{
+									Path:          []string{"me"},
+									Nullable:      true,
+									TypeName:      "User",
+									PossibleTypes: map[string]struct{}{"User": {}},
+									Fields: []*resolve.Field{
+										{
+											Name:  []byte("id"),
+											Value: &resolve.Scalar{Path: []string{"id"}},
+										},
+										{
+											Name:  []byte("username"),
+											Value: &resolve.String{Path: []string{"username"}},
+										},
+									},
+								},
+							},
+							{
+								Name: []byte("cat"),
+								Value: &resolve.Object{
+									Path:          []string{"cat"},
+									Nullable:      true,
+									TypeName:      "Cat",
+									PossibleTypes: map[string]struct{}{"Cat": {}},
+									Fields: []*resolve.Field{
+										{
+											Name:  []byte("name"),
+											Value: &resolve.String{Path: []string{"name"}},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			Configuration{
+				DataSources: []DataSource{dsb().
+					Id("accounts").
+					WithBehavior(DataSourcePlanningBehavior{MergeAliasedRootNodes: true}).
+					CacheKeyTemplate(cacheKeyTpl).
+					RootNode("Query", "me", "cat").
+					ChildNode("User", "id", "username").
+					ChildNode("Cat", "name").
+					Schema(schema).
+					WithMetadata(func(data *FederationMetaData) {
+						data.RootFieldCaching = RootFieldCacheConfigurations{
+							{TypeName: "Query", FieldName: "me", CacheName: "users", TTL: 30 * time.Second},
+							{TypeName: "Query", FieldName: "cat", CacheName: "pets", TTL: 60 * time.Second},
+						}
+					}).
+					DS()},
 				DisableResolveFieldPositions: true,
-			}
+				DisableIncludeInfo:           true,
+				DisableEntityCaching:         false,
+			},
+		))
 
-			var report operationreport.Report
-			p := testLogic(t, schema, `query Q { me { id username } cat { name } }`, "Q", config, &report)
-			require.False(t, report.HasErrors())
-
-			syncPlan, ok := p.(*SynchronousResponsePlan)
-			require.True(t, ok)
-			require.Equal(t, 2, len(syncPlan.Response.RawFetches), "each cached root field needs its own fetch")
-
-			// Verify "me" fetch has correct cache config
-			meFetch := fetchByRootField(t, syncPlan.Response.RawFetches, "me")
-			require.NotNil(t, meFetch, "should have a fetch for 'me'")
-			assert.Equal(t, true, meFetch.FetchConfiguration.Caching.Enabled, "me fetch should have L2 caching enabled")
-			assert.Equal(t, "users", meFetch.FetchConfiguration.Caching.CacheName, "me fetch should use 'users' cache")
-			assert.Equal(t, 30*1e9, float64(meFetch.FetchConfiguration.Caching.TTL), "me fetch should have 30s TTL")
-			assert.Equal(t, 1, len(meFetch.Info.RootFields), "me fetch should have exactly one root field")
-
-			// Verify "cat" fetch has correct cache config
-			catFetch := fetchByRootField(t, syncPlan.Response.RawFetches, "cat")
-			require.NotNil(t, catFetch, "should have a fetch for 'cat'")
-			assert.Equal(t, true, catFetch.FetchConfiguration.Caching.Enabled, "cat fetch should have L2 caching enabled")
-			assert.Equal(t, "pets", catFetch.FetchConfiguration.Caching.CacheName, "cat fetch should use 'pets' cache")
-			assert.Equal(t, 60*1e9, float64(catFetch.FetchConfiguration.Caching.TTL), "cat fetch should have 60s TTL")
-			assert.Equal(t, 1, len(catFetch.Info.RootFields), "cat fetch should have exactly one root field")
-		})
-
-		t.Run("cached field isolated from uncached field - only cached gets L2", func(t *testing.T) {
-			// "me" is cached, "user" is not — they must not share a fetch.
-			// The cached fetch gets Enabled:true, the uncached fetch gets Enabled:false.
-			ds := dsb().
-				Id("accounts").
-				WithBehavior(DataSourcePlanningBehavior{
-					MergeAliasedRootNodes: true,
-				}).
-				CacheKeyTemplate(cacheKeyTpl).
-				RootNode("Query", "me", "user").
-				ChildNode("User", "id", "username").
-				Schema(schema).
-				WithMetadata(func(data *FederationMetaData) {
-					data.RootFieldCaching = RootFieldCacheConfigurations{
-						{TypeName: "Query", FieldName: "me", CacheName: "default", TTL: 30 * 1e9},
-					}
-				}).
-				DS()
-
-			config := Configuration{
-				DataSources:                  []DataSource{ds},
+		// Cached "me" is isolated from uncached "user" — each gets its own fetch.
+		// Only the cached field gets Enabled:true.
+		t.Run("cached field isolated from uncached field - only cached gets L2", test(schema,
+			`query Q { me { id } user(id: "1") { username } }`, "Q",
+			&SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					RawFetches: []*resolve.FetchItem{
+						{
+							Fetch: &resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource: &FakeDataSource{&StatefulSource{}},
+									Caching: resolve.FetchCacheConfiguration{
+										Enabled:          true,
+										CacheName:        "default",
+										TTL:              30 * time.Second,
+										CacheKeyTemplate: cacheKeyTpl,
+									},
+								},
+								DataSourceIdentifier: []byte("plan.FakeDataSource"),
+							},
+						},
+						{
+							Fetch: &resolve.SingleFetch{
+								FetchDependencies: resolve.FetchDependencies{
+									FetchID: 1,
+								},
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource: &FakeDataSource{&StatefulSource{}},
+									Caching: resolve.FetchCacheConfiguration{
+										CacheKeyTemplate: cacheKeyTpl,
+									},
+								},
+								DataSourceIdentifier: []byte("plan.FakeDataSource"),
+							},
+						},
+					},
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("me"),
+								Value: &resolve.Object{
+									Path:          []string{"me"},
+									Nullable:      true,
+									TypeName:      "User",
+									PossibleTypes: map[string]struct{}{"User": {}},
+									Fields: []*resolve.Field{
+										{
+											Name:  []byte("id"),
+											Value: &resolve.Scalar{Path: []string{"id"}},
+										},
+									},
+								},
+							},
+							{
+								Name: []byte("user"),
+								Value: &resolve.Object{
+									Path:          []string{"user"},
+									Nullable:      true,
+									TypeName:      "User",
+									PossibleTypes: map[string]struct{}{"User": {}},
+									Fields: []*resolve.Field{
+										{
+											Name:  []byte("username"),
+											Value: &resolve.String{Path: []string{"username"}},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			Configuration{
+				DataSources: []DataSource{dsb().
+					Id("accounts").
+					WithBehavior(DataSourcePlanningBehavior{MergeAliasedRootNodes: true}).
+					CacheKeyTemplate(cacheKeyTpl).
+					RootNode("Query", "me", "user").
+					ChildNode("User", "id", "username").
+					Schema(schema).
+					WithMetadata(func(data *FederationMetaData) {
+						data.RootFieldCaching = RootFieldCacheConfigurations{
+							{TypeName: "Query", FieldName: "me", CacheName: "default", TTL: 30 * time.Second},
+						}
+					}).
+					DS()},
 				DisableResolveFieldPositions: true,
-			}
+				DisableIncludeInfo:           true,
+			},
+		))
 
-			var report operationreport.Report
-			p := testLogic(t, schema, `query Q { me { id } user(id: "1") { username } }`, "Q", config, &report)
-			require.False(t, report.HasErrors())
-
-			syncPlan, ok := p.(*SynchronousResponsePlan)
-			require.True(t, ok)
-			require.Equal(t, 2, len(syncPlan.Response.RawFetches), "cached and uncached fields need separate fetches")
-
-			// Cached field "me" gets L2 caching
-			meFetch := fetchByRootField(t, syncPlan.Response.RawFetches, "me")
-			require.NotNil(t, meFetch, "should have a fetch for 'me'")
-			assert.Equal(t, true, meFetch.FetchConfiguration.Caching.Enabled, "cached field should have L2 enabled")
-			assert.Equal(t, "default", meFetch.FetchConfiguration.Caching.CacheName)
-			assert.Equal(t, 30*1e9, float64(meFetch.FetchConfiguration.Caching.TTL))
-
-			// Uncached field "user" does NOT get L2 caching
-			userFetch := fetchByRootField(t, syncPlan.Response.RawFetches, "user")
-			require.NotNil(t, userFetch, "should have a fetch for 'user'")
-			assert.Equal(t, false, userFetch.FetchConfiguration.Caching.Enabled, "uncached field should not have L2 enabled")
-		})
-
-		t.Run("DisableEntityCaching - fields merge and no L2 caching", func(t *testing.T) {
-			// When DisableEntityCaching is true, isolation is skipped and fields merge normally.
-			// configureFetchCaching also returns Enabled:false regardless of RootFieldCaching config.
-			ds := dsb().
-				Id("accounts").
-				WithBehavior(DataSourcePlanningBehavior{
-					MergeAliasedRootNodes: true,
-				}).
-				CacheKeyTemplate(cacheKeyTpl).
-				RootNode("Query", "me", "cat").
-				ChildNode("User", "id", "username").
-				ChildNode("Cat", "name").
-				Schema(schema).
-				WithMetadata(func(data *FederationMetaData) {
-					data.RootFieldCaching = RootFieldCacheConfigurations{
-						{TypeName: "Query", FieldName: "me", CacheName: "default", TTL: 30 * 1e9},
-						{TypeName: "Query", FieldName: "cat", CacheName: "default", TTL: 60 * 1e9},
-					}
-				}).
-				DS()
-
-			config := Configuration{
-				DataSources:                  []DataSource{ds},
+		// DisableEntityCaching skips isolation — fields merge into one fetch, L2 disabled.
+		t.Run("DisableEntityCaching - fields merge and no L2 caching", test(schema,
+			`query Q { me { id username } cat { name } }`, "Q",
+			&SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					RawFetches: []*resolve.FetchItem{
+						{
+							Fetch: &resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource: &FakeDataSource{&StatefulSource{}},
+									Caching: resolve.FetchCacheConfiguration{
+										CacheKeyTemplate: cacheKeyTpl,
+									},
+								},
+								DataSourceIdentifier: []byte("plan.FakeDataSource"),
+							},
+						},
+					},
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("me"),
+								Value: &resolve.Object{
+									Path:          []string{"me"},
+									Nullable:      true,
+									TypeName:      "User",
+									PossibleTypes: map[string]struct{}{"User": {}},
+									Fields: []*resolve.Field{
+										{
+											Name:  []byte("id"),
+											Value: &resolve.Scalar{Path: []string{"id"}},
+										},
+										{
+											Name:  []byte("username"),
+											Value: &resolve.String{Path: []string{"username"}},
+										},
+									},
+								},
+							},
+							{
+								Name: []byte("cat"),
+								Value: &resolve.Object{
+									Path:          []string{"cat"},
+									Nullable:      true,
+									TypeName:      "Cat",
+									PossibleTypes: map[string]struct{}{"Cat": {}},
+									Fields: []*resolve.Field{
+										{
+											Name:  []byte("name"),
+											Value: &resolve.String{Path: []string{"name"}},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			Configuration{
+				DataSources: []DataSource{dsb().
+					Id("accounts").
+					WithBehavior(DataSourcePlanningBehavior{MergeAliasedRootNodes: true}).
+					CacheKeyTemplate(cacheKeyTpl).
+					RootNode("Query", "me", "cat").
+					ChildNode("User", "id", "username").
+					ChildNode("Cat", "name").
+					Schema(schema).
+					WithMetadata(func(data *FederationMetaData) {
+						data.RootFieldCaching = RootFieldCacheConfigurations{
+							{TypeName: "Query", FieldName: "me", CacheName: "default", TTL: 30 * time.Second},
+							{TypeName: "Query", FieldName: "cat", CacheName: "default", TTL: 60 * time.Second},
+						}
+					}).
+					DS()},
 				DisableResolveFieldPositions: true,
+				DisableIncludeInfo:           true,
 				DisableEntityCaching:         true,
-			}
+			},
+		))
 
-			var report operationreport.Report
-			p := testLogic(t, schema, `query Q { me { id username } cat { name } }`, "Q", config, &report)
-			require.False(t, report.HasErrors())
-
-			syncPlan, ok := p.(*SynchronousResponsePlan)
-			require.True(t, ok)
-			// MergeAliasedRootNodes: true + no isolation → fields merge into one fetch
-			require.Equal(t, 1, len(syncPlan.Response.RawFetches), "DisableEntityCaching should allow fields to merge")
-
-			sf, ok := syncPlan.Response.RawFetches[0].Fetch.(*resolve.SingleFetch)
-			require.True(t, ok)
-			assert.Equal(t, false, sf.FetchConfiguration.Caching.Enabled, "DisableEntityCaching disables L2 caching")
-		})
-
-		t.Run("no caching configured - fields merge normally", func(t *testing.T) {
-			// No RootFieldCaching → fields merge if MergeAliasedRootNodes is true
-			ds := dsb().
-				Id("accounts").
-				WithBehavior(DataSourcePlanningBehavior{
-					MergeAliasedRootNodes: true,
-				}).
-				CacheKeyTemplate(cacheKeyTpl).
-				RootNode("Query", "me", "cat").
-				ChildNode("User", "id", "username").
-				ChildNode("Cat", "name").
-				Schema(schema).
-				DS()
-
-			config := Configuration{
-				DataSources:                  []DataSource{ds},
+		// No RootFieldCaching at all — fields merge normally, L2 disabled.
+		t.Run("no caching configured - fields merge normally", test(schema,
+			`query Q { me { id username } cat { name } }`, "Q",
+			&SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					RawFetches: []*resolve.FetchItem{
+						{
+							Fetch: &resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource: &FakeDataSource{&StatefulSource{}},
+									Caching: resolve.FetchCacheConfiguration{
+										CacheKeyTemplate: cacheKeyTpl,
+									},
+								},
+								DataSourceIdentifier: []byte("plan.FakeDataSource"),
+							},
+						},
+					},
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("me"),
+								Value: &resolve.Object{
+									Path:          []string{"me"},
+									Nullable:      true,
+									TypeName:      "User",
+									PossibleTypes: map[string]struct{}{"User": {}},
+									Fields: []*resolve.Field{
+										{
+											Name:  []byte("id"),
+											Value: &resolve.Scalar{Path: []string{"id"}},
+										},
+										{
+											Name:  []byte("username"),
+											Value: &resolve.String{Path: []string{"username"}},
+										},
+									},
+								},
+							},
+							{
+								Name: []byte("cat"),
+								Value: &resolve.Object{
+									Path:          []string{"cat"},
+									Nullable:      true,
+									TypeName:      "Cat",
+									PossibleTypes: map[string]struct{}{"Cat": {}},
+									Fields: []*resolve.Field{
+										{
+											Name:  []byte("name"),
+											Value: &resolve.String{Path: []string{"name"}},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			Configuration{
+				DataSources: []DataSource{dsb().
+					Id("accounts").
+					WithBehavior(DataSourcePlanningBehavior{MergeAliasedRootNodes: true}).
+					CacheKeyTemplate(cacheKeyTpl).
+					RootNode("Query", "me", "cat").
+					ChildNode("User", "id", "username").
+					ChildNode("Cat", "name").
+					Schema(schema).
+					DS()},
 				DisableResolveFieldPositions: true,
-			}
-
-			var report operationreport.Report
-			p := testLogic(t, schema, `query Q { me { id username } cat { name } }`, "Q", config, &report)
-			require.False(t, report.HasErrors())
-
-			syncPlan, ok := p.(*SynchronousResponsePlan)
-			require.True(t, ok)
-			require.Equal(t, 1, len(syncPlan.Response.RawFetches), "without caching config, fields should merge into one fetch")
-
-			// Even with CacheKeyTemplate, no RootFieldCaching → L2 disabled
-			sf, ok := syncPlan.Response.RawFetches[0].Fetch.(*resolve.SingleFetch)
-			require.True(t, ok)
-			assert.Equal(t, false, sf.FetchConfiguration.Caching.Enabled, "no caching config means L2 stays disabled")
-		})
+				DisableIncludeInfo:           true,
+			},
+		))
 	})
 }
 
