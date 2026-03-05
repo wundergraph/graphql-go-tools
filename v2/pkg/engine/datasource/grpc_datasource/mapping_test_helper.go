@@ -320,6 +320,17 @@ func testMapping() *GRPCMapping {
 					Request:  "ResolveCategoryMetricsNormalizedScoreRequest",
 					Response: "ResolveCategoryMetricsNormalizedScoreResponse",
 				},
+				"relatedCategory": {
+					FieldMappingData: FieldMapData{
+						TargetName: "related_category",
+						ArgumentMappings: FieldArgumentMap{
+							"include": "include",
+						},
+					},
+					RPC:      "ResolveCategoryMetricsRelatedCategory",
+					Request:  "ResolveCategoryMetricsRelatedCategoryRequest",
+					Response: "ResolveCategoryMetricsRelatedCategoryResponse",
+				},
 			},
 			"Product": {
 				"shippingEstimate": {
@@ -985,6 +996,9 @@ func testMapping() *GRPCMapping {
 						"include": "include",
 					},
 				},
+				"nullMetrics": {
+					TargetName: "null_metrics",
+				},
 			},
 			"Subcategory": {
 				"id": {
@@ -1036,6 +1050,9 @@ func testMapping() *GRPCMapping {
 				},
 				"relatedCategory": {
 					TargetName: "related_category",
+					ArgumentMappings: FieldArgumentMap{
+						"include": "include",
+					},
 				},
 			},
 			"Cat": {

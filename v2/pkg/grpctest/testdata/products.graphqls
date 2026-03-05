@@ -132,6 +132,8 @@ type Category {
   categoryStatus(checkHealth: Boolean!): ActionResult! @connect__fieldResolver(context: "id name")
   childCategories(include: Boolean): [Category!]! @connect__fieldResolver(context: "id name")
   optionalCategories(include: Boolean): [Category!] @connect__fieldResolver(context: "id name")
+  # The nullMetrics field is used to test that nested field resolvers are not invoked when the parent result is null.
+  nullMetrics: CategoryMetrics
 }
 
 type Subcategory {
@@ -150,8 +152,7 @@ type CategoryMetrics {
   timestamp: String!
   categoryId: ID!
   normalizedScore(baseline: Float!): Float! @connect__fieldResolver(context: "id value metricType")
-  # This will currently not generate a resolver as it is missing arguments.
-  relatedCategory: Category @connect__fieldResolver(context: "categoryId") 
+  relatedCategory(include: Boolean): Category @connect__fieldResolver(context: "categoryId")
 }
 
 enum CategoryKind {
