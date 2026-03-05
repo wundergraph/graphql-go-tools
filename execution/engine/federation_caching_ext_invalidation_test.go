@@ -129,6 +129,12 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 
 	userKey := `{"__typename":"User","key":{"id":"1234"}}`
 
+	// Expected gateway responses (exact).
+	entityResponseMe := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`
+	entityResponseUpdated := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"UpdatedMe"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"UpdatedMe"}}]}]}}`
+	mutationResponse := `{"data":{"updateUsername":{"id":"1234","username":"UpdatedMe"}}}`
+	entitiesSubgraphResponseMe := `{"data":{"_entities":[{"__typename":"User","username":"Me"}]}}`
+
 	t.Run("mutation with extensions invalidation clears L2 cache", func(t *testing.T) {
 		accounts.ResetUsers()
 		t.Cleanup(accounts.ResetUsers)
@@ -167,7 +173,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		tracker.Reset()
 		defaultCache.ClearLog()
 		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, entityQuery, nil, t)
-		assert.Contains(t, string(resp), `"username":"Me"`)
+		assert.Equal(t, entityResponseMe, string(resp))
 		assert.Equal(t, 1, tracker.GetCount(accountsHost), "Step 1: should call accounts subgraph once")
 
 		wantStep1 := []CacheLogEntry{
@@ -180,7 +186,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		tracker.Reset()
 		defaultCache.ClearLog()
 		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, entityQuery, nil, t)
-		assert.Contains(t, string(resp), `"username":"Me"`)
+		assert.Equal(t, entityResponseMe, string(resp))
 		assert.Equal(t, 0, tracker.GetCount(accountsHost), "Step 2: should NOT call accounts (L2 hit)")
 
 		wantStep2 := []CacheLogEntry{
@@ -202,7 +208,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		tracker.Reset()
 		defaultCache.ClearLog()
 		respMut := gqlClient.QueryString(ctx, setup.GatewayServer.URL, mutationQuery, nil, t)
-		assert.Contains(t, string(respMut), `"UpdatedMe"`)
+		assert.Equal(t, mutationResponse, string(respMut))
 		interceptor.ClearModifier()
 
 		wantStep3 := []CacheLogEntry{
@@ -214,7 +220,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		tracker.Reset()
 		defaultCache.ClearLog()
 		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, entityQuery, nil, t)
-		assert.Contains(t, string(resp), `"username":"UpdatedMe"`)
+		assert.Equal(t, entityResponseUpdated, string(resp))
 		assert.Equal(t, 1, tracker.GetCount(accountsHost), "Step 4: should call accounts (L2 was invalidated)")
 
 		wantStep4 := []CacheLogEntry{
@@ -287,7 +293,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		tracker.Reset()
 		defaultCache.ClearLog()
 		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, entityQuery, nil, t)
-		assert.Contains(t, string(resp), `"username":"Me"`)
+		assert.Equal(t, entityResponseMe, string(resp))
 		assert.Equal(t, 0, tracker.GetCount(accountsHost), "User:1234 should still be cached")
 
 		wantRequery := []CacheLogEntry{
@@ -548,7 +554,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		tracker.Reset()
 		defaultCache.ClearLog()
 		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, entityQuery, nil, t)
-		assert.Contains(t, string(resp), `"username":"Me"`)
+		assert.Equal(t, entityResponseMe, string(resp))
 		assert.Equal(t, 1, tracker.GetCount(accountsHost), "Step 1: should call accounts")
 
 		// Step 2: Verify cache hit.
@@ -564,7 +570,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		// The _entities query response will include invalidation extensions.
 		// This proves invalidation is NOT restricted to mutations.
 		interceptor.SetModifier(func(body []byte) []byte {
-			assert.Contains(t, string(body), `"username":"Me"`)
+			assert.Equal(t, entitiesSubgraphResponseMe, string(body))
 			return injectCacheInvalidation(t, body,
 				`{"keys":[{"typename":"User","key":{"id":"1234"}}]}`,
 			)
@@ -573,7 +579,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		tracker.Reset()
 		defaultCache.ClearLog()
 		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, entityQuery, nil, t)
-		assert.Contains(t, string(resp), `"username":"Me"`)
+		assert.Equal(t, entityResponseMe, string(resp))
 		assert.Equal(t, 1, tracker.GetCount(accountsHost), "Step 3: should call accounts (cache cleared)")
 		interceptor.ClearModifier()
 
