@@ -16,7 +16,8 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		env := newExtInvalidationEnv(t)
 
 		// Step 1: Query populates L2 cache.
-		assert.Equal(t, entityResponseMe, env.queryEntity())
+		resp := env.queryEntity()
+		assert.Equal(t, entityResponseMe, resp)
 		assert.Equal(t, 1, env.accountsCalls(), "first request fetches from accounts")
 		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
 			{Operation: "get", Keys: []string{extInvUserKey}, Hits: []bool{false}}, // L2 empty on first request
@@ -24,7 +25,8 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		}), env.cacheLog())
 
 		// Step 2: Same query — L2 hit, no subgraph call.
-		assert.Equal(t, entityResponseMe, env.queryEntity())
+		resp = env.queryEntity()
+		assert.Equal(t, entityResponseMe, resp)
 		assert.Equal(t, 0, env.accountsCalls(), "L2 cache hit")
 		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
 			{Operation: "get", Keys: []string{extInvUserKey}, Hits: []bool{true}}, // L2 hit from Step 1
@@ -36,14 +38,16 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 			return injectCacheInvalidation(t, body,
 				`{"keys":[{"typename":"User","key":{"id":"1234"}}]}`)
 		})
-		assert.Equal(t, mutationResponse, env.mutate())
+		mutResp := env.mutate()
+		assert.Equal(t, mutationResponse, mutResp)
 		env.clearModifier()
 		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
 			{Operation: "delete", Keys: []string{extInvUserKey}}, // extensions-based invalidation
 		}), env.cacheLog())
 
 		// Step 4: Re-query — L2 miss after invalidation, fetches updated username.
-		assert.Equal(t, entityResponseUpdated, env.queryEntity())
+		resp = env.queryEntity()
+		assert.Equal(t, entityResponseUpdated, resp)
 		assert.Equal(t, 1, env.accountsCalls(), "re-fetched after invalidation")
 		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
 			{Operation: "get", Keys: []string{extInvUserKey}, Hits: []bool{false}}, // L2 miss because Step 3 deleted it
@@ -66,14 +70,16 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 			return injectCacheInvalidation(t, body,
 				`{"keys":[{"typename":"User","key":{"id":"9999"}}]}`)
 		})
-		assert.Equal(t, mutationResponse, env.mutate())
+		mutResp := env.mutate()
+		assert.Equal(t, mutationResponse, mutResp)
 		env.clearModifier()
 		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
 			{Operation: "delete", Keys: []string{user9999Key}}, // delete called even though entry doesn't exist
 		}), env.cacheLog())
 
 		// User:1234 should still be cached (unaffected by User:9999 invalidation).
-		assert.Equal(t, entityResponseMe, env.queryEntity())
+		resp := env.queryEntity()
+		assert.Equal(t, entityResponseMe, resp)
 		assert.Equal(t, 0, env.accountsCalls(), "User:1234 still cached")
 		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
 			{Operation: "get", Keys: []string{extInvUserKey}, Hits: []bool{true}}, // User:1234 still in L2
@@ -120,7 +126,8 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		env.queryEntity()
 
 		// Verify cache hit.
-		assert.Equal(t, entityResponseMe, env.queryEntity())
+		resp := env.queryEntity()
+		assert.Equal(t, entityResponseMe, resp)
 		assert.Equal(t, 0, env.accountsCalls(), "L2 cache hit")
 
 		// Mutation WITHOUT extensions — no cache operations.
@@ -128,7 +135,8 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{}), env.cacheLog(), "no cache operations for mutation without extensions")
 
 		// Cache should still be valid.
-		assert.Equal(t, entityResponseMe, env.queryEntity())
+		resp = env.queryEntity()
+		assert.Equal(t, entityResponseMe, resp)
 		assert.Equal(t, 0, env.accountsCalls(), "cache still valid")
 		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
 			{Operation: "get", Keys: []string{extInvUserKey}, Hits: []bool{true}}, // L2 still valid
@@ -172,7 +180,8 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		env := newExtInvalidationEnv(t)
 
 		// Step 1: Populate L2 cache.
-		assert.Equal(t, entityResponseMe, env.queryEntity())
+		resp := env.queryEntity()
+		assert.Equal(t, entityResponseMe, resp)
 		assert.Equal(t, 1, env.accountsCalls())
 
 		// Step 2: Verify cache hit.
@@ -188,7 +197,8 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 				`{"keys":[{"typename":"User","key":{"id":"1234"}}]}`)
 		})
 
-		assert.Equal(t, entityResponseMe, env.queryEntity())
+		resp = env.queryEntity()
+		assert.Equal(t, entityResponseMe, resp)
 		assert.Equal(t, 1, env.accountsCalls(), "re-fetched after manual delete")
 		env.clearModifier()
 
