@@ -106,9 +106,12 @@ func newEntityFieldArgsSetup(t *testing.T) *entityFieldArgsSetup {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
-	productsURLParsed, _ := url.Parse(setup.ProductsUpstreamServer.URL)
-	reviewsURLParsed, _ := url.Parse(setup.ReviewsUpstreamServer.URL)
+	accountsURLParsed, err := url.Parse(setup.AccountsUpstreamServer.URL)
+	require.NoError(t, err)
+	productsURLParsed, err := url.Parse(setup.ProductsUpstreamServer.URL)
+	require.NoError(t, err)
+	reviewsURLParsed, err := url.Parse(setup.ReviewsUpstreamServer.URL)
+	require.NoError(t, err)
 
 	return &entityFieldArgsSetup{
 		setup:        setup,

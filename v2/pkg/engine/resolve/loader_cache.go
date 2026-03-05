@@ -1489,9 +1489,8 @@ func writeCanonicalJSON(w interface{ WriteString(string) (int, error) }, v *astj
 			if i > 0 {
 				_, _ = w.WriteString(",")
 			}
-			_, _ = w.WriteString(`"`)
-			_, _ = w.WriteString(p.key)
-			_, _ = w.WriteString(`":`)
+			_, _ = w.WriteString(strconv.Quote(p.key))
+			_, _ = w.WriteString(":")
 			writeCanonicalJSON(w, p.val)
 		}
 		_, _ = w.WriteString("}")
