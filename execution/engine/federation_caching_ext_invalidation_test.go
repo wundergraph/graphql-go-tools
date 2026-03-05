@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/execution/engine"
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting"
@@ -23,105 +24,92 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
-// invalidationKey represents a single entity key in the extensions.cacheInvalidation.keys array.
-// Example: {Typename: "User", Key: {"id": "1234"}} produces:
+// injectCacheInvalidation injects a raw JSON cacheInvalidation object into a subgraph
+// response's extensions field and returns the modified response body.
 //
-//	{"typename": "User", "key": {"id": "1234"}}
-type invalidationKey struct {
-	Typename string            `json:"typename"`
-	Key      map[string]string `json:"key"`
+// cacheInvalidationJSON is the complete cacheInvalidation object value, e.g.:
+//
+//	`{"keys":[{"typename":"User","key":{"id":"1234"}}]}`
+//
+// Given a subgraph response like:
+//
+//	{"data":{"updateUsername":{"id":"1234","username":"UpdatedMe"}}}
+//
+// The result will be:
+//
+//	{"data":{"updateUsername":{"id":"1234","username":"UpdatedMe"}},"extensions":{"cacheInvalidation":{"keys":[...]}}}
+func injectCacheInvalidation(t *testing.T, body []byte, cacheInvalidationJSON string) []byte {
+	t.Helper()
+	var resp map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(body, &resp))
+	resp["extensions"] = json.RawMessage(`{"cacheInvalidation":` + cacheInvalidationJSON + `}`)
+	modified, err := json.Marshal(resp)
+	require.NoError(t, err)
+	return modified
 }
 
-// cacheInvalidationMiddleware is an HTTP middleware that wraps a subgraph handler and
-// injects extensions.cacheInvalidation into GraphQL responses when invalidation keys are set.
+// subgraphResponseInterceptor wraps a subgraph HTTP handler and applies a modifier
+// function to every response body when set. When modifier is nil, responses pass through.
 //
-// When enabled, every response from the wrapped handler will include:
+// Usage in tests:
 //
-//	"extensions": {"cacheInvalidation": {"keys": [...]}}
-//
-// This simulates a subgraph that signals cache invalidation to the router.
-type cacheInvalidationMiddleware struct {
-	handler http.Handler
-	mu      sync.RWMutex
-	keys    []invalidationKey
+//	interceptor.SetModifier(func(body []byte) []byte {
+//	    assert.Equal(t, expectedResponse, string(body))
+//	    return injectCacheInvalidation(t, body, `{"keys":[...]}`)
+//	})
+type subgraphResponseInterceptor struct {
+	handler  http.Handler
+	mu       sync.RWMutex
+	modifier func(body []byte) []byte
 }
 
-func newCacheInvalidationMiddleware(handler http.Handler) *cacheInvalidationMiddleware {
-	return &cacheInvalidationMiddleware{handler: handler}
+func newSubgraphResponseInterceptor(handler http.Handler) *subgraphResponseInterceptor {
+	return &subgraphResponseInterceptor{handler: handler}
 }
 
-// SetInvalidationKeys configures the middleware to inject the given invalidation keys
-// into all subsequent subgraph responses. Example:
-//
-//	middleware.SetInvalidationKeys(
-//	    invalidationKey{Typename: "User", Key: map[string]string{"id": "1234"}},
-//	)
-//
-// The subgraph response will then look like:
-//
-//	{"data": {...}, "extensions": {"cacheInvalidation": {"keys": [{"typename": "User", "key": {"id": "1234"}}]}}}
-func (m *cacheInvalidationMiddleware) SetInvalidationKeys(keys ...invalidationKey) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.keys = keys
+// SetModifier sets a function that will be applied to every subsequent subgraph response.
+// The function receives the raw response body and returns the modified body.
+func (s *subgraphResponseInterceptor) SetModifier(fn func(body []byte) []byte) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.modifier = fn
 }
 
-// ClearInvalidationKeys disables extension injection — responses pass through unmodified.
-func (m *cacheInvalidationMiddleware) ClearInvalidationKeys() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.keys = nil
+// ClearModifier removes the modifier — responses pass through unmodified.
+func (s *subgraphResponseInterceptor) ClearModifier() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.modifier = nil
 }
 
-func (m *cacheInvalidationMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	m.mu.RLock()
-	keys := m.keys
-	m.mu.RUnlock()
+func (s *subgraphResponseInterceptor) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.mu.RLock()
+	mod := s.modifier
+	s.mu.RUnlock()
 
-	if keys == nil {
-		// No invalidation configured — pass through to the real subgraph handler.
-		m.handler.ServeHTTP(w, r)
+	if mod == nil {
+		s.handler.ServeHTTP(w, r)
 		return
 	}
 
-	// Capture the subgraph's response so we can modify it.
 	rec := httptest.NewRecorder()
-	m.handler.ServeHTTP(rec, r)
+	s.handler.ServeHTTP(rec, r)
 
-	// Parse the JSON response body to inject extensions.
-	var result map[string]json.RawMessage
-	if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
-		// Can't parse as JSON — pass through unmodified.
-		maps.Copy(w.Header(), rec.Header())
-		w.WriteHeader(rec.Code)
-		_, _ = w.Write(rec.Body.Bytes())
-		return
-	}
+	modified := mod(rec.Body.Bytes())
 
-	// Build and inject the extensions object:
-	// {"cacheInvalidation": {"keys": [{"typename": "...", "key": {...}}, ...]}}
-	extensions := map[string]any{
-		"cacheInvalidation": map[string]any{
-			"keys": keys,
-		},
-	}
-	extJSON, _ := json.Marshal(extensions)
-	result["extensions"] = extJSON
-
-	modifiedBody, _ := json.Marshal(result)
 	maps.Copy(w.Header(), rec.Header())
-	w.Header().Set("Content-Length", strconv.Itoa(len(modifiedBody)))
+	w.Header().Set("Content-Length", strconv.Itoa(len(modified)))
 	w.WriteHeader(rec.Code)
-	_, _ = w.Write(modifiedBody)
+	_, _ = w.Write(modified)
 }
 
-// newFederationSetupWithMiddleware creates a FederationSetup where the accounts subgraph
-// is wrapped with the cache invalidation middleware. Products and reviews are unmodified.
-func newFederationSetupWithMiddleware(
-	middleware *cacheInvalidationMiddleware,
+// newFederationSetupWithInterceptor creates a FederationSetup where the accounts subgraph
+// is wrapped with the response interceptor. Products and reviews are unmodified.
+func newFederationSetupWithInterceptor(
+	interceptor *subgraphResponseInterceptor,
 	gatewayFn func(*federationtesting.FederationSetup) *httptest.Server,
 ) *federationtesting.FederationSetup {
-	accountsServer := httptest.NewServer(middleware)
+	accountsServer := httptest.NewServer(interceptor)
 	productsServer := httptest.NewServer(products.GraphQLEndpointHandler(products.TestOptions))
 	reviewsServer := httptest.NewServer(reviews.GraphQLEndpointHandler(reviews.TestOptions))
 
@@ -158,9 +146,9 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
 		trackingClient := &http.Client{Transport: tracker}
 
-		middleware := newCacheInvalidationMiddleware(accounts.GraphQLEndpointHandler(accounts.TestOptions))
+		interceptor := newSubgraphResponseInterceptor(accounts.GraphQLEndpointHandler(accounts.TestOptions))
 
-		setup := newFederationSetupWithMiddleware(middleware, addCachingGateway(
+		setup := newFederationSetupWithInterceptor(interceptor, addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withHTTPClient(trackingClient),
@@ -189,18 +177,26 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		assert.Contains(t, string(resp), `"username":"Me"`)
 		assert.Equal(t, 0, tracker.GetCount(accountsHost), "Step 2: should NOT call accounts (L2 hit)")
 
-		// Step 3: Mutation — accounts subgraph response will now include:
-		// "extensions": {"cacheInvalidation": {"keys": [{"typename": "User", "key": {"id": "1234"}}]}}
-		middleware.SetInvalidationKeys(
-			invalidationKey{Typename: "User", Key: map[string]string{"id": "1234"}},
-		)
+		// Step 3: Mutation — inject cache invalidation into the accounts subgraph response.
+		// The modifier function shows exactly what the subgraph returns and what we inject.
+		interceptor.SetModifier(func(body []byte) []byte {
+			// Verify the subgraph mutation response.
+			assert.Equal(t,
+				`{"data":{"updateUsername":{"id":"1234","username":"UpdatedMe"}}}`,
+				string(body),
+			)
+			// Inject cache invalidation extensions into the response.
+			return injectCacheInvalidation(t, body,
+				`{"keys":[{"typename":"User","key":{"id":"1234"}}]}`,
+			)
+		})
 
 		tracker.Reset()
 		defaultCache.ClearLog()
 		respMut := gqlClient.QueryString(ctx, setup.GatewayServer.URL, mutationQuery, nil, t)
 		assert.Contains(t, string(respMut), `"UpdatedMe"`)
 
-		middleware.ClearInvalidationKeys()
+		interceptor.ClearModifier()
 
 		// Verify cache delete operation occurred.
 		mutationLog := defaultCache.GetLog()
@@ -240,9 +236,9 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
 		trackingClient := &http.Client{Transport: tracker}
 
-		middleware := newCacheInvalidationMiddleware(accounts.GraphQLEndpointHandler(accounts.TestOptions))
+		interceptor := newSubgraphResponseInterceptor(accounts.GraphQLEndpointHandler(accounts.TestOptions))
 
-		setup := newFederationSetupWithMiddleware(middleware, addCachingGateway(
+		setup := newFederationSetupWithInterceptor(interceptor, addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withHTTPClient(trackingClient),
@@ -261,17 +257,23 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		assert.Contains(t, string(resp), `"username":"Me"`)
 
 		// Mutation invalidates User:9999 (never cached).
-		// Accounts subgraph response includes:
-		// "extensions": {"cacheInvalidation": {"keys": [{"typename": "User", "key": {"id": "9999"}}]}}
-		middleware.SetInvalidationKeys(
-			invalidationKey{Typename: "User", Key: map[string]string{"id": "9999"}},
-		)
+		// The modifier shows exactly what the subgraph returns and what invalidation we inject.
+		interceptor.SetModifier(func(body []byte) []byte {
+			assert.Equal(t,
+				`{"data":{"updateUsername":{"id":"1234","username":"UpdatedMe"}}}`,
+				string(body),
+			)
+			// Invalidate User:9999 which was never cached — should be a no-op.
+			return injectCacheInvalidation(t, body,
+				`{"keys":[{"typename":"User","key":{"id":"9999"}}]}`,
+			)
+		})
 
 		tracker.Reset()
 		defaultCache.ClearLog()
 		gqlClient.QueryString(ctx, setup.GatewayServer.URL, mutationQuery, nil, t)
 
-		middleware.ClearInvalidationKeys()
+		interceptor.ClearModifier()
 
 		// Verify delete was called (even though entry didn't exist in cache).
 		mutationLog := defaultCache.GetLog()
@@ -310,9 +312,9 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
 		trackingClient := &http.Client{Transport: tracker}
 
-		middleware := newCacheInvalidationMiddleware(accounts.GraphQLEndpointHandler(accounts.TestOptions))
+		interceptor := newSubgraphResponseInterceptor(accounts.GraphQLEndpointHandler(accounts.TestOptions))
 
-		setup := newFederationSetupWithMiddleware(middleware, addCachingGateway(
+		setup := newFederationSetupWithInterceptor(interceptor, addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withHTTPClient(trackingClient),
@@ -328,21 +330,21 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		defaultCache.ClearLog()
 		gqlClient.QueryString(ctx, setup.GatewayServer.URL, entityQuery, nil, t)
 
-		// Mutation invalidates both User:1234 and User:2345.
-		// Accounts subgraph response includes:
-		// "extensions": {"cacheInvalidation": {"keys": [
-		//     {"typename": "User", "key": {"id": "1234"}},
-		//     {"typename": "User", "key": {"id": "2345"}}
-		// ]}}
-		middleware.SetInvalidationKeys(
-			invalidationKey{Typename: "User", Key: map[string]string{"id": "1234"}},
-			invalidationKey{Typename: "User", Key: map[string]string{"id": "2345"}},
-		)
+		// Mutation invalidates both User:1234 and User:2345 in a single response.
+		interceptor.SetModifier(func(body []byte) []byte {
+			assert.Equal(t,
+				`{"data":{"updateUsername":{"id":"1234","username":"UpdatedMe"}}}`,
+				string(body),
+			)
+			return injectCacheInvalidation(t, body,
+				`{"keys":[{"typename":"User","key":{"id":"1234"}},{"typename":"User","key":{"id":"2345"}}]}`,
+			)
+		})
 
 		defaultCache.ClearLog()
 		gqlClient.QueryString(ctx, setup.GatewayServer.URL, mutationQuery, nil, t)
 
-		middleware.ClearInvalidationKeys()
+		interceptor.ClearModifier()
 
 		mutationLog := defaultCache.GetLog()
 		var deleteKeys []string
@@ -382,7 +384,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
 		trackingClient := &http.Client{Transport: tracker}
 
-		// No middleware — accounts subgraph returns normal responses without extensions.
+		// No interceptor — accounts subgraph returns normal responses without extensions.
 		setup := federationtesting.NewFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
@@ -447,9 +449,9 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
 		trackingClient := &http.Client{Transport: tracker}
 
-		middleware := newCacheInvalidationMiddleware(accounts.GraphQLEndpointHandler(accounts.TestOptions))
+		interceptor := newSubgraphResponseInterceptor(accounts.GraphQLEndpointHandler(accounts.TestOptions))
 
-		setup := newFederationSetupWithMiddleware(middleware, addCachingGateway(
+		setup := newFederationSetupWithInterceptor(interceptor, addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withHTTPClient(trackingClient),
@@ -475,17 +477,22 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		assert.Equal(t, 0, tracker.GetCount(accountsHost), "should hit cache")
 
 		// Mutation triggers BOTH mechanisms:
-		// 1. detectMutationEntityImpact fires because MutationCacheInvalidation is configured for updateUsername
-		// 2. extensions-based invalidation fires because the response includes:
-		//    "extensions": {"cacheInvalidation": {"keys": [{"typename": "User", "key": {"id": "1234"}}]}}
-		middleware.SetInvalidationKeys(
-			invalidationKey{Typename: "User", Key: map[string]string{"id": "1234"}},
-		)
+		// 1. detectMutationEntityImpact fires because MutationCacheInvalidation is configured
+		// 2. extensions-based invalidation fires because we inject cacheInvalidation extensions
+		interceptor.SetModifier(func(body []byte) []byte {
+			assert.Equal(t,
+				`{"data":{"updateUsername":{"id":"1234","username":"UpdatedMe"}}}`,
+				string(body),
+			)
+			return injectCacheInvalidation(t, body,
+				`{"keys":[{"typename":"User","key":{"id":"1234"}}]}`,
+			)
+		})
 
 		defaultCache.ClearLog()
 		gqlClient.QueryString(ctx, setup.GatewayServer.URL, mutationQuery, nil, t)
 
-		middleware.ClearInvalidationKeys()
+		interceptor.ClearModifier()
 
 		// Both mechanisms should fire — one delete from detectMutationEntityImpact
 		// and one from extensions-based invalidation.
@@ -522,9 +529,9 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
 		trackingClient := &http.Client{Transport: tracker}
 
-		middleware := newCacheInvalidationMiddleware(accounts.GraphQLEndpointHandler(accounts.TestOptions))
+		interceptor := newSubgraphResponseInterceptor(accounts.GraphQLEndpointHandler(accounts.TestOptions))
 
-		setup := newFederationSetupWithMiddleware(middleware, addCachingGateway(
+		setup := newFederationSetupWithInterceptor(interceptor, addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withHTTPClient(trackingClient),
@@ -551,15 +558,19 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		assert.Equal(t, 0, tracker.GetCount(accountsHost), "Step 2: should hit cache")
 
 		// Step 3: Clear the cache entry so the next query calls accounts again.
-		// Then enable extensions injection to verify that a QUERY response (not mutation)
+		// Then enable extension injection to verify that a QUERY response (not mutation)
 		// can also trigger invalidation.
 		_ = defaultCache.Delete(ctx, []string{`{"__typename":"User","key":{"id":"1234"}}`})
 
-		// Enable invalidation — the accounts subgraph _entities response will now include:
-		// "extensions": {"cacheInvalidation": {"keys": [{"typename": "User", "key": {"id": "1234"}}]}}
-		middleware.SetInvalidationKeys(
-			invalidationKey{Typename: "User", Key: map[string]string{"id": "1234"}},
-		)
+		// The _entities query response will include invalidation extensions.
+		// This proves invalidation is NOT restricted to mutations.
+		interceptor.SetModifier(func(body []byte) []byte {
+			// This is an _entities response for User:1234.
+			assert.Contains(t, string(body), `"username":"Me"`)
+			return injectCacheInvalidation(t, body,
+				`{"keys":[{"typename":"User","key":{"id":"1234"}}]}`,
+			)
+		})
 
 		tracker.Reset()
 		defaultCache.ClearLog()
@@ -567,7 +578,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		assert.Contains(t, string(resp), `"username":"Me"`)
 		assert.Equal(t, 1, tracker.GetCount(accountsHost), "Step 3: should call accounts (cache cleared)")
 
-		middleware.ClearInvalidationKeys()
+		interceptor.ClearModifier()
 
 		// Verify: extensions-based delete occurred during this QUERY (not mutation).
 		queryLog := defaultCache.GetLog()
@@ -603,9 +614,9 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 			hashes: map[string]uint64{"accounts": 55555},
 		}
 
-		middleware := newCacheInvalidationMiddleware(accounts.GraphQLEndpointHandler(accounts.TestOptions))
+		interceptor := newSubgraphResponseInterceptor(accounts.GraphQLEndpointHandler(accounts.TestOptions))
 
-		setup := newFederationSetupWithMiddleware(middleware, addCachingGateway(
+		setup := newFederationSetupWithInterceptor(interceptor, addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withHTTPClient(trackingClient),
@@ -632,16 +643,20 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		assert.Equal(t, 0, tracker.GetCount(accountsHost), "should hit cache")
 
 		// Mutation with extensions invalidation.
-		// Accounts subgraph response includes:
-		// "extensions": {"cacheInvalidation": {"keys": [{"typename": "User", "key": {"id": "1234"}}]}}
-		middleware.SetInvalidationKeys(
-			invalidationKey{Typename: "User", Key: map[string]string{"id": "1234"}},
-		)
+		interceptor.SetModifier(func(body []byte) []byte {
+			assert.Equal(t,
+				`{"data":{"updateUsername":{"id":"1234","username":"UpdatedMe"}}}`,
+				string(body),
+			)
+			return injectCacheInvalidation(t, body,
+				`{"keys":[{"typename":"User","key":{"id":"1234"}}]}`,
+			)
+		})
 
 		defaultCache.ClearLog()
 		gqlClient.QueryString(ctx, setup.GatewayServer.URL, mutationQuery, nil, t)
 
-		middleware.ClearInvalidationKeys()
+		interceptor.ClearModifier()
 
 		// Verify the delete key includes the header prefix "55555:".
 		mutationLog := defaultCache.GetLog()
@@ -680,9 +695,9 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
 		trackingClient := &http.Client{Transport: tracker}
 
-		middleware := newCacheInvalidationMiddleware(accounts.GraphQLEndpointHandler(accounts.TestOptions))
+		interceptor := newSubgraphResponseInterceptor(accounts.GraphQLEndpointHandler(accounts.TestOptions))
 
-		setup := newFederationSetupWithMiddleware(middleware, addCachingGateway(
+		setup := newFederationSetupWithInterceptor(interceptor, addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withHTTPClient(trackingClient),
@@ -713,16 +728,20 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		assert.Equal(t, 0, tracker.GetCount(accountsHost), "should hit cache")
 
 		// Mutation with extensions invalidation.
-		// Accounts subgraph response includes:
-		// "extensions": {"cacheInvalidation": {"keys": [{"typename": "User", "key": {"id": "1234"}}]}}
-		middleware.SetInvalidationKeys(
-			invalidationKey{Typename: "User", Key: map[string]string{"id": "1234"}},
-		)
+		interceptor.SetModifier(func(body []byte) []byte {
+			assert.Equal(t,
+				`{"data":{"updateUsername":{"id":"1234","username":"UpdatedMe"}}}`,
+				string(body),
+			)
+			return injectCacheInvalidation(t, body,
+				`{"keys":[{"typename":"User","key":{"id":"1234"}}]}`,
+			)
+		})
 
 		defaultCache.ClearLog()
 		gqlClient.QueryString(ctx, setup.GatewayServer.URL, mutationQuery, nil, t)
 
-		middleware.ClearInvalidationKeys()
+		interceptor.ClearModifier()
 
 		// Verify the delete key includes the interceptor prefix "tenant-X:".
 		mutationLog := defaultCache.GetLog()
