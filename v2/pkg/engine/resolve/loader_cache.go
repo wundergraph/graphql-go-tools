@@ -1408,7 +1408,6 @@ func (l *Loader) computeArgSuffix(args []CacheFieldArg) string {
 	}
 
 	h := pool.Hash64.Get()
-	var marshalBuf [64]byte
 	for i, arg := range sorted {
 		if i > 0 {
 			_, _ = h.WriteString(",")
@@ -1428,10 +1427,7 @@ func (l *Loader) computeArgSuffix(args []CacheFieldArg) string {
 		if argValue == nil {
 			_, _ = h.WriteString("null")
 		} else {
-			// MarshalTo produces canonical JSON for scalars.
-			// For objects, key order depends on insertion order — but after normalization,
-			// the same operation always produces the same key order, so this is stable.
-			_, _ = h.Write(argValue.MarshalTo(marshalBuf[:0]))
+			writeCanonicalJSON(h, argValue)
 		}
 	}
 
@@ -1447,6 +1443,58 @@ func (l *Loader) computeArgSuffix(args []CacheFieldArg) string {
 		sum >>= 4
 	}
 	return string(buf[:])
+}
+
+// writeCanonicalJSON writes a deterministic JSON representation of v to w.
+// For objects, keys are sorted alphabetically to ensure the same logical value
+// always produces the same hash regardless of JSON key ordering from the client.
+// For arrays, elements are written in order. Scalars are written as-is.
+func writeCanonicalJSON(w interface{ WriteString(string) (int, error) }, v *astjson.Value) {
+	switch v.Type() {
+	case astjson.TypeObject:
+		obj, err := v.Object()
+		if err != nil {
+			_, _ = w.WriteString("null")
+			return
+		}
+		// Collect keys and sort them
+		type kv struct {
+			key string
+			val *astjson.Value
+		}
+		var pairs []kv
+		obj.Visit(func(key []byte, val *astjson.Value) {
+			pairs = append(pairs, kv{key: string(key), val: val})
+		})
+		slices.SortFunc(pairs, func(a, b kv) int {
+			return cmp.Compare(a.key, b.key)
+		})
+		_, _ = w.WriteString("{")
+		for i, p := range pairs {
+			if i > 0 {
+				_, _ = w.WriteString(",")
+			}
+			_, _ = w.WriteString(`"`)
+			_, _ = w.WriteString(p.key)
+			_, _ = w.WriteString(`":`)
+			writeCanonicalJSON(w, p.val)
+		}
+		_, _ = w.WriteString("}")
+	case astjson.TypeArray:
+		arr := v.GetArray()
+		_, _ = w.WriteString("[")
+		for i, elem := range arr {
+			if i > 0 {
+				_, _ = w.WriteString(",")
+			}
+			writeCanonicalJSON(w, elem)
+		}
+		_, _ = w.WriteString("]")
+	default:
+		// Scalars (string, number, bool, null): MarshalTo produces canonical output
+		var buf [64]byte
+		_, _ = w.WriteString(string(v.MarshalTo(buf[:0])))
+	}
 }
 
 // mergeEntityFields copies all fields from src into dst that aren't already present.

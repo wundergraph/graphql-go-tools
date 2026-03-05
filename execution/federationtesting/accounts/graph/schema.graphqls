@@ -29,6 +29,22 @@ interface Identifiable {
     id: ID!
 }
 
+enum GreetingStyle {
+    FORMAL
+    CASUAL
+    SHORT
+}
+
+input GreetingFormatting {
+    uppercase: Boolean
+    prefix: String
+}
+
+input GreetingInput {
+    style: GreetingStyle!
+    formatting: GreetingFormatting
+}
+
 type User implements Identifiable @key(fields: "id")  {
     id: ID!
     username: String!
@@ -41,6 +57,8 @@ type User implements Identifiable @key(fields: "id")  {
     # 2. Then, relatedUsers returns other User IDs
     # 3. Those Users need entity resolution (second entity fetch) -> L1 HIT if same user!
     relatedUsers: [User!]!
+    greeting(style: String!): String!
+    customGreeting(input: GreetingInput!): String!
 }
 
 type Product @key(fields: "upc") {

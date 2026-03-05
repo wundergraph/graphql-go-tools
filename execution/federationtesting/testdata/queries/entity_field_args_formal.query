@@ -1,0 +1,12 @@
+query EntityFieldArgsFormal {
+	topProducts {
+        name
+        reviews {
+          body
+          authorWithoutProvides {
+            username
+            greeting(style: "formal")
+          }
+        }
+    }
+}

@@ -1,0 +1,12 @@
+query EntityFieldArgsCustomGreeting($input: GreetingInput!) {
+	topProducts {
+        name
+        reviews {
+          body
+          authorWithoutProvides {
+            username
+            customGreeting(input: $input)
+          }
+        }
+    }
+}

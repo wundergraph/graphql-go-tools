@@ -7,6 +7,7 @@ package graph
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/accounts/graph/generated"
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/accounts/graph/model"
@@ -267,11 +268,53 @@ func (r *queryResolver) SomeNestedInterfaces(ctx context.Context) ([]model.SomeN
 	}, nil
 }
 
+// Greeting is the resolver for the greeting field.
+func (r *userResolver) Greeting(ctx context.Context, obj *model.User, style string) (string, error) {
+	name := GetUsername(obj.ID)
+	switch style {
+	case "formal":
+		return "Good day, " + name, nil
+	case "casual":
+		return "Hey, " + name + "!", nil
+	case "short":
+		return "Hi " + name, nil
+	default:
+		return "Hello, " + name, nil
+	}
+}
+
+// CustomGreeting is the resolver for the customGreeting field.
+func (r *userResolver) CustomGreeting(ctx context.Context, obj *model.User, input model.GreetingInput) (string, error) {
+	name := GetUsername(obj.ID)
+	var greeting string
+	switch input.Style {
+	case model.GreetingStyleFormal:
+		greeting = "Good day, " + name
+	case model.GreetingStyleCasual:
+		greeting = "Hey, " + name + "!"
+	case model.GreetingStyleShort:
+		greeting = "Hi " + name
+	}
+	if input.Formatting != nil {
+		if input.Formatting.Prefix != nil && *input.Formatting.Prefix != "" {
+			greeting = *input.Formatting.Prefix + " " + greeting
+		}
+		if input.Formatting.Uppercase != nil && *input.Formatting.Uppercase {
+			greeting = strings.ToUpper(greeting)
+		}
+	}
+	return greeting, nil
+}
+
 // Mutation returns generated.MutationResolver implementation.
 func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResolver{r} }
 
 // Query returns generated.QueryResolver implementation.
 func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 
+// User returns generated.UserResolver implementation.
+func (r *Resolver) User() generated.UserResolver { return &userResolver{r} }
+
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
+type userResolver struct{ *Resolver }

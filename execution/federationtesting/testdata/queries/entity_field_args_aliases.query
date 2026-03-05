@@ -1,0 +1,13 @@
+query EntityFieldArgsAliases {
+	topProducts {
+        name
+        reviews {
+          body
+          authorWithoutProvides {
+            username
+            formalGreeting: greeting(style: "formal")
+            casualGreeting: greeting(style: "casual")
+          }
+        }
+    }
+}

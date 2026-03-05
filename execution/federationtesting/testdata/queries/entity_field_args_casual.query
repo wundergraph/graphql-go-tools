@@ -1,0 +1,12 @@
+query EntityFieldArgsCasual {
+	topProducts {
+        name
+        reviews {
+          body
+          authorWithoutProvides {
+            username
+            greeting(style: "casual")
+          }
+        }
+    }
+}
