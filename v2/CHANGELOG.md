@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.259](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.258...v2.0.0-rc.259) (2026-03-05)
+
+
+### Bug Fixes
+
+* skip invocation for empty context in field resolvers ([#1413](https://github.com/wundergraph/graphql-go-tools/issues/1413)) ([5885c48](https://github.com/wundergraph/graphql-go-tools/commit/5885c48066c696e60a70bf3ab4b10a824eca780a))
+
 ## [2.0.0-rc.258](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.257...v2.0.0-rc.258) (2026-03-05)
 
 
