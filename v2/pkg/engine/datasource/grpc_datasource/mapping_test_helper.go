@@ -49,6 +49,11 @@ func testMapping() *GRPCMapping {
 				Request:  "QueryCategoriesRequest",
 				Response: "QueryCategoriesResponse",
 			},
+			"category": {
+				RPC:      "QueryCategory",
+				Request:  "QueryCategoryRequest",
+				Response: "QueryCategoryResponse",
+			},
 			"categoriesByKind": {
 				RPC:      "QueryCategoriesByKind",
 				Request:  "QueryCategoriesByKindRequest",
@@ -516,6 +521,12 @@ func testMapping() *GRPCMapping {
 				},
 				"categories": {
 					TargetName: "categories",
+				},
+				"category": {
+					TargetName: "category",
+					ArgumentMappings: FieldArgumentMap{
+						"id": "id",
+					},
 				},
 				"categoriesByKind": {
 					TargetName: "categories_by_kind",

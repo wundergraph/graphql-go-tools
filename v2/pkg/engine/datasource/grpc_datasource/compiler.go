@@ -698,6 +698,10 @@ func (p *RPCCompiler) resolveContextDataForPath(message protoref.Message, path a
 
 // resolveListDataForPath resolves the data for a given path in a list message.
 func (p *RPCCompiler) resolveListDataForPath(message protoref.List, fd protoref.FieldDescriptor, path ast.Path) []protoref.Value {
+	if !message.IsValid() {
+		return nil
+	}
+
 	if path.Len() == 0 {
 		return nil
 	}
@@ -731,6 +735,10 @@ func (p *RPCCompiler) resolveListDataForPath(message protoref.List, fd protoref.
 
 // resolveDataForPath resolves the data for a given path in a message.
 func (p *RPCCompiler) resolveDataForPath(messsage protoref.Message, path ast.Path) []protoref.Value {
+	if !messsage.IsValid() {
+		return nil
+	}
+
 	if path.Len() == 0 {
 		return nil
 	}

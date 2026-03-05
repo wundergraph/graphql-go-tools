@@ -41,6 +41,7 @@ service ProductService {
   rpc QueryCategories(QueryCategoriesRequest) returns (QueryCategoriesResponse) {}
   rpc QueryCategoriesByKind(QueryCategoriesByKindRequest) returns (QueryCategoriesByKindResponse) {}
   rpc QueryCategoriesByKinds(QueryCategoriesByKindsRequest) returns (QueryCategoriesByKindsResponse) {}
+  rpc QueryCategory(QueryCategoryRequest) returns (QueryCategoryResponse) {}
   rpc QueryComplexFilterType(QueryComplexFilterTypeRequest) returns (QueryComplexFilterTypeResponse) {}
   rpc QueryFilterCategories(QueryFilterCategoriesRequest) returns (QueryFilterCategoriesResponse) {}
   rpc QueryNestedType(QueryNestedTypeRequest) returns (QueryNestedTypeResponse) {}
@@ -71,6 +72,7 @@ service ProductService {
   rpc ResolveProductRecommendedCategory(ResolveProductRecommendedCategoryRequest) returns (ResolveProductRecommendedCategoryResponse) {}
   rpc ResolveProductShippingEstimate(ResolveProductShippingEstimateRequest) returns (ResolveProductShippingEstimateResponse) {}
   rpc ResolveProductStockStatus(ResolveProductStockStatusRequest) returns (ResolveProductStockStatusResponse) {}
+  rpc ResolveSubcategoryFeaturedCategory(ResolveSubcategoryFeaturedCategoryRequest) returns (ResolveSubcategoryFeaturedCategoryResponse) {}
   rpc ResolveSubcategoryItemCount(ResolveSubcategoryItemCountRequest) returns (ResolveSubcategoryItemCountResponse) {}
   rpc ResolveTestContainerDetails(ResolveTestContainerDetailsRequest) returns (ResolveTestContainerDetailsResponse) {}
 }
@@ -385,6 +387,14 @@ message QueryCategoriesRequest {
 // Response message for categories operation.
 message QueryCategoriesResponse {
   repeated Category categories = 1;
+}
+// Request message for category operation.
+message QueryCategoryRequest {
+  string id = 1;
+}
+// Response message for category operation.
+message QueryCategoryResponse {
+  Category category = 1;
 }
 // Request message for categoriesByKind operation.
 message QueryCategoriesByKindRequest {
@@ -970,6 +980,29 @@ message ResolveSubcategoryItemCountResult {
 
 message ResolveSubcategoryItemCountResponse {
   repeated ResolveSubcategoryItemCountResult result = 1;
+}
+
+message ResolveSubcategoryFeaturedCategoryArgs {
+  bool include_children = 1;
+}
+
+message ResolveSubcategoryFeaturedCategoryContext {
+  string id = 1;
+}
+
+message ResolveSubcategoryFeaturedCategoryRequest {
+  // context provides the resolver context for the field featuredCategory of type Subcategory.
+  repeated ResolveSubcategoryFeaturedCategoryContext context = 1;
+  // field_args provides the arguments for the resolver field featuredCategory of type Subcategory.
+  ResolveSubcategoryFeaturedCategoryArgs field_args = 2;
+}
+
+message ResolveSubcategoryFeaturedCategoryResult {
+  Category featured_category = 1;
+}
+
+message ResolveSubcategoryFeaturedCategoryResponse {
+  repeated ResolveSubcategoryFeaturedCategoryResult result = 1;
 }
 
 message ResolveCategoryMetricsNormalizedScoreArgs {
