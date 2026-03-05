@@ -79,6 +79,31 @@ func WithSubgraphEntityCachingConfigs(configs engine.SubgraphCachingConfigs) Gat
 	}
 }
 
+// buildEntityCacheConfigs converts SubgraphCachingConfigs into the runtime lookup map
+// needed by the resolver for extensions-based cache invalidation.
+// Only EntityCaching entries are processed — RootFieldCaching uses a different key format
+// and is not eligible for extensions-based invalidation.
+func buildEntityCacheConfigs(configs engine.SubgraphCachingConfigs) map[string]map[string]*resolve.EntityCacheInvalidationConfig {
+	if len(configs) == 0 {
+		return nil
+	}
+	result := make(map[string]map[string]*resolve.EntityCacheInvalidationConfig, len(configs))
+	for _, sc := range configs {
+		if len(sc.EntityCaching) == 0 {
+			continue
+		}
+		entityMap := make(map[string]*resolve.EntityCacheInvalidationConfig, len(sc.EntityCaching))
+		for _, ec := range sc.EntityCaching {
+			entityMap[ec.TypeName] = &resolve.EntityCacheInvalidationConfig{
+				CacheName:                   ec.CacheName,
+				IncludeSubgraphHeaderPrefix: ec.IncludeSubgraphHeaderPrefix,
+			}
+		}
+		result[sc.SubgraphName] = entityMap
+	}
+	return result
+}
+
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	g.mu.Lock()
 	handler := g.gqlHandler
@@ -110,8 +135,9 @@ func (g *Gateway) UpdateDataSources(subgraphsConfigs []engine.SubgraphConfigurat
 	}
 
 	executionEngine, err := engine.NewExecutionEngine(ctx, g.logger, engineConfig, resolve.ResolverOptions{
-		MaxConcurrency: 1024,
-		Caches:         g.loaderCaches,
+		MaxConcurrency:     1024,
+		Caches:             g.loaderCaches,
+		EntityCacheConfigs: buildEntityCacheConfigs(g.subgraphEntityCachingConfigs),
 	})
 	if err != nil {
 		g.logger.Error("create engine: %v", log.Error(err))

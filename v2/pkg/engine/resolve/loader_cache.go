@@ -20,6 +20,15 @@ type CacheEntry struct {
 	RemainingTTL time.Duration // remaining TTL from cache (0 = unknown/not supported)
 }
 
+// EntityCacheInvalidationConfig holds the minimal cache settings needed to build
+// invalidation keys for a specific entity type on a specific subgraph.
+// Separate from plan.EntityCacheConfiguration to avoid a resolve → plan dependency;
+// only CacheName and IncludeSubgraphHeaderPrefix are needed at invalidation time.
+type EntityCacheInvalidationConfig struct {
+	CacheName                   string
+	IncludeSubgraphHeaderPrefix bool
+}
+
 type LoaderCache interface {
 	Get(ctx context.Context, keys []string) ([]*CacheEntry, error)
 	Set(ctx context.Context, entries []*CacheEntry, ttl time.Duration) error
@@ -966,29 +975,29 @@ func (l *Loader) compareShadowValues(res *result, info *FetchInfo) {
 // detectMutationEntityImpact checks if a mutation response contains a cached entity
 // and either invalidates (deletes) the L2 cache entry or compares it for staleness analytics.
 // Called from mergeResult on the main thread after the mutation fetch completes.
-func (l *Loader) detectMutationEntityImpact(res *result, info *FetchInfo, responseData *astjson.Value) {
+func (l *Loader) detectMutationEntityImpact(res *result, info *FetchInfo, responseData *astjson.Value) map[string]struct{} {
 	if info == nil || info.OperationType != ast.OperationTypeMutation {
-		return
+		return nil
 	}
 	cfg := res.cacheConfig.MutationEntityImpactConfig
 	if cfg == nil {
-		return
+		return nil
 	}
 	// Proceed if invalidation is configured or analytics is enabled
 	if !cfg.InvalidateCache && !l.ctx.cacheAnalyticsEnabled() {
-		return
+		return nil
 	}
 	if info.ProvidesData == nil || len(info.RootFields) == 0 {
-		return
+		return nil
 	}
 
 	// Get the LoaderCache for this entity's cache name
 	if l.caches == nil {
-		return
+		return nil
 	}
 	cache := l.caches[cfg.CacheName]
 	if cache == nil {
-		return
+		return nil
 	}
 
 	mutationFieldName := info.RootFields[0].FieldName
@@ -997,7 +1006,7 @@ func (l *Loader) detectMutationEntityImpact(res *result, info *FetchInfo, respon
 	// For root mutation: responseData = {"updateUsername": {"id":"1234","username":"UpdatedMe"}}
 	entityData := responseData.Get(mutationFieldName)
 	if entityData == nil || entityData.Type() != astjson.TypeObject {
-		return
+		return nil
 	}
 
 	// Navigate ProvidesData to the entity level.
@@ -1005,23 +1014,31 @@ func (l *Loader) detectMutationEntityImpact(res *result, info *FetchInfo, respon
 	// We need the inner Object that describes the entity's fields.
 	entityProvidesData := navigateProvidesDataToField(info.ProvidesData, mutationFieldName)
 	if entityProvidesData == nil {
-		return
+		return nil
 	}
 
 	// Build L2 cache key for lookup
 	cacheKey := l.buildMutationEntityCacheKey(cfg, entityData, info)
 	if cacheKey == "" {
-		return
+		return nil
+	}
+
+	// Read cached value for analytics BEFORE deleting, so analytics sees the real pre-delete value.
+	var analyticsEntries []*CacheEntry
+	if l.ctx.cacheAnalyticsEnabled() {
+		analyticsEntries, _ = cache.Get(l.ctx.ctx, []string{cacheKey})
 	}
 
 	// Invalidate L2 cache entry if configured
+	var deletedKeys map[string]struct{}
 	if cfg.InvalidateCache {
 		_ = cache.Delete(l.ctx.ctx, []string{cacheKey})
+		deletedKeys = map[string]struct{}{cacheKey: {}}
 	}
 
 	// Analytics comparison requires cacheAnalytics to be enabled
 	if !l.ctx.cacheAnalyticsEnabled() {
-		return
+		return deletedKeys
 	}
 
 	// Build display key (without prefix) for analytics
@@ -1035,9 +1052,8 @@ func (l *Loader) detectMutationEntityImpact(res *result, info *FetchInfo, respon
 	_, _ = xxh.Write(freshBytes)
 	freshHash := xxh.Sum64()
 
-	// Look up L2 cache
-	entries, err := cache.Get(l.ctx.ctx, []string{cacheKey})
-	hadCachedValue := err == nil && len(entries) > 0 && entries[0] != nil && len(entries[0].Value) > 0
+	// Use the pre-delete cached value for analytics comparison
+	hadCachedValue := len(analyticsEntries) > 0 && analyticsEntries[0] != nil && len(analyticsEntries[0].Value) > 0
 
 	if !hadCachedValue {
 		// No cached value — record event showing entity was returned but not previously cached
@@ -1050,13 +1066,13 @@ func (l *Loader) detectMutationEntityImpact(res *result, info *FetchInfo, respon
 			FreshHash:         freshHash,
 			FreshBytes:        len(freshBytes),
 		})
-		return
+		return deletedKeys
 	}
 
 	// Parse cached value and compare
-	cachedValue, parseErr := astjson.ParseBytesWithArena(l.jsonArena, entries[0].Value)
+	cachedValue, parseErr := astjson.ParseBytesWithArena(l.jsonArena, analyticsEntries[0].Value)
 	if parseErr != nil {
-		return
+		return deletedKeys
 	}
 
 	cachedProvides := l.shallowCopyProvidedFields(cachedValue, entityProvidesData)
@@ -1076,6 +1092,7 @@ func (l *Loader) detectMutationEntityImpact(res *result, info *FetchInfo, respon
 		CachedBytes:       len(cachedBytes),
 		FreshBytes:        len(freshBytes),
 	})
+	return deletedKeys
 }
 
 // buildMutationEntityCacheKey builds the L2 cache key for a mutation-returned entity.
@@ -1132,6 +1149,182 @@ func buildEntityKeyValue(a arena.Arena, data *astjson.Value, keyFields []KeyFiel
 		}
 	}
 	return obj
+}
+
+// processExtensionsCacheInvalidation handles cache invalidation signals from subgraph response extensions.
+//
+// Subgraphs can signal cache invalidation by including an extensions field in their response:
+//
+//	{"extensions": {"cacheInvalidation": {"keys": [{"typename": "User", "key": {"id": "1"}}]}}}
+//
+// This function parses the keys array and deletes the corresponding L2 cache entries.
+// Works for both query and mutation responses — not restricted to mutations.
+//
+// The cache key construction pipeline mirrors the storage pipeline:
+//
+//	typename + key fields → build JSON → apply header prefix → apply interceptor → cache.Delete()
+func (l *Loader) processExtensionsCacheInvalidation(res *result, cacheInvalidation *astjson.Value, deletedKeys map[string]struct{}) {
+	// No invalidation data in the response extensions.
+	if cacheInvalidation == nil {
+		return
+	}
+	// Extensions-based invalidation only applies when L2 caching is enabled,
+	// since L2 is the cross-request cache that benefits from explicit invalidation.
+	if !l.ctx.ExecutionOptions.Caching.EnableL2Cache {
+		return
+	}
+	// entityCacheConfigs maps subgraph name → entity type → config (CacheName, IncludeSubgraphHeaderPrefix).
+	// Without this mapping, we don't know which cache to delete from or how to build the key.
+	if l.entityCacheConfigs == nil || l.caches == nil {
+		return
+	}
+
+	// Extract the "keys" array from the cacheInvalidation object.
+	// Each entry has {"typename": "User", "key": {"id": "1"}}.
+	keysArray := cacheInvalidation.GetArray("keys")
+	if len(keysArray) == 0 {
+		return
+	}
+
+	// Look up the entity cache config for the responding subgraph.
+	// The subgraph that sent the invalidation signal is the same one whose entity configs we use,
+	// because in federation, the subgraph that caches an entity is the one that resolves it.
+	subgraphName := res.ds.Name
+	subgraphConfigs := l.entityCacheConfigs[subgraphName]
+	if subgraphConfigs == nil {
+		return
+	}
+
+	// Build set of L2 keys that updateL2Cache will set after this function returns.
+	// Deleting a key that's about to be re-set with fresh data is redundant.
+	keysAboutToBeSet := l.l2KeysAboutToBeSet(res)
+
+	// Group invalidation keys by cache name so we can batch-delete per cache instance.
+	type cacheDeleteBatch struct {
+		cache LoaderCache
+		keys  []string
+	}
+	batches := map[string]*cacheDeleteBatch{}
+
+	for _, entry := range keysArray {
+		// Skip malformed entries (must be JSON objects).
+		if entry == nil || entry.Type() != astjson.TypeObject {
+			continue
+		}
+
+		// Extract "typename" (string) and "key" (JSON object) from each invalidation entry.
+		typenameVal := entry.Get("typename")
+		keyVal := entry.Get("key")
+		if typenameVal == nil || keyVal == nil || keyVal.Type() != astjson.TypeObject {
+			continue
+		}
+		typename := string(typenameVal.GetStringBytes())
+		if typename == "" {
+			continue
+		}
+
+		// Look up the entity cache config for this typename from the responding subgraph.
+		// This tells us which cache instance to use and whether to apply header prefix.
+		// Unknown typenames are silently skipped — the subgraph may send invalidation
+		// for types that aren't configured for caching on this router.
+		entityConfig := subgraphConfigs[typename]
+		if entityConfig == nil {
+			continue
+		}
+
+		// Resolve the cache instance by name.
+		cache := l.caches[entityConfig.CacheName]
+		if cache == nil {
+			continue
+		}
+
+		// Build the base cache key JSON matching the format used during cache population:
+		// {"__typename":"User","key":{"id":"1"}}
+		// The "key" value is taken directly from the extensions — it's already a JSON object
+		// with the entity's @key field values.
+		keyObj := astjson.ObjectValue(l.jsonArena)
+		keyObj.Set(l.jsonArena, "__typename", astjson.StringValue(l.jsonArena, typename))
+		keyObj.Set(l.jsonArena, "key", keyVal)
+		baseKey := string(keyObj.MarshalTo(nil))
+		cacheKey := baseKey
+
+		// Apply subgraph header prefix if configured for this entity type.
+		// This mirrors prepareCacheKeys() which prefixes L2 keys with a hash of the
+		// HTTP headers sent to the subgraph, enabling per-tenant cache isolation.
+		// Result: "55555:{"__typename":"User","key":{"id":"1"}}"
+		if entityConfig.IncludeSubgraphHeaderPrefix && l.ctx.SubgraphHeadersBuilder != nil {
+			_, headersHash := l.ctx.SubgraphHeadersBuilder.HeadersForSubgraph(subgraphName)
+			var buf [20]byte
+			b := strconv.AppendUint(buf[:0], headersHash, 10)
+			cacheKey = string(b) + ":" + cacheKey
+		}
+
+		// Apply user-provided L2 cache key interceptor if set.
+		// This allows user-defined key transformations (e.g., tenant isolation prefixes)
+		// and mirrors the same interceptor applied during cache population.
+		if interceptor := l.ctx.ExecutionOptions.Caching.L2CacheKeyInterceptor; interceptor != nil {
+			cacheKey = interceptor(l.ctx.ctx, cacheKey, L2CacheKeyInterceptorInfo{
+				SubgraphName: subgraphName,
+				CacheName:    entityConfig.CacheName,
+			})
+		}
+
+		// Skip L2 delete if:
+		// - already deleted by detectMutationEntityImpact (deduplication)
+		// - about to be re-set by updateL2Cache (redundant delete before set)
+		if _, alreadyDone := deletedKeys[cacheKey]; alreadyDone {
+			continue
+		}
+		if _, aboutToBeSet := keysAboutToBeSet[cacheKey]; aboutToBeSet {
+			continue
+		}
+
+		// Accumulate the key into the batch for this cache name.
+		batch, ok := batches[entityConfig.CacheName]
+		if !ok {
+			batch = &cacheDeleteBatch{cache: cache}
+			batches[entityConfig.CacheName] = batch
+		}
+		batch.keys = append(batch.keys, cacheKey)
+	}
+
+	// Execute batched L2 cache deletes — one Delete call per cache instance.
+	for _, batch := range batches {
+		_ = batch.cache.Delete(l.ctx.ctx, batch.keys)
+	}
+}
+
+// l2KeysAboutToBeSet returns the set of L2 cache keys that updateL2Cache will store
+// after the current fetch. Returns nil if updateL2Cache won't run (e.g., mutations
+// without explicit L2 population, or no cache misses to populate).
+func (l *Loader) l2KeysAboutToBeSet(res *result) map[string]struct{} {
+	// updateL2Cache skips for mutations unless L2 population is explicitly enabled.
+	if l.info != nil && l.info.OperationType == ast.OperationTypeMutation &&
+		!l.enableMutationL2CachePopulation {
+		return nil
+	}
+	if res.cache == nil || !res.cacheMustBeUpdated {
+		return nil
+	}
+	keys := res.l2CacheKeys
+	if len(keys) == 0 {
+		keys = res.l1CacheKeys
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+	set := make(map[string]struct{}, len(keys))
+	for _, ck := range keys {
+		// Skip keys whose Item is nil — updateL2Cache won't store them
+		// (can happen if an entity failed to merge during batch processing).
+		if ck == nil || ck.Item == nil {
+			continue
+		}
+		for _, k := range ck.Keys {
+			set[k] = struct{}{}
+		}
+	}
+	return set
 }
 
 // navigateProvidesDataToField finds the Object within ProvidesData that corresponds
