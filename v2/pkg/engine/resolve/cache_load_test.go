@@ -2,6 +2,7 @@ package resolve
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -11,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/go-arena"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -1971,5 +1973,71 @@ func TestShadowMode_WithoutAnalytics(t *testing.T) {
 
 		// Empty: EnableCacheAnalytics not set, so no events or shadow comparisons collected
 		assert.Equal(t, CacheAnalyticsSnapshot{}, ctx2.GetCacheStats())
+	})
+}
+
+func TestWriteCanonicalJSON(t *testing.T) {
+	canonicalize := func(input string) string {
+		v, err := astjson.Parse(input)
+		require.NoError(t, err)
+		var buf strings.Builder
+		writeCanonicalJSON(&buf, v)
+		return buf.String()
+	}
+
+	t.Run("object keys sorted alphabetically", func(t *testing.T) {
+		assert.Equal(t, `{"a":1,"b":2,"c":3}`, canonicalize(`{"c":3,"a":1,"b":2}`))
+	})
+
+	t.Run("different key order produces same output", func(t *testing.T) {
+		out1 := canonicalize(`{"style":"FORMAL","formatting":{"uppercase":true}}`)
+		out2 := canonicalize(`{"formatting":{"uppercase":true},"style":"FORMAL"}`)
+		assert.Equal(t, out1, out2)
+		assert.Equal(t, `{"formatting":{"uppercase":true},"style":"FORMAL"}`, out1)
+	})
+
+	t.Run("nested objects sorted recursively", func(t *testing.T) {
+		out := canonicalize(`{"z":{"b":2,"a":1},"a":{"d":4,"c":3}}`)
+		assert.Equal(t, `{"a":{"c":3,"d":4},"z":{"a":1,"b":2}}`, out)
+	})
+
+	t.Run("array elements preserve order", func(t *testing.T) {
+		assert.Equal(t, `[3,1,2]`, canonicalize(`[3,1,2]`))
+	})
+
+	t.Run("array of objects sorted by keys", func(t *testing.T) {
+		out := canonicalize(`[{"b":2,"a":1},{"d":4,"c":3}]`)
+		assert.Equal(t, `[{"a":1,"b":2},{"c":3,"d":4}]`, out)
+	})
+
+	t.Run("empty object", func(t *testing.T) {
+		assert.Equal(t, `{}`, canonicalize(`{}`))
+	})
+
+	t.Run("empty array", func(t *testing.T) {
+		assert.Equal(t, `[]`, canonicalize(`[]`))
+	})
+
+	t.Run("scalar string", func(t *testing.T) {
+		assert.Equal(t, `"hello"`, canonicalize(`"hello"`))
+	})
+
+	t.Run("scalar number", func(t *testing.T) {
+		assert.Equal(t, `42`, canonicalize(`42`))
+	})
+
+	t.Run("scalar boolean", func(t *testing.T) {
+		assert.Equal(t, `true`, canonicalize(`true`))
+		assert.Equal(t, `false`, canonicalize(`false`))
+	})
+
+	t.Run("null", func(t *testing.T) {
+		assert.Equal(t, `null`, canonicalize(`null`))
+	})
+
+	t.Run("mixed nested structure", func(t *testing.T) {
+		input := `{"tags":["b","a"],"config":{"z":true,"a":false},"name":"test"}`
+		expected := `{"config":{"a":false,"z":true},"name":"test","tags":["b","a"]}`
+		assert.Equal(t, expected, canonicalize(input))
 	})
 }

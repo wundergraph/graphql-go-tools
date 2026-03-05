@@ -553,6 +553,23 @@ func (f *FakeLoaderCache) ClearLog() {
 	f.log = make([]CacheLogEntry, 0)
 }
 
+// Peek reads a single cache entry without logging. Use for inspecting cache content in tests
+// without polluting the operation log.
+func (f *FakeLoaderCache) Peek(key string) ([]byte, bool) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	entry, ok := f.storage[key]
+	if !ok {
+		return nil, false
+	}
+	if entry.expiresAt != nil && time.Now().After(*entry.expiresAt) {
+		return nil, false
+	}
+	cp := make([]byte, len(entry.data))
+	copy(cp, entry.data)
+	return cp, true
+}
+
 // TestFakeLoaderCache tests the cache implementation itself
 func TestFakeLoaderCache(t *testing.T) {
 	ctx := context.Background()

@@ -1308,6 +1308,15 @@ func (v *Visitor) trackFieldForPlanner(plannerID int, fieldRef int) {
 	if v.Operation.FieldAliasIsDefined(fieldRef) {
 		field.OriginalName = v.Operation.FieldNameBytes(fieldRef)
 	}
+	// Capture field arguments for cache suffix computation at resolve time.
+	// Skip root query fields (Query/Mutation/Subscription) — their args are already
+	// part of the cache key, and suffixing would break entity key mapping.
+	if v.Operation.FieldHasArguments(fieldRef) {
+		enclosingType := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
+		if !v.Definition.Index.IsRootOperationTypeNameString(enclosingType) {
+			field.CacheArgs = v.captureFieldCacheArgs(fieldRef)
+		}
+	}
 
 	// Add the field to the current object for this planner
 	if len(v.plannerCurrentFields[plannerID]) > 0 {
@@ -1335,6 +1344,36 @@ func (v *Visitor) trackFieldForPlanner(plannerID int, fieldRef int) {
 			return
 		}
 	}
+}
+
+// captureFieldCacheArgs extracts argument metadata from a field for cache suffix computation.
+// After normalization, all argument values are variable references (e.g., friends(first: $a)).
+// We capture the arg name and variable path so the resolve-time suffix can look up actual values.
+func (v *Visitor) captureFieldCacheArgs(fieldRef int) []resolve.CacheFieldArg {
+	argRefs := v.Operation.FieldArguments(fieldRef)
+	if len(argRefs) == 0 {
+		return nil
+	}
+	args := make([]resolve.CacheFieldArg, 0, len(argRefs))
+	for _, argRef := range argRefs {
+		argName := v.Operation.ArgumentNameString(argRef)
+		argValue := v.Operation.ArgumentValue(argRef)
+		if argValue.Kind == ast.ValueKindVariable {
+			variableName := v.Operation.VariableValueNameString(argValue.Ref)
+			args = append(args, resolve.CacheFieldArg{
+				ArgName:      argName,
+				VariableName: variableName,
+			})
+		}
+	}
+	if len(args) == 0 {
+		return nil
+	}
+	// Sort by ArgName for deterministic suffix
+	slices.SortFunc(args, func(a, b resolve.CacheFieldArg) int {
+		return cmp.Compare(a.ArgName, b.ArgName)
+	})
+	return args
 }
 
 func (v *Visitor) resolveEntityOnTypeNames(plannerID, fieldRef int, fieldName ast.ByteSlice) (onTypeNames [][]byte) {

@@ -42,6 +42,7 @@ type ResolverRoot interface {
 	Entity() EntityResolver
 	Mutation() MutationResolver
 	Query() QueryResolver
+	User() UserResolver
 }
 
 type DirectiveRoot struct {
@@ -173,12 +174,14 @@ type ComplexityRoot struct {
 	}
 
 	User struct {
-		History      func(childComplexity int) int
-		ID           func(childComplexity int) int
-		Nickname     func(childComplexity int) int
-		RealName     func(childComplexity int) int
-		RelatedUsers func(childComplexity int) int
-		Username     func(childComplexity int) int
+		CustomGreeting func(childComplexity int, input model.GreetingInput) int
+		Greeting       func(childComplexity int, style string) int
+		History        func(childComplexity int) int
+		ID             func(childComplexity int) int
+		Nickname       func(childComplexity int) int
+		RealName       func(childComplexity int) int
+		RelatedUsers   func(childComplexity int) int
+		Username       func(childComplexity int) int
 	}
 
 	WalletType1 struct {
@@ -220,6 +223,10 @@ type QueryResolver interface {
 	Cds(ctx context.Context) ([]model.Cd, error)
 	OtherInterfaces(ctx context.Context) ([]model.SomeInterface, error)
 	SomeNestedInterfaces(ctx context.Context) ([]model.SomeNestedInterface, error)
+}
+type UserResolver interface {
+	Greeting(ctx context.Context, obj *model.User, style string) (string, error)
+	CustomGreeting(ctx context.Context, obj *model.User, input model.GreetingInput) (string, error)
 }
 
 type executableSchema struct {
@@ -682,6 +689,30 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.TitleName.Title(childComplexity), true
 
+	case "User.customGreeting":
+		if e.complexity.User.CustomGreeting == nil {
+			break
+		}
+
+		args, err := ec.field_User_customGreeting_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.User.CustomGreeting(childComplexity, args["input"].(model.GreetingInput)), true
+
+	case "User.greeting":
+		if e.complexity.User.Greeting == nil {
+			break
+		}
+
+		args, err := ec.field_User_greeting_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.User.Greeting(childComplexity, args["style"].(string)), true
+
 	case "User.history":
 		if e.complexity.User.History == nil {
 			break
@@ -780,7 +811,10 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
 	ec := executionContext{opCtx, e, 0, 0, make(chan graphql.DeferredResult)}
-	inputUnmarshalMap := graphql.BuildUnmarshalerMap()
+	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputGreetingFormatting,
+		ec.unmarshalInputGreetingInput,
+	)
 	first := true
 
 	switch opCtx.Operation.Operation {
@@ -908,6 +942,22 @@ interface Identifiable {
     id: ID!
 }
 
+enum GreetingStyle {
+    FORMAL
+    CASUAL
+    SHORT
+}
+
+input GreetingFormatting {
+    uppercase: Boolean
+    prefix: String
+}
+
+input GreetingInput {
+    style: GreetingStyle!
+    formatting: GreetingFormatting
+}
+
 type User implements Identifiable @key(fields: "id")  {
     id: ID!
     username: String!
@@ -920,6 +970,8 @@ type User implements Identifiable @key(fields: "id")  {
     # 2. Then, relatedUsers returns other User IDs
     # 3. Those Users need entity resolution (second entity fetch) -> L1 HIT if same user!
     relatedUsers: [User!]!
+    greeting(style: String!): String!
+    customGreeting(input: GreetingInput!): String!
 }
 
 type Product @key(fields: "upc") {
@@ -1385,6 +1437,62 @@ func (ec *executionContext) field_Query_user_argsID(
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
 	if tmp, ok := rawArgs["id"]; ok {
 		return ec.unmarshalNID2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_User_customGreeting_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_User_customGreeting_argsInput(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_User_customGreeting_argsInput(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (model.GreetingInput, error) {
+	if _, ok := rawArgs["input"]; !ok {
+		var zeroVal model.GreetingInput
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+	if tmp, ok := rawArgs["input"]; ok {
+		return ec.unmarshalNGreetingInput2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐGreetingInput(ctx, tmp)
+	}
+
+	var zeroVal model.GreetingInput
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_User_greeting_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_User_greeting_argsStyle(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["style"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_User_greeting_argsStyle(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	if _, ok := rawArgs["style"]; !ok {
+		var zeroVal string
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("style"))
+	if tmp, ok := rawArgs["style"]; ok {
+		return ec.unmarshalNString2string(ctx, tmp)
 	}
 
 	var zeroVal string
@@ -2207,6 +2315,10 @@ func (ec *executionContext) fieldContext_Entity_findUserByID(ctx context.Context
 				return ec.fieldContext_User_realName(ctx, field)
 			case "relatedUsers":
 				return ec.fieldContext_User_relatedUsers(ctx, field)
+			case "greeting":
+				return ec.fieldContext_User_greeting(ctx, field)
+			case "customGreeting":
+				return ec.fieldContext_User_customGreeting(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type User", field.Name)
 		},
@@ -2268,12 +2380,18 @@ func (ec *executionContext) fieldContext_Mutation_updateUsername(ctx context.Con
 				return ec.fieldContext_User_id(ctx, field)
 			case "username":
 				return ec.fieldContext_User_username(ctx, field)
+			case "nickname":
+				return ec.fieldContext_User_nickname(ctx, field)
 			case "history":
 				return ec.fieldContext_User_history(ctx, field)
 			case "realName":
 				return ec.fieldContext_User_realName(ctx, field)
 			case "relatedUsers":
 				return ec.fieldContext_User_relatedUsers(ctx, field)
+			case "greeting":
+				return ec.fieldContext_User_greeting(ctx, field)
+			case "customGreeting":
+				return ec.fieldContext_User_customGreeting(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type User", field.Name)
 		},
@@ -2517,6 +2635,10 @@ func (ec *executionContext) fieldContext_Query_me(_ context.Context, field graph
 				return ec.fieldContext_User_realName(ctx, field)
 			case "relatedUsers":
 				return ec.fieldContext_User_relatedUsers(ctx, field)
+			case "greeting":
+				return ec.fieldContext_User_greeting(ctx, field)
+			case "customGreeting":
+				return ec.fieldContext_User_customGreeting(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type User", field.Name)
 		},
@@ -2572,6 +2694,10 @@ func (ec *executionContext) fieldContext_Query_user(ctx context.Context, field g
 				return ec.fieldContext_User_realName(ctx, field)
 			case "relatedUsers":
 				return ec.fieldContext_User_relatedUsers(ctx, field)
+			case "greeting":
+				return ec.fieldContext_User_greeting(ctx, field)
+			case "customGreeting":
+				return ec.fieldContext_User_customGreeting(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type User", field.Name)
 		},
@@ -2638,6 +2764,10 @@ func (ec *executionContext) fieldContext_Query_userByIdAndName(ctx context.Conte
 				return ec.fieldContext_User_realName(ctx, field)
 			case "relatedUsers":
 				return ec.fieldContext_User_relatedUsers(ctx, field)
+			case "greeting":
+				return ec.fieldContext_User_greeting(ctx, field)
+			case "customGreeting":
+				return ec.fieldContext_User_customGreeting(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type User", field.Name)
 		},
@@ -4629,9 +4759,123 @@ func (ec *executionContext) fieldContext_User_relatedUsers(_ context.Context, fi
 				return ec.fieldContext_User_realName(ctx, field)
 			case "relatedUsers":
 				return ec.fieldContext_User_relatedUsers(ctx, field)
+			case "greeting":
+				return ec.fieldContext_User_greeting(ctx, field)
+			case "customGreeting":
+				return ec.fieldContext_User_customGreeting(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type User", field.Name)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _User_greeting(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_User_greeting(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.User().Greeting(rctx, obj, fc.Args["style"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_User_greeting(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "User",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_User_greeting_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _User_customGreeting(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_User_customGreeting(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.User().CustomGreeting(rctx, obj, fc.Args["input"].(model.GreetingInput))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_User_customGreeting(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "User",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_User_customGreeting_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -6892,6 +7136,74 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputGreetingFormatting(ctx context.Context, obj any) (model.GreetingFormatting, error) {
+	var it model.GreetingFormatting
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"uppercase", "prefix"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "uppercase":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("uppercase"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Uppercase = data
+		case "prefix":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("prefix"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Prefix = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputGreetingInput(ctx context.Context, obj any) (model.GreetingInput, error) {
+	var it model.GreetingInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"style", "formatting"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "style":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("style"))
+			data, err := ec.unmarshalNGreetingStyle2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐGreetingStyle(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Style = data
+		case "formatting":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("formatting"))
+			data, err := ec.unmarshalOGreetingFormatting2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐGreetingFormatting(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Formatting = data
+		}
+	}
+
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -8612,33 +8924,105 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 		case "id":
 			out.Values[i] = ec._User_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "username":
 			out.Values[i] = ec._User_username(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "nickname":
 			out.Values[i] = ec._User_nickname(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "history":
 			out.Values[i] = ec._User_history(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "realName":
 			out.Values[i] = ec._User_realName(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "relatedUsers":
 			out.Values[i] = ec._User_relatedUsers(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "greeting":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._User_greeting(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "customGreeting":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._User_customGreeting(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -9175,6 +9559,21 @@ func (ec *executionContext) marshalNFloat2float64(ctx context.Context, sel ast.S
 		}
 	}
 	return graphql.WrapContextMarshaler(ctx, res)
+}
+
+func (ec *executionContext) unmarshalNGreetingInput2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐGreetingInput(ctx context.Context, v any) (model.GreetingInput, error) {
+	res, err := ec.unmarshalInputGreetingInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNGreetingStyle2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐGreetingStyle(ctx context.Context, v any) (model.GreetingStyle, error) {
+	var res model.GreetingStyle
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNGreetingStyle2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐGreetingStyle(ctx context.Context, sel ast.SelectionSet, v model.GreetingStyle) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) marshalNHistory2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐHistory(ctx context.Context, sel ast.SelectionSet, v model.History) graphql.Marshaler {
@@ -9915,6 +10314,14 @@ func (ec *executionContext) marshalOCat2ᚖgithubᚗcomᚋwundergraphᚋgraphql�
 		return graphql.Null
 	}
 	return ec._Cat(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOGreetingFormatting2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐGreetingFormatting(ctx context.Context, v any) (*model.GreetingFormatting, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputGreetingFormatting(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalOHistory2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐHistory(ctx context.Context, sel ast.SelectionSet, v model.History) graphql.Marshaler {
