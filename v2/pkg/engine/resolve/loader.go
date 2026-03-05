@@ -932,9 +932,12 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 // cleared first. If the current response also provides data for an invalidated entity,
 // populateL1Cache/updateL2Cache will re-cache it with the fresh data from this response.
 func (l *Loader) populateCachesAfterFetch(fetchItem *FetchItem, res *result, items []*astjson.Value, responseData *astjson.Value, cacheInvalidation *astjson.Value) {
-	l.compareShadowValues(res, getFetchInfo(fetchItem.Fetch))
-	l.detectMutationEntityImpact(res, getFetchInfo(fetchItem.Fetch), responseData)
-	l.processExtensionsCacheInvalidation(res, cacheInvalidation)
+	info := getFetchInfo(fetchItem.Fetch)
+	l.compareShadowValues(res, info)
+	// detectMutationEntityImpact returns the set of L2 keys it deleted (nil for non-mutations)
+	// so processExtensionsCacheInvalidation can skip duplicates.
+	deletedKeys := l.detectMutationEntityImpact(res, info, responseData)
+	l.processExtensionsCacheInvalidation(res, cacheInvalidation, deletedKeys)
 	l.populateL1Cache(fetchItem, res, items)
 	l.updateL2Cache(res)
 }

@@ -3,7 +3,6 @@ package resolve
 import (
 	"context"
 	"net/http"
-	"slices"
 	"testing"
 	"time"
 
@@ -175,24 +174,30 @@ func runLoader(t *testing.T, loader *Loader, ctx *Context, response *GraphQLResp
 	return fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
 }
 
+// setEntityFetchHeaderPrefix modifies the entity fetch's FetchCacheConfiguration
+// to enable or disable IncludeSubgraphHeaderPrefix. This must match the EntityCacheInvalidationConfig
+// setting for the delete-before-set optimization to correctly compare L2 keys.
+func setEntityFetchHeaderPrefix(response *GraphQLResponse, enabled bool) {
+	entityFetch := response.Fetches.ChildNodes[1].Item.Fetch.(*SingleFetch)
+	entityFetch.Caching.IncludeSubgraphHeaderPrefix = enabled
+}
+
 func TestExtensionsCacheInvalidation(t *testing.T) {
-	t.Run("single entity invalidation", func(t *testing.T) {
+	t.Run("single entity invalidation - same entity skipped", func(t *testing.T) {
+		// Invalidation targets User:1 which is the same entity being fetched.
+		// Since updateL2Cache will set User:1 with fresh data, the delete is redundant and skipped.
 		entityResponse := `{"data":{"_entities":[{"__typename":"User","id":"1","username":"Alice"}]},"extensions":{"cacheInvalidation":{"keys":[{"typename":"User","key":{"id":"1"}}]}}}`
 		loader, ctx, response, cache := setupExtInvalidationTest(t, entityResponse, 1)
 
 		_ = runLoader(t, loader, ctx, response)
 
-		var deleteKeys []string
 		for _, entry := range cache.GetLog() {
-			if entry.Operation == "delete" {
-				deleteKeys = append(deleteKeys, entry.Keys...)
-			}
+			assert.NotEqual(t, "delete", entry.Operation, "delete should be skipped when same key is about to be set")
 		}
-		require.Len(t, deleteKeys, 1, "should have exactly 1 delete call")
-		assert.Equal(t, `{"__typename":"User","key":{"id":"1"}}`, deleteKeys[0])
 	})
 
-	t.Run("multiple entity invalidation", func(t *testing.T) {
+	t.Run("multiple entity invalidation - only different entity deleted", func(t *testing.T) {
+		// Invalidation targets User:1 (same as fetched, skipped) and User:2 (different, deleted).
 		entityResponse := `{"data":{"_entities":[{"__typename":"User","id":"1","username":"Alice"}]},"extensions":{"cacheInvalidation":{"keys":[{"typename":"User","key":{"id":"1"}},{"typename":"User","key":{"id":"2"}}]}}}`
 		loader, ctx, response, cache := setupExtInvalidationTest(t, entityResponse, 1)
 
@@ -204,15 +209,12 @@ func TestExtensionsCacheInvalidation(t *testing.T) {
 				deleteKeys = append(deleteKeys, entry.Keys...)
 			}
 		}
-		require.Len(t, deleteKeys, 2, "should have exactly 2 delete keys")
-		slices.Sort(deleteKeys)
-		assert.Equal(t, []string{
-			`{"__typename":"User","key":{"id":"1"}}`,
-			`{"__typename":"User","key":{"id":"2"}}`,
-		}, deleteKeys)
+		require.Len(t, deleteKeys, 1, "only User:2 should be deleted (User:1 skipped — about to be set)")
+		assert.Equal(t, `{"__typename":"User","key":{"id":"2"}}`, deleteKeys[0])
 	})
 
-	t.Run("with subgraph header prefix", func(t *testing.T) {
+	t.Run("with subgraph header prefix - same entity skipped", func(t *testing.T) {
+		// Same entity fetched and invalidated — delete skipped even with header prefix.
 		entityResponse := `{"data":{"_entities":[{"__typename":"User","id":"1","username":"Alice"}]},"extensions":{"cacheInvalidation":{"keys":[{"typename":"User","key":{"id":"1"}}]}}}`
 
 		loader, ctx, response, cache := setupExtInvalidationTest(t, entityResponse, 1, func(l *Loader, c *Context) {
@@ -222,19 +224,18 @@ func TestExtensionsCacheInvalidation(t *testing.T) {
 			}
 		})
 
+		// Also enable prefix on the fetch caching config so L2 store keys match invalidation keys.
+		setEntityFetchHeaderPrefix(response, true)
+
 		_ = runLoader(t, loader, ctx, response)
 
-		var deleteKeys []string
 		for _, entry := range cache.GetLog() {
-			if entry.Operation == "delete" {
-				deleteKeys = append(deleteKeys, entry.Keys...)
-			}
+			assert.NotEqual(t, "delete", entry.Operation, "delete should be skipped when same key is about to be set")
 		}
-		require.Len(t, deleteKeys, 1, "should have exactly 1 delete key")
-		assert.Equal(t, `33333:{"__typename":"User","key":{"id":"1"}}`, deleteKeys[0])
 	})
 
-	t.Run("with L2CacheKeyInterceptor", func(t *testing.T) {
+	t.Run("with L2CacheKeyInterceptor - same entity skipped", func(t *testing.T) {
+		// Same entity fetched and invalidated — delete skipped even with interceptor.
 		entityResponse := `{"data":{"_entities":[{"__typename":"User","id":"1","username":"Alice"}]},"extensions":{"cacheInvalidation":{"keys":[{"typename":"User","key":{"id":"1"}}]}}}`
 
 		loader, ctx, response, cache := setupExtInvalidationTest(t, entityResponse, 1, func(_ *Loader, c *Context) {
@@ -245,17 +246,13 @@ func TestExtensionsCacheInvalidation(t *testing.T) {
 
 		_ = runLoader(t, loader, ctx, response)
 
-		var deleteKeys []string
 		for _, entry := range cache.GetLog() {
-			if entry.Operation == "delete" {
-				deleteKeys = append(deleteKeys, entry.Keys...)
-			}
+			assert.NotEqual(t, "delete", entry.Operation, "delete should be skipped when same key is about to be set")
 		}
-		require.Len(t, deleteKeys, 1, "should have exactly 1 delete key")
-		assert.Equal(t, `tenant-X:{"__typename":"User","key":{"id":"1"}}`, deleteKeys[0])
 	})
 
-	t.Run("with both prefix and interceptor", func(t *testing.T) {
+	t.Run("with both prefix and interceptor - same entity skipped", func(t *testing.T) {
+		// Same entity fetched and invalidated — delete skipped even with both transforms.
 		entityResponse := `{"data":{"_entities":[{"__typename":"User","id":"1","username":"Alice"}]},"extensions":{"cacheInvalidation":{"keys":[{"typename":"User","key":{"id":"1"}}]}}}`
 
 		loader, ctx, response, cache := setupExtInvalidationTest(t, entityResponse, 1, func(l *Loader, c *Context) {
@@ -268,36 +265,29 @@ func TestExtensionsCacheInvalidation(t *testing.T) {
 			}
 		})
 
+		// Also enable prefix on the fetch caching config so L2 store keys match invalidation keys.
+		setEntityFetchHeaderPrefix(response, true)
+
 		_ = runLoader(t, loader, ctx, response)
 
-		var deleteKeys []string
 		for _, entry := range cache.GetLog() {
-			if entry.Operation == "delete" {
-				deleteKeys = append(deleteKeys, entry.Keys...)
-			}
+			assert.NotEqual(t, "delete", entry.Operation, "delete should be skipped when same key is about to be set")
 		}
-		require.Len(t, deleteKeys, 1, "should have exactly 1 delete key")
-		// prefix applied first, then interceptor wraps it
-		assert.Equal(t, `tenant-X:33333:{"__typename":"User","key":{"id":"1"}}`, deleteKeys[0])
 	})
 
-	t.Run("query response with invalidation", func(t *testing.T) {
-		// The entity response is from a query (not mutation), but includes invalidation.
+	t.Run("query response with invalidation - same entity skipped", func(t *testing.T) {
+		// Query response invalidates User:1 which is the same entity being fetched and set.
+		// Delete is skipped because updateL2Cache will set the same key with fresh data.
 		entityResponse := `{"data":{"_entities":[{"__typename":"User","id":"1","username":"Alice"}]},"extensions":{"cacheInvalidation":{"keys":[{"typename":"User","key":{"id":"1"}}]}}}`
 		loader, ctx, response, cache := setupExtInvalidationTest(t, entityResponse, 1)
 
-		// Verify it's a query
 		assert.Equal(t, ast.OperationTypeQuery, response.Info.OperationType)
 
 		_ = runLoader(t, loader, ctx, response)
 
-		var deleteCount int
 		for _, entry := range cache.GetLog() {
-			if entry.Operation == "delete" {
-				deleteCount++
-			}
+			assert.NotEqual(t, "delete", entry.Operation, "delete should be skipped when same key is about to be set")
 		}
-		assert.Equal(t, 1, deleteCount, "query response should also trigger cache invalidation")
 	})
 
 	t.Run("no extensions in response", func(t *testing.T) {

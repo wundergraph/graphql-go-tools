@@ -500,10 +500,9 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		interceptor.ClearModifier()
 
 		wantMutation := []CacheLogEntry{
-			{Operation: "delete", Keys: []string{userKey}}, // From detectMutationEntityImpact
-			{Operation: "delete", Keys: []string{userKey}}, // From extensions-based invalidation
+			{Operation: "delete", Keys: []string{userKey}}, // From detectMutationEntityImpact (extensions-based skipped: same key already deleted)
 		}
-		assert.Equal(t, sortCacheLogKeys(wantMutation), sortCacheLogKeys(defaultCache.GetLog()), "Mutation cache log — both mechanisms fire")
+		assert.Equal(t, sortCacheLogKeys(wantMutation), sortCacheLogKeys(defaultCache.GetLog()), "Mutation cache log — deduplicated to single delete")
 
 		// Cache should be invalidated — query should re-fetch.
 		tracker.Reset()
@@ -578,13 +577,13 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		assert.Equal(t, 1, tracker.GetCount(accountsHost), "Step 3: should call accounts (cache cleared)")
 		interceptor.ClearModifier()
 
-		// The query triggers: L2 miss → fetch → extensions delete → L2 set (re-populate)
+		// The query triggers: L2 miss → fetch → L2 set (re-populate)
+		// Extensions-based delete is skipped because updateL2Cache will set the same key with fresh data.
 		wantStep3 := []CacheLogEntry{
 			{Operation: "get", Keys: []string{userKey}, Hits: []bool{false}}, // L2 miss because we manually deleted it
-			{Operation: "delete", Keys: []string{userKey}},                   // Extensions-based invalidation from query response
 			{Operation: "set", Keys: []string{userKey}},                      // Re-populate L2 after fetch
 		}
-		assert.Equal(t, sortCacheLogKeys(wantStep3), sortCacheLogKeys(defaultCache.GetLog()), "Step 3 cache log — query triggers delete")
+		assert.Equal(t, sortCacheLogKeys(wantStep3), sortCacheLogKeys(defaultCache.GetLog()), "Step 3 cache log — delete skipped, key re-set")
 	})
 
 	t.Run("with subgraph header prefix", func(t *testing.T) {
