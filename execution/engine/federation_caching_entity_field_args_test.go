@@ -1055,6 +1055,17 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 			`{"username":"Me","greeting_1dc2e714f80c47e8":"Good day, Me","__typename":"User"}`,
 			peekCache(t, s, `{"__typename":"User","key":{"id":"1234"}}`))
 
+		logAfterFirst := s.defaultCache.GetLog()
+		wantLogFirst := []CacheLogEntry{
+			// All misses on first request - L2 empty
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{false}},
+			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}},
+			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{false, false}},
+			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}},
+			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{false}},
+			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "Request 1: all misses, populate cache")
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Request 1 should call accounts once")
 
 		// Request 2: greeting(style: "casual") → L2 validation fails → fetch → merge-store
@@ -1079,6 +1090,16 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 			`{"username":"Me","greeting_1dc2e714f80c47e8":"Good day, Me","__typename":"User","greeting_e4956d127c0d173e":"Hey, Me!"}`,
 			peekCache(t, s, `{"__typename":"User","key":{"id":"1234"}}`))
 
+		logAfterSecond := s.defaultCache.GetLog()
+		wantLogSecond := []CacheLogEntry{
+			// topProducts and Products - HIT (populated by Request 1)
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
+			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
+			// User entity - L2 returns data (HIT) but Loader rejects it (missing casual field) → re-fetch + merge → SET
+			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
+			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Request 2: User entity found but missing casual field → re-fetch + merge")
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Request 2 should call accounts once (casual variant missing)")
 
 		// Request 3: greeting(style: "formal") again → L2 HIT (formal variant exists in merged entity)
@@ -1170,6 +1191,17 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 			`{"username":"Me","greeting_1dc2e714f80c47e8":"Good day, Me","__typename":"User"}`,
 			peekCache(t, s, `{"__typename":"User","key":{"id":"1234"}}`))
 
+		logAfterFirst := s.defaultCache.GetLog()
+		wantLogFirst := []CacheLogEntry{
+			// All misses on first request - L2 empty
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{false}},
+			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}},
+			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{false, false}},
+			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}},
+			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{false}},
+			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "Request 1: all misses, populate cache")
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Request 1 should call accounts once")
 
 		// Request 2: greeting(style: "casual") → L2 validation fails → fetch → merge-store
@@ -1185,6 +1217,16 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 			`{"username":"Me","greeting_1dc2e714f80c47e8":"Good day, Me","__typename":"User","greeting_e4956d127c0d173e":"Hey, Me!"}`,
 			peekCache(t, s, `{"__typename":"User","key":{"id":"1234"}}`))
 
+		logAfterSecond := s.defaultCache.GetLog()
+		wantLogSecond := []CacheLogEntry{
+			// topProducts and Products - HIT (populated by Request 1)
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
+			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
+			// User entity - L2 returns data (HIT) but Loader rejects it (missing casual field) → re-fetch + merge → SET
+			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
+			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Request 2: User entity found but missing casual field → re-fetch + merge")
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Request 2 should call accounts once (casual variant missing)")
 
 		// Request 3: combined alias query with both variants → L2 HIT (both variants exist in merged entity)
@@ -1275,6 +1317,17 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 			`{"__typename":"User","id":"1234","username":"Me"}`,
 			peekCache(t, s, `{"__typename":"User","key":{"id":"1234"}}`))
 
+		logAfterFirst := s.defaultCache.GetLog()
+		wantLogFirst := []CacheLogEntry{
+			// All misses on first request - L2 empty
+			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{false}},
+			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}},
+			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{false, false}},
+			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}},
+			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{false}},
+			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "Request 1: all misses, populate cache")
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Request 1 should call accounts once")
 
 		// Request 2: username + nickname → L2 validation fails (missing nickname) → fetch → merge-store
