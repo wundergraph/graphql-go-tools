@@ -1786,3 +1786,332 @@ func TestFederationCachingAliases(t *testing.T) {
 		assert.Equal(t, 1, accountsCalls, "Should call accounts once (second alias L1 hit for same User entity)")
 	})
 }
+
+func TestHeaderImpactAnalyticsE2E(t *testing.T) {
+	t.Run("shadow mode with header prefix - same response different headers", func(t *testing.T) {
+		mockHeaders := &headerForwardingMock{
+			headers: map[string]http.Header{
+				"products": {"Authorization": {"Bearer token-A"}},
+				"reviews":  {"Authorization": {"Bearer token-A"}},
+				"accounts": {"Authorization": {"Bearer token-A"}},
+			},
+		}
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(map[string]resolve.LoaderCache{"default": NewFakeLoaderCache()}),
+			withHTTPClient(&http.Client{Transport: tracker}),
+			withSubgraphHeadersBuilder(mockHeaders),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true, EnableCacheAnalytics: true}),
+			withSubgraphEntityCachingConfigs(engine.SubgraphCachingConfigs{
+				{
+					SubgraphName: "products",
+					RootFieldCaching: plan.RootFieldCacheConfigurations{
+						{TypeName: "Query", FieldName: "topProducts", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: true, ShadowMode: true},
+					},
+				},
+				{
+					SubgraphName: "reviews",
+					EntityCaching: plan.EntityCacheConfigurations{
+						{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: true, ShadowMode: true},
+					},
+				},
+				{
+					SubgraphName: "accounts",
+					EntityCaching: plan.EntityCacheConfigurations{
+						{TypeName: "User", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: true, ShadowMode: true},
+					},
+				},
+			}),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// Request 1: L2 miss → fetch → write with token-A header hash prefix
+		tracker.Reset()
+		resp, headers := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL,
+			`query { topProducts { name reviews { body authorWithoutProvides { username } } } }`, nil, t)
+		assert.Equal(t,
+			`{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`,
+			string(resp))
+
+		snap1 := normalizeSnapshot(parseCacheAnalytics(t, headers))
+
+		// Capture response hashes from first request (deterministic subgraph responses)
+		responseHashes := make(map[string]uint64, len(snap1.HeaderImpactEvents))
+		for _, ev := range snap1.HeaderImpactEvents {
+			responseHashes[ev.BaseKey] = ev.ResponseHash
+		}
+
+		assert.Equal(t, normalizeSnapshot(resolve.CacheAnalyticsSnapshot{
+			L2Reads: []resolve.CacheKeyEvent{
+				{CacheKey: `{"__typename":"Product","key":{"upc":"top-1"}}`, EntityType: "Product", Kind: resolve.CacheKeyMiss, DataSource: "reviews", Shadow: true}, // Shadow L2 miss: cache empty
+				{CacheKey: `{"__typename":"Product","key":{"upc":"top-2"}}`, EntityType: "Product", Kind: resolve.CacheKeyMiss, DataSource: "reviews", Shadow: true}, // Shadow L2 miss: cache empty
+				{CacheKey: `{"__typename":"Query","field":"topProducts"}`, EntityType: "Query", Kind: resolve.CacheKeyMiss, DataSource: "products", Shadow: false},    // L2 miss: shadow mode not implemented for root fields
+				{CacheKey: `{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", Kind: resolve.CacheKeyMiss, DataSource: "accounts", Shadow: true},         // Shadow L2 miss: User not yet cached
+			},
+			L2Writes: []resolve.CacheWriteEvent{
+				{CacheKey: `11945571715631340836:{"__typename":"Product","key":{"upc":"top-1"}}`, EntityType: "Product", ByteSize: 177, DataSource: "reviews", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
+				{CacheKey: `11945571715631340836:{"__typename":"Product","key":{"upc":"top-2"}}`, EntityType: "Product", ByteSize: 233, DataSource: "reviews", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
+				{CacheKey: `11945571715631340836:{"__typename":"Query","field":"topProducts"}`, EntityType: "Query", ByteSize: 127, DataSource: "products", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
+				{CacheKey: `11945571715631340836:{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", ByteSize: 49, DataSource: "accounts", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
+			},
+			FieldHashes: []resolve.EntityFieldHash{
+				{EntityType: "Product", FieldName: "name", FieldHash: 1032923585965781586, KeyRaw: `{"upc":"top-1"}`, Source: resolve.FieldSourceSubgraph},
+				{EntityType: "Product", FieldName: "name", FieldHash: 2432227032303632641, KeyRaw: `{"upc":"top-2"}`, Source: resolve.FieldSourceSubgraph},
+				{EntityType: "User", FieldName: "username", FieldHash: 4957449860898447395, KeyRaw: `{"id":"1234"}`, Source: resolve.FieldSourceSubgraph},
+				{EntityType: "User", FieldName: "username", FieldHash: 4957449860898447395, KeyRaw: `{"id":"1234"}`, Source: resolve.FieldSourceSubgraph},
+			},
+			EntityTypes: []resolve.EntityTypeInfo{
+				{TypeName: "Product", Count: 2, UniqueKeys: 2},
+				{TypeName: "User", Count: 2, UniqueKeys: 1},
+			},
+			HeaderImpactEvents: []resolve.HeaderImpactEvent{
+				// Authorization: Bearer token-A → header hash 11945571715631340836
+				{BaseKey: `{"__typename":"Product","key":{"upc":"top-1"}}`, HeaderHash: 11945571715631340836, ResponseHash: responseHashes[`{"__typename":"Product","key":{"upc":"top-1"}}`], EntityType: "Product", DataSource: "reviews"},
+				{BaseKey: `{"__typename":"Product","key":{"upc":"top-2"}}`, HeaderHash: 11945571715631340836, ResponseHash: responseHashes[`{"__typename":"Product","key":{"upc":"top-2"}}`], EntityType: "Product", DataSource: "reviews"},
+				{BaseKey: `{"__typename":"Query","field":"topProducts"}`, HeaderHash: 11945571715631340836, ResponseHash: responseHashes[`{"__typename":"Query","field":"topProducts"}`], EntityType: "Query", DataSource: "products"},
+				{BaseKey: `{"__typename":"User","key":{"id":"1234"}}`, HeaderHash: 11945571715631340836, ResponseHash: responseHashes[`{"__typename":"User","key":{"id":"1234"}}`], EntityType: "User", DataSource: "accounts"},
+			},
+		}), snap1)
+
+		// Request 2: Switch to token-B headers (actually different headers forwarded to subgraphs)
+		mockHeaders.setAll(http.Header{"Authorization": {"Bearer token-B"}})
+
+		tracker.Reset()
+		resp, headers = gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL,
+			`query { topProducts { name reviews { body authorWithoutProvides { username } } } }`, nil, t)
+		assert.Equal(t,
+			`{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`,
+			string(resp))
+
+		snap2 := normalizeSnapshot(parseCacheAnalytics(t, headers))
+
+		// Key insight: different headers (token-B) → SAME ResponseHash → headers are irrelevant
+		assert.Equal(t, normalizeSnapshot(resolve.CacheAnalyticsSnapshot{
+			L2Reads: []resolve.CacheKeyEvent{
+				{CacheKey: `{"__typename":"Product","key":{"upc":"top-1"}}`, EntityType: "Product", Kind: resolve.CacheKeyMiss, DataSource: "reviews", Shadow: true}, // token-B prefix not in cache
+				{CacheKey: `{"__typename":"Product","key":{"upc":"top-2"}}`, EntityType: "Product", Kind: resolve.CacheKeyMiss, DataSource: "reviews", Shadow: true}, // token-B prefix not in cache
+				{CacheKey: `{"__typename":"Query","field":"topProducts"}`, EntityType: "Query", Kind: resolve.CacheKeyMiss, DataSource: "products", Shadow: false},    // shadow mode not implemented for root fields
+				{CacheKey: `{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", Kind: resolve.CacheKeyMiss, DataSource: "accounts", Shadow: true},         // token-B prefix not in cache
+			},
+			L2Writes: []resolve.CacheWriteEvent{
+				{CacheKey: `4753115417090238877:{"__typename":"Product","key":{"upc":"top-1"}}`, EntityType: "Product", ByteSize: 177, DataSource: "reviews", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
+				{CacheKey: `4753115417090238877:{"__typename":"Product","key":{"upc":"top-2"}}`, EntityType: "Product", ByteSize: 233, DataSource: "reviews", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
+				{CacheKey: `4753115417090238877:{"__typename":"Query","field":"topProducts"}`, EntityType: "Query", ByteSize: 127, DataSource: "products", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
+				{CacheKey: `4753115417090238877:{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", ByteSize: 49, DataSource: "accounts", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
+			},
+			FieldHashes: []resolve.EntityFieldHash{
+				{EntityType: "Product", FieldName: "name", FieldHash: 1032923585965781586, KeyRaw: `{"upc":"top-1"}`, Source: resolve.FieldSourceSubgraph},
+				{EntityType: "Product", FieldName: "name", FieldHash: 2432227032303632641, KeyRaw: `{"upc":"top-2"}`, Source: resolve.FieldSourceSubgraph},
+				{EntityType: "User", FieldName: "username", FieldHash: 4957449860898447395, KeyRaw: `{"id":"1234"}`, Source: resolve.FieldSourceSubgraph},
+				{EntityType: "User", FieldName: "username", FieldHash: 4957449860898447395, KeyRaw: `{"id":"1234"}`, Source: resolve.FieldSourceSubgraph},
+			},
+			EntityTypes: []resolve.EntityTypeInfo{
+				{TypeName: "Product", Count: 2, UniqueKeys: 2},
+				{TypeName: "User", Count: 2, UniqueKeys: 1},
+			},
+			HeaderImpactEvents: []resolve.HeaderImpactEvent{
+				// Authorization: Bearer token-B → header hash 4753115417090238877; SAME ResponseHash → headers irrelevant
+				{BaseKey: `{"__typename":"Product","key":{"upc":"top-1"}}`, HeaderHash: 4753115417090238877, ResponseHash: responseHashes[`{"__typename":"Product","key":{"upc":"top-1"}}`], EntityType: "Product", DataSource: "reviews"},
+				{BaseKey: `{"__typename":"Product","key":{"upc":"top-2"}}`, HeaderHash: 4753115417090238877, ResponseHash: responseHashes[`{"__typename":"Product","key":{"upc":"top-2"}}`], EntityType: "Product", DataSource: "reviews"},
+				{BaseKey: `{"__typename":"Query","field":"topProducts"}`, HeaderHash: 4753115417090238877, ResponseHash: responseHashes[`{"__typename":"Query","field":"topProducts"}`], EntityType: "Query", DataSource: "products"},
+				{BaseKey: `{"__typename":"User","key":{"id":"1234"}}`, HeaderHash: 4753115417090238877, ResponseHash: responseHashes[`{"__typename":"User","key":{"id":"1234"}}`], EntityType: "User", DataSource: "accounts"},
+			},
+		}), snap2)
+	})
+
+	t.Run("non-shadow mode - events on L2 miss, no events on L2 hit", func(t *testing.T) {
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(map[string]resolve.LoaderCache{"default": NewFakeLoaderCache()}),
+			withHTTPClient(&http.Client{Transport: tracker}),
+			withSubgraphHeadersBuilder(&headerForwardingMock{
+				headers: map[string]http.Header{
+					"products": {"Authorization": {"Bearer token-A"}},
+					"reviews":  {"Authorization": {"Bearer token-A"}},
+					"accounts": {"Authorization": {"Bearer token-A"}},
+				},
+			}),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true, EnableCacheAnalytics: true}),
+			withSubgraphEntityCachingConfigs(engine.SubgraphCachingConfigs{
+				{
+					SubgraphName: "products",
+					RootFieldCaching: plan.RootFieldCacheConfigurations{
+						{TypeName: "Query", FieldName: "topProducts", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: true},
+					},
+				},
+				{
+					SubgraphName: "reviews",
+					EntityCaching: plan.EntityCacheConfigurations{
+						{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: true},
+					},
+				},
+				{
+					SubgraphName: "accounts",
+					EntityCaching: plan.EntityCacheConfigurations{
+						{TypeName: "User", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: true},
+					},
+				},
+			}),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// Request 1: L2 miss → fetch → HeaderImpactEvents recorded
+		tracker.Reset()
+		resp, headers := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL,
+			`query { topProducts { name reviews { body authorWithoutProvides { username } } } }`, nil, t)
+		assert.Equal(t,
+			`{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`,
+			string(resp))
+
+		snap1 := normalizeSnapshot(parseCacheAnalytics(t, headers))
+
+		// Capture response hashes (deterministic)
+		responseHashes := make(map[string]uint64, len(snap1.HeaderImpactEvents))
+		for _, ev := range snap1.HeaderImpactEvents {
+			responseHashes[ev.BaseKey] = ev.ResponseHash
+		}
+
+		assert.Equal(t, normalizeSnapshot(resolve.CacheAnalyticsSnapshot{
+			L2Reads: []resolve.CacheKeyEvent{
+				{CacheKey: `{"__typename":"Product","key":{"upc":"top-1"}}`, EntityType: "Product", Kind: resolve.CacheKeyMiss, DataSource: "reviews"}, // L2 miss: cache empty
+				{CacheKey: `{"__typename":"Product","key":{"upc":"top-2"}}`, EntityType: "Product", Kind: resolve.CacheKeyMiss, DataSource: "reviews"}, // L2 miss: cache empty
+				{CacheKey: `{"__typename":"Query","field":"topProducts"}`, EntityType: "Query", Kind: resolve.CacheKeyMiss, DataSource: "products"},     // L2 miss: root field not yet cached
+				{CacheKey: `{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", Kind: resolve.CacheKeyMiss, DataSource: "accounts"},         // L2 miss: User not yet cached
+			},
+			L2Writes: []resolve.CacheWriteEvent{
+				// Authorization: Bearer token-A → header hash prefix 11945571715631340836
+				{CacheKey: `11945571715631340836:{"__typename":"Product","key":{"upc":"top-1"}}`, EntityType: "Product", ByteSize: 177, DataSource: "reviews", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
+				{CacheKey: `11945571715631340836:{"__typename":"Product","key":{"upc":"top-2"}}`, EntityType: "Product", ByteSize: 233, DataSource: "reviews", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
+				{CacheKey: `11945571715631340836:{"__typename":"Query","field":"topProducts"}`, EntityType: "Query", ByteSize: 127, DataSource: "products", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
+				{CacheKey: `11945571715631340836:{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", ByteSize: 49, DataSource: "accounts", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
+			},
+			FieldHashes: []resolve.EntityFieldHash{
+				{EntityType: "Product", FieldName: "name", FieldHash: 1032923585965781586, KeyRaw: `{"upc":"top-1"}`, Source: resolve.FieldSourceSubgraph},
+				{EntityType: "Product", FieldName: "name", FieldHash: 2432227032303632641, KeyRaw: `{"upc":"top-2"}`, Source: resolve.FieldSourceSubgraph},
+				{EntityType: "User", FieldName: "username", FieldHash: 4957449860898447395, KeyRaw: `{"id":"1234"}`, Source: resolve.FieldSourceSubgraph},
+				{EntityType: "User", FieldName: "username", FieldHash: 4957449860898447395, KeyRaw: `{"id":"1234"}`, Source: resolve.FieldSourceSubgraph},
+			},
+			EntityTypes: []resolve.EntityTypeInfo{
+				{TypeName: "Product", Count: 2, UniqueKeys: 2},
+				{TypeName: "User", Count: 2, UniqueKeys: 1},
+			},
+			HeaderImpactEvents: []resolve.HeaderImpactEvent{
+				{BaseKey: `{"__typename":"Product","key":{"upc":"top-1"}}`, HeaderHash: 11945571715631340836, ResponseHash: responseHashes[`{"__typename":"Product","key":{"upc":"top-1"}}`], EntityType: "Product", DataSource: "reviews"},
+				{BaseKey: `{"__typename":"Product","key":{"upc":"top-2"}}`, HeaderHash: 11945571715631340836, ResponseHash: responseHashes[`{"__typename":"Product","key":{"upc":"top-2"}}`], EntityType: "Product", DataSource: "reviews"},
+				{BaseKey: `{"__typename":"Query","field":"topProducts"}`, HeaderHash: 11945571715631340836, ResponseHash: responseHashes[`{"__typename":"Query","field":"topProducts"}`], EntityType: "Query", DataSource: "products"},
+				{BaseKey: `{"__typename":"User","key":{"id":"1234"}}`, HeaderHash: 11945571715631340836, ResponseHash: responseHashes[`{"__typename":"User","key":{"id":"1234"}}`], EntityType: "User", DataSource: "accounts"},
+			},
+		}), snap1)
+
+		// Request 2: Same headers → L2 hit → no fetch → empty analytics (except L2 reads)
+		tracker.Reset()
+		resp, headers = gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL,
+			`query { topProducts { name reviews { body authorWithoutProvides { username } } } }`, nil, t)
+		assert.Equal(t,
+			`{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`,
+			string(resp))
+
+		snap2 := normalizeSnapshot(parseCacheAnalytics(t, headers))
+		assert.Equal(t, normalizeSnapshot(resolve.CacheAnalyticsSnapshot{
+			L2Reads: []resolve.CacheKeyEvent{
+				{CacheKey: `{"__typename":"Product","key":{"upc":"top-1"}}`, EntityType: "Product", Kind: resolve.CacheKeyHit, DataSource: "reviews", ByteSize: 177}, // L2 hit: populated by request 1
+				{CacheKey: `{"__typename":"Product","key":{"upc":"top-2"}}`, EntityType: "Product", Kind: resolve.CacheKeyHit, DataSource: "reviews", ByteSize: 233}, // L2 hit: populated by request 1
+				{CacheKey: `{"__typename":"Query","field":"topProducts"}`, EntityType: "Query", Kind: resolve.CacheKeyHit, DataSource: "products", ByteSize: 127},     // L2 hit: root field cached by request 1
+				{CacheKey: `{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", Kind: resolve.CacheKeyHit, DataSource: "accounts", ByteSize: 49},          // L2 hit: User cached by request 1
+			},
+			// No L2Writes, no HeaderImpactEvents: all served from cache, no fresh fetches
+			FieldHashes: []resolve.EntityFieldHash{
+				{EntityType: "Product", FieldName: "name", FieldHash: 1032923585965781586, KeyRaw: `{"upc":"top-1"}`, Source: resolve.FieldSourceL2},
+				{EntityType: "Product", FieldName: "name", FieldHash: 2432227032303632641, KeyRaw: `{"upc":"top-2"}`, Source: resolve.FieldSourceL2},
+				{EntityType: "User", FieldName: "username", FieldHash: 4957449860898447395, KeyRaw: `{"id":"1234"}`, Source: resolve.FieldSourceL2},
+				{EntityType: "User", FieldName: "username", FieldHash: 4957449860898447395, KeyRaw: `{"id":"1234"}`, Source: resolve.FieldSourceL2},
+			},
+			EntityTypes: []resolve.EntityTypeInfo{
+				{TypeName: "Product", Count: 2, UniqueKeys: 2},
+				{TypeName: "User", Count: 2, UniqueKeys: 1},
+			},
+		}), snap2)
+	})
+
+	t.Run("no events when IncludeSubgraphHeaderPrefix is false", func(t *testing.T) {
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(map[string]resolve.LoaderCache{"default": NewFakeLoaderCache()}),
+			withHTTPClient(&http.Client{Transport: tracker}),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true, EnableCacheAnalytics: true}),
+			withSubgraphEntityCachingConfigs(engine.SubgraphCachingConfigs{
+				{
+					SubgraphName: "products",
+					RootFieldCaching: plan.RootFieldCacheConfigurations{
+						{TypeName: "Query", FieldName: "topProducts", CacheName: "default", TTL: 30 * time.Second},
+					},
+				},
+				{
+					SubgraphName: "reviews",
+					EntityCaching: plan.EntityCacheConfigurations{
+						{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second},
+					},
+				},
+				{
+					SubgraphName: "accounts",
+					EntityCaching: plan.EntityCacheConfigurations{
+						{TypeName: "User", CacheName: "default", TTL: 30 * time.Second},
+					},
+				},
+			}),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		tracker.Reset()
+		resp, headers := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL,
+			`query { topProducts { name reviews { body authorWithoutProvides { username } } } }`, nil, t)
+		assert.Equal(t,
+			`{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`,
+			string(resp))
+
+		snap := normalizeSnapshot(parseCacheAnalytics(t, headers))
+		assert.Equal(t, normalizeSnapshot(resolve.CacheAnalyticsSnapshot{
+			L2Reads: []resolve.CacheKeyEvent{
+				{CacheKey: `{"__typename":"Product","key":{"upc":"top-1"}}`, EntityType: "Product", Kind: resolve.CacheKeyMiss, DataSource: "reviews"},
+				{CacheKey: `{"__typename":"Product","key":{"upc":"top-2"}}`, EntityType: "Product", Kind: resolve.CacheKeyMiss, DataSource: "reviews"},
+				{CacheKey: `{"__typename":"Query","field":"topProducts"}`, EntityType: "Query", Kind: resolve.CacheKeyMiss, DataSource: "products"},
+				{CacheKey: `{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", Kind: resolve.CacheKeyMiss, DataSource: "accounts"},
+			},
+			L2Writes: []resolve.CacheWriteEvent{
+				{CacheKey: `{"__typename":"Product","key":{"upc":"top-1"}}`, EntityType: "Product", ByteSize: 177, DataSource: "reviews", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
+				{CacheKey: `{"__typename":"Product","key":{"upc":"top-2"}}`, EntityType: "Product", ByteSize: 233, DataSource: "reviews", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
+				{CacheKey: `{"__typename":"Query","field":"topProducts"}`, EntityType: "Query", ByteSize: 127, DataSource: "products", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
+				{CacheKey: `{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", ByteSize: 49, DataSource: "accounts", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
+			},
+			FieldHashes: []resolve.EntityFieldHash{
+				{EntityType: "Product", FieldName: "name", FieldHash: 1032923585965781586, KeyRaw: `{"upc":"top-1"}`, Source: resolve.FieldSourceSubgraph},
+				{EntityType: "Product", FieldName: "name", FieldHash: 2432227032303632641, KeyRaw: `{"upc":"top-2"}`, Source: resolve.FieldSourceSubgraph},
+				{EntityType: "User", FieldName: "username", FieldHash: 4957449860898447395, KeyRaw: `{"id":"1234"}`, Source: resolve.FieldSourceSubgraph},
+				{EntityType: "User", FieldName: "username", FieldHash: 4957449860898447395, KeyRaw: `{"id":"1234"}`, Source: resolve.FieldSourceSubgraph},
+			},
+			EntityTypes: []resolve.EntityTypeInfo{
+				{TypeName: "Product", Count: 2, UniqueKeys: 2},
+				{TypeName: "User", Count: 2, UniqueKeys: 1},
+			},
+			// No HeaderImpactEvents: IncludeSubgraphHeaderPrefix is false
+		}), snap)
+	})
+}

@@ -1762,3 +1762,55 @@ func TestSnapshotDeduplication(t *testing.T) {
 		assert.Equal(t, int64(49), snap.CachedBytesServed(), "bytes served from 1 unique hit")
 	})
 }
+
+func TestCacheAnalyticsCollector_HeaderImpactEvents(t *testing.T) {
+	t.Run("records and deduplicates header impact events", func(t *testing.T) {
+		c := NewCacheAnalyticsCollector()
+
+		// Same (BaseKey, HeaderHash) → deduplicated to 1
+		c.RecordHeaderImpactEvent(HeaderImpactEvent{
+			BaseKey: "key1", HeaderHash: 111, ResponseHash: 999,
+			EntityType: "User", DataSource: "accounts",
+		})
+		c.RecordHeaderImpactEvent(HeaderImpactEvent{
+			BaseKey: "key1", HeaderHash: 111, ResponseHash: 999,
+			EntityType: "User", DataSource: "accounts",
+		})
+
+		// Same BaseKey + different HeaderHash → separate event
+		c.RecordHeaderImpactEvent(HeaderImpactEvent{
+			BaseKey: "key1", HeaderHash: 222, ResponseHash: 999,
+			EntityType: "User", DataSource: "accounts",
+		})
+
+		// Different BaseKey → separate event
+		c.RecordHeaderImpactEvent(HeaderImpactEvent{
+			BaseKey: "key2", HeaderHash: 111, ResponseHash: 888,
+			EntityType: "Product", DataSource: "products",
+		})
+
+		snap := c.Snapshot()
+		assert.Equal(t, 3, len(snap.HeaderImpactEvents), "should have exactly 3 deduplicated events")
+
+		assert.Equal(t, HeaderImpactEvent{
+			BaseKey: "key1", HeaderHash: 111, ResponseHash: 999,
+			EntityType: "User", DataSource: "accounts",
+		}, snap.HeaderImpactEvents[0])
+
+		assert.Equal(t, HeaderImpactEvent{
+			BaseKey: "key1", HeaderHash: 222, ResponseHash: 999,
+			EntityType: "User", DataSource: "accounts",
+		}, snap.HeaderImpactEvents[1])
+
+		assert.Equal(t, HeaderImpactEvent{
+			BaseKey: "key2", HeaderHash: 111, ResponseHash: 888,
+			EntityType: "Product", DataSource: "products",
+		}, snap.HeaderImpactEvents[2])
+	})
+
+	t.Run("empty when no events recorded", func(t *testing.T) {
+		c := NewCacheAnalyticsCollector()
+		snap := c.Snapshot()
+		assert.Equal(t, 0, len(snap.HeaderImpactEvents), "should have no header impact events")
+	})
+}

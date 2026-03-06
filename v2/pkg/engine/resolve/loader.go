@@ -166,6 +166,11 @@ type result struct {
 	// Set during prepareCacheKeys, used by L2 write recording.
 	analyticsEntityType string
 
+	// headerHash stores the subgraph header hash computed during prepareCacheKeys.
+	// Non-zero only when IncludeSubgraphHeaderPrefix is true and headers exist.
+	// Used by updateL2Cache to record HeaderImpactEvents.
+	headerHash uint64
+
 	// shadowCachedValues stores cached L2 values when shadow mode is active.
 	// After fresh data arrives, these are compared to detect staleness.
 	// Key is the index into l1CacheKeys (entity fetches) or l2CacheKeys (root fetches).

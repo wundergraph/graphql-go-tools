@@ -167,6 +167,7 @@ func (l *Loader) prepareCacheKeys(info *FetchInfo, cfg FetchCacheConfiguration, 
 				var buf [20]byte
 				b := strconv.AppendUint(buf[:0], headersHash, 10)
 				prefix = string(b)
+				res.headerHash = headersHash
 			}
 
 			// Render L2 cache keys with prefix
@@ -872,6 +873,43 @@ func (l *Loader) updateL2Cache(res *result) {
 				continue
 			}
 			l.ctx.cacheAnalytics.RecordWrite(CacheLevelL2, res.analyticsEntityType, entry.Key, res.ds.Name, len(entry.Value), res.cacheConfig.TTL)
+		}
+	}
+
+	// Record header impact events for cross-request analysis.
+	// Only when IncludeSubgraphHeaderPrefix is active (headerHash != 0).
+	if l.ctx.cacheAnalyticsEnabled() && res.headerHash != 0 && len(res.l1CacheKeys) > 0 {
+		// Build L2-to-L1 key mapping. L1 and L2 cache keys are generated from the same
+		// inputItems in prepareCacheKeys, so they have matching indices.
+		l2ToBaseKey := make(map[string]string, len(res.l2CacheKeys))
+		for i, l2ck := range res.l2CacheKeys {
+			if i < len(res.l1CacheKeys) {
+				for j, l2key := range l2ck.Keys {
+					if j < len(res.l1CacheKeys[i].Keys) {
+						l2ToBaseKey[l2key] = res.l1CacheKeys[i].Keys[j]
+					}
+				}
+			}
+		}
+
+		xxh := l.ctx.cacheAnalytics.xxh
+		for _, entry := range cacheEntries {
+			if entry == nil {
+				continue
+			}
+			baseKey, ok := l2ToBaseKey[entry.Key]
+			if !ok {
+				continue
+			}
+			xxh.Reset()
+			_, _ = xxh.Write(entry.Value)
+			l.ctx.cacheAnalytics.RecordHeaderImpactEvent(HeaderImpactEvent{
+				BaseKey:      baseKey,
+				HeaderHash:   res.headerHash,
+				ResponseHash: xxh.Sum64(),
+				EntityType:   res.analyticsEntityType,
+				DataSource:   res.ds.Name,
+			})
 		}
 	}
 }
