@@ -300,9 +300,10 @@ func (l *Loader) Free() {
 	l.l1Cache = nil
 	l.jsonArena = nil
 	l.enableMutationL2CachePopulation = false
-	for _, a := range l.goroutineArenas {
+	for i, a := range l.goroutineArenas {
 		a.Reset()
 		l2ArenaPool.Put(a)
+		l.goroutineArenas[i] = nil
 	}
 	l.goroutineArenas = l.goroutineArenas[:0]
 }

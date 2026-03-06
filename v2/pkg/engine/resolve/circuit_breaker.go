@@ -33,6 +33,7 @@ type CircuitBreakerConfig struct {
 type circuitBreakerState struct {
 	consecutiveFailures atomic.Int64
 	openedAt            atomic.Int64 // unix nano timestamp, 0 = closed
+	probeInFlight       atomic.Bool
 	config              CircuitBreakerConfig
 }
 
@@ -41,7 +42,8 @@ func newCircuitBreakerState(config CircuitBreakerConfig) *circuitBreakerState {
 }
 
 // shouldAllow returns true if the operation should proceed.
-// In half-open state, uses CAS to allow exactly one probe.
+// In half-open state, uses CAS to allow exactly one probe without clearing the
+// open state — openedAt and consecutiveFailures are only reset on probe success.
 func (cb *circuitBreakerState) shouldAllow() bool {
 	openedAt := cb.openedAt.Load()
 	if openedAt == 0 {
@@ -53,23 +55,25 @@ func (cb *circuitBreakerState) shouldAllow() bool {
 		return false // open, cooldown not elapsed
 	}
 
-	// Half-open: CAS ensures only one goroutine probes
-	if cb.openedAt.CompareAndSwap(openedAt, 0) {
-		cb.consecutiveFailures.Store(0)
-		return true
-	}
-	// Another goroutine won the CAS, this one waits
-	return false
+	// Half-open: allow exactly one probe, but don't mark the breaker closed
+	// until that probe succeeds.
+	return cb.probeInFlight.CompareAndSwap(false, true)
 }
 
 // recordSuccess resets the breaker to closed state.
 func (cb *circuitBreakerState) recordSuccess() {
 	cb.consecutiveFailures.Store(0)
 	cb.openedAt.Store(0)
+	cb.probeInFlight.Store(false)
 }
 
 // recordFailure increments the failure counter and trips the breaker if threshold is reached.
 func (cb *circuitBreakerState) recordFailure() {
+	if cb.probeInFlight.Swap(false) {
+		// Half-open probe failed — reopen immediately.
+		cb.openedAt.Store(time.Now().UnixNano())
+		return
+	}
 	failures := cb.consecutiveFailures.Add(1)
 	if failures >= int64(cb.config.FailureThreshold) {
 		cb.openedAt.Store(time.Now().UnixNano())
@@ -135,15 +139,19 @@ func (c *circuitBreakerCache) Delete(ctx context.Context, keys []string) error {
 	return nil
 }
 
-// wrapCachesWithCircuitBreakers wraps each cache that has a circuit breaker config.
-// Called once during Resolver.New(). The wrapped caches are transparent drop-in
-// replacements — all existing code paths work without changes.
-func wrapCachesWithCircuitBreakers(caches map[string]LoaderCache, configs map[string]CircuitBreakerConfig) {
+// wrapCachesWithCircuitBreakers returns a shallow copy of caches with circuit breaker
+// wrappers applied where configured. The original map is not mutated.
+// Called once during Resolver.New().
+func wrapCachesWithCircuitBreakers(caches map[string]LoaderCache, configs map[string]CircuitBreakerConfig) map[string]LoaderCache {
 	if caches == nil || configs == nil {
-		return
+		return caches
+	}
+	wrapped := make(map[string]LoaderCache, len(caches))
+	for name, cache := range caches {
+		wrapped[name] = cache
 	}
 	for name, cbConfig := range configs {
-		cache, ok := caches[name]
+		cache, ok := wrapped[name]
 		if !ok || !cbConfig.Enabled {
 			continue
 		}
@@ -153,9 +161,10 @@ func wrapCachesWithCircuitBreakers(caches map[string]LoaderCache, configs map[st
 		if cbConfig.CooldownPeriod <= 0 {
 			cbConfig.CooldownPeriod = 10 * time.Second
 		}
-		caches[name] = &circuitBreakerCache{
+		wrapped[name] = &circuitBreakerCache{
 			inner: cache,
 			state: newCircuitBreakerState(cbConfig),
 		}
 	}
+	return wrapped
 }

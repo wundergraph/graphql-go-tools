@@ -1,6 +1,7 @@
 package resolve
 
 import (
+	"strconv"
 	"sync"
 	"testing"
 
@@ -93,16 +94,5 @@ func goroutineName(n int) string {
 }
 
 func stringFromInt(n int) string {
-	switch n {
-	case 1:
-		return "1"
-	case 4:
-		return "4"
-	case 8:
-		return "8"
-	case 16:
-		return "16"
-	default:
-		return "?"
-	}
+	return strconv.Itoa(n)
 }

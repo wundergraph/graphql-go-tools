@@ -454,15 +454,17 @@ key fields (not full entity data), signaling that the cached version is stale.
 Tests:
 - `execution/engine/federation_subscription_caching_test.go:714` — `TestFederationSubscriptionCaching / "key-only subscription invalidates L2 cache"`
 
-### AC-SUB-03: Full key pipeline for subscription cache operations
-Subscription cache operations (both populate and invalidate) apply the full cache key
+### AC-SUB-03: Base key pipeline for subscription cache operations
+Subscription cache operations (both populate and invalidate) apply the cache key
 pipeline: template rendering → global prefix → header hash prefix → `L2CacheKeyInterceptor`.
-This ensures subscription-written keys match query-read keys even when custom key
-transforms (e.g., tenant prefix via interceptor) are in use.
+The base path (template rendering, populate, invalidate) is covered by existing tests.
+Global prefix and `L2CacheKeyInterceptor` integration within subscriptions is verified
+by the code path (shared with `prepareCacheKeys`) but not yet exercised by dedicated
+trigger-level tests.
 
 Tests:
-- `v2/pkg/engine/resolve/trigger_cache_test.go:51` — `TestHandleTriggerEntityCache / "populate single entity"` (verifies key pipeline for populate)
-- `v2/pkg/engine/resolve/trigger_cache_test.go:224` — `TestHandleTriggerEntityCache / "invalidate mode deletes cache entry"` (verifies key pipeline for invalidate)
+- `v2/pkg/engine/resolve/trigger_cache_test.go:51` — `TestHandleTriggerEntityCache / "populate single entity"` (verifies base key pipeline for populate)
+- `v2/pkg/engine/resolve/trigger_cache_test.go:224` — `TestHandleTriggerEntityCache / "invalidate mode deletes cache entry"` (verifies base key pipeline for invalidate)
 
 ## Shadow Mode
 

@@ -304,7 +304,7 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 	}
 
 	// Wrap caches with circuit breakers where configured
-	wrapCachesWithCircuitBreakers(options.Caches, options.CacheCircuitBreakers)
+	options.Caches = wrapCachesWithCircuitBreakers(options.Caches, options.CacheCircuitBreakers)
 
 	resolver := &Resolver{
 		ctx:                          ctx,
@@ -744,16 +744,12 @@ func (r *Resolver) handleTriggerEntityCache(config *triggerEntityCacheConfig, da
 	globalPrefix := config.resolveCtx.ExecutionOptions.Caching.GlobalCacheKeyPrefix
 	if config.pop.IncludeSubgraphHeaderPrefix && config.resolveCtx.SubgraphHeadersBuilder != nil {
 		_, hash := config.resolveCtx.SubgraphHeadersBuilder.HeadersForSubgraph(config.pop.DataSourceName)
-		if hash != 0 {
-			var buf [20]byte
-			b := strconv.AppendUint(buf[:0], hash, 10)
-			if globalPrefix != "" {
-				prefix = globalPrefix + ":" + string(b)
-			} else {
-				prefix = string(b)
-			}
-		} else if globalPrefix != "" {
-			prefix = globalPrefix
+		var buf [20]byte
+		b := strconv.AppendUint(buf[:0], hash, 10)
+		if globalPrefix != "" {
+			prefix = globalPrefix + ":" + string(b)
+		} else {
+			prefix = string(b)
 		}
 	} else if globalPrefix != "" {
 		prefix = globalPrefix

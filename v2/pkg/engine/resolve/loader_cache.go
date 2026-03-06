@@ -5,6 +5,7 @@ import (
 	"context"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -838,13 +839,18 @@ func (l *Loader) populateL1CacheForRootFieldEntities(fetchItem *FetchItem) {
 			continue
 		}
 
-		// Store in L1 cache
+		// Store in L1 cache, skipping degraded keys with empty key objects
 		for _, ck := range cacheKeys {
 			if ck == nil {
 				continue
 			}
 			for _, keyStr := range ck.Keys {
-				// Use the entity directly as the cache value
+				// Skip keys with empty key objects — these occur when @key fields are missing
+				// from the query selection. Such keys would collide for all entities of the
+				// same type, causing incorrect cache sharing.
+				if strings.Contains(keyStr, `"key":{}`) {
+					continue
+				}
 				l.l1Cache.LoadOrStore(keyStr, entity)
 			}
 		}
@@ -939,17 +945,24 @@ func (l *Loader) updateL2Cache(res *result) {
 		ctx = WithCacheFetchInfo(ctx, res.fetchInfo, res.cacheConfig)
 	}
 
+	// Track successfully written entries for analytics
+	var writtenEntries []*CacheEntry
+
 	// Store regular (non-null) cache entries
 	if len(cacheEntries) > 0 {
-		if setErr := res.cache.Set(ctx, cacheEntries, res.cacheConfig.TTL); setErr != nil && l.ctx.cacheAnalyticsEnabled() {
-			l.ctx.cacheAnalytics.RecordCacheOperationError(CacheOperationError{
-				Operation:  "set",
-				CacheName:  res.cacheConfig.CacheName,
-				EntityType: res.analyticsEntityType,
-				DataSource: res.ds.Name,
-				Message:    truncateErrorMessage(setErr.Error(), 256),
-				ItemCount:  len(cacheEntries),
-			})
+		if setErr := res.cache.Set(ctx, cacheEntries, res.cacheConfig.TTL); setErr != nil {
+			if l.ctx.cacheAnalyticsEnabled() {
+				l.ctx.cacheAnalytics.RecordCacheOperationError(CacheOperationError{
+					Operation:  "set",
+					CacheName:  res.cacheConfig.CacheName,
+					EntityType: res.analyticsEntityType,
+					DataSource: res.ds.Name,
+					Message:    truncateErrorMessage(setErr.Error(), 256),
+					ItemCount:  len(cacheEntries),
+				})
+			}
+		} else {
+			writtenEntries = append(writtenEntries, cacheEntries...)
 		}
 	}
 
@@ -957,28 +970,30 @@ func (l *Loader) updateL2Cache(res *result) {
 	if res.cacheConfig.NegativeCacheTTL > 0 {
 		negEntries := l.cacheKeysToNegativeEntries(keysToStore)
 		if len(negEntries) > 0 {
-			if setErr := res.cache.Set(ctx, negEntries, res.cacheConfig.NegativeCacheTTL); setErr != nil && l.ctx.cacheAnalyticsEnabled() {
-				l.ctx.cacheAnalytics.RecordCacheOperationError(CacheOperationError{
-					Operation:  "set_negative",
-					CacheName:  res.cacheConfig.CacheName,
-					EntityType: res.analyticsEntityType,
-					DataSource: res.ds.Name,
-					Message:    truncateErrorMessage(setErr.Error(), 256),
-					ItemCount:  len(negEntries),
-				})
+			if setErr := res.cache.Set(ctx, negEntries, res.cacheConfig.NegativeCacheTTL); setErr != nil {
+				if l.ctx.cacheAnalyticsEnabled() {
+					l.ctx.cacheAnalytics.RecordCacheOperationError(CacheOperationError{
+						Operation:  "set_negative",
+						CacheName:  res.cacheConfig.CacheName,
+						EntityType: res.analyticsEntityType,
+						DataSource: res.ds.Name,
+						Message:    truncateErrorMessage(setErr.Error(), 256),
+						ItemCount:  len(negEntries),
+					})
+				}
+			} else {
+				writtenEntries = append(writtenEntries, negEntries...)
 			}
-			// Include negative entries in analytics
-			cacheEntries = append(cacheEntries, negEntries...)
 		}
 	}
 
-	if len(cacheEntries) == 0 {
+	if len(writtenEntries) == 0 {
 		return
 	}
 
 	// Record L2 write events for analytics
 	if l.ctx.cacheAnalyticsEnabled() {
-		for _, entry := range cacheEntries {
+		for _, entry := range writtenEntries {
 			if entry == nil {
 				continue
 			}
@@ -1226,8 +1241,9 @@ func (l *Loader) detectSingleMutationEntityImpact(
 					ItemCount:  1,
 				})
 			}
+		} else {
+			deletedKeys = map[string]struct{}{cacheKey: {}}
 		}
-		deletedKeys = map[string]struct{}{cacheKey: {}}
 	}
 
 	// Analytics comparison requires cacheAnalytics to be enabled

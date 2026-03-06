@@ -239,12 +239,15 @@ func TestCircuitBreaker(t *testing.T) {
 			"default": {Enabled: true}, // no threshold or cooldown set
 		}
 
-		wrapCachesWithCircuitBreakers(caches, configs)
+		result := wrapCachesWithCircuitBreakers(caches, configs)
 
-		wrapped, ok := caches["default"].(*circuitBreakerCache)
+		wrapped, ok := result["default"].(*circuitBreakerCache)
 		require.True(t, ok, "cache should be wrapped")
 		assert.Equal(t, 5, wrapped.state.config.FailureThreshold, "default threshold should be 5")
 		assert.Equal(t, 10*time.Second, wrapped.state.config.CooldownPeriod, "default cooldown should be 10s")
+		// Original map should not be mutated
+		_, originalWrapped := caches["default"].(*circuitBreakerCache)
+		assert.False(t, originalWrapped, "original map should not be mutated")
 	})
 
 	t.Run("wrapCachesWithCircuitBreakers skips disabled", func(t *testing.T) {
@@ -254,9 +257,9 @@ func TestCircuitBreaker(t *testing.T) {
 			"default": {Enabled: false},
 		}
 
-		wrapCachesWithCircuitBreakers(caches, configs)
+		result := wrapCachesWithCircuitBreakers(caches, configs)
 
-		_, ok := caches["default"].(*circuitBreakerCache)
+		_, ok := result["default"].(*circuitBreakerCache)
 		assert.False(t, ok, "disabled breaker should not wrap the cache")
 	})
 
@@ -266,9 +269,9 @@ func TestCircuitBreaker(t *testing.T) {
 			"nonexistent": {Enabled: true},
 		}
 
-		wrapCachesWithCircuitBreakers(caches, configs)
+		result := wrapCachesWithCircuitBreakers(caches, configs)
 
-		_, ok := caches["default"].(*circuitBreakerCache)
+		_, ok := result["default"].(*circuitBreakerCache)
 		assert.False(t, ok, "unrelated cache should not be wrapped")
 	})
 }

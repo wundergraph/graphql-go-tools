@@ -2073,11 +2073,10 @@ func TestComputeHasAliases(t *testing.T) {
 }
 
 // TestPopulateL1CacheForRootFieldEntities_MissingKeyFields verifies that root field
-// entity population gracefully handles entities that are missing @key fields.
+// entity population skips entities that are missing @key fields.
 // When the client's query doesn't select the @key fields (e.g., "id"), RenderCacheKeys
 // produces a key with empty key object (e.g., {"__typename":"Product","key":{}}).
-// The entity is stored under this degraded key but will never match any entity fetch,
-// so the behavior is benign.
+// These degraded keys would collide for all entities of the same type, so we skip storage.
 func TestPopulateL1CacheForRootFieldEntities_MissingKeyFields(t *testing.T) {
 	ar := arena.NewMonotonicArena(arena.WithMinBufferSize(4096))
 	ctx := NewContext(context.Background())
@@ -2134,14 +2133,14 @@ func TestPopulateL1CacheForRootFieldEntities_MissingKeyFields(t *testing.T) {
 
 	l.populateL1CacheForRootFieldEntities(fetchItem)
 
-	// Entity should be stored under a degraded key with empty key object.
-	// An actual entity fetch would use {"__typename":"Product","key":{"id":"123"}},
-	// which will never match this degraded key.
+	// Entity should NOT be stored because key fields are missing.
+	// A degraded key like {"__typename":"Product","key":{}} would collide for all
+	// Product entities, so populateL1CacheForRootFieldEntities skips storage.
 	degradedKey := `{"__typename":"Product","key":{}}`
 	_, loaded := l1Cache.Load(degradedKey)
-	assert.True(t, loaded, "entity should be stored under degraded key (empty key object)")
+	assert.False(t, loaded, "entity with missing @key fields should not be stored in L1 cache")
 
-	// A proper entity cache key won't find anything
+	// A proper entity cache key won't find anything either
 	_, loaded = l1Cache.Load(`{"__typename":"Product","key":{"id":"123"}}`)
 	assert.False(t, loaded, "proper entity key should not find the entity with missing @key fields")
 }
