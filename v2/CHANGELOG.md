@@ -1,5 +1,33 @@
 # Changelog
 
+## [2.0.0-rc.261](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.260...v2.0.0-rc.261) (2026-03-06)
+
+
+### Bug Fixes
+
+* fix selecting parent of unique nodes ([#1430](https://github.com/wundergraph/graphql-go-tools/issues/1430)) ([fd0e06a](https://github.com/wundergraph/graphql-go-tools/commit/fd0e06afa472a4c069f429c3c73e442831ed4b19))
+
+## [2.0.0-rc.260](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.259...v2.0.0-rc.260) (2026-03-05)
+
+
+### Bug Fixes
+
+* invalid data resolution for null parent types ([#1428](https://github.com/wundergraph/graphql-go-tools/issues/1428)) ([b7863be](https://github.com/wundergraph/graphql-go-tools/commit/b7863bed652a9324c0b1d02b3b11ce548c1b8fcc))
+
+## [2.0.0-rc.259](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.258...v2.0.0-rc.259) (2026-03-05)
+
+
+### Bug Fixes
+
+* skip invocation for empty context in field resolvers ([#1413](https://github.com/wundergraph/graphql-go-tools/issues/1413)) ([5885c48](https://github.com/wundergraph/graphql-go-tools/commit/5885c48066c696e60a70bf3ab4b10a824eca780a))
+
+## [2.0.0-rc.258](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.257...v2.0.0-rc.258) (2026-03-05)
+
+
+### Bug Fixes
+
+* handle complex types inside inline fragments in gRPC execution plan ([#1411](https://github.com/wundergraph/graphql-go-tools/issues/1411)) ([3b4dbcb](https://github.com/wundergraph/graphql-go-tools/commit/3b4dbcb2df54dd6fd2bc51094e0fee12cf7fd9a0))
+
 ## [2.0.0-rc.257](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.256...v2.0.0-rc.257) (2026-02-25)
 
 

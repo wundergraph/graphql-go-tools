@@ -132,6 +132,8 @@ type Category {
   categoryStatus(checkHealth: Boolean!): ActionResult! @connect__fieldResolver(context: "id name")
   childCategories(include: Boolean): [Category!]! @connect__fieldResolver(context: "id name")
   optionalCategories(include: Boolean): [Category!] @connect__fieldResolver(context: "id name")
+  # The nullMetrics field is used to test that nested field resolvers are not invoked when the parent result is null.
+  nullMetrics: CategoryMetrics
 }
 
 type Subcategory {
@@ -140,6 +142,7 @@ type Subcategory {
   description: String
   isActive: Boolean!
   itemCount(filters: SubcategoryItemFilter): Int! @connect__fieldResolver(context: "id")
+  featuredCategory(includeChildren: Boolean!): Category @connect__fieldResolver(context: "id")
 }
 
 type CategoryMetrics {
@@ -149,8 +152,7 @@ type CategoryMetrics {
   timestamp: String!
   categoryId: ID!
   normalizedScore(baseline: Float!): Float! @connect__fieldResolver(context: "id value metricType")
-  # This will currently not generate a resolver as it is missing arguments.
-  relatedCategory: Category @connect__fieldResolver(context: "categoryId") 
+  relatedCategory(include: Boolean): Category @connect__fieldResolver(context: "categoryId")
 }
 
 enum CategoryKind {
@@ -188,6 +190,7 @@ type Owner {
   id: ID!
   name: String!
   contact: ContactInfo!
+  pet: Animal!
 }
 
 type ContactInfo {
@@ -455,6 +458,7 @@ type Query {
   ): [TypeWithComplexFilterInput!]!
   calculateTotals(orders: [OrderInput!]!): [Order!]!
   categories: [Category!]!
+  category(id: ID!): Category
   categoriesByKind(kind: CategoryKind!): [Category!]!
   categoriesByKinds(kinds: [CategoryKind!]!): [Category!]!
   filterCategories(filter: CategoryFilter!): [Category!]!

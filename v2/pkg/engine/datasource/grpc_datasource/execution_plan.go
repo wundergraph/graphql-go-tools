@@ -102,8 +102,8 @@ type RPCMessage struct {
 	Name string
 	// Fields is a list of fields in the message
 	Fields RPCFields
-	// FieldSelectionSet are field selections based on inline fragments
-	FieldSelectionSet RPCFieldSelectionSet
+	// FragmentFields are field selections based on inline fragments
+	FragmentFields RPCFieldSelectionSet
 	// OneOfType indicates the type of the oneof field
 	OneOfType OneOfType
 	// MemberTypes provides the names of the types that are implemented by the Interface or Union
@@ -273,6 +273,15 @@ func (r RPCFields) Exists(name, alias string) bool {
 	}
 
 	return false
+}
+
+// Last returns the last element of r or nil if r has no elements.
+func (r RPCFields) Last() *RPCField {
+	if len(r) == 0 {
+		return nil
+	}
+
+	return &r[len(r)-1]
 }
 
 func (r *RPCExecutionPlan) String() string {
@@ -451,6 +460,45 @@ func (r *rpcPlanningContext) resolveRPCMethodMapping(operationType ast.Operation
 	}
 
 	return rpcConfig, nil
+}
+
+// enterNestedField handles descending into a nested response message
+// when entering a selection set. inlineFragmentRef identifies the inline fragment
+// that directly contains the field being descended into (ast.InvalidRef if none).
+// Returns true if it descended into a nested message, false if there was nothing
+// to descend into.
+func (r *rpcPlanningContext) enterNestedField(info *planningInfo, enclosingTypeNode ast.Node, selectionSetRef, inlineFragmentRef int) bool {
+	lastField := r.lastResponseField(info.currentResponseMessage, inlineFragmentRef)
+	if lastField == nil {
+		return false
+	}
+
+	if lastField.Message == nil {
+		lastField.Message = r.newMessageFromSelectionSet(enclosingTypeNode, selectionSetRef)
+	}
+
+	info.responseMessageAncestors = append(info.responseMessageAncestors, info.currentResponseMessage)
+	info.currentResponseMessage = lastField.Message
+	return true
+}
+
+// lastResponseField returns a pointer to the last field (or fragment field) of the message,
+// or nil if there are no fields.
+func (r *rpcPlanningContext) lastResponseField(msg *RPCMessage, inlineFragmentRef int) *RPCField {
+	if inlineFragmentRef == ast.InvalidRef {
+		return msg.Fields.Last()
+	}
+
+	inlineFragmentName := r.operation.InlineFragmentTypeConditionNameString(inlineFragmentRef)
+	return msg.FragmentFields[inlineFragmentName].Last()
+}
+
+// leaveNestedField pops the response message ancestors when leaving a selection set.
+func (r *rpcPlanningContext) leaveNestedField(info *planningInfo) {
+	if len(info.responseMessageAncestors) > 0 {
+		info.currentResponseMessage = info.responseMessageAncestors[len(info.responseMessageAncestors)-1]
+		info.responseMessageAncestors = info.responseMessageAncestors[:len(info.responseMessageAncestors)-1]
+	}
 }
 
 // newMessageFromSelectionSet creates a new message from the enclosing type node and the selection set reference.
@@ -769,11 +817,11 @@ func (r *rpcPlanningContext) buildFieldMessage(fieldTypeNode ast.Node, fieldRef 
 			return nil, err
 		}
 
-		if message.FieldSelectionSet == nil {
-			message.FieldSelectionSet = make(RPCFieldSelectionSet)
+		if message.FragmentFields == nil {
+			message.FragmentFields = make(RPCFieldSelectionSet)
 		}
 
-		message.FieldSelectionSet.Add(typeName, fields...)
+		message.FragmentFields.Add(typeName, fields...)
 	}
 
 	for _, fieldRef := range fieldRefs {
@@ -1081,7 +1129,7 @@ func (r *rpcPlanningContext) buildFieldResolverTypeMessage(typeName string, reso
 
 	// If the resolved field returns a composite type we need to handle the selection set for the inline fragment.
 	if len(resolverField.fragmentSelections) > 0 {
-		message.FieldSelectionSet = make(RPCFieldSelectionSet, len(resolverField.fragmentSelections))
+		message.FragmentFields = make(RPCFieldSelectionSet, len(resolverField.fragmentSelections))
 
 		for _, fragmentSelection := range resolverField.fragmentSelections {
 			inlineFragmentTypeNode, found := r.definition.NodeByNameStr(fragmentSelection.typeName)
@@ -1094,7 +1142,7 @@ func (r *rpcPlanningContext) buildFieldResolverTypeMessage(typeName string, reso
 				return nil, err
 			}
 
-			message.FieldSelectionSet[fragmentSelection.typeName] = fields
+			message.FragmentFields[fragmentSelection.typeName] = fields
 		}
 	}
 
