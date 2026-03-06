@@ -2085,10 +2085,10 @@ func TestPopulateL1CacheForRootFieldEntities_MissingKeyFields(t *testing.T) {
 	ctx.Variables = astjson.MustParse(`{}`)
 
 	resolvable := NewResolvable(ar, ResolvableOptions{})
-	resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+	require.NoError(t, err)
 
 	// Set response data: entity with __typename but missing @key field "id"
-	var err error
 	resolvable.data, err = astjson.ParseBytesWithArena(ar, []byte(`{"topProducts":[{"__typename":"Product","name":"Widget"}]}`))
 	require.NoError(t, err)
 

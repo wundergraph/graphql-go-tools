@@ -1144,7 +1144,6 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 	})
 }
 
-
 func BenchmarkRenderCacheKeys(b *testing.B) {
 	a := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
 

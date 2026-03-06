@@ -180,11 +180,11 @@ type CacheAnalyticsCollector struct {
 	l2ErrorEvents      []SubgraphErrorEvent    // accumulated in goroutines, merged on main thread
 	l2FetchTimings     []FetchTimingEvent      // accumulated in goroutines, merged on main thread
 	shadowComparisons  []ShadowComparisonEvent // shadow mode staleness comparison events
-	mutationEvents      []MutationEvent         // mutation entity impact events
-	headerImpactEvents  []HeaderImpactEvent     // header impact events for L2 writes with header prefix
-	cacheOpErrors       []CacheOperationError   // cache operation errors (main thread)
-	l2CacheOpErrors     []CacheOperationError   // accumulated in goroutines, merged on main thread
-	xxh                 *xxhash.Digest
+	mutationEvents     []MutationEvent         // mutation entity impact events
+	headerImpactEvents []HeaderImpactEvent     // header impact events for L2 writes with header prefix
+	cacheOpErrors      []CacheOperationError   // cache operation errors (main thread)
+	l2CacheOpErrors    []CacheOperationError   // accumulated in goroutines, merged on main thread
+	xxh                *xxhash.Digest
 }
 
 // NewCacheAnalyticsCollector creates a new collector with pre-allocated slices.

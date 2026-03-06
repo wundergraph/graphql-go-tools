@@ -447,8 +447,8 @@ func TestDetectMutationEntityImpact(t *testing.T) {
 		event := stats.MutationEvents[0]
 		assert.Equal(t, "updateUsername", event.MutationRootField)
 		assert.Equal(t, "User", event.EntityType)
-		assert.Equal(t, true, event.HadCachedValue)  // cache was populated
-		assert.Equal(t, true, event.IsStale)          // username changed: OldMe -> NewMe
+		assert.Equal(t, true, event.HadCachedValue) // cache was populated
+		assert.Equal(t, true, event.IsStale)        // username changed: OldMe -> NewMe
 		assert.NotEqual(t, uint64(0), event.CachedHash)
 		assert.NotEqual(t, uint64(0), event.FreshHash)
 		assert.NotEqual(t, event.CachedHash, event.FreshHash) // hashes differ because content differs
@@ -490,9 +490,9 @@ func TestDetectMutationEntityImpact(t *testing.T) {
 		event := stats.MutationEvents[0]
 		assert.Equal(t, "updateUsername", event.MutationRootField)
 		assert.Equal(t, "User", event.EntityType)
-		assert.Equal(t, true, event.HadCachedValue)            // cache was populated
-		assert.Equal(t, false, event.IsStale)                   // cached value matches mutation response
-		assert.Equal(t, event.CachedHash, event.FreshHash)     // hashes are equal
+		assert.Equal(t, true, event.HadCachedValue)        // cache was populated
+		assert.Equal(t, false, event.IsStale)              // cached value matches mutation response
+		assert.Equal(t, event.CachedHash, event.FreshHash) // hashes are equal
 		assert.NotEqual(t, uint64(0), event.CachedHash)
 		assert.NotEqual(t, 0, event.CachedBytes)
 		assert.NotEqual(t, 0, event.FreshBytes)
@@ -723,4 +723,3 @@ func TestDetectMutationEntityImpact(t *testing.T) {
 		assert.Equal(t, map[string]struct{}{cacheKey: {}}, deletedKeys)
 	})
 }
-
