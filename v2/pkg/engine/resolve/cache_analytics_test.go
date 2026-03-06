@@ -1808,6 +1808,18 @@ func TestCacheAnalyticsCollector_HeaderImpactEvents(t *testing.T) {
 		}, snap.HeaderImpactEvents[2])
 	})
 
+	t.Run("same base key and header hash but different datasource are preserved", func(t *testing.T) {
+		c := NewCacheAnalyticsCollector()
+		c.RecordHeaderImpactEvent(HeaderImpactEvent{
+			BaseKey: "key1", HeaderHash: 111, ResponseHash: 999, EntityType: "User", DataSource: "accounts",
+		})
+		c.RecordHeaderImpactEvent(HeaderImpactEvent{
+			BaseKey: "key1", HeaderHash: 111, ResponseHash: 777, EntityType: "User", DataSource: "reviews",
+		})
+		snap := c.Snapshot()
+		assert.Equal(t, 2, len(snap.HeaderImpactEvents), "different datasource/response should not be deduped")
+	})
+
 	t.Run("empty when no events recorded", func(t *testing.T) {
 		c := NewCacheAnalyticsCollector()
 		snap := c.Snapshot()

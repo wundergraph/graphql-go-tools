@@ -439,19 +439,21 @@ func deduplicateShadowComparisons(events []ShadowComparisonEvent) []ShadowCompar
 }
 
 // deduplicateHeaderImpactEvents removes duplicate header impact events,
-// keeping the first occurrence for each (BaseKey, HeaderHash) pair.
+// keeping the first occurrence for each unique event identity.
 func deduplicateHeaderImpactEvents(events []HeaderImpactEvent) []HeaderImpactEvent {
 	if len(events) == 0 {
 		return events
 	}
 	type dedupKey struct {
-		baseKey    string
-		headerHash uint64
+		baseKey      string
+		headerHash   uint64
+		responseHash uint64
+		dataSource   string
 	}
 	seen := make(map[dedupKey]struct{}, len(events))
 	out := make([]HeaderImpactEvent, 0, len(events))
 	for _, ev := range events {
-		k := dedupKey{baseKey: ev.BaseKey, headerHash: ev.HeaderHash}
+		k := dedupKey{baseKey: ev.BaseKey, headerHash: ev.HeaderHash, responseHash: ev.ResponseHash, dataSource: ev.DataSource}
 		if _, ok := seen[k]; ok {
 			continue
 		}
