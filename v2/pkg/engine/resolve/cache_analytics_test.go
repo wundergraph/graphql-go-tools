@@ -1762,3 +1762,82 @@ func TestSnapshotDeduplication(t *testing.T) {
 		assert.Equal(t, int64(49), snap.CachedBytesServed(), "bytes served from 1 unique hit")
 	})
 }
+
+func TestCacheAnalyticsCollector_HeaderImpactEvents(t *testing.T) {
+	base := HeaderImpactEvent{
+		BaseKey: "key1", HeaderHash: 111, ResponseHash: 999,
+		EntityType: "User", DataSource: "accounts",
+	}
+
+	t.Run("exact duplicates are collapsed", func(t *testing.T) {
+		c := NewCacheAnalyticsCollector()
+		c.RecordHeaderImpactEvent(base)
+		c.RecordHeaderImpactEvent(base)
+		c.RecordHeaderImpactEvent(base)
+		snap := c.Snapshot()
+		assert.Equal(t, []HeaderImpactEvent{base}, snap.HeaderImpactEvents)
+	})
+
+	t.Run("different BaseKey is preserved", func(t *testing.T) {
+		c := NewCacheAnalyticsCollector()
+		other := base
+		other.BaseKey = "key2"
+		c.RecordHeaderImpactEvent(base)
+		c.RecordHeaderImpactEvent(other)
+		snap := c.Snapshot()
+		assert.Equal(t, []HeaderImpactEvent{base, other}, snap.HeaderImpactEvents)
+	})
+
+	t.Run("different HeaderHash is preserved", func(t *testing.T) {
+		c := NewCacheAnalyticsCollector()
+		other := base
+		other.HeaderHash = 222
+		c.RecordHeaderImpactEvent(base)
+		c.RecordHeaderImpactEvent(other)
+		snap := c.Snapshot()
+		assert.Equal(t, []HeaderImpactEvent{base, other}, snap.HeaderImpactEvents)
+	})
+
+	t.Run("different ResponseHash is preserved", func(t *testing.T) {
+		c := NewCacheAnalyticsCollector()
+		other := base
+		other.ResponseHash = 888
+		c.RecordHeaderImpactEvent(base)
+		c.RecordHeaderImpactEvent(other)
+		snap := c.Snapshot()
+		assert.Equal(t, []HeaderImpactEvent{base, other}, snap.HeaderImpactEvents)
+	})
+
+	t.Run("different EntityType is preserved", func(t *testing.T) {
+		c := NewCacheAnalyticsCollector()
+		other := base
+		other.EntityType = "Product"
+		c.RecordHeaderImpactEvent(base)
+		c.RecordHeaderImpactEvent(other)
+		snap := c.Snapshot()
+		assert.Equal(t, []HeaderImpactEvent{base, other}, snap.HeaderImpactEvents)
+	})
+
+	t.Run("different DataSource is preserved", func(t *testing.T) {
+		c := NewCacheAnalyticsCollector()
+		other := base
+		other.DataSource = "reviews"
+		c.RecordHeaderImpactEvent(base)
+		c.RecordHeaderImpactEvent(other)
+		snap := c.Snapshot()
+		assert.Equal(t, []HeaderImpactEvent{base, other}, snap.HeaderImpactEvents)
+	})
+
+	t.Run("single event is preserved", func(t *testing.T) {
+		c := NewCacheAnalyticsCollector()
+		c.RecordHeaderImpactEvent(base)
+		snap := c.Snapshot()
+		assert.Equal(t, []HeaderImpactEvent{base}, snap.HeaderImpactEvents)
+	})
+
+	t.Run("empty when no events recorded", func(t *testing.T) {
+		c := NewCacheAnalyticsCollector()
+		snap := c.Snapshot()
+		assert.Equal(t, 0, len(snap.HeaderImpactEvents))
+	})
+}

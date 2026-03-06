@@ -140,24 +140,37 @@ type MutationEvent struct {
 	FreshBytes        int
 }
 
+// HeaderImpactEvent records a fresh fetch that wrote to L2 cache with header-prefixed keys.
+// A cross-request consumer can aggregate these events: when the same BaseKey appears with
+// different HeaderHash values but identical ResponseHash values, the forwarded headers
+// do not affect the subgraph response, and IncludeSubgraphHeaderPrefix can be disabled.
+type HeaderImpactEvent struct {
+	BaseKey      string // cache key WITHOUT header prefix (stable identity for grouping)
+	HeaderHash   uint64 // hash of forwarded headers for this subgraph
+	ResponseHash uint64 // xxhash of the response value bytes written to L2
+	EntityType   string // entity type (e.g., "User") or "Query" for root fields
+	DataSource   string // subgraph name
+}
+
 // CacheAnalyticsCollector accumulates cache analytics events during request execution.
 // All methods are designed to be called from a single goroutine (main thread) except
 // where noted. L2 events from goroutines are accumulated on per-result slices and
 // merged on the main thread via MergeL2Events.
 type CacheAnalyticsCollector struct {
-	l1KeyEvents       []CacheKeyEvent
-	l2KeyEvents       []CacheKeyEvent
-	writeEvents       []CacheWriteEvent
-	fieldHashes       []EntityFieldHash       // flat slice (was: nested maps)
-	entityCounts      []entityCount           // simple type→count (was: map)
-	entitySources     []entitySourceRecord    // records where each entity's data came from
-	fetchTimings      []FetchTimingEvent      // main thread timings
-	errorEvents       []SubgraphErrorEvent    // main thread errors
-	l2ErrorEvents     []SubgraphErrorEvent    // accumulated in goroutines, merged on main thread
-	l2FetchTimings    []FetchTimingEvent      // accumulated in goroutines, merged on main thread
-	shadowComparisons []ShadowComparisonEvent // shadow mode staleness comparison events
-	mutationEvents    []MutationEvent         // mutation entity impact events
-	xxh               *xxhash.Digest
+	l1KeyEvents        []CacheKeyEvent
+	l2KeyEvents        []CacheKeyEvent
+	writeEvents        []CacheWriteEvent
+	fieldHashes        []EntityFieldHash       // flat slice (was: nested maps)
+	entityCounts       []entityCount           // simple type→count (was: map)
+	entitySources      []entitySourceRecord    // records where each entity's data came from
+	fetchTimings       []FetchTimingEvent      // main thread timings
+	errorEvents        []SubgraphErrorEvent    // main thread errors
+	l2ErrorEvents      []SubgraphErrorEvent    // accumulated in goroutines, merged on main thread
+	l2FetchTimings     []FetchTimingEvent      // accumulated in goroutines, merged on main thread
+	shadowComparisons  []ShadowComparisonEvent // shadow mode staleness comparison events
+	mutationEvents     []MutationEvent         // mutation entity impact events
+	headerImpactEvents []HeaderImpactEvent     // header impact events for L2 writes with header prefix
+	xxh                *xxhash.Digest
 }
 
 // NewCacheAnalyticsCollector creates a new collector with pre-allocated slices.
@@ -304,6 +317,11 @@ func (c *CacheAnalyticsCollector) RecordMutationEvent(event MutationEvent) {
 	c.mutationEvents = append(c.mutationEvents, event)
 }
 
+// RecordHeaderImpactEvent records a header impact event. Main thread only.
+func (c *CacheAnalyticsCollector) RecordHeaderImpactEvent(event HeaderImpactEvent) {
+	c.headerImpactEvents = append(c.headerImpactEvents, event)
+}
+
 // EntitySource returns the source for a given entity instance.
 // Returns FieldSourceSubgraph if no record is found (the default).
 func (c *CacheAnalyticsCollector) EntitySource(entityType, keyJSON string) FieldSource {
@@ -321,13 +339,14 @@ func (c *CacheAnalyticsCollector) EntitySource(entityType, keyJSON string) Field
 // one per CacheKey for writes, and one per CacheKey for shadow comparisons.
 func (c *CacheAnalyticsCollector) Snapshot() CacheAnalyticsSnapshot {
 	snap := CacheAnalyticsSnapshot{
-		L1Reads:           deduplicateKeyEvents(c.l1KeyEvents),
-		L2Reads:           deduplicateKeyEvents(c.l2KeyEvents),
-		FieldHashes:       c.fieldHashes,
-		FetchTimings:      c.fetchTimings,
-		ErrorEvents:       c.errorEvents,
-		ShadowComparisons: deduplicateShadowComparisons(c.shadowComparisons),
-		MutationEvents:    c.mutationEvents,
+		L1Reads:            deduplicateKeyEvents(c.l1KeyEvents),
+		L2Reads:            deduplicateKeyEvents(c.l2KeyEvents),
+		FieldHashes:        c.fieldHashes,
+		FetchTimings:       c.fetchTimings,
+		ErrorEvents:        c.errorEvents,
+		ShadowComparisons:  deduplicateShadowComparisons(c.shadowComparisons),
+		MutationEvents:     c.mutationEvents,
+		HeaderImpactEvents: deduplicateHeaderImpactEvents(c.headerImpactEvents),
 	}
 
 	// Split write events into L1 and L2, then deduplicate each
@@ -419,6 +438,24 @@ func deduplicateShadowComparisons(events []ShadowComparisonEvent) []ShadowCompar
 	return out
 }
 
+// deduplicateHeaderImpactEvents removes duplicate header impact events,
+// keeping the first occurrence for each unique event identity.
+func deduplicateHeaderImpactEvents(events []HeaderImpactEvent) []HeaderImpactEvent {
+	if len(events) == 0 {
+		return events
+	}
+	seen := make(map[HeaderImpactEvent]struct{}, len(events))
+	out := make([]HeaderImpactEvent, 0, len(events))
+	for _, ev := range events {
+		if _, ok := seen[ev]; ok {
+			continue
+		}
+		seen[ev] = struct{}{}
+		out = append(out, ev)
+	}
+	return out
+}
+
 // CacheAnalyticsSnapshot is a read-only snapshot of cache analytics data.
 // Requires EnableCacheAnalytics to be set; returns empty when disabled.
 type CacheAnalyticsSnapshot struct {
@@ -447,6 +484,9 @@ type CacheAnalyticsSnapshot struct {
 
 	// Mutation entity impact events
 	MutationEvents []MutationEvent
+
+	// Header impact events (L2 writes with header-prefixed keys)
+	HeaderImpactEvents []HeaderImpactEvent
 }
 
 // L1HitRate returns the L1 cache hit rate as a float64 in [0, 1].
