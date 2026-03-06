@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.261](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.260...v2.0.0-rc.261) (2026-03-06)
+
+
+### Bug Fixes
+
+* fix selecting parent of unique nodes ([#1430](https://github.com/wundergraph/graphql-go-tools/issues/1430)) ([fd0e06a](https://github.com/wundergraph/graphql-go-tools/commit/fd0e06afa472a4c069f429c3c73e442831ed4b19))
+
 ## [2.0.0-rc.260](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.259...v2.0.0-rc.260) (2026-03-05)
 
 
