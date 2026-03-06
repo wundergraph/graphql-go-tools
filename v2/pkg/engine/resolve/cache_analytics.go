@@ -444,20 +444,13 @@ func deduplicateHeaderImpactEvents(events []HeaderImpactEvent) []HeaderImpactEve
 	if len(events) == 0 {
 		return events
 	}
-	type dedupKey struct {
-		baseKey      string
-		headerHash   uint64
-		responseHash uint64
-		dataSource   string
-	}
-	seen := make(map[dedupKey]struct{}, len(events))
+	seen := make(map[HeaderImpactEvent]struct{}, len(events))
 	out := make([]HeaderImpactEvent, 0, len(events))
 	for _, ev := range events {
-		k := dedupKey{baseKey: ev.BaseKey, headerHash: ev.HeaderHash, responseHash: ev.ResponseHash, dataSource: ev.DataSource}
-		if _, ok := seen[k]; ok {
+		if _, ok := seen[ev]; ok {
 			continue
 		}
-		seen[k] = struct{}{}
+		seen[ev] = struct{}{}
 		out = append(out, ev)
 	}
 	return out
