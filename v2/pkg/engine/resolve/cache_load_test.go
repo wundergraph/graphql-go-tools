@@ -2055,7 +2055,7 @@ func buildProductEntityResponse(rootDS, entityDS DataSource, cacheKeyTemplate Ca
 				Info: &FetchInfo{
 					DataSourceID: "ds", DataSourceName: "ds",
 					RootFields:    []GraphCoordinate{{TypeName: "Product", FieldName: "name"}},
-					OperationType: ast.OperationTypeQuery, ProvidesData: providesData,
+					OperationType: operationType, ProvidesData: providesData,
 				},
 			}, rootOpName+"."+rootFieldName, ObjectPath(rootFieldName)),
 		),
@@ -2176,9 +2176,9 @@ func TestL2CacheErrorResilience(t *testing.T) {
 		defer ctrl.Finish()
 
 		cache := NewFakeLoaderCache()
-		// Pre-populate cache with corrupted JSON
+		// Pre-populate cache with corrupted JSON using the real key format
 		_ = cache.Set(t.Context(), []*CacheEntry{
-			{Key: "Product:prod-1", Value: []byte(`{not valid json!!!}`)},
+			{Key: `{"__typename":"Product","key":{"id":"prod-1"}}`, Value: []byte(`{not valid json!!!}`)},
 		}, 30*time.Second)
 
 		rootDS := NewMockDataSource(ctrl)
@@ -2211,6 +2211,14 @@ func TestL2CacheErrorResilience(t *testing.T) {
 
 		out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
 		assert.Equal(t, `{"data":{"product":{"__typename":"Product","id":"prod-1","name":"Product One"}}}`, out)
+
+		// Verify L2 cache was actually accessed (Get returned the corrupted entry, then Set wrote fresh data)
+		log := cache.GetLog()
+		assert.Equal(t, 3, len(log), "should have set (seed) + get (corrupted hit) + set (fresh data)")
+		assert.Equal(t, "set", log[0].Operation)
+		assert.Equal(t, "get", log[1].Operation)
+		assert.Equal(t, true, log[1].Hits[0], "L2 Get should find the seeded corrupted entry")
+		assert.Equal(t, "set", log[2].Operation)
 	})
 }
 
@@ -2220,9 +2228,9 @@ func TestMutationSkipsL2Read(t *testing.T) {
 		defer ctrl.Finish()
 
 		cache := NewFakeLoaderCache()
-		// Pre-populate cache with stale data
+		// Pre-populate cache with stale data using the real key format
 		_ = cache.Set(t.Context(), []*CacheEntry{
-			{Key: "Product:prod-1", Value: []byte(`{"__typename":"Product","id":"prod-1","name":"Old Name"}`)},
+			{Key: `{"__typename":"Product","key":{"id":"prod-1"}}`, Value: []byte(`{"__typename":"Product","id":"prod-1","name":"Old Name"}`)},
 		}, 30*time.Second)
 
 		userCacheKeyTemplate := &EntityQueryCacheKeyTemplate{
