@@ -1980,6 +1980,7 @@ func TestShadowMode_WithoutAnalytics(t *testing.T) {
 // when configured to do so. Used for testing L2 error resilience.
 type ErrorLoaderCache struct {
 	*FakeLoaderCache
+
 	getErr error
 	setErr error
 }
