@@ -252,8 +252,10 @@ ctx.ExecutionOptions.Caching = resolve.CachingOptions{
 
     // Optional: transform L2 cache keys (e.g., for tenant isolation)
     L2CacheKeyInterceptor: func(ctx context.Context, key string, info resolve.L2CacheKeyInterceptorInfo) string {
-        tenantID := ctx.Value("tenant-id").(string)
-        return tenantID + ":" + key
+        if tenantID, ok := ctx.Value("tenant-id").(string); ok {
+            return tenantID + ":" + key
+        }
+        return key
     },
 }
 ```
@@ -293,12 +295,12 @@ Arguments are sorted alphabetically for stable key generation.
 ### Key Transformations (applied in order)
 
 1. **Subgraph header hash prefix** (when `IncludeSubgraphHeaderPrefix = true`):
-   ```
+   ```text
    {headerHash}:{"__typename":"User","key":{"id":"123"}}
    ```
 
 2. **L2CacheKeyInterceptor** (when set):
-   ```
+   ```text
    tenant-X:{headerHash}:{"__typename":"User","key":{"id":"123"}}
    ```
 
@@ -316,7 +318,7 @@ When `EntityKeyMappings` is configured on a root field, the L2 cache key uses en
 
 ### Queries
 
-```
+```text
 L1 check (main thread, entity fetches only)
   ↓ miss
 L2 check (goroutine, entity + root fetches)
@@ -383,7 +385,7 @@ With `EnableInvalidationOnKeyOnly: true`, subscription events that only contain 
 ### Manual Invalidation
 
 Call `LoaderCache.Delete()` directly with cache keys. The key format is:
-```
+```text
 [optional-interceptor-prefix:][optional-header-hash:]{"__typename":"TypeName","key":{...}}
 ```
 

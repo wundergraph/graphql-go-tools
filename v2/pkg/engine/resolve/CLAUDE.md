@@ -13,7 +13,7 @@ Three components work together:
 | **Resolvable** | `resolvable.go` | Response data, two-pass rendering, error handling |
 
 **End-to-end flow:**
-```
+```text
 Resolver.ResolveGraphQLResponse(ctx, response, data, writer)
   1. Acquire concurrency semaphore
   2. Create Loader + Resolvable from arena pool
@@ -206,7 +206,7 @@ type Resolvable struct {
 
 ### walkObject (core method)
 
-```
+```text
 1. Navigate to object in JSON: value = parent.Get(obj.Path...)
 2. Null check: if nil and non-nullable → error with null bubbling
 3. Type validation: check __typename against PossibleTypes
@@ -352,12 +352,12 @@ type CacheEntry struct {
 ### Cache Flow (Integrated into Loader Phases)
 
 **Sequential (tryCacheLoad):**
-```
+```text
 prepareCacheKeys() → tryL1CacheLoad() → tryL2CacheLoad() → fetch → populateL1Cache() + updateL2Cache()
 ```
 
 **Parallel (resolveParallel):**
-```
+```text
 Phase 1 (main): prepareCacheKeys + tryL1CacheLoad for all fetches
 Phase 2 (goroutines): tryL2CacheLoad + fetch via loadFetchL2Only
 Phase 3 (main): merge analytics from goroutines

@@ -6,7 +6,7 @@ Module: `github.com/wundergraph/graphql-go-tools` (Go 1.25, go.work workspace)
 
 ## Data Flow
 
-```
+```text
 parse → normalize → validate → plan → resolve → response
 ```
 
