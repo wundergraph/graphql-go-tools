@@ -50,6 +50,7 @@ const (
 	ProductService_QueryCategories_FullMethodName                       = "/productv1.ProductService/QueryCategories"
 	ProductService_QueryCategoriesByKind_FullMethodName                 = "/productv1.ProductService/QueryCategoriesByKind"
 	ProductService_QueryCategoriesByKinds_FullMethodName                = "/productv1.ProductService/QueryCategoriesByKinds"
+	ProductService_QueryCategory_FullMethodName                         = "/productv1.ProductService/QueryCategory"
 	ProductService_QueryComplexFilterType_FullMethodName                = "/productv1.ProductService/QueryComplexFilterType"
 	ProductService_QueryFilterCategories_FullMethodName                 = "/productv1.ProductService/QueryFilterCategories"
 	ProductService_QueryNestedType_FullMethodName                       = "/productv1.ProductService/QueryNestedType"
@@ -80,6 +81,7 @@ const (
 	ProductService_ResolveProductRecommendedCategory_FullMethodName     = "/productv1.ProductService/ResolveProductRecommendedCategory"
 	ProductService_ResolveProductShippingEstimate_FullMethodName        = "/productv1.ProductService/ResolveProductShippingEstimate"
 	ProductService_ResolveProductStockStatus_FullMethodName             = "/productv1.ProductService/ResolveProductStockStatus"
+	ProductService_ResolveSubcategoryFeaturedCategory_FullMethodName    = "/productv1.ProductService/ResolveSubcategoryFeaturedCategory"
 	ProductService_ResolveSubcategoryItemCount_FullMethodName           = "/productv1.ProductService/ResolveSubcategoryItemCount"
 	ProductService_ResolveTestContainerDetails_FullMethodName           = "/productv1.ProductService/ResolveTestContainerDetails"
 )
@@ -124,6 +126,7 @@ type ProductServiceClient interface {
 	QueryCategories(ctx context.Context, in *QueryCategoriesRequest, opts ...grpc.CallOption) (*QueryCategoriesResponse, error)
 	QueryCategoriesByKind(ctx context.Context, in *QueryCategoriesByKindRequest, opts ...grpc.CallOption) (*QueryCategoriesByKindResponse, error)
 	QueryCategoriesByKinds(ctx context.Context, in *QueryCategoriesByKindsRequest, opts ...grpc.CallOption) (*QueryCategoriesByKindsResponse, error)
+	QueryCategory(ctx context.Context, in *QueryCategoryRequest, opts ...grpc.CallOption) (*QueryCategoryResponse, error)
 	QueryComplexFilterType(ctx context.Context, in *QueryComplexFilterTypeRequest, opts ...grpc.CallOption) (*QueryComplexFilterTypeResponse, error)
 	QueryFilterCategories(ctx context.Context, in *QueryFilterCategoriesRequest, opts ...grpc.CallOption) (*QueryFilterCategoriesResponse, error)
 	QueryNestedType(ctx context.Context, in *QueryNestedTypeRequest, opts ...grpc.CallOption) (*QueryNestedTypeResponse, error)
@@ -154,6 +157,7 @@ type ProductServiceClient interface {
 	ResolveProductRecommendedCategory(ctx context.Context, in *ResolveProductRecommendedCategoryRequest, opts ...grpc.CallOption) (*ResolveProductRecommendedCategoryResponse, error)
 	ResolveProductShippingEstimate(ctx context.Context, in *ResolveProductShippingEstimateRequest, opts ...grpc.CallOption) (*ResolveProductShippingEstimateResponse, error)
 	ResolveProductStockStatus(ctx context.Context, in *ResolveProductStockStatusRequest, opts ...grpc.CallOption) (*ResolveProductStockStatusResponse, error)
+	ResolveSubcategoryFeaturedCategory(ctx context.Context, in *ResolveSubcategoryFeaturedCategoryRequest, opts ...grpc.CallOption) (*ResolveSubcategoryFeaturedCategoryResponse, error)
 	ResolveSubcategoryItemCount(ctx context.Context, in *ResolveSubcategoryItemCountRequest, opts ...grpc.CallOption) (*ResolveSubcategoryItemCountResponse, error)
 	ResolveTestContainerDetails(ctx context.Context, in *ResolveTestContainerDetailsRequest, opts ...grpc.CallOption) (*ResolveTestContainerDetailsResponse, error)
 }
@@ -476,6 +480,16 @@ func (c *productServiceClient) QueryCategoriesByKinds(ctx context.Context, in *Q
 	return out, nil
 }
 
+func (c *productServiceClient) QueryCategory(ctx context.Context, in *QueryCategoryRequest, opts ...grpc.CallOption) (*QueryCategoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryCategoryResponse)
+	err := c.cc.Invoke(ctx, ProductService_QueryCategory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *productServiceClient) QueryComplexFilterType(ctx context.Context, in *QueryComplexFilterTypeRequest, opts ...grpc.CallOption) (*QueryComplexFilterTypeResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(QueryComplexFilterTypeResponse)
@@ -776,6 +790,16 @@ func (c *productServiceClient) ResolveProductStockStatus(ctx context.Context, in
 	return out, nil
 }
 
+func (c *productServiceClient) ResolveSubcategoryFeaturedCategory(ctx context.Context, in *ResolveSubcategoryFeaturedCategoryRequest, opts ...grpc.CallOption) (*ResolveSubcategoryFeaturedCategoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveSubcategoryFeaturedCategoryResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveSubcategoryFeaturedCategory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *productServiceClient) ResolveSubcategoryItemCount(ctx context.Context, in *ResolveSubcategoryItemCountRequest, opts ...grpc.CallOption) (*ResolveSubcategoryItemCountResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ResolveSubcategoryItemCountResponse)
@@ -836,6 +860,7 @@ type ProductServiceServer interface {
 	QueryCategories(context.Context, *QueryCategoriesRequest) (*QueryCategoriesResponse, error)
 	QueryCategoriesByKind(context.Context, *QueryCategoriesByKindRequest) (*QueryCategoriesByKindResponse, error)
 	QueryCategoriesByKinds(context.Context, *QueryCategoriesByKindsRequest) (*QueryCategoriesByKindsResponse, error)
+	QueryCategory(context.Context, *QueryCategoryRequest) (*QueryCategoryResponse, error)
 	QueryComplexFilterType(context.Context, *QueryComplexFilterTypeRequest) (*QueryComplexFilterTypeResponse, error)
 	QueryFilterCategories(context.Context, *QueryFilterCategoriesRequest) (*QueryFilterCategoriesResponse, error)
 	QueryNestedType(context.Context, *QueryNestedTypeRequest) (*QueryNestedTypeResponse, error)
@@ -866,6 +891,7 @@ type ProductServiceServer interface {
 	ResolveProductRecommendedCategory(context.Context, *ResolveProductRecommendedCategoryRequest) (*ResolveProductRecommendedCategoryResponse, error)
 	ResolveProductShippingEstimate(context.Context, *ResolveProductShippingEstimateRequest) (*ResolveProductShippingEstimateResponse, error)
 	ResolveProductStockStatus(context.Context, *ResolveProductStockStatusRequest) (*ResolveProductStockStatusResponse, error)
+	ResolveSubcategoryFeaturedCategory(context.Context, *ResolveSubcategoryFeaturedCategoryRequest) (*ResolveSubcategoryFeaturedCategoryResponse, error)
 	ResolveSubcategoryItemCount(context.Context, *ResolveSubcategoryItemCountRequest) (*ResolveSubcategoryItemCountResponse, error)
 	ResolveTestContainerDetails(context.Context, *ResolveTestContainerDetailsRequest) (*ResolveTestContainerDetailsResponse, error)
 	mustEmbedUnimplementedProductServiceServer()
@@ -971,6 +997,9 @@ func (UnimplementedProductServiceServer) QueryCategoriesByKind(context.Context, 
 func (UnimplementedProductServiceServer) QueryCategoriesByKinds(context.Context, *QueryCategoriesByKindsRequest) (*QueryCategoriesByKindsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method QueryCategoriesByKinds not implemented")
 }
+func (UnimplementedProductServiceServer) QueryCategory(context.Context, *QueryCategoryRequest) (*QueryCategoryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method QueryCategory not implemented")
+}
 func (UnimplementedProductServiceServer) QueryComplexFilterType(context.Context, *QueryComplexFilterTypeRequest) (*QueryComplexFilterTypeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method QueryComplexFilterType not implemented")
 }
@@ -1060,6 +1089,9 @@ func (UnimplementedProductServiceServer) ResolveProductShippingEstimate(context.
 }
 func (UnimplementedProductServiceServer) ResolveProductStockStatus(context.Context, *ResolveProductStockStatusRequest) (*ResolveProductStockStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ResolveProductStockStatus not implemented")
+}
+func (UnimplementedProductServiceServer) ResolveSubcategoryFeaturedCategory(context.Context, *ResolveSubcategoryFeaturedCategoryRequest) (*ResolveSubcategoryFeaturedCategoryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResolveSubcategoryFeaturedCategory not implemented")
 }
 func (UnimplementedProductServiceServer) ResolveSubcategoryItemCount(context.Context, *ResolveSubcategoryItemCountRequest) (*ResolveSubcategoryItemCountResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ResolveSubcategoryItemCount not implemented")
@@ -1646,6 +1678,24 @@ func _ProductService_QueryCategoriesByKinds_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_QueryCategory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryCategoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).QueryCategory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_QueryCategory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).QueryCategory(ctx, req.(*QueryCategoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProductService_QueryComplexFilterType_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(QueryComplexFilterTypeRequest)
 	if err := dec(in); err != nil {
@@ -2186,6 +2236,24 @@ func _ProductService_ResolveProductStockStatus_Handler(srv interface{}, ctx cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_ResolveSubcategoryFeaturedCategory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveSubcategoryFeaturedCategoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveSubcategoryFeaturedCategory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveSubcategoryFeaturedCategory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveSubcategoryFeaturedCategory(ctx, req.(*ResolveSubcategoryFeaturedCategoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProductService_ResolveSubcategoryItemCount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ResolveSubcategoryItemCountRequest)
 	if err := dec(in); err != nil {
@@ -2354,6 +2422,10 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ProductService_QueryCategoriesByKinds_Handler,
 		},
 		{
+			MethodName: "QueryCategory",
+			Handler:    _ProductService_QueryCategory_Handler,
+		},
+		{
 			MethodName: "QueryComplexFilterType",
 			Handler:    _ProductService_QueryComplexFilterType_Handler,
 		},
@@ -2472,6 +2544,10 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ResolveProductStockStatus",
 			Handler:    _ProductService_ResolveProductStockStatus_Handler,
+		},
+		{
+			MethodName: "ResolveSubcategoryFeaturedCategory",
+			Handler:    _ProductService_ResolveSubcategoryFeaturedCategory_Handler,
 		},
 		{
 			MethodName: "ResolveSubcategoryItemCount",

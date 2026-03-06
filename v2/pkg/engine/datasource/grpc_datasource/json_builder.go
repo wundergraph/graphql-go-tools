@@ -277,6 +277,10 @@ func (j *jsonBuilder) flattenObject(value *astjson.Value, path ast.Path) ([]*ast
 
 	segment := path[0]
 	current := value.Get(segment.FieldName.String())
+	if current == nil {
+		return nil, fmt.Errorf("field %s not found in object", segment.FieldName.String())
+	}
+
 	result := make([]*astjson.Value, 0)
 	switch current.Type() {
 	case astjson.TypeObject:
