@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.1](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.9.0...execution/v1.9.1) (2026-03-06)
+
+
+### Bug Fixes
+
+* propagate actualListSizes via resolver context ([#1404](https://github.com/wundergraph/graphql-go-tools/issues/1404)) ([5433fcb](https://github.com/wundergraph/graphql-go-tools/commit/5433fcb28732115e451c9dfeb70dc13de62cda33))
+
 ## [1.9.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.8.1...execution/v1.9.0) (2026-02-20)
 
 
