@@ -358,6 +358,12 @@ type FetchCacheConfiguration struct {
 	// to the L2 cache. Propagated from MutationFieldCacheConfiguration.
 	// By default, mutations do NOT populate L2.
 	EnableMutationL2CachePopulation bool
+
+	// NegativeCacheTTL is the TTL for caching null entity results (entity not found).
+	// When > 0, null responses (entity returned null without errors) are cached to avoid
+	// repeated subgraph lookups for non-existent entities.
+	// When 0 (default), null entities are not cached.
+	NegativeCacheTTL time.Duration
 }
 
 // MutationEntityImpactConfig holds information for detecting entity cache changes from mutations.

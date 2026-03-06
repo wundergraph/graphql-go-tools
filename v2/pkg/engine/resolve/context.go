@@ -199,6 +199,12 @@ type CachingOptions struct {
 	// graphql-go-tools internals. Does not affect L1 cache keys.
 	// Default: nil (no transformation)
 	L2CacheKeyInterceptor L2CacheKeyInterceptor
+	// GlobalCacheKeyPrefix is prepended to all L2 cache keys (before header hash prefix).
+	// Use this for schema versioning: set to a schema hash so that schema changes
+	// automatically separate cache entries without requiring a cache flush.
+	// Format: "{prefix}:{rest_of_key}". Empty string means no prefix.
+	// Applied in order: global prefix → header hash prefix → interceptor.
+	GlobalCacheKeyPrefix string
 }
 
 type FieldValue struct {

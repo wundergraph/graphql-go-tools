@@ -140,6 +140,18 @@ type MutationEvent struct {
 	FreshBytes        int
 }
 
+// CacheOperationError records a cache operation (Get/Set/Delete) that returned an error.
+// Cache errors are non-fatal (the engine falls back to subgraph fetch), but tracking them
+// in analytics allows operators to detect cache infrastructure issues.
+type CacheOperationError struct {
+	Operation  string // "get", "set", or "delete"
+	CacheName  string // named cache instance
+	EntityType string // entity type (empty for root fetches)
+	DataSource string // subgraph name
+	Message    string // error message (truncated for safety)
+	ItemCount  int    // number of keys involved in the failed operation
+}
+
 // HeaderImpactEvent records a fresh fetch that wrote to L2 cache with header-prefixed keys.
 // A cross-request consumer can aggregate these events: when the same BaseKey appears with
 // different HeaderHash values but identical ResponseHash values, the forwarded headers
@@ -168,9 +180,11 @@ type CacheAnalyticsCollector struct {
 	l2ErrorEvents      []SubgraphErrorEvent    // accumulated in goroutines, merged on main thread
 	l2FetchTimings     []FetchTimingEvent      // accumulated in goroutines, merged on main thread
 	shadowComparisons  []ShadowComparisonEvent // shadow mode staleness comparison events
-	mutationEvents     []MutationEvent         // mutation entity impact events
-	headerImpactEvents []HeaderImpactEvent     // header impact events for L2 writes with header prefix
-	xxh                *xxhash.Digest
+	mutationEvents      []MutationEvent         // mutation entity impact events
+	headerImpactEvents  []HeaderImpactEvent     // header impact events for L2 writes with header prefix
+	cacheOpErrors       []CacheOperationError   // cache operation errors (main thread)
+	l2CacheOpErrors     []CacheOperationError   // accumulated in goroutines, merged on main thread
+	xxh                 *xxhash.Digest
 }
 
 // NewCacheAnalyticsCollector creates a new collector with pre-allocated slices.
@@ -322,6 +336,17 @@ func (c *CacheAnalyticsCollector) RecordHeaderImpactEvent(event HeaderImpactEven
 	c.headerImpactEvents = append(c.headerImpactEvents, event)
 }
 
+// RecordCacheOperationError records a cache operation error. Main thread only.
+func (c *CacheAnalyticsCollector) RecordCacheOperationError(event CacheOperationError) {
+	c.cacheOpErrors = append(c.cacheOpErrors, event)
+}
+
+// MergeL2CacheOpErrors merges cache operation errors collected in goroutines into the collector.
+// Must be called on the main thread.
+func (c *CacheAnalyticsCollector) MergeL2CacheOpErrors(events []CacheOperationError) {
+	c.cacheOpErrors = append(c.cacheOpErrors, events...)
+}
+
 // EntitySource returns the source for a given entity instance.
 // Returns FieldSourceSubgraph if no record is found (the default).
 func (c *CacheAnalyticsCollector) EntitySource(entityType, keyJSON string) FieldSource {
@@ -347,6 +372,7 @@ func (c *CacheAnalyticsCollector) Snapshot() CacheAnalyticsSnapshot {
 		ShadowComparisons:  deduplicateShadowComparisons(c.shadowComparisons),
 		MutationEvents:     c.mutationEvents,
 		HeaderImpactEvents: deduplicateHeaderImpactEvents(c.headerImpactEvents),
+		CacheOpErrors:      c.cacheOpErrors,
 	}
 
 	// Split write events into L1 and L2, then deduplicate each
@@ -487,6 +513,9 @@ type CacheAnalyticsSnapshot struct {
 
 	// Header impact events (L2 writes with header-prefixed keys)
 	HeaderImpactEvents []HeaderImpactEvent
+
+	// Cache operation errors (Get/Set/Delete failures)
+	CacheOpErrors []CacheOperationError
 }
 
 // L1HitRate returns the L1 cache hit rate as a float64 in [0, 1].

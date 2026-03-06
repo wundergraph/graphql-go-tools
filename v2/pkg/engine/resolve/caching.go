@@ -21,6 +21,9 @@ type CacheKey struct {
 	// On STORE: extracts entity-level data at this path (e.g., ["user"] extracts from {"user":{...}}).
 	// On LOAD: wraps cached entity-level data back at this path (e.g., wraps {...} into {"user":{...}}).
 	EntityMergePath []string
+	// NegativeCacheHit is set during mergeResult when the subgraph returned null for this entity.
+	// Used by updateL2Cache to store a null sentinel with NegativeCacheTTL instead of regular TTL.
+	NegativeCacheHit bool
 }
 
 type RootQueryCacheKeyTemplate struct {

@@ -81,6 +81,7 @@ func TestHandleTriggerEntityCache(t *testing.T) {
 			Operation: "set",
 			Keys:      []string{`{"__typename":"Product","key":{"id":"prod-1"}}`},
 			Hits:      nil,
+			TTL:       30 * time.Second,
 		}, log[0], "should set the entity with correct cache key")
 
 		// Verify stored data

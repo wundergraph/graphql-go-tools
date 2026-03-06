@@ -97,6 +97,23 @@ func (r *Resolver) SetAsyncErrorWriter(w AsyncErrorWriter) {
 	r.asyncErrorWriter = w
 }
 
+// CacheCircuitBreakerOpen returns true if the circuit breaker for the named cache
+// is currently open (blocking L2 operations). Returns false if the cache doesn't
+// exist or has no circuit breaker configured.
+func (r *Resolver) CacheCircuitBreakerOpen(cacheName string) bool {
+	if r.options.Caches == nil {
+		return false
+	}
+	cache, ok := r.options.Caches[cacheName]
+	if !ok {
+		return false
+	}
+	if cb, ok := cache.(*circuitBreakerCache); ok {
+		return cb.state.isOpen()
+	}
+	return false
+}
+
 type tools struct {
 	resolvable *Resolvable
 	loader     *Loader
@@ -192,6 +209,12 @@ type ResolverOptions struct {
 
 	Caches map[string]LoaderCache
 
+	// CacheCircuitBreakers configures per-cache circuit breakers.
+	// Map key must match a key in Caches. Entries for missing cache names are ignored.
+	// When a breaker trips (consecutive failures >= threshold), all L2 operations for
+	// that cache are skipped until the cooldown period elapses.
+	CacheCircuitBreakers map[string]CircuitBreakerConfig
+
 	// EntityCacheConfigs maps subgraphName → entityTypeName → config.
 	// Used by extensions-based cache invalidation to look up cache settings at runtime.
 	EntityCacheConfigs map[string]map[string]*EntityCacheInvalidationConfig
@@ -279,6 +302,9 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		options.SubgraphRequestDeduplicationShardCount = n
 		options.InboundRequestDeduplicationShardCount = n
 	}
+
+	// Wrap caches with circuit breakers where configured
+	wrapCachesWithCircuitBreakers(options.Caches, options.CacheCircuitBreakers)
 
 	resolver := &Resolver{
 		ctx:                          ctx,
@@ -712,15 +738,25 @@ func (r *Resolver) handleTriggerEntityCache(config *triggerEntityCacheConfig, da
 		return
 	}
 
-	// Get the subgraph header prefix for cache key isolation
+	// Get the global prefix and subgraph header prefix for cache key isolation.
+	// Mirrors prepareCacheKeys(): global prefix → header hash prefix → interceptor.
 	var prefix string
+	globalPrefix := config.resolveCtx.ExecutionOptions.Caching.GlobalCacheKeyPrefix
 	if config.pop.IncludeSubgraphHeaderPrefix && config.resolveCtx.SubgraphHeadersBuilder != nil {
 		_, hash := config.resolveCtx.SubgraphHeadersBuilder.HeadersForSubgraph(config.pop.DataSourceName)
 		if hash != 0 {
 			var buf [20]byte
 			b := strconv.AppendUint(buf[:0], hash, 10)
-			prefix = string(b)
+			if globalPrefix != "" {
+				prefix = globalPrefix + ":" + string(b)
+			} else {
+				prefix = string(b)
+			}
+		} else if globalPrefix != "" {
+			prefix = globalPrefix
 		}
+	} else if globalPrefix != "" {
+		prefix = globalPrefix
 	}
 
 	// We need a temporary resolvable to parse the subscription data and extract entity items.
@@ -789,6 +825,22 @@ func (r *Resolver) handleTriggerEntityCache(config *triggerEntityCacheConfig, da
 	cacheKeys, err := config.pop.CacheKeyTemplate.RenderCacheKeys(resolveArena.Arena, config.resolveCtx, items, prefix)
 	if err != nil || len(cacheKeys) == 0 {
 		return
+	}
+
+	// Apply L2CacheKeyInterceptor to match the full key construction pipeline
+	// used by prepareCacheKeys() and processExtensionsCacheInvalidation().
+	// Without this, custom key transforms (e.g., tenant prefix) would be missing
+	// from subscription cache operations, causing cache key mismatches.
+	if interceptor := config.resolveCtx.ExecutionOptions.Caching.L2CacheKeyInterceptor; interceptor != nil {
+		interceptorInfo := L2CacheKeyInterceptorInfo{
+			SubgraphName: config.pop.DataSourceName,
+			CacheName:    config.pop.CacheName,
+		}
+		for _, ck := range cacheKeys {
+			for i, key := range ck.Keys {
+				ck.Keys[i] = interceptor(config.resolveCtx.ctx, key, interceptorInfo)
+			}
+		}
 	}
 
 	// Use the resolver context (not client context) since this is a trigger-level operation

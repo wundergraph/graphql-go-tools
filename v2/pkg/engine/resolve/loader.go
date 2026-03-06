@@ -162,6 +162,9 @@ type result struct {
 	// l2ErrorEvents accumulates error events in goroutines, merged on main thread.
 	l2ErrorEvents []SubgraphErrorEvent
 
+	// l2CacheOpErrors accumulates cache operation errors in goroutines, merged on main thread.
+	l2CacheOpErrors []CacheOperationError
+
 	// analyticsEntityType caches the entity type name for analytics recording.
 	// Set during prepareCacheKeys, used by L2 write recording.
 	analyticsEntityType string
@@ -175,6 +178,10 @@ type result struct {
 	// After fresh data arrives, these are compared to detect staleness.
 	// Key is the index into l1CacheKeys (entity fetches) or l2CacheKeys (root fetches).
 	shadowCachedValues map[int]shadowCacheEntry
+
+	// goroutineArena is the per-goroutine arena for L2 cache allocations during Phase 2.
+	// Acquired from l2ArenaPool before the goroutine starts, released in Loader.Free().
+	goroutineArena arena.Arena
 }
 
 // shadowCacheEntry holds a cached value saved during shadow mode L2 lookup.
@@ -251,12 +258,21 @@ type Loader struct {
 	// Not thread safe — only use from the main goroutine.
 	// Don't Reset or Release; the Resolver handles this.
 	//
+	// Phase 2 goroutines use per-goroutine arenas (see goroutineArenas)
+	// instead of jsonArena to avoid data races.
+	//
 	// IMPORTANT: All astjson *Value nodes returned by ParseWithArena,
 	// ParseBytesWithArena, StringValue, etc. live on this arena.
 	// Never store heap-allocated *Value into an arena-owned container —
 	// the GC cannot trace pointers inside arena (noscan) memory, so
 	// a heap *Value could be collected while still referenced.
 	jsonArena arena.Arena
+
+	// goroutineArenas collects per-goroutine arenas acquired during Phase 2
+	// parallel execution. Released together with jsonArena in Free(), because
+	// MergeValues creates cross-arena references from the response tree into
+	// these arenas.
+	goroutineArenas []arena.Arena
 
 	// singleFlight is the SubgraphRequestSingleFlight object shared across all client requests.
 	// It's thread safe and can be used to de-duplicate subgraph requests.
@@ -284,6 +300,11 @@ func (l *Loader) Free() {
 	l.l1Cache = nil
 	l.jsonArena = nil
 	l.enableMutationL2CachePopulation = false
+	for _, a := range l.goroutineArenas {
+		a.Reset()
+		l2ArenaPool.Put(a)
+	}
+	l.goroutineArenas = l.goroutineArenas[:0]
 }
 
 func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, resolvable *Resolvable) (err error) {
@@ -384,6 +405,13 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 			continue
 		}
 
+		// Acquire a per-goroutine arena for L2 cache allocations.
+		// Released in Loader.Free(), not here, because MergeValues
+		// creates cross-arena references from the response tree.
+		goroutineArena := l2ArenaPool.Get().(arena.Arena)
+		l.goroutineArenas = append(l.goroutineArenas, goroutineArena)
+		res.goroutineArena = goroutineArena
+
 		g.Go(func() error {
 			return l.loadFetchL2Only(ctx, f, item, items, res)
 		})
@@ -407,6 +435,9 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 			}
 			if len(results[i].l2ErrorEvents) > 0 {
 				l.ctx.cacheAnalytics.MergeL2Errors(results[i].l2ErrorEvents)
+			}
+			if len(results[i].l2CacheOpErrors) > 0 {
+				l.ctx.cacheAnalytics.MergeL2CacheOpErrors(results[i].l2CacheOpErrors)
 			}
 		}
 	}
@@ -520,6 +551,9 @@ func (l *Loader) mergeResultAnalytics(res *result) {
 	}
 	if len(res.l2ErrorEvents) > 0 {
 		l.ctx.cacheAnalytics.MergeL2Errors(res.l2ErrorEvents)
+	}
+	if len(res.l2CacheOpErrors) > 0 {
+		l.ctx.cacheAnalytics.MergeL2CacheOpErrors(res.l2CacheOpErrors)
 	}
 }
 
@@ -699,6 +733,14 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	if res.cacheSkipFetch {
 		// Merge cached data into items
 		for _, key := range res.l1CacheKeys {
+			if key.FromCache == nil {
+				continue
+			}
+			// Negative cache hit: subgraph has nothing for this entity, skip merge.
+			// MergeValues(object, null) would discard the null anyway (astjson behavior).
+			if key.FromCache.Type() == astjson.TypeNull {
+				continue
+			}
 			// Merge cached data into item
 			_, _, err := astjson.MergeValues(l.jsonArena, key.Item, key.FromCache)
 			if err != nil {
@@ -712,6 +754,10 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	if res.partialCacheEnabled && len(res.cachedItemIndices) > 0 {
 		for _, idx := range res.cachedItemIndices {
 			if idx < len(res.l1CacheKeys) && res.l1CacheKeys[idx] != nil && res.l1CacheKeys[idx].FromCache != nil {
+				// Negative cache hit: skip merge (subgraph has nothing for this entity)
+				if res.l1CacheKeys[idx].FromCache.Type() == astjson.TypeNull {
+					continue
+				}
 				_, _, err := astjson.MergeValues(l.jsonArena, res.l1CacheKeys[idx].Item, res.l1CacheKeys[idx].FromCache)
 				if err != nil {
 					return l.renderErrorsFailedToFetch(fetchItem, res, "invalid cache item")
@@ -778,7 +824,10 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	}
 
 	// Check if data needs processing.
-	if res.postProcessing.SelectResponseDataPath != nil && astjson.ValueIsNull(responseData) {
+	// When negative caching is enabled, null responseData is valid (entity not found)
+	// and should flow through to the merge path where NegativeCacheHit gets set.
+	negativeCachingNull := res.cacheConfig.NegativeCacheTTL > 0 && len(items) > 0 && responseData != nil && responseData.Type() == astjson.TypeNull
+	if res.postProcessing.SelectResponseDataPath != nil && astjson.ValueIsNull(responseData) && !negativeCachingNull {
 		// When:
 		// - No errors or data are present
 		// - Status code is not within the 2XX range
@@ -834,6 +883,10 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		}
 		if len(res.l2CacheKeys) > 0 && res.l2CacheKeys[0] != nil {
 			res.l2CacheKeys[0].Item = items[0]
+			// Negative caching: detect when subgraph returned null for this entity
+			if responseData != nil && responseData.Type() == astjson.TypeNull && res.cacheConfig.NegativeCacheTTL > 0 {
+				res.l2CacheKeys[0].NegativeCacheHit = true
+			}
 		}
 		// Always run invalidation, even on partial-error responses.
 		l.runCacheInvalidation(fetchItem, res, responseData, cacheInvalidation)
@@ -925,6 +978,10 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		}
 		if i < len(res.l2CacheKeys) && res.l2CacheKeys[i] != nil {
 			res.l2CacheKeys[i].Item = items[i]
+			// Negative caching: detect when subgraph returned null for this entity in the batch
+			if batch[i] != nil && batch[i].Type() == astjson.TypeNull && res.cacheConfig.NegativeCacheTTL > 0 {
+				res.l2CacheKeys[i].NegativeCacheHit = true
+			}
 		}
 	}
 
@@ -1819,6 +1876,15 @@ func (p *_batchEntityToolPool) Put(item *batchEntityTools) {
 
 var (
 	batchEntityToolPool = _batchEntityToolPool{}
+
+	// l2ArenaPool provides per-goroutine arenas for Phase 2 L2 cache allocations.
+	// Goroutine arenas are released in Loader.Free() (not inside the goroutine),
+	// because MergeValues creates cross-arena references into these arenas.
+	l2ArenaPool = sync.Pool{
+		New: func() any {
+			return arena.NewMonotonicArena(arena.WithMinBufferSize(4096))
+		},
+	}
 )
 
 func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetchItem *FetchItem, fetch *BatchEntityFetch, items []*astjson.Value, res *result) error {

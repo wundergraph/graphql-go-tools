@@ -94,7 +94,7 @@ func (l *Loader) cacheKeysToEntries(a arena.Arena, cacheKeys []*CacheKey) ([]*Ca
 	seen := make(map[string]struct{}, len(cacheKeys))
 	for i := range cacheKeys {
 		for j := range cacheKeys[i].Keys {
-			if cacheKeys[i].Item == nil {
+			if cacheKeys[i].Item == nil || cacheKeys[i].NegativeCacheHit {
 				continue
 			}
 			keyStr := cacheKeys[i].Keys[j]
@@ -120,6 +120,29 @@ func (l *Loader) cacheKeysToEntries(a arena.Arena, cacheKeys []*CacheKey) ([]*Ca
 		}
 	}
 	return out, nil
+}
+
+// cacheKeysToNegativeEntries collects L2 cache entries for null entity responses (negative caching).
+// Only entries flagged with NegativeCacheHit are included. The stored value is the JSON literal "null".
+func (l *Loader) cacheKeysToNegativeEntries(cacheKeys []*CacheKey) []*CacheEntry {
+	var out []*CacheEntry
+	seen := make(map[string]struct{})
+	for i := range cacheKeys {
+		if !cacheKeys[i].NegativeCacheHit {
+			continue
+		}
+		for _, keyStr := range cacheKeys[i].Keys {
+			if _, ok := seen[keyStr]; ok {
+				continue
+			}
+			seen[keyStr] = struct{}{}
+			out = append(out, &CacheEntry{
+				Key:   keyStr,
+				Value: []byte("null"),
+			})
+		}
+	}
+	return out
 }
 
 // prepareCacheKeys generates cache keys for L1 and/or L2 based on configuration.
@@ -163,14 +186,21 @@ func (l *Loader) prepareCacheKeys(info *FetchInfo, cfg FetchCacheConfiguration, 
 			res.cache = l.caches[cfg.CacheName]
 		}
 		if res.cache != nil {
-			// Calculate prefix for L2 (subgraph header isolation)
+			// Calculate prefix for L2 (global prefix + subgraph header isolation)
 			var prefix string
+			globalPrefix := l.ctx.ExecutionOptions.Caching.GlobalCacheKeyPrefix
 			if cfg.IncludeSubgraphHeaderPrefix && l.ctx.SubgraphHeadersBuilder != nil {
 				_, headersHash := l.ctx.SubgraphHeadersBuilder.HeadersForSubgraph(info.DataSourceName)
 				var buf [20]byte
 				b := strconv.AppendUint(buf[:0], headersHash, 10)
-				prefix = string(b)
+				if globalPrefix != "" {
+					prefix = globalPrefix + ":" + string(b)
+				} else {
+					prefix = string(b)
+				}
 				res.headerHash = headersHash
+			} else if globalPrefix != "" {
+				prefix = globalPrefix
 			}
 
 			// Render L2 cache keys with prefix
@@ -407,7 +437,7 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 		return false, nil
 	}
 
-	cacheKeyStrings := l.extractCacheKeysStrings(l.jsonArena, res.l2CacheKeys)
+	cacheKeyStrings := l.extractCacheKeysStrings(res.goroutineArena, res.l2CacheKeys)
 	if len(cacheKeyStrings) == 0 {
 		res.cacheMustBeUpdated = true
 		return false, nil
@@ -446,12 +476,22 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 	}
 	if err != nil {
 		// L2 cache errors are non-fatal, continue to fetch
+		if analyticsEnabled {
+			res.l2CacheOpErrors = append(res.l2CacheOpErrors, CacheOperationError{
+				Operation:  "get",
+				CacheName:  res.cacheConfig.CacheName,
+				EntityType: entityType,
+				DataSource: dataSource,
+				Message:    truncateErrorMessage(err.Error(), 256),
+				ItemCount:  len(cacheKeyStrings),
+			})
+		}
 		res.cacheMustBeUpdated = true
 		return false, nil
 	}
 
 	// Populate FromCache fields in L2 CacheKeys (which have prefixed keys)
-	err = l.populateFromCache(l.jsonArena, res.l2CacheKeys, cacheEntries)
+	err = l.populateFromCache(res.goroutineArena, res.l2CacheKeys, cacheEntries)
 	if err != nil {
 		res.cacheMustBeUpdated = true
 		return false, nil
@@ -464,8 +504,8 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 		if len(ck.EntityMergePath) > 0 && ck.FromCache != nil {
 			wrapped := ck.FromCache
 			for i := len(ck.EntityMergePath) - 1; i >= 0; i-- {
-				obj := astjson.ObjectValue(l.jsonArena)
-				obj.Set(l.jsonArena, ck.EntityMergePath[i], wrapped)
+				obj := astjson.ObjectValue(res.goroutineArena)
+				obj.Set(res.goroutineArena, ck.EntityMergePath[i], wrapped)
 				wrapped = obj
 			}
 			ck.FromCache = wrapped
@@ -496,10 +536,24 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 				res.l1CacheKeys[i].FromCache = res.l2CacheKeys[i].FromCache
 				// Track per-entity L2 hit/miss (atomic operations - thread-safe)
 				if res.l1CacheKeys[i].FromCache != nil {
-					if info != nil && info.ProvidesData != nil && l.validateItemHasRequiredData(res.l1CacheKeys[i].FromCache, info.ProvidesData) {
+					// Negative cache hit: L2 stored a null sentinel for this entity.
+					// The subgraph previously returned null (without errors), meaning it has
+					// nothing for this entity. Treat as a cache hit to avoid re-fetching.
+					if res.l1CacheKeys[i].FromCache.Type() == astjson.TypeNull && res.cacheConfig.NegativeCacheTTL > 0 {
+						if analyticsEnabled && len(res.l1CacheKeys[i].Keys) > 0 {
+							res.l2AnalyticsEvents = append(res.l2AnalyticsEvents, CacheKeyEvent{
+								CacheKey: res.l1CacheKeys[i].Keys[0], EntityType: entityType,
+								Kind: CacheKeyHit, DataSource: dataSource, ByteSize: 4, // "null"
+								Shadow: shadowMode,
+							})
+						}
+						if res.partialCacheEnabled {
+							res.cachedItemIndices = append(res.cachedItemIndices, i)
+						}
+					} else if info != nil && info.ProvidesData != nil && l.validateItemHasRequiredData(res.l1CacheKeys[i].FromCache, info.ProvidesData) {
 						// Denormalize from original field names to current query aliases for merging
 						if hasAliases {
-							res.l1CacheKeys[i].FromCache = l.denormalizeFromCache(res.l1CacheKeys[i].FromCache, info.ProvidesData)
+							res.l1CacheKeys[i].FromCache = l.denormalizeFromCache(res.goroutineArena, res.l1CacheKeys[i].FromCache, info.ProvidesData)
 						}
 						if analyticsEnabled && len(res.l1CacheKeys[i].Keys) > 0 {
 							byteSize := len(res.l1CacheKeys[i].FromCache.MarshalTo(nil))
@@ -572,7 +626,7 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 				if info != nil && info.ProvidesData != nil && l.validateItemHasRequiredData(ck.FromCache, info.ProvidesData) {
 					// Denormalize from original field names to current query aliases for merging
 					if hasAliases {
-						res.l2CacheKeys[i].FromCache = l.denormalizeFromCache(ck.FromCache, info.ProvidesData)
+						res.l2CacheKeys[i].FromCache = l.denormalizeFromCache(res.goroutineArena, ck.FromCache, info.ProvidesData)
 					}
 					if analyticsEnabled && len(ck.Keys) > 0 {
 						byteSize := len(res.l2CacheKeys[i].FromCache.MarshalTo(nil))
@@ -879,18 +933,48 @@ func (l *Loader) updateL2Cache(res *result) {
 		return
 	}
 
-	if len(cacheEntries) == 0 {
-		return
-	}
-
 	// Enrich context with fetch identity when debug mode is enabled
 	ctx := l.ctx.ctx
 	if l.ctx.Debug {
 		ctx = WithCacheFetchInfo(ctx, res.fetchInfo, res.cacheConfig)
 	}
 
-	// Cache set errors are non-fatal - silently ignore
-	_ = res.cache.Set(ctx, cacheEntries, res.cacheConfig.TTL)
+	// Store regular (non-null) cache entries
+	if len(cacheEntries) > 0 {
+		if setErr := res.cache.Set(ctx, cacheEntries, res.cacheConfig.TTL); setErr != nil && l.ctx.cacheAnalyticsEnabled() {
+			l.ctx.cacheAnalytics.RecordCacheOperationError(CacheOperationError{
+				Operation:  "set",
+				CacheName:  res.cacheConfig.CacheName,
+				EntityType: res.analyticsEntityType,
+				DataSource: res.ds.Name,
+				Message:    truncateErrorMessage(setErr.Error(), 256),
+				ItemCount:  len(cacheEntries),
+			})
+		}
+	}
+
+	// Negative caching: store null sentinels with separate TTL for entities the subgraph returned null for
+	if res.cacheConfig.NegativeCacheTTL > 0 {
+		negEntries := l.cacheKeysToNegativeEntries(keysToStore)
+		if len(negEntries) > 0 {
+			if setErr := res.cache.Set(ctx, negEntries, res.cacheConfig.NegativeCacheTTL); setErr != nil && l.ctx.cacheAnalyticsEnabled() {
+				l.ctx.cacheAnalytics.RecordCacheOperationError(CacheOperationError{
+					Operation:  "set_negative",
+					CacheName:  res.cacheConfig.CacheName,
+					EntityType: res.analyticsEntityType,
+					DataSource: res.ds.Name,
+					Message:    truncateErrorMessage(setErr.Error(), 256),
+					ItemCount:  len(negEntries),
+				})
+			}
+			// Include negative entries in analytics
+			cacheEntries = append(cacheEntries, negEntries...)
+		}
+	}
+
+	if len(cacheEntries) == 0 {
+		return
+	}
 
 	// Record L2 write events for analytics
 	if l.ctx.cacheAnalyticsEnabled() {
@@ -1039,6 +1123,7 @@ func (l *Loader) compareShadowValues(res *result, info *FetchInfo) {
 // detectMutationEntityImpact checks if a mutation response contains a cached entity
 // and either invalidates (deletes) the L2 cache entry or compares it for staleness analytics.
 // Called from mergeResult on the main thread after the mutation fetch completes.
+// Handles both single-entity (object) and list (array) mutation responses.
 func (l *Loader) detectMutationEntityImpact(res *result, info *FetchInfo, responseData *astjson.Value) map[string]struct{} {
 	if info == nil || info.OperationType != ast.OperationTypeMutation {
 		return nil
@@ -1068,8 +1153,9 @@ func (l *Loader) detectMutationEntityImpact(res *result, info *FetchInfo, respon
 
 	// Extract entity data from mutation response
 	// For root mutation: responseData = {"updateUsername": {"id":"1234","username":"UpdatedMe"}}
+	// or for list mutations: responseData = {"deleteUsers": [{"id":"1"},{"id":"2"}]}
 	entityData := responseData.Get(mutationFieldName)
-	if entityData == nil || entityData.Type() != astjson.TypeObject {
+	if entityData == nil {
 		return nil
 	}
 
@@ -1081,6 +1167,40 @@ func (l *Loader) detectMutationEntityImpact(res *result, info *FetchInfo, respon
 		return nil
 	}
 
+	switch entityData.Type() {
+	case astjson.TypeObject:
+		return l.detectSingleMutationEntityImpact(cache, cfg, info, entityData, entityProvidesData, mutationFieldName)
+	case astjson.TypeArray:
+		items, _ := entityData.Array()
+		var deletedKeys map[string]struct{}
+		for _, item := range items {
+			if item == nil || item.Type() != astjson.TypeObject {
+				continue
+			}
+			itemDeleted := l.detectSingleMutationEntityImpact(cache, cfg, info, item, entityProvidesData, mutationFieldName)
+			for k, v := range itemDeleted {
+				if deletedKeys == nil {
+					deletedKeys = make(map[string]struct{})
+				}
+				deletedKeys[k] = v
+			}
+		}
+		return deletedKeys
+	default:
+		return nil
+	}
+}
+
+// detectSingleMutationEntityImpact handles invalidation and analytics for a single entity
+// returned by a mutation. Called by detectMutationEntityImpact for each entity.
+func (l *Loader) detectSingleMutationEntityImpact(
+	cache LoaderCache,
+	cfg *MutationEntityImpactConfig,
+	info *FetchInfo,
+	entityData *astjson.Value,
+	entityProvidesData *Object,
+	mutationFieldName string,
+) map[string]struct{} {
 	// Build L2 cache key for lookup
 	cacheKey := l.buildMutationEntityCacheKey(cfg, entityData, info)
 	if cacheKey == "" {
@@ -1096,7 +1216,17 @@ func (l *Loader) detectMutationEntityImpact(res *result, info *FetchInfo, respon
 	// Invalidate L2 cache entry if configured
 	var deletedKeys map[string]struct{}
 	if cfg.InvalidateCache {
-		_ = cache.Delete(l.ctx.ctx, []string{cacheKey})
+		if delErr := cache.Delete(l.ctx.ctx, []string{cacheKey}); delErr != nil {
+			if l.ctx.cacheAnalyticsEnabled() {
+				l.ctx.cacheAnalytics.RecordCacheOperationError(CacheOperationError{
+					Operation:  "delete",
+					CacheName:  cfg.CacheName,
+					EntityType: cfg.EntityTypeName,
+					Message:    truncateErrorMessage(delErr.Error(), 256),
+					ItemCount:  1,
+				})
+			}
+		}
 		deletedKeys = map[string]struct{}{cacheKey: {}}
 	}
 
@@ -1168,12 +1298,19 @@ func (l *Loader) buildMutationEntityCacheKey(cfg *MutationEntityImpactConfig, en
 	keyObj.Set(l.jsonArena, "key", keysObj)
 	keyJSON := string(keyObj.MarshalTo(nil))
 
-	// Add prefix if needed
+	// Apply global prefix and subgraph header prefix to mirror prepareCacheKeys().
 	var cacheKey string
+	globalPrefix := l.ctx.ExecutionOptions.Caching.GlobalCacheKeyPrefix
 	if cfg.IncludeSubgraphHeaderPrefix && l.ctx.SubgraphHeadersBuilder != nil {
 		_, headersHash := l.ctx.SubgraphHeadersBuilder.HeadersForSubgraph(info.DataSourceName)
 		prefix := strconv.FormatUint(headersHash, 10)
-		cacheKey = prefix + ":" + keyJSON
+		if globalPrefix != "" {
+			cacheKey = globalPrefix + ":" + prefix + ":" + keyJSON
+		} else {
+			cacheKey = prefix + ":" + keyJSON
+		}
+	} else if globalPrefix != "" {
+		cacheKey = globalPrefix + ":" + keyJSON
 	} else {
 		cacheKey = keyJSON
 	}
@@ -1312,15 +1449,20 @@ func (l *Loader) processExtensionsCacheInvalidation(res *result, cacheInvalidati
 		baseKey := string(keyObj.MarshalTo(nil))
 		cacheKey := baseKey
 
-		// Apply subgraph header prefix if configured for this entity type.
-		// This mirrors prepareCacheKeys() which prefixes L2 keys with a hash of the
-		// HTTP headers sent to the subgraph, enabling per-tenant cache isolation.
-		// Result: "55555:{"__typename":"User","key":{"id":"1"}}"
+		// Apply global prefix and subgraph header prefix to mirror prepareCacheKeys().
+		// Order: global prefix → header hash prefix → interceptor.
+		globalPrefix := l.ctx.ExecutionOptions.Caching.GlobalCacheKeyPrefix
 		if entityConfig.IncludeSubgraphHeaderPrefix && l.ctx.SubgraphHeadersBuilder != nil {
 			_, headersHash := l.ctx.SubgraphHeadersBuilder.HeadersForSubgraph(subgraphName)
 			var buf [20]byte
 			b := strconv.AppendUint(buf[:0], headersHash, 10)
-			cacheKey = string(b) + ":" + cacheKey
+			if globalPrefix != "" {
+				cacheKey = globalPrefix + ":" + string(b) + ":" + cacheKey
+			} else {
+				cacheKey = string(b) + ":" + cacheKey
+			}
+		} else if globalPrefix != "" {
+			cacheKey = globalPrefix + ":" + cacheKey
 		}
 
 		// Apply user-provided L2 cache key interceptor if set.
@@ -1353,8 +1495,15 @@ func (l *Loader) processExtensionsCacheInvalidation(res *result, cacheInvalidati
 	}
 
 	// Execute batched L2 cache deletes — one Delete call per cache instance.
-	for _, batch := range batches {
-		_ = batch.cache.Delete(l.ctx.ctx, batch.keys)
+	for cacheName, batch := range batches {
+		if delErr := batch.cache.Delete(l.ctx.ctx, batch.keys); delErr != nil && l.ctx.cacheAnalyticsEnabled() {
+			l.ctx.cacheAnalytics.RecordCacheOperationError(CacheOperationError{
+				Operation: "delete",
+				CacheName: cacheName,
+				Message:   truncateErrorMessage(delErr.Error(), 256),
+				ItemCount: len(batch.keys),
+			})
+		}
 	}
 }
 
@@ -1572,14 +1721,14 @@ func (l *Loader) normalizeNode(val *astjson.Value, node Node) *astjson.Value {
 
 // denormalizeFromCache reverses normalizeForCache: maps suffixed schema field names back
 // to query aliases. Returns input unchanged if obj.HasAliases is false (fast path).
-func (l *Loader) denormalizeFromCache(item *astjson.Value, obj *Object) *astjson.Value {
+func (l *Loader) denormalizeFromCache(a arena.Arena, item *astjson.Value, obj *Object) *astjson.Value {
 	if item == nil || obj == nil || !obj.HasAliases {
 		return item
 	}
 	if item.Type() != astjson.TypeObject {
 		return item
 	}
-	result := astjson.ObjectValue(l.jsonArena)
+	result := astjson.ObjectValue(a)
 	for _, field := range obj.Fields {
 		lookupName := l.cacheFieldName(field)
 		outputName := unsafebytes.BytesToString(field.Name)
@@ -1587,8 +1736,8 @@ func (l *Loader) denormalizeFromCache(item *astjson.Value, obj *Object) *astjson
 		if fieldValue == nil {
 			continue
 		}
-		denormalizedValue := l.denormalizeNode(fieldValue, field.Value)
-		result.Set(l.jsonArena, outputName, denormalizedValue)
+		denormalizedValue := l.denormalizeNode(a, fieldValue, field.Value)
+		result.Set(a, outputName, denormalizedValue)
 	}
 	// Preserve __typename if present
 	if typenameValue := item.Get("__typename"); typenameValue != nil {
@@ -1600,25 +1749,25 @@ func (l *Loader) denormalizeFromCache(item *astjson.Value, obj *Object) *astjson
 			}
 		}
 		if !hasTypenameField {
-			result.Set(l.jsonArena, "__typename", typenameValue)
+			result.Set(a, "__typename", typenameValue)
 		}
 	}
 	return result
 }
 
 // denormalizeNode recursively denormalizes nested objects/arrays.
-func (l *Loader) denormalizeNode(val *astjson.Value, node Node) *astjson.Value {
+func (l *Loader) denormalizeNode(a arena.Arena, val *astjson.Value, node Node) *astjson.Value {
 	if val == nil || node == nil {
 		return val
 	}
 	switch n := node.(type) {
 	case *Object:
-		return l.denormalizeFromCache(val, n)
+		return l.denormalizeFromCache(a, val, n)
 	case *Array:
 		if n.Item != nil && val.Type() == astjson.TypeArray {
-			arr := astjson.ArrayValue(l.jsonArena)
+			arr := astjson.ArrayValue(a)
 			for i, item := range val.GetArray() {
-				arr.SetArrayItem(l.jsonArena, i, l.denormalizeNode(item, n.Item))
+				arr.SetArrayItem(a, i, l.denormalizeNode(a, item, n.Item))
 			}
 			return arr
 		}

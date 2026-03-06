@@ -2368,6 +2368,7 @@ func (v *Visitor) configureFetchCaching(internal *objectFetchConfiguration, exte
 			HashAnalyticsKeys:           cacheConfig.HashAnalyticsKeys,
 			KeyFields:                   keyFields,
 			ShadowMode:                  cacheConfig.ShadowMode,
+			NegativeCacheTTL:            cacheConfig.NegativeCacheTTL,
 		}
 	}
 

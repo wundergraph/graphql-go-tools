@@ -376,7 +376,7 @@ func TestL1L2CacheEndToEnd(t *testing.T) {
 			// _entities(Product) — L2 miss, product not yet cached
 			{Operation: "get", Keys: productKey, Hits: []bool{false}},
 			// _entities(Product) — store fetched product data in L2
-			{Operation: "set", Keys: productKey},
+			{Operation: "set", Keys: productKey, TTL: time.Minute},
 		}
 		assert.Equal(t, wantFirstLog, log, "First request: L2 miss then set")
 
@@ -596,7 +596,7 @@ func TestL1L2CacheEndToEnd(t *testing.T) {
 			// 1st _entities(Product) — L1 miss, L2 miss
 			{Operation: "get", Keys: productKey, Hits: []bool{false}},
 			// 1st _entities(Product) — store fetched data in L2 (L1 also populated in-memory)
-			{Operation: "set", Keys: productKey},
+			{Operation: "set", Keys: productKey, TTL: time.Minute},
 			// 2nd _entities(Product) — no L2 operations: L1 hit short-circuits
 		}
 		assert.Equal(t, wantLog, log, "L1 hit should prevent second L2 lookup")

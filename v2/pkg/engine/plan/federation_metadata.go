@@ -124,6 +124,12 @@ type EntityCacheConfiguration struct {
 	// Instead, fresh data is always fetched from the subgraph and compared against the cached value
 	// to detect staleness. L1 cache works normally (not affected by shadow mode).
 	ShadowMode bool `json:"shadow_mode"`
+
+	// NegativeCacheTTL is the TTL for caching null entity results (entity not found).
+	// When > 0, null responses (entity returned null without errors from _entities) are cached
+	// as negative sentinels to avoid repeated subgraph lookups for non-existent entities.
+	// When 0 (default), null entities are not cached and will be re-fetched on every request.
+	NegativeCacheTTL time.Duration `json:"negative_cache_ttl,omitzero"`
 }
 
 // EntityCacheConfigurations is a collection of entity cache configurations.
