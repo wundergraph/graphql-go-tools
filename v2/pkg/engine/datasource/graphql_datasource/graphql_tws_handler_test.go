@@ -61,7 +61,7 @@ func TestWebsocketSubscriptionClient_GQLTWS(t *testing.T) {
 	serverCtx, serverCancel := context.WithCancel(context.Background())
 
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-		WithReadTimeout(time.Millisecond),
+		WithReadTimeout(100 * time.Millisecond),
 		WithLogger(logger()),
 	).(*subscriptionClient)
 
@@ -139,7 +139,7 @@ func TestWebsocketSubscriptionClientPing_GQLTWS(t *testing.T) {
 	serverCtx, serverCancel := context.WithCancel(context.Background())
 
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-		WithReadTimeout(time.Millisecond),
+		WithReadTimeout(100 * time.Millisecond),
 		WithLogger(logger()),
 	).(*subscriptionClient)
 
@@ -206,7 +206,7 @@ func TestWebsocketSubscriptionClientError_GQLTWS(t *testing.T) {
 
 	clientCtx, clientCancel := context.WithCancel(context.Background())
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-		WithReadTimeout(time.Millisecond),
+		WithReadTimeout(100 * time.Millisecond),
 		WithLogger(logger()),
 	)
 
