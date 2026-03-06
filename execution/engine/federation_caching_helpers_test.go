@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -177,6 +178,62 @@ func (m *mockSubgraphHeadersBuilder) HashAll() uint64 {
 		result ^= hash
 	}
 	return result
+}
+
+// headerForwardingMock implements SubgraphHeadersBuilder with actual HTTP headers.
+// Unlike mockSubgraphHeadersBuilder (which returns nil headers + manual hashes),
+// this returns real HTTP headers and computes hashes from their content.
+type headerForwardingMock struct {
+	mu      sync.RWMutex
+	headers map[string]http.Header
+}
+
+func (m *headerForwardingMock) HeadersForSubgraph(subgraphName string) (http.Header, uint64) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	h := m.headers[subgraphName]
+	if h == nil {
+		return nil, 0
+	}
+	hash := hashHeaders(h)
+	// Clone to prevent mutation by downstream code (makeHTTPRequest adds Accept, Content-Type, etc.)
+	clone := h.Clone()
+	return clone, hash
+}
+
+func (m *headerForwardingMock) HashAll() uint64 {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var result uint64
+	for _, h := range m.headers {
+		result ^= hashHeaders(h)
+	}
+	return result
+}
+
+func (m *headerForwardingMock) setAll(h http.Header) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for sg := range m.headers {
+		m.headers[sg] = h
+	}
+}
+
+// hashHeaders computes a deterministic hash of HTTP headers using sorted key-value pairs.
+func hashHeaders(h http.Header) uint64 {
+	keys := make([]string, 0, len(h))
+	for k := range h {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var buf []byte
+	for _, k := range keys {
+		buf = append(buf, k...)
+		for _, v := range h[k] {
+			buf = append(buf, v...)
+		}
+	}
+	return xxhash.Sum64(buf)
 }
 
 func cachingTestQueryPath(name string) string {
@@ -908,6 +965,22 @@ func normalizeSnapshot(snap resolve.CacheAnalyticsSnapshot) resolve.CacheAnalyti
 		snap.MutationEvents = sorted
 	}
 
+	// Sort HeaderImpactEvents for deterministic comparison
+	if snap.HeaderImpactEvents != nil {
+		sorted := make([]resolve.HeaderImpactEvent, len(snap.HeaderImpactEvents))
+		copy(sorted, snap.HeaderImpactEvents)
+		sort.Slice(sorted, func(i, j int) bool {
+			if sorted[i].BaseKey != sorted[j].BaseKey {
+				return sorted[i].BaseKey < sorted[j].BaseKey
+			}
+			if sorted[i].HeaderHash != sorted[j].HeaderHash {
+				return sorted[i].HeaderHash < sorted[j].HeaderHash
+			}
+			return sorted[i].DataSource < sorted[j].DataSource
+		})
+		snap.HeaderImpactEvents = sorted
+	}
+
 	// Zero out non-deterministic FetchTimings (DurationMs varies between runs)
 	// Use normalizeFetchTimings() when you need to assert FetchTimings fields.
 	snap.FetchTimings = nil
@@ -940,6 +1013,9 @@ func normalizeSnapshot(snap resolve.CacheAnalyticsSnapshot) resolve.CacheAnalyti
 	}
 	if len(snap.MutationEvents) == 0 {
 		snap.MutationEvents = nil
+	}
+	if len(snap.HeaderImpactEvents) == 0 {
+		snap.HeaderImpactEvents = nil
 	}
 
 	return snap
