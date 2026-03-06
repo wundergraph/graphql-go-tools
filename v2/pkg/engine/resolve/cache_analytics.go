@@ -157,17 +157,17 @@ type HeaderImpactEvent struct {
 // where noted. L2 events from goroutines are accumulated on per-result slices and
 // merged on the main thread via MergeL2Events.
 type CacheAnalyticsCollector struct {
-	l1KeyEvents       []CacheKeyEvent
-	l2KeyEvents       []CacheKeyEvent
-	writeEvents       []CacheWriteEvent
-	fieldHashes       []EntityFieldHash       // flat slice (was: nested maps)
-	entityCounts      []entityCount           // simple type→count (was: map)
-	entitySources     []entitySourceRecord    // records where each entity's data came from
-	fetchTimings      []FetchTimingEvent      // main thread timings
-	errorEvents       []SubgraphErrorEvent    // main thread errors
-	l2ErrorEvents     []SubgraphErrorEvent    // accumulated in goroutines, merged on main thread
-	l2FetchTimings    []FetchTimingEvent      // accumulated in goroutines, merged on main thread
-	shadowComparisons []ShadowComparisonEvent // shadow mode staleness comparison events
+	l1KeyEvents        []CacheKeyEvent
+	l2KeyEvents        []CacheKeyEvent
+	writeEvents        []CacheWriteEvent
+	fieldHashes        []EntityFieldHash       // flat slice (was: nested maps)
+	entityCounts       []entityCount           // simple type→count (was: map)
+	entitySources      []entitySourceRecord    // records where each entity's data came from
+	fetchTimings       []FetchTimingEvent      // main thread timings
+	errorEvents        []SubgraphErrorEvent    // main thread errors
+	l2ErrorEvents      []SubgraphErrorEvent    // accumulated in goroutines, merged on main thread
+	l2FetchTimings     []FetchTimingEvent      // accumulated in goroutines, merged on main thread
+	shadowComparisons  []ShadowComparisonEvent // shadow mode staleness comparison events
 	mutationEvents     []MutationEvent         // mutation entity impact events
 	headerImpactEvents []HeaderImpactEvent     // header impact events for L2 writes with header prefix
 	xxh                *xxhash.Digest

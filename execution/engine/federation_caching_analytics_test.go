@@ -1851,8 +1851,8 @@ func TestHeaderImpactAnalyticsE2E(t *testing.T) {
 			L2Reads: []resolve.CacheKeyEvent{
 				{CacheKey: `{"__typename":"Product","key":{"upc":"top-1"}}`, EntityType: "Product", Kind: resolve.CacheKeyMiss, DataSource: "reviews", Shadow: true}, // Shadow L2 miss: cache empty
 				{CacheKey: `{"__typename":"Product","key":{"upc":"top-2"}}`, EntityType: "Product", Kind: resolve.CacheKeyMiss, DataSource: "reviews", Shadow: true}, // Shadow L2 miss: cache empty
-				{CacheKey: `{"__typename":"Query","field":"topProducts"}`, EntityType: "Query", Kind: resolve.CacheKeyMiss, DataSource: "products", Shadow: false},    // L2 miss: shadow mode not implemented for root fields
-				{CacheKey: `{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", Kind: resolve.CacheKeyMiss, DataSource: "accounts", Shadow: true},         // Shadow L2 miss: User not yet cached
+				{CacheKey: `{"__typename":"Query","field":"topProducts"}`, EntityType: "Query", Kind: resolve.CacheKeyMiss, DataSource: "products", Shadow: false},   // L2 miss: shadow mode not implemented for root fields
+				{CacheKey: `{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", Kind: resolve.CacheKeyMiss, DataSource: "accounts", Shadow: true},        // Shadow L2 miss: User not yet cached
 			},
 			L2Writes: []resolve.CacheWriteEvent{
 				{CacheKey: `11945571715631340836:{"__typename":"Product","key":{"upc":"top-1"}}`, EntityType: "Product", ByteSize: 177, DataSource: "reviews", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
@@ -1896,8 +1896,8 @@ func TestHeaderImpactAnalyticsE2E(t *testing.T) {
 			L2Reads: []resolve.CacheKeyEvent{
 				{CacheKey: `{"__typename":"Product","key":{"upc":"top-1"}}`, EntityType: "Product", Kind: resolve.CacheKeyMiss, DataSource: "reviews", Shadow: true}, // token-B prefix not in cache
 				{CacheKey: `{"__typename":"Product","key":{"upc":"top-2"}}`, EntityType: "Product", Kind: resolve.CacheKeyMiss, DataSource: "reviews", Shadow: true}, // token-B prefix not in cache
-				{CacheKey: `{"__typename":"Query","field":"topProducts"}`, EntityType: "Query", Kind: resolve.CacheKeyMiss, DataSource: "products", Shadow: false},    // shadow mode not implemented for root fields
-				{CacheKey: `{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", Kind: resolve.CacheKeyMiss, DataSource: "accounts", Shadow: true},         // token-B prefix not in cache
+				{CacheKey: `{"__typename":"Query","field":"topProducts"}`, EntityType: "Query", Kind: resolve.CacheKeyMiss, DataSource: "products", Shadow: false},   // shadow mode not implemented for root fields
+				{CacheKey: `{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", Kind: resolve.CacheKeyMiss, DataSource: "accounts", Shadow: true},        // token-B prefix not in cache
 			},
 			L2Writes: []resolve.CacheWriteEvent{
 				{CacheKey: `4753115417090238877:{"__typename":"Product","key":{"upc":"top-1"}}`, EntityType: "Product", ByteSize: 177, DataSource: "reviews", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
@@ -1987,8 +1987,8 @@ func TestHeaderImpactAnalyticsE2E(t *testing.T) {
 			L2Reads: []resolve.CacheKeyEvent{
 				{CacheKey: `{"__typename":"Product","key":{"upc":"top-1"}}`, EntityType: "Product", Kind: resolve.CacheKeyMiss, DataSource: "reviews"}, // L2 miss: cache empty
 				{CacheKey: `{"__typename":"Product","key":{"upc":"top-2"}}`, EntityType: "Product", Kind: resolve.CacheKeyMiss, DataSource: "reviews"}, // L2 miss: cache empty
-				{CacheKey: `{"__typename":"Query","field":"topProducts"}`, EntityType: "Query", Kind: resolve.CacheKeyMiss, DataSource: "products"},     // L2 miss: root field not yet cached
-				{CacheKey: `{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", Kind: resolve.CacheKeyMiss, DataSource: "accounts"},         // L2 miss: User not yet cached
+				{CacheKey: `{"__typename":"Query","field":"topProducts"}`, EntityType: "Query", Kind: resolve.CacheKeyMiss, DataSource: "products"},    // L2 miss: root field not yet cached
+				{CacheKey: `{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", Kind: resolve.CacheKeyMiss, DataSource: "accounts"},        // L2 miss: User not yet cached
 			},
 			L2Writes: []resolve.CacheWriteEvent{
 				// Authorization: Bearer token-A → header hash prefix 11945571715631340836
@@ -2028,8 +2028,8 @@ func TestHeaderImpactAnalyticsE2E(t *testing.T) {
 			L2Reads: []resolve.CacheKeyEvent{
 				{CacheKey: `{"__typename":"Product","key":{"upc":"top-1"}}`, EntityType: "Product", Kind: resolve.CacheKeyHit, DataSource: "reviews", ByteSize: 177}, // L2 hit: populated by request 1
 				{CacheKey: `{"__typename":"Product","key":{"upc":"top-2"}}`, EntityType: "Product", Kind: resolve.CacheKeyHit, DataSource: "reviews", ByteSize: 233}, // L2 hit: populated by request 1
-				{CacheKey: `{"__typename":"Query","field":"topProducts"}`, EntityType: "Query", Kind: resolve.CacheKeyHit, DataSource: "products", ByteSize: 127},     // L2 hit: root field cached by request 1
-				{CacheKey: `{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", Kind: resolve.CacheKeyHit, DataSource: "accounts", ByteSize: 49},          // L2 hit: User cached by request 1
+				{CacheKey: `{"__typename":"Query","field":"topProducts"}`, EntityType: "Query", Kind: resolve.CacheKeyHit, DataSource: "products", ByteSize: 127},    // L2 hit: root field cached by request 1
+				{CacheKey: `{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", Kind: resolve.CacheKeyHit, DataSource: "accounts", ByteSize: 49},         // L2 hit: User cached by request 1
 			},
 			// No L2Writes, no HeaderImpactEvents: all served from cache, no fresh fetches
 			FieldHashes: []resolve.EntityFieldHash{
