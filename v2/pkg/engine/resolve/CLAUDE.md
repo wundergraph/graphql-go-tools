@@ -554,6 +554,13 @@ L2Reads: []resolve.CacheKeyEvent{
 
 Every `defaultCache.ClearLog()` MUST be followed by `defaultCache.GetLog()` with full assertions BEFORE the next `ClearLog()` or end of test. Never clear a log without verifying its contents.
 
+### Caching Test / AC Sync Rule
+
+**When modifying or adding caching-related tests**, you MUST also update `ENTITY_CACHING_ACCEPTANCE_CRITERIA.md` (in the repo root). Every AC must link to its covering tests with relative paths, line numbers, and test names. This applies to:
+- New caching tests (add test links to the relevant AC)
+- Changes to existing caching tests that affect which ACs are covered
+- New ACs (must have at least one test link)
+
 ### Run Tests
 ```bash
 go test -run "TestL1Cache" ./v2/pkg/engine/resolve/... -v

@@ -1098,9 +1098,10 @@ func TestCacheLoadSequential(t *testing.T) {
 
 // CacheLogEntry tracks a cache operation for testing
 type CacheLogEntry struct {
-	Operation string   // "get", "set", "delete"
-	Keys      []string // Keys involved in the operation
-	Hits      []bool   // For Get: whether each key was a hit (true) or miss (false)
+	Operation string        // "get", "set", "delete"
+	Keys      []string      // Keys involved in the operation
+	Hits      []bool        // For Get: whether each key was a hit (true) or miss (false)
+	TTL       time.Duration // For Set: the TTL passed to the operation
 }
 
 type cacheEntry struct {
@@ -1211,6 +1212,7 @@ func (f *FakeLoaderCache) Set(ctx context.Context, entries []*CacheEntry, ttl ti
 		Operation: "set",
 		Keys:      keys,
 		Hits:      nil, // Set operations don't have hits/misses
+		TTL:       ttl,
 	})
 
 	return nil
@@ -1251,6 +1253,18 @@ func (f *FakeLoaderCache) ClearLog() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.log = make([]CacheLogEntry, 0)
+}
+
+// GetValue returns the raw cached value for a key, or nil if not found.
+func (f *FakeLoaderCache) GetValue(key string) []byte {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	if entry, exists := f.storage[key]; exists {
+		dataCopy := make([]byte, len(entry.data))
+		copy(dataCopy, entry.data)
+		return dataCopy
+	}
+	return nil
 }
 
 // Clear removes all entries from the cache

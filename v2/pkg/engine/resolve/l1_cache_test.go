@@ -2,6 +2,7 @@ package resolve
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -1708,7 +1709,7 @@ func TestNormalizeDenormalizeRoundTrip(t *testing.T) {
 
 		original := mustParseJSON(ar, `{"friends":"value"}`)
 		normalized := loader.normalizeForCache(original, obj)
-		denormalized := loader.denormalizeFromCache(normalized, obj)
+		denormalized := loader.denormalizeFromCache(ar, normalized, obj)
 
 		assert.Equal(t, `{"friends":"value"}`, string(denormalized.MarshalTo(nil)))
 	})
@@ -1732,7 +1733,7 @@ func TestNormalizeDenormalizeRoundTrip(t *testing.T) {
 
 		original := mustParseJSON(ar, `{"myFriends":"value"}`)
 		normalized := loader.normalizeForCache(original, obj)
-		denormalized := loader.denormalizeFromCache(normalized, obj)
+		denormalized := loader.denormalizeFromCache(ar, normalized, obj)
 
 		assert.Equal(t, `{"myFriends":"value"}`, string(denormalized.MarshalTo(nil)))
 	})
@@ -1762,7 +1763,7 @@ func TestNormalizeDenormalizeRoundTrip(t *testing.T) {
 
 		original := mustParseJSON(ar, `{"myFriends":{"n":"Alice"}}`)
 		normalized := loader.normalizeForCache(original, obj)
-		denormalized := loader.denormalizeFromCache(normalized, obj)
+		denormalized := loader.denormalizeFromCache(ar, normalized, obj)
 
 		assert.Equal(t, `{"myFriends":{"n":"Alice"}}`, string(denormalized.MarshalTo(nil)))
 	})
@@ -1793,7 +1794,7 @@ func TestNormalizeDenormalizeRoundTrip(t *testing.T) {
 
 		original := mustParseJSON(ar, `{"myFriends":[{"n":"Alice"},{"n":"Bob"}]}`)
 		normalized := loader.normalizeForCache(original, obj)
-		denormalized := loader.denormalizeFromCache(normalized, obj)
+		denormalized := loader.denormalizeFromCache(ar, normalized, obj)
 
 		assert.Equal(t, `{"myFriends":[{"n":"Alice"},{"n":"Bob"}]}`, string(denormalized.MarshalTo(nil)))
 	})
@@ -1817,7 +1818,7 @@ func TestNormalizeDenormalizeRoundTrip(t *testing.T) {
 
 		original := mustParseJSON(ar, `{"__typename":"User","myFriends":"value"}`)
 		normalized := loader.normalizeForCache(original, obj)
-		denormalized := loader.denormalizeFromCache(normalized, obj)
+		denormalized := loader.denormalizeFromCache(ar, normalized, obj)
 
 		// After round-trip, __typename should be preserved and field alias restored
 		result := denormalized
@@ -1847,7 +1848,7 @@ func TestNormalizeDenormalizeRoundTrip(t *testing.T) {
 
 		original := mustParseJSON(ar, `{"friends":"Alice","id":"1"}`)
 		normalized := loader.normalizeForCache(original, obj)
-		denormalized := loader.denormalizeFromCache(normalized, obj)
+		denormalized := loader.denormalizeFromCache(ar, normalized, obj)
 
 		assert.Equal(t, `"Alice"`, string(denormalized.Get("friends").MarshalTo(nil)))
 		assert.Equal(t, `"1"`, string(denormalized.Get("id").MarshalTo(nil)))
@@ -1869,7 +1870,7 @@ func TestDenormalizeFromCache(t *testing.T) {
 		}
 
 		item := mustParseJSON(ar, `{"username":"Alice"}`)
-		result := loader.denormalizeFromCache(item, obj)
+		result := loader.denormalizeFromCache(ar, item, obj)
 
 		assert.Equal(t, item, result, "should return same pointer when no aliases")
 	})
@@ -1889,7 +1890,7 @@ func TestDenormalizeFromCache(t *testing.T) {
 
 		// Cache stores normalized data with original name "username"
 		item := mustParseJSON(ar, `{"username":"Alice"}`)
-		result := loader.denormalizeFromCache(item, obj)
+		result := loader.denormalizeFromCache(ar, item, obj)
 
 		resultJSON := string(result.MarshalTo(nil))
 		assert.Equal(t, `{"userName":"Alice"}`, resultJSON, "should convert original name to alias")
@@ -1916,7 +1917,7 @@ func TestDenormalizeFromCache(t *testing.T) {
 		cacheJSON := `{"friends` + suffix + `":"value"}`
 		cacheItem := mustParseJSON(ar, cacheJSON)
 
-		result := loader.denormalizeFromCache(cacheItem, obj)
+		result := loader.denormalizeFromCache(ar, cacheItem, obj)
 		resultJSON := string(result.MarshalTo(nil))
 		assert.Equal(t, `{"friends":"value"}`, resultJSON, "should map suffixed cache key back to query name")
 	})
@@ -1943,7 +1944,7 @@ func TestDenormalizeFromCache(t *testing.T) {
 		cacheJSON := `{"friends` + suffix + `":"value"}`
 		cacheItem := mustParseJSON(ar, cacheJSON)
 
-		result := loader.denormalizeFromCache(cacheItem, obj)
+		result := loader.denormalizeFromCache(ar, cacheItem, obj)
 		resultJSON := string(result.MarshalTo(nil))
 		assert.Equal(t, `{"myFriends":"value"}`, resultJSON, "should map suffixed original name back to alias")
 	})
@@ -2069,6 +2070,79 @@ func TestComputeHasAliases(t *testing.T) {
 		assert.True(t, result)
 		assert.True(t, obj.HasAliases)
 	})
+}
+
+// TestPopulateL1CacheForRootFieldEntities_MissingKeyFields verifies that root field
+// entity population skips entities that are missing @key fields.
+// When the client's query doesn't select the @key fields (e.g., "id"), RenderCacheKeys
+// produces a key with empty key object (e.g., {"__typename":"Product","key":{}}).
+// These degraded keys would collide for all entities of the same type, so we skip storage.
+func TestPopulateL1CacheForRootFieldEntities_MissingKeyFields(t *testing.T) {
+	ar := arena.NewMonotonicArena(arena.WithMinBufferSize(4096))
+	ctx := NewContext(context.Background())
+	ctx.ExecutionOptions.Caching.EnableL1Cache = true
+	ctx.Variables = astjson.MustParse(`{}`)
+
+	resolvable := NewResolvable(ar, ResolvableOptions{})
+	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+	require.NoError(t, err)
+
+	// Set response data: entity with __typename but missing @key field "id"
+	resolvable.data, err = astjson.ParseBytesWithArena(ar, []byte(`{"topProducts":[{"__typename":"Product","name":"Widget"}]}`))
+	require.NoError(t, err)
+
+	l1Cache := &sync.Map{}
+
+	l := &Loader{
+		jsonArena:  ar,
+		ctx:        ctx,
+		resolvable: resolvable,
+		l1Cache:    l1Cache,
+	}
+
+	// Template expects @key field "id" which is NOT in the entity data.
+	// Path points to where entities live in the response.
+	entityTemplate := &EntityQueryCacheKeyTemplate{
+		Keys: NewResolvableObjectVariable(&Object{
+			Path: []string{"topProducts"},
+			Fields: []*Field{
+				{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+				{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+			},
+		}),
+	}
+
+	fetchItem := &FetchItem{
+		Fetch: &SingleFetch{
+			FetchConfiguration: FetchConfiguration{
+				Caching: FetchCacheConfiguration{
+					Enabled:    true,
+					UseL1Cache: true,
+					RootFieldL1EntityCacheKeyTemplates: map[string]CacheKeyTemplate{
+						"Product": entityTemplate,
+					},
+				},
+			},
+			Info: &FetchInfo{
+				RootFields: []GraphCoordinate{
+					{TypeName: "Query", FieldName: "topProducts"},
+				},
+			},
+		},
+	}
+
+	l.populateL1CacheForRootFieldEntities(fetchItem)
+
+	// Entity should NOT be stored because key fields are missing.
+	// A degraded key like {"__typename":"Product","key":{}} would collide for all
+	// Product entities, so populateL1CacheForRootFieldEntities skips storage.
+	degradedKey := `{"__typename":"Product","key":{}}`
+	_, loaded := l1Cache.Load(degradedKey)
+	assert.False(t, loaded, "entity with missing @key fields should not be stored in L1 cache")
+
+	// A proper entity cache key won't find anything either
+	_, loaded = l1Cache.Load(`{"__typename":"Product","key":{"id":"123"}}`)
+	assert.False(t, loaded, "proper entity key should not find the entity with missing @key fields")
 }
 
 func mustParseJSON(a arena.Arena, jsonStr string) *astjson.Value {

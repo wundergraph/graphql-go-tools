@@ -501,6 +501,196 @@ func TestL2CacheKeyInterceptor(t *testing.T) {
 		}, capturedInfos[0])
 	})
 
+	t.Run("global prefix is prepended to L2 keys", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		cache := NewFakeLoaderCache()
+
+		rootDS := NewMockDataSource(ctrl)
+		rootDS.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"product":{"__typename":"Product","id":"prod-1"}}}`), nil
+			}).Times(1)
+
+		entityDS := NewMockDataSource(ctrl)
+		entityDS.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"_entities":[{"__typename":"Product","id":"prod-1","name":"Product One"}]}}`), nil
+			}).Times(1)
+
+		response := &GraphQLResponse{
+			Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
+			Fetches: Sequence(
+				SingleWithPath(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource: rootDS,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data"},
+						},
+					},
+					InputTemplate: InputTemplate{
+						Segments: []TemplateSegment{
+							{Data: []byte(`{"method":"POST","url":"http://root.service","body":{"query":"{product {__typename id}}"}}`), SegmentType: StaticSegmentType},
+						},
+					},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+				}, "query"),
+				SingleWithPath(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource: entityDS,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data", "_entities", "0"},
+						},
+						Caching: FetchCacheConfiguration{
+							Enabled:          true,
+							CacheName:        "default",
+							TTL:              30 * time.Second,
+							CacheKeyTemplate: newProductCacheKeyTemplate(),
+							UseL1Cache:       true,
+						},
+					},
+					InputTemplate: InputTemplate{Segments: newEntityFetchSegments()},
+					Info: &FetchInfo{
+						DataSourceID:   "products",
+						DataSourceName: "products",
+						OperationType:  ast.OperationTypeQuery,
+						ProvidesData:   newProductProvidesData(),
+					},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+				}, "query.product", ObjectPath("product")),
+			),
+			Data: newProductResponseData(),
+		}
+
+		loader := &Loader{
+			caches: map[string]LoaderCache{"default": cache},
+		}
+
+		ctx := NewContext(context.Background())
+		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+		ctx.ExecutionOptions.Caching.EnableL2Cache = true
+		ctx.ExecutionOptions.Caching.GlobalCacheKeyPrefix = "schema-v42"
+
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		resolvable := NewResolvable(ar, ResolvableOptions{})
+		err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+		require.NoError(t, err)
+
+		err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+		require.NoError(t, err)
+
+		cacheLog := cache.GetLog()
+		var setKeys []string
+		for _, entry := range cacheLog {
+			if entry.Operation == "set" {
+				setKeys = append(setKeys, entry.Keys...)
+			}
+		}
+		require.Equal(t, 1, len(setKeys))
+		assert.Equal(t, `schema-v42:{"__typename":"Product","key":{"id":"prod-1"}}`, setKeys[0],
+			"L2 key should have global prefix prepended")
+	})
+
+	t.Run("global prefix combined with interceptor", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		cache := NewFakeLoaderCache()
+
+		rootDS := NewMockDataSource(ctrl)
+		rootDS.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"product":{"__typename":"Product","id":"prod-1"}}}`), nil
+			}).Times(1)
+
+		entityDS := NewMockDataSource(ctrl)
+		entityDS.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"_entities":[{"__typename":"Product","id":"prod-1","name":"Product One"}]}}`), nil
+			}).Times(1)
+
+		response := &GraphQLResponse{
+			Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
+			Fetches: Sequence(
+				SingleWithPath(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource: rootDS,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data"},
+						},
+					},
+					InputTemplate: InputTemplate{
+						Segments: []TemplateSegment{
+							{Data: []byte(`{"method":"POST","url":"http://root.service","body":{"query":"{product {__typename id}}"}}`), SegmentType: StaticSegmentType},
+						},
+					},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+				}, "query"),
+				SingleWithPath(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource: entityDS,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data", "_entities", "0"},
+						},
+						Caching: FetchCacheConfiguration{
+							Enabled:          true,
+							CacheName:        "default",
+							TTL:              30 * time.Second,
+							CacheKeyTemplate: newProductCacheKeyTemplate(),
+							UseL1Cache:       true,
+						},
+					},
+					InputTemplate: InputTemplate{Segments: newEntityFetchSegments()},
+					Info: &FetchInfo{
+						DataSourceID:   "products",
+						DataSourceName: "products",
+						OperationType:  ast.OperationTypeQuery,
+						ProvidesData:   newProductProvidesData(),
+					},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+				}, "query.product", ObjectPath("product")),
+			),
+			Data: newProductResponseData(),
+		}
+
+		loader := &Loader{
+			caches: map[string]LoaderCache{"default": cache},
+		}
+
+		ctx := NewContext(context.Background())
+		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+		ctx.ExecutionOptions.Caching.EnableL2Cache = true
+		ctx.ExecutionOptions.Caching.GlobalCacheKeyPrefix = "schema-v42"
+		ctx.ExecutionOptions.Caching.L2CacheKeyInterceptor = func(_ context.Context, key string, _ L2CacheKeyInterceptorInfo) string {
+			return "tenant-abc:" + key
+		}
+
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		resolvable := NewResolvable(ar, ResolvableOptions{})
+		err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+		require.NoError(t, err)
+
+		err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+		require.NoError(t, err)
+
+		cacheLog := cache.GetLog()
+		var setKeys []string
+		for _, entry := range cacheLog {
+			if entry.Operation == "set" {
+				setKeys = append(setKeys, entry.Keys...)
+			}
+		}
+		require.Equal(t, 1, len(setKeys))
+		// Order: interceptor wraps (global_prefix:entity_key)
+		assert.Equal(t, `tenant-abc:schema-v42:{"__typename":"Product","key":{"id":"prod-1"}}`, setKeys[0],
+			"L2 key should have global prefix then interceptor applied")
+	})
+
 	t.Run("nil interceptor has no effect", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
