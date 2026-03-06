@@ -56,6 +56,11 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				Request:  "QueryCategoriesRequest",
 				Response: "QueryCategoriesResponse",
 			},
+			"category": {
+				RPC:      "QueryCategory",
+				Request:  "QueryCategoryRequest",
+				Response: "QueryCategoryResponse",
+			},
 			"categoriesByKind": {
 				RPC:      "QueryCategoriesByKind",
 				Request:  "QueryCategoriesByKindRequest",
@@ -327,6 +332,17 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					Request:  "ResolveCategoryMetricsNormalizedScoreRequest",
 					Response: "ResolveCategoryMetricsNormalizedScoreResponse",
 				},
+				"relatedCategory": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName: "related_category",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{
+							"include": "include",
+						},
+					},
+					RPC:      "ResolveCategoryMetricsRelatedCategory",
+					Request:  "ResolveCategoryMetricsRelatedCategoryRequest",
+					Response: "ResolveCategoryMetricsRelatedCategoryResponse",
+				},
 			},
 			"Product": {
 				"shippingEstimate": {
@@ -396,6 +412,17 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					RPC:      "ResolveSubcategoryItemCount",
 					Request:  "ResolveSubcategoryItemCountRequest",
 					Response: "ResolveSubcategoryItemCountResponse",
+				},
+				"featuredCategory": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName: "featured_category",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{
+							"includeChildren": "include_children",
+						},
+					},
+					RPC:      "ResolveSubcategoryFeaturedCategory",
+					Request:  "ResolveSubcategoryFeaturedCategoryRequest",
+					Response: "ResolveSubcategoryFeaturedCategoryResponse",
 				},
 			},
 			"TestContainer": {
@@ -501,6 +528,12 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"categories": {
 					TargetName: "categories",
+				},
+				"category": {
+					TargetName: "category",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"id": "id",
+					},
 				},
 				"categoriesByKind": {
 					TargetName: "categories_by_kind",
@@ -981,6 +1014,9 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 						"include": "include",
 					},
 				},
+				"nullMetrics": {
+					TargetName: "null_metrics",
+				},
 			},
 			"Subcategory": {
 				"id": {
@@ -999,6 +1035,12 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					TargetName: "item_count",
 					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"filters": "filters",
+					},
+				},
+				"featuredCategory": {
+					TargetName: "featured_category",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"includeChildren": "include_children",
 					},
 				},
 			},
@@ -1026,6 +1068,9 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"relatedCategory": {
 					TargetName: "related_category",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"include": "include",
+					},
 				},
 			},
 			"Cat": {
@@ -1077,6 +1122,9 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"contact": {
 					TargetName: "contact",
+				},
+				"pet": {
+					TargetName: "pet",
 				},
 			},
 			"ContactInfo": {

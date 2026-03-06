@@ -41,6 +41,7 @@ service ProductService {
   rpc QueryCategories(QueryCategoriesRequest) returns (QueryCategoriesResponse) {}
   rpc QueryCategoriesByKind(QueryCategoriesByKindRequest) returns (QueryCategoriesByKindResponse) {}
   rpc QueryCategoriesByKinds(QueryCategoriesByKindsRequest) returns (QueryCategoriesByKindsResponse) {}
+  rpc QueryCategory(QueryCategoryRequest) returns (QueryCategoryResponse) {}
   rpc QueryComplexFilterType(QueryComplexFilterTypeRequest) returns (QueryComplexFilterTypeResponse) {}
   rpc QueryFilterCategories(QueryFilterCategoriesRequest) returns (QueryFilterCategoriesResponse) {}
   rpc QueryNestedType(QueryNestedTypeRequest) returns (QueryNestedTypeResponse) {}
@@ -62,6 +63,7 @@ service ProductService {
   rpc ResolveCategoryChildCategories(ResolveCategoryChildCategoriesRequest) returns (ResolveCategoryChildCategoriesResponse) {}
   rpc ResolveCategoryMascot(ResolveCategoryMascotRequest) returns (ResolveCategoryMascotResponse) {}
   rpc ResolveCategoryMetricsNormalizedScore(ResolveCategoryMetricsNormalizedScoreRequest) returns (ResolveCategoryMetricsNormalizedScoreResponse) {}
+  rpc ResolveCategoryMetricsRelatedCategory(ResolveCategoryMetricsRelatedCategoryRequest) returns (ResolveCategoryMetricsRelatedCategoryResponse) {}
   rpc ResolveCategoryOptionalCategories(ResolveCategoryOptionalCategoriesRequest) returns (ResolveCategoryOptionalCategoriesResponse) {}
   rpc ResolveCategoryPopularityScore(ResolveCategoryPopularityScoreRequest) returns (ResolveCategoryPopularityScoreResponse) {}
   rpc ResolveCategoryProductCount(ResolveCategoryProductCountRequest) returns (ResolveCategoryProductCountResponse) {}
@@ -70,6 +72,7 @@ service ProductService {
   rpc ResolveProductRecommendedCategory(ResolveProductRecommendedCategoryRequest) returns (ResolveProductRecommendedCategoryResponse) {}
   rpc ResolveProductShippingEstimate(ResolveProductShippingEstimateRequest) returns (ResolveProductShippingEstimateResponse) {}
   rpc ResolveProductStockStatus(ResolveProductStockStatusRequest) returns (ResolveProductStockStatusResponse) {}
+  rpc ResolveSubcategoryFeaturedCategory(ResolveSubcategoryFeaturedCategoryRequest) returns (ResolveSubcategoryFeaturedCategoryResponse) {}
   rpc ResolveSubcategoryItemCount(ResolveSubcategoryItemCountRequest) returns (ResolveSubcategoryItemCountResponse) {}
   rpc ResolveTestContainerDetails(ResolveTestContainerDetailsRequest) returns (ResolveTestContainerDetailsResponse) {}
 }
@@ -384,6 +387,14 @@ message QueryCategoriesRequest {
 // Response message for categories operation.
 message QueryCategoriesResponse {
   repeated Category categories = 1;
+}
+// Request message for category operation.
+message QueryCategoryRequest {
+  string id = 1;
+}
+// Response message for category operation.
+message QueryCategoryResponse {
+  Category category = 1;
 }
 // Request message for categoriesByKind operation.
 message QueryCategoriesByKindRequest {
@@ -971,6 +982,29 @@ message ResolveSubcategoryItemCountResponse {
   repeated ResolveSubcategoryItemCountResult result = 1;
 }
 
+message ResolveSubcategoryFeaturedCategoryArgs {
+  bool include_children = 1;
+}
+
+message ResolveSubcategoryFeaturedCategoryContext {
+  string id = 1;
+}
+
+message ResolveSubcategoryFeaturedCategoryRequest {
+  // context provides the resolver context for the field featuredCategory of type Subcategory.
+  repeated ResolveSubcategoryFeaturedCategoryContext context = 1;
+  // field_args provides the arguments for the resolver field featuredCategory of type Subcategory.
+  ResolveSubcategoryFeaturedCategoryArgs field_args = 2;
+}
+
+message ResolveSubcategoryFeaturedCategoryResult {
+  Category featured_category = 1;
+}
+
+message ResolveSubcategoryFeaturedCategoryResponse {
+  repeated ResolveSubcategoryFeaturedCategoryResult result = 1;
+}
+
 message ResolveCategoryMetricsNormalizedScoreArgs {
   double baseline = 1;
 }
@@ -994,6 +1028,29 @@ message ResolveCategoryMetricsNormalizedScoreResult {
 
 message ResolveCategoryMetricsNormalizedScoreResponse {
   repeated ResolveCategoryMetricsNormalizedScoreResult result = 1;
+}
+
+message ResolveCategoryMetricsRelatedCategoryArgs {
+  google.protobuf.BoolValue include = 1;
+}
+
+message ResolveCategoryMetricsRelatedCategoryContext {
+  string category_id = 1;
+}
+
+message ResolveCategoryMetricsRelatedCategoryRequest {
+  // context provides the resolver context for the field relatedCategory of type CategoryMetrics.
+  repeated ResolveCategoryMetricsRelatedCategoryContext context = 1;
+  // field_args provides the arguments for the resolver field relatedCategory of type CategoryMetrics.
+  ResolveCategoryMetricsRelatedCategoryArgs field_args = 2;
+}
+
+message ResolveCategoryMetricsRelatedCategoryResult {
+  Category related_category = 1;
+}
+
+message ResolveCategoryMetricsRelatedCategoryResponse {
+  repeated ResolveCategoryMetricsRelatedCategoryResult result = 1;
 }
 
 message ResolveTestContainerDetailsArgs {
@@ -1093,7 +1150,8 @@ message Category {
   string id = 1;
   string name = 2;
   CategoryKind kind = 3;
-  ListOfSubcategory subcategories = 5;
+  ListOfSubcategory subcategories = 4;
+  CategoryMetrics null_metrics = 5;
 }
 
 message CategoryFilter {
@@ -1310,7 +1368,6 @@ message CategoryMetrics {
   double value = 3;
   string timestamp = 4;
   string category_id = 5;
-  Category related_category = 6;
 }
 
 enum CategoryKind {
@@ -1343,6 +1400,7 @@ message Owner {
   string id = 1;
   string name = 2;
   ContactInfo contact = 3;
+  Animal pet = 4;
 }
 
 message ContactInfo {

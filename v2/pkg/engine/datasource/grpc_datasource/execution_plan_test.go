@@ -1808,7 +1808,7 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 											"Cat",
 											"Dog",
 										},
-										FieldSelectionSet: RPCFieldSelectionSet{
+										FragmentFields: RPCFieldSelectionSet{
 											"Cat": {
 												{
 													Name:          "meow_volume",
@@ -1882,7 +1882,7 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 											"Category",
 										},
 										Fields: RPCFields{},
-										FieldSelectionSet: RPCFieldSelectionSet{
+										FragmentFields: RPCFieldSelectionSet{
 											"Product": {
 												{
 													Name:          "id",
@@ -2382,7 +2382,7 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 											"Cat",
 											"Dog",
 										},
-										FieldSelectionSet: RPCFieldSelectionSet{
+										FragmentFields: RPCFieldSelectionSet{
 											"Cat": {
 												{
 													Name:          "meow_volume",
@@ -2471,7 +2471,7 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 											"Category",
 										},
 										Fields: RPCFields{},
-										FieldSelectionSet: RPCFieldSelectionSet{
+										FragmentFields: RPCFieldSelectionSet{
 											"Product": {
 												{
 													Name:          "id",

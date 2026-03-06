@@ -8614,42 +8614,36 @@ type testSubscriptionUpdater struct {
 func (t *testSubscriptionUpdater) AwaitUpdates(tt *testing.T, timeout time.Duration, count int) {
 	tt.Helper()
 
-	ticker := time.NewTicker(timeout)
-	defer ticker.Stop()
+	deadline := time.Now().Add(timeout)
 	for {
-		time.Sleep(10 * time.Millisecond)
-		select {
-		case <-ticker.C:
-			tt.Fatalf("timed out waiting for updates")
-		default:
-			t.mux.Lock()
-			if len(t.updates) == count {
-				t.mux.Unlock()
-				return
-			}
-			t.mux.Unlock()
+		t.mux.Lock()
+		got := len(t.updates)
+		t.mux.Unlock()
+		if got == count {
+			return
 		}
+		if time.Now().After(deadline) {
+			tt.Fatalf("timed out waiting for updates: got %d, want %d", got, count)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 
 func (t *testSubscriptionUpdater) AwaitDone(tt *testing.T, timeout time.Duration) {
 	tt.Helper()
 
-	ticker := time.NewTicker(timeout)
-	defer ticker.Stop()
+	deadline := time.Now().Add(timeout)
 	for {
-		time.Sleep(10 * time.Millisecond)
-		select {
-		case <-ticker.C:
-			tt.Fatalf("timed out waiting for done")
-		default:
-			t.mux.Lock()
-			if t.done {
-				t.mux.Unlock()
-				return
-			}
-			t.mux.Unlock()
+		t.mux.Lock()
+		isDone := t.done
+		t.mux.Unlock()
+		if isDone {
+			return
 		}
+		if time.Now().After(deadline) {
+			tt.Fatalf("timed out waiting for done")
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 

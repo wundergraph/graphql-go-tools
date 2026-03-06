@@ -410,6 +410,34 @@ func (s *MockService) ResolveTestContainerDetails(_ context.Context, req *produc
 	}, nil
 }
 
+// ResolveCategoryMetricsRelatedCategory implements productv1.ProductServiceServer.
+func (s *MockService) ResolveCategoryMetricsRelatedCategory(_ context.Context, req *productv1.ResolveCategoryMetricsRelatedCategoryRequest) (*productv1.ResolveCategoryMetricsRelatedCategoryResponse, error) {
+	results := make([]*productv1.ResolveCategoryMetricsRelatedCategoryResult, 0, len(req.GetContext()))
+
+	include := true
+	if req.GetFieldArgs() != nil && req.GetFieldArgs().GetInclude() != nil {
+		include = req.GetFieldArgs().GetInclude().GetValue()
+	}
+
+	for i, ctx := range req.GetContext() {
+		var relatedCategory *productv1.Category
+		if include {
+			relatedCategory = &productv1.Category{
+				Id:   fmt.Sprintf("related-category-%s-%d", ctx.GetCategoryId(), i),
+				Name: fmt.Sprintf("Related Category for %s", ctx.GetCategoryId()),
+				Kind: productv1.CategoryKind_CATEGORY_KIND_BOOK,
+			}
+		}
+		results = append(results, &productv1.ResolveCategoryMetricsRelatedCategoryResult{
+			RelatedCategory: relatedCategory,
+		})
+	}
+
+	return &productv1.ResolveCategoryMetricsRelatedCategoryResponse{
+		Result: results,
+	}, nil
+}
+
 // ResolveCategoryMetricsNormalizedScore implements productv1.ProductServiceServer.
 func (s *MockService) ResolveCategoryMetricsNormalizedScore(_ context.Context, req *productv1.ResolveCategoryMetricsNormalizedScoreRequest) (*productv1.ResolveCategoryMetricsNormalizedScoreResponse, error) {
 	results := make([]*productv1.ResolveCategoryMetricsNormalizedScoreResult, 0, len(req.GetContext()))

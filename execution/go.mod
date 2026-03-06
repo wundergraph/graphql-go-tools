@@ -4,6 +4,7 @@ go 1.25
 
 require (
 	github.com/99designs/gqlgen v0.17.76
+	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/gobwas/ws v1.4.0
 	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.6.0
@@ -27,7 +28,6 @@ require (
 	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/bufbuild/protocompile v0.14.1 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
-	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dlclark/regexp2 v1.11.0 // indirect
