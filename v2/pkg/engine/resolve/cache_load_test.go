@@ -1976,6 +1976,301 @@ func TestShadowMode_WithoutAnalytics(t *testing.T) {
 	})
 }
 
+// ErrorLoaderCache wraps FakeLoaderCache but returns errors on Get/Set calls
+// when configured to do so. Used for testing L2 error resilience.
+type ErrorLoaderCache struct {
+	*FakeLoaderCache
+	getErr error
+	setErr error
+}
+
+func (e *ErrorLoaderCache) Get(ctx context.Context, keys []string) ([]*CacheEntry, error) {
+	if e.getErr != nil {
+		return nil, e.getErr
+	}
+	return e.FakeLoaderCache.Get(ctx, keys)
+}
+
+func (e *ErrorLoaderCache) Set(ctx context.Context, entries []*CacheEntry, ttl time.Duration) error {
+	if e.setErr != nil {
+		return e.setErr
+	}
+	return e.FakeLoaderCache.Set(ctx, entries, ttl)
+}
+
+// buildProductEntityResponse creates a GraphQLResponse for a single product entity fetch.
+// Used by error resilience and mutation skip tests to avoid repeating boilerplate.
+func buildProductEntityResponse(rootDS, entityDS DataSource, cacheKeyTemplate CacheKeyTemplate, providesData *Object, operationType ast.OperationType) *GraphQLResponse {
+	rootOpName := "query"
+	rootFieldType := "Query"
+	rootFieldName := "product"
+	if operationType == ast.OperationTypeMutation {
+		rootOpName = "mutation"
+		rootFieldType = "Mutation"
+		rootFieldName = "updateUser"
+	}
+
+	return &GraphQLResponse{
+		Info: &GraphQLResponseInfo{OperationType: operationType},
+		Fetches: Sequence(
+			SingleWithPath(&SingleFetch{
+				FetchConfiguration: FetchConfiguration{
+					DataSource:     rootDS,
+					PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data"}},
+				},
+				InputTemplate: InputTemplate{Segments: []TemplateSegment{
+					{Data: []byte(`{"method":"POST"}`), SegmentType: StaticSegmentType},
+				}},
+				DataSourceIdentifier: []byte("graphql_datasource.Source"),
+				Info: &FetchInfo{
+					DataSourceID: "ds", DataSourceName: "ds",
+					RootFields:    []GraphCoordinate{{TypeName: rootFieldType, FieldName: rootFieldName}},
+					OperationType: operationType,
+				},
+			}, rootOpName),
+			SingleWithPath(&SingleFetch{
+				FetchConfiguration: FetchConfiguration{
+					DataSource:     entityDS,
+					PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data", "_entities", "0"}},
+					Caching: FetchCacheConfiguration{
+						Enabled:          true,
+						CacheName:        "default",
+						TTL:              30 * time.Second,
+						CacheKeyTemplate: cacheKeyTemplate,
+						UseL1Cache:       true,
+					},
+				},
+				InputTemplate: InputTemplate{Segments: []TemplateSegment{
+					{Data: []byte(`{"method":"POST","url":"http://ds.service","body":{"query":"...","variables":{"representations":[`), SegmentType: StaticSegmentType},
+					{SegmentType: VariableSegmentType, VariableKind: ResolvableObjectVariableKind, Renderer: NewGraphQLVariableResolveRenderer(&Object{
+						Fields: []*Field{
+							{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+							{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+						},
+					})},
+					{Data: []byte(`]}}}`), SegmentType: StaticSegmentType},
+				}},
+				DataSourceIdentifier: []byte("graphql_datasource.Source"),
+				Info: &FetchInfo{
+					DataSourceID: "ds", DataSourceName: "ds",
+					RootFields:    []GraphCoordinate{{TypeName: "Product", FieldName: "name"}},
+					OperationType: ast.OperationTypeQuery, ProvidesData: providesData,
+				},
+			}, rootOpName+"."+rootFieldName, ObjectPath(rootFieldName)),
+		),
+		Data: &Object{
+			Fields: []*Field{{
+				Name: []byte(rootFieldName),
+				Value: &Object{
+					Path: []string{rootFieldName},
+					Fields: []*Field{
+						{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+						{Name: []byte("name"), Value: &String{Path: []string{"name"}}},
+					},
+				},
+			}},
+		},
+	}
+}
+
+func TestL2CacheErrorResilience(t *testing.T) {
+	productCacheKeyTemplate := &EntityQueryCacheKeyTemplate{
+		Keys: NewResolvableObjectVariable(&Object{
+			Fields: []*Field{
+				{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+				{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+			},
+		}),
+	}
+	providesData := &Object{
+		Fields: []*Field{
+			{Name: []byte("name"), Value: &Scalar{}},
+		},
+	}
+
+	t.Run("L2 Get error falls through to fetch", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		errorCache := &ErrorLoaderCache{
+			FakeLoaderCache: NewFakeLoaderCache(),
+			getErr:          assert.AnError,
+		}
+
+		rootDS := NewMockDataSource(ctrl)
+		rootDS.EXPECT().Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"product":{"__typename":"Product","id":"prod-1"}}}`), nil
+			}).Times(1)
+
+		entityDS := NewMockDataSource(ctrl)
+		entityDS.EXPECT().Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"_entities":[{"__typename":"Product","id":"prod-1","name":"Product One"}]}}`), nil
+			}).Times(1)
+
+		response := buildProductEntityResponse(rootDS, entityDS, productCacheKeyTemplate, providesData, ast.OperationTypeQuery)
+
+		loader := &Loader{caches: map[string]LoaderCache{"default": errorCache}}
+		ctx := NewContext(t.Context())
+		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+		ctx.ExecutionOptions.Caching.EnableL1Cache = true
+		ctx.ExecutionOptions.Caching.EnableL2Cache = true
+
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		resolvable := NewResolvable(ar, ResolvableOptions{})
+		err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+		require.NoError(t, err)
+
+		err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+		require.NoError(t, err)
+
+		out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
+		assert.Equal(t, `{"data":{"product":{"__typename":"Product","id":"prod-1","name":"Product One"}}}`, out)
+	})
+
+	t.Run("L2 Set error does not fail request", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		errorCache := &ErrorLoaderCache{
+			FakeLoaderCache: NewFakeLoaderCache(),
+			setErr:          assert.AnError,
+		}
+
+		rootDS := NewMockDataSource(ctrl)
+		rootDS.EXPECT().Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"product":{"__typename":"Product","id":"prod-1"}}}`), nil
+			}).Times(1)
+
+		entityDS := NewMockDataSource(ctrl)
+		entityDS.EXPECT().Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"_entities":[{"__typename":"Product","id":"prod-1","name":"Product One"}]}}`), nil
+			}).Times(1)
+
+		response := buildProductEntityResponse(rootDS, entityDS, productCacheKeyTemplate, providesData, ast.OperationTypeQuery)
+
+		loader := &Loader{caches: map[string]LoaderCache{"default": errorCache}}
+		ctx := NewContext(t.Context())
+		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+		ctx.ExecutionOptions.Caching.EnableL1Cache = true
+		ctx.ExecutionOptions.Caching.EnableL2Cache = true
+
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		resolvable := NewResolvable(ar, ResolvableOptions{})
+		err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+		require.NoError(t, err)
+
+		err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+		require.NoError(t, err)
+
+		out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
+		assert.Equal(t, `{"data":{"product":{"__typename":"Product","id":"prod-1","name":"Product One"}}}`, out)
+	})
+
+	t.Run("corrupted cache entry treated as miss", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		cache := NewFakeLoaderCache()
+		// Pre-populate cache with corrupted JSON
+		_ = cache.Set(t.Context(), []*CacheEntry{
+			{Key: "Product:prod-1", Value: []byte(`{not valid json!!!}`)},
+		}, 30*time.Second)
+
+		rootDS := NewMockDataSource(ctrl)
+		rootDS.EXPECT().Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"product":{"__typename":"Product","id":"prod-1"}}}`), nil
+			}).Times(1)
+
+		entityDS := NewMockDataSource(ctrl)
+		entityDS.EXPECT().Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"_entities":[{"__typename":"Product","id":"prod-1","name":"Product One"}]}}`), nil
+			}).Times(1) // Must fetch because cached entry is corrupted
+
+		response := buildProductEntityResponse(rootDS, entityDS, productCacheKeyTemplate, providesData, ast.OperationTypeQuery)
+
+		loader := &Loader{caches: map[string]LoaderCache{"default": cache}}
+		ctx := NewContext(t.Context())
+		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+		ctx.ExecutionOptions.Caching.EnableL1Cache = true
+		ctx.ExecutionOptions.Caching.EnableL2Cache = true
+
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		resolvable := NewResolvable(ar, ResolvableOptions{})
+		err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+		require.NoError(t, err)
+
+		err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+		require.NoError(t, err)
+
+		out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
+		assert.Equal(t, `{"data":{"product":{"__typename":"Product","id":"prod-1","name":"Product One"}}}`, out)
+	})
+}
+
+func TestMutationSkipsL2Read(t *testing.T) {
+	t.Run("mutation operation type skips L2 read and always fetches", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		cache := NewFakeLoaderCache()
+		// Pre-populate cache with stale data
+		_ = cache.Set(t.Context(), []*CacheEntry{
+			{Key: "Product:prod-1", Value: []byte(`{"__typename":"Product","id":"prod-1","name":"Old Name"}`)},
+		}, 30*time.Second)
+
+		userCacheKeyTemplate := &EntityQueryCacheKeyTemplate{
+			Keys: NewResolvableObjectVariable(&Object{
+				Fields: []*Field{
+					{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+					{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+				},
+			}),
+		}
+		providesData := &Object{
+			Fields: []*Field{
+				{Name: []byte("name"), Value: &Scalar{}},
+			},
+		}
+
+		rootDS := NewMockDataSource(ctrl)
+		rootDS.EXPECT().Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"updateUser":{"__typename":"Product","id":"prod-1"}}}`), nil
+			}).Times(1)
+
+		entityDS := NewMockDataSource(ctrl)
+		entityDS.EXPECT().Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"_entities":[{"__typename":"Product","id":"prod-1","name":"New Name"}]}}`), nil
+			}).Times(1) // Must fetch fresh data despite cache having stale entry
+
+		response := buildProductEntityResponse(rootDS, entityDS, userCacheKeyTemplate, providesData, ast.OperationTypeMutation)
+
+		loader := &Loader{caches: map[string]LoaderCache{"default": cache}}
+		ctx := NewContext(t.Context())
+		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+		ctx.ExecutionOptions.Caching.EnableL1Cache = true
+		ctx.ExecutionOptions.Caching.EnableL2Cache = true
+
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		resolvable := NewResolvable(ar, ResolvableOptions{})
+		err := resolvable.Init(ctx, nil, ast.OperationTypeMutation)
+		require.NoError(t, err)
+
+		err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+		require.NoError(t, err)
+
+		out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
+		assert.Equal(t, `{"data":{"updateUser":{"__typename":"Product","id":"prod-1","name":"New Name"}}}`, out, "mutation should fetch fresh data, not use cached stale data")
+	})
+}
+
 func TestWriteCanonicalJSON(t *testing.T) {
 	canonicalize := func(input string) string {
 		v, err := astjson.Parse(input)

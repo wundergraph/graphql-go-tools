@@ -1638,6 +1638,220 @@ func TestNormalizeForCache(t *testing.T) {
 		resultJSON := string(result.MarshalTo(nil))
 		assert.Equal(t, `{"username":"Alice","__typename":"User"}`, resultJSON, "should normalize alias and preserve __typename")
 	})
+
+	t.Run("with CacheArgs - appends arg suffix", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		ctx := NewContext(t.Context())
+		ctx.Variables = astjson.MustParseBytes([]byte(`{"a":"5"}`))
+		loader := &Loader{jsonArena: ar, ctx: ctx}
+
+		field := &Field{
+			Name:      []byte("friends"),
+			Value:     &Scalar{},
+			CacheArgs: []CacheFieldArg{{ArgName: "first", VariableName: "a"}},
+		}
+		obj := &Object{
+			HasAliases: true,
+			Fields:     []*Field{field},
+		}
+
+		item := mustParseJSON(ar, `{"friends":"value"}`)
+		result := loader.normalizeForCache(item, obj)
+
+		suffix := loader.computeArgSuffix(field.CacheArgs)
+		resultJSON := string(result.MarshalTo(nil))
+		assert.Equal(t, `{"friends`+suffix+`":"value"}`, resultJSON, "should append arg suffix to field name")
+	})
+
+	t.Run("with alias + CacheArgs - uses original name + arg suffix", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		ctx := NewContext(t.Context())
+		ctx.Variables = astjson.MustParseBytes([]byte(`{"a":"5"}`))
+		loader := &Loader{jsonArena: ar, ctx: ctx}
+
+		field := &Field{
+			Name:         []byte("myFriends"),
+			OriginalName: []byte("friends"),
+			Value:        &Scalar{},
+			CacheArgs:    []CacheFieldArg{{ArgName: "first", VariableName: "a"}},
+		}
+		obj := &Object{
+			HasAliases: true,
+			Fields:     []*Field{field},
+		}
+
+		item := mustParseJSON(ar, `{"myFriends":"value"}`)
+		result := loader.normalizeForCache(item, obj)
+
+		suffix := loader.computeArgSuffix(field.CacheArgs)
+		resultJSON := string(result.MarshalTo(nil))
+		assert.Equal(t, `{"friends`+suffix+`":"value"}`, resultJSON, "should use original name + arg suffix")
+	})
+}
+
+func TestNormalizeDenormalizeRoundTrip(t *testing.T) {
+	t.Run("round-trip with CacheArgs preserves data", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		ctx := NewContext(t.Context())
+		ctx.Variables = astjson.MustParseBytes([]byte(`{"a":"5"}`))
+		loader := &Loader{jsonArena: ar, ctx: ctx}
+
+		field := &Field{
+			Name:      []byte("friends"),
+			Value:     &Scalar{},
+			CacheArgs: []CacheFieldArg{{ArgName: "first", VariableName: "a"}},
+		}
+		obj := &Object{
+			HasAliases: true,
+			Fields:     []*Field{field},
+		}
+
+		original := mustParseJSON(ar, `{"friends":"value"}`)
+		normalized := loader.normalizeForCache(original, obj)
+		denormalized := loader.denormalizeFromCache(normalized, obj)
+
+		assert.Equal(t, `{"friends":"value"}`, string(denormalized.MarshalTo(nil)))
+	})
+
+	t.Run("round-trip with alias + CacheArgs preserves data", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		ctx := NewContext(t.Context())
+		ctx.Variables = astjson.MustParseBytes([]byte(`{"a":"5"}`))
+		loader := &Loader{jsonArena: ar, ctx: ctx}
+
+		field := &Field{
+			Name:         []byte("myFriends"),
+			OriginalName: []byte("friends"),
+			Value:        &Scalar{},
+			CacheArgs:    []CacheFieldArg{{ArgName: "first", VariableName: "a"}},
+		}
+		obj := &Object{
+			HasAliases: true,
+			Fields:     []*Field{field},
+		}
+
+		original := mustParseJSON(ar, `{"myFriends":"value"}`)
+		normalized := loader.normalizeForCache(original, obj)
+		denormalized := loader.denormalizeFromCache(normalized, obj)
+
+		assert.Equal(t, `{"myFriends":"value"}`, string(denormalized.MarshalTo(nil)))
+	})
+
+	t.Run("round-trip nested object with alias + CacheArgs", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		ctx := NewContext(t.Context())
+		ctx.Variables = astjson.MustParseBytes([]byte(`{"a":"5"}`))
+		loader := &Loader{jsonArena: ar, ctx: ctx}
+
+		innerObj := &Object{
+			HasAliases: true,
+			Fields: []*Field{
+				{Name: []byte("n"), OriginalName: []byte("name"), Value: &Scalar{}},
+			},
+		}
+		field := &Field{
+			Name:         []byte("myFriends"),
+			OriginalName: []byte("friends"),
+			Value:        innerObj,
+			CacheArgs:    []CacheFieldArg{{ArgName: "first", VariableName: "a"}},
+		}
+		obj := &Object{
+			HasAliases: true,
+			Fields:     []*Field{field},
+		}
+
+		original := mustParseJSON(ar, `{"myFriends":{"n":"Alice"}}`)
+		normalized := loader.normalizeForCache(original, obj)
+		denormalized := loader.denormalizeFromCache(normalized, obj)
+
+		assert.Equal(t, `{"myFriends":{"n":"Alice"}}`, string(denormalized.MarshalTo(nil)))
+	})
+
+	t.Run("round-trip array of objects with alias + CacheArgs", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		ctx := NewContext(t.Context())
+		ctx.Variables = astjson.MustParseBytes([]byte(`{"a":"5"}`))
+		loader := &Loader{jsonArena: ar, ctx: ctx}
+
+		innerObj := &Object{
+			HasAliases: true,
+			Fields: []*Field{
+				{Name: []byte("n"), OriginalName: []byte("name"), Value: &Scalar{}},
+			},
+		}
+		arrNode := &Array{Item: innerObj}
+		field := &Field{
+			Name:         []byte("myFriends"),
+			OriginalName: []byte("friends"),
+			Value:        arrNode,
+			CacheArgs:    []CacheFieldArg{{ArgName: "first", VariableName: "a"}},
+		}
+		obj := &Object{
+			HasAliases: true,
+			Fields:     []*Field{field},
+		}
+
+		original := mustParseJSON(ar, `{"myFriends":[{"n":"Alice"},{"n":"Bob"}]}`)
+		normalized := loader.normalizeForCache(original, obj)
+		denormalized := loader.denormalizeFromCache(normalized, obj)
+
+		assert.Equal(t, `{"myFriends":[{"n":"Alice"},{"n":"Bob"}]}`, string(denormalized.MarshalTo(nil)))
+	})
+
+	t.Run("round-trip preserves __typename with CacheArgs", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		ctx := NewContext(t.Context())
+		ctx.Variables = astjson.MustParseBytes([]byte(`{"a":"5"}`))
+		loader := &Loader{jsonArena: ar, ctx: ctx}
+
+		field := &Field{
+			Name:         []byte("myFriends"),
+			OriginalName: []byte("friends"),
+			Value:        &Scalar{},
+			CacheArgs:    []CacheFieldArg{{ArgName: "first", VariableName: "a"}},
+		}
+		obj := &Object{
+			HasAliases: true,
+			Fields:     []*Field{field},
+		}
+
+		original := mustParseJSON(ar, `{"__typename":"User","myFriends":"value"}`)
+		normalized := loader.normalizeForCache(original, obj)
+		denormalized := loader.denormalizeFromCache(normalized, obj)
+
+		// After round-trip, __typename should be preserved and field alias restored
+		result := denormalized
+		assert.Equal(t, `"User"`, string(result.Get("__typename").MarshalTo(nil)))
+		assert.Equal(t, `"value"`, string(result.Get("myFriends").MarshalTo(nil)))
+	})
+
+	t.Run("round-trip multiple fields with different CacheArgs", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		ctx := NewContext(t.Context())
+		ctx.Variables = astjson.MustParseBytes([]byte(`{"a":"5","b":"10"}`))
+		loader := &Loader{jsonArena: ar, ctx: ctx}
+
+		field1 := &Field{
+			Name:      []byte("friends"),
+			Value:     &Scalar{},
+			CacheArgs: []CacheFieldArg{{ArgName: "first", VariableName: "a"}},
+		}
+		field2 := &Field{
+			Name:  []byte("id"),
+			Value: &Scalar{},
+		}
+		obj := &Object{
+			HasAliases: true,
+			Fields:     []*Field{field1, field2},
+		}
+
+		original := mustParseJSON(ar, `{"friends":"Alice","id":"1"}`)
+		normalized := loader.normalizeForCache(original, obj)
+		denormalized := loader.denormalizeFromCache(normalized, obj)
+
+		assert.Equal(t, `"Alice"`, string(denormalized.Get("friends").MarshalTo(nil)))
+		assert.Equal(t, `"1"`, string(denormalized.Get("id").MarshalTo(nil)))
+	})
 }
 
 func TestDenormalizeFromCache(t *testing.T) {
@@ -1679,6 +1893,59 @@ func TestDenormalizeFromCache(t *testing.T) {
 
 		resultJSON := string(result.MarshalTo(nil))
 		assert.Equal(t, `{"userName":"Alice"}`, resultJSON, "should convert original name to alias")
+	})
+
+	t.Run("with CacheArgs - looks up suffixed field name", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		ctx := NewContext(t.Context())
+		ctx.Variables = astjson.MustParseBytes([]byte(`{"a":"5"}`))
+		loader := &Loader{jsonArena: ar, ctx: ctx}
+
+		field := &Field{
+			Name:      []byte("friends"),
+			Value:     &Scalar{},
+			CacheArgs: []CacheFieldArg{{ArgName: "first", VariableName: "a"}},
+		}
+		obj := &Object{
+			HasAliases: true,
+			Fields:     []*Field{field},
+		}
+
+		// Cache stores data with suffixed key
+		suffix := loader.computeArgSuffix(field.CacheArgs)
+		cacheJSON := `{"friends` + suffix + `":"value"}`
+		cacheItem := mustParseJSON(ar, cacheJSON)
+
+		result := loader.denormalizeFromCache(cacheItem, obj)
+		resultJSON := string(result.MarshalTo(nil))
+		assert.Equal(t, `{"friends":"value"}`, resultJSON, "should map suffixed cache key back to query name")
+	})
+
+	t.Run("with alias + CacheArgs - maps suffixed original back to alias", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		ctx := NewContext(t.Context())
+		ctx.Variables = astjson.MustParseBytes([]byte(`{"a":"5"}`))
+		loader := &Loader{jsonArena: ar, ctx: ctx}
+
+		field := &Field{
+			Name:         []byte("myFriends"),
+			OriginalName: []byte("friends"),
+			Value:        &Scalar{},
+			CacheArgs:    []CacheFieldArg{{ArgName: "first", VariableName: "a"}},
+		}
+		obj := &Object{
+			HasAliases: true,
+			Fields:     []*Field{field},
+		}
+
+		// Cache stores: friends_<suffix> → value
+		suffix := loader.computeArgSuffix(field.CacheArgs)
+		cacheJSON := `{"friends` + suffix + `":"value"}`
+		cacheItem := mustParseJSON(ar, cacheJSON)
+
+		result := loader.denormalizeFromCache(cacheItem, obj)
+		resultJSON := string(result.MarshalTo(nil))
+		assert.Equal(t, `{"myFriends":"value"}`, resultJSON, "should map suffixed original name back to alias")
 	})
 }
 
@@ -1810,4 +2077,529 @@ func mustParseJSON(a arena.Arena, jsonStr string) *astjson.Value {
 		panic(err)
 	}
 	return v
+}
+
+// --- P1: validateItemHasRequiredData unit tests ---
+
+func TestValidateItemHasRequiredData(t *testing.T) {
+	t.Run("nil item returns false", func(t *testing.T) {
+		loader := &Loader{}
+		obj := &Object{Fields: []*Field{{Name: []byte("id"), Value: &Scalar{}}}}
+		assert.False(t, loader.validateItemHasRequiredData(nil, obj))
+	})
+
+	t.Run("all required scalar fields present", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{jsonArena: ar}
+		obj := &Object{
+			Fields: []*Field{
+				{Name: []byte("id"), Value: &Scalar{}},
+				{Name: []byte("name"), Value: &Scalar{}},
+			},
+		}
+		item := mustParseJSON(ar, `{"id":"1","name":"Alice"}`)
+		assert.True(t, loader.validateItemHasRequiredData(item, obj))
+	})
+
+	t.Run("missing required field", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{jsonArena: ar}
+		obj := &Object{
+			Fields: []*Field{
+				{Name: []byte("id"), Value: &Scalar{}},
+				{Name: []byte("name"), Value: &Scalar{}},
+			},
+		}
+		item := mustParseJSON(ar, `{"id":"1"}`)
+		assert.False(t, loader.validateItemHasRequiredData(item, obj))
+	})
+
+	t.Run("null value for non-nullable scalar", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{jsonArena: ar}
+		obj := &Object{
+			Fields: []*Field{
+				{Name: []byte("id"), Value: &Scalar{Nullable: false}},
+			},
+		}
+		item := mustParseJSON(ar, `{"id":null}`)
+		assert.False(t, loader.validateItemHasRequiredData(item, obj))
+	})
+
+	t.Run("null value for nullable scalar", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{jsonArena: ar}
+		obj := &Object{
+			Fields: []*Field{
+				{Name: []byte("email"), Value: &Scalar{Nullable: true}},
+			},
+		}
+		item := mustParseJSON(ar, `{"email":null}`)
+		assert.True(t, loader.validateItemHasRequiredData(item, obj))
+	})
+
+	t.Run("nested object with all fields", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{jsonArena: ar}
+		innerObj := &Object{
+			Fields: []*Field{
+				{Name: []byte("street"), Value: &Scalar{}},
+			},
+		}
+		obj := &Object{
+			Fields: []*Field{
+				{Name: []byte("address"), Value: innerObj},
+			},
+		}
+		item := mustParseJSON(ar, `{"address":{"street":"Main St"}}`)
+		assert.True(t, loader.validateItemHasRequiredData(item, obj))
+	})
+
+	t.Run("nested object missing required field", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{jsonArena: ar}
+		innerObj := &Object{
+			Fields: []*Field{
+				{Name: []byte("street"), Value: &Scalar{}},
+				{Name: []byte("city"), Value: &Scalar{}},
+			},
+		}
+		obj := &Object{
+			Fields: []*Field{
+				{Name: []byte("address"), Value: innerObj},
+			},
+		}
+		item := mustParseJSON(ar, `{"address":{"street":"Main St"}}`)
+		assert.False(t, loader.validateItemHasRequiredData(item, obj))
+	})
+
+	t.Run("null for non-nullable object", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{jsonArena: ar}
+		innerObj := &Object{
+			Nullable: false,
+			Fields:   []*Field{{Name: []byte("street"), Value: &Scalar{}}},
+		}
+		obj := &Object{
+			Fields: []*Field{
+				{Name: []byte("address"), Value: innerObj},
+			},
+		}
+		item := mustParseJSON(ar, `{"address":null}`)
+		assert.False(t, loader.validateItemHasRequiredData(item, obj))
+	})
+
+	t.Run("null for nullable object", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{jsonArena: ar}
+		innerObj := &Object{
+			Nullable: true,
+			Fields:   []*Field{{Name: []byte("street"), Value: &Scalar{}}},
+		}
+		obj := &Object{
+			Fields: []*Field{
+				{Name: []byte("address"), Value: innerObj},
+			},
+		}
+		item := mustParseJSON(ar, `{"address":null}`)
+		assert.True(t, loader.validateItemHasRequiredData(item, obj))
+	})
+
+	t.Run("non-object value for object field", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{jsonArena: ar}
+		innerObj := &Object{
+			Fields: []*Field{{Name: []byte("street"), Value: &Scalar{}}},
+		}
+		obj := &Object{
+			Fields: []*Field{
+				{Name: []byte("address"), Value: innerObj},
+			},
+		}
+		item := mustParseJSON(ar, `{"address":"not-an-object"}`)
+		assert.False(t, loader.validateItemHasRequiredData(item, obj))
+	})
+
+	t.Run("array with all valid items", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{jsonArena: ar}
+		arr := &Array{
+			Item: &Scalar{},
+		}
+		obj := &Object{
+			Fields: []*Field{
+				{Name: []byte("tags"), Value: arr},
+			},
+		}
+		item := mustParseJSON(ar, `{"tags":["a","b","c"]}`)
+		assert.True(t, loader.validateItemHasRequiredData(item, obj))
+	})
+
+	t.Run("array with invalid item - non-nullable scalar null", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{jsonArena: ar}
+		arr := &Array{
+			Item: &Scalar{Nullable: false},
+		}
+		obj := &Object{
+			Fields: []*Field{
+				{Name: []byte("tags"), Value: arr},
+			},
+		}
+		item := mustParseJSON(ar, `{"tags":["a",null,"c"]}`)
+		assert.False(t, loader.validateItemHasRequiredData(item, obj))
+	})
+
+	t.Run("array with nullable items allows null", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{jsonArena: ar}
+		arr := &Array{
+			Item: &Scalar{Nullable: true},
+		}
+		obj := &Object{
+			Fields: []*Field{
+				{Name: []byte("tags"), Value: arr},
+			},
+		}
+		item := mustParseJSON(ar, `{"tags":["a",null,"c"]}`)
+		assert.True(t, loader.validateItemHasRequiredData(item, obj))
+	})
+
+	t.Run("null for non-nullable array", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{jsonArena: ar}
+		arr := &Array{
+			Nullable: false,
+			Item:     &Scalar{},
+		}
+		obj := &Object{
+			Fields: []*Field{
+				{Name: []byte("tags"), Value: arr},
+			},
+		}
+		item := mustParseJSON(ar, `{"tags":null}`)
+		assert.False(t, loader.validateItemHasRequiredData(item, obj))
+	})
+
+	t.Run("null for nullable array", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{jsonArena: ar}
+		arr := &Array{
+			Nullable: true,
+			Item:     &Scalar{},
+		}
+		obj := &Object{
+			Fields: []*Field{
+				{Name: []byte("tags"), Value: arr},
+			},
+		}
+		item := mustParseJSON(ar, `{"tags":null}`)
+		assert.True(t, loader.validateItemHasRequiredData(item, obj))
+	})
+
+	t.Run("non-array value for array field", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{jsonArena: ar}
+		arr := &Array{Item: &Scalar{}}
+		obj := &Object{
+			Fields: []*Field{
+				{Name: []byte("tags"), Value: arr},
+			},
+		}
+		item := mustParseJSON(ar, `{"tags":"not-an-array"}`)
+		assert.False(t, loader.validateItemHasRequiredData(item, obj))
+	})
+
+	t.Run("empty array is valid", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{jsonArena: ar}
+		arr := &Array{Item: &Scalar{}}
+		obj := &Object{
+			Fields: []*Field{
+				{Name: []byte("tags"), Value: arr},
+			},
+		}
+		item := mustParseJSON(ar, `{"tags":[]}`)
+		assert.True(t, loader.validateItemHasRequiredData(item, obj))
+	})
+
+	t.Run("array of objects with valid items", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{jsonArena: ar}
+		itemObj := &Object{
+			Fields: []*Field{
+				{Name: []byte("id"), Value: &Scalar{}},
+			},
+		}
+		arr := &Array{Item: itemObj}
+		obj := &Object{
+			Fields: []*Field{
+				{Name: []byte("items"), Value: arr},
+			},
+		}
+		item := mustParseJSON(ar, `{"items":[{"id":"1"},{"id":"2"}]}`)
+		assert.True(t, loader.validateItemHasRequiredData(item, obj))
+	})
+
+	t.Run("array of objects with invalid item", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{jsonArena: ar}
+		itemObj := &Object{
+			Fields: []*Field{
+				{Name: []byte("id"), Value: &Scalar{}},
+				{Name: []byte("name"), Value: &Scalar{}},
+			},
+		}
+		arr := &Array{Item: itemObj}
+		obj := &Object{
+			Fields: []*Field{
+				{Name: []byte("items"), Value: arr},
+			},
+		}
+		item := mustParseJSON(ar, `{"items":[{"id":"1","name":"ok"},{"id":"2"}]}`)
+		assert.False(t, loader.validateItemHasRequiredData(item, obj))
+	})
+
+	t.Run("field with CacheArgs uses suffixed name for lookup", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		ctx := NewContext(t.Context())
+		ctx.Variables = astjson.MustParseBytes([]byte(`{"first":"5"}`))
+		loader := &Loader{jsonArena: ar, ctx: ctx}
+
+		// Field has CacheArgs, so validation should look for "friends_<suffix>" not "friends"
+		field := &Field{
+			Name:  []byte("friends"),
+			Value: &Scalar{},
+			CacheArgs: []CacheFieldArg{
+				{ArgName: "first", VariableName: "first"},
+			},
+		}
+
+		// Compute expected suffixed name
+		suffix := loader.computeArgSuffix(field.CacheArgs)
+		expectedKey := "friends" + suffix
+
+		// Item has the suffixed field name (as normalize would produce)
+		itemJSON := `{"` + expectedKey + `":"value"}`
+		item := mustParseJSON(ar, itemJSON)
+
+		obj := &Object{Fields: []*Field{field}}
+		assert.True(t, loader.validateItemHasRequiredData(item, obj))
+	})
+
+	t.Run("field with CacheArgs fails when only base name present", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		ctx := NewContext(t.Context())
+		ctx.Variables = astjson.MustParseBytes([]byte(`{"first":"5"}`))
+		loader := &Loader{jsonArena: ar, ctx: ctx}
+
+		field := &Field{
+			Name:  []byte("friends"),
+			Value: &Scalar{},
+			CacheArgs: []CacheFieldArg{
+				{ArgName: "first", VariableName: "first"},
+			},
+		}
+
+		// Item has only the base name "friends" without suffix
+		item := mustParseJSON(ar, `{"friends":"value"}`)
+
+		obj := &Object{Fields: []*Field{field}}
+		assert.False(t, loader.validateItemHasRequiredData(item, obj))
+	})
+
+	t.Run("array with nil Item spec is valid if array exists", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{jsonArena: ar}
+		arr := &Array{Item: nil}
+		obj := &Object{
+			Fields: []*Field{
+				{Name: []byte("tags"), Value: arr},
+			},
+		}
+		item := mustParseJSON(ar, `{"tags":["a","b"]}`)
+		assert.True(t, loader.validateItemHasRequiredData(item, obj))
+	})
+}
+
+// --- P3: computeArgSuffix unit tests ---
+
+func TestComputeArgSuffix(t *testing.T) {
+	t.Run("single arg produces deterministic suffix", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		ctx := NewContext(t.Context())
+		ctx.Variables = astjson.MustParseBytes([]byte(`{"a":"5"}`))
+		loader := &Loader{jsonArena: ar, ctx: ctx}
+
+		suffix1 := loader.computeArgSuffix([]CacheFieldArg{{ArgName: "first", VariableName: "a"}})
+		suffix2 := loader.computeArgSuffix([]CacheFieldArg{{ArgName: "first", VariableName: "a"}})
+
+		assert.Equal(t, suffix1, suffix2, "same args should produce same suffix")
+		assert.Equal(t, 17, len(suffix1), "suffix should be _ + 16 hex chars")
+		assert.Equal(t, byte('_'), suffix1[0], "suffix should start with underscore")
+	})
+
+	t.Run("different values produce different suffixes", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		ctx := NewContext(t.Context())
+		ctx.Variables = astjson.MustParseBytes([]byte(`{"a":"5","b":"10"}`))
+		loader := &Loader{jsonArena: ar, ctx: ctx}
+
+		suffix1 := loader.computeArgSuffix([]CacheFieldArg{{ArgName: "first", VariableName: "a"}})
+		suffix2 := loader.computeArgSuffix([]CacheFieldArg{{ArgName: "first", VariableName: "b"}})
+
+		assert.NotEqual(t, suffix1, suffix2, "different values should produce different suffixes")
+	})
+
+	t.Run("null variable produces null in hash", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		ctx := NewContext(t.Context())
+		ctx.Variables = astjson.MustParseBytes([]byte(`{}`))
+		loader := &Loader{jsonArena: ar, ctx: ctx}
+
+		// Variable "missing" doesn't exist, so argValue is nil → "null" written
+		suffix := loader.computeArgSuffix([]CacheFieldArg{{ArgName: "first", VariableName: "missing"}})
+		assert.Equal(t, 17, len(suffix), "should still produce valid suffix for null variable")
+	})
+
+	t.Run("null variable differs from string null", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		ctx := NewContext(t.Context())
+		ctx.Variables = astjson.MustParseBytes([]byte(`{"a":null,"b":"null"}`))
+		loader := &Loader{jsonArena: ar, ctx: ctx}
+
+		suffixNull := loader.computeArgSuffix([]CacheFieldArg{{ArgName: "first", VariableName: "a"}})
+		suffixMissing := loader.computeArgSuffix([]CacheFieldArg{{ArgName: "first", VariableName: "missing"}})
+
+		// Both json null and missing variable produce "null" in the hash,
+		// so they should be equal
+		assert.Equal(t, suffixNull, suffixMissing, "json null and missing variable both hash as null")
+	})
+
+	t.Run("unsorted args get sorted before hashing", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		ctx := NewContext(t.Context())
+		ctx.Variables = astjson.MustParseBytes([]byte(`{"a":"1","b":"2"}`))
+		loader := &Loader{jsonArena: ar, ctx: ctx}
+
+		sorted := []CacheFieldArg{
+			{ArgName: "alpha", VariableName: "a"},
+			{ArgName: "beta", VariableName: "b"},
+		}
+		unsorted := []CacheFieldArg{
+			{ArgName: "beta", VariableName: "b"},
+			{ArgName: "alpha", VariableName: "a"},
+		}
+
+		suffixSorted := loader.computeArgSuffix(sorted)
+		suffixUnsorted := loader.computeArgSuffix(unsorted)
+
+		assert.Equal(t, suffixSorted, suffixUnsorted, "arg order should not affect suffix")
+	})
+
+	t.Run("RemapVariables applied before lookup", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		ctx := NewContext(t.Context())
+		ctx.Variables = astjson.MustParseBytes([]byte(`{"original":"42"}`))
+		ctx.RemapVariables = map[string]string{"remapped": "original"}
+		loader := &Loader{jsonArena: ar, ctx: ctx}
+
+		// "remapped" maps to "original" which has value "42"
+		suffixRemapped := loader.computeArgSuffix([]CacheFieldArg{{ArgName: "first", VariableName: "remapped"}})
+		// "original" has value "42" directly
+		suffixDirect := loader.computeArgSuffix([]CacheFieldArg{{ArgName: "first", VariableName: "original"}})
+
+		assert.Equal(t, suffixRemapped, suffixDirect, "remapped variable should produce same suffix as direct lookup")
+	})
+
+	t.Run("object arg produces deterministic hash regardless of key order", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		ctx1 := NewContext(t.Context())
+		ctx1.Variables = astjson.MustParseBytes([]byte(`{"filter":{"name":"Alice","age":30}}`))
+		loader1 := &Loader{jsonArena: ar, ctx: ctx1}
+
+		ctx2 := NewContext(t.Context())
+		ctx2.Variables = astjson.MustParseBytes([]byte(`{"filter":{"age":30,"name":"Alice"}}`))
+		loader2 := &Loader{jsonArena: ar, ctx: ctx2}
+
+		suffix1 := loader1.computeArgSuffix([]CacheFieldArg{{ArgName: "filter", VariableName: "filter"}})
+		suffix2 := loader2.computeArgSuffix([]CacheFieldArg{{ArgName: "filter", VariableName: "filter"}})
+
+		assert.Equal(t, suffix1, suffix2, "object arg key order should not affect hash (canonical JSON)")
+	})
+}
+
+// --- P4: mergeEntityFields unit tests ---
+
+func TestMergeEntityFields(t *testing.T) {
+	t.Run("new field added to existing entity", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{jsonArena: ar}
+
+		dst := mustParseJSON(ar, `{"id":"1","name":"Alice"}`)
+		src := mustParseJSON(ar, `{"id":"1","email":"alice@example.com"}`)
+
+		loader.mergeEntityFields(dst, src)
+
+		resultJSON := string(dst.MarshalTo(nil))
+		assert.Equal(t, `{"id":"1","name":"Alice","email":"alice@example.com"}`, resultJSON)
+	})
+
+	t.Run("existing field preserved not overwritten", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{jsonArena: ar}
+
+		dst := mustParseJSON(ar, `{"id":"1","name":"Alice"}`)
+		src := mustParseJSON(ar, `{"id":"1","name":"Bob"}`)
+
+		loader.mergeEntityFields(dst, src)
+
+		resultJSON := string(dst.MarshalTo(nil))
+		assert.Equal(t, `{"id":"1","name":"Alice"}`, resultJSON, "existing field should not be overwritten")
+	})
+
+	t.Run("nil dst is no-op", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{jsonArena: ar}
+		src := mustParseJSON(ar, `{"id":"1"}`)
+		// Should not panic
+		loader.mergeEntityFields(nil, src)
+	})
+
+	t.Run("nil src is no-op", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{jsonArena: ar}
+		dst := mustParseJSON(ar, `{"id":"1"}`)
+		loader.mergeEntityFields(dst, nil)
+		resultJSON := string(dst.MarshalTo(nil))
+		assert.Equal(t, `{"id":"1"}`, resultJSON, "dst should be unchanged")
+	})
+
+	t.Run("non-object type is no-op", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{jsonArena: ar}
+		dst := mustParseJSON(ar, `"string-value"`)
+		src := mustParseJSON(ar, `{"id":"1"}`)
+		// Should not panic
+		loader.mergeEntityFields(dst, src)
+	})
+
+	t.Run("multiple new and existing fields coexist", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		loader := &Loader{jsonArena: ar}
+
+		dst := mustParseJSON(ar, `{"id":"1","name":"Alice","age":30}`)
+		src := mustParseJSON(ar, `{"id":"1","email":"a@b.com","role":"admin","name":"Bob"}`)
+
+		loader.mergeEntityFields(dst, src)
+
+		result := dst
+		// Existing fields preserved
+		assert.Equal(t, `"1"`, string(result.Get("id").MarshalTo(nil)))
+		assert.Equal(t, `"Alice"`, string(result.Get("name").MarshalTo(nil)))
+		assert.Equal(t, `30`, string(result.Get("age").MarshalTo(nil)))
+		// New fields added
+		assert.Equal(t, `"a@b.com"`, string(result.Get("email").MarshalTo(nil)))
+		assert.Equal(t, `"admin"`, string(result.Get("role").MarshalTo(nil)))
+	})
 }
