@@ -70,7 +70,6 @@ package astnormalization
 
 import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization/uploads"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
@@ -245,7 +244,8 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 
 	if o.options.extractVariables {
 		extractVariablesWalker := astvisitor.NewWalkerWithID(8, "ExtractVariables")
-		extractVariables(&extractVariablesWalker)
+		// disabling field arg mapping as it's only necessary on the variable normalizer
+		extractVariables(&extractVariablesWalker, false)
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
 			name:   "extractVariables",
 			walker: &extractVariablesWalker,
@@ -343,61 +343,6 @@ func (o *OperationNormalizer) NormalizeNamedOperation(operation, definition *ast
 		// fmt.Println(printed)
 		// fmt.Println("variables:", string(operation.Input.Variables))
 	}
-}
-
-type VariablesNormalizer struct {
-	firstDetectUnused          *astvisitor.Walker
-	secondExtract              *astvisitor.Walker
-	thirdDeleteUnused          *astvisitor.Walker
-	fourthCoerce               *astvisitor.Walker
-	variablesExtractionVisitor *variablesExtractionVisitor
-}
-
-func NewVariablesNormalizer() *VariablesNormalizer {
-	// delete unused modifying variables refs,
-	// so it is safer to run it sequentially with the extraction
-	thirdDeleteUnused := astvisitor.NewWalkerWithID(8, "DeleteUnusedVariables")
-	del := deleteUnusedVariables(&thirdDeleteUnused)
-
-	// register variable usage detection on the first stage
-	// and pass usage information to the deletion visitor
-	// so it keeps variables that are defined but not used at all
-	// ensuring that validation can still catch them
-	firstDetectUnused := astvisitor.NewWalkerWithID(8, "DetectVariableUsage")
-	detectVariableUsage(&firstDetectUnused, del)
-
-	secondExtract := astvisitor.NewWalkerWithID(8, "ExtractVariables")
-	variablesExtractionVisitor := extractVariables(&secondExtract)
-	extractVariablesDefaultValue(&secondExtract)
-
-	fourthCoerce := astvisitor.NewWalkerWithID(0, "VariablesCoercion")
-	inputCoercionForList(&fourthCoerce)
-
-	return &VariablesNormalizer{
-		firstDetectUnused:          &firstDetectUnused,
-		secondExtract:              &secondExtract,
-		thirdDeleteUnused:          &thirdDeleteUnused,
-		fourthCoerce:               &fourthCoerce,
-		variablesExtractionVisitor: variablesExtractionVisitor,
-	}
-}
-
-func (v *VariablesNormalizer) NormalizeOperation(operation, definition *ast.Document, report *operationreport.Report) []uploads.UploadPathMapping {
-	v.firstDetectUnused.Walk(operation, definition, report)
-	if report.HasErrors() {
-		return nil
-	}
-	v.secondExtract.Walk(operation, definition, report)
-	if report.HasErrors() {
-		return nil
-	}
-	v.thirdDeleteUnused.Walk(operation, definition, report)
-	if report.HasErrors() {
-		return nil
-	}
-	v.fourthCoerce.Walk(operation, definition, report)
-
-	return v.variablesExtractionVisitor.uploadsPath
 }
 
 type fragmentCycleVisitor struct {

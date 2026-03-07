@@ -596,8 +596,8 @@ func (f *treeBuilderVisitor) collectFieldInfo(fieldRef int) {
 	onFragment := f.walker.Path.EndsWithFragment()
 	parentPathWithoutFragment := f.walker.Path.WithoutInlineFragmentNames().DotDelimitedString()
 
-	currentPath := fmt.Sprintf("%s.%s", parentPath, fieldAliasOrName)
-	currentPathWithoutFragments := fmt.Sprintf("%s.%s", parentPathWithoutFragment, fieldAliasOrName)
+	currentPath := parentPath + "." + fieldAliasOrName
+	currentPathWithoutFragments := parentPathWithoutFragment + "." + fieldAliasOrName
 
 	f.fieldInfo[fieldRef] = fieldInfo{
 		typeName:                    typeName,
