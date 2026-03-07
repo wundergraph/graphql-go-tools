@@ -277,6 +277,82 @@ func (g *GraphQLVariableRenderer) renderGraphQLValue(data *astjson.Value, out io
 	return
 }
 
+func NewCacheKeyVariableRenderer() *CacheKeyVariableRenderer {
+	return &CacheKeyVariableRenderer{}
+}
+
+type CacheKeyVariableRenderer struct {
+}
+
+func (g *CacheKeyVariableRenderer) GetKind() string {
+	return "cacheKey"
+}
+
+// add renderer that renders both variable name and variable value
+// before rendering, evaluate if the value contains null values
+// if an object contains only null values, set the object to null
+// do this recursively until reaching the root of the object
+
+func (g *CacheKeyVariableRenderer) RenderVariable(ctx context.Context, data *astjson.Value, out io.Writer) error {
+	return g.renderGraphQLValue(data, out)
+}
+
+func (g *CacheKeyVariableRenderer) renderGraphQLValue(data *astjson.Value, out io.Writer) (err error) {
+	if data == nil {
+		_, _ = out.Write(literal.NULL)
+		return
+	}
+	switch data.Type() {
+	case astjson.TypeString:
+		b := data.GetStringBytes()
+		_, _ = out.Write(b)
+	case astjson.TypeObject:
+		_, _ = out.Write(literal.LBRACE)
+		o := data.GetObject()
+		first := true
+		o.Visit(func(k []byte, v *astjson.Value) {
+			if err != nil {
+				return
+			}
+			if !first {
+				_, _ = out.Write(literal.COMMA)
+			} else {
+				first = false
+			}
+			_, _ = out.Write(k)
+			_, _ = out.Write(literal.COLON)
+			err = g.renderGraphQLValue(v, out)
+		})
+		if err != nil {
+			return err
+		}
+		_, _ = out.Write(literal.RBRACE)
+	case astjson.TypeNull:
+		_, _ = out.Write(literal.NULL)
+	case astjson.TypeTrue:
+		_, _ = out.Write(literal.TRUE)
+	case astjson.TypeFalse:
+		_, _ = out.Write(literal.FALSE)
+	case astjson.TypeArray:
+		_, _ = out.Write(literal.LBRACK)
+		arr := data.GetArray()
+		for i, value := range arr {
+			if i > 0 {
+				_, _ = out.Write(literal.COMMA)
+			}
+			err = g.renderGraphQLValue(value, out)
+			if err != nil {
+				return err
+			}
+		}
+		_, _ = out.Write(literal.RBRACK)
+	case astjson.TypeNumber:
+		b := data.MarshalTo(nil)
+		_, _ = out.Write(b)
+	}
+	return
+}
+
 func NewCSVVariableRenderer(arrayValueType JsonRootType) *CSVVariableRenderer {
 	return &CSVVariableRenderer{
 		Kind:           VariableRendererKindCsv,

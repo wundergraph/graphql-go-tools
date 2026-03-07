@@ -1,0 +1,9 @@
+subscription UpdateDigitalProductPriceInterface($upc: String!) {
+    updateDigitalProductPriceInterface(upc: $upc) {
+        ... on DigitalProduct {
+            upc
+            name
+            price
+        }
+    }
+}

@@ -1,5 +1,9 @@
 type Query {
     me: User
+    user(id: ID!): User
+    userByIdAndName(id: ID!, username: String!): User
+    meInterface: Identifiable
+    meUnion: MeUnion
     identifiable: Identifiable
     histories: [History]
     cat: Cat
@@ -13,6 +17,10 @@ type Query {
     someNestedInterfaces: [SomeNestedInterface]
 }
 
+type Mutation {
+    updateUsername(id: ID!, newUsername: String!): User!
+}
+
 type Cat {
     name: String!
 }
@@ -21,11 +29,36 @@ interface Identifiable {
     id: ID!
 }
 
+enum GreetingStyle {
+    FORMAL
+    CASUAL
+    SHORT
+}
+
+input GreetingFormatting {
+    uppercase: Boolean
+    prefix: String
+}
+
+input GreetingInput {
+    style: GreetingStyle!
+    formatting: GreetingFormatting
+}
+
 type User implements Identifiable @key(fields: "id")  {
     id: ID!
     username: String!
+    nickname: String!
     history: [History!]!
     realName: String!
+    # Returns users who have interacted with this user's purchased products.
+    # This field creates a dependency chain for L1 cache testing:
+    # 1. First, this User must be resolved (entity fetch)
+    # 2. Then, relatedUsers returns other User IDs
+    # 3. Those Users need entity resolution (second entity fetch) -> L1 HIT if same user!
+    relatedUsers: [User!]!
+    greeting(style: String!): String!
+    customGreeting(input: GreetingInput!): String!
 }
 
 type Product @key(fields: "upc") {
@@ -182,3 +215,13 @@ type CDerObj {
     middle: String!
     last: String!
 }
+
+# Admin is another entity that implements Identifiable for testing interface/union caching
+type Admin implements Identifiable @key(fields: "id") {
+    id: ID!
+    username: String!
+    role: String!
+}
+
+# Union containing entity types for testing union field caching
+union MeUnion = User | Admin

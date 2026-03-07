@@ -32,12 +32,10 @@ var (
 	literalRateLimit          = []byte("rateLimit")
 	literalAuthorization      = []byte("authorization")
 
-	emptyArray  = []byte("[]")
 	emptyObject = []byte("{}")
 )
 
 var (
-	errNonNullableFieldValueIsNull = errors.New("non Nullable field value is null")
-	errHeaderPathInvalid           = errors.New("invalid header path: header variables must be of this format: .request.header.{{ key }} ")
-	ErrUnableToResolve             = errors.New("unable to resolve operation")
+	errHeaderPathInvalid = errors.New("invalid header path: header variables must be of this format: .request.header.{{ key }} ")
+	ErrUnableToResolve   = errors.New("unable to resolve operation")
 )

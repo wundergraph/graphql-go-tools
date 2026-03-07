@@ -1,0 +1,8 @@
+mutation AddReviewWithoutProvides($authorID: String!, $upc: String!, $review: String!) {
+    addReview(authorID: $authorID, upc: $upc, review: $review) {
+        body
+        authorWithoutProvides {
+            username
+        }
+    }
+}

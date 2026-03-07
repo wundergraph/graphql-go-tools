@@ -83,6 +83,15 @@ type Planner[T Configuration] struct {
 	// to the downstream subgraph fetch.
 	propagatedOperationName string
 
+	// caching
+
+	entityCacheKeyTemplate resolve.CacheKeyTemplate
+	rootFields             []resolve.QueryField // tracks root fields and their arguments for cache key generation
+	// rootFieldEntityCacheKeyTemplates tracks root field types (plural in case of interfaces/unions)
+	// and their correlating cache keys (excluding @requires) to allow L1 cache population
+	// for root fields that return an entity
+	rootFieldEntityCacheKeyTemplates map[string]resolve.CacheKeyTemplate
+
 	// federation
 
 	addedInlineFragments map[onTypeInlineFragment]struct{}
@@ -377,6 +386,37 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		}
 	}
 
+	// Set cache key template for non-entity calls (root queries)
+	if !requiresEntityFetch && !requiresEntityBatchFetch {
+		if len(p.rootFields) > 0 {
+			rootFieldsCopy := make([]resolve.QueryField, len(p.rootFields))
+			copy(rootFieldsCopy, p.rootFields)
+			template := &resolve.RootQueryCacheKeyTemplate{
+				RootFields: rootFieldsCopy,
+			}
+			// Populate entity key mappings from federation config
+			fedMeta := p.dataSourceConfig.FederationConfiguration()
+			for _, rf := range p.rootFields {
+				rfConfig := fedMeta.RootFieldCacheConfig(rf.Coordinate.TypeName, rf.Coordinate.FieldName)
+				if rfConfig != nil && len(rfConfig.EntityKeyMappings) > 0 {
+					for _, ekm := range rfConfig.EntityKeyMappings {
+						mappingConfig := resolve.EntityKeyMappingConfig{
+							EntityTypeName: ekm.EntityTypeName,
+						}
+						for _, fm := range ekm.FieldMappings {
+							mappingConfig.FieldMappings = append(mappingConfig.FieldMappings, resolve.EntityFieldMappingConfig{
+								EntityKeyField: fm.EntityKeyField,
+								ArgumentPath:   fm.ArgumentPath,
+							})
+						}
+						template.EntityKeyMappings = append(template.EntityKeyMappings, mappingConfig)
+					}
+				}
+			}
+			p.entityCacheKeyTemplate = template
+		}
+	}
+
 	return resolve.FetchConfiguration{
 		Input:                                 string(input),
 		DataSource:                            dataSource,
@@ -387,6 +427,10 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		SetTemplateOutputToNullOnVariableNull: requiresEntityFetch || requiresEntityBatchFetch,
 		QueryPlan:                             p.queryPlan,
 		OperationName:                         p.propagatedOperationName,
+		Caching: resolve.FetchCacheConfiguration{
+			CacheKeyTemplate:                   p.entityCacheKeyTemplate,
+			RootFieldL1EntityCacheKeyTemplates: p.rootFieldEntityCacheKeyTemplates,
+		},
 	}
 }
 
@@ -718,6 +762,16 @@ func (p *Planner[T]) EnterField(ref int) {
 		}
 	}
 
+	// Track all root fields for cache key generation
+	if p.isRootField() {
+		coordinate := resolve.GraphCoordinate{
+			TypeName:  p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition),
+			FieldName: fieldName,
+		}
+		p.trackCacheKeyCoordinate(coordinate)
+		p.handlePotentialEntityRootField(ref)
+	}
+
 	// store root field name and ref
 	if p.rootFieldName == "" {
 		p.rootFieldName = fieldName
@@ -733,11 +787,171 @@ func (p *Planner[T]) EnterField(ref int) {
 	p.addFieldArguments(p.addField(ref), ref, fieldConfiguration)
 }
 
+// isRootField returns false if an ancestor ast.Node is of kind field
+func (p *Planner[T]) isRootField() bool {
+	for i := 0; i < len(p.visitor.Walker.Ancestors); i++ {
+		if p.visitor.Walker.Ancestors[i].Kind == ast.NodeKindField {
+			return false
+		}
+	}
+	return true
+}
+
+func (p *Planner[T]) handlePotentialEntityRootField(ref int) {
+	fieldDefinition, ok := p.visitor.Walker.FieldDefinition(ref)
+	if !ok {
+		return
+	}
+	typeName := p.visitor.Definition.FieldDefinitionTypeNameString(fieldDefinition)
+	fieldName := p.visitor.Operation.FieldAliasOrNameString(ref)
+
+	// Get all entity type names that could be returned by this field
+	// This handles object types directly, as well as interface/union types
+	entityTypeNames := p.resolveEntityTypeNames(typeName)
+	if len(entityTypeNames) == 0 {
+		return
+	}
+
+	meta := p.dataSourceConfig.FederationConfiguration()
+
+	// Initialize map if needed
+	if p.rootFieldEntityCacheKeyTemplates == nil {
+		p.rootFieldEntityCacheKeyTemplates = make(map[string]resolve.CacheKeyTemplate)
+	}
+
+	// Build cache key templates for each entity type
+	for _, entityTypeName := range entityTypeNames {
+		p.buildAndStoreEntityCacheKeyTemplate(entityTypeName, fieldName, meta)
+	}
+}
+
+// resolveEntityTypeNames returns all entity type names that could be returned by a field.
+// For object types: returns the type name if it's an entity.
+// For interface types: returns all implementing object types that are entities.
+// For union types: returns all member types that are entities.
+func (p *Planner[T]) resolveEntityTypeNames(typeName string) []string {
+	// First, check if the type itself is an entity (object type)
+	if p.dataSourceConfig.HasEntity(typeName) {
+		return []string{typeName}
+	}
+
+	// Check if it's an interface type
+	typeNode, ok := p.visitor.Definition.Index.FirstNodeByNameStr(typeName)
+	if !ok {
+		return nil
+	}
+
+	var candidateTypes []string
+
+	switch typeNode.Kind {
+	case ast.NodeKindInterfaceTypeDefinition:
+		// Get all object types that implement this interface
+		implementors, ok := p.visitor.Definition.InterfaceTypeDefinitionImplementedByObjectWithNames(typeNode.Ref)
+		if ok {
+			candidateTypes = implementors
+		}
+	case ast.NodeKindUnionTypeDefinition:
+		// Get all member types of this union
+		members, ok := p.visitor.Definition.UnionTypeDefinitionMemberTypeNames(typeNode.Ref)
+		if ok {
+			candidateTypes = members
+		}
+	default:
+		return nil
+	}
+
+	// Filter to only include entity types
+	var entityTypes []string
+	for _, candidate := range candidateTypes {
+		if p.dataSourceConfig.HasEntity(candidate) {
+			entityTypes = append(entityTypes, candidate)
+		}
+	}
+
+	return entityTypes
+}
+
+// buildAndStoreEntityCacheKeyTemplate builds a cache key template for the given entity type
+// and stores it in the rootFieldEntityCacheKeyTemplates map.
+func (p *Planner[T]) buildAndStoreEntityCacheKeyTemplate(entityTypeName, fieldName string, meta plan.FederationMetaData) {
+	// Get all @key configurations for this entity type (excludes @requires)
+	entityKeys := meta.Keys.FilterByTypeAndResolvability(entityTypeName, true)
+	if len(entityKeys) == 0 {
+		return
+	}
+
+	// Build representation variable nodes from the entity keys
+	var objects []*resolve.Object
+	for _, key := range entityKeys {
+		node, err := buildRepresentationVariableNode(p.visitor.Definition, key, meta)
+		if err != nil {
+			continue
+		}
+		objects = append(objects, node)
+	}
+
+	if len(objects) == 0 {
+		return
+	}
+
+	// Merge all key objects into a single representation
+	mergedObject := mergeRepresentationVariableNodes(objects)
+
+	// Set the path to the root field name so the cache key template
+	// knows where to find the entity data in the response
+	mergedObject.Path = []string{fieldName}
+
+	// Create cache key template with only @key fields (no @requires fields)
+	cacheKeyTemplate := &resolve.EntityQueryCacheKeyTemplate{
+		Keys: resolve.NewResolvableObjectVariable(mergedObject),
+	}
+
+	p.rootFieldEntityCacheKeyTemplates[entityTypeName] = cacheKeyTemplate
+}
+
 func (p *Planner[T]) addFieldArguments(upstreamFieldRef int, fieldRef int, fieldConfiguration *plan.FieldConfiguration) {
 	if fieldConfiguration != nil {
 		for i := range fieldConfiguration.Arguments {
 			argumentConfiguration := fieldConfiguration.Arguments[i]
 			p.configureArgument(upstreamFieldRef, fieldRef, *fieldConfiguration, argumentConfiguration)
+		}
+	}
+}
+
+// trackCacheKeyCoordinate ensures a root field is tracked for cache key generation,
+// initializing an empty args slice if it doesn't exist yet
+func (p *Planner[T]) trackCacheKeyCoordinate(coordinate resolve.GraphCoordinate) {
+
+	// Check if the field is already tracked
+	for i := range p.rootFields {
+		if p.rootFields[i].Coordinate.TypeName == coordinate.TypeName &&
+			p.rootFields[i].Coordinate.FieldName == coordinate.FieldName {
+			// Field already tracked
+			return
+		}
+	}
+	// Add the field to the slice
+	p.rootFields = append(p.rootFields, resolve.QueryField{
+		Coordinate: coordinate,
+	})
+}
+
+// trackFieldWithArgument adds an argument (name + variable) to the field's tracking for cache key generation
+func (p *Planner[T]) trackFieldWithArgument(coordinate resolve.GraphCoordinate, argName string, variable resolve.Variable) {
+	if coordinate.FieldName == "" {
+		return
+	}
+	// Ensure the field is tracked first
+	p.trackCacheKeyCoordinate(coordinate)
+	// Find the field and add the argument
+	for i := range p.rootFields {
+		if p.rootFields[i].Coordinate.TypeName == coordinate.TypeName &&
+			p.rootFields[i].Coordinate.FieldName == coordinate.FieldName {
+			p.rootFields[i].Args = append(p.rootFields[i].Args, resolve.FieldArgument{
+				Name:     argName,
+				Variable: variable,
+			})
+			return
 		}
 	}
 }
@@ -823,6 +1037,12 @@ func (p *Planner[T]) EnterDocument(_, _ *ast.Document) {
 
 	p.addDirectivesToVariableDefinitions = map[int][]int{}
 	p.addedInlineFragments = map[onTypeInlineFragment]struct{}{}
+
+	// reset root fields tracking for cache key generation
+	for i := 0; i < len(p.rootFields); i++ {
+		p.rootFields[i].Args = nil
+	}
+	p.rootFields = p.rootFields[:0]
 }
 
 func (p *Planner[T]) LeaveDocument(_, _ *ast.Document) {
@@ -838,12 +1058,33 @@ func (p *Planner[T]) addRepresentationsVariable() {
 		return
 	}
 
-	variable, _ := p.variables.AddVariable(p.buildRepresentationsVariable())
+	representationsVariable := resolve.NewResolvableObjectVariable(p.buildRepresentationsVariable())
+
+	// Build cache key template from only @key fields (no @requires fields)
+	// This ensures stable entity identity for both L1 and L2 cache
+	cacheKeysObject := p.buildCacheKeyVariable()
+	var cacheKeysVar *resolve.ResolvableObjectVariable
+	if cacheKeysObject != nil {
+		cacheKeysVar = resolve.NewResolvableObjectVariable(cacheKeysObject)
+	} else {
+		// Fallback to full representations if no @key-only fields found.
+		// This can happen when all RequiredFields are @requires/@provides (no pure @key entries).
+		// In practice this is rare since entity resolution typically requires at least one @key field.
+		cacheKeysVar = representationsVariable
+	}
+
+	entityCacheKeyTemplate := &resolve.EntityQueryCacheKeyTemplate{
+		Keys: cacheKeysVar,
+	}
+
+	p.entityCacheKeyTemplate = entityCacheKeyTemplate
+
+	variable, _ := p.variables.AddVariable(representationsVariable)
 
 	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, "representations", []byte(fmt.Sprintf("[%s]", variable)))
 }
 
-func (p *Planner[T]) buildRepresentationsVariable() resolve.Variable {
+func (p *Planner[T]) buildRepresentationsVariable() *resolve.Object {
 	objects := make([]*resolve.Object, 0, len(p.dataSourcePlannerConfig.RequiredFields))
 	for _, cfg := range p.dataSourcePlannerConfig.RequiredFields {
 		node, err := buildRepresentationVariableNode(p.visitor.Definition, cfg, p.dataSourceConfig.FederationConfiguration())
@@ -855,9 +1096,37 @@ func (p *Planner[T]) buildRepresentationsVariable() resolve.Variable {
 		objects = append(objects, node)
 	}
 
-	return resolve.NewResolvableObjectVariable(
-		mergeRepresentationVariableNodes(objects),
-	)
+	return mergeRepresentationVariableNodes(objects)
+}
+
+// buildCacheKeyVariable builds a representation variable containing ONLY @key fields.
+// This is used for cache keys (both L1 and L2) to ensure stable entity identity.
+// @requires fields are excluded because they vary between fetches but don't affect entity identity.
+// Returns nil if no @key configurations are found.
+func (p *Planner[T]) buildCacheKeyVariable() *resolve.Object {
+	var objects []*resolve.Object
+	for _, cfg := range p.dataSourcePlannerConfig.RequiredFields {
+		// Only include @key configurations (FieldName is empty for keys)
+		// @requires/@provides have FieldName set to the field they apply to
+		if cfg.FieldName != "" {
+			continue
+		}
+
+		node, err := buildRepresentationVariableNode(p.visitor.Definition, cfg, p.dataSourceConfig.FederationConfiguration())
+		if err != nil {
+			// Don't fail the whole request, just skip this key configuration for cache keys.
+			// This may cause cache misses for this entity type.
+			continue
+		}
+
+		objects = append(objects, node)
+	}
+
+	if len(objects) == 0 {
+		return nil
+	}
+
+	return mergeRepresentationVariableNodes(objects)
 }
 
 func (p *Planner[T]) addRepresentationsQuery() {
@@ -1093,7 +1362,7 @@ func (p *Planner[T]) configureArgument(upstreamFieldRef, downstreamFieldRef int,
 
 	switch argumentConfiguration.SourceType {
 	case plan.FieldArgumentSource:
-		p.configureFieldArgumentSource(upstreamFieldRef, downstreamFieldRef, argumentConfiguration)
+		p.configureFieldArgumentSource(upstreamFieldRef, downstreamFieldRef, fieldConfig, argumentConfiguration)
 	case plan.ObjectFieldSource:
 		p.configureObjectFieldSource(upstreamFieldRef, downstreamFieldRef, fieldConfig, argumentConfiguration)
 	}
@@ -1102,7 +1371,7 @@ func (p *Planner[T]) configureArgument(upstreamFieldRef, downstreamFieldRef int,
 }
 
 // configureFieldArgumentSource - creates variables for a plain argument types, in case object or list types goes deep and calls applyInlineFieldArgument
-func (p *Planner[T]) configureFieldArgumentSource(upstreamFieldRef, downstreamFieldRef int, argumentConfiguration plan.ArgumentConfiguration) {
+func (p *Planner[T]) configureFieldArgumentSource(upstreamFieldRef, downstreamFieldRef int, fieldConfig plan.FieldConfiguration, argumentConfiguration plan.ArgumentConfiguration) {
 	fieldArgument, ok := p.visitor.Operation.FieldArgument(downstreamFieldRef, []byte(argumentConfiguration.Name))
 	if !ok {
 		return
@@ -1123,6 +1392,12 @@ func (p *Planner[T]) configureFieldArgumentSource(upstreamFieldRef, downstreamFi
 	contextVariableName, exists := p.variables.AddVariable(contextVariable)
 	variableValueRef, argRef := p.upstreamOperation.AddVariableValueArgument([]byte(argumentConfiguration.Name), variableName) // add the argument to the field, but don't redefine it
 	p.upstreamOperation.AddArgumentToField(upstreamFieldRef, argRef)
+
+	coordinate := resolve.GraphCoordinate{
+		TypeName:  fieldConfig.TypeName,
+		FieldName: fieldConfig.FieldName,
+	}
+	p.trackFieldWithArgument(coordinate, argumentConfiguration.Name, contextVariable)
 
 	if exists { // if the variable exists we don't have to put it onto the variables declaration again, skip
 		return
@@ -1274,6 +1549,12 @@ func (p *Planner[T]) configureObjectFieldSource(upstreamFieldRef, downstreamFiel
 		Path:     argumentConfiguration.SourcePath,
 		Renderer: resolve.NewJSONVariableRenderer(),
 	}
+
+	coordinate := resolve.GraphCoordinate{
+		TypeName:  fieldConfiguration.TypeName,
+		FieldName: fieldConfiguration.FieldName,
+	}
+	p.trackFieldWithArgument(coordinate, argumentConfiguration.Name, variable)
 
 	objectVariableName, exists := p.variables.AddVariable(variable)
 	if !exists {

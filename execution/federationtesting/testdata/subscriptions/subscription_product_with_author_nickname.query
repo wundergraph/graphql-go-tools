@@ -1,0 +1,14 @@
+subscription UpdatePriceWithNickname($upc: String!) {
+    updateProductPrice(upc: $upc) {
+        upc
+        name
+        price
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+                nickname
+            }
+        }
+    }
+}

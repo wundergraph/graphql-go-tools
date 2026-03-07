@@ -1,0 +1,6 @@
+query UserById($id: ID!) {
+    user(id: $id) {
+        id
+        username
+    }
+}

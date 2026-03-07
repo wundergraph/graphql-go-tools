@@ -41,6 +41,10 @@ type Info interface {
 	GetQuantity() int
 }
 
+type MeUnion interface {
+	IsMeUnion()
+}
+
 type Name interface {
 	IsName()
 	GetName() string
@@ -92,6 +96,19 @@ func (A) IsAb() {}
 func (A) IsNamer()             {}
 func (this A) GetName() string { return this.Name }
 
+type Admin struct {
+	ID       string `json:"id"`
+	Username string `json:"username"`
+	Role     string `json:"role"`
+}
+
+func (Admin) IsIdentifiable()    {}
+func (this Admin) GetID() string { return this.ID }
+
+func (Admin) IsMeUnion() {}
+
+func (Admin) IsEntity() {}
+
 type B struct {
 	Name string `json:"name"`
 }
@@ -142,6 +159,19 @@ func (D) IsCd() {}
 
 func (D) IsCDer()                {}
 func (this D) GetName() *CDerObj { return this.Name }
+
+type GreetingFormatting struct {
+	Uppercase *bool   `json:"uppercase,omitempty"`
+	Prefix    *string `json:"prefix,omitempty"`
+}
+
+type GreetingInput struct {
+	Style      GreetingStyle       `json:"style"`
+	Formatting *GreetingFormatting `json:"formatting,omitempty"`
+}
+
+type Mutation struct {
+}
 
 type Product struct {
 	Upc string `json:"upc"`
@@ -280,14 +310,20 @@ func (TitleName) IsName()              {}
 func (this TitleName) GetName() string { return this.Name }
 
 type User struct {
-	ID       string    `json:"id"`
-	Username string    `json:"username"`
-	History  []History `json:"history"`
-	RealName string    `json:"realName"`
+	ID             string    `json:"id"`
+	Username       string    `json:"username"`
+	Nickname       string    `json:"nickname"`
+	History        []History `json:"history"`
+	RealName       string    `json:"realName"`
+	RelatedUsers   []*User   `json:"relatedUsers"`
+	Greeting       string    `json:"greeting"`
+	CustomGreeting string    `json:"customGreeting"`
 }
 
 func (User) IsIdentifiable()    {}
 func (this User) GetID() string { return this.ID }
+
+func (User) IsMeUnion() {}
 
 func (User) IsEntity() {}
 
@@ -310,6 +346,63 @@ type WalletType2 struct {
 func (WalletType2) IsWallet()                {}
 func (this WalletType2) GetCurrency() string { return this.Currency }
 func (this WalletType2) GetAmount() float64  { return this.Amount }
+
+type GreetingStyle string
+
+const (
+	GreetingStyleFormal GreetingStyle = "FORMAL"
+	GreetingStyleCasual GreetingStyle = "CASUAL"
+	GreetingStyleShort  GreetingStyle = "SHORT"
+)
+
+var AllGreetingStyle = []GreetingStyle{
+	GreetingStyleFormal,
+	GreetingStyleCasual,
+	GreetingStyleShort,
+}
+
+func (e GreetingStyle) IsValid() bool {
+	switch e {
+	case GreetingStyleFormal, GreetingStyleCasual, GreetingStyleShort:
+		return true
+	}
+	return false
+}
+
+func (e GreetingStyle) String() string {
+	return string(e)
+}
+
+func (e *GreetingStyle) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = GreetingStyle(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid GreetingStyle", str)
+	}
+	return nil
+}
+
+func (e GreetingStyle) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *GreetingStyle) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e GreetingStyle) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
 
 type Which string
 

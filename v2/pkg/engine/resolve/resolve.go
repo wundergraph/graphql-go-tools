@@ -10,12 +10,15 @@ import (
 	"io"
 	"net/http"
 	"runtime"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/buger/jsonparser"
 	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 
+	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/go-arena"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/xcontext"
@@ -92,6 +95,23 @@ type Resolver struct {
 
 func (r *Resolver) SetAsyncErrorWriter(w AsyncErrorWriter) {
 	r.asyncErrorWriter = w
+}
+
+// CacheCircuitBreakerOpen returns true if the circuit breaker for the named cache
+// is currently open (blocking L2 operations). Returns false if the cache doesn't
+// exist or has no circuit breaker configured.
+func (r *Resolver) CacheCircuitBreakerOpen(cacheName string) bool {
+	if r.options.Caches == nil {
+		return false
+	}
+	cache, ok := r.options.Caches[cacheName]
+	if !ok {
+		return false
+	}
+	if cb, ok := cache.(*circuitBreakerCache); ok {
+		return cb.state.isOpen()
+	}
+	return false
 }
 
 type tools struct {
@@ -187,6 +207,18 @@ type ResolverOptions struct {
 
 	ValidateRequiredExternalFields bool
 
+	Caches map[string]LoaderCache
+
+	// CacheCircuitBreakers configures per-cache circuit breakers.
+	// Map key must match a key in Caches. Entries for missing cache names are ignored.
+	// When a breaker trips (consecutive failures >= threshold), all L2 operations for
+	// that cache are skipped until the cooldown period elapses.
+	CacheCircuitBreakers map[string]CircuitBreakerConfig
+
+	// EntityCacheConfigs maps subgraphName → entityTypeName → config.
+	// Used by extensions-based cache invalidation to look up cache settings at runtime.
+	EntityCacheConfigs map[string]map[string]*EntityCacheInvalidationConfig
+
 	// SubgraphRequestDeduplicationShardCount defines the number of shards to use for subgraph request deduplication
 	SubgraphRequestDeduplicationShardCount int
 	// InboundRequestDeduplicationShardCount defines the number of shards to use for inbound request deduplication
@@ -195,6 +227,18 @@ type ResolverOptions struct {
 	// and will override any values set for those options
 	// using runtime.GOMAXPROCS(0) allows the deduplication to scale with the CPU resources available to the process
 	SetDeduplicationShardCountToGOMAXPROCS bool
+
+	// OnErrorEnabled enables the onError feature (request extension + __service introspection).
+	// When false (default), the feature is completely invisible:
+	// - onError request extensions are silently ignored
+	// - __service introspection is not available
+	// - The server behaves exactly as if the feature doesn't exist
+	OnErrorEnabled bool
+
+	// DefaultErrorBehavior is the default error behavior when onError is not specified or invalid.
+	// Invalid values silently fall back to this default.
+	// Only effective when OnErrorEnabled is true.
+	DefaultErrorBehavior ErrorBehavior
 }
 
 // New returns a new Resolver. ctx.Done() is used to cancel all active subscriptions and streams.
@@ -259,6 +303,9 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		options.InboundRequestDeduplicationShardCount = n
 	}
 
+	// Wrap caches with circuit breakers where configured
+	options.Caches = wrapCachesWithCircuitBreakers(options.Caches, options.CacheCircuitBreakers)
+
 	resolver := &Resolver{
 		ctx:                          ctx,
 		options:                      options,
@@ -308,6 +355,8 @@ func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{
 			validateRequiredExternalFields:               options.ValidateRequiredExternalFields,
 			singleFlight:                                 sf,
 			jsonArena:                                    a,
+			caches:                                       options.Caches,
+			entityCacheConfigs:                           options.EntityCacheConfigs,
 		},
 	}
 }
@@ -385,10 +434,16 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 	// we're intentionally not using defer Release to have more control over the timing (see below)
 	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena)
 
+	releaseResolveArena := func() {
+		t.resolvable.Reset()
+		t.loader.Free()
+		r.resolveArenaPool.Release(resolveArena)
+	}
+
 	err = t.resolvable.Init(ctx, nil, response.Info.OperationType)
 	if err != nil {
 		r.inboundRequestSingleFlight.FinishErr(inflight, err)
-		r.resolveArenaPool.Release(resolveArena)
+		releaseResolveArena()
 		return nil, err
 	}
 
@@ -396,7 +451,7 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 		err = t.loader.LoadGraphQLResponseData(ctx, response, t.resolvable)
 		if err != nil {
 			r.inboundRequestSingleFlight.FinishErr(inflight, err)
-			r.resolveArenaPool.Release(resolveArena)
+			releaseResolveArena()
 			return nil, err
 		}
 	}
@@ -407,7 +462,7 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 	err = t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, buf)
 	if err != nil {
 		r.inboundRequestSingleFlight.FinishErr(inflight, err)
-		r.resolveArenaPool.Release(resolveArena)
+		releaseResolveArena()
 		r.responseBufferPool.Release(responseArena)
 		return nil, err
 	}
@@ -415,7 +470,7 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 
 	// first release resolverArena
 	// all data is resolved and written into the response arena
-	r.resolveArenaPool.Release(resolveArena)
+	releaseResolveArena()
 	// next we write back to the client
 	// this includes flushing and syscalls
 	// as such, it can take some time
@@ -443,6 +498,12 @@ type trigger struct {
 	// initialized is set to true when the trigger is started and initialized
 	initialized bool
 	updater     *subscriptionUpdater
+	// cacheConfig is computed once at trigger creation from the first subscription.
+	// All subscriptions on a trigger share the same plan (and hence the same
+	// cache config) because the trigger ID is derived from hash(input + headers).
+	// Different plans produce different inputs, which produce different triggers.
+	// nil means no entity cache population is configured for this trigger.
+	cacheConfig *triggerEntityCacheConfig
 }
 
 func (t *trigger) subscriptionIds() map[context.Context]SubscriptionIdentifier {
@@ -577,9 +638,13 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, shar
 
 	resolveArena := r.resolveArenaPool.Acquire(resolveCtx.Request.ID)
 	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena)
+	defer func() {
+		t.resolvable.Reset()
+		t.loader.Free()
+		r.resolveArenaPool.Release(resolveArena)
+	}()
 
 	if err := t.resolvable.InitSubscription(resolveCtx, input, sub.resolve.Trigger.PostProcessing); err != nil {
-		r.resolveArenaPool.Release(resolveArena)
 		r.asyncErrorWriter.WriteError(resolveCtx, err, sub.resolve.Response, sub.writer)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:init:failed:%d\n", sub.id.SubscriptionID)
@@ -591,7 +656,6 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, shar
 	}
 
 	if err := t.loader.LoadGraphQLResponseData(resolveCtx, sub.resolve.Response, t.resolvable); err != nil {
-		r.resolveArenaPool.Release(resolveArena)
 		r.asyncErrorWriter.WriteError(resolveCtx, err, sub.resolve.Response, sub.writer)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:load:failed:%d\n", sub.id.SubscriptionID)
@@ -603,7 +667,6 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, shar
 	}
 
 	if err := t.resolvable.Resolve(resolveCtx.ctx, sub.resolve.Response.Data, sub.resolve.Response.Fetches, sub.writer); err != nil {
-		r.resolveArenaPool.Release(resolveArena)
 		r.asyncErrorWriter.WriteError(resolveCtx, err, sub.resolve.Response, sub.writer)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:resolve:failed:%d\n", sub.id.SubscriptionID)
@@ -613,8 +676,6 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, shar
 		}
 		return
 	}
-
-	r.resolveArenaPool.Release(resolveArena)
 
 	if err := sub.writer.Flush(); err != nil {
 		// If flush fails (e.g. client disconnected), remove the subscription.
@@ -631,6 +692,227 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, shar
 
 	if t.resolvable.WroteErrorsWithoutData() && r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:completing:errors_without_data:%d\n", sub.id.SubscriptionID)
+	}
+}
+
+// triggerEntityCacheConfig holds the minimal config needed for the
+// async trigger-level entity cache goroutine.
+type triggerEntityCacheConfig struct {
+	pop         *SubscriptionEntityCachePopulation
+	resolveCtx  *Context
+	postProcess PostProcessingConfiguration
+}
+
+// buildTriggerCacheConfig checks a subscription's cache configuration and returns
+// a triggerEntityCacheConfig if entity cache population is configured and all
+// preconditions are met. Called once at trigger creation time.
+func (r *Resolver) buildTriggerCacheConfig(c *Context, s *sub) *triggerEntityCacheConfig {
+	pop := s.resolve.EntityCachePopulation
+	if pop == nil || pop.CacheKeyTemplate == nil {
+		return nil
+	}
+	if !c.ExecutionOptions.Caching.EnableL2Cache {
+		return nil
+	}
+	if _, ok := r.options.Caches[pop.CacheName]; !ok {
+		return nil
+	}
+	return &triggerEntityCacheConfig{
+		pop:         pop,
+		resolveCtx:  c,
+		postProcess: s.resolve.Trigger.PostProcessing,
+	}
+}
+
+// handleTriggerEntityCache performs the L2 cache operation (set or delete) for
+// root entities received via a subscription event. This is the trigger-level
+// version that runs once per trigger event instead of once per subscription.
+//
+// THREADING: This method runs in a dedicated goroutine (via performTriggerEntityCacheAsync).
+// It reads config.resolveCtx which was captured at subscription creation time. This is safe
+// because the accessed fields (Request.ID, SubgraphHeadersBuilder, ExecutionOptions, Variables,
+// RemapVariables) are not mutated after subscription creation. Do NOT write to resolveCtx from here.
+func (r *Resolver) handleTriggerEntityCache(config *triggerEntityCacheConfig, data []byte) {
+	cache, ok := r.options.Caches[config.pop.CacheName]
+	if !ok {
+		return
+	}
+
+	// Get the global prefix and subgraph header prefix for cache key isolation.
+	// Mirrors prepareCacheKeys(): global prefix → header hash prefix → interceptor.
+	var prefix string
+	globalPrefix := config.resolveCtx.ExecutionOptions.Caching.GlobalCacheKeyPrefix
+	if config.pop.IncludeSubgraphHeaderPrefix && config.resolveCtx.SubgraphHeadersBuilder != nil {
+		_, hash := config.resolveCtx.SubgraphHeadersBuilder.HeadersForSubgraph(config.pop.DataSourceName)
+		var buf [20]byte
+		b := strconv.AppendUint(buf[:0], hash, 10)
+		if globalPrefix != "" {
+			prefix = globalPrefix + ":" + string(b)
+		} else {
+			prefix = string(b)
+		}
+	} else if globalPrefix != "" {
+		prefix = globalPrefix
+	}
+
+	// We need a temporary resolvable to parse the subscription data and extract entity items.
+	resolveArena := r.resolveArenaPool.Acquire(config.resolveCtx.Request.ID)
+	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena)
+	defer func() {
+		t.resolvable.Reset()
+		t.loader.Free()
+		r.resolveArenaPool.Release(resolveArena)
+	}()
+	if err := t.resolvable.InitSubscription(config.resolveCtx, data, config.postProcess); err != nil {
+		return
+	}
+
+	entityData := t.resolvable.data
+	if entityData == nil {
+		return
+	}
+	if config.pop.SubscriptionFieldName != "" {
+		entityData = entityData.Get(config.pop.SubscriptionFieldName)
+	}
+	if entityData == nil {
+		return
+	}
+
+	// Collect entity items (single entity or array of entities)
+	var items []*astjson.Value
+	if entityData.Type() == astjson.TypeArray {
+		items = entityData.GetArray()
+	} else if entityData.Type() == astjson.TypeObject {
+		items = []*astjson.Value{entityData}
+	}
+	if len(items) == 0 {
+		return
+	}
+
+	// Inject __typename for cache key rendering and filter by entity type.
+	// Two cases:
+	// 1. No __typename present: inject the configured EntityTypeName so
+	//    RenderCacheKeys can produce proper keys.
+	// 2. __typename present but doesn't match (union/interface return types):
+	//    skip the item — only the configured entity type should be cached.
+	if config.pop.EntityTypeName != "" {
+		// Allocate a new slice — do NOT use items[:0] because items shares the
+		// backing array with entityData.GetArray(). Overwriting it would corrupt
+		// the parsed JSON structure.
+		filtered := make([]*astjson.Value, 0, len(items))
+		for _, item := range items {
+			existing := item.Get("__typename")
+			if existing == nil {
+				item.Set(resolveArena.Arena, "__typename", astjson.StringValue(resolveArena.Arena, config.pop.EntityTypeName))
+				filtered = append(filtered, item)
+			} else {
+				if string(existing.GetStringBytes()) == config.pop.EntityTypeName {
+					filtered = append(filtered, item)
+				}
+			}
+		}
+		items = filtered
+		if len(items) == 0 {
+			return
+		}
+	}
+
+	// Render cache keys
+	cacheKeys, err := config.pop.CacheKeyTemplate.RenderCacheKeys(resolveArena.Arena, config.resolveCtx, items, prefix)
+	if err != nil || len(cacheKeys) == 0 {
+		return
+	}
+
+	// Apply L2CacheKeyInterceptor to match the full key construction pipeline
+	// used by prepareCacheKeys() and processExtensionsCacheInvalidation().
+	// Without this, custom key transforms (e.g., tenant prefix) would be missing
+	// from subscription cache operations, causing cache key mismatches.
+	if interceptor := config.resolveCtx.ExecutionOptions.Caching.L2CacheKeyInterceptor; interceptor != nil {
+		interceptorInfo := L2CacheKeyInterceptorInfo{
+			SubgraphName: config.pop.DataSourceName,
+			CacheName:    config.pop.CacheName,
+		}
+		for _, ck := range cacheKeys {
+			for i, key := range ck.Keys {
+				ck.Keys[i] = interceptor(config.resolveCtx.ctx, key, interceptorInfo)
+			}
+		}
+	}
+
+	// Use the resolver context (not client context) since this is a trigger-level operation
+	ctx := r.ctx
+
+	// Copy cache key strings off the arena before releasing it.
+	// RenderCacheKeys allocates keys on the arena; we must copy them
+	// so they remain valid after the arena is released.
+	switch config.pop.Mode {
+	case SubscriptionCacheModePopulate:
+		entries := make([]*CacheEntry, 0, len(cacheKeys))
+		for _, ck := range cacheKeys {
+			if len(ck.Keys) == 0 || ck.Item == nil {
+				continue
+			}
+			value := ck.Item.MarshalTo(nil)
+			entries = append(entries, &CacheEntry{
+				Key:   strings.Clone(ck.Keys[0]),
+				Value: value,
+			})
+		}
+		// Cache errors are intentionally ignored: subscription delivery must
+		// not be blocked by cache failures.
+		if len(entries) > 0 {
+			_ = cache.Set(ctx, entries, config.pop.TTL)
+		}
+	case SubscriptionCacheModeInvalidate:
+		keys := make([]string, 0, len(cacheKeys))
+		for _, ck := range cacheKeys {
+			if len(ck.Keys) > 0 {
+				keys = append(keys, strings.Clone(ck.Keys[0]))
+			}
+		}
+		if len(keys) > 0 {
+			_ = cache.Delete(ctx, keys)
+		}
+	}
+}
+
+// performTriggerEntityCacheAsync is the goroutine entry point: runs the cache
+// operation, then posts a TriggerCacheDone event back to the event loop.
+func (r *Resolver) performTriggerEntityCacheAsync(triggerID uint64, id *SubscriptionIdentifier, config *triggerEntityCacheConfig, data []byte) {
+	r.handleTriggerEntityCache(config, data)
+	select {
+	case <-r.ctx.Done():
+		return
+	case r.events <- subscriptionEvent{
+		triggerID: triggerID,
+		kind:      subscriptionEventKindTriggerCacheDone,
+		data:      data,
+		id:        id,
+	}:
+	}
+}
+
+// handleTriggerCacheDone fans out the subscription update after the trigger-level
+// cache operation has completed.
+func (r *Resolver) handleTriggerCacheDone(event subscriptionEvent) {
+	trig, ok := r.triggers[event.triggerID]
+	if !ok {
+		return
+	}
+	if event.id != nil {
+		// Targeted update for a single subscription
+		for c, s := range trig.subscriptions {
+			if s.id != *event.id {
+				continue
+			}
+			r.sendUpdateToSubscription(event.data, c, s)
+			break
+		}
+	} else {
+		// Broadcast to all subscriptions
+		for c, s := range trig.subscriptions {
+			r.sendUpdateToSubscription(event.data, c, s)
+		}
 	}
 }
 
@@ -662,13 +944,13 @@ func (r *Resolver) handleEvent(event subscriptionEvent) {
 	case subscriptionEventKindAddSubscription:
 		r.handleAddSubscription(event.triggerID, event.addSubscription)
 	case subscriptionEventKindRemoveSubscription:
-		r.handleRemoveSubscription(event.id)
+		r.handleRemoveSubscription(*event.id)
 	case subscriptionEventKindCompleteSubscription:
-		r.handleCompleteSubscription(event.id)
+		r.handleCompleteSubscription(*event.id)
 	case subscriptionEventKindRemoveClient:
 		r.handleRemoveClient(event.id.ConnectionID)
 	case subscriptionEventKindUpdateSubscription:
-		r.handleUpdateSubscription(event.triggerID, event.data, event.id)
+		r.handleUpdateSubscription(event.triggerID, event.data, *event.id)
 	case subscriptionEventKindTriggerUpdate:
 		r.handleTriggerUpdate(event.triggerID, event.data)
 	case subscriptionEventKindTriggerComplete:
@@ -677,6 +959,8 @@ func (r *Resolver) handleEvent(event subscriptionEvent) {
 		r.handleTriggerInitialized(event.triggerID)
 	case subscriptionEventKindTriggerClose:
 		r.handleTriggerClose(event)
+	case subscriptionEventKindTriggerCacheDone:
+		r.handleTriggerCacheDone(event)
 	case subscriptionEventKindUnknown:
 		panic("unknown event")
 	}
@@ -717,7 +1001,7 @@ func (r *Resolver) handleHeartbeat(sub *sub) {
 
 func (r *Resolver) handleTriggerClose(s subscriptionEvent) {
 	if r.options.Debug {
-		fmt.Printf("resolver:trigger:shutdown:%d:%d\n", s.triggerID, s.id.SubscriptionID)
+		fmt.Printf("resolver:trigger:shutdown:%d\n", s.triggerID)
 	}
 
 	r.closeTrigger(s.triggerID, s.closeKind)
@@ -836,6 +1120,7 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		subscriptions: make(map[*Context]*sub),
 		cancel:        cancel,
 		updater:       updater,
+		cacheConfig:   r.buildTriggerCacheConfig(add.ctx, s),
 	}
 	r.triggers[triggerID] = trig
 	trig.subscriptions[add.ctx] = s
@@ -989,9 +1274,20 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 		fmt.Printf("resolver:trigger:update:%d\n", id)
 	}
 
-	for c, s := range trig.subscriptions {
-		r.sendUpdateToSubscription(data, c, s)
+	// Fast path: no entity cache config → fan out directly
+	if trig.cacheConfig == nil {
+		for c, s := range trig.subscriptions {
+			r.sendUpdateToSubscription(data, c, s)
+		}
+		return
 	}
+
+	// Slow path: populate L2 cache BEFORE fanning out to subscriptions.
+	// The cache must be populated first because child entity fetches check
+	// L2 cache. If we fanned out immediately, those fetches would miss.
+	dataCopy := make([]byte, len(data))
+	copy(dataCopy, data)
+	go r.performTriggerEntityCacheAsync(id, nil, trig.cacheConfig, dataCopy)
 }
 
 func (r *Resolver) handleUpdateSubscription(id uint64, data []byte, subIdentifier SubscriptionIdentifier) {
@@ -1004,13 +1300,22 @@ func (r *Resolver) handleUpdateSubscription(id uint64, data []byte, subIdentifie
 		fmt.Printf("resolver:trigger:subscription:update:%d:%d,%d\n", id, subIdentifier.ConnectionID, subIdentifier.SubscriptionID)
 	}
 
-	for c, s := range trig.subscriptions {
-		if s.id != subIdentifier {
-			continue
+	// Fast path: no entity cache config → fan out directly
+	if trig.cacheConfig == nil {
+		for c, s := range trig.subscriptions {
+			if s.id != subIdentifier {
+				continue
+			}
+			r.sendUpdateToSubscription(data, c, s)
+			break
 		}
-		r.sendUpdateToSubscription(data, c, s)
-		break
+		return
 	}
+
+	// Slow path: populate L2 cache BEFORE fanning out (see handleTriggerUpdate).
+	dataCopy := make([]byte, len(data))
+	copy(dataCopy, data)
+	go r.performTriggerEntityCacheAsync(id, &subIdentifier, trig.cacheConfig, dataCopy)
 }
 
 func (r *Resolver) sendUpdateToSubscription(data []byte, c *Context, s *sub) {
@@ -1175,7 +1480,7 @@ func (r *Resolver) AsyncCompleteSubscription(id SubscriptionIdentifier) error {
 	case <-r.ctx.Done():
 		return r.ctx.Err()
 	case r.events <- subscriptionEvent{
-		id:   id,
+		id:   &id,
 		kind: subscriptionEventKindCompleteSubscription,
 	}:
 	}
@@ -1187,7 +1492,7 @@ func (r *Resolver) AsyncUnsubscribeSubscription(id SubscriptionIdentifier) error
 	case <-r.ctx.Done():
 		return r.ctx.Err()
 	case r.events <- subscriptionEvent{
-		id:   id,
+		id:   &id,
 		kind: subscriptionEventKindRemoveSubscription,
 	}:
 	default:
@@ -1197,7 +1502,7 @@ func (r *Resolver) AsyncUnsubscribeSubscription(id SubscriptionIdentifier) error
 			case <-r.ctx.Done():
 				return
 			case r.events <- subscriptionEvent{
-				id:   id,
+				id:   &id,
 				kind: subscriptionEventKindRemoveSubscription,
 			}:
 			}
@@ -1211,7 +1516,7 @@ func (r *Resolver) AsyncUnsubscribeClient(connectionID int64) error {
 	case <-r.ctx.Done():
 		return r.ctx.Err()
 	case r.events <- subscriptionEvent{
-		id: SubscriptionIdentifier{
+		id: &SubscriptionIdentifier{
 			ConnectionID: connectionID,
 		},
 		kind: subscriptionEventKindRemoveClient,
@@ -1223,7 +1528,7 @@ func (r *Resolver) AsyncUnsubscribeClient(connectionID int64) error {
 			case <-r.ctx.Done():
 				return
 			case r.events <- subscriptionEvent{
-				id: SubscriptionIdentifier{
+				id: &SubscriptionIdentifier{
 					ConnectionID: connectionID,
 				},
 				kind: subscriptionEventKindRemoveClient,
@@ -1352,7 +1657,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	r.events <- subscriptionEvent{
 		triggerID: triggerID,
 		kind:      subscriptionEventKindRemoveSubscription,
-		id:        id,
+		id:        &id,
 	}
 
 	return nil
@@ -1482,7 +1787,7 @@ func (s *subscriptionUpdater) UpdateSubscription(id SubscriptionIdentifier, data
 		triggerID: s.triggerID,
 		kind:      subscriptionEventKindUpdateSubscription,
 		data:      data,
-		id:        id,
+		id:        &id,
 	}:
 	}
 }
@@ -1552,7 +1857,7 @@ func (s *subscriptionUpdater) CloseSubscription(kind SubscriptionCloseKind, id S
 		triggerID: s.triggerID,
 		kind:      subscriptionEventKindRemoveSubscription,
 		closeKind: kind,
-		id:        id,
+		id:        &id,
 	}:
 		if s.debug {
 			fmt.Printf("resolver:subscription_updater:close:sent_event:%d\n", s.triggerID)
@@ -1561,8 +1866,11 @@ func (s *subscriptionUpdater) CloseSubscription(kind SubscriptionCloseKind, id S
 }
 
 type subscriptionEvent struct {
-	triggerID       uint64
-	id              SubscriptionIdentifier
+	triggerID uint64
+	// id identifies the target subscription. nil means "all subscriptions on the trigger"
+	// (used by TriggerCacheDone: the cache operation runs once per trigger, so the
+	// resulting data update is broadcast to all subscriptions sharing that trigger).
+	id              *SubscriptionIdentifier
 	kind            subscriptionEventKind
 	data            []byte
 	addSubscription *addSubscription
@@ -1593,6 +1901,7 @@ const (
 	subscriptionEventKindTriggerInitialized
 	subscriptionEventKindTriggerClose
 	subscriptionEventKindUpdateSubscription
+	subscriptionEventKindTriggerCacheDone
 )
 
 type SubscriptionUpdater interface {

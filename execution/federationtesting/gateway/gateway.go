@@ -12,6 +12,9 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
+// GatewayOption is a function that configures a Gateway
+type GatewayOption func(*Gateway)
+
 type DataSourceObserver interface {
 	UpdateDataSources(subgraphsConfigs []engine.SubgraphConfiguration)
 }
@@ -34,28 +37,71 @@ func NewGateway(
 	gqlHandlerFactory HandlerFactory,
 	httpClient *http.Client,
 	logger log.Logger,
+	loaderCaches map[string]resolve.LoaderCache,
+	opts ...GatewayOption,
 ) *Gateway {
-	return &Gateway{
+	g := &Gateway{
 		gqlHandlerFactory: gqlHandlerFactory,
 		httpClient:        httpClient,
 		logger:            logger,
+		loaderCaches:      loaderCaches,
 
 		mu:        &sync.Mutex{},
 		readyCh:   make(chan struct{}),
 		readyOnce: &sync.Once{},
 	}
+
+	for _, opt := range opts {
+		opt(g)
+	}
+
+	return g
 }
 
 type Gateway struct {
-	gqlHandlerFactory HandlerFactory
-	httpClient        *http.Client
-	logger            log.Logger
+	gqlHandlerFactory            HandlerFactory
+	httpClient                   *http.Client
+	logger                       log.Logger
+	loaderCaches                 map[string]resolve.LoaderCache
+	subgraphEntityCachingConfigs engine.SubgraphCachingConfigs
 
 	gqlHandler http.Handler
 	mu         *sync.Mutex
 
 	readyCh   chan struct{}
 	readyOnce *sync.Once
+}
+
+// WithSubgraphEntityCachingConfigs configures per-subgraph entity caching for the gateway
+func WithSubgraphEntityCachingConfigs(configs engine.SubgraphCachingConfigs) GatewayOption {
+	return func(g *Gateway) {
+		g.subgraphEntityCachingConfigs = configs
+	}
+}
+
+// buildEntityCacheConfigs converts SubgraphCachingConfigs into the runtime lookup map
+// needed by the resolver for extensions-based cache invalidation.
+// Only EntityCaching entries are processed — RootFieldCaching uses a different key format
+// and is not eligible for extensions-based invalidation.
+func buildEntityCacheConfigs(configs engine.SubgraphCachingConfigs) map[string]map[string]*resolve.EntityCacheInvalidationConfig {
+	if len(configs) == 0 {
+		return nil
+	}
+	result := make(map[string]map[string]*resolve.EntityCacheInvalidationConfig, len(configs))
+	for _, sc := range configs {
+		if len(sc.EntityCaching) == 0 {
+			continue
+		}
+		entityMap := make(map[string]*resolve.EntityCacheInvalidationConfig, len(sc.EntityCaching))
+		for _, ec := range sc.EntityCaching {
+			entityMap[ec.TypeName] = &resolve.EntityCacheInvalidationConfig{
+				CacheName:                   ec.CacheName,
+				IncludeSubgraphHeaderPrefix: ec.IncludeSubgraphHeaderPrefix,
+			}
+		}
+		result[sc.SubgraphName] = entityMap
+	}
+	return result
 }
 
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -72,7 +118,15 @@ func (g *Gateway) Ready() {
 
 func (g *Gateway) UpdateDataSources(subgraphsConfigs []engine.SubgraphConfiguration) {
 	ctx := context.Background()
-	engineConfigFactory := engine.NewFederationEngineConfigFactory(ctx, subgraphsConfigs, engine.WithFederationHttpClient(g.httpClient))
+
+	opts := []engine.FederationEngineConfigFactoryOption{
+		engine.WithFederationHttpClient(g.httpClient),
+	}
+	if len(g.subgraphEntityCachingConfigs) > 0 {
+		opts = append(opts, engine.WithSubgraphEntityCachingConfigs(g.subgraphEntityCachingConfigs))
+	}
+
+	engineConfigFactory := engine.NewFederationEngineConfigFactory(ctx, subgraphsConfigs, opts...)
 
 	engineConfig, err := engineConfigFactory.BuildEngineConfiguration()
 	if err != nil {
@@ -81,7 +135,9 @@ func (g *Gateway) UpdateDataSources(subgraphsConfigs []engine.SubgraphConfigurat
 	}
 
 	executionEngine, err := engine.NewExecutionEngine(ctx, g.logger, engineConfig, resolve.ResolverOptions{
-		MaxConcurrency: 1024,
+		MaxConcurrency:     1024,
+		Caches:             g.loaderCaches,
+		EntityCacheConfigs: buildEntityCacheConfigs(g.subgraphEntityCachingConfigs),
 	})
 	if err != nil {
 		g.logger.Error("create engine: %v", log.Error(err))

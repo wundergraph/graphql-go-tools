@@ -1,0 +1,9 @@
+subscription UpdatePriceInterface($upc: String!) {
+    updateProductPriceInterface(upc: $upc) {
+        ... on Product {
+            upc
+            name
+            price
+        }
+    }
+}
