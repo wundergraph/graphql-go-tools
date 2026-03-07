@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wundergraph/go-arena"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastjsonext"
@@ -188,12 +189,16 @@ func TestResolveParallel_NoConcurrentArenaRace(t *testing.T) {
 		}
 	})
 
-	t.Run("parallel batch entity fetches with L2 cache hit", func(t *testing.T) {
-		// Scenario: Same as above but with pre-populated L2 cache.
-		// Goroutines exercise populateFromCache (parsing cached JSON on goroutine arena).
+	t.Run("parallel batch entity fetches with partial L2 cache hit", func(t *testing.T) {
+		// Scenario: Root fetch → Parallel(
+		//     BatchEntityFetch (products subgraph, L2 hit → populateFromCache),
+		//     BatchEntityFetch (inventory subgraph, L2 miss → subgraph fetch),
+		// )
+		// Products fetch exercises populateFromCache (parsing cached JSON on goroutine arena).
+		// Inventory fetch exercises concurrent subgraph fetch alongside cache path.
 
 		cache := NewFakeLoaderCache()
-		// Pre-populate L2 cache with entity data
+		// Pre-populate L2 cache with product entities only; inventory entities are NOT cached
 		cache.SetRawData(`{"__typename":"Product","key":{"id":"prod-1"}}`, []byte(`{"__typename":"Product","id":"prod-1","name":"Widget"}`), 60_000_000_000)
 		cache.SetRawData(`{"__typename":"Product","key":{"id":"prod-2"}}`, []byte(`{"__typename":"Product","id":"prod-2","name":"Gadget"}`), 60_000_000_000)
 
