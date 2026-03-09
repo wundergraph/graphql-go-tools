@@ -1561,7 +1561,7 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 													Name:        "ActionResult",
 													OneOfType:   OneOfTypeUnion,
 													MemberTypes: []string{"ActionSuccess", "ActionError"},
-													FieldSelectionSet: RPCFieldSelectionSet{
+													FragmentFields: RPCFieldSelectionSet{
 														"ActionSuccess": {
 															{
 																Name:          "message",
@@ -2304,7 +2304,7 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 													Name:        "ActionResult",
 													OneOfType:   OneOfTypeUnion,
 													MemberTypes: []string{"ActionSuccess", "ActionError"},
-													FieldSelectionSet: RPCFieldSelectionSet{
+													FragmentFields: RPCFieldSelectionSet{
 														"ActionSuccess": {
 															{
 																Name:          "message",

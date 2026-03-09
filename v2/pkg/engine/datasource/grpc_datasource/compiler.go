@@ -354,6 +354,8 @@ type ServiceCall struct {
 	Output protoref.Message
 	// RPC is the call that was made to the gRPC service
 	RPC *RPCCall
+	// Skip is true if the service call should not be invoked
+	Skip bool
 }
 
 func (s *ServiceCall) MethodFullName() string {
@@ -419,6 +421,10 @@ func (p *RPCCompiler) CompileFetches(graph *DependencyGraph, fetches []FetchItem
 			return nil, err
 		}
 
+		if serviceCall.Skip {
+			continue
+		}
+
 		graph.SetFetchData(node.ID, &serviceCall)
 		serviceCalls = append(serviceCalls, serviceCall)
 	}
@@ -459,14 +465,17 @@ func (p *RPCCompiler) CompileNode(graph *DependencyGraph, fetch FetchItem, input
 		}
 
 		request, err = p.buildProtoMessageWithContext(inputMessage, &call.Request, inputData, context)
-		if err != nil {
-			return ServiceCall{}, err
+		if err != nil || request == nil {
+			return ServiceCall{
+				Skip: true,
+			}, err
 		}
+
 	case CallKindRequired:
 		request, err = p.buildRequiredFieldsMessage(inputMessage, &call.Request, inputData)
 		if err != nil {
 			return ServiceCall{}, err
-		}
+        }
 	}
 
 	serviceName, ok := p.resolveServiceName(call)
@@ -528,6 +537,12 @@ func (p *RPCCompiler) buildProtoMessageWithContext(inputMessage Message, rpcMess
 		return nil, fmt.Errorf("context is required for resolve calls")
 	}
 
+	// If the context is empty, we can skip the invocation
+	// Currently only one context is supported for resolve calls. This might be extended in the future.
+	if context[0].ServiceCall == nil || context[0].ServiceCall.Output == nil {
+		return nil, nil
+	}
+
 	if p.doc.MessageRefByName(rpcMessage.Name) == InvalidRef {
 		return nil, fmt.Errorf("message %s not found in document", rpcMessage.Name)
 	}
@@ -548,9 +563,18 @@ func (p *RPCCompiler) buildProtoMessageWithContext(inputMessage Message, rpcMess
 		return nil, fmt.Errorf("context field not found in message %s", rpcMessage.Name)
 	}
 
-	contextList := p.newEmptyListMessageByName(rootMessage, contextSchemaField.Name)
-	contextData := p.resolveContextData(context[0], contextRPCField) // TODO handle multiple contexts (resolver requires another resolver)
+	contextField := rootMessage.Descriptor().Fields().ByNumber(protoref.FieldNumber(contextSchemaField.Number))
+	if contextField == nil {
+		return nil, fmt.Errorf("context field not found in message %s", inputMessage.Name)
+	}
 
+	// TODO handle multiple contexts (resolver requires another resolver)
+	contextData := p.resolveContextData(context[0], contextRPCField)
+	if len(contextData) == 0 {
+		return nil, nil
+	}
+
+	contextList := p.newEmptyListMessageByName(rootMessage, contextSchemaField.Name)
 	for _, contextElement := range contextData {
 		val := contextList.NewElement()
 		valMsg := val.Message()
@@ -734,6 +758,10 @@ func (p *RPCCompiler) resolveContextDataForPath(message protoref.Message, path a
 
 // resolveListDataForPath resolves the data for a given path in a list message.
 func (p *RPCCompiler) resolveListDataForPath(message protoref.List, fd protoref.FieldDescriptor, path ast.Path) []protoref.Value {
+	if !message.IsValid() {
+		return nil
+	}
+
 	if path.Len() == 0 {
 		return nil
 	}
@@ -767,6 +795,10 @@ func (p *RPCCompiler) resolveListDataForPath(message protoref.List, fd protoref.
 
 // resolveDataForPath resolves the data for a given path in a message.
 func (p *RPCCompiler) resolveDataForPath(message protoref.Message, path ast.Path) []protoref.Value {
+	if !message.IsValid() {
+		return nil
+	}
+
 	if path.Len() == 0 {
 		return nil
 	}
@@ -792,7 +824,15 @@ func (p *RPCCompiler) resolveDataForPath(message protoref.Message, path ast.Path
 	switch fd.Kind() {
 	case protoref.MessageKind:
 		if fd.IsList() {
+			if !field.List().IsValid() {
+				return nil
+			}
+
 			return []protoref.Value{protoref.ValueOfList(field.List())}
+		}
+
+		if !field.Message().IsValid() {
+			return nil
 		}
 
 		return p.resolveDataForPath(field.Message(), path[1:])
