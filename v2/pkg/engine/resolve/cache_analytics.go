@@ -144,7 +144,7 @@ type MutationEvent struct {
 // Cache errors are non-fatal (the engine falls back to subgraph fetch), but tracking them
 // in analytics allows operators to detect cache infrastructure issues.
 type CacheOperationError struct {
-	Operation  string // "get", "set", or "delete"
+	Operation  string // "get", "set", "set_negative", or "delete"
 	CacheName  string // named cache instance
 	EntityType string // entity type (empty for root fetches)
 	DataSource string // subgraph name
