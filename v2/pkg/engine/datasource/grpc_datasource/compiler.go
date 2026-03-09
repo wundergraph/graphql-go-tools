@@ -475,7 +475,7 @@ func (p *RPCCompiler) CompileNode(graph *DependencyGraph, fetch FetchItem, input
 		request, err = p.buildRequiredFieldsMessage(inputMessage, &call.Request, inputData)
 		if err != nil {
 			return ServiceCall{}, err
-        }
+		}
 	}
 
 	serviceName, ok := p.resolveServiceName(call)
