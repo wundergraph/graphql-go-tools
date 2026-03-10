@@ -700,6 +700,105 @@ func TestAddRequiredFields(t *testing.T) {
 			expectedModifiedFieldsCount: 0,
 			expectedRemappedPaths:       map[string]string{"User.address": "__internal_2_address"},
 		},
+		{
+			name: "key - existing field has defer_internal, non-deferred requirement gets aliased",
+			definition: `
+				type Query { user: User }
+				type User { id: ID! name: String! }`,
+			operation: `query { user { id @__defer_internal(id: "1") name } }`,
+			typeName:  "User",
+			fieldSet:  "id",
+			isKey:     true,
+			deferInfo: nil,
+			expectedOperation: `
+				query {
+					user {
+						id @__defer_internal(id: "1")
+						name
+						__internal_id: id
+					}
+				}`,
+			expectedSkipFieldsCount:     1,
+			expectedRequiredFieldsCount: 1,
+			expectedRemappedPaths:       map[string]string{"User.id": "__internal_id"},
+		},
+		{
+			name: "requires - existing field has defer_internal, non-deferred requirement gets aliased",
+			definition: `
+				type Query { user: User }
+				type User { id: ID! firstName: String! fullName: String! }`,
+			operation: `query { user { firstName @__defer_internal(id: "1") fullName } }`,
+			typeName:  "User",
+			fieldSet:  "firstName",
+			isKey:     false,
+			deferInfo: nil,
+			expectedOperation: `
+				query {
+					user {
+						firstName @__defer_internal(id: "1")
+						fullName
+						__internal_firstName: firstName
+					}
+				}`,
+			expectedSkipFieldsCount:     1,
+			expectedRequiredFieldsCount: 1,
+			expectedRemappedPaths:       map[string]string{"User.firstName": "__internal_firstName"},
+		},
+		{
+			name: "key - nested field has defer_internal, non-deferred requirement gets aliased",
+			definition: `
+				type Query { user: User }
+				type User { id: ID! address: Address! }
+				type Address { street: String! city: String! }`,
+			operation:       `query { user { address { street @__defer_internal(id: "1") city } } }`,
+			typeName:        "User",
+			fieldSet:        "address { street }",
+			isKey:           true,
+			deferInfo:       nil,
+			selectionSetRef: 1,
+			expectedOperation: `
+				query {
+					user {
+						address {
+							street @__defer_internal(id: "1")
+							city
+							__internal_street: street
+						}
+					}
+				}`,
+			expectedSkipFieldsCount:     1,
+			expectedRequiredFieldsCount: 2, // address (reused) + __internal_street
+			expectedModifiedFieldsCount: 1,
+			expectedRemappedPaths:       map[string]string{"User.address.street": "__internal_street"},
+		},
+		{
+			name: "requires - nested field has defer_internal, non-deferred requirement gets aliased",
+			definition: `
+				type Query { user: User }
+				type User { id: ID! address: Address! fullAddress: String! }
+				type Address { street: String! city: String! }`,
+			operation:       `query { user { address { street @__defer_internal(id: "1") city } fullAddress } }`,
+			typeName:        "User",
+			fieldSet:        "address { street }",
+			isKey:           false,
+			deferInfo:       nil,
+			selectionSetRef: 1,
+			expectedOperation: `
+				query {
+					user {
+						address {
+							street @__defer_internal(id: "1")
+							city
+							__internal_street: street
+						}
+						fullAddress
+					}
+				}`,
+			expectedSkipFieldsCount:     1,
+			expectedRequiredFieldsCount: 2, // address (reused) + __internal_street
+			expectedModifiedFieldsCount: 1,
+			expectedRemappedPaths:       map[string]string{"User.address.street": "__internal_street"},
+		},
 	}
 
 	for _, tt := range tests {

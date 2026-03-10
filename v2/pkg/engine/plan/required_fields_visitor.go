@@ -190,6 +190,11 @@ func (v *requiredFieldsVisitor) EnterSelectionSet(ref int) {
 	v.OperationNodes = append(v.OperationNodes, selectionSetNode)
 }
 
+func (v *requiredFieldsVisitor) fieldHasDeferInternal(fieldRef int) bool {
+	_, exists := v.config.operation.Fields[fieldRef].Directives.HasDirectiveByNameBytes(v.config.operation, literal.DEFER_INTERNAL)
+	return exists
+}
+
 func (v *requiredFieldsVisitor) selectionSetHasTypeNameSelection(operationSelectionSetRef int) bool {
 	exists, _ := v.config.operation.SelectionSetHasFieldSelectionWithExactName(operationSelectionSetRef, typeNameFieldBytes)
 	return exists
@@ -243,6 +248,12 @@ func (v *requiredFieldsVisitor) handleRequiredField(ref int) {
 	selectionSetRef := v.OperationNodes[len(v.OperationNodes)-1].Ref
 	operationHasField, operationFieldRef := v.config.operation.SelectionSetHasFieldSelectionWithExactName(selectionSetRef, fieldName)
 
+	// if the existing field is deferred but we are adding requirements for a non-deferred scope,
+	// we must not reuse it — add an alias instead
+	if operationHasField && v.config.deferInfo == nil && v.fieldHasDeferInternal(operationFieldRef) {
+		needAlias = true
+	}
+
 	if operationHasField && !needAlias && !deferAlias {
 		// we are skipping adding __typename field to the required fields,
 		// because we want to depend only on the regular key fields, not the __typename field
@@ -276,7 +287,12 @@ func (v *requiredFieldsVisitor) handleKeyField(ref int) {
 
 	selectionSetRef := v.OperationNodes[len(v.OperationNodes)-1].Ref
 	operationHasField, operationFieldRef := v.config.operation.SelectionSetHasFieldSelectionWithExactName(selectionSetRef, fieldName)
-	if operationHasField && !deferAlias {
+
+	// if the existing field is deferred but we are adding requirements for a non-deferred scope,
+	// we must not reuse it — add an alias instead
+	existingFieldIsDeferred := operationHasField && v.config.deferInfo == nil && v.fieldHasDeferInternal(operationFieldRef)
+
+	if operationHasField && !deferAlias && !existingFieldIsDeferred {
 		// we are skipping adding __typename field to the required fields,
 		// because we want to depend only on the regular key fields, not the __typename field
 		// for entity interface we need real typename, so we use this dependency
@@ -295,7 +311,7 @@ func (v *requiredFieldsVisitor) handleKeyField(ref int) {
 		return
 	}
 
-	fieldNode := v.addRequiredField(ref, fieldName, selectionSetRef, deferAlias)
+	fieldNode := v.addRequiredField(ref, fieldName, selectionSetRef, deferAlias || existingFieldIsDeferred)
 	if !isLeafField {
 		v.OperationNodes = append(v.OperationNodes, fieldNode)
 	}
