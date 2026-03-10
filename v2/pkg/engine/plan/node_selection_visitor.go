@@ -213,6 +213,16 @@ func (c *nodeSelectionVisitor) EnterField(fieldRef int) {
 	c.handleEnterField(fieldRef, false)
 }
 
+type fieldRequirementsContext struct {
+	fieldRef    int
+	parentPath  string
+	typeName    string
+	fieldName   string
+	currentPath string
+	dsConfig    DataSource
+	deferID     string
+}
+
 func (c *nodeSelectionVisitor) handleEnterField(fieldRef int, handleRequires bool) {
 	root := c.walker.Ancestors[0]
 	if root.Kind != ast.NodeKindOperationDefinition {
@@ -238,22 +248,36 @@ func (c *nodeSelectionVisitor) handleEnterField(fieldRef int, handleRequires boo
 			c.walker.StopWithInternalErr(fmt.Errorf("do not have a datasource for a field suggestion for field %s at path %s", fieldName, currentPath))
 			return
 		}
-		ds := c.dataSources[dsIdx]
+
+		deferID := ""
+		if suggestion.deferInfo != nil {
+			deferID = suggestion.deferInfo.ID
+		}
+
+		fieldCtx := fieldRequirementsContext{
+			fieldRef:    fieldRef,
+			parentPath:  parentPath,
+			typeName:    typeName,
+			fieldName:   fieldName,
+			currentPath: currentPath,
+			dsConfig:    c.dataSources[dsIdx],
+			deferID:     deferID,
+		}
 
 		if handleRequires {
 			// check if the field has @requires directive
-			c.handleFieldRequiredByRequires(fieldRef, parentPath, typeName, fieldName, currentPath, ds)
+			c.handleFieldRequiredByRequires(fieldCtx)
 			// skip to the next suggestion as we only handle requires here
 			continue
 		}
 
 		if suggestion.requiresKey != nil {
 			// add @key requirements for the field
-			c.handleFieldsRequiredByKey(fieldRef, parentPath, typeName, fieldName, currentPath, ds, *suggestion.requiresKey)
+			c.handleFieldsRequiredByKey(fieldCtx, *suggestion.requiresKey)
 		}
 
 		// check if field selections are abstract and needs rewrites
-		c.rewriteSelectionSetHavingAbstractFragments(fieldRef, ds)
+		c.rewriteSelectionSetHavingAbstractFragments(fieldRef, fieldCtx.dsConfig)
 	}
 }
 
@@ -265,28 +289,28 @@ func (c *nodeSelectionVisitor) LeaveField(ref int) {
 	}
 }
 
-func (c *nodeSelectionVisitor) handleFieldRequiredByRequires(fieldRef int, parentPath, typeName, fieldName, currentPath string, dsConfig DataSource) {
-	fieldKey := fieldIndexKey{fieldRef, dsConfig.Hash()}
+func (c *nodeSelectionVisitor) handleFieldRequiredByRequires(fieldCtx fieldRequirementsContext) {
+	fieldKey := fieldIndexKey{fieldCtx.fieldRef, fieldCtx.dsConfig.Hash()}
 	_, visited := c.visitedFieldsRequiresChecks[fieldKey]
 	if visited {
 		return
 	}
 	c.visitedFieldsRequiresChecks[fieldKey] = struct{}{}
 
-	if fieldName == typeNameField {
+	if fieldCtx.fieldName == typeNameField {
 		// the __typename field could not have @requires directive
 		return
 	}
 
-	requiresConfiguration, exists := dsConfig.RequiredFieldsByRequires(typeName, fieldName)
+	requiresConfiguration, exists := fieldCtx.dsConfig.RequiredFieldsByRequires(fieldCtx.typeName, fieldCtx.fieldName)
 
 	if !exists {
-		for _, io := range dsConfig.FederationConfiguration().InterfaceObjects {
-			if slices.Contains(io.ConcreteTypeNames, typeName) {
+		for _, io := range fieldCtx.dsConfig.FederationConfiguration().InterfaceObjects {
+			if slices.Contains(io.ConcreteTypeNames, fieldCtx.typeName) {
 				// we should check if we have a @requires configuration for the interface object
-				requiresConfiguration, exists = dsConfig.RequiredFieldsByRequires(io.InterfaceTypeName, fieldName)
+				requiresConfiguration, exists = fieldCtx.dsConfig.RequiredFieldsByRequires(io.InterfaceTypeName, fieldCtx.fieldName)
 				if exists {
-					requiresConfiguration.TypeName = typeName
+					requiresConfiguration.TypeName = fieldCtx.typeName
 					break
 				}
 			}
@@ -300,17 +324,17 @@ func (c *nodeSelectionVisitor) handleFieldRequiredByRequires(fieldRef int, paren
 
 	// check if the required fields are already provided
 	input := areRequiredFieldsProvidedInput{
-		typeName:       typeName,
+		typeName:       fieldCtx.typeName,
 		requiredFields: requiresConfiguration.SelectionSet,
 		definition:     c.definition,
-		dataSource:     dsConfig,
-		providedFields: c.nodeSuggestions.providedFields[dsConfig.Hash()],
-		parentPath:     parentPath,
+		dataSource:     fieldCtx.dsConfig,
+		providedFields: c.nodeSuggestions.providedFields[fieldCtx.dsConfig.Hash()],
+		parentPath:     fieldCtx.parentPath,
 	}
 
 	provided, report := areRequiredFieldsProvided(input)
 	if report.HasErrors() {
-		c.walker.StopWithInternalErr(fmt.Errorf("failed to check if required fields are provided for field %s at path %s: %w", fieldName, currentPath, report))
+		c.walker.StopWithInternalErr(fmt.Errorf("failed to check if required fields are provided for field %s at path %s: %w", fieldCtx.fieldName, fieldCtx.currentPath, report))
 		return
 	}
 
@@ -322,19 +346,19 @@ func (c *nodeSelectionVisitor) handleFieldRequiredByRequires(fieldRef int, paren
 	// we should plan to add required fields for the field
 	// they will be added in the on LeaveSelectionSet callback for the current selection set,
 	// and the current field ref will be added to the fieldDependsOn map
-	c.addPendingFieldRequirements(fieldRef, dsConfig.Hash(), requiresConfiguration, currentPath, false)
-	c.handleKeyRequirementsForBackJumpOnSameDataSource(fieldRef, dsConfig, typeName, parentPath)
+	c.addPendingFieldRequirements(fieldCtx.fieldRef, fieldCtx.dsConfig.Hash(), requiresConfiguration, fieldCtx.currentPath, false)
+	c.handleKeyRequirementsForBackJumpOnSameDataSource(fieldCtx.fieldRef, fieldCtx.dsConfig, fieldCtx.typeName, fieldCtx.parentPath)
 }
 
-func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldRef int, parentPath, typeName, fieldName, currentPath string, dsConfig DataSource, sc SourceConnection) {
-	fieldKey := fieldIndexKey{fieldRef, dsConfig.Hash()}
+func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldCtx fieldRequirementsContext, sc SourceConnection) {
+	fieldKey := fieldIndexKey{fieldCtx.fieldRef, fieldCtx.dsConfig.Hash()}
 	_, visited := c.visitedFieldsKeyChecks[fieldKey]
 	if visited {
 		return
 	}
 	c.visitedFieldsKeyChecks[fieldKey] = struct{}{}
 
-	selectedParentsDSHashes := c.getSelectedParentsDSHashes(fieldRef)
+	selectedParentsDSHashes := c.getSelectedParentsDSHashes(fieldCtx.fieldRef)
 
 	isParentHasInterfaceObject := slices.ContainsFunc(selectedParentsDSHashes, func(dsHash DSHash) bool {
 		dsIdx := slices.IndexFunc(c.dataSources, func(d DataSource) bool {
@@ -344,13 +368,13 @@ func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldRef int, parentPat
 			return false
 		}
 
-		return c.dataSources[dsIdx].HasInterfaceObject(typeName)
+		return c.dataSources[dsIdx].HasInterfaceObject(fieldCtx.typeName)
 	})
 
-	entityInterface := dsConfig.HasEntityInterface(typeName)
-	interfaceObject := dsConfig.HasInterfaceObject(typeName)
+	entityInterface := fieldCtx.dsConfig.HasEntityInterface(fieldCtx.typeName)
+	interfaceObject := fieldCtx.dsConfig.HasInterfaceObject(fieldCtx.typeName)
 
-	if fieldName == typeNameField && !entityInterface {
+	if fieldCtx.fieldName == typeNameField && !entityInterface {
 		// the __typename field could not have @key directive
 		// but for the interface object we have to plan it differently
 		// e.g. we should get a __typename from a concrete type, not the interface object
@@ -358,18 +382,18 @@ func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldRef int, parentPat
 		return
 	}
 
-	c.addPendingKeyRequirements(fieldRef, dsConfig.Hash(), sc, interfaceObject, parentPath, typeName)
+	c.addPendingKeyRequirements(fieldCtx.fieldRef, fieldCtx.dsConfig.Hash(), sc, interfaceObject, fieldCtx.parentPath, fieldCtx.typeName)
 
 	if isParentHasInterfaceObject && !interfaceObject && !entityInterface {
 		c.addPendingFieldRequirements(
-			fieldRef,
-			dsConfig.Hash(),
+			fieldCtx.fieldRef,
+			fieldCtx.dsConfig.Hash(),
 			FederationFieldConfiguration{
-				TypeName:     typeName,
-				FieldName:    fieldName,
+				TypeName:     fieldCtx.typeName,
+				FieldName:    fieldCtx.fieldName,
 				SelectionSet: "__typename",
 			},
-			currentPath,
+			fieldCtx.currentPath,
 			true,
 		)
 	}
