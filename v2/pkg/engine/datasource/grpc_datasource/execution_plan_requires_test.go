@@ -1380,6 +1380,317 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:    "requires with direct enum field",
+			query:   `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Storage { __typename name kindSummary } } }`,
+			mapping: testMapping(),
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "kindSummary",
+					SelectionSet: "storageKind",
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "LookupStorageById",
+						Kind:        CallKindEntity,
+						Request: RPCMessage{
+							Name: "LookupStorageByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "keys",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name:        "LookupStorageByIdRequestKey",
+										MemberTypes: []string{"Storage"},
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "LookupStorageByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
+									Message: &RPCMessage{
+										Name: "Storage",
+										Fields: []RPCField{
+											{
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "Storage",
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:           1,
+						ServiceName:  "Products",
+						Kind:         CallKindRequired,
+						MethodName:   "RequireStorageKindSummaryById",
+						ResponsePath: buildPath("_entities.kindSummary"),
+						Request: RPCMessage{
+							Name: "RequireStorageKindSummaryByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name: "RequireStorageKindSummaryByIdContext",
+										Fields: []RPCField{
+											{
+												Name:          "key",
+												ProtoTypeName: DataTypeMessage,
+												Message: &RPCMessage{
+													Name:        "LookupStorageByIdRequestKey",
+													MemberTypes: []string{"Storage"},
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+													},
+												},
+											},
+											{
+												Name:          "fields",
+												ProtoTypeName: DataTypeMessage,
+												Message: &RPCMessage{
+													Name: "RequireStorageKindSummaryByIdFields",
+													Fields: []RPCField{
+														{
+															Name:          "storage_kind",
+															ProtoTypeName: DataTypeEnum,
+															JSONPath:      "storageKind",
+															EnumName:      "CategoryKind",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "RequireStorageKindSummaryByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "result",
+									Message: &RPCMessage{
+										Name: "RequireStorageKindSummaryByIdResult",
+										Fields: RPCFields{
+											{
+												Name:          "kind_summary",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "kindSummary",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:    "requires with nested enum in type",
+			query:   `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Storage { __typename name categoryInfoSummary } } }`,
+			mapping: testMapping(),
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "categoryInfoSummary",
+					SelectionSet: "categoryInfo { kind name }",
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "LookupStorageById",
+						Kind:        CallKindEntity,
+						Request: RPCMessage{
+							Name: "LookupStorageByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "keys",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name:        "LookupStorageByIdRequestKey",
+										MemberTypes: []string{"Storage"},
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "LookupStorageByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
+									Message: &RPCMessage{
+										Name: "Storage",
+										Fields: []RPCField{
+											{
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "Storage",
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:           1,
+						ServiceName:  "Products",
+						Kind:         CallKindRequired,
+						MethodName:   "RequireStorageCategoryInfoSummaryById",
+						ResponsePath: buildPath("_entities.categoryInfoSummary"),
+						Request: RPCMessage{
+							Name: "RequireStorageCategoryInfoSummaryByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name: "RequireStorageCategoryInfoSummaryByIdContext",
+										Fields: []RPCField{
+											{
+												Name:          "key",
+												ProtoTypeName: DataTypeMessage,
+												Message: &RPCMessage{
+													Name:        "LookupStorageByIdRequestKey",
+													MemberTypes: []string{"Storage"},
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+													},
+												},
+											},
+											{
+												Name:          "fields",
+												ProtoTypeName: DataTypeMessage,
+												Message: &RPCMessage{
+													Name: "RequireStorageCategoryInfoSummaryByIdFields",
+													Fields: []RPCField{
+														{
+															Name:          "category_info",
+															ProtoTypeName: DataTypeMessage,
+															JSONPath:      "categoryInfo",
+															Message: &RPCMessage{
+																Name: "RequireStorageCategoryInfoSummaryByIdFields.StorageCategoryInfo",
+																Fields: []RPCField{
+																	{
+																		Name:          "kind",
+																		ProtoTypeName: DataTypeEnum,
+																		JSONPath:      "kind",
+																		EnumName:      "CategoryKind",
+																	},
+																	{
+																		Name:          "name",
+																		ProtoTypeName: DataTypeString,
+																		JSONPath:      "name",
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "RequireStorageCategoryInfoSummaryByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "result",
+									Message: &RPCMessage{
+										Name: "RequireStorageCategoryInfoSummaryByIdResult",
+										Fields: RPCFields{
+											{
+												Name:          "category_info_summary",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "categoryInfoSummary",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

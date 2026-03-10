@@ -2,6 +2,7 @@ package grpctest
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -260,4 +261,39 @@ func (s *MockService) RequireStorageProcessedMetadataHistoryById(_ context.Conte
 	}
 
 	return &productv1.RequireStorageProcessedMetadataHistoryByIdResponse{Result: results}, nil
+}
+
+// RequireStorageKindSummaryById implements [productv1.ProductServiceServer].
+// Returns the enum value as a string summary.
+func (s *MockService) RequireStorageKindSummaryById(_ context.Context, req *productv1.RequireStorageKindSummaryByIdRequest) (*productv1.RequireStorageKindSummaryByIdResponse, error) {
+	results := make([]*productv1.RequireStorageKindSummaryByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		fields := ctx.GetFields()
+		kindSummary := fmt.Sprintf("Kind: %s", fields.GetStorageKind().String())
+
+		results = append(results, &productv1.RequireStorageKindSummaryByIdResult{
+			KindSummary: kindSummary,
+		})
+	}
+
+	return &productv1.RequireStorageKindSummaryByIdResponse{Result: results}, nil
+}
+
+// RequireStorageCategoryInfoSummaryById implements [productv1.ProductServiceServer].
+// Returns a summary string from nested category info containing an enum field.
+func (s *MockService) RequireStorageCategoryInfoSummaryById(_ context.Context, req *productv1.RequireStorageCategoryInfoSummaryByIdRequest) (*productv1.RequireStorageCategoryInfoSummaryByIdResponse, error) {
+	results := make([]*productv1.RequireStorageCategoryInfoSummaryByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		fields := ctx.GetFields()
+		catInfo := fields.GetCategoryInfo()
+		summary := fmt.Sprintf("%s (%s)", catInfo.GetName(), catInfo.GetKind().String())
+
+		results = append(results, &productv1.RequireStorageCategoryInfoSummaryByIdResult{
+			CategoryInfoSummary: summary,
+		})
+	}
+
+	return &productv1.RequireStorageCategoryInfoSummaryByIdResponse{Result: results}, nil
 }

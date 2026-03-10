@@ -1158,6 +1158,96 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires(t *testing.T) {
 				require.Empty(t, errorData)
 			},
 		},
+		{
+			name:  "Query Storage with kindSummary requiring enum field",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Storage { id name kindSummary } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Storage","id":"1","storageKind":"BOOK"},
+				{"__typename":"Storage","id":"2","storageKind":"ELECTRONICS"},
+				{"__typename":"Storage","id":"3","storageKind":"FURNITURE"}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "kindSummary",
+					SelectionSet: "storageKind",
+				},
+			},
+			validate: func(t *testing.T, data map[string]interface{}) {
+				entities, ok := data["_entities"].([]interface{})
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 3, "Should return 3 entities")
+
+				// Storage 1: storageKind=BOOK -> "Kind: CATEGORY_KIND_BOOK"
+				storage1, ok := entities[0].(map[string]interface{})
+				require.True(t, ok, "storage1 should be an object")
+				require.Equal(t, "1", storage1["id"])
+				require.Equal(t, "Storage 1", storage1["name"])
+				require.Equal(t, "Kind: CATEGORY_KIND_BOOK", storage1["kindSummary"])
+
+				// Storage 2: storageKind=ELECTRONICS -> "Kind: CATEGORY_KIND_ELECTRONICS"
+				storage2, ok := entities[1].(map[string]interface{})
+				require.True(t, ok, "storage2 should be an object")
+				require.Equal(t, "2", storage2["id"])
+				require.Equal(t, "Storage 2", storage2["name"])
+				require.Equal(t, "Kind: CATEGORY_KIND_ELECTRONICS", storage2["kindSummary"])
+
+				// Storage 3: storageKind=FURNITURE -> "Kind: CATEGORY_KIND_FURNITURE"
+				storage3, ok := entities[2].(map[string]interface{})
+				require.True(t, ok, "storage3 should be an object")
+				require.Equal(t, "3", storage3["id"])
+				require.Equal(t, "Storage 3", storage3["name"])
+				require.Equal(t, "Kind: CATEGORY_KIND_FURNITURE", storage3["kindSummary"])
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			name:  "Query Storage with categoryInfoSummary requiring nested enum",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Storage { id name categoryInfoSummary } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Storage","id":"1","categoryInfo":{"kind":"BOOK","name":"Fiction"}},
+				{"__typename":"Storage","id":"2","categoryInfo":{"kind":"ELECTRONICS","name":"Gadgets"}}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "categoryInfoSummary",
+					SelectionSet: "categoryInfo { kind name }",
+				},
+			},
+			validate: func(t *testing.T, data map[string]interface{}) {
+				entities, ok := data["_entities"].([]interface{})
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 2, "Should return 2 entities")
+
+				// Storage 1: categoryInfo={kind:BOOK, name:"Fiction"} -> "Fiction (CATEGORY_KIND_BOOK)"
+				storage1, ok := entities[0].(map[string]interface{})
+				require.True(t, ok, "storage1 should be an object")
+				require.Equal(t, "1", storage1["id"])
+				require.Equal(t, "Storage 1", storage1["name"])
+				require.Equal(t, "Fiction (CATEGORY_KIND_BOOK)", storage1["categoryInfoSummary"])
+
+				// Storage 2: categoryInfo={kind:ELECTRONICS, name:"Gadgets"} -> "Gadgets (CATEGORY_KIND_ELECTRONICS)"
+				storage2, ok := entities[1].(map[string]interface{})
+				require.True(t, ok, "storage2 should be an object")
+				require.Equal(t, "2", storage2["id"])
+				require.Equal(t, "Storage 2", storage2["name"])
+				require.Equal(t, "Gadgets (CATEGORY_KIND_ELECTRONICS)", storage2["categoryInfoSummary"])
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
 	}
 
 	for _, tc := range testCases {
