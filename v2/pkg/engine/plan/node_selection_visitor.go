@@ -354,8 +354,8 @@ func (c *nodeSelectionVisitor) handleFieldRequiredByRequires(fieldCtx fieldRequi
 	// we should plan to add required fields for the field
 	// they will be added in the on LeaveSelectionSet callback for the current selection set,
 	// and the current field ref will be added to the fieldDependsOn map
-	c.addPendingFieldRequirements(fieldCtx.fieldRef, fieldCtx.dsConfig.Hash(), requiresConfiguration, fieldCtx.currentPath, false, fieldCtx.deferID)
-	c.handleKeyRequirementsForBackJumpOnSameDataSource(fieldCtx.fieldRef, fieldCtx.dsConfig, fieldCtx.typeName, fieldCtx.parentPath, fieldCtx.deferID)
+	c.addPendingFieldRequirements(fieldCtx, requiresConfiguration, false)
+	c.handleKeyRequirementsForBackJumpOnSameDataSource(fieldCtx)
 }
 
 func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldCtx fieldRequirementsContext, sc SourceConnection) {
@@ -390,20 +390,17 @@ func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldCtx fieldRequireme
 		return
 	}
 
-	c.addPendingKeyRequirements(fieldCtx.fieldRef, fieldCtx.dsConfig.Hash(), sc, interfaceObject, fieldCtx.parentPath, fieldCtx.typeName, fieldCtx.deferID)
+	c.addPendingKeyRequirements(fieldCtx, sc, interfaceObject)
 
 	if isParentHasInterfaceObject && !interfaceObject && !entityInterface {
 		c.addPendingFieldRequirements(
-			fieldCtx.fieldRef,
-			fieldCtx.dsConfig.Hash(),
+			fieldCtx,
 			FederationFieldConfiguration{
 				TypeName:     fieldCtx.typeName,
 				FieldName:    fieldCtx.fieldName,
 				SelectionSet: "__typename",
 			},
-			fieldCtx.currentPath,
 			true,
-			fieldCtx.deferID,
 		)
 	}
 }
@@ -426,19 +423,19 @@ func (c *nodeSelectionVisitor) getSelectedParentsDSHashes(fieldRef int) (out []D
 	return out
 }
 
-func (c *nodeSelectionVisitor) handleKeyRequirementsForBackJumpOnSameDataSource(fieldRef int, dsConfig DataSource, typeName string, parentPath string, deferID string) {
-	selectedParentsDSHashes := c.getSelectedParentsDSHashes(fieldRef)
+func (c *nodeSelectionVisitor) handleKeyRequirementsForBackJumpOnSameDataSource(fieldCtx fieldRequirementsContext) {
+	selectedParentsDSHashes := c.getSelectedParentsDSHashes(fieldCtx.fieldRef)
 
 	// regularly keys are required only when the datasource hash differs from the parent datasource hash
 	// one exception when the field has requires directive and planned on the same datasource as a parent
 	// in this case we have to add a back jump on the same datasource to get required fields for the field resolver
 	// but jump is possible only with keys, so we have to add any key for this datasource
-	sameAsParentDS := len(selectedParentsDSHashes) == 1 && selectedParentsDSHashes[0] == dsConfig.Hash()
+	sameAsParentDS := len(selectedParentsDSHashes) == 1 && selectedParentsDSHashes[0] == fieldCtx.dsConfig.Hash()
 	if !sameAsParentDS {
 		return
 	}
 
-	keyConfigurations := dsConfig.RequiredFieldsByKey(typeName)
+	keyConfigurations := fieldCtx.dsConfig.RequiredFieldsByKey(fieldCtx.typeName)
 
 	if len(keyConfigurations) == 0 {
 		// required fields could be of zero length in case type is not entity
@@ -447,8 +444,8 @@ func (c *nodeSelectionVisitor) handleKeyRequirementsForBackJumpOnSameDataSource(
 		// When entity has disabled entity resolver, but we have field with requires directive on this entity
 		// we should add key fields for the field with requires - to pass them into field resolver
 
-		keys := dsConfig.FederationConfiguration().Keys
-		keyConfigurations = keys.FilterByTypeAndResolvability(typeName, false)
+		keys := fieldCtx.dsConfig.FederationConfiguration().Keys
+		keyConfigurations = keys.FilterByTypeAndResolvability(fieldCtx.typeName, false)
 	}
 
 	if len(keyConfigurations) == 0 {
@@ -461,18 +458,18 @@ func (c *nodeSelectionVisitor) handleKeyRequirementsForBackJumpOnSameDataSource(
 		Type: SourceConnectionTypeDirect,
 		Jumps: []KeyJump{
 			{
-				From:         dsConfig.Hash(),
-				To:           dsConfig.Hash(),
+				From:         fieldCtx.dsConfig.Hash(),
+				To:           fieldCtx.dsConfig.Hash(),
 				SelectionSet: keyToUse.SelectionSet,
-				TypeName:     typeName,
+				TypeName:     fieldCtx.typeName,
 			},
 		},
 	}
 
-	c.addPendingKeyRequirements(fieldRef, dsConfig.Hash(), sc, false, parentPath, typeName, deferID)
+	c.addPendingKeyRequirements(fieldCtx, sc, false)
 }
 
-func (c *nodeSelectionVisitor) addPendingFieldRequirements(requestedByFieldRef int, dsHash DSHash, fieldConfiguration FederationFieldConfiguration, currentPath string, isTypenameForEntityInterface bool, deferID string) {
+func (c *nodeSelectionVisitor) addPendingFieldRequirements(fieldCtx fieldRequirementsContext, fieldConfiguration FederationFieldConfiguration, isTypenameForEntityInterface bool) {
 	currentSelectionSet := c.currentSelectionSet()
 
 	requirements, hasRequirements := c.pendingFieldRequirements[currentSelectionSet]
@@ -482,26 +479,26 @@ func (c *nodeSelectionVisitor) addPendingFieldRequirements(requestedByFieldRef i
 		}
 	}
 
-	existsKey := pendingFieldRequirementExistsKey{dsHash, fieldConfiguration.SelectionSet, isTypenameForEntityInterface, deferID}
+	existsKey := pendingFieldRequirementExistsKey{fieldCtx.dsConfig.Hash(), fieldConfiguration.SelectionSet, isTypenameForEntityInterface, fieldCtx.deferID}
 	if _, exists := requirements.existsTracker[existsKey]; !exists {
 		config := fieldRequirements{
-			dsHash:                       dsHash,
-			path:                         currentPath,
+			dsHash:                       fieldCtx.dsConfig.Hash(),
+			path:                         fieldCtx.currentPath,
 			selectionSet:                 fieldConfiguration.SelectionSet,
-			requestedByFieldRefs:         []int{requestedByFieldRef},
+			requestedByFieldRefs:         []int{fieldCtx.fieldRef},
 			isTypenameForEntityInterface: isTypenameForEntityInterface,
-			deferID:                      deferID,
+			deferID:                      fieldCtx.deferID,
 		}
 
 		requirements.existsTracker[existsKey] = struct{}{}
 		requirements.requirementConfigs = append(requirements.requirementConfigs, config)
 	} else {
 		for i := range requirements.requirementConfigs {
-			if requirements.requirementConfigs[i].selectionSet == fieldConfiguration.SelectionSet && requirements.requirementConfigs[i].dsHash == dsHash && requirements.requirementConfigs[i].isTypenameForEntityInterface == isTypenameForEntityInterface {
+			if requirements.requirementConfigs[i].selectionSet == fieldConfiguration.SelectionSet && requirements.requirementConfigs[i].dsHash == fieldCtx.dsConfig.Hash() && requirements.requirementConfigs[i].isTypenameForEntityInterface == isTypenameForEntityInterface {
 				if slices.IndexFunc(requirements.requirementConfigs[i].requestedByFieldRefs, func(fieldRef int) bool {
-					return fieldRef == requestedByFieldRef
+					return fieldRef == fieldCtx.fieldRef
 				}) == -1 {
-					requirements.requirementConfigs[i].requestedByFieldRefs = append(requirements.requirementConfigs[i].requestedByFieldRefs, requestedByFieldRef)
+					requirements.requirementConfigs[i].requestedByFieldRefs = append(requirements.requirementConfigs[i].requestedByFieldRefs, fieldCtx.fieldRef)
 				}
 				break
 			}
@@ -511,7 +508,7 @@ func (c *nodeSelectionVisitor) addPendingFieldRequirements(requestedByFieldRef i
 	c.pendingFieldRequirements[currentSelectionSet] = requirements
 }
 
-func (c *nodeSelectionVisitor) addPendingKeyRequirements(requestedByFieldRef int, dsHash DSHash, sc SourceConnection, isInterfaceObject bool, parentPath string, typeName string, deferID string) {
+func (c *nodeSelectionVisitor) addPendingKeyRequirements(fieldCtx fieldRequirementsContext, sc SourceConnection, isInterfaceObject bool) {
 	currentSelectionSet := c.currentSelectionSet()
 
 	requirements, hasRequirements := c.pendingKeyRequirements[currentSelectionSet]
@@ -522,25 +519,25 @@ func (c *nodeSelectionVisitor) addPendingKeyRequirements(requestedByFieldRef int
 		}
 	}
 
-	existsKey := pendingKeyRequirementExistsKey{dsHash: dsHash, deferID: deferID}
+	existsKey := pendingKeyRequirementExistsKey{dsHash: fieldCtx.dsConfig.Hash(), deferID: fieldCtx.deferID}
 	if _, exists := requirements.existsTracker[existsKey]; !exists {
 		config := keyRequirements{
-			targetDSHash:         dsHash,
-			path:                 parentPath,
+			targetDSHash:         fieldCtx.dsConfig.Hash(),
+			path:                 fieldCtx.parentPath,
 			isInterfaceObject:    isInterfaceObject,
 			sc:                   sc,
-			requestedByFieldRefs: []int{requestedByFieldRef},
-			typeName:             typeName,
-			deferID:              deferID,
+			requestedByFieldRefs: []int{fieldCtx.fieldRef},
+			typeName:             fieldCtx.typeName,
+			deferID:              fieldCtx.deferID,
 		}
 
 		requirements.existsTracker[existsKey] = struct{}{}
 		requirements.requirementConfigs = append(requirements.requirementConfigs, config)
 	} else {
 		for i := range requirements.requirementConfigs {
-			if requirements.requirementConfigs[i].targetDSHash == dsHash && requirements.requirementConfigs[i].deferID == deferID {
-				if !slices.Contains(requirements.requirementConfigs[i].requestedByFieldRefs, requestedByFieldRef) {
-					requirements.requirementConfigs[i].requestedByFieldRefs = append(requirements.requirementConfigs[i].requestedByFieldRefs, requestedByFieldRef)
+			if requirements.requirementConfigs[i].targetDSHash == fieldCtx.dsConfig.Hash() && requirements.requirementConfigs[i].deferID == fieldCtx.deferID {
+				if !slices.Contains(requirements.requirementConfigs[i].requestedByFieldRefs, fieldCtx.fieldRef) {
+					requirements.requirementConfigs[i].requestedByFieldRefs = append(requirements.requirementConfigs[i].requestedByFieldRefs, fieldCtx.fieldRef)
 				}
 				break
 			}
