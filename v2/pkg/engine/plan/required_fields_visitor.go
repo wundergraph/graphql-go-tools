@@ -246,7 +246,7 @@ func (v *requiredFieldsVisitor) handleRequiredField(ref int) {
 
 		// do not add required field if the field is already present in the operation with the same name
 		// but add an operation node from operation if the field has selections
-		if !v.config.operation.FieldHasSelections(operationFieldRef) {
+		if isLeafField {
 			return
 		}
 

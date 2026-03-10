@@ -561,12 +561,12 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 							TypeName:   "Query",
 							FieldNames: []string{"user"},
 						},
-					},
-					ChildNodes: []plan.TypeField{
 						{
 							TypeName:   "User",
 							FieldNames: []string{"id", "info"},
 						},
+					},
+					ChildNodes: []plan.TypeField{
 						{
 							TypeName:   "Info",
 							FieldNames: []string{"email"},
