@@ -46,7 +46,17 @@ type Storage @key(fields: "id") {
   
   # @requires fields returning lists of complex types
   processedMetadataHistory: [StorageMetadata!]! @requires(fields: "metadataHistory { capacity zone }")
-  
+
+  # External enum field for direct @requires testing
+  storageKind: CategoryKind! @external
+
+  # External type with nested enum for nested @requires testing
+  categoryInfo: StorageCategoryInfo! @external
+
+  # @requires fields using enums
+  kindSummary: String! @requires(fields: "storageKind")
+  categoryInfoSummary: String! @requires(fields: "categoryInfo { kind name }")
+
   # @connect_fieldResolver fields
   storageStatus(checkHealth: Boolean!): ActionResult! @connect__fieldResolver(context: "id name")
   linkedStorages(depth: Int!): [Storage!]! @connect__fieldResolver(context: "id name location")
@@ -70,6 +80,11 @@ type StorageMetadata {
   capacity: Int!
   zone: String!
   priority: Int!
+}
+
+type StorageCategoryInfo {
+  kind: CategoryKind!
+  name: String!
 }
 
 type User {

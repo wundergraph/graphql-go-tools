@@ -58,6 +58,8 @@ service ProductService {
   rpc QueryTypeWithMultipleFilterFields(QueryTypeWithMultipleFilterFieldsRequest) returns (QueryTypeWithMultipleFilterFieldsResponse) {}
   rpc QueryUser(QueryUserRequest) returns (QueryUserResponse) {}
   rpc QueryUsers(QueryUsersRequest) returns (QueryUsersResponse) {}
+  rpc RequireStorageCategoryInfoSummaryById(RequireStorageCategoryInfoSummaryByIdRequest) returns (RequireStorageCategoryInfoSummaryByIdResponse) {}
+  rpc RequireStorageKindSummaryById(RequireStorageKindSummaryByIdRequest) returns (RequireStorageKindSummaryByIdResponse) {}
   rpc RequireStorageMetadataScoreById(RequireStorageMetadataScoreByIdRequest) returns (RequireStorageMetadataScoreByIdResponse) {}
   rpc RequireStorageOptionalProcessedMetadataById(RequireStorageOptionalProcessedMetadataByIdRequest) returns (RequireStorageOptionalProcessedMetadataByIdResponse) {}
   rpc RequireStorageOptionalProcessedTagsById(RequireStorageOptionalProcessedTagsByIdRequest) returns (RequireStorageOptionalProcessedTagsByIdResponse) {}
@@ -1403,6 +1405,57 @@ message RequireStorageProcessedMetadataHistoryByIdFields {
   repeated StorageMetadata metadata_history = 1;
 }
 
+message RequireStorageKindSummaryByIdRequest {
+  // RequireStorageKindSummaryByIdContext provides the context for the required fields method RequireStorageKindSummaryById.
+  repeated RequireStorageKindSummaryByIdContext context = 1;
+}
+
+message RequireStorageKindSummaryByIdContext {
+  LookupStorageByIdRequestKey key = 1;
+  RequireStorageKindSummaryByIdFields fields = 2;
+}
+
+message RequireStorageKindSummaryByIdResponse {
+  // RequireStorageKindSummaryByIdResult provides the result for the required fields method RequireStorageKindSummaryById.
+  repeated RequireStorageKindSummaryByIdResult result = 1;
+}
+
+message RequireStorageKindSummaryByIdResult {
+  string kind_summary = 1;
+}
+
+message RequireStorageKindSummaryByIdFields {
+  CategoryKind storage_kind = 1;
+}
+
+message RequireStorageCategoryInfoSummaryByIdRequest {
+  // RequireStorageCategoryInfoSummaryByIdContext provides the context for the required fields method RequireStorageCategoryInfoSummaryById.
+  repeated RequireStorageCategoryInfoSummaryByIdContext context = 1;
+}
+
+message RequireStorageCategoryInfoSummaryByIdContext {
+  LookupStorageByIdRequestKey key = 1;
+  RequireStorageCategoryInfoSummaryByIdFields fields = 2;
+}
+
+message RequireStorageCategoryInfoSummaryByIdResponse {
+  // RequireStorageCategoryInfoSummaryByIdResult provides the result for the required fields method RequireStorageCategoryInfoSummaryById.
+  repeated RequireStorageCategoryInfoSummaryByIdResult result = 1;
+}
+
+message RequireStorageCategoryInfoSummaryByIdResult {
+  string category_info_summary = 1;
+}
+
+message RequireStorageCategoryInfoSummaryByIdFields {
+  message StorageCategoryInfo {
+    CategoryKind kind = 1;
+    string name = 2;
+  }
+
+  StorageCategoryInfo category_info = 1;
+}
+
 message RequireWarehouseStockHealthScoreByIdRequest {
   // RequireWarehouseStockHealthScoreByIdContext provides the context for the required fields method RequireWarehouseStockHealthScoreById.
   repeated RequireWarehouseStockHealthScoreByIdContext context = 1;
@@ -1682,6 +1735,11 @@ message StorageMetadata {
   int32 capacity = 1;
   string zone = 2;
   int32 priority = 3;
+}
+
+message StorageCategoryInfo {
+  CategoryKind kind = 1;
+  string name = 2;
 }
 
 message NestedTypeB {

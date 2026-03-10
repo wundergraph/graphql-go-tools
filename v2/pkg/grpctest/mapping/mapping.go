@@ -566,6 +566,22 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 								Response: "RequireStorageProcessedMetadataHistoryByIdResponse",
 							},
 						},
+						"kindSummary": {
+							TargetName: "kind_summary",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireStorageKindSummaryById",
+								Request:  "RequireStorageKindSummaryByIdRequest",
+								Response: "RequireStorageKindSummaryByIdResponse",
+							},
+						},
+						"categoryInfoSummary": {
+							TargetName: "category_info_summary",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireStorageCategoryInfoSummaryById",
+								Request:  "RequireStorageCategoryInfoSummaryByIdRequest",
+								Response: "RequireStorageCategoryInfoSummaryByIdResponse",
+							},
+						},
 					},
 				},
 			},
@@ -950,6 +966,18 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				"processedMetadataHistory": {
 					TargetName: "processed_metadata_history",
 				},
+				"storageKind": {
+					TargetName: "storage_kind",
+				},
+				"categoryInfo": {
+					TargetName: "category_info",
+				},
+				"kindSummary": {
+					TargetName: "kind_summary",
+				},
+				"categoryInfoSummary": {
+					TargetName: "category_info_summary",
+				},
 				"storageStatus": {
 					TargetName: "storage_status",
 					ArgumentMappings: grpcdatasource.FieldArgumentMap{
@@ -1003,6 +1031,14 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"priority": {
 					TargetName: "priority",
+				},
+			},
+			"StorageCategoryInfo": {
+				"kind": {
+					TargetName: "kind",
+				},
+				"name": {
+					TargetName: "name",
 				},
 			},
 			"User": {

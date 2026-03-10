@@ -67,6 +67,8 @@ const (
 	ProductService_QueryTypeWithMultipleFilterFields_FullMethodName           = "/productv1.ProductService/QueryTypeWithMultipleFilterFields"
 	ProductService_QueryUser_FullMethodName                                   = "/productv1.ProductService/QueryUser"
 	ProductService_QueryUsers_FullMethodName                                  = "/productv1.ProductService/QueryUsers"
+	ProductService_RequireStorageCategoryInfoSummaryById_FullMethodName       = "/productv1.ProductService/RequireStorageCategoryInfoSummaryById"
+	ProductService_RequireStorageKindSummaryById_FullMethodName               = "/productv1.ProductService/RequireStorageKindSummaryById"
 	ProductService_RequireStorageMetadataScoreById_FullMethodName             = "/productv1.ProductService/RequireStorageMetadataScoreById"
 	ProductService_RequireStorageOptionalProcessedMetadataById_FullMethodName = "/productv1.ProductService/RequireStorageOptionalProcessedMetadataById"
 	ProductService_RequireStorageOptionalProcessedTagsById_FullMethodName     = "/productv1.ProductService/RequireStorageOptionalProcessedTagsById"
@@ -156,6 +158,8 @@ type ProductServiceClient interface {
 	QueryTypeWithMultipleFilterFields(ctx context.Context, in *QueryTypeWithMultipleFilterFieldsRequest, opts ...grpc.CallOption) (*QueryTypeWithMultipleFilterFieldsResponse, error)
 	QueryUser(ctx context.Context, in *QueryUserRequest, opts ...grpc.CallOption) (*QueryUserResponse, error)
 	QueryUsers(ctx context.Context, in *QueryUsersRequest, opts ...grpc.CallOption) (*QueryUsersResponse, error)
+	RequireStorageCategoryInfoSummaryById(ctx context.Context, in *RequireStorageCategoryInfoSummaryByIdRequest, opts ...grpc.CallOption) (*RequireStorageCategoryInfoSummaryByIdResponse, error)
+	RequireStorageKindSummaryById(ctx context.Context, in *RequireStorageKindSummaryByIdRequest, opts ...grpc.CallOption) (*RequireStorageKindSummaryByIdResponse, error)
 	RequireStorageMetadataScoreById(ctx context.Context, in *RequireStorageMetadataScoreByIdRequest, opts ...grpc.CallOption) (*RequireStorageMetadataScoreByIdResponse, error)
 	RequireStorageOptionalProcessedMetadataById(ctx context.Context, in *RequireStorageOptionalProcessedMetadataByIdRequest, opts ...grpc.CallOption) (*RequireStorageOptionalProcessedMetadataByIdResponse, error)
 	RequireStorageOptionalProcessedTagsById(ctx context.Context, in *RequireStorageOptionalProcessedTagsByIdRequest, opts ...grpc.CallOption) (*RequireStorageOptionalProcessedTagsByIdResponse, error)
@@ -676,6 +680,26 @@ func (c *productServiceClient) QueryUsers(ctx context.Context, in *QueryUsersReq
 	return out, nil
 }
 
+func (c *productServiceClient) RequireStorageCategoryInfoSummaryById(ctx context.Context, in *RequireStorageCategoryInfoSummaryByIdRequest, opts ...grpc.CallOption) (*RequireStorageCategoryInfoSummaryByIdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequireStorageCategoryInfoSummaryByIdResponse)
+	err := c.cc.Invoke(ctx, ProductService_RequireStorageCategoryInfoSummaryById_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) RequireStorageKindSummaryById(ctx context.Context, in *RequireStorageKindSummaryByIdRequest, opts ...grpc.CallOption) (*RequireStorageKindSummaryByIdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequireStorageKindSummaryByIdResponse)
+	err := c.cc.Invoke(ctx, ProductService_RequireStorageKindSummaryById_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *productServiceClient) RequireStorageMetadataScoreById(ctx context.Context, in *RequireStorageMetadataScoreByIdRequest, opts ...grpc.CallOption) (*RequireStorageMetadataScoreByIdResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RequireStorageMetadataScoreByIdResponse)
@@ -1033,6 +1057,8 @@ type ProductServiceServer interface {
 	QueryTypeWithMultipleFilterFields(context.Context, *QueryTypeWithMultipleFilterFieldsRequest) (*QueryTypeWithMultipleFilterFieldsResponse, error)
 	QueryUser(context.Context, *QueryUserRequest) (*QueryUserResponse, error)
 	QueryUsers(context.Context, *QueryUsersRequest) (*QueryUsersResponse, error)
+	RequireStorageCategoryInfoSummaryById(context.Context, *RequireStorageCategoryInfoSummaryByIdRequest) (*RequireStorageCategoryInfoSummaryByIdResponse, error)
+	RequireStorageKindSummaryById(context.Context, *RequireStorageKindSummaryByIdRequest) (*RequireStorageKindSummaryByIdResponse, error)
 	RequireStorageMetadataScoreById(context.Context, *RequireStorageMetadataScoreByIdRequest) (*RequireStorageMetadataScoreByIdResponse, error)
 	RequireStorageOptionalProcessedMetadataById(context.Context, *RequireStorageOptionalProcessedMetadataByIdRequest) (*RequireStorageOptionalProcessedMetadataByIdResponse, error)
 	RequireStorageOptionalProcessedTagsById(context.Context, *RequireStorageOptionalProcessedTagsByIdRequest) (*RequireStorageOptionalProcessedTagsByIdResponse, error)
@@ -1216,6 +1242,12 @@ func (UnimplementedProductServiceServer) QueryUser(context.Context, *QueryUserRe
 }
 func (UnimplementedProductServiceServer) QueryUsers(context.Context, *QueryUsersRequest) (*QueryUsersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method QueryUsers not implemented")
+}
+func (UnimplementedProductServiceServer) RequireStorageCategoryInfoSummaryById(context.Context, *RequireStorageCategoryInfoSummaryByIdRequest) (*RequireStorageCategoryInfoSummaryByIdResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequireStorageCategoryInfoSummaryById not implemented")
+}
+func (UnimplementedProductServiceServer) RequireStorageKindSummaryById(context.Context, *RequireStorageKindSummaryByIdRequest) (*RequireStorageKindSummaryByIdResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequireStorageKindSummaryById not implemented")
 }
 func (UnimplementedProductServiceServer) RequireStorageMetadataScoreById(context.Context, *RequireStorageMetadataScoreByIdRequest) (*RequireStorageMetadataScoreByIdResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RequireStorageMetadataScoreById not implemented")
@@ -2192,6 +2224,42 @@ func _ProductService_QueryUsers_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_RequireStorageCategoryInfoSummaryById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequireStorageCategoryInfoSummaryByIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).RequireStorageCategoryInfoSummaryById(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_RequireStorageCategoryInfoSummaryById_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).RequireStorageCategoryInfoSummaryById(ctx, req.(*RequireStorageCategoryInfoSummaryByIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_RequireStorageKindSummaryById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequireStorageKindSummaryByIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).RequireStorageKindSummaryById(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_RequireStorageKindSummaryById_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).RequireStorageKindSummaryById(ctx, req.(*RequireStorageKindSummaryByIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProductService_RequireStorageMetadataScoreById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RequireStorageMetadataScoreByIdRequest)
 	if err := dec(in); err != nil {
@@ -2930,6 +2998,14 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "QueryUsers",
 			Handler:    _ProductService_QueryUsers_Handler,
+		},
+		{
+			MethodName: "RequireStorageCategoryInfoSummaryById",
+			Handler:    _ProductService_RequireStorageCategoryInfoSummaryById_Handler,
+		},
+		{
+			MethodName: "RequireStorageKindSummaryById",
+			Handler:    _ProductService_RequireStorageKindSummaryById_Handler,
 		},
 		{
 			MethodName: "RequireStorageMetadataScoreById",
