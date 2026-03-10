@@ -58,7 +58,7 @@ type addRequiredFieldsConfiguration struct {
 	allowTypename                bool
 	typeName                     string
 	fieldSet                     string
-	deferID                      string
+	deferInfo                    *DeferInfo
 
 	// addTypenameInNestedSelections controls forced addition of __typename to nested selection sets
 	// used by "requires" keys, not only when fragments are present.
@@ -237,7 +237,7 @@ func (v *requiredFieldsVisitor) handleRequiredField(ref int) {
 	// - the field has arguments
 	isLeafField := !v.key.FieldHasSelections(ref)
 	needAlias := v.key.FieldHasArguments(ref)
-	deferAlias := v.config.deferID != "" && v.isRootLevel()
+	deferAlias := v.config.deferInfo != nil && v.isRootLevel()
 
 	selectionSetRef := v.OperationNodes[len(v.OperationNodes)-1].Ref
 	operationHasField, operationFieldRef := v.config.operation.SelectionSetHasFieldSelectionWithExactName(selectionSetRef, fieldName)
@@ -271,7 +271,7 @@ func (v *requiredFieldsVisitor) handleKeyField(ref int) {
 	fieldName := v.key.FieldNameBytes(ref)
 	isTypeName := bytes.Equal(fieldName, typeNameFieldBytes)
 	isLeafField := !v.key.FieldHasSelections(ref)
-	deferAlias := v.config.deferID != "" && v.isRootLevel()
+	deferAlias := v.config.deferInfo != nil && v.isRootLevel()
 
 	selectionSetRef := v.OperationNodes[len(v.OperationNodes)-1].Ref
 	operationHasField, operationFieldRef := v.config.operation.SelectionSetHasFieldSelectionWithExactName(selectionSetRef, fieldName)
@@ -318,8 +318,8 @@ func (v *requiredFieldsVisitor) addRequiredField(keyRef int, fieldName ast.ByteS
 
 	if addAlias {
 		var fullAliasName []byte
-		if v.config.deferID != "" {
-			fullAliasName = []byte(fmt.Sprintf("__internal_%s_%s", v.config.deferID, string(fieldName)))
+		if v.config.deferInfo != nil {
+			fullAliasName = []byte(fmt.Sprintf("__internal_%s_%s", v.config.deferInfo.ID, string(fieldName)))
 		} else {
 			fullAliasName = append([]byte("__internal_"), fieldName...)
 		}

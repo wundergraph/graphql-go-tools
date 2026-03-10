@@ -22,8 +22,8 @@ func TestAddRequiredFields(t *testing.T) {
 		allowTypename                bool
 		isTypeNameForEntityInterface bool
 		selectionSetRef              int
-		enforceTypenameForRequired   bool
-		deferID                      string
+		enforceTypenameForRequired bool
+		deferInfo                  *DeferInfo
 
 		// output
 		expectedOperation           string
@@ -494,7 +494,7 @@ func TestAddRequiredFields(t *testing.T) {
 			typeName: "User",
 			fieldSet: "id",
 			isKey:    true,
-			deferID:  "1",
+			deferInfo: &DeferInfo{ID: "1"},
 			expectedOperation: `
 				query {
 					user {
@@ -515,7 +515,7 @@ func TestAddRequiredFields(t *testing.T) {
 			typeName: "User",
 			fieldSet: "id",
 			isKey:    true,
-			deferID:  "1",
+			deferInfo: &DeferInfo{ID: "1"},
 			expectedOperation: `
 				query {
 					user {
@@ -537,7 +537,7 @@ func TestAddRequiredFields(t *testing.T) {
 			typeName: "User",
 			fieldSet: "firstName lastName",
 			isKey:    false,
-			deferID:  "1",
+			deferInfo: &DeferInfo{ID: "1"},
 			expectedOperation: `
 				query {
 					user {
@@ -562,7 +562,7 @@ func TestAddRequiredFields(t *testing.T) {
 			typeName: "User",
 			fieldSet: "firstName",
 			isKey:    false,
-			deferID:  "1",
+			deferInfo: &DeferInfo{ID: "1"},
 			expectedOperation: `
 				query {
 					user {
@@ -585,7 +585,7 @@ func TestAddRequiredFields(t *testing.T) {
 			typeName:        "User",
 			fieldSet:        "address { street }",
 			isKey:           true,
-			deferID:         "1",
+			deferInfo:       &DeferInfo{ID: "1"},
 			selectionSetRef: 1,
 			// with deferAlias, the existing address field is left untouched;
 			// a new aliased field with its own selection set is created
@@ -621,7 +621,7 @@ func TestAddRequiredFields(t *testing.T) {
 				allowTypename:                 tt.allowTypename,
 				typeName:                      tt.typeName,
 				fieldSet:                      tt.fieldSet,
-				deferID:                       tt.deferID,
+				deferInfo:                     tt.deferInfo,
 				addTypenameInNestedSelections: tt.enforceTypenameForRequired,
 			}
 
