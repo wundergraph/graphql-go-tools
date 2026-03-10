@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.262](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.261...v2.0.0-rc.262) (2026-03-10)
+
+
+### Features
+
+* add initial support for [@requires](https://github.com/requires) in gRPC ([#1362](https://github.com/wundergraph/graphql-go-tools/issues/1362)) ([07ae75e](https://github.com/wundergraph/graphql-go-tools/commit/07ae75ea00583b6209f39d182d8287ad2eea7e98))
+
 ## [2.0.0-rc.261](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.260...v2.0.0-rc.261) (2026-03-06)
 
 
