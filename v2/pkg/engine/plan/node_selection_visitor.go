@@ -98,7 +98,7 @@ type keyRequirements struct {
 	sc                   SourceConnection
 	requestedByFieldRefs []int
 	typeName             string
-	deferID              string
+	deferInfo            *DeferInfo
 }
 
 type fieldRequirements struct {
@@ -107,7 +107,7 @@ type fieldRequirements struct {
 	selectionSet                 string
 	requestedByFieldRefs         []int
 	isTypenameForEntityInterface bool
-	deferID                      string
+	deferInfo                    *DeferInfo
 }
 
 type pendingFieldRequirements struct {
@@ -228,7 +228,7 @@ type fieldRequirementsContext struct {
 	fieldName   string
 	currentPath string
 	dsConfig    DataSource
-	deferID     string
+	deferInfo   *DeferInfo
 }
 
 func (c *nodeSelectionVisitor) handleEnterField(fieldRef int, handleRequires bool) {
@@ -257,11 +257,6 @@ func (c *nodeSelectionVisitor) handleEnterField(fieldRef int, handleRequires boo
 			return
 		}
 
-		deferID := ""
-		if suggestion.deferInfo != nil {
-			deferID = suggestion.deferInfo.ID
-		}
-
 		fieldCtx := fieldRequirementsContext{
 			fieldRef:    fieldRef,
 			parentPath:  parentPath,
@@ -269,7 +264,7 @@ func (c *nodeSelectionVisitor) handleEnterField(fieldRef int, handleRequires boo
 			fieldName:   fieldName,
 			currentPath: currentPath,
 			dsConfig:    c.dataSources[dsIdx],
-			deferID:     deferID,
+			deferInfo:   suggestion.deferInfo,
 		}
 
 		if handleRequires {
@@ -479,7 +474,11 @@ func (c *nodeSelectionVisitor) addPendingFieldRequirements(fieldCtx fieldRequire
 		}
 	}
 
-	existsKey := pendingFieldRequirementExistsKey{fieldCtx.dsConfig.Hash(), fieldConfiguration.SelectionSet, isTypenameForEntityInterface, fieldCtx.deferID}
+	deferID := ""
+	if fieldCtx.deferInfo != nil {
+		deferID = fieldCtx.deferInfo.ID
+	}
+	existsKey := pendingFieldRequirementExistsKey{fieldCtx.dsConfig.Hash(), fieldConfiguration.SelectionSet, isTypenameForEntityInterface, deferID}
 	if _, exists := requirements.existsTracker[existsKey]; !exists {
 		config := fieldRequirements{
 			dsHash:                       fieldCtx.dsConfig.Hash(),
@@ -487,7 +486,7 @@ func (c *nodeSelectionVisitor) addPendingFieldRequirements(fieldCtx fieldRequire
 			selectionSet:                 fieldConfiguration.SelectionSet,
 			requestedByFieldRefs:         []int{fieldCtx.fieldRef},
 			isTypenameForEntityInterface: isTypenameForEntityInterface,
-			deferID:                      fieldCtx.deferID,
+			deferInfo:                    fieldCtx.deferInfo,
 		}
 
 		requirements.existsTracker[existsKey] = struct{}{}
@@ -519,7 +518,11 @@ func (c *nodeSelectionVisitor) addPendingKeyRequirements(fieldCtx fieldRequireme
 		}
 	}
 
-	existsKey := pendingKeyRequirementExistsKey{dsHash: fieldCtx.dsConfig.Hash(), deferID: fieldCtx.deferID}
+	deferID := ""
+	if fieldCtx.deferInfo != nil {
+		deferID = fieldCtx.deferInfo.ID
+	}
+	existsKey := pendingKeyRequirementExistsKey{dsHash: fieldCtx.dsConfig.Hash(), deferID: deferID}
 	if _, exists := requirements.existsTracker[existsKey]; !exists {
 		config := keyRequirements{
 			targetDSHash:         fieldCtx.dsConfig.Hash(),
@@ -528,14 +531,14 @@ func (c *nodeSelectionVisitor) addPendingKeyRequirements(fieldCtx fieldRequireme
 			sc:                   sc,
 			requestedByFieldRefs: []int{fieldCtx.fieldRef},
 			typeName:             fieldCtx.typeName,
-			deferID:              fieldCtx.deferID,
+			deferInfo:            fieldCtx.deferInfo,
 		}
 
 		requirements.existsTracker[existsKey] = struct{}{}
 		requirements.requirementConfigs = append(requirements.requirementConfigs, config)
 	} else {
 		for i := range requirements.requirementConfigs {
-			if requirements.requirementConfigs[i].targetDSHash == fieldCtx.dsConfig.Hash() && requirements.requirementConfigs[i].deferID == fieldCtx.deferID {
+			if requirements.requirementConfigs[i].targetDSHash == fieldCtx.dsConfig.Hash() && requirements.requirementConfigs[i].deferInfo == fieldCtx.deferInfo {
 				if !slices.Contains(requirements.requirementConfigs[i].requestedByFieldRefs, fieldCtx.fieldRef) {
 					requirements.requirementConfigs[i].requestedByFieldRefs = append(requirements.requirementConfigs[i].requestedByFieldRefs, fieldCtx.fieldRef)
 				}
@@ -571,7 +574,7 @@ func (c *nodeSelectionVisitor) addFieldRequirementsToOperation(selectionSetRef i
 		allowTypename:                 false,
 		typeName:                      typeName,
 		fieldSet:                      requirements.selectionSet,
-		deferID:                       requirements.deferID,
+		deferInfo:                     requirements.deferInfo,
 		addTypenameInNestedSelections: c.addTypenameInNestedSelections,
 	}
 
@@ -660,7 +663,7 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 			allowTypename:            allowTypeName,
 			typeName:                 jump.TypeName,
 			fieldSet:                 jump.SelectionSet,
-			deferID:                  pendingKey.deferID,
+			deferInfo:                pendingKey.deferInfo,
 		}
 
 		addFieldsResult, report := addRequiredFields(input)
