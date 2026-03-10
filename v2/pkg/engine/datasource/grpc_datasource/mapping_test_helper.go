@@ -49,6 +49,11 @@ func testMapping() *GRPCMapping {
 				Request:  "QueryCategoriesRequest",
 				Response: "QueryCategoriesResponse",
 			},
+			"category": {
+				RPC:      "QueryCategory",
+				Request:  "QueryCategoryRequest",
+				Response: "QueryCategoryResponse",
+			},
 			"categoriesByKind": {
 				RPC:      "QueryCategoriesByKind",
 				Request:  "QueryCategoriesByKindRequest",
@@ -320,6 +325,17 @@ func testMapping() *GRPCMapping {
 					Request:  "ResolveCategoryMetricsNormalizedScoreRequest",
 					Response: "ResolveCategoryMetricsNormalizedScoreResponse",
 				},
+				"relatedCategory": {
+					FieldMappingData: FieldMapData{
+						TargetName: "related_category",
+						ArgumentMappings: FieldArgumentMap{
+							"include": "include",
+						},
+					},
+					RPC:      "ResolveCategoryMetricsRelatedCategory",
+					Request:  "ResolveCategoryMetricsRelatedCategoryRequest",
+					Response: "ResolveCategoryMetricsRelatedCategoryResponse",
+				},
 			},
 			"Product": {
 				"shippingEstimate": {
@@ -389,6 +405,17 @@ func testMapping() *GRPCMapping {
 					RPC:      "ResolveSubcategoryItemCount",
 					Request:  "ResolveSubcategoryItemCountRequest",
 					Response: "ResolveSubcategoryItemCountResponse",
+				},
+				"featuredCategory": {
+					FieldMappingData: FieldMapData{
+						TargetName: "featured_category",
+						ArgumentMappings: FieldArgumentMap{
+							"includeChildren": "include_children",
+						},
+					},
+					RPC:      "ResolveSubcategoryFeaturedCategory",
+					Request:  "ResolveSubcategoryFeaturedCategoryRequest",
+					Response: "ResolveSubcategoryFeaturedCategoryResponse",
 				},
 			},
 			"TestContainer": {
@@ -494,6 +521,12 @@ func testMapping() *GRPCMapping {
 				},
 				"categories": {
 					TargetName: "categories",
+				},
+				"category": {
+					TargetName: "category",
+					ArgumentMappings: FieldArgumentMap{
+						"id": "id",
+					},
 				},
 				"categoriesByKind": {
 					TargetName: "categories_by_kind",
@@ -974,6 +1007,9 @@ func testMapping() *GRPCMapping {
 						"include": "include",
 					},
 				},
+				"nullMetrics": {
+					TargetName: "null_metrics",
+				},
 			},
 			"Subcategory": {
 				"id": {
@@ -992,6 +1028,12 @@ func testMapping() *GRPCMapping {
 					TargetName: "item_count",
 					ArgumentMappings: FieldArgumentMap{
 						"filters": "filters",
+					},
+				},
+				"featuredCategory": {
+					TargetName: "featured_category",
+					ArgumentMappings: FieldArgumentMap{
+						"includeChildren": "include_children",
 					},
 				},
 			},
@@ -1019,6 +1061,9 @@ func testMapping() *GRPCMapping {
 				},
 				"relatedCategory": {
 					TargetName: "related_category",
+					ArgumentMappings: FieldArgumentMap{
+						"include": "include",
+					},
 				},
 			},
 			"Cat": {
@@ -1070,6 +1115,9 @@ func testMapping() *GRPCMapping {
 				},
 				"contact": {
 					TargetName: "contact",
+				},
+				"pet": {
+					TargetName: "pet",
 				},
 			},
 			"ContactInfo": {

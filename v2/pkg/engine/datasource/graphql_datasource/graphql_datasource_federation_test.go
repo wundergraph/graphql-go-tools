@@ -20218,4 +20218,388 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			})
 		})
 	})
+
+	t.Run("unique nodes parent root nodes selection", func(t *testing.T) {
+		// Tests a scenario where the planner must navigate through multiple layers of
+		// abstract types with @external fields to reach an entity whose fields are
+		// split across subgraphs. Mirrors a real-world pattern where:
+		//
+		//   - Node (interface) is implemented by NodeA and NodeB
+		//   - NodeA/NodeB declare pool: Pool! as @external in the first subgraph
+		//     (to satisfy the Node interface), but Pool is truly owned by the second subgraph
+		//   - Pool (interface) is implemented by Pool1
+		//   - Pool1.detail: Detail! is @external in the first subgraph, owned by the second
+		//   - Detail is an entity with fields split across subgraphs:
+		//       uniqueField → second subgraph only
+		//       sharedField → first subgraph only
+		//
+		// Expected execution (zigzag: first → second → first):
+		//   Fetch 0: first  subgraph — root nodes query, returns NodeA keys
+		//   Fetch 1: second subgraph — entity-resolve NodeA, traverse pool → Pool1 → detail,
+		//                              inline Detail.uniqueField (owned by second subgraph)
+		//   Fetch 2: first  subgraph — entity-resolve Detail to get sharedField
+		//
+		// Planner confusion: Pool1 appears as an entity in the first subgraph with
+		// detail @external. The planner may incorrectly try to resolve detail through
+		// the first subgraph's Pool1 entity, not realising it must go via the second
+		// subgraph's NodeA entity resolution first.
+		t.Run("external pool interface field on node implementation with split detail entity", func(t *testing.T) {
+			definition := `
+				type Query {
+					nodes: [Node!]!
+				}
+
+				interface Node {
+					id: ID!
+					detail: Detailer!
+				}
+
+				type NodeA implements Node {
+					id: ID!
+					detail: Detailer!
+				}
+
+				interface Detailer {
+					id: ID!
+					uniqueField: String!
+				}
+
+				type Detail implements Detailer {
+					id: ID!
+					uniqueField: String!
+				}
+			`
+
+			// First subgraph: query root + NodeA/NodeB as entities (pool is @external).
+			// Owns Detail.sharedField. Pool1.detail is @external (owned by second subgraph).
+			firstSubgraphSDL := `
+				type Query {
+					nodes: [Node!]!
+				}
+
+				interface Node {
+					id: ID!
+					detail: Detailer
+				}
+
+				type NodeA implements Node @key(fields: "id") {
+					id: ID!
+					detail: Detailer! @external
+				}
+
+				interface Detailer {
+					id: ID!
+					uniqueField: String!
+				}
+
+				type Detail implements Detailer @key(fields: "id") {
+					id: ID!
+					uniqueField: String!
+				}
+			`
+
+			firstDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
+				"first-service",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"nodes"},
+						},
+						{
+							TypeName:           "NodeA",
+							FieldNames:         []string{"id"},
+							ExternalFieldNames: []string{"detail"},
+						},
+						{
+							TypeName:   "Detail",
+							FieldNames: []string{"id", "uniqueField"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Node",
+							FieldNames: []string{"id", "detail"},
+						},
+						{
+							TypeName:   "Detailer",
+							FieldNames: []string{"id", "uniqueField"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "NodeA",
+								SelectionSet: "id",
+							},
+							{
+								TypeName:     "Detail",
+								SelectionSet: "id",
+							},
+						},
+					},
+				},
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://first.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: firstSubgraphSDL,
+							},
+							firstSubgraphSDL,
+						),
+					},
+				),
+			)
+
+			// Second subgraph: owns pool on NodeA/NodeB, owns detail on Pool1,
+			// owns Detail.uniqueField. Detail.sharedField lives only in first subgraph.
+			secondSubgraphSDL := `
+				type Query {
+					nodes: [Node!]!
+				}
+
+				interface Node {
+					id: ID!
+					detail: Detailer
+				}
+
+				type NodeA implements Node @key(fields: "id") {
+					id: ID!
+					detail: Detailer!
+				}
+
+				interface Detailer {
+					id: ID!
+				}
+
+				type Detail implements Detailer @key(fields: "id") {
+					id: ID!
+				}
+			`
+
+			secondDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
+				"second-service",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"nodes"},
+						},
+						{
+							TypeName:   "NodeA",
+							FieldNames: []string{"id", "detail"},
+						},
+						{
+							TypeName:   "Detail",
+							FieldNames: []string{"id"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Node",
+							FieldNames: []string{"id", "detail"},
+						},
+						{
+							TypeName:   "Detailer",
+							FieldNames: []string{"id"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "NodeA",
+								SelectionSet: "id",
+							},
+							{
+								TypeName:     "Detail",
+								SelectionSet: "id",
+							},
+						},
+					},
+				},
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://second.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: secondSubgraphSDL,
+							},
+							secondSubgraphSDL,
+						),
+					},
+				),
+			)
+
+			planConfiguration := plan.Configuration{
+				DataSources: []plan.DataSource{
+					firstDatasourceConfiguration,
+					secondDatasourceConfiguration,
+				},
+				DisableResolveFieldPositions: true,
+			}
+
+			t.Run("run", func(t *testing.T) {
+				RunWithPermutations(
+					t,
+					definition,
+					`
+						query TestQuery {
+							nodes {
+								detail {
+									uniqueField
+								}
+							}
+						}`,
+					"TestQuery",
+					&plan.SynchronousResponsePlan{
+						Response: &resolve.GraphQLResponse{
+							Fetches: resolve.Sequence(
+								// Fetch 0: root query — first subgraph returns NodeA keys only (pool is @external)
+								resolve.Single(&resolve.SingleFetch{
+									FetchConfiguration: resolve.FetchConfiguration{
+										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{nodes {__typename ... on NodeA {__typename id}}}"}}`,
+										PostProcessing: DefaultPostProcessingConfiguration,
+										DataSource:     &Source{},
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								}),
+								// Fetch 1: entity-resolve NodeA from second subgraph.
+								// Second subgraph owns pool (non-external on NodeA), Pool1.detail, and Detail.uniqueField,
+								// so all three can be resolved inline without additional entity fetches.
+								resolve.SingleWithPath(&resolve.SingleFetch{
+									FetchDependencies: resolve.FetchDependencies{
+										FetchID:           1,
+										DependsOnFetchIDs: []int{0},
+									},
+									FetchConfiguration: resolve.FetchConfiguration{
+										RequiresEntityBatchFetch:              true,
+										RequiresEntityFetch:                   false,
+										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on NodeA {__typename detail {__typename ... on Detail {__typename id}}}}}","variables":{"representations":[$$0$$]}}}`,
+										DataSource:                            &Source{},
+										SetTemplateOutputToNullOnVariableNull: true,
+										Variables: []resolve.Variable{
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
+															},
+															OnTypeNames: [][]byte{[]byte("NodeA")},
+														},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("NodeA")},
+														},
+													},
+												}),
+											},
+										},
+										PostProcessing: EntitiesPostProcessingConfiguration,
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								}, "nodes", resolve.ArrayPath("nodes")),
+								// Fetch 2: entity-resolve Detail from first subgraph to get sharedField.
+								// This is the jump back — first subgraph is the only owner of Detail.sharedField.
+								resolve.SingleWithPath(&resolve.SingleFetch{
+									FetchDependencies: resolve.FetchDependencies{
+										FetchID:           2,
+										DependsOnFetchIDs: []int{1},
+									},
+									FetchConfiguration: resolve.FetchConfiguration{
+										RequiresEntityBatchFetch:              true,
+										RequiresEntityFetch:                   false,
+										Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Detail {__typename uniqueField}}}","variables":{"representations":[$$0$$]}}}`,
+										DataSource:                            &Source{},
+										SetTemplateOutputToNullOnVariableNull: true,
+										Variables: []resolve.Variable{
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
+															},
+															OnTypeNames: [][]byte{[]byte("Detail")},
+														},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("Detail")},
+														},
+													},
+												}),
+											},
+										},
+										PostProcessing: EntitiesPostProcessingConfiguration,
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								}, "nodes.@.detail", resolve.ArrayPath("nodes"), resolve.PathElementWithTypeNames(resolve.ObjectPath("detail"), []string{"NodeA"})),
+							),
+							Data: &resolve.Object{
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("nodes"),
+										Value: &resolve.Array{
+											Path:     []string{"nodes"},
+											Nullable: false,
+											Item: &resolve.Object{
+												Nullable: false,
+												PossibleTypes: map[string]struct{}{
+													"NodeA": {},
+												},
+												TypeName: "Node",
+												Fields: []*resolve.Field{
+													{
+														Name:        []byte("detail"),
+														OnTypeNames: [][]byte{[]byte("NodeA")},
+														Value: &resolve.Object{
+															Path:     []string{"detail"},
+															Nullable: false,
+															PossibleTypes: map[string]struct{}{
+																"Detail": {},
+															},
+															TypeName: "Detailer",
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("uniqueField"),
+																	Value: &resolve.String{
+																		Path: []string{"uniqueField"},
+																	},
+																	OnTypeNames: [][]byte{[]byte("Detail")}},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					planConfiguration,
+					WithDefaultPostProcessor(),
+				)
+			})
+		})
+	})
 }
