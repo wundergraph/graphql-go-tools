@@ -23,6 +23,7 @@ func TestAddRequiredFields(t *testing.T) {
 		isTypeNameForEntityInterface bool
 		selectionSetRef              int
 		enforceTypenameForRequired   bool
+		deferID                      string
 
 		// output
 		expectedOperation           string
@@ -484,6 +485,126 @@ func TestAddRequiredFields(t *testing.T) {
 			expectedSkipFieldsCount:     8, // id, account, __typename, id, type, settings, __typename, theme
 			expectedRequiredFieldsCount: 6,
 		},
+		{
+			name: "key with defer id - new field gets aliased",
+			definition: `
+				type Query { user: User }
+				type User { id: ID! name: String! }`,
+			operation: `query { user { name } }`,
+			typeName: "User",
+			fieldSet: "id",
+			isKey:    true,
+			deferID:  "1",
+			expectedOperation: `
+				query {
+					user {
+						name
+						__internal_1_id: id
+					}
+				}`,
+			expectedSkipFieldsCount:     1,
+			expectedRequiredFieldsCount: 1,
+			expectedRemappedPaths:       map[string]string{"User.id": "__internal_1_id"},
+		},
+		{
+			name: "key with defer id - existing field still gets aliased",
+			definition: `
+				type Query { user: User }
+				type User { id: ID! name: String! }`,
+			operation: `query { user { id name } }`,
+			typeName: "User",
+			fieldSet: "id",
+			isKey:    true,
+			deferID:  "1",
+			expectedOperation: `
+				query {
+					user {
+						id
+						name
+						__internal_1_id: id
+					}
+				}`,
+			expectedSkipFieldsCount:     1,
+			expectedRequiredFieldsCount: 1,
+			expectedRemappedPaths:       map[string]string{"User.id": "__internal_1_id"},
+		},
+		{
+			name: "requires with defer id - new field gets aliased",
+			definition: `
+				type Query { user: User }
+				type User { id: ID! firstName: String! lastName: String! fullName: String! }`,
+			operation: `query { user { fullName } }`,
+			typeName: "User",
+			fieldSet: "firstName lastName",
+			isKey:    false,
+			deferID:  "1",
+			expectedOperation: `
+				query {
+					user {
+						fullName
+						__internal_1_firstName: firstName
+						__internal_1_lastName: lastName
+					}
+				}`,
+			expectedSkipFieldsCount:     2,
+			expectedRequiredFieldsCount: 2,
+			expectedRemappedPaths: map[string]string{
+				"User.firstName": "__internal_1_firstName",
+				"User.lastName":  "__internal_1_lastName",
+			},
+		},
+		{
+			name: "requires with defer id - existing field still gets aliased",
+			definition: `
+				type Query { user: User }
+				type User { id: ID! firstName: String! fullName: String! }`,
+			operation: `query { user { firstName fullName } }`,
+			typeName: "User",
+			fieldSet: "firstName",
+			isKey:    false,
+			deferID:  "1",
+			expectedOperation: `
+				query {
+					user {
+						firstName
+						fullName
+						__internal_1_firstName: firstName
+					}
+				}`,
+			expectedSkipFieldsCount:     1,
+			expectedRequiredFieldsCount: 1,
+			expectedRemappedPaths:       map[string]string{"User.firstName": "__internal_1_firstName"},
+		},
+		{
+			name: "key with defer id - only root fields aliased, nested fields are not",
+			definition: `
+				type Query { user: User }
+				type User { id: ID! address: Address! }
+				type Address { street: String! city: String! }`,
+			operation:       `query { user { address { city } } }`,
+			typeName:        "User",
+			fieldSet:        "address { street }",
+			isKey:           true,
+			deferID:         "1",
+			selectionSetRef: 1,
+			// with deferAlias, the existing address field is left untouched;
+			// a new aliased field with its own selection set is created
+			expectedOperation: `
+				query {
+					user {
+						address {
+							city
+						}
+						__internal_1_address: address {
+							street
+						}
+					}
+				}`,
+			expectedSkipFieldsCount:     2, // __internal_1_address, street inside it
+			expectedRequiredFieldsCount: 2,
+			expectedModifiedFieldsCount: 0,
+			expectedRemappedPaths:       map[string]string{"User.address": "__internal_1_address"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -500,6 +621,7 @@ func TestAddRequiredFields(t *testing.T) {
 				allowTypename:                 tt.allowTypename,
 				typeName:                      tt.typeName,
 				fieldSet:                      tt.fieldSet,
+				deferID:                       tt.deferID,
 				addTypenameInNestedSelections: tt.enforceTypenameForRequired,
 			}
 
