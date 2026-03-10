@@ -605,6 +605,101 @@ func TestAddRequiredFields(t *testing.T) {
 			expectedModifiedFieldsCount: 0,
 			expectedRemappedPaths:       map[string]string{"User.address": "__internal_1_address"},
 		},
+		{
+			name: "key with defer id and parentId - directive added to aliased field",
+			definition: `
+				type Query { user: User }
+				type User { id: ID! name: String! }`,
+			operation: `query { user { name } }`,
+			typeName:  "User",
+			fieldSet:  "id",
+			isKey:     true,
+			deferInfo: &DeferInfo{ID: "2", ParentID: "1"},
+			expectedOperation: `
+				query {
+					user {
+						name
+						__internal_2_id: id @__defer_internal(id: "1")
+					}
+				}`,
+			expectedSkipFieldsCount:     1,
+			expectedRequiredFieldsCount: 1,
+			expectedRemappedPaths:       map[string]string{"User.id": "__internal_2_id"},
+		},
+		{
+			name: "requires with defer id and parentId - directive added with all fields",
+			definition: `
+				type Query { user: User }
+				type User { id: ID! firstName: String! fullName: String! }`,
+			operation: `query { user { fullName } }`,
+			typeName:  "User",
+			fieldSet:  "firstName",
+			isKey:     false,
+			deferInfo: &DeferInfo{ID: "2", Label: "myLabel", ParentID: "1"},
+			expectedOperation: `
+				query {
+					user {
+						fullName
+						__internal_2_firstName: firstName @__defer_internal(id: "2", label: "myLabel", parentDeferId: "1")
+					}
+				}`,
+			expectedSkipFieldsCount:     1,
+			expectedRequiredFieldsCount: 1,
+			expectedRemappedPaths:       map[string]string{"User.firstName": "__internal_2_firstName"},
+		},
+		{
+			name: "key with defer id and parentId - directive added to nested fields too",
+			definition: `
+				type Query { user: User }
+				type User { id: ID! address: Address! }
+				type Address { street: String! city: String! }`,
+			operation:       `query { user { address { city } } }`,
+			typeName:        "User",
+			fieldSet:        "address { street }",
+			isKey:           true,
+			deferInfo:       &DeferInfo{ID: "2", ParentID: "1"},
+			selectionSetRef: 1,
+			expectedOperation: `
+				query {
+					user {
+						address {
+							city
+						}
+						__internal_2_address: address @__defer_internal(id: "1") {
+							street @__defer_internal(id: "1")
+						}
+					}
+				}`,
+			expectedSkipFieldsCount:     2,
+			expectedRequiredFieldsCount: 2,
+			expectedModifiedFieldsCount: 0,
+			expectedRemappedPaths:       map[string]string{"User.address": "__internal_2_address"},
+		},
+		{
+			name: "requires with defer id and parentId - directive added to nested fields too",
+			definition: `
+				type Query { user: User }
+				type User { id: ID! address: Address! fullAddress: String! }
+				type Address { street: String! city: String! }`,
+			operation: `query { user { fullAddress } }`,
+			typeName:  "User",
+			fieldSet:  "address { street }",
+			isKey:     false,
+			deferInfo: &DeferInfo{ID: "2", ParentID: "1"},
+			expectedOperation: `
+				query {
+					user {
+						fullAddress
+						__internal_2_address: address @__defer_internal(id: "2", parentDeferId: "1") {
+							street @__defer_internal(id: "2", parentDeferId: "1")
+						}
+					}
+				}`,
+			expectedSkipFieldsCount:     2,
+			expectedRequiredFieldsCount: 2,
+			expectedModifiedFieldsCount: 0,
+			expectedRemappedPaths:       map[string]string{"User.address": "__internal_2_address"},
+		},
 	}
 
 	for _, tt := range tests {

@@ -8,6 +8,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astimport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -357,5 +358,58 @@ func (v *requiredFieldsVisitor) addRequiredField(keyRef int, fieldName ast.ByteS
 		v.storeRequiredFieldRef(addedField.Ref)
 	}
 
+	if v.config.deferInfo != nil && v.config.deferInfo.ParentID != "" {
+		v.addDeferInternalDirective(addedField.Ref)
+	}
+
 	return addedField
+}
+
+func (v *requiredFieldsVisitor) addDeferInternalDirective(fieldRef int) {
+	deferInfo := v.config.deferInfo
+	var argRefs []int
+
+	if v.config.isKey {
+		// for key fields: use parentId as the id
+		// key should be in scope of parent defer id, not be the deferred inside same fragment,
+		// otherwise it can't be planned properly
+		argRefs = append(argRefs, v.addStringArgument("id", deferInfo.ParentID))
+	} else {
+		// for requires fields: include all deferInfo fields
+		// required fields goes into the same scope as the current defer
+		argRefs = append(argRefs, v.addStringArgument("id", deferInfo.ID))
+
+		if deferInfo.Label != "" {
+			argRefs = append(argRefs, v.addStringArgument("label", deferInfo.Label))
+		}
+		if deferInfo.ParentID != "" {
+			argRefs = append(argRefs, v.addStringArgument("parentDeferId", deferInfo.ParentID))
+		}
+	}
+
+	directive := ast.Directive{
+		Name:         v.config.operation.Input.AppendInputBytes(literal.DEFER_INTERNAL),
+		HasArguments: len(argRefs) > 0,
+		Arguments: ast.ArgumentList{
+			Refs: argRefs,
+		},
+	}
+	directiveRef := v.config.operation.AddDirective(directive)
+	v.config.operation.AddDirectiveToNode(directiveRef, ast.Node{
+		Kind: ast.NodeKindField,
+		Ref:  fieldRef,
+	})
+}
+
+func (v *requiredFieldsVisitor) addStringArgument(name, value string) int {
+	strValueRef := v.config.operation.AddStringValue(ast.StringValue{
+		Content: v.config.operation.Input.AppendInputString(value),
+	})
+
+	arg := ast.Argument{
+		Name:  v.config.operation.Input.AppendInputString(name),
+		Value: ast.Value{Kind: ast.ValueKindString, Ref: strValueRef},
+	}
+
+	return v.config.operation.AddArgument(arg)
 }
