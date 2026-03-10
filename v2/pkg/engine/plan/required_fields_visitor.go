@@ -58,6 +58,7 @@ type addRequiredFieldsConfiguration struct {
 	allowTypename                bool
 	typeName                     string
 	fieldSet                     string
+	deferID                      string
 
 	// addTypenameInNestedSelections controls forced addition of __typename to nested selection sets
 	// used by "requires" keys, not only when fragments are present.
