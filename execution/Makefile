@@ -21,6 +21,10 @@ format:
 lint:
 	golangci-lint run 
 
+.PHONY: lint-fix
+lint-fix:
+	golangci-lint run --fix
+
 .PHONY: prepare-merge
 prepare-merge: format test
 
