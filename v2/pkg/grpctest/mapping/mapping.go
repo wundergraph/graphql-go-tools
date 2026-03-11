@@ -1260,6 +1260,15 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				"nullMetrics": {
 					TargetName: "null_metrics",
 				},
+				"totalProducts": {
+					TargetName: "total_products",
+				},
+				"topSubcategory": {
+					TargetName: "top_subcategory",
+				},
+				"activeSubcategories": {
+					TargetName: "active_subcategories",
+				},
 			},
 			"Subcategory": {
 				"id": {
@@ -1285,6 +1294,9 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"includeChildren": "include_children",
 					},
+				},
+				"parentCategory": {
+					TargetName: "parent_category",
 				},
 			},
 			"CategoryMetrics": {
@@ -1314,6 +1326,9 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"include": "include",
 					},
+				},
+				"averageScore": {
+					TargetName: "average_score",
 				},
 			},
 			"Cat": {
