@@ -1,5 +1,6 @@
 package grpcdatasource
 
+// testMapping returns a hardcoded default mapping between GraphQL and Protobuf
 func testMapping() *GRPCMapping {
 	return &GRPCMapping{
 		Service: "Products",
@@ -314,7 +315,8 @@ func testMapping() *GRPCMapping {
 				},
 				"totalProducts": {
 					FieldMappingData: FieldMapData{
-						TargetName: "total_products",
+						TargetName:       "total_products",
+						ArgumentMappings: FieldArgumentMap{},
 					},
 					RPC:      "ResolveCategoryTotalProducts",
 					Request:  "ResolveCategoryTotalProductsRequest",
@@ -322,7 +324,8 @@ func testMapping() *GRPCMapping {
 				},
 				"topSubcategory": {
 					FieldMappingData: FieldMapData{
-						TargetName: "top_subcategory",
+						TargetName:       "top_subcategory",
+						ArgumentMappings: FieldArgumentMap{},
 					},
 					RPC:      "ResolveCategoryTopSubcategory",
 					Request:  "ResolveCategoryTopSubcategoryRequest",
@@ -330,7 +333,8 @@ func testMapping() *GRPCMapping {
 				},
 				"activeSubcategories": {
 					FieldMappingData: FieldMapData{
-						TargetName: "active_subcategories",
+						TargetName:       "active_subcategories",
+						ArgumentMappings: FieldArgumentMap{},
 					},
 					RPC:      "ResolveCategoryActiveSubcategories",
 					Request:  "ResolveCategoryActiveSubcategoriesRequest",
@@ -362,7 +366,8 @@ func testMapping() *GRPCMapping {
 				},
 				"averageScore": {
 					FieldMappingData: FieldMapData{
-						TargetName: "average_score",
+						TargetName:       "average_score",
+						ArgumentMappings: FieldArgumentMap{},
 					},
 					RPC:      "ResolveCategoryMetricsAverageScore",
 					Request:  "ResolveCategoryMetricsAverageScoreRequest",
@@ -486,7 +491,8 @@ func testMapping() *GRPCMapping {
 				},
 				"parentCategory": {
 					FieldMappingData: FieldMapData{
-						TargetName: "parent_category",
+						TargetName:       "parent_category",
+						ArgumentMappings: FieldArgumentMap{},
 					},
 					RPC:      "ResolveSubcategoryParentCategory",
 					Request:  "ResolveSubcategoryParentCategoryRequest",
@@ -1875,5 +1881,4 @@ func testMapping() *GRPCMapping {
 			},
 		},
 	}
-
 }

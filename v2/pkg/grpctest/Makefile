@@ -1,4 +1,5 @@
 mkfile_dir := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
+grpc_datasource_dir := $(mkfile_dir)/../engine/datasource/grpc_datasource
 
 .PHONY: install-protoc
 install-protoc:
@@ -22,9 +23,20 @@ regenerate-proto:
 	rm -f $(mkfile_dir)/testdata/service.proto.lock.json
 
 .PHONY: generate-mapping-code
-generate-mapping-code: regenerate-proto
+generate-mapping-code: generate-mapping-code-grpc-test generate-mapping-code-grpc-datasource regenerate-proto cleanup-mapping-file
+
+.PHONY: generate-mapping-code-grpc-test
+generate-mapping-code-grpc-test:
 	go run $(mkfile_dir)/cmd/mapping_helper/main.go $(mkfile_dir)/testdata/mapping.json $(mkfile_dir)/mapping/mapping.go
 	go fmt $(mkfile_dir)/mapping/mapping.go
+
+.PHONY: generate-mapping-code-grpc-datasource
+generate-mapping-code-grpc-datasource:
+	go run $(mkfile_dir)/cmd/mapping_helper/main.go -without-package $(mkfile_dir)/testdata/mapping.json $(grpc_datasource_dir)/mapping_test_helper.go 
+	go fmt $(grpc_datasource_dir)/mapping_test_helper.go
+
+.PHONY: cleanup-mapping-file
+cleanup-mapping-file:
 	rm -f $(mkfile_dir)/testdata/mapping.json
 
 
@@ -35,10 +47,7 @@ regenerate-proto-local:
 	rm -f $(mkfile_dir)/testdata/service.proto.lock.json
 
 .PHONY: generate-mapping-code-local
-generate-mapping-code-local: regenerate-proto-local
-	go run $(mkfile_dir)/cmd/mapping_helper/main.go $(mkfile_dir)/testdata/mapping.json $(mkfile_dir)/mapping/mapping.go
-	go fmt $(mkfile_dir)/mapping/mapping.go
-	rm -f $(mkfile_dir)/testdata/mapping.json
+generate-mapping-code-local: regenerate-proto-local generate-mapping-code-grpc-test generate-mapping-code-grpc-datasource cleanup-mapping-file
 
 
 .PHONY: generate-all

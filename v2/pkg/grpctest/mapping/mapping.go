@@ -319,6 +319,33 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					Request:  "ResolveCategoryOptionalCategoriesRequest",
 					Response: "ResolveCategoryOptionalCategoriesResponse",
 				},
+				"totalProducts": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName:       "total_products",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{},
+					},
+					RPC:      "ResolveCategoryTotalProducts",
+					Request:  "ResolveCategoryTotalProductsRequest",
+					Response: "ResolveCategoryTotalProductsResponse",
+				},
+				"topSubcategory": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName:       "top_subcategory",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{},
+					},
+					RPC:      "ResolveCategoryTopSubcategory",
+					Request:  "ResolveCategoryTopSubcategoryRequest",
+					Response: "ResolveCategoryTopSubcategoryResponse",
+				},
+				"activeSubcategories": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName:       "active_subcategories",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{},
+					},
+					RPC:      "ResolveCategoryActiveSubcategories",
+					Request:  "ResolveCategoryActiveSubcategoriesRequest",
+					Response: "ResolveCategoryActiveSubcategoriesResponse",
+				},
 			},
 			"CategoryMetrics": {
 				"normalizedScore": {
@@ -342,6 +369,15 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					RPC:      "ResolveCategoryMetricsRelatedCategory",
 					Request:  "ResolveCategoryMetricsRelatedCategoryRequest",
 					Response: "ResolveCategoryMetricsRelatedCategoryResponse",
+				},
+				"averageScore": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName:       "average_score",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{},
+					},
+					RPC:      "ResolveCategoryMetricsAverageScore",
+					Request:  "ResolveCategoryMetricsAverageScoreRequest",
+					Response: "ResolveCategoryMetricsAverageScoreResponse",
 				},
 			},
 			"Product": {
@@ -458,6 +494,15 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					RPC:      "ResolveSubcategoryFeaturedCategory",
 					Request:  "ResolveSubcategoryFeaturedCategoryRequest",
 					Response: "ResolveSubcategoryFeaturedCategoryResponse",
+				},
+				"parentCategory": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName:       "parent_category",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{},
+					},
+					RPC:      "ResolveSubcategoryParentCategory",
+					Request:  "ResolveSubcategoryParentCategoryRequest",
+					Response: "ResolveSubcategoryParentCategoryResponse",
 				},
 			},
 			"TestContainer": {
