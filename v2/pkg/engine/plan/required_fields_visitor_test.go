@@ -24,6 +24,7 @@ func TestAddRequiredFields(t *testing.T) {
 		selectionSetRef              int
 		enforceTypenameForRequired bool
 		deferInfo                  *DeferInfo
+		parentFieldDeferID         string
 
 		// output
 		expectedOperation           string
@@ -542,8 +543,8 @@ func TestAddRequiredFields(t *testing.T) {
 				query {
 					user {
 						fullName
-						__internal_1_firstName: firstName
-						__internal_1_lastName: lastName
+						__internal_1_firstName: firstName @__defer_internal(id: "1")
+						__internal_1_lastName: lastName @__defer_internal(id: "1")
 					}
 				}`,
 			expectedSkipFieldsCount:     2,
@@ -568,7 +569,7 @@ func TestAddRequiredFields(t *testing.T) {
 					user {
 						firstName
 						fullName
-						__internal_1_firstName: firstName
+						__internal_1_firstName: firstName @__defer_internal(id: "1")
 					}
 				}`,
 			expectedSkipFieldsCount:     1,
@@ -611,10 +612,11 @@ func TestAddRequiredFields(t *testing.T) {
 				type Query { user: User }
 				type User { id: ID! name: String! }`,
 			operation: `query { user { name } }`,
-			typeName:  "User",
-			fieldSet:  "id",
-			isKey:     true,
-			deferInfo: &DeferInfo{ID: "2", ParentID: "1"},
+			typeName:           "User",
+			fieldSet:           "id",
+			isKey:              true,
+			deferInfo:          &DeferInfo{ID: "2", ParentID: "2"},
+			parentFieldDeferID: "1",
 			expectedOperation: `
 				query {
 					user {
@@ -653,12 +655,13 @@ func TestAddRequiredFields(t *testing.T) {
 				type Query { user: User }
 				type User { id: ID! address: Address! }
 				type Address { street: String! city: String! }`,
-			operation:       `query { user { address { city } } }`,
-			typeName:        "User",
-			fieldSet:        "address { street }",
-			isKey:           true,
-			deferInfo:       &DeferInfo{ID: "2", ParentID: "1"},
-			selectionSetRef: 1,
+			operation:          `query { user { address { city } } }`,
+			typeName:           "User",
+			fieldSet:           "address { street }",
+			isKey:              true,
+			deferInfo:          &DeferInfo{ID: "2", ParentID: "1"},
+			parentFieldDeferID: "1",
+			selectionSetRef:    1,
 			expectedOperation: `
 				query {
 					user {
@@ -816,6 +819,7 @@ func TestAddRequiredFields(t *testing.T) {
 				typeName:                      tt.typeName,
 				fieldSet:                      tt.fieldSet,
 				deferInfo:                     tt.deferInfo,
+				parentFieldDeferID:            tt.parentFieldDeferID,
 				addTypenameInNestedSelections: tt.enforceTypenameForRequired,
 			}
 
