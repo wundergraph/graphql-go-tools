@@ -102,14 +102,14 @@ var (
 	//go:embed templates/grpctest_mapping.tmpl
 	tpl string
 	//go:embed templates/grcp_datasource_mapping_helper.tmpl
-	tplWithoutPackage string
+	tplGRPCDatasource string
 
-	withoutPackage bool
+	grpcDatasource bool
 )
 
 // define flags for the command
 func init() {
-	flag.BoolVar(&withoutPackage, "without-package", false, "generate mapping without package")
+	flag.BoolVar(&grpcDatasource, "grpc-datasource", false, "use the grpc_datasource package template")
 }
 
 func main() {
@@ -159,8 +159,8 @@ func main() {
 	}
 
 	var usedTemplate = tpl
-	if withoutPackage {
-		usedTemplate = tplWithoutPackage
+	if grpcDatasource {
+		usedTemplate = tplGRPCDatasource
 	}
 
 	t := template.Must(template.New("mapping").Parse(usedTemplate))

@@ -23,20 +23,20 @@ regenerate-proto:
 	rm -f $(mkfile_dir)/testdata/service.proto.lock.json
 
 .PHONY: generate-mapping-code
-generate-mapping-code: generate-mapping-code-grpc-test generate-mapping-code-grpc-datasource regenerate-proto cleanup-mapping-file
+generate-mapping-code: cleanup-mapping-file
 
 .PHONY: generate-mapping-code-grpc-test
-generate-mapping-code-grpc-test:
+generate-mapping-code-grpc-test: regenerate-proto
 	go run $(mkfile_dir)/cmd/mapping_helper/main.go $(mkfile_dir)/testdata/mapping.json $(mkfile_dir)/mapping/mapping.go
 	go fmt $(mkfile_dir)/mapping/mapping.go
 
 .PHONY: generate-mapping-code-grpc-datasource
-generate-mapping-code-grpc-datasource:
-	go run $(mkfile_dir)/cmd/mapping_helper/main.go -without-package $(mkfile_dir)/testdata/mapping.json $(grpc_datasource_dir)/mapping_test_helper.go 
+generate-mapping-code-grpc-datasource: generate-mapping-code-grpc-test
+	go run $(mkfile_dir)/cmd/mapping_helper/main.go -grpc-datasource $(mkfile_dir)/testdata/mapping.json $(grpc_datasource_dir)/mapping_test_helper.go
 	go fmt $(grpc_datasource_dir)/mapping_test_helper.go
 
 .PHONY: cleanup-mapping-file
-cleanup-mapping-file:
+cleanup-mapping-file: generate-mapping-code-grpc-datasource
 	rm -f $(mkfile_dir)/testdata/mapping.json
 
 
@@ -47,7 +47,21 @@ regenerate-proto-local:
 	rm -f $(mkfile_dir)/testdata/service.proto.lock.json
 
 .PHONY: generate-mapping-code-local
-generate-mapping-code-local: regenerate-proto-local generate-mapping-code-grpc-test generate-mapping-code-grpc-datasource cleanup-mapping-file
+generate-mapping-code-local: cleanup-mapping-file-local
+
+.PHONY: generate-mapping-code-grpc-test-local
+generate-mapping-code-grpc-test-local: regenerate-proto-local
+	go run $(mkfile_dir)/cmd/mapping_helper/main.go $(mkfile_dir)/testdata/mapping.json $(mkfile_dir)/mapping/mapping.go
+	go fmt $(mkfile_dir)/mapping/mapping.go
+
+.PHONY: generate-mapping-code-grpc-datasource-local
+generate-mapping-code-grpc-datasource-local: generate-mapping-code-grpc-test-local
+	go run $(mkfile_dir)/cmd/mapping_helper/main.go -grpc-datasource $(mkfile_dir)/testdata/mapping.json $(grpc_datasource_dir)/mapping_test_helper.go
+	go fmt $(grpc_datasource_dir)/mapping_test_helper.go
+
+.PHONY: cleanup-mapping-file-local
+cleanup-mapping-file-local: generate-mapping-code-grpc-datasource-local
+	rm -f $(mkfile_dir)/testdata/mapping.json
 
 
 .PHONY: generate-all
