@@ -7,6 +7,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 )
 
 // nodeSelectionVisitor walks through the operation multiple times to rewrite it
@@ -99,6 +100,7 @@ type keyRequirements struct {
 	requestedByFieldRefs []int
 	typeName             string
 	deferInfo            *DeferInfo
+	parentFieldDeferID   string
 }
 
 type fieldRequirements struct {
@@ -108,6 +110,7 @@ type fieldRequirements struct {
 	requestedByFieldRefs         []int
 	isTypenameForEntityInterface bool
 	deferInfo                    *DeferInfo
+	parentFieldDeferID           string
 }
 
 type pendingFieldRequirements struct {
@@ -222,13 +225,14 @@ func (c *nodeSelectionVisitor) EnterField(fieldRef int) {
 }
 
 type fieldRequirementsContext struct {
-	fieldRef    int
-	parentPath  string
-	typeName    string
-	fieldName   string
-	currentPath string
-	dsConfig    DataSource
-	deferInfo   *DeferInfo
+	fieldRef           int
+	parentPath         string
+	typeName           string
+	fieldName          string
+	currentPath        string
+	dsConfig           DataSource
+	deferInfo          *DeferInfo
+	parentFieldDeferID string
 }
 
 func (c *nodeSelectionVisitor) handleEnterField(fieldRef int, handleRequires bool) {
@@ -258,13 +262,14 @@ func (c *nodeSelectionVisitor) handleEnterField(fieldRef int, handleRequires boo
 		}
 
 		fieldCtx := fieldRequirementsContext{
-			fieldRef:    fieldRef,
-			parentPath:  parentPath,
-			typeName:    typeName,
-			fieldName:   fieldName,
-			currentPath: currentPath,
-			dsConfig:    c.dataSources[dsIdx],
-			deferInfo:   suggestion.deferInfo,
+			fieldRef:           fieldRef,
+			parentPath:         parentPath,
+			typeName:           typeName,
+			fieldName:          fieldName,
+			currentPath:        currentPath,
+			dsConfig:           c.dataSources[dsIdx],
+			deferInfo:          suggestion.deferInfo,
+			parentFieldDeferID: c.wrappingFieldDeferID(),
 		}
 
 		if handleRequires {
@@ -282,6 +287,27 @@ func (c *nodeSelectionVisitor) handleEnterField(fieldRef int, handleRequires boo
 		// check if field selections are abstract and needs rewrites
 		c.rewriteSelectionSetHavingAbstractFragments(fieldRef, fieldCtx.dsConfig)
 	}
+}
+
+// wrappingFieldDeferID walks the walker ancestors in reverse to find the nearest wrapping field
+// that has a @__defer_internal directive and returns its "id" argument value.
+func (c *nodeSelectionVisitor) wrappingFieldDeferID() string {
+	for i := len(c.walker.Ancestors) - 1; i >= 0; i-- {
+		ancestor := c.walker.Ancestors[i]
+		if ancestor.Kind != ast.NodeKindField {
+			continue
+		}
+		directiveRef, exists := c.operation.Fields[ancestor.Ref].Directives.HasDirectiveByNameBytes(c.operation, literal.DEFER_INTERNAL)
+		if !exists {
+			return ""
+		}
+		idValue, ok := c.operation.DirectiveArgumentValueByName(directiveRef, []byte("id"))
+		if !ok {
+			return ""
+		}
+		return c.operation.StringValueContentString(idValue.Ref)
+	}
+	return ""
 }
 
 func (c *nodeSelectionVisitor) LeaveField(ref int) {
@@ -487,6 +513,7 @@ func (c *nodeSelectionVisitor) addPendingFieldRequirements(fieldCtx fieldRequire
 			requestedByFieldRefs:         []int{fieldCtx.fieldRef},
 			isTypenameForEntityInterface: isTypenameForEntityInterface,
 			deferInfo:                    fieldCtx.deferInfo,
+			parentFieldDeferID:           fieldCtx.parentFieldDeferID,
 		}
 
 		requirements.existsTracker[existsKey] = struct{}{}
@@ -532,6 +559,7 @@ func (c *nodeSelectionVisitor) addPendingKeyRequirements(fieldCtx fieldRequireme
 			requestedByFieldRefs: []int{fieldCtx.fieldRef},
 			typeName:             fieldCtx.typeName,
 			deferInfo:            fieldCtx.deferInfo,
+			parentFieldDeferID:   fieldCtx.parentFieldDeferID,
 		}
 
 		requirements.existsTracker[existsKey] = struct{}{}
@@ -575,6 +603,7 @@ func (c *nodeSelectionVisitor) addFieldRequirementsToOperation(selectionSetRef i
 		typeName:                      typeName,
 		fieldSet:                      requirements.selectionSet,
 		deferInfo:                     requirements.deferInfo,
+		parentFieldDeferID:            requirements.parentFieldDeferID,
 		addTypenameInNestedSelections: c.addTypenameInNestedSelections,
 	}
 
@@ -664,6 +693,7 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 			typeName:                 jump.TypeName,
 			fieldSet:                 jump.SelectionSet,
 			deferInfo:                pendingKey.deferInfo,
+			parentFieldDeferID:       pendingKey.parentFieldDeferID,
 		}
 
 		addFieldsResult, report := addRequiredFields(input)

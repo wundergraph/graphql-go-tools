@@ -60,6 +60,7 @@ type addRequiredFieldsConfiguration struct {
 	typeName                     string
 	fieldSet                     string
 	deferInfo                    *DeferInfo
+	parentFieldDeferID           string
 
 	// addTypenameInNestedSelections controls forced addition of __typename to nested selection sets
 	// used by "requires" keys, not only when fragments are present.
@@ -238,7 +239,7 @@ func (v *requiredFieldsVisitor) handleRequiredField(ref int) {
 	fieldName := v.key.FieldNameBytes(ref)
 	isTypeName := bytes.Equal(fieldName, typeNameFieldBytes)
 
-	// we need to add alias if operation has such field and:
+	// we need to add an alias if the operation has such a field and:
 	// - the field is not a leaf
 	// - the field has arguments
 	isLeafField := !v.key.FieldHasSelections(ref)
@@ -374,33 +375,47 @@ func (v *requiredFieldsVisitor) addRequiredField(keyRef int, fieldName ast.ByteS
 		v.storeRequiredFieldRef(addedField.Ref)
 	}
 
-	if v.config.deferInfo != nil && v.config.deferInfo.ParentID != "" {
-		v.addDeferInternalDirective(addedField.Ref)
-	}
+	v.applyDeferInternalDirective(addedField.Ref)
 
 	return addedField
 }
 
-func (v *requiredFieldsVisitor) addDeferInternalDirective(fieldRef int) {
-	deferInfo := v.config.deferInfo
+func (v *requiredFieldsVisitor) applyDeferInternalDirective(fieldRef int) {
+	if v.config.deferInfo == nil {
+		return
+	}
+
+	// when we are adding required fields from the requires directive
+	if !v.config.isKey {
+		// required fields should land in the same scope as the current field
+		// to be fetched in the same defer group, but not in the parent scope
+		v.addDeferInternalDirective(fieldRef, v.config.deferInfo)
+		return
+	}
+
+	// when we are adding key fields
+	// and the parent field has the defer id
+	if v.config.parentFieldDeferID != "" {
+		// for key fields: use parentFieldDeferID as the id
+		// key should be in scope of the parent defer id, not be the deferred inside the same fragment,
+		// otherwise it can't be planned properly
+		v.addDeferInternalDirective(fieldRef, &DeferInfo{ID: v.config.parentFieldDeferID})
+	}
+
+	// if the parent field does not have a defer id,
+	// fields should be unscoped, as is the parent field itself
+}
+
+func (v *requiredFieldsVisitor) addDeferInternalDirective(fieldRef int, deferInfo *DeferInfo) {
 	var argRefs []int
 
-	if v.config.isKey {
-		// for key fields: use parentId as the id
-		// key should be in scope of parent defer id, not be the deferred inside same fragment,
-		// otherwise it can't be planned properly
-		argRefs = append(argRefs, v.addStringArgument("id", deferInfo.ParentID))
-	} else {
-		// for requires fields: include all deferInfo fields
-		// required fields goes into the same scope as the current defer
-		argRefs = append(argRefs, v.addStringArgument("id", deferInfo.ID))
+	argRefs = append(argRefs, v.addStringArgument("id", deferInfo.ID))
 
-		if deferInfo.Label != "" {
-			argRefs = append(argRefs, v.addStringArgument("label", deferInfo.Label))
-		}
-		if deferInfo.ParentID != "" {
-			argRefs = append(argRefs, v.addStringArgument("parentDeferId", deferInfo.ParentID))
-		}
+	if deferInfo.Label != "" {
+		argRefs = append(argRefs, v.addStringArgument("label", deferInfo.Label))
+	}
+	if deferInfo.ParentID != "" {
+		argRefs = append(argRefs, v.addStringArgument("parentDeferId", deferInfo.ParentID))
 	}
 
 	directive := ast.Directive{
