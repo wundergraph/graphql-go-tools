@@ -375,9 +375,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 								statusCode: 200,
 								body:       `{"data":{"user":{"name":"Black"}}}`,
 							},
-							`{"query":"{user {__internal__typename_placeholder: __typename}}"}`: {
+							`{"query":"{user {___typename: __typename}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"__internal__typename_placeholder":"User"}}}`,
+								body:       `{"data":{"user":{"___typename":"User"}}}`,
 							},
 							`{"query":"{user {title}}"}`: {
 								statusCode: 200,
@@ -407,13 +407,13 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 								statusCode: 200,
 								body:       `{"data":{"user":{"name":"Black","info":{"email":"black@sabbat"}}}}`,
 							},
-							`{"query":"{user {name info {__internal__typename_placeholder: __typename}}}"}`: {
+							`{"query":"{user {name info {___typename: __typename}}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"name":"Black","info":{"__internal__typename_placeholder":"Info"}}}}`,
+								body:       `{"data":{"user":{"name":"Black","info":{"___typename":"Info"}}}}`,
 							},
-							`{"query":"{user {info {__internal__typename_placeholder: __typename}}}"}`: {
+							`{"query":"{user {info {___typename: __typename}}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"info":{"__internal__typename_placeholder":"Info"}}}}`,
+								body:       `{"data":{"user":{"info":{"___typename":"Info"}}}}`,
 							},
 							`{"query":"{user {info {email}}}"}`: {
 								statusCode: 200,
@@ -536,21 +536,33 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 								statusCode: 200,
 								body:       `{"data":{"user":{"id":"1","info":{"email":"black@sabbat"}}}}`,
 							},
-							`{"query":"{user {__internal__typename_placeholder: __typename __typename}}"}`: {
+							`{"query":"{user {___typename: __typename __typename}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"__internal__typename_placeholder":"User","__typename":"User","info":{"email":"black@sabbat"}}}}`,
+								body:       `{"data":{"user":{"___typename":"User","__typename":"User","info":{"email":"black@sabbat"}}}}`,
 							},
-							`{"query":"{user {__internal__typename_placeholder: __typename __typename id}}"}`: {
+							`{"query":"{user {___typename: __typename __typename id}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"__internal__typename_placeholder":"User","__typename":"User","id":"1","info":{"email":"black@sabbat"}}}}`,
+								body:       `{"data":{"user":{"___typename":"User","__typename":"User","id":"1","info":{"email":"black@sabbat"}}}}`,
 							},
 							`{"query":"{user {info {email}}}"}`: {
 								statusCode: 200,
 								body:       `{"data":{"user":{"info":{"email":"black@sabbat"}}}}`,
 							},
-							`{"query":"{user {info {__internal__typename_placeholder: __typename}}}"}`: {
+							`{"query":"{user {info {___typename: __typename}}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"info":{"__internal__typename_placeholder":"Info"}}}}`,
+								body:       `{"data":{"user":{"info":{"___typename":"Info"}}}}`,
+							},
+							`{"query":"{user {__typename id __internal_1___typename: __typename __internal_1_id: id}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"__typename":"User","id":"1","__internal_1___typename":"User","__internal_1_id":"1"}}}`,
+							},
+							`{"query":"{user {id __typename __internal_1___typename: __typename __internal_1_id: id}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"id":"1","__typename":"User","__internal_1___typename":"User","__internal_1_id":"1"}}}`,
+							},
+							`{"query":"{user {___typename: __typename __internal_1___typename: __typename __internal_1_id: id __internal_2___typename: __typename __internal_2_id: id}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"___typename":"User","__internal_1___typename":"User","__internal_1_id":"1","__internal_2___typename":"User","__internal_2_id":"1"}}}`,
 							},
 						},
 					}),
@@ -623,7 +635,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 								statusCode: 200,
 								body:       `{"data":{"_entities":[{"__typename":"User","name":"Black","title":"Sabbat","info":{"phone":"123"}}]}}`,
 							},
-							`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name info {__internal__typename_placeholder: __typename}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
+							`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name info {___typename: __typename}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
 								statusCode: 200,
 								body:       `{"data":{"_entities":[{"__typename":"User","name":"Black","title":"Sabbat","info":{"phone":"123"}}]}}`,
 							},
