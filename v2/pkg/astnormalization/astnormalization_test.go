@@ -565,6 +565,7 @@ func TestNormalizeOperation(t *testing.T) {
 							noString @__defer_internal(id: "3")
 							string @__defer_internal(id: "4")
 						}
+						___typename: __typename
 					}
 					... on Cat {
 						name

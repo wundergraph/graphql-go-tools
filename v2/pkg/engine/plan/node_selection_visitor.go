@@ -311,7 +311,9 @@ func (c *nodeSelectionVisitor) wrappingFieldDeferID() string {
 }
 
 func (c *nodeSelectionVisitor) LeaveField(ref int) {
-	if bytes.Equal(c.operation.FieldAliasOrNameBytes(ref), []byte("__internal__typename_placeholder")) {
+	// "___typename" is an internal typename placeholder
+	// added by astnormalization.directiveIncludeSkip or astnormalization.deferEnsureTypename normalization rule
+	if bytes.Equal(c.operation.FieldAliasOrNameBytes(ref), []byte("___typename")) {
 		// we should skip such typename as it was added as a placeholder to keep query valid
 		// when normalizaion removed all other selections from the selection set
 		c.addSkipFieldRefs(ref)

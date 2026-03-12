@@ -153,14 +153,14 @@ func (d *directiveIncludeSkipVisitor) removeParentNode() {
 	}
 }
 
-func addInternalTypeNamePlaceholder(operation *ast.Document, selectionSetRef int) {
+func addInternalTypeNamePlaceholder(operation *ast.Document, selectionSetRef int) int {
 	field := operation.AddField(ast.Field{
 		Name: operation.Input.AppendInputString("__typename"),
 		// We are adding an alias to the __typename field to mark it as internally added
 		// So planner could ignore this field during creation of the response shape
 		Alias: ast.Alias{
 			IsDefined: true,
-			Name:      operation.Input.AppendInputString("__internal__typename_placeholder"),
+			Name:      operation.Input.AppendInputString("___typename"),
 		},
 	})
 	selectionRef := operation.AddSelectionToDocument(ast.Selection{
@@ -169,4 +169,5 @@ func addInternalTypeNamePlaceholder(operation *ast.Document, selectionSetRef int
 	})
 
 	operation.AddSelectionRefToSelectionSet(selectionSetRef, selectionRef)
+	return field.Ref
 }
