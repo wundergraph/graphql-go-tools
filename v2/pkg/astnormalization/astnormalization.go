@@ -227,6 +227,8 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 
 	cleanup := astvisitor.NewWalkerWithID(8, "Cleanup")
 	deduplicateFields(&cleanup)
+	// should happen after inlining defer fragments, to not produce unnecessary typename placeholders
+	deferEnsureTypename(&cleanup)
 	if o.options.removeUnusedVariables {
 		del := deleteUnusedVariables(&cleanup)
 		// register variable usage detection on the first stage
@@ -252,7 +254,6 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 
 	if o.options.inlineDefer {
 		inlineDefer := astvisitor.NewWalkerWithID(8, "Inline defer")
-		deferEnsureTypename(&inlineDefer)
 		inlineFragmentExpandDefer(&inlineDefer)
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
 			name:   "inlineDefer",
