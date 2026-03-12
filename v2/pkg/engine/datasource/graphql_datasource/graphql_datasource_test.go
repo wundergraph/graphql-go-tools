@@ -8404,7 +8404,7 @@ func (t *testSubscriptionUpdaterChan) Update(data []byte) {
 }
 
 // empty method to satisfy the interface, not used in this tests
-func (t *testSubscriptionUpdaterChan) UpdateSubscription(id resolve.SubscriptionIdentifier, data []byte) {
+func (t *testSubscriptionUpdaterChan) UpdateSubscription(ctx *resolve.Context, id resolve.SubscriptionIdentifier, data []byte) {
 }
 
 // empty method to satisfy the interface, not used in this tests
@@ -8412,8 +8412,8 @@ func (t *testSubscriptionUpdaterChan) CloseSubscription(kind resolve.Subscriptio
 }
 
 // empty method to satisfy the interface, not used in this tests
-func (t *testSubscriptionUpdaterChan) Subscriptions() map[context.Context]resolve.SubscriptionIdentifier {
-	return make(map[context.Context]resolve.SubscriptionIdentifier)
+func (t *testSubscriptionUpdaterChan) Subscriptions() map[*resolve.Context]resolve.SubscriptionIdentifier {
+	return make(map[*resolve.Context]resolve.SubscriptionIdentifier)
 }
 
 func (t *testSubscriptionUpdaterChan) Complete() {
@@ -8546,12 +8546,12 @@ func (t *testSubscriptionUpdater) CloseSubscription(kind resolve.SubscriptionClo
 }
 
 // empty method to satisfy the interface, not used in this tests
-func (t *testSubscriptionUpdater) Subscriptions() map[context.Context]resolve.SubscriptionIdentifier {
-	return make(map[context.Context]resolve.SubscriptionIdentifier)
+func (t *testSubscriptionUpdater) Subscriptions() map[*resolve.Context]resolve.SubscriptionIdentifier {
+	return make(map[*resolve.Context]resolve.SubscriptionIdentifier)
 }
 
 // empty method to satisfy the interface, not used in this tests
-func (t *testSubscriptionUpdater) UpdateSubscription(id resolve.SubscriptionIdentifier, data []byte) {
+func (t *testSubscriptionUpdater) UpdateSubscription(ctx *resolve.Context, id resolve.SubscriptionIdentifier, data []byte) {
 }
 
 func TestSubscriptionSource_Start(t *testing.T) {
