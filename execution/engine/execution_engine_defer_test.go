@@ -11,340 +11,13 @@ import (
 )
 
 func TestExecutionEngine_Execute_Defer(t *testing.T) {
-
-	runDeferTests := func(t *testing.T, definition string, dataSources []plan.DataSource) {
-		t.Helper()
-
-		schema, err := graphql.NewSchemaFromString(definition)
-		require.NoError(t, err)
-
-		t.Run("single deffered field", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
-			schema: schema,
-			operation: func(t *testing.T) graphql.Request {
-				return graphql.Request{
-					OperationName: "DeferUserTitle",
-					Query: `
-						query DeferUserTitle {
-							user {
-								name
-								... @defer {
-									title
-								}
-							}
-						}`,
-				}
-			},
-			dataSources: dataSources,
-			expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
-{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":false}
-`,
-		}, withStreamingResponse()))
-
-		t.Run("single deffered field between regular fields", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
-			schema: schema,
-			operation: func(t *testing.T) graphql.Request {
-				return graphql.Request{
-					OperationName: "DeferUserTitle",
-					Query: `
-						query DeferUserTitle {
-							user {
-								title
-								... @defer {
-									name
-								}
-								id
-							}
-						}`,
-				}
-			},
-			dataSources: dataSources,
-			expectedResponse: `{"data":{"user":{"title":"Sabbat","id":"1"}},"hasNext":true}
-{"incremental":[{"data":{"name":"Black"},"path":["user"]}],"hasNext":false}
-`,
-		}, withStreamingResponse()))
-
-		t.Run("multiple deffered fields", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
-			schema: schema,
-			operation: func(t *testing.T) graphql.Request {
-				return graphql.Request{
-					OperationName: "DeferUserTitle",
-					Query: `
-						query DeferUserTitle {
-							user {
-								name
-								... @defer {
-									title
-									id
-								}
-							}
-						}`,
-				}
-			},
-			dataSources: dataSources,
-			expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
-{"incremental":[{"data":{"title":"Sabbat","id":"1"},"path":["user"]}],"hasNext":false}
-`,
-		}, withStreamingResponse()))
-
-		t.Run("multiple deffered fields - all object fields deferred", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
-			schema: schema,
-			operation: func(t *testing.T) graphql.Request {
-				return graphql.Request{
-					OperationName: "DeferUserTitle",
-					Query: `
-						query DeferUserTitle {
-							user {
-								... @defer {
-									name
-									title
-									id
-								}
-							}
-						}`,
-				}
-			},
-			dataSources: dataSources,
-			expectedResponse: `{"data":{"user":{}},"hasNext":true}
-{"incremental":[{"data":{"name":"Black","title":"Sabbat","id":"1"},"path":["user"]}],"hasNext":false}
-`,
-		}, withStreamingResponse()))
-
-		t.Run("nested defers", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
-			schema: schema,
-			operation: func(t *testing.T) graphql.Request {
-				return graphql.Request{
-					OperationName: "DeferUserTitle",
-					Query: `
-						query DeferUserTitle {
-							user {
-								name
-								... @defer {
-									title
-									... @defer {
-										id
-									}
-								}
-							}
-						}`,
-				}
-			},
-			dataSources: dataSources,
-			expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
-{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"id":"1"},"path":["user"]}],"hasNext":false}
-`,
-		}, withStreamingResponse()))
-
-		t.Run("nested defers variation", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
-			schema: schema,
-			operation: func(t *testing.T) graphql.Request {
-				return graphql.Request{
-					OperationName: "DeferUserNameTitle",
-					Query: `
-						query DeferUserNameTitle {
-							user {
-								... @defer {
-									name
-									... @defer { title }
-								}
-							}
-						}`,
-				}
-			},
-			dataSources: dataSources,
-			expectedResponse: `{"data":{"user":{}},"hasNext":true}
-{"incremental":[{"data":{"name":"Black"},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":false}
-`,
-		}, withStreamingResponse()))
-
-		t.Run("parallel defers", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
-			schema: schema,
-			operation: func(t *testing.T) graphql.Request {
-				return graphql.Request{
-					OperationName: "DeferUserTitle",
-					Query: `
-						query DeferUserTitle {
-							user {
-								name
-								... @defer {
-									title
-								}
-								... @defer {
-									id
-								}
-							}
-						}`,
-				}
-			},
-			dataSources: dataSources,
-			expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
-{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"id":"1"},"path":["user"]}],"hasNext":false}
-`,
-		}, withStreamingResponse()))
-
-		t.Run("defer nested object", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
-			schema: schema,
-			operation: func(t *testing.T) graphql.Request {
-				return graphql.Request{
-					OperationName: "DeferUserTitle",
-					Query: `
-						query DeferUserTitle {
-							user {
-								name
-								... @defer {
-									info {
-										email
-										phone
-									}
-								}
-							}
-						}`,
-				}
-			},
-			dataSources: dataSources,
-			expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
-{"incremental":[{"data":{"info":{"email":"black@sabbat","phone":"123"}},"path":["user"]}],"hasNext":false}
-`,
-		}, withStreamingResponse()))
-
-		t.Run("defer nested object with duplicated non defered object", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
-			schema: schema,
-			operation: func(t *testing.T) graphql.Request {
-				return graphql.Request{
-					OperationName: "DeferUserTitle",
-					Query: `
-						query DeferUserTitle {
-							user {
-								name
-								info {
-									email
-								}
-								... @defer {
-									info {
-										phone
-									}
-									title
-								}
-							}
-						}`,
-				}
-			},
-			dataSources: dataSources,
-			expectedResponse: `{"data":{"user":{"name":"Black","info":{"email":"black@sabbat"}}},"hasNext":true}
-{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]},{"data":{"phone":"123"},"path":["user","info"]}],"hasNext":false}
-`,
-		}, withStreamingResponse()))
-
-		t.Run("defer nested object fields", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
-			schema: schema,
-			operation: func(t *testing.T) graphql.Request {
-				return graphql.Request{
-					OperationName: "DeferUserTitle",
-					Query: `
-						query DeferUserTitle {
-							user {
-								name
-								info {
-									... @defer {
-										email
-										phone
-									}
-								}
-							}
-						}`,
-				}
-			},
-			dataSources: dataSources,
-			expectedResponse: `{"data":{"user":{"name":"Black","info":{}}},"hasNext":true}
-{"incremental":[{"data":{"email":"black@sabbat","phone":"123"},"path":["user","info"]}],"hasNext":false}
-`,
-		}, withStreamingResponse()))
-
-		t.Run("extensive parallel defers across all possible fields", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
-			schema: schema,
-			operation: func(t *testing.T) graphql.Request {
-				return graphql.Request{
-					OperationName: "DeferEverythingParallel",
-					Query: `
-						query DeferEverythingParallel {
-							... @defer {
-								user {
-									... @defer { id }
-									... @defer { name }
-									... @defer { title }
-									... @defer {
-										info {
-											... @defer { email }
-											... @defer { phone }
-										}
-									}
-								}
-							}
-						}`,
-				}
-			},
-			dataSources: dataSources,
-			expectedResponse: `{"data":{},"hasNext":true}
-{"incremental":[{"data":{"user":{}},"path":[]}],"hasNext":true}
-{"incremental":[{"data":{"id":"1"},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"name":"Black"},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"info":{}},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"email":"black@sabbat"},"path":["user","info"]}],"hasNext":true}
-{"incremental":[{"data":{"phone":"123"},"path":["user","info"]}],"hasNext":false}
-`,
-		}, withStreamingResponse()))
-
-		t.Run("extensive fully nested defers across all possible fields", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
-			schema: schema,
-			operation: func(t *testing.T) graphql.Request {
-				return graphql.Request{
-					OperationName: "DeferEverythingNested",
-					Query: `
-						query DeferEverythingNested {
-							... @defer {
-								user {
-									... @defer {
-										id
-										... @defer {
-											name
-											... @defer {
-												title
-												... @defer {
-													info {
-														... @defer {
-															email
-															... @defer {
-																phone
-															}
-														}
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						}`,
-				}
-			},
-			dataSources: dataSources,
-			expectedResponse: `{"data":{},"hasNext":true}
-{"incremental":[{"data":{"user":{}},"path":[]}],"hasNext":true}
-{"incremental":[{"data":{"id":"1"},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"name":"Black"},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"info":{}},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"email":"black@sabbat"},"path":["user","info"]}],"hasNext":true}
-{"incremental":[{"data":{"phone":"123"},"path":["user","info"]}],"hasNext":false}
-`,
-		}, withStreamingResponse()))
+	type TestCase struct {
+		name        string
+		definition  string
+		dataSources []plan.DataSource
 	}
 
-	t.Run("simple - defer on non entity field", func(t *testing.T) {
-
+	makeRootNodesTestCase := func() TestCase {
 		definition := `
 				type User {
 					id: ID!
@@ -461,11 +134,14 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			),
 		}
 
-		runDeferTests(t, definition, dataSources)
-	})
+		return TestCase{
+			name:        "defer on non entity field",
+			definition:  definition,
+			dataSources: dataSources,
+		}
+	}
 
-	t.Run("entity - distributed fields", func(t *testing.T) {
-
+	makeEntityTestCase := func() TestCase {
 		definition := `
 				type User {
 					id: ID!
@@ -689,6 +365,347 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			),
 		}
 
-		runDeferTests(t, definition, dataSources)
-	})
+		return TestCase{
+			name:        "entity - distributed fields",
+			definition:  definition,
+			dataSources: dataSources,
+		}
+	}
+
+	testCases := []TestCase{
+		makeRootNodesTestCase(),
+		makeEntityTestCase(),
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+
+			schema, err := graphql.NewSchemaFromString(tc.definition)
+			require.NoError(t, err)
+
+			t.Run("single deffered field", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "DeferUserTitle",
+						Query: `
+						query DeferUserTitle {
+							user {
+								name
+								... @defer {
+									title
+								}
+							}
+						}`,
+					}
+				},
+				dataSources: tc.dataSources,
+				expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("single deffered field between regular fields", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "DeferUserTitle",
+						Query: `
+						query DeferUserTitle {
+							user {
+								title
+								... @defer {
+									name
+								}
+								id
+							}
+						}`,
+					}
+				},
+				dataSources: tc.dataSources,
+				expectedResponse: `{"data":{"user":{"title":"Sabbat","id":"1"}},"hasNext":true}
+{"incremental":[{"data":{"name":"Black"},"path":["user"]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("multiple deffered fields", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "DeferUserTitle",
+						Query: `
+						query DeferUserTitle {
+							user {
+								name
+								... @defer {
+									title
+									id
+								}
+							}
+						}`,
+					}
+				},
+				dataSources: tc.dataSources,
+				expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat","id":"1"},"path":["user"]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("multiple deffered fields - all object fields deferred", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "DeferUserTitle",
+						Query: `
+						query DeferUserTitle {
+							user {
+								... @defer {
+									name
+									title
+									id
+								}
+							}
+						}`,
+					}
+				},
+				dataSources: tc.dataSources,
+				expectedResponse: `{"data":{"user":{}},"hasNext":true}
+{"incremental":[{"data":{"name":"Black","title":"Sabbat","id":"1"},"path":["user"]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("nested defers", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "DeferUserTitle",
+						Query: `
+						query DeferUserTitle {
+							user {
+								name
+								... @defer {
+									title
+									... @defer {
+										id
+									}
+								}
+							}
+						}`,
+					}
+				},
+				dataSources: tc.dataSources,
+				expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"id":"1"},"path":["user"]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("nested defers variation", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "DeferUserNameTitle",
+						Query: `
+						query DeferUserNameTitle {
+							user {
+								... @defer {
+									name
+									... @defer { title }
+								}
+							}
+						}`,
+					}
+				},
+				dataSources: tc.dataSources,
+				expectedResponse: `{"data":{"user":{}},"hasNext":true}
+{"incremental":[{"data":{"name":"Black"},"path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("parallel defers", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "DeferUserTitle",
+						Query: `
+						query DeferUserTitle {
+							user {
+								name
+								... @defer {
+									title
+								}
+								... @defer {
+									id
+								}
+							}
+						}`,
+					}
+				},
+				dataSources: tc.dataSources,
+				expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"id":"1"},"path":["user"]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("defer nested object", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "DeferUserTitle",
+						Query: `
+						query DeferUserTitle {
+							user {
+								name
+								... @defer {
+									info {
+										email
+										phone
+									}
+								}
+							}
+						}`,
+					}
+				},
+				dataSources: tc.dataSources,
+				expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
+{"incremental":[{"data":{"info":{"email":"black@sabbat","phone":"123"}},"path":["user"]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("defer nested object with duplicated non defered object", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "DeferUserTitle",
+						Query: `
+						query DeferUserTitle {
+							user {
+								name
+								info {
+									email
+								}
+								... @defer {
+									info {
+										phone
+									}
+									title
+								}
+							}
+						}`,
+					}
+				},
+				dataSources: tc.dataSources,
+				expectedResponse: `{"data":{"user":{"name":"Black","info":{"email":"black@sabbat"}}},"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]},{"data":{"phone":"123"},"path":["user","info"]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("defer nested object fields", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "DeferUserTitle",
+						Query: `
+						query DeferUserTitle {
+							user {
+								name
+								info {
+									... @defer {
+										email
+										phone
+									}
+								}
+							}
+						}`,
+					}
+				},
+				dataSources: tc.dataSources,
+				expectedResponse: `{"data":{"user":{"name":"Black","info":{}}},"hasNext":true}
+{"incremental":[{"data":{"email":"black@sabbat","phone":"123"},"path":["user","info"]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("extensive parallel defers across all possible fields", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "DeferEverythingParallel",
+						Query: `
+						query DeferEverythingParallel {
+							... @defer {
+								user {
+									... @defer { id }
+									... @defer { name }
+									... @defer { title }
+									... @defer {
+										info {
+											... @defer { email }
+											... @defer { phone }
+										}
+									}
+								}
+							}
+						}`,
+					}
+				},
+				dataSources: tc.dataSources,
+				expectedResponse: `{"data":{},"hasNext":true}
+{"incremental":[{"data":{"user":{}},"path":[]}],"hasNext":true}
+{"incremental":[{"data":{"id":"1"},"path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"name":"Black"},"path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"info":{}},"path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"email":"black@sabbat"},"path":["user","info"]}],"hasNext":true}
+{"incremental":[{"data":{"phone":"123"},"path":["user","info"]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("extensive fully nested defers across all possible fields", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "DeferEverythingNested",
+						Query: `
+						query DeferEverythingNested {
+							... @defer {
+								user {
+									... @defer {
+										id
+										... @defer {
+											name
+											... @defer {
+												title
+												... @defer {
+													info {
+														... @defer {
+															email
+															... @defer {
+																phone
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}`,
+					}
+				},
+				dataSources: tc.dataSources,
+				expectedResponse: `{"data":{},"hasNext":true}
+{"incremental":[{"data":{"user":{}},"path":[]}],"hasNext":true}
+{"incremental":[{"data":{"id":"1"},"path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"name":"Black"},"path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"info":{}},"path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"email":"black@sabbat"},"path":["user","info"]}],"hasNext":true}
+{"incremental":[{"data":{"phone":"123"},"path":["user","info"]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+		})
+	}
 }
