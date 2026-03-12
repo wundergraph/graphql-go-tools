@@ -83,7 +83,12 @@ func createConditionalTestRoundTripper(t *testing.T, testCase conditionalTestCas
 		require.NoError(t, err)
 		defer req.Body.Close()
 
-		require.Containsf(t, testCase.responses, string(gotBody), "received unexpected body: %v", string(gotBody))
+		if !assert.Containsf(t, testCase.responses, string(gotBody), "received unexpected body: %v", string(gotBody)) {
+			return &http.Response{
+				StatusCode: 400,
+				Body:       io.NopCloser(bytes.NewBuffer([]byte("received unexpected body"))),
+			}
+		}
 		response := testCase.responses[string(gotBody)]
 		return &http.Response{
 			StatusCode: response.statusCode,
