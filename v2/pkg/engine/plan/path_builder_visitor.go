@@ -604,6 +604,51 @@ func (c *pathBuilderVisitor) LeaveField(ref int) {
 	})
 }
 
+func (c *pathBuilderVisitor) haveChildFieldsToPlan(field *currentFieldInfo) bool {
+	nodeId := field.suggestion.treeNodeID()
+
+	node, ok := c.nodeSuggestions.responseTree.Find(nodeId)
+	if !ok {
+		return false
+	}
+
+	children := treeNodeChildren(node)
+
+	result := slices.ContainsFunc(children, func(child int) bool {
+		childNode := c.nodeSuggestions.items[child]
+
+		if childNode.DataSourceHash != field.ds.Hash() {
+			return false
+		}
+
+		if !childNode.Selected {
+			return false
+		}
+
+		if field.deferID == "" {
+			if childNode.deferInfo != nil {
+				return false
+			}
+		} else {
+			isDeferParentPath := childNode.deferParentPath && slices.Contains(childNode.deferIDs, field.deferID)
+
+			if childNode.deferInfo == nil {
+				if !isDeferParentPath {
+					return false
+				}
+			} else {
+				if childNode.deferInfo.ID != field.deferID && !isDeferParentPath {
+					return false
+				}
+			}
+		}
+
+		return true
+	})
+
+	return result
+}
+
 func (c *pathBuilderVisitor) handlePlanningField(field *currentFieldInfo) {
 	plannedOnPlannerIds := c.fieldsPlannedOn[field.fieldRef]
 
@@ -613,6 +658,10 @@ func (c *pathBuilderVisitor) handlePlanningField(field *currentFieldInfo) {
 		// when we have already planned the field on the same datasource as was suggested
 		// we do not need to try to plan it again
 		// if there will be multiple suggestions for the same field, they will be on a different datasources
+		return
+	}
+
+	if !field.suggestion.IsLeaf && !c.haveChildFieldsToPlan(field) {
 		return
 	}
 
