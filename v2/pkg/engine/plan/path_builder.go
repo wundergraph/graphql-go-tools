@@ -144,7 +144,14 @@ func (p *PathBuilder) printRevisitInfo() {
 		fmt.Println("\n  Fields waiting for dependency:")
 
 		for fieldKey, deps := range p.visitor.fieldDependsOn {
-			fmt.Printf("    Field ref: %d ds: %d depends on fields: %v\n", fieldKey.fieldRef, fieldKey.dsHash, deps)
+			fmt.Printf("    Field: %s ref: %d ds: %d depends on fields: ", p.visitor.operation.FieldAliasOrNameString(fieldKey.fieldRef), fieldKey.fieldRef, fieldKey.dsHash)
+			for i, depFieldRef := range deps {
+				fmt.Printf("field: %s ref: %d ", p.visitor.operation.FieldAliasOrNameString(depFieldRef), depFieldRef)
+				if len(deps) > 1 && i < len(deps)-1 {
+					fmt.Printf(", ")
+				}
+			}
+			fmt.Println()
 		}
 	}
 }
