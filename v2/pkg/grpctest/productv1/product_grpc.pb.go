@@ -79,15 +79,19 @@ const (
 	ProductService_RequireStorageStockHealthScoreById_FullMethodName          = "/productv1.ProductService/RequireStorageStockHealthScoreById"
 	ProductService_RequireStorageTagSummaryById_FullMethodName                = "/productv1.ProductService/RequireStorageTagSummaryById"
 	ProductService_RequireWarehouseStockHealthScoreById_FullMethodName        = "/productv1.ProductService/RequireWarehouseStockHealthScoreById"
+	ProductService_ResolveCategoryActiveSubcategories_FullMethodName          = "/productv1.ProductService/ResolveCategoryActiveSubcategories"
 	ProductService_ResolveCategoryCategoryMetrics_FullMethodName              = "/productv1.ProductService/ResolveCategoryCategoryMetrics"
 	ProductService_ResolveCategoryCategoryStatus_FullMethodName               = "/productv1.ProductService/ResolveCategoryCategoryStatus"
 	ProductService_ResolveCategoryChildCategories_FullMethodName              = "/productv1.ProductService/ResolveCategoryChildCategories"
 	ProductService_ResolveCategoryMascot_FullMethodName                       = "/productv1.ProductService/ResolveCategoryMascot"
+	ProductService_ResolveCategoryMetricsAverageScore_FullMethodName          = "/productv1.ProductService/ResolveCategoryMetricsAverageScore"
 	ProductService_ResolveCategoryMetricsNormalizedScore_FullMethodName       = "/productv1.ProductService/ResolveCategoryMetricsNormalizedScore"
 	ProductService_ResolveCategoryMetricsRelatedCategory_FullMethodName       = "/productv1.ProductService/ResolveCategoryMetricsRelatedCategory"
 	ProductService_ResolveCategoryOptionalCategories_FullMethodName           = "/productv1.ProductService/ResolveCategoryOptionalCategories"
 	ProductService_ResolveCategoryPopularityScore_FullMethodName              = "/productv1.ProductService/ResolveCategoryPopularityScore"
 	ProductService_ResolveCategoryProductCount_FullMethodName                 = "/productv1.ProductService/ResolveCategoryProductCount"
+	ProductService_ResolveCategoryTopSubcategory_FullMethodName               = "/productv1.ProductService/ResolveCategoryTopSubcategory"
+	ProductService_ResolveCategoryTotalProducts_FullMethodName                = "/productv1.ProductService/ResolveCategoryTotalProducts"
 	ProductService_ResolveProductMascotRecommendation_FullMethodName          = "/productv1.ProductService/ResolveProductMascotRecommendation"
 	ProductService_ResolveProductProductDetails_FullMethodName                = "/productv1.ProductService/ResolveProductProductDetails"
 	ProductService_ResolveProductRecommendedCategory_FullMethodName           = "/productv1.ProductService/ResolveProductRecommendedCategory"
@@ -98,6 +102,7 @@ const (
 	ProductService_ResolveStorageStorageStatus_FullMethodName                 = "/productv1.ProductService/ResolveStorageStorageStatus"
 	ProductService_ResolveSubcategoryFeaturedCategory_FullMethodName          = "/productv1.ProductService/ResolveSubcategoryFeaturedCategory"
 	ProductService_ResolveSubcategoryItemCount_FullMethodName                 = "/productv1.ProductService/ResolveSubcategoryItemCount"
+	ProductService_ResolveSubcategoryParentCategory_FullMethodName            = "/productv1.ProductService/ResolveSubcategoryParentCategory"
 	ProductService_ResolveTestContainerDetails_FullMethodName                 = "/productv1.ProductService/ResolveTestContainerDetails"
 )
 
@@ -170,15 +175,19 @@ type ProductServiceClient interface {
 	RequireStorageStockHealthScoreById(ctx context.Context, in *RequireStorageStockHealthScoreByIdRequest, opts ...grpc.CallOption) (*RequireStorageStockHealthScoreByIdResponse, error)
 	RequireStorageTagSummaryById(ctx context.Context, in *RequireStorageTagSummaryByIdRequest, opts ...grpc.CallOption) (*RequireStorageTagSummaryByIdResponse, error)
 	RequireWarehouseStockHealthScoreById(ctx context.Context, in *RequireWarehouseStockHealthScoreByIdRequest, opts ...grpc.CallOption) (*RequireWarehouseStockHealthScoreByIdResponse, error)
+	ResolveCategoryActiveSubcategories(ctx context.Context, in *ResolveCategoryActiveSubcategoriesRequest, opts ...grpc.CallOption) (*ResolveCategoryActiveSubcategoriesResponse, error)
 	ResolveCategoryCategoryMetrics(ctx context.Context, in *ResolveCategoryCategoryMetricsRequest, opts ...grpc.CallOption) (*ResolveCategoryCategoryMetricsResponse, error)
 	ResolveCategoryCategoryStatus(ctx context.Context, in *ResolveCategoryCategoryStatusRequest, opts ...grpc.CallOption) (*ResolveCategoryCategoryStatusResponse, error)
 	ResolveCategoryChildCategories(ctx context.Context, in *ResolveCategoryChildCategoriesRequest, opts ...grpc.CallOption) (*ResolveCategoryChildCategoriesResponse, error)
 	ResolveCategoryMascot(ctx context.Context, in *ResolveCategoryMascotRequest, opts ...grpc.CallOption) (*ResolveCategoryMascotResponse, error)
+	ResolveCategoryMetricsAverageScore(ctx context.Context, in *ResolveCategoryMetricsAverageScoreRequest, opts ...grpc.CallOption) (*ResolveCategoryMetricsAverageScoreResponse, error)
 	ResolveCategoryMetricsNormalizedScore(ctx context.Context, in *ResolveCategoryMetricsNormalizedScoreRequest, opts ...grpc.CallOption) (*ResolveCategoryMetricsNormalizedScoreResponse, error)
 	ResolveCategoryMetricsRelatedCategory(ctx context.Context, in *ResolveCategoryMetricsRelatedCategoryRequest, opts ...grpc.CallOption) (*ResolveCategoryMetricsRelatedCategoryResponse, error)
 	ResolveCategoryOptionalCategories(ctx context.Context, in *ResolveCategoryOptionalCategoriesRequest, opts ...grpc.CallOption) (*ResolveCategoryOptionalCategoriesResponse, error)
 	ResolveCategoryPopularityScore(ctx context.Context, in *ResolveCategoryPopularityScoreRequest, opts ...grpc.CallOption) (*ResolveCategoryPopularityScoreResponse, error)
 	ResolveCategoryProductCount(ctx context.Context, in *ResolveCategoryProductCountRequest, opts ...grpc.CallOption) (*ResolveCategoryProductCountResponse, error)
+	ResolveCategoryTopSubcategory(ctx context.Context, in *ResolveCategoryTopSubcategoryRequest, opts ...grpc.CallOption) (*ResolveCategoryTopSubcategoryResponse, error)
+	ResolveCategoryTotalProducts(ctx context.Context, in *ResolveCategoryTotalProductsRequest, opts ...grpc.CallOption) (*ResolveCategoryTotalProductsResponse, error)
 	ResolveProductMascotRecommendation(ctx context.Context, in *ResolveProductMascotRecommendationRequest, opts ...grpc.CallOption) (*ResolveProductMascotRecommendationResponse, error)
 	ResolveProductProductDetails(ctx context.Context, in *ResolveProductProductDetailsRequest, opts ...grpc.CallOption) (*ResolveProductProductDetailsResponse, error)
 	ResolveProductRecommendedCategory(ctx context.Context, in *ResolveProductRecommendedCategoryRequest, opts ...grpc.CallOption) (*ResolveProductRecommendedCategoryResponse, error)
@@ -189,6 +198,7 @@ type ProductServiceClient interface {
 	ResolveStorageStorageStatus(ctx context.Context, in *ResolveStorageStorageStatusRequest, opts ...grpc.CallOption) (*ResolveStorageStorageStatusResponse, error)
 	ResolveSubcategoryFeaturedCategory(ctx context.Context, in *ResolveSubcategoryFeaturedCategoryRequest, opts ...grpc.CallOption) (*ResolveSubcategoryFeaturedCategoryResponse, error)
 	ResolveSubcategoryItemCount(ctx context.Context, in *ResolveSubcategoryItemCountRequest, opts ...grpc.CallOption) (*ResolveSubcategoryItemCountResponse, error)
+	ResolveSubcategoryParentCategory(ctx context.Context, in *ResolveSubcategoryParentCategoryRequest, opts ...grpc.CallOption) (*ResolveSubcategoryParentCategoryResponse, error)
 	ResolveTestContainerDetails(ctx context.Context, in *ResolveTestContainerDetailsRequest, opts ...grpc.CallOption) (*ResolveTestContainerDetailsResponse, error)
 }
 
@@ -800,6 +810,16 @@ func (c *productServiceClient) RequireWarehouseStockHealthScoreById(ctx context.
 	return out, nil
 }
 
+func (c *productServiceClient) ResolveCategoryActiveSubcategories(ctx context.Context, in *ResolveCategoryActiveSubcategoriesRequest, opts ...grpc.CallOption) (*ResolveCategoryActiveSubcategoriesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveCategoryActiveSubcategoriesResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveCategoryActiveSubcategories_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *productServiceClient) ResolveCategoryCategoryMetrics(ctx context.Context, in *ResolveCategoryCategoryMetricsRequest, opts ...grpc.CallOption) (*ResolveCategoryCategoryMetricsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ResolveCategoryCategoryMetricsResponse)
@@ -834,6 +854,16 @@ func (c *productServiceClient) ResolveCategoryMascot(ctx context.Context, in *Re
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ResolveCategoryMascotResponse)
 	err := c.cc.Invoke(ctx, ProductService_ResolveCategoryMascot_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) ResolveCategoryMetricsAverageScore(ctx context.Context, in *ResolveCategoryMetricsAverageScoreRequest, opts ...grpc.CallOption) (*ResolveCategoryMetricsAverageScoreResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveCategoryMetricsAverageScoreResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveCategoryMetricsAverageScore_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -884,6 +914,26 @@ func (c *productServiceClient) ResolveCategoryProductCount(ctx context.Context, 
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ResolveCategoryProductCountResponse)
 	err := c.cc.Invoke(ctx, ProductService_ResolveCategoryProductCount_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) ResolveCategoryTopSubcategory(ctx context.Context, in *ResolveCategoryTopSubcategoryRequest, opts ...grpc.CallOption) (*ResolveCategoryTopSubcategoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveCategoryTopSubcategoryResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveCategoryTopSubcategory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) ResolveCategoryTotalProducts(ctx context.Context, in *ResolveCategoryTotalProductsRequest, opts ...grpc.CallOption) (*ResolveCategoryTotalProductsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveCategoryTotalProductsResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveCategoryTotalProducts_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -990,6 +1040,16 @@ func (c *productServiceClient) ResolveSubcategoryItemCount(ctx context.Context, 
 	return out, nil
 }
 
+func (c *productServiceClient) ResolveSubcategoryParentCategory(ctx context.Context, in *ResolveSubcategoryParentCategoryRequest, opts ...grpc.CallOption) (*ResolveSubcategoryParentCategoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveSubcategoryParentCategoryResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveSubcategoryParentCategory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *productServiceClient) ResolveTestContainerDetails(ctx context.Context, in *ResolveTestContainerDetailsRequest, opts ...grpc.CallOption) (*ResolveTestContainerDetailsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ResolveTestContainerDetailsResponse)
@@ -1069,15 +1129,19 @@ type ProductServiceServer interface {
 	RequireStorageStockHealthScoreById(context.Context, *RequireStorageStockHealthScoreByIdRequest) (*RequireStorageStockHealthScoreByIdResponse, error)
 	RequireStorageTagSummaryById(context.Context, *RequireStorageTagSummaryByIdRequest) (*RequireStorageTagSummaryByIdResponse, error)
 	RequireWarehouseStockHealthScoreById(context.Context, *RequireWarehouseStockHealthScoreByIdRequest) (*RequireWarehouseStockHealthScoreByIdResponse, error)
+	ResolveCategoryActiveSubcategories(context.Context, *ResolveCategoryActiveSubcategoriesRequest) (*ResolveCategoryActiveSubcategoriesResponse, error)
 	ResolveCategoryCategoryMetrics(context.Context, *ResolveCategoryCategoryMetricsRequest) (*ResolveCategoryCategoryMetricsResponse, error)
 	ResolveCategoryCategoryStatus(context.Context, *ResolveCategoryCategoryStatusRequest) (*ResolveCategoryCategoryStatusResponse, error)
 	ResolveCategoryChildCategories(context.Context, *ResolveCategoryChildCategoriesRequest) (*ResolveCategoryChildCategoriesResponse, error)
 	ResolveCategoryMascot(context.Context, *ResolveCategoryMascotRequest) (*ResolveCategoryMascotResponse, error)
+	ResolveCategoryMetricsAverageScore(context.Context, *ResolveCategoryMetricsAverageScoreRequest) (*ResolveCategoryMetricsAverageScoreResponse, error)
 	ResolveCategoryMetricsNormalizedScore(context.Context, *ResolveCategoryMetricsNormalizedScoreRequest) (*ResolveCategoryMetricsNormalizedScoreResponse, error)
 	ResolveCategoryMetricsRelatedCategory(context.Context, *ResolveCategoryMetricsRelatedCategoryRequest) (*ResolveCategoryMetricsRelatedCategoryResponse, error)
 	ResolveCategoryOptionalCategories(context.Context, *ResolveCategoryOptionalCategoriesRequest) (*ResolveCategoryOptionalCategoriesResponse, error)
 	ResolveCategoryPopularityScore(context.Context, *ResolveCategoryPopularityScoreRequest) (*ResolveCategoryPopularityScoreResponse, error)
 	ResolveCategoryProductCount(context.Context, *ResolveCategoryProductCountRequest) (*ResolveCategoryProductCountResponse, error)
+	ResolveCategoryTopSubcategory(context.Context, *ResolveCategoryTopSubcategoryRequest) (*ResolveCategoryTopSubcategoryResponse, error)
+	ResolveCategoryTotalProducts(context.Context, *ResolveCategoryTotalProductsRequest) (*ResolveCategoryTotalProductsResponse, error)
 	ResolveProductMascotRecommendation(context.Context, *ResolveProductMascotRecommendationRequest) (*ResolveProductMascotRecommendationResponse, error)
 	ResolveProductProductDetails(context.Context, *ResolveProductProductDetailsRequest) (*ResolveProductProductDetailsResponse, error)
 	ResolveProductRecommendedCategory(context.Context, *ResolveProductRecommendedCategoryRequest) (*ResolveProductRecommendedCategoryResponse, error)
@@ -1088,6 +1152,7 @@ type ProductServiceServer interface {
 	ResolveStorageStorageStatus(context.Context, *ResolveStorageStorageStatusRequest) (*ResolveStorageStorageStatusResponse, error)
 	ResolveSubcategoryFeaturedCategory(context.Context, *ResolveSubcategoryFeaturedCategoryRequest) (*ResolveSubcategoryFeaturedCategoryResponse, error)
 	ResolveSubcategoryItemCount(context.Context, *ResolveSubcategoryItemCountRequest) (*ResolveSubcategoryItemCountResponse, error)
+	ResolveSubcategoryParentCategory(context.Context, *ResolveSubcategoryParentCategoryRequest) (*ResolveSubcategoryParentCategoryResponse, error)
 	ResolveTestContainerDetails(context.Context, *ResolveTestContainerDetailsRequest) (*ResolveTestContainerDetailsResponse, error)
 	mustEmbedUnimplementedProductServiceServer()
 }
@@ -1279,6 +1344,9 @@ func (UnimplementedProductServiceServer) RequireStorageTagSummaryById(context.Co
 func (UnimplementedProductServiceServer) RequireWarehouseStockHealthScoreById(context.Context, *RequireWarehouseStockHealthScoreByIdRequest) (*RequireWarehouseStockHealthScoreByIdResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RequireWarehouseStockHealthScoreById not implemented")
 }
+func (UnimplementedProductServiceServer) ResolveCategoryActiveSubcategories(context.Context, *ResolveCategoryActiveSubcategoriesRequest) (*ResolveCategoryActiveSubcategoriesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResolveCategoryActiveSubcategories not implemented")
+}
 func (UnimplementedProductServiceServer) ResolveCategoryCategoryMetrics(context.Context, *ResolveCategoryCategoryMetricsRequest) (*ResolveCategoryCategoryMetricsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ResolveCategoryCategoryMetrics not implemented")
 }
@@ -1290,6 +1358,9 @@ func (UnimplementedProductServiceServer) ResolveCategoryChildCategories(context.
 }
 func (UnimplementedProductServiceServer) ResolveCategoryMascot(context.Context, *ResolveCategoryMascotRequest) (*ResolveCategoryMascotResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ResolveCategoryMascot not implemented")
+}
+func (UnimplementedProductServiceServer) ResolveCategoryMetricsAverageScore(context.Context, *ResolveCategoryMetricsAverageScoreRequest) (*ResolveCategoryMetricsAverageScoreResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResolveCategoryMetricsAverageScore not implemented")
 }
 func (UnimplementedProductServiceServer) ResolveCategoryMetricsNormalizedScore(context.Context, *ResolveCategoryMetricsNormalizedScoreRequest) (*ResolveCategoryMetricsNormalizedScoreResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ResolveCategoryMetricsNormalizedScore not implemented")
@@ -1305,6 +1376,12 @@ func (UnimplementedProductServiceServer) ResolveCategoryPopularityScore(context.
 }
 func (UnimplementedProductServiceServer) ResolveCategoryProductCount(context.Context, *ResolveCategoryProductCountRequest) (*ResolveCategoryProductCountResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ResolveCategoryProductCount not implemented")
+}
+func (UnimplementedProductServiceServer) ResolveCategoryTopSubcategory(context.Context, *ResolveCategoryTopSubcategoryRequest) (*ResolveCategoryTopSubcategoryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResolveCategoryTopSubcategory not implemented")
+}
+func (UnimplementedProductServiceServer) ResolveCategoryTotalProducts(context.Context, *ResolveCategoryTotalProductsRequest) (*ResolveCategoryTotalProductsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResolveCategoryTotalProducts not implemented")
 }
 func (UnimplementedProductServiceServer) ResolveProductMascotRecommendation(context.Context, *ResolveProductMascotRecommendationRequest) (*ResolveProductMascotRecommendationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ResolveProductMascotRecommendation not implemented")
@@ -1335,6 +1412,9 @@ func (UnimplementedProductServiceServer) ResolveSubcategoryFeaturedCategory(cont
 }
 func (UnimplementedProductServiceServer) ResolveSubcategoryItemCount(context.Context, *ResolveSubcategoryItemCountRequest) (*ResolveSubcategoryItemCountResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ResolveSubcategoryItemCount not implemented")
+}
+func (UnimplementedProductServiceServer) ResolveSubcategoryParentCategory(context.Context, *ResolveSubcategoryParentCategoryRequest) (*ResolveSubcategoryParentCategoryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResolveSubcategoryParentCategory not implemented")
 }
 func (UnimplementedProductServiceServer) ResolveTestContainerDetails(context.Context, *ResolveTestContainerDetailsRequest) (*ResolveTestContainerDetailsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ResolveTestContainerDetails not implemented")
@@ -2440,6 +2520,24 @@ func _ProductService_RequireWarehouseStockHealthScoreById_Handler(srv interface{
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_ResolveCategoryActiveSubcategories_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveCategoryActiveSubcategoriesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveCategoryActiveSubcategories(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveCategoryActiveSubcategories_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveCategoryActiveSubcategories(ctx, req.(*ResolveCategoryActiveSubcategoriesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProductService_ResolveCategoryCategoryMetrics_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ResolveCategoryCategoryMetricsRequest)
 	if err := dec(in); err != nil {
@@ -2508,6 +2606,24 @@ func _ProductService_ResolveCategoryMascot_Handler(srv interface{}, ctx context.
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProductServiceServer).ResolveCategoryMascot(ctx, req.(*ResolveCategoryMascotRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_ResolveCategoryMetricsAverageScore_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveCategoryMetricsAverageScoreRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveCategoryMetricsAverageScore(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveCategoryMetricsAverageScore_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveCategoryMetricsAverageScore(ctx, req.(*ResolveCategoryMetricsAverageScoreRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2598,6 +2714,42 @@ func _ProductService_ResolveCategoryProductCount_Handler(srv interface{}, ctx co
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProductServiceServer).ResolveCategoryProductCount(ctx, req.(*ResolveCategoryProductCountRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_ResolveCategoryTopSubcategory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveCategoryTopSubcategoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveCategoryTopSubcategory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveCategoryTopSubcategory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveCategoryTopSubcategory(ctx, req.(*ResolveCategoryTopSubcategoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_ResolveCategoryTotalProducts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveCategoryTotalProductsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveCategoryTotalProducts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveCategoryTotalProducts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveCategoryTotalProducts(ctx, req.(*ResolveCategoryTotalProductsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2778,6 +2930,24 @@ func _ProductService_ResolveSubcategoryItemCount_Handler(srv interface{}, ctx co
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProductServiceServer).ResolveSubcategoryItemCount(ctx, req.(*ResolveSubcategoryItemCountRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_ResolveSubcategoryParentCategory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveSubcategoryParentCategoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveSubcategoryParentCategory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveSubcategoryParentCategory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveSubcategoryParentCategory(ctx, req.(*ResolveSubcategoryParentCategoryRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -3048,6 +3218,10 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ProductService_RequireWarehouseStockHealthScoreById_Handler,
 		},
 		{
+			MethodName: "ResolveCategoryActiveSubcategories",
+			Handler:    _ProductService_ResolveCategoryActiveSubcategories_Handler,
+		},
+		{
 			MethodName: "ResolveCategoryCategoryMetrics",
 			Handler:    _ProductService_ResolveCategoryCategoryMetrics_Handler,
 		},
@@ -3062,6 +3236,10 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ResolveCategoryMascot",
 			Handler:    _ProductService_ResolveCategoryMascot_Handler,
+		},
+		{
+			MethodName: "ResolveCategoryMetricsAverageScore",
+			Handler:    _ProductService_ResolveCategoryMetricsAverageScore_Handler,
 		},
 		{
 			MethodName: "ResolveCategoryMetricsNormalizedScore",
@@ -3082,6 +3260,14 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ResolveCategoryProductCount",
 			Handler:    _ProductService_ResolveCategoryProductCount_Handler,
+		},
+		{
+			MethodName: "ResolveCategoryTopSubcategory",
+			Handler:    _ProductService_ResolveCategoryTopSubcategory_Handler,
+		},
+		{
+			MethodName: "ResolveCategoryTotalProducts",
+			Handler:    _ProductService_ResolveCategoryTotalProducts_Handler,
 		},
 		{
 			MethodName: "ResolveProductMascotRecommendation",
@@ -3122,6 +3308,10 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ResolveSubcategoryItemCount",
 			Handler:    _ProductService_ResolveSubcategoryItemCount_Handler,
+		},
+		{
+			MethodName: "ResolveSubcategoryParentCategory",
+			Handler:    _ProductService_ResolveSubcategoryParentCategory_Handler,
 		},
 		{
 			MethodName: "ResolveTestContainerDetails",
