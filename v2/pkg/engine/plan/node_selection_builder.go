@@ -121,7 +121,7 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 	}
 
 	if p.config.Debug.PrintOperationTransformations {
-		debugMessage("Selected nodes on run #1 for operation:")
+		debugMessage("SelectNodes. on run #1 operation:")
 		p.printOperation(operation)
 	}
 
@@ -147,7 +147,7 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 		}
 
 		if p.config.Debug.PrintOperationTransformations || p.config.Debug.PrintNodeSuggestions {
-			debugMessage(fmt.Sprintf("Selected nodes on additional run #%d.", i+1))
+			debugMessage(fmt.Sprintf("SelectNodes. on run #%d.", i+1))
 		}
 
 		if p.config.Debug.PrintNodeSuggestions {
