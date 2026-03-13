@@ -7,16 +7,72 @@ package graph
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/accounts/graph/generated"
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/accounts/graph/model"
 )
 
+// UpdateUsername is the resolver for the updateUsername field.
+func (r *mutationResolver) UpdateUsername(ctx context.Context, id string, newUsername string) (*model.User, error) {
+	SetUsername(id, newUsername)
+	return &model.User{
+		ID:       id,
+		Username: newUsername,
+	}, nil
+}
+
 // Me is the resolver for the me field.
 func (r *queryResolver) Me(ctx context.Context) (*model.User, error) {
 	return &model.User{
 		ID:       "1234",
+		Username: GetUsername("1234"),
+		Nickname: "nick-Me",
+		History:  histories,
+		RealName: "User Usington",
+	}, nil
+}
+
+// User is the resolver for the user field.
+func (r *queryResolver) User(ctx context.Context, id string) (*model.User, error) {
+	name := "User " + id
+	if id == "1234" {
+		name = "Me"
+	}
+	return &model.User{
+		ID:       id,
+		Username: name,
+		Nickname: "nick-" + name,
+		RealName: "Real " + name,
+	}, nil
+}
+
+// UserByIDAndName is the resolver for the userByIdAndName field.
+func (r *queryResolver) UserByIDAndName(ctx context.Context, id string, username string) (*model.User, error) {
+	return &model.User{
+		ID:       id,
+		Username: username,
+		Nickname: "nick-" + username,
+	}, nil
+}
+
+// MeInterface is the resolver for the meInterface field.
+func (r *queryResolver) MeInterface(ctx context.Context) (model.Identifiable, error) {
+	return &model.User{
+		ID:       "1234",
 		Username: "Me",
+		Nickname: "nick-Me",
+		History:  histories,
+		RealName: "User Usington",
+	}, nil
+}
+
+// MeUnion is the resolver for the meUnion field.
+func (r *queryResolver) MeUnion(ctx context.Context) (model.MeUnion, error) {
+	return &model.User{
+		ID:       "1234",
+		Username: "Me",
+		Nickname: "nick-Me",
 		History:  histories,
 		RealName: "User Usington",
 	}, nil
@@ -27,6 +83,7 @@ func (r *queryResolver) Identifiable(ctx context.Context) (model.Identifiable, e
 	return &model.User{
 		ID:       "1234",
 		Username: "Me",
+		Nickname: "nick-Me",
 		History:  histories,
 		RealName: "User Usington",
 	}, nil
@@ -211,7 +268,53 @@ func (r *queryResolver) SomeNestedInterfaces(ctx context.Context) ([]model.SomeN
 	}, nil
 }
 
+// Greeting is the resolver for the greeting field.
+func (r *userResolver) Greeting(ctx context.Context, obj *model.User, style string) (string, error) {
+	name := GetUsername(obj.ID)
+	switch style {
+	case "formal":
+		return "Good day, " + name, nil
+	case "casual":
+		return "Hey, " + name + "!", nil
+	case "short":
+		return "Hi " + name, nil
+	default:
+		return "Hello, " + name, nil
+	}
+}
+
+// CustomGreeting is the resolver for the customGreeting field.
+func (r *userResolver) CustomGreeting(ctx context.Context, obj *model.User, input model.GreetingInput) (string, error) {
+	name := GetUsername(obj.ID)
+	var greeting string
+	switch input.Style {
+	case model.GreetingStyleFormal:
+		greeting = "Good day, " + name
+	case model.GreetingStyleCasual:
+		greeting = "Hey, " + name + "!"
+	case model.GreetingStyleShort:
+		greeting = "Hi " + name
+	}
+	if input.Formatting != nil {
+		if input.Formatting.Prefix != nil && *input.Formatting.Prefix != "" {
+			greeting = *input.Formatting.Prefix + " " + greeting
+		}
+		if input.Formatting.Uppercase != nil && *input.Formatting.Uppercase {
+			greeting = strings.ToUpper(greeting)
+		}
+	}
+	return greeting, nil
+}
+
+// Mutation returns generated.MutationResolver implementation.
+func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResolver{r} }
+
 // Query returns generated.QueryResolver implementation.
 func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 
+// User returns generated.UserResolver implementation.
+func (r *Resolver) User() generated.UserResolver { return &userResolver{r} }
+
+type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
+type userResolver struct{ *Resolver }

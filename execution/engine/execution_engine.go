@@ -28,8 +28,9 @@ import (
 )
 
 type internalExecutionContext struct {
-	resolveContext *resolve.Context
-	postProcessor  *postprocess.Processor
+	resolveContext   *resolve.Context
+	postProcessor    *postprocess.Processor
+	cacheStatsOutput *resolve.CacheAnalyticsSnapshot // Optional pointer to capture cache stats after execution
 }
 
 func newInternalExecutionContext() *internalExecutionContext {
@@ -98,6 +99,56 @@ func WithAdditionalHttpHeaders(headers http.Header, excludeByKeys ...string) Exe
 func WithRequestTraceOptions(options resolve.TraceOptions) ExecutionOptions {
 	return func(ctx *internalExecutionContext) {
 		ctx.resolveContext.TracingOptions = options
+	}
+}
+
+func WithSubgraphHeadersBuilder(builder resolve.SubgraphHeadersBuilder) ExecutionOptions {
+	return func(ctx *internalExecutionContext) {
+		ctx.resolveContext.SubgraphHeadersBuilder = builder
+	}
+}
+
+func WithDebugMode() ExecutionOptions {
+	return func(ctx *internalExecutionContext) {
+		ctx.resolveContext.Debug = true
+	}
+}
+
+func WithCachingOptions(options resolve.CachingOptions) ExecutionOptions {
+	return func(ctx *internalExecutionContext) {
+		ctx.resolveContext.ExecutionOptions.Caching = options
+	}
+}
+
+// WithCacheStatsOutput provides a pointer to a CacheAnalyticsSnapshot struct that will be
+// populated with cache statistics after query execution completes.
+// This is useful for monitoring, debugging, and testing cache effectiveness.
+//
+// Example usage:
+//
+//	var stats resolve.CacheAnalyticsSnapshot
+//	err := engine.Execute(ctx, operation, writer, WithCacheStatsOutput(&stats))
+//	if err == nil {
+//	    fmt.Printf("L1 hits: %d, L1 misses: %d\n", stats.L1Hits, stats.L1Misses)
+//	}
+func WithCacheStatsOutput(stats *resolve.CacheAnalyticsSnapshot) ExecutionOptions {
+	return func(ctx *internalExecutionContext) {
+		ctx.cacheStatsOutput = stats
+	}
+}
+
+// WithErrorBehavior sets the error handling behavior for the request.
+// This implements the GraphQL spec proposal for onError (PR #1163).
+//
+// Available behaviors:
+//   - ErrorBehaviorPropagate: Traditional null bubbling (default)
+//   - ErrorBehaviorNull: Errors yield null without bubbling
+//   - ErrorBehaviorHalt: First error stops execution, data becomes null
+//
+// Note: This option only has effect when OnErrorEnabled is true in ResolverOptions.
+func WithErrorBehavior(behavior resolve.ErrorBehavior) ExecutionOptions {
+	return func(ctx *internalExecutionContext) {
+		ctx.resolveContext.ExecutionOptions.ErrorBehavior = behavior
 	}
 }
 
@@ -227,9 +278,17 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 		})
 	}
 
+	// Helper to capture cache stats after execution
+	captureStats := func() {
+		if execContext.cacheStatsOutput != nil {
+			*execContext.cacheStatsOutput = execContext.resolveContext.GetCacheStats()
+		}
+	}
+
 	switch p := cachedPlan.(type) {
 	case *plan.SynchronousResponsePlan:
 		resp, err := e.resolver.ResolveGraphQLResponse(execContext.resolveContext, p.Response, nil, writer)
+		captureStats()
 		if err != nil {
 			return err
 		}
@@ -238,7 +297,9 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 		}
 		return nil
 	case *plan.SubscriptionResponsePlan:
-		return e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer)
+		err := e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer)
+		captureStats()
+		return err
 	default:
 		return errors.New("execution impossible: unknown type of operation")
 	}

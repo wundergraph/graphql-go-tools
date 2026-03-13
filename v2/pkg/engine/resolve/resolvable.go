@@ -62,6 +62,17 @@ type Resolvable struct {
 
 	currentFieldInfo *FieldInfo
 
+	// Entity analytics fields (set during walkObject, used during renderFieldValue)
+	currentEntityAnalytics *ObjectCacheAnalytics // resolved analytics for current entity (nil = not entity)
+	currentEntityTypeName  string                // resolved concrete entity type name
+	currentEntityKeyRaw    string                // raw key JSON (when HashKeys=false)
+	currentEntityKeyHash   uint64                // xxhash of key JSON (when HashKeys=true)
+	currentEntitySource    FieldSource           // where the entity data came from
+
+	// haltExecution is set to true when ErrorBehaviorHalt encounters an error.
+	// Once set, remaining fetches and resolution will be skipped.
+	haltExecution bool
+
 	// actualListSizes maps the JSON path to the list size in the final response.
 	// Used to compute the actual cost of the operation.
 	actualListSizes map[string]int
@@ -104,6 +115,12 @@ func (r *Resolvable) Reset() {
 	r.renameTypeNames = r.renameTypeNames[:0]
 	r.authorizationError = nil
 	r.astjsonArena = nil
+	r.haltExecution = false
+	r.currentEntityAnalytics = nil
+	r.currentEntityTypeName = ""
+	r.currentEntityKeyRaw = ""
+	r.currentEntityKeyHash = 0
+	r.currentEntitySource = FieldSourceSubgraph
 	r.xxh.Reset()
 	for k := range r.authorizationAllow {
 		delete(r.authorizationAllow, k)
@@ -224,6 +241,12 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 	if r.authorizationError != nil {
 		return r.authorizationError
 	}
+
+	// In HALT mode, if we encountered any error, the entire data becomes null
+	if r.haltExecution {
+		hasErrors = true
+	}
+
 	r.printBytes(lBrace)
 	if r.hasErrors() {
 		r.printErrors()
@@ -262,6 +285,33 @@ func (r *Resolvable) enclosingTypeName() string {
 
 func (r *Resolvable) err() bool {
 	return true
+}
+
+// handleNonNullableError handles the error behavior for non-nullable field errors.
+// Returns true if the error should propagate (bubble up), false if it should stop here.
+func (r *Resolvable) handleNonNullableError() bool {
+	// If ctx is nil (e.g., during variable rendering), default to PROPAGATE behavior
+	if r.ctx == nil {
+		return true
+	}
+
+	switch r.ctx.ExecutionOptions.ErrorBehavior {
+	case ErrorBehaviorNull:
+		// NULL mode: don't propagate, the field becomes null even if non-nullable
+		return false
+	case ErrorBehaviorHalt:
+		// HALT mode: stop execution entirely, propagate the error
+		r.haltExecution = true
+		return true
+	default:
+		// PROPAGATE mode (default): traditional null bubbling
+		return true
+	}
+}
+
+// HaltExecution returns true if execution should be halted (HALT mode encountered an error).
+func (r *Resolvable) HaltExecution() bool {
+	return r.haltExecution
 }
 
 func (r *Resolvable) printErrors() {
@@ -519,6 +569,43 @@ func (r *Resolvable) renderFieldValue(value *astjson.Value, valueBytes []byte, n
 	} else {
 		_, r.printErr = r.out.Write(valueBytes)
 	}
+
+	// Hash field value for cache analytics (two-tier check: plan-time fast path + runtime fallback)
+	if r.ctx != nil && r.ctx.cacheAnalytics != nil && r.currentEntityAnalytics != nil && r.currentFieldInfo != nil {
+		// Guard: only hash fields that belong to the current entity type.
+		// When a non-entity (Review) is nested inside an entity (User),
+		// currentEntityAnalytics is still User's — we must NOT hash Review.body.
+		isOnCurrentEntity := r.currentFieldInfo.ExactParentTypeName == r.currentEntityTypeName
+		if !isOnCurrentEntity {
+			// Check ParentTypeNames for polymorphic match (interface field on concrete entity)
+			for _, pt := range r.currentFieldInfo.ParentTypeNames {
+				if pt == r.currentEntityTypeName {
+					isOnCurrentEntity = true
+					break
+				}
+			}
+		}
+
+		if isOnCurrentEntity {
+			shouldHash := false
+			if r.currentFieldInfo.CacheAnalyticsHash {
+				// Fast path: plan-time guarantee (concrete entity, non-key field)
+				shouldHash = true
+			} else if !r.currentEntityAnalytics.IsKeyField(r.currentFieldInfo.Name) {
+				// Runtime fallback: field is NOT a key field on the resolved entity
+				// Handles: (a) polymorphic parents where plan-time couldn't determine
+				//          (b) correctly skips actual key fields (IsKeyField returns true)
+				shouldHash = true
+			}
+			if shouldHash {
+				r.ctx.cacheAnalytics.HashFieldValue(
+					r.currentEntityTypeName, r.currentFieldInfo.Name, valueBytes,
+					r.currentEntityKeyRaw, r.currentEntityKeyHash,
+					r.currentEntitySource,
+				)
+			}
+		}
+	}
 }
 
 func (r *Resolvable) pushArrayPathElement(index int) {
@@ -594,7 +681,10 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(obj.Path, parent)
-		return r.err()
+		if r.handleNonNullableError() {
+			return r.err()
+		}
+		return r.walkNull()
 	}
 	r.pushNodePathElement(obj.Path)
 	isRoot := r.depth < 2
@@ -637,6 +727,58 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 	if r.print && !isRoot {
 		r.printBytes(lBrace)
 	}
+
+	// Entity analytics (only during print phase, O(1) check via plan-time annotation)
+	if r.print && r.ctx != nil && r.ctx.cacheAnalytics != nil && obj.CacheAnalytics != nil {
+		// Resolve concrete entity analytics (handles polymorphic types)
+		analytics := obj.CacheAnalytics
+		entityTypeName := obj.TypeName
+		if analytics.ByTypeName != nil {
+			// Polymorphic type: resolve __typename and look up concrete analytics
+			concreteType := string(value.GetStringBytes("__typename"))
+			analytics = analytics.ByTypeName[concreteType] // nil if non-entity member
+			entityTypeName = concreteType
+		}
+
+		if analytics != nil {
+			// Save/restore entity context for nested entities
+			savedAnalytics := r.currentEntityAnalytics
+			savedTypeName := r.currentEntityTypeName
+			savedKeyRaw := r.currentEntityKeyRaw
+			savedKeyHash := r.currentEntityKeyHash
+			savedSource := r.currentEntitySource
+			defer func() {
+				r.currentEntityAnalytics = savedAnalytics
+				r.currentEntityTypeName = savedTypeName
+				r.currentEntityKeyRaw = savedKeyRaw
+				r.currentEntityKeyHash = savedKeyHash
+				r.currentEntitySource = savedSource
+			}()
+
+			r.currentEntityAnalytics = analytics
+			r.currentEntityTypeName = entityTypeName
+
+			// Extract key field values (uses plan-time KeyFields directly)
+			keyJSON := buildEntityKeyJSON(value, analytics.KeyFields)
+
+			// Look up source from loading phase
+			r.currentEntitySource = r.ctx.cacheAnalytics.EntitySource(entityTypeName, string(keyJSON))
+
+			// Hash or raw key (uses plan-time HashKeys directly)
+			if analytics.HashKeys {
+				r.xxh.Reset()
+				_, _ = r.xxh.Write(keyJSON)
+				r.currentEntityKeyHash = r.xxh.Sum64()
+				r.currentEntityKeyRaw = ""
+			} else {
+				r.currentEntityKeyRaw = string(keyJSON)
+				r.currentEntityKeyHash = 0
+			}
+
+			r.ctx.cacheAnalytics.IncrementEntityCount(entityTypeName, string(keyJSON))
+		}
+	}
+
 	addComma := false
 
 	r.typeNames = append(r.typeNames, typeName)
@@ -838,7 +980,10 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(arr.Path, parent)
-		return r.err()
+		if r.handleNonNullableError() {
+			return r.err()
+		}
+		return r.walkNull()
 	}
 	r.pushNodePathElement(arr.Path)
 	defer r.popNodePathElement(arr.Path)
@@ -929,7 +1074,10 @@ func (r *Resolvable) walkString(s *String, value *astjson.Value) bool {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(s.Path, parent)
-		return r.err()
+		if r.handleNonNullableError() {
+			return r.err()
+		}
+		return r.walkNull()
 	}
 	if value.Type() != astjson.TypeString {
 		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
@@ -975,7 +1123,10 @@ func (r *Resolvable) walkBoolean(b *Boolean, value *astjson.Value) bool {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(b.Path, parent)
-		return r.err()
+		if r.handleNonNullableError() {
+			return r.err()
+		}
+		return r.walkNull()
 	}
 	if value.Type() != astjson.TypeTrue && value.Type() != astjson.TypeFalse {
 		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
@@ -996,7 +1147,10 @@ func (r *Resolvable) walkInteger(i *Integer, value *astjson.Value) bool {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(i.Path, parent)
-		return r.err()
+		if r.handleNonNullableError() {
+			return r.err()
+		}
+		return r.walkNull()
 	}
 	if value.Type() != astjson.TypeNumber {
 		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
@@ -1017,7 +1171,10 @@ func (r *Resolvable) walkFloat(f *Float, value *astjson.Value) bool {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(f.Path, parent)
-		return r.err()
+		if r.handleNonNullableError() {
+			return r.err()
+		}
+		return r.walkNull()
 	}
 	if !r.print {
 		if value.Type() != astjson.TypeNumber {
@@ -1047,7 +1204,10 @@ func (r *Resolvable) walkBigInt(b *BigInt, value *astjson.Value) bool {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(b.Path, parent)
-		return r.err()
+		if r.handleNonNullableError() {
+			return r.err()
+		}
+		return r.walkNull()
 	}
 	if r.print {
 		r.renderScalarFieldValue(value, b.Nullable)
@@ -1063,7 +1223,10 @@ func (r *Resolvable) walkScalar(s *Scalar, value *astjson.Value) bool {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(s.Path, parent)
-		return r.err()
+		if r.handleNonNullableError() {
+			return r.err()
+		}
+		return r.walkNull()
 	}
 	if r.print {
 		r.renderScalarFieldValue(value, s.Nullable)
@@ -1095,7 +1258,10 @@ func (r *Resolvable) walkCustom(c *CustomNode, value *astjson.Value) bool {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(c.Path, parent)
-		return r.err()
+		if r.handleNonNullableError() {
+			return r.err()
+		}
+		return r.walkNull()
 	}
 	r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
 	resolved, err := c.Resolve(r.ctx, r.marshalBuf)
@@ -1174,7 +1340,10 @@ func (r *Resolvable) walkEnum(e *Enum, value *astjson.Value) bool {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(e.Path, parent)
-		return r.err()
+		if r.handleNonNullableError() {
+			return r.err()
+		}
+		return r.walkNull()
 	}
 	if value.Type() != astjson.TypeString {
 		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
@@ -1236,7 +1405,7 @@ func (r *Resolvable) addNonNullableFieldError(fieldPath []string, parent *astjso
 	if r.options.ApolloCompatibilityValueCompletionInExtensions {
 		r.addValueCompletion(r.renderApolloCompatibleNonNullableErrorMessage(), errorcodes.InvalidGraphql)
 	} else {
-		errorMessage := fmt.Sprintf("Cannot return null for non-nullable field '%s'.", r.renderFieldPath())
+		errorMessage := fmt.Sprintf("Cannot return null for non-nullable field '%s'.", r.renderFieldCoordinates())
 		r.ensureErrorsInitialized()
 		fastjsonext.AppendErrorToArray(r.astjsonArena, r.errors, errorMessage, r.path)
 	}
@@ -1302,7 +1471,13 @@ func (r *Resolvable) renderFieldCoordinates() string {
 	case 1:
 		return r.renderRootFieldCoordinates(r.path[0].Name)
 	default:
-		return fmt.Sprintf("%s.%s", r.enclosingTypeName(), r.path[pathLength-1].Name)
+		typeName := r.enclosingTypeName()
+		fieldName := r.path[pathLength-1].Name
+		if typeName == "" {
+			// Fall back to full path if no type name is available
+			return r.renderFieldPath()
+		}
+		return fmt.Sprintf("%s.%s", typeName, fieldName)
 	}
 }
 

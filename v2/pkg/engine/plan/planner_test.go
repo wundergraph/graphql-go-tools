@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/jensneuse/abstractlogger"
 	"github.com/kylelemons/godebug/diff"
@@ -120,6 +121,7 @@ func TestPlanner_Plan(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						FetchConfiguration: resolve.FetchConfiguration{
 							DataSource: &FakeDataSource{&StatefulSource{}},
+							Caching:    resolve.FetchCacheConfiguration{},
 						},
 						DataSourceIdentifier: []byte("plan.FakeDataSource"),
 					},
@@ -172,6 +174,7 @@ func TestPlanner_Plan(t *testing.T) {
 	}, Configuration{
 		DisableResolveFieldPositions: true,
 		DisableIncludeInfo:           true,
+		DisableEntityCaching:         true,
 		DataSources:                  []DataSource{testDefinitionDSConfiguration},
 	}))
 
@@ -190,6 +193,7 @@ func TestPlanner_Plan(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						FetchConfiguration: resolve.FetchConfiguration{
 							DataSource: &FakeDataSource{&StatefulSource{}},
+							Caching:    resolve.FetchCacheConfiguration{},
 						},
 						DataSourceIdentifier: []byte("plan.FakeDataSource"),
 					},
@@ -226,6 +230,7 @@ func TestPlanner_Plan(t *testing.T) {
 	}, Configuration{
 		DisableResolveFieldPositions: true,
 		DisableIncludeInfo:           true,
+		DisableEntityCaching:         true,
 		DataSources:                  []DataSource{testDefinitionDSConfiguration},
 	}))
 
@@ -247,6 +252,7 @@ func TestPlanner_Plan(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						FetchConfiguration: resolve.FetchConfiguration{
 							DataSource: &FakeDataSource{&StatefulSource{}},
+							Caching:    resolve.FetchCacheConfiguration{},
 						},
 						DataSourceIdentifier: []byte("plan.FakeDataSource"),
 					},
@@ -292,6 +298,7 @@ func TestPlanner_Plan(t *testing.T) {
 	}, Configuration{
 		DisableResolveFieldPositions: true,
 		DisableIncludeInfo:           true,
+		DisableEntityCaching:         true,
 		DataSources:                  []DataSource{testDefinitionDSConfiguration},
 	}))
 
@@ -315,6 +322,7 @@ func TestPlanner_Plan(t *testing.T) {
 						Fetch: &resolve.SingleFetch{
 							FetchConfiguration: resolve.FetchConfiguration{
 								DataSource: &FakeDataSource{&StatefulSource{}},
+								Caching:    resolve.FetchCacheConfiguration{},
 							},
 							DataSourceIdentifier: []byte("plan.FakeDataSource"),
 						},
@@ -363,6 +371,7 @@ func TestPlanner_Plan(t *testing.T) {
 		}, Configuration{
 			DisableResolveFieldPositions: true,
 			DisableIncludeInfo:           true,
+			DisableEntityCaching:         true,
 			DataSources:                  []DataSource{testDefinitionDSConfiguration},
 		}))
 
@@ -384,6 +393,7 @@ func TestPlanner_Plan(t *testing.T) {
 						Fetch: &resolve.SingleFetch{
 							FetchConfiguration: resolve.FetchConfiguration{
 								DataSource: &FakeDataSource{&StatefulSource{}},
+								Caching:    resolve.FetchCacheConfiguration{},
 							},
 							DataSourceIdentifier: []byte("plan.FakeDataSource"),
 						},
@@ -425,14 +435,16 @@ func TestPlanner_Plan(t *testing.T) {
 		}, Configuration{
 			DisableResolveFieldPositions: true,
 			DisableIncludeInfo:           true,
+			DisableEntityCaching:         true,
 			DataSources:                  []DataSource{testDefinitionDSConfiguration},
 		}))
 	})
 
 	t.Run("operation selection", func(t *testing.T) {
 		cfg := Configuration{
-			DataSources:        []DataSource{testDefinitionDSConfiguration},
-			DisableIncludeInfo: true,
+			DataSources:          []DataSource{testDefinitionDSConfiguration},
+			DisableIncludeInfo:   true,
+			DisableEntityCaching: true,
 		}
 
 		t.Run("should successfully plan a single named query by providing an operation name", test(testDefinition, `
@@ -554,6 +566,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Fetch: &resolve.SingleFetch{
 									FetchConfiguration: resolve.FetchConfiguration{
 										DataSource: &FakeDataSource{&StatefulSource{}},
+										Caching:    resolve.FetchCacheConfiguration{},
 									},
 									DataSourceIdentifier: []byte("plan.FakeDataSource"),
 								},
@@ -585,6 +598,7 @@ func TestPlanner_Plan(t *testing.T) {
 				Configuration{
 					DisableResolveFieldPositions: true,
 					DisableIncludeInfo:           true,
+					DisableEntityCaching:         true,
 					Fields: FieldConfigurations{
 						FieldConfiguration{
 							TypeName:             "Character",
@@ -611,6 +625,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Fetch: &resolve.SingleFetch{
 									FetchConfiguration: resolve.FetchConfiguration{
 										DataSource: &FakeDataSource{&StatefulSource{}},
+										Caching:    resolve.FetchCacheConfiguration{},
 									},
 									DataSourceIdentifier: []byte("plan.FakeDataSource"),
 								},
@@ -644,6 +659,7 @@ func TestPlanner_Plan(t *testing.T) {
 				Configuration{
 					DisableResolveFieldPositions: true,
 					DisableIncludeInfo:           true,
+					DisableEntityCaching:         true,
 					Fields: FieldConfigurations{
 						FieldConfiguration{
 							TypeName:             "Character",
@@ -673,6 +689,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Fetch: &resolve.SingleFetch{
 									FetchConfiguration: resolve.FetchConfiguration{
 										DataSource: &FakeDataSource{&StatefulSource{}},
+										Caching:    resolve.FetchCacheConfiguration{},
 									},
 									DataSourceIdentifier: []byte("plan.FakeDataSource"),
 								},
@@ -703,6 +720,7 @@ func TestPlanner_Plan(t *testing.T) {
 				Configuration{
 					DisableResolveFieldPositions: true,
 					DisableIncludeInfo:           true,
+					DisableEntityCaching:         true,
 					DataSources:                  []DataSource{dsConfig},
 				},
 			))
@@ -798,6 +816,383 @@ func TestPlanner_Plan(t *testing.T) {
 
 		assert.Equal(t, plan2Expected, plan2)
 	})
+
+	// Root field caching isolation tests
+	// When a root field has caching configured, the planner must isolate it into its own
+	// planner/fetch so it gets an independent cache config (TTL, cache name, etc.).
+	// This uses the same pattern as mutations: cached root fields skip planWithExistingPlanners
+	// and go straight to addNewPlanner. Other fields are prevented from merging into
+	// isolated planners via the isolatedRootField flag.
+	t.Run("root field caching isolation", func(t *testing.T) {
+		const schema = `
+			type Query {
+				me: User
+				cat: Cat
+				user(id: ID!): User
+			}
+			type User {
+				id: ID!
+				username: String!
+			}
+			type Cat {
+				name: String!
+			}
+		`
+		// Minimal CacheKeyTemplate to enable configureFetchCaching to populate cache config.
+		// Without this, configureFetchCaching bails early (CacheKeyTemplate == nil).
+		cacheKeyTpl := &resolve.RootQueryCacheKeyTemplate{}
+
+		// Two cached root fields produce parallel, independent fetches (FetchID 0 and 1, no DependsOnFetchIDs).
+		// Each fetch gets its own cache config (Enabled, CacheName, TTL).
+		t.Run("two cached root fields get separate parallel fetches with correct cache configs", test(schema,
+			`query Q { me { id username } cat { name } }`, "Q",
+			&SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					RawFetches: []*resolve.FetchItem{
+						{
+							Fetch: &resolve.SingleFetch{
+								FetchDependencies: resolve.FetchDependencies{
+									FetchID: 0,
+								},
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource: &FakeDataSource{&StatefulSource{}},
+									Caching: resolve.FetchCacheConfiguration{
+										Enabled:          true,
+										CacheName:        "users",
+										TTL:              30 * time.Second,
+										CacheKeyTemplate: cacheKeyTpl,
+									},
+								},
+								DataSourceIdentifier: []byte("plan.FakeDataSource"),
+							},
+						},
+						{
+							Fetch: &resolve.SingleFetch{
+								FetchDependencies: resolve.FetchDependencies{
+									FetchID: 1,
+								},
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource: &FakeDataSource{&StatefulSource{}},
+									Caching: resolve.FetchCacheConfiguration{
+										Enabled:          true,
+										CacheName:        "pets",
+										TTL:              60 * time.Second,
+										CacheKeyTemplate: cacheKeyTpl,
+									},
+								},
+								DataSourceIdentifier: []byte("plan.FakeDataSource"),
+							},
+						},
+					},
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("me"),
+								Value: &resolve.Object{
+									Path:          []string{"me"},
+									Nullable:      true,
+									TypeName:      "User",
+									PossibleTypes: map[string]struct{}{"User": {}},
+									Fields: []*resolve.Field{
+										{
+											Name:  []byte("id"),
+											Value: &resolve.Scalar{Path: []string{"id"}},
+										},
+										{
+											Name:  []byte("username"),
+											Value: &resolve.String{Path: []string{"username"}},
+										},
+									},
+								},
+							},
+							{
+								Name: []byte("cat"),
+								Value: &resolve.Object{
+									Path:          []string{"cat"},
+									Nullable:      true,
+									TypeName:      "Cat",
+									PossibleTypes: map[string]struct{}{"Cat": {}},
+									Fields: []*resolve.Field{
+										{
+											Name:  []byte("name"),
+											Value: &resolve.String{Path: []string{"name"}},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			Configuration{
+				DataSources: []DataSource{dsb().
+					Id("accounts").
+					WithBehavior(DataSourcePlanningBehavior{MergeAliasedRootNodes: true}).
+					CacheKeyTemplate(cacheKeyTpl).
+					RootNode("Query", "me", "cat").
+					ChildNode("User", "id", "username").
+					ChildNode("Cat", "name").
+					Schema(schema).
+					WithMetadata(func(data *FederationMetaData) {
+						data.RootFieldCaching = RootFieldCacheConfigurations{
+							{TypeName: "Query", FieldName: "me", CacheName: "users", TTL: 30 * time.Second},
+							{TypeName: "Query", FieldName: "cat", CacheName: "pets", TTL: 60 * time.Second},
+						}
+					}).
+					DS()},
+				DisableResolveFieldPositions: true,
+				DisableIncludeInfo:           true,
+				DisableEntityCaching:         false,
+			},
+		))
+
+		// Cached "me" is isolated from uncached "user" — each gets its own fetch.
+		// Only the cached field gets Enabled:true.
+		t.Run("cached field isolated from uncached field - only cached gets L2", test(schema,
+			`query Q { me { id } user(id: "1") { username } }`, "Q",
+			&SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					RawFetches: []*resolve.FetchItem{
+						{
+							Fetch: &resolve.SingleFetch{
+								FetchDependencies: resolve.FetchDependencies{
+									FetchID: 0,
+								},
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource: &FakeDataSource{&StatefulSource{}},
+									Caching: resolve.FetchCacheConfiguration{
+										Enabled:          true,
+										CacheName:        "default",
+										TTL:              30 * time.Second,
+										CacheKeyTemplate: cacheKeyTpl,
+									},
+								},
+								DataSourceIdentifier: []byte("plan.FakeDataSource"),
+							},
+						},
+						{
+							Fetch: &resolve.SingleFetch{
+								FetchDependencies: resolve.FetchDependencies{
+									FetchID: 1,
+								},
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource: &FakeDataSource{&StatefulSource{}},
+									Caching: resolve.FetchCacheConfiguration{
+										CacheKeyTemplate: cacheKeyTpl,
+									},
+								},
+								DataSourceIdentifier: []byte("plan.FakeDataSource"),
+							},
+						},
+					},
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("me"),
+								Value: &resolve.Object{
+									Path:          []string{"me"},
+									Nullable:      true,
+									TypeName:      "User",
+									PossibleTypes: map[string]struct{}{"User": {}},
+									Fields: []*resolve.Field{
+										{
+											Name:  []byte("id"),
+											Value: &resolve.Scalar{Path: []string{"id"}},
+										},
+									},
+								},
+							},
+							{
+								Name: []byte("user"),
+								Value: &resolve.Object{
+									Path:          []string{"user"},
+									Nullable:      true,
+									TypeName:      "User",
+									PossibleTypes: map[string]struct{}{"User": {}},
+									Fields: []*resolve.Field{
+										{
+											Name:  []byte("username"),
+											Value: &resolve.String{Path: []string{"username"}},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			Configuration{
+				DataSources: []DataSource{dsb().
+					Id("accounts").
+					WithBehavior(DataSourcePlanningBehavior{MergeAliasedRootNodes: true}).
+					CacheKeyTemplate(cacheKeyTpl).
+					RootNode("Query", "me", "user").
+					ChildNode("User", "id", "username").
+					Schema(schema).
+					WithMetadata(func(data *FederationMetaData) {
+						data.RootFieldCaching = RootFieldCacheConfigurations{
+							{TypeName: "Query", FieldName: "me", CacheName: "default", TTL: 30 * time.Second},
+						}
+					}).
+					DS()},
+				DisableResolveFieldPositions: true,
+				DisableIncludeInfo:           true,
+			},
+		))
+
+		// DisableEntityCaching skips isolation — fields merge into one fetch, L2 disabled.
+		t.Run("DisableEntityCaching - fields merge and no L2 caching", test(schema,
+			`query Q { me { id username } cat { name } }`, "Q",
+			&SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					RawFetches: []*resolve.FetchItem{
+						{
+							Fetch: &resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource: &FakeDataSource{&StatefulSource{}},
+									Caching: resolve.FetchCacheConfiguration{
+										CacheKeyTemplate: cacheKeyTpl,
+									},
+								},
+								DataSourceIdentifier: []byte("plan.FakeDataSource"),
+							},
+						},
+					},
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("me"),
+								Value: &resolve.Object{
+									Path:          []string{"me"},
+									Nullable:      true,
+									TypeName:      "User",
+									PossibleTypes: map[string]struct{}{"User": {}},
+									Fields: []*resolve.Field{
+										{
+											Name:  []byte("id"),
+											Value: &resolve.Scalar{Path: []string{"id"}},
+										},
+										{
+											Name:  []byte("username"),
+											Value: &resolve.String{Path: []string{"username"}},
+										},
+									},
+								},
+							},
+							{
+								Name: []byte("cat"),
+								Value: &resolve.Object{
+									Path:          []string{"cat"},
+									Nullable:      true,
+									TypeName:      "Cat",
+									PossibleTypes: map[string]struct{}{"Cat": {}},
+									Fields: []*resolve.Field{
+										{
+											Name:  []byte("name"),
+											Value: &resolve.String{Path: []string{"name"}},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			Configuration{
+				DataSources: []DataSource{dsb().
+					Id("accounts").
+					WithBehavior(DataSourcePlanningBehavior{MergeAliasedRootNodes: true}).
+					CacheKeyTemplate(cacheKeyTpl).
+					RootNode("Query", "me", "cat").
+					ChildNode("User", "id", "username").
+					ChildNode("Cat", "name").
+					Schema(schema).
+					WithMetadata(func(data *FederationMetaData) {
+						data.RootFieldCaching = RootFieldCacheConfigurations{
+							{TypeName: "Query", FieldName: "me", CacheName: "default", TTL: 30 * time.Second},
+							{TypeName: "Query", FieldName: "cat", CacheName: "default", TTL: 60 * time.Second},
+						}
+					}).
+					DS()},
+				DisableResolveFieldPositions: true,
+				DisableIncludeInfo:           true,
+				DisableEntityCaching:         true,
+			},
+		))
+
+		// No RootFieldCaching at all — fields merge normally, L2 disabled.
+		t.Run("no caching configured - fields merge normally", test(schema,
+			`query Q { me { id username } cat { name } }`, "Q",
+			&SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					RawFetches: []*resolve.FetchItem{
+						{
+							Fetch: &resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource: &FakeDataSource{&StatefulSource{}},
+									Caching: resolve.FetchCacheConfiguration{
+										CacheKeyTemplate: cacheKeyTpl,
+									},
+								},
+								DataSourceIdentifier: []byte("plan.FakeDataSource"),
+							},
+						},
+					},
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("me"),
+								Value: &resolve.Object{
+									Path:          []string{"me"},
+									Nullable:      true,
+									TypeName:      "User",
+									PossibleTypes: map[string]struct{}{"User": {}},
+									Fields: []*resolve.Field{
+										{
+											Name:  []byte("id"),
+											Value: &resolve.Scalar{Path: []string{"id"}},
+										},
+										{
+											Name:  []byte("username"),
+											Value: &resolve.String{Path: []string{"username"}},
+										},
+									},
+								},
+							},
+							{
+								Name: []byte("cat"),
+								Value: &resolve.Object{
+									Path:          []string{"cat"},
+									Nullable:      true,
+									TypeName:      "Cat",
+									PossibleTypes: map[string]struct{}{"Cat": {}},
+									Fields: []*resolve.Field{
+										{
+											Name:  []byte("name"),
+											Value: &resolve.String{Path: []string{"name"}},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			Configuration{
+				DataSources: []DataSource{dsb().
+					Id("accounts").
+					WithBehavior(DataSourcePlanningBehavior{MergeAliasedRootNodes: true}).
+					CacheKeyTemplate(cacheKeyTpl).
+					RootNode("Query", "me", "cat").
+					ChildNode("User", "id", "username").
+					ChildNode("Cat", "name").
+					Schema(schema).
+					DS()},
+				DisableResolveFieldPositions: true,
+				DisableIncludeInfo:           true,
+			},
+		))
+	})
 }
 
 var expectedMyHeroPlan = &SynchronousResponsePlan{
@@ -808,6 +1203,7 @@ var expectedMyHeroPlan = &SynchronousResponsePlan{
 				Fetch: &resolve.SingleFetch{
 					FetchConfiguration: resolve.FetchConfiguration{
 						DataSource: &FakeDataSource{&StatefulSource{}},
+						Caching:    resolve.FetchCacheConfiguration{},
 					},
 					DataSourceIdentifier: []byte("plan.FakeDataSource"),
 				},
@@ -853,6 +1249,7 @@ var expectedMyHeroPlanWithFragment = &SynchronousResponsePlan{
 				Fetch: &resolve.SingleFetch{
 					FetchConfiguration: resolve.FetchConfiguration{
 						DataSource: &FakeDataSource{&StatefulSource{}},
+						Caching:    resolve.FetchCacheConfiguration{},
 					},
 					DataSourceIdentifier: []byte("plan.FakeDataSource"),
 				},
@@ -991,8 +1388,9 @@ func (s *StatefulSource) Start() {
 }
 
 type FakeFactory[T any] struct {
-	upstreamSchema *ast.Document
-	behavior       *DataSourcePlanningBehavior
+	upstreamSchema   *ast.Document
+	behavior         *DataSourcePlanningBehavior
+	cacheKeyTemplate resolve.CacheKeyTemplate
 }
 
 func (f *FakeFactory[T]) UpstreamSchema(_ DataSourceConfiguration[T]) (*ast.Document, bool) {
@@ -1010,9 +1408,10 @@ func (f *FakeFactory[T]) Planner(_ abstractlogger.Logger) DataSourcePlanner[T] {
 	source := &StatefulSource{}
 	go source.Start()
 	return &FakePlanner[T]{
-		source:         source,
-		upstreamSchema: f.upstreamSchema,
-		behavior:       f.behavior,
+		source:           source,
+		upstreamSchema:   f.upstreamSchema,
+		behavior:         f.behavior,
+		cacheKeyTemplate: f.cacheKeyTemplate,
 	}
 }
 
@@ -1021,10 +1420,11 @@ func (f *FakeFactory[T]) Context() context.Context {
 }
 
 type FakePlanner[T any] struct {
-	id             int
-	source         *StatefulSource
-	upstreamSchema *ast.Document
-	behavior       *DataSourcePlanningBehavior
+	id               int
+	source           *StatefulSource
+	upstreamSchema   *ast.Document
+	behavior         *DataSourcePlanningBehavior
+	cacheKeyTemplate resolve.CacheKeyTemplate
 }
 
 func (f *FakePlanner[T]) ID() int {
@@ -1045,11 +1445,15 @@ func (f *FakePlanner[T]) Register(visitor *Visitor, _ DataSourceConfiguration[T]
 }
 
 func (f *FakePlanner[T]) ConfigureFetch() resolve.FetchConfiguration {
-	return resolve.FetchConfiguration{
+	cfg := resolve.FetchConfiguration{
 		DataSource: &FakeDataSource{
 			source: f.source,
 		},
 	}
+	if f.cacheKeyTemplate != nil {
+		cfg.Caching.CacheKeyTemplate = f.cacheKeyTemplate
+	}
+	return cfg
 }
 
 func (f *FakePlanner[T]) ConfigureSubscription() SubscriptionConfiguration {

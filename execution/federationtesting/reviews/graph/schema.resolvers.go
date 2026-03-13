@@ -14,9 +14,15 @@ import (
 
 // AddReview is the resolver for the addReview field.
 func (r *mutationResolver) AddReview(ctx context.Context, authorID string, upc string, review string) (*model.Review, error) {
+	// Generate username matching accounts service pattern for @provides
+	username := fmt.Sprintf("User %s", authorID)
+	if authorID == "1234" {
+		username = "Me"
+	}
+
 	record := &model.Review{
 		Body:    review,
-		Author:  &model.User{ID: authorID},
+		Author:  &model.User{ID: authorID, Username: username},
 		Product: &model.Product{Upc: upc},
 	}
 
@@ -52,6 +58,29 @@ func (r *queryResolver) Cat(ctx context.Context) (*model.Cat, error) {
 	}, nil
 }
 
+// ReviewWithError is the resolver for the reviewWithError field.
+// Returns a review whose author (error-user) triggers an error in the accounts subgraph.
+// Used for testing cache error handling - caches should NOT be populated on errors.
+func (r *queryResolver) ReviewWithError(ctx context.Context) (*model.Review, error) {
+	// Return the dedicated error review (separate from normal reviews list)
+	return errorReview, nil
+}
+
+// TopReviews is the resolver for the topReviews field.
+// Returns all reviews. Review is NOT an entity (no @key), but contains
+// entities (author: User, product: Product). Used for L1 cache testing
+// with non-entity root fields containing nested entities.
+func (r *queryResolver) TopReviews(ctx context.Context) ([]*model.Review, error) {
+	return r.reviews, nil
+}
+
+// AuthorWithoutProvides is the resolver for the authorWithoutProvides field.
+// Returns the same Author as the regular author field, but without @provides directive
+// in the schema. This forces the gateway to fetch username from accounts subgraph.
+func (r *reviewResolver) AuthorWithoutProvides(ctx context.Context, obj *model.Review) (*model.User, error) {
+	return obj.Author, nil
+}
+
 // Attachments is the resolver for the attachments field.
 func (r *reviewResolver) Attachments(ctx context.Context, obj *model.Review) ([]model.Attachment, error) {
 	var res []model.Attachment
@@ -85,15 +114,6 @@ func (r *reviewResolver) Comment(ctx context.Context, obj *model.Review) (model.
 	}, nil
 }
 
-// Username is the resolver for the username field.
-func (r *userResolver) Username(ctx context.Context, obj *model.User) (string, error) {
-	username := fmt.Sprintf("User %s", obj.ID)
-	if obj.ID == "1234" {
-		username = "Me"
-	}
-	return username, nil
-}
-
 // Reviews is the resolver for the reviews field.
 func (r *userResolver) Reviews(ctx context.Context, obj *model.User) ([]*model.Review, error) {
 	var res []*model.Review
@@ -114,6 +134,50 @@ func (r *userResolver) RealName(ctx context.Context, obj *model.User) (string, e
 		realName = "User Usington"
 	}
 	return realName, nil
+}
+
+// CoReviewers is the resolver for the coReviewers field.
+// Returns users who reviewed the same products as this user.
+// These are returned as User references (ID only) that need entity resolution from accounts.
+// This creates a dependency chain for L1 cache testing:
+// 1. First, this User is resolved via entity fetch from accounts
+// 2. Then, coReviewers returns User IDs
+// 3. Those Users need entity resolution from accounts -> L1 HIT if same user!
+func (r *userResolver) CoReviewers(ctx context.Context, obj *model.User) ([]*model.User, error) {
+	// Return co-reviewers based on the user ID.
+	// User 1234 reviewed top-1 and top-2, User 7777 reviewed top-3.
+	// For L1 cache testing, we return users that include the original user (self-reference).
+	switch obj.ID {
+	case "1234":
+		// User 1234's co-reviewers include themselves and User 7777
+		return []*model.User{
+			{ID: "1234"}, // Self-reference for L1 hit
+			{ID: "7777"},
+		}, nil
+	case "7777":
+		// User 7777's co-reviewers include themselves and User 1234
+		return []*model.User{
+			{ID: "7777"}, // Self-reference for L1 hit
+			{ID: "1234"},
+		}, nil
+	default:
+		// Other users have no co-reviewers
+		return []*model.User{}, nil
+	}
+}
+
+// SameUserReviewers is the resolver for the sameUserReviewers field.
+// Returns a list containing only the same user - used for L1 cache testing.
+// The @requires(fields: "username") ensures this runs AFTER the User entity
+// is fetched from accounts, populating L1. The returned User references
+// should then be complete L1 hits (no HTTP call needed).
+func (r *userResolver) SameUserReviewers(ctx context.Context, obj *model.User) ([]*model.User, error) {
+	// Return a list containing only the same user.
+	// This ensures the entire batch for entity resolution consists of
+	// entities already in L1, allowing the HTTP call to be skipped.
+	return []*model.User{
+		{ID: obj.ID},
+	}, nil
 }
 
 // Mutation returns generated.MutationResolver implementation.

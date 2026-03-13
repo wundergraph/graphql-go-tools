@@ -10,14 +10,16 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/permutations"
 )
 
 type dsBuilder struct {
-	ds       *dataSourceConfiguration[any]
-	behavior *DataSourcePlanningBehavior
+	ds               *dataSourceConfiguration[any]
+	behavior         *DataSourcePlanningBehavior
+	cacheKeyTemplate resolve.CacheKeyTemplate
 }
 
 func dsb() *dsBuilder {
@@ -64,11 +66,17 @@ func (b *dsBuilder) WithBehavior(behavior DataSourcePlanningBehavior) *dsBuilder
 	return b
 }
 
+func (b *dsBuilder) CacheKeyTemplate(t resolve.CacheKeyTemplate) *dsBuilder {
+	b.cacheKeyTemplate = t
+	return b
+}
+
 func (b *dsBuilder) Schema(schema string) *dsBuilder {
 	def := unsafeparser.ParseGraphqlDocumentString(schema)
 	b.ds.factory = &FakeFactory[any]{
-		upstreamSchema: &def,
-		behavior:       b.behavior,
+		upstreamSchema:   &def,
+		behavior:         b.behavior,
+		cacheKeyTemplate: b.cacheKeyTemplate,
 	}
 	return b
 }
@@ -76,8 +84,9 @@ func (b *dsBuilder) Schema(schema string) *dsBuilder {
 func (b *dsBuilder) SchemaMergedWithBase(schema string) *dsBuilder {
 	def := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(schema)
 	b.ds.factory = &FakeFactory[any]{
-		upstreamSchema: &def,
-		behavior:       b.behavior,
+		upstreamSchema:   &def,
+		behavior:         b.behavior,
+		cacheKeyTemplate: b.cacheKeyTemplate,
 	}
 	return b
 }
@@ -99,6 +108,11 @@ func (b *dsBuilder) Hash(hash DSHash) *dsBuilder {
 
 func (b *dsBuilder) Id(id string) *dsBuilder {
 	b.ds.id = id
+	return b
+}
+
+func (b *dsBuilder) Name(name string) *dsBuilder {
+	b.ds.name = name
 	return b
 }
 func (b *dsBuilder) DS() DataSource {

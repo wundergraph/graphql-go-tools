@@ -40,6 +40,8 @@ func GraphQLEndpointHandler(opts EndpointOptions) http.Handler {
 
 	resolver := &Resolver{
 		products:          newProducts(),
+		extraProducts:     newExtraProducts(),
+		digitalProducts:   newDigitalProducts(),
 		randomnessEnabled: opts.EnableRandomness,
 		minPrice:          10,
 		maxPrice:          1499,

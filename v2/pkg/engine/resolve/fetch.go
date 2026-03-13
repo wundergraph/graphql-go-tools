@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
@@ -165,6 +166,7 @@ type BatchEntityFetch struct {
 	DataSourceIdentifier []byte
 	Trace                *DataSourceLoadTrace
 	Info                 *FetchInfo
+	Caching              FetchCacheConfiguration
 }
 
 func (b *BatchEntityFetch) Dependencies() *FetchDependencies {
@@ -205,6 +207,7 @@ type EntityFetch struct {
 	DataSourceIdentifier []byte
 	Trace                *DataSourceLoadTrace
 	Info                 *FetchInfo
+	Caching              FetchCacheConfiguration
 }
 
 func (e *EntityFetch) Dependencies() *FetchDependencies {
@@ -271,6 +274,8 @@ type FetchConfiguration struct {
 
 	// OperationName is non-empty when the operation name is propagated to the upstream subgraph fetch.
 	OperationName string
+
+	Caching FetchCacheConfiguration
 }
 
 func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
@@ -299,6 +304,78 @@ func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
 	}
 
 	return true
+}
+
+type FetchCacheConfiguration struct {
+	// Enabled indicates if L2 caching is enabled for this fetch.
+	// L1 caching is controlled separately via ctx.ExecutionOptions.Caching.EnableL1Cache.
+	Enabled bool
+	// CacheName is the name of the cache to use for this fetch
+	CacheName string
+	// TTL is the time to live which will be set for new cache entries
+	TTL time.Duration
+	// CacheKeyTemplate can be used to render a cache key for the fetch.
+	// In case of a root fetch, the variables will be one or more field arguments
+	// For entity fetches, the variables will be a single Object Variable with only @key fields
+	CacheKeyTemplate CacheKeyTemplate
+	// IncludeSubgraphHeaderPrefix indicates if cache keys should be prefixed with the subgraph header hash.
+	// The prefix format is "id:cacheKey" where id is the hash from HeadersForSubgraph.
+	// Defaults to true.
+	IncludeSubgraphHeaderPrefix bool
+	// RootFieldL1EntityCacheKeyTemplates holds L1 cache key templates for entities returned by root fields.
+	RootFieldL1EntityCacheKeyTemplates map[string]CacheKeyTemplate
+
+	// EnablePartialCacheLoad enables fetching only cache-missed entities.
+	// When true and some entities are cached while others are not, only the missing
+	// entities are fetched from the subgraph. Cached entities are served directly.
+	// This is propagated from EntityCacheConfiguration during planning.
+	EnablePartialCacheLoad bool
+
+	// UseL1Cache controls whether this fetch uses L1 (per-request) cache.
+	// Set by postprocessor based on whether a prior fetch can populate L1
+	// for this entity type. Defaults to true for backward compatibility.
+	UseL1Cache bool
+
+	// HashAnalyticsKeys controls whether entity keys are hashed (true) or stored raw (false)
+	// in cache analytics EntityFieldHash entries. Propagated from EntityCacheConfiguration.
+	HashAnalyticsKeys bool
+
+	// KeyFields holds the full @key structure, pre-extracted at plan time.
+	// Used for entity source tracking during cache analytics.
+	KeyFields []KeyField
+
+	// ShadowMode enables shadow caching for this fetch.
+	// When true, L2 cache reads and writes still occur, but cached data is never served.
+	// Fresh data is always fetched from the subgraph and compared against the cached value
+	// to detect staleness. L1 cache works normally (not affected by shadow mode).
+	ShadowMode bool
+
+	// MutationEntityImpactConfig is set when this fetch is a mutation that returns a cached entity.
+	// Used by detectMutationEntityImpact() to proactively compare mutation response with L2 cache.
+	MutationEntityImpactConfig *MutationEntityImpactConfig
+
+	// EnableMutationL2CachePopulation allows mutation entity fetches to write
+	// to the L2 cache. Propagated from MutationFieldCacheConfiguration.
+	// By default, mutations do NOT populate L2.
+	EnableMutationL2CachePopulation bool
+
+	// NegativeCacheTTL is the TTL for caching null entity results (entity not found).
+	// When > 0, null responses (entity returned null without errors) are cached to avoid
+	// repeated subgraph lookups for non-existent entities.
+	// When 0 (default), null entities are not cached.
+	NegativeCacheTTL time.Duration
+}
+
+// MutationEntityImpactConfig holds information for detecting entity cache changes from mutations.
+// Set at plan time when a mutation returns a federation entity with L2 caching configured.
+type MutationEntityImpactConfig struct {
+	EntityTypeName              string     // "User"
+	KeyFields                   []KeyField // [{Name: "id"}]
+	CacheName                   string     // "default"
+	IncludeSubgraphHeaderPrefix bool
+	// InvalidateCache when true causes the L2 cache entry for this entity to be deleted
+	// after the mutation completes. Configured per mutation field via MutationCacheInvalidationConfiguration.
+	InvalidateCache bool
 }
 
 // FetchDependency explains how a GraphCoordinate depends on other GraphCoordinates from other fetches
@@ -363,6 +440,7 @@ type FetchInfo struct {
 	// with the request to the subgraph as part of the "fetch_reason" extension.
 	// Specifically, it is created only for fields stored in the DataSource.RequireFetchReasons().
 	PropagatedFetchReasons []FetchReason
+	ProvidesData           *Object
 }
 
 type GraphCoordinate struct {

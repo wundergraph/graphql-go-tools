@@ -45,6 +45,14 @@ type Context struct {
 
 	SubgraphHeadersBuilder SubgraphHeadersBuilder
 
+	// Debug enables enrichment of context with debug metadata (e.g., cache fetch info).
+	// Zero overhead when disabled (production default). Tests opt in via engine.WithDebugMode().
+	Debug bool
+
+	// cacheAnalytics collects detailed cache analytics when EnableCacheAnalytics is true.
+	// Nil when analytics is disabled. Use cacheAnalyticsEnabled() as a fast guard.
+	cacheAnalytics *CacheAnalyticsCollector
+
 	// ActualListSizes is populated by the resolver after resolution completes,
 	// before the response body is written. Maps JSON path to actual list size.
 	// Used to compute the actual cost.
@@ -126,6 +134,77 @@ type ExecutionOptions struct {
 	// However, if you're benchmarking internals of the engine, it can be helpful to switch it off
 	// When disabled (set to true) the code becomes a no-op
 	DisableInboundRequestDeduplication bool
+	// Caching configures L1 (per-request) and L2 (external) entity caching.
+	Caching CachingOptions
+	// ErrorBehavior controls error handling during resolution.
+	// Only effective when OnErrorEnabled is true in ResolverOptions.
+	// Default is ErrorBehaviorPropagate for backward compatibility.
+	ErrorBehavior ErrorBehavior
+}
+
+// CachingOptions configures the L1/L2 entity caching behavior.
+//
+// L1 Cache (Per-Request, In-Memory):
+//   - Stored in Loader as sync.Map
+//   - Lifecycle: Single GraphQL request
+//   - Key format: Entity cache key WITHOUT subgraph header prefix
+//   - Thread-safe via sync.Map for parallel fetch support
+//   - Purpose: Prevents redundant fetches for same entity at different paths
+//   - IMPORTANT: Only used for entity fetches, NOT root fetches.
+//     Root fields have no prior entity data to look up.
+//
+// L2 Cache (External, Cross-Request):
+//   - Uses LoaderCache interface implementations (e.g., Redis)
+//   - Lifecycle: Configured TTL, shared across requests
+//   - Key format: Entity cache key WITH optional subgraph header prefix
+//   - Purpose: Reduces subgraph load by caching across requests
+//   - Applies to both root fetches and entity fetches
+//
+// Lookup Order (entity fetches): L1 -> L2 -> Subgraph Fetch
+// Lookup Order (root fetches): L2 -> Subgraph Fetch (no L1)
+// L2CacheKeyInterceptorInfo provides metadata about the cache key being transformed.
+type L2CacheKeyInterceptorInfo struct {
+	SubgraphName string
+	CacheName    string
+}
+
+// L2CacheKeyInterceptor transforms L2 cache key strings before they are used
+// for cache lookups and writes. Called once per cache key during key preparation.
+// The ctx parameter is the request's context.Context, allowing access to
+// request-scoped values (e.g., tenant ID from middleware).
+type L2CacheKeyInterceptor func(ctx context.Context, key string, info L2CacheKeyInterceptorInfo) string
+
+type CachingOptions struct {
+	// EnableL1Cache enables per-request in-memory entity caching.
+	// L1 prevents redundant fetches for the same entity within a single request.
+	// Only applies to entity fetches (not root queries) since root queries
+	// have no prior entity data to use as a cache key.
+	// Default: false (must be explicitly enabled)
+	EnableL1Cache bool
+	// EnableL2Cache enables external cache lookups (e.g., Redis).
+	// L2 allows sharing entity data across requests.
+	// Default: false (must be explicitly enabled)
+	// Note: When false, existing FetchCacheConfiguration.Enabled still controls
+	// per-fetch L2 behavior for backward compatibility.
+	EnableL2Cache bool
+	// EnableCacheAnalytics enables detailed cache analytics collection.
+	// When true, per-key cache events, write events, field value hashes,
+	// entity counts, and partial hit tracking are recorded.
+	// When false (default), GetCacheStats() returns an empty snapshot.
+	// The analytics collector is nil-guarded so the disabled path has zero overhead.
+	EnableCacheAnalytics bool
+	// L2CacheKeyInterceptor, when set, transforms L2 cache key strings before
+	// they are used for lookups, writes, and deletions. This allows library users
+	// to add custom prefixes/suffixes (e.g., tenant isolation) without modifying
+	// graphql-go-tools internals. Does not affect L1 cache keys.
+	// Default: nil (no transformation)
+	L2CacheKeyInterceptor L2CacheKeyInterceptor
+	// GlobalCacheKeyPrefix is prepended to all L2 cache keys (before header hash prefix).
+	// Use this for schema versioning: set to a schema hash so that schema changes
+	// automatically separate cache entries without requiring a cache flush.
+	// Format: "{prefix}:{rest_of_key}". Empty string means no prefix.
+	// Applied in order: global prefix → header hash prefix → interceptor.
+	GlobalCacheKeyPrefix string
 }
 
 type FieldValue struct {
@@ -251,6 +330,30 @@ func (c *Context) appendSubgraphErrors(ds DataSourceInfo, errs ...error) {
 	c.subgraphErrors[ds.Name] = errors.Join(c.subgraphErrors[ds.Name], errors.Join(errs...))
 }
 
+// GetCacheStats returns a snapshot of the cache statistics for the current request.
+// When EnableCacheAnalytics is true, returns the full analytics snapshot.
+// When false, returns an empty snapshot.
+func (c *Context) GetCacheStats() CacheAnalyticsSnapshot {
+	if c.cacheAnalytics != nil {
+		return c.cacheAnalytics.Snapshot()
+	}
+	return CacheAnalyticsSnapshot{}
+}
+
+// cacheAnalyticsEnabled returns true if the cache analytics collector is active.
+// Used as a fast nil-pointer guard throughout the instrumentation code.
+func (c *Context) cacheAnalyticsEnabled() bool {
+	return c.cacheAnalytics != nil
+}
+
+// initCacheAnalytics creates the analytics collector if EnableCacheAnalytics is set.
+// Called once at the start of LoadGraphQLResponseData.
+func (c *Context) initCacheAnalytics() {
+	if c.ExecutionOptions.Caching.EnableCacheAnalytics {
+		c.cacheAnalytics = NewCacheAnalyticsCollector()
+	}
+}
+
 type Request struct {
 	ID     uint64
 	Header http.Header
@@ -318,6 +421,7 @@ func (c *Context) Free() {
 	c.subgraphErrors = nil
 	c.authorizer = nil
 	c.LoaderHooks = nil
+	c.cacheAnalytics = nil
 	c.GetDeduplicationData = nil
 	c.SetDeduplicationData = nil
 	c.ActualListSizes = nil

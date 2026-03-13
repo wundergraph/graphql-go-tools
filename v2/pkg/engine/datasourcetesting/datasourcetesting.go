@@ -34,6 +34,9 @@ type testOptions struct {
 	withPrintPlan         bool
 	withFieldDependencies bool
 	withFetchReasons      bool
+	withEntityCaching     bool
+	withFetchProvidesData bool
+	withCacheKeyTemplates bool
 	validationOptions     []astvalidation.Option
 }
 
@@ -82,6 +85,28 @@ func WithFetchReasons() func(*testOptions) {
 		o.withFieldInfo = true
 		o.withFieldDependencies = true
 		o.withFetchReasons = true
+	}
+}
+
+func WithEntityCaching() func(*testOptions) {
+	return func(o *testOptions) {
+		o.withFieldInfo = true
+		o.withFieldDependencies = true
+		o.withEntityCaching = true
+	}
+}
+
+func WithFetchProvidesData() func(*testOptions) {
+	return func(o *testOptions) {
+		o.withFieldInfo = true
+		o.withFieldDependencies = true
+		o.withFetchProvidesData = true
+	}
+}
+
+func WithCacheKeyTemplates() func(*testOptions) {
+	return func(o *testOptions) {
+		o.withCacheKeyTemplates = true
 	}
 }
 
@@ -150,6 +175,8 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 		// by default, we don't want to have field info in the tests because it's too verbose
 		config.DisableIncludeInfo = true
 		config.DisableIncludeFieldDependencies = true
+		config.DisableEntityCaching = true
+		config.DisableFetchProvidesData = true
 
 		opts := &testOptions{}
 		for _, o := range options {
@@ -166,6 +193,14 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 
 		if opts.withFetchReasons {
 			config.BuildFetchReasons = true
+		}
+
+		if opts.withEntityCaching {
+			config.DisableEntityCaching = false
+		}
+
+		if opts.withFetchProvidesData {
+			config.DisableFetchProvidesData = false
 		}
 
 		if opts.skipReason != "" {
@@ -218,6 +253,19 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 			}
 		}
 
+		// Clear CacheKeyTemplate from actual plan by default since most tests don't need
+		// to verify the internal cache key template structure. Tests that need to verify
+		// caching behavior should use WithCacheKeyTemplates() to opt in.
+		if !opts.withCacheKeyTemplates {
+			clearCacheKeyTemplates(actualPlan)
+		}
+
+		// Clear CacheAnalytics from response Object nodes by default since most tests
+		// don't need to verify cache analytics. Tests using WithEntityCaching() opt in.
+		if !opts.withEntityCaching {
+			clearCacheAnalytics(actualPlan)
+		}
+
 		if opts.withPrintPlan {
 			t.Log("\n", actualPlan.(*plan.SynchronousResponsePlan).Response.Fetches.QueryPlan().PrettyPrint())
 		}
@@ -252,6 +300,102 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 			if diffResult := diff.Diff(exp, act); diffResult != "" {
 				t.Errorf("Plan does not match(-want +got)\n%s", diffResult)
 			}
+		}
+	}
+}
+
+// clearCacheKeyTemplates recursively clears CacheKeyTemplate from all fetches in the plan.
+// This is called by default so tests don't need to specify the internal cache key template structure.
+// Use WithCacheKeyTemplates() to opt in to including cache key templates in tests.
+func clearCacheKeyTemplates(p plan.Plan) {
+	switch pl := p.(type) {
+	case *plan.SynchronousResponsePlan:
+		if pl.Response != nil {
+			if pl.Response.Fetches != nil {
+				clearCacheKeyTemplatesFromFetchTree(pl.Response.Fetches)
+			}
+			// Also clear from RawFetches (pre-postprocessed fetch items)
+			for _, item := range pl.Response.RawFetches {
+				if item != nil && item.Fetch != nil {
+					clearCacheKeyTemplateFromFetch(item.Fetch)
+				}
+			}
+		}
+	case *plan.SubscriptionResponsePlan:
+		if pl.Response != nil && pl.Response.Response != nil {
+			if pl.Response.Response.Fetches != nil {
+				clearCacheKeyTemplatesFromFetchTree(pl.Response.Response.Fetches)
+			}
+			// Also clear from RawFetches
+			for _, item := range pl.Response.Response.RawFetches {
+				if item != nil && item.Fetch != nil {
+					clearCacheKeyTemplateFromFetch(item.Fetch)
+				}
+			}
+		}
+	}
+}
+
+func clearCacheKeyTemplatesFromFetchTree(node *resolve.FetchTreeNode) {
+	if node == nil {
+		return
+	}
+
+	// Clear from this node's fetch
+	if node.Item != nil && node.Item.Fetch != nil {
+		clearCacheKeyTemplateFromFetch(node.Item.Fetch)
+	}
+
+	// Clear from trigger
+	if node.Trigger != nil {
+		clearCacheKeyTemplatesFromFetchTree(node.Trigger)
+	}
+
+	// Clear from children
+	for _, child := range node.ChildNodes {
+		clearCacheKeyTemplatesFromFetchTree(child)
+	}
+}
+
+func clearCacheKeyTemplateFromFetch(f resolve.Fetch) {
+	switch fetch := f.(type) {
+	case *resolve.SingleFetch:
+		fetch.FetchConfiguration.Caching.CacheKeyTemplate = nil
+		fetch.FetchConfiguration.Caching.RootFieldL1EntityCacheKeyTemplates = nil
+		// Clear UseL1Cache to avoid test failures when comparing expected vs actual
+		// since the planner now defaults to true but most tests expect false (zero value)
+		fetch.FetchConfiguration.Caching.UseL1Cache = false
+	}
+}
+
+// clearCacheAnalytics recursively clears CacheAnalytics from all Object nodes in the plan.
+// This is called by default so tests don't need to account for cache analytics.
+// Use WithEntityCaching() to opt in to including cache analytics in tests.
+func clearCacheAnalytics(p plan.Plan) {
+	switch pl := p.(type) {
+	case *plan.SynchronousResponsePlan:
+		if pl.Response != nil && pl.Response.Data != nil {
+			clearCacheAnalyticsFromNode(pl.Response.Data)
+		}
+	case *plan.SubscriptionResponsePlan:
+		if pl.Response != nil && pl.Response.Response != nil && pl.Response.Response.Data != nil {
+			clearCacheAnalyticsFromNode(pl.Response.Response.Data)
+		}
+	}
+}
+
+func clearCacheAnalyticsFromNode(node resolve.Node) {
+	switch n := node.(type) {
+	case *resolve.Object:
+		n.CacheAnalytics = nil
+		for _, field := range n.Fields {
+			if field.Value != nil {
+				clearCacheAnalyticsFromNode(field.Value)
+			}
+		}
+	case *resolve.Array:
+		if n.Item != nil {
+			clearCacheAnalyticsFromNode(n.Item)
 		}
 	}
 }

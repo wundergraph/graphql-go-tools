@@ -2,6 +2,7 @@ package graphql_datasource
 
 import (
 	"testing"
+	"time"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	. "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasourcetesting"
@@ -1122,6 +1123,15 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							SelectionSet: "shippingInfo {zip}",
 						},
 					},
+					RootFieldCaching: plan.RootFieldCacheConfigurations{
+						{
+							TypeName:                    "Query",
+							FieldName:                   "user",
+							CacheName:                   "default",
+							TTL:                         30 * time.Second,
+							IncludeSubgraphHeaderPrefix: true,
+						},
+					},
 				},
 			},
 			mustCustomConfiguration(t,
@@ -1224,6 +1234,14 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							TypeName:     "Address",
 							FieldName:    "secretLine",
 							SelectionSet: "zip",
+						},
+					},
+					EntityCaching: plan.EntityCacheConfigurations{
+						{
+							TypeName:                    "Account",
+							CacheName:                   "default",
+							TTL:                         30 * time.Second,
+							IncludeSubgraphHeaderPrefix: true,
 						},
 					},
 					Provides: plan.FederationFieldConfigurations{
@@ -1538,9 +1556,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				query CompositeKeys {
 					user {
 						account {
+							__typename
 							name
 							shippingInfo {
-								zip
+								z: zip
 							}
 						}
 					}
@@ -1558,6 +1577,24 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}}}}"}}`,
 									DataSource:     &Source{},
 									PostProcessing: DefaultPostProcessingConfiguration,
+									Caching: resolve.FetchCacheConfiguration{
+										Enabled:                     true,
+										CacheName:                   "default",
+										TTL:                         30 * time.Second,
+										IncludeSubgraphHeaderPrefix: true,
+										// UseL1Cache defaults to false - root query fetches with RootQueryCacheKeyTemplate don't populate entity L1 cache
+										CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{
+											RootFields: []resolve.QueryField{
+												{
+													Coordinate: resolve.GraphCoordinate{
+														TypeName:  "Query",
+														FieldName: "user",
+													},
+													Args: []resolve.FieldArgument{},
+												},
+											},
+										},
+									},
 								},
 								Info: &resolve.FetchInfo{
 									DataSourceID:   "user.service",
@@ -1567,6 +1604,61 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										{
 											TypeName:  "Query",
 											FieldName: "user",
+										},
+									},
+									ProvidesData: &resolve.Object{
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("user"),
+												Value: &resolve.Object{
+													Path:     []string{"user"},
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("account"),
+															Value: &resolve.Object{
+																Path:     []string{"account"},
+																Nullable: true,
+																Fields: []*resolve.Field{
+																	{
+																		Name: []byte("__typename"),
+																		Value: &resolve.Scalar{
+																			Path: []string{"__typename"},
+																		},
+																	},
+																	{
+																		Name: []byte("id"),
+																		Value: &resolve.Scalar{
+																			Path: []string{"id"},
+																		},
+																	},
+																	{
+																		Name: []byte("info"),
+																		Value: &resolve.Object{
+																			Path:     []string{"info"},
+																			Nullable: true,
+																			Fields: []*resolve.Field{
+																				{
+																					Name: []byte("a"),
+																					Value: &resolve.Scalar{
+																						Path: []string{"a"},
+																					},
+																				},
+																				{
+																					Name: []byte("b"),
+																					Value: &resolve.Scalar{
+																						Path: []string{"b"},
+																					},
+																				},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
 										},
 									},
 								},
@@ -1590,11 +1682,141 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 											HasAuthorizationRule: true,
 										},
 									},
+									CoordinateDependencies: []resolve.FetchDependency{
+										{
+											Coordinate: resolve.GraphCoordinate{
+												TypeName:  "Account",
+												FieldName: "name",
+											},
+											IsUserRequested: true,
+											DependsOn: []resolve.FetchDependencyOrigin{
+												{
+													FetchID:  0,
+													Subgraph: "user.service",
+													Coordinate: resolve.GraphCoordinate{
+														TypeName:  "Account",
+														FieldName: "id",
+													},
+													IsKey:      true,
+													IsRequires: false,
+												},
+												{
+													FetchID:  0,
+													Subgraph: "user.service",
+													Coordinate: resolve.GraphCoordinate{
+														TypeName:  "Account",
+														FieldName: "info",
+													},
+													IsKey:      true,
+													IsRequires: false,
+												},
+												{
+													FetchID:  0,
+													Subgraph: "user.service",
+													Coordinate: resolve.GraphCoordinate{
+														TypeName:  "Info",
+														FieldName: "a",
+													},
+													IsKey:      true,
+													IsRequires: false,
+												},
+												{
+													FetchID:  0,
+													Subgraph: "user.service",
+													Coordinate: resolve.GraphCoordinate{
+														TypeName:  "Info",
+														FieldName: "b",
+													},
+													IsKey:      true,
+													IsRequires: false,
+												},
+											},
+										},
+										{
+											Coordinate: resolve.GraphCoordinate{
+												TypeName:  "Account",
+												FieldName: "shippingInfo",
+											},
+											IsUserRequested: true,
+											DependsOn: []resolve.FetchDependencyOrigin{
+												{
+													FetchID:  0,
+													Subgraph: "user.service",
+													Coordinate: resolve.GraphCoordinate{
+														TypeName:  "Account",
+														FieldName: "id",
+													},
+													IsKey:      true,
+													IsRequires: false,
+												},
+												{
+													FetchID:  0,
+													Subgraph: "user.service",
+													Coordinate: resolve.GraphCoordinate{
+														TypeName:  "Account",
+														FieldName: "info",
+													},
+													IsKey:      true,
+													IsRequires: false,
+												},
+												{
+													FetchID:  0,
+													Subgraph: "user.service",
+													Coordinate: resolve.GraphCoordinate{
+														TypeName:  "Info",
+														FieldName: "a",
+													},
+													IsKey:      true,
+													IsRequires: false,
+												},
+												{
+													FetchID:  0,
+													Subgraph: "user.service",
+													Coordinate: resolve.GraphCoordinate{
+														TypeName:  "Info",
+														FieldName: "b",
+													},
+													IsKey:      true,
+													IsRequires: false,
+												},
+											},
+										},
+									},
 									OperationType: ast.OperationTypeQuery,
+									ProvidesData: &resolve.Object{
+										HasAliases: true,
+										Fields: []*resolve.Field{
+											{
+												Name:        []byte("name"),
+												OnTypeNames: [][]byte{[]byte("Account")},
+												Value: &resolve.Scalar{
+													Path: []string{"name"},
+												},
+											},
+											{
+												Name:        []byte("shippingInfo"),
+												OnTypeNames: [][]byte{[]byte("Account")},
+												Value: &resolve.Object{
+													Path:       []string{"shippingInfo"},
+													Nullable:   true,
+													HasAliases: true,
+													Fields: []*resolve.Field{
+														{
+															Name:         []byte("z"),
+															OriginalName: []byte("zip"),
+															Value: &resolve.Scalar{
+																Path: []string{"z"},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
 								},
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								FetchConfiguration: resolve.FetchConfiguration{
-									Input:                                 `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {__typename name shippingInfo {zip}}}}","variables":{"representations":[$$0$$]}}}`,
+									Input:                                 `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {__typename name shippingInfo {z: zip}}}}","variables":{"representations":[$$0$$]}}}`,
 									DataSource:                            &Source{},
 									SetTemplateOutputToNullOnVariableNull: true,
 									RequiresEntityFetch:                   true,
@@ -1644,6 +1866,66 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										},
 									},
 									PostProcessing: SingleEntityPostProcessingConfiguration,
+									Caching: resolve.FetchCacheConfiguration{
+										Enabled:                     true,
+										CacheName:                   "default",
+										TTL:                         time.Second * 30,
+										IncludeSubgraphHeaderPrefix: true,
+										UseL1Cache:                  false, // Set to false by postprocessor (no L1 benefit for this fetch)
+										KeyFields: []resolve.KeyField{
+											{Name: "id"},
+											{
+												Name: "info",
+												Children: []resolve.KeyField{
+													{Name: "a"},
+													{Name: "b"},
+												},
+											},
+										},
+										CacheKeyTemplate: &resolve.EntityQueryCacheKeyTemplate{
+											Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name:        []byte("__typename"),
+														OnTypeNames: [][]byte{[]byte("Account")},
+														Value: &resolve.String{
+															Path: []string{"__typename"},
+														},
+													},
+													{
+														Name:        []byte("id"),
+														OnTypeNames: [][]byte{[]byte("Account")},
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+													},
+													{
+														Name:        []byte("info"),
+														OnTypeNames: [][]byte{[]byte("Account")},
+														Value: &resolve.Object{
+															Path:     []string{"info"},
+															Nullable: true,
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("a"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"a"},
+																	},
+																},
+																{
+																	Name: []byte("b"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"b"},
+																	},
+																},
+															},
+														},
+													},
+												},
+											}),
+										},
+									},
 								},
 							}, "user.account", resolve.ObjectPath("user"), resolve.ObjectPath("account")),
 						),
@@ -1672,6 +1954,11 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										},
 										TypeName:   "User",
 										SourceName: "user.service",
+										CacheAnalytics: &resolve.ObjectCacheAnalytics{
+											KeyFields: []resolve.KeyField{
+												{Name: "id"},
+											},
+										},
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("account"),
@@ -1684,6 +1971,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														Names: []string{"user.service"},
 													},
 													ExactParentTypeName: "User",
+													CacheAnalyticsHash:  true,
 												},
 												Value: &resolve.Object{
 													Path:     []string{"account"},
@@ -1693,7 +1981,33 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													},
 													TypeName:   "Account",
 													SourceName: "user.service",
+													CacheAnalytics: &resolve.ObjectCacheAnalytics{
+														KeyFields: []resolve.KeyField{
+															{Name: "id"},
+															{Name: "info"},
+															{Name: "{a"},
+															{Name: "b}"},
+														},
+													},
 													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Info: &resolve.FieldInfo{
+																Name:            "__typename",
+																NamedType:       "String",
+																ParentTypeNames: []string{"Account"},
+																Source: resolve.TypeFieldSource{
+																	IDs:   []string{"user.service"},
+																	Names: []string{"user.service"},
+																},
+																ExactParentTypeName: "Account",
+																CacheAnalyticsHash:  true,
+															},
+															Value: &resolve.String{
+																Path:       []string{"__typename"},
+																IsTypeName: true,
+															},
+														},
 														{
 															Name: []byte("name"),
 															Info: &resolve.FieldInfo{
@@ -1705,6 +2019,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																	Names: []string{"account.service"},
 																},
 																ExactParentTypeName: "Account",
+																CacheAnalyticsHash:  true,
 															},
 															Value: &resolve.String{
 																Path: []string{"name"},
@@ -1722,6 +2037,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																},
 																ExactParentTypeName:  "Account",
 																HasAuthorizationRule: true,
+																CacheAnalyticsHash:   true,
 															},
 															Value: &resolve.Object{
 																Path:     []string{"shippingInfo"},
@@ -1733,7 +2049,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																SourceName: "account.service",
 																Fields: []*resolve.Field{
 																	{
-																		Name: []byte("zip"),
+																		Name: []byte("z"),
 																		Info: &resolve.FieldInfo{
 																			Name:            "zip",
 																			NamedType:       "String",
@@ -1745,7 +2061,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																			ExactParentTypeName: "ShippingInfo",
 																		},
 																		Value: &resolve.String{
-																			Path: []string{"zip"},
+																			Path: []string{"z"},
 																		},
 																	},
 																},
@@ -1761,7 +2077,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				planConfiguration, WithFieldInfo(), WithDefaultPostProcessor()))
+				planConfiguration, WithFieldInfo(), WithDefaultPostProcessor(), WithFieldDependencies(), WithEntityCaching(), WithFetchProvidesData(), WithCacheKeyTemplates()))
 		})
 
 		t.Run("composite keys variant", func(t *testing.T) {
@@ -3622,6 +3938,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													Info: &resolve.FieldInfo{
 														Name:                "account",
 														ExactParentTypeName: "User",
+														CacheAnalyticsHash:  true,
 														ParentTypeNames:     []string{"User"},
 														NamedType:           "Account",
 														Source: resolve.TypeFieldSource{
@@ -3643,6 +3960,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																Info: &resolve.FieldInfo{
 																	Name:                "address",
 																	ExactParentTypeName: "Account",
+																	CacheAnalyticsHash:  true,
 																	ParentTypeNames:     []string{"Account"},
 																	NamedType:           "Address",
 																	Source: resolve.TypeFieldSource{
@@ -3667,6 +3985,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																			Info: &resolve.FieldInfo{
 																				Name:                "fullAddress",
 																				ExactParentTypeName: "Address",
+																				CacheAnalyticsHash:  true,
 																				ParentTypeNames:     []string{"Address"},
 																				NamedType:           "String",
 																				Source: resolve.TypeFieldSource{

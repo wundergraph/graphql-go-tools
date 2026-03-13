@@ -2,17 +2,50 @@ package resolve
 
 import (
 	"io"
+	"time"
 
 	"github.com/gobwas/ws"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 )
 
+// SubscriptionCacheMode determines how subscription events manage L2 cache entries.
+type SubscriptionCacheMode int
+
+const (
+	// SubscriptionCacheModePopulate writes entity data to L2 on each subscription event.
+	SubscriptionCacheModePopulate SubscriptionCacheMode = iota
+	// SubscriptionCacheModeInvalidate deletes the L2 cache entry on each subscription event.
+	SubscriptionCacheModeInvalidate
+)
+
+// SubscriptionEntityCachePopulation configures how the resolver manages L2 cache
+// entries for root entities received via subscription events.
+type SubscriptionEntityCachePopulation struct {
+	// Mode determines whether to populate or invalidate L2 cache entries.
+	Mode SubscriptionCacheMode
+	// CacheKeyTemplate generates cache keys from entity @key fields.
+	CacheKeyTemplate *EntityQueryCacheKeyTemplate
+	// CacheName identifies which LoaderCache instance to use.
+	CacheName string
+	// TTL is the time-to-live for populated cache entries (only used in Populate mode).
+	TTL time.Duration
+	// IncludeSubgraphHeaderPrefix controls whether forwarded headers affect cache keys.
+	IncludeSubgraphHeaderPrefix bool
+	// DataSourceName is the subgraph name for SubgraphHeadersBuilder lookup.
+	DataSourceName string
+	// SubscriptionFieldName is the name of the subscription root field (e.g., "updateProductPrice").
+	// Used to navigate from the subscription data root to the entity data.
+	SubscriptionFieldName string
+	// EntityTypeName is the entity type name (e.g., "Product") used to set __typename in cache keys.
+	EntityTypeName string
+}
+
 type GraphQLSubscription struct {
-	Trigger  GraphQLSubscriptionTrigger
-	Response *GraphQLResponse
-	Filter   *SubscriptionFilter
+	Trigger               GraphQLSubscriptionTrigger
+	Response              *GraphQLResponse
+	Filter                *SubscriptionFilter
+	EntityCachePopulation *SubscriptionEntityCachePopulation
 }
 
 type GraphQLSubscriptionTrigger struct {
@@ -85,46 +118,6 @@ type SubscriptionResponseWriter interface {
 	Complete()
 	Heartbeat() error
 	Close(kind SubscriptionCloseKind)
-}
-
-func writeGraphqlResponse(buf *BufPair, writer io.Writer, ignoreData bool) (err error) {
-	hasErrors := buf.Errors.Len() != 0
-	hasData := buf.Data.Len() != 0 && !ignoreData
-
-	err = writeSafe(err, writer, lBrace)
-
-	if hasErrors {
-		err = writeSafe(err, writer, quote)
-		err = writeSafe(err, writer, literalErrors)
-		err = writeSafe(err, writer, quote)
-		err = writeSafe(err, writer, colon)
-		err = writeSafe(err, writer, lBrack)
-		err = writeSafe(err, writer, buf.Errors.Bytes())
-		err = writeSafe(err, writer, rBrack)
-		err = writeSafe(err, writer, comma)
-	}
-
-	err = writeSafe(err, writer, quote)
-	err = writeSafe(err, writer, literalData)
-	err = writeSafe(err, writer, quote)
-	err = writeSafe(err, writer, colon)
-
-	if hasData {
-		_, err = writer.Write(buf.Data.Bytes())
-	} else {
-		err = writeSafe(err, writer, literal.NULL)
-	}
-	err = writeSafe(err, writer, rBrace)
-
-	return err
-}
-
-func writeSafe(err error, writer io.Writer, data []byte) error {
-	if err != nil {
-		return err
-	}
-	_, err = writer.Write(data)
-	return err
 }
 
 func writeFlushComplete(writer SubscriptionResponseWriter, msg []byte) error {

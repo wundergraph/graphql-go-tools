@@ -1,0 +1,9 @@
+subscription UpdatePriceUnion($upc: String!) {
+    updateProductPriceUnion(upc: $upc) {
+        ... on Product {
+            upc
+            name
+            price
+        }
+    }
+}

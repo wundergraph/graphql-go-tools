@@ -1,0 +1,11 @@
+query MeReviewsWithoutProvidesWithNickname {
+    me {
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+                nickname
+            }
+        }
+    }
+}
