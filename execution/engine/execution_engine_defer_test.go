@@ -196,29 +196,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 						expectedHost: "first",
 						expectedPath: "/",
 						responses: map[string]sendResponse{
-							`{"query":"{user {__typename id}}"}`: {
-								statusCode: 200,
-								body:       `{"data":{"user":{"__typename":"User","id":"1","info":{"email":"black@sabbat"}}}}`,
-							},
-							`{"query":"{user {id __typename}}"}`: {
-								statusCode: 200,
-								body:       `{"data":{"user":{"__typename":"User","id":"1","info":{"email":"black@sabbat"}}}}`,
-							},
-							`{"query":"{user {__typename}}"}`: {
-								statusCode: 200,
-								body:       `{"data":{"user":{"__typename":"User","info":{"email":"black@sabbat"}}}}`,
-							},
 							`{"query":"{user {id}}"}`: {
 								statusCode: 200,
 								body:       `{"data":{"user":{"id":"1","info":{"email":"black@sabbat"}}}}`,
-							},
-							`{"query":"{user {___typename: __typename __typename}}"}`: {
-								statusCode: 200,
-								body:       `{"data":{"user":{"___typename":"User","__typename":"User","info":{"email":"black@sabbat"}}}}`,
-							},
-							`{"query":"{user {___typename: __typename __typename id}}"}`: {
-								statusCode: 200,
-								body:       `{"data":{"user":{"___typename":"User","__typename":"User","id":"1","info":{"email":"black@sabbat"}}}}`,
 							},
 							`{"query":"{user {info {email}}}"}`: {
 								statusCode: 200,
@@ -228,17 +208,37 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 								statusCode: 200,
 								body:       `{"data":{"user":{"info":{"___typename":"Info"}}}}`,
 							},
-							`{"query":"{user {__typename id __internal_1___typename: __typename __internal_1_id: id}}"}`: {
+							`{"query":"{user {__typename id __internal_1_id: id}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"__typename":"User","id":"1","__internal_1___typename":"User","__internal_1_id":"1"}}}`,
+								body:       `{"data":{"user":{"__typename":"User","id":"1","__internal_1_id":"1"}}}`,
 							},
-							`{"query":"{user {id __typename __internal_1___typename: __typename __internal_1_id: id}}"}`: {
+							`{"query":"{user {id __typename __internal_1_id: id}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"id":"1","__typename":"User","__internal_1___typename":"User","__internal_1_id":"1"}}}`,
+								body:       `{"data":{"user":{"id":"1","__typename":"User","__internal_1_id":"1"}}}`,
 							},
-							`{"query":"{user {___typename: __typename __internal_1___typename: __typename __internal_1_id: id __internal_2___typename: __typename __internal_2_id: id}}"}`: {
+							`{"query":"{user {__typename __internal_id: id __internal_1_id: id}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"___typename":"User","__internal_1___typename":"User","__internal_1_id":"1","__internal_2___typename":"User","__internal_2_id":"1"}}}`,
+								body:       `{"data":{"user":{"__typename":"User","__internal_id":"1","__internal_1_id":"1"}}}`,
+							},
+							`{"query":"{user {___typename: __typename __typename __internal_1_id: id}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"___typename":"User","__typename":"User","__internal_1_id":"1"}}}`,
+							},
+							`{"query":"{user {___typename: __typename __typename __internal_1_id: id __internal_2_id: id}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"___typename":"User","__typename":"User","__internal_1_id":"1","__internal_2_id":"1"}}}`,
+							},
+							`{"query":"{user {info {email} __typename id __internal_1_id: id}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"info":{"email":"black@sabbat"},"__typename":"User","id":"1","__internal_1_id":"1"}}}`,
+							},
+							`{"query":"{user {info {___typename: __typename} __typename id}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"info":{"___typename":"Info"},"__typename":"User","id":"1"}}}`,
+							},
+							`{"query":"{user {___typename: __typename __typename __internal_3_id: id __internal_4_id: id __internal_5_id: id}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"___typename":"User","__typename":"User","__internal_3_id":"1","__internal_4_id":"1","__internal_5_id":"1"}}}`,
 							},
 						},
 					}),
