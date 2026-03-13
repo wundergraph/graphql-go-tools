@@ -1303,13 +1303,6 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 										},
 									},
 								},
-								{
-									Name:          "field_args",
-									ProtoTypeName: DataTypeMessage,
-									Message: &RPCMessage{
-										Name: "ResolveCategoryChildCategoriesArgs",
-									},
-								},
 							},
 						},
 						Response: RPCMessage{
@@ -1418,13 +1411,6 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 										},
 									},
 								},
-								{
-									Name:          "field_args",
-									ProtoTypeName: DataTypeMessage,
-									Message: &RPCMessage{
-										Name: "ResolveCategoryChildCategoriesArgs",
-									},
-								},
 							},
 						},
 						Response: RPCMessage{
@@ -1501,13 +1487,6 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 												ResolvePath:   buildPath("result.child_categories.name"),
 											},
 										},
-									},
-								},
-								{
-									Name:          "field_args",
-									ProtoTypeName: DataTypeMessage,
-									Message: &RPCMessage{
-										Name: "ResolveCategoryChildCategoriesArgs",
 									},
 								},
 							},
@@ -1618,13 +1597,6 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 										},
 									},
 								},
-								{
-									Name:          "field_args",
-									ProtoTypeName: DataTypeMessage,
-									Message: &RPCMessage{
-										Name: "ResolveCategoryChildCategoriesArgs",
-									},
-								},
 							},
 						},
 						Response: RPCMessage{
@@ -1702,13 +1674,6 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 												ResolvePath:   buildPath("result.child_categories.name"),
 											},
 										},
-									},
-								},
-								{
-									Name:          "field_args",
-									ProtoTypeName: DataTypeMessage,
-									Message: &RPCMessage{
-										Name: "ResolveCategoryChildCategoriesArgs",
 									},
 								},
 							},
@@ -1820,13 +1785,6 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 										},
 									},
 								},
-								{
-									Name:          "field_args",
-									ProtoTypeName: DataTypeMessage,
-									Message: &RPCMessage{
-										Name: "ResolveCategoryChildCategoriesArgs",
-									},
-								},
 							},
 						},
 						Response: RPCMessage{
@@ -1903,13 +1861,6 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 												ResolvePath:   buildPath("result.child_categories.name"),
 											},
 										},
-									},
-								},
-								{
-									Name:          "field_args",
-									ProtoTypeName: DataTypeMessage,
-									Message: &RPCMessage{
-										Name: "ResolveCategoryChildCategoriesArgs",
 									},
 								},
 							},
@@ -1990,13 +1941,6 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 										},
 									},
 								},
-								{
-									Name:          "field_args",
-									ProtoTypeName: DataTypeMessage,
-									Message: &RPCMessage{
-										Name: "ResolveCategoryChildCategoriesArgs",
-									},
-								},
 							},
 						},
 						Response: RPCMessage{
@@ -2073,13 +2017,6 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 												ResolvePath:   buildPath("result.child_categories.name"),
 											},
 										},
-									},
-								},
-								{
-									Name:          "field_args",
-									ProtoTypeName: DataTypeMessage,
-									Message: &RPCMessage{
-										Name: "ResolveCategoryChildCategoriesArgs",
 									},
 								},
 							},
@@ -2188,13 +2125,6 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 												ResolvePath:   buildPath("categories.name"),
 											},
 										},
-									},
-								},
-								{
-									Name:          "field_args",
-									ProtoTypeName: DataTypeMessage,
-									Message: &RPCMessage{
-										Name: "ResolveCategoryOptionalCategoriesArgs",
 									},
 								},
 							},
@@ -2310,13 +2240,6 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 										},
 									},
 								},
-								{
-									Name:          "field_args",
-									ProtoTypeName: DataTypeMessage,
-									Message: &RPCMessage{
-										Name: "ResolveCategoryOptionalCategoriesArgs",
-									},
-								},
 							},
 						},
 						Response: RPCMessage{
@@ -2398,13 +2321,6 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 												ResolvePath:   buildPath("result.@optional_categories.name"),
 											},
 										},
-									},
-								},
-								{
-									Name:          "field_args",
-									ProtoTypeName: DataTypeMessage,
-									Message: &RPCMessage{
-										Name: "ResolveCategoryOptionalCategoriesArgs",
 									},
 								},
 							},
@@ -2531,13 +2447,6 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 										},
 									},
 								},
-								{
-									Name:          "field_args",
-									ProtoTypeName: DataTypeMessage,
-									Message: &RPCMessage{
-										Name: "ResolveCategoryChildCategoriesArgs",
-									},
-								},
 							},
 						},
 						Response: RPCMessage{
@@ -2614,13 +2523,6 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 												ResolvePath:   buildPath("result.child_categories.name"),
 											},
 										},
-									},
-								},
-								{
-									Name:          "field_args",
-									ProtoTypeName: DataTypeMessage,
-									Message: &RPCMessage{
-										Name: "ResolveCategoryOptionalCategoriesArgs",
 									},
 								},
 							},
@@ -2706,13 +2608,6 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 										},
 									},
 								},
-								{
-									Name:          "field_args",
-									ProtoTypeName: DataTypeMessage,
-									Message: &RPCMessage{
-										Name: "ResolveCategoryOptionalCategoriesArgs",
-									},
-								},
 							},
 						},
 						Response: RPCMessage{
@@ -2794,13 +2689,6 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 												ResolvePath:   buildPath("result.@optional_categories.name"),
 											},
 										},
-									},
-								},
-								{
-									Name:          "field_args",
-									ProtoTypeName: DataTypeMessage,
-									Message: &RPCMessage{
-										Name: "ResolveCategoryChildCategoriesArgs",
 									},
 								},
 							},
@@ -4315,13 +4203,6 @@ func TestExecutionPlanFieldResolvers_CustomSchemas(t *testing.T) {
 										},
 									},
 								},
-								{
-									Name:          "field_args",
-									ProtoTypeName: DataTypeMessage,
-									Message: &RPCMessage{
-										Name: "ResolveFooFooResolverOptionalArgumentArgs",
-									},
-								},
 							},
 						},
 						Response: RPCMessage{
@@ -5699,6 +5580,697 @@ type Query {
 	}
 
 	return doc
+}
+
+func TestExecutionPlanFieldResolvers_ArgumentLess(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name          string
+		query         string
+		expectedPlan  *RPCExecutionPlan
+		expectedError string
+	}{
+		{
+			name:  "Argument-less field resolver returning scalar",
+			query: "query CategoriesWithTotalProducts { categories { id totalProducts } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryCategories",
+						Request: RPCMessage{
+							Name: "QueryCategoriesRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "categories",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "categories",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "Category",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             1,
+						DependentCalls: []int{0},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryTotalProducts",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.totalProducts"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryTotalProductsRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryTotalProductsContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("categories.id"),
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryTotalProductsResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryTotalProductsResult",
+										Fields: []RPCField{
+											{
+												Name:          "total_products",
+												ProtoTypeName: DataTypeInt32,
+												JSONPath:      "totalProducts",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Argument-less field resolver returning nullable object",
+			query: "query CategoriesWithTopSubcategory { categories { id name topSubcategory { id name } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryCategories",
+						Request: RPCMessage{
+							Name: "QueryCategoriesRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "categories",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "categories",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "Category",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             1,
+						DependentCalls: []int{0},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryTopSubcategory",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.topSubcategory"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryTopSubcategoryRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryTopSubcategoryContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("categories.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("categories.name"),
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryTopSubcategoryResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryTopSubcategoryResult",
+										Fields: []RPCField{
+											{
+												Name:          "top_subcategory",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "topSubcategory",
+												Optional:      true,
+												Message: &RPCMessage{
+													Name: "Subcategory",
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+														{
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Argument-less field resolver returning required list",
+			query: "query CategoriesWithActiveSubcategories { categories { id activeSubcategories { id name } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryCategories",
+						Request: RPCMessage{
+							Name: "QueryCategoriesRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "categories",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "categories",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "Category",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             1,
+						DependentCalls: []int{0},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryActiveSubcategories",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.activeSubcategories"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryActiveSubcategoriesRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryActiveSubcategoriesContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("categories.id"),
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryActiveSubcategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryActiveSubcategoriesResult",
+										Fields: []RPCField{
+											{
+												Name:          "active_subcategories",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "activeSubcategories",
+												Repeated:      true,
+												Message: &RPCMessage{
+													Name: "Subcategory",
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+														{
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Nested argument-less resolver on CategoryMetrics",
+			query: "query CategoriesWithNestedArglessResolver($metricType: String!) { categories { id categoryMetrics(metricType: $metricType) { id averageScore } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryCategories",
+						Request: RPCMessage{
+							Name: "QueryCategoriesRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "categories",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "categories",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "Category",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             1,
+						DependentCalls: []int{0},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryCategoryMetrics",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.categoryMetrics"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryCategoryMetricsRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryCategoryMetricsContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("categories.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("categories.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "",
+									Message: &RPCMessage{
+										Name: "ResolveCategoryCategoryMetricsArgs",
+										Fields: []RPCField{
+											{
+												Name:          "metric_type",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "metricType",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryCategoryMetricsResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryCategoryMetricsResult",
+										Fields: []RPCField{
+											{
+												Name:          "category_metrics",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "categoryMetrics",
+												Optional:      true,
+												Message: &RPCMessage{
+													Name: "CategoryMetrics",
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             2,
+						DependentCalls: []int{1},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryMetricsAverageScore",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.categoryMetrics.averageScore"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryMetricsAverageScoreRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryMetricsAverageScoreContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("result.category_metrics.id"),
+											},
+											{
+												Name:          "metric_type",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "metricType",
+												ResolvePath:   buildPath("result.category_metrics.metric_type"),
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryMetricsAverageScoreResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryMetricsAverageScoreResult",
+										Fields: []RPCField{
+											{
+												Name:          "average_score",
+												ProtoTypeName: DataTypeDouble,
+												JSONPath:      "averageScore",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Mixed with-args and argument-less field resolvers",
+			query: "query CategoriesMixed($f: ProductCountFilter) { categories { id totalProducts productCount(filters: $f) } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryCategories",
+						Request: RPCMessage{
+							Name: "QueryCategoriesRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "categories",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "categories",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "Category",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             1,
+						DependentCalls: []int{0},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryTotalProducts",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.totalProducts"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryTotalProductsRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryTotalProductsContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("categories.id"),
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryTotalProductsResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryTotalProductsResult",
+										Fields: []RPCField{
+											{
+												Name:          "total_products",
+												ProtoTypeName: DataTypeInt32,
+												JSONPath:      "totalProducts",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             2,
+						DependentCalls: []int{0},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryProductCount",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.productCount"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryProductCountRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryProductCountContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("categories.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("categories.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "",
+									Message: &RPCMessage{
+										Name: "ResolveCategoryProductCountArgs",
+										Fields: []RPCField{
+											{
+												Name:          "filters",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "f",
+												Optional:      true,
+												Message: &RPCMessage{
+													Name: "ProductCountFilter",
+													Fields: []RPCField{
+														{
+															Name:          "min_price",
+															ProtoTypeName: DataTypeDouble,
+															JSONPath:      "minPrice",
+															Optional:      true,
+														},
+														{
+															Name:          "max_price",
+															ProtoTypeName: DataTypeDouble,
+															JSONPath:      "maxPrice",
+															Optional:      true,
+														},
+														{
+															Name:          "in_stock",
+															ProtoTypeName: DataTypeBool,
+															JSONPath:      "inStock",
+															Optional:      true,
+														},
+														{
+															Name:          "search_term",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "searchTerm",
+															Optional:      true,
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryProductCountResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryProductCountResult",
+										Fields: []RPCField{
+											{
+												Name:          "product_count",
+												ProtoTypeName: DataTypeInt32,
+												JSONPath:      "productCount",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			runTest(t, testCase{
+				query:         tt.query,
+				expectedPlan:  tt.expectedPlan,
+				expectedError: tt.expectedError,
+			})
+		})
+	}
 }
 
 func mappingWithNestedResolverAndCompositeType(_ *testing.T) *GRPCMapping {

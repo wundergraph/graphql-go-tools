@@ -1,5 +1,6 @@
 package grpcdatasource
 
+// testMapping returns a hardcoded default mapping between GraphQL and Protobuf
 func testMapping() *GRPCMapping {
 	return &GRPCMapping{
 		Service: "Products",
@@ -312,6 +313,33 @@ func testMapping() *GRPCMapping {
 					Request:  "ResolveCategoryOptionalCategoriesRequest",
 					Response: "ResolveCategoryOptionalCategoriesResponse",
 				},
+				"totalProducts": {
+					FieldMappingData: FieldMapData{
+						TargetName:       "total_products",
+						ArgumentMappings: FieldArgumentMap{},
+					},
+					RPC:      "ResolveCategoryTotalProducts",
+					Request:  "ResolveCategoryTotalProductsRequest",
+					Response: "ResolveCategoryTotalProductsResponse",
+				},
+				"topSubcategory": {
+					FieldMappingData: FieldMapData{
+						TargetName:       "top_subcategory",
+						ArgumentMappings: FieldArgumentMap{},
+					},
+					RPC:      "ResolveCategoryTopSubcategory",
+					Request:  "ResolveCategoryTopSubcategoryRequest",
+					Response: "ResolveCategoryTopSubcategoryResponse",
+				},
+				"activeSubcategories": {
+					FieldMappingData: FieldMapData{
+						TargetName:       "active_subcategories",
+						ArgumentMappings: FieldArgumentMap{},
+					},
+					RPC:      "ResolveCategoryActiveSubcategories",
+					Request:  "ResolveCategoryActiveSubcategoriesRequest",
+					Response: "ResolveCategoryActiveSubcategoriesResponse",
+				},
 			},
 			"CategoryMetrics": {
 				"normalizedScore": {
@@ -335,6 +363,15 @@ func testMapping() *GRPCMapping {
 					RPC:      "ResolveCategoryMetricsRelatedCategory",
 					Request:  "ResolveCategoryMetricsRelatedCategoryRequest",
 					Response: "ResolveCategoryMetricsRelatedCategoryResponse",
+				},
+				"averageScore": {
+					FieldMappingData: FieldMapData{
+						TargetName:       "average_score",
+						ArgumentMappings: FieldArgumentMap{},
+					},
+					RPC:      "ResolveCategoryMetricsAverageScore",
+					Request:  "ResolveCategoryMetricsAverageScoreRequest",
+					Response: "ResolveCategoryMetricsAverageScoreResponse",
 				},
 			},
 			"Product": {
@@ -451,6 +488,15 @@ func testMapping() *GRPCMapping {
 					RPC:      "ResolveSubcategoryFeaturedCategory",
 					Request:  "ResolveSubcategoryFeaturedCategoryRequest",
 					Response: "ResolveSubcategoryFeaturedCategoryResponse",
+				},
+				"parentCategory": {
+					FieldMappingData: FieldMapData{
+						TargetName:       "parent_category",
+						ArgumentMappings: FieldArgumentMap{},
+					},
+					RPC:      "ResolveSubcategoryParentCategory",
+					Request:  "ResolveSubcategoryParentCategoryRequest",
+					Response: "ResolveSubcategoryParentCategoryResponse",
 				},
 			},
 			"TestContainer": {
@@ -1253,6 +1299,15 @@ func testMapping() *GRPCMapping {
 				"nullMetrics": {
 					TargetName: "null_metrics",
 				},
+				"totalProducts": {
+					TargetName: "total_products",
+				},
+				"topSubcategory": {
+					TargetName: "top_subcategory",
+				},
+				"activeSubcategories": {
+					TargetName: "active_subcategories",
+				},
 			},
 			"Subcategory": {
 				"id": {
@@ -1278,6 +1333,9 @@ func testMapping() *GRPCMapping {
 					ArgumentMappings: FieldArgumentMap{
 						"includeChildren": "include_children",
 					},
+				},
+				"parentCategory": {
+					TargetName: "parent_category",
 				},
 			},
 			"CategoryMetrics": {
@@ -1307,6 +1365,9 @@ func testMapping() *GRPCMapping {
 					ArgumentMappings: FieldArgumentMap{
 						"include": "include",
 					},
+				},
+				"averageScore": {
+					TargetName: "average_score",
 				},
 			},
 			"Cat": {
@@ -1820,5 +1881,4 @@ func testMapping() *GRPCMapping {
 			},
 		},
 	}
-
 }

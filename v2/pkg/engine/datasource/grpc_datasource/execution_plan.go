@@ -925,7 +925,12 @@ func (r *rpcPlanningContext) isFieldResolver(fieldDefRef int, isRootField bool) 
 		return false
 	}
 
-	return r.definition.FieldDefinitionHasArgumentsDefinitions(fieldDefRef)
+	return r.definition.FieldDefinitionHasArgumentsDefinitions(fieldDefRef) || r.hasFieldResolverDirective(fieldDefRef)
+}
+
+// hasFieldResolverDirective checks if a field has a field resolver directive.
+func (r *rpcPlanningContext) hasFieldResolverDirective(fieldDefRef int) bool {
+	return r.definition.FieldDefinitionHasNamedDirective(fieldDefRef, fieldResolverDirectiveName)
 }
 
 // isRequiredField checks if a field is a required field.
@@ -986,12 +991,14 @@ func (r *rpcPlanningContext) setResolvedField(walker *astvisitor.Walker, fieldDe
 		})
 	}
 
-	fieldArguments, err := r.parseFieldArguments(walker, fieldDefRef, fieldArgs)
-	if err != nil {
-		return err
-	}
+	if len(fieldArgs) > 0 {
+		fieldArguments, err := r.parseFieldArguments(walker, fieldDefRef, fieldArgs)
+		if err != nil {
+			return err
+		}
 
-	resolvedField.fieldArguments = fieldArguments
+		resolvedField.fieldArguments = fieldArguments
+	}
 
 	fieldDefType := r.definition.FieldDefinitionType(fieldDefRef)
 	if r.typeIsNullableOrNestedList(fieldDefType) {
@@ -1446,8 +1453,11 @@ func (r *rpcPlanningContext) createResolverRPCCalls(subgraphName string, resolve
 			Name: resolveConfig.RPC + "Context",
 		}
 
-		fieldArgsMessage := &RPCMessage{
-			Name: resolveConfig.RPC + "Args",
+		var fieldArgsMessage *RPCMessage
+		if len(resolvedField.fieldArguments) > 0 {
+			fieldArgsMessage = &RPCMessage{
+				Name: resolveConfig.RPC + "Args",
+			}
 		}
 
 		call, err := r.newResolveRPCCall(&resolveRPCCallConfig{
@@ -1555,28 +1565,29 @@ func (r *rpcPlanningContext) newResolveRPCCall(config *resolveRPCCallConfig) (RP
 		},
 	}
 
+	requestFields := RPCFields{
+		{
+			Name:          contextFieldName,
+			ProtoTypeName: DataTypeMessage,
+			Repeated:      true,
+			Message:       config.contextMessage,
+		},
+	}
+	if config.fieldArgsMessage != nil {
+		requestFields = append(requestFields, RPCField{
+			Name:          fieldArgsFieldName,
+			ProtoTypeName: DataTypeMessage,
+			Message:       config.fieldArgsMessage,
+		})
+	}
+
 	return RPCCall{
 		ID:             resolvedField.id,
 		DependentCalls: []int{resolvedField.callerRef},
 		ResponsePath:   resolvedField.responsePath,
 		MethodName:     resolveConfig.RPC,
 		Kind:           CallKindResolve,
-		Request: RPCMessage{
-			Name: resolveConfig.Request,
-			Fields: RPCFields{
-				{
-					Name:          contextFieldName,
-					ProtoTypeName: DataTypeMessage,
-					Repeated:      true,
-					Message:       config.contextMessage,
-				},
-				{
-					Name:          fieldArgsFieldName,
-					ProtoTypeName: DataTypeMessage,
-					Message:       config.fieldArgsMessage,
-				},
-			},
-		},
-		Response: response,
+		Request:        RPCMessage{Name: resolveConfig.Request, Fields: requestFields},
+		Response:       response,
 	}, nil
 }
