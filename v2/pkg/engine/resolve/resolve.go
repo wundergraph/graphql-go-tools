@@ -437,9 +437,10 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 }
 
 type trigger struct {
-	id            uint64
-	cancel        context.CancelFunc
-	subscriptions map[*Context]*sub
+	id                      uint64
+	cancel                  context.CancelFunc
+	subscriptions           map[*Context]*sub
+	subscriptionIdentifiers map[SubscriptionIdentifier]*Context
 	// initialized is set to true when the trigger is started and initialized
 	initialized bool
 	updater     *subscriptionUpdater
@@ -817,6 +818,7 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		// After the startup hooks are executed, we can add the subscription to the subscriptions registry
 		// so that it can start receive events
 		trig.subscriptions[add.ctx] = s
+		trig.subscriptionIdentifiers[s.id] = add.ctx
 		return
 	}
 
@@ -832,13 +834,15 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 	}
 	cloneCtx := add.ctx.clone(ctx)
 	trig = &trigger{
-		id:            triggerID,
-		subscriptions: make(map[*Context]*sub),
-		cancel:        cancel,
-		updater:       updater,
+		id:                      triggerID,
+		subscriptions:           make(map[*Context]*sub),
+		subscriptionIdentifiers: make(map[SubscriptionIdentifier]*Context),
+		cancel:                  cancel,
+		updater:                 updater,
 	}
 	r.triggers[triggerID] = trig
 	trig.subscriptions[add.ctx] = s
+	trig.subscriptionIdentifiers[s.id] = add.ctx
 	updater.subsFn = trig.subscriptionIds
 
 	if r.reporter != nil {
@@ -1004,13 +1008,17 @@ func (r *Resolver) handleUpdateSubscription(id uint64, data []byte, subIdentifie
 		fmt.Printf("resolver:trigger:subscription:update:%d:%d,%d\n", id, subIdentifier.ConnectionID, subIdentifier.SubscriptionID)
 	}
 
-	for c, s := range trig.subscriptions {
-		if s.id != subIdentifier {
-			continue
-		}
-		r.sendUpdateToSubscription(data, c, s)
-		break
+	c, exists := trig.subscriptionIdentifiers[subIdentifier]
+	if !exists {
+		return
 	}
+
+	s, exists := trig.subscriptions[c]
+	if !exists {
+		return
+	}
+
+	r.sendUpdateToSubscription(data, c, s)
 }
 
 func (r *Resolver) sendUpdateToSubscription(data []byte, c *Context, s *sub) {
@@ -1111,6 +1119,7 @@ func (r *Resolver) completeTriggerSubscriptions(id uint64, completeMatcher func(
 		// Important because we remove the subscription from the trigger on the same goroutine
 		// as we send work to the subscription worker. We can ensure that no new work is sent to the worker after this point.
 		delete(trig.subscriptions, c)
+		delete(trig.subscriptionIdentifiers, s.id)
 
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:closed:%d:%d\n", trig.id, s.id.SubscriptionID)
@@ -1142,6 +1151,7 @@ func (r *Resolver) closeTriggerSubscriptions(id uint64, closeKind SubscriptionCl
 		// Important because we remove the subscription from the trigger on the same goroutine
 		// as we send work to the subscription worker. We can ensure that no new work is sent to the worker after this point.
 		delete(trig.subscriptions, c)
+		delete(trig.subscriptionIdentifiers, s.id)
 
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:closed:%d:%d\n", trig.id, s.id.SubscriptionID)
