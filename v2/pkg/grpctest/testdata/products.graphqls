@@ -192,6 +192,10 @@ type Category {
   optionalCategories(include: Boolean): [Category!] @connect__fieldResolver(context: "id name")
   # The nullMetrics field is used to test that nested field resolvers are not invoked when the parent result is null.
   nullMetrics: CategoryMetrics
+  # Argument-less field resolvers
+  totalProducts: Int! @connect__fieldResolver(context: "id")
+  topSubcategory: Subcategory @connect__fieldResolver(context: "id name")
+  activeSubcategories: [Subcategory!]! @connect__fieldResolver(context: "id")
 }
 
 type Subcategory {
@@ -201,6 +205,8 @@ type Subcategory {
   isActive: Boolean!
   itemCount(filters: SubcategoryItemFilter): Int! @connect__fieldResolver(context: "id")
   featuredCategory(includeChildren: Boolean!): Category @connect__fieldResolver(context: "id")
+  # Argument-less field resolver
+  parentCategory: Category @connect__fieldResolver(context: "id")
 }
 
 type CategoryMetrics {
@@ -211,6 +217,8 @@ type CategoryMetrics {
   categoryId: ID!
   normalizedScore(baseline: Float!): Float! @connect__fieldResolver(context: "id value metricType")
   relatedCategory(include: Boolean): Category @connect__fieldResolver(context: "categoryId")
+  # Argument-less field resolver (nested: CategoryMetrics is returned by a field resolver on Category)
+  averageScore: Float! @connect__fieldResolver(context: "id metricType")
 }
 
 enum CategoryKind {

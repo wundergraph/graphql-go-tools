@@ -549,8 +549,8 @@ func (p *RPCCompiler) buildProtoMessageWithContext(inputMessage Message, rpcMess
 
 	rootMessage := dynamicpb.NewMessage(inputMessage.Desc)
 
-	if len(inputMessage.Fields) != 2 {
-		return nil, fmt.Errorf("message %s must have exactly two fields: context and field_args", inputMessage.Name)
+	if len(inputMessage.Fields) < 1 {
+		return nil, fmt.Errorf("message %s must have at least the context field", inputMessage.Name)
 	}
 
 	contextSchemaField := inputMessage.GetField("context")
@@ -587,24 +587,22 @@ func (p *RPCCompiler) buildProtoMessageWithContext(inputMessage Message, rpcMess
 		contextList.Append(val)
 	}
 
-	argsSchemaField := inputMessage.GetField("field_args")
-	if argsSchemaField == nil {
-		return nil, fmt.Errorf("field_args field not found in message %s", inputMessage.Name)
-	}
-
-	argsMessage := p.doc.Messages[argsSchemaField.MessageRef]
 	argsRPCField := rpcMessage.Fields.ByName("field_args")
-	if argsRPCField == nil {
-		return nil, fmt.Errorf("field_args field not found in message %s", rpcMessage.Name)
-	}
+	if argsRPCField != nil {
+		argsSchemaField := inputMessage.GetField("field_args")
+		if argsSchemaField == nil {
+			return nil, fmt.Errorf("field_args field not found in message %s", inputMessage.Name)
+		}
 
-	args, err := p.buildProtoMessage(argsMessage, argsRPCField.Message, data)
-	if err != nil {
-		return nil, err
-	}
-	// Set the args field
-	if err := p.setMessageValue(rootMessage, argsRPCField.Name, protoref.ValueOfMessage(args)); err != nil {
-		return nil, err
+		argsMessage := p.doc.Messages[argsSchemaField.MessageRef]
+		args, err := p.buildProtoMessage(argsMessage, argsRPCField.Message, data)
+		if err != nil {
+			return nil, err
+		}
+		// Set the args field
+		if err := p.setMessageValue(rootMessage, argsRPCField.Name, protoref.ValueOfMessage(args)); err != nil {
+			return nil, err
+		}
 	}
 
 	return rootMessage, nil
