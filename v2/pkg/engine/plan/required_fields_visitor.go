@@ -284,7 +284,7 @@ func (v *requiredFieldsVisitor) handleKeyField(ref int) {
 	fieldName := v.key.FieldNameBytes(ref)
 	isTypeName := bytes.Equal(fieldName, typeNameFieldBytes)
 	isLeafField := !v.key.FieldHasSelections(ref)
-	deferAlias := v.config.deferInfo != nil && v.isRootLevel()
+	deferAlias := v.config.deferInfo != nil && v.isRootLevel() && !isTypeName
 
 	selectionSetRef := v.OperationNodes[len(v.OperationNodes)-1].Ref
 	operationHasField, operationFieldRef := v.config.operation.SelectionSetHasFieldSelectionWithExactName(selectionSetRef, fieldName)
