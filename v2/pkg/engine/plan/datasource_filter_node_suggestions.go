@@ -159,14 +159,14 @@ func (f *NodeSuggestions) ProcessDefer() {
 			continue
 		}
 
-		// TODO: node should not be deffered in case it is a dependency for not deffered node or another defer on the same level?
-
 		f.propagateDeferParentsUpToRootNode(i)
 	}
 }
 
 func (f *NodeSuggestions) propagateDeferParentsUpToRootNode(i int) {
-	if f.items[i].IsRootNode {
+	// if the item is a root node and requires a key we are already able to jump from here,
+	// so we skip propagating defer id
+	if f.items[i].IsRootNode && f.items[i].requiresKey != nil {
 		return
 	}
 
@@ -205,8 +205,10 @@ func (f *NodeSuggestions) propagateDeferParentsUpToRootNode(i int) {
 
 		parentIndexesToAddDeferID = append(parentIndexesToAddDeferID, parentIdToUpdate)
 
-		if f.items[parentIdToUpdate].IsRootNode {
-			// we have found a root node from which we could branch out
+		// if we have found a root node, and it requires a key - we have found the root node from which we could branch out.
+		// if the node is a root node, but it doesn't require a key, we need to go up to the root query node,
+		// because it is an entity node within the query started from the root query node
+		if f.items[parentIdToUpdate].IsRootNode && f.items[parentIdToUpdate].requiresKey != nil {
 			break
 		}
 
