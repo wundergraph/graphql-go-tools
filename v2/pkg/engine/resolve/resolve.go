@@ -445,10 +445,10 @@ type trigger struct {
 	updater     *subscriptionUpdater
 }
 
-func (t *trigger) subscriptionIds() map[*Context]SubscriptionIdentifier {
-	subs := make(map[*Context]SubscriptionIdentifier, len(t.subscriptions))
+func (t *trigger) subscriptionIds() map[context.Context]SubscriptionIdentifier {
+	subs := make(map[context.Context]SubscriptionIdentifier, len(t.subscriptions))
 	for ctx, sub := range t.subscriptions {
-		subs[ctx] = sub.id
+		subs[ctx.Context()] = sub.id
 	}
 	return subs
 }
@@ -668,7 +668,7 @@ func (r *Resolver) handleEvent(event subscriptionEvent) {
 	case subscriptionEventKindRemoveClient:
 		r.handleRemoveClient(event.id.ConnectionID)
 	case subscriptionEventKindUpdateSubscription:
-		r.handleUpdateSubscription(event.triggerID, event.data, event.id, event.subCtx)
+		r.handleUpdateSubscription(event.triggerID, event.data, event.id)
 	case subscriptionEventKindTriggerUpdate:
 		r.handleTriggerUpdate(event.triggerID, event.data)
 	case subscriptionEventKindTriggerComplete:
@@ -756,7 +756,7 @@ func (r *Resolver) executeStartupHooks(add *addSubscription, updater *subscripti
 			Updater: func(data []byte) {
 				// Writing on the updater channel is safe but has to happen outside of the event loop
 				// to respect order and not block the event loop
-				updater.UpdateSubscription(add.ctx, add.id, data)
+				updater.UpdateSubscription(add.id, data)
 			},
 		}
 
@@ -994,7 +994,7 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 	}
 }
 
-func (r *Resolver) handleUpdateSubscription(id uint64, data []byte, subIdentifier SubscriptionIdentifier, subCtx *Context) {
+func (r *Resolver) handleUpdateSubscription(id uint64, data []byte, subIdentifier SubscriptionIdentifier) {
 	trig, ok := r.triggers[id]
 	if !ok {
 		return
@@ -1004,11 +1004,13 @@ func (r *Resolver) handleUpdateSubscription(id uint64, data []byte, subIdentifie
 		fmt.Printf("resolver:trigger:subscription:update:%d:%d,%d\n", id, subIdentifier.ConnectionID, subIdentifier.SubscriptionID)
 	}
 
-	s, ok := trig.subscriptions[subCtx]
-	if !ok {
-		return
+	for c, s := range trig.subscriptions {
+		if s.id != subIdentifier {
+			continue
+		}
+		r.sendUpdateToSubscription(data, c, s)
+		break
 	}
-	r.sendUpdateToSubscription(data, subCtx, s)
 }
 
 func (r *Resolver) sendUpdateToSubscription(data []byte, c *Context, s *sub) {
@@ -1447,7 +1449,7 @@ type subscriptionUpdater struct {
 	triggerID uint64
 	ch        chan subscriptionEvent
 	ctx       context.Context
-	subsFn    func() map[*Context]SubscriptionIdentifier
+	subsFn    func() map[context.Context]SubscriptionIdentifier
 }
 
 func (s *subscriptionUpdater) Update(data []byte) {
@@ -1467,7 +1469,7 @@ func (s *subscriptionUpdater) Update(data []byte) {
 	}
 }
 
-func (s *subscriptionUpdater) UpdateSubscription(ctx *Context, id SubscriptionIdentifier, data []byte) {
+func (s *subscriptionUpdater) UpdateSubscription(id SubscriptionIdentifier, data []byte) {
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:update:%d\n", s.triggerID)
 	}
@@ -1481,12 +1483,11 @@ func (s *subscriptionUpdater) UpdateSubscription(ctx *Context, id SubscriptionId
 		kind:      subscriptionEventKindUpdateSubscription,
 		data:      data,
 		id:        id,
-		subCtx:    ctx,
 	}:
 	}
 }
 
-func (s *subscriptionUpdater) Subscriptions() map[*Context]SubscriptionIdentifier {
+func (s *subscriptionUpdater) Subscriptions() map[context.Context]SubscriptionIdentifier {
 	return s.subsFn()
 }
 
@@ -1566,7 +1567,6 @@ type subscriptionEvent struct {
 	data            []byte
 	addSubscription *addSubscription
 	closeKind       SubscriptionCloseKind
-	subCtx          *Context
 }
 
 type addSubscription struct {
@@ -1599,7 +1599,7 @@ type SubscriptionUpdater interface {
 	// Update sends an update to the client. It is not guaranteed that the update is sent immediately.
 	Update(data []byte)
 	// UpdateSubscription sends an update to a single subscription. It is not guaranteed that the update is sent immediately.
-	UpdateSubscription(ctx *Context, id SubscriptionIdentifier, data []byte)
+	UpdateSubscription(id SubscriptionIdentifier, data []byte)
 	// Complete also takes care of cleaning up the trigger and all subscriptions. No more updates should be sent after calling Complete.
 	Complete()
 	// Close closes the subscription and cleans up the trigger and all subscriptions. No more updates should be sent after calling Close.
@@ -1607,5 +1607,5 @@ type SubscriptionUpdater interface {
 	// CloseSubscription closes a single subscription. No more updates should be sent to that subscription after calling CloseSubscription.
 	CloseSubscription(kind SubscriptionCloseKind, id SubscriptionIdentifier)
 	// Subscriptions return all the subscriptions associated to this Updater
-	Subscriptions() map[*Context]SubscriptionIdentifier
+	Subscriptions() map[context.Context]SubscriptionIdentifier
 }
