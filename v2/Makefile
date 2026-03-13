@@ -1,11 +1,17 @@
+ifeq ($(CI),true)
+ FORMAT := github-actions
+else
+ FORMAT := pkgname
+endif
+
 .PHONY: test
 test:
-	go test -race ./...
+	go tool gotestsum -f $(FORMAT) --format-hide-empty-pkg --hide-summary=skipped -- -race ./...
 
 # First we test, then we benchmark. Otherwise we would get noisy output from testing logs.
 .PHONY: test-quick
 test-quick:
-	go test ./...
+	go tool gotestsum -f $(FORMAT) --format-hide-empty-pkg --hide-summary=skipped -- ./...
 	go test -run=^$$ -bench=. -benchtime=1x ./...
 
 # update-fixtures will update all! golden fixtures
@@ -16,11 +22,11 @@ update-fixtures:
 # golangci-lint will find the config file in the root dir of the repo.
 .PHONY: format
 format:
-	golangci-lint fmt 
+	golangci-lint fmt
 
 .PHONY: lint
 lint:
-	golangci-lint run 
+	golangci-lint run
 	cd ../execution && make lint
 
 .PHONY: lint-fix
