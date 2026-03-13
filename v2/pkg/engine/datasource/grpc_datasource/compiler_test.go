@@ -465,3 +465,44 @@ func TestCompileNestedLists(t *testing.T) {
 		require.Equal(t, "modifier2", modifiersList.Get(1).String())
 	}
 }
+
+func TestCompileNestedMessages(t *testing.T) {
+	const protoSchemaWithNestedMessages = `
+	syntax = "proto3";
+	package product.v1;
+
+	option go_package = "grpc-graphql/pkg/proto/product/v1;productv1";
+
+	message MyMessage {
+		message NestedMessage {
+			string nested_data = 1;
+		}
+
+		int32 first = 1;
+		NestedMessage second = 2;
+	}
+
+	message SecondMessage {
+	    message MyMessage {
+		  message NestedMessage {
+			string nested_data = 1;
+		  }
+
+		  NestedMessage nested_message = 1;
+		}
+
+		string second_data = 1;
+		MyMessage third = 2;
+	}
+	`
+
+	compiler, err := NewProtoCompiler(protoSchemaWithNestedMessages, nil)
+	require.NoError(t, err)
+
+	require.Equal(t, 5, len(compiler.doc.Messages))
+	require.Equal(t, "MyMessage", compiler.doc.Messages[0].Name)
+	require.Equal(t, "MyMessage.NestedMessage", compiler.doc.Messages[1].Name)
+	require.Equal(t, "SecondMessage", compiler.doc.Messages[2].Name)
+	require.Equal(t, "SecondMessage.MyMessage", compiler.doc.Messages[3].Name)
+	require.Equal(t, "SecondMessage.MyMessage.NestedMessage", compiler.doc.Messages[4].Name)
+}
