@@ -70,15 +70,19 @@ service ProductService {
   rpc RequireStorageStockHealthScoreById(RequireStorageStockHealthScoreByIdRequest) returns (RequireStorageStockHealthScoreByIdResponse) {}
   rpc RequireStorageTagSummaryById(RequireStorageTagSummaryByIdRequest) returns (RequireStorageTagSummaryByIdResponse) {}
   rpc RequireWarehouseStockHealthScoreById(RequireWarehouseStockHealthScoreByIdRequest) returns (RequireWarehouseStockHealthScoreByIdResponse) {}
+  rpc ResolveCategoryActiveSubcategories(ResolveCategoryActiveSubcategoriesRequest) returns (ResolveCategoryActiveSubcategoriesResponse) {}
   rpc ResolveCategoryCategoryMetrics(ResolveCategoryCategoryMetricsRequest) returns (ResolveCategoryCategoryMetricsResponse) {}
   rpc ResolveCategoryCategoryStatus(ResolveCategoryCategoryStatusRequest) returns (ResolveCategoryCategoryStatusResponse) {}
   rpc ResolveCategoryChildCategories(ResolveCategoryChildCategoriesRequest) returns (ResolveCategoryChildCategoriesResponse) {}
   rpc ResolveCategoryMascot(ResolveCategoryMascotRequest) returns (ResolveCategoryMascotResponse) {}
+  rpc ResolveCategoryMetricsAverageScore(ResolveCategoryMetricsAverageScoreRequest) returns (ResolveCategoryMetricsAverageScoreResponse) {}
   rpc ResolveCategoryMetricsNormalizedScore(ResolveCategoryMetricsNormalizedScoreRequest) returns (ResolveCategoryMetricsNormalizedScoreResponse) {}
   rpc ResolveCategoryMetricsRelatedCategory(ResolveCategoryMetricsRelatedCategoryRequest) returns (ResolveCategoryMetricsRelatedCategoryResponse) {}
   rpc ResolveCategoryOptionalCategories(ResolveCategoryOptionalCategoriesRequest) returns (ResolveCategoryOptionalCategoriesResponse) {}
   rpc ResolveCategoryPopularityScore(ResolveCategoryPopularityScoreRequest) returns (ResolveCategoryPopularityScoreResponse) {}
   rpc ResolveCategoryProductCount(ResolveCategoryProductCountRequest) returns (ResolveCategoryProductCountResponse) {}
+  rpc ResolveCategoryTopSubcategory(ResolveCategoryTopSubcategoryRequest) returns (ResolveCategoryTopSubcategoryResponse) {}
+  rpc ResolveCategoryTotalProducts(ResolveCategoryTotalProductsRequest) returns (ResolveCategoryTotalProductsResponse) {}
   rpc ResolveProductMascotRecommendation(ResolveProductMascotRecommendationRequest) returns (ResolveProductMascotRecommendationResponse) {}
   rpc ResolveProductProductDetails(ResolveProductProductDetailsRequest) returns (ResolveProductProductDetailsResponse) {}
   rpc ResolveProductRecommendedCategory(ResolveProductRecommendedCategoryRequest) returns (ResolveProductRecommendedCategoryResponse) {}
@@ -89,6 +93,7 @@ service ProductService {
   rpc ResolveStorageStorageStatus(ResolveStorageStorageStatusRequest) returns (ResolveStorageStorageStatusResponse) {}
   rpc ResolveSubcategoryFeaturedCategory(ResolveSubcategoryFeaturedCategoryRequest) returns (ResolveSubcategoryFeaturedCategoryResponse) {}
   rpc ResolveSubcategoryItemCount(ResolveSubcategoryItemCountRequest) returns (ResolveSubcategoryItemCountResponse) {}
+  rpc ResolveSubcategoryParentCategory(ResolveSubcategoryParentCategoryRequest) returns (ResolveSubcategoryParentCategoryResponse) {}
   rpc ResolveTestContainerDetails(ResolveTestContainerDetailsRequest) returns (ResolveTestContainerDetailsResponse) {}
 }
 
@@ -1054,6 +1059,58 @@ message ResolveCategoryOptionalCategoriesResponse {
   repeated ResolveCategoryOptionalCategoriesResult result = 1;
 }
 
+message ResolveCategoryTotalProductsContext {
+  string id = 1;
+}
+
+message ResolveCategoryTotalProductsRequest {
+  // context provides the resolver context for the field totalProducts of type Category.
+  repeated ResolveCategoryTotalProductsContext context = 1;
+}
+
+message ResolveCategoryTotalProductsResult {
+  int32 total_products = 1;
+}
+
+message ResolveCategoryTotalProductsResponse {
+  repeated ResolveCategoryTotalProductsResult result = 1;
+}
+
+message ResolveCategoryTopSubcategoryContext {
+  string id = 1;
+  string name = 2;
+}
+
+message ResolveCategoryTopSubcategoryRequest {
+  // context provides the resolver context for the field topSubcategory of type Category.
+  repeated ResolveCategoryTopSubcategoryContext context = 1;
+}
+
+message ResolveCategoryTopSubcategoryResult {
+  Subcategory top_subcategory = 1;
+}
+
+message ResolveCategoryTopSubcategoryResponse {
+  repeated ResolveCategoryTopSubcategoryResult result = 1;
+}
+
+message ResolveCategoryActiveSubcategoriesContext {
+  string id = 1;
+}
+
+message ResolveCategoryActiveSubcategoriesRequest {
+  // context provides the resolver context for the field activeSubcategories of type Category.
+  repeated ResolveCategoryActiveSubcategoriesContext context = 1;
+}
+
+message ResolveCategoryActiveSubcategoriesResult {
+  repeated Subcategory active_subcategories = 1;
+}
+
+message ResolveCategoryActiveSubcategoriesResponse {
+  repeated ResolveCategoryActiveSubcategoriesResult result = 1;
+}
+
 message ResolveSubcategoryItemCountArgs {
   SubcategoryItemFilter filters = 1;
 }
@@ -1098,6 +1155,23 @@ message ResolveSubcategoryFeaturedCategoryResult {
 
 message ResolveSubcategoryFeaturedCategoryResponse {
   repeated ResolveSubcategoryFeaturedCategoryResult result = 1;
+}
+
+message ResolveSubcategoryParentCategoryContext {
+  string id = 1;
+}
+
+message ResolveSubcategoryParentCategoryRequest {
+  // context provides the resolver context for the field parentCategory of type Subcategory.
+  repeated ResolveSubcategoryParentCategoryContext context = 1;
+}
+
+message ResolveSubcategoryParentCategoryResult {
+  Category parent_category = 1;
+}
+
+message ResolveSubcategoryParentCategoryResponse {
+  repeated ResolveSubcategoryParentCategoryResult result = 1;
 }
 
 message ResolveCategoryMetricsNormalizedScoreArgs {
@@ -1146,6 +1220,24 @@ message ResolveCategoryMetricsRelatedCategoryResult {
 
 message ResolveCategoryMetricsRelatedCategoryResponse {
   repeated ResolveCategoryMetricsRelatedCategoryResult result = 1;
+}
+
+message ResolveCategoryMetricsAverageScoreContext {
+  string id = 1;
+  string metric_type = 2;
+}
+
+message ResolveCategoryMetricsAverageScoreRequest {
+  // context provides the resolver context for the field averageScore of type CategoryMetrics.
+  repeated ResolveCategoryMetricsAverageScoreContext context = 1;
+}
+
+message ResolveCategoryMetricsAverageScoreResult {
+  double average_score = 1;
+}
+
+message ResolveCategoryMetricsAverageScoreResponse {
+  repeated ResolveCategoryMetricsAverageScoreResult result = 1;
 }
 
 message ResolveTestContainerDetailsArgs {

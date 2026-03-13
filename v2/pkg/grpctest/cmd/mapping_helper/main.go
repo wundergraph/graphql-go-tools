@@ -6,9 +6,10 @@ import (
 	"bytes"
 	_ "embed"
 	"encoding/json"
+	"flag"
+	"html/template"
 	"log"
 	"os"
-	"text/template"
 )
 
 type TemplateData struct {
@@ -100,10 +101,21 @@ type EnumValue struct {
 var (
 	//go:embed templates/grpctest_mapping.tmpl
 	tpl string
+	//go:embed templates/grcp_datasource_mapping_helper.tmpl
+	tplGRPCDatasource string
+
+	grpcDatasource bool
 )
 
+// define flags for the command
+func init() {
+	flag.BoolVar(&grpcDatasource, "grpc-datasource", false, "use the grpc_datasource package template")
+}
+
 func main() {
-	args := os.Args[1:]
+	flag.Parse()
+
+	args := flag.Args()
 	if len(args) < 2 {
 		log.Fatal("No input file or output file provided")
 	}
@@ -146,7 +158,12 @@ func main() {
 		data.ResolveRPCs[t] = item
 	}
 
-	t := template.Must(template.New("mapping").Parse(tpl))
+	var usedTemplate = tpl
+	if grpcDatasource {
+		usedTemplate = tplGRPCDatasource
+	}
+
+	t := template.Must(template.New("mapping").Parse(usedTemplate))
 
 	buf := &bytes.Buffer{}
 	if err := t.Execute(buf, data); err != nil {
