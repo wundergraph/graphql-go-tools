@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.0.0-rc.264](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.263...v2.0.0-rc.264) (2026-03-13)
+
+
+### Features
+
+* support sizedFields in cost computations ([#1410](https://github.com/wundergraph/graphql-go-tools/issues/1410)) ([48f7582](https://github.com/wundergraph/graphql-go-tools/commit/48f75821b0d7e0ffb5f7e66cffba3d1ad0cbf9dc))
+
+## [2.0.0-rc.263](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.262...v2.0.0-rc.263) (2026-03-13)
+
+
+### Features
+
+* support field resolvers with empty arguments ([#1440](https://github.com/wundergraph/graphql-go-tools/issues/1440)) ([58305bc](https://github.com/wundergraph/graphql-go-tools/commit/58305bc61a774e0ced6def84f63f75f5c4556dc8))
+
 ## [2.0.0-rc.262](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.261...v2.0.0-rc.262) (2026-03-10)
 
 

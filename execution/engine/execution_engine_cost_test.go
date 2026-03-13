@@ -1950,4 +1950,1009 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			computeCosts(),
 		))
 	})
+
+	t.Run("sizedFields", func(t *testing.T) {
+		connSchema := `
+			type Query {
+				users(first: Int, last: Int): UserConnection!
+			}
+			type UserConnection {
+				edges: [UserEdge!]
+				nodes: [User!]
+				totalCount: Int!
+			}
+			type UserEdge {
+				cursor: String!
+				node: User!
+			}
+			type User @key(fields: "id") {
+				id: ID!
+				name: String!
+				posts(first: Int): [Post!]
+			}
+			type Post @key(fields: "id") {
+				id: ID!
+				title: String!
+			}
+			`
+		schemaConn, err := graphql.NewSchemaFromString(connSchema)
+		require.NoError(t, err)
+
+		rootNodes := []plan.TypeField{
+			{TypeName: "Query", FieldNames: []string{"users"}},
+			{TypeName: "User", FieldNames: []string{"id", "name", "posts"}},
+			{TypeName: "Post", FieldNames: []string{"id", "title"}},
+			{TypeName: "UserConnection", FieldNames: []string{"edges", "nodes", "totalCount"}},
+			{TypeName: "UserEdge", FieldNames: []string{"cursor", "node"}},
+		}
+		childNodes := []plan.TypeField{}
+		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+			Fetch: &graphql_datasource.FetchConfiguration{
+				URL:    "https://example.com/",
+				Method: "GET",
+			},
+			SchemaConfiguration: mustSchemaConfig(t, nil, connSchema),
+		})
+		fieldConfig := []plan.FieldConfiguration{
+			{
+				TypeName: "Query", FieldName: "users", Path: []string{"users"},
+				Arguments: []plan.ArgumentConfiguration{
+					{Name: "first", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+					{Name: "last", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+				},
+			},
+			{
+				TypeName: "User", FieldName: "posts", Path: []string{"posts"},
+				Arguments: []plan.ArgumentConfiguration{
+					{Name: "first", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+				},
+			},
+		}
+
+		t.Run("with cursor pattern - slicing argument", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schemaConn,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ users(first: 5, last: 8) { 
+										edges { 
+										  node { name } 
+										} 
+										nodes { name } 
+										totalCount } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"users":{"edges":[{"node":{"name":"Alice"}}],"nodes":[{"name":"Alice"}],"totalCount":1}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+									{TypeName: "User", FieldName: "name"}: {HasWeight: true, Weight: 2},
+								},
+								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+									{TypeName: "Query", FieldName: "users"}: {
+										SlicingArguments: []string{"first", "last"},
+										SizedFields:      []string{"edges", "nodes"},
+									},
+								},
+								Types: map[string]int{
+									"UserEdge": 1,
+								},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields:           fieldConfig,
+				expectedResponse: `{"data":{"users":{"edges":[{"node":{"name":"Alice"}}],"nodes":[{"name":"Alice"}],"totalCount":1}}}`,
+				// UserConnection(1) + Int(0) + 8*(UserEdge(1)+User(1)+User.name(2)) + 8*(User(1)+User.name(2))
+				expectedEstimatedCost: 57,
+				// UserConnection(1) + Int(0) + 1*(UserEdge(1)+User(1)+User.name(2)) + 1*(User(1)+User.name(2))
+				expectedActualCost: 8,
+			},
+			computeCosts(),
+		))
+
+		t.Run("with assumedSize fallback", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schemaConn,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ users { edges { node { name } } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"users":{"edges":[{"node":{"name":"Alice"}}]}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+									{TypeName: "User", FieldName: "name"}: {HasWeight: true, Weight: 2},
+								},
+								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+									{TypeName: "Query", FieldName: "users"}: {
+										AssumedSize:      3,
+										SlicingArguments: []string{"first"},
+										SizedFields:      []string{"edges"},
+									},
+								},
+								Types: map[string]int{
+									"UserEdge": 1,
+								},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields:           fieldConfig,
+				expectedResponse: `{"data":{"users":{"edges":[{"node":{"name":"Alice"}}]}}}`,
+				// UserConnection(1) + 3*(UserEdge(1)+User(1)+User.name(2))
+				expectedEstimatedCost: 13,
+				// UserConnection(1) + 1*(UserEdge(1)+User(1)+User.name(2))
+				expectedActualCost: 5,
+			},
+			computeCosts(),
+		))
+
+		t.Run("child with its own listSize is not overridden", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schemaConn,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ users(first: 5) { 
+								edges { 
+									node { 
+										name 
+										posts(first: 2) { title } 
+									} 
+								} } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"users":{"edges":[{"node":{"name":"Alice","posts":[{"title":"Hello"}]}}]}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+									{TypeName: "User", FieldName: "name"}:  {HasWeight: true, Weight: 2},
+									{TypeName: "Post", FieldName: "title"}: {HasWeight: true, Weight: 3},
+								},
+								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+									{TypeName: "Query", FieldName: "users"}: {
+										SlicingArguments: []string{"first"},
+										SizedFields:      []string{"edges"},
+									},
+									{TypeName: "User", FieldName: "posts"}: {
+										AssumedSize:      10,
+										SlicingArguments: []string{"first"},
+									},
+								},
+								Types: map[string]int{
+									"UserEdge": 1,
+									"Post":     1,
+								},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields:           fieldConfig,
+				expectedResponse: `{"data":{"users":{"edges":[{"node":{"name":"Alice","posts":[{"title":"Hello"}]}}]}}}`,
+				// UserConnection(1) + 5*(UserEdge(1)+User(1)+User.name(2)+2*(Post(1)+Post.title(3)))
+				expectedEstimatedCost: 61,
+				// UserConnection(1) + 1*(UserEdge(1)+User(1)+User.name(2)+1*(Post(1)+Post.title(3)))
+				expectedActualCost: 9,
+			},
+			computeCosts(),
+		))
+
+		t.Run("direct child with its own listSize is not overridden", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schemaConn,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ users(first: 5) { 
+								edges { 
+									node { 
+										name 
+									} 
+								} } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"users":{"edges":[{"node":{"name":"Alice"}}]}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+									{TypeName: "User", FieldName: "name"}: {HasWeight: true, Weight: 2},
+								},
+								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+									{TypeName: "Query", FieldName: "users"}: {
+										SlicingArguments: []string{"first"},
+										SizedFields:      []string{"edges"},
+									},
+									{TypeName: "UserConnection", FieldName: "edges"}: {
+										AssumedSize: 10,
+									},
+								},
+								Types: map[string]int{
+									"UserEdge": 1,
+								},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields:           fieldConfig,
+				expectedResponse: `{"data":{"users":{"edges":[{"node":{"name":"Alice"}}]}}}`,
+				// UserConnection(1) + 10*(UserEdge(1)+User(1)+User.name(2)))
+				expectedEstimatedCost: 41,
+				// UserConnection(1) + 1*(UserEdge(1)+User(1)+User.name(2))
+				expectedActualCost: 5,
+			},
+			computeCosts(),
+		))
+
+		t.Run("sizedFields with no matching child queried", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schemaConn,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ users(first: 5) { totalCount } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"users":{"totalCount":42}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+									{TypeName: "User", FieldName: "name"}: {HasWeight: true, Weight: 2},
+								},
+								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+									{TypeName: "Query", FieldName: "users"}: {
+										SlicingArguments: []string{"first"},
+										SizedFields:      []string{"edges", "nodes"},
+									},
+								},
+								Types: map[string]int{
+									"UserEdge": 1,
+								},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields:           fieldConfig,
+				expectedResponse: `{"data":{"users":{"totalCount":42}}}`,
+				// UserConnection(1) + Int(0) = 1
+				expectedEstimatedCost: 1,
+				expectedActualCost:    1,
+			},
+			computeCosts(),
+		))
+
+		t.Run("sizedFields with variable slicing argument", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schemaConn,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query:     `query($n: Int) { users(first: $n) { edges { node { name } } } }`,
+						Variables: []byte(`{"n": 7}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"users":{"edges":[{"node":{"name":"Alice"}}]}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+									{TypeName: "User", FieldName: "name"}: {HasWeight: true, Weight: 2},
+								},
+								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+									{TypeName: "Query", FieldName: "users"}: {
+										SlicingArguments: []string{"first"},
+										SizedFields:      []string{"edges"},
+									},
+								},
+								Types: map[string]int{
+									"UserEdge": 1,
+								},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields:           fieldConfig,
+				expectedResponse: `{"data":{"users":{"edges":[{"node":{"name":"Alice"}}]}}}`,
+				// UserConnection(1) + 7*(UserEdge(1)+User(1)+User.name(2))
+				expectedEstimatedCost: 29,
+				// UserConnection(1) + 1*(UserEdge(1)+User(1)+User.name(2))
+				expectedActualCost: 5,
+			},
+			computeCosts(),
+		))
+
+		t.Run("sizedFields fallback to defaultListSize", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schemaConn,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ users { edges { node { name } } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"users":{"edges":[{"node":{"name":"Alice"}}]}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+									{TypeName: "User", FieldName: "name"}: {HasWeight: true, Weight: 2},
+								},
+								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+									{TypeName: "Query", FieldName: "users"}: {
+										SlicingArguments: []string{"first"},
+										SizedFields:      []string{"edges"},
+									},
+								},
+								Types: map[string]int{
+									"UserEdge": 1,
+								},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields:           fieldConfig,
+				expectedResponse: `{"data":{"users":{"edges":[{"node":{"name":"Alice"}}]}}}`,
+				// No slicing arg provided, no AssumedSize -> falls back to defaultListSize(10)
+				// UserConnection(1) + 10*(UserEdge(1)+User(1)+User.name(2))
+				expectedEstimatedCost: 41,
+				// UserConnection(1) + 1*(UserEdge(1)+User(1)+User.name(2))
+				expectedActualCost: 5,
+			},
+			computeCosts(),
+		))
+
+		t.Run("mixed sizedFields and non-sizedFields list children", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schemaConn,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ users(first: 5) { edges { node { name } } nodes { name } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"users":{"edges":[{"node":{"name":"Alice"}}],"nodes":[{"name":"Alice"}]}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+									{TypeName: "User", FieldName: "name"}: {HasWeight: true, Weight: 2},
+								},
+								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+									{TypeName: "Query", FieldName: "users"}: {
+										SlicingArguments: []string{"first"},
+										SizedFields:      []string{"edges"},
+									},
+								},
+								Types: map[string]int{
+									"UserEdge": 1,
+								},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields:           fieldConfig,
+				expectedResponse: `{"data":{"users":{"edges":[{"node":{"name":"Alice"}}],"nodes":[{"name":"Alice"}]}}}`,
+				// edges is a sizedField -> multiplier from parent slicing arg = 5
+				// nodes is NOT a sizedField -> falls back to defaultListSize(10)
+				// UserConnection(1) + 5*(UserEdge(1)+User(1)+User.name(2)) + 10*(User(1)+User.name(2))
+				expectedEstimatedCost: 51,
+				// UserConnection(1) + 1*(UserEdge(1)+User(1)+User.name(2)) + 1*(User(1)+User.name(2))
+				expectedActualCost: 8,
+			},
+			computeCosts(),
+		))
+	})
+
+	t.Run("sizedFields on abstract types", func(t *testing.T) {
+		t.Run("parent returns interface, child via inline fragment", func(t *testing.T) {
+			s2Schema := `
+					interface Connection {
+						edges: [Edge]
+					}
+					type Edge {
+						cursor: String
+					}
+					type UserConnection implements Connection {
+						edges: [UserEdge]
+					}
+					type UserEdge {
+						cursor: String
+						node: User
+					}
+					type User @key(fields: "id") {
+						id: ID!
+						name: String!
+					}
+					type Query {
+						users(first: Int): Connection
+					}
+					`
+			schema, err := graphql.NewSchemaFromString(s2Schema)
+			require.NoError(t, err)
+
+			rootNodes := []plan.TypeField{
+				{TypeName: "Query", FieldNames: []string{"users"}},
+				{TypeName: "User", FieldNames: []string{"id", "name"}},
+				{TypeName: "UserConnection", FieldNames: []string{"edges"}},
+				{TypeName: "UserEdge", FieldNames: []string{"cursor", "node"}},
+				{TypeName: "Edge", FieldNames: []string{"cursor"}},
+			}
+			childNodes := []plan.TypeField{
+				{TypeName: "Connection", FieldNames: []string{"edges"}},
+			}
+			customCfg := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+				Fetch: &graphql_datasource.FetchConfiguration{
+					URL:    "https://example.com/",
+					Method: "GET",
+				},
+				SchemaConfiguration: mustSchemaConfig(t, nil, s2Schema),
+			})
+			fields := []plan.FieldConfiguration{
+				{
+					TypeName: "Query", FieldName: "users", Path: []string{"users"},
+					Arguments: []plan.ArgumentConfiguration{
+						{Name: "first", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+					},
+				},
+			}
+
+			t.Run("edges via inline fragment", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schema,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{ users(first: 3) { ... on UserConnection { edges { node { name } } } } }`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost:     "example.com",
+									expectedPath:     "/",
+									expectedBody:     "",
+									sendResponseBody: `{"data":{"users":{"__typename":"UserConnection","edges":[{"node":{"name":"Alice"}}]}}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+										{TypeName: "User", FieldName: "name"}: {HasWeight: true, Weight: 2},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Query", FieldName: "users"}: {
+											SlicingArguments: []string{"first"},
+											SizedFields:      []string{"edges"},
+										},
+									},
+									Types: map[string]int{
+										"UserEdge": 3,
+									},
+								},
+							},
+							customCfg,
+						),
+					},
+					fields:           fields,
+					expectedResponse: `{"data":{"users":{"edges":[{"node":{"name":"Alice"}}]}}}`,
+					// max(Connection,UserConnection)(1) + 3*(UserEdge(3)+User(1)+User.name(2))
+					expectedEstimatedCost: 19,
+					expectedActualCost:    7,
+				},
+				computeCosts(),
+			))
+		})
+
+		t.Run("parent returns interface, child accessed directly", func(t *testing.T) {
+			s3Schema := `
+					interface Connection {
+						edges: [Edge]
+					}
+					type Edge {
+						cursor: String
+					}
+					type Query {
+						users(first: Int): Connection
+					}
+					`
+			schema, err := graphql.NewSchemaFromString(s3Schema)
+			require.NoError(t, err)
+
+			rootNodes := []plan.TypeField{
+				{TypeName: "Query", FieldNames: []string{"users"}},
+				{TypeName: "Edge", FieldNames: []string{"cursor"}},
+			}
+			childNodes := []plan.TypeField{
+				{TypeName: "Connection", FieldNames: []string{"edges"}},
+			}
+			customCfg := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+				Fetch: &graphql_datasource.FetchConfiguration{
+					URL:    "https://example.com/",
+					Method: "GET",
+				},
+				SchemaConfiguration: mustSchemaConfig(t, nil, s3Schema),
+			})
+			fields := []plan.FieldConfiguration{
+				{
+					TypeName: "Query", FieldName: "users", Path: []string{"users"},
+					Arguments: []plan.ArgumentConfiguration{
+						{Name: "first", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+					},
+				},
+			}
+
+			t.Run("edges accessed directly", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schema,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{ users(first: 4) { edges { cursor } } }`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost:     "example.com",
+									expectedPath:     "/",
+									expectedBody:     "",
+									sendResponseBody: `{"data":{"users":{"edges":[{"cursor":"abc"}]}}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Query", FieldName: "users"}: {
+											SlicingArguments: []string{"first"},
+											SizedFields:      []string{"edges"},
+										},
+									},
+									Types: map[string]int{
+										"Edge": 3,
+									},
+								},
+							},
+							customCfg,
+						),
+					},
+					fields:           fields,
+					expectedResponse: `{"data":{"users":{"edges":[{"cursor":"abc"}]}}}`,
+					// Connection(1) + 4*(Edge(3)+String(0))
+					expectedEstimatedCost: 13,
+					expectedActualCost:    4,
+				},
+				computeCosts(),
+			))
+		})
+
+		t.Run("sizedFields on interface field", func(t *testing.T) {
+			s4Schema := `
+					interface Paginated {
+						items(first: Int): ItemConnection
+					}
+					type UserPaginated implements Paginated {
+						items(first: Int): ItemConnection
+					}
+					type ItemConnection {
+						edges: [ItemEdge]
+					}
+					type ItemEdge {
+						cursor: String
+						node: Item
+					}
+					type Item @key(fields: "id") {
+						id: ID!
+						name: String!
+					}
+					type Query {
+						search: Paginated
+					}
+					`
+			schema, err := graphql.NewSchemaFromString(s4Schema)
+			require.NoError(t, err)
+
+			rootNodes := []plan.TypeField{
+				{TypeName: "Query", FieldNames: []string{"search"}},
+				{TypeName: "UserPaginated", FieldNames: []string{"items"}},
+				{TypeName: "Item", FieldNames: []string{"id", "name"}},
+				{TypeName: "ItemConnection", FieldNames: []string{"edges"}},
+				{TypeName: "ItemEdge", FieldNames: []string{"cursor", "node"}},
+			}
+			childNodes := []plan.TypeField{
+				{TypeName: "Paginated", FieldNames: []string{"items"}},
+			}
+			customCfg := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+				Fetch: &graphql_datasource.FetchConfiguration{
+					URL:    "https://example.com/",
+					Method: "GET",
+				},
+				SchemaConfiguration: mustSchemaConfig(t, nil, s4Schema),
+			})
+			fields := []plan.FieldConfiguration{
+				{
+					TypeName: "Query", FieldName: "search", Path: []string{"search"},
+				},
+				{
+					TypeName: "Paginated", FieldName: "items", Path: []string{"items"},
+					Arguments: []plan.ArgumentConfiguration{
+						{Name: "first", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+					},
+				},
+				{
+					TypeName: "UserPaginated", FieldName: "items", Path: []string{"items"},
+					Arguments: []plan.ArgumentConfiguration{
+						{Name: "first", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+					},
+				},
+			}
+
+			t.Run("on interface field", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schema,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{ search { items(first: 5) { edges { node { name } } } } }`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost:     "example.com",
+									expectedPath:     "/",
+									expectedBody:     "",
+									sendResponseBody: `{"data":{"search":{"__typename":"UserPaginated","items":{"edges":[{"node":{"name":"Alice"}}]}}}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									// @listSize on the INTERFACE field Paginated.items
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Paginated", FieldName: "items"}: {
+											SlicingArguments: []string{"first"},
+											SizedFields:      []string{"edges"},
+										},
+									},
+									Types: map[string]int{
+										"ItemEdge": 2,
+									},
+								},
+							},
+							customCfg,
+						),
+					},
+					fields:           fields,
+					expectedResponse: `{"data":{"search":{"items":{"edges":[{"node":{"name":"Alice"}}]}}}}`,
+					// Paginated(max(1,1)) + ItemConnection(1) + 5*(ItemEdge(2)+Item(1)+Item.name(0))
+					expectedEstimatedCost: 17,
+					expectedActualCost:    5,
+				},
+				computeCosts(),
+			))
+		})
+
+		t.Run("sizedFields only on concrete types, accessed through interface", func(t *testing.T) {
+			s5Schema := `
+					interface Paginated {
+						items(first: Int): ItemConnection
+					}
+					type UserPaginated implements Paginated {
+						items(first: Int): ItemConnection
+					}
+					type PostPaginated implements Paginated {
+						items(first: Int): ItemConnection
+					}
+					type ItemConnection {
+						edges: [ItemEdge]
+					}
+					type ItemEdge {
+						cursor: String
+						node: Item
+					}
+					type Item @key(fields: "id") {
+						id: ID!
+						name: String!
+					}
+					type Query {
+						search: Paginated
+					}
+					`
+			schema, err := graphql.NewSchemaFromString(s5Schema)
+			require.NoError(t, err)
+
+			rootNodes := []plan.TypeField{
+				{TypeName: "Query", FieldNames: []string{"search"}},
+				{TypeName: "UserPaginated", FieldNames: []string{"items"}},
+				{TypeName: "PostPaginated", FieldNames: []string{"items"}},
+				{TypeName: "Item", FieldNames: []string{"id", "name"}},
+				{TypeName: "ItemConnection", FieldNames: []string{"edges"}},
+				{TypeName: "ItemEdge", FieldNames: []string{"cursor", "node"}},
+			}
+			childNodes := []plan.TypeField{
+				{TypeName: "Paginated", FieldNames: []string{"items"}},
+			}
+			customCfg := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+				Fetch: &graphql_datasource.FetchConfiguration{
+					URL:    "https://example.com/",
+					Method: "GET",
+				},
+				SchemaConfiguration: mustSchemaConfig(t, nil, s5Schema),
+			})
+			fields := []plan.FieldConfiguration{
+				{
+					TypeName: "Query", FieldName: "search", Path: []string{"search"},
+				},
+				{
+					TypeName: "Paginated", FieldName: "items", Path: []string{"items"},
+					Arguments: []plan.ArgumentConfiguration{
+						{Name: "first", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+					},
+				},
+				{
+					TypeName: "UserPaginated", FieldName: "items", Path: []string{"items"},
+					Arguments: []plan.ArgumentConfiguration{
+						{Name: "first", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+					},
+				},
+				{
+					TypeName: "PostPaginated", FieldName: "items", Path: []string{"items"},
+					Arguments: []plan.ArgumentConfiguration{
+						{Name: "first", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+					},
+				},
+			}
+
+			t.Run("sizedFields on concrete", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schema,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{ search { items(first: 5) { edges { node { name } } } } }`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost:     "example.com",
+									expectedPath:     "/",
+									expectedBody:     "",
+									sendResponseBody: `{"data":{"search":{"__typename":"UserPaginated","items":{"edges":[{"node":{"name":"Alice"}}]}}}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									// @listSize on CONCRETE types only, NOT on Paginated.items
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "UserPaginated", FieldName: "items"}: {
+											SlicingArguments: []string{"first"},
+											SizedFields:      []string{"edges"},
+										},
+										{TypeName: "PostPaginated", FieldName: "items"}: {
+											SlicingArguments: []string{"first"},
+											SizedFields:      []string{"edges"},
+										},
+									},
+									Types: map[string]int{
+										"ItemEdge": 3,
+									},
+								},
+							},
+							customCfg,
+						),
+					},
+					fields:           fields,
+					expectedResponse: `{"data":{"search":{"items":{"edges":[{"node":{"name":"Alice"}}]}}}}`,
+					// Estimated cost should be 22 = Paginated + ItemConnection + 5*(ItemEdge+Item),
+					// Parent fieldCoord == {Paginated, items},
+					// ListSizes only has {UserPaginated, items} and {PostPaginated, items}.
+					// If not considering implementations, multiplier for edges falls back to
+					// defaultListSize(10): 1 + 1 + 10*(3+1) = 42.
+					expectedEstimatedCost: 22,
+					expectedActualCost:    6,
+				},
+				computeCosts(),
+			))
+		})
+
+		t.Run("sizedField returns list of abstract type", func(t *testing.T) {
+			s7Schema := `
+					interface Publishable {
+						id: ID!
+					}
+					type Post implements Publishable {
+						id: ID!
+						title: String!
+					}
+					type FeedConnection {
+						items: [Publishable]
+						count: Int
+					}
+					type Query {
+						feed(first: Int): FeedConnection
+					}
+					`
+			schema, err := graphql.NewSchemaFromString(s7Schema)
+			require.NoError(t, err)
+
+			rootNodes := []plan.TypeField{
+				{TypeName: "Query", FieldNames: []string{"feed"}},
+				{TypeName: "Post", FieldNames: []string{"id", "title"}},
+				{TypeName: "FeedConnection", FieldNames: []string{"items", "count"}},
+			}
+			childNodes := []plan.TypeField{
+				{TypeName: "Publishable", FieldNames: []string{"id"}},
+			}
+			customCfg := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+				Fetch: &graphql_datasource.FetchConfiguration{
+					URL:    "https://example.com/",
+					Method: "GET",
+				},
+				SchemaConfiguration: mustSchemaConfig(t, nil, s7Schema),
+			})
+			fields := []plan.FieldConfiguration{
+				{
+					TypeName: "Query", FieldName: "feed", Path: []string{"feed"},
+					Arguments: []plan.ArgumentConfiguration{
+						{Name: "first", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+					},
+				},
+			}
+
+			t.Run("items returns list of Publishable interface", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schema,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{ feed(first: 3) { items { id } count } }`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost:     "example.com",
+									expectedPath:     "/",
+									expectedBody:     "",
+									sendResponseBody: `{"data":{"feed":{"items":[{"id":"1"},{"id":"2"}],"count":2}}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Query", FieldName: "feed"}: {
+											SlicingArguments: []string{"first"},
+											SizedFields:      []string{"items"},
+										},
+									},
+									Types: map[string]int{
+										"Post": 3,
+									},
+								},
+							},
+							customCfg,
+						),
+					},
+					fields:           fields,
+					expectedResponse: `{"data":{"feed":{"items":[{"id":"1"},{"id":"2"}],"count":2}}}`,
+					// FeedConnection(1) + Int(0) + 3*(max(Post(3))+ID(0))
+					expectedEstimatedCost: 10,
+					expectedActualCost:    7,
+				},
+				computeCosts(),
+			))
+		})
+
+	})
 }

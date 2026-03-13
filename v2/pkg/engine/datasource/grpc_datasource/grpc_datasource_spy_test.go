@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -21,14 +22,19 @@ import (
 type mockServiceSpy struct {
 	grpctest.MockService
 
-	categoriesCalls      atomic.Int64
-	categoryCalls        atomic.Int64
-	normalizedScoreCalls atomic.Int64
-	relatedCategoryCalls atomic.Int64
-	productCountCalls    atomic.Int64
-	popularityScoreCalls atomic.Int64
-	categoryMetricsCalls atomic.Int64
-	mascotCalls          atomic.Int64
+	categoriesCalls          atomic.Int64
+	categoryCalls            atomic.Int64
+	normalizedScoreCalls     atomic.Int64
+	relatedCategoryCalls     atomic.Int64
+	productCountCalls        atomic.Int64
+	popularityScoreCalls     atomic.Int64
+	categoryMetricsCalls     atomic.Int64
+	mascotCalls              atomic.Int64
+	totalProductsCalls       atomic.Int64
+	topSubcategoryCalls      atomic.Int64
+	activeSubcategoriesCalls atomic.Int64
+	parentCategoryCalls      atomic.Int64
+	averageScoreCalls        atomic.Int64
 
 	queryCategoryFunc func(ctx context.Context, req *productv1.QueryCategoryRequest) (*productv1.QueryCategoryResponse, error)
 }
@@ -74,6 +80,31 @@ func (s *mockServiceSpy) ResolveCategoryCategoryMetrics(ctx context.Context, req
 func (s *mockServiceSpy) ResolveCategoryMascot(ctx context.Context, req *productv1.ResolveCategoryMascotRequest) (*productv1.ResolveCategoryMascotResponse, error) {
 	s.mascotCalls.Add(1)
 	return s.MockService.ResolveCategoryMascot(ctx, req)
+}
+
+func (s *mockServiceSpy) ResolveCategoryTotalProducts(ctx context.Context, req *productv1.ResolveCategoryTotalProductsRequest) (*productv1.ResolveCategoryTotalProductsResponse, error) {
+	s.totalProductsCalls.Add(1)
+	return s.MockService.ResolveCategoryTotalProducts(ctx, req)
+}
+
+func (s *mockServiceSpy) ResolveCategoryTopSubcategory(ctx context.Context, req *productv1.ResolveCategoryTopSubcategoryRequest) (*productv1.ResolveCategoryTopSubcategoryResponse, error) {
+	s.topSubcategoryCalls.Add(1)
+	return s.MockService.ResolveCategoryTopSubcategory(ctx, req)
+}
+
+func (s *mockServiceSpy) ResolveCategoryActiveSubcategories(ctx context.Context, req *productv1.ResolveCategoryActiveSubcategoriesRequest) (*productv1.ResolveCategoryActiveSubcategoriesResponse, error) {
+	s.activeSubcategoriesCalls.Add(1)
+	return s.MockService.ResolveCategoryActiveSubcategories(ctx, req)
+}
+
+func (s *mockServiceSpy) ResolveSubcategoryParentCategory(ctx context.Context, req *productv1.ResolveSubcategoryParentCategoryRequest) (*productv1.ResolveSubcategoryParentCategoryResponse, error) {
+	s.parentCategoryCalls.Add(1)
+	return s.MockService.ResolveSubcategoryParentCategory(ctx, req)
+}
+
+func (s *mockServiceSpy) ResolveCategoryMetricsAverageScore(ctx context.Context, req *productv1.ResolveCategoryMetricsAverageScoreRequest) (*productv1.ResolveCategoryMetricsAverageScoreResponse, error) {
+	s.averageScoreCalls.Add(1)
+	return s.MockService.ResolveCategoryMetricsAverageScore(ctx, req)
 }
 
 func setupSpyServer(t *testing.T) (*mockServiceSpy, *grpc.ClientConn, func()) {
@@ -177,4 +208,80 @@ func Test_DataSource_Load_NullCategory_FieldResolversNotInvoked(t *testing.T) {
 	require.Zero(t, spy.popularityScoreCalls.Load(), "ResolveCategoryPopularityScore must not be called when category is null")
 	require.Zero(t, spy.categoryMetricsCalls.Load(), "ResolveCategoryCategoryMetrics must not be called when category is null")
 	require.Zero(t, spy.mascotCalls.Load(), "ResolveCategoryMascot must not be called when category is null")
+}
+
+// Test_DataSource_Load_ArgumentLessFieldResolversCalled verifies that argument-less field
+// resolver RPCs are actually called by the engine.
+func Test_DataSource_Load_ArgumentLessFieldResolversCalled(t *testing.T) {
+	spy, conn, cleanup := setupSpyServer(t)
+	t.Cleanup(cleanup)
+
+	query := "query CategoriesWithArglessResolvers { categories { id totalProducts topSubcategory { id name } activeSubcategories { id name } } }"
+	vars := `{"variables":{}}`
+
+	schemaDoc := grpctest.MustGraphQLSchema(t)
+	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
+	require.False(t, report.HasErrors(), "failed to parse query: %s", report.Error())
+
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+	require.NoError(t, err)
+
+	ds, err := NewDataSource(conn, DataSourceConfig{
+		Operation:    &queryDoc,
+		Definition:   &schemaDoc,
+		SubgraphName: "Products",
+		Mapping:      testMapping(),
+		Compiler:     compiler,
+	})
+	require.NoError(t, err)
+
+	input := fmt.Sprintf(`{"query":%q,"body":%s}`, query, vars)
+	_, err = ds.Load(context.Background(), nil, []byte(input))
+	require.NoError(t, err)
+
+	assert.Equal(t, int64(1), spy.categoriesCalls.Load(), "QueryCategories must be called")
+	assert.Equal(t, int64(1), spy.totalProductsCalls.Load(), "ResolveCategoryTotalProducts must be called")
+	assert.Equal(t, int64(1), spy.topSubcategoryCalls.Load(), "ResolveCategoryTopSubcategory must be called")
+	assert.Equal(t, int64(1), spy.activeSubcategoriesCalls.Load(), "ResolveCategoryActiveSubcategories must be called")
+}
+
+// Test_DataSource_Load_NullCategory_ArgumentLessFieldResolversNotInvoked verifies that when
+// the top-level category query returns null, argument-less field resolver RPCs are not invoked.
+func Test_DataSource_Load_NullCategory_ArgumentLessFieldResolversNotInvoked(t *testing.T) {
+	spy, conn, cleanup := setupSpyServer(t)
+	t.Cleanup(cleanup)
+
+	spy.queryCategoryFunc = func(_ context.Context, _ *productv1.QueryCategoryRequest) (*productv1.QueryCategoryResponse, error) {
+		return &productv1.QueryCategoryResponse{
+			Category: nil,
+		}, nil
+	}
+
+	query := `query CategoryQuery($id: ID!) { category(id: $id) { id totalProducts topSubcategory { id name } activeSubcategories { id name } } }`
+	vars := `{"variables":{"id":"cat-1"}}`
+
+	schemaDoc := grpctest.MustGraphQLSchema(t)
+	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
+	require.False(t, report.HasErrors(), "failed to parse query: %s", report.Error())
+
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+	require.NoError(t, err)
+
+	ds, err := NewDataSource(conn, DataSourceConfig{
+		Operation:    &queryDoc,
+		Definition:   &schemaDoc,
+		SubgraphName: "Products",
+		Mapping:      testMapping(),
+		Compiler:     compiler,
+	})
+	require.NoError(t, err)
+
+	input := fmt.Sprintf(`{"query":%q,"body":%s}`, query, vars)
+	_, err = ds.Load(context.Background(), nil, []byte(input))
+	require.NoError(t, err)
+
+	require.Equal(t, int64(1), spy.categoryCalls.Load(), "QueryCategory must be called once")
+	require.Zero(t, spy.totalProductsCalls.Load(), "ResolveCategoryTotalProducts must not be called when category is null")
+	require.Zero(t, spy.topSubcategoryCalls.Load(), "ResolveCategoryTopSubcategory must not be called when category is null")
+	require.Zero(t, spy.activeSubcategoriesCalls.Load(), "ResolveCategoryActiveSubcategories must not be called when category is null")
 }
