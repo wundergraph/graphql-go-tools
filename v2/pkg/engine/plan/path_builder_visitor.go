@@ -522,6 +522,17 @@ func (c *pathBuilderVisitor) EnterField(fieldRef int) {
 		c.handlePlanningField(fieldRef, typeName, fieldName, currentPath, parentPath, precedingParentPath, suggestion, ds, shareable)
 	}
 
+	if _, pathPlanned := c.addedPathDSHash(currentPath); !pathPlanned {
+		// Concrete __typename selections under interface objects can miss regular suggestions even though
+		// we already have exactly one planner anchored on the same parent path that can legally satisfy them.
+		// Reusing that planner here is narrower than relaxing suggestion collection for every __typename field.
+		if plannerIdx, planned := c.planTypenameOnExistingPlanner(fieldRef, typeName, fieldName, currentPath, parentPath, precedingParentPath); planned {
+			c.recordFieldPlannedOn(fieldRef, plannerIdx)
+			c.addFieldDependencies(fieldRef, typeName, fieldName, plannerIdx)
+			c.addRootField(fieldRef, plannerIdx)
+		}
+	}
+
 	c.addArrayField(fieldRef, currentPath)
 	// pushResponsePath uses array fields so it should be called after addArrayField
 	c.pushResponsePath(fieldRef, fieldAliasOrName)
@@ -582,6 +593,44 @@ func (c *pathBuilderVisitor) handlePlanningField(fieldRef int, typeName, fieldNa
 	}
 
 	c.handleMissingPath(planned, typeName, fieldName, currentPath, shareable)
+}
+
+// planTypenameOnExistingPlanner recovers __typename paths that belong on an already-selected planner.
+// We only do this when a single planner owns the parent path, so the fallback cannot silently change
+// datasource selection for ordinary fields or introduce ambiguity between sibling planners.
+func (c *pathBuilderVisitor) planTypenameOnExistingPlanner(fieldRef int, typeName, fieldName, currentPath, parentPath, precedingParentPath string) (plannerIdx int, planned bool) {
+	if fieldName != typeNameField {
+		return -1, false
+	}
+
+	var candidates []int
+	for i, planner := range c.planners {
+		if planner.ParentPath() != precedingParentPath {
+			continue
+		}
+
+		if !planner.HasPath(parentPath) {
+			continue
+		}
+
+		dsConfiguration := planner.DataSourceConfiguration()
+		if !dsConfiguration.HasRootNodeWithTypename(typeName) && !dsConfiguration.HasChildNodeWithTypename(typeName) {
+			continue
+		}
+
+		candidates = append(candidates, i)
+	}
+
+	if len(candidates) != 1 {
+		return -1, false
+	}
+
+	plannerIdx = candidates[0]
+	if pathAdded := c.addPlannerPathForTypename(plannerIdx, currentPath, parentPath, fieldRef, fieldName, typeName, c.planners[plannerIdx].DataSourceConfiguration().PlanningBehavior()); !pathAdded {
+		return -1, false
+	}
+
+	return plannerIdx, true
 }
 
 func (c *pathBuilderVisitor) couldPlanField(fieldRef int, dsHash DSHash) (ok bool) {
