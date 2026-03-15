@@ -70,27 +70,37 @@ func TestPathBuilderVisitor_EnterField_PlansTypenameOnExistingPlannerFallback(t 
 
 func TestPathBuilderVisitor_PlanTypenameOnExistingPlanner_SkipsIneligiblePlanners(t *testing.T) {
 	const (
-		precedingParentPath = "query.c"
-		parentPath          = "query.c.a"
-		currentPath         = "query.c.a.__typename"
-		typeName            = "A"
+		precedingParentPath = "query.c.a"
+		parentPath          = "query.c.a.A1"
+		currentPath         = "query.c.a.A1.__typename"
+		typeName            = "A1"
 		fieldRef            = 11
 	)
 
+	broaderOwningPlanner := testPlannerConfiguration(
+		t,
+		"broader-owning-planner",
+		DataSourcePlanningBehavior{AllowPlanningTypeName: true},
+		[]TypeField{{TypeName: typeName, FieldNames: []string{"id"}}},
+		"query",
+		"query.c",
+		precedingParentPath,
+		parentPath,
+	)
 	plannerWithoutParentPath := testPlannerConfiguration(
 		t,
 		"missing-parent-path",
 		DataSourcePlanningBehavior{AllowPlanningTypeName: true},
 		[]TypeField{{TypeName: typeName, FieldNames: []string{"id"}}},
+		parentPath,
 		precedingParentPath,
-		"query.c.other",
 	)
 	plannerWithoutTypenameSupport := testPlannerConfiguration(
 		t,
 		"missing-typename-support",
 		DataSourcePlanningBehavior{AllowPlanningTypeName: true},
 		[]TypeField{{TypeName: "Other", FieldNames: []string{"id"}}},
-		precedingParentPath,
+		parentPath,
 		parentPath,
 	)
 	validPlanner := testPlannerConfiguration(
@@ -98,21 +108,58 @@ func TestPathBuilderVisitor_PlanTypenameOnExistingPlanner_SkipsIneligiblePlanner
 		"valid",
 		DataSourcePlanningBehavior{AllowPlanningTypeName: true},
 		[]TypeField{{TypeName: typeName, FieldNames: []string{"id"}}},
-		precedingParentPath,
+		parentPath,
 		parentPath,
 	)
 
-	visitor := newTestPathBuilderVisitor(plannerWithoutParentPath, plannerWithoutTypenameSupport, validPlanner)
+	visitor := newTestPathBuilderVisitor(broaderOwningPlanner, plannerWithoutParentPath, plannerWithoutTypenameSupport, validPlanner)
 
 	plannerIdx, planned := visitor.planTypenameOnExistingPlanner(fieldRef, typeName, typeNameField, currentPath, parentPath, precedingParentPath)
 
 	require.True(t, planned)
-	assert.Equal(t, 2, plannerIdx)
+	assert.Equal(t, 3, plannerIdx)
+	assert.False(t, broaderOwningPlanner.HasPath(currentPath))
 	assert.False(t, plannerWithoutParentPath.HasPath(currentPath))
 	assert.False(t, plannerWithoutTypenameSupport.HasPath(currentPath))
 	assert.True(t, validPlanner.HasPath(currentPath))
 	assert.Len(t, visitor.addedPathTracker, 1)
 	assert.Equal(t, currentPath, visitor.addedPathTracker[0].path)
+}
+
+func TestPathBuilderVisitor_PlanTypenameOnExistingPlanner_PrefersAnchoredPlanner(t *testing.T) {
+	const (
+		precedingParentPath = "query.c.a"
+		parentPath          = "query.c.a.A1"
+		currentPath         = "query.c.a.A1.__typename"
+		typeName            = "A1"
+		fieldRef            = 12
+	)
+
+	fragmentPlanner := testPlannerConfiguration(
+		t,
+		"fragment-planner",
+		DataSourcePlanningBehavior{AllowPlanningTypeName: true},
+		[]TypeField{{TypeName: typeName, FieldNames: []string{"id"}}},
+		parentPath,
+		parentPath,
+	)
+	anchoredPlanner := testPlannerConfiguration(
+		t,
+		"anchored-planner",
+		DataSourcePlanningBehavior{AllowPlanningTypeName: true},
+		[]TypeField{{TypeName: typeName, FieldNames: []string{"id"}}},
+		precedingParentPath,
+		precedingParentPath,
+	)
+
+	visitor := newTestPathBuilderVisitor(fragmentPlanner, anchoredPlanner)
+
+	plannerIdx, planned := visitor.planTypenameOnExistingPlanner(fieldRef, typeName, typeNameField, currentPath, parentPath, precedingParentPath)
+
+	require.True(t, planned)
+	assert.Equal(t, 1, plannerIdx)
+	assert.False(t, fragmentPlanner.HasPath(currentPath))
+	assert.True(t, anchoredPlanner.HasPath(currentPath))
 }
 
 func TestPathBuilderVisitor_PlanTypenameOnExistingPlanner_ReturnsFalseWhenTypenamePathCannotBeAdded(t *testing.T) {
@@ -121,7 +168,7 @@ func TestPathBuilderVisitor_PlanTypenameOnExistingPlanner_ReturnsFalseWhenTypena
 		parentPath          = "query.c.a"
 		currentPath         = "query.c.a.__typename"
 		typeName            = "A"
-		fieldRef            = 12
+		fieldRef            = 13
 	)
 
 	planner := testPlannerConfiguration(
@@ -129,6 +176,7 @@ func TestPathBuilderVisitor_PlanTypenameOnExistingPlanner_ReturnsFalseWhenTypena
 		"disabled-typename-planning",
 		DataSourcePlanningBehavior{AllowPlanningTypeName: false},
 		[]TypeField{{TypeName: typeName, FieldNames: []string{"id"}}},
+		precedingParentPath,
 		precedingParentPath,
 		parentPath,
 	)
@@ -149,7 +197,7 @@ func TestPathBuilderVisitor_PlanTypenameOnExistingPlanner_ReturnsFalseWhenMultip
 		parentPath          = "query.c.a"
 		currentPath         = "query.c.a.__typename"
 		typeName            = "A"
-		fieldRef            = 13
+		fieldRef            = 14
 	)
 
 	firstPlanner := testPlannerConfiguration(
@@ -158,6 +206,7 @@ func TestPathBuilderVisitor_PlanTypenameOnExistingPlanner_ReturnsFalseWhenMultip
 		DataSourcePlanningBehavior{AllowPlanningTypeName: true},
 		[]TypeField{{TypeName: typeName, FieldNames: []string{"id"}}},
 		precedingParentPath,
+		precedingParentPath,
 		parentPath,
 	)
 	secondPlanner := testPlannerConfiguration(
@@ -165,6 +214,7 @@ func TestPathBuilderVisitor_PlanTypenameOnExistingPlanner_ReturnsFalseWhenMultip
 		"second-candidate",
 		DataSourcePlanningBehavior{AllowPlanningTypeName: true},
 		[]TypeField{{TypeName: typeName, FieldNames: []string{"id"}}},
+		precedingParentPath,
 		precedingParentPath,
 		parentPath,
 	)

@@ -596,16 +596,30 @@ func (c *pathBuilderVisitor) handlePlanningField(fieldRef int, typeName, fieldNa
 }
 
 // planTypenameOnExistingPlanner recovers __typename paths that belong on an already-selected planner.
-// We only do this when a single planner owns the parent path, so the fallback cannot silently change
-// datasource selection for ordinary fields or introduce ambiguity between sibling planners.
+// We first try planners rooted on the non-fragment parent path to preserve the existing fetch shape. Only when
+// none exist do we fall back to a planner rooted on the concrete-fragment parent path itself, which covers
+// entity fetches created directly inside the fragment without reopening broader planners.
 func (c *pathBuilderVisitor) planTypenameOnExistingPlanner(fieldRef int, typeName, fieldName, currentPath, parentPath, precedingParentPath string) (plannerIdx int, planned bool) {
 	if fieldName != typeNameField {
 		return -1, false
 	}
 
-	var candidates []int
+	var anchoredCandidates []int
+	var fragmentCandidates []int
 	for i, planner := range c.planners {
-		if planner.ParentPath() != precedingParentPath {
+		dsConfiguration := planner.DataSourceConfiguration()
+		if !dsConfiguration.HasRootNodeWithTypename(typeName) && !dsConfiguration.HasChildNodeWithTypename(typeName) {
+			continue
+		}
+
+		if planner.ParentPath() == precedingParentPath {
+			if planner.HasPath(parentPath) || planner.HasPath(precedingParentPath) {
+				anchoredCandidates = append(anchoredCandidates, i)
+			}
+			continue
+		}
+
+		if planner.ParentPath() != parentPath {
 			continue
 		}
 
@@ -613,12 +627,12 @@ func (c *pathBuilderVisitor) planTypenameOnExistingPlanner(fieldRef int, typeNam
 			continue
 		}
 
-		dsConfiguration := planner.DataSourceConfiguration()
-		if !dsConfiguration.HasRootNodeWithTypename(typeName) && !dsConfiguration.HasChildNodeWithTypename(typeName) {
-			continue
-		}
+		fragmentCandidates = append(fragmentCandidates, i)
+	}
 
-		candidates = append(candidates, i)
+	candidates := anchoredCandidates
+	if len(candidates) == 0 {
+		candidates = fragmentCandidates
 	}
 
 	if len(candidates) != 1 {
