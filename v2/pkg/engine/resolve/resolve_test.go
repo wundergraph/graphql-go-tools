@@ -5351,7 +5351,7 @@ type SubscriptionRecorder struct {
 
 var _ SubscriptionResponseWriter = (*SubscriptionRecorder)(nil)
 
-func (s *SubscriptionRecorder) AwaitMessages(t *testing.T, count int, timeout time.Duration) {
+func (s *SubscriptionRecorder) AwaitMessages(t testing.TB, count int, timeout time.Duration) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	for {
@@ -5368,7 +5368,7 @@ func (s *SubscriptionRecorder) AwaitMessages(t *testing.T, count int, timeout ti
 	}
 }
 
-func (s *SubscriptionRecorder) AwaitAnyMessageCount(t *testing.T, timeout time.Duration) {
+func (s *SubscriptionRecorder) AwaitAnyMessageCount(t testing.TB, timeout time.Duration) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	for {
@@ -5385,7 +5385,7 @@ func (s *SubscriptionRecorder) AwaitAnyMessageCount(t *testing.T, timeout time.D
 	}
 }
 
-func (s *SubscriptionRecorder) AwaitComplete(t *testing.T, timeout time.Duration) {
+func (s *SubscriptionRecorder) AwaitComplete(t testing.TB, timeout time.Duration) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	for {
@@ -5399,7 +5399,7 @@ func (s *SubscriptionRecorder) AwaitComplete(t *testing.T, timeout time.Duration
 	}
 }
 
-func (s *SubscriptionRecorder) AwaitClosed(t *testing.T, timeout time.Duration) {
+func (s *SubscriptionRecorder) AwaitClosed(t testing.TB, timeout time.Duration) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	for {
