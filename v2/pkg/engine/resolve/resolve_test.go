@@ -6546,6 +6546,140 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		assert.Contains(t, errorMessage, "errors", "Expected error message in GraphQL format")
 		assert.Contains(t, errorMessage, expectedErr.Error(), "Expected actual error message to be included")
 	})
+
+	t.Run("subscription added to existing trigger can be targeted by UpdateSubscription", func(t *testing.T) {
+		// Verifies that subscriptionIdentifiers is populated for subscriptions joining an
+		// already-running trigger (the existing-trigger path in handleAddSubscription), so
+		// that handleUpdateSubscription can reach them via O(1) map lookup.
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		id2 := SubscriptionIdentifier{
+			ConnectionID:   1,
+			SubscriptionID: 2,
+		}
+
+		sub1HookDone := make(chan struct{})
+		streamCanSend := make(chan struct{})
+
+		// The startup hook is shared by both subscriptions.
+		// Sub1 (new-trigger path) closes sub1HookDone and does nothing else.
+		// Sub2 (existing-trigger path) calls ctx.Updater, sending a targeted update only to sub2.
+		// Because the test waits for sub1HookDone before registering sub2, sub2's hook always
+		// finds sub1HookDone already closed, making the branch selection deterministic.
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			<-streamCanSend
+			return `{"data":{"counter":0}}`, true
+		}, 0, nil, func(ctx StartupHookContext, input []byte) error {
+			select {
+			case <-sub1HookDone:
+				// sub1HookDone is already closed: this is sub2 (existing-trigger path).
+				ctx.Updater([]byte(`{"data":{"counter":1000}}`))
+			default:
+				// First call: this is sub1 (new-trigger path).
+				close(sub1HookDone)
+			}
+			return nil
+		})
+
+		resolver, plan, recorder, id := setup(c, fakeStream)
+
+		ctx1 := &Context{ctx: context.Background()}
+		err := resolver.AsyncResolveGraphQLSubscription(ctx1, plan, recorder, id)
+		assert.NoError(t, err)
+
+		// Wait for sub1's startup hook to complete before adding sub2,
+		// guaranteeing sub2 joins the existing trigger.
+		select {
+		case <-sub1HookDone:
+		case <-time.After(defaultTimeout):
+			t.Fatal("timed out waiting for sub1 startup hook")
+		}
+
+		recorder2 := &SubscriptionRecorder{
+			buf:      &bytes.Buffer{},
+			messages: []string{},
+			complete: atomic.Bool{},
+		}
+		recorder2.complete.Store(false)
+
+		ctx2 := &Context{ctx: context.Background()}
+		err2 := resolver.AsyncResolveGraphQLSubscription(ctx2, plan, recorder2, id2)
+		assert.NoError(t, err2)
+
+		// Wait for sub2 to receive its targeted update from the startup hook.
+		recorder2.AwaitAnyMessageCount(t, defaultTimeout)
+
+		// Signal the stream to send its final message and complete both subscriptions.
+		close(streamCanSend)
+
+		recorder.AwaitComplete(t, defaultTimeout)
+		recorder2.AwaitComplete(t, defaultTimeout)
+
+		// sub1 receives only the stream message — it was not the target of ctx.Updater.
+		assert.Len(t, recorder.Messages(), 1)
+		assert.Equal(t, `{"data":{"counter":0}}`, recorder.Messages()[0])
+
+		// sub2 receives both: the targeted startup update and the stream message.
+		assert.Len(t, recorder2.Messages(), 2)
+		assert.Equal(t, `{"data":{"counter":1000}}`, recorder2.Messages()[0])
+		assert.Equal(t, `{"data":{"counter":0}}`, recorder2.Messages()[1])
+	})
+
+	t.Run("subscriptionIdentifiers entry is removed when subscription is unsubscribed", func(t *testing.T) {
+		// Verifies that the subscriptionIdentifiers map is cleaned up when a subscription is
+		// removed. Without cleanup, calling ctx.Updater after unsubscription would find a stale
+		// entry, attempt to send work to the already-closed work channel, and panic.
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		streamCanEnd := make(chan struct{})
+		var capturedUpdater func([]byte)
+		hookDone := make(chan struct{})
+
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			<-streamCanEnd
+			return "", true
+		}, 0, nil, func(ctx StartupHookContext, input []byte) error {
+			capturedUpdater = ctx.Updater
+			ctx.Updater([]byte(`{"data":{"counter":1000}}`))
+			close(hookDone)
+			return nil
+		})
+
+		resolver, plan, recorder, id := setup(c, fakeStream)
+
+		ctx1 := &Context{ctx: context.Background()}
+		err := resolver.AsyncResolveGraphQLSubscription(ctx1, plan, recorder, id)
+		assert.NoError(t, err)
+
+		select {
+		case <-hookDone:
+		case <-time.After(defaultTimeout):
+			t.Fatal("timed out waiting for startup hook")
+		}
+		recorder.AwaitAnyMessageCount(t, defaultTimeout)
+
+		// Unsubscribe before the stream sends any messages.
+		err = resolver.AsyncUnsubscribeSubscription(id)
+		assert.NoError(t, err)
+		recorder.AwaitClosed(t, defaultTimeout)
+
+		// Unblock the stream so its goroutine can exit cleanly.
+		close(streamCanEnd)
+
+		// Calling the captured updater after the subscription has been cleaned up must be
+		// a no-op. If subscriptionIdentifiers was not cleaned up, this would find a stale
+		// entry, try to send work to the closed work channel, and panic.
+		capturedUpdater([]byte(`{"data":{"counter":2000}}`))
+
+		// Give the event loop time to process the update event.
+		time.Sleep(50 * time.Millisecond)
+
+		// Only the startup update should have been delivered; the post-removal call is dropped.
+		assert.Len(t, recorder.Messages(), 1)
+		assert.Equal(t, `{"data":{"counter":1000}}`, recorder.Messages()[0])
+	})
 }
 
 func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
