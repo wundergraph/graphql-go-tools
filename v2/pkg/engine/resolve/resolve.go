@@ -1008,17 +1008,31 @@ func (r *Resolver) handleUpdateSubscription(id uint64, data []byte, subIdentifie
 		fmt.Printf("resolver:trigger:subscription:update:%d:%d,%d\n", id, subIdentifier.ConnectionID, subIdentifier.SubscriptionID)
 	}
 
-	c, exists := trig.subscriptionIdentifiers[subIdentifier]
+	// Fast path: O(1) lookup of the subscriptions resolver context via map
+	resolverCtx, exists := trig.subscriptionIdentifiers[subIdentifier]
+
+	// Fallback O(N) lookup in case we couldn't find the resolver context by map:
+	// Loop through trig.subscriptions and find the corresponding resolver context.
+	if !exists {
+		for i := range trig.subscriptions {
+			if trig.subscriptions[i].id == subIdentifier {
+				resolverCtx = i
+				exists = true
+				break
+			}
+		}
+	}
+
 	if !exists {
 		return
 	}
 
-	s, exists := trig.subscriptions[c]
+	subscription, exists := trig.subscriptions[resolverCtx]
 	if !exists {
 		return
 	}
 
-	r.sendUpdateToSubscription(data, c, s)
+	r.sendUpdateToSubscription(data, resolverCtx, subscription)
 }
 
 func (r *Resolver) sendUpdateToSubscription(data []byte, c *Context, s *sub) {
