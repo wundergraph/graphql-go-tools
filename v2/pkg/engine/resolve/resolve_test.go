@@ -6584,7 +6584,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
-		ctx1 := &Context{ctx: context.Background()}
+		ctx1 := NewContext(context.Background())
 		err := resolver.AsyncResolveGraphQLSubscription(ctx1, plan, recorder, id)
 		assert.NoError(t, err)
 
@@ -6603,7 +6603,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		}
 		recorder2.complete.Store(false)
 
-		ctx2 := &Context{ctx: context.Background()}
+		ctx2 := NewContext(context.Background())
 		err2 := resolver.AsyncResolveGraphQLSubscription(ctx2, plan, recorder2, id2)
 		assert.NoError(t, err2)
 
@@ -6649,7 +6649,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
-		ctx1 := &Context{ctx: context.Background()}
+		ctx1 := NewContext(context.Background())
 		err := resolver.AsyncResolveGraphQLSubscription(ctx1, plan, recorder, id)
 		assert.NoError(t, err)
 

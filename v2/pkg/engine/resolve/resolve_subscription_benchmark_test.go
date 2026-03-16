@@ -128,7 +128,7 @@ func BenchmarkUpdateSubscription(b *testing.B) {
 					messages: []string{},
 					complete: atomic.Bool{},
 				}
-				subCtx := &Context{ctx: context.Background()}
+				subCtx := NewContext(context.Background())
 				id := SubscriptionIdentifier{
 					ConnectionID:   1,
 					SubscriptionID: int64(i + 1),
