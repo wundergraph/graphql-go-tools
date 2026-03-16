@@ -383,17 +383,19 @@ func formatRPCMessage(sb *strings.Builder, message RPCMessage, indent int) {
 }
 
 type rpcPlanningContext struct {
-	operation  *ast.Document
-	definition *ast.Document
-	mapping    *GRPCMapping
+	operation           *ast.Document
+	definition          *ast.Document
+	mapping             *GRPCMapping
+	requestMessageCache map[string]*RPCMessage
 }
 
 // newRPCPlanningContext creates a new RPCPlanningContext.
 func newRPCPlanningContext(operation *ast.Document, definition *ast.Document, mapping *GRPCMapping) *rpcPlanningContext {
 	return &rpcPlanningContext{
-		operation:  operation,
-		definition: definition,
-		mapping:    mapping,
+		operation:           operation,
+		definition:          definition,
+		mapping:             mapping,
+		requestMessageCache: make(map[string]*RPCMessage),
 	}
 }
 
@@ -684,11 +686,18 @@ func (r *rpcPlanningContext) buildMessageFromInputObjectType(node *ast.Node) (*R
 		return nil, fmt.Errorf("unable to build message from input object type definition - incorrect type: %s", node.Kind)
 	}
 
+	typeName := node.NameString(r.definition)
+	if message, ok := r.requestMessageCache[typeName]; ok {
+		return message, nil
+	}
+
 	inputObjectDefinition := r.definition.InputObjectTypeDefinitions[node.Ref]
 	message := &RPCMessage{
-		Name:   node.NameString(r.definition),
+		Name:   typeName,
 		Fields: make(RPCFields, 0, len(inputObjectDefinition.InputFieldsDefinition.Refs)),
 	}
+	r.requestMessageCache[typeName] = message
+
 	for _, inputFieldRef := range inputObjectDefinition.InputFieldsDefinition.Refs {
 		field, err := r.buildMessageFieldFromInputValueDefinition(inputFieldRef, node)
 		if err != nil {
