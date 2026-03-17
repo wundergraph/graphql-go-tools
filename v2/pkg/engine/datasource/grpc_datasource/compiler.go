@@ -1032,7 +1032,7 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 				//   ListOfBoolean is_published = 1;
 				//   ListOfListOfString related_topics = 2;
 				// }
-				if !hasConcreteValue(fieldData) {
+				if !isNonNullValue(fieldData) {
 					if !rpcField.Optional {
 						return nil, fmt.Errorf("field %s is required but has no value", rpcField.JSONPath)
 					}
@@ -1057,8 +1057,8 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 				// If the field is optional, we are handling a scalar value that is wrapped in a message
 				// as protobuf scalar types are not nullable.
 
-				if !hasConcreteValue(fieldData) {
-					// If we don't have a value for an optional field, we skip it to provide a null message.
+				if !isNonNullValue(fieldData) {
+					// If we don't have a concrete value for an optional field, leave it unset (absent).
 					continue
 				}
 
@@ -1073,7 +1073,7 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 					return nil, err
 				}
 			default:
-				if !hasConcreteValue(fieldData) {
+				if !isNonNullValue(fieldData) {
 					if !rpcField.Optional {
 						return nil, fmt.Errorf("field %s is required but has no value", rpcField.JSONPath)
 					}
@@ -1112,7 +1112,7 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 	return message, nil
 }
 
-func hasConcreteValue(data gjson.Result) bool {
+func isNonNullValue(data gjson.Result) bool {
 	return data.Exists() && data.Type != gjson.Null
 }
 

@@ -31,6 +31,8 @@ message UpdateRuleResponse {}
 `
 
 func TestCompileOptionalNestedInputsTreatsNullAsAbsent(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		name                string
 		input               string
