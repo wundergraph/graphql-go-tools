@@ -323,10 +323,10 @@ func (r *RPCExecutionPlan) String() string {
 		fmt.Fprintf(&result, "      Method: %s\n", call.MethodName)
 
 		result.WriteString("      Request:\n")
-		formatRPCMessage(&result, call.Request, 8)
+		formatRPCMessage(&result, &call.Request, 8, map[*RPCMessage]struct{}{})
 
 		result.WriteString("      Response:\n")
-		formatRPCMessage(&result, call.Response, 8)
+		formatRPCMessage(&result, &call.Response, 8, map[*RPCMessage]struct{}{})
 	}
 
 	return result.String()
@@ -361,8 +361,20 @@ func NewPlanner(subgraphName string, mapping *GRPCMapping, federationConfigs pla
 	}), nil
 }
 
-// formatRPCMessage formats an RPCMessage and adds it to the string builder with the specified indentation
-func formatRPCMessage(sb *strings.Builder, message RPCMessage, indent int) {
+// formatRPCMessage formats an RPCMessage and adds it to the string builder with the specified indentation.
+// The seen parameter tracks visited message pointers to prevent infinite recursion on cyclic message graphs.
+func formatRPCMessage(sb *strings.Builder, message *RPCMessage, indent int, seen map[*RPCMessage]struct{}) {
+	if message == nil {
+		return
+	}
+	if _, ok := seen[message]; ok {
+		indentStr := strings.Repeat(" ", indent)
+		fmt.Fprintf(sb, "%s<recursive message: %s>\n", indentStr, message.Name)
+		return
+	}
+	seen[message] = struct{}{}
+	defer delete(seen, message)
+
 	indentStr := strings.Repeat(" ", indent)
 
 	fmt.Fprintf(sb, "%sName: %s\n", indentStr, message.Name)
@@ -377,7 +389,7 @@ func formatRPCMessage(sb *strings.Builder, message RPCMessage, indent int) {
 
 		if field.Message != nil {
 			fmt.Fprintf(sb, "%s    Message:\n", indentStr)
-			formatRPCMessage(sb, *field.Message, indent+6)
+			formatRPCMessage(sb, field.Message, indent+6, seen)
 		}
 	}
 }

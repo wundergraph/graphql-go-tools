@@ -63,6 +63,7 @@ func TestMutationExecutionPlanWithRecursiveInputType(t *testing.T) {
 		},
 	}).PlanOperation(&queryDoc, &schemaDoc)
 	require.NoError(t, err)
+	require.NotNil(t, plan)
 	require.Len(t, plan.Calls, 1)
 
 	inputField := lookupField(plan.Calls[0].Request.Fields, "input")
