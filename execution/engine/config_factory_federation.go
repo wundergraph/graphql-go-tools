@@ -458,16 +458,16 @@ func (f *FederationEngineConfigFactory) subscriptionClient(
 	switch subscriptionType {
 	case SubscriptionTypeGraphQLTransportWS:
 		graphqlSubscriptionClient = subscriptionClientFactory.NewSubscriptionClient(
-			httpClient,
-			streamingClient,
 			f.engineCtx,
+			graphql_datasource.WithUpgradeClient(httpClient),
+			graphql_datasource.WithStreamingClient(streamingClient),
 		)
 	default:
 		// for compatibility reasons we fall back to graphql-ws protocol
 		graphqlSubscriptionClient = subscriptionClientFactory.NewSubscriptionClient(
-			httpClient,
-			streamingClient,
 			f.engineCtx,
+			graphql_datasource.WithUpgradeClient(httpClient),
+			graphql_datasource.WithStreamingClient(streamingClient),
 		)
 	}
 

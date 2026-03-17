@@ -4006,7 +4006,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Trigger: resolve.GraphQLSubscriptionTrigger{
 					Input: []byte(`{"url":"wss://swapi.com/graphql","body":{"query":"subscription{remainingJedis}"}}`),
 					Source: &SubscriptionSource{
-						client: NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, ctx),
+						client: NewGraphQLSubscriptionClient(ctx),
 					},
 					PostProcessing: DefaultPostProcessingConfiguration,
 					SourceName:     "ds-id",
@@ -4049,7 +4049,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				),
 				Source: &SubscriptionSource{
-					client: NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, ctx),
+					client: NewGraphQLSubscriptionClient(ctx),
 				},
 				PostProcessing: DefaultPostProcessingConfiguration,
 				SourceName:     "ds-id",
@@ -8384,14 +8384,16 @@ func (f *FailingSubscriptionClient) Subscribe(ctx *resolve.Context, options Grap
 type testSubscriptionUpdaterChan struct {
 	updates  chan string
 	complete chan struct{}
-	closed   chan resolve.SubscriptionCloseKind
+	errors   chan []byte
+	done     chan struct{}
 }
 
 func newTestSubscriptionUpdaterChan() *testSubscriptionUpdaterChan {
 	return &testSubscriptionUpdaterChan{
 		updates:  make(chan string),
 		complete: make(chan struct{}),
-		closed:   make(chan resolve.SubscriptionCloseKind),
+		errors:   make(chan []byte, 1),
+		done:     make(chan struct{}),
 	}
 }
 
@@ -8408,7 +8410,7 @@ func (t *testSubscriptionUpdaterChan) UpdateSubscription(id resolve.Subscription
 }
 
 // empty method to satisfy the interface, not used in this tests
-func (t *testSubscriptionUpdaterChan) CloseSubscription(kind resolve.SubscriptionCloseKind, id resolve.SubscriptionIdentifier) {
+func (t *testSubscriptionUpdaterChan) CloseSubscription(id resolve.SubscriptionIdentifier) {
 }
 
 // empty method to satisfy the interface, not used in this tests
@@ -8420,8 +8422,12 @@ func (t *testSubscriptionUpdaterChan) Complete() {
 	close(t.complete)
 }
 
-func (t *testSubscriptionUpdaterChan) Close(kind resolve.SubscriptionCloseKind) {
-	t.closed <- kind
+func (t *testSubscriptionUpdaterChan) Error(data []byte) {
+	t.errors <- data
+}
+
+func (t *testSubscriptionUpdaterChan) Done() {
+	close(t.done)
 }
 
 func (t *testSubscriptionUpdaterChan) AwaitUpdateWithT(tt *testing.T, timeout time.Duration, f func(t *testing.T, update string), msgAndArgs ...any) {
@@ -8435,24 +8441,25 @@ func (t *testSubscriptionUpdaterChan) AwaitUpdateWithT(tt *testing.T, timeout ti
 	}
 }
 
-func (t *testSubscriptionUpdaterChan) AwaitClose(tt *testing.T, timeout time.Duration, msgAndArgs ...any) {
+func (t *testSubscriptionUpdaterChan) AwaitError(tt *testing.T, timeout time.Duration, msgAndArgs ...any) []byte {
 	tt.Helper()
 
 	select {
-	case <-t.closed:
+	case data := <-t.errors:
+		return data
 	case <-time.After(timeout):
-		require.Fail(tt, "updater not closed before timeout", msgAndArgs...)
+		require.Fail(tt, "updater error not received before timeout", msgAndArgs...)
+		return nil
 	}
 }
 
-func (t *testSubscriptionUpdaterChan) AwaitCloseKind(tt *testing.T, timeout time.Duration, expectedCloseKind resolve.SubscriptionCloseKind, msgAndArgs ...any) {
+func (t *testSubscriptionUpdaterChan) AwaitDone(tt *testing.T, timeout time.Duration, msgAndArgs ...any) {
 	tt.Helper()
 
 	select {
-	case closeKind := <-t.closed:
-		require.Equal(tt, expectedCloseKind, closeKind, msgAndArgs...)
+	case <-t.done:
 	case <-time.After(timeout):
-		require.Fail(tt, "updater not closed before timeout", msgAndArgs...)
+		require.Fail(tt, "updater not done before timeout", msgAndArgs...)
 	}
 }
 
@@ -8470,8 +8477,8 @@ func (t *testSubscriptionUpdaterChan) AwaitComplete(tt *testing.T, timeout time.
 // It's faster, more ergonomic and more reliable. See SSE handler tests for usage examples.
 type testSubscriptionUpdater struct {
 	updates []string
+	errors  []string
 	done    bool
-	closed  bool
 	mux     sync.Mutex
 }
 
@@ -8488,6 +8495,27 @@ func (t *testSubscriptionUpdater) AwaitUpdates(tt *testing.T, timeout time.Durat
 		default:
 			t.mux.Lock()
 			if len(t.updates) == count {
+				t.mux.Unlock()
+				return
+			}
+			t.mux.Unlock()
+		}
+	}
+}
+
+func (t *testSubscriptionUpdater) AwaitErrors(tt *testing.T, timeout time.Duration, count int) {
+	tt.Helper()
+
+	ticker := time.NewTicker(timeout)
+	defer ticker.Stop()
+	for {
+		time.Sleep(10 * time.Millisecond)
+		select {
+		case <-ticker.C:
+			tt.Fatalf("timed out waiting for errors")
+		default:
+			t.mux.Lock()
+			if len(t.errors) == count {
 				t.mux.Unlock()
 				return
 			}
@@ -8535,14 +8563,20 @@ func (t *testSubscriptionUpdater) Complete() {
 	t.done = true
 }
 
-func (t *testSubscriptionUpdater) Close(kind resolve.SubscriptionCloseKind) {
+func (t *testSubscriptionUpdater) Error(data []byte) {
 	t.mux.Lock()
 	defer t.mux.Unlock()
-	t.closed = true
+	t.errors = append(t.errors, string(data))
+}
+
+func (t *testSubscriptionUpdater) Done() {
+	t.mux.Lock()
+	defer t.mux.Unlock()
+	t.done = true
 }
 
 // empty method to satisfy the interface, not used in this tests
-func (t *testSubscriptionUpdater) CloseSubscription(kind resolve.SubscriptionCloseKind, id resolve.SubscriptionIdentifier) {
+func (t *testSubscriptionUpdater) CloseSubscription(id resolve.SubscriptionIdentifier) {
 }
 
 // empty method to satisfy the interface, not used in this tests
@@ -8591,8 +8625,7 @@ func TestSubscriptionSource_Start(t *testing.T) {
 	}
 
 	newSubscriptionSource := func(ctx context.Context) SubscriptionSource {
-		httpClient := http.Client{}
-		subscriptionSource := SubscriptionSource{client: NewGraphQLSubscriptionClient(&httpClient, http.DefaultClient, ctx)}
+		subscriptionSource := SubscriptionSource{client: NewGraphQLSubscriptionClient(ctx)}
 		return subscriptionSource
 	}
 
@@ -8631,9 +8664,9 @@ func TestSubscriptionSource_Start(t *testing.T) {
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomNam: \"#test\") { text createdBy } }"}`)
 		err := source.Start(ctx, nil, chatSubscriptionOptions, updater)
 		require.NoError(t, err)
-		updater.AwaitUpdates(t, time.Second, 1)
-		assert.Len(t, updater.updates, 1)
-		assert.Equal(t, `{"errors":[{"message":"Unknown argument \"roomNam\" on field \"Subscription.messageAdded\". Did you mean \"roomName\"?","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"Field \"messageAdded\" argument \"roomName\" of type \"String!\" is required, but it was not provided.","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}`, updater.updates[0])
+		updater.AwaitErrors(t, time.Second, 1)
+		assert.Len(t, updater.errors, 1)
+		assert.Equal(t, `{"errors":[{"message":"Unknown argument \"roomNam\" on field \"Subscription.messageAdded\". Did you mean \"roomName\"?","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"Field \"messageAdded\" argument \"roomName\" of type \"String!\" is required, but it was not provided.","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}`, updater.errors[0])
 		updater.AwaitDone(t, time.Second)
 	})
 
@@ -8719,9 +8752,8 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 	}
 
 	newSubscriptionSource := func(ctx context.Context) SubscriptionSource {
-		httpClient := http.Client{}
 		subscriptionSource := SubscriptionSource{
-			client: NewGraphQLSubscriptionClient(&httpClient, http.DefaultClient, ctx),
+			client: NewGraphQLSubscriptionClient(ctx),
 		}
 		return subscriptionSource
 	}
@@ -8737,9 +8769,9 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 		err := source.Start(ctx, nil, chatSubscriptionOptions, updater)
 		require.NoError(t, err)
 
-		updater.AwaitUpdates(t, time.Second, 1)
-		assert.Len(t, updater.updates, 1)
-		assert.Equal(t, `{"errors":[{"message":"Unknown argument \"roomNam\" on field \"Subscription.messageAdded\". Did you mean \"roomName\"?","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"Field \"messageAdded\" argument \"roomName\" of type \"String!\" is required, but it was not provided.","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}`, updater.updates[0])
+		updater.AwaitErrors(t, time.Second, 1)
+		assert.Len(t, updater.errors, 1)
+		assert.Equal(t, `{"errors":[{"message":"Unknown argument \"roomNam\" on field \"Subscription.messageAdded\". Did you mean \"roomName\"?","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"Field \"messageAdded\" argument \"roomName\" of type \"String!\" is required, but it was not provided.","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}`, updater.errors[0])
 		updater.AwaitDone(t, time.Second)
 		assert.Equal(t, true, updater.done)
 	})

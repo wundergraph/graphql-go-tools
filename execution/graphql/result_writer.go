@@ -39,7 +39,7 @@ func (e *EngineResultWriter) Heartbeat() error {
 	return nil
 }
 
-func (e *EngineResultWriter) Close(_ resolve.SubscriptionCloseKind) {
+func (e *EngineResultWriter) Error(_ []byte) {
 
 }
 
