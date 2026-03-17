@@ -77,7 +77,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 
 		// Receive complete message
 		msg = receiveWithTimeout(t, ch, time.Second)
-		assert.True(t, msg.Done)
+		assert.Equal(t, common.MessageTypeComplete, msg.Type)
 	})
 
 	t.Run("passes custom headers", func(t *testing.T) {
@@ -142,7 +142,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 		msg := receiveWithTimeout(t, ch, time.Second)
 		require.NotNil(t, msg.Payload)
 		assert.Contains(t, string(msg.Payload.Data), "Alice")
-		assert.False(t, msg.Done)
+		assert.Equal(t, common.MessageTypeData, msg.Type)
 	})
 
 	t.Run("handles error event", func(t *testing.T) {
@@ -164,7 +164,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 		defer cancel()
 
 		msg := receiveWithTimeout(t, ch, time.Second)
-		assert.True(t, msg.Done)
+		assert.Equal(t, common.MessageTypeError, msg.Type)
 		require.NotNil(t, msg.Payload)
 		assert.Contains(t, string(msg.Payload.Errors), "Something went wrong")
 	})
@@ -188,7 +188,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 		defer cancel()
 
 		msg := receiveWithTimeout(t, ch, time.Second)
-		assert.True(t, msg.Done)
+		assert.Equal(t, common.MessageTypeComplete, msg.Type)
 		assert.Nil(t, msg.Err)
 		assert.Nil(t, msg.Payload)
 	})
@@ -263,7 +263,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 		// Should only receive 2 messages (next + complete), not comments
 		for msg := range ch {
 			messageCount.Add(1)
-			if msg.Done {
+			if msg.Type.IsTerminal() {
 				break
 			}
 		}
@@ -616,7 +616,7 @@ func TestSSETransport_ContentTypeValidation(t *testing.T) {
 		defer cancel()
 
 		msg := receiveWithTimeout(t, ch, time.Second)
-		assert.True(t, msg.Done)
+		assert.Equal(t, common.MessageTypeComplete, msg.Type)
 	})
 
 	t.Run("rejects non-SSE content type", func(t *testing.T) {
@@ -701,7 +701,7 @@ func TestSSETransport_GETMethod(t *testing.T) {
 
 		// Receive complete message
 		msg = receiveWithTimeout(t, ch, time.Second)
-		assert.True(t, msg.Done)
+		assert.Equal(t, common.MessageTypeComplete, msg.Type)
 	})
 
 	t.Run("GET preserves existing query parameters", func(t *testing.T) {

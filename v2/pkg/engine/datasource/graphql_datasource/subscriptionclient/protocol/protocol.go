@@ -39,16 +39,16 @@ type Message struct {
 func (m *Message) IntoClientMessage() *common.Message {
 	switch m.Type {
 	case MessageData:
-		return &common.Message{Payload: m.Payload}
+		return &common.Message{Type: common.MessageTypeData, Payload: m.Payload}
 	case MessageError:
 		if m.Payload != nil {
-			return &common.Message{Payload: m.Payload, Done: true}
+			return &common.Message{Type: common.MessageTypeError, Payload: m.Payload}
 		}
-		return &common.Message{Err: m.Err, Done: true}
+		return &common.Message{Type: common.MessageTypeConnectionError, Err: m.Err}
 	case MessageComplete:
-		return &common.Message{Done: true}
+		return &common.Message{Type: common.MessageTypeComplete}
 	default:
-		return &common.Message{}
+		return &common.Message{Type: common.MessageTypeUnknown}
 	}
 }
 

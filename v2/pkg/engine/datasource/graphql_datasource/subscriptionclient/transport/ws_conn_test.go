@@ -129,7 +129,7 @@ func TestWSConnection_ReadLoop(t *testing.T) {
 
 		// Consume the message (blocking send requires consumer)
 		msg := receiveWithTimeout(t, ch, time.Second)
-		assert.True(t, msg.Done)
+		assert.Equal(t, common.MessageTypeComplete, msg.Type)
 
 		assertChannelClosed(t, ch)
 	})
@@ -362,11 +362,11 @@ func TestWSConnection_Close(t *testing.T) {
 		// Consume messages (blocking send requires consumer)
 		msg1 := receiveWithTimeout(t, ch1, 100*time.Millisecond)
 		assert.Error(t, msg1.Err)
-		assert.True(t, msg1.Done)
+		assert.Equal(t, common.MessageTypeConnectionError, msg1.Type)
 
 		msg2 := receiveWithTimeout(t, ch2, 100*time.Millisecond)
 		assert.Error(t, msg2.Err)
-		assert.True(t, msg2.Done)
+		assert.Equal(t, common.MessageTypeConnectionError, msg2.Type)
 
 		assertChannelClosed(t, ch1)
 		assertChannelClosed(t, ch2)

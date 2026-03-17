@@ -150,6 +150,11 @@ func (c *subscriptionClientV2) Subscribe(ctx *resolve.Context, options GraphQLSu
 
 	msgCh, cancel, err := c.client.Subscribe(ctx.Context(), req, opts)
 	if err != nil {
+		if isUpstreamError(err) {
+			updater.Error(formatUpstreamServiceError(err))
+			updater.Done()
+			return nil
+		}
 		return err
 	}
 
@@ -174,32 +179,28 @@ func (c *subscriptionClientV2) readLoop(ctx context.Context, msgCh <-chan *clien
 				return
 			}
 
-			if msg.Err != nil {
-				if isConnectionError(msg.Err) {
-					updater.Error(formatUpstreamServiceError(msg.Err))
-				} else {
-					updater.Error(formatSubscriptionError(msg.Err))
-				}
+			switch msg.Type {
+			case client.MessageTypeConnectionError:
+				updater.Error(formatUpstreamServiceError(msg.Err))
 				updater.Done()
 				return
-			}
 
-			if msg.Payload != nil {
+			case client.MessageTypeError:
+				data, _ := json.Marshal(msg.Payload)
+				updater.Error(data)
+				updater.Done()
+				return
+
+			case client.MessageTypeData:
 				data, err := json.Marshal(msg.Payload)
 				if err != nil {
 					updater.Error(formatSubscriptionError(err))
 					updater.Done()
 					return
 				}
-				if msg.Done {
-					updater.Error(data)
-					updater.Done()
-					return
-				}
 				updater.Update(data)
-			}
 
-			if msg.Done {
+			case client.MessageTypeComplete:
 				updater.Complete()
 				updater.Done()
 				return
@@ -208,9 +209,13 @@ func (c *subscriptionClientV2) readLoop(ctx context.Context, msgCh <-chan *clien
 	}
 }
 
-func isConnectionError(err error) bool {
+// isUpstreamError reports whether err is a connection-level upstream error
+// that should be reported to the client as an UPSTREAM_SERVICE_ERROR.
+func isUpstreamError(err error) bool {
 	return errors.Is(err, client.ErrConnectionClosed) ||
 		errors.Is(err, client.ErrConnectionError) ||
+		errors.Is(err, client.ErrInitFailed) ||
+		errors.Is(err, client.ErrDialFailed) ||
 		errors.Is(err, context.Canceled) ||
 		errors.Is(err, context.DeadlineExceeded)
 }
@@ -267,8 +272,9 @@ func mapWSSubprotocol(proto string) client.WSSubprotocol {
 }
 
 // formatUpstreamServiceError formats a connection-level error as a GraphQL error
-// response with the UPSTREAM_SERVICE_ERROR extension code. If the error is a
-// WebSocket close error, the close code and reason are included in extensions.
+// response with the UPSTREAM_SERVICE_ERROR extension code. If the error chain
+// contains a WebSocket close error, the close code and reason are included in
+// extensions.
 func formatUpstreamServiceError(err error) []byte {
 	type errorExtensions struct {
 		Code      string `json:"code"`
@@ -281,18 +287,21 @@ func formatUpstreamServiceError(err error) []byte {
 		Extensions errorExtensions `json:"extensions"`
 	}
 
-	ext := errorExtensions{Code: "UPSTREAM_SERVICE_ERROR"}
+	gqlErr := graphqlError{
+		Message:    "upstream service error",
+		Extensions: errorExtensions{Code: "UPSTREAM_SERVICE_ERROR"},
+	}
 
 	var closeErr websocket.CloseError
 	if errors.As(err, &closeErr) {
-		ext.CloseCode = int(closeErr.Code)
-		ext.Reason = closeErr.Reason
+		gqlErr.Extensions.CloseCode = int(closeErr.Code)
+		gqlErr.Extensions.Reason = closeErr.Reason
 	}
 
 	resp := struct {
 		Errors []graphqlError `json:"errors"`
 	}{
-		Errors: []graphqlError{{Message: "upstream service closed the connection", Extensions: ext}},
+		Errors: []graphqlError{gqlErr},
 	}
 	data, _ := json.Marshal(resp)
 	return data

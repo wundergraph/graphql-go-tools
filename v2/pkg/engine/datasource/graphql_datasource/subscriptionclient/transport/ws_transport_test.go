@@ -58,7 +58,7 @@ func TestWSTransport_Subscribe(t *testing.T) {
 		assert.Contains(t, string(msg.Payload.Data), "42")
 
 		msg = receiveWithTimeout(t, ch, time.Second)
-		assert.True(t, msg.Done)
+		assert.Equal(t, common.MessageTypeComplete, msg.Type)
 	})
 
 	t.Run("reuses connection for same endpoint", func(t *testing.T) {
@@ -796,7 +796,7 @@ func TestWSTransport_LegacyProtocol(t *testing.T) {
 		assert.Contains(t, string(msg.Payload.Data), "42")
 
 		msg = receiveWithTimeout(t, ch, time.Second)
-		assert.True(t, msg.Done)
+		assert.Equal(t, common.MessageTypeComplete, msg.Type)
 	})
 
 	t.Run("handles keep-alive messages", func(t *testing.T) {
@@ -841,7 +841,7 @@ func TestWSTransport_LegacyProtocol(t *testing.T) {
 		assert.NotNil(t, msg.Payload)
 
 		msg = receiveWithTimeout(t, ch, time.Second)
-		assert.True(t, msg.Done)
+		assert.Equal(t, common.MessageTypeComplete, msg.Type)
 	})
 
 	t.Run("auto-negotiates to legacy when modern unavailable", func(t *testing.T) {
@@ -952,7 +952,7 @@ func TestWSTransport_Heartbeat(t *testing.T) {
 
 		// Connection should be closed due to pong timeout, subscriber gets notified
 		msg := receiveWithTimeout(t, ch, time.Second)
-		assert.True(t, msg.Done)
+		assert.Equal(t, common.MessageTypeConnectionError, msg.Type)
 		assert.Error(t, msg.Err)
 
 		assert.Eventually(t, func() bool {

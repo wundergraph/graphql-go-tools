@@ -10,6 +10,7 @@ import (
 
 type (
 	Message         = common.Message
+	MessageType     = common.MessageType
 	ExecutionResult = common.ExecutionResult
 	Request         = common.Request
 	Options         = common.Options
@@ -21,6 +22,12 @@ type (
 // Re-export constants.
 
 const (
+	MessageTypeUnknown         = common.MessageTypeUnknown
+	MessageTypeData            = common.MessageTypeData
+	MessageTypeError           = common.MessageTypeError
+	MessageTypeComplete        = common.MessageTypeComplete
+	MessageTypeConnectionError = common.MessageTypeConnectionError
+
 	TransportWS  = common.TransportWS
 	TransportSSE = common.TransportSSE
 
@@ -48,4 +55,6 @@ var (
 	ErrAckTimeout         = protocol.ErrAckTimeout
 	ErrAckNotReceived     = protocol.ErrAckNotReceived
 	ErrSubscriptionExists = transport.ErrSubscriptionExists
+	ErrDialFailed         = transport.ErrDialFailed
+	ErrInitFailed         = transport.ErrInitFailed
 )

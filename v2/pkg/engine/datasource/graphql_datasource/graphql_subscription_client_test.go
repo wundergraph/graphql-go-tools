@@ -47,7 +47,7 @@ func TestReadLoopErrorHandling(t *testing.T) {
 	t.Run("connection errors deliver error and done without updates", func(t *testing.T) {
 		updater := &testBridgeUpdater{}
 		msgCh := make(chan *client.Message, 1)
-		msgCh <- &client.Message{Err: client.ErrConnectionClosed}
+		msgCh <- &client.Message{Type: client.MessageTypeConnectionError, Err: client.ErrConnectionClosed}
 		close(msgCh)
 
 		subClient := &subscriptionClientV2{}
@@ -62,7 +62,7 @@ func TestReadLoopErrorHandling(t *testing.T) {
 	t.Run("non-connection errors deliver error and done without updates", func(t *testing.T) {
 		updater := &testBridgeUpdater{}
 		msgCh := make(chan *client.Message, 1)
-		msgCh <- &client.Message{Err: errors.New("validation failed")}
+		msgCh <- &client.Message{Type: client.MessageTypeConnectionError, Err: errors.New("validation failed")}
 		close(msgCh)
 
 		subClient := &subscriptionClientV2{}
@@ -102,7 +102,7 @@ func TestReadLoopErrorHandling(t *testing.T) {
 	t.Run("done message calls complete then done", func(t *testing.T) {
 		updater := &testBridgeUpdater{}
 		msgCh := make(chan *client.Message, 1)
-		msgCh <- &client.Message{Done: true}
+		msgCh <- &client.Message{Type: client.MessageTypeComplete}
 		close(msgCh)
 
 		subClient := &subscriptionClientV2{}

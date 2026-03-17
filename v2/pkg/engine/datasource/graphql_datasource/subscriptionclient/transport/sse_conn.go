@@ -71,7 +71,7 @@ func (c *sseConnection) readLoop() {
 			return
 		}
 
-		if msg.Done {
+		if msg.Type.IsTerminal() {
 			return
 		}
 	}
@@ -129,36 +129,30 @@ func (c *sseConnection) parseEvent(eventType string, data []byte) *common.Messag
 	case "next":
 		var resp common.ExecutionResult
 		if err := json.Unmarshal(data, &resp); err != nil {
-			return &common.Message{
-				Err:  err,
-				Done: true,
-			}
+			return &common.Message{Type: common.MessageTypeConnectionError, Err: err}
 		}
-		return &common.Message{Payload: &resp}
+		return &common.Message{Type: common.MessageTypeData, Payload: &resp}
 
 	case "error":
 		return &common.Message{
+			Type:    common.MessageTypeError,
 			Payload: &common.ExecutionResult{Errors: data},
-			Done:    true,
 		}
 
 	case "complete":
-		return &common.Message{Done: true}
+		return &common.Message{Type: common.MessageTypeComplete}
 
 	default:
 		// Unknown event type or no event type specified - treat as data
 		// This handles servers that send data without an event type
 		if len(data) == 0 {
-			return &common.Message{Done: true}
+			return &common.Message{Type: common.MessageTypeComplete}
 		}
 		var resp common.ExecutionResult
 		if err := json.Unmarshal(data, &resp); err != nil {
-			return &common.Message{
-				Err:  err,
-				Done: true,
-			}
+			return &common.Message{Type: common.MessageTypeConnectionError, Err: err}
 		}
-		return &common.Message{Payload: &resp}
+		return &common.Message{Type: common.MessageTypeData, Payload: &resp}
 	}
 }
 
@@ -167,7 +161,7 @@ func (c *sseConnection) sendError(err error) {
 		return
 	}
 	select {
-	case c.ch <- &common.Message{Err: err, Done: true}:
+	case c.ch <- &common.Message{Type: common.MessageTypeConnectionError, Err: err}:
 	case <-c.done:
 	}
 }

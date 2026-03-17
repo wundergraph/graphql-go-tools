@@ -18,6 +18,15 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
+// ErrDialFailed indicates that the WebSocket dial (TCP + HTTP upgrade) failed.
+// The underlying cause is available via errors.Unwrap.
+var ErrDialFailed = errors.New("websocket dial failed")
+
+// ErrInitFailed indicates that the GraphQL protocol init (connection_init /
+// connection_ack handshake) failed after a successful WebSocket dial. The
+// underlying cause (e.g. protocol.ErrAckTimeout) is available via errors.Unwrap.
+var ErrInitFailed = errors.New("protocol init failed")
+
 type ErrFailedUpgrade struct {
 	URL        string
 	StatusCode int
@@ -295,7 +304,7 @@ func (t *WSTransport) dial(ctx context.Context, key uint64, opts common.Options)
 			return nil, ErrFailedUpgrade{URL: opts.Endpoint, StatusCode: resp.StatusCode}
 		}
 
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrDialFailed, err)
 	}
 
 	wsConn.SetReadLimit(t.opts.readLimit)
@@ -318,7 +327,7 @@ func (t *WSTransport) dial(ctx context.Context, key uint64, opts common.Options)
 			abstractlogger.Error(err),
 		)
 		wsConn.Close(websocket.StatusProtocolError, "init failed")
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrInitFailed, err)
 	}
 
 	t.opts.logger.Debug("wsTransport.dial",

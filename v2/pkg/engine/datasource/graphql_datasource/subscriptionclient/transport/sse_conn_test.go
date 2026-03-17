@@ -10,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
 )
 
 func TestSSEConnection_ReadLoop(t *testing.T) {
@@ -52,7 +54,7 @@ func TestSSEConnection_ReadLoop(t *testing.T) {
 
 		msg := <-conn.ch
 		require.Error(t, msg.Err)
-		require.True(t, msg.Done)
+		assert.Equal(t, common.MessageTypeConnectionError, msg.Type)
 	})
 
 	t.Run("stops on complete event", func(t *testing.T) {
@@ -69,11 +71,11 @@ func TestSSEConnection_ReadLoop(t *testing.T) {
 		// First message
 		msg1 := <-conn.ch
 		assert.NotNil(t, msg1.Payload)
-		assert.False(t, msg1.Done)
+		assert.Equal(t, common.MessageTypeData, msg1.Type)
 
 		// Complete message
 		msg2 := <-conn.ch
-		assert.True(t, msg2.Done)
+		assert.Equal(t, common.MessageTypeComplete, msg2.Type)
 
 		// Channel should close, no third message
 		select {

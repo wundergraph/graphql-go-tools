@@ -246,7 +246,7 @@ func (c *wsConnection) shutdown(err error) {
 	c.subs = make(map[string]chan<- *common.Message)
 	c.subsMu.Unlock()
 
-	errMsg := &common.Message{Err: err, Done: true}
+	errMsg := &common.Message{Type: common.MessageTypeConnectionError, Err: err}
 	for _, ch := range subs {
 		select {
 		case ch <- errMsg:
