@@ -60,10 +60,12 @@ service ProductService {
   rpc QueryUsers(QueryUsersRequest) returns (QueryUsersResponse) {}
   rpc RequireStorageCategoryInfoSummaryById(RequireStorageCategoryInfoSummaryByIdRequest) returns (RequireStorageCategoryInfoSummaryByIdResponse) {}
   rpc RequireStorageKindSummaryById(RequireStorageKindSummaryByIdRequest) returns (RequireStorageKindSummaryByIdResponse) {}
+  rpc RequireStorageLastActionSummaryById(RequireStorageLastActionSummaryByIdRequest) returns (RequireStorageLastActionSummaryByIdResponse) {}
   rpc RequireStorageMetadataScoreById(RequireStorageMetadataScoreByIdRequest) returns (RequireStorageMetadataScoreByIdResponse) {}
   rpc RequireStorageOptionalProcessedMetadataById(RequireStorageOptionalProcessedMetadataByIdRequest) returns (RequireStorageOptionalProcessedMetadataByIdResponse) {}
   rpc RequireStorageOptionalProcessedTagsById(RequireStorageOptionalProcessedTagsByIdRequest) returns (RequireStorageOptionalProcessedTagsByIdResponse) {}
   rpc RequireStorageOptionalTagSummaryById(RequireStorageOptionalTagSummaryByIdRequest) returns (RequireStorageOptionalTagSummaryByIdResponse) {}
+  rpc RequireStoragePetSummaryById(RequireStoragePetSummaryByIdRequest) returns (RequireStoragePetSummaryByIdResponse) {}
   rpc RequireStorageProcessedMetadataById(RequireStorageProcessedMetadataByIdRequest) returns (RequireStorageProcessedMetadataByIdResponse) {}
   rpc RequireStorageProcessedMetadataHistoryById(RequireStorageProcessedMetadataHistoryByIdRequest) returns (RequireStorageProcessedMetadataHistoryByIdResponse) {}
   rpc RequireStorageProcessedTagsById(RequireStorageProcessedTagsByIdRequest) returns (RequireStorageProcessedTagsByIdResponse) {}
@@ -1546,6 +1548,84 @@ message RequireStorageCategoryInfoSummaryByIdFields {
   }
 
   StorageCategoryInfo category_info = 1;
+}
+
+message RequireStoragePetSummaryByIdRequest {
+  // RequireStoragePetSummaryByIdContext provides the context for the required fields method RequireStoragePetSummaryById.
+  repeated RequireStoragePetSummaryByIdContext context = 1;
+}
+
+message RequireStoragePetSummaryByIdContext {
+  LookupStorageByIdRequestKey key = 1;
+  RequireStoragePetSummaryByIdFields fields = 2;
+}
+
+message RequireStoragePetSummaryByIdResponse {
+  // RequireStoragePetSummaryByIdResult provides the result for the required fields method RequireStoragePetSummaryById.
+  repeated RequireStoragePetSummaryByIdResult result = 1;
+}
+
+message RequireStoragePetSummaryByIdResult {
+  string pet_summary = 1;
+}
+
+message RequireStoragePetSummaryByIdFields {
+  message Cat {
+    string name = 1;
+    int32 meow_volume = 2;
+  }
+
+  message Dog {
+    string name = 1;
+    int32 bark_volume = 2;
+  }
+
+  message Animal {
+    oneof instance {
+      Cat cat = 1;
+      Dog dog = 2;
+    }
+  }
+  Animal pet = 1;
+}
+
+message RequireStorageLastActionSummaryByIdRequest {
+  // RequireStorageLastActionSummaryByIdContext provides the context for the required fields method RequireStorageLastActionSummaryById.
+  repeated RequireStorageLastActionSummaryByIdContext context = 1;
+}
+
+message RequireStorageLastActionSummaryByIdContext {
+  LookupStorageByIdRequestKey key = 1;
+  RequireStorageLastActionSummaryByIdFields fields = 2;
+}
+
+message RequireStorageLastActionSummaryByIdResponse {
+  // RequireStorageLastActionSummaryByIdResult provides the result for the required fields method RequireStorageLastActionSummaryById.
+  repeated RequireStorageLastActionSummaryByIdResult result = 1;
+}
+
+message RequireStorageLastActionSummaryByIdResult {
+  string last_action_summary = 1;
+}
+
+message RequireStorageLastActionSummaryByIdFields {
+  message ActionSuccess {
+    string message = 1;
+    string timestamp = 2;
+  }
+
+  message ActionError {
+    string message = 1;
+    string code = 2;
+  }
+
+  message ActionResult {
+    oneof value {
+      ActionError action_error = 1;
+      ActionSuccess action_success = 2;
+    }
+  }
+  ActionResult last_action = 1;
 }
 
 message RequireWarehouseStockHealthScoreByIdRequest {

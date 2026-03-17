@@ -621,6 +621,22 @@ func testMapping() *GRPCMapping {
 								Response: "RequireStorageCategoryInfoSummaryByIdResponse",
 							},
 						},
+						"petSummary": {
+							TargetName: "pet_summary",
+							RPCConfig: RPCConfig{
+								RPC:      "RequireStoragePetSummaryById",
+								Request:  "RequireStoragePetSummaryByIdRequest",
+								Response: "RequireStoragePetSummaryByIdResponse",
+							},
+						},
+						"lastActionSummary": {
+							TargetName: "last_action_summary",
+							RPCConfig: RPCConfig{
+								RPC:      "RequireStorageLastActionSummaryById",
+								Request:  "RequireStorageLastActionSummaryByIdRequest",
+								Response: "RequireStorageLastActionSummaryByIdResponse",
+							},
+						},
 					},
 				},
 			},
@@ -1016,6 +1032,18 @@ func testMapping() *GRPCMapping {
 				},
 				"categoryInfoSummary": {
 					TargetName: "category_info_summary",
+				},
+				"pet": {
+					TargetName: "pet",
+				},
+				"lastAction": {
+					TargetName: "last_action",
+				},
+				"petSummary": {
+					TargetName: "pet_summary",
+				},
+				"lastActionSummary": {
+					TargetName: "last_action_summary",
 				},
 				"storageStatus": {
 					TargetName: "storage_status",

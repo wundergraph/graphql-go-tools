@@ -57,6 +57,14 @@ type Storage @key(fields: "id") {
   kindSummary: String! @requires(fields: "storageKind")
   categoryInfoSummary: String! @requires(fields: "categoryInfo { kind name }")
 
+  # External abstract type fields for @requires testing
+  pet: Animal! @external
+  lastAction: ActionResult! @external
+
+  # @requires fields using abstract types
+  petSummary: String! @requires(fields: "pet { ... on Cat { name meowVolume } ... on Dog { name barkVolume } }")
+  lastActionSummary: String! @requires(fields: "lastAction { ... on ActionSuccess { message timestamp } ... on ActionError { message code } }")
+
   # @connect_fieldResolver fields
   storageStatus(checkHealth: Boolean!): ActionResult! @connect__fieldResolver(context: "id name")
   linkedStorages(depth: Int!): [Storage!]! @connect__fieldResolver(context: "id name location")

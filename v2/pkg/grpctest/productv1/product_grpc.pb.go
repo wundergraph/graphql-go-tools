@@ -69,10 +69,12 @@ const (
 	ProductService_QueryUsers_FullMethodName                                  = "/productv1.ProductService/QueryUsers"
 	ProductService_RequireStorageCategoryInfoSummaryById_FullMethodName       = "/productv1.ProductService/RequireStorageCategoryInfoSummaryById"
 	ProductService_RequireStorageKindSummaryById_FullMethodName               = "/productv1.ProductService/RequireStorageKindSummaryById"
+	ProductService_RequireStorageLastActionSummaryById_FullMethodName         = "/productv1.ProductService/RequireStorageLastActionSummaryById"
 	ProductService_RequireStorageMetadataScoreById_FullMethodName             = "/productv1.ProductService/RequireStorageMetadataScoreById"
 	ProductService_RequireStorageOptionalProcessedMetadataById_FullMethodName = "/productv1.ProductService/RequireStorageOptionalProcessedMetadataById"
 	ProductService_RequireStorageOptionalProcessedTagsById_FullMethodName     = "/productv1.ProductService/RequireStorageOptionalProcessedTagsById"
 	ProductService_RequireStorageOptionalTagSummaryById_FullMethodName        = "/productv1.ProductService/RequireStorageOptionalTagSummaryById"
+	ProductService_RequireStoragePetSummaryById_FullMethodName                = "/productv1.ProductService/RequireStoragePetSummaryById"
 	ProductService_RequireStorageProcessedMetadataById_FullMethodName         = "/productv1.ProductService/RequireStorageProcessedMetadataById"
 	ProductService_RequireStorageProcessedMetadataHistoryById_FullMethodName  = "/productv1.ProductService/RequireStorageProcessedMetadataHistoryById"
 	ProductService_RequireStorageProcessedTagsById_FullMethodName             = "/productv1.ProductService/RequireStorageProcessedTagsById"
@@ -165,10 +167,12 @@ type ProductServiceClient interface {
 	QueryUsers(ctx context.Context, in *QueryUsersRequest, opts ...grpc.CallOption) (*QueryUsersResponse, error)
 	RequireStorageCategoryInfoSummaryById(ctx context.Context, in *RequireStorageCategoryInfoSummaryByIdRequest, opts ...grpc.CallOption) (*RequireStorageCategoryInfoSummaryByIdResponse, error)
 	RequireStorageKindSummaryById(ctx context.Context, in *RequireStorageKindSummaryByIdRequest, opts ...grpc.CallOption) (*RequireStorageKindSummaryByIdResponse, error)
+	RequireStorageLastActionSummaryById(ctx context.Context, in *RequireStorageLastActionSummaryByIdRequest, opts ...grpc.CallOption) (*RequireStorageLastActionSummaryByIdResponse, error)
 	RequireStorageMetadataScoreById(ctx context.Context, in *RequireStorageMetadataScoreByIdRequest, opts ...grpc.CallOption) (*RequireStorageMetadataScoreByIdResponse, error)
 	RequireStorageOptionalProcessedMetadataById(ctx context.Context, in *RequireStorageOptionalProcessedMetadataByIdRequest, opts ...grpc.CallOption) (*RequireStorageOptionalProcessedMetadataByIdResponse, error)
 	RequireStorageOptionalProcessedTagsById(ctx context.Context, in *RequireStorageOptionalProcessedTagsByIdRequest, opts ...grpc.CallOption) (*RequireStorageOptionalProcessedTagsByIdResponse, error)
 	RequireStorageOptionalTagSummaryById(ctx context.Context, in *RequireStorageOptionalTagSummaryByIdRequest, opts ...grpc.CallOption) (*RequireStorageOptionalTagSummaryByIdResponse, error)
+	RequireStoragePetSummaryById(ctx context.Context, in *RequireStoragePetSummaryByIdRequest, opts ...grpc.CallOption) (*RequireStoragePetSummaryByIdResponse, error)
 	RequireStorageProcessedMetadataById(ctx context.Context, in *RequireStorageProcessedMetadataByIdRequest, opts ...grpc.CallOption) (*RequireStorageProcessedMetadataByIdResponse, error)
 	RequireStorageProcessedMetadataHistoryById(ctx context.Context, in *RequireStorageProcessedMetadataHistoryByIdRequest, opts ...grpc.CallOption) (*RequireStorageProcessedMetadataHistoryByIdResponse, error)
 	RequireStorageProcessedTagsById(ctx context.Context, in *RequireStorageProcessedTagsByIdRequest, opts ...grpc.CallOption) (*RequireStorageProcessedTagsByIdResponse, error)
@@ -710,6 +714,16 @@ func (c *productServiceClient) RequireStorageKindSummaryById(ctx context.Context
 	return out, nil
 }
 
+func (c *productServiceClient) RequireStorageLastActionSummaryById(ctx context.Context, in *RequireStorageLastActionSummaryByIdRequest, opts ...grpc.CallOption) (*RequireStorageLastActionSummaryByIdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequireStorageLastActionSummaryByIdResponse)
+	err := c.cc.Invoke(ctx, ProductService_RequireStorageLastActionSummaryById_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *productServiceClient) RequireStorageMetadataScoreById(ctx context.Context, in *RequireStorageMetadataScoreByIdRequest, opts ...grpc.CallOption) (*RequireStorageMetadataScoreByIdResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RequireStorageMetadataScoreByIdResponse)
@@ -744,6 +758,16 @@ func (c *productServiceClient) RequireStorageOptionalTagSummaryById(ctx context.
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RequireStorageOptionalTagSummaryByIdResponse)
 	err := c.cc.Invoke(ctx, ProductService_RequireStorageOptionalTagSummaryById_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) RequireStoragePetSummaryById(ctx context.Context, in *RequireStoragePetSummaryByIdRequest, opts ...grpc.CallOption) (*RequireStoragePetSummaryByIdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequireStoragePetSummaryByIdResponse)
+	err := c.cc.Invoke(ctx, ProductService_RequireStoragePetSummaryById_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1119,10 +1143,12 @@ type ProductServiceServer interface {
 	QueryUsers(context.Context, *QueryUsersRequest) (*QueryUsersResponse, error)
 	RequireStorageCategoryInfoSummaryById(context.Context, *RequireStorageCategoryInfoSummaryByIdRequest) (*RequireStorageCategoryInfoSummaryByIdResponse, error)
 	RequireStorageKindSummaryById(context.Context, *RequireStorageKindSummaryByIdRequest) (*RequireStorageKindSummaryByIdResponse, error)
+	RequireStorageLastActionSummaryById(context.Context, *RequireStorageLastActionSummaryByIdRequest) (*RequireStorageLastActionSummaryByIdResponse, error)
 	RequireStorageMetadataScoreById(context.Context, *RequireStorageMetadataScoreByIdRequest) (*RequireStorageMetadataScoreByIdResponse, error)
 	RequireStorageOptionalProcessedMetadataById(context.Context, *RequireStorageOptionalProcessedMetadataByIdRequest) (*RequireStorageOptionalProcessedMetadataByIdResponse, error)
 	RequireStorageOptionalProcessedTagsById(context.Context, *RequireStorageOptionalProcessedTagsByIdRequest) (*RequireStorageOptionalProcessedTagsByIdResponse, error)
 	RequireStorageOptionalTagSummaryById(context.Context, *RequireStorageOptionalTagSummaryByIdRequest) (*RequireStorageOptionalTagSummaryByIdResponse, error)
+	RequireStoragePetSummaryById(context.Context, *RequireStoragePetSummaryByIdRequest) (*RequireStoragePetSummaryByIdResponse, error)
 	RequireStorageProcessedMetadataById(context.Context, *RequireStorageProcessedMetadataByIdRequest) (*RequireStorageProcessedMetadataByIdResponse, error)
 	RequireStorageProcessedMetadataHistoryById(context.Context, *RequireStorageProcessedMetadataHistoryByIdRequest) (*RequireStorageProcessedMetadataHistoryByIdResponse, error)
 	RequireStorageProcessedTagsById(context.Context, *RequireStorageProcessedTagsByIdRequest) (*RequireStorageProcessedTagsByIdResponse, error)
@@ -1314,6 +1340,9 @@ func (UnimplementedProductServiceServer) RequireStorageCategoryInfoSummaryById(c
 func (UnimplementedProductServiceServer) RequireStorageKindSummaryById(context.Context, *RequireStorageKindSummaryByIdRequest) (*RequireStorageKindSummaryByIdResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RequireStorageKindSummaryById not implemented")
 }
+func (UnimplementedProductServiceServer) RequireStorageLastActionSummaryById(context.Context, *RequireStorageLastActionSummaryByIdRequest) (*RequireStorageLastActionSummaryByIdResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequireStorageLastActionSummaryById not implemented")
+}
 func (UnimplementedProductServiceServer) RequireStorageMetadataScoreById(context.Context, *RequireStorageMetadataScoreByIdRequest) (*RequireStorageMetadataScoreByIdResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RequireStorageMetadataScoreById not implemented")
 }
@@ -1325,6 +1354,9 @@ func (UnimplementedProductServiceServer) RequireStorageOptionalProcessedTagsById
 }
 func (UnimplementedProductServiceServer) RequireStorageOptionalTagSummaryById(context.Context, *RequireStorageOptionalTagSummaryByIdRequest) (*RequireStorageOptionalTagSummaryByIdResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RequireStorageOptionalTagSummaryById not implemented")
+}
+func (UnimplementedProductServiceServer) RequireStoragePetSummaryById(context.Context, *RequireStoragePetSummaryByIdRequest) (*RequireStoragePetSummaryByIdResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequireStoragePetSummaryById not implemented")
 }
 func (UnimplementedProductServiceServer) RequireStorageProcessedMetadataById(context.Context, *RequireStorageProcessedMetadataByIdRequest) (*RequireStorageProcessedMetadataByIdResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RequireStorageProcessedMetadataById not implemented")
@@ -2340,6 +2372,24 @@ func _ProductService_RequireStorageKindSummaryById_Handler(srv interface{}, ctx 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_RequireStorageLastActionSummaryById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequireStorageLastActionSummaryByIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).RequireStorageLastActionSummaryById(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_RequireStorageLastActionSummaryById_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).RequireStorageLastActionSummaryById(ctx, req.(*RequireStorageLastActionSummaryByIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProductService_RequireStorageMetadataScoreById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RequireStorageMetadataScoreByIdRequest)
 	if err := dec(in); err != nil {
@@ -2408,6 +2458,24 @@ func _ProductService_RequireStorageOptionalTagSummaryById_Handler(srv interface{
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProductServiceServer).RequireStorageOptionalTagSummaryById(ctx, req.(*RequireStorageOptionalTagSummaryByIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_RequireStoragePetSummaryById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequireStoragePetSummaryByIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).RequireStoragePetSummaryById(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_RequireStoragePetSummaryById_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).RequireStoragePetSummaryById(ctx, req.(*RequireStoragePetSummaryByIdRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -3178,6 +3246,10 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ProductService_RequireStorageKindSummaryById_Handler,
 		},
 		{
+			MethodName: "RequireStorageLastActionSummaryById",
+			Handler:    _ProductService_RequireStorageLastActionSummaryById_Handler,
+		},
+		{
 			MethodName: "RequireStorageMetadataScoreById",
 			Handler:    _ProductService_RequireStorageMetadataScoreById_Handler,
 		},
@@ -3192,6 +3264,10 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RequireStorageOptionalTagSummaryById",
 			Handler:    _ProductService_RequireStorageOptionalTagSummaryById_Handler,
+		},
+		{
+			MethodName: "RequireStoragePetSummaryById",
+			Handler:    _ProductService_RequireStoragePetSummaryById_Handler,
 		},
 		{
 			MethodName: "RequireStorageProcessedMetadataById",

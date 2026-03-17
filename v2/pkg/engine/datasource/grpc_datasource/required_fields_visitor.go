@@ -100,19 +100,12 @@ func (r *requiredFieldsVisitor) EnterDocument(operation *ast.Document, definitio
 	r.definition = definition
 }
 
-// EnterSelectionSet implements astvisitor.SelectionSetVisitor.
-func (r *requiredFieldsVisitor) EnterSelectionSet(ref int) {
-	// Ignore the root selection set
-	if r.walker.Ancestor().Kind == ast.NodeKindFragmentDefinition {
-		return
+func (r *requiredFieldsVisitor) enterNestedField(ref int, inlineFragmentRef int) bool {
+	lastField := r.planCtx.lastResponseField(r.message, inlineFragmentRef)
+	if lastField == nil {
+		return false
 	}
 
-	if len(r.message.Fields) == 0 {
-		r.walker.StopWithInternalErr(errors.New("cannot access last field: message has no fields"))
-		return
-	}
-
-	lastField := &r.message.Fields[len(r.message.Fields)-1]
 	if lastField.Message == nil {
 		lastField.Message = r.planCtx.newMessageFromSelectionSet(r.walker.EnclosingTypeDefinition, ref)
 	}
@@ -121,8 +114,25 @@ func (r *requiredFieldsVisitor) EnterSelectionSet(ref int) {
 	if r.referenceNestedMessages {
 		lastField.Message.Name = r.formatNestedMessageName(lastField.Message.Name)
 	}
-
 	r.message = lastField.Message
+	return true
+}
+
+// EnterSelectionSet implements astvisitor.SelectionSetVisitor.
+func (r *requiredFieldsVisitor) EnterSelectionSet(ref int) {
+	// If we don't select on a field, we can return.
+	if r.walker.Ancestor().Kind != ast.NodeKindField {
+		return
+	}
+
+	// Determine which inline fragment directly contains the field we are about
+	// to descend into. When entering a field's selection set, the walker Ancestors
+	// are: [..., (maybe inline fragment), parent selection set, field].
+	// Ancestors[-3] is therefore the inline fragment directly wrapping the field, if any.
+	inlineFragmentRef := inlineFragmentRefFromAncestors(r.walker.Ancestors)
+	if !r.enterNestedField(ref, inlineFragmentRef) {
+		return
+	}
 
 	if err := r.handleCompositeType(r.walker.EnclosingTypeDefinition); err != nil {
 		r.walker.StopWithInternalErr(err)
@@ -132,7 +142,7 @@ func (r *requiredFieldsVisitor) EnterSelectionSet(ref int) {
 
 // LeaveSelectionSet implements astvisitor.SelectionSetVisitor.
 func (r *requiredFieldsVisitor) LeaveSelectionSet(ref int) {
-	if r.walker.Ancestor().Kind == ast.NodeKindFragmentDefinition {
+	if r.walker.Ancestor().Kind != ast.NodeKindField {
 		return
 	}
 
@@ -169,6 +179,17 @@ func (r *requiredFieldsVisitor) EnterField(ref int) {
 	}
 
 	r.fieldDefinitionRefs = append(r.fieldDefinitionRefs, fd)
+	// check if we are inside an inline fragment
+	if ref := r.walker.ResolveInlineFragment(); ref != ast.InvalidRef {
+		if r.message.FragmentFields == nil {
+			r.message.FragmentFields = make(RPCFieldSelectionSet)
+		}
+
+		inlineFragmentName := r.operation.InlineFragmentTypeConditionNameString(ref)
+		r.message.FragmentFields.Add(inlineFragmentName, field)
+		return
+	}
+
 	r.message.Fields = append(r.message.Fields, field)
 }
 
@@ -204,6 +225,7 @@ func (r *requiredFieldsVisitor) handleCompositeType(node ast.Node) error {
 
 	r.message.OneOfType = oneOfType
 	r.message.MemberTypes = memberTypes
+	r.message.Fields = nil
 
 	return nil
 }

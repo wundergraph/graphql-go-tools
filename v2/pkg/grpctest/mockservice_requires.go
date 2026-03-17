@@ -297,3 +297,57 @@ func (s *MockService) RequireStorageCategoryInfoSummaryById(_ context.Context, r
 
 	return &productv1.RequireStorageCategoryInfoSummaryByIdResponse{Result: results}, nil
 }
+
+// RequireStoragePetSummaryById implements [productv1.ProductServiceServer].
+// Extracts pet interface from fields and formats a summary string.
+func (s *MockService) RequireStoragePetSummaryById(_ context.Context, req *productv1.RequireStoragePetSummaryByIdRequest) (*productv1.RequireStoragePetSummaryByIdResponse, error) {
+	results := make([]*productv1.RequireStoragePetSummaryByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		fields := ctx.GetFields()
+		pet := fields.GetPet()
+
+		var summary string
+		switch v := pet.GetInstance().(type) {
+		case *productv1.RequireStoragePetSummaryByIdFields_Animal_Cat:
+			summary = fmt.Sprintf("Cat: %s (meow: %d)", v.Cat.GetName(), v.Cat.GetMeowVolume())
+		case *productv1.RequireStoragePetSummaryByIdFields_Animal_Dog:
+			summary = fmt.Sprintf("Dog: %s (bark: %d)", v.Dog.GetName(), v.Dog.GetBarkVolume())
+		default:
+			summary = "Unknown animal"
+		}
+
+		results = append(results, &productv1.RequireStoragePetSummaryByIdResult{
+			PetSummary: summary,
+		})
+	}
+
+	return &productv1.RequireStoragePetSummaryByIdResponse{Result: results}, nil
+}
+
+// RequireStorageLastActionSummaryById implements [productv1.ProductServiceServer].
+// Extracts lastAction union from fields and formats a summary string.
+func (s *MockService) RequireStorageLastActionSummaryById(_ context.Context, req *productv1.RequireStorageLastActionSummaryByIdRequest) (*productv1.RequireStorageLastActionSummaryByIdResponse, error) {
+	results := make([]*productv1.RequireStorageLastActionSummaryByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		fields := ctx.GetFields()
+		action := fields.GetLastAction()
+
+		var summary string
+		switch v := action.GetValue().(type) {
+		case *productv1.RequireStorageLastActionSummaryByIdFields_ActionResult_ActionSuccess:
+			summary = fmt.Sprintf("Success: %s at %s", v.ActionSuccess.GetMessage(), v.ActionSuccess.GetTimestamp())
+		case *productv1.RequireStorageLastActionSummaryByIdFields_ActionResult_ActionError:
+			summary = fmt.Sprintf("Error: %s (code: %s)", v.ActionError.GetMessage(), v.ActionError.GetCode())
+		default:
+			summary = "Unknown action"
+		}
+
+		results = append(results, &productv1.RequireStorageLastActionSummaryByIdResult{
+			LastActionSummary: summary,
+		})
+	}
+
+	return &productv1.RequireStorageLastActionSummaryByIdResponse{Result: results}, nil
+}
