@@ -44,7 +44,7 @@ func Benchmark_DataSource_Load(b *testing.B) {
 	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(b), testMapping())
 	require.NoError(b, err)
 
-	ds, err := NewDataSource(conn, DataSourceConfig{
+	ds, err := NewDataSourceGRPC(conn, DataSourceConfig{
 		Operation:    &queryDoc,
 		Definition:   &schemaDoc,
 		SubgraphName: "Products",
@@ -81,7 +81,7 @@ func Benchmark_DataSource_Load_WithFieldArguments(b *testing.B) {
 
 	const subgraphName = "Products"
 
-	ds, err := NewDataSource(conn, DataSourceConfig{
+	ds, err := NewDataSourceGRPC(conn, DataSourceConfig{
 		Operation:    &queryDoc,
 		Definition:   &schemaDoc,
 		SubgraphName: subgraphName,
@@ -192,7 +192,7 @@ func Test_DataSource_Load(t *testing.T) {
 	}
 
 	mi := mockInterface{}
-	ds, err := NewDataSource(mi, DataSourceConfig{
+	ds, err := NewDataSourceGRPC(mi, DataSourceConfig{
 		Operation:    &queryDoc,
 		Definition:   &schemaDoc,
 		SubgraphName: "Products",
@@ -247,7 +247,7 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 	}
 
 	// 2. Create a datasource with the real gRPC client connection
-	ds, err := NewDataSource(conn, DataSourceConfig{
+	ds, err := NewDataSourceGRPC(conn, DataSourceConfig{
 		Operation:    &queryDoc,
 		Definition:   &schemaDoc,
 		SubgraphName: "Products",
@@ -336,7 +336,7 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 	}
 
 	// 2. Create a datasource with the real gRPC client connection
-	ds, err := NewDataSource(conn, DataSourceConfig{
+	ds, err := NewDataSourceGRPC(conn, DataSourceConfig{
 		Operation:    &queryDoc,
 		Definition:   &schemaDoc,
 		SubgraphName: "Products",
@@ -437,7 +437,7 @@ func Test_DataSource_Load_WithGrpcError(t *testing.T) {
 	}
 
 	// 3. Create the datasource
-	ds, err := NewDataSource(conn, DataSourceConfig{
+	ds, err := NewDataSourceGRPC(conn, DataSourceConfig{
 		Operation:    &queryDoc,
 		Definition:   &schemaDoc,
 		SubgraphName: "Products",
@@ -786,7 +786,7 @@ func Test_DataSource_Load_WithAnimalInterface(t *testing.T) {
 			}
 
 			// Create the datasource
-			ds, err := NewDataSource(conn, DataSourceConfig{
+			ds, err := NewDataSourceGRPC(conn, DataSourceConfig{
 				Operation:    &queryDoc,
 				Definition:   &schemaDoc,
 				SubgraphName: "Products",
@@ -1056,7 +1056,7 @@ func Test_Datasource_Load_WithUnionTypes(t *testing.T) {
 			}
 
 			// Create the datasource
-			ds, err := NewDataSource(conn, DataSourceConfig{
+			ds, err := NewDataSourceGRPC(conn, DataSourceConfig{
 				Operation:    &queryDoc,
 				Definition:   &schemaDoc,
 				SubgraphName: "Products",
@@ -1192,7 +1192,7 @@ func Test_DataSource_Load_WithCategoryQueries(t *testing.T) {
 			}
 
 			// Create the datasource
-			ds, err := NewDataSource(conn, DataSourceConfig{
+			ds, err := NewDataSourceGRPC(conn, DataSourceConfig{
 				Operation:    &queryDoc,
 				Definition:   &schemaDoc,
 				SubgraphName: "Products",
@@ -1272,7 +1272,7 @@ func Test_DataSource_Load_WithTotalCalculation(t *testing.T) {
 	}
 
 	// Create the datasource
-	ds, err := NewDataSource(conn, DataSourceConfig{
+	ds, err := NewDataSourceGRPC(conn, DataSourceConfig{
 		Operation:    &queryDoc,
 		Definition:   &schemaDoc,
 		SubgraphName: "Products",
@@ -1362,7 +1362,7 @@ func Test_DataSource_Load_WithTypename(t *testing.T) {
 	}
 
 	// Create the datasource
-	ds, err := NewDataSource(conn, DataSourceConfig{
+	ds, err := NewDataSourceGRPC(conn, DataSourceConfig{
 		Operation:    &queryDoc,
 		Definition:   &schemaDoc,
 		SubgraphName: "Products",
@@ -1831,7 +1831,7 @@ func Test_DataSource_Load_WithAliases(t *testing.T) {
 			}
 
 			// Create the datasource
-			ds, err := NewDataSource(conn, DataSourceConfig{
+			ds, err := NewDataSourceGRPC(conn, DataSourceConfig{
 				Operation:    &queryDoc,
 				Definition:   &schemaDoc,
 				SubgraphName: "Products",
@@ -2209,7 +2209,7 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 			}
 
 			// Create the datasource
-			ds, err := NewDataSource(conn, DataSourceConfig{
+			ds, err := NewDataSourceGRPC(conn, DataSourceConfig{
 				Operation:    &queryDoc,
 				Definition:   &schemaDoc,
 				SubgraphName: "Products",
@@ -3510,7 +3510,7 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 			}
 
 			// Create the datasource
-			ds, err := NewDataSource(conn, DataSourceConfig{
+			ds, err := NewDataSourceGRPC(conn, DataSourceConfig{
 				Operation:    &queryDoc,
 				Definition:   &schemaDoc,
 				SubgraphName: "Products",
@@ -4744,7 +4744,7 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			}
 
 			// Create the datasource
-			ds, err := NewDataSource(conn, DataSourceConfig{
+			ds, err := NewDataSourceGRPC(conn, DataSourceConfig{
 				Operation:         &queryDoc,
 				Definition:        &schemaDoc,
 				SubgraphName:      "Products",
@@ -4953,7 +4953,7 @@ func Test_Datasource_Load_WithHeaders(t *testing.T) {
 			require.NoError(t, err)
 
 			// Create the datasource
-			ds, err := NewDataSource(conn, DataSourceConfig{
+			ds, err := NewDataSourceGRPC(conn, DataSourceConfig{
 				Operation:    &queryDoc,
 				Definition:   &schemaDoc,
 				SubgraphName: "Products",
@@ -5004,7 +5004,7 @@ func Test_Datasource_Load_PreservesExistingContextMetadata(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create the datasource
-	ds, err := NewDataSource(conn, DataSourceConfig{
+	ds, err := NewDataSourceGRPC(conn, DataSourceConfig{
 		Operation:    &queryDoc,
 		Definition:   &schemaDoc,
 		SubgraphName: "Products",
