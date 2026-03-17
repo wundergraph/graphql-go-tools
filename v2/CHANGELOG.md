@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.265](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.264...v2.0.0-rc.265) (2026-03-17)
+
+
+### Bug Fixes
+
+* display correct multiplier for non-list fields ([#1449](https://github.com/wundergraph/graphql-go-tools/issues/1449)) ([cba8401](https://github.com/wundergraph/graphql-go-tools/commit/cba84017d1ebbcec5a3f510f0c59f59527777b3e))
+
 ## [2.0.0-rc.264](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.263...v2.0.0-rc.264) (2026-03-13)
 
 
