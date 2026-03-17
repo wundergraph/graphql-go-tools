@@ -1730,11 +1730,11 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_AbstractTypes(t *testing
 		validateError     func(t *testing.T, errData []graphqlError)
 	}{
 		{
-			name:  "Query Storage with petSummary requiring interface type",
-			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Storage { id name petSummary } } }`,
+			name:  "Query Storage with itemInfo requiring interface type",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Storage { id name itemInfo } } }`,
 			vars: `{"variables":{"representations":[
-				{"__typename":"Storage","id":"1","pet":{"__typename":"Cat","name":"Whiskers","meowVolume":5}},
-				{"__typename":"Storage","id":"2","pet":{"__typename":"Dog","name":"Rex","barkVolume":8}}
+				{"__typename":"Storage","id":"1","primaryItem":{"__typename":"PalletItem","name":"Heavy Pallet","palletCount":10}},
+				{"__typename":"Storage","id":"2","primaryItem":{"__typename":"ContainerItem","name":"Steel Container","containerSize":"40ft"}}
 			]}}`,
 			federationConfigs: plan.FederationFieldConfigurations{
 				{
@@ -1743,8 +1743,8 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_AbstractTypes(t *testing
 				},
 				{
 					TypeName:     "Storage",
-					FieldName:    "petSummary",
-					SelectionSet: `pet { ... on Cat { name meowVolume } ... on Dog { name barkVolume } }`,
+					FieldName:    "itemInfo",
+					SelectionSet: `primaryItem { ... on PalletItem { name palletCount } ... on ContainerItem { name containerSize } }`,
 				},
 			},
 			validate: func(t *testing.T, data map[string]interface{}) {
@@ -1752,30 +1752,28 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_AbstractTypes(t *testing
 				require.True(t, ok, "_entities should be an array")
 				require.Len(t, entities, 2)
 
-				// Storage 1: pet is Cat{name:"Whiskers", meowVolume:5} -> "Cat: Whiskers (meow: 5)"
 				storage1, ok := entities[0].(map[string]interface{})
 				require.True(t, ok, "storage1 should be an object")
 				require.Equal(t, "1", storage1["id"])
 				require.Equal(t, "Storage 1", storage1["name"])
-				require.Equal(t, "Cat: Whiskers (meow: 5)", storage1["petSummary"])
+				require.Equal(t, "Pallet: Heavy Pallet (count: 10)", storage1["itemInfo"])
 
-				// Storage 2: pet is Dog{name:"Rex", barkVolume:8} -> "Dog: Rex (bark: 8)"
 				storage2, ok := entities[1].(map[string]interface{})
 				require.True(t, ok, "storage2 should be an object")
 				require.Equal(t, "2", storage2["id"])
 				require.Equal(t, "Storage 2", storage2["name"])
-				require.Equal(t, "Dog: Rex (bark: 8)", storage2["petSummary"])
+				require.Equal(t, "Container: Steel Container (size: 40ft)", storage2["itemInfo"])
 			},
 			validateError: func(t *testing.T, errorData []graphqlError) {
 				require.Empty(t, errorData)
 			},
 		},
 		{
-			name:  "Query Storage with lastActionSummary requiring union type",
-			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Storage { id name lastActionSummary } } }`,
+			name:  "Query Storage with operationReport requiring union type",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Storage { id name operationReport } } }`,
 			vars: `{"variables":{"representations":[
-				{"__typename":"Storage","id":"1","lastAction":{"__typename":"ActionSuccess","message":"Item stored","timestamp":"2024-01-15T10:30:00Z"}},
-				{"__typename":"Storage","id":"2","lastAction":{"__typename":"ActionError","message":"Storage full","code":"ERR_FULL"}}
+				{"__typename":"Storage","id":"1","lastStorageOperation":{"__typename":"StorageSuccess","message":"Item stored","completedAt":"2024-01-15T10:30:00Z"}},
+				{"__typename":"Storage","id":"2","lastStorageOperation":{"__typename":"StorageFailure","message":"Storage full","errorCode":"ERR_FULL"}}
 			]}}`,
 			federationConfigs: plan.FederationFieldConfigurations{
 				{
@@ -1784,8 +1782,8 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_AbstractTypes(t *testing
 				},
 				{
 					TypeName:     "Storage",
-					FieldName:    "lastActionSummary",
-					SelectionSet: `lastAction { ... on ActionSuccess { message timestamp } ... on ActionError { message code } }`,
+					FieldName:    "operationReport",
+					SelectionSet: `lastStorageOperation { ... on StorageSuccess { message completedAt } ... on StorageFailure { message errorCode } }`,
 				},
 			},
 			validate: func(t *testing.T, data map[string]interface{}) {
@@ -1793,19 +1791,17 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_AbstractTypes(t *testing
 				require.True(t, ok, "_entities should be an array")
 				require.Len(t, entities, 2)
 
-				// Storage 1: lastAction is ActionSuccess -> "Success: Item stored at 2024-01-15T10:30:00Z"
 				storage1, ok := entities[0].(map[string]interface{})
 				require.True(t, ok, "storage1 should be an object")
 				require.Equal(t, "1", storage1["id"])
 				require.Equal(t, "Storage 1", storage1["name"])
-				require.Equal(t, "Success: Item stored at 2024-01-15T10:30:00Z", storage1["lastActionSummary"])
+				require.Equal(t, "Success: Item stored at 2024-01-15T10:30:00Z", storage1["operationReport"])
 
-				// Storage 2: lastAction is ActionError -> "Error: Storage full (code: ERR_FULL)"
 				storage2, ok := entities[1].(map[string]interface{})
 				require.True(t, ok, "storage2 should be an object")
 				require.Equal(t, "2", storage2["id"])
 				require.Equal(t, "Storage 2", storage2["name"])
-				require.Equal(t, "Error: Storage full (code: ERR_FULL)", storage2["lastActionSummary"])
+				require.Equal(t, "Failure: Storage full (code: ERR_FULL)", storage2["operationReport"])
 			},
 			validateError: func(t *testing.T, errorData []graphqlError) {
 				require.Empty(t, errorData)

@@ -8,7 +8,6 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
@@ -20,14 +19,9 @@ func runRequiredFieldsVisitor(t *testing.T, schema string, mapping *GRPCMapping,
 	astvalidation.DefaultDefinitionValidator().Validate(&definition, &report)
 	require.False(t, report.HasErrors(), report.Error())
 
-	// Pre-generate the fragment doc so the planCtx.operation matches what the walker will use.
-	fragmentDoc, fragReport := plan.RequiredFieldsFragment(typeName, requiredFields, false)
-	require.False(t, fragReport != nil && fragReport.HasErrors())
-
-	planCtx := newRPCPlanningContext(fragmentDoc, &definition, mapping)
 	message := &RPCMessage{Name: "TestMessage"}
 	walker := astvisitor.NewWalker(0)
-	visitor := newRequiredFieldsVisitor(&walker, message, planCtx)
+	visitor := newRequiredFieldsVisitor(&walker, message, mapping)
 	err := visitor.visitWithDefaults(&definition, typeName, requiredFields)
 	require.NoError(t, err)
 	return message
@@ -40,13 +34,9 @@ func runRequiredFieldsVisitorWithConfig(t *testing.T, schema string, mapping *GR
 	astvalidation.DefaultDefinitionValidator().Validate(&definition, &report)
 	require.False(t, report.HasErrors(), report.Error())
 
-	fragmentDoc, fragReport := plan.RequiredFieldsFragment(typeName, requiredFields, false)
-	require.False(t, fragReport != nil && fragReport.HasErrors())
-
-	planCtx := newRPCPlanningContext(fragmentDoc, &definition, mapping)
 	message := &RPCMessage{Name: "TestMessage"}
 	walker := astvisitor.NewWalker(0)
-	visitor := newRequiredFieldsVisitor(&walker, message, planCtx)
+	visitor := newRequiredFieldsVisitor(&walker, message, mapping)
 	err := visitor.visit(&definition, typeName, requiredFields, config)
 	require.NoError(t, err)
 	return message
@@ -375,4 +365,233 @@ func TestRequiredFieldsVisitor_DuplicateFields(t *testing.T) {
 	require.Len(t, message.Fields, 1)
 	assert.Equal(t, "name", message.Fields[0].Name)
 	assert.Equal(t, DataTypeString, message.Fields[0].ProtoTypeName)
+}
+
+func TestRequiredFieldsVisitor_InterfaceWithNestedConcreteMessage(t *testing.T) {
+	t.Parallel()
+
+	schema := `
+		type Storage { id: ID! item: StorageItem! }
+		interface StorageItem { id: ID! name: String! }
+		type PalletItem implements StorageItem { id: ID! name: String! handler: ItemHandler! }
+		type ContainerItem implements StorageItem { id: ID! name: String! handler: ItemHandler! }
+		type ItemHandler { id: ID! name: String! }
+	`
+	mapping := &GRPCMapping{
+		Fields: map[string]FieldMap{
+			"Storage":       {"item": {TargetName: "item"}},
+			"PalletItem":    {"handler": {TargetName: "handler"}},
+			"ContainerItem": {"handler": {TargetName: "handler"}},
+			"ItemHandler":   {"name": {TargetName: "name"}},
+		},
+	}
+
+	message := runRequiredFieldsVisitor(t, schema, mapping, "Storage",
+		`item { ... on PalletItem { handler { name } } ... on ContainerItem { handler { name } } }`)
+
+	require.Len(t, message.Fields, 1)
+	itemField := message.Fields[0]
+	assert.Equal(t, "item", itemField.Name)
+	assert.Equal(t, DataTypeMessage, itemField.ProtoTypeName)
+	require.NotNil(t, itemField.Message)
+	assert.Equal(t, OneOfTypeInterface, itemField.Message.OneOfType)
+	assert.ElementsMatch(t, []string{"PalletItem", "ContainerItem"}, itemField.Message.MemberTypes)
+
+	require.NotNil(t, itemField.Message.FragmentFields)
+
+	palletFields := itemField.Message.FragmentFields["PalletItem"]
+	require.Len(t, palletFields, 1)
+	assert.Equal(t, "handler", palletFields[0].Name)
+	assert.Equal(t, DataTypeMessage, palletFields[0].ProtoTypeName)
+	require.NotNil(t, palletFields[0].Message)
+	assert.Equal(t, "ItemHandler", palletFields[0].Message.Name)
+	require.Len(t, palletFields[0].Message.Fields, 1)
+	assert.Equal(t, "name", palletFields[0].Message.Fields[0].Name)
+	assert.Equal(t, DataTypeString, palletFields[0].Message.Fields[0].ProtoTypeName)
+
+	containerFields := itemField.Message.FragmentFields["ContainerItem"]
+	require.Len(t, containerFields, 1)
+	assert.Equal(t, "handler", containerFields[0].Name)
+	assert.Equal(t, DataTypeMessage, containerFields[0].ProtoTypeName)
+	require.NotNil(t, containerFields[0].Message)
+	assert.Equal(t, "ItemHandler", containerFields[0].Message.Name)
+	require.Len(t, containerFields[0].Message.Fields, 1)
+	assert.Equal(t, "name", containerFields[0].Message.Fields[0].Name)
+	assert.Equal(t, DataTypeString, containerFields[0].Message.Fields[0].ProtoTypeName)
+}
+
+func TestRequiredFieldsVisitor_InterfaceWithDeepConcreteNesting(t *testing.T) {
+	t.Parallel()
+
+	schema := `
+		type Storage { id: ID! item: StorageItem! }
+		interface StorageItem { id: ID! name: String! }
+		type PalletItem implements StorageItem { id: ID! name: String! specs: PalletSpecs! }
+		type ContainerItem implements StorageItem { id: ID! name: String! specs: ContainerSpecs! }
+		type PalletSpecs { name: String! dimensions: Dimensions! }
+		type ContainerSpecs { name: String! dimensions: Dimensions! }
+		type Dimensions { length: Float! width: Float! }
+	`
+	mapping := &GRPCMapping{
+		Fields: map[string]FieldMap{
+			"Storage":        {"item": {TargetName: "item"}},
+			"PalletItem":     {"specs": {TargetName: "specs"}},
+			"ContainerItem":  {"specs": {TargetName: "specs"}},
+			"PalletSpecs":    {"name": {TargetName: "name"}, "dimensions": {TargetName: "dimensions"}},
+			"ContainerSpecs": {"name": {TargetName: "name"}, "dimensions": {TargetName: "dimensions"}},
+			"Dimensions":     {"length": {TargetName: "length"}, "width": {TargetName: "width"}},
+		},
+	}
+
+	message := runRequiredFieldsVisitor(t, schema, mapping, "Storage",
+		`item { ... on PalletItem { specs { name dimensions { length width } } } ... on ContainerItem { specs { name dimensions { length width } } } }`)
+
+	require.Len(t, message.Fields, 1)
+	itemField := message.Fields[0]
+	assert.Equal(t, OneOfTypeInterface, itemField.Message.OneOfType)
+
+	// Verify PalletItem fragment: specs → dimensions
+	palletFields := itemField.Message.FragmentFields["PalletItem"]
+	require.Len(t, palletFields, 1)
+	specsField := palletFields[0]
+	assert.Equal(t, "specs", specsField.Name)
+	assert.Equal(t, DataTypeMessage, specsField.ProtoTypeName)
+	require.NotNil(t, specsField.Message)
+	require.Len(t, specsField.Message.Fields, 2)
+	assert.Equal(t, "name", specsField.Message.Fields[0].Name)
+	dimsField := specsField.Message.Fields[1]
+	assert.Equal(t, "dimensions", dimsField.Name)
+	assert.Equal(t, DataTypeMessage, dimsField.ProtoTypeName)
+	require.NotNil(t, dimsField.Message)
+	require.Len(t, dimsField.Message.Fields, 2)
+	assert.Equal(t, "length", dimsField.Message.Fields[0].Name)
+	assert.Equal(t, DataTypeDouble, dimsField.Message.Fields[0].ProtoTypeName)
+	assert.Equal(t, "width", dimsField.Message.Fields[1].Name)
+	assert.Equal(t, DataTypeDouble, dimsField.Message.Fields[1].ProtoTypeName)
+
+	// Verify ContainerItem fragment has same structure
+	containerFields := itemField.Message.FragmentFields["ContainerItem"]
+	require.Len(t, containerFields, 1)
+	cSpecsField := containerFields[0]
+	assert.Equal(t, "specs", cSpecsField.Name)
+	require.NotNil(t, cSpecsField.Message)
+	require.Len(t, cSpecsField.Message.Fields, 2)
+	cDimsField := cSpecsField.Message.Fields[1]
+	assert.Equal(t, "dimensions", cDimsField.Name)
+	require.NotNil(t, cDimsField.Message)
+	require.Len(t, cDimsField.Message.Fields, 2)
+}
+
+func TestRequiredFieldsVisitor_ConcreteWrappingAbstract(t *testing.T) {
+	t.Parallel()
+
+	schema := `
+		type Storage { id: ID! setup: SecuritySetup! }
+		type SecuritySetup { securityLevel: String! primaryItem: StorageItem! }
+		interface StorageItem { id: ID! name: String! }
+		type PalletItem implements StorageItem { id: ID! name: String! palletCount: Int! }
+		type ContainerItem implements StorageItem { id: ID! name: String! containerSize: String! }
+	`
+	mapping := &GRPCMapping{
+		Fields: map[string]FieldMap{
+			"Storage":       {"setup": {TargetName: "setup"}},
+			"SecuritySetup": {"securityLevel": {TargetName: "security_level"}, "primaryItem": {TargetName: "primary_item"}},
+			"PalletItem":    {"name": {TargetName: "name"}, "palletCount": {TargetName: "pallet_count"}},
+			"ContainerItem": {"name": {TargetName: "name"}, "containerSize": {TargetName: "container_size"}},
+		},
+	}
+
+	message := runRequiredFieldsVisitor(t, schema, mapping, "Storage",
+		`setup { securityLevel primaryItem { ... on PalletItem { name palletCount } ... on ContainerItem { name containerSize } } }`)
+
+	require.Len(t, message.Fields, 1)
+	setupField := message.Fields[0]
+	assert.Equal(t, "setup", setupField.Name)
+	assert.Equal(t, DataTypeMessage, setupField.ProtoTypeName)
+	require.NotNil(t, setupField.Message)
+	assert.Equal(t, "SecuritySetup", setupField.Message.Name)
+
+	require.Len(t, setupField.Message.Fields, 2)
+	assert.Equal(t, "security_level", setupField.Message.Fields[0].Name)
+	assert.Equal(t, DataTypeString, setupField.Message.Fields[0].ProtoTypeName)
+
+	itemField := setupField.Message.Fields[1]
+	assert.Equal(t, "primary_item", itemField.Name)
+	assert.Equal(t, DataTypeMessage, itemField.ProtoTypeName)
+	require.NotNil(t, itemField.Message)
+	assert.Equal(t, OneOfTypeInterface, itemField.Message.OneOfType)
+	assert.ElementsMatch(t, []string{"PalletItem", "ContainerItem"}, itemField.Message.MemberTypes)
+
+	palletFields := itemField.Message.FragmentFields["PalletItem"]
+	require.Len(t, palletFields, 2)
+	assert.Equal(t, "name", palletFields[0].Name)
+	assert.Equal(t, "pallet_count", palletFields[1].Name)
+
+	containerFields := itemField.Message.FragmentFields["ContainerItem"]
+	require.Len(t, containerFields, 2)
+	assert.Equal(t, "name", containerFields[0].Name)
+	assert.Equal(t, "container_size", containerFields[1].Name)
+}
+
+func TestRequiredFieldsVisitor_NestedAbstractThroughConcrete(t *testing.T) {
+	t.Parallel()
+
+	schema := `
+		type Storage { id: ID! item: StorageItem! }
+		interface StorageItem { id: ID! name: String! }
+		type PalletItem implements StorageItem { id: ID! name: String! palletCount: Int! handler: ItemHandler! }
+		type ContainerItem implements StorageItem { id: ID! name: String! containerSize: String! handler: ItemHandler! }
+		type ItemHandler { id: ID! name: String! assignedItem: StorageItem! }
+	`
+	mapping := &GRPCMapping{
+		Fields: map[string]FieldMap{
+			"Storage":       {"item": {TargetName: "item"}},
+			"PalletItem":    {"handler": {TargetName: "handler"}, "name": {TargetName: "name"}, "palletCount": {TargetName: "pallet_count"}},
+			"ContainerItem": {"handler": {TargetName: "handler"}, "name": {TargetName: "name"}, "containerSize": {TargetName: "container_size"}},
+			"ItemHandler":   {"assignedItem": {TargetName: "assigned_item"}, "name": {TargetName: "name"}},
+		},
+	}
+
+	message := runRequiredFieldsVisitor(t, schema, mapping, "Storage",
+		`item { ... on PalletItem { handler { assignedItem { ... on ContainerItem { name containerSize } ... on PalletItem { name palletCount } } } } ... on ContainerItem { handler { name } } }`)
+
+	require.Len(t, message.Fields, 1)
+	itemField := message.Fields[0]
+	assert.Equal(t, OneOfTypeInterface, itemField.Message.OneOfType)
+
+	// PalletItem fragment: handler → assignedItem (abstract)
+	palletFields := itemField.Message.FragmentFields["PalletItem"]
+	require.Len(t, palletFields, 1)
+	handlerField := palletFields[0]
+	assert.Equal(t, "handler", handlerField.Name)
+	assert.Equal(t, DataTypeMessage, handlerField.ProtoTypeName)
+	require.NotNil(t, handlerField.Message)
+
+	require.Len(t, handlerField.Message.Fields, 1)
+	assignedField := handlerField.Message.Fields[0]
+	assert.Equal(t, "assigned_item", assignedField.Name)
+	assert.Equal(t, DataTypeMessage, assignedField.ProtoTypeName)
+	require.NotNil(t, assignedField.Message)
+	assert.Equal(t, OneOfTypeInterface, assignedField.Message.OneOfType)
+	assert.ElementsMatch(t, []string{"ContainerItem", "PalletItem"}, assignedField.Message.MemberTypes)
+
+	innerContainerFields := assignedField.Message.FragmentFields["ContainerItem"]
+	require.Len(t, innerContainerFields, 2)
+	assert.Equal(t, "name", innerContainerFields[0].Name)
+	assert.Equal(t, "container_size", innerContainerFields[1].Name)
+
+	innerPalletFields := assignedField.Message.FragmentFields["PalletItem"]
+	require.Len(t, innerPalletFields, 2)
+	assert.Equal(t, "name", innerPalletFields[0].Name)
+	assert.Equal(t, "pallet_count", innerPalletFields[1].Name)
+
+	// ContainerItem fragment: handler → name (scalar)
+	containerFields := itemField.Message.FragmentFields["ContainerItem"]
+	require.Len(t, containerFields, 1)
+	cHandlerField := containerFields[0]
+	assert.Equal(t, "handler", cHandlerField.Name)
+	require.NotNil(t, cHandlerField.Message)
+	require.Len(t, cHandlerField.Message.Fields, 1)
+	assert.Equal(t, "name", cHandlerField.Message.Fields[0].Name)
+	assert.Equal(t, DataTypeString, cHandlerField.Message.Fields[0].ProtoTypeName)
 }

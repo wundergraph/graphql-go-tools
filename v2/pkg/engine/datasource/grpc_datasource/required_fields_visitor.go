@@ -29,6 +29,7 @@ type requiredFieldsVisitor struct {
 	message             *RPCMessage
 	fieldDefinitionRefs []int
 
+	mapping *GRPCMapping
 	planCtx *rpcPlanningContext
 
 	messageAncestors []*RPCMessage
@@ -39,11 +40,11 @@ type requiredFieldsVisitor struct {
 
 // newRequiredFieldsVisitor creates a new requiredFieldsVisitor.
 // It registers the visitor with the walker and returns it.
-func newRequiredFieldsVisitor(walker *astvisitor.Walker, message *RPCMessage, planCtx *rpcPlanningContext) *requiredFieldsVisitor {
+func newRequiredFieldsVisitor(walker *astvisitor.Walker, message *RPCMessage, mapping *GRPCMapping) *requiredFieldsVisitor {
 	visitor := &requiredFieldsVisitor{
 		walker:              walker,
 		message:             message,
-		planCtx:             planCtx,
+		mapping:             mapping,
 		messageAncestors:    []*RPCMessage{},
 		fieldDefinitionRefs: []int{},
 	}
@@ -98,6 +99,12 @@ func (r *requiredFieldsVisitor) EnterDocument(operation *ast.Document, definitio
 
 	r.operation = operation
 	r.definition = definition
+
+	// Create a planCtx scoped to this walk's operation document so that methods
+	// like lastResponseField and newMessageFromSelectionSet use the correct
+	// document refs (the visitor walks a fragment doc that may differ from the
+	// outer planner's operation).
+	r.planCtx = newRPCPlanningContext(operation, definition, r.mapping)
 }
 
 func (r *requiredFieldsVisitor) enterNestedField(ref int, inlineFragmentRef int) bool {

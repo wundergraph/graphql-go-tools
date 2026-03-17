@@ -627,20 +627,52 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 								Response: "RequireStorageCategoryInfoSummaryByIdResponse",
 							},
 						},
-						"petSummary": {
-							TargetName: "pet_summary",
+						"itemInfo": {
+							TargetName: "item_info",
 							RPCConfig: grpcdatasource.RPCConfig{
-								RPC:      "RequireStoragePetSummaryById",
-								Request:  "RequireStoragePetSummaryByIdRequest",
-								Response: "RequireStoragePetSummaryByIdResponse",
+								RPC:      "RequireStorageItemInfoById",
+								Request:  "RequireStorageItemInfoByIdRequest",
+								Response: "RequireStorageItemInfoByIdResponse",
 							},
 						},
-						"lastActionSummary": {
-							TargetName: "last_action_summary",
+						"operationReport": {
+							TargetName: "operation_report",
 							RPCConfig: grpcdatasource.RPCConfig{
-								RPC:      "RequireStorageLastActionSummaryById",
-								Request:  "RequireStorageLastActionSummaryByIdRequest",
-								Response: "RequireStorageLastActionSummaryByIdResponse",
+								RPC:      "RequireStorageOperationReportById",
+								Request:  "RequireStorageOperationReportByIdRequest",
+								Response: "RequireStorageOperationReportByIdResponse",
+							},
+						},
+						"securitySummary": {
+							TargetName: "security_summary",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireStorageSecuritySummaryById",
+								Request:  "RequireStorageSecuritySummaryByIdRequest",
+								Response: "RequireStorageSecuritySummaryByIdResponse",
+							},
+						},
+						"itemHandlerInfo": {
+							TargetName: "item_handler_info",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireStorageItemHandlerInfoById",
+								Request:  "RequireStorageItemHandlerInfoByIdRequest",
+								Response: "RequireStorageItemHandlerInfoByIdResponse",
+							},
+						},
+						"itemSpecsInfo": {
+							TargetName: "item_specs_info",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireStorageItemSpecsInfoById",
+								Request:  "RequireStorageItemSpecsInfoByIdRequest",
+								Response: "RequireStorageItemSpecsInfoByIdResponse",
+							},
+						},
+						"deepItemInfo": {
+							TargetName: "deep_item_info",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireStorageDeepItemInfoById",
+								Request:  "RequireStorageDeepItemInfoByIdRequest",
+								Response: "RequireStorageDeepItemInfoByIdResponse",
 							},
 						},
 					},
@@ -1039,17 +1071,32 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				"categoryInfoSummary": {
 					TargetName: "category_info_summary",
 				},
-				"pet": {
-					TargetName: "pet",
+				"primaryItem": {
+					TargetName: "primary_item",
 				},
-				"lastAction": {
-					TargetName: "last_action",
+				"lastStorageOperation": {
+					TargetName: "last_storage_operation",
 				},
-				"petSummary": {
-					TargetName: "pet_summary",
+				"securitySetup": {
+					TargetName: "security_setup",
 				},
-				"lastActionSummary": {
-					TargetName: "last_action_summary",
+				"itemInfo": {
+					TargetName: "item_info",
+				},
+				"operationReport": {
+					TargetName: "operation_report",
+				},
+				"securitySummary": {
+					TargetName: "security_summary",
+				},
+				"itemHandlerInfo": {
+					TargetName: "item_handler_info",
+				},
+				"itemSpecsInfo": {
+					TargetName: "item_specs_info",
+				},
+				"deepItemInfo": {
+					TargetName: "deep_item_info",
 				},
 				"storageStatus": {
 					TargetName: "storage_status",
@@ -1520,6 +1567,114 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"lifespan": {
 					TargetName: "lifespan",
+				},
+			},
+			"PalletItem": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"weight": {
+					TargetName: "weight",
+				},
+				"palletCount": {
+					TargetName: "pallet_count",
+				},
+				"handler": {
+					TargetName: "handler",
+				},
+				"specs": {
+					TargetName: "specs",
+				},
+			},
+			"ContainerItem": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"weight": {
+					TargetName: "weight",
+				},
+				"containerSize": {
+					TargetName: "container_size",
+				},
+				"handler": {
+					TargetName: "handler",
+				},
+				"specs": {
+					TargetName: "specs",
+				},
+			},
+			"ItemHandler": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"assignedItem": {
+					TargetName: "assigned_item",
+				},
+			},
+			"PalletSpecs": {
+				"name": {
+					TargetName: "name",
+				},
+				"maxWeight": {
+					TargetName: "max_weight",
+				},
+				"dimensions": {
+					TargetName: "dimensions",
+				},
+			},
+			"ContainerSpecs": {
+				"name": {
+					TargetName: "name",
+				},
+				"volume": {
+					TargetName: "volume",
+				},
+				"dimensions": {
+					TargetName: "dimensions",
+				},
+			},
+			"Dimensions": {
+				"length": {
+					TargetName: "length",
+				},
+				"width": {
+					TargetName: "width",
+				},
+				"height": {
+					TargetName: "height",
+				},
+			},
+			"StorageSuccess": {
+				"message": {
+					TargetName: "message",
+				},
+				"completedAt": {
+					TargetName: "completed_at",
+				},
+			},
+			"StorageFailure": {
+				"message": {
+					TargetName: "message",
+				},
+				"errorCode": {
+					TargetName: "error_code",
+				},
+			},
+			"SecuritySetup": {
+				"securityLevel": {
+					TargetName: "security_level",
+				},
+				"primaryItem": {
+					TargetName: "primary_item",
 				},
 			},
 			"ActionSuccess": {

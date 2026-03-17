@@ -1724,6 +1724,79 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 
 func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 	t.Parallel()
+
+	// storageEntityLookupCall returns the common entity lookup call shared by all tests
+	storageEntityLookupCall := func() RPCCall {
+		return RPCCall{
+			ServiceName: "Products",
+			MethodName:  "LookupStorageById",
+			Kind:        CallKindEntity,
+			Request: RPCMessage{
+				Name: "LookupStorageByIdRequest",
+				Fields: []RPCField{
+					{
+						Name:          "keys",
+						ProtoTypeName: DataTypeMessage,
+						Repeated:      true,
+						JSONPath:      "representations",
+						Message: &RPCMessage{
+							Name:        "LookupStorageByIdRequestKey",
+							MemberTypes: []string{"Storage"},
+							Fields: []RPCField{
+								{
+									Name:          "id",
+									ProtoTypeName: DataTypeString,
+									JSONPath:      "id",
+								},
+							},
+						},
+					},
+				},
+			},
+			Response: RPCMessage{
+				Name: "LookupStorageByIdResponse",
+				Fields: []RPCField{
+					{
+						Name:          "result",
+						ProtoTypeName: DataTypeMessage,
+						Repeated:      true,
+						JSONPath:      "_entities",
+						Message: &RPCMessage{
+							Name: "Storage",
+							Fields: []RPCField{
+								{
+									Name:          "__typename",
+									ProtoTypeName: DataTypeString,
+									JSONPath:      "__typename",
+									StaticValue:   "Storage",
+								},
+								{
+									Name:          "name",
+									ProtoTypeName: DataTypeString,
+									JSONPath:      "name",
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+	}
+
+	storageKeyMessage := func() *RPCMessage {
+		return &RPCMessage{
+			Name:        "LookupStorageByIdRequestKey",
+			MemberTypes: []string{"Storage"},
+			Fields: []RPCField{
+				{
+					Name:          "id",
+					ProtoTypeName: DataTypeString,
+					JSONPath:      "id",
+				},
+			},
+		}
+	}
+
 	tests := []struct {
 		name              string
 		query             string
@@ -1733,7 +1806,7 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 	}{
 		{
 			name:    "requires with interface type in selection set",
-			query:   `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Storage { __typename name petSummary } } }`,
+			query:   `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Storage { __typename name itemInfo } } }`,
 			mapping: testMapping(),
 			federationConfigs: plan.FederationFieldConfigurations{
 				{
@@ -1742,74 +1815,21 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 				},
 				{
 					TypeName:     "Storage",
-					FieldName:    "petSummary",
-					SelectionSet: `pet { ... on Cat { name meowVolume } ... on Dog { name barkVolume } }`,
+					FieldName:    "itemInfo",
+					SelectionSet: `primaryItem { ... on PalletItem { name palletCount } ... on ContainerItem { name containerSize } }`,
 				},
 			},
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
-					{
-						ServiceName: "Products",
-						MethodName:  "LookupStorageById",
-						Kind:        CallKindEntity,
-						Request: RPCMessage{
-							Name: "LookupStorageByIdRequest",
-							Fields: []RPCField{
-								{
-									Name:          "keys",
-									ProtoTypeName: DataTypeMessage,
-									Repeated:      true,
-									JSONPath:      "representations",
-									Message: &RPCMessage{
-										Name:        "LookupStorageByIdRequestKey",
-										MemberTypes: []string{"Storage"},
-										Fields: []RPCField{
-											{
-												Name:          "id",
-												ProtoTypeName: DataTypeString,
-												JSONPath:      "id",
-											},
-										},
-									},
-								},
-							},
-						},
-						Response: RPCMessage{
-							Name: "LookupStorageByIdResponse",
-							Fields: []RPCField{
-								{
-									Name:          "result",
-									ProtoTypeName: DataTypeMessage,
-									Repeated:      true,
-									JSONPath:      "_entities",
-									Message: &RPCMessage{
-										Name: "Storage",
-										Fields: []RPCField{
-											{
-												Name:          "__typename",
-												ProtoTypeName: DataTypeString,
-												JSONPath:      "__typename",
-												StaticValue:   "Storage",
-											},
-											{
-												Name:          "name",
-												ProtoTypeName: DataTypeString,
-												JSONPath:      "name",
-											},
-										},
-									},
-								},
-							},
-						},
-					},
+					storageEntityLookupCall(),
 					{
 						ID:           1,
 						ServiceName:  "Products",
 						Kind:         CallKindRequired,
-						MethodName:   "RequireStoragePetSummaryById",
-						ResponsePath: buildPath("_entities.petSummary"),
+						MethodName:   "RequireStorageItemInfoById",
+						ResponsePath: buildPath("_entities.itemInfo"),
 						Request: RPCMessage{
-							Name: "RequireStoragePetSummaryByIdRequest",
+							Name: "RequireStorageItemInfoByIdRequest",
 							Fields: []RPCField{
 								{
 									Name:          "context",
@@ -1817,60 +1837,50 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 									Repeated:      true,
 									JSONPath:      "representations",
 									Message: &RPCMessage{
-										Name: "RequireStoragePetSummaryByIdContext",
+										Name: "RequireStorageItemInfoByIdContext",
 										Fields: []RPCField{
 											{
 												Name:          "key",
 												ProtoTypeName: DataTypeMessage,
-												Message: &RPCMessage{
-													Name:        "LookupStorageByIdRequestKey",
-													MemberTypes: []string{"Storage"},
-													Fields: []RPCField{
-														{
-															Name:          "id",
-															ProtoTypeName: DataTypeString,
-															JSONPath:      "id",
-														},
-													},
-												},
+												Message:       storageKeyMessage(),
 											},
 											{
 												Name:          "fields",
 												ProtoTypeName: DataTypeMessage,
 												Message: &RPCMessage{
-													Name: "RequireStoragePetSummaryByIdFields",
+													Name: "RequireStorageItemInfoByIdFields",
 													Fields: []RPCField{
 														{
-															Name:          "pet",
+															Name:          "primary_item",
 															ProtoTypeName: DataTypeMessage,
-															JSONPath:      "pet",
+															JSONPath:      "primaryItem",
 															Message: &RPCMessage{
-																Name:        "RequireStoragePetSummaryByIdFields.Animal",
+																Name:        "RequireStorageItemInfoByIdFields.StorageItem",
 																OneOfType:   OneOfTypeInterface,
-																MemberTypes: []string{"Cat", "Dog"},
+																MemberTypes: []string{"PalletItem", "ContainerItem"},
 																FragmentFields: RPCFieldSelectionSet{
-																	"Cat": {
+																	"PalletItem": {
 																		{
 																			Name:          "name",
 																			ProtoTypeName: DataTypeString,
 																			JSONPath:      "name",
 																		},
 																		{
-																			Name:          "meow_volume",
+																			Name:          "pallet_count",
 																			ProtoTypeName: DataTypeInt32,
-																			JSONPath:      "meowVolume",
+																			JSONPath:      "palletCount",
 																		},
 																	},
-																	"Dog": {
+																	"ContainerItem": {
 																		{
 																			Name:          "name",
 																			ProtoTypeName: DataTypeString,
 																			JSONPath:      "name",
 																		},
 																		{
-																			Name:          "bark_volume",
-																			ProtoTypeName: DataTypeInt32,
-																			JSONPath:      "barkVolume",
+																			Name:          "container_size",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "containerSize",
 																		},
 																	},
 																},
@@ -1885,7 +1895,7 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 							},
 						},
 						Response: RPCMessage{
-							Name: "RequireStoragePetSummaryByIdResponse",
+							Name: "RequireStorageItemInfoByIdResponse",
 							Fields: []RPCField{
 								{
 									Name:          "result",
@@ -1893,12 +1903,12 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 									Repeated:      true,
 									JSONPath:      "result",
 									Message: &RPCMessage{
-										Name: "RequireStoragePetSummaryByIdResult",
+										Name: "RequireStorageItemInfoByIdResult",
 										Fields: RPCFields{
 											{
-												Name:          "pet_summary",
+												Name:          "item_info",
 												ProtoTypeName: DataTypeString,
-												JSONPath:      "petSummary",
+												JSONPath:      "itemInfo",
 											},
 										},
 									},
@@ -1911,7 +1921,7 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 		},
 		{
 			name:    "requires with union type in selection set",
-			query:   `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Storage { __typename name lastActionSummary } } }`,
+			query:   `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Storage { __typename name operationReport } } }`,
 			mapping: testMapping(),
 			federationConfigs: plan.FederationFieldConfigurations{
 				{
@@ -1920,74 +1930,21 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 				},
 				{
 					TypeName:     "Storage",
-					FieldName:    "lastActionSummary",
-					SelectionSet: `lastAction { ... on ActionSuccess { message timestamp } ... on ActionError { message code } }`,
+					FieldName:    "operationReport",
+					SelectionSet: `lastStorageOperation { ... on StorageSuccess { message completedAt } ... on StorageFailure { message errorCode } }`,
 				},
 			},
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
-					{
-						ServiceName: "Products",
-						MethodName:  "LookupStorageById",
-						Kind:        CallKindEntity,
-						Request: RPCMessage{
-							Name: "LookupStorageByIdRequest",
-							Fields: []RPCField{
-								{
-									Name:          "keys",
-									ProtoTypeName: DataTypeMessage,
-									Repeated:      true,
-									JSONPath:      "representations",
-									Message: &RPCMessage{
-										Name:        "LookupStorageByIdRequestKey",
-										MemberTypes: []string{"Storage"},
-										Fields: []RPCField{
-											{
-												Name:          "id",
-												ProtoTypeName: DataTypeString,
-												JSONPath:      "id",
-											},
-										},
-									},
-								},
-							},
-						},
-						Response: RPCMessage{
-							Name: "LookupStorageByIdResponse",
-							Fields: []RPCField{
-								{
-									Name:          "result",
-									ProtoTypeName: DataTypeMessage,
-									Repeated:      true,
-									JSONPath:      "_entities",
-									Message: &RPCMessage{
-										Name: "Storage",
-										Fields: []RPCField{
-											{
-												Name:          "__typename",
-												ProtoTypeName: DataTypeString,
-												JSONPath:      "__typename",
-												StaticValue:   "Storage",
-											},
-											{
-												Name:          "name",
-												ProtoTypeName: DataTypeString,
-												JSONPath:      "name",
-											},
-										},
-									},
-								},
-							},
-						},
-					},
+					storageEntityLookupCall(),
 					{
 						ID:           1,
 						ServiceName:  "Products",
 						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageLastActionSummaryById",
-						ResponsePath: buildPath("_entities.lastActionSummary"),
+						MethodName:   "RequireStorageOperationReportById",
+						ResponsePath: buildPath("_entities.operationReport"),
 						Request: RPCMessage{
-							Name: "RequireStorageLastActionSummaryByIdRequest",
+							Name: "RequireStorageOperationReportByIdRequest",
 							Fields: []RPCField{
 								{
 									Name:          "context",
@@ -1995,60 +1952,50 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 									Repeated:      true,
 									JSONPath:      "representations",
 									Message: &RPCMessage{
-										Name: "RequireStorageLastActionSummaryByIdContext",
+										Name: "RequireStorageOperationReportByIdContext",
 										Fields: []RPCField{
 											{
 												Name:          "key",
 												ProtoTypeName: DataTypeMessage,
-												Message: &RPCMessage{
-													Name:        "LookupStorageByIdRequestKey",
-													MemberTypes: []string{"Storage"},
-													Fields: []RPCField{
-														{
-															Name:          "id",
-															ProtoTypeName: DataTypeString,
-															JSONPath:      "id",
-														},
-													},
-												},
+												Message:       storageKeyMessage(),
 											},
 											{
 												Name:          "fields",
 												ProtoTypeName: DataTypeMessage,
 												Message: &RPCMessage{
-													Name: "RequireStorageLastActionSummaryByIdFields",
+													Name: "RequireStorageOperationReportByIdFields",
 													Fields: []RPCField{
 														{
-															Name:          "last_action",
+															Name:          "last_storage_operation",
 															ProtoTypeName: DataTypeMessage,
-															JSONPath:      "lastAction",
+															JSONPath:      "lastStorageOperation",
 															Message: &RPCMessage{
-																Name:        "RequireStorageLastActionSummaryByIdFields.ActionResult",
+																Name:        "RequireStorageOperationReportByIdFields.StorageOperationResult",
 																OneOfType:   OneOfTypeUnion,
-																MemberTypes: []string{"ActionSuccess", "ActionError"},
+																MemberTypes: []string{"StorageSuccess", "StorageFailure"},
 																FragmentFields: RPCFieldSelectionSet{
-																	"ActionSuccess": {
+																	"StorageSuccess": {
 																		{
 																			Name:          "message",
 																			ProtoTypeName: DataTypeString,
 																			JSONPath:      "message",
 																		},
 																		{
-																			Name:          "timestamp",
+																			Name:          "completed_at",
 																			ProtoTypeName: DataTypeString,
-																			JSONPath:      "timestamp",
+																			JSONPath:      "completedAt",
 																		},
 																	},
-																	"ActionError": {
+																	"StorageFailure": {
 																		{
 																			Name:          "message",
 																			ProtoTypeName: DataTypeString,
 																			JSONPath:      "message",
 																		},
 																		{
-																			Name:          "code",
+																			Name:          "error_code",
 																			ProtoTypeName: DataTypeString,
-																			JSONPath:      "code",
+																			JSONPath:      "errorCode",
 																		},
 																	},
 																},
@@ -2063,7 +2010,7 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 							},
 						},
 						Response: RPCMessage{
-							Name: "RequireStorageLastActionSummaryByIdResponse",
+							Name: "RequireStorageOperationReportByIdResponse",
 							Fields: []RPCField{
 								{
 									Name:          "result",
@@ -2071,12 +2018,588 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 									Repeated:      true,
 									JSONPath:      "result",
 									Message: &RPCMessage{
-										Name: "RequireStorageLastActionSummaryByIdResult",
+										Name: "RequireStorageOperationReportByIdResult",
 										Fields: RPCFields{
 											{
-												Name:          "last_action_summary",
+												Name:          "operation_report",
 												ProtoTypeName: DataTypeString,
-												JSONPath:      "lastActionSummary",
+												JSONPath:      "operationReport",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:    "requires with concrete type wrapping abstract type",
+			query:   `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Storage { __typename name securitySummary } } }`,
+			mapping: testMapping(),
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "securitySummary",
+					SelectionSet: `securitySetup { securityLevel primaryItem { ... on PalletItem { name palletCount } ... on ContainerItem { name containerSize } } }`,
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					storageEntityLookupCall(),
+					{
+						ID:           1,
+						ServiceName:  "Products",
+						Kind:         CallKindRequired,
+						MethodName:   "RequireStorageSecuritySummaryById",
+						ResponsePath: buildPath("_entities.securitySummary"),
+						Request: RPCMessage{
+							Name: "RequireStorageSecuritySummaryByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name: "RequireStorageSecuritySummaryByIdContext",
+										Fields: []RPCField{
+											{
+												Name:          "key",
+												ProtoTypeName: DataTypeMessage,
+												Message:       storageKeyMessage(),
+											},
+											{
+												Name:          "fields",
+												ProtoTypeName: DataTypeMessage,
+												Message: &RPCMessage{
+													Name: "RequireStorageSecuritySummaryByIdFields",
+													Fields: []RPCField{
+														{
+															Name:          "security_setup",
+															ProtoTypeName: DataTypeMessage,
+															JSONPath:      "securitySetup",
+															Message: &RPCMessage{
+																Name: "RequireStorageSecuritySummaryByIdFields.SecuritySetup",
+																Fields: []RPCField{
+																	{
+																		Name:          "security_level",
+																		ProtoTypeName: DataTypeString,
+																		JSONPath:      "securityLevel",
+																	},
+																	{
+																		Name:          "primary_item",
+																		ProtoTypeName: DataTypeMessage,
+																		JSONPath:      "primaryItem",
+																		Message: &RPCMessage{
+																			Name:        "RequireStorageSecuritySummaryByIdFields.SecuritySetup.StorageItem",
+																			OneOfType:   OneOfTypeInterface,
+																			MemberTypes: []string{"PalletItem", "ContainerItem"},
+																			FragmentFields: RPCFieldSelectionSet{
+																				"PalletItem": {
+																					{
+																						Name:          "name",
+																						ProtoTypeName: DataTypeString,
+																						JSONPath:      "name",
+																					},
+																					{
+																						Name:          "pallet_count",
+																						ProtoTypeName: DataTypeInt32,
+																						JSONPath:      "palletCount",
+																					},
+																				},
+																				"ContainerItem": {
+																					{
+																						Name:          "name",
+																						ProtoTypeName: DataTypeString,
+																						JSONPath:      "name",
+																					},
+																					{
+																						Name:          "container_size",
+																						ProtoTypeName: DataTypeString,
+																						JSONPath:      "containerSize",
+																					},
+																				},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "RequireStorageSecuritySummaryByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "result",
+									Message: &RPCMessage{
+										Name: "RequireStorageSecuritySummaryByIdResult",
+										Fields: RPCFields{
+											{
+												Name:          "security_summary",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "securitySummary",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:    "requires with nested concrete message inside interface fragment",
+			query:   `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Storage { __typename name itemHandlerInfo } } }`,
+			mapping: testMapping(),
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "itemHandlerInfo",
+					SelectionSet: `primaryItem { ... on PalletItem { handler { name } } ... on ContainerItem { handler { name } } }`,
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					storageEntityLookupCall(),
+					{
+						ID:           1,
+						ServiceName:  "Products",
+						Kind:         CallKindRequired,
+						MethodName:   "RequireStorageItemHandlerInfoById",
+						ResponsePath: buildPath("_entities.itemHandlerInfo"),
+						Request: RPCMessage{
+							Name: "RequireStorageItemHandlerInfoByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name: "RequireStorageItemHandlerInfoByIdContext",
+										Fields: []RPCField{
+											{
+												Name:          "key",
+												ProtoTypeName: DataTypeMessage,
+												Message:       storageKeyMessage(),
+											},
+											{
+												Name:          "fields",
+												ProtoTypeName: DataTypeMessage,
+												Message: &RPCMessage{
+													Name: "RequireStorageItemHandlerInfoByIdFields",
+													Fields: []RPCField{
+														{
+															Name:          "primary_item",
+															ProtoTypeName: DataTypeMessage,
+															JSONPath:      "primaryItem",
+															Message: &RPCMessage{
+																Name:        "RequireStorageItemHandlerInfoByIdFields.StorageItem",
+																OneOfType:   OneOfTypeInterface,
+																MemberTypes: []string{"PalletItem", "ContainerItem"},
+																FragmentFields: RPCFieldSelectionSet{
+																	"PalletItem": {
+																		{
+																			Name:          "handler",
+																			ProtoTypeName: DataTypeMessage,
+																			JSONPath:      "handler",
+																			Message: &RPCMessage{
+																				Name: "RequireStorageItemHandlerInfoByIdFields.StorageItem.ItemHandler",
+																				Fields: []RPCField{
+																					{
+																						Name:          "name",
+																						ProtoTypeName: DataTypeString,
+																						JSONPath:      "name",
+																					},
+																				},
+																			},
+																		},
+																	},
+																	"ContainerItem": {
+																		{
+																			Name:          "handler",
+																			ProtoTypeName: DataTypeMessage,
+																			JSONPath:      "handler",
+																			Message: &RPCMessage{
+																				Name: "RequireStorageItemHandlerInfoByIdFields.StorageItem.ItemHandler",
+																				Fields: []RPCField{
+																					{
+																						Name:          "name",
+																						ProtoTypeName: DataTypeString,
+																						JSONPath:      "name",
+																					},
+																				},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "RequireStorageItemHandlerInfoByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "result",
+									Message: &RPCMessage{
+										Name: "RequireStorageItemHandlerInfoByIdResult",
+										Fields: RPCFields{
+											{
+												Name:          "item_handler_info",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "itemHandlerInfo",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:    "requires with deep concrete nesting inside interface fragment",
+			query:   `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Storage { __typename name itemSpecsInfo } } }`,
+			mapping: testMapping(),
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "itemSpecsInfo",
+					SelectionSet: `primaryItem { ... on PalletItem { specs { name dimensions { length width } } } ... on ContainerItem { specs { name dimensions { length width } } } }`,
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					storageEntityLookupCall(),
+					{
+						ID:           1,
+						ServiceName:  "Products",
+						Kind:         CallKindRequired,
+						MethodName:   "RequireStorageItemSpecsInfoById",
+						ResponsePath: buildPath("_entities.itemSpecsInfo"),
+						Request: RPCMessage{
+							Name: "RequireStorageItemSpecsInfoByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name: "RequireStorageItemSpecsInfoByIdContext",
+										Fields: []RPCField{
+											{
+												Name:          "key",
+												ProtoTypeName: DataTypeMessage,
+												Message:       storageKeyMessage(),
+											},
+											{
+												Name:          "fields",
+												ProtoTypeName: DataTypeMessage,
+												Message: &RPCMessage{
+													Name: "RequireStorageItemSpecsInfoByIdFields",
+													Fields: []RPCField{
+														{
+															Name:          "primary_item",
+															ProtoTypeName: DataTypeMessage,
+															JSONPath:      "primaryItem",
+															Message: &RPCMessage{
+																Name:        "RequireStorageItemSpecsInfoByIdFields.StorageItem",
+																OneOfType:   OneOfTypeInterface,
+																MemberTypes: []string{"PalletItem", "ContainerItem"},
+																FragmentFields: RPCFieldSelectionSet{
+																	"PalletItem": {
+																		{
+																			Name:          "specs",
+																			ProtoTypeName: DataTypeMessage,
+																			JSONPath:      "specs",
+																			Message: &RPCMessage{
+																				Name: "RequireStorageItemSpecsInfoByIdFields.StorageItem.PalletSpecs",
+																				Fields: []RPCField{
+																					{
+																						Name:          "name",
+																						ProtoTypeName: DataTypeString,
+																						JSONPath:      "name",
+																					},
+																					{
+																						Name:          "dimensions",
+																						ProtoTypeName: DataTypeMessage,
+																						JSONPath:      "dimensions",
+																						Message: &RPCMessage{
+																							Name: "RequireStorageItemSpecsInfoByIdFields.StorageItem.PalletSpecs.Dimensions",
+																							Fields: []RPCField{
+																								{
+																									Name:          "length",
+																									ProtoTypeName: DataTypeDouble,
+																									JSONPath:      "length",
+																								},
+																								{
+																									Name:          "width",
+																									ProtoTypeName: DataTypeDouble,
+																									JSONPath:      "width",
+																								},
+																							},
+																						},
+																					},
+																				},
+																			},
+																		},
+																	},
+																	"ContainerItem": {
+																		{
+																			Name:          "specs",
+																			ProtoTypeName: DataTypeMessage,
+																			JSONPath:      "specs",
+																			Message: &RPCMessage{
+																				Name: "RequireStorageItemSpecsInfoByIdFields.StorageItem.ContainerSpecs",
+																				Fields: []RPCField{
+																					{
+																						Name:          "name",
+																						ProtoTypeName: DataTypeString,
+																						JSONPath:      "name",
+																					},
+																					{
+																						Name:          "dimensions",
+																						ProtoTypeName: DataTypeMessage,
+																						JSONPath:      "dimensions",
+																						Message: &RPCMessage{
+																							Name: "RequireStorageItemSpecsInfoByIdFields.StorageItem.ContainerSpecs.Dimensions",
+																							Fields: []RPCField{
+																								{
+																									Name:          "length",
+																									ProtoTypeName: DataTypeDouble,
+																									JSONPath:      "length",
+																								},
+																								{
+																									Name:          "width",
+																									ProtoTypeName: DataTypeDouble,
+																									JSONPath:      "width",
+																								},
+																							},
+																						},
+																					},
+																				},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "RequireStorageItemSpecsInfoByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "result",
+									Message: &RPCMessage{
+										Name: "RequireStorageItemSpecsInfoByIdResult",
+										Fields: RPCFields{
+											{
+												Name:          "item_specs_info",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "itemSpecsInfo",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:    "requires with nested abstract type through concrete intermediary",
+			query:   `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Storage { __typename name deepItemInfo } } }`,
+			mapping: testMapping(),
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "deepItemInfo",
+					SelectionSet: `primaryItem { ... on PalletItem { handler { assignedItem { ... on ContainerItem { name containerSize } ... on PalletItem { name palletCount } } } } ... on ContainerItem { handler { name } } }`,
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					storageEntityLookupCall(),
+					{
+						ID:           1,
+						ServiceName:  "Products",
+						Kind:         CallKindRequired,
+						MethodName:   "RequireStorageDeepItemInfoById",
+						ResponsePath: buildPath("_entities.deepItemInfo"),
+						Request: RPCMessage{
+							Name: "RequireStorageDeepItemInfoByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name: "RequireStorageDeepItemInfoByIdContext",
+										Fields: []RPCField{
+											{
+												Name:          "key",
+												ProtoTypeName: DataTypeMessage,
+												Message:       storageKeyMessage(),
+											},
+											{
+												Name:          "fields",
+												ProtoTypeName: DataTypeMessage,
+												Message: &RPCMessage{
+													Name: "RequireStorageDeepItemInfoByIdFields",
+													Fields: []RPCField{
+														{
+															Name:          "primary_item",
+															ProtoTypeName: DataTypeMessage,
+															JSONPath:      "primaryItem",
+															Message: &RPCMessage{
+																Name:        "RequireStorageDeepItemInfoByIdFields.StorageItem",
+																OneOfType:   OneOfTypeInterface,
+																MemberTypes: []string{"PalletItem", "ContainerItem"},
+																FragmentFields: RPCFieldSelectionSet{
+																	"PalletItem": {
+																		{
+																			Name:          "handler",
+																			ProtoTypeName: DataTypeMessage,
+																			JSONPath:      "handler",
+																			Message: &RPCMessage{
+																				Name: "RequireStorageDeepItemInfoByIdFields.StorageItem.ItemHandler",
+																				Fields: []RPCField{
+																					{
+																						Name:          "assigned_item",
+																						ProtoTypeName: DataTypeMessage,
+																						JSONPath:      "assignedItem",
+																						Message: &RPCMessage{
+																							Name:        "RequireStorageDeepItemInfoByIdFields.StorageItem.ItemHandler.StorageItem",
+																							OneOfType:   OneOfTypeInterface,
+																							MemberTypes: []string{"PalletItem", "ContainerItem"},
+																							FragmentFields: RPCFieldSelectionSet{
+																								"ContainerItem": {
+																									{
+																										Name:          "name",
+																										ProtoTypeName: DataTypeString,
+																										JSONPath:      "name",
+																									},
+																									{
+																										Name:          "container_size",
+																										ProtoTypeName: DataTypeString,
+																										JSONPath:      "containerSize",
+																									},
+																								},
+																								"PalletItem": {
+																									{
+																										Name:          "name",
+																										ProtoTypeName: DataTypeString,
+																										JSONPath:      "name",
+																									},
+																									{
+																										Name:          "pallet_count",
+																										ProtoTypeName: DataTypeInt32,
+																										JSONPath:      "palletCount",
+																									},
+																								},
+																							},
+																						},
+																					},
+																				},
+																			},
+																		},
+																	},
+																	"ContainerItem": {
+																		{
+																			Name:          "handler",
+																			ProtoTypeName: DataTypeMessage,
+																			JSONPath:      "handler",
+																			Message: &RPCMessage{
+																				Name: "RequireStorageDeepItemInfoByIdFields.StorageItem.ItemHandler",
+																				Fields: []RPCField{
+																					{
+																						Name:          "name",
+																						ProtoTypeName: DataTypeString,
+																						JSONPath:      "name",
+																					},
+																				},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "RequireStorageDeepItemInfoByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "result",
+									Message: &RPCMessage{
+										Name: "RequireStorageDeepItemInfoByIdResult",
+										Fields: RPCFields{
+											{
+												Name:          "deep_item_info",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "deepItemInfo",
 											},
 										},
 									},
