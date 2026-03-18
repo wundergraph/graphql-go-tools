@@ -1021,6 +1021,7 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 				fieldMsg protoref.Message
 				err      error
 			)
+			fieldData := data.Get(rpcField.JSONPath)
 
 			switch {
 			case rpcField.IsListType:
@@ -1031,7 +1032,7 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 				//   ListOfBoolean is_published = 1;
 				//   ListOfListOfString related_topics = 2;
 				// }
-				if !data.Get(rpcField.JSONPath).Exists() {
+				if !isNonNullValue(fieldData) {
 					if !rpcField.Optional {
 						return nil, fmt.Errorf("field %s is required but has no value", rpcField.JSONPath)
 					}
@@ -1056,8 +1057,8 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 				// If the field is optional, we are handling a scalar value that is wrapped in a message
 				// as protobuf scalar types are not nullable.
 
-				if !data.Get(rpcField.JSONPath).Exists() {
-					// If we don't have a value for an optional field, we skip it to provide a null message.
+				if !isNonNullValue(fieldData) {
+					// If we don't have a concrete value for an optional field, leave it unset (absent).
 					continue
 				}
 
@@ -1072,7 +1073,15 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 					return nil, err
 				}
 			default:
-				fieldMsg, err = p.buildProtoMessage(p.doc.Messages[field.MessageRef], rpcField.Message, data.Get(rpcField.JSONPath))
+				if !isNonNullValue(fieldData) {
+					if !rpcField.Optional {
+						return nil, fmt.Errorf("field %s is required but has no value", rpcField.JSONPath)
+					}
+
+					continue
+				}
+
+				fieldMsg, err = p.buildProtoMessage(p.doc.Messages[field.MessageRef], rpcField.Message, fieldData)
 				if err != nil {
 					return nil, err
 				}
@@ -1101,6 +1110,10 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 	}
 
 	return message, nil
+}
+
+func isNonNullValue(data gjson.Result) bool {
+	return data.Exists() && data.Type != gjson.Null
 }
 
 // buildListMessage creates a new protobuf message, which reflects a wrapper type to work with a list in GraphQL.
