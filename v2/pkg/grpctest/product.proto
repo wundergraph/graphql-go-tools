@@ -59,6 +59,7 @@ service ProductService {
   rpc QueryUser(QueryUserRequest) returns (QueryUserResponse) {}
   rpc QueryUsers(QueryUsersRequest) returns (QueryUsersResponse) {}
   rpc RequireStorageCategoryInfoSummaryById(RequireStorageCategoryInfoSummaryByIdRequest) returns (RequireStorageCategoryInfoSummaryByIdResponse) {}
+  rpc RequireStorageFilteredTagSummaryById(RequireStorageFilteredTagSummaryByIdRequest) returns (RequireStorageFilteredTagSummaryByIdResponse) {}
   rpc RequireStorageKindSummaryById(RequireStorageKindSummaryByIdRequest) returns (RequireStorageKindSummaryByIdResponse) {}
   rpc RequireStorageMetadataScoreById(RequireStorageMetadataScoreByIdRequest) returns (RequireStorageMetadataScoreByIdResponse) {}
   rpc RequireStorageOptionalProcessedMetadataById(RequireStorageOptionalProcessedMetadataByIdRequest) returns (RequireStorageOptionalProcessedMetadataByIdResponse) {}
@@ -1546,6 +1547,35 @@ message RequireStorageCategoryInfoSummaryByIdFields {
   }
 
   StorageCategoryInfo category_info = 1;
+}
+
+message RequireStorageFilteredTagSummaryByIdRequest {
+  // RequireStorageFilteredTagSummaryByIdContext provides the context for the required fields method RequireStorageFilteredTagSummaryById.
+  repeated RequireStorageFilteredTagSummaryByIdContext context = 1;
+  // RequireStorageFilteredTagSummaryByIdArgs provides the field arguments for the required field with method RequireStorageFilteredTagSummaryById.
+  RequireStorageFilteredTagSummaryByIdArgs field_args = 2;
+}
+
+message RequireStorageFilteredTagSummaryByIdContext {
+  LookupStorageByIdRequestKey key = 1;
+  RequireStorageFilteredTagSummaryByIdFields fields = 2;
+}
+
+message RequireStorageFilteredTagSummaryByIdArgs {
+  string prefix = 1;
+}
+
+message RequireStorageFilteredTagSummaryByIdResponse {
+  // RequireStorageFilteredTagSummaryByIdResult provides the result for the required fields method RequireStorageFilteredTagSummaryById.
+  repeated RequireStorageFilteredTagSummaryByIdResult result = 1;
+}
+
+message RequireStorageFilteredTagSummaryByIdResult {
+  google.protobuf.StringValue filtered_tag_summary = 1;
+}
+
+message RequireStorageFilteredTagSummaryByIdFields {
+  repeated string tags = 1;
 }
 
 message RequireWarehouseStockHealthScoreByIdRequest {

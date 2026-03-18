@@ -627,6 +627,14 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 								Response: "RequireStorageCategoryInfoSummaryByIdResponse",
 							},
 						},
+						"filteredTagSummary": {
+							TargetName: "filtered_tag_summary",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireStorageFilteredTagSummaryById",
+								Request:  "RequireStorageFilteredTagSummaryByIdRequest",
+								Response: "RequireStorageFilteredTagSummaryByIdResponse",
+							},
+						},
 					},
 				},
 			},
@@ -1039,6 +1047,12 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					TargetName: "nearby_storages",
 					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"radius": "radius",
+					},
+				},
+				"filteredTagSummary": {
+					TargetName: "filtered_tag_summary",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"prefix": "prefix",
 					},
 				},
 			},
