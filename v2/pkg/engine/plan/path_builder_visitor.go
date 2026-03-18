@@ -612,41 +612,20 @@ func (c *pathBuilderVisitor) haveChildFieldsToPlan(field *currentFieldInfo) bool
 		return false
 	}
 
-	children := treeNodeChildren(node)
-
-	result := slices.ContainsFunc(children, func(child int) bool {
+	return slices.ContainsFunc(treeNodeChildren(node), func(child int) bool {
 		childNode := c.nodeSuggestions.items[child]
 
-		if childNode.DataSourceHash != field.ds.Hash() {
-			return false
-		}
-
-		if !childNode.Selected {
+		if childNode.DataSourceHash != field.ds.Hash() || !childNode.Selected {
 			return false
 		}
 
 		if field.deferID == "" {
-			if childNode.deferInfo != nil {
-				return false
-			}
-		} else {
-			isDeferParentPath := childNode.deferParentPath && slices.Contains(childNode.deferIDs, field.deferID)
-
-			if childNode.deferInfo == nil {
-				if !isDeferParentPath {
-					return false
-				}
-			} else {
-				if childNode.deferInfo.ID != field.deferID && !isDeferParentPath {
-					return false
-				}
-			}
+			return childNode.deferInfo == nil
 		}
 
-		return true
+		isDeferParentPath := childNode.deferParentPath && slices.Contains(childNode.deferIDs, field.deferID)
+		return isDeferParentPath || (childNode.deferInfo != nil && childNode.deferInfo.ID == field.deferID)
 	})
-
-	return result
 }
 
 func (c *pathBuilderVisitor) handlePlanningField(field *currentFieldInfo) {
