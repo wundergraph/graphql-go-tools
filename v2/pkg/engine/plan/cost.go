@@ -644,6 +644,10 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*Da
 
 	// Compute costs for this node to display in debug output
 	fieldCost, argsCost, dirsCost, multiplier := node.costsAndMultiplier(configs, variables, defaultListSize, actualListSizes)
+	// We enforce multiplier=1 for non-list fields.
+	if multiplier == 0 && !node.returnsListType {
+		multiplier = 1
+	}
 	if fieldCost != 0 || argsCost != 0 || dirsCost != 0 || multiplier != 0 {
 		fmt.Fprintf(sb, "%s  fieldCost=%d", indent, fieldCost)
 
