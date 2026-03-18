@@ -1070,9 +1070,11 @@ func (p *RPCCompiler) processMessageField(inputMessage Message, message protoref
 //   - Optional scalar wrappers (e.g. google.protobuf.StringValue) for nullable scalars.
 //   - Regular nested messages built recursively.
 func (p *RPCCompiler) resolveNestedMessage(inputMessageDesc protoref.MessageDescriptor, field *Field, rpcField *RPCField, data gjson.Result) (protoref.Message, error) {
+	fieldData := data.Get(rpcField.JSONPath)
+
 	switch {
 	case rpcField.IsListType:
-		if !data.Get(rpcField.JSONPath).Exists() {
+		if isNullValue(fieldData) {
 			if !rpcField.Optional {
 				return nil, fmt.Errorf("field %s is required but has no value", rpcField.JSONPath)
 			}
@@ -1086,7 +1088,8 @@ func (p *RPCCompiler) resolveNestedMessage(inputMessageDesc protoref.MessageDesc
 		return p.buildListMessage(inputMessageDesc, field, rpcField, data)
 
 	case rpcField.IsOptionalScalar():
-		if !data.Get(rpcField.JSONPath).Exists() {
+		if isNullValue(fieldData) {
+			// If we don't have a concrete value for an optional field, leave it unset (absent).
 			return nil, nil
 		}
 
@@ -1097,7 +1100,14 @@ func (p *RPCCompiler) resolveNestedMessage(inputMessageDesc protoref.MessageDesc
 		)
 
 	default:
-		return p.buildProtoMessage(p.doc.Messages[field.MessageRef], rpcField.Message, data.Get(rpcField.JSONPath))
+		if isNullValue(fieldData) {
+			if !rpcField.Optional {
+				return nil, fmt.Errorf("field %s is required but has no value", rpcField.JSONPath)
+			}
+			return nil, nil
+		}
+
+		return p.buildProtoMessage(p.doc.Messages[field.MessageRef], rpcField.Message, fieldData)
 	}
 }
 
@@ -1208,6 +1218,10 @@ func (p *RPCCompiler) findOneOfFieldDescriptor(oneOfs protoref.OneofDescriptors,
 	}
 
 	return nil
+}
+
+func isNullValue(data gjson.Result) bool {
+	return !data.Exists() || data.Type == gjson.Null
 }
 
 // buildListMessage creates a new protobuf message, which reflects a wrapper type to work with a list in GraphQL.
