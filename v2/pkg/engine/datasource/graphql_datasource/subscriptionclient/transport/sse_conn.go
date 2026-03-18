@@ -3,7 +3,6 @@ package transport
 import (
 	"bytes"
 	"encoding/json"
-	"io"
 	"net/http"
 	"sync/atomic"
 
@@ -19,21 +18,21 @@ var (
 
 // sseConnection handles a single SSE subscription stream.
 type sseConnection struct {
-	resp   *http.Response
-	ch     chan *common.Message
-	done   chan struct{}
-	closed atomic.Bool
+	resp    *http.Response
+	handler common.Handler
+	closed  atomic.Bool
 }
 
-func newSSEConnection(resp *http.Response) *sseConnection {
+func newSSEConnection(resp *http.Response, handler common.Handler) *sseConnection {
 	return &sseConnection{
-		resp: resp,
-		ch:   make(chan *common.Message, 8),
-		done: make(chan struct{}),
+		resp:    resp,
+		handler: handler,
 	}
 }
 
-// readLoop reads SSE events from the response body and sends them to the channel.
+// readLoop reads SSE events from the response body and delivers them to the handler.
+// Every exit path delivers a terminal message to the handler unless the connection
+// was closed by the consumer.
 func (c *sseConnection) readLoop() {
 	defer c.cleanup()
 
@@ -46,9 +45,10 @@ func (c *sseConnection) readLoop() {
 
 		eventBytes, err := reader.ReadEvent()
 		if err != nil {
-			if err != io.EOF {
-				c.sendError(err)
+			if c.closed.Load() {
+				return
 			}
+			c.sendError(err)
 			return
 		}
 
@@ -65,11 +65,7 @@ func (c *sseConnection) readLoop() {
 		if c.closed.Load() {
 			return
 		}
-		select {
-		case c.ch <- msg:
-		case <-c.done:
-			return
-		}
+		c.handler(msg)
 
 		if msg.Type.IsTerminal() {
 			return
@@ -160,17 +156,13 @@ func (c *sseConnection) sendError(err error) {
 	if c.closed.Load() {
 		return
 	}
-	select {
-	case c.ch <- &common.Message{Type: common.MessageTypeConnectionError, Err: err}:
-	case <-c.done:
-	}
+	c.handler(&common.Message{Type: common.MessageTypeConnectionError, Err: err})
 }
 
 func (c *sseConnection) cleanup() {
 	c.closed.Store(true)
 
 	c.resp.Body.Close()
-	close(c.ch) // Close channel so fanout exits
 }
 
 // closeConn terminates the SSE connection.
@@ -179,6 +171,5 @@ func (c *sseConnection) closeConn() {
 		return
 	}
 
-	close(c.done)
 	c.resp.Body.Close()
 }

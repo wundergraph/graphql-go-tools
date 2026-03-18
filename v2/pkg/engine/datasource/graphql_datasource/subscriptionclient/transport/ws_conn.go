@@ -67,7 +67,7 @@ type wsConnection struct {
 	ctx    context.Context
 
 	subsMu sync.RWMutex
-	subs   map[string]chan<- *common.Message
+	subs   map[string]common.Handler
 
 	closed atomic.Bool
 
@@ -98,7 +98,7 @@ func newWSConnection(conn *websocket.Conn, proto protocol.Protocol, opts ...wsCo
 		log:      o.logger,
 		cancel:   cancel,
 		ctx:      ctx,
-		subs:     make(map[string]chan<- *common.Message),
+		subs:     make(map[string]common.Handler),
 		onEmpty:  o.onEmpty,
 
 		writeTimeout: o.writeTimeout,
@@ -109,22 +109,19 @@ func newWSConnection(conn *websocket.Conn, proto protocol.Protocol, opts ...wsCo
 	return c
 }
 
-func (c *wsConnection) subscribe(ctx context.Context, id string, req *common.Request) (<-chan *common.Message, func(), error) {
+func (c *wsConnection) subscribe(ctx context.Context, id string, req *common.Request, handler common.Handler) (func(), error) {
 	if c.closed.Load() {
-		return nil, nil, common.ErrConnectionClosed
+		return nil, common.ErrConnectionClosed
 	}
-
-	// Small buffer to absorb bursts
-	ch := make(chan *common.Message, 8)
 
 	c.subsMu.Lock()
 
 	if _, exists := c.subs[id]; exists {
 		c.subsMu.Unlock()
-		return nil, nil, ErrSubscriptionExists
+		return nil, ErrSubscriptionExists
 	}
 
-	c.subs[id] = ch
+	c.subs[id] = handler
 	c.subsMu.Unlock()
 
 	if err := c.protocol.Subscribe(ctx, c.conn, id, req); err != nil {
@@ -133,7 +130,7 @@ func (c *wsConnection) subscribe(ctx context.Context, id string, req *common.Req
 			abstractlogger.Error(err),
 		)
 		c.removeSub(id)
-		return nil, nil, err
+		return nil, err
 	}
 
 	c.log.Debug("wsConnection.Subscribe",
@@ -143,19 +140,14 @@ func (c *wsConnection) subscribe(ctx context.Context, id string, req *common.Req
 
 	cancel := func() { c.unsubscribe(id) }
 
-	return ch, cancel, nil
+	return cancel, nil
 }
 
 func (c *wsConnection) removeSub(id string) {
 	c.subsMu.Lock()
-	ch, exists := c.subs[id]
 	delete(c.subs, id)
 	isEmpty := len(c.subs) == 0
 	c.subsMu.Unlock()
-
-	if exists {
-		close(ch)
-	}
 
 	if isEmpty {
 		c.closeConn()
@@ -216,17 +208,17 @@ func (c *wsConnection) readLoop() {
 
 func (c *wsConnection) dispatch(msg *protocol.Message) {
 	c.subsMu.RLock()
-	ch, exists := c.subs[msg.ID]
+	handler, exists := c.subs[msg.ID]
 	c.subsMu.RUnlock()
 
 	if !exists {
 		return
 	}
 
-	ch <- msg.IntoClientMessage()
+	handler(msg.IntoClientMessage())
 
 	if msg.Type == protocol.MessageComplete || msg.Type == protocol.MessageError {
-		c.unsubscribe(msg.ID)
+		c.removeSub(msg.ID)
 	}
 }
 
@@ -243,17 +235,12 @@ func (c *wsConnection) shutdown(err error) {
 
 	c.subsMu.Lock()
 	subs := c.subs
-	c.subs = make(map[string]chan<- *common.Message)
+	c.subs = make(map[string]common.Handler)
 	c.subsMu.Unlock()
 
 	errMsg := &common.Message{Type: common.MessageTypeConnectionError, Err: err}
-	for _, ch := range subs {
-		select {
-		case ch <- errMsg:
-		case <-time.After(100 * time.Millisecond):
-			// dead consumer
-		}
-		close(ch)
+	for _, handler := range subs {
+		handler(errMsg)
 	}
 
 	// Cancel after dispatching errors so readLoop consumers still have a live

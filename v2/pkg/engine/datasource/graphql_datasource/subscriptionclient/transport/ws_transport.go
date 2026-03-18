@@ -169,14 +169,14 @@ func NewWSTransport(ctx context.Context, opts ...WSTransportOption) *WSTransport
 	return t
 }
 
-func (t *WSTransport) Subscribe(ctx context.Context, req *common.Request, opts common.Options) (<-chan *common.Message, func(), error) {
+func (t *WSTransport) Subscribe(ctx context.Context, req *common.Request, opts common.Options, handler common.Handler) (func(), error) {
 	conn, err := t.getOrDial(ctx, opts)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	id := xid.New().String()
-	return conn.subscribe(ctx, id, req)
+	return conn.subscribe(ctx, id, req, handler)
 }
 
 // pingLoop sends periodic pings to all active connections and shuts down

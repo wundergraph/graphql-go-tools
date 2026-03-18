@@ -38,9 +38,9 @@ func TestClient(t *testing.T) {
 		c := New(ctx, Config{})
 		cancel()
 
-		_, _, err := c.Subscribe(t.Context(), &Request{Query: "subscription { a }"}, Options{
+		_, err := c.Subscribe(t.Context(), &Request{Query: "subscription { a }"}, Options{
 			Endpoint: "ws://localhost/graphql",
-		})
+		}, func(_ *common.Message) {})
 
 		assert.Equal(t, ErrClientClosed, err)
 	})
@@ -57,11 +57,14 @@ func TestClient_SubscriberDrain(t *testing.T) {
 
 		c := New(t.Context(), Config{})
 
-		ch, subCancel, err := c.Subscribe(context.Background(), &common.Request{
+		ch := make(chan *common.Message, 1)
+		subCancel, err := c.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
 		}, common.Options{
 			Endpoint:  server.URL,
 			Transport: common.TransportWS,
+		}, func(msg *common.Message) {
+			ch <- msg
 		})
 		require.NoError(t, err)
 
@@ -92,12 +95,15 @@ func TestClient_SubscriberDrain(t *testing.T) {
 		// Start subscriptions with different headers (forces multiple connections)
 		for i := range 3 {
 			headers := http.Header{"X-Request-ID": []string{string(rune('A' + i))}}
-			ch, subCancel, err := c.Subscribe(context.Background(), &common.Request{
+			ch := make(chan *common.Message, 1)
+			subCancel, err := c.Subscribe(context.Background(), &common.Request{
 				Query: "subscription { test }",
 			}, common.Options{
 				Endpoint:  server.URL,
 				Transport: common.TransportWS,
 				Headers:   headers,
+			}, func(msg *common.Message) {
+				ch <- msg
 			})
 			require.NoError(t, err)
 			cancels[i] = subCancel
@@ -185,11 +191,14 @@ func TestClient_CancelSendsComplete(t *testing.T) {
 
 		c := New(t.Context(), Config{})
 
-		ch, cancel, err := c.Subscribe(t.Context(), &common.Request{
+		ch := make(chan *common.Message, 1)
+		cancel, err := c.Subscribe(t.Context(), &common.Request{
 			Query: "subscription { test }",
 		}, common.Options{
 			Endpoint:  server.URL,
 			Transport: common.TransportWS,
+		}, func(msg *common.Message) {
+			ch <- msg
 		})
 		require.NoError(t, err)
 

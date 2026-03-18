@@ -54,14 +54,15 @@ func TestSSETransport_Subscribe(t *testing.T) {
 
 		tr := NewSSETransport(t.Context(), http.DefaultClient, nil)
 
-		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		handler, receive := collectingHandler()
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query:         "subscription { test }",
 			Variables:     []byte(`{"id": 123}`),
 			OperationName: "TestSub",
 		}, common.Options{
 			Endpoint:  server.URL,
 			Transport: common.TransportSSE,
-		})
+		}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
@@ -71,12 +72,12 @@ func TestSSETransport_Subscribe(t *testing.T) {
 		assert.Equal(t, "TestSub", receivedBody["operationName"])
 
 		// Receive data message
-		msg := receiveWithTimeout(t, ch, time.Second)
+		msg := receive(t, time.Second)
 		require.NotNil(t, msg.Payload)
 		assert.Contains(t, string(msg.Payload.Data), "42")
 
 		// Receive complete message
-		msg = receiveWithTimeout(t, ch, time.Second)
+		msg = receive(t, time.Second)
 		assert.Equal(t, common.MessageTypeComplete, msg.Type)
 	})
 
@@ -101,16 +102,17 @@ func TestSSETransport_Subscribe(t *testing.T) {
 			"X-Custom-Header": []string{"custom-value"},
 		}
 
-		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		handler, receive := collectingHandler()
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
 		}, common.Options{
 			Endpoint: server.URL,
 			Headers:  headers,
-		})
+		}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
-		receiveWithTimeout(t, ch, time.Second)
+		receive(t, time.Second)
 
 		assert.Equal(t, "Bearer token123", receivedAuth)
 		assert.Equal(t, "custom-value", receivedCustom)
@@ -133,13 +135,14 @@ func TestSSETransport_Subscribe(t *testing.T) {
 
 		tr := NewSSETransport(t.Context(), http.DefaultClient, nil)
 
-		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		handler, receive := collectingHandler()
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { user { name } }",
-		}, common.Options{Endpoint: server.URL})
+		}, common.Options{Endpoint: server.URL}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
-		msg := receiveWithTimeout(t, ch, time.Second)
+		msg := receive(t, time.Second)
 		require.NotNil(t, msg.Payload)
 		assert.Contains(t, string(msg.Payload.Data), "Alice")
 		assert.Equal(t, common.MessageTypeData, msg.Type)
@@ -157,13 +160,14 @@ func TestSSETransport_Subscribe(t *testing.T) {
 
 		tr := NewSSETransport(t.Context(), http.DefaultClient, nil)
 
-		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		handler, receive := collectingHandler()
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
-		}, common.Options{Endpoint: server.URL})
+		}, common.Options{Endpoint: server.URL}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
-		msg := receiveWithTimeout(t, ch, time.Second)
+		msg := receive(t, time.Second)
 		assert.Equal(t, common.MessageTypeError, msg.Type)
 		require.NotNil(t, msg.Payload)
 		assert.Contains(t, string(msg.Payload.Errors), "Something went wrong")
@@ -181,13 +185,14 @@ func TestSSETransport_Subscribe(t *testing.T) {
 
 		tr := NewSSETransport(t.Context(), http.DefaultClient, nil)
 
-		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		handler, receive := collectingHandler()
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
-		}, common.Options{Endpoint: server.URL})
+		}, common.Options{Endpoint: server.URL}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
-		msg := receiveWithTimeout(t, ch, time.Second)
+		msg := receive(t, time.Second)
 		assert.Equal(t, common.MessageTypeComplete, msg.Type)
 		assert.Nil(t, msg.Err)
 		assert.Nil(t, msg.Payload)
@@ -215,13 +220,14 @@ func TestSSETransport_Subscribe(t *testing.T) {
 
 		tr := NewSSETransport(t.Context(), http.DefaultClient, nil)
 
-		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		handler, receive := collectingHandler()
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
-		}, common.Options{Endpoint: server.URL})
+		}, common.Options{Endpoint: server.URL}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
-		msg := receiveWithTimeout(t, ch, time.Second)
+		msg := receive(t, time.Second)
 		require.NotNil(t, msg.Payload)
 		// The multi-line data is joined with newlines
 		assert.Contains(t, string(msg.Payload.Data), "42")
@@ -230,7 +236,6 @@ func TestSSETransport_Subscribe(t *testing.T) {
 	t.Run("ignores SSE comments", func(t *testing.T) {
 		t.Parallel()
 
-		var messageCount atomic.Int32
 		server := newSSEServer(t, func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/event-stream")
 			w.WriteHeader(http.StatusOK)
@@ -254,21 +259,18 @@ func TestSSETransport_Subscribe(t *testing.T) {
 
 		tr := NewSSETransport(t.Context(), http.DefaultClient, nil)
 
-		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		handler, _ := collectingHandler()
+		wrappedHandler, collect := waitForMessages(handler)
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
-		}, common.Options{Endpoint: server.URL})
+		}, common.Options{Endpoint: server.URL}, wrappedHandler)
 		require.NoError(t, err)
 		defer cancel()
 
-		// Should only receive 2 messages (next + complete), not comments
-		for msg := range ch {
-			messageCount.Add(1)
-			if msg.Type.IsTerminal() {
-				break
-			}
-		}
+		msgs := collect(time.Second)
 
-		assert.Equal(t, int32(2), messageCount.Load())
+		// Should only receive 2 messages (next + complete), not comments
+		assert.Len(t, msgs, 2)
 	})
 
 	t.Run("cancel closes connection", func(t *testing.T) {
@@ -290,13 +292,14 @@ func TestSSETransport_Subscribe(t *testing.T) {
 
 		tr := NewSSETransport(t.Context(), http.DefaultClient, nil)
 
-		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		handler, receive := collectingHandler()
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
-		}, common.Options{Endpoint: server.URL})
+		}, common.Options{Endpoint: server.URL}, handler)
 		require.NoError(t, err)
 
 		// Receive first message
-		receiveWithTimeout(t, ch, time.Second)
+		receive(t, time.Second)
 
 		assert.Equal(t, 1, tr.ConnCount())
 
@@ -310,7 +313,9 @@ func TestSSETransport_Subscribe(t *testing.T) {
 			t.Fatal("server did not detect disconnect")
 		}
 
-		assert.Equal(t, 0, tr.ConnCount())
+		assert.Eventually(t, func() bool {
+			return tr.ConnCount() == 0
+		}, time.Second, 10*time.Millisecond)
 	})
 
 	t.Run("context cancellation stops subscription", func(t *testing.T) {
@@ -333,13 +338,14 @@ func TestSSETransport_Subscribe(t *testing.T) {
 
 		tr := NewSSETransport(transportCtx, http.DefaultClient, nil)
 
-		ch, cancel, err := tr.Subscribe(transportCtx, &common.Request{
+		handler, receive := collectingHandler()
+		cancel, err := tr.Subscribe(transportCtx, &common.Request{
 			Query: "subscription { test }",
-		}, common.Options{Endpoint: server.URL})
+		}, common.Options{Endpoint: server.URL}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
-		_ = receiveWithTimeout(t, ch, time.Second)
+		_ = receive(t, time.Second)
 
 		// Cancel context
 		transportCancel()
@@ -360,9 +366,9 @@ func TestSSETransport_Subscribe(t *testing.T) {
 
 		tr := NewSSETransport(t.Context(), http.DefaultClient, nil)
 
-		_, _, err := tr.Subscribe(context.Background(), &common.Request{
+		_, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
-		}, common.Options{Endpoint: server.URL})
+		}, common.Options{Endpoint: server.URL}, func(_ *common.Message) {})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "401")
@@ -378,9 +384,9 @@ func TestSSETransport_Subscribe(t *testing.T) {
 
 		tr := NewSSETransport(t.Context(), http.DefaultClient, nil)
 
-		_, _, err := tr.Subscribe(context.Background(), &common.Request{
+		_, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
-		}, common.Options{Endpoint: server.URL})
+		}, common.Options{Endpoint: server.URL}, func(_ *common.Message) {})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "500")
@@ -408,14 +414,16 @@ func TestSSETransport_Subscribe(t *testing.T) {
 
 		opts := common.Options{Endpoint: server.URL}
 
-		ch1, cancel1, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, opts)
+		handler1, receive1 := collectingHandler()
+		cancel1, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, opts, handler1)
 		require.NoError(t, err)
 
-		ch2, cancel2, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { b }"}, opts)
+		handler2, receive2 := collectingHandler()
+		cancel2, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { b }"}, opts, handler2)
 		require.NoError(t, err)
 
-		receiveWithTimeout(t, ch1, time.Second)
-		receiveWithTimeout(t, ch2, time.Second)
+		receive1(t, time.Second)
+		receive2(t, time.Second)
 
 		// SSE creates separate HTTP requests (no multiplexing)
 		assert.Equal(t, int32(2), reqCount.Load())
@@ -441,22 +449,21 @@ func TestSSETransport_Subscribe(t *testing.T) {
 
 		tr := NewSSETransport(t.Context(), http.DefaultClient, nil)
 
-		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		handler, receive := collectingHandler()
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
-		}, common.Options{Endpoint: server.URL})
+		}, common.Options{Endpoint: server.URL}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
-		msg := receiveWithTimeout(t, ch, time.Second)
+		msg := receive(t, time.Second)
 		assert.NotNil(t, msg.Payload)
 
-		// Channel should close when server closes stream
-		select {
-		case _, ok := <-ch:
-			assert.False(t, ok, "channel should be closed")
-		case <-time.After(time.Second):
-			t.Fatal("channel should have been closed")
-		}
+		// Server closes without sending complete — this is an abnormal
+		// disconnection per graphql-sse protocol, delivered as a connection error.
+		msg = receive(t, time.Second)
+		assert.Equal(t, common.MessageTypeConnectionError, msg.Type)
+		assert.Error(t, msg.Err)
 	})
 
 	t.Run("handles data without event type", func(t *testing.T) {
@@ -477,13 +484,14 @@ func TestSSETransport_Subscribe(t *testing.T) {
 
 		tr := NewSSETransport(t.Context(), http.DefaultClient, nil)
 
-		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		handler, receive := collectingHandler()
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
-		}, common.Options{Endpoint: server.URL})
+		}, common.Options{Endpoint: server.URL}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
-		msg := receiveWithTimeout(t, ch, time.Second)
+		msg := receive(t, time.Second)
 		require.NotNil(t, msg.Payload)
 		assert.Contains(t, string(msg.Payload.Data), "99")
 	})
@@ -513,14 +521,16 @@ func TestSSETransport_ContextCancellation(t *testing.T) {
 
 		opts := common.Options{Endpoint: server.URL}
 
-		ch1, _, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, opts)
+		handler1, receive1 := collectingHandler()
+		_, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, opts, handler1)
 		require.NoError(t, err)
 
-		ch2, _, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { b }"}, opts)
+		handler2, receive2 := collectingHandler()
+		_, err = tr.Subscribe(context.Background(), &common.Request{Query: "subscription { b }"}, opts, handler2)
 		require.NoError(t, err)
 
-		receiveWithTimeout(t, ch1, time.Second)
-		receiveWithTimeout(t, ch2, time.Second)
+		receive1(t, time.Second)
+		receive2(t, time.Second)
 
 		assert.Equal(t, 2, tr.ConnCount())
 
@@ -561,13 +571,14 @@ func TestSSETransport_CustomClient(t *testing.T) {
 
 		tr := NewSSETransport(t.Context(), customClient, nil)
 
-		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		handler, receive := collectingHandler()
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
-		}, common.Options{Endpoint: server.URL})
+		}, common.Options{Endpoint: server.URL}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
-		receiveWithTimeout(t, ch, time.Second)
+		receive(t, time.Second)
 
 		assert.Equal(t, "test-client", customHeaderReceived)
 	})
@@ -609,13 +620,14 @@ func TestSSETransport_ContentTypeValidation(t *testing.T) {
 
 		tr := NewSSETransport(t.Context(), http.DefaultClient, nil)
 
-		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		handler, receive := collectingHandler()
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
-		}, common.Options{Endpoint: server.URL})
+		}, common.Options{Endpoint: server.URL}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
-		msg := receiveWithTimeout(t, ch, time.Second)
+		msg := receive(t, time.Second)
 		assert.Equal(t, common.MessageTypeComplete, msg.Type)
 	})
 
@@ -630,9 +642,9 @@ func TestSSETransport_ContentTypeValidation(t *testing.T) {
 
 		tr := NewSSETransport(t.Context(), http.DefaultClient, nil)
 
-		_, _, err := tr.Subscribe(context.Background(), &common.Request{
+		_, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
-		}, common.Options{Endpoint: server.URL})
+		}, common.Options{Endpoint: server.URL}, func(_ *common.Message) {})
 
 		require.Error(t, err)
 		assert.True(t, strings.Contains(err.Error(), "content-type") || strings.Contains(err.Error(), "Content-Type"))
@@ -677,14 +689,15 @@ func TestSSETransport_GETMethod(t *testing.T) {
 
 		tr := NewSSETransport(t.Context(), http.DefaultClient, nil)
 
-		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		handler, receive := collectingHandler()
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query:         "subscription { test }",
 			Variables:     []byte(`{"id": 123}`),
 			OperationName: "TestSub",
 		}, common.Options{
 			Endpoint:  server.URL,
 			SSEMethod: common.SSEMethodGET,
-		})
+		}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
@@ -695,12 +708,12 @@ func TestSSETransport_GETMethod(t *testing.T) {
 		assert.Equal(t, "TestSub", receivedOperationName)
 
 		// Receive data message
-		msg := receiveWithTimeout(t, ch, time.Second)
+		msg := receive(t, time.Second)
 		require.NotNil(t, msg.Payload)
 		assert.Contains(t, string(msg.Payload.Data), "42")
 
 		// Receive complete message
-		msg = receiveWithTimeout(t, ch, time.Second)
+		msg = receive(t, time.Second)
 		assert.Equal(t, common.MessageTypeComplete, msg.Type)
 	})
 
@@ -720,16 +733,17 @@ func TestSSETransport_GETMethod(t *testing.T) {
 
 		tr := NewSSETransport(t.Context(), http.DefaultClient, nil)
 
-		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		handler, receive := collectingHandler()
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
 		}, common.Options{
 			Endpoint:  server.URL + "?token=abc123",
 			SSEMethod: common.SSEMethodGET,
-		})
+		}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
-		receiveWithTimeout(t, ch, time.Second)
+		receive(t, time.Second)
 
 		assert.Equal(t, "abc123", receivedToken)
 		assert.Equal(t, "subscription { test }", receivedQuery)
@@ -753,17 +767,18 @@ func TestSSETransport_GETMethod(t *testing.T) {
 			"Authorization": []string{"Bearer token123"},
 		}
 
-		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		handler, receive := collectingHandler()
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
 		}, common.Options{
 			Endpoint:  server.URL,
 			SSEMethod: common.SSEMethodGET,
 			Headers:   headers,
-		})
+		}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
-		receiveWithTimeout(t, ch, time.Second)
+		receive(t, time.Second)
 
 		assert.Equal(t, "Bearer token123", receivedAuth)
 	})
@@ -784,17 +799,18 @@ func TestSSETransport_GETMethod(t *testing.T) {
 
 		tr := NewSSETransport(t.Context(), http.DefaultClient, nil)
 
-		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		handler, receive := collectingHandler()
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
 			// No variables or operationName
 		}, common.Options{
 			Endpoint:  server.URL,
 			SSEMethod: common.SSEMethodGET,
-		})
+		}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
-		receiveWithTimeout(t, ch, time.Second)
+		receive(t, time.Second)
 
 		assert.False(t, hasVariables, "variables should not be in query params")
 		assert.False(t, hasOperationName, "operationName should not be in query params")
@@ -818,16 +834,17 @@ func TestSSETransport_MethodDefault(t *testing.T) {
 
 		tr := NewSSETransport(t.Context(), http.DefaultClient, nil)
 
-		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		handler, receive := collectingHandler()
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
 		}, common.Options{
 			Endpoint:  server.URL,
 			SSEMethod: common.SSEMethodAuto, // or just omit it
-		})
+		}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
-		receiveWithTimeout(t, ch, time.Second)
+		receive(t, time.Second)
 
 		assert.Equal(t, http.MethodPost, receivedMethod)
 	})
@@ -846,16 +863,17 @@ func TestSSETransport_MethodDefault(t *testing.T) {
 
 		tr := NewSSETransport(t.Context(), http.DefaultClient, nil)
 
-		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		handler, receive := collectingHandler()
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
 		}, common.Options{
 			Endpoint:  server.URL,
 			SSEMethod: common.SSEMethodPOST,
-		})
+		}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
-		receiveWithTimeout(t, ch, time.Second)
+		receive(t, time.Second)
 
 		assert.Equal(t, http.MethodPost, receivedMethod)
 	})

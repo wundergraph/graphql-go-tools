@@ -20,39 +20,39 @@ func TestSSEConnection_ReadLoop(t *testing.T) {
 			"event: next\ndata: {\"data\":{\"time\":\"12:00\"}}\n\n",
 		))
 		resp := &http.Response{Body: body}
-		conn := newSSEConnection(resp)
+		handler, receive := collectingHandler()
+		conn := newSSEConnection(resp, handler)
 
 		go conn.readLoop()
 
-		msg := <-conn.ch
+		msg := receive(t, 1*time.Second)
 		require.NotNil(t, msg.Payload)
 		// Data field contains the raw "data" value from GraphQL response
 		assert.JSONEq(t, `{"time":"12:00"}`, string(msg.Payload.Data))
 	})
 
-	t.Run("closes channel on EOF", func(t *testing.T) {
+	t.Run("delivers connection error on EOF", func(t *testing.T) {
 		body := io.NopCloser(strings.NewReader(""))
 		resp := &http.Response{Body: body}
-		conn := newSSEConnection(resp)
+		handler, receive := collectingHandler()
+		conn := newSSEConnection(resp, handler)
 
 		go conn.readLoop()
 
-		select {
-		case _, ok := <-conn.ch:
-			assert.False(t, ok, "channel should be closed")
-		case <-time.After(100 * time.Millisecond):
-			t.Fatal("channel not closed on EOF")
-		}
+		msg := receive(t, 1*time.Second)
+		assert.Equal(t, common.MessageTypeConnectionError, msg.Type)
+		assert.Error(t, msg.Err)
 	})
 
 	t.Run("sends error on read failure", func(t *testing.T) {
 		body := &errorReader{err: io.ErrUnexpectedEOF}
 		resp := &http.Response{Body: io.NopCloser(body)}
-		conn := newSSEConnection(resp)
+		handler, receive := collectingHandler()
+		conn := newSSEConnection(resp, handler)
 
 		go conn.readLoop()
 
-		msg := <-conn.ch
+		msg := receive(t, 1*time.Second)
 		require.Error(t, msg.Err)
 		assert.Equal(t, common.MessageTypeConnectionError, msg.Type)
 	})
@@ -64,71 +64,54 @@ func TestSSEConnection_ReadLoop(t *testing.T) {
 				"event: next\ndata: {\"data\":{}}\n\n", // Should not receive this
 		))
 		resp := &http.Response{Body: body}
-		conn := newSSEConnection(resp)
+		handler, receive := collectingHandler()
+		conn := newSSEConnection(resp, handler)
 
 		go conn.readLoop()
 
+		var messages []*common.Message
+
 		// First message
-		msg1 := <-conn.ch
+		msg1 := receive(t, 1*time.Second)
+		messages = append(messages, msg1)
 		assert.NotNil(t, msg1.Payload)
 		assert.Equal(t, common.MessageTypeData, msg1.Type)
 
 		// Complete message
-		msg2 := <-conn.ch
+		msg2 := receive(t, 1*time.Second)
+		messages = append(messages, msg2)
 		assert.Equal(t, common.MessageTypeComplete, msg2.Type)
 
-		// Channel should close, no third message
-		select {
-		case _, ok := <-conn.ch:
-			assert.False(t, ok, "channel should be closed after complete")
-		case <-time.After(100 * time.Millisecond):
-			t.Fatal("channel not closed after complete")
-		}
+		assert.Len(t, messages, 2, "should receive exactly 2 messages before stopping")
 	})
 }
 
 func TestSSEConnection_Close(t *testing.T) {
-	t.Run("closes channel and body", func(t *testing.T) {
+	t.Run("closes body", func(t *testing.T) {
 		pr, pw := io.Pipe()
 		body := &trackingCloser{Reader: pr}
 		resp := &http.Response{Body: body}
-		conn := newSSEConnection(resp)
+		handler, _ := collectingHandler()
+		conn := newSSEConnection(resp, handler)
 
 		go conn.readLoop()
 
 		conn.closeConn()
 		pw.Close() // Ensure pipe is fully closed
 
-		// Channel close signals cleanup completed
-		select {
-		case _, ok := <-conn.ch:
-			require.False(t, ok, "channel should be closed")
-		case <-time.After(100 * time.Millisecond):
-			t.Fatal("channel should be closed (timeout)")
-		}
-
-		assert.True(t, body.closed.Load(), "body should be closed")
+		assert.Eventually(t, func() bool {
+			return body.closed.Load()
+		}, 1*time.Second, 10*time.Millisecond, "body should be closed")
 	})
 
 	t.Run("is idempotent", func(t *testing.T) {
 		body := io.NopCloser(strings.NewReader(""))
 		resp := &http.Response{Body: body}
-		conn := newSSEConnection(resp)
+		handler, _ := collectingHandler()
+		conn := newSSEConnection(resp, handler)
 
 		conn.closeConn()
 		conn.closeConn() // second call is a no-op
-	})
-}
-
-func TestSSEConnection_Channel(t *testing.T) {
-	t.Run("returns buffered channel", func(t *testing.T) {
-		body := io.NopCloser(strings.NewReader(""))
-		resp := &http.Response{Body: body}
-		conn := newSSEConnection(resp)
-
-		ch := conn.ch
-		assert.NotNil(t, ch)
-		assert.Equal(t, 8, cap(ch))
 	})
 }
 

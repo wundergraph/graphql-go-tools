@@ -21,20 +21,20 @@ import (
 func TestWSConnection_Subscribe(t *testing.T) {
 	t.Parallel()
 
-	t.Run("returns channel and calls protocol subscribe", func(t *testing.T) {
+	t.Run("calls protocol subscribe and handler can receive", func(t *testing.T) {
 		t.Parallel()
 
 		conn, _ := newTestConn(t)
 		proto := newMockProtocol()
 		wsc := newWSConnection(conn, proto)
 
-		ch, cancel, err := wsc.subscribe(context.Background(), "sub-1", &common.Request{
+		handler, _ := collectingHandler()
+		cancel, err := wsc.subscribe(context.Background(), "sub-1", &common.Request{
 			Query: "subscription { test }",
-		})
+		}, handler)
 		defer cancel()
 
 		require.NoError(t, err)
-		assert.NotNil(t, ch)
 		assert.Len(t, proto.SubscribeCalls(), 1)
 		assert.Equal(t, "sub-1", proto.SubscribeCalls()[0].ID)
 	})
@@ -46,11 +46,11 @@ func TestWSConnection_Subscribe(t *testing.T) {
 		proto := newMockProtocol()
 		wsc := newWSConnection(conn, proto)
 
-		_, cancel, err := wsc.subscribe(context.Background(), "sub-1", &common.Request{})
+		cancel, err := wsc.subscribe(context.Background(), "sub-1", &common.Request{}, func(_ *common.Message) {})
 		require.NoError(t, err)
 		defer cancel()
 
-		_, _, err = wsc.subscribe(context.Background(), "sub-1", &common.Request{})
+		_, err = wsc.subscribe(context.Background(), "sub-1", &common.Request{}, func(_ *common.Message) {})
 
 		assert.ErrorIs(t, err, ErrSubscriptionExists)
 	})
@@ -63,7 +63,7 @@ func TestWSConnection_Subscribe(t *testing.T) {
 		wsc := newWSConnection(conn, proto)
 		wsc.closeConn()
 
-		_, _, err := wsc.subscribe(context.Background(), "sub-1", &common.Request{})
+		_, err := wsc.subscribe(context.Background(), "sub-1", &common.Request{}, func(_ *common.Message) {})
 
 		assert.ErrorIs(t, err, common.ErrConnectionClosed)
 	})
@@ -76,7 +76,7 @@ func TestWSConnection_Subscribe(t *testing.T) {
 		proto.subscribeErr = assert.AnError
 		wsc := newWSConnection(conn, proto)
 
-		_, _, err := wsc.subscribe(context.Background(), "sub-1", &common.Request{})
+		_, err := wsc.subscribe(context.Background(), "sub-1", &common.Request{}, func(_ *common.Message) {})
 
 		assert.Error(t, err)
 		assert.Equal(t, 0, wsc.subCount(), "failed subscription should not be registered")
@@ -86,14 +86,15 @@ func TestWSConnection_Subscribe(t *testing.T) {
 func TestWSConnection_ReadLoop(t *testing.T) {
 	t.Parallel()
 
-	t.Run("dispatches data message to subscription channel", func(t *testing.T) {
+	t.Run("dispatches data message to subscription handler", func(t *testing.T) {
 		t.Parallel()
 
 		conn, _ := newTestConn(t)
 		proto := newMockProtocol()
 		wsc := newWSConnection(conn, proto)
 
-		ch, cancel, err := wsc.subscribe(context.Background(), "sub-1", &common.Request{})
+		handler, receive := collectingHandler()
+		cancel, err := wsc.subscribe(context.Background(), "sub-1", &common.Request{}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
@@ -105,19 +106,20 @@ func TestWSConnection_ReadLoop(t *testing.T) {
 			Payload: &common.ExecutionResult{Data: json.RawMessage(`{"value": 42}`)},
 		})
 
-		msg := receiveWithTimeout(t, ch, time.Second)
+		msg := receive(t, time.Second)
 		require.NotNil(t, msg.Payload)
 		assert.Contains(t, string(msg.Payload.Data), "42")
 	})
 
-	t.Run("closes channel on complete message", func(t *testing.T) {
+	t.Run("delivers complete message to handler", func(t *testing.T) {
 		t.Parallel()
 
 		conn, _ := newTestConn(t)
 		proto := newMockProtocol()
 		wsc := newWSConnection(conn, proto)
 
-		ch, _, err := wsc.subscribe(context.Background(), "sub-1", &common.Request{})
+		handler, receive := collectingHandler()
+		_, err := wsc.subscribe(context.Background(), "sub-1", &common.Request{}, handler)
 		require.NoError(t, err)
 
 		go wsc.readLoop()
@@ -127,11 +129,8 @@ func TestWSConnection_ReadLoop(t *testing.T) {
 			Type: protocol.MessageComplete,
 		})
 
-		// Consume the message (blocking send requires consumer)
-		msg := receiveWithTimeout(t, ch, time.Second)
+		msg := receive(t, time.Second)
 		assert.Equal(t, common.MessageTypeComplete, msg.Type)
-
-		assertChannelClosed(t, ch)
 	})
 
 	t.Run("responds to ping with pong", func(t *testing.T) {
@@ -157,7 +156,8 @@ func TestWSConnection_ReadLoop(t *testing.T) {
 		proto := newMockProtocol()
 		wsc := newWSConnection(conn, proto)
 
-		ch, cancel, err := wsc.subscribe(context.Background(), "sub-1", &common.Request{})
+		handler, receive := collectingHandler()
+		cancel, err := wsc.subscribe(context.Background(), "sub-1", &common.Request{}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
@@ -175,7 +175,7 @@ func TestWSConnection_ReadLoop(t *testing.T) {
 			Payload: &common.ExecutionResult{Data: json.RawMessage(`{"right": true}`)},
 		})
 
-		msg := receiveWithTimeout(t, ch, time.Second)
+		msg := receive(t, time.Second)
 		assert.Contains(t, string(msg.Payload.Data), "right")
 	})
 }
@@ -183,21 +183,21 @@ func TestWSConnection_ReadLoop(t *testing.T) {
 func TestWSConnection_Unsubscribe(t *testing.T) {
 	t.Parallel()
 
-	t.Run("calls protocol unsubscribe and closes channel", func(t *testing.T) {
+	t.Run("calls protocol unsubscribe and removes subscription", func(t *testing.T) {
 		t.Parallel()
 
 		conn, _ := newTestConn(t)
 		proto := newMockProtocol()
 		wsc := newWSConnection(conn, proto)
 
-		ch, cancel, err := wsc.subscribe(context.Background(), "sub-1", &common.Request{})
+		cancel, err := wsc.subscribe(context.Background(), "sub-1", &common.Request{}, func(_ *common.Message) {})
 		require.NoError(t, err)
 
 		cancel()
 
 		assert.Len(t, proto.UnsubscribeCalls(), 1)
 		assert.Equal(t, "sub-1", proto.UnsubscribeCalls()[0])
-		assertChannelClosed(t, ch)
+		assert.Equal(t, 0, wsc.subCount())
 	})
 
 	t.Run("is idempotent", func(t *testing.T) {
@@ -207,7 +207,7 @@ func TestWSConnection_Unsubscribe(t *testing.T) {
 		proto := newMockProtocol()
 		wsc := newWSConnection(conn, proto)
 
-		_, cancel, err := wsc.subscribe(context.Background(), "sub-1", &common.Request{})
+		cancel, err := wsc.subscribe(context.Background(), "sub-1", &common.Request{}, func(_ *common.Message) {})
 		require.NoError(t, err)
 
 		cancel()
@@ -227,7 +227,7 @@ func TestWSConnection_Unsubscribe(t *testing.T) {
 			withConnWriteTimeout(50*time.Millisecond),
 		)
 
-		_, cancel, err := wsc.subscribe(context.Background(), "sub-1", &common.Request{})
+		cancel, err := wsc.subscribe(context.Background(), "sub-1", &common.Request{}, func(_ *common.Message) {})
 		require.NoError(t, err)
 
 		start := time.Now()
@@ -252,7 +252,7 @@ func TestWSConnection_OnEmpty(t *testing.T) {
 			withOnEmpty(func() { emptyCalled <- struct{}{} }),
 		)
 
-		_, cancel, _ := wsc.subscribe(context.Background(), "sub-1", &common.Request{})
+		cancel, _ := wsc.subscribe(context.Background(), "sub-1", &common.Request{}, func(_ *common.Message) {})
 		cancel()
 
 		select {
@@ -276,8 +276,8 @@ func TestWSConnection_OnEmpty(t *testing.T) {
 			withOnEmpty(func() { emptyCalled <- struct{}{} }),
 		)
 
-		_, cancel1, _ := wsc.subscribe(context.Background(), "sub-1", &common.Request{})
-		_, cancel2, _ := wsc.subscribe(context.Background(), "sub-2", &common.Request{})
+		cancel1, _ := wsc.subscribe(context.Background(), "sub-1", &common.Request{}, func(_ *common.Message) {})
+		cancel2, _ := wsc.subscribe(context.Background(), "sub-2", &common.Request{}, func(_ *common.Message) {})
 
 		cancel1()
 
@@ -354,22 +354,21 @@ func TestWSConnection_Close(t *testing.T) {
 		proto := newMockProtocol()
 		wsc := newWSConnection(conn, proto)
 
-		ch1, _, _ := wsc.subscribe(context.Background(), "sub-1", &common.Request{})
-		ch2, _, _ := wsc.subscribe(context.Background(), "sub-2", &common.Request{})
+		handler1, receive1 := collectingHandler()
+		_, _ = wsc.subscribe(context.Background(), "sub-1", &common.Request{}, handler1)
+
+		handler2, receive2 := collectingHandler()
+		_, _ = wsc.subscribe(context.Background(), "sub-2", &common.Request{}, handler2)
 
 		wsc.closeConn()
 
-		// Consume messages (blocking send requires consumer)
-		msg1 := receiveWithTimeout(t, ch1, 100*time.Millisecond)
+		msg1 := receive1(t, 100*time.Millisecond)
 		assert.Error(t, msg1.Err)
 		assert.Equal(t, common.MessageTypeConnectionError, msg1.Type)
 
-		msg2 := receiveWithTimeout(t, ch2, 100*time.Millisecond)
+		msg2 := receive2(t, 100*time.Millisecond)
 		assert.Error(t, msg2.Err)
 		assert.Equal(t, common.MessageTypeConnectionError, msg2.Type)
-
-		assertChannelClosed(t, ch1)
-		assertChannelClosed(t, ch2)
 	})
 
 	t.Run("is idempotent", func(t *testing.T) {
@@ -399,10 +398,10 @@ func TestWSConnection_SubCount(t *testing.T) {
 
 		assert.Equal(t, 0, wsc.subCount())
 
-		_, cancel1, _ := wsc.subscribe(context.Background(), "sub-1", &common.Request{})
+		cancel1, _ := wsc.subscribe(context.Background(), "sub-1", &common.Request{}, func(_ *common.Message) {})
 		assert.Equal(t, 1, wsc.subCount())
 
-		_, cancel2, _ := wsc.subscribe(context.Background(), "sub-2", &common.Request{})
+		cancel2, _ := wsc.subscribe(context.Background(), "sub-2", &common.Request{}, func(_ *common.Message) {})
 		assert.Equal(t, 2, wsc.subCount())
 
 		cancel1()
@@ -426,7 +425,8 @@ func TestWSConnection_WriteTimeout(t *testing.T) {
 			withConnWriteTimeout(50*time.Millisecond),
 		)
 
-		ch, cancel, err := wsc.subscribe(context.Background(), "sub-1", &common.Request{})
+		handler, receive := collectingHandler()
+		cancel, err := wsc.subscribe(context.Background(), "sub-1", &common.Request{}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
@@ -444,7 +444,7 @@ func TestWSConnection_WriteTimeout(t *testing.T) {
 
 		// Should receive data within timeout + small buffer
 		// If pong blocked for 500ms, this would timeout
-		msg := receiveWithTimeout(t, ch, 150*time.Millisecond)
+		msg := receive(t, 150*time.Millisecond)
 		assert.NotNil(t, msg.Payload)
 	})
 }
@@ -534,16 +534,6 @@ func newTestConn(t *testing.T) (*websocket.Conn, *websocket.Conn) {
 	t.Cleanup(func() { _ = srvConn.CloseNow() })
 
 	return clientConn, srvConn
-}
-
-func assertChannelClosed(t *testing.T, ch <-chan *common.Message) {
-	t.Helper()
-	select {
-	case _, ok := <-ch:
-		assert.False(t, ok, "channel should be closed")
-	case <-time.After(100 * time.Millisecond):
-		t.Error("timeout waiting for channel to close")
-	}
 }
 
 // mockProtocol implements protocol.Protocol for testing.

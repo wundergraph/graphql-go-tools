@@ -74,23 +74,15 @@ func New(ctx context.Context, cfg Config) *Client {
 }
 
 // Subscribe creates a new upstream via the appropriate transport.
-func (c *Client) Subscribe(ctx context.Context, req *common.Request, opts common.Options) (<-chan *common.Message, func(), error) {
+func (c *Client) Subscribe(ctx context.Context, req *common.Request, opts common.Options, handler common.Handler) (func(), error) {
 	if c.ctx.Err() != nil {
-		return nil, nil, ErrClientClosed
+		return nil, ErrClientClosed
 	}
-
-	// Route to transport
-	var source <-chan *common.Message
-	var cancel func()
-	var err error
 
 	if opts.Transport == common.TransportSSE {
-		source, cancel, err = c.sse.Subscribe(ctx, req, opts)
-	} else {
-		source, cancel, err = c.ws.Subscribe(ctx, req, opts)
+		return c.sse.Subscribe(ctx, req, opts, handler)
 	}
-
-	return source, cancel, err
+	return c.ws.Subscribe(ctx, req, opts, handler)
 }
 
 // Stats returns client statistics.

@@ -1449,6 +1449,8 @@ func (r *Resolver) subscriptionInput(ctx *Context, subscription *GraphQLSubscrip
 }
 
 type subscriptionUpdater struct {
+	mu        sync.Mutex
+	done      bool
 	debug     bool
 	triggerID uint64
 	resolver  *Resolver
@@ -1457,7 +1459,9 @@ type subscriptionUpdater struct {
 }
 
 func (s *subscriptionUpdater) Update(data []byte) {
-	if s.ctx.Err() != nil {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.done || s.ctx.Err() != nil {
 		return
 	}
 	if s.debug {
@@ -1467,14 +1471,18 @@ func (s *subscriptionUpdater) Update(data []byte) {
 }
 
 func (s *subscriptionUpdater) Heartbeat() {
-	if s.ctx.Err() != nil {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.done || s.ctx.Err() != nil {
 		return
 	}
 	s.resolver.heartbeatTriggerSubscriptions(s.triggerID)
 }
 
 func (s *subscriptionUpdater) UpdateSubscription(id SubscriptionIdentifier, data []byte) {
-	if s.ctx.Err() != nil {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.done || s.ctx.Err() != nil {
 		return
 	}
 	if s.debug {
@@ -1488,7 +1496,9 @@ func (s *subscriptionUpdater) Subscriptions() map[context.Context]SubscriptionId
 }
 
 func (s *subscriptionUpdater) Complete() {
-	if s.ctx.Err() != nil {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.done || s.ctx.Err() != nil {
 		if s.debug {
 			fmt.Printf("resolver:subscription_updater:complete:skip:%d\n", s.triggerID)
 		}
@@ -1501,7 +1511,9 @@ func (s *subscriptionUpdater) Complete() {
 }
 
 func (s *subscriptionUpdater) Error(data []byte) {
-	if s.ctx.Err() != nil {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.done || s.ctx.Err() != nil {
 		if s.debug {
 			fmt.Printf("resolver:subscription_updater:error:skip:%d\n", s.triggerID)
 		}
@@ -1514,6 +1526,12 @@ func (s *subscriptionUpdater) Error(data []byte) {
 }
 
 func (s *subscriptionUpdater) Done() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.done {
+		return
+	}
+	s.done = true
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:done:%d\n", s.triggerID)
 	}
@@ -1521,7 +1539,9 @@ func (s *subscriptionUpdater) Done() {
 }
 
 func (s *subscriptionUpdater) CloseSubscription(id SubscriptionIdentifier) {
-	if s.ctx.Err() != nil {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.done || s.ctx.Err() != nil {
 		if s.debug {
 			fmt.Printf("resolver:subscription_updater:close:skip:%d\n", s.triggerID)
 		}

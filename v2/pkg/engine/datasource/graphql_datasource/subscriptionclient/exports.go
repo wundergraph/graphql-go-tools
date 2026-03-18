@@ -14,6 +14,7 @@ type (
 	ExecutionResult = common.ExecutionResult
 	Request         = common.Request
 	Options         = common.Options
+	Handler         = common.Handler
 	TransportType   = common.TransportType
 	WSSubprotocol   = common.WSSubprotocol
 	SSEMethod       = common.SSEMethod

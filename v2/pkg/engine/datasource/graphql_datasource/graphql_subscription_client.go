@@ -141,14 +141,36 @@ func NewGraphQLSubscriptionClient(ctx context.Context, opts ...SubscriptionClien
 }
 
 // Subscribe implements GraphQLSubscriptionClient.
-// It bridges the channel-based new client API to the callback-based updater interface.
 func (c *subscriptionClientV2) Subscribe(ctx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
 	opts, req, err := convertToClientOptions(options)
 	if err != nil {
 		return err
 	}
 
-	msgCh, cancel, err := c.client.Subscribe(ctx.Context(), req, opts)
+	handler := func(msg *client.Message) {
+		switch msg.Type {
+		case client.MessageTypeConnectionError:
+			updater.Error(formatUpstreamServiceError(msg.Err))
+			updater.Done()
+		case client.MessageTypeError:
+			data, _ := json.Marshal(msg.Payload)
+			updater.Error(data)
+			updater.Done()
+		case client.MessageTypeData:
+			data, err := json.Marshal(msg.Payload)
+			if err != nil {
+				updater.Error(formatSubscriptionError(err))
+				updater.Done()
+				return
+			}
+			updater.Update(data)
+		case client.MessageTypeComplete:
+			updater.Complete()
+			updater.Done()
+		}
+	}
+
+	cancel, err := c.client.Subscribe(ctx.Context(), req, opts, handler)
 	if err != nil {
 		if isUpstreamError(err) {
 			updater.Error(formatUpstreamServiceError(err))
@@ -158,55 +180,12 @@ func (c *subscriptionClientV2) Subscribe(ctx *resolve.Context, options GraphQLSu
 		return err
 	}
 
-	go c.readLoop(ctx.Context(), msgCh, cancel, updater)
+	context.AfterFunc(ctx.Context(), func() {
+		cancel()
+		updater.Done()
+	})
 
 	return nil
-}
-
-// readLoop bridges the channel-based API to the callback-based updater.
-func (c *subscriptionClientV2) readLoop(ctx context.Context, msgCh <-chan *client.Message, cancel func(), updater resolve.SubscriptionUpdater) {
-	defer cancel()
-
-	for {
-		select {
-		case <-ctx.Done():
-			updater.Done()
-			return
-
-		case msg, ok := <-msgCh:
-			if !ok {
-				updater.Done()
-				return
-			}
-
-			switch msg.Type {
-			case client.MessageTypeConnectionError:
-				updater.Error(formatUpstreamServiceError(msg.Err))
-				updater.Done()
-				return
-
-			case client.MessageTypeError:
-				data, _ := json.Marshal(msg.Payload)
-				updater.Error(data)
-				updater.Done()
-				return
-
-			case client.MessageTypeData:
-				data, err := json.Marshal(msg.Payload)
-				if err != nil {
-					updater.Error(formatSubscriptionError(err))
-					updater.Done()
-					return
-				}
-				updater.Update(data)
-
-			case client.MessageTypeComplete:
-				updater.Complete()
-				updater.Done()
-				return
-			}
-		}
-	}
 }
 
 // isUpstreamError reports whether err is a connection-level upstream error

@@ -29,6 +29,10 @@ type Message struct {
 	Err     error // only set when Type == MessageTypeConnectionError
 }
 
+// Handler receives subscription messages. It is called synchronously on the
+// transport's read goroutine; a slow handler blocks message delivery.
+type Handler func(msg *Message)
+
 type ExecutionResult struct {
 	Data       json.RawMessage `json:"data,omitempty"`
 	Errors     json.RawMessage `json:"errors,omitempty"`

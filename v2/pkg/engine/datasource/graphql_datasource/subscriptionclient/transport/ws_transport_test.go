@@ -45,19 +45,20 @@ func TestWSTransport_Subscribe(t *testing.T) {
 
 		tr := NewWSTransport(t.Context())
 
-		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		handler, receive := collectingHandler()
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
 		}, common.Options{
 			Endpoint:  server.URL,
 			Transport: common.TransportWS,
-		})
+		}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
-		msg := receiveWithTimeout(t, ch, time.Second)
+		msg := receive(t, time.Second)
 		assert.Contains(t, string(msg.Payload.Data), "42")
 
-		msg = receiveWithTimeout(t, ch, time.Second)
+		msg = receive(t, time.Second)
 		assert.Equal(t, common.MessageTypeComplete, msg.Type)
 	})
 
@@ -91,17 +92,19 @@ func TestWSTransport_Subscribe(t *testing.T) {
 			Transport: common.TransportWS,
 		}
 
-		ch1, cancel1, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, opts)
+		handler1, receive1 := collectingHandler()
+		cancel1, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, opts, handler1)
 		require.NoError(t, err)
 		defer cancel1()
 
-		ch2, cancel2, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { b }"}, opts)
+		handler2, receive2 := collectingHandler()
+		cancel2, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { b }"}, opts, handler2)
 		require.NoError(t, err)
 		defer cancel2()
 
 		// Both should receive messages
-		receiveWithTimeout(t, ch1, time.Second)
-		receiveWithTimeout(t, ch2, time.Second)
+		receive1(t, time.Second)
+		receive2(t, time.Second)
 
 		// Only one connection should have been made
 		assert.Equal(t, int32(1), dialCount.Load())
@@ -136,24 +139,26 @@ func TestWSTransport_Subscribe(t *testing.T) {
 		headers1 := http.Header{"Authorization": []string{"Bearer token1"}}
 		headers2 := http.Header{"Authorization": []string{"Bearer token2"}}
 
-		ch1, cancel1, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, common.Options{
+		handler1, receive1 := collectingHandler()
+		cancel1, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, common.Options{
 			Endpoint:  server.URL,
 			Transport: common.TransportWS,
 			Headers:   headers1,
-		})
+		}, handler1)
 		require.NoError(t, err)
 		defer cancel1()
 
-		ch2, cancel2, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { b }"}, common.Options{
+		handler2, receive2 := collectingHandler()
+		cancel2, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { b }"}, common.Options{
 			Endpoint:  server.URL,
 			Transport: common.TransportWS,
 			Headers:   headers2,
-		})
+		}, handler2)
 		require.NoError(t, err)
 		defer cancel2()
 
-		receiveWithTimeout(t, ch1, time.Second)
-		receiveWithTimeout(t, ch2, time.Second)
+		receive1(t, time.Second)
+		receive2(t, time.Second)
 
 		// Two connections due to different headers
 		assert.Equal(t, int32(2), dialCount.Load())
@@ -185,24 +190,26 @@ func TestWSTransport_Subscribe(t *testing.T) {
 
 		tr := NewWSTransport(t.Context())
 
-		ch1, cancel1, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, common.Options{
+		handler1, receive1 := collectingHandler()
+		cancel1, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, common.Options{
 			Endpoint:    server.URL,
 			Transport:   common.TransportWS,
 			InitPayload: map[string]any{"token": "abc"},
-		})
+		}, handler1)
 		require.NoError(t, err)
 		defer cancel1()
 
-		ch2, cancel2, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { b }"}, common.Options{
+		handler2, receive2 := collectingHandler()
+		cancel2, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { b }"}, common.Options{
 			Endpoint:    server.URL,
 			Transport:   common.TransportWS,
 			InitPayload: map[string]any{"token": "xyz"},
-		})
+		}, handler2)
 		require.NoError(t, err)
 		defer cancel2()
 
-		receiveWithTimeout(t, ch1, time.Second)
-		receiveWithTimeout(t, ch2, time.Second)
+		receive1(t, time.Second)
+		receive2(t, time.Second)
 
 		// Two connections due to different init payload
 		assert.Equal(t, int32(2), dialCount.Load())
@@ -228,10 +235,10 @@ func TestWSTransport_Subscribe(t *testing.T) {
 			Transport: common.TransportWS,
 		}
 
-		_, cancel1, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, opts)
+		cancel1, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, opts, func(_ *common.Message) {})
 		require.NoError(t, err)
 
-		_, cancel2, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { b }"}, opts)
+		cancel2, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { b }"}, opts, func(_ *common.Message) {})
 		require.NoError(t, err)
 
 		assert.Equal(t, 1, tr.ConnCount())
@@ -278,9 +285,10 @@ func TestWSTransport_Subscribe(t *testing.T) {
 		}
 
 		// First subscription
-		ch1, cancel1, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, opts)
+		handler1, receive1 := collectingHandler()
+		cancel1, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, opts, handler1)
 		require.NoError(t, err)
-		receiveWithTimeout(t, ch1, time.Second)
+		receive1(t, time.Second)
 		cancel1()
 
 		// Wait for connection to be removed
@@ -289,10 +297,11 @@ func TestWSTransport_Subscribe(t *testing.T) {
 		}, time.Second, 10*time.Millisecond)
 
 		// Second subscription should redial
-		ch2, cancel2, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { b }"}, opts)
+		handler2, receive2 := collectingHandler()
+		cancel2, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { b }"}, opts, handler2)
 		require.NoError(t, err)
 		defer cancel2()
-		receiveWithTimeout(t, ch2, time.Second)
+		receive2(t, time.Second)
 
 		assert.Equal(t, int32(2), dialCount.Load())
 	})
@@ -315,10 +324,10 @@ func TestWSTransport_SubscriberDrain(t *testing.T) {
 
 		tr := NewWSTransport(t.Context())
 
-		_, cancel, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, common.Options{
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, common.Options{
 			Endpoint:  server.URL,
 			Transport: common.TransportWS,
-		})
+		}, func(_ *common.Message) {})
 		require.NoError(t, err)
 
 		assert.Equal(t, 1, tr.ConnCount())
@@ -346,10 +355,10 @@ func TestWSTransport_SubscriberDrain(t *testing.T) {
 
 		opts := common.Options{Endpoint: server.URL, Transport: common.TransportWS}
 
-		_, cancel1, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, opts)
+		cancel1, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, opts, func(_ *common.Message) {})
 		require.NoError(t, err)
 
-		_, cancel2, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { b }"}, opts)
+		cancel2, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { b }"}, opts, func(_ *common.Message) {})
 		require.NoError(t, err)
 
 		assert.Equal(t, 1, tr.ConnCount())
@@ -402,13 +411,14 @@ func TestWSTransport_ConcurrentSubscribe(t *testing.T) {
 		var wg sync.WaitGroup
 		for range 10 {
 			wg.Go(func() {
-				ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { test }"}, opts)
+				handler, receive := collectingHandler()
+				cancel, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { test }"}, opts, handler)
 				if err != nil {
 					return
 				}
 				defer cancel()
 
-				receiveWithTimeout(t, ch, time.Second)
+				receive(t, time.Second)
 			})
 		}
 
@@ -477,14 +487,15 @@ func TestWSTransport_InitPayloadForwarding(t *testing.T) {
 			},
 		}
 
-		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		handler, receive := collectingHandler()
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
 		}, common.Options{
 			Endpoint:      server.URL,
 			Transport:     common.TransportWS,
 			WSSubprotocol: common.SubprotocolGraphQLTransportWS,
 			InitPayload:   initPayload,
-		})
+		}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
@@ -502,7 +513,7 @@ func TestWSTransport_InitPayloadForwarding(t *testing.T) {
 		}
 
 		// Subscription should work
-		msg := receiveWithTimeout(t, ch, time.Second)
+		msg := receive(t, time.Second)
 		assert.NotNil(t, msg.Payload)
 	})
 
@@ -558,14 +569,15 @@ func TestWSTransport_InitPayloadForwarding(t *testing.T) {
 			"version": float64(2), // JSON numbers are float64
 		}
 
-		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		handler, receive := collectingHandler()
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
 		}, common.Options{
 			Endpoint:      server.URL,
 			Transport:     common.TransportWS,
 			WSSubprotocol: common.SubprotocolGraphQLWS, // Legacy protocol
 			InitPayload:   initPayload,
-		})
+		}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
@@ -580,7 +592,7 @@ func TestWSTransport_InitPayloadForwarding(t *testing.T) {
 		}
 
 		// Subscription should work
-		msg := receiveWithTimeout(t, ch, time.Second)
+		msg := receive(t, time.Second)
 		assert.NotNil(t, msg.Payload)
 	})
 
@@ -631,14 +643,15 @@ func TestWSTransport_InitPayloadForwarding(t *testing.T) {
 
 		tr := NewWSTransport(t.Context())
 
-		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		handler, receive := collectingHandler()
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
 		}, common.Options{
 			Endpoint:      server.URL,
 			Transport:     common.TransportWS,
 			WSSubprotocol: common.SubprotocolGraphQLTransportWS,
 			InitPayload:   nil, // No init payload
-		})
+		}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
@@ -651,7 +664,7 @@ func TestWSTransport_InitPayloadForwarding(t *testing.T) {
 		}
 
 		// Subscription should still work
-		msg := receiveWithTimeout(t, ch, time.Second)
+		msg := receive(t, time.Second)
 		assert.NotNil(t, msg.Payload)
 	})
 
@@ -710,32 +723,34 @@ func TestWSTransport_InitPayloadForwarding(t *testing.T) {
 		tr := NewWSTransport(t.Context())
 
 		// First subscription with user1 token
-		ch1, cancel1, err := tr.Subscribe(context.Background(), &common.Request{
+		handler1, receive1 := collectingHandler()
+		cancel1, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
 		}, common.Options{
 			Endpoint:      server.URL,
 			Transport:     common.TransportWS,
 			WSSubprotocol: common.SubprotocolGraphQLTransportWS,
 			InitPayload:   map[string]any{"user": "user1"},
-		})
+		}, handler1)
 		require.NoError(t, err)
 		defer cancel1()
 
-		receiveWithTimeout(t, ch1, time.Second)
+		receive1(t, time.Second)
 
 		// Second subscription with user2 token - should create new connection
-		ch2, cancel2, err := tr.Subscribe(context.Background(), &common.Request{
+		handler2, receive2 := collectingHandler()
+		cancel2, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
 		}, common.Options{
 			Endpoint:      server.URL,
 			Transport:     common.TransportWS,
 			WSSubprotocol: common.SubprotocolGraphQLTransportWS,
 			InitPayload:   map[string]any{"user": "user2"},
-		})
+		}, handler2)
 		require.NoError(t, err)
 		defer cancel2()
 
-		receiveWithTimeout(t, ch2, time.Second)
+		receive2(t, time.Second)
 
 		// Verify two separate connections were made with different payloads
 		assert.Equal(t, 2, tr.ConnCount())
@@ -782,20 +797,21 @@ func TestWSTransport_LegacyProtocol(t *testing.T) {
 
 		tr := NewWSTransport(t.Context())
 
-		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		handler, receive := collectingHandler()
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
 		}, common.Options{
 			Endpoint:      server.URL,
 			Transport:     common.TransportWS,
 			WSSubprotocol: common.SubprotocolGraphQLWS, // Request legacy protocol
-		})
+		}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
-		msg := receiveWithTimeout(t, ch, time.Second)
+		msg := receive(t, time.Second)
 		assert.Contains(t, string(msg.Payload.Data), "42")
 
-		msg = receiveWithTimeout(t, ch, time.Second)
+		msg = receive(t, time.Second)
 		assert.Equal(t, common.MessageTypeComplete, msg.Type)
 	})
 
@@ -826,21 +842,22 @@ func TestWSTransport_LegacyProtocol(t *testing.T) {
 
 		tr := NewWSTransport(t.Context())
 
-		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		handler, receive := collectingHandler()
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
 		}, common.Options{
 			Endpoint:      server.URL,
 			Transport:     common.TransportWS,
 			WSSubprotocol: common.SubprotocolGraphQLWS,
-		})
+		}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
 		// Should receive data (keep-alive is handled internally)
-		msg := receiveWithTimeout(t, ch, time.Second)
+		msg := receive(t, time.Second)
 		assert.NotNil(t, msg.Payload)
 
-		msg = receiveWithTimeout(t, ch, time.Second)
+		msg = receive(t, time.Second)
 		assert.Equal(t, common.MessageTypeComplete, msg.Type)
 	})
 
@@ -866,17 +883,18 @@ func TestWSTransport_LegacyProtocol(t *testing.T) {
 
 		tr := NewWSTransport(t.Context())
 
-		ch, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		handler, receive := collectingHandler()
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
 		}, common.Options{
 			Endpoint:      server.URL,
 			Transport:     common.TransportWS,
 			WSSubprotocol: common.SubprotocolAuto, // Auto-negotiate
-		})
+		}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
-		msg := receiveWithTimeout(t, ch, time.Second)
+		msg := receive(t, time.Second)
 		assert.Contains(t, string(msg.Payload.Data), "99")
 	})
 }
@@ -908,12 +926,12 @@ func TestWSTransport_Heartbeat(t *testing.T) {
 
 		tr := NewWSTransport(t.Context(), WithPingInterval(50*time.Millisecond))
 
-		_, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
 		}, common.Options{
 			Endpoint:  server.URL,
 			Transport: common.TransportWS,
-		})
+		}, func(_ *common.Message) {})
 		require.NoError(t, err)
 		defer cancel()
 
@@ -942,16 +960,17 @@ func TestWSTransport_Heartbeat(t *testing.T) {
 
 		tr := NewWSTransport(t.Context(), WithPingInterval(100*time.Millisecond), WithPingTimeout(50*time.Millisecond))
 
-		ch, _, err := tr.Subscribe(context.Background(), &common.Request{
+		handler, receive := collectingHandler()
+		_, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
 		}, common.Options{
 			Endpoint:  server.URL,
 			Transport: common.TransportWS,
-		})
+		}, handler)
 		require.NoError(t, err)
 
 		// Connection should be closed due to pong timeout, subscriber gets notified
-		msg := receiveWithTimeout(t, ch, time.Second)
+		msg := receive(t, time.Second)
 		assert.Equal(t, common.MessageTypeConnectionError, msg.Type)
 		assert.Error(t, msg.Err)
 
@@ -984,12 +1003,12 @@ func TestWSTransport_Heartbeat(t *testing.T) {
 		// PingInterval set, PingTimeout left at zero (disabled)
 		tr := NewWSTransport(t.Context(), WithPingInterval(50*time.Millisecond))
 
-		_, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
 		}, common.Options{
 			Endpoint:  server.URL,
 			Transport: common.TransportWS,
-		})
+		}, func(_ *common.Message) {})
 		require.NoError(t, err)
 		defer cancel()
 
@@ -1024,12 +1043,12 @@ func TestWSTransport_Heartbeat(t *testing.T) {
 
 		tr := NewWSTransport(t.Context(), WithPingInterval(50*time.Millisecond), WithPingTimeout(200*time.Millisecond))
 
-		_, cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
 		}, common.Options{
 			Endpoint:  server.URL,
 			Transport: common.TransportWS,
-		})
+		}, func(_ *common.Message) {})
 		require.NoError(t, err)
 		defer cancel()
 

@@ -56,7 +56,7 @@ func NewSSETransport(ctx context.Context, client *http.Client, log abstractlogge
 // The HTTP method is determined by opts.SSEMethod:
 //   - SSEMethodAuto or SSEMethodPOST: POST with JSON body (graphql-sse spec)
 //   - SSEMethodGET: GET with query parameters (traditional SSE)
-func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts common.Options) (<-chan *common.Message, func(), error) {
+func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts common.Options, handler common.Handler) (func(), error) {
 	var httpReq *http.Request
 	var err error
 
@@ -83,11 +83,11 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 	case common.SSEMethodGET:
 		httpReq, err = buildGETRequest(requestCtx, req, opts)
 	default:
-		return nil, nil, fmt.Errorf("unsupported SSE method: %s", method)
+		return nil, fmt.Errorf("unsupported SSE method: %s", method)
 	}
 
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Execute request
@@ -97,7 +97,7 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 			abstractlogger.String("endpoint", opts.Endpoint),
 			abstractlogger.Error(err),
 		)
-		return nil, nil, fmt.Errorf("execute request: %w", err)
+		return nil, fmt.Errorf("execute request: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -108,15 +108,15 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 			abstractlogger.Int("status", resp.StatusCode),
 		)
 		if len(body) > 0 {
-			return nil, nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+			return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
 		}
-		return nil, nil, fmt.Errorf("unexpected status: %d", resp.StatusCode)
+		return nil, fmt.Errorf("unexpected status: %d", resp.StatusCode)
 	}
 
 	// Verify content type (should be text/event-stream)
 	if err := t.validateContentType(resp); err != nil {
 		resp.Body.Close()
-		return nil, nil, err
+		return nil, err
 	}
 
 	t.log.Debug("sseTransport.Subscribe",
@@ -125,7 +125,7 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 	)
 
 	// Create connection
-	conn := newSSEConnection(resp)
+	conn := newSSEConnection(resp, handler)
 
 	t.mu.Lock()
 	t.conns[conn] = struct{}{}
@@ -138,7 +138,7 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 		t.removeConn(conn)
 	}
 
-	return conn.ch, cancelFn, nil
+	return cancelFn, nil
 }
 
 // buildPOSTRequest creates a POST request with JSON body (graphql-sse spec).

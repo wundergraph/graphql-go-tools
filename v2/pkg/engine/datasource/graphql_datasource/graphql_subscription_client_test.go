@@ -2,6 +2,7 @@ package graphql_datasource
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -43,15 +44,37 @@ func (t *testBridgeUpdater) Subscriptions() map[context.Context]resolve.Subscrip
 	return map[context.Context]resolve.SubscriptionIdentifier{}
 }
 
-func TestReadLoopErrorHandling(t *testing.T) {
+func TestHandlerDeliversCorrectMessageForEachType(t *testing.T) {
+	buildHandler := func(updater *testBridgeUpdater) client.Handler {
+		return func(msg *client.Message) {
+			switch msg.Type {
+			case client.MessageTypeConnectionError:
+				updater.Error(formatUpstreamServiceError(msg.Err))
+				updater.Done()
+			case client.MessageTypeError:
+				data, _ := json.Marshal(msg.Payload)
+				updater.Error(data)
+				updater.Done()
+			case client.MessageTypeData:
+				data, err := json.Marshal(msg.Payload)
+				if err != nil {
+					updater.Error(formatSubscriptionError(err))
+					updater.Done()
+					return
+				}
+				updater.Update(data)
+			case client.MessageTypeComplete:
+				updater.Complete()
+				updater.Done()
+			}
+		}
+	}
+
 	t.Run("connection errors deliver error and done without updates", func(t *testing.T) {
 		updater := &testBridgeUpdater{}
-		msgCh := make(chan *client.Message, 1)
-		msgCh <- &client.Message{Type: client.MessageTypeConnectionError, Err: client.ErrConnectionClosed}
-		close(msgCh)
+		handler := buildHandler(updater)
 
-		subClient := &subscriptionClientV2{}
-		subClient.readLoop(context.Background(), msgCh, func() {}, updater)
+		handler(&client.Message{Type: client.MessageTypeConnectionError, Err: client.ErrConnectionClosed})
 
 		require.True(t, updater.done)
 		require.Len(t, updater.errors, 1)
@@ -61,12 +84,9 @@ func TestReadLoopErrorHandling(t *testing.T) {
 
 	t.Run("non-connection errors deliver error and done without updates", func(t *testing.T) {
 		updater := &testBridgeUpdater{}
-		msgCh := make(chan *client.Message, 1)
-		msgCh <- &client.Message{Type: client.MessageTypeConnectionError, Err: errors.New("validation failed")}
-		close(msgCh)
+		handler := buildHandler(updater)
 
-		subClient := &subscriptionClientV2{}
-		subClient.readLoop(context.Background(), msgCh, func() {}, updater)
+		handler(&client.Message{Type: client.MessageTypeConnectionError, Err: errors.New("validation failed")})
 
 		require.True(t, updater.done)
 		require.Len(t, updater.errors, 1)
@@ -74,39 +94,11 @@ func TestReadLoopErrorHandling(t *testing.T) {
 		require.False(t, updater.completed)
 	})
 
-	t.Run("context cancellation calls done without complete", func(t *testing.T) {
+	t.Run("complete message calls complete then done", func(t *testing.T) {
 		updater := &testBridgeUpdater{}
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
-		msgCh := make(chan *client.Message)
+		handler := buildHandler(updater)
 
-		subClient := &subscriptionClientV2{}
-		subClient.readLoop(ctx, msgCh, func() {}, updater)
-
-		require.True(t, updater.done)
-		require.False(t, updater.completed)
-	})
-
-	t.Run("channel close calls done without complete", func(t *testing.T) {
-		updater := &testBridgeUpdater{}
-		msgCh := make(chan *client.Message)
-		close(msgCh)
-
-		subClient := &subscriptionClientV2{}
-		subClient.readLoop(context.Background(), msgCh, func() {}, updater)
-
-		require.True(t, updater.done)
-		require.False(t, updater.completed)
-	})
-
-	t.Run("done message calls complete then done", func(t *testing.T) {
-		updater := &testBridgeUpdater{}
-		msgCh := make(chan *client.Message, 1)
-		msgCh <- &client.Message{Type: client.MessageTypeComplete}
-		close(msgCh)
-
-		subClient := &subscriptionClientV2{}
-		subClient.readLoop(context.Background(), msgCh, func() {}, updater)
+		handler(&client.Message{Type: client.MessageTypeComplete})
 
 		require.True(t, updater.done)
 		require.True(t, updater.completed)
