@@ -297,3 +297,32 @@ func (s *MockService) RequireStorageCategoryInfoSummaryById(_ context.Context, r
 
 	return &productv1.RequireStorageCategoryInfoSummaryByIdResponse{Result: results}, nil
 }
+
+// RequireStorageFilteredTagSummaryById implements [productv1.ProductServiceServer].
+// Returns a comma separated list of tags having a specific prefix as given by field argument "prefix".
+func (s *MockService) RequireStorageFilteredTagSummaryById(_ context.Context, req *productv1.RequireStorageFilteredTagSummaryByIdRequest) (*productv1.RequireStorageFilteredTagSummaryByIdResponse, error) {
+	prefix := req.GetFieldArgs().GetPrefix()
+	results := make([]*productv1.RequireStorageFilteredTagSummaryByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		tags := ctx.GetFields().GetTags()
+
+		filteredTags := make([]string, 0, len(tags))
+		for _, tag := range tags {
+			if strings.HasPrefix(tag, prefix) {
+				filteredTags = append(filteredTags, tag)
+			}
+		}
+
+		var filteredTagSummary *wrapperspb.StringValue
+		if len(filteredTags) > 0 {
+			filteredTagSummary = &wrapperspb.StringValue{Value: strings.Join(filteredTags, ", ")}
+		}
+
+		results = append(results, &productv1.RequireStorageFilteredTagSummaryByIdResult{
+			FilteredTagSummary: filteredTagSummary,
+		})
+	}
+
+	return &productv1.RequireStorageFilteredTagSummaryByIdResponse{Result: results}, nil
+}
