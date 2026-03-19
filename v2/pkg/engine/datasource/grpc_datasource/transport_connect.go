@@ -26,6 +26,10 @@ const (
 	ConnectEncodingJSON
 )
 
+// maxConnectResponseSize limits the response body read from a Connect service to 10 MB
+// to prevent memory exhaustion from unexpectedly large or malicious responses.
+const maxConnectResponseSize = 10 * 1024 * 1024
+
 // ConnectTransportConfig holds the configuration for creating a Connect transport.
 type ConnectTransportConfig struct {
 	// BaseURL is the base URL of the Connect service (e.g., "http://localhost:8080").
@@ -117,7 +121,7 @@ func (t *connectTransport) Invoke(ctx context.Context, methodFullName string, in
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxConnectResponseSize))
 	if err != nil {
 		return fmt.Errorf("connect: read response: %w", err)
 	}

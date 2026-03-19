@@ -2,6 +2,7 @@ package grpcdatasource
 
 import (
 	"context"
+	"errors"
 
 	"google.golang.org/grpc"
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
@@ -24,6 +25,9 @@ func NewGRPCTransport(cc grpc.ClientConnInterface) RPCTransport {
 }
 
 func (t *grpcTransport) Invoke(ctx context.Context, method string, input, output protoref.Message) error {
+	if t.cc == nil {
+		return errors.New("grpc transport: nil client connection")
+	}
 	// grpc.ClientConnInterface.Invoke accepts (ctx, method, args any, reply any, opts ...grpc.CallOption).
 	// protoref.Message satisfies the any constraint; variadic opts can be omitted.
 	// This wrapper intentionally does not forward grpc.CallOption, as RPCTransport
