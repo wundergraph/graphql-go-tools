@@ -121,9 +121,12 @@ func (t *connectTransport) Invoke(ctx context.Context, methodFullName string, in
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxConnectResponseSize))
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxConnectResponseSize+1))
 	if err != nil {
 		return fmt.Errorf("connect: read response: %w", err)
+	}
+	if len(respBody) > maxConnectResponseSize {
+		return fmt.Errorf("connect: response body exceeds %d bytes", maxConnectResponseSize)
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -161,7 +164,11 @@ type connectError struct {
 func parseConnectError(statusCode int, body []byte) error {
 	var ce connectError
 	if err := json.Unmarshal(body, &ce); err != nil {
-		return fmt.Errorf("connect: HTTP %d: %s", statusCode, string(body))
+		bodyStr := string(body)
+		if len(bodyStr) > 256 {
+			bodyStr = bodyStr[:256] + "... (truncated)"
+		}
+		return fmt.Errorf("connect: HTTP %d: %s", statusCode, bodyStr)
 	}
 	return fmt.Errorf("connect: %s: %s", ce.Code, ce.Message)
 }
