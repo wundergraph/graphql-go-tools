@@ -2,6 +2,7 @@ package grpcdatasource
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -208,6 +209,42 @@ func TestConnectTransport_Invoke_HeaderForwarding(t *testing.T) {
 
 	require.Equal(t, "Bearer test-token", receivedHeaders.Get("Authorization"))
 	require.Equal(t, "custom-value", receivedHeaders.Get("X-Custom-Header"))
+}
+
+func TestConnectTransport_Invoke_BinaryHeaderForwarding(t *testing.T) {
+	var receivedHeaders http.Header
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedHeaders = r.Header.Clone()
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte{})
+	}))
+	defer server.Close()
+
+	transport := NewConnectTransport(ConnectTransportConfig{
+		BaseURL:  server.URL,
+		Encoding: ConnectEncodingProtobuf,
+	})
+
+	compiler := newTestCompiler(t)
+	reqDesc := findMessageDesc(t, compiler, "productv1.QueryCategoryRequest")
+	respDesc := findMessageDesc(t, compiler, "productv1.QueryCategoryResponse")
+
+	inputMsg := dynamicpb.NewMessage(reqDesc)
+	outputMsg := dynamicpb.NewMessage(respDesc)
+
+	binaryValue := "\x00\x01\x02\x03"
+	ctx := metadata.AppendToOutgoingContext(context.Background(),
+		"x-trace-id-bin", binaryValue,
+		"authorization", "Bearer token",
+	)
+
+	err := transport.Invoke(ctx, "/productv1.ProductService/QueryCategory", inputMsg, outputMsg)
+	require.NoError(t, err)
+
+	// Binary header must be base64-encoded per the Connect protocol spec.
+	require.Equal(t, base64.StdEncoding.EncodeToString([]byte(binaryValue)), receivedHeaders.Get("X-Trace-Id-Bin"))
+	// String header must be forwarded as-is.
+	require.Equal(t, "Bearer token", receivedHeaders.Get("Authorization"))
 }
 
 func TestGRPCTransport_Invoke(t *testing.T) {
