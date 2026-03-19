@@ -3,6 +3,7 @@ package grpcdatasource
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -95,10 +96,17 @@ func (t *connectTransport) Invoke(ctx context.Context, methodFullName string, in
 	req.Header.Set("Connect-Protocol-Version", "1")
 
 	// Forward gRPC metadata as HTTP headers.
+	// Keys ending in "-bin" carry binary values; the Connect protocol requires
+	// these to be base64-encoded before placing them in an HTTP header.
 	if md, ok := metadata.FromOutgoingContext(ctx); ok {
 		for k, vals := range md {
+			isBin := strings.HasSuffix(k, "-bin")
 			for _, v := range vals {
-				req.Header.Add(k, v)
+				if isBin {
+					req.Header.Add(k, base64.StdEncoding.EncodeToString([]byte(v)))
+				} else {
+					req.Header.Add(k, v)
+				}
 			}
 		}
 	}
