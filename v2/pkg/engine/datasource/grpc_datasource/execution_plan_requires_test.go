@@ -1692,6 +1692,339 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 			},
 		},
 		{
+			name:    "Should create an execution plan for multiFilteredTagSummary requiring tags with two field arguments (one repeated)",
+			query:   `query EntityLookup($representations: [_Any!]!, $prefixes: [String!]!, $maxResults: Int!) { _entities(representations: $representations) { ... on Storage { __typename name multiFilteredTagSummary(prefixes: $prefixes, maxResults: $maxResults) } } }`,
+			mapping: testMapping(),
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "multiFilteredTagSummary",
+					SelectionSet: "tags",
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "LookupStorageById",
+						Kind:        CallKindEntity,
+						Request: RPCMessage{
+							Name: "LookupStorageByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "keys",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name:        "LookupStorageByIdRequestKey",
+										MemberTypes: []string{"Storage"},
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "LookupStorageByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
+									Message: &RPCMessage{
+										Name: "Storage",
+										Fields: []RPCField{
+											{
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "Storage",
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:           1,
+						ServiceName:  "Products",
+						Kind:         CallKindRequired,
+						MethodName:   "RequireStorageMultiFilteredTagSummaryById",
+						ResponsePath: buildPath("_entities.multiFilteredTagSummary"),
+						Request: RPCMessage{
+							Name: "RequireStorageMultiFilteredTagSummaryByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name: "RequireStorageMultiFilteredTagSummaryByIdContext",
+										Fields: []RPCField{
+											{
+												Name:          "key",
+												ProtoTypeName: DataTypeMessage,
+												Message: &RPCMessage{
+													Name:        "LookupStorageByIdRequestKey",
+													MemberTypes: []string{"Storage"},
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+													},
+												},
+											},
+											{
+												Name:          "fields",
+												ProtoTypeName: DataTypeMessage,
+												Message: &RPCMessage{
+													Name: "RequireStorageMultiFilteredTagSummaryByIdFields",
+													Fields: []RPCField{
+														{
+															Name:          "tags",
+															ProtoTypeName: DataTypeString,
+															Repeated:      true,
+															JSONPath:      "tags",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "RequireStorageMultiFilteredTagSummaryByIdArgs",
+										Fields: []RPCField{
+											{
+												Name:          "prefixes",
+												ProtoTypeName: DataTypeString,
+												Repeated:      true,
+												JSONPath:      "prefixes",
+											},
+											{
+												Name:          "max_results",
+												ProtoTypeName: DataTypeInt32,
+												JSONPath:      "maxResults",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "RequireStorageMultiFilteredTagSummaryByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "result",
+									Message: &RPCMessage{
+										Name: "RequireStorageMultiFilteredTagSummaryByIdResult",
+										Fields: RPCFields{
+											{
+												Name:          "multi_filtered_tag_summary",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "multiFilteredTagSummary",
+												Optional:      true,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:    "Should create an execution plan for nullableFilteredTagSummary requiring tags with a nullable field argument",
+			query:   `query EntityLookup($representations: [_Any!]!, $prefix: String) { _entities(representations: $representations) { ... on Storage { __typename name nullableFilteredTagSummary(prefix: $prefix) } } }`,
+			mapping: testMapping(),
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "nullableFilteredTagSummary",
+					SelectionSet: "tags",
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "LookupStorageById",
+						Kind:        CallKindEntity,
+						Request: RPCMessage{
+							Name: "LookupStorageByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "keys",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name:        "LookupStorageByIdRequestKey",
+										MemberTypes: []string{"Storage"},
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "LookupStorageByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
+									Message: &RPCMessage{
+										Name: "Storage",
+										Fields: []RPCField{
+											{
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "Storage",
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:           1,
+						ServiceName:  "Products",
+						Kind:         CallKindRequired,
+						MethodName:   "RequireStorageNullableFilteredTagSummaryById",
+						ResponsePath: buildPath("_entities.nullableFilteredTagSummary"),
+						Request: RPCMessage{
+							Name: "RequireStorageNullableFilteredTagSummaryByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name: "RequireStorageNullableFilteredTagSummaryByIdContext",
+										Fields: []RPCField{
+											{
+												Name:          "key",
+												ProtoTypeName: DataTypeMessage,
+												Message: &RPCMessage{
+													Name:        "LookupStorageByIdRequestKey",
+													MemberTypes: []string{"Storage"},
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+													},
+												},
+											},
+											{
+												Name:          "fields",
+												ProtoTypeName: DataTypeMessage,
+												Message: &RPCMessage{
+													Name: "RequireStorageNullableFilteredTagSummaryByIdFields",
+													Fields: []RPCField{
+														{
+															Name:          "tags",
+															ProtoTypeName: DataTypeString,
+															Repeated:      true,
+															JSONPath:      "tags",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "RequireStorageNullableFilteredTagSummaryByIdArgs",
+										Fields: []RPCField{
+											{
+												Name:          "prefix",
+												ProtoTypeName: DataTypeString,
+												Optional:      true,
+												JSONPath:      "prefix",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "RequireStorageNullableFilteredTagSummaryByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "result",
+									Message: &RPCMessage{
+										Name: "RequireStorageNullableFilteredTagSummaryByIdResult",
+										Fields: RPCFields{
+											{
+												Name:          "nullable_filtered_tag_summary",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "nullableFilteredTagSummary",
+												Optional:      true,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
 			name:    "requires with nested enum in type",
 			query:   `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Storage { __typename name categoryInfoSummary } } }`,
 			mapping: testMapping(),

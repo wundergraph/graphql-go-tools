@@ -13987,6 +13987,580 @@ func (x *RequireStorageFilteredTagSummaryByIdFields) GetTags() []string {
 	return nil
 }
 
+type RequireStorageMultiFilteredTagSummaryByIdRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// RequireStorageMultiFilteredTagSummaryByIdContext provides the context for the required fields method RequireStorageMultiFilteredTagSummaryById.
+	Context []*RequireStorageMultiFilteredTagSummaryByIdContext `protobuf:"bytes,1,rep,name=context,proto3" json:"context,omitempty"`
+	// RequireStorageMultiFilteredTagSummaryByIdArgs provides the field arguments for the required field with method RequireStorageMultiFilteredTagSummaryById.
+	FieldArgs     *RequireStorageMultiFilteredTagSummaryByIdArgs `protobuf:"bytes,2,opt,name=field_args,json=fieldArgs,proto3" json:"field_args,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RequireStorageMultiFilteredTagSummaryByIdRequest) Reset() {
+	*x = RequireStorageMultiFilteredTagSummaryByIdRequest{}
+	mi := &file_product_proto_msgTypes[301]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequireStorageMultiFilteredTagSummaryByIdRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequireStorageMultiFilteredTagSummaryByIdRequest) ProtoMessage() {}
+
+func (x *RequireStorageMultiFilteredTagSummaryByIdRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_product_proto_msgTypes[301]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequireStorageMultiFilteredTagSummaryByIdRequest.ProtoReflect.Descriptor instead.
+func (*RequireStorageMultiFilteredTagSummaryByIdRequest) Descriptor() ([]byte, []int) {
+	return file_product_proto_rawDescGZIP(), []int{301}
+}
+
+func (x *RequireStorageMultiFilteredTagSummaryByIdRequest) GetContext() []*RequireStorageMultiFilteredTagSummaryByIdContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *RequireStorageMultiFilteredTagSummaryByIdRequest) GetFieldArgs() *RequireStorageMultiFilteredTagSummaryByIdArgs {
+	if x != nil {
+		return x.FieldArgs
+	}
+	return nil
+}
+
+type RequireStorageMultiFilteredTagSummaryByIdContext struct {
+	state         protoimpl.MessageState                           `protogen:"open.v1"`
+	Key           *LookupStorageByIdRequestKey                     `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	Fields        *RequireStorageMultiFilteredTagSummaryByIdFields `protobuf:"bytes,2,opt,name=fields,proto3" json:"fields,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RequireStorageMultiFilteredTagSummaryByIdContext) Reset() {
+	*x = RequireStorageMultiFilteredTagSummaryByIdContext{}
+	mi := &file_product_proto_msgTypes[302]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequireStorageMultiFilteredTagSummaryByIdContext) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequireStorageMultiFilteredTagSummaryByIdContext) ProtoMessage() {}
+
+func (x *RequireStorageMultiFilteredTagSummaryByIdContext) ProtoReflect() protoreflect.Message {
+	mi := &file_product_proto_msgTypes[302]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequireStorageMultiFilteredTagSummaryByIdContext.ProtoReflect.Descriptor instead.
+func (*RequireStorageMultiFilteredTagSummaryByIdContext) Descriptor() ([]byte, []int) {
+	return file_product_proto_rawDescGZIP(), []int{302}
+}
+
+func (x *RequireStorageMultiFilteredTagSummaryByIdContext) GetKey() *LookupStorageByIdRequestKey {
+	if x != nil {
+		return x.Key
+	}
+	return nil
+}
+
+func (x *RequireStorageMultiFilteredTagSummaryByIdContext) GetFields() *RequireStorageMultiFilteredTagSummaryByIdFields {
+	if x != nil {
+		return x.Fields
+	}
+	return nil
+}
+
+type RequireStorageMultiFilteredTagSummaryByIdArgs struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Prefixes      []string               `protobuf:"bytes,1,rep,name=prefixes,proto3" json:"prefixes,omitempty"`
+	MaxResults    int32                  `protobuf:"varint,2,opt,name=max_results,json=maxResults,proto3" json:"max_results,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RequireStorageMultiFilteredTagSummaryByIdArgs) Reset() {
+	*x = RequireStorageMultiFilteredTagSummaryByIdArgs{}
+	mi := &file_product_proto_msgTypes[303]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequireStorageMultiFilteredTagSummaryByIdArgs) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequireStorageMultiFilteredTagSummaryByIdArgs) ProtoMessage() {}
+
+func (x *RequireStorageMultiFilteredTagSummaryByIdArgs) ProtoReflect() protoreflect.Message {
+	mi := &file_product_proto_msgTypes[303]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequireStorageMultiFilteredTagSummaryByIdArgs.ProtoReflect.Descriptor instead.
+func (*RequireStorageMultiFilteredTagSummaryByIdArgs) Descriptor() ([]byte, []int) {
+	return file_product_proto_rawDescGZIP(), []int{303}
+}
+
+func (x *RequireStorageMultiFilteredTagSummaryByIdArgs) GetPrefixes() []string {
+	if x != nil {
+		return x.Prefixes
+	}
+	return nil
+}
+
+func (x *RequireStorageMultiFilteredTagSummaryByIdArgs) GetMaxResults() int32 {
+	if x != nil {
+		return x.MaxResults
+	}
+	return 0
+}
+
+type RequireStorageMultiFilteredTagSummaryByIdResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// RequireStorageMultiFilteredTagSummaryByIdResult provides the result for the required fields method RequireStorageMultiFilteredTagSummaryById.
+	Result        []*RequireStorageMultiFilteredTagSummaryByIdResult `protobuf:"bytes,1,rep,name=result,proto3" json:"result,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RequireStorageMultiFilteredTagSummaryByIdResponse) Reset() {
+	*x = RequireStorageMultiFilteredTagSummaryByIdResponse{}
+	mi := &file_product_proto_msgTypes[304]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequireStorageMultiFilteredTagSummaryByIdResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequireStorageMultiFilteredTagSummaryByIdResponse) ProtoMessage() {}
+
+func (x *RequireStorageMultiFilteredTagSummaryByIdResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_product_proto_msgTypes[304]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequireStorageMultiFilteredTagSummaryByIdResponse.ProtoReflect.Descriptor instead.
+func (*RequireStorageMultiFilteredTagSummaryByIdResponse) Descriptor() ([]byte, []int) {
+	return file_product_proto_rawDescGZIP(), []int{304}
+}
+
+func (x *RequireStorageMultiFilteredTagSummaryByIdResponse) GetResult() []*RequireStorageMultiFilteredTagSummaryByIdResult {
+	if x != nil {
+		return x.Result
+	}
+	return nil
+}
+
+type RequireStorageMultiFilteredTagSummaryByIdResult struct {
+	state                   protoimpl.MessageState  `protogen:"open.v1"`
+	MultiFilteredTagSummary *wrapperspb.StringValue `protobuf:"bytes,1,opt,name=multi_filtered_tag_summary,json=multiFilteredTagSummary,proto3" json:"multi_filtered_tag_summary,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
+}
+
+func (x *RequireStorageMultiFilteredTagSummaryByIdResult) Reset() {
+	*x = RequireStorageMultiFilteredTagSummaryByIdResult{}
+	mi := &file_product_proto_msgTypes[305]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequireStorageMultiFilteredTagSummaryByIdResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequireStorageMultiFilteredTagSummaryByIdResult) ProtoMessage() {}
+
+func (x *RequireStorageMultiFilteredTagSummaryByIdResult) ProtoReflect() protoreflect.Message {
+	mi := &file_product_proto_msgTypes[305]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequireStorageMultiFilteredTagSummaryByIdResult.ProtoReflect.Descriptor instead.
+func (*RequireStorageMultiFilteredTagSummaryByIdResult) Descriptor() ([]byte, []int) {
+	return file_product_proto_rawDescGZIP(), []int{305}
+}
+
+func (x *RequireStorageMultiFilteredTagSummaryByIdResult) GetMultiFilteredTagSummary() *wrapperspb.StringValue {
+	if x != nil {
+		return x.MultiFilteredTagSummary
+	}
+	return nil
+}
+
+type RequireStorageMultiFilteredTagSummaryByIdFields struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Tags          []string               `protobuf:"bytes,1,rep,name=tags,proto3" json:"tags,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RequireStorageMultiFilteredTagSummaryByIdFields) Reset() {
+	*x = RequireStorageMultiFilteredTagSummaryByIdFields{}
+	mi := &file_product_proto_msgTypes[306]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequireStorageMultiFilteredTagSummaryByIdFields) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequireStorageMultiFilteredTagSummaryByIdFields) ProtoMessage() {}
+
+func (x *RequireStorageMultiFilteredTagSummaryByIdFields) ProtoReflect() protoreflect.Message {
+	mi := &file_product_proto_msgTypes[306]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequireStorageMultiFilteredTagSummaryByIdFields.ProtoReflect.Descriptor instead.
+func (*RequireStorageMultiFilteredTagSummaryByIdFields) Descriptor() ([]byte, []int) {
+	return file_product_proto_rawDescGZIP(), []int{306}
+}
+
+func (x *RequireStorageMultiFilteredTagSummaryByIdFields) GetTags() []string {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
+}
+
+type RequireStorageNullableFilteredTagSummaryByIdRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// RequireStorageNullableFilteredTagSummaryByIdContext provides the context for the required fields method RequireStorageNullableFilteredTagSummaryById.
+	Context []*RequireStorageNullableFilteredTagSummaryByIdContext `protobuf:"bytes,1,rep,name=context,proto3" json:"context,omitempty"`
+	// RequireStorageNullableFilteredTagSummaryByIdArgs provides the field arguments for the required field with method RequireStorageNullableFilteredTagSummaryById.
+	FieldArgs     *RequireStorageNullableFilteredTagSummaryByIdArgs `protobuf:"bytes,2,opt,name=field_args,json=fieldArgs,proto3" json:"field_args,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RequireStorageNullableFilteredTagSummaryByIdRequest) Reset() {
+	*x = RequireStorageNullableFilteredTagSummaryByIdRequest{}
+	mi := &file_product_proto_msgTypes[307]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequireStorageNullableFilteredTagSummaryByIdRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequireStorageNullableFilteredTagSummaryByIdRequest) ProtoMessage() {}
+
+func (x *RequireStorageNullableFilteredTagSummaryByIdRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_product_proto_msgTypes[307]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequireStorageNullableFilteredTagSummaryByIdRequest.ProtoReflect.Descriptor instead.
+func (*RequireStorageNullableFilteredTagSummaryByIdRequest) Descriptor() ([]byte, []int) {
+	return file_product_proto_rawDescGZIP(), []int{307}
+}
+
+func (x *RequireStorageNullableFilteredTagSummaryByIdRequest) GetContext() []*RequireStorageNullableFilteredTagSummaryByIdContext {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+func (x *RequireStorageNullableFilteredTagSummaryByIdRequest) GetFieldArgs() *RequireStorageNullableFilteredTagSummaryByIdArgs {
+	if x != nil {
+		return x.FieldArgs
+	}
+	return nil
+}
+
+type RequireStorageNullableFilteredTagSummaryByIdContext struct {
+	state         protoimpl.MessageState                              `protogen:"open.v1"`
+	Key           *LookupStorageByIdRequestKey                        `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	Fields        *RequireStorageNullableFilteredTagSummaryByIdFields `protobuf:"bytes,2,opt,name=fields,proto3" json:"fields,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RequireStorageNullableFilteredTagSummaryByIdContext) Reset() {
+	*x = RequireStorageNullableFilteredTagSummaryByIdContext{}
+	mi := &file_product_proto_msgTypes[308]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequireStorageNullableFilteredTagSummaryByIdContext) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequireStorageNullableFilteredTagSummaryByIdContext) ProtoMessage() {}
+
+func (x *RequireStorageNullableFilteredTagSummaryByIdContext) ProtoReflect() protoreflect.Message {
+	mi := &file_product_proto_msgTypes[308]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequireStorageNullableFilteredTagSummaryByIdContext.ProtoReflect.Descriptor instead.
+func (*RequireStorageNullableFilteredTagSummaryByIdContext) Descriptor() ([]byte, []int) {
+	return file_product_proto_rawDescGZIP(), []int{308}
+}
+
+func (x *RequireStorageNullableFilteredTagSummaryByIdContext) GetKey() *LookupStorageByIdRequestKey {
+	if x != nil {
+		return x.Key
+	}
+	return nil
+}
+
+func (x *RequireStorageNullableFilteredTagSummaryByIdContext) GetFields() *RequireStorageNullableFilteredTagSummaryByIdFields {
+	if x != nil {
+		return x.Fields
+	}
+	return nil
+}
+
+type RequireStorageNullableFilteredTagSummaryByIdArgs struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Prefix        *wrapperspb.StringValue `protobuf:"bytes,1,opt,name=prefix,proto3" json:"prefix,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RequireStorageNullableFilteredTagSummaryByIdArgs) Reset() {
+	*x = RequireStorageNullableFilteredTagSummaryByIdArgs{}
+	mi := &file_product_proto_msgTypes[309]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequireStorageNullableFilteredTagSummaryByIdArgs) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequireStorageNullableFilteredTagSummaryByIdArgs) ProtoMessage() {}
+
+func (x *RequireStorageNullableFilteredTagSummaryByIdArgs) ProtoReflect() protoreflect.Message {
+	mi := &file_product_proto_msgTypes[309]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequireStorageNullableFilteredTagSummaryByIdArgs.ProtoReflect.Descriptor instead.
+func (*RequireStorageNullableFilteredTagSummaryByIdArgs) Descriptor() ([]byte, []int) {
+	return file_product_proto_rawDescGZIP(), []int{309}
+}
+
+func (x *RequireStorageNullableFilteredTagSummaryByIdArgs) GetPrefix() *wrapperspb.StringValue {
+	if x != nil {
+		return x.Prefix
+	}
+	return nil
+}
+
+type RequireStorageNullableFilteredTagSummaryByIdResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// RequireStorageNullableFilteredTagSummaryByIdResult provides the result for the required fields method RequireStorageNullableFilteredTagSummaryById.
+	Result        []*RequireStorageNullableFilteredTagSummaryByIdResult `protobuf:"bytes,1,rep,name=result,proto3" json:"result,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RequireStorageNullableFilteredTagSummaryByIdResponse) Reset() {
+	*x = RequireStorageNullableFilteredTagSummaryByIdResponse{}
+	mi := &file_product_proto_msgTypes[310]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequireStorageNullableFilteredTagSummaryByIdResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequireStorageNullableFilteredTagSummaryByIdResponse) ProtoMessage() {}
+
+func (x *RequireStorageNullableFilteredTagSummaryByIdResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_product_proto_msgTypes[310]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequireStorageNullableFilteredTagSummaryByIdResponse.ProtoReflect.Descriptor instead.
+func (*RequireStorageNullableFilteredTagSummaryByIdResponse) Descriptor() ([]byte, []int) {
+	return file_product_proto_rawDescGZIP(), []int{310}
+}
+
+func (x *RequireStorageNullableFilteredTagSummaryByIdResponse) GetResult() []*RequireStorageNullableFilteredTagSummaryByIdResult {
+	if x != nil {
+		return x.Result
+	}
+	return nil
+}
+
+type RequireStorageNullableFilteredTagSummaryByIdResult struct {
+	state                      protoimpl.MessageState  `protogen:"open.v1"`
+	NullableFilteredTagSummary *wrapperspb.StringValue `protobuf:"bytes,1,opt,name=nullable_filtered_tag_summary,json=nullableFilteredTagSummary,proto3" json:"nullable_filtered_tag_summary,omitempty"`
+	unknownFields              protoimpl.UnknownFields
+	sizeCache                  protoimpl.SizeCache
+}
+
+func (x *RequireStorageNullableFilteredTagSummaryByIdResult) Reset() {
+	*x = RequireStorageNullableFilteredTagSummaryByIdResult{}
+	mi := &file_product_proto_msgTypes[311]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequireStorageNullableFilteredTagSummaryByIdResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequireStorageNullableFilteredTagSummaryByIdResult) ProtoMessage() {}
+
+func (x *RequireStorageNullableFilteredTagSummaryByIdResult) ProtoReflect() protoreflect.Message {
+	mi := &file_product_proto_msgTypes[311]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequireStorageNullableFilteredTagSummaryByIdResult.ProtoReflect.Descriptor instead.
+func (*RequireStorageNullableFilteredTagSummaryByIdResult) Descriptor() ([]byte, []int) {
+	return file_product_proto_rawDescGZIP(), []int{311}
+}
+
+func (x *RequireStorageNullableFilteredTagSummaryByIdResult) GetNullableFilteredTagSummary() *wrapperspb.StringValue {
+	if x != nil {
+		return x.NullableFilteredTagSummary
+	}
+	return nil
+}
+
+type RequireStorageNullableFilteredTagSummaryByIdFields struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Tags          []string               `protobuf:"bytes,1,rep,name=tags,proto3" json:"tags,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RequireStorageNullableFilteredTagSummaryByIdFields) Reset() {
+	*x = RequireStorageNullableFilteredTagSummaryByIdFields{}
+	mi := &file_product_proto_msgTypes[312]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequireStorageNullableFilteredTagSummaryByIdFields) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequireStorageNullableFilteredTagSummaryByIdFields) ProtoMessage() {}
+
+func (x *RequireStorageNullableFilteredTagSummaryByIdFields) ProtoReflect() protoreflect.Message {
+	mi := &file_product_proto_msgTypes[312]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequireStorageNullableFilteredTagSummaryByIdFields.ProtoReflect.Descriptor instead.
+func (*RequireStorageNullableFilteredTagSummaryByIdFields) Descriptor() ([]byte, []int) {
+	return file_product_proto_rawDescGZIP(), []int{312}
+}
+
+func (x *RequireStorageNullableFilteredTagSummaryByIdFields) GetTags() []string {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
+}
+
 type RequireWarehouseStockHealthScoreByIdRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// RequireWarehouseStockHealthScoreByIdContext provides the context for the required fields method RequireWarehouseStockHealthScoreById.
@@ -13997,7 +14571,7 @@ type RequireWarehouseStockHealthScoreByIdRequest struct {
 
 func (x *RequireWarehouseStockHealthScoreByIdRequest) Reset() {
 	*x = RequireWarehouseStockHealthScoreByIdRequest{}
-	mi := &file_product_proto_msgTypes[301]
+	mi := &file_product_proto_msgTypes[313]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14009,7 +14583,7 @@ func (x *RequireWarehouseStockHealthScoreByIdRequest) String() string {
 func (*RequireWarehouseStockHealthScoreByIdRequest) ProtoMessage() {}
 
 func (x *RequireWarehouseStockHealthScoreByIdRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[301]
+	mi := &file_product_proto_msgTypes[313]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14022,7 +14596,7 @@ func (x *RequireWarehouseStockHealthScoreByIdRequest) ProtoReflect() protoreflec
 
 // Deprecated: Use RequireWarehouseStockHealthScoreByIdRequest.ProtoReflect.Descriptor instead.
 func (*RequireWarehouseStockHealthScoreByIdRequest) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{301}
+	return file_product_proto_rawDescGZIP(), []int{313}
 }
 
 func (x *RequireWarehouseStockHealthScoreByIdRequest) GetContext() []*RequireWarehouseStockHealthScoreByIdContext {
@@ -14042,7 +14616,7 @@ type RequireWarehouseStockHealthScoreByIdContext struct {
 
 func (x *RequireWarehouseStockHealthScoreByIdContext) Reset() {
 	*x = RequireWarehouseStockHealthScoreByIdContext{}
-	mi := &file_product_proto_msgTypes[302]
+	mi := &file_product_proto_msgTypes[314]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14054,7 +14628,7 @@ func (x *RequireWarehouseStockHealthScoreByIdContext) String() string {
 func (*RequireWarehouseStockHealthScoreByIdContext) ProtoMessage() {}
 
 func (x *RequireWarehouseStockHealthScoreByIdContext) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[302]
+	mi := &file_product_proto_msgTypes[314]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14067,7 +14641,7 @@ func (x *RequireWarehouseStockHealthScoreByIdContext) ProtoReflect() protoreflec
 
 // Deprecated: Use RequireWarehouseStockHealthScoreByIdContext.ProtoReflect.Descriptor instead.
 func (*RequireWarehouseStockHealthScoreByIdContext) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{302}
+	return file_product_proto_rawDescGZIP(), []int{314}
 }
 
 func (x *RequireWarehouseStockHealthScoreByIdContext) GetKey() *LookupWarehouseByIdRequestKey {
@@ -14094,7 +14668,7 @@ type RequireWarehouseStockHealthScoreByIdResponse struct {
 
 func (x *RequireWarehouseStockHealthScoreByIdResponse) Reset() {
 	*x = RequireWarehouseStockHealthScoreByIdResponse{}
-	mi := &file_product_proto_msgTypes[303]
+	mi := &file_product_proto_msgTypes[315]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14106,7 +14680,7 @@ func (x *RequireWarehouseStockHealthScoreByIdResponse) String() string {
 func (*RequireWarehouseStockHealthScoreByIdResponse) ProtoMessage() {}
 
 func (x *RequireWarehouseStockHealthScoreByIdResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[303]
+	mi := &file_product_proto_msgTypes[315]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14119,7 +14693,7 @@ func (x *RequireWarehouseStockHealthScoreByIdResponse) ProtoReflect() protorefle
 
 // Deprecated: Use RequireWarehouseStockHealthScoreByIdResponse.ProtoReflect.Descriptor instead.
 func (*RequireWarehouseStockHealthScoreByIdResponse) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{303}
+	return file_product_proto_rawDescGZIP(), []int{315}
 }
 
 func (x *RequireWarehouseStockHealthScoreByIdResponse) GetResult() []*RequireWarehouseStockHealthScoreByIdResult {
@@ -14138,7 +14712,7 @@ type RequireWarehouseStockHealthScoreByIdResult struct {
 
 func (x *RequireWarehouseStockHealthScoreByIdResult) Reset() {
 	*x = RequireWarehouseStockHealthScoreByIdResult{}
-	mi := &file_product_proto_msgTypes[304]
+	mi := &file_product_proto_msgTypes[316]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14150,7 +14724,7 @@ func (x *RequireWarehouseStockHealthScoreByIdResult) String() string {
 func (*RequireWarehouseStockHealthScoreByIdResult) ProtoMessage() {}
 
 func (x *RequireWarehouseStockHealthScoreByIdResult) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[304]
+	mi := &file_product_proto_msgTypes[316]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14163,7 +14737,7 @@ func (x *RequireWarehouseStockHealthScoreByIdResult) ProtoReflect() protoreflect
 
 // Deprecated: Use RequireWarehouseStockHealthScoreByIdResult.ProtoReflect.Descriptor instead.
 func (*RequireWarehouseStockHealthScoreByIdResult) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{304}
+	return file_product_proto_rawDescGZIP(), []int{316}
 }
 
 func (x *RequireWarehouseStockHealthScoreByIdResult) GetStockHealthScore() float64 {
@@ -14183,7 +14757,7 @@ type RequireWarehouseStockHealthScoreByIdFields struct {
 
 func (x *RequireWarehouseStockHealthScoreByIdFields) Reset() {
 	*x = RequireWarehouseStockHealthScoreByIdFields{}
-	mi := &file_product_proto_msgTypes[305]
+	mi := &file_product_proto_msgTypes[317]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14195,7 +14769,7 @@ func (x *RequireWarehouseStockHealthScoreByIdFields) String() string {
 func (*RequireWarehouseStockHealthScoreByIdFields) ProtoMessage() {}
 
 func (x *RequireWarehouseStockHealthScoreByIdFields) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[305]
+	mi := &file_product_proto_msgTypes[317]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14208,7 +14782,7 @@ func (x *RequireWarehouseStockHealthScoreByIdFields) ProtoReflect() protoreflect
 
 // Deprecated: Use RequireWarehouseStockHealthScoreByIdFields.ProtoReflect.Descriptor instead.
 func (*RequireWarehouseStockHealthScoreByIdFields) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{305}
+	return file_product_proto_rawDescGZIP(), []int{317}
 }
 
 func (x *RequireWarehouseStockHealthScoreByIdFields) GetInventoryCount() int32 {
@@ -14236,7 +14810,7 @@ type Product struct {
 
 func (x *Product) Reset() {
 	*x = Product{}
-	mi := &file_product_proto_msgTypes[306]
+	mi := &file_product_proto_msgTypes[318]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14248,7 +14822,7 @@ func (x *Product) String() string {
 func (*Product) ProtoMessage() {}
 
 func (x *Product) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[306]
+	mi := &file_product_proto_msgTypes[318]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14261,7 +14835,7 @@ func (x *Product) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Product.ProtoReflect.Descriptor instead.
 func (*Product) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{306}
+	return file_product_proto_rawDescGZIP(), []int{318}
 }
 
 func (x *Product) GetId() string {
@@ -14296,7 +14870,7 @@ type Storage struct {
 
 func (x *Storage) Reset() {
 	*x = Storage{}
-	mi := &file_product_proto_msgTypes[307]
+	mi := &file_product_proto_msgTypes[319]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14308,7 +14882,7 @@ func (x *Storage) String() string {
 func (*Storage) ProtoMessage() {}
 
 func (x *Storage) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[307]
+	mi := &file_product_proto_msgTypes[319]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14321,7 +14895,7 @@ func (x *Storage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Storage.ProtoReflect.Descriptor instead.
 func (*Storage) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{307}
+	return file_product_proto_rawDescGZIP(), []int{319}
 }
 
 func (x *Storage) GetId() string {
@@ -14356,7 +14930,7 @@ type Warehouse struct {
 
 func (x *Warehouse) Reset() {
 	*x = Warehouse{}
-	mi := &file_product_proto_msgTypes[308]
+	mi := &file_product_proto_msgTypes[320]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14368,7 +14942,7 @@ func (x *Warehouse) String() string {
 func (*Warehouse) ProtoMessage() {}
 
 func (x *Warehouse) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[308]
+	mi := &file_product_proto_msgTypes[320]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14381,7 +14955,7 @@ func (x *Warehouse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Warehouse.ProtoReflect.Descriptor instead.
 func (*Warehouse) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{308}
+	return file_product_proto_rawDescGZIP(), []int{320}
 }
 
 func (x *Warehouse) GetId() string {
@@ -14415,7 +14989,7 @@ type User struct {
 
 func (x *User) Reset() {
 	*x = User{}
-	mi := &file_product_proto_msgTypes[309]
+	mi := &file_product_proto_msgTypes[321]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14427,7 +15001,7 @@ func (x *User) String() string {
 func (*User) ProtoMessage() {}
 
 func (x *User) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[309]
+	mi := &file_product_proto_msgTypes[321]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14440,7 +15014,7 @@ func (x *User) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use User.ProtoReflect.Descriptor instead.
 func (*User) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{309}
+	return file_product_proto_rawDescGZIP(), []int{321}
 }
 
 func (x *User) GetId() string {
@@ -14468,7 +15042,7 @@ type NestedTypeA struct {
 
 func (x *NestedTypeA) Reset() {
 	*x = NestedTypeA{}
-	mi := &file_product_proto_msgTypes[310]
+	mi := &file_product_proto_msgTypes[322]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14480,7 +15054,7 @@ func (x *NestedTypeA) String() string {
 func (*NestedTypeA) ProtoMessage() {}
 
 func (x *NestedTypeA) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[310]
+	mi := &file_product_proto_msgTypes[322]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14493,7 +15067,7 @@ func (x *NestedTypeA) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NestedTypeA.ProtoReflect.Descriptor instead.
 func (*NestedTypeA) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{310}
+	return file_product_proto_rawDescGZIP(), []int{322}
 }
 
 func (x *NestedTypeA) GetId() string {
@@ -14528,7 +15102,7 @@ type RecursiveType struct {
 
 func (x *RecursiveType) Reset() {
 	*x = RecursiveType{}
-	mi := &file_product_proto_msgTypes[311]
+	mi := &file_product_proto_msgTypes[323]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14540,7 +15114,7 @@ func (x *RecursiveType) String() string {
 func (*RecursiveType) ProtoMessage() {}
 
 func (x *RecursiveType) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[311]
+	mi := &file_product_proto_msgTypes[323]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14553,7 +15127,7 @@ func (x *RecursiveType) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecursiveType.ProtoReflect.Descriptor instead.
 func (*RecursiveType) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{311}
+	return file_product_proto_rawDescGZIP(), []int{323}
 }
 
 func (x *RecursiveType) GetId() string {
@@ -14589,7 +15163,7 @@ type TypeWithMultipleFilterFields struct {
 
 func (x *TypeWithMultipleFilterFields) Reset() {
 	*x = TypeWithMultipleFilterFields{}
-	mi := &file_product_proto_msgTypes[312]
+	mi := &file_product_proto_msgTypes[324]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14601,7 +15175,7 @@ func (x *TypeWithMultipleFilterFields) String() string {
 func (*TypeWithMultipleFilterFields) ProtoMessage() {}
 
 func (x *TypeWithMultipleFilterFields) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[312]
+	mi := &file_product_proto_msgTypes[324]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14614,7 +15188,7 @@ func (x *TypeWithMultipleFilterFields) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TypeWithMultipleFilterFields.ProtoReflect.Descriptor instead.
 func (*TypeWithMultipleFilterFields) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{312}
+	return file_product_proto_rawDescGZIP(), []int{324}
 }
 
 func (x *TypeWithMultipleFilterFields) GetId() string {
@@ -14655,7 +15229,7 @@ type FilterTypeInput struct {
 
 func (x *FilterTypeInput) Reset() {
 	*x = FilterTypeInput{}
-	mi := &file_product_proto_msgTypes[313]
+	mi := &file_product_proto_msgTypes[325]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14667,7 +15241,7 @@ func (x *FilterTypeInput) String() string {
 func (*FilterTypeInput) ProtoMessage() {}
 
 func (x *FilterTypeInput) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[313]
+	mi := &file_product_proto_msgTypes[325]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14680,7 +15254,7 @@ func (x *FilterTypeInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FilterTypeInput.ProtoReflect.Descriptor instead.
 func (*FilterTypeInput) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{313}
+	return file_product_proto_rawDescGZIP(), []int{325}
 }
 
 func (x *FilterTypeInput) GetFilterField_1() string {
@@ -14706,7 +15280,7 @@ type ComplexFilterTypeInput struct {
 
 func (x *ComplexFilterTypeInput) Reset() {
 	*x = ComplexFilterTypeInput{}
-	mi := &file_product_proto_msgTypes[314]
+	mi := &file_product_proto_msgTypes[326]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14718,7 +15292,7 @@ func (x *ComplexFilterTypeInput) String() string {
 func (*ComplexFilterTypeInput) ProtoMessage() {}
 
 func (x *ComplexFilterTypeInput) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[314]
+	mi := &file_product_proto_msgTypes[326]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14731,7 +15305,7 @@ func (x *ComplexFilterTypeInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ComplexFilterTypeInput.ProtoReflect.Descriptor instead.
 func (*ComplexFilterTypeInput) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{314}
+	return file_product_proto_rawDescGZIP(), []int{326}
 }
 
 func (x *ComplexFilterTypeInput) GetFilter() *FilterType {
@@ -14751,7 +15325,7 @@ type TypeWithComplexFilterInput struct {
 
 func (x *TypeWithComplexFilterInput) Reset() {
 	*x = TypeWithComplexFilterInput{}
-	mi := &file_product_proto_msgTypes[315]
+	mi := &file_product_proto_msgTypes[327]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14763,7 +15337,7 @@ func (x *TypeWithComplexFilterInput) String() string {
 func (*TypeWithComplexFilterInput) ProtoMessage() {}
 
 func (x *TypeWithComplexFilterInput) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[315]
+	mi := &file_product_proto_msgTypes[327]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14776,7 +15350,7 @@ func (x *TypeWithComplexFilterInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TypeWithComplexFilterInput.ProtoReflect.Descriptor instead.
 func (*TypeWithComplexFilterInput) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{315}
+	return file_product_proto_rawDescGZIP(), []int{327}
 }
 
 func (x *TypeWithComplexFilterInput) GetId() string {
@@ -14804,7 +15378,7 @@ type OrderInput struct {
 
 func (x *OrderInput) Reset() {
 	*x = OrderInput{}
-	mi := &file_product_proto_msgTypes[316]
+	mi := &file_product_proto_msgTypes[328]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14816,7 +15390,7 @@ func (x *OrderInput) String() string {
 func (*OrderInput) ProtoMessage() {}
 
 func (x *OrderInput) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[316]
+	mi := &file_product_proto_msgTypes[328]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14829,7 +15403,7 @@ func (x *OrderInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OrderInput.ProtoReflect.Descriptor instead.
 func (*OrderInput) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{316}
+	return file_product_proto_rawDescGZIP(), []int{328}
 }
 
 func (x *OrderInput) GetOrderId() string {
@@ -14865,7 +15439,7 @@ type Order struct {
 
 func (x *Order) Reset() {
 	*x = Order{}
-	mi := &file_product_proto_msgTypes[317]
+	mi := &file_product_proto_msgTypes[329]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14877,7 +15451,7 @@ func (x *Order) String() string {
 func (*Order) ProtoMessage() {}
 
 func (x *Order) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[317]
+	mi := &file_product_proto_msgTypes[329]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14890,7 +15464,7 @@ func (x *Order) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Order.ProtoReflect.Descriptor instead.
 func (*Order) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{317}
+	return file_product_proto_rawDescGZIP(), []int{329}
 }
 
 func (x *Order) GetOrderId() string {
@@ -14934,7 +15508,7 @@ type Category struct {
 
 func (x *Category) Reset() {
 	*x = Category{}
-	mi := &file_product_proto_msgTypes[318]
+	mi := &file_product_proto_msgTypes[330]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -14946,7 +15520,7 @@ func (x *Category) String() string {
 func (*Category) ProtoMessage() {}
 
 func (x *Category) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[318]
+	mi := &file_product_proto_msgTypes[330]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -14959,7 +15533,7 @@ func (x *Category) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Category.ProtoReflect.Descriptor instead.
 func (*Category) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{318}
+	return file_product_proto_rawDescGZIP(), []int{330}
 }
 
 func (x *Category) GetId() string {
@@ -15007,7 +15581,7 @@ type CategoryFilter struct {
 
 func (x *CategoryFilter) Reset() {
 	*x = CategoryFilter{}
-	mi := &file_product_proto_msgTypes[319]
+	mi := &file_product_proto_msgTypes[331]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15019,7 +15593,7 @@ func (x *CategoryFilter) String() string {
 func (*CategoryFilter) ProtoMessage() {}
 
 func (x *CategoryFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[319]
+	mi := &file_product_proto_msgTypes[331]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15032,7 +15606,7 @@ func (x *CategoryFilter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CategoryFilter.ProtoReflect.Descriptor instead.
 func (*CategoryFilter) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{319}
+	return file_product_proto_rawDescGZIP(), []int{331}
 }
 
 func (x *CategoryFilter) GetCategory() CategoryKind {
@@ -15062,7 +15636,7 @@ type Animal struct {
 
 func (x *Animal) Reset() {
 	*x = Animal{}
-	mi := &file_product_proto_msgTypes[320]
+	mi := &file_product_proto_msgTypes[332]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15074,7 +15648,7 @@ func (x *Animal) String() string {
 func (*Animal) ProtoMessage() {}
 
 func (x *Animal) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[320]
+	mi := &file_product_proto_msgTypes[332]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15087,7 +15661,7 @@ func (x *Animal) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Animal.ProtoReflect.Descriptor instead.
 func (*Animal) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{320}
+	return file_product_proto_rawDescGZIP(), []int{332}
 }
 
 func (x *Animal) GetInstance() isAnimal_Instance {
@@ -15141,7 +15715,7 @@ type SearchInput struct {
 
 func (x *SearchInput) Reset() {
 	*x = SearchInput{}
-	mi := &file_product_proto_msgTypes[321]
+	mi := &file_product_proto_msgTypes[333]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15153,7 +15727,7 @@ func (x *SearchInput) String() string {
 func (*SearchInput) ProtoMessage() {}
 
 func (x *SearchInput) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[321]
+	mi := &file_product_proto_msgTypes[333]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15166,7 +15740,7 @@ func (x *SearchInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchInput.ProtoReflect.Descriptor instead.
 func (*SearchInput) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{321}
+	return file_product_proto_rawDescGZIP(), []int{333}
 }
 
 func (x *SearchInput) GetQuery() string {
@@ -15197,7 +15771,7 @@ type SearchResult struct {
 
 func (x *SearchResult) Reset() {
 	*x = SearchResult{}
-	mi := &file_product_proto_msgTypes[322]
+	mi := &file_product_proto_msgTypes[334]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15209,7 +15783,7 @@ func (x *SearchResult) String() string {
 func (*SearchResult) ProtoMessage() {}
 
 func (x *SearchResult) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[322]
+	mi := &file_product_proto_msgTypes[334]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15222,7 +15796,7 @@ func (x *SearchResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchResult.ProtoReflect.Descriptor instead.
 func (*SearchResult) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{322}
+	return file_product_proto_rawDescGZIP(), []int{334}
 }
 
 func (x *SearchResult) GetValue() isSearchResult_Value {
@@ -15297,7 +15871,7 @@ type NullableFieldsType struct {
 
 func (x *NullableFieldsType) Reset() {
 	*x = NullableFieldsType{}
-	mi := &file_product_proto_msgTypes[323]
+	mi := &file_product_proto_msgTypes[335]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15309,7 +15883,7 @@ func (x *NullableFieldsType) String() string {
 func (*NullableFieldsType) ProtoMessage() {}
 
 func (x *NullableFieldsType) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[323]
+	mi := &file_product_proto_msgTypes[335]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15322,7 +15896,7 @@ func (x *NullableFieldsType) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NullableFieldsType.ProtoReflect.Descriptor instead.
 func (*NullableFieldsType) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{323}
+	return file_product_proto_rawDescGZIP(), []int{335}
 }
 
 func (x *NullableFieldsType) GetId() string {
@@ -15392,7 +15966,7 @@ type NullableFieldsFilter struct {
 
 func (x *NullableFieldsFilter) Reset() {
 	*x = NullableFieldsFilter{}
-	mi := &file_product_proto_msgTypes[324]
+	mi := &file_product_proto_msgTypes[336]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15404,7 +15978,7 @@ func (x *NullableFieldsFilter) String() string {
 func (*NullableFieldsFilter) ProtoMessage() {}
 
 func (x *NullableFieldsFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[324]
+	mi := &file_product_proto_msgTypes[336]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15417,7 +15991,7 @@ func (x *NullableFieldsFilter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NullableFieldsFilter.ProtoReflect.Descriptor instead.
 func (*NullableFieldsFilter) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{324}
+	return file_product_proto_rawDescGZIP(), []int{336}
 }
 
 func (x *NullableFieldsFilter) GetName() *wrapperspb.StringValue {
@@ -15469,7 +16043,7 @@ type BlogPost struct {
 
 func (x *BlogPost) Reset() {
 	*x = BlogPost{}
-	mi := &file_product_proto_msgTypes[325]
+	mi := &file_product_proto_msgTypes[337]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15481,7 +16055,7 @@ func (x *BlogPost) String() string {
 func (*BlogPost) ProtoMessage() {}
 
 func (x *BlogPost) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[325]
+	mi := &file_product_proto_msgTypes[337]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15494,7 +16068,7 @@ func (x *BlogPost) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BlogPost.ProtoReflect.Descriptor instead.
 func (*BlogPost) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{325}
+	return file_product_proto_rawDescGZIP(), []int{337}
 }
 
 func (x *BlogPost) GetId() string {
@@ -15648,7 +16222,7 @@ type BlogPostFilter struct {
 
 func (x *BlogPostFilter) Reset() {
 	*x = BlogPostFilter{}
-	mi := &file_product_proto_msgTypes[326]
+	mi := &file_product_proto_msgTypes[338]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15660,7 +16234,7 @@ func (x *BlogPostFilter) String() string {
 func (*BlogPostFilter) ProtoMessage() {}
 
 func (x *BlogPostFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[326]
+	mi := &file_product_proto_msgTypes[338]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15673,7 +16247,7 @@ func (x *BlogPostFilter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BlogPostFilter.ProtoReflect.Descriptor instead.
 func (*BlogPostFilter) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{326}
+	return file_product_proto_rawDescGZIP(), []int{338}
 }
 
 func (x *BlogPostFilter) GetTitle() *wrapperspb.StringValue {
@@ -15720,7 +16294,7 @@ type Author struct {
 
 func (x *Author) Reset() {
 	*x = Author{}
-	mi := &file_product_proto_msgTypes[327]
+	mi := &file_product_proto_msgTypes[339]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15732,7 +16306,7 @@ func (x *Author) String() string {
 func (*Author) ProtoMessage() {}
 
 func (x *Author) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[327]
+	mi := &file_product_proto_msgTypes[339]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15745,7 +16319,7 @@ func (x *Author) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Author.ProtoReflect.Descriptor instead.
 func (*Author) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{327}
+	return file_product_proto_rawDescGZIP(), []int{339}
 }
 
 func (x *Author) GetId() string {
@@ -15864,7 +16438,7 @@ type AuthorFilter struct {
 
 func (x *AuthorFilter) Reset() {
 	*x = AuthorFilter{}
-	mi := &file_product_proto_msgTypes[328]
+	mi := &file_product_proto_msgTypes[340]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15876,7 +16450,7 @@ func (x *AuthorFilter) String() string {
 func (*AuthorFilter) ProtoMessage() {}
 
 func (x *AuthorFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[328]
+	mi := &file_product_proto_msgTypes[340]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15889,7 +16463,7 @@ func (x *AuthorFilter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuthorFilter.ProtoReflect.Descriptor instead.
 func (*AuthorFilter) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{328}
+	return file_product_proto_rawDescGZIP(), []int{340}
 }
 
 func (x *AuthorFilter) GetName() *wrapperspb.StringValue {
@@ -15924,7 +16498,7 @@ type TestContainer struct {
 
 func (x *TestContainer) Reset() {
 	*x = TestContainer{}
-	mi := &file_product_proto_msgTypes[329]
+	mi := &file_product_proto_msgTypes[341]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15936,7 +16510,7 @@ func (x *TestContainer) String() string {
 func (*TestContainer) ProtoMessage() {}
 
 func (x *TestContainer) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[329]
+	mi := &file_product_proto_msgTypes[341]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -15949,7 +16523,7 @@ func (x *TestContainer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TestContainer.ProtoReflect.Descriptor instead.
 func (*TestContainer) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{329}
+	return file_product_proto_rawDescGZIP(), []int{341}
 }
 
 func (x *TestContainer) GetId() string {
@@ -15982,7 +16556,7 @@ type UserInput struct {
 
 func (x *UserInput) Reset() {
 	*x = UserInput{}
-	mi := &file_product_proto_msgTypes[330]
+	mi := &file_product_proto_msgTypes[342]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -15994,7 +16568,7 @@ func (x *UserInput) String() string {
 func (*UserInput) ProtoMessage() {}
 
 func (x *UserInput) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[330]
+	mi := &file_product_proto_msgTypes[342]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16007,7 +16581,7 @@ func (x *UserInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserInput.ProtoReflect.Descriptor instead.
 func (*UserInput) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{330}
+	return file_product_proto_rawDescGZIP(), []int{342}
 }
 
 func (x *UserInput) GetName() string {
@@ -16027,7 +16601,7 @@ type ActionInput struct {
 
 func (x *ActionInput) Reset() {
 	*x = ActionInput{}
-	mi := &file_product_proto_msgTypes[331]
+	mi := &file_product_proto_msgTypes[343]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16039,7 +16613,7 @@ func (x *ActionInput) String() string {
 func (*ActionInput) ProtoMessage() {}
 
 func (x *ActionInput) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[331]
+	mi := &file_product_proto_msgTypes[343]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16052,7 +16626,7 @@ func (x *ActionInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActionInput.ProtoReflect.Descriptor instead.
 func (*ActionInput) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{331}
+	return file_product_proto_rawDescGZIP(), []int{343}
 }
 
 func (x *ActionInput) GetType() string {
@@ -16082,7 +16656,7 @@ type ActionResult struct {
 
 func (x *ActionResult) Reset() {
 	*x = ActionResult{}
-	mi := &file_product_proto_msgTypes[332]
+	mi := &file_product_proto_msgTypes[344]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16094,7 +16668,7 @@ func (x *ActionResult) String() string {
 func (*ActionResult) ProtoMessage() {}
 
 func (x *ActionResult) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[332]
+	mi := &file_product_proto_msgTypes[344]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16107,7 +16681,7 @@ func (x *ActionResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActionResult.ProtoReflect.Descriptor instead.
 func (*ActionResult) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{332}
+	return file_product_proto_rawDescGZIP(), []int{344}
 }
 
 func (x *ActionResult) GetValue() isActionResult_Value {
@@ -16166,7 +16740,7 @@ type NullableFieldsInput struct {
 
 func (x *NullableFieldsInput) Reset() {
 	*x = NullableFieldsInput{}
-	mi := &file_product_proto_msgTypes[333]
+	mi := &file_product_proto_msgTypes[345]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16178,7 +16752,7 @@ func (x *NullableFieldsInput) String() string {
 func (*NullableFieldsInput) ProtoMessage() {}
 
 func (x *NullableFieldsInput) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[333]
+	mi := &file_product_proto_msgTypes[345]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16191,7 +16765,7 @@ func (x *NullableFieldsInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NullableFieldsInput.ProtoReflect.Descriptor instead.
 func (*NullableFieldsInput) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{333}
+	return file_product_proto_rawDescGZIP(), []int{345}
 }
 
 func (x *NullableFieldsInput) GetName() string {
@@ -16267,7 +16841,7 @@ type BlogPostInput struct {
 
 func (x *BlogPostInput) Reset() {
 	*x = BlogPostInput{}
-	mi := &file_product_proto_msgTypes[334]
+	mi := &file_product_proto_msgTypes[346]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16279,7 +16853,7 @@ func (x *BlogPostInput) String() string {
 func (*BlogPostInput) ProtoMessage() {}
 
 func (x *BlogPostInput) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[334]
+	mi := &file_product_proto_msgTypes[346]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16292,7 +16866,7 @@ func (x *BlogPostInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BlogPostInput.ProtoReflect.Descriptor instead.
 func (*BlogPostInput) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{334}
+	return file_product_proto_rawDescGZIP(), []int{346}
 }
 
 func (x *BlogPostInput) GetTitle() string {
@@ -16425,7 +16999,7 @@ type AuthorInput struct {
 
 func (x *AuthorInput) Reset() {
 	*x = AuthorInput{}
-	mi := &file_product_proto_msgTypes[335]
+	mi := &file_product_proto_msgTypes[347]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16437,7 +17011,7 @@ func (x *AuthorInput) String() string {
 func (*AuthorInput) ProtoMessage() {}
 
 func (x *AuthorInput) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[335]
+	mi := &file_product_proto_msgTypes[347]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16450,7 +17024,7 @@ func (x *AuthorInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuthorInput.ProtoReflect.Descriptor instead.
 func (*AuthorInput) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{335}
+	return file_product_proto_rawDescGZIP(), []int{347}
 }
 
 func (x *AuthorInput) GetName() string {
@@ -16535,7 +17109,7 @@ type ProductDetails struct {
 
 func (x *ProductDetails) Reset() {
 	*x = ProductDetails{}
-	mi := &file_product_proto_msgTypes[336]
+	mi := &file_product_proto_msgTypes[348]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16547,7 +17121,7 @@ func (x *ProductDetails) String() string {
 func (*ProductDetails) ProtoMessage() {}
 
 func (x *ProductDetails) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[336]
+	mi := &file_product_proto_msgTypes[348]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16560,7 +17134,7 @@ func (x *ProductDetails) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProductDetails.ProtoReflect.Descriptor instead.
 func (*ProductDetails) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{336}
+	return file_product_proto_rawDescGZIP(), []int{348}
 }
 
 func (x *ProductDetails) GetId() string {
@@ -16600,7 +17174,7 @@ type RestockData struct {
 
 func (x *RestockData) Reset() {
 	*x = RestockData{}
-	mi := &file_product_proto_msgTypes[337]
+	mi := &file_product_proto_msgTypes[349]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16612,7 +17186,7 @@ func (x *RestockData) String() string {
 func (*RestockData) ProtoMessage() {}
 
 func (x *RestockData) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[337]
+	mi := &file_product_proto_msgTypes[349]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16625,7 +17199,7 @@ func (x *RestockData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestockData.ProtoReflect.Descriptor instead.
 func (*RestockData) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{337}
+	return file_product_proto_rawDescGZIP(), []int{349}
 }
 
 func (x *RestockData) GetLastRestockDate() string {
@@ -16646,7 +17220,7 @@ type StorageMetadata struct {
 
 func (x *StorageMetadata) Reset() {
 	*x = StorageMetadata{}
-	mi := &file_product_proto_msgTypes[338]
+	mi := &file_product_proto_msgTypes[350]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16658,7 +17232,7 @@ func (x *StorageMetadata) String() string {
 func (*StorageMetadata) ProtoMessage() {}
 
 func (x *StorageMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[338]
+	mi := &file_product_proto_msgTypes[350]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16671,7 +17245,7 @@ func (x *StorageMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StorageMetadata.ProtoReflect.Descriptor instead.
 func (*StorageMetadata) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{338}
+	return file_product_proto_rawDescGZIP(), []int{350}
 }
 
 func (x *StorageMetadata) GetCapacity() int32 {
@@ -16705,7 +17279,7 @@ type StorageCategoryInfo struct {
 
 func (x *StorageCategoryInfo) Reset() {
 	*x = StorageCategoryInfo{}
-	mi := &file_product_proto_msgTypes[339]
+	mi := &file_product_proto_msgTypes[351]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16717,7 +17291,7 @@ func (x *StorageCategoryInfo) String() string {
 func (*StorageCategoryInfo) ProtoMessage() {}
 
 func (x *StorageCategoryInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[339]
+	mi := &file_product_proto_msgTypes[351]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16730,7 +17304,7 @@ func (x *StorageCategoryInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StorageCategoryInfo.ProtoReflect.Descriptor instead.
 func (*StorageCategoryInfo) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{339}
+	return file_product_proto_rawDescGZIP(), []int{351}
 }
 
 func (x *StorageCategoryInfo) GetKind() CategoryKind {
@@ -16758,7 +17332,7 @@ type NestedTypeB struct {
 
 func (x *NestedTypeB) Reset() {
 	*x = NestedTypeB{}
-	mi := &file_product_proto_msgTypes[340]
+	mi := &file_product_proto_msgTypes[352]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16770,7 +17344,7 @@ func (x *NestedTypeB) String() string {
 func (*NestedTypeB) ProtoMessage() {}
 
 func (x *NestedTypeB) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[340]
+	mi := &file_product_proto_msgTypes[352]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16783,7 +17357,7 @@ func (x *NestedTypeB) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NestedTypeB.ProtoReflect.Descriptor instead.
 func (*NestedTypeB) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{340}
+	return file_product_proto_rawDescGZIP(), []int{352}
 }
 
 func (x *NestedTypeB) GetId() string {
@@ -16817,7 +17391,7 @@ type NestedTypeC struct {
 
 func (x *NestedTypeC) Reset() {
 	*x = NestedTypeC{}
-	mi := &file_product_proto_msgTypes[341]
+	mi := &file_product_proto_msgTypes[353]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16829,7 +17403,7 @@ func (x *NestedTypeC) String() string {
 func (*NestedTypeC) ProtoMessage() {}
 
 func (x *NestedTypeC) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[341]
+	mi := &file_product_proto_msgTypes[353]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16842,7 +17416,7 @@ func (x *NestedTypeC) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NestedTypeC.ProtoReflect.Descriptor instead.
 func (*NestedTypeC) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{341}
+	return file_product_proto_rawDescGZIP(), []int{353}
 }
 
 func (x *NestedTypeC) GetId() string {
@@ -16871,7 +17445,7 @@ type FilterType struct {
 
 func (x *FilterType) Reset() {
 	*x = FilterType{}
-	mi := &file_product_proto_msgTypes[342]
+	mi := &file_product_proto_msgTypes[354]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16883,7 +17457,7 @@ func (x *FilterType) String() string {
 func (*FilterType) ProtoMessage() {}
 
 func (x *FilterType) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[342]
+	mi := &file_product_proto_msgTypes[354]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16896,7 +17470,7 @@ func (x *FilterType) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FilterType.ProtoReflect.Descriptor instead.
 func (*FilterType) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{342}
+	return file_product_proto_rawDescGZIP(), []int{354}
 }
 
 func (x *FilterType) GetName() string {
@@ -16937,7 +17511,7 @@ type Pagination struct {
 
 func (x *Pagination) Reset() {
 	*x = Pagination{}
-	mi := &file_product_proto_msgTypes[343]
+	mi := &file_product_proto_msgTypes[355]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16949,7 +17523,7 @@ func (x *Pagination) String() string {
 func (*Pagination) ProtoMessage() {}
 
 func (x *Pagination) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[343]
+	mi := &file_product_proto_msgTypes[355]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16962,7 +17536,7 @@ func (x *Pagination) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Pagination.ProtoReflect.Descriptor instead.
 func (*Pagination) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{343}
+	return file_product_proto_rawDescGZIP(), []int{355}
 }
 
 func (x *Pagination) GetPage() int32 {
@@ -16990,7 +17564,7 @@ type OrderLineInput struct {
 
 func (x *OrderLineInput) Reset() {
 	*x = OrderLineInput{}
-	mi := &file_product_proto_msgTypes[344]
+	mi := &file_product_proto_msgTypes[356]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17002,7 +17576,7 @@ func (x *OrderLineInput) String() string {
 func (*OrderLineInput) ProtoMessage() {}
 
 func (x *OrderLineInput) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[344]
+	mi := &file_product_proto_msgTypes[356]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17015,7 +17589,7 @@ func (x *OrderLineInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OrderLineInput.ProtoReflect.Descriptor instead.
 func (*OrderLineInput) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{344}
+	return file_product_proto_rawDescGZIP(), []int{356}
 }
 
 func (x *OrderLineInput) GetProductId() string {
@@ -17050,7 +17624,7 @@ type OrderLine struct {
 
 func (x *OrderLine) Reset() {
 	*x = OrderLine{}
-	mi := &file_product_proto_msgTypes[345]
+	mi := &file_product_proto_msgTypes[357]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17062,7 +17636,7 @@ func (x *OrderLine) String() string {
 func (*OrderLine) ProtoMessage() {}
 
 func (x *OrderLine) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[345]
+	mi := &file_product_proto_msgTypes[357]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17075,7 +17649,7 @@ func (x *OrderLine) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OrderLine.ProtoReflect.Descriptor instead.
 func (*OrderLine) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{345}
+	return file_product_proto_rawDescGZIP(), []int{357}
 }
 
 func (x *OrderLine) GetProductId() string {
@@ -17111,7 +17685,7 @@ type Subcategory struct {
 
 func (x *Subcategory) Reset() {
 	*x = Subcategory{}
-	mi := &file_product_proto_msgTypes[346]
+	mi := &file_product_proto_msgTypes[358]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17123,7 +17697,7 @@ func (x *Subcategory) String() string {
 func (*Subcategory) ProtoMessage() {}
 
 func (x *Subcategory) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[346]
+	mi := &file_product_proto_msgTypes[358]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17136,7 +17710,7 @@ func (x *Subcategory) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Subcategory.ProtoReflect.Descriptor instead.
 func (*Subcategory) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{346}
+	return file_product_proto_rawDescGZIP(), []int{358}
 }
 
 func (x *Subcategory) GetId() string {
@@ -17180,7 +17754,7 @@ type CategoryMetrics struct {
 
 func (x *CategoryMetrics) Reset() {
 	*x = CategoryMetrics{}
-	mi := &file_product_proto_msgTypes[347]
+	mi := &file_product_proto_msgTypes[359]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17192,7 +17766,7 @@ func (x *CategoryMetrics) String() string {
 func (*CategoryMetrics) ProtoMessage() {}
 
 func (x *CategoryMetrics) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[347]
+	mi := &file_product_proto_msgTypes[359]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17205,7 +17779,7 @@ func (x *CategoryMetrics) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CategoryMetrics.ProtoReflect.Descriptor instead.
 func (*CategoryMetrics) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{347}
+	return file_product_proto_rawDescGZIP(), []int{359}
 }
 
 func (x *CategoryMetrics) GetId() string {
@@ -17257,7 +17831,7 @@ type Cat struct {
 
 func (x *Cat) Reset() {
 	*x = Cat{}
-	mi := &file_product_proto_msgTypes[348]
+	mi := &file_product_proto_msgTypes[360]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17269,7 +17843,7 @@ func (x *Cat) String() string {
 func (*Cat) ProtoMessage() {}
 
 func (x *Cat) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[348]
+	mi := &file_product_proto_msgTypes[360]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17282,7 +17856,7 @@ func (x *Cat) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Cat.ProtoReflect.Descriptor instead.
 func (*Cat) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{348}
+	return file_product_proto_rawDescGZIP(), []int{360}
 }
 
 func (x *Cat) GetId() string {
@@ -17341,7 +17915,7 @@ type Dog struct {
 
 func (x *Dog) Reset() {
 	*x = Dog{}
-	mi := &file_product_proto_msgTypes[349]
+	mi := &file_product_proto_msgTypes[361]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17353,7 +17927,7 @@ func (x *Dog) String() string {
 func (*Dog) ProtoMessage() {}
 
 func (x *Dog) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[349]
+	mi := &file_product_proto_msgTypes[361]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17366,7 +17940,7 @@ func (x *Dog) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Dog.ProtoReflect.Descriptor instead.
 func (*Dog) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{349}
+	return file_product_proto_rawDescGZIP(), []int{361}
 }
 
 func (x *Dog) GetId() string {
@@ -17423,7 +17997,7 @@ type Owner struct {
 
 func (x *Owner) Reset() {
 	*x = Owner{}
-	mi := &file_product_proto_msgTypes[350]
+	mi := &file_product_proto_msgTypes[362]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17435,7 +18009,7 @@ func (x *Owner) String() string {
 func (*Owner) ProtoMessage() {}
 
 func (x *Owner) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[350]
+	mi := &file_product_proto_msgTypes[362]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17448,7 +18022,7 @@ func (x *Owner) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Owner.ProtoReflect.Descriptor instead.
 func (*Owner) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{350}
+	return file_product_proto_rawDescGZIP(), []int{362}
 }
 
 func (x *Owner) GetId() string {
@@ -17490,7 +18064,7 @@ type ContactInfo struct {
 
 func (x *ContactInfo) Reset() {
 	*x = ContactInfo{}
-	mi := &file_product_proto_msgTypes[351]
+	mi := &file_product_proto_msgTypes[363]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17502,7 +18076,7 @@ func (x *ContactInfo) String() string {
 func (*ContactInfo) ProtoMessage() {}
 
 func (x *ContactInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[351]
+	mi := &file_product_proto_msgTypes[363]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17515,7 +18089,7 @@ func (x *ContactInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContactInfo.ProtoReflect.Descriptor instead.
 func (*ContactInfo) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{351}
+	return file_product_proto_rawDescGZIP(), []int{363}
 }
 
 func (x *ContactInfo) GetEmail() string {
@@ -17551,7 +18125,7 @@ type Address struct {
 
 func (x *Address) Reset() {
 	*x = Address{}
-	mi := &file_product_proto_msgTypes[352]
+	mi := &file_product_proto_msgTypes[364]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17563,7 +18137,7 @@ func (x *Address) String() string {
 func (*Address) ProtoMessage() {}
 
 func (x *Address) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[352]
+	mi := &file_product_proto_msgTypes[364]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17576,7 +18150,7 @@ func (x *Address) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Address.ProtoReflect.Descriptor instead.
 func (*Address) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{352}
+	return file_product_proto_rawDescGZIP(), []int{364}
 }
 
 func (x *Address) GetStreet() string {
@@ -17619,7 +18193,7 @@ type CatBreed struct {
 
 func (x *CatBreed) Reset() {
 	*x = CatBreed{}
-	mi := &file_product_proto_msgTypes[353]
+	mi := &file_product_proto_msgTypes[365]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17631,7 +18205,7 @@ func (x *CatBreed) String() string {
 func (*CatBreed) ProtoMessage() {}
 
 func (x *CatBreed) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[353]
+	mi := &file_product_proto_msgTypes[365]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17644,7 +18218,7 @@ func (x *CatBreed) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CatBreed.ProtoReflect.Descriptor instead.
 func (*CatBreed) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{353}
+	return file_product_proto_rawDescGZIP(), []int{365}
 }
 
 func (x *CatBreed) GetId() string {
@@ -17687,7 +18261,7 @@ type DogBreed struct {
 
 func (x *DogBreed) Reset() {
 	*x = DogBreed{}
-	mi := &file_product_proto_msgTypes[354]
+	mi := &file_product_proto_msgTypes[366]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17699,7 +18273,7 @@ func (x *DogBreed) String() string {
 func (*DogBreed) ProtoMessage() {}
 
 func (x *DogBreed) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[354]
+	mi := &file_product_proto_msgTypes[366]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17712,7 +18286,7 @@ func (x *DogBreed) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DogBreed.ProtoReflect.Descriptor instead.
 func (*DogBreed) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{354}
+	return file_product_proto_rawDescGZIP(), []int{366}
 }
 
 func (x *DogBreed) GetId() string {
@@ -17754,7 +18328,7 @@ type BreedCharacteristics struct {
 
 func (x *BreedCharacteristics) Reset() {
 	*x = BreedCharacteristics{}
-	mi := &file_product_proto_msgTypes[355]
+	mi := &file_product_proto_msgTypes[367]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17766,7 +18340,7 @@ func (x *BreedCharacteristics) String() string {
 func (*BreedCharacteristics) ProtoMessage() {}
 
 func (x *BreedCharacteristics) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[355]
+	mi := &file_product_proto_msgTypes[367]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17779,7 +18353,7 @@ func (x *BreedCharacteristics) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BreedCharacteristics.ProtoReflect.Descriptor instead.
 func (*BreedCharacteristics) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{355}
+	return file_product_proto_rawDescGZIP(), []int{367}
 }
 
 func (x *BreedCharacteristics) GetSize() string {
@@ -17813,7 +18387,7 @@ type ActionSuccess struct {
 
 func (x *ActionSuccess) Reset() {
 	*x = ActionSuccess{}
-	mi := &file_product_proto_msgTypes[356]
+	mi := &file_product_proto_msgTypes[368]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17825,7 +18399,7 @@ func (x *ActionSuccess) String() string {
 func (*ActionSuccess) ProtoMessage() {}
 
 func (x *ActionSuccess) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[356]
+	mi := &file_product_proto_msgTypes[368]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17838,7 +18412,7 @@ func (x *ActionSuccess) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActionSuccess.ProtoReflect.Descriptor instead.
 func (*ActionSuccess) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{356}
+	return file_product_proto_rawDescGZIP(), []int{368}
 }
 
 func (x *ActionSuccess) GetMessage() string {
@@ -17865,7 +18439,7 @@ type ActionError struct {
 
 func (x *ActionError) Reset() {
 	*x = ActionError{}
-	mi := &file_product_proto_msgTypes[357]
+	mi := &file_product_proto_msgTypes[369]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17877,7 +18451,7 @@ func (x *ActionError) String() string {
 func (*ActionError) ProtoMessage() {}
 
 func (x *ActionError) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[357]
+	mi := &file_product_proto_msgTypes[369]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17890,7 +18464,7 @@ func (x *ActionError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActionError.ProtoReflect.Descriptor instead.
 func (*ActionError) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{357}
+	return file_product_proto_rawDescGZIP(), []int{369}
 }
 
 func (x *ActionError) GetMessage() string {
@@ -17919,7 +18493,7 @@ type TestDetails struct {
 
 func (x *TestDetails) Reset() {
 	*x = TestDetails{}
-	mi := &file_product_proto_msgTypes[358]
+	mi := &file_product_proto_msgTypes[370]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17931,7 +18505,7 @@ func (x *TestDetails) String() string {
 func (*TestDetails) ProtoMessage() {}
 
 func (x *TestDetails) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[358]
+	mi := &file_product_proto_msgTypes[370]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17944,7 +18518,7 @@ func (x *TestDetails) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TestDetails.ProtoReflect.Descriptor instead.
 func (*TestDetails) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{358}
+	return file_product_proto_rawDescGZIP(), []int{370}
 }
 
 func (x *TestDetails) GetId() string {
@@ -17985,7 +18559,7 @@ type CategoryInput struct {
 
 func (x *CategoryInput) Reset() {
 	*x = CategoryInput{}
-	mi := &file_product_proto_msgTypes[359]
+	mi := &file_product_proto_msgTypes[371]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17997,7 +18571,7 @@ func (x *CategoryInput) String() string {
 func (*CategoryInput) ProtoMessage() {}
 
 func (x *CategoryInput) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[359]
+	mi := &file_product_proto_msgTypes[371]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18010,7 +18584,7 @@ func (x *CategoryInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CategoryInput.ProtoReflect.Descriptor instead.
 func (*CategoryInput) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{359}
+	return file_product_proto_rawDescGZIP(), []int{371}
 }
 
 func (x *CategoryInput) GetName() string {
@@ -18039,7 +18613,7 @@ type ProductCountFilter struct {
 
 func (x *ProductCountFilter) Reset() {
 	*x = ProductCountFilter{}
-	mi := &file_product_proto_msgTypes[360]
+	mi := &file_product_proto_msgTypes[372]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18051,7 +18625,7 @@ func (x *ProductCountFilter) String() string {
 func (*ProductCountFilter) ProtoMessage() {}
 
 func (x *ProductCountFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[360]
+	mi := &file_product_proto_msgTypes[372]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18064,7 +18638,7 @@ func (x *ProductCountFilter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProductCountFilter.ProtoReflect.Descriptor instead.
 func (*ProductCountFilter) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{360}
+	return file_product_proto_rawDescGZIP(), []int{372}
 }
 
 func (x *ProductCountFilter) GetMinPrice() *wrapperspb.DoubleValue {
@@ -18108,7 +18682,7 @@ type SubcategoryItemFilter struct {
 
 func (x *SubcategoryItemFilter) Reset() {
 	*x = SubcategoryItemFilter{}
-	mi := &file_product_proto_msgTypes[361]
+	mi := &file_product_proto_msgTypes[373]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18120,7 +18694,7 @@ func (x *SubcategoryItemFilter) String() string {
 func (*SubcategoryItemFilter) ProtoMessage() {}
 
 func (x *SubcategoryItemFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[361]
+	mi := &file_product_proto_msgTypes[373]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18133,7 +18707,7 @@ func (x *SubcategoryItemFilter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubcategoryItemFilter.ProtoReflect.Descriptor instead.
 func (*SubcategoryItemFilter) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{361}
+	return file_product_proto_rawDescGZIP(), []int{373}
 }
 
 func (x *SubcategoryItemFilter) GetMinPrice() *wrapperspb.DoubleValue {
@@ -18182,7 +18756,7 @@ type ShippingEstimateInput struct {
 
 func (x *ShippingEstimateInput) Reset() {
 	*x = ShippingEstimateInput{}
-	mi := &file_product_proto_msgTypes[362]
+	mi := &file_product_proto_msgTypes[374]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18194,7 +18768,7 @@ func (x *ShippingEstimateInput) String() string {
 func (*ShippingEstimateInput) ProtoMessage() {}
 
 func (x *ShippingEstimateInput) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[362]
+	mi := &file_product_proto_msgTypes[374]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18207,7 +18781,7 @@ func (x *ShippingEstimateInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ShippingEstimateInput.ProtoReflect.Descriptor instead.
 func (*ShippingEstimateInput) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{362}
+	return file_product_proto_rawDescGZIP(), []int{374}
 }
 
 func (x *ShippingEstimateInput) GetDestination() ShippingDestination {
@@ -18240,7 +18814,7 @@ type ListOfAuthorFilter_List struct {
 
 func (x *ListOfAuthorFilter_List) Reset() {
 	*x = ListOfAuthorFilter_List{}
-	mi := &file_product_proto_msgTypes[363]
+	mi := &file_product_proto_msgTypes[375]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18252,7 +18826,7 @@ func (x *ListOfAuthorFilter_List) String() string {
 func (*ListOfAuthorFilter_List) ProtoMessage() {}
 
 func (x *ListOfAuthorFilter_List) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[363]
+	mi := &file_product_proto_msgTypes[375]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18284,7 +18858,7 @@ type ListOfAuthorInput_List struct {
 
 func (x *ListOfAuthorInput_List) Reset() {
 	*x = ListOfAuthorInput_List{}
-	mi := &file_product_proto_msgTypes[364]
+	mi := &file_product_proto_msgTypes[376]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18296,7 +18870,7 @@ func (x *ListOfAuthorInput_List) String() string {
 func (*ListOfAuthorInput_List) ProtoMessage() {}
 
 func (x *ListOfAuthorInput_List) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[364]
+	mi := &file_product_proto_msgTypes[376]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18328,7 +18902,7 @@ type ListOfBlogPost_List struct {
 
 func (x *ListOfBlogPost_List) Reset() {
 	*x = ListOfBlogPost_List{}
-	mi := &file_product_proto_msgTypes[365]
+	mi := &file_product_proto_msgTypes[377]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18340,7 +18914,7 @@ func (x *ListOfBlogPost_List) String() string {
 func (*ListOfBlogPost_List) ProtoMessage() {}
 
 func (x *ListOfBlogPost_List) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[365]
+	mi := &file_product_proto_msgTypes[377]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18372,7 +18946,7 @@ type ListOfBlogPostFilter_List struct {
 
 func (x *ListOfBlogPostFilter_List) Reset() {
 	*x = ListOfBlogPostFilter_List{}
-	mi := &file_product_proto_msgTypes[366]
+	mi := &file_product_proto_msgTypes[378]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18384,7 +18958,7 @@ func (x *ListOfBlogPostFilter_List) String() string {
 func (*ListOfBlogPostFilter_List) ProtoMessage() {}
 
 func (x *ListOfBlogPostFilter_List) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[366]
+	mi := &file_product_proto_msgTypes[378]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18416,7 +18990,7 @@ type ListOfBlogPostInput_List struct {
 
 func (x *ListOfBlogPostInput_List) Reset() {
 	*x = ListOfBlogPostInput_List{}
-	mi := &file_product_proto_msgTypes[367]
+	mi := &file_product_proto_msgTypes[379]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18428,7 +19002,7 @@ func (x *ListOfBlogPostInput_List) String() string {
 func (*ListOfBlogPostInput_List) ProtoMessage() {}
 
 func (x *ListOfBlogPostInput_List) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[367]
+	mi := &file_product_proto_msgTypes[379]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18460,7 +19034,7 @@ type ListOfBoolean_List struct {
 
 func (x *ListOfBoolean_List) Reset() {
 	*x = ListOfBoolean_List{}
-	mi := &file_product_proto_msgTypes[368]
+	mi := &file_product_proto_msgTypes[380]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18472,7 +19046,7 @@ func (x *ListOfBoolean_List) String() string {
 func (*ListOfBoolean_List) ProtoMessage() {}
 
 func (x *ListOfBoolean_List) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[368]
+	mi := &file_product_proto_msgTypes[380]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18504,7 +19078,7 @@ type ListOfCategory_List struct {
 
 func (x *ListOfCategory_List) Reset() {
 	*x = ListOfCategory_List{}
-	mi := &file_product_proto_msgTypes[369]
+	mi := &file_product_proto_msgTypes[381]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18516,7 +19090,7 @@ func (x *ListOfCategory_List) String() string {
 func (*ListOfCategory_List) ProtoMessage() {}
 
 func (x *ListOfCategory_List) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[369]
+	mi := &file_product_proto_msgTypes[381]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18548,7 +19122,7 @@ type ListOfCategoryInput_List struct {
 
 func (x *ListOfCategoryInput_List) Reset() {
 	*x = ListOfCategoryInput_List{}
-	mi := &file_product_proto_msgTypes[370]
+	mi := &file_product_proto_msgTypes[382]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18560,7 +19134,7 @@ func (x *ListOfCategoryInput_List) String() string {
 func (*ListOfCategoryInput_List) ProtoMessage() {}
 
 func (x *ListOfCategoryInput_List) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[370]
+	mi := &file_product_proto_msgTypes[382]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18592,7 +19166,7 @@ type ListOfFloat_List struct {
 
 func (x *ListOfFloat_List) Reset() {
 	*x = ListOfFloat_List{}
-	mi := &file_product_proto_msgTypes[371]
+	mi := &file_product_proto_msgTypes[383]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18604,7 +19178,7 @@ func (x *ListOfFloat_List) String() string {
 func (*ListOfFloat_List) ProtoMessage() {}
 
 func (x *ListOfFloat_List) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[371]
+	mi := &file_product_proto_msgTypes[383]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18636,7 +19210,7 @@ type ListOfListOfCategory_List struct {
 
 func (x *ListOfListOfCategory_List) Reset() {
 	*x = ListOfListOfCategory_List{}
-	mi := &file_product_proto_msgTypes[372]
+	mi := &file_product_proto_msgTypes[384]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18648,7 +19222,7 @@ func (x *ListOfListOfCategory_List) String() string {
 func (*ListOfListOfCategory_List) ProtoMessage() {}
 
 func (x *ListOfListOfCategory_List) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[372]
+	mi := &file_product_proto_msgTypes[384]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18680,7 +19254,7 @@ type ListOfListOfCategoryInput_List struct {
 
 func (x *ListOfListOfCategoryInput_List) Reset() {
 	*x = ListOfListOfCategoryInput_List{}
-	mi := &file_product_proto_msgTypes[373]
+	mi := &file_product_proto_msgTypes[385]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18692,7 +19266,7 @@ func (x *ListOfListOfCategoryInput_List) String() string {
 func (*ListOfListOfCategoryInput_List) ProtoMessage() {}
 
 func (x *ListOfListOfCategoryInput_List) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[373]
+	mi := &file_product_proto_msgTypes[385]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18724,7 +19298,7 @@ type ListOfListOfString_List struct {
 
 func (x *ListOfListOfString_List) Reset() {
 	*x = ListOfListOfString_List{}
-	mi := &file_product_proto_msgTypes[374]
+	mi := &file_product_proto_msgTypes[386]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18736,7 +19310,7 @@ func (x *ListOfListOfString_List) String() string {
 func (*ListOfListOfString_List) ProtoMessage() {}
 
 func (x *ListOfListOfString_List) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[374]
+	mi := &file_product_proto_msgTypes[386]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18768,7 +19342,7 @@ type ListOfListOfUser_List struct {
 
 func (x *ListOfListOfUser_List) Reset() {
 	*x = ListOfListOfUser_List{}
-	mi := &file_product_proto_msgTypes[375]
+	mi := &file_product_proto_msgTypes[387]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18780,7 +19354,7 @@ func (x *ListOfListOfUser_List) String() string {
 func (*ListOfListOfUser_List) ProtoMessage() {}
 
 func (x *ListOfListOfUser_List) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[375]
+	mi := &file_product_proto_msgTypes[387]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18812,7 +19386,7 @@ type ListOfListOfUserInput_List struct {
 
 func (x *ListOfListOfUserInput_List) Reset() {
 	*x = ListOfListOfUserInput_List{}
-	mi := &file_product_proto_msgTypes[376]
+	mi := &file_product_proto_msgTypes[388]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18824,7 +19398,7 @@ func (x *ListOfListOfUserInput_List) String() string {
 func (*ListOfListOfUserInput_List) ProtoMessage() {}
 
 func (x *ListOfListOfUserInput_List) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[376]
+	mi := &file_product_proto_msgTypes[388]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18856,7 +19430,7 @@ type ListOfOrderLine_List struct {
 
 func (x *ListOfOrderLine_List) Reset() {
 	*x = ListOfOrderLine_List{}
-	mi := &file_product_proto_msgTypes[377]
+	mi := &file_product_proto_msgTypes[389]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18868,7 +19442,7 @@ func (x *ListOfOrderLine_List) String() string {
 func (*ListOfOrderLine_List) ProtoMessage() {}
 
 func (x *ListOfOrderLine_List) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[377]
+	mi := &file_product_proto_msgTypes[389]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18900,7 +19474,7 @@ type ListOfProduct_List struct {
 
 func (x *ListOfProduct_List) Reset() {
 	*x = ListOfProduct_List{}
-	mi := &file_product_proto_msgTypes[378]
+	mi := &file_product_proto_msgTypes[390]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18912,7 +19486,7 @@ func (x *ListOfProduct_List) String() string {
 func (*ListOfProduct_List) ProtoMessage() {}
 
 func (x *ListOfProduct_List) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[378]
+	mi := &file_product_proto_msgTypes[390]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18944,7 +19518,7 @@ type ListOfStorage_List struct {
 
 func (x *ListOfStorage_List) Reset() {
 	*x = ListOfStorage_List{}
-	mi := &file_product_proto_msgTypes[379]
+	mi := &file_product_proto_msgTypes[391]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18956,7 +19530,7 @@ func (x *ListOfStorage_List) String() string {
 func (*ListOfStorage_List) ProtoMessage() {}
 
 func (x *ListOfStorage_List) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[379]
+	mi := &file_product_proto_msgTypes[391]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18988,7 +19562,7 @@ type ListOfString_List struct {
 
 func (x *ListOfString_List) Reset() {
 	*x = ListOfString_List{}
-	mi := &file_product_proto_msgTypes[380]
+	mi := &file_product_proto_msgTypes[392]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19000,7 +19574,7 @@ func (x *ListOfString_List) String() string {
 func (*ListOfString_List) ProtoMessage() {}
 
 func (x *ListOfString_List) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[380]
+	mi := &file_product_proto_msgTypes[392]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19032,7 +19606,7 @@ type ListOfSubcategory_List struct {
 
 func (x *ListOfSubcategory_List) Reset() {
 	*x = ListOfSubcategory_List{}
-	mi := &file_product_proto_msgTypes[381]
+	mi := &file_product_proto_msgTypes[393]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19044,7 +19618,7 @@ func (x *ListOfSubcategory_List) String() string {
 func (*ListOfSubcategory_List) ProtoMessage() {}
 
 func (x *ListOfSubcategory_List) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[381]
+	mi := &file_product_proto_msgTypes[393]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19076,7 +19650,7 @@ type ListOfUser_List struct {
 
 func (x *ListOfUser_List) Reset() {
 	*x = ListOfUser_List{}
-	mi := &file_product_proto_msgTypes[382]
+	mi := &file_product_proto_msgTypes[394]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19088,7 +19662,7 @@ func (x *ListOfUser_List) String() string {
 func (*ListOfUser_List) ProtoMessage() {}
 
 func (x *ListOfUser_List) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[382]
+	mi := &file_product_proto_msgTypes[394]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19120,7 +19694,7 @@ type ListOfUserInput_List struct {
 
 func (x *ListOfUserInput_List) Reset() {
 	*x = ListOfUserInput_List{}
-	mi := &file_product_proto_msgTypes[383]
+	mi := &file_product_proto_msgTypes[395]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19132,7 +19706,7 @@ func (x *ListOfUserInput_List) String() string {
 func (*ListOfUserInput_List) ProtoMessage() {}
 
 func (x *ListOfUserInput_List) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[383]
+	mi := &file_product_proto_msgTypes[395]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19164,7 +19738,7 @@ type RequireStorageStockHealthScoreByIdFields_RestockData struct {
 
 func (x *RequireStorageStockHealthScoreByIdFields_RestockData) Reset() {
 	*x = RequireStorageStockHealthScoreByIdFields_RestockData{}
-	mi := &file_product_proto_msgTypes[384]
+	mi := &file_product_proto_msgTypes[396]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19176,7 +19750,7 @@ func (x *RequireStorageStockHealthScoreByIdFields_RestockData) String() string {
 func (*RequireStorageStockHealthScoreByIdFields_RestockData) ProtoMessage() {}
 
 func (x *RequireStorageStockHealthScoreByIdFields_RestockData) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[384]
+	mi := &file_product_proto_msgTypes[396]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19209,7 +19783,7 @@ type RequireStorageMetadataScoreByIdFields_StorageMetadata struct {
 
 func (x *RequireStorageMetadataScoreByIdFields_StorageMetadata) Reset() {
 	*x = RequireStorageMetadataScoreByIdFields_StorageMetadata{}
-	mi := &file_product_proto_msgTypes[385]
+	mi := &file_product_proto_msgTypes[397]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19221,7 +19795,7 @@ func (x *RequireStorageMetadataScoreByIdFields_StorageMetadata) String() string 
 func (*RequireStorageMetadataScoreByIdFields_StorageMetadata) ProtoMessage() {}
 
 func (x *RequireStorageMetadataScoreByIdFields_StorageMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[385]
+	mi := &file_product_proto_msgTypes[397]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19262,7 +19836,7 @@ type RequireStorageProcessedMetadataByIdFields_StorageMetadata struct {
 
 func (x *RequireStorageProcessedMetadataByIdFields_StorageMetadata) Reset() {
 	*x = RequireStorageProcessedMetadataByIdFields_StorageMetadata{}
-	mi := &file_product_proto_msgTypes[386]
+	mi := &file_product_proto_msgTypes[398]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19274,7 +19848,7 @@ func (x *RequireStorageProcessedMetadataByIdFields_StorageMetadata) String() str
 func (*RequireStorageProcessedMetadataByIdFields_StorageMetadata) ProtoMessage() {}
 
 func (x *RequireStorageProcessedMetadataByIdFields_StorageMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[386]
+	mi := &file_product_proto_msgTypes[398]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19321,7 +19895,7 @@ type RequireStorageOptionalProcessedMetadataByIdFields_StorageMetadata struct {
 
 func (x *RequireStorageOptionalProcessedMetadataByIdFields_StorageMetadata) Reset() {
 	*x = RequireStorageOptionalProcessedMetadataByIdFields_StorageMetadata{}
-	mi := &file_product_proto_msgTypes[387]
+	mi := &file_product_proto_msgTypes[399]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19333,7 +19907,7 @@ func (x *RequireStorageOptionalProcessedMetadataByIdFields_StorageMetadata) Stri
 func (*RequireStorageOptionalProcessedMetadataByIdFields_StorageMetadata) ProtoMessage() {}
 
 func (x *RequireStorageOptionalProcessedMetadataByIdFields_StorageMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[387]
+	mi := &file_product_proto_msgTypes[399]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19373,7 +19947,7 @@ type RequireStorageProcessedMetadataHistoryByIdFields_StorageMetadata struct {
 
 func (x *RequireStorageProcessedMetadataHistoryByIdFields_StorageMetadata) Reset() {
 	*x = RequireStorageProcessedMetadataHistoryByIdFields_StorageMetadata{}
-	mi := &file_product_proto_msgTypes[388]
+	mi := &file_product_proto_msgTypes[400]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19385,7 +19959,7 @@ func (x *RequireStorageProcessedMetadataHistoryByIdFields_StorageMetadata) Strin
 func (*RequireStorageProcessedMetadataHistoryByIdFields_StorageMetadata) ProtoMessage() {}
 
 func (x *RequireStorageProcessedMetadataHistoryByIdFields_StorageMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[388]
+	mi := &file_product_proto_msgTypes[400]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19425,7 +19999,7 @@ type RequireStorageCategoryInfoSummaryByIdFields_StorageCategoryInfo struct {
 
 func (x *RequireStorageCategoryInfoSummaryByIdFields_StorageCategoryInfo) Reset() {
 	*x = RequireStorageCategoryInfoSummaryByIdFields_StorageCategoryInfo{}
-	mi := &file_product_proto_msgTypes[389]
+	mi := &file_product_proto_msgTypes[401]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19437,7 +20011,7 @@ func (x *RequireStorageCategoryInfoSummaryByIdFields_StorageCategoryInfo) String
 func (*RequireStorageCategoryInfoSummaryByIdFields_StorageCategoryInfo) ProtoMessage() {}
 
 func (x *RequireStorageCategoryInfoSummaryByIdFields_StorageCategoryInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[389]
+	mi := &file_product_proto_msgTypes[401]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19476,7 +20050,7 @@ type RequireWarehouseStockHealthScoreByIdFields_RestockData struct {
 
 func (x *RequireWarehouseStockHealthScoreByIdFields_RestockData) Reset() {
 	*x = RequireWarehouseStockHealthScoreByIdFields_RestockData{}
-	mi := &file_product_proto_msgTypes[390]
+	mi := &file_product_proto_msgTypes[402]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19488,7 +20062,7 @@ func (x *RequireWarehouseStockHealthScoreByIdFields_RestockData) String() string
 func (*RequireWarehouseStockHealthScoreByIdFields_RestockData) ProtoMessage() {}
 
 func (x *RequireWarehouseStockHealthScoreByIdFields_RestockData) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[390]
+	mi := &file_product_proto_msgTypes[402]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19501,7 +20075,7 @@ func (x *RequireWarehouseStockHealthScoreByIdFields_RestockData) ProtoReflect() 
 
 // Deprecated: Use RequireWarehouseStockHealthScoreByIdFields_RestockData.ProtoReflect.Descriptor instead.
 func (*RequireWarehouseStockHealthScoreByIdFields_RestockData) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{305, 0}
+	return file_product_proto_rawDescGZIP(), []int{317, 0}
 }
 
 func (x *RequireWarehouseStockHealthScoreByIdFields_RestockData) GetLastRestockDate() string {
@@ -20262,6 +20836,38 @@ const file_product_proto_rawDesc = "" +
 	"*RequireStorageFilteredTagSummaryByIdResult\x12N\n" +
 	"\x14filtered_tag_summary\x18\x01 \x01(\v2\x1c.google.protobuf.StringValueR\x12filteredTagSummary\"@\n" +
 	"*RequireStorageFilteredTagSummaryByIdFields\x12\x12\n" +
+	"\x04tags\x18\x01 \x03(\tR\x04tags\"\xe2\x01\n" +
+	"0RequireStorageMultiFilteredTagSummaryByIdRequest\x12U\n" +
+	"\acontext\x18\x01 \x03(\v2;.productv1.RequireStorageMultiFilteredTagSummaryByIdContextR\acontext\x12W\n" +
+	"\n" +
+	"field_args\x18\x02 \x01(\v28.productv1.RequireStorageMultiFilteredTagSummaryByIdArgsR\tfieldArgs\"\xc0\x01\n" +
+	"0RequireStorageMultiFilteredTagSummaryByIdContext\x128\n" +
+	"\x03key\x18\x01 \x01(\v2&.productv1.LookupStorageByIdRequestKeyR\x03key\x12R\n" +
+	"\x06fields\x18\x02 \x01(\v2:.productv1.RequireStorageMultiFilteredTagSummaryByIdFieldsR\x06fields\"l\n" +
+	"-RequireStorageMultiFilteredTagSummaryByIdArgs\x12\x1a\n" +
+	"\bprefixes\x18\x01 \x03(\tR\bprefixes\x12\x1f\n" +
+	"\vmax_results\x18\x02 \x01(\x05R\n" +
+	"maxResults\"\x87\x01\n" +
+	"1RequireStorageMultiFilteredTagSummaryByIdResponse\x12R\n" +
+	"\x06result\x18\x01 \x03(\v2:.productv1.RequireStorageMultiFilteredTagSummaryByIdResultR\x06result\"\x8c\x01\n" +
+	"/RequireStorageMultiFilteredTagSummaryByIdResult\x12Y\n" +
+	"\x1amulti_filtered_tag_summary\x18\x01 \x01(\v2\x1c.google.protobuf.StringValueR\x17multiFilteredTagSummary\"E\n" +
+	"/RequireStorageMultiFilteredTagSummaryByIdFields\x12\x12\n" +
+	"\x04tags\x18\x01 \x03(\tR\x04tags\"\xeb\x01\n" +
+	"3RequireStorageNullableFilteredTagSummaryByIdRequest\x12X\n" +
+	"\acontext\x18\x01 \x03(\v2>.productv1.RequireStorageNullableFilteredTagSummaryByIdContextR\acontext\x12Z\n" +
+	"\n" +
+	"field_args\x18\x02 \x01(\v2;.productv1.RequireStorageNullableFilteredTagSummaryByIdArgsR\tfieldArgs\"\xc6\x01\n" +
+	"3RequireStorageNullableFilteredTagSummaryByIdContext\x128\n" +
+	"\x03key\x18\x01 \x01(\v2&.productv1.LookupStorageByIdRequestKeyR\x03key\x12U\n" +
+	"\x06fields\x18\x02 \x01(\v2=.productv1.RequireStorageNullableFilteredTagSummaryByIdFieldsR\x06fields\"h\n" +
+	"0RequireStorageNullableFilteredTagSummaryByIdArgs\x124\n" +
+	"\x06prefix\x18\x01 \x01(\v2\x1c.google.protobuf.StringValueR\x06prefix\"\x8d\x01\n" +
+	"4RequireStorageNullableFilteredTagSummaryByIdResponse\x12U\n" +
+	"\x06result\x18\x01 \x03(\v2=.productv1.RequireStorageNullableFilteredTagSummaryByIdResultR\x06result\"\x95\x01\n" +
+	"2RequireStorageNullableFilteredTagSummaryByIdResult\x12_\n" +
+	"\x1dnullable_filtered_tag_summary\x18\x01 \x01(\v2\x1c.google.protobuf.StringValueR\x1anullableFilteredTagSummary\"H\n" +
+	"2RequireStorageNullableFilteredTagSummaryByIdFields\x12\x12\n" +
 	"\x04tags\x18\x01 \x03(\tR\x04tags\"\x7f\n" +
 	"+RequireWarehouseStockHealthScoreByIdRequest\x12P\n" +
 	"\acontext\x18\x01 \x03(\v26.productv1.RequireWarehouseStockHealthScoreByIdContextR\acontext\"\xb8\x01\n" +
@@ -20610,7 +21216,7 @@ const file_product_proto_rawDesc = "" +
 	" SHIPPING_DESTINATION_UNSPECIFIED\x10\x00\x12!\n" +
 	"\x1dSHIPPING_DESTINATION_DOMESTIC\x10\x01\x12 \n" +
 	"\x1cSHIPPING_DESTINATION_EXPRESS\x10\x02\x12&\n" +
-	"\"SHIPPING_DESTINATION_INTERNATIONAL\x10\x032\xa0S\n" +
+	"\"SHIPPING_DESTINATION_INTERNATIONAL\x10\x032\xffU\n" +
 	"\x0eProductService\x12`\n" +
 	"\x11LookupProductById\x12#.productv1.LookupProductByIdRequest\x1a$.productv1.LookupProductByIdResponse\"\x00\x12`\n" +
 	"\x11LookupStorageById\x12#.productv1.LookupStorageByIdRequest\x1a$.productv1.LookupStorageByIdResponse\"\x00\x12f\n" +
@@ -20664,7 +21270,9 @@ const file_product_proto_rawDesc = "" +
 	"%RequireStorageCategoryInfoSummaryById\x127.productv1.RequireStorageCategoryInfoSummaryByIdRequest\x1a8.productv1.RequireStorageCategoryInfoSummaryByIdResponse\"\x00\x12\x99\x01\n" +
 	"$RequireStorageFilteredTagSummaryById\x126.productv1.RequireStorageFilteredTagSummaryByIdRequest\x1a7.productv1.RequireStorageFilteredTagSummaryByIdResponse\"\x00\x12\x84\x01\n" +
 	"\x1dRequireStorageKindSummaryById\x12/.productv1.RequireStorageKindSummaryByIdRequest\x1a0.productv1.RequireStorageKindSummaryByIdResponse\"\x00\x12\x8a\x01\n" +
-	"\x1fRequireStorageMetadataScoreById\x121.productv1.RequireStorageMetadataScoreByIdRequest\x1a2.productv1.RequireStorageMetadataScoreByIdResponse\"\x00\x12\xae\x01\n" +
+	"\x1fRequireStorageMetadataScoreById\x121.productv1.RequireStorageMetadataScoreByIdRequest\x1a2.productv1.RequireStorageMetadataScoreByIdResponse\"\x00\x12\xa8\x01\n" +
+	")RequireStorageMultiFilteredTagSummaryById\x12;.productv1.RequireStorageMultiFilteredTagSummaryByIdRequest\x1a<.productv1.RequireStorageMultiFilteredTagSummaryByIdResponse\"\x00\x12\xb1\x01\n" +
+	",RequireStorageNullableFilteredTagSummaryById\x12>.productv1.RequireStorageNullableFilteredTagSummaryByIdRequest\x1a?.productv1.RequireStorageNullableFilteredTagSummaryByIdResponse\"\x00\x12\xae\x01\n" +
 	"+RequireStorageOptionalProcessedMetadataById\x12=.productv1.RequireStorageOptionalProcessedMetadataByIdRequest\x1a>.productv1.RequireStorageOptionalProcessedMetadataByIdResponse\"\x00\x12\xa2\x01\n" +
 	"'RequireStorageOptionalProcessedTagsById\x129.productv1.RequireStorageOptionalProcessedTagsByIdRequest\x1a:.productv1.RequireStorageOptionalProcessedTagsByIdResponse\"\x00\x12\x99\x01\n" +
 	"$RequireStorageOptionalTagSummaryById\x126.productv1.RequireStorageOptionalTagSummaryByIdRequest\x1a7.productv1.RequireStorageOptionalTagSummaryByIdResponse\"\x00\x12\x96\x01\n" +
@@ -20713,564 +21321,576 @@ func file_product_proto_rawDescGZIP() []byte {
 }
 
 var file_product_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_product_proto_msgTypes = make([]protoimpl.MessageInfo, 391)
+var file_product_proto_msgTypes = make([]protoimpl.MessageInfo, 403)
 var file_product_proto_goTypes = []any{
-	(CategoryKind)(0),                                           // 0: productv1.CategoryKind
-	(ShippingDestination)(0),                                    // 1: productv1.ShippingDestination
-	(*ListOfAuthorFilter)(nil),                                  // 2: productv1.ListOfAuthorFilter
-	(*ListOfAuthorInput)(nil),                                   // 3: productv1.ListOfAuthorInput
-	(*ListOfBlogPost)(nil),                                      // 4: productv1.ListOfBlogPost
-	(*ListOfBlogPostFilter)(nil),                                // 5: productv1.ListOfBlogPostFilter
-	(*ListOfBlogPostInput)(nil),                                 // 6: productv1.ListOfBlogPostInput
-	(*ListOfBoolean)(nil),                                       // 7: productv1.ListOfBoolean
-	(*ListOfCategory)(nil),                                      // 8: productv1.ListOfCategory
-	(*ListOfCategoryInput)(nil),                                 // 9: productv1.ListOfCategoryInput
-	(*ListOfFloat)(nil),                                         // 10: productv1.ListOfFloat
-	(*ListOfListOfCategory)(nil),                                // 11: productv1.ListOfListOfCategory
-	(*ListOfListOfCategoryInput)(nil),                           // 12: productv1.ListOfListOfCategoryInput
-	(*ListOfListOfString)(nil),                                  // 13: productv1.ListOfListOfString
-	(*ListOfListOfUser)(nil),                                    // 14: productv1.ListOfListOfUser
-	(*ListOfListOfUserInput)(nil),                               // 15: productv1.ListOfListOfUserInput
-	(*ListOfOrderLine)(nil),                                     // 16: productv1.ListOfOrderLine
-	(*ListOfProduct)(nil),                                       // 17: productv1.ListOfProduct
-	(*ListOfStorage)(nil),                                       // 18: productv1.ListOfStorage
-	(*ListOfString)(nil),                                        // 19: productv1.ListOfString
-	(*ListOfSubcategory)(nil),                                   // 20: productv1.ListOfSubcategory
-	(*ListOfUser)(nil),                                          // 21: productv1.ListOfUser
-	(*ListOfUserInput)(nil),                                     // 22: productv1.ListOfUserInput
-	(*LookupProductByIdRequestKey)(nil),                         // 23: productv1.LookupProductByIdRequestKey
-	(*LookupProductByIdRequest)(nil),                            // 24: productv1.LookupProductByIdRequest
-	(*LookupProductByIdResponse)(nil),                           // 25: productv1.LookupProductByIdResponse
-	(*LookupStorageByIdRequestKey)(nil),                         // 26: productv1.LookupStorageByIdRequestKey
-	(*LookupStorageByIdRequest)(nil),                            // 27: productv1.LookupStorageByIdRequest
-	(*LookupStorageByIdResponse)(nil),                           // 28: productv1.LookupStorageByIdResponse
-	(*LookupWarehouseByIdRequestKey)(nil),                       // 29: productv1.LookupWarehouseByIdRequestKey
-	(*LookupWarehouseByIdRequest)(nil),                          // 30: productv1.LookupWarehouseByIdRequest
-	(*LookupWarehouseByIdResponse)(nil),                         // 31: productv1.LookupWarehouseByIdResponse
-	(*QueryUsersRequest)(nil),                                   // 32: productv1.QueryUsersRequest
-	(*QueryUsersResponse)(nil),                                  // 33: productv1.QueryUsersResponse
-	(*QueryUserRequest)(nil),                                    // 34: productv1.QueryUserRequest
-	(*QueryUserResponse)(nil),                                   // 35: productv1.QueryUserResponse
-	(*QueryNestedTypeRequest)(nil),                              // 36: productv1.QueryNestedTypeRequest
-	(*QueryNestedTypeResponse)(nil),                             // 37: productv1.QueryNestedTypeResponse
-	(*QueryRecursiveTypeRequest)(nil),                           // 38: productv1.QueryRecursiveTypeRequest
-	(*QueryRecursiveTypeResponse)(nil),                          // 39: productv1.QueryRecursiveTypeResponse
-	(*QueryTypeFilterWithArgumentsRequest)(nil),                 // 40: productv1.QueryTypeFilterWithArgumentsRequest
-	(*QueryTypeFilterWithArgumentsResponse)(nil),                // 41: productv1.QueryTypeFilterWithArgumentsResponse
-	(*QueryTypeWithMultipleFilterFieldsRequest)(nil),            // 42: productv1.QueryTypeWithMultipleFilterFieldsRequest
-	(*QueryTypeWithMultipleFilterFieldsResponse)(nil),           // 43: productv1.QueryTypeWithMultipleFilterFieldsResponse
-	(*QueryComplexFilterTypeRequest)(nil),                       // 44: productv1.QueryComplexFilterTypeRequest
-	(*QueryComplexFilterTypeResponse)(nil),                      // 45: productv1.QueryComplexFilterTypeResponse
-	(*QueryCalculateTotalsRequest)(nil),                         // 46: productv1.QueryCalculateTotalsRequest
-	(*QueryCalculateTotalsResponse)(nil),                        // 47: productv1.QueryCalculateTotalsResponse
-	(*QueryCategoriesRequest)(nil),                              // 48: productv1.QueryCategoriesRequest
-	(*QueryCategoriesResponse)(nil),                             // 49: productv1.QueryCategoriesResponse
-	(*QueryCategoryRequest)(nil),                                // 50: productv1.QueryCategoryRequest
-	(*QueryCategoryResponse)(nil),                               // 51: productv1.QueryCategoryResponse
-	(*QueryCategoriesByKindRequest)(nil),                        // 52: productv1.QueryCategoriesByKindRequest
-	(*QueryCategoriesByKindResponse)(nil),                       // 53: productv1.QueryCategoriesByKindResponse
-	(*QueryCategoriesByKindsRequest)(nil),                       // 54: productv1.QueryCategoriesByKindsRequest
-	(*QueryCategoriesByKindsResponse)(nil),                      // 55: productv1.QueryCategoriesByKindsResponse
-	(*QueryFilterCategoriesRequest)(nil),                        // 56: productv1.QueryFilterCategoriesRequest
-	(*QueryFilterCategoriesResponse)(nil),                       // 57: productv1.QueryFilterCategoriesResponse
-	(*QueryRandomPetRequest)(nil),                               // 58: productv1.QueryRandomPetRequest
-	(*QueryRandomPetResponse)(nil),                              // 59: productv1.QueryRandomPetResponse
-	(*QueryAllPetsRequest)(nil),                                 // 60: productv1.QueryAllPetsRequest
-	(*QueryAllPetsResponse)(nil),                                // 61: productv1.QueryAllPetsResponse
-	(*QuerySearchRequest)(nil),                                  // 62: productv1.QuerySearchRequest
-	(*QuerySearchResponse)(nil),                                 // 63: productv1.QuerySearchResponse
-	(*QueryRandomSearchResultRequest)(nil),                      // 64: productv1.QueryRandomSearchResultRequest
-	(*QueryRandomSearchResultResponse)(nil),                     // 65: productv1.QueryRandomSearchResultResponse
-	(*QueryNullableFieldsTypeRequest)(nil),                      // 66: productv1.QueryNullableFieldsTypeRequest
-	(*QueryNullableFieldsTypeResponse)(nil),                     // 67: productv1.QueryNullableFieldsTypeResponse
-	(*QueryNullableFieldsTypeByIdRequest)(nil),                  // 68: productv1.QueryNullableFieldsTypeByIdRequest
-	(*QueryNullableFieldsTypeByIdResponse)(nil),                 // 69: productv1.QueryNullableFieldsTypeByIdResponse
-	(*QueryNullableFieldsTypeWithFilterRequest)(nil),            // 70: productv1.QueryNullableFieldsTypeWithFilterRequest
-	(*QueryNullableFieldsTypeWithFilterResponse)(nil),           // 71: productv1.QueryNullableFieldsTypeWithFilterResponse
-	(*QueryAllNullableFieldsTypesRequest)(nil),                  // 72: productv1.QueryAllNullableFieldsTypesRequest
-	(*QueryAllNullableFieldsTypesResponse)(nil),                 // 73: productv1.QueryAllNullableFieldsTypesResponse
-	(*QueryBlogPostRequest)(nil),                                // 74: productv1.QueryBlogPostRequest
-	(*QueryBlogPostResponse)(nil),                               // 75: productv1.QueryBlogPostResponse
-	(*QueryBlogPostByIdRequest)(nil),                            // 76: productv1.QueryBlogPostByIdRequest
-	(*QueryBlogPostByIdResponse)(nil),                           // 77: productv1.QueryBlogPostByIdResponse
-	(*QueryBlogPostsWithFilterRequest)(nil),                     // 78: productv1.QueryBlogPostsWithFilterRequest
-	(*QueryBlogPostsWithFilterResponse)(nil),                    // 79: productv1.QueryBlogPostsWithFilterResponse
-	(*QueryAllBlogPostsRequest)(nil),                            // 80: productv1.QueryAllBlogPostsRequest
-	(*QueryAllBlogPostsResponse)(nil),                           // 81: productv1.QueryAllBlogPostsResponse
-	(*QueryAuthorRequest)(nil),                                  // 82: productv1.QueryAuthorRequest
-	(*QueryAuthorResponse)(nil),                                 // 83: productv1.QueryAuthorResponse
-	(*QueryAuthorByIdRequest)(nil),                              // 84: productv1.QueryAuthorByIdRequest
-	(*QueryAuthorByIdResponse)(nil),                             // 85: productv1.QueryAuthorByIdResponse
-	(*QueryAuthorsWithFilterRequest)(nil),                       // 86: productv1.QueryAuthorsWithFilterRequest
-	(*QueryAuthorsWithFilterResponse)(nil),                      // 87: productv1.QueryAuthorsWithFilterResponse
-	(*QueryAllAuthorsRequest)(nil),                              // 88: productv1.QueryAllAuthorsRequest
-	(*QueryAllAuthorsResponse)(nil),                             // 89: productv1.QueryAllAuthorsResponse
-	(*QueryBulkSearchAuthorsRequest)(nil),                       // 90: productv1.QueryBulkSearchAuthorsRequest
-	(*QueryBulkSearchAuthorsResponse)(nil),                      // 91: productv1.QueryBulkSearchAuthorsResponse
-	(*QueryBulkSearchBlogPostsRequest)(nil),                     // 92: productv1.QueryBulkSearchBlogPostsRequest
-	(*QueryBulkSearchBlogPostsResponse)(nil),                    // 93: productv1.QueryBulkSearchBlogPostsResponse
-	(*QueryTestContainerRequest)(nil),                           // 94: productv1.QueryTestContainerRequest
-	(*QueryTestContainerResponse)(nil),                          // 95: productv1.QueryTestContainerResponse
-	(*QueryTestContainersRequest)(nil),                          // 96: productv1.QueryTestContainersRequest
-	(*QueryTestContainersResponse)(nil),                         // 97: productv1.QueryTestContainersResponse
-	(*MutationCreateUserRequest)(nil),                           // 98: productv1.MutationCreateUserRequest
-	(*MutationCreateUserResponse)(nil),                          // 99: productv1.MutationCreateUserResponse
-	(*MutationPerformActionRequest)(nil),                        // 100: productv1.MutationPerformActionRequest
-	(*MutationPerformActionResponse)(nil),                       // 101: productv1.MutationPerformActionResponse
-	(*MutationCreateNullableFieldsTypeRequest)(nil),             // 102: productv1.MutationCreateNullableFieldsTypeRequest
-	(*MutationCreateNullableFieldsTypeResponse)(nil),            // 103: productv1.MutationCreateNullableFieldsTypeResponse
-	(*MutationUpdateNullableFieldsTypeRequest)(nil),             // 104: productv1.MutationUpdateNullableFieldsTypeRequest
-	(*MutationUpdateNullableFieldsTypeResponse)(nil),            // 105: productv1.MutationUpdateNullableFieldsTypeResponse
-	(*MutationCreateBlogPostRequest)(nil),                       // 106: productv1.MutationCreateBlogPostRequest
-	(*MutationCreateBlogPostResponse)(nil),                      // 107: productv1.MutationCreateBlogPostResponse
-	(*MutationUpdateBlogPostRequest)(nil),                       // 108: productv1.MutationUpdateBlogPostRequest
-	(*MutationUpdateBlogPostResponse)(nil),                      // 109: productv1.MutationUpdateBlogPostResponse
-	(*MutationCreateAuthorRequest)(nil),                         // 110: productv1.MutationCreateAuthorRequest
-	(*MutationCreateAuthorResponse)(nil),                        // 111: productv1.MutationCreateAuthorResponse
-	(*MutationUpdateAuthorRequest)(nil),                         // 112: productv1.MutationUpdateAuthorRequest
-	(*MutationUpdateAuthorResponse)(nil),                        // 113: productv1.MutationUpdateAuthorResponse
-	(*MutationBulkCreateAuthorsRequest)(nil),                    // 114: productv1.MutationBulkCreateAuthorsRequest
-	(*MutationBulkCreateAuthorsResponse)(nil),                   // 115: productv1.MutationBulkCreateAuthorsResponse
-	(*MutationBulkUpdateAuthorsRequest)(nil),                    // 116: productv1.MutationBulkUpdateAuthorsRequest
-	(*MutationBulkUpdateAuthorsResponse)(nil),                   // 117: productv1.MutationBulkUpdateAuthorsResponse
-	(*MutationBulkCreateBlogPostsRequest)(nil),                  // 118: productv1.MutationBulkCreateBlogPostsRequest
-	(*MutationBulkCreateBlogPostsResponse)(nil),                 // 119: productv1.MutationBulkCreateBlogPostsResponse
-	(*MutationBulkUpdateBlogPostsRequest)(nil),                  // 120: productv1.MutationBulkUpdateBlogPostsRequest
-	(*MutationBulkUpdateBlogPostsResponse)(nil),                 // 121: productv1.MutationBulkUpdateBlogPostsResponse
-	(*ResolveProductShippingEstimateArgs)(nil),                  // 122: productv1.ResolveProductShippingEstimateArgs
-	(*ResolveProductShippingEstimateContext)(nil),               // 123: productv1.ResolveProductShippingEstimateContext
-	(*ResolveProductShippingEstimateRequest)(nil),               // 124: productv1.ResolveProductShippingEstimateRequest
-	(*ResolveProductShippingEstimateResult)(nil),                // 125: productv1.ResolveProductShippingEstimateResult
-	(*ResolveProductShippingEstimateResponse)(nil),              // 126: productv1.ResolveProductShippingEstimateResponse
-	(*ResolveProductRecommendedCategoryArgs)(nil),               // 127: productv1.ResolveProductRecommendedCategoryArgs
-	(*ResolveProductRecommendedCategoryContext)(nil),            // 128: productv1.ResolveProductRecommendedCategoryContext
-	(*ResolveProductRecommendedCategoryRequest)(nil),            // 129: productv1.ResolveProductRecommendedCategoryRequest
-	(*ResolveProductRecommendedCategoryResult)(nil),             // 130: productv1.ResolveProductRecommendedCategoryResult
-	(*ResolveProductRecommendedCategoryResponse)(nil),           // 131: productv1.ResolveProductRecommendedCategoryResponse
-	(*ResolveProductMascotRecommendationArgs)(nil),              // 132: productv1.ResolveProductMascotRecommendationArgs
-	(*ResolveProductMascotRecommendationContext)(nil),           // 133: productv1.ResolveProductMascotRecommendationContext
-	(*ResolveProductMascotRecommendationRequest)(nil),           // 134: productv1.ResolveProductMascotRecommendationRequest
-	(*ResolveProductMascotRecommendationResult)(nil),            // 135: productv1.ResolveProductMascotRecommendationResult
-	(*ResolveProductMascotRecommendationResponse)(nil),          // 136: productv1.ResolveProductMascotRecommendationResponse
-	(*ResolveProductStockStatusArgs)(nil),                       // 137: productv1.ResolveProductStockStatusArgs
-	(*ResolveProductStockStatusContext)(nil),                    // 138: productv1.ResolveProductStockStatusContext
-	(*ResolveProductStockStatusRequest)(nil),                    // 139: productv1.ResolveProductStockStatusRequest
-	(*ResolveProductStockStatusResult)(nil),                     // 140: productv1.ResolveProductStockStatusResult
-	(*ResolveProductStockStatusResponse)(nil),                   // 141: productv1.ResolveProductStockStatusResponse
-	(*ResolveProductProductDetailsArgs)(nil),                    // 142: productv1.ResolveProductProductDetailsArgs
-	(*ResolveProductProductDetailsContext)(nil),                 // 143: productv1.ResolveProductProductDetailsContext
-	(*ResolveProductProductDetailsRequest)(nil),                 // 144: productv1.ResolveProductProductDetailsRequest
-	(*ResolveProductProductDetailsResult)(nil),                  // 145: productv1.ResolveProductProductDetailsResult
-	(*ResolveProductProductDetailsResponse)(nil),                // 146: productv1.ResolveProductProductDetailsResponse
-	(*ResolveStorageStorageStatusArgs)(nil),                     // 147: productv1.ResolveStorageStorageStatusArgs
-	(*ResolveStorageStorageStatusContext)(nil),                  // 148: productv1.ResolveStorageStorageStatusContext
-	(*ResolveStorageStorageStatusRequest)(nil),                  // 149: productv1.ResolveStorageStorageStatusRequest
-	(*ResolveStorageStorageStatusResult)(nil),                   // 150: productv1.ResolveStorageStorageStatusResult
-	(*ResolveStorageStorageStatusResponse)(nil),                 // 151: productv1.ResolveStorageStorageStatusResponse
-	(*ResolveStorageLinkedStoragesArgs)(nil),                    // 152: productv1.ResolveStorageLinkedStoragesArgs
-	(*ResolveStorageLinkedStoragesContext)(nil),                 // 153: productv1.ResolveStorageLinkedStoragesContext
-	(*ResolveStorageLinkedStoragesRequest)(nil),                 // 154: productv1.ResolveStorageLinkedStoragesRequest
-	(*ResolveStorageLinkedStoragesResult)(nil),                  // 155: productv1.ResolveStorageLinkedStoragesResult
-	(*ResolveStorageLinkedStoragesResponse)(nil),                // 156: productv1.ResolveStorageLinkedStoragesResponse
-	(*ResolveStorageNearbyStoragesArgs)(nil),                    // 157: productv1.ResolveStorageNearbyStoragesArgs
-	(*ResolveStorageNearbyStoragesContext)(nil),                 // 158: productv1.ResolveStorageNearbyStoragesContext
-	(*ResolveStorageNearbyStoragesRequest)(nil),                 // 159: productv1.ResolveStorageNearbyStoragesRequest
-	(*ResolveStorageNearbyStoragesResult)(nil),                  // 160: productv1.ResolveStorageNearbyStoragesResult
-	(*ResolveStorageNearbyStoragesResponse)(nil),                // 161: productv1.ResolveStorageNearbyStoragesResponse
-	(*ResolveCategoryProductCountArgs)(nil),                     // 162: productv1.ResolveCategoryProductCountArgs
-	(*ResolveCategoryProductCountContext)(nil),                  // 163: productv1.ResolveCategoryProductCountContext
-	(*ResolveCategoryProductCountRequest)(nil),                  // 164: productv1.ResolveCategoryProductCountRequest
-	(*ResolveCategoryProductCountResult)(nil),                   // 165: productv1.ResolveCategoryProductCountResult
-	(*ResolveCategoryProductCountResponse)(nil),                 // 166: productv1.ResolveCategoryProductCountResponse
-	(*ResolveCategoryPopularityScoreArgs)(nil),                  // 167: productv1.ResolveCategoryPopularityScoreArgs
-	(*ResolveCategoryPopularityScoreContext)(nil),               // 168: productv1.ResolveCategoryPopularityScoreContext
-	(*ResolveCategoryPopularityScoreRequest)(nil),               // 169: productv1.ResolveCategoryPopularityScoreRequest
-	(*ResolveCategoryPopularityScoreResult)(nil),                // 170: productv1.ResolveCategoryPopularityScoreResult
-	(*ResolveCategoryPopularityScoreResponse)(nil),              // 171: productv1.ResolveCategoryPopularityScoreResponse
-	(*ResolveCategoryCategoryMetricsArgs)(nil),                  // 172: productv1.ResolveCategoryCategoryMetricsArgs
-	(*ResolveCategoryCategoryMetricsContext)(nil),               // 173: productv1.ResolveCategoryCategoryMetricsContext
-	(*ResolveCategoryCategoryMetricsRequest)(nil),               // 174: productv1.ResolveCategoryCategoryMetricsRequest
-	(*ResolveCategoryCategoryMetricsResult)(nil),                // 175: productv1.ResolveCategoryCategoryMetricsResult
-	(*ResolveCategoryCategoryMetricsResponse)(nil),              // 176: productv1.ResolveCategoryCategoryMetricsResponse
-	(*ResolveCategoryMascotArgs)(nil),                           // 177: productv1.ResolveCategoryMascotArgs
-	(*ResolveCategoryMascotContext)(nil),                        // 178: productv1.ResolveCategoryMascotContext
-	(*ResolveCategoryMascotRequest)(nil),                        // 179: productv1.ResolveCategoryMascotRequest
-	(*ResolveCategoryMascotResult)(nil),                         // 180: productv1.ResolveCategoryMascotResult
-	(*ResolveCategoryMascotResponse)(nil),                       // 181: productv1.ResolveCategoryMascotResponse
-	(*ResolveCategoryCategoryStatusArgs)(nil),                   // 182: productv1.ResolveCategoryCategoryStatusArgs
-	(*ResolveCategoryCategoryStatusContext)(nil),                // 183: productv1.ResolveCategoryCategoryStatusContext
-	(*ResolveCategoryCategoryStatusRequest)(nil),                // 184: productv1.ResolveCategoryCategoryStatusRequest
-	(*ResolveCategoryCategoryStatusResult)(nil),                 // 185: productv1.ResolveCategoryCategoryStatusResult
-	(*ResolveCategoryCategoryStatusResponse)(nil),               // 186: productv1.ResolveCategoryCategoryStatusResponse
-	(*ResolveCategoryChildCategoriesArgs)(nil),                  // 187: productv1.ResolveCategoryChildCategoriesArgs
-	(*ResolveCategoryChildCategoriesContext)(nil),               // 188: productv1.ResolveCategoryChildCategoriesContext
-	(*ResolveCategoryChildCategoriesRequest)(nil),               // 189: productv1.ResolveCategoryChildCategoriesRequest
-	(*ResolveCategoryChildCategoriesResult)(nil),                // 190: productv1.ResolveCategoryChildCategoriesResult
-	(*ResolveCategoryChildCategoriesResponse)(nil),              // 191: productv1.ResolveCategoryChildCategoriesResponse
-	(*ResolveCategoryOptionalCategoriesArgs)(nil),               // 192: productv1.ResolveCategoryOptionalCategoriesArgs
-	(*ResolveCategoryOptionalCategoriesContext)(nil),            // 193: productv1.ResolveCategoryOptionalCategoriesContext
-	(*ResolveCategoryOptionalCategoriesRequest)(nil),            // 194: productv1.ResolveCategoryOptionalCategoriesRequest
-	(*ResolveCategoryOptionalCategoriesResult)(nil),             // 195: productv1.ResolveCategoryOptionalCategoriesResult
-	(*ResolveCategoryOptionalCategoriesResponse)(nil),           // 196: productv1.ResolveCategoryOptionalCategoriesResponse
-	(*ResolveCategoryTotalProductsContext)(nil),                 // 197: productv1.ResolveCategoryTotalProductsContext
-	(*ResolveCategoryTotalProductsRequest)(nil),                 // 198: productv1.ResolveCategoryTotalProductsRequest
-	(*ResolveCategoryTotalProductsResult)(nil),                  // 199: productv1.ResolveCategoryTotalProductsResult
-	(*ResolveCategoryTotalProductsResponse)(nil),                // 200: productv1.ResolveCategoryTotalProductsResponse
-	(*ResolveCategoryTopSubcategoryContext)(nil),                // 201: productv1.ResolveCategoryTopSubcategoryContext
-	(*ResolveCategoryTopSubcategoryRequest)(nil),                // 202: productv1.ResolveCategoryTopSubcategoryRequest
-	(*ResolveCategoryTopSubcategoryResult)(nil),                 // 203: productv1.ResolveCategoryTopSubcategoryResult
-	(*ResolveCategoryTopSubcategoryResponse)(nil),               // 204: productv1.ResolveCategoryTopSubcategoryResponse
-	(*ResolveCategoryActiveSubcategoriesContext)(nil),           // 205: productv1.ResolveCategoryActiveSubcategoriesContext
-	(*ResolveCategoryActiveSubcategoriesRequest)(nil),           // 206: productv1.ResolveCategoryActiveSubcategoriesRequest
-	(*ResolveCategoryActiveSubcategoriesResult)(nil),            // 207: productv1.ResolveCategoryActiveSubcategoriesResult
-	(*ResolveCategoryActiveSubcategoriesResponse)(nil),          // 208: productv1.ResolveCategoryActiveSubcategoriesResponse
-	(*ResolveSubcategoryItemCountArgs)(nil),                     // 209: productv1.ResolveSubcategoryItemCountArgs
-	(*ResolveSubcategoryItemCountContext)(nil),                  // 210: productv1.ResolveSubcategoryItemCountContext
-	(*ResolveSubcategoryItemCountRequest)(nil),                  // 211: productv1.ResolveSubcategoryItemCountRequest
-	(*ResolveSubcategoryItemCountResult)(nil),                   // 212: productv1.ResolveSubcategoryItemCountResult
-	(*ResolveSubcategoryItemCountResponse)(nil),                 // 213: productv1.ResolveSubcategoryItemCountResponse
-	(*ResolveSubcategoryFeaturedCategoryArgs)(nil),              // 214: productv1.ResolveSubcategoryFeaturedCategoryArgs
-	(*ResolveSubcategoryFeaturedCategoryContext)(nil),           // 215: productv1.ResolveSubcategoryFeaturedCategoryContext
-	(*ResolveSubcategoryFeaturedCategoryRequest)(nil),           // 216: productv1.ResolveSubcategoryFeaturedCategoryRequest
-	(*ResolveSubcategoryFeaturedCategoryResult)(nil),            // 217: productv1.ResolveSubcategoryFeaturedCategoryResult
-	(*ResolveSubcategoryFeaturedCategoryResponse)(nil),          // 218: productv1.ResolveSubcategoryFeaturedCategoryResponse
-	(*ResolveSubcategoryParentCategoryContext)(nil),             // 219: productv1.ResolveSubcategoryParentCategoryContext
-	(*ResolveSubcategoryParentCategoryRequest)(nil),             // 220: productv1.ResolveSubcategoryParentCategoryRequest
-	(*ResolveSubcategoryParentCategoryResult)(nil),              // 221: productv1.ResolveSubcategoryParentCategoryResult
-	(*ResolveSubcategoryParentCategoryResponse)(nil),            // 222: productv1.ResolveSubcategoryParentCategoryResponse
-	(*ResolveCategoryMetricsNormalizedScoreArgs)(nil),           // 223: productv1.ResolveCategoryMetricsNormalizedScoreArgs
-	(*ResolveCategoryMetricsNormalizedScoreContext)(nil),        // 224: productv1.ResolveCategoryMetricsNormalizedScoreContext
-	(*ResolveCategoryMetricsNormalizedScoreRequest)(nil),        // 225: productv1.ResolveCategoryMetricsNormalizedScoreRequest
-	(*ResolveCategoryMetricsNormalizedScoreResult)(nil),         // 226: productv1.ResolveCategoryMetricsNormalizedScoreResult
-	(*ResolveCategoryMetricsNormalizedScoreResponse)(nil),       // 227: productv1.ResolveCategoryMetricsNormalizedScoreResponse
-	(*ResolveCategoryMetricsRelatedCategoryArgs)(nil),           // 228: productv1.ResolveCategoryMetricsRelatedCategoryArgs
-	(*ResolveCategoryMetricsRelatedCategoryContext)(nil),        // 229: productv1.ResolveCategoryMetricsRelatedCategoryContext
-	(*ResolveCategoryMetricsRelatedCategoryRequest)(nil),        // 230: productv1.ResolveCategoryMetricsRelatedCategoryRequest
-	(*ResolveCategoryMetricsRelatedCategoryResult)(nil),         // 231: productv1.ResolveCategoryMetricsRelatedCategoryResult
-	(*ResolveCategoryMetricsRelatedCategoryResponse)(nil),       // 232: productv1.ResolveCategoryMetricsRelatedCategoryResponse
-	(*ResolveCategoryMetricsAverageScoreContext)(nil),           // 233: productv1.ResolveCategoryMetricsAverageScoreContext
-	(*ResolveCategoryMetricsAverageScoreRequest)(nil),           // 234: productv1.ResolveCategoryMetricsAverageScoreRequest
-	(*ResolveCategoryMetricsAverageScoreResult)(nil),            // 235: productv1.ResolveCategoryMetricsAverageScoreResult
-	(*ResolveCategoryMetricsAverageScoreResponse)(nil),          // 236: productv1.ResolveCategoryMetricsAverageScoreResponse
-	(*ResolveTestContainerDetailsArgs)(nil),                     // 237: productv1.ResolveTestContainerDetailsArgs
-	(*ResolveTestContainerDetailsContext)(nil),                  // 238: productv1.ResolveTestContainerDetailsContext
-	(*ResolveTestContainerDetailsRequest)(nil),                  // 239: productv1.ResolveTestContainerDetailsRequest
-	(*ResolveTestContainerDetailsResult)(nil),                   // 240: productv1.ResolveTestContainerDetailsResult
-	(*ResolveTestContainerDetailsResponse)(nil),                 // 241: productv1.ResolveTestContainerDetailsResponse
-	(*RequireStorageStockHealthScoreByIdRequest)(nil),           // 242: productv1.RequireStorageStockHealthScoreByIdRequest
-	(*RequireStorageStockHealthScoreByIdContext)(nil),           // 243: productv1.RequireStorageStockHealthScoreByIdContext
-	(*RequireStorageStockHealthScoreByIdResponse)(nil),          // 244: productv1.RequireStorageStockHealthScoreByIdResponse
-	(*RequireStorageStockHealthScoreByIdResult)(nil),            // 245: productv1.RequireStorageStockHealthScoreByIdResult
-	(*RequireStorageStockHealthScoreByIdFields)(nil),            // 246: productv1.RequireStorageStockHealthScoreByIdFields
-	(*RequireStorageTagSummaryByIdRequest)(nil),                 // 247: productv1.RequireStorageTagSummaryByIdRequest
-	(*RequireStorageTagSummaryByIdContext)(nil),                 // 248: productv1.RequireStorageTagSummaryByIdContext
-	(*RequireStorageTagSummaryByIdResponse)(nil),                // 249: productv1.RequireStorageTagSummaryByIdResponse
-	(*RequireStorageTagSummaryByIdResult)(nil),                  // 250: productv1.RequireStorageTagSummaryByIdResult
-	(*RequireStorageTagSummaryByIdFields)(nil),                  // 251: productv1.RequireStorageTagSummaryByIdFields
-	(*RequireStorageOptionalTagSummaryByIdRequest)(nil),         // 252: productv1.RequireStorageOptionalTagSummaryByIdRequest
-	(*RequireStorageOptionalTagSummaryByIdContext)(nil),         // 253: productv1.RequireStorageOptionalTagSummaryByIdContext
-	(*RequireStorageOptionalTagSummaryByIdResponse)(nil),        // 254: productv1.RequireStorageOptionalTagSummaryByIdResponse
-	(*RequireStorageOptionalTagSummaryByIdResult)(nil),          // 255: productv1.RequireStorageOptionalTagSummaryByIdResult
-	(*RequireStorageOptionalTagSummaryByIdFields)(nil),          // 256: productv1.RequireStorageOptionalTagSummaryByIdFields
-	(*RequireStorageMetadataScoreByIdRequest)(nil),              // 257: productv1.RequireStorageMetadataScoreByIdRequest
-	(*RequireStorageMetadataScoreByIdContext)(nil),              // 258: productv1.RequireStorageMetadataScoreByIdContext
-	(*RequireStorageMetadataScoreByIdResponse)(nil),             // 259: productv1.RequireStorageMetadataScoreByIdResponse
-	(*RequireStorageMetadataScoreByIdResult)(nil),               // 260: productv1.RequireStorageMetadataScoreByIdResult
-	(*RequireStorageMetadataScoreByIdFields)(nil),               // 261: productv1.RequireStorageMetadataScoreByIdFields
-	(*RequireStorageProcessedMetadataByIdRequest)(nil),          // 262: productv1.RequireStorageProcessedMetadataByIdRequest
-	(*RequireStorageProcessedMetadataByIdContext)(nil),          // 263: productv1.RequireStorageProcessedMetadataByIdContext
-	(*RequireStorageProcessedMetadataByIdResponse)(nil),         // 264: productv1.RequireStorageProcessedMetadataByIdResponse
-	(*RequireStorageProcessedMetadataByIdResult)(nil),           // 265: productv1.RequireStorageProcessedMetadataByIdResult
-	(*RequireStorageProcessedMetadataByIdFields)(nil),           // 266: productv1.RequireStorageProcessedMetadataByIdFields
-	(*RequireStorageOptionalProcessedMetadataByIdRequest)(nil),  // 267: productv1.RequireStorageOptionalProcessedMetadataByIdRequest
-	(*RequireStorageOptionalProcessedMetadataByIdContext)(nil),  // 268: productv1.RequireStorageOptionalProcessedMetadataByIdContext
-	(*RequireStorageOptionalProcessedMetadataByIdResponse)(nil), // 269: productv1.RequireStorageOptionalProcessedMetadataByIdResponse
-	(*RequireStorageOptionalProcessedMetadataByIdResult)(nil),   // 270: productv1.RequireStorageOptionalProcessedMetadataByIdResult
-	(*RequireStorageOptionalProcessedMetadataByIdFields)(nil),   // 271: productv1.RequireStorageOptionalProcessedMetadataByIdFields
-	(*RequireStorageProcessedTagsByIdRequest)(nil),              // 272: productv1.RequireStorageProcessedTagsByIdRequest
-	(*RequireStorageProcessedTagsByIdContext)(nil),              // 273: productv1.RequireStorageProcessedTagsByIdContext
-	(*RequireStorageProcessedTagsByIdResponse)(nil),             // 274: productv1.RequireStorageProcessedTagsByIdResponse
-	(*RequireStorageProcessedTagsByIdResult)(nil),               // 275: productv1.RequireStorageProcessedTagsByIdResult
-	(*RequireStorageProcessedTagsByIdFields)(nil),               // 276: productv1.RequireStorageProcessedTagsByIdFields
-	(*RequireStorageOptionalProcessedTagsByIdRequest)(nil),      // 277: productv1.RequireStorageOptionalProcessedTagsByIdRequest
-	(*RequireStorageOptionalProcessedTagsByIdContext)(nil),      // 278: productv1.RequireStorageOptionalProcessedTagsByIdContext
-	(*RequireStorageOptionalProcessedTagsByIdResponse)(nil),     // 279: productv1.RequireStorageOptionalProcessedTagsByIdResponse
-	(*RequireStorageOptionalProcessedTagsByIdResult)(nil),       // 280: productv1.RequireStorageOptionalProcessedTagsByIdResult
-	(*RequireStorageOptionalProcessedTagsByIdFields)(nil),       // 281: productv1.RequireStorageOptionalProcessedTagsByIdFields
-	(*RequireStorageProcessedMetadataHistoryByIdRequest)(nil),   // 282: productv1.RequireStorageProcessedMetadataHistoryByIdRequest
-	(*RequireStorageProcessedMetadataHistoryByIdContext)(nil),   // 283: productv1.RequireStorageProcessedMetadataHistoryByIdContext
-	(*RequireStorageProcessedMetadataHistoryByIdResponse)(nil),  // 284: productv1.RequireStorageProcessedMetadataHistoryByIdResponse
-	(*RequireStorageProcessedMetadataHistoryByIdResult)(nil),    // 285: productv1.RequireStorageProcessedMetadataHistoryByIdResult
-	(*RequireStorageProcessedMetadataHistoryByIdFields)(nil),    // 286: productv1.RequireStorageProcessedMetadataHistoryByIdFields
-	(*RequireStorageKindSummaryByIdRequest)(nil),                // 287: productv1.RequireStorageKindSummaryByIdRequest
-	(*RequireStorageKindSummaryByIdContext)(nil),                // 288: productv1.RequireStorageKindSummaryByIdContext
-	(*RequireStorageKindSummaryByIdResponse)(nil),               // 289: productv1.RequireStorageKindSummaryByIdResponse
-	(*RequireStorageKindSummaryByIdResult)(nil),                 // 290: productv1.RequireStorageKindSummaryByIdResult
-	(*RequireStorageKindSummaryByIdFields)(nil),                 // 291: productv1.RequireStorageKindSummaryByIdFields
-	(*RequireStorageCategoryInfoSummaryByIdRequest)(nil),        // 292: productv1.RequireStorageCategoryInfoSummaryByIdRequest
-	(*RequireStorageCategoryInfoSummaryByIdContext)(nil),        // 293: productv1.RequireStorageCategoryInfoSummaryByIdContext
-	(*RequireStorageCategoryInfoSummaryByIdResponse)(nil),       // 294: productv1.RequireStorageCategoryInfoSummaryByIdResponse
-	(*RequireStorageCategoryInfoSummaryByIdResult)(nil),         // 295: productv1.RequireStorageCategoryInfoSummaryByIdResult
-	(*RequireStorageCategoryInfoSummaryByIdFields)(nil),         // 296: productv1.RequireStorageCategoryInfoSummaryByIdFields
-	(*RequireStorageFilteredTagSummaryByIdRequest)(nil),         // 297: productv1.RequireStorageFilteredTagSummaryByIdRequest
-	(*RequireStorageFilteredTagSummaryByIdContext)(nil),         // 298: productv1.RequireStorageFilteredTagSummaryByIdContext
-	(*RequireStorageFilteredTagSummaryByIdArgs)(nil),            // 299: productv1.RequireStorageFilteredTagSummaryByIdArgs
-	(*RequireStorageFilteredTagSummaryByIdResponse)(nil),        // 300: productv1.RequireStorageFilteredTagSummaryByIdResponse
-	(*RequireStorageFilteredTagSummaryByIdResult)(nil),          // 301: productv1.RequireStorageFilteredTagSummaryByIdResult
-	(*RequireStorageFilteredTagSummaryByIdFields)(nil),          // 302: productv1.RequireStorageFilteredTagSummaryByIdFields
-	(*RequireWarehouseStockHealthScoreByIdRequest)(nil),         // 303: productv1.RequireWarehouseStockHealthScoreByIdRequest
-	(*RequireWarehouseStockHealthScoreByIdContext)(nil),         // 304: productv1.RequireWarehouseStockHealthScoreByIdContext
-	(*RequireWarehouseStockHealthScoreByIdResponse)(nil),        // 305: productv1.RequireWarehouseStockHealthScoreByIdResponse
-	(*RequireWarehouseStockHealthScoreByIdResult)(nil),          // 306: productv1.RequireWarehouseStockHealthScoreByIdResult
-	(*RequireWarehouseStockHealthScoreByIdFields)(nil),          // 307: productv1.RequireWarehouseStockHealthScoreByIdFields
-	(*Product)(nil),                        // 308: productv1.Product
-	(*Storage)(nil),                        // 309: productv1.Storage
-	(*Warehouse)(nil),                      // 310: productv1.Warehouse
-	(*User)(nil),                           // 311: productv1.User
-	(*NestedTypeA)(nil),                    // 312: productv1.NestedTypeA
-	(*RecursiveType)(nil),                  // 313: productv1.RecursiveType
-	(*TypeWithMultipleFilterFields)(nil),   // 314: productv1.TypeWithMultipleFilterFields
-	(*FilterTypeInput)(nil),                // 315: productv1.FilterTypeInput
-	(*ComplexFilterTypeInput)(nil),         // 316: productv1.ComplexFilterTypeInput
-	(*TypeWithComplexFilterInput)(nil),     // 317: productv1.TypeWithComplexFilterInput
-	(*OrderInput)(nil),                     // 318: productv1.OrderInput
-	(*Order)(nil),                          // 319: productv1.Order
-	(*Category)(nil),                       // 320: productv1.Category
-	(*CategoryFilter)(nil),                 // 321: productv1.CategoryFilter
-	(*Animal)(nil),                         // 322: productv1.Animal
-	(*SearchInput)(nil),                    // 323: productv1.SearchInput
-	(*SearchResult)(nil),                   // 324: productv1.SearchResult
-	(*NullableFieldsType)(nil),             // 325: productv1.NullableFieldsType
-	(*NullableFieldsFilter)(nil),           // 326: productv1.NullableFieldsFilter
-	(*BlogPost)(nil),                       // 327: productv1.BlogPost
-	(*BlogPostFilter)(nil),                 // 328: productv1.BlogPostFilter
-	(*Author)(nil),                         // 329: productv1.Author
-	(*AuthorFilter)(nil),                   // 330: productv1.AuthorFilter
-	(*TestContainer)(nil),                  // 331: productv1.TestContainer
-	(*UserInput)(nil),                      // 332: productv1.UserInput
-	(*ActionInput)(nil),                    // 333: productv1.ActionInput
-	(*ActionResult)(nil),                   // 334: productv1.ActionResult
-	(*NullableFieldsInput)(nil),            // 335: productv1.NullableFieldsInput
-	(*BlogPostInput)(nil),                  // 336: productv1.BlogPostInput
-	(*AuthorInput)(nil),                    // 337: productv1.AuthorInput
-	(*ProductDetails)(nil),                 // 338: productv1.ProductDetails
-	(*RestockData)(nil),                    // 339: productv1.RestockData
-	(*StorageMetadata)(nil),                // 340: productv1.StorageMetadata
-	(*StorageCategoryInfo)(nil),            // 341: productv1.StorageCategoryInfo
-	(*NestedTypeB)(nil),                    // 342: productv1.NestedTypeB
-	(*NestedTypeC)(nil),                    // 343: productv1.NestedTypeC
-	(*FilterType)(nil),                     // 344: productv1.FilterType
-	(*Pagination)(nil),                     // 345: productv1.Pagination
-	(*OrderLineInput)(nil),                 // 346: productv1.OrderLineInput
-	(*OrderLine)(nil),                      // 347: productv1.OrderLine
-	(*Subcategory)(nil),                    // 348: productv1.Subcategory
-	(*CategoryMetrics)(nil),                // 349: productv1.CategoryMetrics
-	(*Cat)(nil),                            // 350: productv1.Cat
-	(*Dog)(nil),                            // 351: productv1.Dog
-	(*Owner)(nil),                          // 352: productv1.Owner
-	(*ContactInfo)(nil),                    // 353: productv1.ContactInfo
-	(*Address)(nil),                        // 354: productv1.Address
-	(*CatBreed)(nil),                       // 355: productv1.CatBreed
-	(*DogBreed)(nil),                       // 356: productv1.DogBreed
-	(*BreedCharacteristics)(nil),           // 357: productv1.BreedCharacteristics
-	(*ActionSuccess)(nil),                  // 358: productv1.ActionSuccess
-	(*ActionError)(nil),                    // 359: productv1.ActionError
-	(*TestDetails)(nil),                    // 360: productv1.TestDetails
-	(*CategoryInput)(nil),                  // 361: productv1.CategoryInput
-	(*ProductCountFilter)(nil),             // 362: productv1.ProductCountFilter
-	(*SubcategoryItemFilter)(nil),          // 363: productv1.SubcategoryItemFilter
-	(*ShippingEstimateInput)(nil),          // 364: productv1.ShippingEstimateInput
-	(*ListOfAuthorFilter_List)(nil),        // 365: productv1.ListOfAuthorFilter.List
-	(*ListOfAuthorInput_List)(nil),         // 366: productv1.ListOfAuthorInput.List
-	(*ListOfBlogPost_List)(nil),            // 367: productv1.ListOfBlogPost.List
-	(*ListOfBlogPostFilter_List)(nil),      // 368: productv1.ListOfBlogPostFilter.List
-	(*ListOfBlogPostInput_List)(nil),       // 369: productv1.ListOfBlogPostInput.List
-	(*ListOfBoolean_List)(nil),             // 370: productv1.ListOfBoolean.List
-	(*ListOfCategory_List)(nil),            // 371: productv1.ListOfCategory.List
-	(*ListOfCategoryInput_List)(nil),       // 372: productv1.ListOfCategoryInput.List
-	(*ListOfFloat_List)(nil),               // 373: productv1.ListOfFloat.List
-	(*ListOfListOfCategory_List)(nil),      // 374: productv1.ListOfListOfCategory.List
-	(*ListOfListOfCategoryInput_List)(nil), // 375: productv1.ListOfListOfCategoryInput.List
-	(*ListOfListOfString_List)(nil),        // 376: productv1.ListOfListOfString.List
-	(*ListOfListOfUser_List)(nil),          // 377: productv1.ListOfListOfUser.List
-	(*ListOfListOfUserInput_List)(nil),     // 378: productv1.ListOfListOfUserInput.List
-	(*ListOfOrderLine_List)(nil),           // 379: productv1.ListOfOrderLine.List
-	(*ListOfProduct_List)(nil),             // 380: productv1.ListOfProduct.List
-	(*ListOfStorage_List)(nil),             // 381: productv1.ListOfStorage.List
-	(*ListOfString_List)(nil),              // 382: productv1.ListOfString.List
-	(*ListOfSubcategory_List)(nil),         // 383: productv1.ListOfSubcategory.List
-	(*ListOfUser_List)(nil),                // 384: productv1.ListOfUser.List
-	(*ListOfUserInput_List)(nil),           // 385: productv1.ListOfUserInput.List
-	(*RequireStorageStockHealthScoreByIdFields_RestockData)(nil),              // 386: productv1.RequireStorageStockHealthScoreByIdFields.RestockData
-	(*RequireStorageMetadataScoreByIdFields_StorageMetadata)(nil),             // 387: productv1.RequireStorageMetadataScoreByIdFields.StorageMetadata
-	(*RequireStorageProcessedMetadataByIdFields_StorageMetadata)(nil),         // 388: productv1.RequireStorageProcessedMetadataByIdFields.StorageMetadata
-	(*RequireStorageOptionalProcessedMetadataByIdFields_StorageMetadata)(nil), // 389: productv1.RequireStorageOptionalProcessedMetadataByIdFields.StorageMetadata
-	(*RequireStorageProcessedMetadataHistoryByIdFields_StorageMetadata)(nil),  // 390: productv1.RequireStorageProcessedMetadataHistoryByIdFields.StorageMetadata
-	(*RequireStorageCategoryInfoSummaryByIdFields_StorageCategoryInfo)(nil),   // 391: productv1.RequireStorageCategoryInfoSummaryByIdFields.StorageCategoryInfo
-	(*RequireWarehouseStockHealthScoreByIdFields_RestockData)(nil),            // 392: productv1.RequireWarehouseStockHealthScoreByIdFields.RestockData
-	(*wrapperspb.Int32Value)(nil),                                             // 393: google.protobuf.Int32Value
-	(*wrapperspb.BoolValue)(nil),                                              // 394: google.protobuf.BoolValue
-	(*wrapperspb.StringValue)(nil),                                            // 395: google.protobuf.StringValue
-	(*wrapperspb.DoubleValue)(nil),                                            // 396: google.protobuf.DoubleValue
+	(CategoryKind)(0),                                            // 0: productv1.CategoryKind
+	(ShippingDestination)(0),                                     // 1: productv1.ShippingDestination
+	(*ListOfAuthorFilter)(nil),                                   // 2: productv1.ListOfAuthorFilter
+	(*ListOfAuthorInput)(nil),                                    // 3: productv1.ListOfAuthorInput
+	(*ListOfBlogPost)(nil),                                       // 4: productv1.ListOfBlogPost
+	(*ListOfBlogPostFilter)(nil),                                 // 5: productv1.ListOfBlogPostFilter
+	(*ListOfBlogPostInput)(nil),                                  // 6: productv1.ListOfBlogPostInput
+	(*ListOfBoolean)(nil),                                        // 7: productv1.ListOfBoolean
+	(*ListOfCategory)(nil),                                       // 8: productv1.ListOfCategory
+	(*ListOfCategoryInput)(nil),                                  // 9: productv1.ListOfCategoryInput
+	(*ListOfFloat)(nil),                                          // 10: productv1.ListOfFloat
+	(*ListOfListOfCategory)(nil),                                 // 11: productv1.ListOfListOfCategory
+	(*ListOfListOfCategoryInput)(nil),                            // 12: productv1.ListOfListOfCategoryInput
+	(*ListOfListOfString)(nil),                                   // 13: productv1.ListOfListOfString
+	(*ListOfListOfUser)(nil),                                     // 14: productv1.ListOfListOfUser
+	(*ListOfListOfUserInput)(nil),                                // 15: productv1.ListOfListOfUserInput
+	(*ListOfOrderLine)(nil),                                      // 16: productv1.ListOfOrderLine
+	(*ListOfProduct)(nil),                                        // 17: productv1.ListOfProduct
+	(*ListOfStorage)(nil),                                        // 18: productv1.ListOfStorage
+	(*ListOfString)(nil),                                         // 19: productv1.ListOfString
+	(*ListOfSubcategory)(nil),                                    // 20: productv1.ListOfSubcategory
+	(*ListOfUser)(nil),                                           // 21: productv1.ListOfUser
+	(*ListOfUserInput)(nil),                                      // 22: productv1.ListOfUserInput
+	(*LookupProductByIdRequestKey)(nil),                          // 23: productv1.LookupProductByIdRequestKey
+	(*LookupProductByIdRequest)(nil),                             // 24: productv1.LookupProductByIdRequest
+	(*LookupProductByIdResponse)(nil),                            // 25: productv1.LookupProductByIdResponse
+	(*LookupStorageByIdRequestKey)(nil),                          // 26: productv1.LookupStorageByIdRequestKey
+	(*LookupStorageByIdRequest)(nil),                             // 27: productv1.LookupStorageByIdRequest
+	(*LookupStorageByIdResponse)(nil),                            // 28: productv1.LookupStorageByIdResponse
+	(*LookupWarehouseByIdRequestKey)(nil),                        // 29: productv1.LookupWarehouseByIdRequestKey
+	(*LookupWarehouseByIdRequest)(nil),                           // 30: productv1.LookupWarehouseByIdRequest
+	(*LookupWarehouseByIdResponse)(nil),                          // 31: productv1.LookupWarehouseByIdResponse
+	(*QueryUsersRequest)(nil),                                    // 32: productv1.QueryUsersRequest
+	(*QueryUsersResponse)(nil),                                   // 33: productv1.QueryUsersResponse
+	(*QueryUserRequest)(nil),                                     // 34: productv1.QueryUserRequest
+	(*QueryUserResponse)(nil),                                    // 35: productv1.QueryUserResponse
+	(*QueryNestedTypeRequest)(nil),                               // 36: productv1.QueryNestedTypeRequest
+	(*QueryNestedTypeResponse)(nil),                              // 37: productv1.QueryNestedTypeResponse
+	(*QueryRecursiveTypeRequest)(nil),                            // 38: productv1.QueryRecursiveTypeRequest
+	(*QueryRecursiveTypeResponse)(nil),                           // 39: productv1.QueryRecursiveTypeResponse
+	(*QueryTypeFilterWithArgumentsRequest)(nil),                  // 40: productv1.QueryTypeFilterWithArgumentsRequest
+	(*QueryTypeFilterWithArgumentsResponse)(nil),                 // 41: productv1.QueryTypeFilterWithArgumentsResponse
+	(*QueryTypeWithMultipleFilterFieldsRequest)(nil),             // 42: productv1.QueryTypeWithMultipleFilterFieldsRequest
+	(*QueryTypeWithMultipleFilterFieldsResponse)(nil),            // 43: productv1.QueryTypeWithMultipleFilterFieldsResponse
+	(*QueryComplexFilterTypeRequest)(nil),                        // 44: productv1.QueryComplexFilterTypeRequest
+	(*QueryComplexFilterTypeResponse)(nil),                       // 45: productv1.QueryComplexFilterTypeResponse
+	(*QueryCalculateTotalsRequest)(nil),                          // 46: productv1.QueryCalculateTotalsRequest
+	(*QueryCalculateTotalsResponse)(nil),                         // 47: productv1.QueryCalculateTotalsResponse
+	(*QueryCategoriesRequest)(nil),                               // 48: productv1.QueryCategoriesRequest
+	(*QueryCategoriesResponse)(nil),                              // 49: productv1.QueryCategoriesResponse
+	(*QueryCategoryRequest)(nil),                                 // 50: productv1.QueryCategoryRequest
+	(*QueryCategoryResponse)(nil),                                // 51: productv1.QueryCategoryResponse
+	(*QueryCategoriesByKindRequest)(nil),                         // 52: productv1.QueryCategoriesByKindRequest
+	(*QueryCategoriesByKindResponse)(nil),                        // 53: productv1.QueryCategoriesByKindResponse
+	(*QueryCategoriesByKindsRequest)(nil),                        // 54: productv1.QueryCategoriesByKindsRequest
+	(*QueryCategoriesByKindsResponse)(nil),                       // 55: productv1.QueryCategoriesByKindsResponse
+	(*QueryFilterCategoriesRequest)(nil),                         // 56: productv1.QueryFilterCategoriesRequest
+	(*QueryFilterCategoriesResponse)(nil),                        // 57: productv1.QueryFilterCategoriesResponse
+	(*QueryRandomPetRequest)(nil),                                // 58: productv1.QueryRandomPetRequest
+	(*QueryRandomPetResponse)(nil),                               // 59: productv1.QueryRandomPetResponse
+	(*QueryAllPetsRequest)(nil),                                  // 60: productv1.QueryAllPetsRequest
+	(*QueryAllPetsResponse)(nil),                                 // 61: productv1.QueryAllPetsResponse
+	(*QuerySearchRequest)(nil),                                   // 62: productv1.QuerySearchRequest
+	(*QuerySearchResponse)(nil),                                  // 63: productv1.QuerySearchResponse
+	(*QueryRandomSearchResultRequest)(nil),                       // 64: productv1.QueryRandomSearchResultRequest
+	(*QueryRandomSearchResultResponse)(nil),                      // 65: productv1.QueryRandomSearchResultResponse
+	(*QueryNullableFieldsTypeRequest)(nil),                       // 66: productv1.QueryNullableFieldsTypeRequest
+	(*QueryNullableFieldsTypeResponse)(nil),                      // 67: productv1.QueryNullableFieldsTypeResponse
+	(*QueryNullableFieldsTypeByIdRequest)(nil),                   // 68: productv1.QueryNullableFieldsTypeByIdRequest
+	(*QueryNullableFieldsTypeByIdResponse)(nil),                  // 69: productv1.QueryNullableFieldsTypeByIdResponse
+	(*QueryNullableFieldsTypeWithFilterRequest)(nil),             // 70: productv1.QueryNullableFieldsTypeWithFilterRequest
+	(*QueryNullableFieldsTypeWithFilterResponse)(nil),            // 71: productv1.QueryNullableFieldsTypeWithFilterResponse
+	(*QueryAllNullableFieldsTypesRequest)(nil),                   // 72: productv1.QueryAllNullableFieldsTypesRequest
+	(*QueryAllNullableFieldsTypesResponse)(nil),                  // 73: productv1.QueryAllNullableFieldsTypesResponse
+	(*QueryBlogPostRequest)(nil),                                 // 74: productv1.QueryBlogPostRequest
+	(*QueryBlogPostResponse)(nil),                                // 75: productv1.QueryBlogPostResponse
+	(*QueryBlogPostByIdRequest)(nil),                             // 76: productv1.QueryBlogPostByIdRequest
+	(*QueryBlogPostByIdResponse)(nil),                            // 77: productv1.QueryBlogPostByIdResponse
+	(*QueryBlogPostsWithFilterRequest)(nil),                      // 78: productv1.QueryBlogPostsWithFilterRequest
+	(*QueryBlogPostsWithFilterResponse)(nil),                     // 79: productv1.QueryBlogPostsWithFilterResponse
+	(*QueryAllBlogPostsRequest)(nil),                             // 80: productv1.QueryAllBlogPostsRequest
+	(*QueryAllBlogPostsResponse)(nil),                            // 81: productv1.QueryAllBlogPostsResponse
+	(*QueryAuthorRequest)(nil),                                   // 82: productv1.QueryAuthorRequest
+	(*QueryAuthorResponse)(nil),                                  // 83: productv1.QueryAuthorResponse
+	(*QueryAuthorByIdRequest)(nil),                               // 84: productv1.QueryAuthorByIdRequest
+	(*QueryAuthorByIdResponse)(nil),                              // 85: productv1.QueryAuthorByIdResponse
+	(*QueryAuthorsWithFilterRequest)(nil),                        // 86: productv1.QueryAuthorsWithFilterRequest
+	(*QueryAuthorsWithFilterResponse)(nil),                       // 87: productv1.QueryAuthorsWithFilterResponse
+	(*QueryAllAuthorsRequest)(nil),                               // 88: productv1.QueryAllAuthorsRequest
+	(*QueryAllAuthorsResponse)(nil),                              // 89: productv1.QueryAllAuthorsResponse
+	(*QueryBulkSearchAuthorsRequest)(nil),                        // 90: productv1.QueryBulkSearchAuthorsRequest
+	(*QueryBulkSearchAuthorsResponse)(nil),                       // 91: productv1.QueryBulkSearchAuthorsResponse
+	(*QueryBulkSearchBlogPostsRequest)(nil),                      // 92: productv1.QueryBulkSearchBlogPostsRequest
+	(*QueryBulkSearchBlogPostsResponse)(nil),                     // 93: productv1.QueryBulkSearchBlogPostsResponse
+	(*QueryTestContainerRequest)(nil),                            // 94: productv1.QueryTestContainerRequest
+	(*QueryTestContainerResponse)(nil),                           // 95: productv1.QueryTestContainerResponse
+	(*QueryTestContainersRequest)(nil),                           // 96: productv1.QueryTestContainersRequest
+	(*QueryTestContainersResponse)(nil),                          // 97: productv1.QueryTestContainersResponse
+	(*MutationCreateUserRequest)(nil),                            // 98: productv1.MutationCreateUserRequest
+	(*MutationCreateUserResponse)(nil),                           // 99: productv1.MutationCreateUserResponse
+	(*MutationPerformActionRequest)(nil),                         // 100: productv1.MutationPerformActionRequest
+	(*MutationPerformActionResponse)(nil),                        // 101: productv1.MutationPerformActionResponse
+	(*MutationCreateNullableFieldsTypeRequest)(nil),              // 102: productv1.MutationCreateNullableFieldsTypeRequest
+	(*MutationCreateNullableFieldsTypeResponse)(nil),             // 103: productv1.MutationCreateNullableFieldsTypeResponse
+	(*MutationUpdateNullableFieldsTypeRequest)(nil),              // 104: productv1.MutationUpdateNullableFieldsTypeRequest
+	(*MutationUpdateNullableFieldsTypeResponse)(nil),             // 105: productv1.MutationUpdateNullableFieldsTypeResponse
+	(*MutationCreateBlogPostRequest)(nil),                        // 106: productv1.MutationCreateBlogPostRequest
+	(*MutationCreateBlogPostResponse)(nil),                       // 107: productv1.MutationCreateBlogPostResponse
+	(*MutationUpdateBlogPostRequest)(nil),                        // 108: productv1.MutationUpdateBlogPostRequest
+	(*MutationUpdateBlogPostResponse)(nil),                       // 109: productv1.MutationUpdateBlogPostResponse
+	(*MutationCreateAuthorRequest)(nil),                          // 110: productv1.MutationCreateAuthorRequest
+	(*MutationCreateAuthorResponse)(nil),                         // 111: productv1.MutationCreateAuthorResponse
+	(*MutationUpdateAuthorRequest)(nil),                          // 112: productv1.MutationUpdateAuthorRequest
+	(*MutationUpdateAuthorResponse)(nil),                         // 113: productv1.MutationUpdateAuthorResponse
+	(*MutationBulkCreateAuthorsRequest)(nil),                     // 114: productv1.MutationBulkCreateAuthorsRequest
+	(*MutationBulkCreateAuthorsResponse)(nil),                    // 115: productv1.MutationBulkCreateAuthorsResponse
+	(*MutationBulkUpdateAuthorsRequest)(nil),                     // 116: productv1.MutationBulkUpdateAuthorsRequest
+	(*MutationBulkUpdateAuthorsResponse)(nil),                    // 117: productv1.MutationBulkUpdateAuthorsResponse
+	(*MutationBulkCreateBlogPostsRequest)(nil),                   // 118: productv1.MutationBulkCreateBlogPostsRequest
+	(*MutationBulkCreateBlogPostsResponse)(nil),                  // 119: productv1.MutationBulkCreateBlogPostsResponse
+	(*MutationBulkUpdateBlogPostsRequest)(nil),                   // 120: productv1.MutationBulkUpdateBlogPostsRequest
+	(*MutationBulkUpdateBlogPostsResponse)(nil),                  // 121: productv1.MutationBulkUpdateBlogPostsResponse
+	(*ResolveProductShippingEstimateArgs)(nil),                   // 122: productv1.ResolveProductShippingEstimateArgs
+	(*ResolveProductShippingEstimateContext)(nil),                // 123: productv1.ResolveProductShippingEstimateContext
+	(*ResolveProductShippingEstimateRequest)(nil),                // 124: productv1.ResolveProductShippingEstimateRequest
+	(*ResolveProductShippingEstimateResult)(nil),                 // 125: productv1.ResolveProductShippingEstimateResult
+	(*ResolveProductShippingEstimateResponse)(nil),               // 126: productv1.ResolveProductShippingEstimateResponse
+	(*ResolveProductRecommendedCategoryArgs)(nil),                // 127: productv1.ResolveProductRecommendedCategoryArgs
+	(*ResolveProductRecommendedCategoryContext)(nil),             // 128: productv1.ResolveProductRecommendedCategoryContext
+	(*ResolveProductRecommendedCategoryRequest)(nil),             // 129: productv1.ResolveProductRecommendedCategoryRequest
+	(*ResolveProductRecommendedCategoryResult)(nil),              // 130: productv1.ResolveProductRecommendedCategoryResult
+	(*ResolveProductRecommendedCategoryResponse)(nil),            // 131: productv1.ResolveProductRecommendedCategoryResponse
+	(*ResolveProductMascotRecommendationArgs)(nil),               // 132: productv1.ResolveProductMascotRecommendationArgs
+	(*ResolveProductMascotRecommendationContext)(nil),            // 133: productv1.ResolveProductMascotRecommendationContext
+	(*ResolveProductMascotRecommendationRequest)(nil),            // 134: productv1.ResolveProductMascotRecommendationRequest
+	(*ResolveProductMascotRecommendationResult)(nil),             // 135: productv1.ResolveProductMascotRecommendationResult
+	(*ResolveProductMascotRecommendationResponse)(nil),           // 136: productv1.ResolveProductMascotRecommendationResponse
+	(*ResolveProductStockStatusArgs)(nil),                        // 137: productv1.ResolveProductStockStatusArgs
+	(*ResolveProductStockStatusContext)(nil),                     // 138: productv1.ResolveProductStockStatusContext
+	(*ResolveProductStockStatusRequest)(nil),                     // 139: productv1.ResolveProductStockStatusRequest
+	(*ResolveProductStockStatusResult)(nil),                      // 140: productv1.ResolveProductStockStatusResult
+	(*ResolveProductStockStatusResponse)(nil),                    // 141: productv1.ResolveProductStockStatusResponse
+	(*ResolveProductProductDetailsArgs)(nil),                     // 142: productv1.ResolveProductProductDetailsArgs
+	(*ResolveProductProductDetailsContext)(nil),                  // 143: productv1.ResolveProductProductDetailsContext
+	(*ResolveProductProductDetailsRequest)(nil),                  // 144: productv1.ResolveProductProductDetailsRequest
+	(*ResolveProductProductDetailsResult)(nil),                   // 145: productv1.ResolveProductProductDetailsResult
+	(*ResolveProductProductDetailsResponse)(nil),                 // 146: productv1.ResolveProductProductDetailsResponse
+	(*ResolveStorageStorageStatusArgs)(nil),                      // 147: productv1.ResolveStorageStorageStatusArgs
+	(*ResolveStorageStorageStatusContext)(nil),                   // 148: productv1.ResolveStorageStorageStatusContext
+	(*ResolveStorageStorageStatusRequest)(nil),                   // 149: productv1.ResolveStorageStorageStatusRequest
+	(*ResolveStorageStorageStatusResult)(nil),                    // 150: productv1.ResolveStorageStorageStatusResult
+	(*ResolveStorageStorageStatusResponse)(nil),                  // 151: productv1.ResolveStorageStorageStatusResponse
+	(*ResolveStorageLinkedStoragesArgs)(nil),                     // 152: productv1.ResolveStorageLinkedStoragesArgs
+	(*ResolveStorageLinkedStoragesContext)(nil),                  // 153: productv1.ResolveStorageLinkedStoragesContext
+	(*ResolveStorageLinkedStoragesRequest)(nil),                  // 154: productv1.ResolveStorageLinkedStoragesRequest
+	(*ResolveStorageLinkedStoragesResult)(nil),                   // 155: productv1.ResolveStorageLinkedStoragesResult
+	(*ResolveStorageLinkedStoragesResponse)(nil),                 // 156: productv1.ResolveStorageLinkedStoragesResponse
+	(*ResolveStorageNearbyStoragesArgs)(nil),                     // 157: productv1.ResolveStorageNearbyStoragesArgs
+	(*ResolveStorageNearbyStoragesContext)(nil),                  // 158: productv1.ResolveStorageNearbyStoragesContext
+	(*ResolveStorageNearbyStoragesRequest)(nil),                  // 159: productv1.ResolveStorageNearbyStoragesRequest
+	(*ResolveStorageNearbyStoragesResult)(nil),                   // 160: productv1.ResolveStorageNearbyStoragesResult
+	(*ResolveStorageNearbyStoragesResponse)(nil),                 // 161: productv1.ResolveStorageNearbyStoragesResponse
+	(*ResolveCategoryProductCountArgs)(nil),                      // 162: productv1.ResolveCategoryProductCountArgs
+	(*ResolveCategoryProductCountContext)(nil),                   // 163: productv1.ResolveCategoryProductCountContext
+	(*ResolveCategoryProductCountRequest)(nil),                   // 164: productv1.ResolveCategoryProductCountRequest
+	(*ResolveCategoryProductCountResult)(nil),                    // 165: productv1.ResolveCategoryProductCountResult
+	(*ResolveCategoryProductCountResponse)(nil),                  // 166: productv1.ResolveCategoryProductCountResponse
+	(*ResolveCategoryPopularityScoreArgs)(nil),                   // 167: productv1.ResolveCategoryPopularityScoreArgs
+	(*ResolveCategoryPopularityScoreContext)(nil),                // 168: productv1.ResolveCategoryPopularityScoreContext
+	(*ResolveCategoryPopularityScoreRequest)(nil),                // 169: productv1.ResolveCategoryPopularityScoreRequest
+	(*ResolveCategoryPopularityScoreResult)(nil),                 // 170: productv1.ResolveCategoryPopularityScoreResult
+	(*ResolveCategoryPopularityScoreResponse)(nil),               // 171: productv1.ResolveCategoryPopularityScoreResponse
+	(*ResolveCategoryCategoryMetricsArgs)(nil),                   // 172: productv1.ResolveCategoryCategoryMetricsArgs
+	(*ResolveCategoryCategoryMetricsContext)(nil),                // 173: productv1.ResolveCategoryCategoryMetricsContext
+	(*ResolveCategoryCategoryMetricsRequest)(nil),                // 174: productv1.ResolveCategoryCategoryMetricsRequest
+	(*ResolveCategoryCategoryMetricsResult)(nil),                 // 175: productv1.ResolveCategoryCategoryMetricsResult
+	(*ResolveCategoryCategoryMetricsResponse)(nil),               // 176: productv1.ResolveCategoryCategoryMetricsResponse
+	(*ResolveCategoryMascotArgs)(nil),                            // 177: productv1.ResolveCategoryMascotArgs
+	(*ResolveCategoryMascotContext)(nil),                         // 178: productv1.ResolveCategoryMascotContext
+	(*ResolveCategoryMascotRequest)(nil),                         // 179: productv1.ResolveCategoryMascotRequest
+	(*ResolveCategoryMascotResult)(nil),                          // 180: productv1.ResolveCategoryMascotResult
+	(*ResolveCategoryMascotResponse)(nil),                        // 181: productv1.ResolveCategoryMascotResponse
+	(*ResolveCategoryCategoryStatusArgs)(nil),                    // 182: productv1.ResolveCategoryCategoryStatusArgs
+	(*ResolveCategoryCategoryStatusContext)(nil),                 // 183: productv1.ResolveCategoryCategoryStatusContext
+	(*ResolveCategoryCategoryStatusRequest)(nil),                 // 184: productv1.ResolveCategoryCategoryStatusRequest
+	(*ResolveCategoryCategoryStatusResult)(nil),                  // 185: productv1.ResolveCategoryCategoryStatusResult
+	(*ResolveCategoryCategoryStatusResponse)(nil),                // 186: productv1.ResolveCategoryCategoryStatusResponse
+	(*ResolveCategoryChildCategoriesArgs)(nil),                   // 187: productv1.ResolveCategoryChildCategoriesArgs
+	(*ResolveCategoryChildCategoriesContext)(nil),                // 188: productv1.ResolveCategoryChildCategoriesContext
+	(*ResolveCategoryChildCategoriesRequest)(nil),                // 189: productv1.ResolveCategoryChildCategoriesRequest
+	(*ResolveCategoryChildCategoriesResult)(nil),                 // 190: productv1.ResolveCategoryChildCategoriesResult
+	(*ResolveCategoryChildCategoriesResponse)(nil),               // 191: productv1.ResolveCategoryChildCategoriesResponse
+	(*ResolveCategoryOptionalCategoriesArgs)(nil),                // 192: productv1.ResolveCategoryOptionalCategoriesArgs
+	(*ResolveCategoryOptionalCategoriesContext)(nil),             // 193: productv1.ResolveCategoryOptionalCategoriesContext
+	(*ResolveCategoryOptionalCategoriesRequest)(nil),             // 194: productv1.ResolveCategoryOptionalCategoriesRequest
+	(*ResolveCategoryOptionalCategoriesResult)(nil),              // 195: productv1.ResolveCategoryOptionalCategoriesResult
+	(*ResolveCategoryOptionalCategoriesResponse)(nil),            // 196: productv1.ResolveCategoryOptionalCategoriesResponse
+	(*ResolveCategoryTotalProductsContext)(nil),                  // 197: productv1.ResolveCategoryTotalProductsContext
+	(*ResolveCategoryTotalProductsRequest)(nil),                  // 198: productv1.ResolveCategoryTotalProductsRequest
+	(*ResolveCategoryTotalProductsResult)(nil),                   // 199: productv1.ResolveCategoryTotalProductsResult
+	(*ResolveCategoryTotalProductsResponse)(nil),                 // 200: productv1.ResolveCategoryTotalProductsResponse
+	(*ResolveCategoryTopSubcategoryContext)(nil),                 // 201: productv1.ResolveCategoryTopSubcategoryContext
+	(*ResolveCategoryTopSubcategoryRequest)(nil),                 // 202: productv1.ResolveCategoryTopSubcategoryRequest
+	(*ResolveCategoryTopSubcategoryResult)(nil),                  // 203: productv1.ResolveCategoryTopSubcategoryResult
+	(*ResolveCategoryTopSubcategoryResponse)(nil),                // 204: productv1.ResolveCategoryTopSubcategoryResponse
+	(*ResolveCategoryActiveSubcategoriesContext)(nil),            // 205: productv1.ResolveCategoryActiveSubcategoriesContext
+	(*ResolveCategoryActiveSubcategoriesRequest)(nil),            // 206: productv1.ResolveCategoryActiveSubcategoriesRequest
+	(*ResolveCategoryActiveSubcategoriesResult)(nil),             // 207: productv1.ResolveCategoryActiveSubcategoriesResult
+	(*ResolveCategoryActiveSubcategoriesResponse)(nil),           // 208: productv1.ResolveCategoryActiveSubcategoriesResponse
+	(*ResolveSubcategoryItemCountArgs)(nil),                      // 209: productv1.ResolveSubcategoryItemCountArgs
+	(*ResolveSubcategoryItemCountContext)(nil),                   // 210: productv1.ResolveSubcategoryItemCountContext
+	(*ResolveSubcategoryItemCountRequest)(nil),                   // 211: productv1.ResolveSubcategoryItemCountRequest
+	(*ResolveSubcategoryItemCountResult)(nil),                    // 212: productv1.ResolveSubcategoryItemCountResult
+	(*ResolveSubcategoryItemCountResponse)(nil),                  // 213: productv1.ResolveSubcategoryItemCountResponse
+	(*ResolveSubcategoryFeaturedCategoryArgs)(nil),               // 214: productv1.ResolveSubcategoryFeaturedCategoryArgs
+	(*ResolveSubcategoryFeaturedCategoryContext)(nil),            // 215: productv1.ResolveSubcategoryFeaturedCategoryContext
+	(*ResolveSubcategoryFeaturedCategoryRequest)(nil),            // 216: productv1.ResolveSubcategoryFeaturedCategoryRequest
+	(*ResolveSubcategoryFeaturedCategoryResult)(nil),             // 217: productv1.ResolveSubcategoryFeaturedCategoryResult
+	(*ResolveSubcategoryFeaturedCategoryResponse)(nil),           // 218: productv1.ResolveSubcategoryFeaturedCategoryResponse
+	(*ResolveSubcategoryParentCategoryContext)(nil),              // 219: productv1.ResolveSubcategoryParentCategoryContext
+	(*ResolveSubcategoryParentCategoryRequest)(nil),              // 220: productv1.ResolveSubcategoryParentCategoryRequest
+	(*ResolveSubcategoryParentCategoryResult)(nil),               // 221: productv1.ResolveSubcategoryParentCategoryResult
+	(*ResolveSubcategoryParentCategoryResponse)(nil),             // 222: productv1.ResolveSubcategoryParentCategoryResponse
+	(*ResolveCategoryMetricsNormalizedScoreArgs)(nil),            // 223: productv1.ResolveCategoryMetricsNormalizedScoreArgs
+	(*ResolveCategoryMetricsNormalizedScoreContext)(nil),         // 224: productv1.ResolveCategoryMetricsNormalizedScoreContext
+	(*ResolveCategoryMetricsNormalizedScoreRequest)(nil),         // 225: productv1.ResolveCategoryMetricsNormalizedScoreRequest
+	(*ResolveCategoryMetricsNormalizedScoreResult)(nil),          // 226: productv1.ResolveCategoryMetricsNormalizedScoreResult
+	(*ResolveCategoryMetricsNormalizedScoreResponse)(nil),        // 227: productv1.ResolveCategoryMetricsNormalizedScoreResponse
+	(*ResolveCategoryMetricsRelatedCategoryArgs)(nil),            // 228: productv1.ResolveCategoryMetricsRelatedCategoryArgs
+	(*ResolveCategoryMetricsRelatedCategoryContext)(nil),         // 229: productv1.ResolveCategoryMetricsRelatedCategoryContext
+	(*ResolveCategoryMetricsRelatedCategoryRequest)(nil),         // 230: productv1.ResolveCategoryMetricsRelatedCategoryRequest
+	(*ResolveCategoryMetricsRelatedCategoryResult)(nil),          // 231: productv1.ResolveCategoryMetricsRelatedCategoryResult
+	(*ResolveCategoryMetricsRelatedCategoryResponse)(nil),        // 232: productv1.ResolveCategoryMetricsRelatedCategoryResponse
+	(*ResolveCategoryMetricsAverageScoreContext)(nil),            // 233: productv1.ResolveCategoryMetricsAverageScoreContext
+	(*ResolveCategoryMetricsAverageScoreRequest)(nil),            // 234: productv1.ResolveCategoryMetricsAverageScoreRequest
+	(*ResolveCategoryMetricsAverageScoreResult)(nil),             // 235: productv1.ResolveCategoryMetricsAverageScoreResult
+	(*ResolveCategoryMetricsAverageScoreResponse)(nil),           // 236: productv1.ResolveCategoryMetricsAverageScoreResponse
+	(*ResolveTestContainerDetailsArgs)(nil),                      // 237: productv1.ResolveTestContainerDetailsArgs
+	(*ResolveTestContainerDetailsContext)(nil),                   // 238: productv1.ResolveTestContainerDetailsContext
+	(*ResolveTestContainerDetailsRequest)(nil),                   // 239: productv1.ResolveTestContainerDetailsRequest
+	(*ResolveTestContainerDetailsResult)(nil),                    // 240: productv1.ResolveTestContainerDetailsResult
+	(*ResolveTestContainerDetailsResponse)(nil),                  // 241: productv1.ResolveTestContainerDetailsResponse
+	(*RequireStorageStockHealthScoreByIdRequest)(nil),            // 242: productv1.RequireStorageStockHealthScoreByIdRequest
+	(*RequireStorageStockHealthScoreByIdContext)(nil),            // 243: productv1.RequireStorageStockHealthScoreByIdContext
+	(*RequireStorageStockHealthScoreByIdResponse)(nil),           // 244: productv1.RequireStorageStockHealthScoreByIdResponse
+	(*RequireStorageStockHealthScoreByIdResult)(nil),             // 245: productv1.RequireStorageStockHealthScoreByIdResult
+	(*RequireStorageStockHealthScoreByIdFields)(nil),             // 246: productv1.RequireStorageStockHealthScoreByIdFields
+	(*RequireStorageTagSummaryByIdRequest)(nil),                  // 247: productv1.RequireStorageTagSummaryByIdRequest
+	(*RequireStorageTagSummaryByIdContext)(nil),                  // 248: productv1.RequireStorageTagSummaryByIdContext
+	(*RequireStorageTagSummaryByIdResponse)(nil),                 // 249: productv1.RequireStorageTagSummaryByIdResponse
+	(*RequireStorageTagSummaryByIdResult)(nil),                   // 250: productv1.RequireStorageTagSummaryByIdResult
+	(*RequireStorageTagSummaryByIdFields)(nil),                   // 251: productv1.RequireStorageTagSummaryByIdFields
+	(*RequireStorageOptionalTagSummaryByIdRequest)(nil),          // 252: productv1.RequireStorageOptionalTagSummaryByIdRequest
+	(*RequireStorageOptionalTagSummaryByIdContext)(nil),          // 253: productv1.RequireStorageOptionalTagSummaryByIdContext
+	(*RequireStorageOptionalTagSummaryByIdResponse)(nil),         // 254: productv1.RequireStorageOptionalTagSummaryByIdResponse
+	(*RequireStorageOptionalTagSummaryByIdResult)(nil),           // 255: productv1.RequireStorageOptionalTagSummaryByIdResult
+	(*RequireStorageOptionalTagSummaryByIdFields)(nil),           // 256: productv1.RequireStorageOptionalTagSummaryByIdFields
+	(*RequireStorageMetadataScoreByIdRequest)(nil),               // 257: productv1.RequireStorageMetadataScoreByIdRequest
+	(*RequireStorageMetadataScoreByIdContext)(nil),               // 258: productv1.RequireStorageMetadataScoreByIdContext
+	(*RequireStorageMetadataScoreByIdResponse)(nil),              // 259: productv1.RequireStorageMetadataScoreByIdResponse
+	(*RequireStorageMetadataScoreByIdResult)(nil),                // 260: productv1.RequireStorageMetadataScoreByIdResult
+	(*RequireStorageMetadataScoreByIdFields)(nil),                // 261: productv1.RequireStorageMetadataScoreByIdFields
+	(*RequireStorageProcessedMetadataByIdRequest)(nil),           // 262: productv1.RequireStorageProcessedMetadataByIdRequest
+	(*RequireStorageProcessedMetadataByIdContext)(nil),           // 263: productv1.RequireStorageProcessedMetadataByIdContext
+	(*RequireStorageProcessedMetadataByIdResponse)(nil),          // 264: productv1.RequireStorageProcessedMetadataByIdResponse
+	(*RequireStorageProcessedMetadataByIdResult)(nil),            // 265: productv1.RequireStorageProcessedMetadataByIdResult
+	(*RequireStorageProcessedMetadataByIdFields)(nil),            // 266: productv1.RequireStorageProcessedMetadataByIdFields
+	(*RequireStorageOptionalProcessedMetadataByIdRequest)(nil),   // 267: productv1.RequireStorageOptionalProcessedMetadataByIdRequest
+	(*RequireStorageOptionalProcessedMetadataByIdContext)(nil),   // 268: productv1.RequireStorageOptionalProcessedMetadataByIdContext
+	(*RequireStorageOptionalProcessedMetadataByIdResponse)(nil),  // 269: productv1.RequireStorageOptionalProcessedMetadataByIdResponse
+	(*RequireStorageOptionalProcessedMetadataByIdResult)(nil),    // 270: productv1.RequireStorageOptionalProcessedMetadataByIdResult
+	(*RequireStorageOptionalProcessedMetadataByIdFields)(nil),    // 271: productv1.RequireStorageOptionalProcessedMetadataByIdFields
+	(*RequireStorageProcessedTagsByIdRequest)(nil),               // 272: productv1.RequireStorageProcessedTagsByIdRequest
+	(*RequireStorageProcessedTagsByIdContext)(nil),               // 273: productv1.RequireStorageProcessedTagsByIdContext
+	(*RequireStorageProcessedTagsByIdResponse)(nil),              // 274: productv1.RequireStorageProcessedTagsByIdResponse
+	(*RequireStorageProcessedTagsByIdResult)(nil),                // 275: productv1.RequireStorageProcessedTagsByIdResult
+	(*RequireStorageProcessedTagsByIdFields)(nil),                // 276: productv1.RequireStorageProcessedTagsByIdFields
+	(*RequireStorageOptionalProcessedTagsByIdRequest)(nil),       // 277: productv1.RequireStorageOptionalProcessedTagsByIdRequest
+	(*RequireStorageOptionalProcessedTagsByIdContext)(nil),       // 278: productv1.RequireStorageOptionalProcessedTagsByIdContext
+	(*RequireStorageOptionalProcessedTagsByIdResponse)(nil),      // 279: productv1.RequireStorageOptionalProcessedTagsByIdResponse
+	(*RequireStorageOptionalProcessedTagsByIdResult)(nil),        // 280: productv1.RequireStorageOptionalProcessedTagsByIdResult
+	(*RequireStorageOptionalProcessedTagsByIdFields)(nil),        // 281: productv1.RequireStorageOptionalProcessedTagsByIdFields
+	(*RequireStorageProcessedMetadataHistoryByIdRequest)(nil),    // 282: productv1.RequireStorageProcessedMetadataHistoryByIdRequest
+	(*RequireStorageProcessedMetadataHistoryByIdContext)(nil),    // 283: productv1.RequireStorageProcessedMetadataHistoryByIdContext
+	(*RequireStorageProcessedMetadataHistoryByIdResponse)(nil),   // 284: productv1.RequireStorageProcessedMetadataHistoryByIdResponse
+	(*RequireStorageProcessedMetadataHistoryByIdResult)(nil),     // 285: productv1.RequireStorageProcessedMetadataHistoryByIdResult
+	(*RequireStorageProcessedMetadataHistoryByIdFields)(nil),     // 286: productv1.RequireStorageProcessedMetadataHistoryByIdFields
+	(*RequireStorageKindSummaryByIdRequest)(nil),                 // 287: productv1.RequireStorageKindSummaryByIdRequest
+	(*RequireStorageKindSummaryByIdContext)(nil),                 // 288: productv1.RequireStorageKindSummaryByIdContext
+	(*RequireStorageKindSummaryByIdResponse)(nil),                // 289: productv1.RequireStorageKindSummaryByIdResponse
+	(*RequireStorageKindSummaryByIdResult)(nil),                  // 290: productv1.RequireStorageKindSummaryByIdResult
+	(*RequireStorageKindSummaryByIdFields)(nil),                  // 291: productv1.RequireStorageKindSummaryByIdFields
+	(*RequireStorageCategoryInfoSummaryByIdRequest)(nil),         // 292: productv1.RequireStorageCategoryInfoSummaryByIdRequest
+	(*RequireStorageCategoryInfoSummaryByIdContext)(nil),         // 293: productv1.RequireStorageCategoryInfoSummaryByIdContext
+	(*RequireStorageCategoryInfoSummaryByIdResponse)(nil),        // 294: productv1.RequireStorageCategoryInfoSummaryByIdResponse
+	(*RequireStorageCategoryInfoSummaryByIdResult)(nil),          // 295: productv1.RequireStorageCategoryInfoSummaryByIdResult
+	(*RequireStorageCategoryInfoSummaryByIdFields)(nil),          // 296: productv1.RequireStorageCategoryInfoSummaryByIdFields
+	(*RequireStorageFilteredTagSummaryByIdRequest)(nil),          // 297: productv1.RequireStorageFilteredTagSummaryByIdRequest
+	(*RequireStorageFilteredTagSummaryByIdContext)(nil),          // 298: productv1.RequireStorageFilteredTagSummaryByIdContext
+	(*RequireStorageFilteredTagSummaryByIdArgs)(nil),             // 299: productv1.RequireStorageFilteredTagSummaryByIdArgs
+	(*RequireStorageFilteredTagSummaryByIdResponse)(nil),         // 300: productv1.RequireStorageFilteredTagSummaryByIdResponse
+	(*RequireStorageFilteredTagSummaryByIdResult)(nil),           // 301: productv1.RequireStorageFilteredTagSummaryByIdResult
+	(*RequireStorageFilteredTagSummaryByIdFields)(nil),           // 302: productv1.RequireStorageFilteredTagSummaryByIdFields
+	(*RequireStorageMultiFilteredTagSummaryByIdRequest)(nil),     // 303: productv1.RequireStorageMultiFilteredTagSummaryByIdRequest
+	(*RequireStorageMultiFilteredTagSummaryByIdContext)(nil),     // 304: productv1.RequireStorageMultiFilteredTagSummaryByIdContext
+	(*RequireStorageMultiFilteredTagSummaryByIdArgs)(nil),        // 305: productv1.RequireStorageMultiFilteredTagSummaryByIdArgs
+	(*RequireStorageMultiFilteredTagSummaryByIdResponse)(nil),    // 306: productv1.RequireStorageMultiFilteredTagSummaryByIdResponse
+	(*RequireStorageMultiFilteredTagSummaryByIdResult)(nil),      // 307: productv1.RequireStorageMultiFilteredTagSummaryByIdResult
+	(*RequireStorageMultiFilteredTagSummaryByIdFields)(nil),      // 308: productv1.RequireStorageMultiFilteredTagSummaryByIdFields
+	(*RequireStorageNullableFilteredTagSummaryByIdRequest)(nil),  // 309: productv1.RequireStorageNullableFilteredTagSummaryByIdRequest
+	(*RequireStorageNullableFilteredTagSummaryByIdContext)(nil),  // 310: productv1.RequireStorageNullableFilteredTagSummaryByIdContext
+	(*RequireStorageNullableFilteredTagSummaryByIdArgs)(nil),     // 311: productv1.RequireStorageNullableFilteredTagSummaryByIdArgs
+	(*RequireStorageNullableFilteredTagSummaryByIdResponse)(nil), // 312: productv1.RequireStorageNullableFilteredTagSummaryByIdResponse
+	(*RequireStorageNullableFilteredTagSummaryByIdResult)(nil),   // 313: productv1.RequireStorageNullableFilteredTagSummaryByIdResult
+	(*RequireStorageNullableFilteredTagSummaryByIdFields)(nil),   // 314: productv1.RequireStorageNullableFilteredTagSummaryByIdFields
+	(*RequireWarehouseStockHealthScoreByIdRequest)(nil),          // 315: productv1.RequireWarehouseStockHealthScoreByIdRequest
+	(*RequireWarehouseStockHealthScoreByIdContext)(nil),          // 316: productv1.RequireWarehouseStockHealthScoreByIdContext
+	(*RequireWarehouseStockHealthScoreByIdResponse)(nil),         // 317: productv1.RequireWarehouseStockHealthScoreByIdResponse
+	(*RequireWarehouseStockHealthScoreByIdResult)(nil),           // 318: productv1.RequireWarehouseStockHealthScoreByIdResult
+	(*RequireWarehouseStockHealthScoreByIdFields)(nil),           // 319: productv1.RequireWarehouseStockHealthScoreByIdFields
+	(*Product)(nil),                        // 320: productv1.Product
+	(*Storage)(nil),                        // 321: productv1.Storage
+	(*Warehouse)(nil),                      // 322: productv1.Warehouse
+	(*User)(nil),                           // 323: productv1.User
+	(*NestedTypeA)(nil),                    // 324: productv1.NestedTypeA
+	(*RecursiveType)(nil),                  // 325: productv1.RecursiveType
+	(*TypeWithMultipleFilterFields)(nil),   // 326: productv1.TypeWithMultipleFilterFields
+	(*FilterTypeInput)(nil),                // 327: productv1.FilterTypeInput
+	(*ComplexFilterTypeInput)(nil),         // 328: productv1.ComplexFilterTypeInput
+	(*TypeWithComplexFilterInput)(nil),     // 329: productv1.TypeWithComplexFilterInput
+	(*OrderInput)(nil),                     // 330: productv1.OrderInput
+	(*Order)(nil),                          // 331: productv1.Order
+	(*Category)(nil),                       // 332: productv1.Category
+	(*CategoryFilter)(nil),                 // 333: productv1.CategoryFilter
+	(*Animal)(nil),                         // 334: productv1.Animal
+	(*SearchInput)(nil),                    // 335: productv1.SearchInput
+	(*SearchResult)(nil),                   // 336: productv1.SearchResult
+	(*NullableFieldsType)(nil),             // 337: productv1.NullableFieldsType
+	(*NullableFieldsFilter)(nil),           // 338: productv1.NullableFieldsFilter
+	(*BlogPost)(nil),                       // 339: productv1.BlogPost
+	(*BlogPostFilter)(nil),                 // 340: productv1.BlogPostFilter
+	(*Author)(nil),                         // 341: productv1.Author
+	(*AuthorFilter)(nil),                   // 342: productv1.AuthorFilter
+	(*TestContainer)(nil),                  // 343: productv1.TestContainer
+	(*UserInput)(nil),                      // 344: productv1.UserInput
+	(*ActionInput)(nil),                    // 345: productv1.ActionInput
+	(*ActionResult)(nil),                   // 346: productv1.ActionResult
+	(*NullableFieldsInput)(nil),            // 347: productv1.NullableFieldsInput
+	(*BlogPostInput)(nil),                  // 348: productv1.BlogPostInput
+	(*AuthorInput)(nil),                    // 349: productv1.AuthorInput
+	(*ProductDetails)(nil),                 // 350: productv1.ProductDetails
+	(*RestockData)(nil),                    // 351: productv1.RestockData
+	(*StorageMetadata)(nil),                // 352: productv1.StorageMetadata
+	(*StorageCategoryInfo)(nil),            // 353: productv1.StorageCategoryInfo
+	(*NestedTypeB)(nil),                    // 354: productv1.NestedTypeB
+	(*NestedTypeC)(nil),                    // 355: productv1.NestedTypeC
+	(*FilterType)(nil),                     // 356: productv1.FilterType
+	(*Pagination)(nil),                     // 357: productv1.Pagination
+	(*OrderLineInput)(nil),                 // 358: productv1.OrderLineInput
+	(*OrderLine)(nil),                      // 359: productv1.OrderLine
+	(*Subcategory)(nil),                    // 360: productv1.Subcategory
+	(*CategoryMetrics)(nil),                // 361: productv1.CategoryMetrics
+	(*Cat)(nil),                            // 362: productv1.Cat
+	(*Dog)(nil),                            // 363: productv1.Dog
+	(*Owner)(nil),                          // 364: productv1.Owner
+	(*ContactInfo)(nil),                    // 365: productv1.ContactInfo
+	(*Address)(nil),                        // 366: productv1.Address
+	(*CatBreed)(nil),                       // 367: productv1.CatBreed
+	(*DogBreed)(nil),                       // 368: productv1.DogBreed
+	(*BreedCharacteristics)(nil),           // 369: productv1.BreedCharacteristics
+	(*ActionSuccess)(nil),                  // 370: productv1.ActionSuccess
+	(*ActionError)(nil),                    // 371: productv1.ActionError
+	(*TestDetails)(nil),                    // 372: productv1.TestDetails
+	(*CategoryInput)(nil),                  // 373: productv1.CategoryInput
+	(*ProductCountFilter)(nil),             // 374: productv1.ProductCountFilter
+	(*SubcategoryItemFilter)(nil),          // 375: productv1.SubcategoryItemFilter
+	(*ShippingEstimateInput)(nil),          // 376: productv1.ShippingEstimateInput
+	(*ListOfAuthorFilter_List)(nil),        // 377: productv1.ListOfAuthorFilter.List
+	(*ListOfAuthorInput_List)(nil),         // 378: productv1.ListOfAuthorInput.List
+	(*ListOfBlogPost_List)(nil),            // 379: productv1.ListOfBlogPost.List
+	(*ListOfBlogPostFilter_List)(nil),      // 380: productv1.ListOfBlogPostFilter.List
+	(*ListOfBlogPostInput_List)(nil),       // 381: productv1.ListOfBlogPostInput.List
+	(*ListOfBoolean_List)(nil),             // 382: productv1.ListOfBoolean.List
+	(*ListOfCategory_List)(nil),            // 383: productv1.ListOfCategory.List
+	(*ListOfCategoryInput_List)(nil),       // 384: productv1.ListOfCategoryInput.List
+	(*ListOfFloat_List)(nil),               // 385: productv1.ListOfFloat.List
+	(*ListOfListOfCategory_List)(nil),      // 386: productv1.ListOfListOfCategory.List
+	(*ListOfListOfCategoryInput_List)(nil), // 387: productv1.ListOfListOfCategoryInput.List
+	(*ListOfListOfString_List)(nil),        // 388: productv1.ListOfListOfString.List
+	(*ListOfListOfUser_List)(nil),          // 389: productv1.ListOfListOfUser.List
+	(*ListOfListOfUserInput_List)(nil),     // 390: productv1.ListOfListOfUserInput.List
+	(*ListOfOrderLine_List)(nil),           // 391: productv1.ListOfOrderLine.List
+	(*ListOfProduct_List)(nil),             // 392: productv1.ListOfProduct.List
+	(*ListOfStorage_List)(nil),             // 393: productv1.ListOfStorage.List
+	(*ListOfString_List)(nil),              // 394: productv1.ListOfString.List
+	(*ListOfSubcategory_List)(nil),         // 395: productv1.ListOfSubcategory.List
+	(*ListOfUser_List)(nil),                // 396: productv1.ListOfUser.List
+	(*ListOfUserInput_List)(nil),           // 397: productv1.ListOfUserInput.List
+	(*RequireStorageStockHealthScoreByIdFields_RestockData)(nil),              // 398: productv1.RequireStorageStockHealthScoreByIdFields.RestockData
+	(*RequireStorageMetadataScoreByIdFields_StorageMetadata)(nil),             // 399: productv1.RequireStorageMetadataScoreByIdFields.StorageMetadata
+	(*RequireStorageProcessedMetadataByIdFields_StorageMetadata)(nil),         // 400: productv1.RequireStorageProcessedMetadataByIdFields.StorageMetadata
+	(*RequireStorageOptionalProcessedMetadataByIdFields_StorageMetadata)(nil), // 401: productv1.RequireStorageOptionalProcessedMetadataByIdFields.StorageMetadata
+	(*RequireStorageProcessedMetadataHistoryByIdFields_StorageMetadata)(nil),  // 402: productv1.RequireStorageProcessedMetadataHistoryByIdFields.StorageMetadata
+	(*RequireStorageCategoryInfoSummaryByIdFields_StorageCategoryInfo)(nil),   // 403: productv1.RequireStorageCategoryInfoSummaryByIdFields.StorageCategoryInfo
+	(*RequireWarehouseStockHealthScoreByIdFields_RestockData)(nil),            // 404: productv1.RequireWarehouseStockHealthScoreByIdFields.RestockData
+	(*wrapperspb.Int32Value)(nil),                                             // 405: google.protobuf.Int32Value
+	(*wrapperspb.BoolValue)(nil),                                              // 406: google.protobuf.BoolValue
+	(*wrapperspb.StringValue)(nil),                                            // 407: google.protobuf.StringValue
+	(*wrapperspb.DoubleValue)(nil),                                            // 408: google.protobuf.DoubleValue
 }
 var file_product_proto_depIdxs = []int32{
-	365, // 0: productv1.ListOfAuthorFilter.list:type_name -> productv1.ListOfAuthorFilter.List
-	366, // 1: productv1.ListOfAuthorInput.list:type_name -> productv1.ListOfAuthorInput.List
-	367, // 2: productv1.ListOfBlogPost.list:type_name -> productv1.ListOfBlogPost.List
-	368, // 3: productv1.ListOfBlogPostFilter.list:type_name -> productv1.ListOfBlogPostFilter.List
-	369, // 4: productv1.ListOfBlogPostInput.list:type_name -> productv1.ListOfBlogPostInput.List
-	370, // 5: productv1.ListOfBoolean.list:type_name -> productv1.ListOfBoolean.List
-	371, // 6: productv1.ListOfCategory.list:type_name -> productv1.ListOfCategory.List
-	372, // 7: productv1.ListOfCategoryInput.list:type_name -> productv1.ListOfCategoryInput.List
-	373, // 8: productv1.ListOfFloat.list:type_name -> productv1.ListOfFloat.List
-	374, // 9: productv1.ListOfListOfCategory.list:type_name -> productv1.ListOfListOfCategory.List
-	375, // 10: productv1.ListOfListOfCategoryInput.list:type_name -> productv1.ListOfListOfCategoryInput.List
-	376, // 11: productv1.ListOfListOfString.list:type_name -> productv1.ListOfListOfString.List
-	377, // 12: productv1.ListOfListOfUser.list:type_name -> productv1.ListOfListOfUser.List
-	378, // 13: productv1.ListOfListOfUserInput.list:type_name -> productv1.ListOfListOfUserInput.List
-	379, // 14: productv1.ListOfOrderLine.list:type_name -> productv1.ListOfOrderLine.List
-	380, // 15: productv1.ListOfProduct.list:type_name -> productv1.ListOfProduct.List
-	381, // 16: productv1.ListOfStorage.list:type_name -> productv1.ListOfStorage.List
-	382, // 17: productv1.ListOfString.list:type_name -> productv1.ListOfString.List
-	383, // 18: productv1.ListOfSubcategory.list:type_name -> productv1.ListOfSubcategory.List
-	384, // 19: productv1.ListOfUser.list:type_name -> productv1.ListOfUser.List
-	385, // 20: productv1.ListOfUserInput.list:type_name -> productv1.ListOfUserInput.List
+	377, // 0: productv1.ListOfAuthorFilter.list:type_name -> productv1.ListOfAuthorFilter.List
+	378, // 1: productv1.ListOfAuthorInput.list:type_name -> productv1.ListOfAuthorInput.List
+	379, // 2: productv1.ListOfBlogPost.list:type_name -> productv1.ListOfBlogPost.List
+	380, // 3: productv1.ListOfBlogPostFilter.list:type_name -> productv1.ListOfBlogPostFilter.List
+	381, // 4: productv1.ListOfBlogPostInput.list:type_name -> productv1.ListOfBlogPostInput.List
+	382, // 5: productv1.ListOfBoolean.list:type_name -> productv1.ListOfBoolean.List
+	383, // 6: productv1.ListOfCategory.list:type_name -> productv1.ListOfCategory.List
+	384, // 7: productv1.ListOfCategoryInput.list:type_name -> productv1.ListOfCategoryInput.List
+	385, // 8: productv1.ListOfFloat.list:type_name -> productv1.ListOfFloat.List
+	386, // 9: productv1.ListOfListOfCategory.list:type_name -> productv1.ListOfListOfCategory.List
+	387, // 10: productv1.ListOfListOfCategoryInput.list:type_name -> productv1.ListOfListOfCategoryInput.List
+	388, // 11: productv1.ListOfListOfString.list:type_name -> productv1.ListOfListOfString.List
+	389, // 12: productv1.ListOfListOfUser.list:type_name -> productv1.ListOfListOfUser.List
+	390, // 13: productv1.ListOfListOfUserInput.list:type_name -> productv1.ListOfListOfUserInput.List
+	391, // 14: productv1.ListOfOrderLine.list:type_name -> productv1.ListOfOrderLine.List
+	392, // 15: productv1.ListOfProduct.list:type_name -> productv1.ListOfProduct.List
+	393, // 16: productv1.ListOfStorage.list:type_name -> productv1.ListOfStorage.List
+	394, // 17: productv1.ListOfString.list:type_name -> productv1.ListOfString.List
+	395, // 18: productv1.ListOfSubcategory.list:type_name -> productv1.ListOfSubcategory.List
+	396, // 19: productv1.ListOfUser.list:type_name -> productv1.ListOfUser.List
+	397, // 20: productv1.ListOfUserInput.list:type_name -> productv1.ListOfUserInput.List
 	23,  // 21: productv1.LookupProductByIdRequest.keys:type_name -> productv1.LookupProductByIdRequestKey
-	308, // 22: productv1.LookupProductByIdResponse.result:type_name -> productv1.Product
+	320, // 22: productv1.LookupProductByIdResponse.result:type_name -> productv1.Product
 	26,  // 23: productv1.LookupStorageByIdRequest.keys:type_name -> productv1.LookupStorageByIdRequestKey
-	309, // 24: productv1.LookupStorageByIdResponse.result:type_name -> productv1.Storage
+	321, // 24: productv1.LookupStorageByIdResponse.result:type_name -> productv1.Storage
 	29,  // 25: productv1.LookupWarehouseByIdRequest.keys:type_name -> productv1.LookupWarehouseByIdRequestKey
-	310, // 26: productv1.LookupWarehouseByIdResponse.result:type_name -> productv1.Warehouse
-	311, // 27: productv1.QueryUsersResponse.users:type_name -> productv1.User
-	311, // 28: productv1.QueryUserResponse.user:type_name -> productv1.User
-	312, // 29: productv1.QueryNestedTypeResponse.nested_type:type_name -> productv1.NestedTypeA
-	313, // 30: productv1.QueryRecursiveTypeResponse.recursive_type:type_name -> productv1.RecursiveType
-	314, // 31: productv1.QueryTypeFilterWithArgumentsResponse.type_filter_with_arguments:type_name -> productv1.TypeWithMultipleFilterFields
-	315, // 32: productv1.QueryTypeWithMultipleFilterFieldsRequest.filter:type_name -> productv1.FilterTypeInput
-	314, // 33: productv1.QueryTypeWithMultipleFilterFieldsResponse.type_with_multiple_filter_fields:type_name -> productv1.TypeWithMultipleFilterFields
-	316, // 34: productv1.QueryComplexFilterTypeRequest.filter:type_name -> productv1.ComplexFilterTypeInput
-	317, // 35: productv1.QueryComplexFilterTypeResponse.complex_filter_type:type_name -> productv1.TypeWithComplexFilterInput
-	318, // 36: productv1.QueryCalculateTotalsRequest.orders:type_name -> productv1.OrderInput
-	319, // 37: productv1.QueryCalculateTotalsResponse.calculate_totals:type_name -> productv1.Order
-	320, // 38: productv1.QueryCategoriesResponse.categories:type_name -> productv1.Category
-	320, // 39: productv1.QueryCategoryResponse.category:type_name -> productv1.Category
+	322, // 26: productv1.LookupWarehouseByIdResponse.result:type_name -> productv1.Warehouse
+	323, // 27: productv1.QueryUsersResponse.users:type_name -> productv1.User
+	323, // 28: productv1.QueryUserResponse.user:type_name -> productv1.User
+	324, // 29: productv1.QueryNestedTypeResponse.nested_type:type_name -> productv1.NestedTypeA
+	325, // 30: productv1.QueryRecursiveTypeResponse.recursive_type:type_name -> productv1.RecursiveType
+	326, // 31: productv1.QueryTypeFilterWithArgumentsResponse.type_filter_with_arguments:type_name -> productv1.TypeWithMultipleFilterFields
+	327, // 32: productv1.QueryTypeWithMultipleFilterFieldsRequest.filter:type_name -> productv1.FilterTypeInput
+	326, // 33: productv1.QueryTypeWithMultipleFilterFieldsResponse.type_with_multiple_filter_fields:type_name -> productv1.TypeWithMultipleFilterFields
+	328, // 34: productv1.QueryComplexFilterTypeRequest.filter:type_name -> productv1.ComplexFilterTypeInput
+	329, // 35: productv1.QueryComplexFilterTypeResponse.complex_filter_type:type_name -> productv1.TypeWithComplexFilterInput
+	330, // 36: productv1.QueryCalculateTotalsRequest.orders:type_name -> productv1.OrderInput
+	331, // 37: productv1.QueryCalculateTotalsResponse.calculate_totals:type_name -> productv1.Order
+	332, // 38: productv1.QueryCategoriesResponse.categories:type_name -> productv1.Category
+	332, // 39: productv1.QueryCategoryResponse.category:type_name -> productv1.Category
 	0,   // 40: productv1.QueryCategoriesByKindRequest.kind:type_name -> productv1.CategoryKind
-	320, // 41: productv1.QueryCategoriesByKindResponse.categories_by_kind:type_name -> productv1.Category
+	332, // 41: productv1.QueryCategoriesByKindResponse.categories_by_kind:type_name -> productv1.Category
 	0,   // 42: productv1.QueryCategoriesByKindsRequest.kinds:type_name -> productv1.CategoryKind
-	320, // 43: productv1.QueryCategoriesByKindsResponse.categories_by_kinds:type_name -> productv1.Category
-	321, // 44: productv1.QueryFilterCategoriesRequest.filter:type_name -> productv1.CategoryFilter
-	320, // 45: productv1.QueryFilterCategoriesResponse.filter_categories:type_name -> productv1.Category
-	322, // 46: productv1.QueryRandomPetResponse.random_pet:type_name -> productv1.Animal
-	322, // 47: productv1.QueryAllPetsResponse.all_pets:type_name -> productv1.Animal
-	323, // 48: productv1.QuerySearchRequest.input:type_name -> productv1.SearchInput
-	324, // 49: productv1.QuerySearchResponse.search:type_name -> productv1.SearchResult
-	324, // 50: productv1.QueryRandomSearchResultResponse.random_search_result:type_name -> productv1.SearchResult
-	325, // 51: productv1.QueryNullableFieldsTypeResponse.nullable_fields_type:type_name -> productv1.NullableFieldsType
-	325, // 52: productv1.QueryNullableFieldsTypeByIdResponse.nullable_fields_type_by_id:type_name -> productv1.NullableFieldsType
-	326, // 53: productv1.QueryNullableFieldsTypeWithFilterRequest.filter:type_name -> productv1.NullableFieldsFilter
-	325, // 54: productv1.QueryNullableFieldsTypeWithFilterResponse.nullable_fields_type_with_filter:type_name -> productv1.NullableFieldsType
-	325, // 55: productv1.QueryAllNullableFieldsTypesResponse.all_nullable_fields_types:type_name -> productv1.NullableFieldsType
-	327, // 56: productv1.QueryBlogPostResponse.blog_post:type_name -> productv1.BlogPost
-	327, // 57: productv1.QueryBlogPostByIdResponse.blog_post_by_id:type_name -> productv1.BlogPost
-	328, // 58: productv1.QueryBlogPostsWithFilterRequest.filter:type_name -> productv1.BlogPostFilter
-	327, // 59: productv1.QueryBlogPostsWithFilterResponse.blog_posts_with_filter:type_name -> productv1.BlogPost
-	327, // 60: productv1.QueryAllBlogPostsResponse.all_blog_posts:type_name -> productv1.BlogPost
-	329, // 61: productv1.QueryAuthorResponse.author:type_name -> productv1.Author
-	329, // 62: productv1.QueryAuthorByIdResponse.author_by_id:type_name -> productv1.Author
-	330, // 63: productv1.QueryAuthorsWithFilterRequest.filter:type_name -> productv1.AuthorFilter
-	329, // 64: productv1.QueryAuthorsWithFilterResponse.authors_with_filter:type_name -> productv1.Author
-	329, // 65: productv1.QueryAllAuthorsResponse.all_authors:type_name -> productv1.Author
+	332, // 43: productv1.QueryCategoriesByKindsResponse.categories_by_kinds:type_name -> productv1.Category
+	333, // 44: productv1.QueryFilterCategoriesRequest.filter:type_name -> productv1.CategoryFilter
+	332, // 45: productv1.QueryFilterCategoriesResponse.filter_categories:type_name -> productv1.Category
+	334, // 46: productv1.QueryRandomPetResponse.random_pet:type_name -> productv1.Animal
+	334, // 47: productv1.QueryAllPetsResponse.all_pets:type_name -> productv1.Animal
+	335, // 48: productv1.QuerySearchRequest.input:type_name -> productv1.SearchInput
+	336, // 49: productv1.QuerySearchResponse.search:type_name -> productv1.SearchResult
+	336, // 50: productv1.QueryRandomSearchResultResponse.random_search_result:type_name -> productv1.SearchResult
+	337, // 51: productv1.QueryNullableFieldsTypeResponse.nullable_fields_type:type_name -> productv1.NullableFieldsType
+	337, // 52: productv1.QueryNullableFieldsTypeByIdResponse.nullable_fields_type_by_id:type_name -> productv1.NullableFieldsType
+	338, // 53: productv1.QueryNullableFieldsTypeWithFilterRequest.filter:type_name -> productv1.NullableFieldsFilter
+	337, // 54: productv1.QueryNullableFieldsTypeWithFilterResponse.nullable_fields_type_with_filter:type_name -> productv1.NullableFieldsType
+	337, // 55: productv1.QueryAllNullableFieldsTypesResponse.all_nullable_fields_types:type_name -> productv1.NullableFieldsType
+	339, // 56: productv1.QueryBlogPostResponse.blog_post:type_name -> productv1.BlogPost
+	339, // 57: productv1.QueryBlogPostByIdResponse.blog_post_by_id:type_name -> productv1.BlogPost
+	340, // 58: productv1.QueryBlogPostsWithFilterRequest.filter:type_name -> productv1.BlogPostFilter
+	339, // 59: productv1.QueryBlogPostsWithFilterResponse.blog_posts_with_filter:type_name -> productv1.BlogPost
+	339, // 60: productv1.QueryAllBlogPostsResponse.all_blog_posts:type_name -> productv1.BlogPost
+	341, // 61: productv1.QueryAuthorResponse.author:type_name -> productv1.Author
+	341, // 62: productv1.QueryAuthorByIdResponse.author_by_id:type_name -> productv1.Author
+	342, // 63: productv1.QueryAuthorsWithFilterRequest.filter:type_name -> productv1.AuthorFilter
+	341, // 64: productv1.QueryAuthorsWithFilterResponse.authors_with_filter:type_name -> productv1.Author
+	341, // 65: productv1.QueryAllAuthorsResponse.all_authors:type_name -> productv1.Author
 	2,   // 66: productv1.QueryBulkSearchAuthorsRequest.filters:type_name -> productv1.ListOfAuthorFilter
-	329, // 67: productv1.QueryBulkSearchAuthorsResponse.bulk_search_authors:type_name -> productv1.Author
+	341, // 67: productv1.QueryBulkSearchAuthorsResponse.bulk_search_authors:type_name -> productv1.Author
 	5,   // 68: productv1.QueryBulkSearchBlogPostsRequest.filters:type_name -> productv1.ListOfBlogPostFilter
-	327, // 69: productv1.QueryBulkSearchBlogPostsResponse.bulk_search_blog_posts:type_name -> productv1.BlogPost
-	331, // 70: productv1.QueryTestContainerResponse.test_container:type_name -> productv1.TestContainer
-	331, // 71: productv1.QueryTestContainersResponse.test_containers:type_name -> productv1.TestContainer
-	332, // 72: productv1.MutationCreateUserRequest.input:type_name -> productv1.UserInput
-	311, // 73: productv1.MutationCreateUserResponse.create_user:type_name -> productv1.User
-	333, // 74: productv1.MutationPerformActionRequest.input:type_name -> productv1.ActionInput
-	334, // 75: productv1.MutationPerformActionResponse.perform_action:type_name -> productv1.ActionResult
-	335, // 76: productv1.MutationCreateNullableFieldsTypeRequest.input:type_name -> productv1.NullableFieldsInput
-	325, // 77: productv1.MutationCreateNullableFieldsTypeResponse.create_nullable_fields_type:type_name -> productv1.NullableFieldsType
-	335, // 78: productv1.MutationUpdateNullableFieldsTypeRequest.input:type_name -> productv1.NullableFieldsInput
-	325, // 79: productv1.MutationUpdateNullableFieldsTypeResponse.update_nullable_fields_type:type_name -> productv1.NullableFieldsType
-	336, // 80: productv1.MutationCreateBlogPostRequest.input:type_name -> productv1.BlogPostInput
-	327, // 81: productv1.MutationCreateBlogPostResponse.create_blog_post:type_name -> productv1.BlogPost
-	336, // 82: productv1.MutationUpdateBlogPostRequest.input:type_name -> productv1.BlogPostInput
-	327, // 83: productv1.MutationUpdateBlogPostResponse.update_blog_post:type_name -> productv1.BlogPost
-	337, // 84: productv1.MutationCreateAuthorRequest.input:type_name -> productv1.AuthorInput
-	329, // 85: productv1.MutationCreateAuthorResponse.create_author:type_name -> productv1.Author
-	337, // 86: productv1.MutationUpdateAuthorRequest.input:type_name -> productv1.AuthorInput
-	329, // 87: productv1.MutationUpdateAuthorResponse.update_author:type_name -> productv1.Author
+	339, // 69: productv1.QueryBulkSearchBlogPostsResponse.bulk_search_blog_posts:type_name -> productv1.BlogPost
+	343, // 70: productv1.QueryTestContainerResponse.test_container:type_name -> productv1.TestContainer
+	343, // 71: productv1.QueryTestContainersResponse.test_containers:type_name -> productv1.TestContainer
+	344, // 72: productv1.MutationCreateUserRequest.input:type_name -> productv1.UserInput
+	323, // 73: productv1.MutationCreateUserResponse.create_user:type_name -> productv1.User
+	345, // 74: productv1.MutationPerformActionRequest.input:type_name -> productv1.ActionInput
+	346, // 75: productv1.MutationPerformActionResponse.perform_action:type_name -> productv1.ActionResult
+	347, // 76: productv1.MutationCreateNullableFieldsTypeRequest.input:type_name -> productv1.NullableFieldsInput
+	337, // 77: productv1.MutationCreateNullableFieldsTypeResponse.create_nullable_fields_type:type_name -> productv1.NullableFieldsType
+	347, // 78: productv1.MutationUpdateNullableFieldsTypeRequest.input:type_name -> productv1.NullableFieldsInput
+	337, // 79: productv1.MutationUpdateNullableFieldsTypeResponse.update_nullable_fields_type:type_name -> productv1.NullableFieldsType
+	348, // 80: productv1.MutationCreateBlogPostRequest.input:type_name -> productv1.BlogPostInput
+	339, // 81: productv1.MutationCreateBlogPostResponse.create_blog_post:type_name -> productv1.BlogPost
+	348, // 82: productv1.MutationUpdateBlogPostRequest.input:type_name -> productv1.BlogPostInput
+	339, // 83: productv1.MutationUpdateBlogPostResponse.update_blog_post:type_name -> productv1.BlogPost
+	349, // 84: productv1.MutationCreateAuthorRequest.input:type_name -> productv1.AuthorInput
+	341, // 85: productv1.MutationCreateAuthorResponse.create_author:type_name -> productv1.Author
+	349, // 86: productv1.MutationUpdateAuthorRequest.input:type_name -> productv1.AuthorInput
+	341, // 87: productv1.MutationUpdateAuthorResponse.update_author:type_name -> productv1.Author
 	3,   // 88: productv1.MutationBulkCreateAuthorsRequest.authors:type_name -> productv1.ListOfAuthorInput
-	329, // 89: productv1.MutationBulkCreateAuthorsResponse.bulk_create_authors:type_name -> productv1.Author
+	341, // 89: productv1.MutationBulkCreateAuthorsResponse.bulk_create_authors:type_name -> productv1.Author
 	3,   // 90: productv1.MutationBulkUpdateAuthorsRequest.authors:type_name -> productv1.ListOfAuthorInput
-	329, // 91: productv1.MutationBulkUpdateAuthorsResponse.bulk_update_authors:type_name -> productv1.Author
+	341, // 91: productv1.MutationBulkUpdateAuthorsResponse.bulk_update_authors:type_name -> productv1.Author
 	6,   // 92: productv1.MutationBulkCreateBlogPostsRequest.blog_posts:type_name -> productv1.ListOfBlogPostInput
-	327, // 93: productv1.MutationBulkCreateBlogPostsResponse.bulk_create_blog_posts:type_name -> productv1.BlogPost
+	339, // 93: productv1.MutationBulkCreateBlogPostsResponse.bulk_create_blog_posts:type_name -> productv1.BlogPost
 	6,   // 94: productv1.MutationBulkUpdateBlogPostsRequest.blog_posts:type_name -> productv1.ListOfBlogPostInput
-	327, // 95: productv1.MutationBulkUpdateBlogPostsResponse.bulk_update_blog_posts:type_name -> productv1.BlogPost
-	364, // 96: productv1.ResolveProductShippingEstimateArgs.input:type_name -> productv1.ShippingEstimateInput
+	339, // 95: productv1.MutationBulkUpdateBlogPostsResponse.bulk_update_blog_posts:type_name -> productv1.BlogPost
+	376, // 96: productv1.ResolveProductShippingEstimateArgs.input:type_name -> productv1.ShippingEstimateInput
 	123, // 97: productv1.ResolveProductShippingEstimateRequest.context:type_name -> productv1.ResolveProductShippingEstimateContext
 	122, // 98: productv1.ResolveProductShippingEstimateRequest.field_args:type_name -> productv1.ResolveProductShippingEstimateArgs
 	125, // 99: productv1.ResolveProductShippingEstimateResponse.result:type_name -> productv1.ResolveProductShippingEstimateResult
 	128, // 100: productv1.ResolveProductRecommendedCategoryRequest.context:type_name -> productv1.ResolveProductRecommendedCategoryContext
 	127, // 101: productv1.ResolveProductRecommendedCategoryRequest.field_args:type_name -> productv1.ResolveProductRecommendedCategoryArgs
-	320, // 102: productv1.ResolveProductRecommendedCategoryResult.recommended_category:type_name -> productv1.Category
+	332, // 102: productv1.ResolveProductRecommendedCategoryResult.recommended_category:type_name -> productv1.Category
 	130, // 103: productv1.ResolveProductRecommendedCategoryResponse.result:type_name -> productv1.ResolveProductRecommendedCategoryResult
 	133, // 104: productv1.ResolveProductMascotRecommendationRequest.context:type_name -> productv1.ResolveProductMascotRecommendationContext
 	132, // 105: productv1.ResolveProductMascotRecommendationRequest.field_args:type_name -> productv1.ResolveProductMascotRecommendationArgs
-	322, // 106: productv1.ResolveProductMascotRecommendationResult.mascot_recommendation:type_name -> productv1.Animal
+	334, // 106: productv1.ResolveProductMascotRecommendationResult.mascot_recommendation:type_name -> productv1.Animal
 	135, // 107: productv1.ResolveProductMascotRecommendationResponse.result:type_name -> productv1.ResolveProductMascotRecommendationResult
 	138, // 108: productv1.ResolveProductStockStatusRequest.context:type_name -> productv1.ResolveProductStockStatusContext
 	137, // 109: productv1.ResolveProductStockStatusRequest.field_args:type_name -> productv1.ResolveProductStockStatusArgs
-	334, // 110: productv1.ResolveProductStockStatusResult.stock_status:type_name -> productv1.ActionResult
+	346, // 110: productv1.ResolveProductStockStatusResult.stock_status:type_name -> productv1.ActionResult
 	140, // 111: productv1.ResolveProductStockStatusResponse.result:type_name -> productv1.ResolveProductStockStatusResult
 	143, // 112: productv1.ResolveProductProductDetailsRequest.context:type_name -> productv1.ResolveProductProductDetailsContext
 	142, // 113: productv1.ResolveProductProductDetailsRequest.field_args:type_name -> productv1.ResolveProductProductDetailsArgs
-	338, // 114: productv1.ResolveProductProductDetailsResult.product_details:type_name -> productv1.ProductDetails
+	350, // 114: productv1.ResolveProductProductDetailsResult.product_details:type_name -> productv1.ProductDetails
 	145, // 115: productv1.ResolveProductProductDetailsResponse.result:type_name -> productv1.ResolveProductProductDetailsResult
 	148, // 116: productv1.ResolveStorageStorageStatusRequest.context:type_name -> productv1.ResolveStorageStorageStatusContext
 	147, // 117: productv1.ResolveStorageStorageStatusRequest.field_args:type_name -> productv1.ResolveStorageStorageStatusArgs
-	334, // 118: productv1.ResolveStorageStorageStatusResult.storage_status:type_name -> productv1.ActionResult
+	346, // 118: productv1.ResolveStorageStorageStatusResult.storage_status:type_name -> productv1.ActionResult
 	150, // 119: productv1.ResolveStorageStorageStatusResponse.result:type_name -> productv1.ResolveStorageStorageStatusResult
 	153, // 120: productv1.ResolveStorageLinkedStoragesRequest.context:type_name -> productv1.ResolveStorageLinkedStoragesContext
 	152, // 121: productv1.ResolveStorageLinkedStoragesRequest.field_args:type_name -> productv1.ResolveStorageLinkedStoragesArgs
-	309, // 122: productv1.ResolveStorageLinkedStoragesResult.linked_storages:type_name -> productv1.Storage
+	321, // 122: productv1.ResolveStorageLinkedStoragesResult.linked_storages:type_name -> productv1.Storage
 	155, // 123: productv1.ResolveStorageLinkedStoragesResponse.result:type_name -> productv1.ResolveStorageLinkedStoragesResult
-	393, // 124: productv1.ResolveStorageNearbyStoragesArgs.radius:type_name -> google.protobuf.Int32Value
+	405, // 124: productv1.ResolveStorageNearbyStoragesArgs.radius:type_name -> google.protobuf.Int32Value
 	158, // 125: productv1.ResolveStorageNearbyStoragesRequest.context:type_name -> productv1.ResolveStorageNearbyStoragesContext
 	157, // 126: productv1.ResolveStorageNearbyStoragesRequest.field_args:type_name -> productv1.ResolveStorageNearbyStoragesArgs
 	18,  // 127: productv1.ResolveStorageNearbyStoragesResult.nearby_storages:type_name -> productv1.ListOfStorage
 	160, // 128: productv1.ResolveStorageNearbyStoragesResponse.result:type_name -> productv1.ResolveStorageNearbyStoragesResult
-	362, // 129: productv1.ResolveCategoryProductCountArgs.filters:type_name -> productv1.ProductCountFilter
+	374, // 129: productv1.ResolveCategoryProductCountArgs.filters:type_name -> productv1.ProductCountFilter
 	163, // 130: productv1.ResolveCategoryProductCountRequest.context:type_name -> productv1.ResolveCategoryProductCountContext
 	162, // 131: productv1.ResolveCategoryProductCountRequest.field_args:type_name -> productv1.ResolveCategoryProductCountArgs
 	165, // 132: productv1.ResolveCategoryProductCountResponse.result:type_name -> productv1.ResolveCategoryProductCountResult
-	393, // 133: productv1.ResolveCategoryPopularityScoreArgs.threshold:type_name -> google.protobuf.Int32Value
+	405, // 133: productv1.ResolveCategoryPopularityScoreArgs.threshold:type_name -> google.protobuf.Int32Value
 	168, // 134: productv1.ResolveCategoryPopularityScoreRequest.context:type_name -> productv1.ResolveCategoryPopularityScoreContext
 	167, // 135: productv1.ResolveCategoryPopularityScoreRequest.field_args:type_name -> productv1.ResolveCategoryPopularityScoreArgs
-	393, // 136: productv1.ResolveCategoryPopularityScoreResult.popularity_score:type_name -> google.protobuf.Int32Value
+	405, // 136: productv1.ResolveCategoryPopularityScoreResult.popularity_score:type_name -> google.protobuf.Int32Value
 	170, // 137: productv1.ResolveCategoryPopularityScoreResponse.result:type_name -> productv1.ResolveCategoryPopularityScoreResult
 	173, // 138: productv1.ResolveCategoryCategoryMetricsRequest.context:type_name -> productv1.ResolveCategoryCategoryMetricsContext
 	172, // 139: productv1.ResolveCategoryCategoryMetricsRequest.field_args:type_name -> productv1.ResolveCategoryCategoryMetricsArgs
-	349, // 140: productv1.ResolveCategoryCategoryMetricsResult.category_metrics:type_name -> productv1.CategoryMetrics
+	361, // 140: productv1.ResolveCategoryCategoryMetricsResult.category_metrics:type_name -> productv1.CategoryMetrics
 	175, // 141: productv1.ResolveCategoryCategoryMetricsResponse.result:type_name -> productv1.ResolveCategoryCategoryMetricsResult
 	0,   // 142: productv1.ResolveCategoryMascotContext.kind:type_name -> productv1.CategoryKind
 	178, // 143: productv1.ResolveCategoryMascotRequest.context:type_name -> productv1.ResolveCategoryMascotContext
 	177, // 144: productv1.ResolveCategoryMascotRequest.field_args:type_name -> productv1.ResolveCategoryMascotArgs
-	322, // 145: productv1.ResolveCategoryMascotResult.mascot:type_name -> productv1.Animal
+	334, // 145: productv1.ResolveCategoryMascotResult.mascot:type_name -> productv1.Animal
 	180, // 146: productv1.ResolveCategoryMascotResponse.result:type_name -> productv1.ResolveCategoryMascotResult
 	183, // 147: productv1.ResolveCategoryCategoryStatusRequest.context:type_name -> productv1.ResolveCategoryCategoryStatusContext
 	182, // 148: productv1.ResolveCategoryCategoryStatusRequest.field_args:type_name -> productv1.ResolveCategoryCategoryStatusArgs
-	334, // 149: productv1.ResolveCategoryCategoryStatusResult.category_status:type_name -> productv1.ActionResult
+	346, // 149: productv1.ResolveCategoryCategoryStatusResult.category_status:type_name -> productv1.ActionResult
 	185, // 150: productv1.ResolveCategoryCategoryStatusResponse.result:type_name -> productv1.ResolveCategoryCategoryStatusResult
-	394, // 151: productv1.ResolveCategoryChildCategoriesArgs.include:type_name -> google.protobuf.BoolValue
+	406, // 151: productv1.ResolveCategoryChildCategoriesArgs.include:type_name -> google.protobuf.BoolValue
 	188, // 152: productv1.ResolveCategoryChildCategoriesRequest.context:type_name -> productv1.ResolveCategoryChildCategoriesContext
 	187, // 153: productv1.ResolveCategoryChildCategoriesRequest.field_args:type_name -> productv1.ResolveCategoryChildCategoriesArgs
-	320, // 154: productv1.ResolveCategoryChildCategoriesResult.child_categories:type_name -> productv1.Category
+	332, // 154: productv1.ResolveCategoryChildCategoriesResult.child_categories:type_name -> productv1.Category
 	190, // 155: productv1.ResolveCategoryChildCategoriesResponse.result:type_name -> productv1.ResolveCategoryChildCategoriesResult
-	394, // 156: productv1.ResolveCategoryOptionalCategoriesArgs.include:type_name -> google.protobuf.BoolValue
+	406, // 156: productv1.ResolveCategoryOptionalCategoriesArgs.include:type_name -> google.protobuf.BoolValue
 	193, // 157: productv1.ResolveCategoryOptionalCategoriesRequest.context:type_name -> productv1.ResolveCategoryOptionalCategoriesContext
 	192, // 158: productv1.ResolveCategoryOptionalCategoriesRequest.field_args:type_name -> productv1.ResolveCategoryOptionalCategoriesArgs
 	8,   // 159: productv1.ResolveCategoryOptionalCategoriesResult.optional_categories:type_name -> productv1.ListOfCategory
@@ -21278,41 +21898,41 @@ var file_product_proto_depIdxs = []int32{
 	197, // 161: productv1.ResolveCategoryTotalProductsRequest.context:type_name -> productv1.ResolveCategoryTotalProductsContext
 	199, // 162: productv1.ResolveCategoryTotalProductsResponse.result:type_name -> productv1.ResolveCategoryTotalProductsResult
 	201, // 163: productv1.ResolveCategoryTopSubcategoryRequest.context:type_name -> productv1.ResolveCategoryTopSubcategoryContext
-	348, // 164: productv1.ResolveCategoryTopSubcategoryResult.top_subcategory:type_name -> productv1.Subcategory
+	360, // 164: productv1.ResolveCategoryTopSubcategoryResult.top_subcategory:type_name -> productv1.Subcategory
 	203, // 165: productv1.ResolveCategoryTopSubcategoryResponse.result:type_name -> productv1.ResolveCategoryTopSubcategoryResult
 	205, // 166: productv1.ResolveCategoryActiveSubcategoriesRequest.context:type_name -> productv1.ResolveCategoryActiveSubcategoriesContext
-	348, // 167: productv1.ResolveCategoryActiveSubcategoriesResult.active_subcategories:type_name -> productv1.Subcategory
+	360, // 167: productv1.ResolveCategoryActiveSubcategoriesResult.active_subcategories:type_name -> productv1.Subcategory
 	207, // 168: productv1.ResolveCategoryActiveSubcategoriesResponse.result:type_name -> productv1.ResolveCategoryActiveSubcategoriesResult
-	363, // 169: productv1.ResolveSubcategoryItemCountArgs.filters:type_name -> productv1.SubcategoryItemFilter
+	375, // 169: productv1.ResolveSubcategoryItemCountArgs.filters:type_name -> productv1.SubcategoryItemFilter
 	210, // 170: productv1.ResolveSubcategoryItemCountRequest.context:type_name -> productv1.ResolveSubcategoryItemCountContext
 	209, // 171: productv1.ResolveSubcategoryItemCountRequest.field_args:type_name -> productv1.ResolveSubcategoryItemCountArgs
 	212, // 172: productv1.ResolveSubcategoryItemCountResponse.result:type_name -> productv1.ResolveSubcategoryItemCountResult
 	215, // 173: productv1.ResolveSubcategoryFeaturedCategoryRequest.context:type_name -> productv1.ResolveSubcategoryFeaturedCategoryContext
 	214, // 174: productv1.ResolveSubcategoryFeaturedCategoryRequest.field_args:type_name -> productv1.ResolveSubcategoryFeaturedCategoryArgs
-	320, // 175: productv1.ResolveSubcategoryFeaturedCategoryResult.featured_category:type_name -> productv1.Category
+	332, // 175: productv1.ResolveSubcategoryFeaturedCategoryResult.featured_category:type_name -> productv1.Category
 	217, // 176: productv1.ResolveSubcategoryFeaturedCategoryResponse.result:type_name -> productv1.ResolveSubcategoryFeaturedCategoryResult
 	219, // 177: productv1.ResolveSubcategoryParentCategoryRequest.context:type_name -> productv1.ResolveSubcategoryParentCategoryContext
-	320, // 178: productv1.ResolveSubcategoryParentCategoryResult.parent_category:type_name -> productv1.Category
+	332, // 178: productv1.ResolveSubcategoryParentCategoryResult.parent_category:type_name -> productv1.Category
 	221, // 179: productv1.ResolveSubcategoryParentCategoryResponse.result:type_name -> productv1.ResolveSubcategoryParentCategoryResult
 	224, // 180: productv1.ResolveCategoryMetricsNormalizedScoreRequest.context:type_name -> productv1.ResolveCategoryMetricsNormalizedScoreContext
 	223, // 181: productv1.ResolveCategoryMetricsNormalizedScoreRequest.field_args:type_name -> productv1.ResolveCategoryMetricsNormalizedScoreArgs
 	226, // 182: productv1.ResolveCategoryMetricsNormalizedScoreResponse.result:type_name -> productv1.ResolveCategoryMetricsNormalizedScoreResult
-	394, // 183: productv1.ResolveCategoryMetricsRelatedCategoryArgs.include:type_name -> google.protobuf.BoolValue
+	406, // 183: productv1.ResolveCategoryMetricsRelatedCategoryArgs.include:type_name -> google.protobuf.BoolValue
 	229, // 184: productv1.ResolveCategoryMetricsRelatedCategoryRequest.context:type_name -> productv1.ResolveCategoryMetricsRelatedCategoryContext
 	228, // 185: productv1.ResolveCategoryMetricsRelatedCategoryRequest.field_args:type_name -> productv1.ResolveCategoryMetricsRelatedCategoryArgs
-	320, // 186: productv1.ResolveCategoryMetricsRelatedCategoryResult.related_category:type_name -> productv1.Category
+	332, // 186: productv1.ResolveCategoryMetricsRelatedCategoryResult.related_category:type_name -> productv1.Category
 	231, // 187: productv1.ResolveCategoryMetricsRelatedCategoryResponse.result:type_name -> productv1.ResolveCategoryMetricsRelatedCategoryResult
 	233, // 188: productv1.ResolveCategoryMetricsAverageScoreRequest.context:type_name -> productv1.ResolveCategoryMetricsAverageScoreContext
 	235, // 189: productv1.ResolveCategoryMetricsAverageScoreResponse.result:type_name -> productv1.ResolveCategoryMetricsAverageScoreResult
 	238, // 190: productv1.ResolveTestContainerDetailsRequest.context:type_name -> productv1.ResolveTestContainerDetailsContext
 	237, // 191: productv1.ResolveTestContainerDetailsRequest.field_args:type_name -> productv1.ResolveTestContainerDetailsArgs
-	360, // 192: productv1.ResolveTestContainerDetailsResult.details:type_name -> productv1.TestDetails
+	372, // 192: productv1.ResolveTestContainerDetailsResult.details:type_name -> productv1.TestDetails
 	240, // 193: productv1.ResolveTestContainerDetailsResponse.result:type_name -> productv1.ResolveTestContainerDetailsResult
 	243, // 194: productv1.RequireStorageStockHealthScoreByIdRequest.context:type_name -> productv1.RequireStorageStockHealthScoreByIdContext
 	26,  // 195: productv1.RequireStorageStockHealthScoreByIdContext.key:type_name -> productv1.LookupStorageByIdRequestKey
 	246, // 196: productv1.RequireStorageStockHealthScoreByIdContext.fields:type_name -> productv1.RequireStorageStockHealthScoreByIdFields
 	245, // 197: productv1.RequireStorageStockHealthScoreByIdResponse.result:type_name -> productv1.RequireStorageStockHealthScoreByIdResult
-	386, // 198: productv1.RequireStorageStockHealthScoreByIdFields.restock_data:type_name -> productv1.RequireStorageStockHealthScoreByIdFields.RestockData
+	398, // 198: productv1.RequireStorageStockHealthScoreByIdFields.restock_data:type_name -> productv1.RequireStorageStockHealthScoreByIdFields.RestockData
 	248, // 199: productv1.RequireStorageTagSummaryByIdRequest.context:type_name -> productv1.RequireStorageTagSummaryByIdContext
 	26,  // 200: productv1.RequireStorageTagSummaryByIdContext.key:type_name -> productv1.LookupStorageByIdRequestKey
 	251, // 201: productv1.RequireStorageTagSummaryByIdContext.fields:type_name -> productv1.RequireStorageTagSummaryByIdFields
@@ -21321,25 +21941,25 @@ var file_product_proto_depIdxs = []int32{
 	26,  // 204: productv1.RequireStorageOptionalTagSummaryByIdContext.key:type_name -> productv1.LookupStorageByIdRequestKey
 	256, // 205: productv1.RequireStorageOptionalTagSummaryByIdContext.fields:type_name -> productv1.RequireStorageOptionalTagSummaryByIdFields
 	255, // 206: productv1.RequireStorageOptionalTagSummaryByIdResponse.result:type_name -> productv1.RequireStorageOptionalTagSummaryByIdResult
-	395, // 207: productv1.RequireStorageOptionalTagSummaryByIdResult.optional_tag_summary:type_name -> google.protobuf.StringValue
+	407, // 207: productv1.RequireStorageOptionalTagSummaryByIdResult.optional_tag_summary:type_name -> google.protobuf.StringValue
 	19,  // 208: productv1.RequireStorageOptionalTagSummaryByIdFields.optional_tags:type_name -> productv1.ListOfString
 	258, // 209: productv1.RequireStorageMetadataScoreByIdRequest.context:type_name -> productv1.RequireStorageMetadataScoreByIdContext
 	26,  // 210: productv1.RequireStorageMetadataScoreByIdContext.key:type_name -> productv1.LookupStorageByIdRequestKey
 	261, // 211: productv1.RequireStorageMetadataScoreByIdContext.fields:type_name -> productv1.RequireStorageMetadataScoreByIdFields
 	260, // 212: productv1.RequireStorageMetadataScoreByIdResponse.result:type_name -> productv1.RequireStorageMetadataScoreByIdResult
-	387, // 213: productv1.RequireStorageMetadataScoreByIdFields.metadata:type_name -> productv1.RequireStorageMetadataScoreByIdFields.StorageMetadata
+	399, // 213: productv1.RequireStorageMetadataScoreByIdFields.metadata:type_name -> productv1.RequireStorageMetadataScoreByIdFields.StorageMetadata
 	263, // 214: productv1.RequireStorageProcessedMetadataByIdRequest.context:type_name -> productv1.RequireStorageProcessedMetadataByIdContext
 	26,  // 215: productv1.RequireStorageProcessedMetadataByIdContext.key:type_name -> productv1.LookupStorageByIdRequestKey
 	266, // 216: productv1.RequireStorageProcessedMetadataByIdContext.fields:type_name -> productv1.RequireStorageProcessedMetadataByIdFields
 	265, // 217: productv1.RequireStorageProcessedMetadataByIdResponse.result:type_name -> productv1.RequireStorageProcessedMetadataByIdResult
-	340, // 218: productv1.RequireStorageProcessedMetadataByIdResult.processed_metadata:type_name -> productv1.StorageMetadata
-	388, // 219: productv1.RequireStorageProcessedMetadataByIdFields.metadata:type_name -> productv1.RequireStorageProcessedMetadataByIdFields.StorageMetadata
+	352, // 218: productv1.RequireStorageProcessedMetadataByIdResult.processed_metadata:type_name -> productv1.StorageMetadata
+	400, // 219: productv1.RequireStorageProcessedMetadataByIdFields.metadata:type_name -> productv1.RequireStorageProcessedMetadataByIdFields.StorageMetadata
 	268, // 220: productv1.RequireStorageOptionalProcessedMetadataByIdRequest.context:type_name -> productv1.RequireStorageOptionalProcessedMetadataByIdContext
 	26,  // 221: productv1.RequireStorageOptionalProcessedMetadataByIdContext.key:type_name -> productv1.LookupStorageByIdRequestKey
 	271, // 222: productv1.RequireStorageOptionalProcessedMetadataByIdContext.fields:type_name -> productv1.RequireStorageOptionalProcessedMetadataByIdFields
 	270, // 223: productv1.RequireStorageOptionalProcessedMetadataByIdResponse.result:type_name -> productv1.RequireStorageOptionalProcessedMetadataByIdResult
-	340, // 224: productv1.RequireStorageOptionalProcessedMetadataByIdResult.optional_processed_metadata:type_name -> productv1.StorageMetadata
-	389, // 225: productv1.RequireStorageOptionalProcessedMetadataByIdFields.metadata:type_name -> productv1.RequireStorageOptionalProcessedMetadataByIdFields.StorageMetadata
+	352, // 224: productv1.RequireStorageOptionalProcessedMetadataByIdResult.optional_processed_metadata:type_name -> productv1.StorageMetadata
+	401, // 225: productv1.RequireStorageOptionalProcessedMetadataByIdFields.metadata:type_name -> productv1.RequireStorageOptionalProcessedMetadataByIdFields.StorageMetadata
 	273, // 226: productv1.RequireStorageProcessedTagsByIdRequest.context:type_name -> productv1.RequireStorageProcessedTagsByIdContext
 	26,  // 227: productv1.RequireStorageProcessedTagsByIdContext.key:type_name -> productv1.LookupStorageByIdRequestKey
 	276, // 228: productv1.RequireStorageProcessedTagsByIdContext.fields:type_name -> productv1.RequireStorageProcessedTagsByIdFields
@@ -21354,8 +21974,8 @@ var file_product_proto_depIdxs = []int32{
 	26,  // 237: productv1.RequireStorageProcessedMetadataHistoryByIdContext.key:type_name -> productv1.LookupStorageByIdRequestKey
 	286, // 238: productv1.RequireStorageProcessedMetadataHistoryByIdContext.fields:type_name -> productv1.RequireStorageProcessedMetadataHistoryByIdFields
 	285, // 239: productv1.RequireStorageProcessedMetadataHistoryByIdResponse.result:type_name -> productv1.RequireStorageProcessedMetadataHistoryByIdResult
-	340, // 240: productv1.RequireStorageProcessedMetadataHistoryByIdResult.processed_metadata_history:type_name -> productv1.StorageMetadata
-	390, // 241: productv1.RequireStorageProcessedMetadataHistoryByIdFields.metadata_history:type_name -> productv1.RequireStorageProcessedMetadataHistoryByIdFields.StorageMetadata
+	352, // 240: productv1.RequireStorageProcessedMetadataHistoryByIdResult.processed_metadata_history:type_name -> productv1.StorageMetadata
+	402, // 241: productv1.RequireStorageProcessedMetadataHistoryByIdFields.metadata_history:type_name -> productv1.RequireStorageProcessedMetadataHistoryByIdFields.StorageMetadata
 	288, // 242: productv1.RequireStorageKindSummaryByIdRequest.context:type_name -> productv1.RequireStorageKindSummaryByIdContext
 	26,  // 243: productv1.RequireStorageKindSummaryByIdContext.key:type_name -> productv1.LookupStorageByIdRequestKey
 	291, // 244: productv1.RequireStorageKindSummaryByIdContext.fields:type_name -> productv1.RequireStorageKindSummaryByIdFields
@@ -21365,324 +21985,341 @@ var file_product_proto_depIdxs = []int32{
 	26,  // 248: productv1.RequireStorageCategoryInfoSummaryByIdContext.key:type_name -> productv1.LookupStorageByIdRequestKey
 	296, // 249: productv1.RequireStorageCategoryInfoSummaryByIdContext.fields:type_name -> productv1.RequireStorageCategoryInfoSummaryByIdFields
 	295, // 250: productv1.RequireStorageCategoryInfoSummaryByIdResponse.result:type_name -> productv1.RequireStorageCategoryInfoSummaryByIdResult
-	391, // 251: productv1.RequireStorageCategoryInfoSummaryByIdFields.category_info:type_name -> productv1.RequireStorageCategoryInfoSummaryByIdFields.StorageCategoryInfo
+	403, // 251: productv1.RequireStorageCategoryInfoSummaryByIdFields.category_info:type_name -> productv1.RequireStorageCategoryInfoSummaryByIdFields.StorageCategoryInfo
 	298, // 252: productv1.RequireStorageFilteredTagSummaryByIdRequest.context:type_name -> productv1.RequireStorageFilteredTagSummaryByIdContext
 	299, // 253: productv1.RequireStorageFilteredTagSummaryByIdRequest.field_args:type_name -> productv1.RequireStorageFilteredTagSummaryByIdArgs
 	26,  // 254: productv1.RequireStorageFilteredTagSummaryByIdContext.key:type_name -> productv1.LookupStorageByIdRequestKey
 	302, // 255: productv1.RequireStorageFilteredTagSummaryByIdContext.fields:type_name -> productv1.RequireStorageFilteredTagSummaryByIdFields
 	301, // 256: productv1.RequireStorageFilteredTagSummaryByIdResponse.result:type_name -> productv1.RequireStorageFilteredTagSummaryByIdResult
-	395, // 257: productv1.RequireStorageFilteredTagSummaryByIdResult.filtered_tag_summary:type_name -> google.protobuf.StringValue
-	304, // 258: productv1.RequireWarehouseStockHealthScoreByIdRequest.context:type_name -> productv1.RequireWarehouseStockHealthScoreByIdContext
-	29,  // 259: productv1.RequireWarehouseStockHealthScoreByIdContext.key:type_name -> productv1.LookupWarehouseByIdRequestKey
-	307, // 260: productv1.RequireWarehouseStockHealthScoreByIdContext.fields:type_name -> productv1.RequireWarehouseStockHealthScoreByIdFields
-	306, // 261: productv1.RequireWarehouseStockHealthScoreByIdResponse.result:type_name -> productv1.RequireWarehouseStockHealthScoreByIdResult
-	392, // 262: productv1.RequireWarehouseStockHealthScoreByIdFields.restock_data:type_name -> productv1.RequireWarehouseStockHealthScoreByIdFields.RestockData
-	342, // 263: productv1.NestedTypeA.b:type_name -> productv1.NestedTypeB
-	313, // 264: productv1.RecursiveType.recursive_type:type_name -> productv1.RecursiveType
-	344, // 265: productv1.ComplexFilterTypeInput.filter:type_name -> productv1.FilterType
-	346, // 266: productv1.OrderInput.lines:type_name -> productv1.OrderLineInput
-	16,  // 267: productv1.Order.order_lines:type_name -> productv1.ListOfOrderLine
-	0,   // 268: productv1.Category.kind:type_name -> productv1.CategoryKind
-	20,  // 269: productv1.Category.subcategories:type_name -> productv1.ListOfSubcategory
-	349, // 270: productv1.Category.null_metrics:type_name -> productv1.CategoryMetrics
-	0,   // 271: productv1.CategoryFilter.category:type_name -> productv1.CategoryKind
-	345, // 272: productv1.CategoryFilter.pagination:type_name -> productv1.Pagination
-	350, // 273: productv1.Animal.cat:type_name -> productv1.Cat
-	351, // 274: productv1.Animal.dog:type_name -> productv1.Dog
-	393, // 275: productv1.SearchInput.limit:type_name -> google.protobuf.Int32Value
-	308, // 276: productv1.SearchResult.product:type_name -> productv1.Product
-	311, // 277: productv1.SearchResult.user:type_name -> productv1.User
-	320, // 278: productv1.SearchResult.category:type_name -> productv1.Category
-	395, // 279: productv1.NullableFieldsType.optional_string:type_name -> google.protobuf.StringValue
-	393, // 280: productv1.NullableFieldsType.optional_int:type_name -> google.protobuf.Int32Value
-	396, // 281: productv1.NullableFieldsType.optional_float:type_name -> google.protobuf.DoubleValue
-	394, // 282: productv1.NullableFieldsType.optional_boolean:type_name -> google.protobuf.BoolValue
-	395, // 283: productv1.NullableFieldsFilter.name:type_name -> google.protobuf.StringValue
-	395, // 284: productv1.NullableFieldsFilter.optional_string:type_name -> google.protobuf.StringValue
-	394, // 285: productv1.NullableFieldsFilter.include_nulls:type_name -> google.protobuf.BoolValue
-	19,  // 286: productv1.BlogPost.optional_tags:type_name -> productv1.ListOfString
-	19,  // 287: productv1.BlogPost.keywords:type_name -> productv1.ListOfString
-	10,  // 288: productv1.BlogPost.ratings:type_name -> productv1.ListOfFloat
-	7,   // 289: productv1.BlogPost.is_published:type_name -> productv1.ListOfBoolean
-	13,  // 290: productv1.BlogPost.tag_groups:type_name -> productv1.ListOfListOfString
-	13,  // 291: productv1.BlogPost.related_topics:type_name -> productv1.ListOfListOfString
-	13,  // 292: productv1.BlogPost.comment_threads:type_name -> productv1.ListOfListOfString
-	13,  // 293: productv1.BlogPost.suggestions:type_name -> productv1.ListOfListOfString
-	320, // 294: productv1.BlogPost.related_categories:type_name -> productv1.Category
-	311, // 295: productv1.BlogPost.contributors:type_name -> productv1.User
-	17,  // 296: productv1.BlogPost.mentioned_products:type_name -> productv1.ListOfProduct
-	21,  // 297: productv1.BlogPost.mentioned_users:type_name -> productv1.ListOfUser
-	11,  // 298: productv1.BlogPost.category_groups:type_name -> productv1.ListOfListOfCategory
-	14,  // 299: productv1.BlogPost.contributor_teams:type_name -> productv1.ListOfListOfUser
-	395, // 300: productv1.BlogPostFilter.title:type_name -> google.protobuf.StringValue
-	394, // 301: productv1.BlogPostFilter.has_categories:type_name -> google.protobuf.BoolValue
-	393, // 302: productv1.BlogPostFilter.min_tags:type_name -> google.protobuf.Int32Value
-	395, // 303: productv1.Author.email:type_name -> google.protobuf.StringValue
-	19,  // 304: productv1.Author.social_links:type_name -> productv1.ListOfString
-	13,  // 305: productv1.Author.teams_by_project:type_name -> productv1.ListOfListOfString
-	13,  // 306: productv1.Author.collaborations:type_name -> productv1.ListOfListOfString
-	4,   // 307: productv1.Author.written_posts:type_name -> productv1.ListOfBlogPost
-	320, // 308: productv1.Author.favorite_categories:type_name -> productv1.Category
-	21,  // 309: productv1.Author.related_authors:type_name -> productv1.ListOfUser
-	17,  // 310: productv1.Author.product_reviews:type_name -> productv1.ListOfProduct
-	14,  // 311: productv1.Author.author_groups:type_name -> productv1.ListOfListOfUser
-	11,  // 312: productv1.Author.category_preferences:type_name -> productv1.ListOfListOfCategory
-	14,  // 313: productv1.Author.project_teams:type_name -> productv1.ListOfListOfUser
-	395, // 314: productv1.AuthorFilter.name:type_name -> google.protobuf.StringValue
-	394, // 315: productv1.AuthorFilter.has_teams:type_name -> google.protobuf.BoolValue
-	393, // 316: productv1.AuthorFilter.skill_count:type_name -> google.protobuf.Int32Value
-	395, // 317: productv1.TestContainer.description:type_name -> google.protobuf.StringValue
-	358, // 318: productv1.ActionResult.action_success:type_name -> productv1.ActionSuccess
-	359, // 319: productv1.ActionResult.action_error:type_name -> productv1.ActionError
-	395, // 320: productv1.NullableFieldsInput.optional_string:type_name -> google.protobuf.StringValue
-	393, // 321: productv1.NullableFieldsInput.optional_int:type_name -> google.protobuf.Int32Value
-	396, // 322: productv1.NullableFieldsInput.optional_float:type_name -> google.protobuf.DoubleValue
-	394, // 323: productv1.NullableFieldsInput.optional_boolean:type_name -> google.protobuf.BoolValue
-	19,  // 324: productv1.BlogPostInput.optional_tags:type_name -> productv1.ListOfString
-	19,  // 325: productv1.BlogPostInput.keywords:type_name -> productv1.ListOfString
-	10,  // 326: productv1.BlogPostInput.ratings:type_name -> productv1.ListOfFloat
-	7,   // 327: productv1.BlogPostInput.is_published:type_name -> productv1.ListOfBoolean
-	13,  // 328: productv1.BlogPostInput.tag_groups:type_name -> productv1.ListOfListOfString
-	13,  // 329: productv1.BlogPostInput.related_topics:type_name -> productv1.ListOfListOfString
-	13,  // 330: productv1.BlogPostInput.comment_threads:type_name -> productv1.ListOfListOfString
-	13,  // 331: productv1.BlogPostInput.suggestions:type_name -> productv1.ListOfListOfString
-	9,   // 332: productv1.BlogPostInput.related_categories:type_name -> productv1.ListOfCategoryInput
-	22,  // 333: productv1.BlogPostInput.contributors:type_name -> productv1.ListOfUserInput
-	12,  // 334: productv1.BlogPostInput.category_groups:type_name -> productv1.ListOfListOfCategoryInput
-	395, // 335: productv1.AuthorInput.email:type_name -> google.protobuf.StringValue
-	19,  // 336: productv1.AuthorInput.social_links:type_name -> productv1.ListOfString
-	13,  // 337: productv1.AuthorInput.teams_by_project:type_name -> productv1.ListOfListOfString
-	13,  // 338: productv1.AuthorInput.collaborations:type_name -> productv1.ListOfListOfString
-	361, // 339: productv1.AuthorInput.favorite_categories:type_name -> productv1.CategoryInput
-	15,  // 340: productv1.AuthorInput.author_groups:type_name -> productv1.ListOfListOfUserInput
-	15,  // 341: productv1.AuthorInput.project_teams:type_name -> productv1.ListOfListOfUserInput
-	334, // 342: productv1.ProductDetails.review_summary:type_name -> productv1.ActionResult
-	322, // 343: productv1.ProductDetails.recommended_pet:type_name -> productv1.Animal
-	0,   // 344: productv1.StorageCategoryInfo.kind:type_name -> productv1.CategoryKind
-	343, // 345: productv1.NestedTypeB.c:type_name -> productv1.NestedTypeC
-	345, // 346: productv1.FilterType.pagination:type_name -> productv1.Pagination
-	19,  // 347: productv1.OrderLineInput.modifiers:type_name -> productv1.ListOfString
-	19,  // 348: productv1.OrderLine.modifiers:type_name -> productv1.ListOfString
-	395, // 349: productv1.Subcategory.description:type_name -> google.protobuf.StringValue
-	352, // 350: productv1.Cat.owner:type_name -> productv1.Owner
-	355, // 351: productv1.Cat.breed:type_name -> productv1.CatBreed
-	352, // 352: productv1.Dog.owner:type_name -> productv1.Owner
-	356, // 353: productv1.Dog.breed:type_name -> productv1.DogBreed
-	353, // 354: productv1.Owner.contact:type_name -> productv1.ContactInfo
-	322, // 355: productv1.Owner.pet:type_name -> productv1.Animal
-	354, // 356: productv1.ContactInfo.address:type_name -> productv1.Address
-	357, // 357: productv1.CatBreed.characteristics:type_name -> productv1.BreedCharacteristics
-	357, // 358: productv1.DogBreed.characteristics:type_name -> productv1.BreedCharacteristics
-	322, // 359: productv1.TestDetails.pet:type_name -> productv1.Animal
-	334, // 360: productv1.TestDetails.status:type_name -> productv1.ActionResult
-	0,   // 361: productv1.CategoryInput.kind:type_name -> productv1.CategoryKind
-	396, // 362: productv1.ProductCountFilter.min_price:type_name -> google.protobuf.DoubleValue
-	396, // 363: productv1.ProductCountFilter.max_price:type_name -> google.protobuf.DoubleValue
-	394, // 364: productv1.ProductCountFilter.in_stock:type_name -> google.protobuf.BoolValue
-	395, // 365: productv1.ProductCountFilter.search_term:type_name -> google.protobuf.StringValue
-	396, // 366: productv1.SubcategoryItemFilter.min_price:type_name -> google.protobuf.DoubleValue
-	396, // 367: productv1.SubcategoryItemFilter.max_price:type_name -> google.protobuf.DoubleValue
-	394, // 368: productv1.SubcategoryItemFilter.in_stock:type_name -> google.protobuf.BoolValue
-	394, // 369: productv1.SubcategoryItemFilter.is_active:type_name -> google.protobuf.BoolValue
-	395, // 370: productv1.SubcategoryItemFilter.search_term:type_name -> google.protobuf.StringValue
-	1,   // 371: productv1.ShippingEstimateInput.destination:type_name -> productv1.ShippingDestination
-	394, // 372: productv1.ShippingEstimateInput.expedited:type_name -> google.protobuf.BoolValue
-	330, // 373: productv1.ListOfAuthorFilter.List.items:type_name -> productv1.AuthorFilter
-	337, // 374: productv1.ListOfAuthorInput.List.items:type_name -> productv1.AuthorInput
-	327, // 375: productv1.ListOfBlogPost.List.items:type_name -> productv1.BlogPost
-	328, // 376: productv1.ListOfBlogPostFilter.List.items:type_name -> productv1.BlogPostFilter
-	336, // 377: productv1.ListOfBlogPostInput.List.items:type_name -> productv1.BlogPostInput
-	320, // 378: productv1.ListOfCategory.List.items:type_name -> productv1.Category
-	361, // 379: productv1.ListOfCategoryInput.List.items:type_name -> productv1.CategoryInput
-	8,   // 380: productv1.ListOfListOfCategory.List.items:type_name -> productv1.ListOfCategory
-	9,   // 381: productv1.ListOfListOfCategoryInput.List.items:type_name -> productv1.ListOfCategoryInput
-	19,  // 382: productv1.ListOfListOfString.List.items:type_name -> productv1.ListOfString
-	21,  // 383: productv1.ListOfListOfUser.List.items:type_name -> productv1.ListOfUser
-	22,  // 384: productv1.ListOfListOfUserInput.List.items:type_name -> productv1.ListOfUserInput
-	347, // 385: productv1.ListOfOrderLine.List.items:type_name -> productv1.OrderLine
-	308, // 386: productv1.ListOfProduct.List.items:type_name -> productv1.Product
-	309, // 387: productv1.ListOfStorage.List.items:type_name -> productv1.Storage
-	348, // 388: productv1.ListOfSubcategory.List.items:type_name -> productv1.Subcategory
-	311, // 389: productv1.ListOfUser.List.items:type_name -> productv1.User
-	332, // 390: productv1.ListOfUserInput.List.items:type_name -> productv1.UserInput
-	0,   // 391: productv1.RequireStorageCategoryInfoSummaryByIdFields.StorageCategoryInfo.kind:type_name -> productv1.CategoryKind
-	24,  // 392: productv1.ProductService.LookupProductById:input_type -> productv1.LookupProductByIdRequest
-	27,  // 393: productv1.ProductService.LookupStorageById:input_type -> productv1.LookupStorageByIdRequest
-	30,  // 394: productv1.ProductService.LookupWarehouseById:input_type -> productv1.LookupWarehouseByIdRequest
-	114, // 395: productv1.ProductService.MutationBulkCreateAuthors:input_type -> productv1.MutationBulkCreateAuthorsRequest
-	118, // 396: productv1.ProductService.MutationBulkCreateBlogPosts:input_type -> productv1.MutationBulkCreateBlogPostsRequest
-	116, // 397: productv1.ProductService.MutationBulkUpdateAuthors:input_type -> productv1.MutationBulkUpdateAuthorsRequest
-	120, // 398: productv1.ProductService.MutationBulkUpdateBlogPosts:input_type -> productv1.MutationBulkUpdateBlogPostsRequest
-	110, // 399: productv1.ProductService.MutationCreateAuthor:input_type -> productv1.MutationCreateAuthorRequest
-	106, // 400: productv1.ProductService.MutationCreateBlogPost:input_type -> productv1.MutationCreateBlogPostRequest
-	102, // 401: productv1.ProductService.MutationCreateNullableFieldsType:input_type -> productv1.MutationCreateNullableFieldsTypeRequest
-	98,  // 402: productv1.ProductService.MutationCreateUser:input_type -> productv1.MutationCreateUserRequest
-	100, // 403: productv1.ProductService.MutationPerformAction:input_type -> productv1.MutationPerformActionRequest
-	112, // 404: productv1.ProductService.MutationUpdateAuthor:input_type -> productv1.MutationUpdateAuthorRequest
-	108, // 405: productv1.ProductService.MutationUpdateBlogPost:input_type -> productv1.MutationUpdateBlogPostRequest
-	104, // 406: productv1.ProductService.MutationUpdateNullableFieldsType:input_type -> productv1.MutationUpdateNullableFieldsTypeRequest
-	88,  // 407: productv1.ProductService.QueryAllAuthors:input_type -> productv1.QueryAllAuthorsRequest
-	80,  // 408: productv1.ProductService.QueryAllBlogPosts:input_type -> productv1.QueryAllBlogPostsRequest
-	72,  // 409: productv1.ProductService.QueryAllNullableFieldsTypes:input_type -> productv1.QueryAllNullableFieldsTypesRequest
-	60,  // 410: productv1.ProductService.QueryAllPets:input_type -> productv1.QueryAllPetsRequest
-	82,  // 411: productv1.ProductService.QueryAuthor:input_type -> productv1.QueryAuthorRequest
-	84,  // 412: productv1.ProductService.QueryAuthorById:input_type -> productv1.QueryAuthorByIdRequest
-	86,  // 413: productv1.ProductService.QueryAuthorsWithFilter:input_type -> productv1.QueryAuthorsWithFilterRequest
-	74,  // 414: productv1.ProductService.QueryBlogPost:input_type -> productv1.QueryBlogPostRequest
-	76,  // 415: productv1.ProductService.QueryBlogPostById:input_type -> productv1.QueryBlogPostByIdRequest
-	78,  // 416: productv1.ProductService.QueryBlogPostsWithFilter:input_type -> productv1.QueryBlogPostsWithFilterRequest
-	90,  // 417: productv1.ProductService.QueryBulkSearchAuthors:input_type -> productv1.QueryBulkSearchAuthorsRequest
-	92,  // 418: productv1.ProductService.QueryBulkSearchBlogPosts:input_type -> productv1.QueryBulkSearchBlogPostsRequest
-	46,  // 419: productv1.ProductService.QueryCalculateTotals:input_type -> productv1.QueryCalculateTotalsRequest
-	48,  // 420: productv1.ProductService.QueryCategories:input_type -> productv1.QueryCategoriesRequest
-	52,  // 421: productv1.ProductService.QueryCategoriesByKind:input_type -> productv1.QueryCategoriesByKindRequest
-	54,  // 422: productv1.ProductService.QueryCategoriesByKinds:input_type -> productv1.QueryCategoriesByKindsRequest
-	50,  // 423: productv1.ProductService.QueryCategory:input_type -> productv1.QueryCategoryRequest
-	44,  // 424: productv1.ProductService.QueryComplexFilterType:input_type -> productv1.QueryComplexFilterTypeRequest
-	56,  // 425: productv1.ProductService.QueryFilterCategories:input_type -> productv1.QueryFilterCategoriesRequest
-	36,  // 426: productv1.ProductService.QueryNestedType:input_type -> productv1.QueryNestedTypeRequest
-	66,  // 427: productv1.ProductService.QueryNullableFieldsType:input_type -> productv1.QueryNullableFieldsTypeRequest
-	68,  // 428: productv1.ProductService.QueryNullableFieldsTypeById:input_type -> productv1.QueryNullableFieldsTypeByIdRequest
-	70,  // 429: productv1.ProductService.QueryNullableFieldsTypeWithFilter:input_type -> productv1.QueryNullableFieldsTypeWithFilterRequest
-	58,  // 430: productv1.ProductService.QueryRandomPet:input_type -> productv1.QueryRandomPetRequest
-	64,  // 431: productv1.ProductService.QueryRandomSearchResult:input_type -> productv1.QueryRandomSearchResultRequest
-	38,  // 432: productv1.ProductService.QueryRecursiveType:input_type -> productv1.QueryRecursiveTypeRequest
-	62,  // 433: productv1.ProductService.QuerySearch:input_type -> productv1.QuerySearchRequest
-	94,  // 434: productv1.ProductService.QueryTestContainer:input_type -> productv1.QueryTestContainerRequest
-	96,  // 435: productv1.ProductService.QueryTestContainers:input_type -> productv1.QueryTestContainersRequest
-	40,  // 436: productv1.ProductService.QueryTypeFilterWithArguments:input_type -> productv1.QueryTypeFilterWithArgumentsRequest
-	42,  // 437: productv1.ProductService.QueryTypeWithMultipleFilterFields:input_type -> productv1.QueryTypeWithMultipleFilterFieldsRequest
-	34,  // 438: productv1.ProductService.QueryUser:input_type -> productv1.QueryUserRequest
-	32,  // 439: productv1.ProductService.QueryUsers:input_type -> productv1.QueryUsersRequest
-	292, // 440: productv1.ProductService.RequireStorageCategoryInfoSummaryById:input_type -> productv1.RequireStorageCategoryInfoSummaryByIdRequest
-	297, // 441: productv1.ProductService.RequireStorageFilteredTagSummaryById:input_type -> productv1.RequireStorageFilteredTagSummaryByIdRequest
-	287, // 442: productv1.ProductService.RequireStorageKindSummaryById:input_type -> productv1.RequireStorageKindSummaryByIdRequest
-	257, // 443: productv1.ProductService.RequireStorageMetadataScoreById:input_type -> productv1.RequireStorageMetadataScoreByIdRequest
-	267, // 444: productv1.ProductService.RequireStorageOptionalProcessedMetadataById:input_type -> productv1.RequireStorageOptionalProcessedMetadataByIdRequest
-	277, // 445: productv1.ProductService.RequireStorageOptionalProcessedTagsById:input_type -> productv1.RequireStorageOptionalProcessedTagsByIdRequest
-	252, // 446: productv1.ProductService.RequireStorageOptionalTagSummaryById:input_type -> productv1.RequireStorageOptionalTagSummaryByIdRequest
-	262, // 447: productv1.ProductService.RequireStorageProcessedMetadataById:input_type -> productv1.RequireStorageProcessedMetadataByIdRequest
-	282, // 448: productv1.ProductService.RequireStorageProcessedMetadataHistoryById:input_type -> productv1.RequireStorageProcessedMetadataHistoryByIdRequest
-	272, // 449: productv1.ProductService.RequireStorageProcessedTagsById:input_type -> productv1.RequireStorageProcessedTagsByIdRequest
-	242, // 450: productv1.ProductService.RequireStorageStockHealthScoreById:input_type -> productv1.RequireStorageStockHealthScoreByIdRequest
-	247, // 451: productv1.ProductService.RequireStorageTagSummaryById:input_type -> productv1.RequireStorageTagSummaryByIdRequest
-	303, // 452: productv1.ProductService.RequireWarehouseStockHealthScoreById:input_type -> productv1.RequireWarehouseStockHealthScoreByIdRequest
-	206, // 453: productv1.ProductService.ResolveCategoryActiveSubcategories:input_type -> productv1.ResolveCategoryActiveSubcategoriesRequest
-	174, // 454: productv1.ProductService.ResolveCategoryCategoryMetrics:input_type -> productv1.ResolveCategoryCategoryMetricsRequest
-	184, // 455: productv1.ProductService.ResolveCategoryCategoryStatus:input_type -> productv1.ResolveCategoryCategoryStatusRequest
-	189, // 456: productv1.ProductService.ResolveCategoryChildCategories:input_type -> productv1.ResolveCategoryChildCategoriesRequest
-	179, // 457: productv1.ProductService.ResolveCategoryMascot:input_type -> productv1.ResolveCategoryMascotRequest
-	234, // 458: productv1.ProductService.ResolveCategoryMetricsAverageScore:input_type -> productv1.ResolveCategoryMetricsAverageScoreRequest
-	225, // 459: productv1.ProductService.ResolveCategoryMetricsNormalizedScore:input_type -> productv1.ResolveCategoryMetricsNormalizedScoreRequest
-	230, // 460: productv1.ProductService.ResolveCategoryMetricsRelatedCategory:input_type -> productv1.ResolveCategoryMetricsRelatedCategoryRequest
-	194, // 461: productv1.ProductService.ResolveCategoryOptionalCategories:input_type -> productv1.ResolveCategoryOptionalCategoriesRequest
-	169, // 462: productv1.ProductService.ResolveCategoryPopularityScore:input_type -> productv1.ResolveCategoryPopularityScoreRequest
-	164, // 463: productv1.ProductService.ResolveCategoryProductCount:input_type -> productv1.ResolveCategoryProductCountRequest
-	202, // 464: productv1.ProductService.ResolveCategoryTopSubcategory:input_type -> productv1.ResolveCategoryTopSubcategoryRequest
-	198, // 465: productv1.ProductService.ResolveCategoryTotalProducts:input_type -> productv1.ResolveCategoryTotalProductsRequest
-	134, // 466: productv1.ProductService.ResolveProductMascotRecommendation:input_type -> productv1.ResolveProductMascotRecommendationRequest
-	144, // 467: productv1.ProductService.ResolveProductProductDetails:input_type -> productv1.ResolveProductProductDetailsRequest
-	129, // 468: productv1.ProductService.ResolveProductRecommendedCategory:input_type -> productv1.ResolveProductRecommendedCategoryRequest
-	124, // 469: productv1.ProductService.ResolveProductShippingEstimate:input_type -> productv1.ResolveProductShippingEstimateRequest
-	139, // 470: productv1.ProductService.ResolveProductStockStatus:input_type -> productv1.ResolveProductStockStatusRequest
-	154, // 471: productv1.ProductService.ResolveStorageLinkedStorages:input_type -> productv1.ResolveStorageLinkedStoragesRequest
-	159, // 472: productv1.ProductService.ResolveStorageNearbyStorages:input_type -> productv1.ResolveStorageNearbyStoragesRequest
-	149, // 473: productv1.ProductService.ResolveStorageStorageStatus:input_type -> productv1.ResolveStorageStorageStatusRequest
-	216, // 474: productv1.ProductService.ResolveSubcategoryFeaturedCategory:input_type -> productv1.ResolveSubcategoryFeaturedCategoryRequest
-	211, // 475: productv1.ProductService.ResolveSubcategoryItemCount:input_type -> productv1.ResolveSubcategoryItemCountRequest
-	220, // 476: productv1.ProductService.ResolveSubcategoryParentCategory:input_type -> productv1.ResolveSubcategoryParentCategoryRequest
-	239, // 477: productv1.ProductService.ResolveTestContainerDetails:input_type -> productv1.ResolveTestContainerDetailsRequest
-	25,  // 478: productv1.ProductService.LookupProductById:output_type -> productv1.LookupProductByIdResponse
-	28,  // 479: productv1.ProductService.LookupStorageById:output_type -> productv1.LookupStorageByIdResponse
-	31,  // 480: productv1.ProductService.LookupWarehouseById:output_type -> productv1.LookupWarehouseByIdResponse
-	115, // 481: productv1.ProductService.MutationBulkCreateAuthors:output_type -> productv1.MutationBulkCreateAuthorsResponse
-	119, // 482: productv1.ProductService.MutationBulkCreateBlogPosts:output_type -> productv1.MutationBulkCreateBlogPostsResponse
-	117, // 483: productv1.ProductService.MutationBulkUpdateAuthors:output_type -> productv1.MutationBulkUpdateAuthorsResponse
-	121, // 484: productv1.ProductService.MutationBulkUpdateBlogPosts:output_type -> productv1.MutationBulkUpdateBlogPostsResponse
-	111, // 485: productv1.ProductService.MutationCreateAuthor:output_type -> productv1.MutationCreateAuthorResponse
-	107, // 486: productv1.ProductService.MutationCreateBlogPost:output_type -> productv1.MutationCreateBlogPostResponse
-	103, // 487: productv1.ProductService.MutationCreateNullableFieldsType:output_type -> productv1.MutationCreateNullableFieldsTypeResponse
-	99,  // 488: productv1.ProductService.MutationCreateUser:output_type -> productv1.MutationCreateUserResponse
-	101, // 489: productv1.ProductService.MutationPerformAction:output_type -> productv1.MutationPerformActionResponse
-	113, // 490: productv1.ProductService.MutationUpdateAuthor:output_type -> productv1.MutationUpdateAuthorResponse
-	109, // 491: productv1.ProductService.MutationUpdateBlogPost:output_type -> productv1.MutationUpdateBlogPostResponse
-	105, // 492: productv1.ProductService.MutationUpdateNullableFieldsType:output_type -> productv1.MutationUpdateNullableFieldsTypeResponse
-	89,  // 493: productv1.ProductService.QueryAllAuthors:output_type -> productv1.QueryAllAuthorsResponse
-	81,  // 494: productv1.ProductService.QueryAllBlogPosts:output_type -> productv1.QueryAllBlogPostsResponse
-	73,  // 495: productv1.ProductService.QueryAllNullableFieldsTypes:output_type -> productv1.QueryAllNullableFieldsTypesResponse
-	61,  // 496: productv1.ProductService.QueryAllPets:output_type -> productv1.QueryAllPetsResponse
-	83,  // 497: productv1.ProductService.QueryAuthor:output_type -> productv1.QueryAuthorResponse
-	85,  // 498: productv1.ProductService.QueryAuthorById:output_type -> productv1.QueryAuthorByIdResponse
-	87,  // 499: productv1.ProductService.QueryAuthorsWithFilter:output_type -> productv1.QueryAuthorsWithFilterResponse
-	75,  // 500: productv1.ProductService.QueryBlogPost:output_type -> productv1.QueryBlogPostResponse
-	77,  // 501: productv1.ProductService.QueryBlogPostById:output_type -> productv1.QueryBlogPostByIdResponse
-	79,  // 502: productv1.ProductService.QueryBlogPostsWithFilter:output_type -> productv1.QueryBlogPostsWithFilterResponse
-	91,  // 503: productv1.ProductService.QueryBulkSearchAuthors:output_type -> productv1.QueryBulkSearchAuthorsResponse
-	93,  // 504: productv1.ProductService.QueryBulkSearchBlogPosts:output_type -> productv1.QueryBulkSearchBlogPostsResponse
-	47,  // 505: productv1.ProductService.QueryCalculateTotals:output_type -> productv1.QueryCalculateTotalsResponse
-	49,  // 506: productv1.ProductService.QueryCategories:output_type -> productv1.QueryCategoriesResponse
-	53,  // 507: productv1.ProductService.QueryCategoriesByKind:output_type -> productv1.QueryCategoriesByKindResponse
-	55,  // 508: productv1.ProductService.QueryCategoriesByKinds:output_type -> productv1.QueryCategoriesByKindsResponse
-	51,  // 509: productv1.ProductService.QueryCategory:output_type -> productv1.QueryCategoryResponse
-	45,  // 510: productv1.ProductService.QueryComplexFilterType:output_type -> productv1.QueryComplexFilterTypeResponse
-	57,  // 511: productv1.ProductService.QueryFilterCategories:output_type -> productv1.QueryFilterCategoriesResponse
-	37,  // 512: productv1.ProductService.QueryNestedType:output_type -> productv1.QueryNestedTypeResponse
-	67,  // 513: productv1.ProductService.QueryNullableFieldsType:output_type -> productv1.QueryNullableFieldsTypeResponse
-	69,  // 514: productv1.ProductService.QueryNullableFieldsTypeById:output_type -> productv1.QueryNullableFieldsTypeByIdResponse
-	71,  // 515: productv1.ProductService.QueryNullableFieldsTypeWithFilter:output_type -> productv1.QueryNullableFieldsTypeWithFilterResponse
-	59,  // 516: productv1.ProductService.QueryRandomPet:output_type -> productv1.QueryRandomPetResponse
-	65,  // 517: productv1.ProductService.QueryRandomSearchResult:output_type -> productv1.QueryRandomSearchResultResponse
-	39,  // 518: productv1.ProductService.QueryRecursiveType:output_type -> productv1.QueryRecursiveTypeResponse
-	63,  // 519: productv1.ProductService.QuerySearch:output_type -> productv1.QuerySearchResponse
-	95,  // 520: productv1.ProductService.QueryTestContainer:output_type -> productv1.QueryTestContainerResponse
-	97,  // 521: productv1.ProductService.QueryTestContainers:output_type -> productv1.QueryTestContainersResponse
-	41,  // 522: productv1.ProductService.QueryTypeFilterWithArguments:output_type -> productv1.QueryTypeFilterWithArgumentsResponse
-	43,  // 523: productv1.ProductService.QueryTypeWithMultipleFilterFields:output_type -> productv1.QueryTypeWithMultipleFilterFieldsResponse
-	35,  // 524: productv1.ProductService.QueryUser:output_type -> productv1.QueryUserResponse
-	33,  // 525: productv1.ProductService.QueryUsers:output_type -> productv1.QueryUsersResponse
-	294, // 526: productv1.ProductService.RequireStorageCategoryInfoSummaryById:output_type -> productv1.RequireStorageCategoryInfoSummaryByIdResponse
-	300, // 527: productv1.ProductService.RequireStorageFilteredTagSummaryById:output_type -> productv1.RequireStorageFilteredTagSummaryByIdResponse
-	289, // 528: productv1.ProductService.RequireStorageKindSummaryById:output_type -> productv1.RequireStorageKindSummaryByIdResponse
-	259, // 529: productv1.ProductService.RequireStorageMetadataScoreById:output_type -> productv1.RequireStorageMetadataScoreByIdResponse
-	269, // 530: productv1.ProductService.RequireStorageOptionalProcessedMetadataById:output_type -> productv1.RequireStorageOptionalProcessedMetadataByIdResponse
-	279, // 531: productv1.ProductService.RequireStorageOptionalProcessedTagsById:output_type -> productv1.RequireStorageOptionalProcessedTagsByIdResponse
-	254, // 532: productv1.ProductService.RequireStorageOptionalTagSummaryById:output_type -> productv1.RequireStorageOptionalTagSummaryByIdResponse
-	264, // 533: productv1.ProductService.RequireStorageProcessedMetadataById:output_type -> productv1.RequireStorageProcessedMetadataByIdResponse
-	284, // 534: productv1.ProductService.RequireStorageProcessedMetadataHistoryById:output_type -> productv1.RequireStorageProcessedMetadataHistoryByIdResponse
-	274, // 535: productv1.ProductService.RequireStorageProcessedTagsById:output_type -> productv1.RequireStorageProcessedTagsByIdResponse
-	244, // 536: productv1.ProductService.RequireStorageStockHealthScoreById:output_type -> productv1.RequireStorageStockHealthScoreByIdResponse
-	249, // 537: productv1.ProductService.RequireStorageTagSummaryById:output_type -> productv1.RequireStorageTagSummaryByIdResponse
-	305, // 538: productv1.ProductService.RequireWarehouseStockHealthScoreById:output_type -> productv1.RequireWarehouseStockHealthScoreByIdResponse
-	208, // 539: productv1.ProductService.ResolveCategoryActiveSubcategories:output_type -> productv1.ResolveCategoryActiveSubcategoriesResponse
-	176, // 540: productv1.ProductService.ResolveCategoryCategoryMetrics:output_type -> productv1.ResolveCategoryCategoryMetricsResponse
-	186, // 541: productv1.ProductService.ResolveCategoryCategoryStatus:output_type -> productv1.ResolveCategoryCategoryStatusResponse
-	191, // 542: productv1.ProductService.ResolveCategoryChildCategories:output_type -> productv1.ResolveCategoryChildCategoriesResponse
-	181, // 543: productv1.ProductService.ResolveCategoryMascot:output_type -> productv1.ResolveCategoryMascotResponse
-	236, // 544: productv1.ProductService.ResolveCategoryMetricsAverageScore:output_type -> productv1.ResolveCategoryMetricsAverageScoreResponse
-	227, // 545: productv1.ProductService.ResolveCategoryMetricsNormalizedScore:output_type -> productv1.ResolveCategoryMetricsNormalizedScoreResponse
-	232, // 546: productv1.ProductService.ResolveCategoryMetricsRelatedCategory:output_type -> productv1.ResolveCategoryMetricsRelatedCategoryResponse
-	196, // 547: productv1.ProductService.ResolveCategoryOptionalCategories:output_type -> productv1.ResolveCategoryOptionalCategoriesResponse
-	171, // 548: productv1.ProductService.ResolveCategoryPopularityScore:output_type -> productv1.ResolveCategoryPopularityScoreResponse
-	166, // 549: productv1.ProductService.ResolveCategoryProductCount:output_type -> productv1.ResolveCategoryProductCountResponse
-	204, // 550: productv1.ProductService.ResolveCategoryTopSubcategory:output_type -> productv1.ResolveCategoryTopSubcategoryResponse
-	200, // 551: productv1.ProductService.ResolveCategoryTotalProducts:output_type -> productv1.ResolveCategoryTotalProductsResponse
-	136, // 552: productv1.ProductService.ResolveProductMascotRecommendation:output_type -> productv1.ResolveProductMascotRecommendationResponse
-	146, // 553: productv1.ProductService.ResolveProductProductDetails:output_type -> productv1.ResolveProductProductDetailsResponse
-	131, // 554: productv1.ProductService.ResolveProductRecommendedCategory:output_type -> productv1.ResolveProductRecommendedCategoryResponse
-	126, // 555: productv1.ProductService.ResolveProductShippingEstimate:output_type -> productv1.ResolveProductShippingEstimateResponse
-	141, // 556: productv1.ProductService.ResolveProductStockStatus:output_type -> productv1.ResolveProductStockStatusResponse
-	156, // 557: productv1.ProductService.ResolveStorageLinkedStorages:output_type -> productv1.ResolveStorageLinkedStoragesResponse
-	161, // 558: productv1.ProductService.ResolveStorageNearbyStorages:output_type -> productv1.ResolveStorageNearbyStoragesResponse
-	151, // 559: productv1.ProductService.ResolveStorageStorageStatus:output_type -> productv1.ResolveStorageStorageStatusResponse
-	218, // 560: productv1.ProductService.ResolveSubcategoryFeaturedCategory:output_type -> productv1.ResolveSubcategoryFeaturedCategoryResponse
-	213, // 561: productv1.ProductService.ResolveSubcategoryItemCount:output_type -> productv1.ResolveSubcategoryItemCountResponse
-	222, // 562: productv1.ProductService.ResolveSubcategoryParentCategory:output_type -> productv1.ResolveSubcategoryParentCategoryResponse
-	241, // 563: productv1.ProductService.ResolveTestContainerDetails:output_type -> productv1.ResolveTestContainerDetailsResponse
-	478, // [478:564] is the sub-list for method output_type
-	392, // [392:478] is the sub-list for method input_type
-	392, // [392:392] is the sub-list for extension type_name
-	392, // [392:392] is the sub-list for extension extendee
-	0,   // [0:392] is the sub-list for field type_name
+	407, // 257: productv1.RequireStorageFilteredTagSummaryByIdResult.filtered_tag_summary:type_name -> google.protobuf.StringValue
+	304, // 258: productv1.RequireStorageMultiFilteredTagSummaryByIdRequest.context:type_name -> productv1.RequireStorageMultiFilteredTagSummaryByIdContext
+	305, // 259: productv1.RequireStorageMultiFilteredTagSummaryByIdRequest.field_args:type_name -> productv1.RequireStorageMultiFilteredTagSummaryByIdArgs
+	26,  // 260: productv1.RequireStorageMultiFilteredTagSummaryByIdContext.key:type_name -> productv1.LookupStorageByIdRequestKey
+	308, // 261: productv1.RequireStorageMultiFilteredTagSummaryByIdContext.fields:type_name -> productv1.RequireStorageMultiFilteredTagSummaryByIdFields
+	307, // 262: productv1.RequireStorageMultiFilteredTagSummaryByIdResponse.result:type_name -> productv1.RequireStorageMultiFilteredTagSummaryByIdResult
+	407, // 263: productv1.RequireStorageMultiFilteredTagSummaryByIdResult.multi_filtered_tag_summary:type_name -> google.protobuf.StringValue
+	310, // 264: productv1.RequireStorageNullableFilteredTagSummaryByIdRequest.context:type_name -> productv1.RequireStorageNullableFilteredTagSummaryByIdContext
+	311, // 265: productv1.RequireStorageNullableFilteredTagSummaryByIdRequest.field_args:type_name -> productv1.RequireStorageNullableFilteredTagSummaryByIdArgs
+	26,  // 266: productv1.RequireStorageNullableFilteredTagSummaryByIdContext.key:type_name -> productv1.LookupStorageByIdRequestKey
+	314, // 267: productv1.RequireStorageNullableFilteredTagSummaryByIdContext.fields:type_name -> productv1.RequireStorageNullableFilteredTagSummaryByIdFields
+	407, // 268: productv1.RequireStorageNullableFilteredTagSummaryByIdArgs.prefix:type_name -> google.protobuf.StringValue
+	313, // 269: productv1.RequireStorageNullableFilteredTagSummaryByIdResponse.result:type_name -> productv1.RequireStorageNullableFilteredTagSummaryByIdResult
+	407, // 270: productv1.RequireStorageNullableFilteredTagSummaryByIdResult.nullable_filtered_tag_summary:type_name -> google.protobuf.StringValue
+	316, // 271: productv1.RequireWarehouseStockHealthScoreByIdRequest.context:type_name -> productv1.RequireWarehouseStockHealthScoreByIdContext
+	29,  // 272: productv1.RequireWarehouseStockHealthScoreByIdContext.key:type_name -> productv1.LookupWarehouseByIdRequestKey
+	319, // 273: productv1.RequireWarehouseStockHealthScoreByIdContext.fields:type_name -> productv1.RequireWarehouseStockHealthScoreByIdFields
+	318, // 274: productv1.RequireWarehouseStockHealthScoreByIdResponse.result:type_name -> productv1.RequireWarehouseStockHealthScoreByIdResult
+	404, // 275: productv1.RequireWarehouseStockHealthScoreByIdFields.restock_data:type_name -> productv1.RequireWarehouseStockHealthScoreByIdFields.RestockData
+	354, // 276: productv1.NestedTypeA.b:type_name -> productv1.NestedTypeB
+	325, // 277: productv1.RecursiveType.recursive_type:type_name -> productv1.RecursiveType
+	356, // 278: productv1.ComplexFilterTypeInput.filter:type_name -> productv1.FilterType
+	358, // 279: productv1.OrderInput.lines:type_name -> productv1.OrderLineInput
+	16,  // 280: productv1.Order.order_lines:type_name -> productv1.ListOfOrderLine
+	0,   // 281: productv1.Category.kind:type_name -> productv1.CategoryKind
+	20,  // 282: productv1.Category.subcategories:type_name -> productv1.ListOfSubcategory
+	361, // 283: productv1.Category.null_metrics:type_name -> productv1.CategoryMetrics
+	0,   // 284: productv1.CategoryFilter.category:type_name -> productv1.CategoryKind
+	357, // 285: productv1.CategoryFilter.pagination:type_name -> productv1.Pagination
+	362, // 286: productv1.Animal.cat:type_name -> productv1.Cat
+	363, // 287: productv1.Animal.dog:type_name -> productv1.Dog
+	405, // 288: productv1.SearchInput.limit:type_name -> google.protobuf.Int32Value
+	320, // 289: productv1.SearchResult.product:type_name -> productv1.Product
+	323, // 290: productv1.SearchResult.user:type_name -> productv1.User
+	332, // 291: productv1.SearchResult.category:type_name -> productv1.Category
+	407, // 292: productv1.NullableFieldsType.optional_string:type_name -> google.protobuf.StringValue
+	405, // 293: productv1.NullableFieldsType.optional_int:type_name -> google.protobuf.Int32Value
+	408, // 294: productv1.NullableFieldsType.optional_float:type_name -> google.protobuf.DoubleValue
+	406, // 295: productv1.NullableFieldsType.optional_boolean:type_name -> google.protobuf.BoolValue
+	407, // 296: productv1.NullableFieldsFilter.name:type_name -> google.protobuf.StringValue
+	407, // 297: productv1.NullableFieldsFilter.optional_string:type_name -> google.protobuf.StringValue
+	406, // 298: productv1.NullableFieldsFilter.include_nulls:type_name -> google.protobuf.BoolValue
+	19,  // 299: productv1.BlogPost.optional_tags:type_name -> productv1.ListOfString
+	19,  // 300: productv1.BlogPost.keywords:type_name -> productv1.ListOfString
+	10,  // 301: productv1.BlogPost.ratings:type_name -> productv1.ListOfFloat
+	7,   // 302: productv1.BlogPost.is_published:type_name -> productv1.ListOfBoolean
+	13,  // 303: productv1.BlogPost.tag_groups:type_name -> productv1.ListOfListOfString
+	13,  // 304: productv1.BlogPost.related_topics:type_name -> productv1.ListOfListOfString
+	13,  // 305: productv1.BlogPost.comment_threads:type_name -> productv1.ListOfListOfString
+	13,  // 306: productv1.BlogPost.suggestions:type_name -> productv1.ListOfListOfString
+	332, // 307: productv1.BlogPost.related_categories:type_name -> productv1.Category
+	323, // 308: productv1.BlogPost.contributors:type_name -> productv1.User
+	17,  // 309: productv1.BlogPost.mentioned_products:type_name -> productv1.ListOfProduct
+	21,  // 310: productv1.BlogPost.mentioned_users:type_name -> productv1.ListOfUser
+	11,  // 311: productv1.BlogPost.category_groups:type_name -> productv1.ListOfListOfCategory
+	14,  // 312: productv1.BlogPost.contributor_teams:type_name -> productv1.ListOfListOfUser
+	407, // 313: productv1.BlogPostFilter.title:type_name -> google.protobuf.StringValue
+	406, // 314: productv1.BlogPostFilter.has_categories:type_name -> google.protobuf.BoolValue
+	405, // 315: productv1.BlogPostFilter.min_tags:type_name -> google.protobuf.Int32Value
+	407, // 316: productv1.Author.email:type_name -> google.protobuf.StringValue
+	19,  // 317: productv1.Author.social_links:type_name -> productv1.ListOfString
+	13,  // 318: productv1.Author.teams_by_project:type_name -> productv1.ListOfListOfString
+	13,  // 319: productv1.Author.collaborations:type_name -> productv1.ListOfListOfString
+	4,   // 320: productv1.Author.written_posts:type_name -> productv1.ListOfBlogPost
+	332, // 321: productv1.Author.favorite_categories:type_name -> productv1.Category
+	21,  // 322: productv1.Author.related_authors:type_name -> productv1.ListOfUser
+	17,  // 323: productv1.Author.product_reviews:type_name -> productv1.ListOfProduct
+	14,  // 324: productv1.Author.author_groups:type_name -> productv1.ListOfListOfUser
+	11,  // 325: productv1.Author.category_preferences:type_name -> productv1.ListOfListOfCategory
+	14,  // 326: productv1.Author.project_teams:type_name -> productv1.ListOfListOfUser
+	407, // 327: productv1.AuthorFilter.name:type_name -> google.protobuf.StringValue
+	406, // 328: productv1.AuthorFilter.has_teams:type_name -> google.protobuf.BoolValue
+	405, // 329: productv1.AuthorFilter.skill_count:type_name -> google.protobuf.Int32Value
+	407, // 330: productv1.TestContainer.description:type_name -> google.protobuf.StringValue
+	370, // 331: productv1.ActionResult.action_success:type_name -> productv1.ActionSuccess
+	371, // 332: productv1.ActionResult.action_error:type_name -> productv1.ActionError
+	407, // 333: productv1.NullableFieldsInput.optional_string:type_name -> google.protobuf.StringValue
+	405, // 334: productv1.NullableFieldsInput.optional_int:type_name -> google.protobuf.Int32Value
+	408, // 335: productv1.NullableFieldsInput.optional_float:type_name -> google.protobuf.DoubleValue
+	406, // 336: productv1.NullableFieldsInput.optional_boolean:type_name -> google.protobuf.BoolValue
+	19,  // 337: productv1.BlogPostInput.optional_tags:type_name -> productv1.ListOfString
+	19,  // 338: productv1.BlogPostInput.keywords:type_name -> productv1.ListOfString
+	10,  // 339: productv1.BlogPostInput.ratings:type_name -> productv1.ListOfFloat
+	7,   // 340: productv1.BlogPostInput.is_published:type_name -> productv1.ListOfBoolean
+	13,  // 341: productv1.BlogPostInput.tag_groups:type_name -> productv1.ListOfListOfString
+	13,  // 342: productv1.BlogPostInput.related_topics:type_name -> productv1.ListOfListOfString
+	13,  // 343: productv1.BlogPostInput.comment_threads:type_name -> productv1.ListOfListOfString
+	13,  // 344: productv1.BlogPostInput.suggestions:type_name -> productv1.ListOfListOfString
+	9,   // 345: productv1.BlogPostInput.related_categories:type_name -> productv1.ListOfCategoryInput
+	22,  // 346: productv1.BlogPostInput.contributors:type_name -> productv1.ListOfUserInput
+	12,  // 347: productv1.BlogPostInput.category_groups:type_name -> productv1.ListOfListOfCategoryInput
+	407, // 348: productv1.AuthorInput.email:type_name -> google.protobuf.StringValue
+	19,  // 349: productv1.AuthorInput.social_links:type_name -> productv1.ListOfString
+	13,  // 350: productv1.AuthorInput.teams_by_project:type_name -> productv1.ListOfListOfString
+	13,  // 351: productv1.AuthorInput.collaborations:type_name -> productv1.ListOfListOfString
+	373, // 352: productv1.AuthorInput.favorite_categories:type_name -> productv1.CategoryInput
+	15,  // 353: productv1.AuthorInput.author_groups:type_name -> productv1.ListOfListOfUserInput
+	15,  // 354: productv1.AuthorInput.project_teams:type_name -> productv1.ListOfListOfUserInput
+	346, // 355: productv1.ProductDetails.review_summary:type_name -> productv1.ActionResult
+	334, // 356: productv1.ProductDetails.recommended_pet:type_name -> productv1.Animal
+	0,   // 357: productv1.StorageCategoryInfo.kind:type_name -> productv1.CategoryKind
+	355, // 358: productv1.NestedTypeB.c:type_name -> productv1.NestedTypeC
+	357, // 359: productv1.FilterType.pagination:type_name -> productv1.Pagination
+	19,  // 360: productv1.OrderLineInput.modifiers:type_name -> productv1.ListOfString
+	19,  // 361: productv1.OrderLine.modifiers:type_name -> productv1.ListOfString
+	407, // 362: productv1.Subcategory.description:type_name -> google.protobuf.StringValue
+	364, // 363: productv1.Cat.owner:type_name -> productv1.Owner
+	367, // 364: productv1.Cat.breed:type_name -> productv1.CatBreed
+	364, // 365: productv1.Dog.owner:type_name -> productv1.Owner
+	368, // 366: productv1.Dog.breed:type_name -> productv1.DogBreed
+	365, // 367: productv1.Owner.contact:type_name -> productv1.ContactInfo
+	334, // 368: productv1.Owner.pet:type_name -> productv1.Animal
+	366, // 369: productv1.ContactInfo.address:type_name -> productv1.Address
+	369, // 370: productv1.CatBreed.characteristics:type_name -> productv1.BreedCharacteristics
+	369, // 371: productv1.DogBreed.characteristics:type_name -> productv1.BreedCharacteristics
+	334, // 372: productv1.TestDetails.pet:type_name -> productv1.Animal
+	346, // 373: productv1.TestDetails.status:type_name -> productv1.ActionResult
+	0,   // 374: productv1.CategoryInput.kind:type_name -> productv1.CategoryKind
+	408, // 375: productv1.ProductCountFilter.min_price:type_name -> google.protobuf.DoubleValue
+	408, // 376: productv1.ProductCountFilter.max_price:type_name -> google.protobuf.DoubleValue
+	406, // 377: productv1.ProductCountFilter.in_stock:type_name -> google.protobuf.BoolValue
+	407, // 378: productv1.ProductCountFilter.search_term:type_name -> google.protobuf.StringValue
+	408, // 379: productv1.SubcategoryItemFilter.min_price:type_name -> google.protobuf.DoubleValue
+	408, // 380: productv1.SubcategoryItemFilter.max_price:type_name -> google.protobuf.DoubleValue
+	406, // 381: productv1.SubcategoryItemFilter.in_stock:type_name -> google.protobuf.BoolValue
+	406, // 382: productv1.SubcategoryItemFilter.is_active:type_name -> google.protobuf.BoolValue
+	407, // 383: productv1.SubcategoryItemFilter.search_term:type_name -> google.protobuf.StringValue
+	1,   // 384: productv1.ShippingEstimateInput.destination:type_name -> productv1.ShippingDestination
+	406, // 385: productv1.ShippingEstimateInput.expedited:type_name -> google.protobuf.BoolValue
+	342, // 386: productv1.ListOfAuthorFilter.List.items:type_name -> productv1.AuthorFilter
+	349, // 387: productv1.ListOfAuthorInput.List.items:type_name -> productv1.AuthorInput
+	339, // 388: productv1.ListOfBlogPost.List.items:type_name -> productv1.BlogPost
+	340, // 389: productv1.ListOfBlogPostFilter.List.items:type_name -> productv1.BlogPostFilter
+	348, // 390: productv1.ListOfBlogPostInput.List.items:type_name -> productv1.BlogPostInput
+	332, // 391: productv1.ListOfCategory.List.items:type_name -> productv1.Category
+	373, // 392: productv1.ListOfCategoryInput.List.items:type_name -> productv1.CategoryInput
+	8,   // 393: productv1.ListOfListOfCategory.List.items:type_name -> productv1.ListOfCategory
+	9,   // 394: productv1.ListOfListOfCategoryInput.List.items:type_name -> productv1.ListOfCategoryInput
+	19,  // 395: productv1.ListOfListOfString.List.items:type_name -> productv1.ListOfString
+	21,  // 396: productv1.ListOfListOfUser.List.items:type_name -> productv1.ListOfUser
+	22,  // 397: productv1.ListOfListOfUserInput.List.items:type_name -> productv1.ListOfUserInput
+	359, // 398: productv1.ListOfOrderLine.List.items:type_name -> productv1.OrderLine
+	320, // 399: productv1.ListOfProduct.List.items:type_name -> productv1.Product
+	321, // 400: productv1.ListOfStorage.List.items:type_name -> productv1.Storage
+	360, // 401: productv1.ListOfSubcategory.List.items:type_name -> productv1.Subcategory
+	323, // 402: productv1.ListOfUser.List.items:type_name -> productv1.User
+	344, // 403: productv1.ListOfUserInput.List.items:type_name -> productv1.UserInput
+	0,   // 404: productv1.RequireStorageCategoryInfoSummaryByIdFields.StorageCategoryInfo.kind:type_name -> productv1.CategoryKind
+	24,  // 405: productv1.ProductService.LookupProductById:input_type -> productv1.LookupProductByIdRequest
+	27,  // 406: productv1.ProductService.LookupStorageById:input_type -> productv1.LookupStorageByIdRequest
+	30,  // 407: productv1.ProductService.LookupWarehouseById:input_type -> productv1.LookupWarehouseByIdRequest
+	114, // 408: productv1.ProductService.MutationBulkCreateAuthors:input_type -> productv1.MutationBulkCreateAuthorsRequest
+	118, // 409: productv1.ProductService.MutationBulkCreateBlogPosts:input_type -> productv1.MutationBulkCreateBlogPostsRequest
+	116, // 410: productv1.ProductService.MutationBulkUpdateAuthors:input_type -> productv1.MutationBulkUpdateAuthorsRequest
+	120, // 411: productv1.ProductService.MutationBulkUpdateBlogPosts:input_type -> productv1.MutationBulkUpdateBlogPostsRequest
+	110, // 412: productv1.ProductService.MutationCreateAuthor:input_type -> productv1.MutationCreateAuthorRequest
+	106, // 413: productv1.ProductService.MutationCreateBlogPost:input_type -> productv1.MutationCreateBlogPostRequest
+	102, // 414: productv1.ProductService.MutationCreateNullableFieldsType:input_type -> productv1.MutationCreateNullableFieldsTypeRequest
+	98,  // 415: productv1.ProductService.MutationCreateUser:input_type -> productv1.MutationCreateUserRequest
+	100, // 416: productv1.ProductService.MutationPerformAction:input_type -> productv1.MutationPerformActionRequest
+	112, // 417: productv1.ProductService.MutationUpdateAuthor:input_type -> productv1.MutationUpdateAuthorRequest
+	108, // 418: productv1.ProductService.MutationUpdateBlogPost:input_type -> productv1.MutationUpdateBlogPostRequest
+	104, // 419: productv1.ProductService.MutationUpdateNullableFieldsType:input_type -> productv1.MutationUpdateNullableFieldsTypeRequest
+	88,  // 420: productv1.ProductService.QueryAllAuthors:input_type -> productv1.QueryAllAuthorsRequest
+	80,  // 421: productv1.ProductService.QueryAllBlogPosts:input_type -> productv1.QueryAllBlogPostsRequest
+	72,  // 422: productv1.ProductService.QueryAllNullableFieldsTypes:input_type -> productv1.QueryAllNullableFieldsTypesRequest
+	60,  // 423: productv1.ProductService.QueryAllPets:input_type -> productv1.QueryAllPetsRequest
+	82,  // 424: productv1.ProductService.QueryAuthor:input_type -> productv1.QueryAuthorRequest
+	84,  // 425: productv1.ProductService.QueryAuthorById:input_type -> productv1.QueryAuthorByIdRequest
+	86,  // 426: productv1.ProductService.QueryAuthorsWithFilter:input_type -> productv1.QueryAuthorsWithFilterRequest
+	74,  // 427: productv1.ProductService.QueryBlogPost:input_type -> productv1.QueryBlogPostRequest
+	76,  // 428: productv1.ProductService.QueryBlogPostById:input_type -> productv1.QueryBlogPostByIdRequest
+	78,  // 429: productv1.ProductService.QueryBlogPostsWithFilter:input_type -> productv1.QueryBlogPostsWithFilterRequest
+	90,  // 430: productv1.ProductService.QueryBulkSearchAuthors:input_type -> productv1.QueryBulkSearchAuthorsRequest
+	92,  // 431: productv1.ProductService.QueryBulkSearchBlogPosts:input_type -> productv1.QueryBulkSearchBlogPostsRequest
+	46,  // 432: productv1.ProductService.QueryCalculateTotals:input_type -> productv1.QueryCalculateTotalsRequest
+	48,  // 433: productv1.ProductService.QueryCategories:input_type -> productv1.QueryCategoriesRequest
+	52,  // 434: productv1.ProductService.QueryCategoriesByKind:input_type -> productv1.QueryCategoriesByKindRequest
+	54,  // 435: productv1.ProductService.QueryCategoriesByKinds:input_type -> productv1.QueryCategoriesByKindsRequest
+	50,  // 436: productv1.ProductService.QueryCategory:input_type -> productv1.QueryCategoryRequest
+	44,  // 437: productv1.ProductService.QueryComplexFilterType:input_type -> productv1.QueryComplexFilterTypeRequest
+	56,  // 438: productv1.ProductService.QueryFilterCategories:input_type -> productv1.QueryFilterCategoriesRequest
+	36,  // 439: productv1.ProductService.QueryNestedType:input_type -> productv1.QueryNestedTypeRequest
+	66,  // 440: productv1.ProductService.QueryNullableFieldsType:input_type -> productv1.QueryNullableFieldsTypeRequest
+	68,  // 441: productv1.ProductService.QueryNullableFieldsTypeById:input_type -> productv1.QueryNullableFieldsTypeByIdRequest
+	70,  // 442: productv1.ProductService.QueryNullableFieldsTypeWithFilter:input_type -> productv1.QueryNullableFieldsTypeWithFilterRequest
+	58,  // 443: productv1.ProductService.QueryRandomPet:input_type -> productv1.QueryRandomPetRequest
+	64,  // 444: productv1.ProductService.QueryRandomSearchResult:input_type -> productv1.QueryRandomSearchResultRequest
+	38,  // 445: productv1.ProductService.QueryRecursiveType:input_type -> productv1.QueryRecursiveTypeRequest
+	62,  // 446: productv1.ProductService.QuerySearch:input_type -> productv1.QuerySearchRequest
+	94,  // 447: productv1.ProductService.QueryTestContainer:input_type -> productv1.QueryTestContainerRequest
+	96,  // 448: productv1.ProductService.QueryTestContainers:input_type -> productv1.QueryTestContainersRequest
+	40,  // 449: productv1.ProductService.QueryTypeFilterWithArguments:input_type -> productv1.QueryTypeFilterWithArgumentsRequest
+	42,  // 450: productv1.ProductService.QueryTypeWithMultipleFilterFields:input_type -> productv1.QueryTypeWithMultipleFilterFieldsRequest
+	34,  // 451: productv1.ProductService.QueryUser:input_type -> productv1.QueryUserRequest
+	32,  // 452: productv1.ProductService.QueryUsers:input_type -> productv1.QueryUsersRequest
+	292, // 453: productv1.ProductService.RequireStorageCategoryInfoSummaryById:input_type -> productv1.RequireStorageCategoryInfoSummaryByIdRequest
+	297, // 454: productv1.ProductService.RequireStorageFilteredTagSummaryById:input_type -> productv1.RequireStorageFilteredTagSummaryByIdRequest
+	287, // 455: productv1.ProductService.RequireStorageKindSummaryById:input_type -> productv1.RequireStorageKindSummaryByIdRequest
+	257, // 456: productv1.ProductService.RequireStorageMetadataScoreById:input_type -> productv1.RequireStorageMetadataScoreByIdRequest
+	303, // 457: productv1.ProductService.RequireStorageMultiFilteredTagSummaryById:input_type -> productv1.RequireStorageMultiFilteredTagSummaryByIdRequest
+	309, // 458: productv1.ProductService.RequireStorageNullableFilteredTagSummaryById:input_type -> productv1.RequireStorageNullableFilteredTagSummaryByIdRequest
+	267, // 459: productv1.ProductService.RequireStorageOptionalProcessedMetadataById:input_type -> productv1.RequireStorageOptionalProcessedMetadataByIdRequest
+	277, // 460: productv1.ProductService.RequireStorageOptionalProcessedTagsById:input_type -> productv1.RequireStorageOptionalProcessedTagsByIdRequest
+	252, // 461: productv1.ProductService.RequireStorageOptionalTagSummaryById:input_type -> productv1.RequireStorageOptionalTagSummaryByIdRequest
+	262, // 462: productv1.ProductService.RequireStorageProcessedMetadataById:input_type -> productv1.RequireStorageProcessedMetadataByIdRequest
+	282, // 463: productv1.ProductService.RequireStorageProcessedMetadataHistoryById:input_type -> productv1.RequireStorageProcessedMetadataHistoryByIdRequest
+	272, // 464: productv1.ProductService.RequireStorageProcessedTagsById:input_type -> productv1.RequireStorageProcessedTagsByIdRequest
+	242, // 465: productv1.ProductService.RequireStorageStockHealthScoreById:input_type -> productv1.RequireStorageStockHealthScoreByIdRequest
+	247, // 466: productv1.ProductService.RequireStorageTagSummaryById:input_type -> productv1.RequireStorageTagSummaryByIdRequest
+	315, // 467: productv1.ProductService.RequireWarehouseStockHealthScoreById:input_type -> productv1.RequireWarehouseStockHealthScoreByIdRequest
+	206, // 468: productv1.ProductService.ResolveCategoryActiveSubcategories:input_type -> productv1.ResolveCategoryActiveSubcategoriesRequest
+	174, // 469: productv1.ProductService.ResolveCategoryCategoryMetrics:input_type -> productv1.ResolveCategoryCategoryMetricsRequest
+	184, // 470: productv1.ProductService.ResolveCategoryCategoryStatus:input_type -> productv1.ResolveCategoryCategoryStatusRequest
+	189, // 471: productv1.ProductService.ResolveCategoryChildCategories:input_type -> productv1.ResolveCategoryChildCategoriesRequest
+	179, // 472: productv1.ProductService.ResolveCategoryMascot:input_type -> productv1.ResolveCategoryMascotRequest
+	234, // 473: productv1.ProductService.ResolveCategoryMetricsAverageScore:input_type -> productv1.ResolveCategoryMetricsAverageScoreRequest
+	225, // 474: productv1.ProductService.ResolveCategoryMetricsNormalizedScore:input_type -> productv1.ResolveCategoryMetricsNormalizedScoreRequest
+	230, // 475: productv1.ProductService.ResolveCategoryMetricsRelatedCategory:input_type -> productv1.ResolveCategoryMetricsRelatedCategoryRequest
+	194, // 476: productv1.ProductService.ResolveCategoryOptionalCategories:input_type -> productv1.ResolveCategoryOptionalCategoriesRequest
+	169, // 477: productv1.ProductService.ResolveCategoryPopularityScore:input_type -> productv1.ResolveCategoryPopularityScoreRequest
+	164, // 478: productv1.ProductService.ResolveCategoryProductCount:input_type -> productv1.ResolveCategoryProductCountRequest
+	202, // 479: productv1.ProductService.ResolveCategoryTopSubcategory:input_type -> productv1.ResolveCategoryTopSubcategoryRequest
+	198, // 480: productv1.ProductService.ResolveCategoryTotalProducts:input_type -> productv1.ResolveCategoryTotalProductsRequest
+	134, // 481: productv1.ProductService.ResolveProductMascotRecommendation:input_type -> productv1.ResolveProductMascotRecommendationRequest
+	144, // 482: productv1.ProductService.ResolveProductProductDetails:input_type -> productv1.ResolveProductProductDetailsRequest
+	129, // 483: productv1.ProductService.ResolveProductRecommendedCategory:input_type -> productv1.ResolveProductRecommendedCategoryRequest
+	124, // 484: productv1.ProductService.ResolveProductShippingEstimate:input_type -> productv1.ResolveProductShippingEstimateRequest
+	139, // 485: productv1.ProductService.ResolveProductStockStatus:input_type -> productv1.ResolveProductStockStatusRequest
+	154, // 486: productv1.ProductService.ResolveStorageLinkedStorages:input_type -> productv1.ResolveStorageLinkedStoragesRequest
+	159, // 487: productv1.ProductService.ResolveStorageNearbyStorages:input_type -> productv1.ResolveStorageNearbyStoragesRequest
+	149, // 488: productv1.ProductService.ResolveStorageStorageStatus:input_type -> productv1.ResolveStorageStorageStatusRequest
+	216, // 489: productv1.ProductService.ResolveSubcategoryFeaturedCategory:input_type -> productv1.ResolveSubcategoryFeaturedCategoryRequest
+	211, // 490: productv1.ProductService.ResolveSubcategoryItemCount:input_type -> productv1.ResolveSubcategoryItemCountRequest
+	220, // 491: productv1.ProductService.ResolveSubcategoryParentCategory:input_type -> productv1.ResolveSubcategoryParentCategoryRequest
+	239, // 492: productv1.ProductService.ResolveTestContainerDetails:input_type -> productv1.ResolveTestContainerDetailsRequest
+	25,  // 493: productv1.ProductService.LookupProductById:output_type -> productv1.LookupProductByIdResponse
+	28,  // 494: productv1.ProductService.LookupStorageById:output_type -> productv1.LookupStorageByIdResponse
+	31,  // 495: productv1.ProductService.LookupWarehouseById:output_type -> productv1.LookupWarehouseByIdResponse
+	115, // 496: productv1.ProductService.MutationBulkCreateAuthors:output_type -> productv1.MutationBulkCreateAuthorsResponse
+	119, // 497: productv1.ProductService.MutationBulkCreateBlogPosts:output_type -> productv1.MutationBulkCreateBlogPostsResponse
+	117, // 498: productv1.ProductService.MutationBulkUpdateAuthors:output_type -> productv1.MutationBulkUpdateAuthorsResponse
+	121, // 499: productv1.ProductService.MutationBulkUpdateBlogPosts:output_type -> productv1.MutationBulkUpdateBlogPostsResponse
+	111, // 500: productv1.ProductService.MutationCreateAuthor:output_type -> productv1.MutationCreateAuthorResponse
+	107, // 501: productv1.ProductService.MutationCreateBlogPost:output_type -> productv1.MutationCreateBlogPostResponse
+	103, // 502: productv1.ProductService.MutationCreateNullableFieldsType:output_type -> productv1.MutationCreateNullableFieldsTypeResponse
+	99,  // 503: productv1.ProductService.MutationCreateUser:output_type -> productv1.MutationCreateUserResponse
+	101, // 504: productv1.ProductService.MutationPerformAction:output_type -> productv1.MutationPerformActionResponse
+	113, // 505: productv1.ProductService.MutationUpdateAuthor:output_type -> productv1.MutationUpdateAuthorResponse
+	109, // 506: productv1.ProductService.MutationUpdateBlogPost:output_type -> productv1.MutationUpdateBlogPostResponse
+	105, // 507: productv1.ProductService.MutationUpdateNullableFieldsType:output_type -> productv1.MutationUpdateNullableFieldsTypeResponse
+	89,  // 508: productv1.ProductService.QueryAllAuthors:output_type -> productv1.QueryAllAuthorsResponse
+	81,  // 509: productv1.ProductService.QueryAllBlogPosts:output_type -> productv1.QueryAllBlogPostsResponse
+	73,  // 510: productv1.ProductService.QueryAllNullableFieldsTypes:output_type -> productv1.QueryAllNullableFieldsTypesResponse
+	61,  // 511: productv1.ProductService.QueryAllPets:output_type -> productv1.QueryAllPetsResponse
+	83,  // 512: productv1.ProductService.QueryAuthor:output_type -> productv1.QueryAuthorResponse
+	85,  // 513: productv1.ProductService.QueryAuthorById:output_type -> productv1.QueryAuthorByIdResponse
+	87,  // 514: productv1.ProductService.QueryAuthorsWithFilter:output_type -> productv1.QueryAuthorsWithFilterResponse
+	75,  // 515: productv1.ProductService.QueryBlogPost:output_type -> productv1.QueryBlogPostResponse
+	77,  // 516: productv1.ProductService.QueryBlogPostById:output_type -> productv1.QueryBlogPostByIdResponse
+	79,  // 517: productv1.ProductService.QueryBlogPostsWithFilter:output_type -> productv1.QueryBlogPostsWithFilterResponse
+	91,  // 518: productv1.ProductService.QueryBulkSearchAuthors:output_type -> productv1.QueryBulkSearchAuthorsResponse
+	93,  // 519: productv1.ProductService.QueryBulkSearchBlogPosts:output_type -> productv1.QueryBulkSearchBlogPostsResponse
+	47,  // 520: productv1.ProductService.QueryCalculateTotals:output_type -> productv1.QueryCalculateTotalsResponse
+	49,  // 521: productv1.ProductService.QueryCategories:output_type -> productv1.QueryCategoriesResponse
+	53,  // 522: productv1.ProductService.QueryCategoriesByKind:output_type -> productv1.QueryCategoriesByKindResponse
+	55,  // 523: productv1.ProductService.QueryCategoriesByKinds:output_type -> productv1.QueryCategoriesByKindsResponse
+	51,  // 524: productv1.ProductService.QueryCategory:output_type -> productv1.QueryCategoryResponse
+	45,  // 525: productv1.ProductService.QueryComplexFilterType:output_type -> productv1.QueryComplexFilterTypeResponse
+	57,  // 526: productv1.ProductService.QueryFilterCategories:output_type -> productv1.QueryFilterCategoriesResponse
+	37,  // 527: productv1.ProductService.QueryNestedType:output_type -> productv1.QueryNestedTypeResponse
+	67,  // 528: productv1.ProductService.QueryNullableFieldsType:output_type -> productv1.QueryNullableFieldsTypeResponse
+	69,  // 529: productv1.ProductService.QueryNullableFieldsTypeById:output_type -> productv1.QueryNullableFieldsTypeByIdResponse
+	71,  // 530: productv1.ProductService.QueryNullableFieldsTypeWithFilter:output_type -> productv1.QueryNullableFieldsTypeWithFilterResponse
+	59,  // 531: productv1.ProductService.QueryRandomPet:output_type -> productv1.QueryRandomPetResponse
+	65,  // 532: productv1.ProductService.QueryRandomSearchResult:output_type -> productv1.QueryRandomSearchResultResponse
+	39,  // 533: productv1.ProductService.QueryRecursiveType:output_type -> productv1.QueryRecursiveTypeResponse
+	63,  // 534: productv1.ProductService.QuerySearch:output_type -> productv1.QuerySearchResponse
+	95,  // 535: productv1.ProductService.QueryTestContainer:output_type -> productv1.QueryTestContainerResponse
+	97,  // 536: productv1.ProductService.QueryTestContainers:output_type -> productv1.QueryTestContainersResponse
+	41,  // 537: productv1.ProductService.QueryTypeFilterWithArguments:output_type -> productv1.QueryTypeFilterWithArgumentsResponse
+	43,  // 538: productv1.ProductService.QueryTypeWithMultipleFilterFields:output_type -> productv1.QueryTypeWithMultipleFilterFieldsResponse
+	35,  // 539: productv1.ProductService.QueryUser:output_type -> productv1.QueryUserResponse
+	33,  // 540: productv1.ProductService.QueryUsers:output_type -> productv1.QueryUsersResponse
+	294, // 541: productv1.ProductService.RequireStorageCategoryInfoSummaryById:output_type -> productv1.RequireStorageCategoryInfoSummaryByIdResponse
+	300, // 542: productv1.ProductService.RequireStorageFilteredTagSummaryById:output_type -> productv1.RequireStorageFilteredTagSummaryByIdResponse
+	289, // 543: productv1.ProductService.RequireStorageKindSummaryById:output_type -> productv1.RequireStorageKindSummaryByIdResponse
+	259, // 544: productv1.ProductService.RequireStorageMetadataScoreById:output_type -> productv1.RequireStorageMetadataScoreByIdResponse
+	306, // 545: productv1.ProductService.RequireStorageMultiFilteredTagSummaryById:output_type -> productv1.RequireStorageMultiFilteredTagSummaryByIdResponse
+	312, // 546: productv1.ProductService.RequireStorageNullableFilteredTagSummaryById:output_type -> productv1.RequireStorageNullableFilteredTagSummaryByIdResponse
+	269, // 547: productv1.ProductService.RequireStorageOptionalProcessedMetadataById:output_type -> productv1.RequireStorageOptionalProcessedMetadataByIdResponse
+	279, // 548: productv1.ProductService.RequireStorageOptionalProcessedTagsById:output_type -> productv1.RequireStorageOptionalProcessedTagsByIdResponse
+	254, // 549: productv1.ProductService.RequireStorageOptionalTagSummaryById:output_type -> productv1.RequireStorageOptionalTagSummaryByIdResponse
+	264, // 550: productv1.ProductService.RequireStorageProcessedMetadataById:output_type -> productv1.RequireStorageProcessedMetadataByIdResponse
+	284, // 551: productv1.ProductService.RequireStorageProcessedMetadataHistoryById:output_type -> productv1.RequireStorageProcessedMetadataHistoryByIdResponse
+	274, // 552: productv1.ProductService.RequireStorageProcessedTagsById:output_type -> productv1.RequireStorageProcessedTagsByIdResponse
+	244, // 553: productv1.ProductService.RequireStorageStockHealthScoreById:output_type -> productv1.RequireStorageStockHealthScoreByIdResponse
+	249, // 554: productv1.ProductService.RequireStorageTagSummaryById:output_type -> productv1.RequireStorageTagSummaryByIdResponse
+	317, // 555: productv1.ProductService.RequireWarehouseStockHealthScoreById:output_type -> productv1.RequireWarehouseStockHealthScoreByIdResponse
+	208, // 556: productv1.ProductService.ResolveCategoryActiveSubcategories:output_type -> productv1.ResolveCategoryActiveSubcategoriesResponse
+	176, // 557: productv1.ProductService.ResolveCategoryCategoryMetrics:output_type -> productv1.ResolveCategoryCategoryMetricsResponse
+	186, // 558: productv1.ProductService.ResolveCategoryCategoryStatus:output_type -> productv1.ResolveCategoryCategoryStatusResponse
+	191, // 559: productv1.ProductService.ResolveCategoryChildCategories:output_type -> productv1.ResolveCategoryChildCategoriesResponse
+	181, // 560: productv1.ProductService.ResolveCategoryMascot:output_type -> productv1.ResolveCategoryMascotResponse
+	236, // 561: productv1.ProductService.ResolveCategoryMetricsAverageScore:output_type -> productv1.ResolveCategoryMetricsAverageScoreResponse
+	227, // 562: productv1.ProductService.ResolveCategoryMetricsNormalizedScore:output_type -> productv1.ResolveCategoryMetricsNormalizedScoreResponse
+	232, // 563: productv1.ProductService.ResolveCategoryMetricsRelatedCategory:output_type -> productv1.ResolveCategoryMetricsRelatedCategoryResponse
+	196, // 564: productv1.ProductService.ResolveCategoryOptionalCategories:output_type -> productv1.ResolveCategoryOptionalCategoriesResponse
+	171, // 565: productv1.ProductService.ResolveCategoryPopularityScore:output_type -> productv1.ResolveCategoryPopularityScoreResponse
+	166, // 566: productv1.ProductService.ResolveCategoryProductCount:output_type -> productv1.ResolveCategoryProductCountResponse
+	204, // 567: productv1.ProductService.ResolveCategoryTopSubcategory:output_type -> productv1.ResolveCategoryTopSubcategoryResponse
+	200, // 568: productv1.ProductService.ResolveCategoryTotalProducts:output_type -> productv1.ResolveCategoryTotalProductsResponse
+	136, // 569: productv1.ProductService.ResolveProductMascotRecommendation:output_type -> productv1.ResolveProductMascotRecommendationResponse
+	146, // 570: productv1.ProductService.ResolveProductProductDetails:output_type -> productv1.ResolveProductProductDetailsResponse
+	131, // 571: productv1.ProductService.ResolveProductRecommendedCategory:output_type -> productv1.ResolveProductRecommendedCategoryResponse
+	126, // 572: productv1.ProductService.ResolveProductShippingEstimate:output_type -> productv1.ResolveProductShippingEstimateResponse
+	141, // 573: productv1.ProductService.ResolveProductStockStatus:output_type -> productv1.ResolveProductStockStatusResponse
+	156, // 574: productv1.ProductService.ResolveStorageLinkedStorages:output_type -> productv1.ResolveStorageLinkedStoragesResponse
+	161, // 575: productv1.ProductService.ResolveStorageNearbyStorages:output_type -> productv1.ResolveStorageNearbyStoragesResponse
+	151, // 576: productv1.ProductService.ResolveStorageStorageStatus:output_type -> productv1.ResolveStorageStorageStatusResponse
+	218, // 577: productv1.ProductService.ResolveSubcategoryFeaturedCategory:output_type -> productv1.ResolveSubcategoryFeaturedCategoryResponse
+	213, // 578: productv1.ProductService.ResolveSubcategoryItemCount:output_type -> productv1.ResolveSubcategoryItemCountResponse
+	222, // 579: productv1.ProductService.ResolveSubcategoryParentCategory:output_type -> productv1.ResolveSubcategoryParentCategoryResponse
+	241, // 580: productv1.ProductService.ResolveTestContainerDetails:output_type -> productv1.ResolveTestContainerDetailsResponse
+	493, // [493:581] is the sub-list for method output_type
+	405, // [405:493] is the sub-list for method input_type
+	405, // [405:405] is the sub-list for extension type_name
+	405, // [405:405] is the sub-list for extension extendee
+	0,   // [0:405] is the sub-list for field type_name
 }
 
 func init() { file_product_proto_init() }
@@ -21690,16 +22327,16 @@ func file_product_proto_init() {
 	if File_product_proto != nil {
 		return
 	}
-	file_product_proto_msgTypes[320].OneofWrappers = []any{
+	file_product_proto_msgTypes[332].OneofWrappers = []any{
 		(*Animal_Cat)(nil),
 		(*Animal_Dog)(nil),
 	}
-	file_product_proto_msgTypes[322].OneofWrappers = []any{
+	file_product_proto_msgTypes[334].OneofWrappers = []any{
 		(*SearchResult_Product)(nil),
 		(*SearchResult_User)(nil),
 		(*SearchResult_Category)(nil),
 	}
-	file_product_proto_msgTypes[332].OneofWrappers = []any{
+	file_product_proto_msgTypes[344].OneofWrappers = []any{
 		(*ActionResult_ActionSuccess)(nil),
 		(*ActionResult_ActionError)(nil),
 	}
@@ -21709,7 +22346,7 @@ func file_product_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_product_proto_rawDesc), len(file_product_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   391,
+			NumMessages:   403,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -64,6 +64,8 @@ type Storage @key(fields: "id") {
 
   # @requires fields in combination with field arguments
   filteredTagSummary(prefix: String!): String @requires(fields: "tags")
+  multiFilteredTagSummary(prefixes: [String!]!, maxResults: Int!): String @requires(fields: "tags")
+  nullableFilteredTagSummary(prefix: String): String @requires(fields: "tags")
 }
 
 type Warehouse @key(fields: "id") {

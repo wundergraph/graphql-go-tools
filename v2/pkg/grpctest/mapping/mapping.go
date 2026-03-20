@@ -635,6 +635,22 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 								Response: "RequireStorageFilteredTagSummaryByIdResponse",
 							},
 						},
+						"multiFilteredTagSummary": {
+							TargetName: "multi_filtered_tag_summary",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireStorageMultiFilteredTagSummaryById",
+								Request:  "RequireStorageMultiFilteredTagSummaryByIdRequest",
+								Response: "RequireStorageMultiFilteredTagSummaryByIdResponse",
+							},
+						},
+						"nullableFilteredTagSummary": {
+							TargetName: "nullable_filtered_tag_summary",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireStorageNullableFilteredTagSummaryById",
+								Request:  "RequireStorageNullableFilteredTagSummaryByIdRequest",
+								Response: "RequireStorageNullableFilteredTagSummaryByIdResponse",
+							},
+						},
 					},
 				},
 			},
@@ -1051,6 +1067,19 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"filteredTagSummary": {
 					TargetName: "filtered_tag_summary",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"prefix": "prefix",
+					},
+				},
+				"multiFilteredTagSummary": {
+					TargetName: "multi_filtered_tag_summary",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"prefixes":   "prefixes",
+						"maxResults": "max_results",
+					},
+				},
+				"nullableFilteredTagSummary": {
+					TargetName: "nullable_filtered_tag_summary",
 					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"prefix": "prefix",
 					},

@@ -629,6 +629,22 @@ func testMapping() *GRPCMapping {
 								Response: "RequireStorageFilteredTagSummaryByIdResponse",
 							},
 						},
+						"multiFilteredTagSummary": {
+							TargetName: "multi_filtered_tag_summary",
+							RPCConfig: RPCConfig{
+								RPC:      "RequireStorageMultiFilteredTagSummaryById",
+								Request:  "RequireStorageMultiFilteredTagSummaryByIdRequest",
+								Response: "RequireStorageMultiFilteredTagSummaryByIdResponse",
+							},
+						},
+						"nullableFilteredTagSummary": {
+							TargetName: "nullable_filtered_tag_summary",
+							RPCConfig: RPCConfig{
+								RPC:      "RequireStorageNullableFilteredTagSummaryById",
+								Request:  "RequireStorageNullableFilteredTagSummaryByIdRequest",
+								Response: "RequireStorageNullableFilteredTagSummaryByIdResponse",
+							},
+						},
 					},
 				},
 			},
@@ -1045,6 +1061,19 @@ func testMapping() *GRPCMapping {
 				},
 				"filteredTagSummary": {
 					TargetName: "filtered_tag_summary",
+					ArgumentMappings: FieldArgumentMap{
+						"prefix": "prefix",
+					},
+				},
+				"multiFilteredTagSummary": {
+					TargetName: "multi_filtered_tag_summary",
+					ArgumentMappings: FieldArgumentMap{
+						"prefixes":   "prefixes",
+						"maxResults": "max_results",
+					},
+				},
+				"nullableFilteredTagSummary": {
+					TargetName: "nullable_filtered_tag_summary",
 					ArgumentMappings: FieldArgumentMap{
 						"prefix": "prefix",
 					},

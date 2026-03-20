@@ -62,6 +62,8 @@ service ProductService {
   rpc RequireStorageFilteredTagSummaryById(RequireStorageFilteredTagSummaryByIdRequest) returns (RequireStorageFilteredTagSummaryByIdResponse) {}
   rpc RequireStorageKindSummaryById(RequireStorageKindSummaryByIdRequest) returns (RequireStorageKindSummaryByIdResponse) {}
   rpc RequireStorageMetadataScoreById(RequireStorageMetadataScoreByIdRequest) returns (RequireStorageMetadataScoreByIdResponse) {}
+  rpc RequireStorageMultiFilteredTagSummaryById(RequireStorageMultiFilteredTagSummaryByIdRequest) returns (RequireStorageMultiFilteredTagSummaryByIdResponse) {}
+  rpc RequireStorageNullableFilteredTagSummaryById(RequireStorageNullableFilteredTagSummaryByIdRequest) returns (RequireStorageNullableFilteredTagSummaryByIdResponse) {}
   rpc RequireStorageOptionalProcessedMetadataById(RequireStorageOptionalProcessedMetadataByIdRequest) returns (RequireStorageOptionalProcessedMetadataByIdResponse) {}
   rpc RequireStorageOptionalProcessedTagsById(RequireStorageOptionalProcessedTagsByIdRequest) returns (RequireStorageOptionalProcessedTagsByIdResponse) {}
   rpc RequireStorageOptionalTagSummaryById(RequireStorageOptionalTagSummaryByIdRequest) returns (RequireStorageOptionalTagSummaryByIdResponse) {}
@@ -1575,6 +1577,65 @@ message RequireStorageFilteredTagSummaryByIdResult {
 }
 
 message RequireStorageFilteredTagSummaryByIdFields {
+  repeated string tags = 1;
+}
+
+message RequireStorageMultiFilteredTagSummaryByIdRequest {
+  // RequireStorageMultiFilteredTagSummaryByIdContext provides the context for the required fields method RequireStorageMultiFilteredTagSummaryById.
+  repeated RequireStorageMultiFilteredTagSummaryByIdContext context = 1;
+  // RequireStorageMultiFilteredTagSummaryByIdArgs provides the field arguments for the required field with method RequireStorageMultiFilteredTagSummaryById.
+  RequireStorageMultiFilteredTagSummaryByIdArgs field_args = 2;
+}
+
+message RequireStorageMultiFilteredTagSummaryByIdContext {
+  LookupStorageByIdRequestKey key = 1;
+  RequireStorageMultiFilteredTagSummaryByIdFields fields = 2;
+}
+
+message RequireStorageMultiFilteredTagSummaryByIdArgs {
+  repeated string prefixes = 1;
+  int32 max_results = 2;
+}
+
+message RequireStorageMultiFilteredTagSummaryByIdResponse {
+  // RequireStorageMultiFilteredTagSummaryByIdResult provides the result for the required fields method RequireStorageMultiFilteredTagSummaryById.
+  repeated RequireStorageMultiFilteredTagSummaryByIdResult result = 1;
+}
+
+message RequireStorageMultiFilteredTagSummaryByIdResult {
+  google.protobuf.StringValue multi_filtered_tag_summary = 1;
+}
+
+message RequireStorageMultiFilteredTagSummaryByIdFields {
+  repeated string tags = 1;
+}
+
+message RequireStorageNullableFilteredTagSummaryByIdRequest {
+  // RequireStorageNullableFilteredTagSummaryByIdContext provides the context for the required fields method RequireStorageNullableFilteredTagSummaryById.
+  repeated RequireStorageNullableFilteredTagSummaryByIdContext context = 1;
+  // RequireStorageNullableFilteredTagSummaryByIdArgs provides the field arguments for the required field with method RequireStorageNullableFilteredTagSummaryById.
+  RequireStorageNullableFilteredTagSummaryByIdArgs field_args = 2;
+}
+
+message RequireStorageNullableFilteredTagSummaryByIdContext {
+  LookupStorageByIdRequestKey key = 1;
+  RequireStorageNullableFilteredTagSummaryByIdFields fields = 2;
+}
+
+message RequireStorageNullableFilteredTagSummaryByIdArgs {
+  google.protobuf.StringValue prefix = 1;
+}
+
+message RequireStorageNullableFilteredTagSummaryByIdResponse {
+  // RequireStorageNullableFilteredTagSummaryByIdResult provides the result for the required fields method RequireStorageNullableFilteredTagSummaryById.
+  repeated RequireStorageNullableFilteredTagSummaryByIdResult result = 1;
+}
+
+message RequireStorageNullableFilteredTagSummaryByIdResult {
+  google.protobuf.StringValue nullable_filtered_tag_summary = 1;
+}
+
+message RequireStorageNullableFilteredTagSummaryByIdFields {
   repeated string tags = 1;
 }
 
