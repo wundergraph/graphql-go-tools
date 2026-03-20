@@ -1427,6 +1427,25 @@ func (r *rpcPlanningContext) createRequiredFieldsRPCCall(callIndex int, subgraph
 		return RPCCall{}, err
 	}
 
+	if len(requiredField.fieldArguments) > 0 {
+		fieldArgsMessage := &RPCMessage{
+			Name: rpcConfig.RPC + "Args",
+		}
+		fieldArgsMessage.Fields = make(RPCFields, len(requiredField.fieldArguments))
+		for i, arg := range requiredField.fieldArguments {
+			field, err := r.createRPCFieldFromFieldArgument(arg)
+			if err != nil {
+				return RPCCall{}, err
+			}
+			fieldArgsMessage.Fields[i] = field
+		}
+		call.Request.Fields = append(call.Request.Fields, RPCField{
+			Name:          fieldArgsFieldName,
+			ProtoTypeName: DataTypeMessage,
+			Message:       fieldArgsMessage,
+		})
+	}
+
 	return call, nil
 }
 
