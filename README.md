@@ -1,5 +1,6 @@
 [![GoDoc](https://pkg.go.dev/badge/github.com/wundergraph/graphql-go-tools/v2)](https://pkg.go.dev/github.com/wundergraph/graphql-go-tools/v2)
 [![v2-ci](https://github.com/wundergraph/graphql-go-tools/actions/workflows/v2.yml/badge.svg)](https://github.com/wundergraph/graphql-go-tools/actions/workflows/v2.yml)
+[![Open Source AI Manifesto](https://human-oss.dev/badge.svg)](https://human-oss.dev)
 # GraphQL Router / API Gateway Framework written in Golang
 
 [<p align="center"><img height="auto" src="./assets/logo.png"></p>](https://wundergraph.com/)

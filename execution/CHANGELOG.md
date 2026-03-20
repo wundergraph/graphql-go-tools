@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.10.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.9.0...execution/v1.10.0) (2026-03-19)
+
+
+### Features
+
+* add initial support for [@requires](https://github.com/requires) in gRPC ([#1362](https://github.com/wundergraph/graphql-go-tools/issues/1362)) ([07ae75e](https://github.com/wundergraph/graphql-go-tools/commit/07ae75ea00583b6209f39d182d8287ad2eea7e98))
+* support sizedFields in cost computations ([#1410](https://github.com/wundergraph/graphql-go-tools/issues/1410)) ([48f7582](https://github.com/wundergraph/graphql-go-tools/commit/48f75821b0d7e0ffb5f7e66cffba3d1ad0cbf9dc))
+
+
+### Bug Fixes
+
+* propagate actualListSizes via resolver context ([#1404](https://github.com/wundergraph/graphql-go-tools/issues/1404)) ([5433fcb](https://github.com/wundergraph/graphql-go-tools/commit/5433fcb28732115e451c9dfeb70dc13de62cda33))
+
 ## [1.9.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.8.1...execution/v1.9.0) (2026-02-20)
 
 
