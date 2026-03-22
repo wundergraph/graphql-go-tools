@@ -1158,9 +1158,10 @@ func (p *RPCCompiler) buildOneOfMessage(inputMessage Message, rpcMessage *RPCMes
 			continue
 		}
 
-		msg, found := p.doc.MessageByName(string(oneofFieldDesc.Message().Name()))
+		fullMessageName := p.fullMessageName(oneofFieldDesc.Message())
+		msg, found := p.doc.MessageByName(fullMessageName)
 		if !found {
-			return nil, fmt.Errorf("message %s not found in document", oneofFieldDesc.Message().Name())
+			return nil, fmt.Errorf("message %s not found in document", fullMessageName)
 		}
 
 		if err := p.processRPCField(msg, subMsg, subFieldDesc, &fragmentRPCField, data); err != nil {
