@@ -28,34 +28,6 @@ type wsConnectionOptions struct {
 	onEmpty      func()
 }
 
-// wsConnectionOption configures a wsConnection.
-type wsConnectionOption func(*wsConnectionOptions)
-
-// withConnLogger sets the logger for connection-level debug output.
-func withConnLogger(l abstractlogger.Logger) wsConnectionOption {
-	return func(o *wsConnectionOptions) {
-		if l != nil {
-			o.logger = l
-		}
-	}
-}
-
-// withConnWriteTimeout sets the timeout for write operations (subscribe, unsubscribe, pong).
-func withConnWriteTimeout(d time.Duration) wsConnectionOption {
-	return func(o *wsConnectionOptions) {
-		if d > 0 {
-			o.writeTimeout = d
-		}
-	}
-}
-
-// withOnEmpty sets a callback invoked when the last subscription is removed or the connection shuts down.
-func withOnEmpty(f func()) wsConnectionOption {
-	return func(o *wsConnectionOptions) {
-		o.onEmpty = f
-	}
-}
-
 type wsConnection struct {
 	conn     *websocket.Conn
 	protocol protocol.Protocol
@@ -81,13 +53,12 @@ type wsConnection struct {
 	lastPongAt     atomic.Int64
 }
 
-func newWSConnection(conn *websocket.Conn, proto protocol.Protocol, opts ...wsConnectionOption) *wsConnection {
-	o := wsConnectionOptions{
-		logger:       abstractlogger.NoopLogger,
-		writeTimeout: defaultWriteTimeout,
+func newWSConnection(conn *websocket.Conn, proto protocol.Protocol, opts wsConnectionOptions) *wsConnection {
+	if opts.logger == nil {
+		opts.logger = abstractlogger.NoopLogger
 	}
-	for _, apply := range opts {
-		apply(&o)
+	if opts.writeTimeout <= 0 {
+		opts.writeTimeout = defaultWriteTimeout
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -95,13 +66,13 @@ func newWSConnection(conn *websocket.Conn, proto protocol.Protocol, opts ...wsCo
 	c := &wsConnection{
 		conn:     conn,
 		protocol: proto,
-		log:      o.logger,
+		log:      opts.logger,
 		cancel:   cancel,
 		ctx:      ctx,
 		subs:     make(map[string]common.Handler),
-		onEmpty:  o.onEmpty,
+		onEmpty:  opts.onEmpty,
 
-		writeTimeout: o.writeTimeout,
+		writeTimeout: opts.writeTimeout,
 	}
 
 	c.lastPongAt.Store(time.Now().UnixNano())

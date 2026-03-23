@@ -540,7 +540,9 @@ func TestSSETransport_ContextCancellation(t *testing.T) {
 			return closedCount.Load() == 2
 		}, time.Second, 10*time.Millisecond)
 
-		assert.Equal(t, 0, tr.ConnCount())
+		assert.Eventually(t, func() bool {
+			return tr.ConnCount() == 0
+		}, time.Second, 10*time.Millisecond)
 	})
 }
 

@@ -73,9 +73,7 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 		abstractlogger.String("method", string(method)),
 	)
 
-	// Use request context, but with transport requestCancel
 	requestCtx, requestCancel := context.WithCancel(context.WithoutCancel(ctx))
-	defer requestCancel()
 
 	// Attach cancel to transport context
 	context.AfterFunc(t.ctx, requestCancel)

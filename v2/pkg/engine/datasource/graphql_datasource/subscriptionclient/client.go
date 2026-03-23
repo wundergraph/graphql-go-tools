@@ -56,15 +56,15 @@ func New(ctx context.Context, cfg Config) *Client {
 		ctx: ctx,
 		log: cfg.Logger,
 
-		ws: transport.NewWSTransport(ctx,
-			transport.WithUpgradeClient(cfg.UpgradeClient),
-			transport.WithLogger(cfg.Logger),
-			transport.WithPingInterval(cfg.PingInterval),
-			transport.WithPingTimeout(cfg.PingTimeout),
-			transport.WithAckTimeout(cfg.AckTimeout),
-			transport.WithWriteTimeout(cfg.WriteTimeout),
-			transport.WithReadLimit(cfg.ReadLimit),
-		),
+		ws: transport.NewWSTransport(ctx, transport.WSTransportOptions{
+			UpgradeClient: cfg.UpgradeClient,
+			Logger:        cfg.Logger,
+			PingInterval:  cfg.PingInterval,
+			PingTimeout:   cfg.PingTimeout,
+			AckTimeout:    cfg.AckTimeout,
+			WriteTimeout:  cfg.WriteTimeout,
+			ReadLimit:     cfg.ReadLimit,
+		}),
 		sse: transport.NewSSETransport(ctx, cfg.StreamingClient, cfg.Logger),
 	}
 
