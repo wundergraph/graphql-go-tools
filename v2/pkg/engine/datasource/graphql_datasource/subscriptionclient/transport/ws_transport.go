@@ -51,6 +51,10 @@ type WSTransportOptions struct {
 	AckTimeout    time.Duration
 	WriteTimeout  time.Duration
 	ReadLimit     int64
+	// IdleTimeout is the duration a connection stays open after its last
+	// subscription is removed, allowing new subscriptions to reuse it
+	// without re-dialing. Zero means close immediately.
+	IdleTimeout time.Duration
 }
 
 type WSTransport struct {
@@ -277,6 +281,7 @@ func (t *WSTransport) dial(ctx context.Context, key uint64, opts common.Options)
 	conn := newWSConnection(wsConn, proto, wsConnectionOptions{
 		logger:       t.opts.Logger,
 		writeTimeout: t.opts.WriteTimeout,
+		idleTimeout:  t.opts.IdleTimeout,
 		onEmpty:      func() { t.removeConn(key) },
 	})
 

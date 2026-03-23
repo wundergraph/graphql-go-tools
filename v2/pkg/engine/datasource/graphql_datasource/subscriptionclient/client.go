@@ -38,6 +38,7 @@ type Config struct {
 	AckTimeout      time.Duration
 	WriteTimeout    time.Duration
 	ReadLimit       int64
+	WSIdleTimeout   time.Duration
 }
 
 // New creates a new subscription client with the provided config.
@@ -64,6 +65,7 @@ func New(ctx context.Context, cfg Config) *Client {
 			AckTimeout:    cfg.AckTimeout,
 			WriteTimeout:  cfg.WriteTimeout,
 			ReadLimit:     cfg.ReadLimit,
+			IdleTimeout:   cfg.WSIdleTimeout,
 		}),
 		sse: transport.NewSSETransport(ctx, cfg.StreamingClient, cfg.Logger),
 	}

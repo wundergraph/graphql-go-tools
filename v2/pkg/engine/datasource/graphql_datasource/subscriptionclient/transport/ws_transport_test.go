@@ -401,7 +401,9 @@ func TestWSTransport_ConcurrentSubscribe(t *testing.T) {
 			}
 		})
 
-		tr := NewWSTransport(t.Context(), WSTransportOptions{})
+		tr := NewWSTransport(t.Context(), WSTransportOptions{
+			IdleTimeout: 30 * time.Second,
+		})
 
 		opts := common.Options{
 			Endpoint:  server.URL,
@@ -424,8 +426,7 @@ func TestWSTransport_ConcurrentSubscribe(t *testing.T) {
 
 		wg.Wait()
 
-		// Should have only dialed once (or maybe twice due to race, but not 10 times)
-		assert.LessOrEqual(t, dialCount.Load(), int32(2))
+		assert.Equal(t, int32(1), dialCount.Load())
 	})
 }
 

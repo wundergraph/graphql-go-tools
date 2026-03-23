@@ -25,6 +25,7 @@ var (
 type wsConnectionOptions struct {
 	logger       abstractlogger.Logger
 	writeTimeout time.Duration
+	idleTimeout  time.Duration
 	onEmpty      func()
 }
 
@@ -43,7 +44,8 @@ type wsConnection struct {
 
 	closed atomic.Bool
 
-	onEmpty func()
+	onEmpty     func()
+	idleTimeout time.Duration
 
 	writeTimeout time.Duration
 
@@ -73,6 +75,7 @@ func newWSConnection(conn *websocket.Conn, proto protocol.Protocol, opts wsConne
 		onEmpty:  opts.onEmpty,
 
 		writeTimeout: opts.writeTimeout,
+		idleTimeout:  opts.idleTimeout,
 	}
 
 	c.lastPongAt.Store(time.Now().UnixNano())
@@ -121,7 +124,18 @@ func (c *wsConnection) removeSub(id string) {
 	c.subsMu.Unlock()
 
 	if isEmpty {
-		c.closeConn()
+		if c.idleTimeout > 0 {
+			time.AfterFunc(c.idleTimeout, func() {
+				c.subsMu.RLock()
+				stillEmpty := len(c.subs) == 0
+				c.subsMu.RUnlock()
+				if stillEmpty {
+					c.closeConn()
+				}
+			})
+		} else {
+			c.closeConn()
+		}
 	}
 }
 

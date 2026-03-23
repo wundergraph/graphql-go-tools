@@ -344,6 +344,82 @@ func TestWSConnection_OnEmpty(t *testing.T) {
 	})
 }
 
+func TestWSConnection_IdleTimeout(t *testing.T) {
+	t.Parallel()
+
+	t.Run("removeSub defers close for idle timeout duration when subs are empty", func(t *testing.T) {
+		t.Parallel()
+
+		conn, _ := newTestConn(t)
+		proto := newMockProtocol()
+
+		wsc := newWSConnection(conn, proto, wsConnectionOptions{
+			idleTimeout: 200 * time.Millisecond,
+		})
+
+		cancel, err := wsc.subscribe(context.Background(), "sub-1", &common.Request{}, func(_ *common.Message) {})
+		require.NoError(t, err)
+
+		cancel()
+
+		assert.False(t, wsc.isClosed(), "connection should not be closed immediately")
+
+		assert.Eventually(t, func() bool {
+			return wsc.isClosed()
+		}, time.Second, 10*time.Millisecond, "connection should close after idle timeout")
+	})
+
+	t.Run("removeSub does not close when new subscription arrives before timeout", func(t *testing.T) {
+		t.Parallel()
+
+		conn, _ := newTestConn(t)
+		proto := newMockProtocol()
+
+		wsc := newWSConnection(conn, proto, wsConnectionOptions{
+			idleTimeout: 200 * time.Millisecond,
+		})
+
+		cancel1, err := wsc.subscribe(context.Background(), "sub-1", &common.Request{}, func(_ *common.Message) {})
+		require.NoError(t, err)
+
+		cancel1() // starts idle timer
+
+		_, err = wsc.subscribe(context.Background(), "sub-2", &common.Request{}, func(_ *common.Message) {})
+		require.NoError(t, err)
+
+		time.Sleep(300 * time.Millisecond)
+
+		assert.False(t, wsc.isClosed(), "connection should stay open while subscription exists")
+	})
+
+	t.Run("removeSub closes immediately when idle timeout is zero", func(t *testing.T) {
+		t.Parallel()
+
+		conn, _ := newTestConn(t)
+		proto := newMockProtocol()
+
+		emptyCalled := make(chan struct{}, 1)
+		wsc := newWSConnection(conn, proto, wsConnectionOptions{
+			onEmpty: func() { emptyCalled <- struct{}{} },
+		})
+
+		cancel, err := wsc.subscribe(context.Background(), "sub-1", &common.Request{}, func(_ *common.Message) {})
+		require.NoError(t, err)
+
+		cancel()
+
+		select {
+		case <-emptyCalled:
+			// success
+		case <-time.After(100 * time.Millisecond):
+			t.Error("connection should close immediately with zero idle timeout")
+		}
+
+		assert.True(t, wsc.isClosed())
+	})
+
+}
+
 func TestWSConnection_Close(t *testing.T) {
 	t.Parallel()
 
