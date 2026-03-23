@@ -56,7 +56,7 @@ parse → normalize → validate → plan → resolve → response
 
 Two-level entity caching system (L1 per-request + L2 external). See:
 - [v2/pkg/engine/resolve/CLAUDE.md](v2/pkg/engine/resolve/CLAUDE.md) — full resolve package reference (resolution pipeline + caching internals)
-- [ENTITY_CACHING_INTEGRATION.md](ENTITY_CACHING_INTEGRATION.md) — router integration guide (public APIs, configuration, examples)
+- [ENTITY_CACHING_INTEGRATION.md](docs/entity-caching/ENTITY_CACHING_INTEGRATION.md) — router integration guide (public APIs, configuration, examples)
 
 ## Testing Conventions
 

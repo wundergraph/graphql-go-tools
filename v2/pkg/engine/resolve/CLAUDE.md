@@ -556,7 +556,7 @@ Every `defaultCache.ClearLog()` MUST be followed by `defaultCache.GetLog()` with
 
 ### Caching Test / AC Sync Rule
 
-**When modifying or adding caching-related tests**, you MUST also update `ENTITY_CACHING_ACCEPTANCE_CRITERIA.md` (in the repo root). Every AC must link to its covering tests with relative paths, line numbers, and test names. This applies to:
+**When modifying or adding caching-related tests**, you MUST also update `docs/entity-caching/ENTITY_CACHING_ACCEPTANCE_CRITERIA.md` (from the repo root). Every AC must link to its covering tests with relative paths, line numbers, and test names. This applies to:
 - New caching tests (add test links to the relevant AC)
 - Changes to existing caching tests that affect which ACs are covered
 - New ACs (must have at least one test link)
