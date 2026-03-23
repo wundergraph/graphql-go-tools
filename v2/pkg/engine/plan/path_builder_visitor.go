@@ -51,6 +51,7 @@ type pathBuilderVisitor struct {
 
 	fieldDependsOn           map[fieldIndexKey][]int // fieldDependsOn is a map[fieldRef][]fieldRef - holds list of field refs which are required by a field ref, e.g. field should be planned only after required fields were planned
 	fieldRequirementsConfigs map[fieldIndexKey][]FederationFieldConfiguration
+	processedFieldDeps       map[fieldIndexKey][]int // processedFieldDeps tracks which plannerIds have already had dependencies wired for a given fieldIndexKey - pair of fieldRef and dsHash
 
 	currentFetchPath    []resolve.FetchItemPathElement
 	currentResponsePath []string
@@ -344,6 +345,7 @@ func (c *pathBuilderVisitor) EnterDocument(operation, definition *ast.Document) 
 
 	c.fieldDependenciesForPlanners = make(map[int][]int)
 	c.fieldsPlannedOn = make(map[int][]int)
+	c.processedFieldDeps = make(map[fieldIndexKey][]int)
 }
 
 func (c *pathBuilderVisitor) LeaveDocument(operation, definition *ast.Document) {
@@ -579,6 +581,16 @@ func (c *pathBuilderVisitor) EnterField(fieldRef int) {
 		}
 	}
 
+	// Clean up fieldDependsOn entries that were fully processed during this EnterField call.
+	// We keep entries alive throughout the suggestions loop so couldPlanField can still read them,
+	// and delete them only after all planners for this fieldRef have been wired up.
+	for _, suggestion := range suggestions {
+		fieldKey := fieldIndexKey{fieldRef, suggestion.DataSourceHash}
+		if _, processed := c.processedFieldDeps[fieldKey]; processed {
+			delete(c.fieldDependsOn, fieldKey)
+		}
+	}
+
 	c.addArrayField(fieldRef, currentPath)
 	// pushResponsePath uses array fields so it should be called after addArrayField
 	c.pushResponsePath(fieldRef, fieldAliasOrName)
@@ -722,31 +734,6 @@ func (c *pathBuilderVisitor) fieldIsChildNode(plannerIdx int) bool {
 	return strings.ContainsAny(fieldPath, ".")
 }
 
-// addPlannerDependencies adds dependencies between planners based on @key directive
-// e.g. when we have a record in a map, that this fieldRef is a dependency for the planner id
-// we will notify that planner about the dependency on thecurrentPlannerIdx where this field is landed
-func (c *pathBuilderVisitor) addPlannerDependencies(fieldRef int, plannedOnPlannerId int) {
-	plannerIds, mappingExists := c.fieldDependenciesForPlanners[fieldRef]
-	if !mappingExists {
-		return
-	}
-
-	for _, notifyPlannerIdx := range plannerIds {
-		fetchConfiguration := c.planners[notifyPlannerIdx].ObjectFetchConfiguration()
-
-		notified := slices.Contains(fetchConfiguration.dependsOnFetchIDs, plannedOnPlannerId)
-		if !notified {
-			if notifyPlannerIdx == plannedOnPlannerId {
-				return
-				// c.walker.StopWithInternalErr(fmt.Errorf("wrong fetch dependencies planner %d depends on itself", notifyPlannerIdx))
-			}
-
-			fetchConfiguration.dependsOnFetchIDs = append(fetchConfiguration.dependsOnFetchIDs, plannedOnPlannerId)
-			slices.Sort(fetchConfiguration.dependsOnFetchIDs)
-		}
-	}
-}
-
 // recordFieldPlannedOn - records the planner id on which the field was planned
 func (c *pathBuilderVisitor) recordFieldPlannedOn(fieldRef int, plannerIdx int) {
 	if !slices.Contains(c.fieldsPlannedOn[fieldRef], plannerIdx) {
@@ -770,7 +757,11 @@ func (c *pathBuilderVisitor) addFieldDependencies(field *currentFieldInfo, curre
 	if !mappingExists {
 		return
 	}
-	delete(c.fieldDependsOn, fieldKey)
+
+	if slices.Contains(c.processedFieldDeps[fieldKey], currentPlannerIdx) {
+		return
+	}
+	c.processedFieldDeps[fieldKey] = append(c.processedFieldDeps[fieldKey], currentPlannerIdx)
 
 	requiresConfigurations, ok := c.fieldRequirementsConfigs[fieldKey]
 	if !ok {
@@ -798,8 +789,12 @@ func (c *pathBuilderVisitor) addFieldDependencies(field *currentFieldInfo, curre
 
 			notified := slices.Contains(fetchConfiguration.dependsOnFetchIDs, plannerIdx)
 			if !notified {
+
 				fetchConfiguration.dependsOnFetchIDs = append(fetchConfiguration.dependsOnFetchIDs, plannerIdx)
+				// sort
 				slices.Sort(fetchConfiguration.dependsOnFetchIDs)
+				// remove consecutive duplicates
+				fetchConfiguration.dependsOnFetchIDs = slices.Compact(fetchConfiguration.dependsOnFetchIDs)
 			}
 		}
 	}
