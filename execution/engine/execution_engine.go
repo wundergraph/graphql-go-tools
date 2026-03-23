@@ -215,6 +215,11 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 	if report.HasErrors() {
 		return report
 	}
+	if costCalculator != nil {
+		if err := costCalculator.ValidateSliceArguments(e.config.plannerConfig, execContext.resolveContext.Variables); err != nil {
+			return err
+		}
+	}
 	operation.ComputeEstimatedCost(costCalculator, e.config.plannerConfig, execContext.resolveContext.Variables)
 
 	if execContext.resolveContext.TracingOptions.Enable && !execContext.resolveContext.TracingOptions.ExcludePlannerStats {

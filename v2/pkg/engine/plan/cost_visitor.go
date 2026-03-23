@@ -36,7 +36,7 @@ type CostVisitor struct {
 func NewCostVisitor(walker *astvisitor.Walker, operation, definition *ast.Document) *CostVisitor {
 	stack := make([]*CostTreeNode, 0, 16)
 	rootNode := CostTreeNode{
-		fieldCoord: FieldCoordinate{"_none", "_root"},
+		fieldCoords: FieldCoordinate{"_none", "_root"},
 	}
 	stack = append(stack, &rootNode)
 	return &CostVisitor{
@@ -104,7 +104,7 @@ func (v *CostVisitor) EnterField(fieldRef int) {
 	// Create a skeleton node. dataSourceHashes will be filled in leaveFieldCost
 	node := CostTreeNode{
 		fieldRef:                fieldRef,
-		fieldCoord:              FieldCoordinate{typeName, fieldName},
+		fieldCoords:             FieldCoordinate{typeName, fieldName},
 		fieldTypeName:           unwrappedTypeName,
 		implementingTypeNames:   implementingTypeNames,
 		returnsListType:         isListType,

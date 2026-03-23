@@ -189,7 +189,7 @@ type CostTreeNode struct {
 	fieldRef int
 
 	// Enclosing type name and field name
-	fieldCoord FieldCoordinate
+	fieldCoords FieldCoordinate
 
 	// fieldTypeName contains the name of an unwrapped (named) type that is returned by this field.
 	fieldTypeName string
@@ -240,6 +240,19 @@ func (node *CostTreeNode) maxMultiplierImplementingField(config *DataSourceCostC
 		}
 	}
 	return maxListSize
+}
+
+// requiringOneArgImplementingField returns the first FieldListSize from implementing types
+// that has RequireOneSlicingArgument set to true. Used for validation when the enclosing type is abstract.
+func (node *CostTreeNode) requiringOneArgImplementingField(config *DataSourceCostConfig, fieldName string) *FieldListSize {
+	for _, implTypeName := range node.implementingTypeNames {
+		coords := FieldCoordinate{implTypeName, fieldName}
+		listSize := config.ListSizes[coords]
+		if listSize != nil && listSize.RequireOneSlicingArgument {
+			return listSize
+		}
+	}
+	return nil
 }
 
 // sizedFieldImplementingFields returns all listSizes from implementing types
@@ -348,8 +361,8 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 			configs[dsHash] = dsCostConfig
 		}
 
-		fieldWeight := dsCostConfig.Weights[node.fieldCoord]
-		listSize := dsCostConfig.ListSizes[node.fieldCoord]
+		fieldWeight := dsCostConfig.Weights[node.fieldCoords]
+		listSize := dsCostConfig.ListSizes[node.fieldCoords]
 		// The cost directive is not allowed on fields in an interface.
 		// The cost of a field on an interface can be calculated based on the costs of
 		// the corresponding field on each concrete type implementing that interface,
@@ -364,10 +377,10 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 			// This field is part of the enclosing interface/union.
 			// We look into implementing types and find the max-weighted field.
 			// Found fieldWeight can be used for all the calculations.
-			fieldWeight = parent.maxWeightImplementingField(dsCostConfig, node.fieldCoord.FieldName)
+			fieldWeight = parent.maxWeightImplementingField(dsCostConfig, node.fieldCoords.FieldName)
 			// If this field has listSize defined, then do not look into implementing types.
 			if isEstimation && listSize == nil && node.returnsListType {
-				listSize = parent.maxMultiplierImplementingField(dsCostConfig, node.fieldCoord.FieldName, node.arguments, variables, defaultListSize)
+				listSize = parent.maxMultiplierImplementingField(dsCostConfig, node.fieldCoords.FieldName, node.arguments, variables, defaultListSize)
 			}
 		}
 
@@ -435,10 +448,10 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 		if parent == nil {
 			continue
 		}
-		parentLS := dsCostConfig.ListSizes[parent.fieldCoord]
+		parentLS := dsCostConfig.ListSizes[parent.fieldCoords]
 		if parentLS != nil {
 			for _, sf := range parentLS.SizedFields {
-				if sf != node.fieldCoord.FieldName {
+				if sf != node.fieldCoords.FieldName {
 					continue
 				}
 				m := float64(parentLS.multiplier(parent.arguments, variables, defaultListSize))
@@ -455,7 +468,7 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 			grandParent := parent.parent
 			if grandParent != nil {
 				implementing := grandParent.sizedFieldImplementingFields(
-					dsCostConfig, parent.fieldCoord.FieldName, node.fieldCoord.FieldName,
+					dsCostConfig, parent.fieldCoords.FieldName, node.fieldCoords.FieldName,
 				)
 				for _, implLS := range implementing {
 					m := float64(implLS.multiplier(parent.arguments, variables, defaultListSize))
@@ -520,6 +533,7 @@ type ArgumentInfo struct {
 	// otherwise the argument is Scalar or Enum.
 	isInputObject bool
 
+	// isSimple is true for scalars and enums
 	isSimple bool
 
 	// When the argument points to a variable, it contains the name of the variable.
@@ -606,6 +620,67 @@ func (c *CostCalculator) DebugPrint(config Configuration, variables *astjson.Val
 	return sb.String()
 }
 
+func (c *CostCalculator) ValidateSliceArguments(config Configuration, variables *astjson.Value) error {
+	costConfigs := make(map[DSHash]*DataSourceCostConfig)
+	for _, ds := range config.DataSources {
+		if costConfig := ds.GetCostConfig(); costConfig != nil {
+			costConfigs[ds.Hash()] = costConfig
+		}
+	}
+	return c.tree.validateSliceArguments(costConfigs, variables)
+}
+
+func (node *CostTreeNode) validateSliceArguments(configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value) error {
+	if node == nil {
+		return nil
+	}
+
+	for _, dsHash := range node.dataSourceHashes {
+		dsCostConfig := configs[dsHash]
+		if dsCostConfig == nil {
+			continue
+		}
+
+		listSize := dsCostConfig.ListSizes[node.fieldCoords]
+		if listSize == nil && node.isEnclosingTypeAbstract && node.parent != nil && node.parent.returnsAbstractType {
+			listSize = node.parent.requiringOneArgImplementingField(dsCostConfig, node.fieldCoords.FieldName)
+		}
+		if listSize == nil || !listSize.RequireOneSlicingArgument || len(listSize.SlicingArguments) == 0 {
+			continue
+		}
+
+		count := 0
+		if variables != nil {
+			for _, slicingArg := range listSize.SlicingArguments {
+				arg, ok := node.arguments[slicingArg]
+				if !ok || !arg.isSimple {
+					continue
+				}
+				if arg.hasVariable {
+					v := variables.Get(arg.varName)
+					if v == nil || v.Type() == astjson.TypeNull {
+						continue
+					}
+					count++
+				}
+			}
+		}
+		if count != 1 {
+			if count == 0 {
+				return fmt.Errorf("field '%s' requires exactly one slicing argument, but none was provided", node.fieldCoords)
+			}
+			return fmt.Errorf("field '%s' requires exactly one slicing argument, but %d were provided", node.fieldCoords, count)
+		}
+	}
+
+	for _, child := range node.children {
+		if err := child.validateSliceArguments(configs, variables); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // debugPrint recursively prints a node and its children with indentation.
 func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value, defaultListSize int, actualListSizes map[string]int, depth int) {
 	// implementation is a bit crude and redundant, we could skip calculating nodes all over again.
@@ -616,9 +691,7 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*Da
 
 	indent := strings.Repeat("    ", depth)
 
-	fieldInfo := fmt.Sprintf("%s.%s", node.fieldCoord.TypeName, node.fieldCoord.FieldName)
-
-	fmt.Fprintf(sb, "%s* %s", indent, fieldInfo)
+	fmt.Fprintf(sb, "%s* %s", indent, node.fieldCoords)
 
 	if node.fieldTypeName != "" {
 		fmt.Fprintf(sb, " : %s", node.fieldTypeName)
