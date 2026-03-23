@@ -709,3 +709,965 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 		})
 	}
 }
+
+func TestExecutionEngine_Execute_Defer_CrossSubgraphRequires(t *testing.T) {
+	// Merged schema visible to clients.
+	definition := `
+		type Query {
+			user: User!
+		}
+		type User {
+			id: ID!
+			name: String!
+			billing: Billing!
+			settings: Settings!
+			account: Account!
+			notifications: [String!]!
+		}
+		type Billing {
+			plan: String!
+			currency: String!
+		}
+		type Settings {
+			region: String!
+			language: String!
+		}
+		type Account {
+			type: String!
+			limit: Int!
+		}
+	`
+
+	// Subgraph 1: owns Query.user, User.name, User.account.
+	// account @requires(fields: "billing { plan } settings { region }") — depends on sub2 and sub3.
+	firstSubgraphSDL := `
+		type Query {
+			user: User!
+		}
+		
+		type User @key(fields: "id") {
+			id: ID!
+			name: String!
+			account: Account! @requires(fields: "billing { plan } settings { region }")
+			billing: Billing! @external
+			settings: Settings! @external
+		}
+		
+		type Account {
+			type: String!
+			limit: Int!
+		}
+		
+		type Billing {
+			plan: String! @external
+		}
+		
+		type Settings {
+			region: String! @external
+		}
+	`
+
+	// Subgraph 2: owns User.billing, User.notifications.
+	// notifications @requires(fields: "name settings { language }") — depends on sub1 (name) and sub3 (settings).
+	secondSubgraphSDL := `
+		type User @key(fields: "id") {
+			id: ID!
+			name: String! @external
+			notifications: [String!]! @requires(fields: "name settings { language }")
+			billing: Billing!
+			settings: Settings! @external
+		}
+		
+		type Billing {
+			plan: String!
+			currency: String!
+		}
+		
+		type Settings {
+			language: String! @external
+		}
+	`
+
+	// Subgraph 3: owns User.settings.
+	thirdSubgraphSDL := `
+		type User @key(fields: "id") {
+			id: ID!
+			settings: Settings!
+		}
+		
+		type Settings {
+			region: String!
+			language: String!
+		}
+	`
+
+	schema, err := graphql.NewSchemaFromString(definition)
+	require.NoError(t, err)
+
+	dataSources := []plan.DataSource{
+		mustGraphqlDataSourceConfiguration(t,
+			"id-1",
+			mustFactory(t,
+				testConditionalNetHttpClient(t, conditionalTestCase{
+					expectedHost: "first",
+					expectedPath: "/",
+					responses: map[string]sendResponse{
+						// Direct root queries (non-defer, no entity deps)
+						`{"query":"{user {name}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"name":"Alice"}}}`,
+						},
+						// Initial root query when only entity key is needed (account @requires billing+settings from sub2/sub3)
+						`{"query":"{user {id}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"id":"1"}}}`,
+						},
+						// Initial root query with name also included (name needed for notifications @requires)
+						`{"query":"{user {id name}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"id":"1","name":"Alice"}}}`,
+						},
+						`{"query":"{user {name id}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"name":"Alice","id":"1"}}}`,
+						},
+						// Defer variants — include __typename and internal id aliases
+						`{"query":"{user {__typename id}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"__typename":"User","id":"1"}}}`,
+						},
+						`{"query":"{user {___typename: __typename}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"___typename":"User"}}}`,
+						},
+						`{"query":"{user {___typename: __typename __typename __internal_1_id: id}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"___typename":"User","__typename":"User","__internal_1_id":"1"}}}`,
+						},
+						`{"query":"{user {___typename: __typename __typename __internal_2_id: id __internal_1_id: id __internal_3_id: id}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"___typename":"User","__typename":"User","__internal_2_id":"1","__internal_1_id":"1","__internal_3_id":"1"}}}`,
+						},
+						`{"query":"{user {name __typename __internal_1_id: id}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"name":"Alice","__typename":"User","__internal_1_id":"1"}}}`,
+						},
+						`{"query":"{user {name __typename __internal_1_id: id __internal_2_id: id}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"name":"Alice","__typename":"User","__internal_1_id":"1","__internal_2_id":"1"}}}`,
+						},
+						`{"query":"{user {name __typename __internal_1_id: id id __internal_2_id: id}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"name":"Alice","__typename":"User","__internal_1_id":"1","id":"1","__internal_2_id":"1"}}}`,
+						},
+						`{"query":"{user {name __typename __internal_2_id: id __internal_1_id: id}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"name":"Alice","__typename":"User","__internal_2_id":"1","__internal_1_id":"1"}}}`,
+						},
+						`{"query":"{user {__typename id name}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"__typename":"User","id":"1","name":"Alice"}}}`,
+						},
+						`{"query":"{user {name __typename id}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"name":"Alice","__typename":"User","id":"1"}}}`,
+						},
+						`{"query":"{user {__typename id __internal_1_id: id}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"__typename":"User","id":"1","__internal_1_id":"1"}}}`,
+						},
+						`{"query":"{user {__typename id __internal_1_id: id __internal_2_id: id}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"__typename":"User","id":"1","__internal_1_id":"1","__internal_2_id":"1"}}}`,
+						},
+						`{"query":"{user {__typename id __internal_1_id: id __internal_2_id: id __internal_3_id: id}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"__typename":"User","id":"1","__internal_1_id":"1","__internal_2_id":"1","__internal_3_id":"1"}}}`,
+						},
+						`{"query":"{user {__typename id name __internal_1_id: id}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"__typename":"User","id":"1","name":"Alice","__internal_1_id":"1"}}}`,
+						},
+						`{"query":"{user {name __typename id __internal_1_id: id}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"name":"Alice","__typename":"User","id":"1","__internal_1_id":"1"}}}`,
+						},
+						`{"query":"{user {__typename id name __internal_1_id: id __internal_2_id: id}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"__typename":"User","id":"1","name":"Alice","__internal_1_id":"1","__internal_2_id":"1"}}}`,
+						},
+						`{"query":"{user {name __typename id __internal_1_id: id __internal_2_id: id}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"name":"Alice","__typename":"User","id":"1","__internal_1_id":"1","__internal_2_id":"1"}}}`,
+						},
+						`{"query":"{user {__typename id name __internal_1_id: id __internal_2_id: id __internal_3_id: id}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"__typename":"User","id":"1","name":"Alice","__internal_1_id":"1","__internal_2_id":"1","__internal_3_id":"1"}}}`,
+						},
+						`{"query":"{user {name __typename id __internal_1_id: id __internal_2_id: id __internal_3_id: id}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"name":"Alice","__typename":"User","id":"1","__internal_1_id":"1","__internal_2_id":"1","__internal_3_id":"1"}}}`,
+						},
+						`{"query":"{user {__typename id __internal_1_id: id __internal_2_id: id __internal_3_id: id __internal_4_id: id}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"__typename":"User","id":"1","__internal_1_id":"1","__internal_2_id":"1","__internal_3_id":"1","__internal_4_id":"1"}}}`,
+						},
+						`{"query":"{user {__typename id name __internal_1_id: id __internal_2_id: id __internal_3_id: id __internal_4_id: id}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"__typename":"User","id":"1","name":"Alice","__internal_1_id":"1","__internal_2_id":"1","__internal_3_id":"1","__internal_4_id":"1"}}}`,
+						},
+						// Entity fetch for name (when name is in a deferred block)
+						`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
+							statusCode: 200,
+							body:       `{"data":{"_entities":[{"__typename":"User","name":"Alice"}]}}`,
+						},
+						// Entity fetch for account — representations carry @requires data (billing.plan + settings.region)
+						`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename account {type limit}}}}","variables":{"representations":[{"__typename":"User","billing":{"plan":"pro"},"settings":{"region":"us-east"},"id":"1"}]}}`: {
+							statusCode: 200,
+							body:       `{"data":{"_entities":[{"__typename":"User","account":{"type":"premium","limit":100}}]}}`,
+						},
+						`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename account {type}}}}","variables":{"representations":[{"__typename":"User","billing":{"plan":"pro"},"settings":{"region":"us-east"},"id":"1"}]}}`: {
+							statusCode: 200,
+							body:       `{"data":{"_entities":[{"__typename":"User","account":{"type":"premium"}}]}}`,
+						},
+						// Direct root queries for deferred account/name fields
+						`{"query":"{user {account {type}}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"account":{"type":"premium"}}}}`,
+						},
+						`{"query":"{user {__internal_1_name: name}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"__internal_1_name":"Alice"}}}`,
+						},
+						`{"query":"{user {__internal_2_name: name}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"__internal_2_name":"Alice"}}}`,
+						},
+						`{"query":"{user {account {type} __internal_2_name: name}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"account":{"type":"premium"},"__internal_2_name":"Alice"}}}`,
+						},
+						`{"query":"{user {__internal_3_name: name}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"__internal_3_name":"Alice"}}}`,
+						},
+						`{"query":"{user {name account {type} __internal_1_name: name}}"}`: {
+							statusCode: 200,
+							body:       `{"data":{"user":{"name":"Alice","account":{"type":"premium"},"__internal_1_name":"Alice"}}}`,
+						},
+					},
+				}),
+			),
+			&plan.DataSourceMetadata{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"user"},
+					},
+					{
+						TypeName:   "User",
+						FieldNames: []string{"id", "name", "account"},
+						ExternalFieldNames: []string{"billing", "settings"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "Account",
+						FieldNames: []string{"type", "limit"},
+					},
+					{
+						TypeName:           "Billing",
+						ExternalFieldNames: []string{"plan"},
+					},
+					{
+						TypeName:           "Settings",
+						ExternalFieldNames: []string{"region"},
+					},
+				},
+				FederationMetaData: plan.FederationMetaData{
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
+						},
+					},
+					Requires: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							FieldName:    "account",
+							SelectionSet: "billing { plan } settings { region }",
+						},
+					},
+				},
+			},
+			mustConfiguration(t, graphql_datasource.ConfigurationInput{
+				Fetch: &graphql_datasource.FetchConfiguration{
+					URL:    "https://first/",
+					Method: "POST",
+				},
+				SchemaConfiguration: mustSchemaConfig(
+					t,
+					&graphql_datasource.FederationConfiguration{
+						Enabled:    true,
+						ServiceSDL: firstSubgraphSDL,
+					},
+					firstSubgraphSDL,
+				),
+			}),
+		),
+		mustGraphqlDataSourceConfiguration(t,
+			"id-2",
+			mustFactory(t,
+				testConditionalNetHttpClient(t, conditionalTestCase{
+					expectedHost: "second",
+					expectedPath: "/",
+					responses: map[string]sendResponse{
+						// Entity fetches for billing.plan (needed as @requires input for sub1 account)
+						`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename billing {plan}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
+							statusCode: 200,
+							body:       `{"data":{"_entities":[{"__typename":"User","billing":{"plan":"pro"}}]}}`,
+						},
+						`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename billing {plan currency}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
+							statusCode: 200,
+							body:       `{"data":{"_entities":[{"__typename":"User","billing":{"plan":"pro","currency":"USD"}}]}}`,
+						},
+						`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename billing {currency}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
+							statusCode: 200,
+							body:       `{"data":{"_entities":[{"__typename":"User","billing":{"currency":"USD"}}]}}`,
+						},
+						// Entity fetch for notifications — representations carry @requires data (name + settings.language)
+						`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename notifications}}}","variables":{"representations":[{"__typename":"User","name":"Alice","settings":{"language":"en"},"id":"1"}]}}`: {
+							statusCode: 200,
+							body:       `{"data":{"_entities":[{"__typename":"User","notifications":["msg1","msg2"]}]}}`,
+						},
+						// Aliased billing fetches for deferred chunks
+						`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename __internal_1_billing: billing {plan}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
+							statusCode: 200,
+							body:       `{"data":{"_entities":[{"__typename":"User","__internal_1_billing":{"plan":"pro"}}]}}`,
+						},
+						`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename __internal_2_billing: billing {plan}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
+							statusCode: 200,
+							body:       `{"data":{"_entities":[{"__typename":"User","__internal_2_billing":{"plan":"pro"}}]}}`,
+						},
+						`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename billing {plan} __internal_1_billing: billing {plan}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
+							statusCode: 200,
+							body:       `{"data":{"_entities":[{"__typename":"User","billing":{"plan":"pro"},"__internal_1_billing":{"plan":"pro"}}]}}`,
+						},
+						// Combined billing+notifications fetch (planner merges them into one entity request).
+						// Two field-order variants since the planner may order selections differently.
+						`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename billing {plan} notifications}}}","variables":{"representations":[{"__typename":"User","id":"1","name":"Alice","settings":{"language":"en"}}]}}`: {
+							statusCode: 200,
+							body:       `{"data":{"_entities":[{"__typename":"User","billing":{"plan":"pro"},"notifications":["msg1","msg2"]}]}}`,
+						},
+						`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename notifications billing {plan}}}}","variables":{"representations":[{"__typename":"User","id":"1","name":"Alice","settings":{"language":"en"}}]}}`: {
+							statusCode: 200,
+							body:       `{"data":{"_entities":[{"__typename":"User","notifications":["msg1","msg2"],"billing":{"plan":"pro"}}]}}`,
+						},
+						`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename notifications}}}","variables":{"representations":[{"__typename":"User","id":"1","name":"Alice","settings":{"language":"en"}}]}}`: {
+							statusCode: 200,
+							body:       `{"data":{"_entities":[{"__typename":"User","notifications":["msg1","msg2"]}]}}`,
+						},
+					},
+				}),
+			),
+			&plan.DataSourceMetadata{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "User",
+						FieldNames: []string{"id", "billing", "notifications"},
+						ExternalFieldNames: []string{"name", "settings"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "Billing",
+						FieldNames: []string{"plan", "currency"},
+					},
+					{
+						TypeName:           "Settings",
+						ExternalFieldNames: []string{"language"},
+					},
+				},
+				FederationMetaData: plan.FederationMetaData{
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
+						},
+					},
+					Requires: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							FieldName:    "notifications",
+							SelectionSet: "name settings { language }",
+						},
+					},
+				},
+			},
+			mustConfiguration(t, graphql_datasource.ConfigurationInput{
+				Fetch: &graphql_datasource.FetchConfiguration{
+					URL:    "https://second/",
+					Method: "POST",
+				},
+				SchemaConfiguration: mustSchemaConfig(
+					t,
+					&graphql_datasource.FederationConfiguration{
+						Enabled:    true,
+						ServiceSDL: secondSubgraphSDL,
+					},
+					secondSubgraphSDL,
+				),
+			}),
+		),
+		mustGraphqlDataSourceConfiguration(t,
+			"id-3",
+			mustFactory(t,
+				testConditionalNetHttpClient(t, conditionalTestCase{
+					expectedHost: "third",
+					expectedPath: "/",
+					responses: map[string]sendResponse{
+						// Entity fetches for settings (needed for both account and notifications @requires)
+						// Aliased settings fetches for deferred chunks
+						`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename __internal_1_settings: settings {region}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
+							statusCode: 200,
+							body:       `{"data":{"_entities":[{"__typename":"User","__internal_1_settings":{"region":"us-east"}}]}}`,
+						},
+						`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename __internal_2_settings: settings {region}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
+							statusCode: 200,
+							body:       `{"data":{"_entities":[{"__typename":"User","__internal_2_settings":{"region":"us-east"}}]}}`,
+						},
+						`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename __internal_1_settings: settings {language}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
+							statusCode: 200,
+							body:       `{"data":{"_entities":[{"__typename":"User","__internal_1_settings":{"language":"en"}}]}}`,
+						},
+						`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename __internal_3_settings: settings {language}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
+							statusCode: 200,
+							body:       `{"data":{"_entities":[{"__typename":"User","__internal_3_settings":{"language":"en"}}]}}`,
+						},
+						`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename __internal_2_settings: settings {language}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
+							statusCode: 200,
+							body:       `{"data":{"_entities":[{"__typename":"User","__internal_2_settings":{"language":"en"}}]}}`,
+						},
+						`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename settings {region} __internal_1_settings: settings {region}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
+							statusCode: 200,
+							body:       `{"data":{"_entities":[{"__typename":"User","settings":{"region":"us-east"},"__internal_1_settings":{"region":"us-east"}}]}}`,
+						},
+						`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename settings {language} __internal_1_settings: settings {language}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
+							statusCode: 200,
+							body:       `{"data":{"_entities":[{"__typename":"User","settings":{"language":"en"},"__internal_1_settings":{"language":"en"}}]}}`,
+						},
+						// Original entity fetches for settings
+						`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename settings {region}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
+							statusCode: 200,
+							body:       `{"data":{"_entities":[{"__typename":"User","settings":{"region":"us-east"}}]}}`,
+						},
+						`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename settings {language}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
+							statusCode: 200,
+							body:       `{"data":{"_entities":[{"__typename":"User","settings":{"language":"en"}}]}}`,
+						},
+						`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename settings {region language}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
+							statusCode: 200,
+							body:       `{"data":{"_entities":[{"__typename":"User","settings":{"region":"us-east","language":"en"}}]}}`,
+						},
+					},
+				}),
+			),
+			&plan.DataSourceMetadata{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "User",
+						FieldNames: []string{"id", "settings"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "Settings",
+						FieldNames: []string{"region", "language"},
+					},
+				},
+				FederationMetaData: plan.FederationMetaData{
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
+						},
+					},
+				},
+			},
+			mustConfiguration(t, graphql_datasource.ConfigurationInput{
+				Fetch: &graphql_datasource.FetchConfiguration{
+					URL:    "https://third/",
+					Method: "POST",
+				},
+				SchemaConfiguration: mustSchemaConfig(
+					t,
+					&graphql_datasource.FederationConfiguration{
+						Enabled:    true,
+						ServiceSDL: thirdSubgraphSDL,
+					},
+					thirdSubgraphSDL,
+				),
+			}),
+		),
+	}
+
+	t.Run("non-defer - name only", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		schema: schema,
+		operation: func(t *testing.T) graphql.Request {
+			return graphql.Request{
+				Query: `{ user { name } }`,
+			}
+		},
+		dataSources:      dataSources,
+		expectedResponse: `{"data":{"user":{"name":"Alice"}}}`,
+	}))
+
+	t.Run("non-defer - account requires billing and settings", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		schema: schema,
+		operation: func(t *testing.T) graphql.Request {
+			return graphql.Request{
+				Query: `{ user { account { type } } }`,
+			}
+		},
+		dataSources:      dataSources,
+		expectedResponse: `{"data":{"user":{"account":{"type":"premium"}}}}`,
+	}))
+
+	t.Run("non-defer - notifications requires name and settings", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		schema: schema,
+		operation: func(t *testing.T) graphql.Request {
+			return graphql.Request{
+				Query: `{ user { notifications } }`,
+			}
+		},
+		dataSources:      dataSources,
+		expectedResponse: `{"data":{"user":{"notifications":["msg1","msg2"]}}}`,
+	}))
+
+	t.Run("non-defer - both requires fields together", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		schema: schema,
+		operation: func(t *testing.T) graphql.Request {
+			return graphql.Request{
+				Query: `{ user { name account { type } notifications } }`,
+			}
+		},
+		dataSources:      dataSources,
+		expectedResponse: `{"data":{"user":{"name":"Alice","account":{"type":"premium"},"notifications":["msg1","msg2"]}}}`,
+	}))
+
+	t.Run("non-defer - all fields including raw billing and settings", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		schema: schema,
+		operation: func(t *testing.T) graphql.Request {
+			return graphql.Request{
+				Query: `{ user { name billing { plan } settings { region } account { type } notifications } }`,
+			}
+		},
+		dataSources:      dataSources,
+		expectedResponse: `{"data":{"user":{"name":"Alice","billing":{"plan":"pro"},"settings":{"region":"us-east"},"account":{"type":"premium"},"notifications":["msg1","msg2"]}}}`,
+	}))
+
+	t.Run("defer - account field deferred", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		schema: schema,
+		operation: func(t *testing.T) graphql.Request {
+			return graphql.Request{
+				OperationName: "DeferAccount",
+				Query: `
+				query DeferAccount {
+					user {
+						name
+						... @defer {
+							account { type }
+						}
+					}
+				}`,
+			}
+		},
+		dataSources: dataSources,
+		expectedResponse: `{"data":{"user":{"name":"Alice"}},"hasNext":true}
+{"incremental":[{"data":{"account":{"type":"premium"}},"path":["user"]}],"hasNext":false}
+`,
+	}, withStreamingResponse()))
+
+	t.Run("defer - notifications field deferred", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		schema: schema,
+		operation: func(t *testing.T) graphql.Request {
+			return graphql.Request{
+				OperationName: "DeferNotifications",
+				Query: `
+				query DeferNotifications {
+					user {
+						name
+						... @defer {
+							notifications
+						}
+					}
+				}`,
+			}
+		},
+		dataSources: dataSources,
+		expectedResponse: `{"data":{"user":{"name":"Alice"}},"hasNext":true}
+{"incremental":[{"data":{"notifications":["msg1","msg2"]},"path":["user"]}],"hasNext":false}
+`,
+	}, withStreamingResponse()))
+
+	t.Run("defer - all user fields deferred in single block", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		schema: schema,
+		operation: func(t *testing.T) graphql.Request {
+			return graphql.Request{
+				OperationName: "DeferAll",
+				Query: `
+				query DeferAll {
+					user {
+						... @defer {
+							name
+							account { type }
+							notifications
+						}
+					}
+				}`,
+			}
+		},
+		dataSources: dataSources,
+		expectedResponse: `{"data":{"user":{}},"hasNext":true}
+{"incremental":[{"data":{"name":"Alice","account":{"type":"premium"},"notifications":["msg1","msg2"]},"path":["user"]}],"hasNext":false}
+`,
+	}, withStreamingResponse()))
+
+	t.Run("defer - parallel defers on both cross-subgraph requires fields", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		schema: schema,
+		operation: func(t *testing.T) graphql.Request {
+			return graphql.Request{
+				OperationName: "DeferBothRequires",
+				Query: `
+				query DeferBothRequires {
+					user {
+						name
+						... @defer {
+							account { type }
+						}
+						... @defer {
+							notifications
+						}
+					}
+				}`,
+			}
+		},
+		dataSources: dataSources,
+		expectedResponse: `{"data":{"user":{"name":"Alice"}},"hasNext":true}
+{"incremental":[{"data":{"account":{"type":"premium"}},"path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"notifications":["msg1","msg2"]},"path":["user"]}],"hasNext":false}
+`,
+	}, withStreamingResponse()))
+
+	t.Run("defer - nested defers: outer has account, inner has notifications", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		schema: schema,
+		operation: func(t *testing.T) graphql.Request {
+			return graphql.Request{
+				OperationName: "DeferNested",
+				Query: `
+				query DeferNested {
+					user {
+						name
+						... @defer {
+							account { type }
+							... @defer {
+								notifications
+							}
+						}
+					}
+				}`,
+			}
+		},
+		dataSources: dataSources,
+		expectedResponse: `{"data":{"user":{"name":"Alice"}},"hasNext":true}
+{"incremental":[{"data":{"account":{"type":"premium"}},"path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"notifications":["msg1","msg2"]},"path":["user"]}],"hasNext":false}
+`,
+	}, withStreamingResponse()))
+
+	t.Run("defer - parallel defers on raw entity fields alongside requires", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		schema: schema,
+		operation: func(t *testing.T) graphql.Request {
+			return graphql.Request{
+				OperationName: "DeferMixed",
+				Query: `
+				query DeferMixed {
+					user {
+						name
+						billing { plan }
+						... @defer {
+							account { type }
+						}
+						... @defer {
+							notifications
+						}
+					}
+				}`,
+			}
+		},
+		dataSources: dataSources,
+		expectedResponse: `{"data":{"user":{"name":"Alice","billing":{"plan":"pro"}}},"hasNext":true}
+{"incremental":[{"data":{"account":{"type":"premium"}},"path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"notifications":["msg1","msg2"]},"path":["user"]}],"hasNext":false}
+`,
+	}, withStreamingResponse()))
+
+	t.Run("defer - deeply nested requires: account outer, notifications inner, with raw fields", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		schema: schema,
+		operation: func(t *testing.T) graphql.Request {
+			return graphql.Request{
+				OperationName: "DeferDeepNested",
+				Query: `
+				query DeferDeepNested {
+					user {
+						... @defer {
+							name
+							billing { plan }
+							... @defer {
+								account { type }
+								... @defer {
+									notifications
+								}
+							}
+						}
+					}
+				}`,
+			}
+		},
+		dataSources: dataSources,
+		expectedResponse: `{"data":{"user":{}},"hasNext":true}
+{"incremental":[{"data":{"name":"Alice","billing":{"plan":"pro"}},"path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"account":{"type":"premium"}},"path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"notifications":["msg1","msg2"]},"path":["user"]}],"hasNext":false}
+`,
+	}, withStreamingResponse()))
+
+	// Defer versions of each non-defer test — verify @defer doesn't break @requires resolution.
+
+	t.Run("defer - name only", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		schema: schema,
+		operation: func(t *testing.T) graphql.Request {
+			return graphql.Request{
+				OperationName: "DeferNameOnly",
+				Query: `
+				query DeferNameOnly {
+					user {
+						... @defer { name }
+					}
+				}`,
+			}
+		},
+		dataSources: dataSources,
+		expectedResponse: `{"data":{"user":{}},"hasNext":true}
+{"incremental":[{"data":{"name":"Alice"},"path":["user"]}],"hasNext":false}
+`,
+	}, withStreamingResponse()))
+
+	t.Run("defer - only account deferred (no other immediate fields)", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		schema: schema,
+		operation: func(t *testing.T) graphql.Request {
+			return graphql.Request{
+				OperationName: "DeferAccountOnly",
+				Query: `
+				query DeferAccountOnly {
+					user {
+						... @defer { account { type } }
+					}
+				}`,
+			}
+		},
+		dataSources: dataSources,
+		expectedResponse: `{"data":{"user":{}},"hasNext":true}
+{"incremental":[{"data":{"account":{"type":"premium"}},"path":["user"]}],"hasNext":false}
+`,
+	}, withStreamingResponse()))
+
+	t.Run("defer - only notifications deferred (no other immediate fields)", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		schema: schema,
+		operation: func(t *testing.T) graphql.Request {
+			return graphql.Request{
+				OperationName: "DeferNotificationsOnly",
+				Query: `
+				query DeferNotificationsOnly {
+					user {
+						... @defer { notifications }
+					}
+				}`,
+			}
+		},
+		dataSources: dataSources,
+		expectedResponse: `{"data":{"user":{}},"hasNext":true}
+{"incremental":[{"data":{"notifications":["msg1","msg2"]},"path":["user"]}],"hasNext":false}
+`,
+	}, withStreamingResponse()))
+
+	t.Run("defer - all fields in single defer block", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		schema: schema,
+		operation: func(t *testing.T) graphql.Request {
+			return graphql.Request{
+				OperationName: "DeferAllFields",
+				Query: `
+				query DeferAllFields {
+					user {
+						... @defer {
+							name
+							billing { plan }
+							settings { region }
+							account { type }
+							notifications
+						}
+					}
+				}`,
+			}
+		},
+		dataSources: dataSources,
+		expectedResponse: `{"data":{"user":{}},"hasNext":true}
+{"incremental":[{"data":{"name":"Alice","billing":{"plan":"pro"},"settings":{"region":"us-east"},"account":{"type":"premium"},"notifications":["msg1","msg2"]},"path":["user"]}],"hasNext":false}
+`,
+	}, withStreamingResponse()))
+
+	// Tests mixing requires-source fields (billing, settings) with derived @requires fields
+	// (account, notifications) in same or parallel defer blocks.
+
+	t.Run("defer - requires source (billing) and derived field (account) in same defer block", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		schema: schema,
+		operation: func(t *testing.T) graphql.Request {
+			return graphql.Request{
+				OperationName: "DeferBillingAndAccount",
+				Query: `
+				query DeferBillingAndAccount {
+					user {
+						name
+						... @defer {
+							billing { plan }
+							account { type }
+						}
+					}
+				}`,
+			}
+		},
+		dataSources: dataSources,
+		expectedResponse: `{"data":{"user":{"name":"Alice"}},"hasNext":true}
+{"incremental":[{"data":{"billing":{"plan":"pro"},"account":{"type":"premium"}},"path":["user"]}],"hasNext":false}
+`,
+	}, withStreamingResponse()))
+
+	t.Run("defer - requires source (billing) and derived field (account) in parallel defers", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		schema: schema,
+		operation: func(t *testing.T) graphql.Request {
+			return graphql.Request{
+				OperationName: "DeferBillingParallelAccount",
+				Query: `
+				query DeferBillingParallelAccount {
+					user {
+						name
+						... @defer { billing { plan } }
+						... @defer { account { type } }
+					}
+				}`,
+			}
+		},
+		dataSources: dataSources,
+		expectedResponse: `{"data":{"user":{"name":"Alice"}},"hasNext":true}
+{"incremental":[{"data":{"billing":{"plan":"pro"}},"path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"account":{"type":"premium"}},"path":["user"]}],"hasNext":false}
+`,
+	}, withStreamingResponse()))
+
+	t.Run("defer - requires source (settings) and derived field (notifications) in same defer block", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		schema: schema,
+		operation: func(t *testing.T) graphql.Request {
+			return graphql.Request{
+				OperationName: "DeferSettingsAndNotifications",
+				Query: `
+				query DeferSettingsAndNotifications {
+					user {
+						name
+						... @defer {
+							settings { language }
+							notifications
+						}
+					}
+				}`,
+			}
+		},
+		dataSources: dataSources,
+		expectedResponse: `{"data":{"user":{"name":"Alice"}},"hasNext":true}
+{"incremental":[{"data":{"settings":{"language":"en"},"notifications":["msg1","msg2"]},"path":["user"]}],"hasNext":false}
+`,
+	}, withStreamingResponse()))
+
+	t.Run("defer - requires source (settings) and derived field (notifications) in parallel defers", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		schema: schema,
+		operation: func(t *testing.T) graphql.Request {
+			return graphql.Request{
+				OperationName: "DeferSettingsParallelNotifications",
+				Query: `
+				query DeferSettingsParallelNotifications {
+					user {
+						name
+						... @defer { settings { language } }
+						... @defer { notifications }
+					}
+				}`,
+			}
+		},
+		dataSources: dataSources,
+		expectedResponse: `{"data":{"user":{"name":"Alice"}},"hasNext":true}
+{"incremental":[{"data":{"settings":{"language":"en"}},"path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"notifications":["msg1","msg2"]},"path":["user"]}],"hasNext":false}
+`,
+	}, withStreamingResponse()))
+
+	t.Run("defer - all requires sources deferred together, then derived fields deferred in parallel", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		schema: schema,
+		operation: func(t *testing.T) graphql.Request {
+			return graphql.Request{
+				OperationName: "DeferSourcesThenDerived",
+				Query: `
+				query DeferSourcesThenDerived {
+					user {
+						name
+						... @defer {
+							billing { plan }
+							settings { region language }
+						}
+						... @defer {
+							account { type }
+							notifications
+						}
+					}
+				}`,
+			}
+		},
+		dataSources: dataSources,
+		expectedResponse: `{"data":{"user":{"name":"Alice"}},"hasNext":true}
+{"incremental":[{"data":{"billing":{"plan":"pro"},"settings":{"region":"us-east","language":"en"}},"path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"account":{"type":"premium"},"notifications":["msg1","msg2"]},"path":["user"]}],"hasNext":false}
+`,
+	}, withStreamingResponse()))
+
+	t.Run("defer - requires sources immediate, both derived fields deferred in parallel", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		schema: schema,
+		operation: func(t *testing.T) graphql.Request {
+			return graphql.Request{
+				OperationName: "DeferDerivedFieldsOnly",
+				Query: `
+				query DeferDerivedFieldsOnly {
+					user {
+						name
+						billing { plan }
+						settings { region language }
+						... @defer { account { type } }
+						... @defer { notifications }
+					}
+				}`,
+			}
+		},
+		dataSources: dataSources,
+		expectedResponse: `{"data":{"user":{"name":"Alice","billing":{"plan":"pro"},"settings":{"region":"us-east","language":"en"}}},"hasNext":true}
+{"incremental":[{"data":{"account":{"type":"premium"}},"path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"notifications":["msg1","msg2"]},"path":["user"]}],"hasNext":false}
+`,
+	}, withStreamingResponse()))
+}
