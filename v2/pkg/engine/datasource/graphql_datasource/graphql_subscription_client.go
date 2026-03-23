@@ -147,28 +147,7 @@ func (c *subscriptionClientV2) Subscribe(ctx *resolve.Context, options GraphQLSu
 		return err
 	}
 
-	handler := func(msg *client.Message) {
-		switch msg.Type {
-		case client.MessageTypeConnectionError:
-			updater.Error(formatUpstreamServiceError(msg.Err))
-			updater.Done()
-		case client.MessageTypeError:
-			data, _ := json.Marshal(msg.Payload)
-			updater.Error(data)
-			updater.Done()
-		case client.MessageTypeData:
-			data, err := json.Marshal(msg.Payload)
-			if err != nil {
-				updater.Error(formatSubscriptionError(err))
-				updater.Done()
-				return
-			}
-			updater.Update(data)
-		case client.MessageTypeComplete:
-			updater.Complete()
-			updater.Done()
-		}
-	}
+	handler := buildMessageHandler(updater)
 
 	cancel, err := c.client.Subscribe(ctx.Context(), req, opts, handler)
 	if err != nil {
@@ -188,15 +167,62 @@ func (c *subscriptionClientV2) Subscribe(ctx *resolve.Context, options GraphQLSu
 	return nil
 }
 
+// buildMessageHandler creates the handler that bridges client.Message → resolve.SubscriptionUpdater.
+func buildMessageHandler(updater resolve.SubscriptionUpdater) client.Handler {
+	return func(msg *client.Message) {
+		switch msg.Type {
+		case client.MessageTypeConnectionError:
+			updater.Error(formatUpstreamServiceError(msg.Err))
+			updater.Done()
+		case client.MessageTypeError:
+			data, err := json.Marshal(msg.Payload)
+			if err != nil {
+				updater.Error(formatSubscriptionError(err))
+				updater.Done()
+				return
+			}
+			updater.Error(data)
+			updater.Done()
+		case client.MessageTypeData:
+			data, err := json.Marshal(msg.Payload)
+			if err != nil {
+				updater.Error(formatSubscriptionError(err))
+				updater.Done()
+				return
+			}
+			updater.Update(data)
+		case client.MessageTypeComplete:
+			updater.Complete()
+			updater.Done()
+		}
+	}
+}
+
 // isUpstreamError reports whether err is a connection-level upstream error
 // that should be reported to the client as an UPSTREAM_SERVICE_ERROR.
 func isUpstreamError(err error) bool {
-	return errors.Is(err, client.ErrConnectionClosed) ||
+	if errors.Is(err, client.ErrConnectionClosed) ||
 		errors.Is(err, client.ErrConnectionError) ||
 		errors.Is(err, client.ErrInitFailed) ||
 		errors.Is(err, client.ErrDialFailed) ||
+		errors.Is(err, client.ErrAckTimeout) ||
+		errors.Is(err, client.ErrAckNotReceived) ||
 		errors.Is(err, context.Canceled) ||
-		errors.Is(err, context.DeadlineExceeded)
+		errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+
+	var failedUpgrade client.ErrFailedUpgrade
+	if errors.As(err, &failedUpgrade) {
+		return true
+	}
+
+	var invalidSubprotocol client.ErrInvalidSubprotocol
+	if errors.As(err, &invalidSubprotocol) {
+		return true
+	}
+
+	return false
 }
 
 // convertToClientOptions converts GraphQLSubscriptionOptions to the new client's types.

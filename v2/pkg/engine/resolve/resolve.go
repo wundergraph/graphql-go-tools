@@ -720,12 +720,13 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:added:%d:%d\n", triggerID, add.id.SubscriptionID)
 		}
-		// Add the subscription to the registry so it can receive events
+		// Register first so startup hooks can deliver initial data via UpdateSubscription.
 		trig.mu.Lock()
 		trig.subscriptions[add.id] = s
 		trig.mu.Unlock()
 		r.addSubscriptionIndex(s)
-		// Execute the startup hooks in a goroutine to avoid holding the lock
+		// Execute the startup hooks in a goroutine to avoid holding the lock.
+		// On failure, executeStartupHooks calls UnsubscribeSubscription to clean up.
 		go func() {
 			_ = r.executeStartupHooks(add, trig.updater)
 		}()
@@ -986,6 +987,13 @@ type pendingSubscriptionWrite struct {
 	sub *subscriptionState
 }
 
+type pendingFilterError struct {
+	ctx      *Context
+	err      error
+	response *GraphQLResponse
+	writer   SubscriptionResponseWriter
+}
+
 // handleTriggerUpdate sends data to all subscriptions of a trigger using snapshot-and-release.
 // The lock is released before performing I/O to avoid deadlocks when executeSubscriptionUpdate
 // calls AsyncUnsubscribeSubscription on flush failure.
@@ -1001,6 +1009,7 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 	}
 
 	var pending []pendingSubscriptionWrite
+	var filterErrors []pendingFilterError
 	trig.mu.Lock()
 	for _, s := range trig.subscriptions {
 		if s.ctx.ctx.Err() != nil {
@@ -1008,7 +1017,7 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 		}
 		skip, err := s.resolve.Filter.SkipEvent(s.ctx, data, trig.updateBuf)
 		if err != nil {
-			r.asyncErrorWriter.WriteError(s.ctx, err, s.resolve.Response, s.writer)
+			filterErrors = append(filterErrors, pendingFilterError{s.ctx, err, s.resolve.Response, s.writer})
 			continue
 		}
 		if skip {
@@ -1017,6 +1026,10 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 		pending = append(pending, pendingSubscriptionWrite{s})
 	}
 	trig.mu.Unlock()
+
+	for _, fe := range filterErrors {
+		r.asyncErrorWriter.WriteError(fe.ctx, fe.err, fe.response, fe.writer)
+	}
 
 	var wg sync.WaitGroup
 	for _, pw := range pending {
@@ -1044,19 +1057,24 @@ func (r *Resolver) handleUpdateSubscription(id uint64, data []byte, subIdentifie
 	}
 
 	var target *subscriptionState
+	var filterErr *pendingFilterError
 	trig.mu.Lock()
 	s, ok := trig.subscriptions[subIdentifier]
 	if ok {
 		if s.ctx.ctx.Err() == nil {
 			skip, err := s.resolve.Filter.SkipEvent(s.ctx, data, trig.updateBuf)
 			if err != nil {
-				r.asyncErrorWriter.WriteError(s.ctx, err, s.resolve.Response, s.writer)
+				filterErr = &pendingFilterError{s.ctx, err, s.resolve.Response, s.writer}
 			} else if !skip {
 				target = s
 			}
 		}
 	}
 	trig.mu.Unlock()
+
+	if filterErr != nil {
+		r.asyncErrorWriter.WriteError(filterErr.ctx, filterErr.err, filterErr.response, filterErr.writer)
+	}
 
 	if target != nil && !target.removed.Load() {
 		r.executeSubscriptionUpdate(target.ctx, target, data)

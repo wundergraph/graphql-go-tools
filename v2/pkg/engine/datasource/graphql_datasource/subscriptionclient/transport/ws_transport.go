@@ -150,6 +150,7 @@ func NewWSTransport(ctx context.Context, opts ...WSTransportOption) *WSTransport
 		upgradeClient: http.DefaultClient,
 		logger:        abstractlogger.NoopLogger,
 		readLimit:     defaultReadLimit,
+		writeTimeout:  defaultWriteTimeout,
 	}
 	for _, apply := range opts {
 		apply(&o)
@@ -208,7 +209,7 @@ func (t *WSTransport) pingLoop() {
 					continue
 				}
 
-				if err := conn.sendPing(defaultWriteTimeout); err != nil {
+				if err := conn.sendPing(t.opts.writeTimeout); err != nil {
 					t.opts.logger.Debug("wsTransport.pingLoop",
 						abstractlogger.String("action", "ping_failed"),
 						abstractlogger.Error(err),
@@ -248,7 +249,11 @@ func (t *WSTransport) getOrDial(ctx context.Context, opts common.Options) (*wsCo
 
 	if result, ok := t.dialing[key]; ok {
 		t.mu.Unlock()
-		<-result.done
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-result.done:
+		}
 
 		if result.err != nil {
 			return nil, result.err

@@ -209,10 +209,10 @@ func TestResolver_HeartbeatError_DoesNotDeadlockOnUnsubscribe(t *testing.T) {
 	resolver := New(resolverCtx, ResolverOptions{
 		MaxConcurrency:                1,
 		AsyncErrorWriter:              &FakeErrorWriter{},
-		SubscriptionHeartbeatInterval: time.Millisecond,
+		SubscriptionHeartbeatInterval: time.Hour, // Long interval to prevent background heartbeat loop from competing
 	})
 
-	subCtx := (&Context{}).WithContext(context.Background())
+	subCtx := NewContext(context.Background())
 	subID := SubscriptionIdentifier{
 		ConnectionID:   1,
 		SubscriptionID: 1,

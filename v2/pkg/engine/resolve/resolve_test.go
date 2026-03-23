@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -5435,7 +5436,7 @@ func (s *SubscriptionRecorder) Heartbeat() error {
 
 func (s *SubscriptionRecorder) Error(data []byte) {
 	s.mux.Lock()
-	s.errors = append(s.errors, data)
+	s.errors = append(s.errors, slices.Clone(data))
 	s.mux.Unlock()
 }
 
@@ -5957,11 +5958,9 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
-		ctx := Context{
-			ctx: context.Background(),
-		}
+		ctx := NewContext(context.Background())
 
-		err := resolver.AsyncResolveGraphQLSubscription(&ctx, plan, recorder, id)
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
 		assert.NoError(t, err)
 		recorder.AwaitAnyMessageCount(t, defaultTimeout)
 		err = resolver.UnsubscribeClient(id.ConnectionID)
@@ -6052,12 +6051,8 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 			// Each subscription needs its own Context so they get separate entries
 			// in the trigger's subscriptions map (keyed by *Context).
-			subCtx := &Context{
-				ctx: context.Background(),
-				ExecutionOptions: ExecutionOptions{
-					SendHeartbeat: true,
-				},
-			}
+			subCtx := NewContext(context.Background())
+			subCtx.ExecutionOptions.SendHeartbeat = true
 
 			go func() {
 				defer recorderCompleted.Add(1)

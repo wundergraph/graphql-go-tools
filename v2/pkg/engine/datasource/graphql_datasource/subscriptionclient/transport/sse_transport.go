@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"mime"
 	"net/http"
 	"net/url"
 	"strings"
@@ -16,6 +17,8 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
 )
+
+const maxErrorBodySize = 4096
 
 // SSETransport implements the Transport interface using Server-Sent Events.
 // Unlike WebSocket, each subscription creates a separate HTTP request.
@@ -72,6 +75,7 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 
 	// Use request context, but with transport requestCancel
 	requestCtx, requestCancel := context.WithCancel(context.WithoutCancel(ctx))
+	defer requestCancel()
 
 	// Attach cancel to transport context
 	context.AfterFunc(t.ctx, requestCancel)
@@ -101,7 +105,7 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodySize))
 		resp.Body.Close()
 		t.log.Error("sseTransport.Subscribe",
 			abstractlogger.String("endpoint", opts.Endpoint),
@@ -134,6 +138,7 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 	go conn.readLoop()
 
 	cancelFn := func() {
+		requestCancel()
 		conn.closeConn()
 		t.removeConn(conn)
 	}
@@ -218,12 +223,16 @@ func (t *SSETransport) validateContentType(resp *http.Response) error {
 		return nil // Allow missing content-type
 	}
 
-	// Check if it starts with text/event-stream (may include charset)
-	if strings.HasPrefix(contentType, "text/event-stream") {
-		return nil
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return fmt.Errorf("invalid content-type %q: %w", contentType, err)
 	}
 
-	return fmt.Errorf("unexpected content-type: %s", contentType)
+	if !strings.EqualFold(mediaType, "text/event-stream") {
+		return fmt.Errorf("unexpected content-type: %s", contentType)
+	}
+
+	return nil
 }
 
 func (t *SSETransport) removeConn(conn *sseConnection) {

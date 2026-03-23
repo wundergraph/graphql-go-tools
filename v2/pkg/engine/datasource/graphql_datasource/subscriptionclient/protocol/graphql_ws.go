@@ -45,10 +45,6 @@ func (p *GraphQLWS) Init(ctx context.Context, conn *websocket.Conn, payload map[
 	if payload != nil {
 		initMsg.Payload = payload
 	}
-	if err := wsjson.Write(ctx, conn, initMsg); err != nil {
-		return fmt.Errorf("write connection_init: %w", err)
-	}
-
 	timeout := p.AckTimeout
 	if timeout == 0 {
 		timeout = 30 * time.Second
@@ -56,6 +52,10 @@ func (p *GraphQLWS) Init(ctx context.Context, conn *websocket.Conn, payload map[
 
 	ackCtx, ackCancel := context.WithTimeout(ctx, timeout)
 	defer ackCancel()
+
+	if err := wsjson.Write(ackCtx, conn, initMsg); err != nil {
+		return fmt.Errorf("write connection_init: %w", err)
+	}
 
 	for {
 		var ackMessage incomingMessage

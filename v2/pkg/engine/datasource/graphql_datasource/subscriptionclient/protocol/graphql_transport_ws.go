@@ -54,10 +54,6 @@ func (p *GraphQLTransportWS) Init(ctx context.Context, conn *websocket.Conn, pay
 	if payload != nil {
 		initMsg.Payload = payload
 	}
-	if err := wsjson.Write(ctx, conn, initMsg); err != nil {
-		return fmt.Errorf("write connection_init: %w", err)
-	}
-
 	timeout := p.AckTimeout
 	if timeout == 0 {
 		timeout = 30 * time.Second
@@ -65,6 +61,10 @@ func (p *GraphQLTransportWS) Init(ctx context.Context, conn *websocket.Conn, pay
 
 	ackCtx, ackCancel := context.WithTimeout(ctx, timeout)
 	defer ackCancel()
+
+	if err := wsjson.Write(ackCtx, conn, initMsg); err != nil {
+		return fmt.Errorf("write connection_init: %w", err)
+	}
 
 	for {
 		var ackMessage incomingMessage
@@ -79,7 +79,7 @@ func (p *GraphQLTransportWS) Init(ctx context.Context, conn *websocket.Conn, pay
 		case gtwsTypeConnectionAck:
 			return nil
 		case gtwsTypePing:
-			if err := p.Pong(ctx, conn); err != nil {
+			if err := p.Pong(ackCtx, conn); err != nil {
 				return fmt.Errorf("pre-init pong: %w", err)
 			}
 			continue

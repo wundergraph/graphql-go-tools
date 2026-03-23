@@ -3,9 +3,9 @@ package graphql_datasource
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	client "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient"
@@ -44,64 +44,64 @@ func (t *testBridgeUpdater) Subscriptions() map[context.Context]resolve.Subscrip
 	return map[context.Context]resolve.SubscriptionIdentifier{}
 }
 
-func TestHandlerDeliversCorrectMessageForEachType(t *testing.T) {
-	buildHandler := func(updater *testBridgeUpdater) client.Handler {
-		return func(msg *client.Message) {
-			switch msg.Type {
-			case client.MessageTypeConnectionError:
-				updater.Error(formatUpstreamServiceError(msg.Err))
-				updater.Done()
-			case client.MessageTypeError:
-				data, _ := json.Marshal(msg.Payload)
-				updater.Error(data)
-				updater.Done()
-			case client.MessageTypeData:
-				data, err := json.Marshal(msg.Payload)
-				if err != nil {
-					updater.Error(formatSubscriptionError(err))
-					updater.Done()
-					return
-				}
-				updater.Update(data)
-			case client.MessageTypeComplete:
-				updater.Complete()
-				updater.Done()
-			}
-		}
-	}
-
-	t.Run("connection errors deliver error and done without updates", func(t *testing.T) {
+func TestBuildMessageHandlerRoutesEachMessageTypeCorrectly(t *testing.T) {
+	t.Run("error is upstream service error for connection error", func(t *testing.T) {
 		updater := &testBridgeUpdater{}
-		handler := buildHandler(updater)
+		handler := buildMessageHandler(updater)
 
 		handler(&client.Message{Type: client.MessageTypeConnectionError, Err: client.ErrConnectionClosed})
 
 		require.True(t, updater.done)
 		require.Len(t, updater.errors, 1)
-		require.Len(t, updater.updates, 0)
+		assert.Contains(t, string(updater.errors[0]), "UPSTREAM_SERVICE_ERROR")
+		require.Empty(t, updater.updates)
 		require.False(t, updater.completed)
 	})
 
-	t.Run("non-connection errors deliver error and done without updates", func(t *testing.T) {
+	t.Run("error contains payload for graphql error", func(t *testing.T) {
 		updater := &testBridgeUpdater{}
-		handler := buildHandler(updater)
+		handler := buildMessageHandler(updater)
 
-		handler(&client.Message{Type: client.MessageTypeConnectionError, Err: errors.New("validation failed")})
+		handler(&client.Message{
+			Type: client.MessageTypeError,
+			Payload: &client.ExecutionResult{
+				Errors: json.RawMessage(`[{"message":"field not found"}]`),
+			},
+		})
 
 		require.True(t, updater.done)
 		require.Len(t, updater.errors, 1)
-		require.Len(t, updater.updates, 0)
+		assert.Contains(t, string(updater.errors[0]), "field not found")
+		require.Empty(t, updater.updates)
 		require.False(t, updater.completed)
 	})
 
-	t.Run("complete message calls complete then done", func(t *testing.T) {
+	t.Run("update is delivered without completing for data message", func(t *testing.T) {
 		updater := &testBridgeUpdater{}
-		handler := buildHandler(updater)
+		handler := buildMessageHandler(updater)
+
+		handler(&client.Message{
+			Type: client.MessageTypeData,
+			Payload: &client.ExecutionResult{
+				Data: json.RawMessage(`{"foo":"bar"}`),
+			},
+		})
+
+		require.Len(t, updater.updates, 1)
+		assert.JSONEq(t, `{"data":{"foo":"bar"}}`, string(updater.updates[0]))
+		require.False(t, updater.done)
+		require.False(t, updater.completed)
+		require.Empty(t, updater.errors)
+	})
+
+	t.Run("complete and done are set for complete message", func(t *testing.T) {
+		updater := &testBridgeUpdater{}
+		handler := buildMessageHandler(updater)
 
 		handler(&client.Message{Type: client.MessageTypeComplete})
 
 		require.True(t, updater.done)
 		require.True(t, updater.completed)
-		require.Len(t, updater.errors, 0)
+		require.Empty(t, updater.errors)
 	})
 }
