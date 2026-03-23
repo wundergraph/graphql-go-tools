@@ -200,25 +200,18 @@ func buildMessageHandler(updater resolve.SubscriptionUpdater) client.Handler {
 
 // isUpstreamError reports whether err is a connection-level upstream error
 // that should be reported to the client as an UPSTREAM_SERVICE_ERROR.
+// ErrFailedUpgrade and ErrInvalidSubprotocol are intentionally excluded so
+// they propagate to the router, which formats detailed error messages
+// (e.g. including the subgraph name and HTTP status code).
 func isUpstreamError(err error) bool {
-	if errors.Is(err, client.ErrConnectionClosed) ||
+	return errors.Is(err, client.ErrConnectionClosed) ||
 		errors.Is(err, client.ErrConnectionError) ||
 		errors.Is(err, client.ErrInitFailed) ||
 		errors.Is(err, client.ErrDialFailed) ||
 		errors.Is(err, client.ErrAckTimeout) ||
 		errors.Is(err, client.ErrAckNotReceived) ||
 		errors.Is(err, context.Canceled) ||
-		errors.Is(err, context.DeadlineExceeded) {
-		return true
-	}
-
-	var failedUpgrade client.ErrFailedUpgrade
-	if errors.As(err, &failedUpgrade) {
-		return true
-	}
-
-	var invalidSubprotocol client.ErrInvalidSubprotocol
-	return errors.As(err, &invalidSubprotocol)
+		errors.Is(err, context.DeadlineExceeded)
 }
 
 // convertToClientOptions converts GraphQLSubscriptionOptions to the new client's types.
