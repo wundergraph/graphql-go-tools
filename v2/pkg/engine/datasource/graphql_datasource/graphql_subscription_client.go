@@ -218,11 +218,7 @@ func isUpstreamError(err error) bool {
 	}
 
 	var invalidSubprotocol client.ErrInvalidSubprotocol
-	if errors.As(err, &invalidSubprotocol) {
-		return true
-	}
-
-	return false
+	return errors.As(err, &invalidSubprotocol)
 }
 
 // convertToClientOptions converts GraphQLSubscriptionOptions to the new client's types.
