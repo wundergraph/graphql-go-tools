@@ -67,6 +67,16 @@ type addRequiredFieldsConfiguration struct {
 	addTypenameInNestedSelections bool
 }
 
+// requiredFieldInfo holds pre-computed field properties shared across
+// the deferred and non-deferred handling paths.
+type requiredFieldInfo struct {
+	ref             int
+	fieldName       ast.ByteSlice
+	isTypeName      bool
+	isLeafField     bool
+	selectionSetRef int
+}
+
 type AddRequiredFieldsResult struct {
 	skipFieldRefs     []int
 	requiredFieldRefs []int
@@ -196,6 +206,63 @@ func (v *requiredFieldsVisitor) fieldHasDeferInternal(fieldRef int) bool {
 	return exists
 }
 
+// fieldDeferID returns the "id" argument value of the @__defer_internal directive
+// on fieldRef, or "" if the directive is not present.
+func (v *requiredFieldsVisitor) fieldDeferID(fieldRef int) string {
+	for _, dirRef := range v.config.operation.Fields[fieldRef].Directives.Refs {
+		if !bytes.Equal(v.config.operation.DirectiveNameBytes(dirRef), literal.DEFER_INTERNAL) {
+			continue // not the right directive
+		}
+		// found @__defer_internal — extract the "id" argument
+		val, ok := v.config.operation.DirectiveArgumentValueByName(dirRef, []byte("id"))
+		if !ok || val.Kind != ast.ValueKindString {
+			continue
+		}
+		return v.config.operation.StringValueContentString(val.Ref)
+	}
+	return ""
+}
+
+type deferAliasResult struct {
+	addAlias       bool
+	includeDeferID bool
+	reuseFieldRef  int // ast.InvalidRef when not reusing
+}
+
+// resolveDeferredAlias decides how to alias a deferred required field.
+// Precondition: v.config.deferInfo != nil && v.isRootLevel().
+//
+// Decision table:
+//   - __internal_{fieldName} absent              → addAlias=true, includeDeferID=false
+//   - __internal_{fieldName} present, same scope → reuseFieldRef set
+//   - __internal_{fieldName} present, diff scope, __internal_{deferID}_{fieldName} absent  → addAlias=true, includeDeferID=true
+//   - __internal_{fieldName} present, diff scope, __internal_{deferID}_{fieldName} present → reuseFieldRef set
+func (v *requiredFieldsVisitor) resolveDeferredAlias(fieldName ast.ByteSlice, selectionSetRef int) deferAliasResult {
+	// --- Level 1: look for __internal_{fieldName} ---
+	simpleAlias := append([]byte("__internal_"), fieldName...)
+	exists, existingRef := v.config.operation.SelectionSetHasFieldSelectionWithNameOrAliasBytes(selectionSetRef, simpleAlias)
+	if !exists {
+		// no alias yet — create the simple one
+		return deferAliasResult{addAlias: true, reuseFieldRef: ast.InvalidRef}
+	}
+	if v.fieldDeferID(existingRef) == v.config.deferInfo.ID {
+		// simple alias already belongs to this defer scope — reuse it
+		return deferAliasResult{reuseFieldRef: existingRef}
+	}
+
+	// --- Level 2: simple alias belongs to a different scope ---
+	// look for an existing conflict alias __internal_{deferID}_{fieldName}
+	conflictAlias := fmt.Appendf(nil, "__internal_%s_%s", v.config.deferInfo.ID, fieldName)
+	conflictExists, conflictRef := v.config.operation.SelectionSetHasFieldSelectionWithNameOrAliasBytes(selectionSetRef, conflictAlias)
+	if conflictExists {
+		// conflict alias already exists for this scope — reuse it
+		return deferAliasResult{reuseFieldRef: conflictRef}
+	}
+
+	// no existing conflict alias — create one with the defer ID included
+	return deferAliasResult{addAlias: true, includeDeferID: true, reuseFieldRef: ast.InvalidRef}
+}
+
 func (v *requiredFieldsVisitor) selectionSetHasTypeNameSelection(operationSelectionSetRef int) bool {
 	exists, _ := v.config.operation.SelectionSetHasFieldSelectionWithExactName(operationSelectionSetRef, typeNameFieldBytes)
 	return exists
@@ -235,49 +302,90 @@ func (v *requiredFieldsVisitor) isRootLevel() bool {
 	return len(v.OperationNodes) == 1
 }
 
+// handleRequiredField is the EnterField entry point for @requires fields.
+// It builds requiredFieldInfo and dispatches to the deferred or non-deferred path.
 func (v *requiredFieldsVisitor) handleRequiredField(ref int) {
 	fieldName := v.key.FieldNameBytes(ref)
-	isTypeName := bytes.Equal(fieldName, typeNameFieldBytes)
 
-	isLeafField := !v.key.FieldHasSelections(ref)
+	fi := requiredFieldInfo{
+		ref:             ref,
+		fieldName:       fieldName,
+		isTypeName:      bytes.Equal(fieldName, typeNameFieldBytes),
+		isLeafField:     !v.key.FieldHasSelections(ref),
+		selectionSetRef: v.OperationNodes[len(v.OperationNodes)-1].Ref,
+	}
+
+	// Unlike handleKeyField, __typename IS included in the deferred path here.
+	// For interface objects (entity interfaces) the planner adds __typename as a
+	// @requires field (not a key field) so the owning subgraph can return the real
+	// concrete type. That __typename must travel through the same deferred path as
+	// the rest of the requires fields, so it must not be excluded from aliasing.
+	if v.config.deferInfo != nil && v.isRootLevel() {
+		v.handleRequiredFieldDeferred(fi)
+		return
+	}
+	v.handleRequiredFieldNonDeferred(fi)
+}
+
+// handleRequiredFieldDeferred handles @requires fields in a deferred context.
+// Uses resolveDeferredAlias to reuse or create __internal_{fieldName} aliases.
+func (v *requiredFieldsVisitor) handleRequiredFieldDeferred(fi requiredFieldInfo) {
+	ar := v.resolveDeferredAlias(fi.fieldName, fi.selectionSetRef)
+
+	if ar.reuseFieldRef != ast.InvalidRef {
+		// reuse the existing aliased field from the same defer scope
+		v.recordRemappedPathIfAliased(ar.reuseFieldRef, fi.fieldName)
+		if !fi.isTypeName || v.config.isTypeNameForEntityInterface {
+			v.storeRequiredFieldRef(ar.reuseFieldRef)
+		}
+		if !fi.isLeafField {
+			// push to OperationNodes so nested key fields are traversed,
+			// but do NOT add to modifiedFieldRefs — the selection set was already
+			// set up by the prior addRequiredFields call that created this alias
+			v.OperationNodes = append(v.OperationNodes, ast.Node{Kind: ast.NodeKindField, Ref: ar.reuseFieldRef})
+		}
+		return
+	}
+
+	fieldNode := v.addRequiredField(fi.ref, fi.fieldName, fi.selectionSetRef, ar.addAlias, ar.includeDeferID)
+	if !fi.isLeafField {
+		v.OperationNodes = append(v.OperationNodes, fieldNode)
+	}
+}
+
+// handleRequiredFieldNonDeferred handles @requires fields outside a deferred context.
+func (v *requiredFieldsVisitor) handleRequiredFieldNonDeferred(fi requiredFieldInfo) {
+	operationHasField, operationFieldRef := v.config.operation.SelectionSetHasFieldSelectionWithExactName(fi.selectionSetRef, fi.fieldName)
 
 	// @requires fields can carry arguments (e.g. price(currency: USD)).
 	// If the same field already appears in the query with different arguments,
 	// the two selections cannot share the same field node, so we must alias the
 	// required copy to avoid clobbering the user's selection.
-	// Key fields never have arguments, so this check is absent in handleKeyField.
-	needAlias := v.key.FieldHasArguments(ref)
-
-	// Unlike handleKeyField, __typename IS included in deferAlias here.
-	// For interface objects (entity interfaces) the planner adds __typename as a
-	// @requires field (not a key field) so the owning subgraph can return the real
-	// concrete type.  That __typename must travel through the same deferred path as
-	// the rest of the requires fields, so it must not be excluded from aliasing.
-	deferAlias := v.config.deferInfo != nil && v.isRootLevel()
-
-	selectionSetRef := v.OperationNodes[len(v.OperationNodes)-1].Ref
-	operationHasField, operationFieldRef := v.config.operation.SelectionSetHasFieldSelectionWithExactName(selectionSetRef, fieldName)
+	// Key fields never have arguments, so this check is absent in handleKeyFieldNonDeferred.
+	needAlias := v.key.FieldHasArguments(fi.ref)
 
 	// if the existing field is deferred but we are adding requirements for a non-deferred scope,
-	// we must not reuse it — add an alias instead
+	// we must not reuse it — add an alias instead.
+	// When deferInfo is set (deferred context) and we're nested inside a reused deferred field,
+	// the nested field is already in the correct defer scope — reuse it directly.
 	if operationHasField && v.config.deferInfo == nil && v.fieldHasDeferInternal(operationFieldRef) {
 		needAlias = true
 	}
 
-	if operationHasField && !needAlias && !deferAlias {
+	if operationHasField && !needAlias {
 		// Skip storing __typename as a required field — we only want to depend on
 		// the actual key fields, not __typename.
 		// Exception: for interface objects the planner adds __typename via @requires
 		// so we do need it as a real dependency in that case.
-		// (handleKeyField always skips __typename here because it handles __typename
+		// (handleKeyFieldNonDeferred always skips __typename because it handles __typename
 		// through the representation variables builder instead.)
-		if !isTypeName || v.config.isTypeNameForEntityInterface {
+		if !fi.isTypeName || v.config.isTypeNameForEntityInterface {
 			v.storeRequiredFieldRef(operationFieldRef)
 		}
 
 		// do not add required field if the field is already present in the operation with the same name
 		// but add an operation node from operation if the field has selections
-		if isLeafField {
+		if fi.isLeafField {
 			return
 		}
 
@@ -286,48 +394,101 @@ func (v *requiredFieldsVisitor) handleRequiredField(ref int) {
 		return
 	}
 
-	fieldNode := v.addRequiredField(ref, fieldName, selectionSetRef, deferAlias || (operationHasField && needAlias))
-	if !isLeafField {
+	fieldNode := v.addRequiredField(fi.ref, fi.fieldName, fi.selectionSetRef, operationHasField && needAlias, false)
+	if !fi.isLeafField {
 		v.OperationNodes = append(v.OperationNodes, fieldNode)
 	}
 }
 
+// handleKeyField is the EnterField entry point for key fields.
+// It builds requiredFieldInfo and dispatches to the deferred or non-deferred path.
 func (v *requiredFieldsVisitor) handleKeyField(ref int) {
 	fieldName := v.key.FieldNameBytes(ref)
-	isTypeName := bytes.Equal(fieldName, typeNameFieldBytes)
-	isLeafField := !v.key.FieldHasSelections(ref)
+
+	fi := requiredFieldInfo{
+		ref:             ref,
+		fieldName:       fieldName,
+		isTypeName:      bytes.Equal(fieldName, typeNameFieldBytes),
+		isLeafField:     !v.key.FieldHasSelections(ref),
+		selectionSetRef: v.OperationNodes[len(v.OperationNodes)-1].Ref,
+	}
 
 	// Key fields must never alias __typename, even in a deferred context.
 	// __typename is not part of the user-visible key field set; instead it is
 	// always injected by the representation variables builder with the static
-	// name "__typename".  Aliasing it would break that builder.
+	// name "__typename". Aliasing it would break that builder.
 	// (handleRequiredField does NOT exclude __typename here because for
 	// interface objects __typename is fetched via @requires, not keys.)
-	deferAlias := v.config.deferInfo != nil && v.isRootLevel() && !isTypeName
+	if v.config.deferInfo != nil && v.isRootLevel() && !fi.isTypeName {
+		v.handleKeyFieldDeferred(fi)
+		return
+	}
+	v.handleKeyFieldNonDeferred(fi)
+}
 
-	// Key fields cannot have arguments — they are always simple scalar
-	// identifiers — so there is no needAlias check for arguments here
-	// (unlike handleRequiredField).
+// handleKeyFieldDeferred handles key fields in a deferred context.
+// Key fields are added to the initial (non-deferred) selection set so they can be
+// used as entity representation inputs.  The first occurrence of a key field is
+// always added as a plain field (no alias); subsequent callers from different defer
+// scopes reuse it.  An alias is only needed when a plain field already exists but
+// belongs to a specific defer scope (has @deferInternal) and therefore cannot be
+// shared.
+func (v *requiredFieldsVisitor) handleKeyFieldDeferred(fi requiredFieldInfo) {
+	// First preference: a plain (non-deferred) field that all scopes can share.
+	plainExists, plainRef := v.config.operation.SelectionSetHasFieldSelectionWithExactName(fi.selectionSetRef, fi.fieldName)
+	if plainExists && !v.fieldHasDeferInternal(plainRef) {
+		v.storeRequiredFieldRef(plainRef)
+		if !fi.isLeafField {
+			v.modifiedFieldRefs = append(v.modifiedFieldRefs, plainRef)
+			v.OperationNodes = append(v.OperationNodes, ast.Node{Kind: ast.NodeKindField, Ref: plainRef})
+		}
+		return
+	}
 
-	selectionSetRef := v.OperationNodes[len(v.OperationNodes)-1].Ref
-	operationHasField, operationFieldRef := v.config.operation.SelectionSetHasFieldSelectionWithExactName(selectionSetRef, fieldName)
+	ar := v.resolveDeferredAlias(fi.fieldName, fi.selectionSetRef)
 
-	// if the existing field is deferred but we are adding requirements for a non-deferred scope,
-	// we must not reuse it — add an alias instead
+	if ar.reuseFieldRef != ast.InvalidRef {
+		// reuse the existing aliased field from the same defer scope
+		v.recordRemappedPathIfAliased(ar.reuseFieldRef, fi.fieldName)
+		v.storeRequiredFieldRef(ar.reuseFieldRef)
+		if !fi.isLeafField {
+			v.OperationNodes = append(v.OperationNodes, ast.Node{Kind: ast.NodeKindField, Ref: ar.reuseFieldRef})
+		}
+		return
+	}
+
+	// No existing field to reuse.  An alias is only needed when a plain field
+	// already exists but is deferred (has @deferInternal).  When no field exists
+	// at all, add a plain field so subsequent callers from any scope can reuse it.
+	addAlias := plainExists // true only when plain field exists but is deferred
+	fieldNode := v.addRequiredField(fi.ref, fi.fieldName, fi.selectionSetRef, addAlias, ar.includeDeferID)
+	if !fi.isLeafField {
+		v.OperationNodes = append(v.OperationNodes, fieldNode)
+	}
+}
+
+// handleKeyFieldNonDeferred handles key fields outside a deferred context.
+func (v *requiredFieldsVisitor) handleKeyFieldNonDeferred(fi requiredFieldInfo) {
+	operationHasField, operationFieldRef := v.config.operation.SelectionSetHasFieldSelectionWithExactName(fi.selectionSetRef, fi.fieldName)
+
+	// If the existing field has @deferInternal it belongs to a specific defer scope;
+	// the non-deferred planner must not reuse it — add an alias instead.
 	existingFieldIsDeferred := operationHasField && v.config.deferInfo == nil && v.fieldHasDeferInternal(operationFieldRef)
 
-	if operationHasField && !deferAlias && !existingFieldIsDeferred {
+	if operationHasField && !existingFieldIsDeferred {
 		// Skip storing __typename as a required field.
-		// Unlike handleRequiredField there is no isTypeNameForEntityInterface
+		// Unlike handleRequiredFieldNonDeferred there is no isTypeNameForEntityInterface
 		// exception here: for interface objects the real __typename is fetched
 		// via @requires (handled by handleRequiredField), never as a key field.
-		if !isTypeName {
+		// Key fields cannot have arguments, so there is no needAlias check here
+		// (unlike handleRequiredFieldNonDeferred).
+		if !fi.isTypeName {
 			v.storeRequiredFieldRef(operationFieldRef)
 		}
 
 		// do not add required field if the field is already present in the operation with the same name
 		// but add an operation node from operation if the field has selections
-		if isLeafField {
+		if fi.isLeafField {
 			return
 		}
 
@@ -336,8 +497,8 @@ func (v *requiredFieldsVisitor) handleKeyField(ref int) {
 		return
 	}
 
-	fieldNode := v.addRequiredField(ref, fieldName, selectionSetRef, deferAlias || existingFieldIsDeferred)
-	if !isLeafField {
+	fieldNode := v.addRequiredField(fi.ref, fi.fieldName, fi.selectionSetRef, existingFieldIsDeferred, false)
+	if !fi.isLeafField {
 		v.OperationNodes = append(v.OperationNodes, fieldNode)
 	}
 }
@@ -352,7 +513,18 @@ func (v *requiredFieldsVisitor) storeRequiredFieldRef(fieldRef int) {
 	v.requiredFieldRefs = append(v.requiredFieldRefs, fieldRef)
 }
 
-func (v *requiredFieldsVisitor) addRequiredField(keyRef int, fieldName ast.ByteSlice, selectionSet int, addAlias bool) ast.Node {
+// recordRemappedPathIfAliased records the path → alias mapping when reusing an
+// existing aliased field.  Each AddRequiredFields call gets a fresh v.mapping,
+// so every planner that reuses an alias must record the mapping itself.
+func (v *requiredFieldsVisitor) recordRemappedPathIfAliased(fieldRef int, fieldName ast.ByteSlice) {
+	if !v.config.operation.FieldAliasIsDefined(fieldRef) {
+		return
+	}
+	currentPath := v.Walker.Path.DotDelimitedString() + "." + string(fieldName)
+	v.mapping[currentPath] = string(v.config.operation.FieldAliasBytes(fieldRef))
+}
+
+func (v *requiredFieldsVisitor) addRequiredField(keyRef int, fieldName ast.ByteSlice, selectionSet int, addAlias bool, includeDeferIDInAlias bool) ast.Node {
 	field := ast.Field{
 		Name:         v.config.operation.Input.AppendInputBytes(fieldName),
 		SelectionSet: ast.InvalidRef,
@@ -360,8 +532,8 @@ func (v *requiredFieldsVisitor) addRequiredField(keyRef int, fieldName ast.ByteS
 
 	if addAlias {
 		var fullAliasName []byte
-		if v.config.deferInfo != nil {
-			fullAliasName = []byte(fmt.Sprintf("__internal_%s_%s", v.config.deferInfo.ID, string(fieldName)))
+		if includeDeferIDInAlias && v.config.deferInfo != nil {
+			fullAliasName = fmt.Appendf(nil, "__internal_%s_%s", v.config.deferInfo.ID, fieldName)
 		} else {
 			fullAliasName = append([]byte("__internal_"), fieldName...)
 		}
