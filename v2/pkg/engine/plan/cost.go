@@ -68,9 +68,8 @@ type FieldListSize struct {
 	// For these lists we estimate the size based on the value of the slicing arguments or AssumedSize.
 	SizedFields []string
 
-	// RequireOneSlicingArgument if true, at least one slicing argument must be provided.
-	// If false and no slicing argument is provided, AssumedSize is used.
-	// It is not used right now since it is required only for validation.
+	// RequireOneSlicingArgument enforces a check that exactly one slicing argument must be provided.
+	// When set to false or no slicing arguments are provided, the check is skipped.
 	RequireOneSlicingArgument bool
 }
 
@@ -509,8 +508,6 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 }
 
 type ArgumentInfo struct {
-	intValue int
-
 	// The name of an unwrapped type.
 	typeName string
 
@@ -589,35 +586,6 @@ func (c *CostCalculator) ActualCost(config Configuration, actualListSizes map[st
 	return c.tree.cost(costConfigs, nil, actualCostMode, actualListSizes)
 }
 
-// DebugPrint prints the cost tree structure for debugging purposes.
-// It shows each node's field coordinate, costs, multipliers, and computed totals.
-func (c *CostCalculator) DebugPrint(config Configuration, variables *astjson.Value, actualListSizes map[string]int) string {
-	if c.tree == nil || len(c.tree.children) == 0 {
-		return "<empty cost tree>"
-	}
-	costConfigs := make(map[DSHash]*DataSourceCostConfig)
-	for _, ds := range config.DataSources {
-		if costConfig := ds.GetCostConfig(); costConfig != nil {
-			costConfigs[ds.Hash()] = costConfig
-		}
-	}
-	defaultListSize := config.StaticCostDefaultListSize
-	if defaultListSize < 1 {
-		defaultListSize = 1
-	}
-	var sb strings.Builder
-	if actualListSizes != nil {
-		defaultListSize = -1
-		sb.WriteString("Actual Cost Tree Debug\n")
-		sb.WriteString("======================\n")
-	} else {
-		sb.WriteString("Estimated Cost Tree Debug\n")
-		sb.WriteString("=========================\n")
-	}
-	c.tree.children[0].debugPrint(&sb, costConfigs, variables, defaultListSize, actualListSizes, 0)
-	return sb.String()
-}
-
 // ValidateSliceArguments checks that all with fields with slicingArguments and
 // requiring one slicing argument are valid against passed arguments to those fields.
 func (c *CostCalculator) ValidateSliceArguments(config Configuration, variables *astjson.Value) error {
@@ -686,6 +654,35 @@ func (node *CostTreeNode) validateSliceArguments(configs map[DSHash]*DataSourceC
 	return nil
 }
 
+// DebugPrint prints the cost tree structure for debugging purposes.
+// It shows each node's field coordinate, costs, multipliers, and computed totals.
+func (c *CostCalculator) DebugPrint(config Configuration, variables *astjson.Value, actualListSizes map[string]int) string {
+	if c.tree == nil || len(c.tree.children) == 0 {
+		return "<empty cost tree>"
+	}
+	costConfigs := make(map[DSHash]*DataSourceCostConfig)
+	for _, ds := range config.DataSources {
+		if costConfig := ds.GetCostConfig(); costConfig != nil {
+			costConfigs[ds.Hash()] = costConfig
+		}
+	}
+	defaultListSize := config.StaticCostDefaultListSize
+	if defaultListSize < 1 {
+		defaultListSize = 1
+	}
+	var sb strings.Builder
+	if actualListSizes != nil {
+		defaultListSize = -1
+		sb.WriteString("Actual Cost Tree Debug\n")
+		sb.WriteString("======================\n")
+	} else {
+		sb.WriteString("Estimated Cost Tree Debug\n")
+		sb.WriteString("=========================\n")
+	}
+	c.tree.children[0].debugPrint(&sb, costConfigs, variables, defaultListSize, actualListSizes, 0)
+	return sb.String()
+}
+
 // debugPrint recursively prints a node and its children with indentation.
 func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value, defaultListSize int, actualListSizes map[string]int, depth int) {
 	// implementation is a bit crude and redundant, we could skip calculating nodes all over again.
@@ -748,9 +745,14 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*Da
 		var argStrs []string
 		for name, arg := range node.arguments {
 			if arg.hasVariable {
-				argStrs = append(argStrs, fmt.Sprintf("%s=$%s", name, arg.varName))
-			} else if arg.isSimple {
-				argStrs = append(argStrs, fmt.Sprintf("%s=%d", name, arg.intValue))
+				if variables == nil {
+					// actual cost
+					argStrs = append(argStrs, fmt.Sprintf("%s=$%s", name, arg.varName))
+				} else {
+					// estimated cost
+					v := variables.Get(arg.varName)
+					argStrs = append(argStrs, fmt.Sprintf("%s=%s($%s)", name, v, arg.varName))
+				}
 			} else {
 				argStrs = append(argStrs, fmt.Sprintf("%s=<obj>", name))
 			}
