@@ -3416,7 +3416,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				{TypeName: "UserPaginated", FieldName: "items"}: {
 					AssumedSize:               10,
 					SlicingArguments:          []string{"first", "last"},
-					RequireOneSlicingArgument: true,
+					RequireOneSlicingArgument: false,
 				},
 				{TypeName: "PostPaginated", FieldName: "items"}: {
 					AssumedSize:               10,
