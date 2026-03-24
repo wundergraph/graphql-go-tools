@@ -597,7 +597,6 @@ func (c *CostCalculator) DebugPrint(config Configuration, variables *astjson.Val
 	if c.tree == nil || len(c.tree.children) == 0 {
 		return "<empty cost tree>"
 	}
-	var sb strings.Builder
 	costConfigs := make(map[DSHash]*DataSourceCostConfig)
 	for _, ds := range config.DataSources {
 		if costConfig := ds.GetCostConfig(); costConfig != nil {
@@ -608,6 +607,7 @@ func (c *CostCalculator) DebugPrint(config Configuration, variables *astjson.Val
 	if defaultListSize < 1 {
 		defaultListSize = 1
 	}
+	var sb strings.Builder
 	if actualListSizes != nil {
 		defaultListSize = -1
 		sb.WriteString("Actual Cost Tree Debug\n")
@@ -620,6 +620,8 @@ func (c *CostCalculator) DebugPrint(config Configuration, variables *astjson.Val
 	return sb.String()
 }
 
+// ValidateSliceArguments checks that all with fields with slicingArguments and
+// requiring one slicing argument are valid against passed arguments to those fields.
 func (c *CostCalculator) ValidateSliceArguments(config Configuration, variables *astjson.Value) error {
 	costConfigs := make(map[DSHash]*DataSourceCostConfig)
 	for _, ds := range config.DataSources {
@@ -643,6 +645,9 @@ func (node *CostTreeNode) validateSliceArguments(configs map[DSHash]*DataSourceC
 
 		listSize := dsCostConfig.ListSizes[node.fieldCoords]
 		if listSize == nil && node.isEnclosingTypeAbstract && node.parent != nil && node.parent.returnsAbstractType {
+			// We pick the first from the list of implementing types. Composition should verify that
+			// all implementations are aligned on the slicingArguments within the single subgraph.
+			// Otherwise, we would have inconsistent expectations between implementing types.
 			listSize = node.parent.requiringOneArgImplementingField(dsCostConfig, node.fieldCoords.FieldName)
 		}
 		if listSize == nil || !listSize.RequireOneSlicingArgument || len(listSize.SlicingArguments) == 0 {
