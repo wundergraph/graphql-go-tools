@@ -1,7 +1,6 @@
 package astnormalization
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -32,7 +31,8 @@ func TestVariablesMapper(t *testing.T) {
 	  }
 	
 	  type Mutation {
-		updateObject(name: String!): Object!
+		updateObject(name: String!, files: [Upload!]): Object!
+		uploadFile(file: Upload!): Object!
 	  }
 	
 	  type Subscription {
@@ -429,6 +429,58 @@ func TestVariablesMapper(t *testing.T) {
 				"b": "b",
 			},
 		},
+		{
+			name: "13 Mutation with file uploads",
+			input: `
+				mutation MyMutation($varOne: String! $files: [Upload!]) {
+					updateObject(name: $varOne, files: $files) {
+						name
+					}
+				}`,
+			output: `
+				mutation MyMutation($a: String!, $files: [Upload!]) {
+					updateObject(name: $a, files: $files) {
+						name
+					}
+				}`,
+			variablesMapping: map[string]string{
+				"a": "varOne",
+			},
+		},
+		{
+			name: "13 Mutation with file uploads - reverse order",
+			input: `
+				mutation MyMutation($files: [Upload!] $varOne: String!) {
+					updateObject(name: $varOne, files: $files) {
+						name
+					}
+				}`,
+			output: `
+				mutation MyMutation($a: String!, $files: [Upload!]) {
+					updateObject(name: $a, files: $files) {
+						name
+					}
+				}`,
+			variablesMapping: map[string]string{
+				"a": "varOne",
+			},
+		},
+		{
+			name: "13 Mutation with single file upload",
+			input: `
+				mutation MyMutation($file: Upload!) {
+					uploadFile(files: $file) {
+						name
+					}
+				}`,
+			output: `
+				mutation MyMutation($file: Upload!) {
+					uploadFile(files: $file) {
+						name
+					}
+				}`,
+			variablesMapping: map[string]string{},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -438,11 +490,9 @@ func TestVariablesMapper(t *testing.T) {
 
 			normalizer.NormalizeNamedOperation(&operation, &definition, operation.OperationDefinitionNameBytes(0), report)
 			require.False(t, report.HasErrors())
-			fmt.Println("normalized", unsafeprinter.PrettyPrint(&operation))
 
 			variablesNormalizer.NormalizeOperation(&operation, &definition, report)
 			require.False(t, report.HasErrors())
-			fmt.Println("variables normalized", unsafeprinter.PrettyPrint(&operation))
 
 			mapping := variablesMapper.NormalizeOperation(&operation, &definition, report)
 			require.False(t, report.HasErrors())

@@ -3,6 +3,7 @@ package resolve
 import (
 	"encoding/json"
 	"slices"
+	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
@@ -11,15 +12,17 @@ type FetchKind int
 
 const (
 	FetchKindSingle FetchKind = iota + 1
-	FetchKindParallelListItem
 	FetchKindEntity
 	FetchKindEntityBatch
 )
 
 type Fetch interface {
 	FetchKind() FetchKind
-	Dependencies() FetchDependencies
-	DataSourceInfo() DataSourceInfo
+	Dependencies() *FetchDependencies
+
+	// FetchInfo returns additional fetch-related information.
+	// Callers must treat FetchInfo as read-only after planning; it may be nil when disabled by planner options.
+	FetchInfo() *FetchInfo
 }
 
 type FetchItem struct {
@@ -29,7 +32,20 @@ type FetchItem struct {
 	ResponsePathElements []string
 }
 
-func (f *FetchItem) Equals(other *FetchItem) bool {
+func FetchItemWithPath(fetch Fetch, responsePath string, path ...FetchItemPathElement) *FetchItem {
+	item := &FetchItem{
+		Fetch:        fetch,
+		FetchPath:    path,
+		ResponsePath: responsePath,
+	}
+	if responsePath != "" {
+		item.ResponsePathElements = strings.Split(responsePath, ".")
+	}
+	return item
+}
+
+// EqualSingleFetch compares two FetchItem for equality, both items should be of kind FetchKindSingle
+func (f *FetchItem) EqualSingleFetch(other *FetchItem) bool {
 	if len(f.FetchPath) != len(other.FetchPath) {
 		return false
 	}
@@ -59,8 +75,9 @@ func (f *FetchItem) Equals(other *FetchItem) bool {
 }
 
 type FetchItemPathElement struct {
-	Kind FetchItemPathElementKind
-	Path []string
+	Kind      FetchItemPathElementKind
+	Path      []string
+	TypeNames []string
 }
 
 type FetchItemPathElementKind string
@@ -73,21 +90,19 @@ const (
 type SingleFetch struct {
 	FetchConfiguration
 	FetchDependencies
+
 	InputTemplate        InputTemplate
 	DataSourceIdentifier []byte
 	Trace                *DataSourceLoadTrace
 	Info                 *FetchInfo
 }
 
-func (s *SingleFetch) Dependencies() FetchDependencies {
-	return s.FetchDependencies
+func (s *SingleFetch) Dependencies() *FetchDependencies {
+	return &s.FetchDependencies
 }
 
-func (s *SingleFetch) DataSourceInfo() DataSourceInfo {
-	return DataSourceInfo{
-		ID:   s.Info.DataSourceID,
-		Name: s.Info.DataSourceName,
-	}
+func (s *SingleFetch) FetchInfo() *FetchInfo {
+	return s.Info
 }
 
 // FetchDependencies holding current fetch id and ids of fetches that current fetch depends on
@@ -100,16 +115,18 @@ type FetchDependencies struct {
 type PostProcessingConfiguration struct {
 	// SelectResponseDataPath used to make a jsonparser.Get call on the response data
 	SelectResponseDataPath []string
+
 	// SelectResponseErrorsPath is similar to SelectResponseDataPath, but for errors
 	// If this is set, the response will be considered an error if the jsonparser.Get call returns a non-empty value
 	// The value will be expected to be a GraphQL error object
 	SelectResponseErrorsPath []string
+
 	// MergePath can be defined to merge the result of the post-processing into the parent object at the given path
 	// e.g. if the parent is {"a":1}, result is {"foo":"bar"} and the MergePath is ["b"],
 	// the result will be {"a":1,"b":{"foo":"bar"}}
 	// If the MergePath is empty, the result will be merged into the parent object
 	// In this case, the result would be {"a":1,"foo":"bar"}
-	// This is useful if you make multiple fetches, e.g. parallel fetches, that would otherwise overwrite each other
+	// This is useful if we make multiple fetches, e.g. parallel fetches, that would otherwise overwrite each other
 	MergePath []string
 }
 
@@ -132,7 +149,7 @@ func (ppc *PostProcessingConfiguration) Equals(other *PostProcessingConfiguratio
 	return true
 }
 
-func (_ *SingleFetch) FetchKind() FetchKind {
+func (*SingleFetch) FetchKind() FetchKind {
 	return FetchKindSingle
 }
 
@@ -141,6 +158,7 @@ func (_ *SingleFetch) FetchKind() FetchKind {
 // representations variable will contain multiple items according to amount of entities matching this query
 type BatchEntityFetch struct {
 	FetchDependencies
+
 	Input                BatchInput
 	DataSource           DataSource
 	PostProcessing       PostProcessingConfiguration
@@ -149,15 +167,12 @@ type BatchEntityFetch struct {
 	Info                 *FetchInfo
 }
 
-func (b *BatchEntityFetch) Dependencies() FetchDependencies {
-	return b.FetchDependencies
+func (b *BatchEntityFetch) Dependencies() *FetchDependencies {
+	return &b.FetchDependencies
 }
 
-func (b *BatchEntityFetch) DataSourceInfo() DataSourceInfo {
-	return DataSourceInfo{
-		ID:   b.Info.DataSourceID,
-		Name: b.Info.DataSourceName,
-	}
+func (b *BatchEntityFetch) FetchInfo() *FetchInfo {
+	return b.Info
 }
 
 type BatchInput struct {
@@ -175,7 +190,7 @@ type BatchInput struct {
 	Footer       InputTemplate
 }
 
-func (_ *BatchEntityFetch) FetchKind() FetchKind {
+func (*BatchEntityFetch) FetchKind() FetchKind {
 	return FetchKindEntityBatch
 }
 
@@ -183,6 +198,7 @@ func (_ *BatchEntityFetch) FetchKind() FetchKind {
 // representations variable will contain single item
 type EntityFetch struct {
 	FetchDependencies
+
 	Input                EntityInput
 	DataSource           DataSource
 	PostProcessing       PostProcessingConfiguration
@@ -191,15 +207,12 @@ type EntityFetch struct {
 	Info                 *FetchInfo
 }
 
-func (e *EntityFetch) Dependencies() FetchDependencies {
-	return e.FetchDependencies
+func (e *EntityFetch) Dependencies() *FetchDependencies {
+	return &e.FetchDependencies
 }
 
-func (e *EntityFetch) DataSourceInfo() DataSourceInfo {
-	return DataSourceInfo{
-		ID:   e.Info.DataSourceID,
-		Name: e.Info.DataSourceName,
-	}
+func (e *EntityFetch) FetchInfo() *FetchInfo {
+	return e.Info
 }
 
 type EntityInput struct {
@@ -209,29 +222,8 @@ type EntityInput struct {
 	Footer      InputTemplate
 }
 
-func (_ *EntityFetch) FetchKind() FetchKind {
+func (*EntityFetch) FetchKind() FetchKind {
 	return FetchKindEntity
-}
-
-// The ParallelListItemFetch can be used to make nested parallel fetches within a list
-// Usually, you want to batch fetches within a list, which is the default behavior of SingleFetch
-// However, if the data source does not support batching, you can use this fetch to make parallel fetches within a list
-type ParallelListItemFetch struct {
-	Fetch  *SingleFetch
-	Traces []*SingleFetch
-	Trace  *DataSourceLoadTrace
-}
-
-func (p *ParallelListItemFetch) Dependencies() FetchDependencies {
-	return p.Fetch.FetchDependencies
-}
-
-func (_ *ParallelListItemFetch) FetchKind() FetchKind {
-	return FetchKindParallelListItem
-}
-
-func (p *ParallelListItemFetch) DataSourceInfo() DataSourceInfo {
-	return p.Fetch.DataSourceInfo()
 }
 
 type QueryPlan struct {
@@ -257,19 +249,28 @@ type FetchConfiguration struct {
 	Input      string
 	Variables  Variables
 	DataSource DataSource
-	// RequiresParallelListItemFetch is used to indicate that the single fetches should be executed without batching
-	// When we have multiple fetches attached to the object - after post-processing of a plan we will get ParallelListItemFetch instead of ParallelFetch
-	RequiresParallelListItemFetch bool
-	// RequiresEntityFetch will be set to true if the fetch is an entity fetch on an object. After post-processing, we will get EntityFetch
+
+	// RequiresEntityFetch will be set to true if the fetch is an entity fetch on an object.
+	// After post-processing, we will get EntityFetch.
 	RequiresEntityFetch bool
-	// RequiresEntityBatchFetch indicates that entity fetches on array items could be batched. After post-processing, we will get EntityBatchFetch
+
+	// RequiresEntityBatchFetch indicates that entity fetches on array items should be batched.
+	// After post-processing, we will get EntityBatchFetch.
 	RequiresEntityBatchFetch bool
-	PostProcessing           PostProcessingConfiguration
+
+	// PostProcessing specifies the data and error extraction path in the response along with
+	// the merge path where will insert the response.
+	PostProcessing PostProcessingConfiguration
+
 	// SetTemplateOutputToNullOnVariableNull will safely return "null" if one of the template variables renders to null
 	// This is the case, e.g. when using batching and one sibling is null, resulting in a null value for one batch item
 	// Returning null in this case tells the batch implementation to skip this item
 	SetTemplateOutputToNullOnVariableNull bool
-	QueryPlan                             *QueryPlan
+
+	QueryPlan *QueryPlan
+
+	// OperationName is non-empty when the operation name is propagated to the upstream subgraph fetch.
+	OperationName string
 }
 
 func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
@@ -282,11 +283,8 @@ func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
 		return false
 	}
 
-	// Note: we do not compare datasources, as they will always be a different instance
+	// Note: we do not compare datasources, as they will always be a different instance.
 
-	if fc.RequiresParallelListItemFetch != other.RequiresParallelListItemFetch {
-		return false
-	}
 	if fc.RequiresEntityFetch != other.RequiresEntityFetch {
 		return false
 	}
@@ -303,12 +301,68 @@ func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
 	return true
 }
 
+// FetchDependency explains how a GraphCoordinate depends on other GraphCoordinates from other fetches
+type FetchDependency struct {
+	// Coordinate is the type+field which depends on one or more FetchDependencyOrigin
+	Coordinate GraphCoordinate `json:"coordinate"`
+	// IsUserRequested is true if the field was requested by the user/client
+	// If false, this indicates that the Coordinate is a dependency for another fetch
+	IsUserRequested bool `json:"isUserRequested"`
+	// DependsOn are the FetchDependencyOrigins the Coordinate depends on
+	DependsOn []FetchDependencyOrigin `json:"dependsOn"`
+}
+
+// FetchDependencyOrigin defines a GraphCoordinate on a FetchID that another Coordinate depends on
+// In addition, it contains information on the Subgraph providing the field,
+// and if the Coordinate is a @key or a @requires field dependency
+type FetchDependencyOrigin struct {
+	// FetchID is the fetch id providing the Coordinate
+	FetchID int `json:"fetchId"`
+	// Subgraph is the subgraph providing the Coordinate
+	Subgraph string `json:"subgraph"`
+	// Coordinate is the GraphCoordinate that another Coordinate depends on
+	Coordinate GraphCoordinate `json:"coordinate"`
+	// IsKey is true if the Coordinate is a @key dependency
+	IsKey bool `json:"isKey"`
+	// IsRequires is true if the Coordinate is a @requires dependency
+	IsRequires bool `json:"isRequires"`
+}
+
+// FetchReason explains who requested a specific (TypeName, FieldName) coordinate.
+// A field can be requested by the user and/or by one or more subgraphs, with optional reasons.
+type FetchReason struct {
+	TypeName    string   `json:"typename"`
+	FieldName   string   `json:"field"`
+	BySubgraphs []string `json:"by_subgraphs,omitempty"`
+	ByUser      bool     `json:"by_user,omitempty"`
+	IsKey       bool     `json:"is_key,omitempty"`
+	IsRequires  bool     `json:"is_requires,omitempty"`
+	Nullable    bool     `json:"-"`
+}
+
+// FetchInfo contains additional (derived) information about the fetch.
+// Some fields may not be generated depending on planner flags.
 type FetchInfo struct {
 	DataSourceID   string
 	DataSourceName string
 	RootFields     []GraphCoordinate
 	OperationType  ast.OperationType
 	QueryPlan      *QueryPlan
+
+	// CoordinateDependencies contain a list of GraphCoordinates (typeName+fieldName)
+	// and which fields from other fetches they depend on.
+	// This information is useful to understand why a fetch depends on other fetches,
+	// and how multiple dependencies lead to a chain of fetches
+	CoordinateDependencies []FetchDependency
+
+	// FetchReasons contains provenance for reasons why particular fields were fetched.
+	// If this structure is built, then all the fields are processed.
+	FetchReasons []FetchReason
+
+	// PropagatedFetchReasons holds those FetchReasons that will be propagated
+	// with the request to the subgraph as part of the "fetch_reason" extension.
+	// Specifically, it is created only for fields stored in the DataSource.RequireFetchReasons().
+	PropagatedFetchReasons []FetchReason
 }
 
 type GraphCoordinate struct {
@@ -414,3 +468,10 @@ type WroteRequestStats struct {
 	DurationSinceStartPretty string `json:"duration_since_start_pretty"`
 	Err                      string `json:"err,omitempty"`
 }
+
+// Compile-time interface assertions to catch regressions.
+var (
+	_ Fetch = (*SingleFetch)(nil)
+	_ Fetch = (*BatchEntityFetch)(nil)
+	_ Fetch = (*EntityFetch)(nil)
+)

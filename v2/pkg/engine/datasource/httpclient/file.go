@@ -1,26 +1,31 @@
 package httpclient
 
-type File interface {
-	Path() string
-	Name() string
+type FileUpload struct {
+	path         string
+	name         string
+	variablePath string
 }
 
-type internalFile struct {
-	path string
-	name string
-}
-
-func NewFile(path string, name string) File {
-	return &internalFile{
-		path: path,
-		name: name,
+func NewFileUpload(path string, name string, variablePath string) *FileUpload {
+	return &FileUpload{
+		path:         path,
+		name:         name,
+		variablePath: variablePath,
 	}
 }
 
-func (f *internalFile) Path() string {
+func (f *FileUpload) Path() string {
 	return f.path
 }
 
-func (f *internalFile) Name() string {
+func (f *FileUpload) Name() string {
 	return f.name
+}
+
+func (f *FileUpload) VariablePath() string {
+	return f.variablePath
+}
+
+func (f *FileUpload) SetVariablePath(variablePath string) {
+	f.variablePath = variablePath
 }

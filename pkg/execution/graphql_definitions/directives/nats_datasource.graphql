@@ -1,7 +1,0 @@
-"""
-NatsDataSource
-"""
-directive @NatsDataSource (
-    addr: String!
-    topic: String!
-) on FIELD_DEFINITION

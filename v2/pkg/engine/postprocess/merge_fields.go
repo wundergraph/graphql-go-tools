@@ -242,7 +242,6 @@ func (m *mergeFields) mergeValues(left, right *resolve.Field) {
 	case *resolve.Object:
 		r := right.Value.(*resolve.Object)
 		l.Fields = append(l.Fields, r.Fields...)
-		l.Fetches = append(l.Fetches, r.Fetches...)
 	case *resolve.Array:
 		r := right.Value.(*resolve.Array)
 		if l.Item.NodeKind() == resolve.NodeKindObject {

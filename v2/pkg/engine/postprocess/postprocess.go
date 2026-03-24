@@ -1,8 +1,6 @@
 package postprocess
 
 import (
-	"encoding/json"
-	"fmt"
 	"slices"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
@@ -18,10 +16,13 @@ type FetchTreeProcessor interface {
 	ProcessFetchTree(root *resolve.FetchTreeNode)
 }
 
+// Processor transforms and optimizes the query plan after
+// it's been created by the planner but before execution.
 type Processor struct {
 	disableExtractFetches bool
 	collectDataSourceInfo bool
 	resolveInputTemplates *resolveInputTemplates
+	appendFetchID         *fetchIDAppender
 	dedupe                *deduplicateSingleFetches
 	processResponseTree   []ResponseTreeProcessor
 	processFetchTree      []FetchTreeProcessor
@@ -30,7 +31,9 @@ type Processor struct {
 type processorOptions struct {
 	disableDeduplicateSingleFetches       bool
 	disableCreateConcreteSingleFetchTypes bool
+	disableOrderSequenceByDependencies    bool
 	disableMergeFields                    bool
+	disableRewriteOpNames                 bool
 	disableResolveInputTemplates          bool
 	disableExtractFetches                 bool
 	disableCreateParallelNodes            bool
@@ -52,6 +55,12 @@ func DisableCreateConcreteSingleFetchTypes() ProcessorOption {
 	}
 }
 
+func DisableOrderSequenceByDependencies() ProcessorOption {
+	return func(o *processorOptions) {
+		o.disableOrderSequenceByDependencies = true
+	}
+}
+
 func DisableMergeFields() ProcessorOption {
 	return func(o *processorOptions) {
 		o.disableMergeFields = true
@@ -68,12 +77,6 @@ func DisableResolveInputTemplates() ProcessorOption {
 func CollectDataSourceInfo() ProcessorOption {
 	return func(o *processorOptions) {
 		o.collectDataSourceInfo = true
-	}
-}
-
-func DisableExtractFetches() ProcessorOption {
-	return func(o *processorOptions) {
-		o.disableExtractFetches = true
 	}
 }
 
@@ -100,6 +103,9 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 		resolveInputTemplates: &resolveInputTemplates{
 			disable: opts.disableResolveInputTemplates,
 		},
+		appendFetchID: &fetchIDAppender{
+			disable: opts.disableRewriteOpNames,
+		},
 		dedupe: &deduplicateSingleFetches{
 			disable: opts.disableDeduplicateSingleFetches,
 		},
@@ -113,7 +119,7 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 				disable: opts.disableCreateConcreteSingleFetchTypes,
 			},
 			&orderSequenceByDependencies{
-				disable: opts.disableCreateConcreteSingleFetchTypes,
+				disable: opts.disableOrderSequenceByDependencies,
 			},
 			&createParallelNodes{
 				disable: opts.disableCreateParallelNodes,
@@ -127,14 +133,23 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 	}
 }
 
-func (p *Processor) Process(pre plan.Plan) plan.Plan {
+// Process takes a raw query plan and optimizes it by deduplicating fetches,
+// ordering them correctly by dependencies, and resolving any templated inputs.
+// It groups already-ordered fetches into parallel execution batches
+// when they have the same dependency requirements satisfied.
+func (p *Processor) Process(pre plan.Plan) {
 	switch t := pre.(type) {
 	case *plan.SynchronousResponsePlan:
 		for i := range p.processResponseTree {
 			p.processResponseTree[i].Process(t.Response.Data)
 		}
+		// initialize the fetch tree
 		p.createFetchTree(t.Response)
+		// NOTE: deduplication relies on the fact that the fetch tree
+		// have flat structure of child fetches
 		p.dedupe.ProcessFetchTree(t.Response.Fetches)
+		// Appending fetchIDs makes query content unique, thus it should happen after "dedupe".
+		p.appendFetchID.ProcessFetchTree(t.Response.Fetches)
 		p.resolveInputTemplates.ProcessFetchTree(t.Response.Fetches)
 		for i := range p.processFetchTree {
 			p.processFetchTree[i].ProcessFetchTree(t.Response.Fetches)
@@ -146,31 +161,39 @@ func (p *Processor) Process(pre plan.Plan) plan.Plan {
 		p.createFetchTree(t.Response.Response)
 		p.appendTriggerToFetchTree(t.Response)
 		p.dedupe.ProcessFetchTree(t.Response.Response.Fetches)
+		p.appendFetchID.ProcessFetchTree(t.Response.Response.Fetches)
 		p.resolveInputTemplates.ProcessFetchTree(t.Response.Response.Fetches)
 		p.resolveInputTemplates.ProcessTrigger(&t.Response.Trigger)
 		for i := range p.processFetchTree {
 			p.processFetchTree[i].ProcessFetchTree(t.Response.Response.Fetches)
 		}
 	}
-	return pre
 }
 
+// createFetchTree creates an initial fetch tree from the raw fetches in the GraphQL response.
+// The initial fetch tree is a node of sequence fetch kind, with a flat list of fetches as children.
 func (p *Processor) createFetchTree(res *resolve.GraphQLResponse) {
 	if p.disableExtractFetches {
 		return
 	}
-	ex := &extractor{
-		info: res.Info,
-	}
-	fetches := ex.extractFetches(res)
+
+	fetches := res.RawFetches
+	res.RawFetches = nil
+
 	children := make([]*resolve.FetchTreeNode, len(fetches))
 
 	if p.collectDataSourceInfo {
 		var list = make([]resolve.DataSourceInfo, 0, len(fetches))
 		for _, fetch := range fetches {
-			dsInfo := fetch.Fetch.DataSourceInfo()
-			if !slices.Contains(list, dsInfo) {
-				list = append(list, dsInfo)
+			info := fetch.Fetch.FetchInfo()
+			if info != nil {
+				dsInfo := resolve.DataSourceInfo{
+					ID:   info.DataSourceID,
+					Name: info.DataSourceName,
+				}
+				if !slices.Contains(list, dsInfo) {
+					list = append(list, dsInfo)
+				}
 			}
 		}
 		res.DataSources = list
@@ -188,20 +211,8 @@ func (p *Processor) createFetchTree(res *resolve.GraphQLResponse) {
 	}
 }
 
-func (p *Processor) appendTriggerToFetchTree(res *resolve.GraphQLSubscription) {
-	var input struct {
-		Body struct {
-			Query string `json:"query"`
-		} `json:"body"`
-	}
-
-	err := json.Unmarshal(res.Trigger.Input, &input)
-	if err != nil {
-		fmt.Println("error decoding subscription input", err)
-		return
-	}
-
-	rootData := res.Response.Data
+func (p *Processor) appendTriggerToFetchTree(sub *resolve.GraphQLSubscription) {
+	rootData := sub.Response.Data
 	if rootData == nil || len(rootData.Fields) == 0 {
 		return
 	}
@@ -211,7 +222,7 @@ func (p *Processor) appendTriggerToFetchTree(res *resolve.GraphQLSubscription) {
 		return
 	}
 
-	res.Response.Fetches.Trigger = &resolve.FetchTreeNode{
+	sub.Response.Fetches.Trigger = &resolve.FetchTreeNode{
 		Kind: resolve.FetchTreeNodeKindTrigger,
 		Item: &resolve.FetchItem{
 			Fetch: &resolve.SingleFetch{
@@ -221,9 +232,7 @@ func (p *Processor) appendTriggerToFetchTree(res *resolve.GraphQLSubscription) {
 				Info: &resolve.FetchInfo{
 					DataSourceID:   info.Source.IDs[0],
 					DataSourceName: info.Source.Names[0],
-					QueryPlan: &resolve.QueryPlan{
-						Query: input.Body.Query,
-					},
+					QueryPlan:      sub.Trigger.QueryPlan,
 				},
 			},
 			ResponsePath: info.Name,

@@ -3,16 +3,16 @@ package datasourcetesting
 import (
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"reflect"
+	"slices"
 	"testing"
-	"time"
 
+	"github.com/kylelemons/godebug/diff"
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeprinter"
-	"gonum.org/v1/gonum/stat/combin"
+
+	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
@@ -20,14 +20,21 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/postprocess"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/permutations"
 )
 
 type testOptions struct {
-	postProcessors []*postprocess.Processor
-	skipReason     string
-	withFieldInfo  bool
+	postProcessors        []*postprocess.Processor
+	skipReason            string
+	withFieldInfo         bool
+	withPrintPlan         bool
+	withFieldDependencies bool
+	withFetchReasons      bool
+	validationOptions     []astvalidation.Option
 }
 
 func WithPostProcessors(postProcessors ...*postprocess.Processor) func(*testOptions) {
@@ -56,10 +63,38 @@ func WithFieldInfo() func(*testOptions) {
 	}
 }
 
+func WithPrintPlan() func(*testOptions) {
+	return func(o *testOptions) {
+		o.withPrintPlan = true
+		o.withFieldInfo = true
+	}
+}
+
+func WithFieldDependencies() func(*testOptions) {
+	return func(o *testOptions) {
+		o.withFieldInfo = true
+		o.withFieldDependencies = true
+	}
+}
+
+func WithFetchReasons() func(*testOptions) {
+	return func(o *testOptions) {
+		o.withFieldInfo = true
+		o.withFieldDependencies = true
+		o.withFetchReasons = true
+	}
+}
+
+func WithValidationOptions(options ...astvalidation.Option) func(*testOptions) {
+	return func(o *testOptions) {
+		o.validationOptions = options
+	}
+}
+
 func RunWithPermutations(t *testing.T, definition, operation, operationName string, expectedPlan plan.Plan, config plan.Configuration, options ...func(*testOptions)) {
 	t.Helper()
 
-	dataSourcePermutations := DataSourcePermutations(config.DataSources)
+	dataSourcePermutations := permutations.Generate(config.DataSources)
 
 	for i := range dataSourcePermutations {
 		permutation := dataSourcePermutations[i]
@@ -80,7 +115,7 @@ func RunWithPermutations(t *testing.T, definition, operation, operationName stri
 }
 
 func RunWithPermutationsVariants(t *testing.T, definition, operation, operationName string, expectedPlans []plan.Plan, config plan.Configuration, options ...func(*testOptions)) {
-	dataSourcePermutations := DataSourcePermutations(config.DataSources)
+	dataSourcePermutations := permutations.Generate(config.DataSources)
 
 	if len(dataSourcePermutations) != len(expectedPlans) {
 		t.Fatalf("expected %d plan variants, got %d", len(dataSourcePermutations), len(expectedPlans))
@@ -114,6 +149,7 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 
 		// by default, we don't want to have field info in the tests because it's too verbose
 		config.DisableIncludeInfo = true
+		config.DisableIncludeFieldDependencies = true
 
 		opts := &testOptions{}
 		for _, o := range options {
@@ -122,6 +158,14 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 
 		if opts.withFieldInfo {
 			config.DisableIncludeInfo = false
+		}
+
+		if opts.withFieldDependencies {
+			config.DisableIncludeFieldDependencies = false
+		}
+
+		if opts.withFetchReasons {
+			config.BuildFetchReasons = true
 		}
 
 		if opts.skipReason != "" {
@@ -144,12 +188,18 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 		normalized := unsafeprinter.PrettyPrint(&op)
 		_ = normalized
 
-		valid := astvalidation.DefaultOperationValidator()
+		valid := astvalidation.DefaultOperationValidator(opts.validationOptions...)
 		valid.Validate(&op, &def, &report)
 
 		p, err := plan.NewPlanner(config)
 		require.NoError(t, err)
-		actualPlan := p.Plan(&op, &def, operationName, &report)
+
+		var planOpts []plan.Opts
+		if opts.withPrintPlan {
+			planOpts = append(planOpts, plan.IncludeQueryPlanInResponse())
+		}
+
+		actualPlan := p.Plan(&op, &def, operationName, &report, planOpts...)
 		if report.HasErrors() {
 			_, err := astprinter.PrintStringIndent(&def, "  ")
 			if err != nil {
@@ -168,66 +218,40 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 			}
 		}
 
-		actualBytes, _ := json.MarshalIndent(actualPlan, "", "  ")
-		expectedBytes, _ := json.MarshalIndent(expectedPlan, "", "  ")
+		if opts.withPrintPlan {
+			t.Log("\n", actualPlan.(*plan.SynchronousResponsePlan).Response.Fetches.QueryPlan().PrettyPrint())
+		}
 
-		if !assert.Equal(t, string(expectedBytes), string(actualBytes)) {
-			formatterConfig := map[reflect.Type]interface{}{
-				reflect.TypeOf([]byte{}): func(b []byte) string { return fmt.Sprintf(`"%s"`, string(b)) },
-			}
+		formatterConfig := map[reflect.Type]interface{}{
+			// normalize byte slices to strings
+			reflect.TypeOf([]byte{}): func(b []byte) string { return fmt.Sprintf(`"%s"`, string(b)) },
+			// normalize map[string]struct{} to json array of keys
+			reflect.TypeOf(map[string]struct{}{}): func(m map[string]struct{}) string {
+				var keys []string
+				for k := range m {
+					keys = append(keys, k)
+				}
+				slices.Sort(keys)
 
-			prettyCfg := &pretty.Config{
-				Diffable:          true,
-				IncludeUnexported: false,
-				Formatter:         formatterConfig,
-			}
+				keysPrinted, _ := json.Marshal(keys)
+				return string(keysPrinted)
+			},
+			reflect.TypeOf(resolve.SkipArrayItem(func(ctx *resolve.Context, arrayItem *astjson.Value) bool { return false })): func(resolve.SkipArrayItem) string { return "skip_function" },
+		}
 
-			if diff := prettyCfg.Compare(expectedPlan, actualPlan); diff != "" {
-				t.Errorf("Plan does not match(-want +got)\n%s", diff)
+		prettyCfg := &pretty.Config{
+			Diffable:          true,
+			IncludeUnexported: false,
+			Formatter:         formatterConfig,
+		}
+
+		exp := prettyCfg.Sprint(expectedPlan)
+		act := prettyCfg.Sprint(actualPlan)
+
+		if !assert.Equal(t, exp, act) {
+			if diffResult := diff.Diff(exp, act); diffResult != "" {
+				t.Errorf("Plan does not match(-want +got)\n%s", diffResult)
 			}
 		}
 	}
-}
-
-// ShuffleDS randomizes the order of the data sources
-// to ensure that the order doesn't matter
-func ShuffleDS(dataSources []plan.DataSource) []plan.DataSource {
-	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
-	rnd.Shuffle(len(dataSources), func(i, j int) {
-		dataSources[i], dataSources[j] = dataSources[j], dataSources[i]
-	})
-
-	return dataSources
-}
-
-func OrderDS(dataSources []plan.DataSource, order []int) (out []plan.DataSource) {
-	out = make([]plan.DataSource, 0, len(dataSources))
-
-	for _, i := range order {
-		out = append(out, dataSources[i])
-	}
-
-	return out
-}
-
-func DataSourcePermutations(dataSources []plan.DataSource) []*Permutation {
-	size := len(dataSources)
-	elementsCount := len(dataSources)
-	list := combin.Permutations(size, elementsCount)
-
-	permutations := make([]*Permutation, 0, len(list))
-
-	for _, v := range list {
-		permutations = append(permutations, &Permutation{
-			Order:       v,
-			DataSources: OrderDS(dataSources, v),
-		})
-	}
-
-	return permutations
-}
-
-type Permutation struct {
-	Order       []int
-	DataSources []plan.DataSource
 }

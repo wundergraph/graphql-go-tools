@@ -1,0 +1,15 @@
+# This job is used to satisfy PR checks for parts of the codebase
+# that are not tested during CI
+name: Dummy CI
+on:
+  pull_request:
+    paths:
+      - '.gitignore'
+      - 'LICENSE'
+      - 'README.md'
+jobs:
+  build_test:
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo Nothing to do

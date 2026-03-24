@@ -196,6 +196,7 @@ func TestWalker_Path(t *testing.T) {
 
 type pathVisitor struct {
 	*astvisitor.Walker
+
 	out     *bytes.Buffer
 	op, def *ast.Document
 }
@@ -205,7 +206,7 @@ func (p *pathVisitor) EnterDocument(operation, definition *ast.Document) {
 }
 
 func (p *pathVisitor) EnterField(ref int) {
-	p.out.Write([]byte(fmt.Sprintf("EnterField: %s, path: %s\n", p.op.FieldNameUnsafeString(ref), p.Path)))
+	fmt.Fprintf(p.out, "EnterField: %s, path: %s\n", p.op.FieldNameUnsafeString(ref), p.Path)
 }
 
 func TestVisitWithSkip(t *testing.T) {
@@ -259,6 +260,7 @@ func TestVisitWithSkip(t *testing.T) {
 
 type skipUserVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition *ast.Document
 }
 
@@ -578,6 +580,7 @@ func (d *dummyVisitor) LeaveFragmentDefinition(ref int) {
 
 type printingVisitor struct {
 	*astvisitor.Walker
+
 	out                   io.Writer
 	operation, definition *ast.Document
 	indentation           int

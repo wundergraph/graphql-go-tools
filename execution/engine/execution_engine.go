@@ -4,18 +4,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
 	"net/http"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jensneuse/abstractlogger"
+
 	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/introspection_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/postprocess"
@@ -37,12 +39,6 @@ func newInternalExecutionContext() *internalExecutionContext {
 	}
 }
 
-func (e *internalExecutionContext) prepare(ctx context.Context, variables []byte, request resolve.Request) {
-	e.setContext(ctx)
-	e.setVariables(variables)
-	e.setRequest(request)
-}
-
 func (e *internalExecutionContext) setRequest(request resolve.Request) {
 	e.resolveContext.Request = request
 }
@@ -57,16 +53,13 @@ func (e *internalExecutionContext) setVariables(variables []byte) {
 	}
 }
 
-func (e *internalExecutionContext) reset() {
-	e.resolveContext.Free()
-}
-
 type ExecutionEngine struct {
 	logger                   abstractlogger.Logger
 	config                   Configuration
 	resolver                 *resolve.Resolver
 	executionPlanCache       *lru.Cache
 	apolloCompatibilityFlags apollocompatibility.Flags
+	validationOptions        []astvalidation.Option
 }
 
 type WebsocketBeforeStartHook interface {
@@ -135,6 +128,11 @@ func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engin
 		dsIDs[ds.Id()] = struct{}{}
 	}
 
+	var validationOpts []astvalidation.Option
+	if engineConfig.plannerConfig.RelaxSubgraphOperationFieldSelectionMergingNullability {
+		validationOpts = append(validationOpts, astvalidation.WithRelaxFieldSelectionMergingNullability())
+	}
+
 	return &ExecutionEngine{
 		logger:             logger,
 		config:             engineConfig,
@@ -143,11 +141,11 @@ func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engin
 		apolloCompatibilityFlags: apollocompatibility.Flags{
 			ReplaceInvalidVarError: resolverOptions.ResolvableOptions.ApolloCompatibilityReplaceInvalidVarError,
 		},
+		validationOptions: validationOpts,
 	}, nil
 }
 
 func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Request, writer resolve.SubscriptionResponseWriter, options ...ExecutionOptions) error {
-
 	normalize := !operation.IsNormalized()
 	if normalize {
 		// Normalize the operation, but extract variables later so ValidateForSchema can return correct error messages for bad arguments.
@@ -165,7 +163,7 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 	}
 
 	// Validate the operation against the schema.
-	if result, err := operation.ValidateForSchema(e.config.schema); err != nil {
+	if result, err := operation.ValidateForSchema(e.config.schema, e.validationOptions...); err != nil {
 		return err
 	} else if !result.Valid {
 		return result.Errors
@@ -194,7 +192,10 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 	}
 
 	execContext := newInternalExecutionContext()
-	execContext.prepare(ctx, operation.Variables, operation.InternalRequest())
+	execContext.setContext(ctx)
+	execContext.setVariables(operation.Variables)
+	execContext.setRequest(operation.InternalRequest())
+
 	for i := range options {
 		options[i](execContext)
 	}
@@ -210,10 +211,11 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 	}
 
 	var report operationreport.Report
-	cachedPlan := e.getCachedPlan(execContext, operation.Document(), e.config.schema.Document(), operation.OperationName, &report)
+	cachedPlan, costCalculator := e.getCachedPlan(execContext, operation.Document(), e.config.schema.Document(), operation.OperationName, &report)
 	if report.HasErrors() {
 		return report
 	}
+	operation.ComputeEstimatedCost(costCalculator, e.config.plannerConfig, execContext.resolveContext.Variables)
 
 	if execContext.resolveContext.TracingOptions.Enable && !execContext.resolveContext.TracingOptions.ExcludePlannerStats {
 		planningTime := resolve.GetDurationNanoSinceTraceStart(execContext.resolveContext.Context()) - tracePlanStart
@@ -227,43 +229,48 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 
 	switch p := cachedPlan.(type) {
 	case *plan.SynchronousResponsePlan:
-		_, err := e.resolver.ResolveGraphQLResponse(execContext.resolveContext, p.Response, nil, writer)
-		return err
+		resp, err := e.resolver.ResolveGraphQLResponse(execContext.resolveContext, p.Response, nil, writer)
+		if err != nil {
+			return err
+		}
+		if resp != nil {
+			operation.ComputeActualCost(costCalculator, e.config.plannerConfig, execContext.resolveContext.ActualListSizes)
+		}
+		return nil
 	case *plan.SubscriptionResponsePlan:
 		return e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer)
 	default:
-		return errors.New("execution of operation is not possible")
+		return errors.New("execution impossible: unknown type of operation")
 	}
 }
 
-func (e *ExecutionEngine) getCachedPlan(ctx *internalExecutionContext, operation, definition *ast.Document, operationName string, report *operationreport.Report) plan.Plan {
-
+func (e *ExecutionEngine) getCachedPlan(ctx *internalExecutionContext, operation, definition *ast.Document, operationName string, report *operationreport.Report) (plan.Plan, *plan.CostCalculator) {
 	hash := pool.Hash64.Get()
 	hash.Reset()
 	defer pool.Hash64.Put(hash)
 	err := astprinter.Print(operation, hash)
 	if err != nil {
 		report.AddInternalError(err)
-		return nil
+		return nil, nil
 	}
 
 	cacheKey := hash.Sum64()
 
 	if cached, ok := e.executionPlanCache.Get(cacheKey); ok {
 		if p, ok := cached.(plan.Plan); ok {
-			return p
+			return p, p.GetCostCalculator()
 		}
 	}
 
 	planner, _ := plan.NewPlanner(e.config.plannerConfig)
 	planResult := planner.Plan(operation, definition, operationName, report)
 	if report.HasErrors() {
-		return nil
+		return nil, nil
 	}
 
-	p := ctx.postProcessor.Process(planResult)
-	e.executionPlanCache.Add(cacheKey, p)
-	return p
+	ctx.postProcessor.Process(planResult)
+	e.executionPlanCache.Add(cacheKey, planResult)
+	return planResult, planResult.GetCostCalculator()
 }
 
 func (e *ExecutionEngine) GetWebsocketBeforeStartHook() WebsocketBeforeStartHook {

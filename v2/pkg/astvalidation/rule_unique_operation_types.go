@@ -19,6 +19,7 @@ func UniqueOperationTypes() Rule {
 
 type uniqueOperationTypesVisitor struct {
 	*astvisitor.Walker
+
 	definition            *ast.Document
 	queryIsDefined        bool
 	mutationIsDefined     bool

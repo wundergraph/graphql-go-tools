@@ -1,32 +1,38 @@
+ifeq ($(CI),true)
+ FORMAT := github-actions
+else
+ FORMAT := pkgname
+endif
+
 .PHONY: test
 test:
-	go test ./...
+	# The idiomatic way to disable test caching explicitly is to use -count=1
+	go tool gotestsum -f $(FORMAT) --format-hide-empty-pkg --hide-summary=skipped -- -race -count=1 ./...
 
 .PHONY: test-quick
 test-quick:
-	go test -count=1 ./...
+	go tool gotestsum -f $(FORMAT) --format-hide-empty-pkg --hide-summary=skipped -- -count=1 ./...
+	go test -run=^$$ -bench=. -benchtime=1x ./...
 
-.PHONY: test-race
-test-race:
-	go test -race ./...
+# update-fixtures will update all! golden fixtures
+.PHONY: update-fixtures
+update-fixtures:
+	GOLDIE_UPDATE=1 go test -count=1 ./engine/...
 
-# updateTestFixtures will update all! golden fixtures
-.PHONY: updateTestFixtures
-updateTestFixtures:
-	go test ./engine/... -update
-
+# golangci-lint will find the config file in the root dir of the repo.
 .PHONY: format
 format:
-	go fmt ./...
+	golangci-lint fmt
+
+lint:
+	golangci-lint run
+
+.PHONY: lint-fix
+lint-fix:
+	golangci-lint run --fix
 
 .PHONY: prepare-merge
 prepare-merge: format test
-
-.PHONY: ci
-ci: test
-
-.PHONY: ci-quick
-ci-full: test-quick
 
 .PHONY: update-deps
 update-deps:

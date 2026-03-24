@@ -1,14 +1,26 @@
 package resolve
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/wundergraph/astjson"
+)
 
 type Array struct {
 	Path     []string
 	Nullable bool
 	Item     Node
+
+	SkipItem SkipArrayItem
 }
 
-func (_ *Array) NodeKind() NodeKind {
+type SkipArrayItem func(ctx *Context, arrayItem *astjson.Value) bool
+
+type IntrospectionData struct {
+	IncludeDeprecatedVariableName string
+}
+
+func (*Array) NodeKind() NodeKind {
 	return NodeKindArray
 }
 
@@ -47,23 +59,23 @@ func (a *Array) Equals(n Node) bool {
 
 type EmptyArray struct{}
 
-func (_ *EmptyArray) Copy() Node {
+func (*EmptyArray) Copy() Node {
 	return &EmptyArray{}
 }
 
-func (_ *EmptyArray) NodeKind() NodeKind {
+func (*EmptyArray) NodeKind() NodeKind {
 	return NodeKindEmptyArray
 }
 
-func (_ *EmptyArray) NodePath() []string {
+func (*EmptyArray) NodePath() []string {
 	return nil
 }
 
-func (_ *EmptyArray) NodeNullable() bool {
+func (*EmptyArray) NodeNullable() bool {
 	return false
 }
 
-func (_ *EmptyArray) Equals(n Node) bool {
+func (*EmptyArray) Equals(n Node) bool {
 	_, ok := n.(*EmptyArray)
 	return ok
 }

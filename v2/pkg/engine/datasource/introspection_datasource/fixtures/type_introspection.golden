@@ -2,6 +2,56 @@
   "kind": "OBJECT",
   "name": "Query",
   "description": "",
+  "fields": [
+    {
+      "name": "me",
+      "description": "",
+      "args": [],
+      "type": {
+        "kind": "OBJECT",
+        "name": "Droid",
+        "ofType": null,
+        "__typename": "__Type"
+      },
+      "isDeprecated": true,
+      "deprecationReason": "No longer supported",
+      "__typename": "__Field"
+    },
+    {
+      "name": "droid",
+      "description": "",
+      "args": [
+        {
+          "name": "id",
+          "description": "",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "ID",
+              "ofType": null,
+              "__typename": "__Type"
+            },
+            "__typename": "__Type"
+          },
+          "defaultValue": null,
+          "isDeprecated": false,
+          "deprecationReason": null,
+          "__typename": "__InputValue"
+        }
+      ],
+      "type": {
+        "kind": "OBJECT",
+        "name": "Droid",
+        "ofType": null,
+        "__typename": "__Type"
+      },
+      "isDeprecated": false,
+      "deprecationReason": null,
+      "__typename": "__Field"
+    }
+  ],
   "inputFields": [],
   "interfaces": [],
   "possibleTypes": [],

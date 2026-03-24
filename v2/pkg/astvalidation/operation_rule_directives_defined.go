@@ -19,6 +19,7 @@ func DirectivesAreDefined() Rule {
 
 type directivesAreDefinedVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition *ast.Document
 }
 

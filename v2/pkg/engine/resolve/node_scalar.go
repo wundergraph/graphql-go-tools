@@ -8,7 +8,7 @@ type Scalar struct {
 	Export   *FieldExport `json:"export,omitempty"`
 }
 
-func (_ *Scalar) NodeKind() NodeKind {
+func (*Scalar) NodeKind() NodeKind {
 	return NodeKindScalar
 }
 
@@ -88,7 +88,7 @@ func (s *String) Equals(n Node) bool {
 	return true
 }
 
-func (_ *String) NodeKind() NodeKind {
+func (*String) NodeKind() NodeKind {
 	return NodeKindString
 }
 
@@ -105,7 +105,7 @@ type StaticString struct {
 	Value string
 }
 
-func (_ *StaticString) NodeKind() NodeKind {
+func (*StaticString) NodeKind() NodeKind {
 	return NodeKindStaticString
 }
 
@@ -147,7 +147,7 @@ type Boolean struct {
 	Export   *FieldExport `json:"export,omitempty"`
 }
 
-func (_ *Boolean) NodeKind() NodeKind {
+func (*Boolean) NodeKind() NodeKind {
 	return NodeKindBoolean
 }
 
@@ -190,7 +190,7 @@ type Float struct {
 	Export   *FieldExport `json:"export,omitempty"`
 }
 
-func (_ *Float) NodeKind() NodeKind {
+func (*Float) NodeKind() NodeKind {
 	return NodeKindFloat
 }
 
@@ -233,7 +233,7 @@ type Integer struct {
 	Export   *FieldExport `json:"export,omitempty"`
 }
 
-func (_ *Integer) NodeKind() NodeKind {
+func (*Integer) NodeKind() NodeKind {
 	return NodeKindInteger
 }
 
@@ -277,7 +277,7 @@ type BigInt struct {
 	Export   *FieldExport `json:"export,omitempty"`
 }
 
-func (_ *BigInt) NodeKind() NodeKind {
+func (*BigInt) NodeKind() NodeKind {
 	return NodeKindBigInt
 }
 
@@ -318,23 +318,23 @@ func (b *BigInt) Equals(n Node) bool {
 type Null struct {
 }
 
-func (_ *Null) NodeKind() NodeKind {
+func (*Null) NodeKind() NodeKind {
 	return NodeKindNull
 }
 
-func (_ *Null) NodePath() []string {
+func (*Null) NodePath() []string {
 	return nil
 }
 
-func (_ *Null) NodeNullable() bool {
+func (*Null) NodeNullable() bool {
 	return true
 }
 
-func (_ *Null) Copy() Node {
+func (*Null) Copy() Node {
 	return &Null{}
 }
 
-func (_ *Null) Equals(n Node) bool {
+func (*Null) Equals(n Node) bool {
 	_, ok := n.(*Null)
 	return ok
 }

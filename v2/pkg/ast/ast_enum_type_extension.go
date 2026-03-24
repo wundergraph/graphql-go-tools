@@ -6,8 +6,9 @@ import (
 )
 
 type EnumTypeExtension struct {
-	ExtendLiteral position.Position
 	EnumTypeDefinition
+
+	ExtendLiteral position.Position
 }
 
 func (d *Document) EnumTypeExtensionNameBytes(ref int) ByteSlice {

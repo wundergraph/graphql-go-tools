@@ -22,6 +22,7 @@ func deleteUnusedVariables(walker *astvisitor.Walker) *deleteUnusedVariablesVisi
 
 type deleteUnusedVariablesVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition        *ast.Document
 	variableNamesUsed            []string
 	variableNamesSafeForDeletion []string
@@ -100,6 +101,7 @@ func detectVariableUsage(walker *astvisitor.Walker, deletion *deleteUnusedVariab
 
 type variableUsageDetector struct {
 	*astvisitor.Walker
+
 	operation, definition *ast.Document
 	deletion              *deleteUnusedVariablesVisitor
 }

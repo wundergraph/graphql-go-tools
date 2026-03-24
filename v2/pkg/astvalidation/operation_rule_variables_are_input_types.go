@@ -19,6 +19,7 @@ func VariablesAreInputTypes() Rule {
 
 type variablesAreInputTypesVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition *ast.Document
 }
 

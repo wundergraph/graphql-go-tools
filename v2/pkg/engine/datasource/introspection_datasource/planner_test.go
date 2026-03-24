@@ -5,6 +5,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wundergraph/astjson"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasourcetesting"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
@@ -125,9 +127,9 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 	t.Run("type introspection request", runTest(schema, typeIntrospection,
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
-				Data: &resolve.Object{
-					Fetches: []resolve.Fetch{
-						&resolve.SingleFetch{
+				RawFetches: []*resolve.FetchItem{
+					{
+						Fetch: &resolve.SingleFetch{
 							DataSourceIdentifier: dataSourceIdentifier,
 							FetchConfiguration: resolve.FetchConfiguration{
 								Input:      `{"request_type":2,"type_name":"$$0$$"}`,
@@ -144,6 +146,8 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 							},
 						},
 					},
+				},
+				Data: &resolve.Object{
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("__type"),
@@ -154,6 +158,10 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 							Value: &resolve.Object{
 								Path:     []string{"__type"},
 								Nullable: true,
+								PossibleTypes: map[string]struct{}{
+									"__Type": {},
+								},
+								TypeName: "__Type",
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("name"),
@@ -200,9 +208,9 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 	t.Run("schema introspection request", runTest(schema, schemaIntrospection,
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
-				Data: &resolve.Object{
-					Fetches: []resolve.Fetch{
-						&resolve.SingleFetch{
+				RawFetches: []*resolve.FetchItem{
+					{
+						Fetch: &resolve.SingleFetch{
 							DataSourceIdentifier: dataSourceIdentifier,
 							FetchConfiguration: resolve.FetchConfiguration{
 								Input:      `{"request_type":1}`,
@@ -213,6 +221,8 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 							},
 						},
 					},
+				},
+				Data: &resolve.Object{
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("__schema"),
@@ -222,11 +232,19 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 							},
 							Value: &resolve.Object{
 								Path: []string{"__schema"},
+								PossibleTypes: map[string]struct{}{
+									"__Schema": {},
+								},
+								TypeName: "__Schema",
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("queryType"),
 										Value: &resolve.Object{
-											Path: []string{"queryType"},
+											PossibleTypes: map[string]struct{}{
+												"__Type": {},
+											},
+											TypeName: "__Type",
+											Path:     []string{"queryType"},
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("name"),
@@ -258,9 +276,9 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 	t.Run("schema introspection request with custom root operation types", runTest(schemaWithCustomRootOperationTypes, schemaIntrospectionForAllRootOperationTypeNames,
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
-				Data: &resolve.Object{
-					Fetches: []resolve.Fetch{
-						&resolve.SingleFetch{
+				RawFetches: []*resolve.FetchItem{
+					{
+						Fetch: &resolve.SingleFetch{
 							DataSourceIdentifier: dataSourceIdentifier,
 							FetchConfiguration: resolve.FetchConfiguration{
 								Input:      `{"request_type":1}`,
@@ -271,6 +289,8 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 							},
 						},
 					},
+				},
+				Data: &resolve.Object{
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("__schema"),
@@ -280,11 +300,19 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 							},
 							Value: &resolve.Object{
 								Path: []string{"__schema"},
+								PossibleTypes: map[string]struct{}{
+									"__Schema": {},
+								},
+								TypeName: "__Schema",
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("queryType"),
 										Value: &resolve.Object{
 											Path: []string{"queryType"},
+											PossibleTypes: map[string]struct{}{
+												"__Type": {},
+											},
+											TypeName: "__Type",
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("name"),
@@ -309,6 +337,10 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 										Value: &resolve.Object{
 											Path:     []string{"mutationType"},
 											Nullable: true,
+											PossibleTypes: map[string]struct{}{
+												"__Type": {},
+											},
+											TypeName: "__Type",
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("name"),
@@ -333,6 +365,10 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 										Value: &resolve.Object{
 											Path:     []string{"subscriptionType"},
 											Nullable: true,
+											PossibleTypes: map[string]struct{}{
+												"__Type": {},
+											},
+											TypeName: "__Type",
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("name"),
@@ -364,9 +400,9 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 	t.Run("type introspection request with fields args", runTest(schema, typeIntrospectionWithArgs,
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
-				Data: &resolve.Object{
-					Fetches: []resolve.Fetch{
-						&resolve.SingleFetch{
+				RawFetches: []*resolve.FetchItem{
+					{
+						Fetch: &resolve.SingleFetch{
 							DataSourceIdentifier: dataSourceIdentifier,
 							FetchConfiguration: resolve.FetchConfiguration{
 								Input:      `{"request_type":2,"type_name":"$$0$$"}`,
@@ -383,6 +419,8 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 							},
 						},
 					},
+				},
+				Data: &resolve.Object{
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("__type"),
@@ -393,54 +431,10 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 							Value: &resolve.Object{
 								Path:     []string{"__type"},
 								Nullable: true,
-								Fetches: []resolve.Fetch{
-									&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID: 1,
-										},
-										DataSourceIdentifier: dataSourceIdentifier,
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input:      `{"request_type":3,"on_type_name":"$$0$$","include_deprecated":$$1$$}`,
-											DataSource: &Source{},
-											Variables: resolve.NewVariables(
-												&resolve.ObjectVariable{
-													Path:     []string{"name"},
-													Renderer: resolve.NewPlainVariableRenderer(),
-												},
-												&resolve.ContextVariable{
-													Path:     []string{"b"},
-													Renderer: resolve.NewPlainVariableRenderer(),
-												},
-											),
-											PostProcessing: resolve.PostProcessingConfiguration{
-												MergePath: []string{"fields"},
-											},
-										},
-									},
-									&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID: 2,
-										},
-										DataSourceIdentifier: dataSourceIdentifier,
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input:      `{"request_type":4,"on_type_name":"$$0$$","include_deprecated":$$1$$}`,
-											DataSource: &Source{},
-											Variables: resolve.NewVariables(
-												&resolve.ObjectVariable{
-													Path:     []string{"name"},
-													Renderer: resolve.NewPlainVariableRenderer(),
-												},
-												&resolve.ContextVariable{
-													Path:     []string{"b"},
-													Renderer: resolve.NewPlainVariableRenderer(),
-												},
-											),
-											PostProcessing: resolve.PostProcessingConfiguration{
-												MergePath: []string{"enumValues"},
-											},
-										},
-									},
+								PossibleTypes: map[string]struct{}{
+									"__Type": {},
 								},
+								TypeName: "__Type",
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("fields"),
@@ -448,6 +442,10 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 											Path:     []string{"fields"},
 											Nullable: true,
 											Item: &resolve.Object{
+												PossibleTypes: map[string]struct{}{
+													"__Field": {},
+												},
+												TypeName: "__Field",
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("name"),
@@ -461,6 +459,9 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 													},
 												},
 											},
+											SkipItem: func(ctx *resolve.Context, arrayItem *astjson.Value) bool {
+												return false
+											},
 										}, Position: resolve.Position{
 											Line:   4,
 											Column: 5,
@@ -472,6 +473,10 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 											Path:     []string{"enumValues"},
 											Nullable: true,
 											Item: &resolve.Object{
+												PossibleTypes: map[string]struct{}{
+													"__EnumValue": {},
+												},
+												TypeName: "__EnumValue",
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("name"),
@@ -484,6 +489,9 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 														},
 													},
 												},
+											},
+											SkipItem: func(ctx *resolve.Context, arrayItem *astjson.Value) bool {
+												return false
 											},
 										}, Position: resolve.Position{
 											Line:   7,

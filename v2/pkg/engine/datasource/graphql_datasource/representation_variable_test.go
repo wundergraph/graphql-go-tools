@@ -190,6 +190,81 @@ func TestBuildRepresentationVariableNode(t *testing.T) {
 				},
 			})
 	})
+
+	t.Run("with inline fragment", func(t *testing.T) {
+		runTest(t, `
+			scalar String
+
+			type User {
+				id: String!
+				name: String!
+				u: ab!
+				i: Title!
+			}
+
+			interface Title {
+				title: String!
+			}
+
+			type A implements Title {
+			  	a: String!
+				title: String!
+			}
+
+			type B implements Title {
+				b: String!
+				title: String!
+			}
+
+		    union ab = A | B
+		`,
+			`u { ... on A { a } } i { ... on B { title } }`,
+			plan.FederationMetaData{},
+			&resolve.Object{
+				Nullable: true,
+				Fields: []*resolve.Field{
+					{
+						Name: []byte("__typename"),
+						Value: &resolve.String{
+							Path: []string{"__typename"},
+						},
+						OnTypeNames: [][]byte{[]byte("User")},
+					},
+					{
+						Name: []byte("u"),
+						Value: &resolve.Object{
+							Path: []string{"u"},
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("a"),
+									Value: &resolve.String{
+										Path: []string{"a"},
+									},
+									OnTypeNames: [][]byte{[]byte("A")},
+								},
+							},
+						},
+						OnTypeNames: [][]byte{[]byte("User")},
+					},
+					{
+						Name: []byte("i"),
+						Value: &resolve.Object{
+							Path: []string{"i"},
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("title"),
+									Value: &resolve.String{
+										Path: []string{"title"},
+									},
+									OnTypeNames: [][]byte{[]byte("B")},
+								},
+							},
+						},
+						OnTypeNames: [][]byte{[]byte("User")},
+					},
+				},
+			})
+	})
 }
 
 func TestMergeRepresentationVariableNodes(t *testing.T) {

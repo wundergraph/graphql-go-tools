@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"sync"
 	"testing"
 
@@ -59,6 +60,106 @@ func mustFactory(t testing.TB, httpClient *http.Client) plan.PlannerFactory[grap
 	return factory
 }
 
+func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expectedErrorMessage string, options ...executionTestOptions) func(t *testing.T) {
+	return func(t *testing.T) {
+		t.Helper()
+
+		if testCase.skipReason != "" {
+			t.Skip(testCase.skipReason)
+		}
+
+		engineConf := NewConfiguration(testCase.schema)
+		engineConf.SetDataSources(testCase.dataSources)
+		engineConf.SetFieldConfigurations(testCase.fields)
+		engineConf.SetCustomResolveMap(testCase.customResolveMap)
+
+		engineConf.plannerConfig.Debug = plan.DebugConfiguration{
+			// PrintOperationTransformations: true,
+			// PrintPlanningPaths:            true,
+			// PrintNodeSuggestions:          true,
+			// PrintQueryPlans:               true,
+			// ConfigurationVisitor:          true,
+			// PlanningVisitor:               true,
+			// DatasourceVisitor:             true,
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		var opts _executionTestOptions
+		for _, option := range options {
+			option(&opts)
+		}
+		engineConf.plannerConfig.BuildFetchReasons = opts.propagateFetchReasons
+		engineConf.plannerConfig.ValidateRequiredExternalFields = opts.validateRequiredExternalFields
+		engineConf.plannerConfig.ComputeCosts = opts.computeCosts
+		engineConf.plannerConfig.StaticCostDefaultListSize = 10
+		engineConf.plannerConfig.RelaxSubgraphOperationFieldSelectionMergingNullability = opts.relaxFieldSelectionMergingNullability
+		resolveOpts := resolve.ResolverOptions{
+			MaxConcurrency:    1024,
+			ResolvableOptions: opts.resolvableOptions,
+			ApolloRouterCompatibilitySubrequestHTTPError: opts.apolloRouterCompatibilitySubrequestHTTPError,
+			PropagateFetchReasons:                        opts.propagateFetchReasons,
+			ValidateRequiredExternalFields:               opts.validateRequiredExternalFields,
+		}
+		engine, err := NewExecutionEngine(ctx, abstractlogger.Noop{}, engineConf, resolveOpts)
+		require.NoError(t, err)
+
+		operation := testCase.operation(t)
+		resultWriter := graphql.NewEngineResultWriter()
+		execCtx, execCtxCancel := context.WithCancel(context.Background())
+		defer execCtxCancel()
+		err = engine.Execute(execCtx, &operation, &resultWriter, testCase.engineOptions...)
+		actualResponse := resultWriter.String()
+
+		if testCase.indentJSON {
+			dst := new(bytes.Buffer)
+			require.NoError(t, json.Indent(dst, []byte(actualResponse), "", "  "))
+			actualResponse = dst.String()
+		}
+
+		if testCase.expectedFixture != "" {
+			g := goldie.New(t, goldie.WithFixtureDir("testdata"), goldie.WithNameSuffix(".json"))
+			g.Assert(t, testCase.expectedFixture, []byte(actualResponse))
+			return
+		}
+
+		if withError {
+			require.Error(t, err)
+			if expectedErrorMessage != "" {
+				assert.Equal(t, expectedErrorMessage, err.Error())
+			}
+		} else {
+			require.NoError(t, err)
+		}
+
+		if testCase.expectedJSONResponse != "" {
+			assert.JSONEq(t, testCase.expectedJSONResponse, actualResponse)
+		}
+
+		if testCase.expectedResponse != "" {
+			assert.Equal(t, testCase.expectedResponse, actualResponse)
+		}
+
+		if testCase.expectedEstimatedCost != 0 {
+			gotCost := operation.EstimatedCost()
+			require.Equal(t, testCase.expectedEstimatedCost, gotCost)
+		}
+
+		if testCase.expectedActualCost != 0 {
+			gotActualCost := operation.ActualCost()
+			require.Equal(t, testCase.expectedActualCost, gotActualCost)
+		}
+	}
+}
+
+func runWithAndCompareError(testCase ExecutionEngineTestCase, expectedErrorMessage string, options ...executionTestOptions) func(t *testing.T) {
+	return runExecutionTest(testCase, true, expectedErrorMessage, options...)
+}
+
+func runWithoutError(testCase ExecutionEngineTestCase, options ...executionTestOptions) func(t *testing.T) {
+	return runExecutionTest(testCase, false, "", options...)
+}
+
 func mustGraphqlDataSourceConfiguration(t *testing.T, id string, factory plan.PlannerFactory[graphql_datasource.Configuration], metadata *plan.DataSourceMetadata, customConfig graphql_datasource.Configuration) plan.DataSourceConfiguration[graphql_datasource.Configuration] {
 	t.Helper()
 
@@ -82,6 +183,7 @@ func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 		headers := make(http.Header)
 		headers.Set("Content-Type", "application/json")
 		response := rw.AsHTTPResponse(http.StatusOK, headers)
+		defer response.Body.Close()
 		body, err := io.ReadAll(response.Body)
 		require.NoError(t, err)
 
@@ -102,6 +204,7 @@ func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 			headers.Set(httpclient.ContentEncodingHeader, "gzip")
 
 			response := rw.AsHTTPResponse(http.StatusOK, headers)
+			defer response.Body.Close()
 			assert.Equal(t, http.StatusOK, response.StatusCode)
 			assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
 			assert.Equal(t, "gzip", response.Header.Get(httpclient.ContentEncodingHeader))
@@ -119,6 +222,7 @@ func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 			headers.Set(httpclient.ContentEncodingHeader, "deflate")
 
 			response := rw.AsHTTPResponse(http.StatusOK, headers)
+			defer response.Body.Close()
 			assert.Equal(t, http.StatusOK, response.StatusCode)
 			assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
 			assert.Equal(t, "deflate", response.Header.Get(httpclient.ContentEncodingHeader))
@@ -192,15 +296,25 @@ type ExecutionEngineTestCase struct {
 	dataSources      []plan.DataSource
 	fields           plan.FieldConfigurations
 	engineOptions    []ExecutionOptions
-	expectedResponse string
-	expectedFixture  string
 	customResolveMap map[string]resolve.CustomResolve
 	skipReason       string
 	indentJSON       bool
+
+	expectedResponse      string
+	expectedJSONResponse  string
+	expectedFixture       string
+	expectedEstimatedCost int
+	expectedActualCost    int
 }
 
 type _executionTestOptions struct {
 	resolvableOptions resolve.ResolvableOptions
+
+	apolloRouterCompatibilitySubrequestHTTPError bool
+	propagateFetchReasons                        bool
+	validateRequiredExternalFields               bool
+	computeCosts                                 bool
+	relaxFieldSelectionMergingNullability        bool
 }
 
 type executionTestOptions func(*_executionTestOptions)
@@ -213,81 +327,217 @@ func withValueCompletion() executionTestOptions {
 	}
 }
 
+func withFetchReasons() executionTestOptions {
+	return func(options *_executionTestOptions) {
+		options.propagateFetchReasons = true
+	}
+}
+
+func validateRequiredExternalFields() executionTestOptions {
+	return func(options *_executionTestOptions) {
+		options.validateRequiredExternalFields = true
+	}
+}
+
+func computeCosts() executionTestOptions {
+	return func(options *_executionTestOptions) {
+		options.computeCosts = true
+	}
+}
+
+func relaxFieldSelectionMergingNullability() executionTestOptions {
+	return func(options *_executionTestOptions) {
+		options.relaxFieldSelectionMergingNullability = true
+	}
+}
+
 func TestExecutionEngine_Execute(t *testing.T) {
-	run := func(testCase ExecutionEngineTestCase, withError bool, expectedErrorMessage string, options ...executionTestOptions) func(t *testing.T) {
-		t.Helper()
+	t.Run("apollo router compatibility subrequest HTTP error enabled", runWithoutError(
+		ExecutionEngineTestCase{
+			schema:    graphql.StarwarsSchema(t),
+			operation: graphql.LoadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     "",
+							sendResponseBody: `{"errors":[{"message":"Unknown access token","extensions":{"code":"UNAUTHENTICATED"}}]}`,
+							sendStatusCode:   403,
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"hero"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Character",
+								FieldNames: []string{"name"},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "GET",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(graphql.StarwarsSchema(t).RawSchema()),
+						),
+					}),
+				),
+			},
+			expectedJSONResponse: `{
+				"data": { "hero": null },
+				"errors": [
+					{
+						"message": "HTTP fetch failed from 'id': 403: Forbidden",
+						"path": [],
+						"extensions": {
+							"code": "SUBREQUEST_HTTP_ERROR",
+							"service": "id",
+							"reason": "403: Forbidden",
+							"http": {
+								"status": 403
+							}
+						}
+					},
+					{
+						"message": "Failed to fetch from Subgraph 'id'."
+					}
+				]
+			}`,
+		},
+		func(eto *_executionTestOptions) {
+			eto.apolloRouterCompatibilitySubrequestHTTPError = true
+		},
+	))
 
-		return func(t *testing.T) {
-			t.Helper()
-
-			if testCase.skipReason != "" {
-				t.Skip(testCase.skipReason)
-			}
-
-			engineConf := NewConfiguration(testCase.schema)
-			engineConf.SetDataSources(testCase.dataSources)
-			engineConf.SetFieldConfigurations(testCase.fields)
-			engineConf.SetCustomResolveMap(testCase.customResolveMap)
-
-			engineConf.plannerConfig.Debug = plan.DebugConfiguration{
-				// PrintOperationTransformations:    true,
-				// PrintPlanningPaths:               true,
-				// PrintQueryPlans:                  true,
-				// ConfigurationVisitor:             true,
-				// PlanningVisitor:                  true,
-				// DatasourceVisitor:                true,
-			}
-
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			var opts _executionTestOptions
-			for _, option := range options {
-				option(&opts)
-			}
-			engine, err := NewExecutionEngine(ctx, abstractlogger.Noop{}, engineConf, resolve.ResolverOptions{
-				MaxConcurrency:    1024,
-				ResolvableOptions: opts.resolvableOptions,
-			})
-			require.NoError(t, err)
-
-			operation := testCase.operation(t)
-			resultWriter := graphql.NewEngineResultWriter()
-			execCtx, execCtxCancel := context.WithCancel(context.Background())
-			defer execCtxCancel()
-			err = engine.Execute(execCtx, &operation, &resultWriter, testCase.engineOptions...)
-			actualResponse := resultWriter.String()
-
-			if testCase.indentJSON {
-				dst := new(bytes.Buffer)
-				require.NoError(t, json.Indent(dst, []byte(actualResponse), "", "  "))
-				actualResponse = dst.String()
-			}
-
-			if testCase.expectedFixture != "" {
-				g := goldie.New(t, goldie.WithFixtureDir("testdata"), goldie.WithNameSuffix(".json"))
-				g.Assert(t, testCase.expectedFixture, []byte(actualResponse))
-				return
-			}
-
-			assert.Equal(t, testCase.expectedResponse, actualResponse)
-			if withError {
-				require.Error(t, err)
-				if expectedErrorMessage != "" {
-					assert.Contains(t, err.Error(), expectedErrorMessage)
+	t.Run("apollo router compatibility subrequest HTTP error disabled", runWithoutError(
+		ExecutionEngineTestCase{
+			schema:    graphql.StarwarsSchema(t),
+			operation: graphql.LoadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     "",
+							sendResponseBody: `{"errors":[{"message":"Unknown access token","extensions":{"code":"UNAUTHENTICATED"}}]}`,
+							sendStatusCode:   403,
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"hero"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Character",
+								FieldNames: []string{"name"},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "GET",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(graphql.StarwarsSchema(t).RawSchema()),
+						),
+					}),
+				),
+			},
+			expectedJSONResponse: `{
+				"errors": [
+					{
+						"message": "Failed to fetch from Subgraph 'id'."
+					}
+				],
+				"data": {
+					"hero": null
 				}
-			} else {
-				require.NoError(t, err)
-			}
-		}
-	}
+			}`,
+		},
+		func(eto *_executionTestOptions) {
+			eto.apolloRouterCompatibilitySubrequestHTTPError = false
+		},
+	))
 
-	runWithAndCompareError := func(testCase ExecutionEngineTestCase, expectedErrorMessage string, options ...executionTestOptions) func(t *testing.T) {
-		return run(testCase, true, expectedErrorMessage, options...)
-	}
-
-	runWithoutError := func(testCase ExecutionEngineTestCase, options ...executionTestOptions) func(t *testing.T) {
-		return run(testCase, false, "", options...)
-	}
+	t.Run("apollo router compatibility subrequest HTTP error enabled and non-error http status", runWithoutError(
+		ExecutionEngineTestCase{
+			schema:    graphql.StarwarsSchema(t),
+			operation: graphql.LoadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     "",
+							sendResponseBody: `{"errors":[{"message":"Unknown access token","extensions":{"code":"UNAUTHENTICATED"}}]}`,
+							sendStatusCode:   200,
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"hero"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Character",
+								FieldNames: []string{"name"},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "GET",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(graphql.StarwarsSchema(t).RawSchema()),
+						),
+					}),
+				),
+			},
+			expectedJSONResponse: `{
+				"errors": [
+					{
+						"message": "Failed to fetch from Subgraph 'id'."
+					}
+				],
+				"data": {
+					"hero": null
+				}
+			}`,
+		},
+		func(eto *_executionTestOptions) {
+			eto.apolloRouterCompatibilitySubrequestHTTPError = true
+		},
+	))
 
 	t.Run("introspection", func(t *testing.T) {
 		schema := graphql.StarwarsSchema(t)
@@ -318,6 +568,52 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					}
 				},
 				expectedResponse: `{"data":{"q":{"name":"Query","kind":"OBJECT","fields":[{"name":"droid"},{"name":"search"},{"name":"searchResults"}]},"h":{"name":"Human","fields":[{"name":"name"},{"name":"friends"}]}}}`,
+			},
+		))
+
+		t.Run("execute type introspection query for input - without deprecated inputFields", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "myIntrospection",
+						Query: `
+							query myIntrospection(){
+								__type(name: "ReviewInput") {
+									name
+									kind
+									inputFields {
+										name
+									}
+								}
+							}
+						`,
+					}
+				},
+				expectedResponse: `{"data":{"__type":{"name":"ReviewInput","kind":"INPUT_OBJECT","inputFields":[{"name":"stars"}]}}}`,
+			},
+		))
+
+		t.Run("execute type introspection query for input - include deprecated inputFields", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "myIntrospection",
+						Query: `
+							query myIntrospection(){
+								__type(name: "ReviewInput") {
+									name
+									kind
+									inputFields(includeDeprecated: true) {
+										name
+									}
+								}
+							}
+						`,
+					}
+				},
+				expectedResponse: `{"data":{"__type":{"name":"ReviewInput","kind":"INPUT_OBJECT","inputFields":[{"name":"stars"},{"name":"commentary"}]}}}`,
 			},
 		))
 
@@ -396,6 +692,91 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			},
 		))
 
+		t.Run("execute query typename", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "my",
+						Query: `query my {
+							__typename
+						}`,
+					}
+				},
+				expectedResponse: `{"data":{"__typename":"Query"}}`,
+			},
+		))
+
+		t.Run("execute query typename + hero", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"hero"},
+								},
+								{
+									TypeName:   "Character",
+									FieldNames: []string{"name"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								string(schema.RawSchema()),
+							),
+						}),
+					),
+				},
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "my",
+						Query: `query my {
+							__typename
+							hero {
+								name
+							}
+						}`,
+					}
+				},
+				expectedResponse: `{"data":{"__typename":"Query","hero":{"name":"Luke Skywalker"}}}`,
+			},
+		))
+
+		t.Run("execute mutation typename", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "my",
+						Query: `mutation my {
+							__typename
+						}`,
+					}
+				},
+				expectedResponse: `{"data":{"__typename":"Mutation"}}`,
+			},
+		))
+
 		t.Run("execute full introspection query", runWithoutError(
 			ExecutionEngineTestCase{
 				schema: schema,
@@ -403,6 +784,17 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					return graphql.StarwarsRequestForQuery(t, starwars.FileIntrospectionQuery)
 				},
 				expectedFixture: "full_introspection",
+				indentJSON:      true,
+			},
+		))
+
+		t.Run("execute full introspection query include deprecated: true", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.StarwarsRequestForQuery(t, starwars.FileIntrospectionQueryIncludeDeprecated)
+				},
+				expectedFixture: "full_introspection_with_deprecated",
 				indentJSON:      true,
 			},
 		))
@@ -465,6 +857,328 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			fields:           []plan.FieldConfiguration{},
 			expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
 		},
+	))
+
+	t.Run("operation on interface, subgraph expects fetch reasons for all implementing types", runWithoutError(
+		ExecutionEngineTestCase{
+			schema:    graphql.StarwarsSchema(t),
+			operation: graphql.LoadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     `{"query":"{hero {name}}","extensions":{"fetch_reasons":[{"typename":"Character","field":"name","by_user":true},{"typename":"Droid","field":"name","by_user":true},{"typename":"Human","field":"name","by_user":true}]}}`,
+							sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+							sendStatusCode:   200,
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"hero"},
+							},
+							{
+								TypeName:   "Human",
+								FieldNames: []string{"name", "height", "friends"},
+							},
+							{
+								TypeName:   "Droid",
+								FieldNames: []string{"name", "primaryFunction", "friends"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Character",
+								FieldNames: []string{"name", "friends"},
+								// An interface field implicitly marks all the implementing types.
+								FetchReasonFields: []string{"name"},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "POST",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(graphql.StarwarsSchema(t).RawSchema()),
+						),
+					}),
+				),
+			},
+			fields:           []plan.FieldConfiguration{},
+			expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+		},
+		withFetchReasons(),
+	))
+
+	t.Run("operation on interface, subgraph expects fetch reasons for one implementing type", runWithoutError(
+		ExecutionEngineTestCase{
+			schema:    graphql.StarwarsSchema(t),
+			operation: graphql.LoadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     `{"query":"{hero {name}}","extensions":{"fetch_reasons":[{"typename":"Droid","field":"name","by_user":true}]}}`,
+							sendResponseBody: `{"data":{"hero":{"name":"Droid Number 6"}}}`,
+							sendStatusCode:   200,
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"hero"},
+							},
+							{
+								TypeName:   "Human",
+								FieldNames: []string{"name", "height", "friends"},
+							},
+							{
+								TypeName:   "Droid",
+								FieldNames: []string{"name", "primaryFunction", "friends"},
+								// Only for this field propagate the fetch reasons,
+								// even if a user has asked for the interface in the query.
+								FetchReasonFields: []string{"name"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Character",
+								FieldNames: []string{"name", "friends"},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "POST",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(graphql.StarwarsSchema(t).RawSchema()),
+						),
+					}),
+				),
+			},
+			fields:           []plan.FieldConfiguration{},
+			expectedResponse: `{"data":{"hero":{"name":"Droid Number 6"}}}`,
+		},
+		withFetchReasons(),
+	))
+
+	t.Run("operation on interface, interface and object marked, subgraph expects fetch reasons for one implementing type", runWithoutError(
+		ExecutionEngineTestCase{
+			schema:    graphql.StarwarsSchema(t),
+			operation: graphql.LoadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     `{"query":"{hero {name}}","extensions":{"fetch_reasons":[{"typename":"Character","field":"name","by_user":true},{"typename":"Droid","field":"name","by_user":true},{"typename":"Human","field":"name","by_user":true}]}}`,
+							sendResponseBody: `{"data":{"hero":{"name":"Droid Number 6"}}}`,
+							sendStatusCode:   200,
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"hero"},
+							},
+							{
+								TypeName:   "Human",
+								FieldNames: []string{"name", "height", "friends"},
+							},
+							{
+								TypeName:          "Droid",
+								FieldNames:        []string{"name", "primaryFunction", "friends"},
+								FetchReasonFields: []string{"name"}, // implementing is marked
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:          "Character",
+								FieldNames:        []string{"name", "friends"},
+								FetchReasonFields: []string{"name"}, // interface is marked
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "POST",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(graphql.StarwarsSchema(t).RawSchema()),
+						),
+					}),
+				),
+			},
+			fields:           []plan.FieldConfiguration{},
+			expectedResponse: `{"data":{"hero":{"name":"Droid Number 6"}}}`,
+		},
+		withFetchReasons(),
+	))
+
+	t.Run("operation on fragment, subgraph expects fetch reasons for one implementing type", runWithoutError(
+		ExecutionEngineTestCase{
+			schema: graphql.StarwarsSchema(t),
+			operation: func(t *testing.T) graphql.Request {
+				return graphql.Request{
+					Query: `query {
+						hero {
+							...humanFields
+						}
+					}
+					fragment humanFields on Human {
+						name
+						height
+					}`,
+				}
+			},
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     `{"query":"{hero {__typename ... on Human {name height}}}","extensions":{"fetch_reasons":[{"typename":"Human","field":"name","by_user":true}]}}`,
+							sendResponseBody: `{"data":{"hero":{"__typename": "Human", "name":"Luke Skywalker", "height": "1.99"}}}`,
+							sendStatusCode:   200,
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"hero"},
+							},
+							{
+								TypeName:   "Human",
+								FieldNames: []string{"name", "height", "friends"},
+							},
+							{
+								TypeName:   "Droid",
+								FieldNames: []string{"name", "primaryFunction", "friends"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Character",
+								FieldNames: []string{"name", "friends"},
+								// Interface is marked, and we should propagate reasons if
+								// a user has asked for the fragment on concrete type
+								// that is not marked for fetch reasons.
+								FetchReasonFields: []string{"name"},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "POST",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(graphql.StarwarsSchema(t).RawSchema()),
+						),
+					}),
+				),
+			},
+			fields:           []plan.FieldConfiguration{},
+			expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker","height":"1.99"}}}`,
+		},
+		withFetchReasons(),
+	))
+	t.Run("operation on fragment, subgraph expects fetch reasons for interface and implementing types without dupes", runWithoutError(
+		ExecutionEngineTestCase{
+			schema: graphql.StarwarsSchema(t),
+			operation: func(t *testing.T) graphql.Request {
+				return graphql.Request{
+					Query: `query {
+						hero {
+							...humanFields
+							name
+						}
+					}
+					fragment humanFields on Human {
+						name
+					}`,
+				}
+			},
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     `{"query":"{hero {__typename ... on Human {name} name}}","extensions":{"fetch_reasons":[{"typename":"Character","field":"name","by_user":true},{"typename":"Droid","field":"name","by_user":true},{"typename":"Human","field":"name","by_user":true}]}}`,
+							sendResponseBody: `{"data":{"hero":{"__typename": "Human", "name":"Luke Skywalker"}}}`,
+							sendStatusCode:   200,
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"hero"},
+							},
+							{
+								TypeName:          "Human",
+								FieldNames:        []string{"name", "height", "friends"},
+								FetchReasonFields: []string{"name"}, // implementing is marked
+							},
+							{
+								TypeName:          "Droid",
+								FieldNames:        []string{"name", "primaryFunction", "friends"},
+								FetchReasonFields: []string{"name"}, // implementing is marked
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:          "Character",
+								FieldNames:        []string{"name", "friends"},
+								FetchReasonFields: []string{"name"}, // interface is marked
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "POST",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(graphql.StarwarsSchema(t).RawSchema()),
+						),
+					}),
+				),
+			},
+			fields:           []plan.FieldConfiguration{},
+			expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+		},
+		withFetchReasons(),
 	))
 
 	t.Run("execute simple hero operation with graphql data source and empty errors list", runWithoutError(
@@ -1615,7 +2329,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 		schema, err := graphql.NewSchemaFromString(enumSDL)
 		require.NoError(t, err)
 
-		t.Run("invalid non-nullable enum input", run(
+		t.Run("invalid non-nullable enum input", runExecutionTest(
 			ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
@@ -1678,7 +2392,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			}, true, `Variable "$enum" got invalid value "INVALID"; Value "INVALID" does not exist in "Enum" enum.`,
 		))
 
-		t.Run("nested invalid non-nullable enum input", run(
+		t.Run("nested invalid non-nullable enum input", runExecutionTest(
 			ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
@@ -1749,7 +2463,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			}, true, `Variable "$enum" got invalid value "INVALID"; Value "INVALID" does not exist in "Enum" enum.`,
 		))
 
-		t.Run("invalid nullable enum input", run(
+		t.Run("invalid nullable enum input", runExecutionTest(
 			ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
@@ -1812,7 +2526,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			}, true, `Variable "$enum" got invalid value "INVALID"; Value "INVALID" does not exist in "Enum" enum.`,
 		))
 
-		t.Run("nested invalid nullable enum input", run(
+		t.Run("nested invalid nullable enum input", runExecutionTest(
 			ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
@@ -2483,7 +3197,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			},
 		))
 
-		t.Run("inaccessible non-nullable enum input", run(
+		t.Run("inaccessible non-nullable enum input", runExecutionTest(
 			ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
@@ -2546,7 +3260,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			}, true, `Variable "$enum" got invalid value "INACCESSIBLE"; Value "INACCESSIBLE" does not exist in "Enum" enum.`,
 		))
 
-		t.Run("nested inaccessible non-nullable enum input", run(
+		t.Run("nested inaccessible non-nullable enum input", runExecutionTest(
 			ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
@@ -2617,7 +3331,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			}, true, `Variable "$enum" got invalid value "INACCESSIBLE"; Value "INACCESSIBLE" does not exist in "Enum" enum.`,
 		))
 
-		t.Run("inaccessible nullable enum input", run(
+		t.Run("inaccessible nullable enum input", runExecutionTest(
 			ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
@@ -2680,7 +3394,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			}, true, `Variable "$enum" got invalid value "INACCESSIBLE"; Value "INACCESSIBLE" does not exist in "Enum" enum.`,
 		))
 
-		t.Run("nested inaccessible nullable enum input", run(
+		t.Run("nested inaccessible nullable enum input", runExecutionTest(
 			ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
@@ -3739,6 +4453,1309 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			withValueCompletion(),
 		))
 	})
+
+	t.Run("variables", func(t *testing.T) {
+		t.Run("operation with optional input fields", func(t *testing.T) {
+			schemaString := `
+				type Query {
+					field(arg: Input): String
+				}
+
+				input Input {
+					optional: String
+					required: String!
+				}`
+			schema, err := graphql.NewSchemaFromString(schemaString)
+			require.NoError(t, err)
+
+			t.Run("optional value provided", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schema,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							OperationName: "queryVariables",
+							Variables:     []byte(`{"optional":"optionalValue","required":"requiredValue"}`),
+							Query: `query queryVariables($optional: String, $required: String!) {
+										field(arg: {optional: $optional, required: $required})
+									}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t,
+							"id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost:     "example.com",
+									expectedPath:     "/",
+									expectedBody:     `{"query":"query($a: Input){field(arg: $a)}","variables":{"a":{"optional":"optionalValue","required":"requiredValue"}}}`,
+									sendResponseBody: `{"data":{"field":"response"}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes: []plan.TypeField{
+									{TypeName: "Query", FieldNames: []string{"field"}},
+								},
+							},
+							mustConfiguration(t, graphql_datasource.ConfigurationInput{
+								Fetch: &graphql_datasource.FetchConfiguration{
+									URL:    "https://example.com/",
+									Method: "GET",
+								},
+								SchemaConfiguration: mustSchemaConfig(
+									t,
+									nil,
+									schemaString,
+								),
+							}),
+						),
+					},
+					fields: []plan.FieldConfiguration{
+						{
+							TypeName:  "Query",
+							FieldName: "field",
+							Path:      []string{"field"},
+							Arguments: []plan.ArgumentConfiguration{
+								{
+									Name:       "arg",
+									SourceType: plan.FieldArgumentSource,
+								},
+							},
+						},
+					},
+					expectedResponse: `{"data":{"field":"response"}}`,
+				},
+			))
+
+			t.Run("optional value ommited", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schema,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							OperationName: "queryVariables",
+							Variables:     []byte(`{"required":"requiredValue"}`),
+							Query: `query queryVariables($optional: String, $required: String!) {
+										field(arg: {optional: $optional, required: $required})
+									}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t,
+							"id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost:     "example.com",
+									expectedPath:     "/",
+									expectedBody:     `{"query":"query($a: Input){field(arg: $a)}","variables":{"a":{"required":"requiredValue"}}}`,
+									sendResponseBody: `{"data":{"field":"response"}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes: []plan.TypeField{
+									{TypeName: "Query", FieldNames: []string{"field"}},
+								},
+							},
+							mustConfiguration(t, graphql_datasource.ConfigurationInput{
+								Fetch: &graphql_datasource.FetchConfiguration{
+									URL:    "https://example.com/",
+									Method: "GET",
+								},
+								SchemaConfiguration: mustSchemaConfig(
+									t,
+									nil,
+									schemaString,
+								),
+							}),
+						),
+					},
+					fields: []plan.FieldConfiguration{
+						{
+							TypeName:  "Query",
+							FieldName: "field",
+							Path:      []string{"field"},
+							Arguments: []plan.ArgumentConfiguration{
+								{
+									Name:       "arg",
+									SourceType: plan.FieldArgumentSource,
+								},
+							},
+						},
+					},
+					expectedResponse: `{"data":{"field":"response"}}`,
+				},
+			))
+		})
+	})
+
+	t.Run("execute operation with nested fetch on one of the types", func(t *testing.T) {
+
+		definition := `
+			type User implements Node {
+				id: ID!
+				title: String!
+				some: User!
+			}
+
+			type Admin implements Node {
+				id: ID!
+				title: String!
+				some: User!
+			}
+
+			interface Node {
+				id: ID!
+				title: String!
+				some: User!
+			}
+
+			type Query {
+				accounts: [Node!]!
+			}`
+
+		firstSubgraphSDL := `	
+				type User implements Node @key(fields: "id") {
+					id: ID!
+					title: String! @external
+					some: User!
+				}
+
+				type Admin implements Node @key(fields: "id") {
+					id: ID!
+					title: String! @external
+					some: User!
+				}
+
+				interface Node {
+					id: ID!
+					title: String!
+					some: User!
+				}
+
+				type Query {
+					accounts: [Node!]!
+				}
+			`
+		secondSubgraphSDL := `
+				type User @key(fields: "id") {
+					id: ID!
+					name: String!
+					title: String!
+				}
+
+				type Admin @key(fields: "id") {
+					id: ID!
+					adminName: String!
+					title: String!
+				}
+			`
+
+		type makeDataSourceOpts struct {
+			expectFetchReasons bool
+			includeCostConfig  bool
+		}
+
+		makeDataSource := func(t *testing.T, opts makeDataSourceOpts) []plan.DataSource {
+			var expectedBody1 string
+			var expectedBody2 string
+			if !opts.expectFetchReasons {
+				expectedBody1 = `{"query":"{accounts {__typename ... on User {some {__typename id}} ... on Admin {some {__typename id}}}}"}`
+			} else {
+				expectedBody1 = `{"query":"{accounts {__typename ... on User {some {__typename id}} ... on Admin {some {__typename id}}}}","extensions":{"fetch_reasons":[{"typename":"Admin","field":"some","by_user":true},{"typename":"User","field":"id","by_subgraphs":["id-2"],"by_user":true,"is_key":true}]}}`
+			}
+			expectedBody2 = `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[{"__typename":"User","id":"1"},{"__typename":"User","id":"3"}]}}`
+
+			// Cost config for DS1 (first subgraph): accounts service
+			var ds1CostConfig *plan.DataSourceCostConfig
+			if opts.includeCostConfig {
+				ds1CostConfig = &plan.DataSourceCostConfig{
+					Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+						{TypeName: "Query", FieldName: "accounts"}: {HasWeight: true, Weight: 5},
+						{TypeName: "User", FieldName: "some"}:      {HasWeight: true, Weight: 2},
+						{TypeName: "Admin", FieldName: "some"}:     {HasWeight: true, Weight: 3},
+					},
+					ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+						{TypeName: "Query", FieldName: "accounts"}: {AssumedSize: 3},
+					},
+				}
+			}
+
+			// Cost config for DS2 (second subgraph): extends User/Admin with title
+			var ds2CostConfig *plan.DataSourceCostConfig
+			if opts.includeCostConfig {
+				ds2CostConfig = &plan.DataSourceCostConfig{
+					Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+						{TypeName: "User", FieldName: "name"}:       {HasWeight: true, Weight: 2},
+						{TypeName: "User", FieldName: "title"}:      {HasWeight: true, Weight: 4},
+						{TypeName: "Admin", FieldName: "adminName"}: {HasWeight: true, Weight: 3},
+						{TypeName: "Admin", FieldName: "title"}:     {HasWeight: true, Weight: 5},
+					},
+				}
+			}
+
+			return []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id-1",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "first",
+							expectedPath:     "/",
+							expectedBody:     expectedBody1,
+							sendResponseBody: `{"data":{"accounts":[{"__typename":"User","some":{"__typename":"User","id":"1"}},{"__typename":"Admin","some":{"__typename":"User","id":"2"}},{"__typename":"User","some":{"__typename":"User","id":"3"}}]}}`,
+							sendStatusCode:   200,
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"accounts"},
+							},
+							{
+								TypeName:          "User",
+								FieldNames:        []string{"id", "some"},
+								FetchReasonFields: []string{"id"},
+							},
+							{
+								TypeName:          "Admin",
+								FieldNames:        []string{"id", "some"},
+								FetchReasonFields: []string{"some"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Node",
+								FieldNames: []string{"id", "title", "some"},
+							},
+						},
+						CostConfig: ds1CostConfig,
+						FederationMetaData: plan.FederationMetaData{
+							Keys: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
+								{
+									TypeName:     "Admin",
+									SelectionSet: "id",
+								},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://first/",
+							Method: "POST",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							&graphql_datasource.FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: firstSubgraphSDL,
+							},
+							firstSubgraphSDL,
+						),
+					}),
+				),
+				mustGraphqlDataSourceConfiguration(t,
+					"id-2",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "second",
+							expectedPath:     "/",
+							expectedBody:     expectedBody2,
+							sendResponseBody: `{"data":{"_entities":[{"__typename":"User","title":"User1"},{"__typename":"User","title":"User3"}]}}`,
+							sendStatusCode:   200,
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "User",
+								FieldNames: []string{"id", "name", "title"},
+							},
+							{
+								TypeName:   "Admin",
+								FieldNames: []string{"id", "adminName", "title"},
+							},
+						},
+						CostConfig: ds2CostConfig,
+						FederationMetaData: plan.FederationMetaData{
+							Keys: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
+								{
+									TypeName:     "Admin",
+									SelectionSet: "id",
+								},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://second/",
+							Method: "POST",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							&graphql_datasource.FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: secondSubgraphSDL,
+							},
+							secondSubgraphSDL,
+						),
+					}),
+				),
+			}
+		}
+
+		t.Run("run", runWithoutError(ExecutionEngineTestCase{
+			schema: func(t *testing.T) *graphql.Schema {
+				t.Helper()
+				parseSchema, err := graphql.NewSchemaFromString(definition)
+				require.NoError(t, err)
+				return parseSchema
+			}(t),
+			operation: func(t *testing.T) graphql.Request {
+				return graphql.Request{
+					OperationName: "Accounts",
+					Query: `
+						query Accounts {
+							accounts {
+								... on User {
+									some {
+										title
+									}
+								}
+								... on Admin {
+									some {
+										__typename
+										id
+									}
+								}
+							}
+						}`,
+				}
+			},
+			dataSources:      makeDataSource(t, makeDataSourceOpts{expectFetchReasons: false}),
+			expectedResponse: `{"data":{"accounts":[{"some":{"title":"User1"}},{"some":{"__typename":"User","id":"2"}},{"some":{"title":"User3"}}]}}`,
+		}))
+
+		t.Run("run with extension", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: func(t *testing.T) *graphql.Schema {
+					t.Helper()
+					parseSchema, err := graphql.NewSchemaFromString(definition)
+					require.NoError(t, err)
+					return parseSchema
+				}(t),
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Accounts",
+						Query: `
+							query Accounts {
+								accounts {
+									... on User {
+										some {
+											title
+										}
+									}
+									... on Admin {
+										some {
+											__typename
+											id
+										}
+									}
+								}
+							}`,
+					}
+				},
+				dataSources:      makeDataSource(t, makeDataSourceOpts{expectFetchReasons: true}),
+				expectedResponse: `{"data":{"accounts":[{"some":{"title":"User1"}},{"some":{"__typename":"User","id":"2"}},{"some":{"title":"User3"}}]}}`,
+			},
+			withFetchReasons(),
+		))
+
+		t.Run("run with static cost computation", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: func(t *testing.T) *graphql.Schema {
+					t.Helper()
+					parseSchema, err := graphql.NewSchemaFromString(definition)
+					require.NoError(t, err)
+					return parseSchema
+				}(t),
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Accounts",
+						Query: `
+							query Accounts {
+								accounts {
+									... on User {
+										some {
+											title
+										}
+									}
+									... on Admin {
+										some {
+											__typename
+											id
+										}
+									}
+								}
+							}`,
+					}
+				},
+				dataSources:      makeDataSource(t, makeDataSourceOpts{includeCostConfig: true}),
+				expectedResponse: `{"data":{"accounts":[{"some":{"title":"User1"}},{"some":{"__typename":"User","id":"2"}},{"some":{"title":"User3"}}]}}`,
+				// Cost breakdown with federation:
+				// Query.accounts: fieldCost=5, multiplier=3 (listSize)
+				//   accounts returns interface [Node!]! with implementing types [User, Admin]
+				//
+				// Children (per interface member type):
+				//   User.some: User: fieldCost=3 (DS1:2 + DS2:1 summed)
+				//     User.title: 4 (DS2, resolved via _entities federation)
+				//   cost = 3 + 4 = 7
+				//
+				//   Admin.some: User: fieldCost=3 (DS1 only)
+				//   cost = 3
+				//
+				// Children total = 7 + 3 = 10
+				// (is it possible to improve accuracy here by using the largest fragment instead of the sum?)
+				// Total = (5 + 10) * 3 = 45
+				expectedEstimatedCost: 45,
+			},
+			computeCosts(),
+		))
+	})
+
+	t.Run("validation of optional @requires dependencies", func(t *testing.T) {
+
+		t.Run("execute operation with @requires and @external", func(t *testing.T) {
+			definition := `
+				type User {
+					id: ID!
+					title: String
+					full: String
+				}
+				type Query {
+					accounts: [User!]!
+				}`
+			firstSubgraphSDL := `
+				type User @key(fields: "id") {
+					id: ID!
+					title: String @external
+					full: String @requires(fields: "title")
+				}
+				type Query {
+					accounts: [User!]!
+				}`
+			secondSubgraphSDL := `
+				type User @key(fields: "id") {
+					id: ID!
+					title: String
+				}`
+
+			datasources := []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id-1",
+					mustFactory(t,
+						testConditionalNetHttpClient(t, conditionalTestCase{
+							expectedHost: "first",
+							expectedPath: "/",
+							responses: map[string]sendResponse{
+								`{"query":"{accounts {id __typename}}"}`: {
+									statusCode: 200,
+									body:       `{"data":{"accounts":[{"__typename":"User","id":"1"},{"__typename":"User","id":"3"}]}}`,
+								},
+								`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename full}}}","variables":{"representations":[{"__typename":"User","title":"User1","id":"1"},{"__typename":"User","title":"User3","id":"3"}]}}`: {
+									statusCode: 200,
+									body:       `{"data":{"_entities":[{"__typename":"User","full":"User1 full"},{"__typename":"User","full":"User3 full"}]}}`,
+								},
+							},
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"accounts"},
+							},
+							{
+								TypeName:           "User",
+								FieldNames:         []string{"id", "full"},
+								ExternalFieldNames: []string{"title"},
+							},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
+							},
+							Requires: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "User",
+									FieldName:    "full",
+									SelectionSet: "title",
+								},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://first/",
+							Method: "POST",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							&graphql_datasource.FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: firstSubgraphSDL,
+							},
+							firstSubgraphSDL,
+						),
+					}),
+				),
+				mustGraphqlDataSourceConfiguration(t,
+					"id-2",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "second",
+							expectedPath:     "/",
+							expectedBody:     `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[{"__typename":"User","id":"1"},{"__typename":"User","id":"3"}]}}`,
+							sendResponseBody: `{"data":{"_entities":[{"__typename":"User","title":"User1"},{"__typename":"User","title":"User3"}]}}`,
+							sendStatusCode:   200,
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "User",
+								FieldNames: []string{"id", "title"},
+							},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://second/",
+							Method: "POST",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							&graphql_datasource.FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: secondSubgraphSDL,
+							},
+							secondSubgraphSDL,
+						),
+					}),
+				),
+			}
+
+			t.Run("run", runWithoutError(ExecutionEngineTestCase{
+				schema: func(t *testing.T) *graphql.Schema {
+					t.Helper()
+					parseSchema, err := graphql.NewSchemaFromString(definition)
+					require.NoError(t, err)
+					return parseSchema
+				}(t),
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Accounts",
+						Query: `
+							query Accounts {
+								accounts {
+									... on User {
+										id
+										full
+									}
+								}
+							}`,
+					}
+				},
+				dataSources: datasources,
+				expectedJSONResponse: `{"data":{"accounts":[
+					{"id":"1","full":"User1 full"},
+					{"id":"3","full":"User3 full"}
+				]}}`,
+			}))
+		})
+
+		t.Run("do not validate non-nullable @requires dependencies", func(t *testing.T) {
+			definition := `
+				type Query {
+					accounts: [User!]!
+				}
+				type User {
+					id: ID!
+					title: String!
+					full: String
+				}`
+			firstSubgraphSDL := `
+				type Query {
+					accounts: [User!]!
+				}
+				type User @key(fields: "id") {
+					id: ID!
+					title: String! @external
+					full: String @requires(fields: "title")
+				}`
+			secondSubgraphSDL := `
+				type User @key(fields: "id") {
+					id: ID!
+					title: String!
+				}`
+			// Expected:
+			// fetch (id-1) returns all,
+			// fetch (id-2) returns broken data and maybe an error,
+			// fetch (id-1) made with partial data, returns all
+			datasources := []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id-1",
+					mustFactory(t,
+						testConditionalNetHttpClient(t, conditionalTestCase{
+							expectedHost: "first",
+							expectedPath: "/",
+							responses: map[string]sendResponse{
+								`{"query":"{accounts {id __typename}}"}`: {
+									statusCode: 200,
+									body:       `{"data":{"accounts":[{"__typename":"User","id":"1"},{"__typename":"User","id":"3"}]}}`,
+								},
+								`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename full}}}","variables":{"representations":[{"__typename":"User","title":"User3","id":"3"}]}}`: {
+									statusCode: 200,
+									body:       `{"data":{"_entities":[{"__typename":"User","full":"User3 full"}]}}`,
+								},
+							},
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"accounts"},
+							},
+							{
+								TypeName:           "User",
+								FieldNames:         []string{"id", "full"},
+								ExternalFieldNames: []string{"title"},
+							},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
+							},
+							Requires: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "User",
+									FieldName:    "full",
+									SelectionSet: "title",
+								},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://first/",
+							Method: "POST",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							&graphql_datasource.FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: firstSubgraphSDL,
+							},
+							firstSubgraphSDL,
+						),
+					}),
+				),
+				mustGraphqlDataSourceConfiguration(t,
+					"id-2",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "second",
+							expectedPath:     "/",
+							expectedBody:     `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[{"__typename":"User","id":"1"},{"__typename":"User","id":"3"}]}}`,
+							sendResponseBody: `{"data":{"_entities":[{"__typename":"User","title":null},{"__typename":"User","title":"User3"}]},"errors":[{"message":"Cannot provide value","locations":[{"line":1,"column":30}],"path":["_entities",0,"title"]}]}`,
+							sendStatusCode:   200,
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "User",
+								FieldNames: []string{"id", "title"},
+							},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://second/",
+							Method: "POST",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							&graphql_datasource.FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: secondSubgraphSDL,
+							},
+							secondSubgraphSDL,
+						),
+					}),
+				),
+			}
+
+			t.Run("run", runWithoutError(ExecutionEngineTestCase{
+				schema: func(t *testing.T) *graphql.Schema {
+					t.Helper()
+					parseSchema, err := graphql.NewSchemaFromString(definition)
+					require.NoError(t, err)
+					return parseSchema
+				}(t),
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Accounts",
+						Query: `
+							query Accounts {
+								accounts {
+									... on User {
+										id
+										full
+									}
+								}
+							}`,
+					}
+				},
+				dataSources: datasources,
+				// The error message is not affected by the handling of optional "requires" fields.
+				expectedJSONResponse: `{"data":{
+					"accounts":[
+						{"id":"1","full":null},
+						{"id":"3","full":"User3 full"}
+					]},"errors":[
+						{"message":"Failed to fetch from Subgraph 'id-2' at Path 'accounts'."}
+					]}`,
+			}, withFetchReasons(), validateRequiredExternalFields()))
+		})
+
+		t.Run("validate nullable @requires dependencies", func(t *testing.T) {
+			definition := `
+				type Query {
+					accounts: [User!]!
+				}
+				type User {
+					id: ID!
+					title: String
+					full: String
+				}`
+			firstSubgraphSDL := `
+				type Query {
+					accounts: [User!]!
+				}
+				type User @key(fields: "id") {
+					id: ID!
+					title: String @external
+					full: String @requires(fields: "title")
+				}`
+			secondSubgraphSDL := `
+				type User @key(fields: "id") {
+					id: ID!
+					title: String
+				}`
+			// Expected:
+			// fetch (id-1) returns all,
+			// fetch (id-2) returns partial data and error,
+			// fetch (id-1) made with partial data, returns all
+			datasources := []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id-1",
+					mustFactory(t,
+						testConditionalNetHttpClient(t, conditionalTestCase{
+							expectedHost: "first",
+							expectedPath: "/",
+							responses: map[string]sendResponse{
+								`{"query":"{accounts {id __typename}}"}`: {
+									statusCode: 200,
+									body:       `{"data":{"accounts":[{"__typename":"User","id":"1"},{"__typename":"User","id":"3"}]}}`,
+								},
+								`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename full}}}","variables":{"representations":[{"__typename":"User","title":"User3","id":"3"}]}}`: {
+									statusCode: 200,
+									body:       `{"data":{"_entities":[{"__typename":"User","full":"User3 full"}]}}`,
+								},
+							},
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"accounts"},
+							},
+							{
+								TypeName:           "User",
+								FieldNames:         []string{"id", "full"},
+								ExternalFieldNames: []string{"title"},
+							},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
+							},
+							Requires: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "User",
+									FieldName:    "full",
+									SelectionSet: "title",
+								},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://first/",
+							Method: "POST",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							&graphql_datasource.FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: firstSubgraphSDL,
+							},
+							firstSubgraphSDL,
+						),
+					}),
+				),
+				mustGraphqlDataSourceConfiguration(t,
+					"id-2",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "second",
+							expectedPath:     "/",
+							expectedBody:     `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[{"__typename":"User","id":"1"},{"__typename":"User","id":"3"}]}}`,
+							sendResponseBody: `{"data":{"_entities":[{"__typename":"User","title":null},{"__typename":"User","title":"User3"}]},"errors":[{"message":"Cannot provide value","locations":[{"line":1,"column":30}],"path":["_entities",0,"title"]}]}`,
+							sendStatusCode:   200,
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "User",
+								FieldNames: []string{"id", "title"},
+							},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://second/",
+							Method: "POST",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							&graphql_datasource.FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: secondSubgraphSDL,
+							},
+							secondSubgraphSDL,
+						),
+					}),
+				),
+			}
+
+			t.Run("run", runWithoutError(ExecutionEngineTestCase{
+				schema: func(t *testing.T) *graphql.Schema {
+					t.Helper()
+					parseSchema, err := graphql.NewSchemaFromString(definition)
+					require.NoError(t, err)
+					return parseSchema
+				}(t),
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Accounts",
+						Query: `
+					query Accounts {
+						accounts {
+							... on User {
+								id
+								full
+							}
+						}
+					}`,
+					}
+				},
+				dataSources: datasources,
+				expectedJSONResponse: `{"data":{
+					"accounts":[
+						{"id":"1","full":null},
+						{"id":"3","full":"User3 full"}
+					]},"errors":[
+						{"message":"Failed to obtain field dependencies from Subgraph 'id-2' at Path 'accounts'."},
+						{"message":"Failed to fetch from Subgraph 'id-2' at Path 'accounts'."}
+					]}`,
+			}, withFetchReasons(), validateRequiredExternalFields()))
+		})
+
+		t.Run("validate nested nullable @requires dependencies", func(t *testing.T) {
+			definition := `
+				type Query {
+					accounts: [User!]!
+				}
+				type User {
+					id: ID!
+					nested: Nested!
+					complex: String
+				}
+				type Nested {
+					property: String
+					name: String
+				}`
+			firstSubgraphSDL := `
+				type Query {
+					accounts: [User!]!
+				}
+				type User @key(fields: "id") {
+					id: ID!
+					nested: Nested! @external
+					complex: String @requires(fields: "nested { property name }")
+				}
+				type Nested {
+					property: String @external
+					name: String @external
+				}`
+			secondSubgraphSDL := `
+				type User @key(fields: "id") {
+					id: ID!
+					nested: Nested!
+				}
+				type Nested {
+					property: String
+					name: String
+				}`
+
+			// expected fetches:
+			// id-1, fetch returns all,
+			// id-2, fetch returns partial data and error,
+			// id-1, fetch made with partial data, returns all
+			datasources := []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id-1",
+					mustFactory(t,
+						testConditionalNetHttpClient(t, conditionalTestCase{
+							expectedHost: "first",
+							expectedPath: "/",
+							responses: map[string]sendResponse{
+								`{"query":"{accounts {id __typename}}"}`: {
+									statusCode: 200,
+									body:       `{"data":{"accounts":[{"__typename":"User","id":"1"},{"__typename":"User","id":"2"},{"__typename":"User","id":"3"},{"__typename":"User","id":"4"}]}}`,
+								},
+								`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename complex}}}","variables":{"representations":[{"__typename":"User","nested":{"property":"property1","name":"name1"},"id":"1"},{"__typename":"User","nested":{"property":"property4","name":"name4"},"id":"4"}]}}`: {
+									statusCode: 200,
+									body:       `{"data":{"_entities":[{"__typename":"User","complex":"complex1"},{"__typename":"User","complex":"complex4"}]}}`,
+								},
+							},
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"accounts"},
+							},
+							{
+								TypeName:           "User",
+								FieldNames:         []string{"id", "complex"},
+								ExternalFieldNames: []string{"nested"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:           "Nested",
+								ExternalFieldNames: []string{"property", "name"},
+							},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
+							},
+							Requires: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "User",
+									FieldName:    "complex",
+									SelectionSet: "nested { property name }",
+								},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://first/",
+							Method: "POST",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							&graphql_datasource.FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: firstSubgraphSDL,
+							},
+							firstSubgraphSDL,
+						),
+					}),
+				),
+				mustGraphqlDataSourceConfiguration(t,
+					"id-2",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
+							expectedHost: "second",
+							expectedPath: "/",
+							expectedBody: `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename nested {__typename property name}}}}","variables":{"representations":[{"__typename":"User","id":"1"},{"__typename":"User","id":"2"},{"__typename":"User","id":"3"},{"__typename":"User","id":"4"}]}}`,
+							sendResponseBody: `{"data":{"_entities":[
+								{"__typename":"User","nested":{"__typename":"Nested","property":"property1","name":"name1"}},
+								{"__typename":"User","nested":{"__typename":"Nested","property":null,"name":"name2"}},
+								{"__typename":"User","nested":{"__typename":"Nested","property":"property3","name":null}},
+								{"__typename":"User","nested":{"__typename":"Nested","property":"property4","name":"name4"}}
+							]},"errors":[
+								{"message":"Cannot provide value","locations":[{"line":1,"column":30}],"path":["_entities",1,"nested","property"]},
+								{"message":"Cannot provide value","locations":[{"line":1,"column":30}],"path":["_entities",2,"nested","name"]}
+							]}`,
+							sendStatusCode: 200,
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "User",
+								FieldNames: []string{"id", "nested"},
+							},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Nested",
+								FieldNames: []string{"property", "name"},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://second/",
+							Method: "POST",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							&graphql_datasource.FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: secondSubgraphSDL,
+							},
+							secondSubgraphSDL,
+						),
+					}),
+				),
+			}
+
+			t.Run("run", runWithoutError(ExecutionEngineTestCase{
+				schema: func(t *testing.T) *graphql.Schema {
+					t.Helper()
+					parseSchema, err := graphql.NewSchemaFromString(definition)
+					require.NoError(t, err)
+					return parseSchema
+				}(t),
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Accounts",
+						Query: `
+							query Accounts {
+								accounts {
+									... on User {
+										id
+										complex
+									}
+								}
+							}`,
+					}
+				},
+				dataSources: datasources,
+				expectedJSONResponse: `{"data":{
+					"accounts":[
+						{"id":"1","complex":"complex1"},
+						{"id":"2","complex":null},
+						{"id":"3","complex":null},
+						{"id":"4","complex":"complex4"}
+					]},"errors":[
+						{"message":"Failed to obtain field dependencies from Subgraph 'id-2' at Path 'accounts'."},
+						{"message":"Failed to fetch from Subgraph 'id-2' at Path 'accounts'."}
+					]}`,
+			}, withFetchReasons(), validateRequiredExternalFields()))
+		})
+	})
+
+	t.Run("field merging with different nullability on non-overlapping union types", func(t *testing.T) {
+		unionSchema := `
+			union Entity = User | Organization
+			type Query { entity: Entity }
+			type User { id: ID!, email: String! }
+			type Organization { id: ID!, email: String }
+		`
+		schema, err := graphql.NewSchemaFromString(unionSchema)
+		require.NoError(t, err)
+
+		rootNodes := []plan.TypeField{
+			{TypeName: "Query", FieldNames: []string{"entity"}},
+			{TypeName: "User", FieldNames: []string{"id", "email"}},
+			{TypeName: "Organization", FieldNames: []string{"id", "email"}},
+		}
+
+		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+			Fetch: &graphql_datasource.FetchConfiguration{
+				URL:    "https://example.com/",
+				Method: "POST",
+			},
+			SchemaConfiguration: mustSchemaConfig(t, nil, unionSchema),
+		})
+
+		fieldConfig := []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "entity",
+				Path:      []string{"entity"},
+			},
+		}
+
+		t.Run("without relaxation flag, validation rejects differing nullability", runWithAndCompareError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "O",
+						Query:         `query O { entity { ... on User { email } ... on Organization { email } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "ds-id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"entity":{"__typename":"User","email":"user@test.com"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: rootNodes,
+						},
+						customConfig,
+					),
+				},
+				fields: fieldConfig,
+			},
+			`fields 'email' conflict because they return conflicting types 'String!' and 'String', locations: [], path: [query,entity,$1Organization]`,
+		))
+
+		t.Run("non-null email from User type", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "O",
+						Query:         `query O { entity { ... on User { email } ... on Organization { email } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "ds-id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"entity":{"__typename":"User","email":"user@test.com"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: rootNodes,
+						},
+						customConfig,
+					),
+				},
+				fields:           fieldConfig,
+				expectedResponse: `{"data":{"entity":{"email":"user@test.com"}}}`,
+			},
+			relaxFieldSelectionMergingNullability(),
+		))
+
+		t.Run("null email from Organization type", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "O",
+						Query:         `query O { entity { ... on User { email } ... on Organization { email } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "ds-id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"entity":{"__typename":"Organization","email":null}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: rootNodes,
+						},
+						customConfig,
+					),
+				},
+				fields:           fieldConfig,
+				expectedResponse: `{"data":{"entity":{"email":null}}}`,
+			},
+			relaxFieldSelectionMergingNullability(),
+		))
+	})
 }
 
 func testNetHttpClient(t *testing.T, testCase roundTripperTestCase) *http.Client {
@@ -3747,6 +5764,18 @@ func testNetHttpClient(t *testing.T, testCase roundTripperTestCase) *http.Client
 	defaultClient := httpclient.DefaultNetHttpClient
 	return &http.Client{
 		Transport:     createTestRoundTripper(t, testCase),
+		CheckRedirect: defaultClient.CheckRedirect,
+		Jar:           defaultClient.Jar,
+		Timeout:       defaultClient.Timeout,
+	}
+}
+
+func testConditionalNetHttpClient(t *testing.T, testCase conditionalTestCase) *http.Client {
+	t.Helper()
+
+	defaultClient := httpclient.DefaultNetHttpClient
+	return &http.Client{
+		Transport:     createConditionalTestRoundTripper(t, testCase),
 		CheckRedirect: defaultClient.CheckRedirect,
 		Jar:           defaultClient.Jar,
 		Timeout:       defaultClient.Timeout,
@@ -3832,7 +5861,7 @@ func TestExecutionEngine_GetCachedPlan(t *testing.T) {
 		}
 
 		report := operationreport.Report{}
-		cachedPlan := engine.getCachedPlan(firstInternalExecCtx, gqlRequest.Document(), schema.Document(), gqlRequest.OperationName, &report)
+		cachedPlan, _ := engine.getCachedPlan(firstInternalExecCtx, gqlRequest.Document(), schema.Document(), gqlRequest.OperationName, &report)
 		_, oldestCachedPlan, _ := engine.executionPlanCache.GetOldest()
 		assert.False(t, report.HasErrors())
 		assert.Equal(t, 1, engine.executionPlanCache.Len())
@@ -3843,7 +5872,7 @@ func TestExecutionEngine_GetCachedPlan(t *testing.T) {
 			http.CanonicalHeaderKey("Authorization"): []string{"123abc"},
 		}
 
-		cachedPlan = engine.getCachedPlan(secondInternalExecCtx, gqlRequest.Document(), schema.Document(), gqlRequest.OperationName, &report)
+		cachedPlan, _ = engine.getCachedPlan(secondInternalExecCtx, gqlRequest.Document(), schema.Document(), gqlRequest.OperationName, &report)
 		_, oldestCachedPlan, _ = engine.executionPlanCache.GetOldest()
 		assert.False(t, report.HasErrors())
 		assert.Equal(t, 1, engine.executionPlanCache.Len())
@@ -3860,7 +5889,7 @@ func TestExecutionEngine_GetCachedPlan(t *testing.T) {
 		}
 
 		report := operationreport.Report{}
-		cachedPlan := engine.getCachedPlan(firstInternalExecCtx, gqlRequest.Document(), schema.Document(), gqlRequest.OperationName, &report)
+		cachedPlan, _ := engine.getCachedPlan(firstInternalExecCtx, gqlRequest.Document(), schema.Document(), gqlRequest.OperationName, &report)
 		_, oldestCachedPlan, _ := engine.executionPlanCache.GetOldest()
 		assert.False(t, report.HasErrors())
 		assert.Equal(t, 1, engine.executionPlanCache.Len())
@@ -3871,7 +5900,7 @@ func TestExecutionEngine_GetCachedPlan(t *testing.T) {
 			http.CanonicalHeaderKey("Authorization"): []string{"xyz098"},
 		}
 
-		cachedPlan = engine.getCachedPlan(secondInternalExecCtx, differentGqlRequest.Document(), schema.Document(), differentGqlRequest.OperationName, &report)
+		cachedPlan, _ = engine.getCachedPlan(secondInternalExecCtx, differentGqlRequest.Document(), schema.Document(), differentGqlRequest.OperationName, &report)
 		_, oldestCachedPlan, _ = engine.executionPlanCache.GetOldest()
 		assert.False(t, report.HasErrors())
 		assert.Equal(t, 2, engine.executionPlanCache.Len())
@@ -3883,16 +5912,22 @@ func BenchmarkIntrospection(b *testing.B) {
 	schema := graphql.StarwarsSchema(b)
 	engineConf := NewConfiguration(schema)
 
-	expectedResponse := []byte(`{"data":{"__schema":{"queryType":{"name":"Query"},"mutationType":{"name":"Mutation"},"subscriptionType":{"name":"Subscription"},"types":[{"kind":"UNION","name":"SearchResult","description":"","fields":null,"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[{"kind":"OBJECT","name":"Human","ofType":null},{"kind":"OBJECT","name":"Droid","ofType":null},{"kind":"OBJECT","name":"Starship","ofType":null}]},{"kind":"OBJECT","name":"Query","description":"","fields":[{"name":"hero","description":"","args":[],"type":{"kind":"INTERFACE","name":"Character","ofType":null},"isDeprecated":true,"deprecationReason":"No longer supported"},{"name":"droid","description":"","args":[{"name":"id","description":"","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"ID","ofType":null}},"defaultValue":null}],"type":{"kind":"OBJECT","name":"Droid","ofType":null},"isDeprecated":false,"deprecationReason":null},{"name":"search","description":"","args":[{"name":"name","description":"","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","ofType":null}},"defaultValue":null}],"type":{"kind":"UNION","name":"SearchResult","ofType":null},"isDeprecated":false,"deprecationReason":null},{"name":"searchResults","description":"","args":[],"type":{"kind":"LIST","name":null,"ofType":{"kind":"UNION","name":"SearchResult","ofType":null}},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"OBJECT","name":"Mutation","description":"","fields":[{"name":"createReview","description":"","args":[{"name":"episode","description":"","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"ENUM","name":"Episode","ofType":null}},"defaultValue":null},{"name":"review","description":"","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"INPUT_OBJECT","name":"ReviewInput","ofType":null}},"defaultValue":null}],"type":{"kind":"OBJECT","name":"Review","ofType":null},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"OBJECT","name":"Subscription","description":"","fields":[{"name":"remainingJedis","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Int","ofType":null}},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"INPUT_OBJECT","name":"ReviewInput","description":"","fields":null,"inputFields":[{"name":"stars","description":"","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Int","ofType":null}},"defaultValue":null},{"name":"commentary","description":"","type":{"kind":"SCALAR","name":"String","ofType":null},"defaultValue":null}],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"OBJECT","name":"Review","description":"","fields":[{"name":"id","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"ID","ofType":null}},"isDeprecated":false,"deprecationReason":null},{"name":"stars","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Int","ofType":null}},"isDeprecated":false,"deprecationReason":null},{"name":"commentary","description":"","args":[],"type":{"kind":"SCALAR","name":"String","ofType":null},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"ENUM","name":"Episode","description":"","fields":null,"inputFields":[],"interfaces":[],"enumValues":[{"name":"NEWHOPE","description":"","isDeprecated":false,"deprecationReason":null},{"name":"EMPIRE","description":"","isDeprecated":false,"deprecationReason":null},{"name":"JEDI","description":"","isDeprecated":true,"deprecationReason":"No longer supported"}],"possibleTypes":[]},{"kind":"INTERFACE","name":"Character","description":"","fields":[{"name":"name","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","ofType":null}},"isDeprecated":false,"deprecationReason":null},{"name":"friends","description":"","args":[],"type":{"kind":"LIST","name":null,"ofType":{"kind":"INTERFACE","name":"Character","ofType":null}},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[{"kind":"OBJECT","name":"Human","ofType":null},{"kind":"OBJECT","name":"Droid","ofType":null}]},{"kind":"OBJECT","name":"Human","description":"","fields":[{"name":"name","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","ofType":null}},"isDeprecated":false,"deprecationReason":null},{"name":"height","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","ofType":null}},"isDeprecated":true,"deprecationReason":"No longer supported"},{"name":"friends","description":"","args":[],"type":{"kind":"LIST","name":null,"ofType":{"kind":"INTERFACE","name":"Character","ofType":null}},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[{"kind":"INTERFACE","name":"Character","ofType":null}],"enumValues":null,"possibleTypes":[]},{"kind":"OBJECT","name":"Droid","description":"","fields":[{"name":"name","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","ofType":null}},"isDeprecated":false,"deprecationReason":null},{"name":"primaryFunction","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","ofType":null}},"isDeprecated":false,"deprecationReason":null},{"name":"friends","description":"","args":[],"type":{"kind":"LIST","name":null,"ofType":{"kind":"INTERFACE","name":"Character","ofType":null}},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[{"kind":"INTERFACE","name":"Character","ofType":null}],"enumValues":null,"possibleTypes":[]},{"kind":"INTERFACE","name":"Vehicle","description":"","fields":[{"name":"length","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Float","ofType":null}},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[{"kind":"OBJECT","name":"Starship","ofType":null}]},{"kind":"OBJECT","name":"Starship","description":"","fields":[{"name":"name","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","ofType":null}},"isDeprecated":false,"deprecationReason":null},{"name":"length","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Float","ofType":null}},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[{"kind":"INTERFACE","name":"Vehicle","ofType":null}],"enumValues":null,"possibleTypes":[]},{"kind":"SCALAR","name":"Int","description":"The 'Int' scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.","fields":null,"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"SCALAR","name":"Float","description":"The 'Float' scalar type represents signed double-precision fractional values as specified by [IEEE 754](http://en.wikipedia.org/wiki/IEEE_floating_point).","fields":null,"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"SCALAR","name":"String","description":"The 'String' scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.","fields":null,"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"SCALAR","name":"Boolean","description":"The 'Boolean' scalar type represents 'true' or 'false' .","fields":null,"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"SCALAR","name":"ID","description":"The 'ID' scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as '4') or integer (such as 4) input value will be accepted as an ID.","fields":null,"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]}],"directives":[{"name":"include","description":"Directs the executor to include this field or fragment only when the argument is true.","locations":["FIELD","FRAGMENT_SPREAD","INLINE_FRAGMENT"],"args":[{"name":"if","description":"Included when true.","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Boolean","ofType":null}},"defaultValue":null}]},{"name":"skip","description":"Directs the executor to skip this field or fragment when the argument is true.","locations":["FIELD","FRAGMENT_SPREAD","INLINE_FRAGMENT"],"args":[{"name":"if","description":"Skipped when true.","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Boolean","ofType":null}},"defaultValue":null}]},{"name":"deprecated","description":"Marks an element of a GraphQL schema as no longer supported.","locations":["FIELD_DEFINITION","ENUM_VALUE"],"args":[{"name":"reason","description":"Explains why this element was deprecated, usually also including a suggestion\n    for how to access supported similar data. Formatted in\n    [Markdown](https://daringfireball.net/projects/markdown/).","type":{"kind":"SCALAR","name":"String","ofType":null},"defaultValue":"\"No longer supported\""}]}]}}}`)
+	// Read expected response from goldie fixture
+	expectedResponseIndented, err := os.ReadFile("testdata/full_introspection.json")
+	require.NoError(b, err)
+
+	// Minify the JSON to match the engine output format (preserve key order)
+	var buf bytes.Buffer
+	err = json.Compact(&buf, expectedResponseIndented)
+	require.NoError(b, err)
+	expectedResponse := buf.Bytes()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
 	type benchCase struct {
 		engine *ExecutionEngine
 		writer *graphql.EngineResultWriter
 	}
-
 	newEngine := func() *ExecutionEngine {
 		engine, err := NewExecutionEngine(ctx, abstractlogger.NoopLogger, engineConf, resolve.ResolverOptions{
 			MaxConcurrency: 1024,
@@ -3916,7 +5951,7 @@ func BenchmarkIntrospection(b *testing.B) {
 	writer := graphql.NewEngineResultWriter()
 	engine := newEngine()
 	require.NoError(b, engine.Execute(ctx, &req, &writer))
-	require.Equal(b, expectedResponse, writer.Bytes())
+	require.Equal(b, string(expectedResponse), writer.String())
 
 	pool := sync.Pool{
 		New: func() interface{} {
@@ -3933,10 +5968,8 @@ func BenchmarkIntrospection(b *testing.B) {
 			bc := pool.Get().(*benchCase)
 			bc.writer.Reset()
 			require.NoError(b, bc.engine.Execute(ctx, &req, bc.writer))
-			if !bytes.Equal(expectedResponse, bc.writer.Bytes()) {
-				require.Equal(b, string(expectedResponse), bc.writer.String())
-			}
-
+			require.True(b, bytes.Equal(expectedResponse, bc.writer.Bytes()))
+			// no point to use JSONEq here because JSONEq would contaminate results
 			pool.Put(bc)
 		}
 	})
@@ -3946,12 +5979,10 @@ func BenchmarkIntrospection(b *testing.B) {
 func BenchmarkExecutionEngine(b *testing.B) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
 	type benchCase struct {
 		engine *ExecutionEngine
 		writer *graphql.EngineResultWriter
 	}
-
 	newEngine := func() *ExecutionEngine {
 		schema, err := graphql.NewSchemaFromString(`type Query { hello: String}`)
 		require.NoError(b, err)
@@ -3965,7 +5996,7 @@ func BenchmarkExecutionEngine(b *testing.B) {
 				},
 			},
 			staticdatasource.Configuration{
-				Data: `"world"`,
+				Data: `{"hello": "world"}`,
 			},
 		)
 		require.NoError(b, err)
@@ -3976,9 +6007,8 @@ func BenchmarkExecutionEngine(b *testing.B) {
 		})
 		engineConf.SetFieldConfigurations([]plan.FieldConfiguration{
 			{
-				TypeName:              "Query",
-				FieldName:             "hello",
-				DisableDefaultMapping: true,
+				TypeName:  "Query",
+				FieldName: "hello",
 			},
 		})
 
@@ -4022,7 +6052,9 @@ func BenchmarkExecutionEngine(b *testing.B) {
 		for pb.Next() {
 			bc := pool.Get().(*benchCase)
 			bc.writer.Reset()
-			_ = bc.engine.Execute(ctx, &req, bc.writer)
+			if err := bc.engine.Execute(ctx, &req, bc.writer); err != nil {
+				b.Fatal(err)
+			}
 			pool.Put(bc)
 		}
 	})
@@ -4415,16 +6447,16 @@ type Query {
 	me: User
 	topProducts(first: Int = 5): [Product]
 }
-		
+
 type Mutation {
 	setPrice(upc: String!, price: Int!): Product
-} 
+}
 
 type Subscription {
 	updatedPrice: Product!
 	counter: Int!
 }
-		
+
 type User {
 	id: ID!
 	name: String
@@ -4497,10 +6529,10 @@ const enumSDL = `
 		nullableEnums: [Enum]!
 		nestedEnums: Object!
 	}
-	
+
 	enum Enum {
 		A
-		B 
+		B
 		INACCESSIBLE @inaccessible
 	}
 

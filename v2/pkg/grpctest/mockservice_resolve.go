@@ -1,0 +1,1117 @@
+package grpctest
+
+import (
+	"context"
+	"fmt"
+	"strconv"
+
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/types/known/wrapperspb"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/productv1"
+)
+
+// ResolveProductMascotRecommendation implements productv1.ProductServiceServer.
+func (s *MockService) ResolveProductMascotRecommendation(_ context.Context, req *productv1.ResolveProductMascotRecommendationRequest) (*productv1.ResolveProductMascotRecommendationResponse, error) {
+	results := make([]*productv1.ResolveProductMascotRecommendationResult, 0, len(req.GetContext()))
+
+	includeDetails := false
+	if req.GetFieldArgs() != nil {
+		includeDetails = req.GetFieldArgs().GetIncludeDetails()
+	}
+
+	for i, ctx := range req.GetContext() {
+		// Alternate between Cat and Dog based on index
+		var animal *productv1.Animal
+		if i%2 == 0 {
+			volume := int32(5)
+			if includeDetails {
+				volume = int32((i + 1) * 8)
+			}
+			animal = &productv1.Animal{
+				Instance: &productv1.Animal_Cat{
+					Cat: &productv1.Cat{
+						Id:         fmt.Sprintf("mascot-cat-%s", ctx.GetId()),
+						Name:       fmt.Sprintf("MascotCat for %s", ctx.GetName()),
+						Kind:       "Cat",
+						MeowVolume: volume,
+						Owner: &productv1.Owner{
+							Id:   fmt.Sprintf("owner-cat-%s", ctx.GetId()),
+							Name: fmt.Sprintf("OwnerCat for %s", ctx.GetName()),
+							Contact: &productv1.ContactInfo{
+								Email: "owner-cat@example.com",
+								Phone: "123-456-7890",
+								Address: &productv1.Address{
+									Street:  "123 Main St",
+									City:    "Anytown",
+									Country: "USA",
+									ZipCode: "12345",
+								},
+							},
+						},
+						Breed: &productv1.CatBreed{
+							Id:     fmt.Sprintf("breed-cat-%s", ctx.GetId()),
+							Name:   fmt.Sprintf("BreedCat for %s", ctx.GetName()),
+							Origin: "USA",
+							Characteristics: &productv1.BreedCharacteristics{
+								Size:        "Small",
+								Temperament: "Curious",
+								Lifespan:    "14-16 years",
+							},
+						},
+					},
+				},
+			}
+		} else {
+			volume := int32(7)
+			if includeDetails {
+				volume = int32((i + 1) * 10)
+			}
+			animal = &productv1.Animal{
+				Instance: &productv1.Animal_Dog{
+					Dog: &productv1.Dog{
+						Id:         fmt.Sprintf("mascot-dog-%s", ctx.GetId()),
+						Name:       fmt.Sprintf("MascotDog for %s", ctx.GetName()),
+						Kind:       "Dog",
+						BarkVolume: volume,
+						Owner: &productv1.Owner{
+							Id:   fmt.Sprintf("owner-dog-%s", ctx.GetId()),
+							Name: fmt.Sprintf("OwnerDog for %s", ctx.GetName()),
+							Contact: &productv1.ContactInfo{
+								Email: "owner-dog@example.com",
+								Phone: "123-456-7890",
+								Address: &productv1.Address{
+									Street:  "123 Main St",
+									City:    "Anytown",
+									Country: "USA",
+									ZipCode: "12345",
+								},
+							},
+						},
+						Breed: &productv1.DogBreed{
+							Id:     fmt.Sprintf("breed-dog-%s", ctx.GetId()),
+							Name:   fmt.Sprintf("BreedDog for %s", ctx.GetName()),
+							Origin: "USA",
+							Characteristics: &productv1.BreedCharacteristics{
+								Size:        "Medium",
+								Temperament: "Loyal",
+								Lifespan:    "10-12 years",
+							},
+						},
+					},
+				},
+			}
+		}
+
+		results = append(results, &productv1.ResolveProductMascotRecommendationResult{
+			MascotRecommendation: animal,
+		})
+	}
+
+	return &productv1.ResolveProductMascotRecommendationResponse{
+		Result: results,
+	}, nil
+}
+
+// ResolveProductProductDetails implements productv1.ProductServiceServer.
+func (s *MockService) ResolveProductProductDetails(_ context.Context, req *productv1.ResolveProductProductDetailsRequest) (*productv1.ResolveProductProductDetailsResponse, error) {
+	results := make([]*productv1.ResolveProductProductDetailsResult, 0, len(req.GetContext()))
+
+	includeExtended := false
+	if req.GetFieldArgs() != nil {
+		includeExtended = req.GetFieldArgs().GetIncludeExtended()
+	}
+
+	for i, ctx := range req.GetContext() {
+		// Create recommended pet (alternate between Cat and Dog)
+		var pet *productv1.Animal
+		if i%2 == 0 {
+			pet = &productv1.Animal{
+				Instance: &productv1.Animal_Cat{
+					Cat: &productv1.Cat{
+						Id:         fmt.Sprintf("details-cat-%s", ctx.GetId()),
+						Name:       fmt.Sprintf("RecommendedCat for %s", ctx.GetName()),
+						Kind:       "Cat",
+						MeowVolume: int32((i + 1) * 6),
+						Owner: &productv1.Owner{
+							Id:   fmt.Sprintf("owner-details-cat-%s", ctx.GetId()),
+							Name: fmt.Sprintf("OwnerDetailsCat for %s", ctx.GetName()),
+							Contact: &productv1.ContactInfo{
+								Email: "owner-details-cat@example.com",
+								Phone: "555-111-2222",
+								Address: &productv1.Address{
+									Street:  "456 Oak Ave",
+									City:    "Springfield",
+									Country: "USA",
+									ZipCode: "54321",
+								},
+							},
+						},
+						Breed: &productv1.CatBreed{
+							Id:     fmt.Sprintf("breed-details-cat-%s", ctx.GetId()),
+							Name:   fmt.Sprintf("BreedDetailsCat for %s", ctx.GetName()),
+							Origin: "France",
+							Characteristics: &productv1.BreedCharacteristics{
+								Size:        "Medium",
+								Temperament: "Friendly",
+								Lifespan:    "12-15 years",
+							},
+						},
+					},
+				},
+			}
+		} else {
+			pet = &productv1.Animal{
+				Instance: &productv1.Animal_Dog{
+					Dog: &productv1.Dog{
+						Id:         fmt.Sprintf("details-dog-%s", ctx.GetId()),
+						Name:       fmt.Sprintf("RecommendedDog for %s", ctx.GetName()),
+						Kind:       "Dog",
+						BarkVolume: int32((i + 1) * 9),
+						Owner: &productv1.Owner{
+							Id:   fmt.Sprintf("owner-details-dog-%s", ctx.GetId()),
+							Name: fmt.Sprintf("OwnerDetailsDog for %s", ctx.GetName()),
+							Contact: &productv1.ContactInfo{
+								Email: "owner-details-dog@example.com",
+								Phone: "555-333-4444",
+								Address: &productv1.Address{
+									Street:  "789 Elm St",
+									City:    "Riverside",
+									Country: "USA",
+									ZipCode: "67890",
+								},
+							},
+						},
+						Breed: &productv1.DogBreed{
+							Id:     fmt.Sprintf("breed-details-dog-%s", ctx.GetId()),
+							Name:   fmt.Sprintf("BreedDetailsDog for %s", ctx.GetName()),
+							Origin: "Germany",
+							Characteristics: &productv1.BreedCharacteristics{
+								Size:        "Large",
+								Temperament: "Loyal",
+								Lifespan:    "10-12 years",
+							},
+						},
+					},
+				},
+			}
+		}
+
+		// Create review summary (alternate between success and error based on price and extended flag)
+		var reviewSummary *productv1.ActionResult
+		if includeExtended && ctx.GetPrice() > 500 {
+			reviewSummary = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionError{
+					ActionError: &productv1.ActionError{
+						Message: fmt.Sprintf("Product %s has negative reviews", ctx.GetName()),
+						Code:    "NEGATIVE_REVIEWS",
+					},
+				},
+			}
+		} else {
+			reviewSummary = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionSuccess{
+					ActionSuccess: &productv1.ActionSuccess{
+						Message:   fmt.Sprintf("Product %s has positive reviews", ctx.GetName()),
+						Timestamp: "2024-01-01T15:00:00Z",
+					},
+				},
+			}
+		}
+
+		description := fmt.Sprintf("Standard details for %s", ctx.GetName())
+		if includeExtended {
+			description = fmt.Sprintf("Extended details for %s with comprehensive information", ctx.GetName())
+		}
+
+		results = append(results, &productv1.ResolveProductProductDetailsResult{
+			ProductDetails: &productv1.ProductDetails{
+				Id:             fmt.Sprintf("details-%s-%d", ctx.GetId(), i),
+				Description:    description,
+				ReviewSummary:  reviewSummary,
+				RecommendedPet: pet,
+			},
+		})
+	}
+
+	return &productv1.ResolveProductProductDetailsResponse{
+		Result: results,
+	}, nil
+}
+
+// ResolveProductStockStatus implements productv1.ProductServiceServer.
+func (s *MockService) ResolveProductStockStatus(_ context.Context, req *productv1.ResolveProductStockStatusRequest) (*productv1.ResolveProductStockStatusResponse, error) {
+	results := make([]*productv1.ResolveProductStockStatusResult, 0, len(req.GetContext()))
+
+	checkAvailability := false
+	if req.GetFieldArgs() != nil {
+		checkAvailability = req.GetFieldArgs().GetCheckAvailability()
+	}
+
+	for i, ctx := range req.GetContext() {
+		var stockStatus *productv1.ActionResult
+
+		// If checking availability and price is high, return out of stock error
+		if checkAvailability && ctx.GetPrice() > 300 && i%2 == 0 {
+			stockStatus = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionError{
+					ActionError: &productv1.ActionError{
+						Message: fmt.Sprintf("Product %s is currently out of stock", ctx.GetName()),
+						Code:    "OUT_OF_STOCK",
+					},
+				},
+			}
+		} else {
+			stockStatus = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionSuccess{
+					ActionSuccess: &productv1.ActionSuccess{
+						Message:   fmt.Sprintf("Product %s is in stock and available", ctx.GetName()),
+						Timestamp: "2024-01-01T10:00:00Z",
+					},
+				},
+			}
+		}
+
+		results = append(results, &productv1.ResolveProductStockStatusResult{
+			StockStatus: stockStatus,
+		})
+	}
+
+	return &productv1.ResolveProductStockStatusResponse{
+		Result: results,
+	}, nil
+}
+
+// ResolveTestContainerDetails implements productv1.ProductServiceServer.
+func (s *MockService) ResolveTestContainerDetails(_ context.Context, req *productv1.ResolveTestContainerDetailsRequest) (*productv1.ResolveTestContainerDetailsResponse, error) {
+	results := make([]*productv1.ResolveTestContainerDetailsResult, 0, len(req.GetContext()))
+
+	includeExtended := false
+	if req.GetFieldArgs() != nil {
+		includeExtended = req.GetFieldArgs().GetIncludeExtended()
+	}
+
+	for i, ctx := range req.GetContext() {
+		// Alternate between Cat and Dog for the pet field (Animal interface)
+		var pet *productv1.Animal
+		if i%2 == 0 {
+			pet = &productv1.Animal{
+				Instance: &productv1.Animal_Cat{
+					Cat: &productv1.Cat{
+						Id:         fmt.Sprintf("test-cat-%s", ctx.GetId()),
+						Name:       fmt.Sprintf("TestCat-%s", ctx.GetName()),
+						Kind:       "Cat",
+						MeowVolume: int32((i + 1) * 5),
+						Owner: &productv1.Owner{
+							Id:   fmt.Sprintf("owner-test-cat-%s", ctx.GetId()),
+							Name: fmt.Sprintf("OwnerTestCat for %s", ctx.GetName()),
+							Contact: &productv1.ContactInfo{
+								Email: "owner-test-cat@example.com",
+								Phone: "555-555-5555",
+								Address: &productv1.Address{
+									Street:  "321 Pine Rd",
+									City:    "Lakeside",
+									Country: "Canada",
+									ZipCode: "A1B2C3",
+								},
+							},
+						},
+						Breed: &productv1.CatBreed{
+							Id:     fmt.Sprintf("breed-test-cat-%s", ctx.GetId()),
+							Name:   fmt.Sprintf("BreedTestCat for %s", ctx.GetName()),
+							Origin: "Egypt",
+							Characteristics: &productv1.BreedCharacteristics{
+								Size:        "Small",
+								Temperament: "Curious",
+								Lifespan:    "14-16 years",
+							},
+						},
+					},
+				},
+			}
+		} else {
+			pet = &productv1.Animal{
+				Instance: &productv1.Animal_Dog{
+					Dog: &productv1.Dog{
+						Id:         fmt.Sprintf("test-dog-%s", ctx.GetId()),
+						Name:       fmt.Sprintf("TestDog-%s", ctx.GetName()),
+						Kind:       "Dog",
+						BarkVolume: int32((i + 1) * 7),
+						Owner: &productv1.Owner{
+							Id:   fmt.Sprintf("owner-test-dog-%s", ctx.GetId()),
+							Name: fmt.Sprintf("OwnerTestDog for %s", ctx.GetName()),
+							Contact: &productv1.ContactInfo{
+								Email: "owner-test-dog@example.com",
+								Phone: "555-666-7777",
+								Address: &productv1.Address{
+									Street:  "654 Birch Ln",
+									City:    "Mountain View",
+									Country: "Canada",
+									ZipCode: "X9Y8Z7",
+								},
+							},
+						},
+						Breed: &productv1.DogBreed{
+							Id:     fmt.Sprintf("breed-test-dog-%s", ctx.GetId()),
+							Name:   fmt.Sprintf("BreedTestDog for %s", ctx.GetName()),
+							Origin: "England",
+							Characteristics: &productv1.BreedCharacteristics{
+								Size:        "Medium",
+								Temperament: "Energetic",
+								Lifespan:    "11-13 years",
+							},
+						},
+					},
+				},
+			}
+		}
+
+		// Alternate between ActionSuccess and ActionError for the status field (ActionResult union)
+		var status *productv1.ActionResult
+		if includeExtended && i%3 == 0 {
+			// Return error status for extended mode on certain items
+			status = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionError{
+					ActionError: &productv1.ActionError{
+						Message: fmt.Sprintf("Extended check failed for %s", ctx.GetName()),
+						Code:    "EXTENDED_CHECK_FAILED",
+					},
+				},
+			}
+		} else {
+			// Return success status
+			status = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionSuccess{
+					ActionSuccess: &productv1.ActionSuccess{
+						Message:   fmt.Sprintf("TestContainer %s details loaded successfully", ctx.GetName()),
+						Timestamp: "2024-01-01T12:00:00Z",
+					},
+				},
+			}
+		}
+
+		summary := fmt.Sprintf("Summary for %s", ctx.GetName())
+		if includeExtended {
+			summary = fmt.Sprintf("Extended summary for %s with additional details", ctx.GetName())
+		}
+
+		results = append(results, &productv1.ResolveTestContainerDetailsResult{
+			Details: &productv1.TestDetails{
+				Id:      fmt.Sprintf("details-%s-%d", ctx.GetId(), i),
+				Summary: summary,
+				Pet:     pet,
+				Status:  status,
+			},
+		})
+	}
+
+	return &productv1.ResolveTestContainerDetailsResponse{
+		Result: results,
+	}, nil
+}
+
+// ResolveCategoryMetricsRelatedCategory implements productv1.ProductServiceServer.
+func (s *MockService) ResolveCategoryMetricsRelatedCategory(_ context.Context, req *productv1.ResolveCategoryMetricsRelatedCategoryRequest) (*productv1.ResolveCategoryMetricsRelatedCategoryResponse, error) {
+	results := make([]*productv1.ResolveCategoryMetricsRelatedCategoryResult, 0, len(req.GetContext()))
+
+	include := true
+	if req.GetFieldArgs() != nil && req.GetFieldArgs().GetInclude() != nil {
+		include = req.GetFieldArgs().GetInclude().GetValue()
+	}
+
+	for i, ctx := range req.GetContext() {
+		var relatedCategory *productv1.Category
+		if include {
+			relatedCategory = &productv1.Category{
+				Id:   fmt.Sprintf("related-category-%s-%d", ctx.GetCategoryId(), i),
+				Name: fmt.Sprintf("Related Category for %s", ctx.GetCategoryId()),
+				Kind: productv1.CategoryKind_CATEGORY_KIND_BOOK,
+			}
+		}
+		results = append(results, &productv1.ResolveCategoryMetricsRelatedCategoryResult{
+			RelatedCategory: relatedCategory,
+		})
+	}
+
+	return &productv1.ResolveCategoryMetricsRelatedCategoryResponse{
+		Result: results,
+	}, nil
+}
+
+// ResolveCategoryMetricsNormalizedScore implements productv1.ProductServiceServer.
+func (s *MockService) ResolveCategoryMetricsNormalizedScore(_ context.Context, req *productv1.ResolveCategoryMetricsNormalizedScoreRequest) (*productv1.ResolveCategoryMetricsNormalizedScoreResponse, error) {
+	results := make([]*productv1.ResolveCategoryMetricsNormalizedScoreResult, 0, len(req.GetContext()))
+
+	baseline := req.GetFieldArgs().GetBaseline()
+	if baseline == 0 {
+		baseline = 1.0 // Avoid division by zero
+	}
+
+	for _, ctx := range req.GetContext() {
+		// Calculate normalized score: (value / baseline) * 100
+		// This gives a percentage relative to the baseline
+		normalizedScore := (ctx.GetValue() / baseline) * 100.0
+
+		results = append(results, &productv1.ResolveCategoryMetricsNormalizedScoreResult{
+			NormalizedScore: normalizedScore,
+		})
+	}
+
+	resp := &productv1.ResolveCategoryMetricsNormalizedScoreResponse{
+		Result: results,
+	}
+
+	return resp, nil
+}
+
+// ResolveCategoryMascot implements productv1.ProductServiceServer.
+func (s *MockService) ResolveCategoryMascot(_ context.Context, req *productv1.ResolveCategoryMascotRequest) (*productv1.ResolveCategoryMascotResponse, error) {
+	results := make([]*productv1.ResolveCategoryMascotResult, 0, len(req.GetContext()))
+
+	includeVolume := false
+	if req.GetFieldArgs() != nil {
+		includeVolume = req.GetFieldArgs().GetIncludeVolume()
+	}
+
+	for i, ctx := range req.GetContext() {
+		// Return nil for certain categories to test optional return
+		if ctx.GetKind() == productv1.CategoryKind_CATEGORY_KIND_OTHER {
+			results = append(results, &productv1.ResolveCategoryMascotResult{
+				Mascot: nil,
+			})
+		} else {
+			// Alternate between Cat and Dog based on category kind
+			var animal *productv1.Animal
+			if ctx.GetKind() == productv1.CategoryKind_CATEGORY_KIND_BOOK || ctx.GetKind() == productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS {
+				volume := int32(0)
+				if includeVolume {
+					volume = int32(i*10 + 5)
+				}
+				animal = &productv1.Animal{
+					Instance: &productv1.Animal_Cat{
+						Cat: &productv1.Cat{
+							Id:         fmt.Sprintf("cat-mascot-%s", ctx.GetId()),
+							Name:       fmt.Sprintf("Whiskers-%s", ctx.GetId()),
+							Kind:       "Cat",
+							MeowVolume: volume,
+							Owner: &productv1.Owner{
+								Id:   fmt.Sprintf("owner-cat-mascot-%s", ctx.GetId()),
+								Name: fmt.Sprintf("OwnerCatMascot for %s", ctx.GetId()),
+								Contact: &productv1.ContactInfo{
+									Email: "owner-cat-mascot@example.com",
+									Phone: "555-777-8888",
+									Address: &productv1.Address{
+										Street:  "111 Maple Dr",
+										City:    "Booktown",
+										Country: "USA",
+										ZipCode: "11111",
+									},
+								},
+							},
+							Breed: &productv1.CatBreed{
+								Id:     fmt.Sprintf("breed-cat-mascot-%s", ctx.GetId()),
+								Name:   fmt.Sprintf("BreedCatMascot for %s", ctx.GetId()),
+								Origin: "Scotland",
+								Characteristics: &productv1.BreedCharacteristics{
+									Size:        "Large",
+									Temperament: "Gentle",
+									Lifespan:    "13-17 years",
+								},
+							},
+						},
+					},
+				}
+			} else {
+				volume := int32(0)
+				if includeVolume {
+					volume = int32(i*10 + 10)
+				}
+				animal = &productv1.Animal{
+					Instance: &productv1.Animal_Dog{
+						Dog: &productv1.Dog{
+							Id:         fmt.Sprintf("dog-mascot-%s", ctx.GetId()),
+							Name:       fmt.Sprintf("Buddy-%s", ctx.GetId()),
+							Kind:       "Dog",
+							BarkVolume: volume,
+							Owner: &productv1.Owner{
+								Id:   fmt.Sprintf("owner-dog-mascot-%s", ctx.GetId()),
+								Name: fmt.Sprintf("OwnerDogMascot for %s", ctx.GetId()),
+								Contact: &productv1.ContactInfo{
+									Email: "owner-dog-mascot@example.com",
+									Phone: "555-888-9999",
+									Address: &productv1.Address{
+										Street:  "222 Cedar Ct",
+										City:    "Mascotville",
+										Country: "USA",
+										ZipCode: "22222",
+									},
+								},
+							},
+							Breed: &productv1.DogBreed{
+								Id:     fmt.Sprintf("breed-dog-mascot-%s", ctx.GetId()),
+								Name:   fmt.Sprintf("BreedDogMascot for %s", ctx.GetId()),
+								Origin: "Australia",
+								Characteristics: &productv1.BreedCharacteristics{
+									Size:        "Medium",
+									Temperament: "Playful",
+									Lifespan:    "10-14 years",
+								},
+							},
+						},
+					},
+				}
+			}
+			results = append(results, &productv1.ResolveCategoryMascotResult{
+				Mascot: animal,
+			})
+		}
+	}
+
+	resp := &productv1.ResolveCategoryMascotResponse{
+		Result: results,
+	}
+
+	return resp, nil
+}
+
+// ResolveCategoryCategoryStatus implements productv1.ProductServiceServer.
+func (s *MockService) ResolveCategoryCategoryStatus(_ context.Context, req *productv1.ResolveCategoryCategoryStatusRequest) (*productv1.ResolveCategoryCategoryStatusResponse, error) {
+	results := make([]*productv1.ResolveCategoryCategoryStatusResult, 0, len(req.GetContext()))
+
+	checkHealth := false
+	if req.GetFieldArgs() != nil {
+		checkHealth = req.GetFieldArgs().GetCheckHealth()
+	}
+
+	for i, ctx := range req.GetContext() {
+		var actionResult *productv1.ActionResult
+
+		if checkHealth && i%3 == 0 {
+			// Return error status for health check failures
+			actionResult = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionError{
+					ActionError: &productv1.ActionError{
+						Message: fmt.Sprintf("Health check failed for category %s", ctx.GetName()),
+						Code:    "HEALTH_CHECK_FAILED",
+					},
+				},
+			}
+		} else {
+			// Return success status
+			actionResult = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionSuccess{
+					ActionSuccess: &productv1.ActionSuccess{
+						Message:   fmt.Sprintf("Category %s is healthy", ctx.GetName()),
+						Timestamp: "2024-01-01T00:00:00Z",
+					},
+				},
+			}
+		}
+
+		results = append(results, &productv1.ResolveCategoryCategoryStatusResult{
+			CategoryStatus: actionResult,
+		})
+	}
+
+	resp := &productv1.ResolveCategoryCategoryStatusResponse{
+		Result: results,
+	}
+
+	return resp, nil
+}
+
+// ResolveCategoryChildCategories implements [productv1.ProductServiceServer].
+func (s *MockService) ResolveCategoryChildCategories(_ context.Context, req *productv1.ResolveCategoryChildCategoriesRequest) (*productv1.ResolveCategoryChildCategoriesResponse, error) {
+	results := make([]*productv1.ResolveCategoryChildCategoriesResult, len(req.GetContext()))
+
+	for i, ctx := range req.GetContext() {
+		results[i] = &productv1.ResolveCategoryChildCategoriesResult{
+			ChildCategories: []*productv1.Category{
+				{
+					Id:   fmt.Sprintf("child-category-%s-%d", ctx.GetId(), i),
+					Name: fmt.Sprintf("Child Category %s %d", ctx.GetName(), i),
+					Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER,
+				},
+				{
+					Id:   fmt.Sprintf("child-category-%s-%d", ctx.GetId(), i+1),
+					Name: fmt.Sprintf("Child Category %s %d", ctx.GetName(), i+1),
+					Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER,
+				},
+			},
+		}
+	}
+
+	resp := &productv1.ResolveCategoryChildCategoriesResponse{
+		Result: results,
+	}
+
+	return resp, nil
+}
+
+// ResolveCategoryOptionalCategories implements [productv1.ProductServiceServer].
+func (s *MockService) ResolveCategoryOptionalCategories(_ context.Context, req *productv1.ResolveCategoryOptionalCategoriesRequest) (*productv1.ResolveCategoryOptionalCategoriesResponse, error) {
+	results := make([]*productv1.ResolveCategoryOptionalCategoriesResult, 0, len(req.GetContext()))
+
+	// Check if include arg is set - if false, return nil for optionalCategories
+	include := true
+	if req.GetFieldArgs() != nil && req.GetFieldArgs().GetInclude() != nil {
+		include = req.GetFieldArgs().GetInclude().GetValue()
+	}
+
+	for i, ctx := range req.GetContext() {
+		var optionalCategories *productv1.ListOfCategory
+
+		if include {
+			// Generate 2 optional categories per parent category
+			optionalCategories = &productv1.ListOfCategory{
+				List: &productv1.ListOfCategory_List{
+					Items: []*productv1.Category{
+						{
+							Id:   fmt.Sprintf("optional-category-%s-%d", ctx.GetId(), i*2),
+							Name: fmt.Sprintf("Optional Category %s %d", ctx.GetName(), i*2),
+							Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER,
+						},
+						{
+							Id:   fmt.Sprintf("optional-category-%s-%d", ctx.GetId(), i*2+1),
+							Name: fmt.Sprintf("Optional Category %s %d", ctx.GetName(), i*2+1),
+							Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER,
+						},
+					},
+				},
+			}
+		}
+
+		results = append(results, &productv1.ResolveCategoryOptionalCategoriesResult{
+			OptionalCategories: optionalCategories,
+		})
+	}
+
+	return &productv1.ResolveCategoryOptionalCategoriesResponse{
+		Result: results,
+	}, nil
+}
+
+// ResolveProductRecommendedCategory implements productv1.ProductServiceServer.
+func (s *MockService) ResolveProductRecommendedCategory(_ context.Context, req *productv1.ResolveProductRecommendedCategoryRequest) (*productv1.ResolveProductRecommendedCategoryResponse, error) {
+	results := make([]*productv1.ResolveProductRecommendedCategoryResult, 0, len(req.GetContext()))
+
+	maxPrice := int32(0)
+	if req.GetFieldArgs() != nil {
+		maxPrice = req.GetFieldArgs().GetMaxPrice()
+	}
+
+	for _, ctx := range req.GetContext() {
+		// Return nil for products with high price to test optional return
+		if maxPrice > 0 && ctx.GetPrice() > float64(maxPrice) {
+			results = append(results, &productv1.ResolveProductRecommendedCategoryResult{
+				RecommendedCategory: nil,
+			})
+		} else {
+			// Create a recommended category based on product context
+			var categoryKind productv1.CategoryKind
+			if ctx.GetPrice() < 50 {
+				categoryKind = productv1.CategoryKind_CATEGORY_KIND_BOOK
+			} else if ctx.GetPrice() < 200 {
+				categoryKind = productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS
+			} else {
+				categoryKind = productv1.CategoryKind_CATEGORY_KIND_FURNITURE
+			}
+
+			results = append(results, &productv1.ResolveProductRecommendedCategoryResult{
+				RecommendedCategory: &productv1.Category{
+					Id:            fmt.Sprintf("recommended-cat-%s", ctx.GetId()),
+					Name:          fmt.Sprintf("Recommended for %s", ctx.GetName()),
+					Kind:          categoryKind,
+					Subcategories: createSubcategories(fmt.Sprintf("recommended-cat-%s", ctx.GetId()), categoryKind, 2),
+				},
+			})
+		}
+	}
+
+	resp := &productv1.ResolveProductRecommendedCategoryResponse{
+		Result: results,
+	}
+
+	return resp, nil
+}
+
+// ResolveProductShippingEstimate implements productv1.ProductServiceServer.
+func (s *MockService) ResolveProductShippingEstimate(_ context.Context, req *productv1.ResolveProductShippingEstimateRequest) (*productv1.ResolveProductShippingEstimateResponse, error) {
+	results := make([]*productv1.ResolveProductShippingEstimateResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		// Base shipping cost calculation
+		baseCost := ctx.GetPrice() * 0.1 // 10% of product price
+
+		// Add weight-based cost if input provided
+		if req.GetFieldArgs() != nil && req.GetFieldArgs().GetInput() != nil {
+			input := req.GetFieldArgs().GetInput()
+
+			// Add weight cost
+			weightCost := float64(input.GetWeight()) * 2.5
+			baseCost += weightCost
+
+			// Add expedited shipping cost
+			if input.GetExpedited() != nil && input.GetExpedited().GetValue() {
+				baseCost *= 1.5 // 50% surcharge for expedited
+			}
+
+			// Add destination-based cost
+			destination := input.GetDestination()
+			switch destination {
+			case productv1.ShippingDestination_SHIPPING_DESTINATION_INTERNATIONAL:
+				baseCost += 25.0
+			case productv1.ShippingDestination_SHIPPING_DESTINATION_EXPRESS:
+				baseCost += 10.0
+			case productv1.ShippingDestination_SHIPPING_DESTINATION_DOMESTIC:
+				// No additional cost for domestic shipping
+			}
+		}
+
+		results = append(results, &productv1.ResolveProductShippingEstimateResult{
+			ShippingEstimate: baseCost,
+		})
+	}
+
+	resp := &productv1.ResolveProductShippingEstimateResponse{
+		Result: results,
+	}
+
+	return resp, nil
+}
+
+// ResolveCategoryCategoryMetrics implements productv1.ProductServiceServer.
+func (s *MockService) ResolveCategoryCategoryMetrics(_ context.Context, req *productv1.ResolveCategoryCategoryMetricsRequest) (*productv1.ResolveCategoryCategoryMetricsResponse, error) {
+	results := make([]*productv1.ResolveCategoryCategoryMetricsResult, 0, len(req.GetContext()))
+
+	metricType := ""
+	if req.GetFieldArgs() != nil {
+		metricType = req.GetFieldArgs().GetMetricType()
+	}
+
+	for i, ctx := range req.GetContext() {
+		// Return nil for certain metric types to test optional return
+		if metricType == "unavailable" {
+			results = append(results, &productv1.ResolveCategoryCategoryMetricsResult{
+				CategoryMetrics: nil,
+			})
+		} else {
+			results = append(results, &productv1.ResolveCategoryCategoryMetricsResult{
+				CategoryMetrics: &productv1.CategoryMetrics{
+					Id:         fmt.Sprintf("metrics-%s-%d", ctx.GetId(), i),
+					MetricType: metricType,
+					Value:      float64(i*25 + 100), // Different values based on index
+					Timestamp:  "2024-01-01T00:00:00Z",
+					CategoryId: ctx.GetId(),
+				},
+			})
+		}
+	}
+
+	resp := &productv1.ResolveCategoryCategoryMetricsResponse{
+		Result: results,
+	}
+
+	return resp, nil
+}
+
+// ResolveCategoryPopularityScore implements productv1.ProductServiceServer.
+func (s *MockService) ResolveCategoryPopularityScore(_ context.Context, req *productv1.ResolveCategoryPopularityScoreRequest) (*productv1.ResolveCategoryPopularityScoreResponse, error) {
+	results := make([]*productv1.ResolveCategoryPopularityScoreResult, 0, len(req.GetContext()))
+
+	threshold := req.GetFieldArgs().GetThreshold()
+
+	baseScore := 50
+	for range req.GetContext() {
+		if int(threshold.GetValue()) > baseScore {
+			results = append(results, &productv1.ResolveCategoryPopularityScoreResult{
+				PopularityScore: nil,
+			})
+		} else {
+			results = append(results, &productv1.ResolveCategoryPopularityScoreResult{
+				PopularityScore: &wrapperspb.Int32Value{Value: int32(baseScore)},
+			})
+		}
+	}
+
+	resp := &productv1.ResolveCategoryPopularityScoreResponse{
+		Result: results,
+	}
+
+	return resp, nil
+}
+
+// ResolveSubcategoryItemCount implements productv1.ProductServiceServer.
+func (s *MockService) ResolveSubcategoryItemCount(_ context.Context, req *productv1.ResolveSubcategoryItemCountRequest) (*productv1.ResolveSubcategoryItemCountResponse, error) {
+	results := make([]*productv1.ResolveSubcategoryItemCountResult, 0, len(req.GetContext()))
+	for i := range req.GetContext() {
+		results = append(results, &productv1.ResolveSubcategoryItemCountResult{
+			ItemCount: int32(i * 10), // Different multiplier to distinguish from productCount
+		})
+	}
+
+	resp := &productv1.ResolveSubcategoryItemCountResponse{
+		Result: results,
+	}
+
+	return resp, nil
+}
+
+// ResolveCategoryProductCount implements productv1.ProductServiceServer.
+func (s *MockService) ResolveCategoryProductCount(ctx context.Context, req *productv1.ResolveCategoryProductCountRequest) (*productv1.ResolveCategoryProductCountResponse, error) {
+	results := make([]*productv1.ResolveCategoryProductCountResult, 0, len(req.GetContext()))
+
+	// Default offset is 0
+	offset := int32(0)
+
+	// Allow header to override the offset
+	md, ok := metadata.FromIncomingContext(ctx)
+	if ok {
+		if values := md.Get("x-count-offset"); len(values) > 0 {
+			if v, err := strconv.Atoi(values[0]); err == nil {
+				offset = int32(v)
+			}
+		}
+	}
+
+	for i := range req.GetContext() {
+		results = append(results, &productv1.ResolveCategoryProductCountResult{
+			ProductCount: int32(i) + offset,
+		})
+	}
+
+	resp := &productv1.ResolveCategoryProductCountResponse{
+		Result: results,
+	}
+
+	return resp, nil
+}
+
+// ResolveStorageStorageStatus implements productv1.ProductServiceServer.
+func (s *MockService) ResolveStorageStorageStatus(_ context.Context, req *productv1.ResolveStorageStorageStatusRequest) (*productv1.ResolveStorageStorageStatusResponse, error) {
+	results := make([]*productv1.ResolveStorageStorageStatusResult, 0, len(req.GetContext()))
+
+	checkHealth := false
+	if req.GetFieldArgs() != nil {
+		checkHealth = req.GetFieldArgs().GetCheckHealth()
+	}
+
+	for i, ctx := range req.GetContext() {
+		var actionResult *productv1.ActionResult
+
+		if checkHealth && i%3 == 0 {
+			// Return error status for health check failures
+			actionResult = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionError{
+					ActionError: &productv1.ActionError{
+						Message: fmt.Sprintf("Health check failed for storage %s", ctx.GetName()),
+						Code:    "STORAGE_HEALTH_CHECK_FAILED",
+					},
+				},
+			}
+		} else {
+			// Return success status
+			actionResult = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionSuccess{
+					ActionSuccess: &productv1.ActionSuccess{
+						Message:   fmt.Sprintf("Storage %s is healthy", ctx.GetName()),
+						Timestamp: "2024-01-01T00:00:00Z",
+					},
+				},
+			}
+		}
+
+		results = append(results, &productv1.ResolveStorageStorageStatusResult{
+			StorageStatus: actionResult,
+		})
+	}
+
+	return &productv1.ResolveStorageStorageStatusResponse{
+		Result: results,
+	}, nil
+}
+
+// ResolveStorageLinkedStorages implements productv1.ProductServiceServer.
+func (s *MockService) ResolveStorageLinkedStorages(_ context.Context, req *productv1.ResolveStorageLinkedStoragesRequest) (*productv1.ResolveStorageLinkedStoragesResponse, error) {
+	results := make([]*productv1.ResolveStorageLinkedStoragesResult, len(req.GetContext()))
+
+	depth := int32(1)
+	if req.GetFieldArgs() != nil {
+		depth = req.GetFieldArgs().GetDepth()
+	}
+
+	for i, ctx := range req.GetContext() {
+		// Generate linked storages based on depth
+		linkedStorages := make([]*productv1.Storage, 0, depth)
+		for j := int32(0); j < depth; j++ {
+			linkedStorages = append(linkedStorages, &productv1.Storage{
+				Id:       fmt.Sprintf("linked-storage-%s-%d", ctx.GetId(), j),
+				Name:     fmt.Sprintf("Linked Storage %s %d", ctx.GetName(), j),
+				Location: fmt.Sprintf("%s-linked-%d", ctx.GetLocation(), j),
+			})
+		}
+
+		results[i] = &productv1.ResolveStorageLinkedStoragesResult{
+			LinkedStorages: linkedStorages,
+		}
+	}
+
+	return &productv1.ResolveStorageLinkedStoragesResponse{
+		Result: results,
+	}, nil
+}
+
+// ResolveStorageNearbyStorages implements productv1.ProductServiceServer.
+func (s *MockService) ResolveStorageNearbyStorages(_ context.Context, req *productv1.ResolveStorageNearbyStoragesRequest) (*productv1.ResolveStorageNearbyStoragesResponse, error) {
+	results := make([]*productv1.ResolveStorageNearbyStoragesResult, 0, len(req.GetContext()))
+
+	// Check if radius arg is set - if nil or 0, return nil for nearbyStorages
+	radius := int32(0)
+	if req.GetFieldArgs() != nil && req.GetFieldArgs().GetRadius() != nil {
+		radius = req.GetFieldArgs().GetRadius().GetValue()
+	}
+
+	for i, ctx := range req.GetContext() {
+		var nearbyStorages *productv1.ListOfStorage
+
+		if radius > 0 {
+			// Generate nearby storages based on radius
+			storages := make([]*productv1.Storage, 0, radius)
+			for j := int32(0); j < radius && j < 5; j++ { // Cap at 5 storages
+				storages = append(storages, &productv1.Storage{
+					Id:       fmt.Sprintf("nearby-storage-%s-%d", ctx.GetId(), j),
+					Name:     fmt.Sprintf("Nearby Storage %d", j),
+					Location: fmt.Sprintf("%s-nearby-%d", ctx.GetLocation(), j),
+				})
+			}
+			nearbyStorages = &productv1.ListOfStorage{
+				List: &productv1.ListOfStorage_List{
+					Items: storages,
+				},
+			}
+		} else if i%2 == 0 {
+			// For even indices with no radius, return empty list
+			nearbyStorages = &productv1.ListOfStorage{
+				List: &productv1.ListOfStorage_List{
+					Items: []*productv1.Storage{},
+				},
+			}
+		}
+		// For odd indices with no radius, nearbyStorages remains nil
+
+		results = append(results, &productv1.ResolveStorageNearbyStoragesResult{
+			NearbyStorages: nearbyStorages,
+		})
+	}
+
+	return &productv1.ResolveStorageNearbyStoragesResponse{
+		Result: results,
+	}, nil
+}
+
+// ResolveCategoryTotalProducts implements productv1.ProductServiceServer.
+func (s *MockService) ResolveCategoryTotalProducts(_ context.Context, req *productv1.ResolveCategoryTotalProductsRequest) (*productv1.ResolveCategoryTotalProductsResponse, error) {
+	results := make([]*productv1.ResolveCategoryTotalProductsResult, 0, len(req.GetContext()))
+
+	for i, ctx := range req.GetContext() {
+		_ = ctx
+		results = append(results, &productv1.ResolveCategoryTotalProductsResult{
+			TotalProducts: int32((i + 1) * 42),
+		})
+	}
+
+	return &productv1.ResolveCategoryTotalProductsResponse{
+		Result: results,
+	}, nil
+}
+
+// ResolveCategoryTopSubcategory implements productv1.ProductServiceServer.
+func (s *MockService) ResolveCategoryTopSubcategory(_ context.Context, req *productv1.ResolveCategoryTopSubcategoryRequest) (*productv1.ResolveCategoryTopSubcategoryResponse, error) {
+	results := make([]*productv1.ResolveCategoryTopSubcategoryResult, 0, len(req.GetContext()))
+
+	for i, ctx := range req.GetContext() {
+		// Return nil for every other context to test nullable handling
+		var subcategory *productv1.Subcategory
+		if i%2 == 0 {
+			subcategory = &productv1.Subcategory{
+				Id:          fmt.Sprintf("top-sub-%s-%d", ctx.GetId(), i),
+				Name:        fmt.Sprintf("Top Subcategory for %s", ctx.GetName()),
+				Description: wrapperspb.String(fmt.Sprintf("Top subcategory of %s", ctx.GetName())),
+				IsActive:    true,
+			}
+		}
+		results = append(results, &productv1.ResolveCategoryTopSubcategoryResult{
+			TopSubcategory: subcategory,
+		})
+	}
+
+	return &productv1.ResolveCategoryTopSubcategoryResponse{
+		Result: results,
+	}, nil
+}
+
+// ResolveCategoryActiveSubcategories implements productv1.ProductServiceServer.
+func (s *MockService) ResolveCategoryActiveSubcategories(_ context.Context, req *productv1.ResolveCategoryActiveSubcategoriesRequest) (*productv1.ResolveCategoryActiveSubcategoriesResponse, error) {
+	results := make([]*productv1.ResolveCategoryActiveSubcategoriesResult, 0, len(req.GetContext()))
+
+	for i, ctx := range req.GetContext() {
+		results = append(results, &productv1.ResolveCategoryActiveSubcategoriesResult{
+			ActiveSubcategories: []*productv1.Subcategory{
+				{
+					Id:       fmt.Sprintf("active-sub-%s-%d-0", ctx.GetId(), i),
+					Name:     fmt.Sprintf("Active Sub 0 for %s", ctx.GetId()),
+					IsActive: true,
+				},
+				{
+					Id:       fmt.Sprintf("active-sub-%s-%d-1", ctx.GetId(), i),
+					Name:     fmt.Sprintf("Active Sub 1 for %s", ctx.GetId()),
+					IsActive: true,
+				},
+			},
+		})
+	}
+
+	return &productv1.ResolveCategoryActiveSubcategoriesResponse{
+		Result: results,
+	}, nil
+}
+
+// ResolveSubcategoryParentCategory implements productv1.ProductServiceServer.
+func (s *MockService) ResolveSubcategoryParentCategory(_ context.Context, req *productv1.ResolveSubcategoryParentCategoryRequest) (*productv1.ResolveSubcategoryParentCategoryResponse, error) {
+	results := make([]*productv1.ResolveSubcategoryParentCategoryResult, 0, len(req.GetContext()))
+
+	for i, ctx := range req.GetContext() {
+		// Return nil for every other context to test nullable handling
+		var category *productv1.Category
+		if i%2 == 0 {
+			category = &productv1.Category{
+				Id:   fmt.Sprintf("parent-cat-%s-%d", ctx.GetId(), i),
+				Name: fmt.Sprintf("Parent Category for %s", ctx.GetId()),
+				Kind: productv1.CategoryKind_CATEGORY_KIND_BOOK,
+			}
+		}
+		results = append(results, &productv1.ResolveSubcategoryParentCategoryResult{
+			ParentCategory: category,
+		})
+	}
+
+	return &productv1.ResolveSubcategoryParentCategoryResponse{
+		Result: results,
+	}, nil
+}
+
+// ResolveCategoryMetricsAverageScore implements productv1.ProductServiceServer.
+func (s *MockService) ResolveCategoryMetricsAverageScore(_ context.Context, req *productv1.ResolveCategoryMetricsAverageScoreRequest) (*productv1.ResolveCategoryMetricsAverageScoreResponse, error) {
+	results := make([]*productv1.ResolveCategoryMetricsAverageScoreResult, 0, len(req.GetContext()))
+
+	for i, ctx := range req.GetContext() {
+		_ = ctx
+		results = append(results, &productv1.ResolveCategoryMetricsAverageScoreResult{
+			AverageScore: float64(i+1) * 3.14,
+		})
+	}
+
+	return &productv1.ResolveCategoryMetricsAverageScoreResponse{
+		Result: results,
+	}, nil
+}

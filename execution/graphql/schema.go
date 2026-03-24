@@ -76,6 +76,10 @@ func NewSchemaFromString(schema string) (*Schema, error) {
 	return createSchema(schemaContent, true)
 }
 
+func NewSchemaFromBytes(schema []byte) (*Schema, error) {
+	return createSchema(schema, true)
+}
+
 func ValidateSchemaString(schema string) (result ValidationResult, err error) {
 	parsedSchema, err := NewSchemaFromString(schema)
 	if err != nil {
@@ -105,7 +109,7 @@ func (s *Schema) Normalize() (result NormalizationResult, err error) {
 	}
 
 	normalizedSchemaBuffer := &bytes.Buffer{}
-	err = astprinter.PrintIndent(&s.document, []byte("  "), normalizedSchemaBuffer)
+	err = astprinter.PrintIndent(&s.document, []byte("    "), normalizedSchemaBuffer)
 	if err != nil {
 		return NormalizationResult{
 			Successful: false,
@@ -402,7 +406,7 @@ func createSchema(schemaContent []byte, mergeWithBaseSchema bool) (*Schema, erro
 		}
 
 		rawSchemaBuffer := &bytes.Buffer{}
-		err = astprinter.PrintIndent(&document, []byte("  "), rawSchemaBuffer)
+		err = astprinter.PrintIndent(&document, []byte("    "), rawSchemaBuffer)
 		if err != nil {
 			return nil, err
 		}

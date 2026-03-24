@@ -225,7 +225,7 @@ func TestHandler_Handle(t *testing.T) {
 				expectedErrorMessage := Message{
 					Id:      "1",
 					Type:    MessageTypeError,
-					Payload: []byte(`[{"message":"field: serverName not defined on type: Query","path":["query"]}]`),
+					Payload: []byte(`[{"message":"Cannot query field \"serverName\" on type \"Query\".","path":["query"]}]`),
 				}
 
 				messagesFromServer := client.readFromServer()
@@ -417,7 +417,7 @@ func TestHandler_Handle(t *testing.T) {
 				time.Sleep(10 * time.Millisecond)
 				cancelFunc()
 
-				go sendChatMutation(t, chatServer.URL)
+				sendChatMutation(t, chatServer.URL)
 
 				require.Eventually(t, func() bool {
 					return client.hasMoreMessagesThan(0)
@@ -454,6 +454,7 @@ func TestHandler_Handle(t *testing.T) {
 					Payload: nil,
 				}
 
+				time.Sleep(10 * time.Millisecond)
 				messagesFromServer := client.readFromServer()
 				assert.Contains(t, messagesFromServer, expectedMessage)
 
@@ -480,7 +481,7 @@ func TestHandler_Handle(t *testing.T) {
 				time.Sleep(10 * time.Millisecond)
 				cancelFunc()
 
-				go sendChatMutation(t, chatServer.URL)
+				sendChatMutation(t, chatServer.URL)
 
 				require.Eventually(t, func() bool {
 					return client.hasMoreMessagesThan(0)
@@ -690,5 +691,6 @@ func sendChatMutation(t *testing.T, url string) {
 	httpClient := http.Client{}
 	resp, err := httpClient.Do(req)
 	require.NoError(t, err)
+	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 }

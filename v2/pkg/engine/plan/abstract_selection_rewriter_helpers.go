@@ -1,6 +1,8 @@
 package plan
 
 import (
+	"bytes"
+	"errors"
 	"slices"
 	"sort"
 
@@ -39,11 +41,11 @@ func (r *fieldSelectionRewriter) entitiesImplementingInterface(typesImplementing
 
 	for _, typeName := range typesImplementingInterface {
 		if slices.Contains(entityNames, typeName) {
-			out = append(out, typeName) //nolint:staticcheck
+			out = append(out, typeName)
 		}
 	}
 
-	return entityNames
+	return out
 }
 
 func (r *fieldSelectionRewriter) entityNamesWithoutFragments(inlineFragments []inlineFragmentSelection, entityNames []string) []string {
@@ -84,6 +86,7 @@ func (r *fieldSelectionRewriter) entityNamesWithFragments(inlineFragments []inli
 	return nil
 }
 
+// TODO: looks like it is extensive unnecessary check
 func (r *fieldSelectionRewriter) allEntitiesImplementsInterfaces(inlineFragmentsOnInterfaces []inlineFragmentSelectionOnInterface, entityNames []string) bool {
 	for _, inlineFragmentsOnInterface := range inlineFragmentsOnInterfaces {
 		entitiesImplementingInterface := r.entitiesImplementingInterface(inlineFragmentsOnInterface.typeNamesImplementingInterfaceInCurrentDS, entityNames)
@@ -99,6 +102,7 @@ func (r *fieldSelectionRewriter) allEntitiesImplementsInterfaces(inlineFragments
 	return true
 }
 
+// TODO: looks like it is extensive unnecessary check
 func (r *fieldSelectionRewriter) allEntityFragmentsSatisfyInterfaces(inlineFragmentsOnInterfaces []inlineFragmentSelectionOnInterface, inlineFragmentsOnObjects []inlineFragmentSelection, entityNames []string) bool {
 	for _, inlineFragmentsOnInterface := range inlineFragmentsOnInterfaces {
 		entitiesImplementingInterface := r.entitiesImplementingInterface(inlineFragmentsOnInterface.typeNamesImplementingInterfaceInCurrentDS, entityNames)
@@ -146,16 +150,6 @@ func (r *fieldSelectionRewriter) allEntitiesHaveFieldsAsRootNode(entityNames []s
 	return true
 }
 
-func (r *fieldSelectionRewriter) allFragmentTypesExistsOnDatasource(inlineFragments []inlineFragmentSelection) bool {
-	for _, inlineFragment := range inlineFragments {
-		if !r.hasTypeOnDataSource(inlineFragment.typeName) {
-			return false
-		}
-	}
-
-	return true
-}
-
 func (r *fieldSelectionRewriter) interfaceFragmentsRequiresCleanup(inlineFragments []inlineFragmentSelectionOnInterface, parentSelectionValidTypes []string) bool {
 	for _, fragment := range inlineFragments {
 		if r.interfaceFragmentNeedCleanup(fragment, parentSelectionValidTypes) {
@@ -166,13 +160,9 @@ func (r *fieldSelectionRewriter) interfaceFragmentsRequiresCleanup(inlineFragmen
 	return false
 }
 
-func (r *fieldSelectionRewriter) objectFragmentNeedCleanup(inlineFragment inlineFragmentSelection) bool {
-	if !r.hasTypeOnDataSource(inlineFragment.typeName) {
-		return true
-	}
-
-	for _, fragmentOnInterface := range inlineFragment.selectionSetInfo.inlineFragmentsOnInterfaces {
-		if r.interfaceFragmentNeedCleanup(fragmentOnInterface, []string{inlineFragment.typeName}) {
+func (r *fieldSelectionRewriter) unionFragmentsRequiresCleanup(inlineFragments []inlineFragmentSelectionOnUnion, parentSelectionValidTypes []string) bool {
+	for _, fragment := range inlineFragments {
+		if r.unionFragmentNeedCleanup(fragment, parentSelectionValidTypes) {
 			return true
 		}
 	}
@@ -180,45 +170,122 @@ func (r *fieldSelectionRewriter) objectFragmentNeedCleanup(inlineFragment inline
 	return false
 }
 
-func (r *fieldSelectionRewriter) interfaceFragmentNeedCleanup(inlineFragment inlineFragmentSelectionOnInterface, parentSelectionValidTypes []string) bool {
-	// check that interface type exists on datasource
-	if !r.hasTypeOnDataSource(inlineFragment.typeName) {
+func (r *fieldSelectionRewriter) objectFragmentsRequiresCleanup(inlineFragments []inlineFragmentSelection, parentSelectionValidTypes []string) bool {
+	for _, fragmentOnObject := range inlineFragments {
+		if r.objectFragmentNeedCleanup(fragmentOnObject, parentSelectionValidTypes) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (r *fieldSelectionRewriter) objectFragmentNeedCleanup(inlineFragmentOnObject inlineFragmentSelection, parentSelectionValidTypes []string) bool {
+	if !r.hasTypeOnDataSource(inlineFragmentOnObject.typeName) {
 		return true
+	}
+
+	if !slices.Contains(parentSelectionValidTypes, inlineFragmentOnObject.typeName) {
+		return true
+	}
+
+	if inlineFragmentOnObject.selectionSetInfo.hasInlineFragmentsOnInterfaces ||
+		inlineFragmentOnObject.selectionSetInfo.hasInlineFragmentsOnUnions {
+		return true
+	}
+
+	return false
+}
+
+func (r *fieldSelectionRewriter) unionFragmentNeedCleanup(inlineFragmentOnUnion inlineFragmentSelectionOnUnion, parentSelectionValidTypes []string) bool {
+	// check that union type exists on datasource
+	if !r.hasTypeOnDataSource(inlineFragmentOnUnion.typeName) {
+		return true
+	}
+
+	// We need to check if union type in the given datasource is implemented by parent selection valid types
+	// because it could happen that in the given ds we have all types from union but not all of are part of the union
+	// so we need to rewrite, because otherwise we won't get responses for all possible types, but only for part of union
+	for _, typeName := range parentSelectionValidTypes {
+		if !slices.Contains(inlineFragmentOnUnion.unionMemberTypeNamesInCurrentDS, typeName) {
+			return true
+		}
+	}
+
+	// if union fragment has inline fragments on objects
+	// check that object type is present within parent selection valid types - e.g. members of union or parent interface
+	// check each fragment for the presence of other interface fragments
+	if inlineFragmentOnUnion.selectionSetInfo.hasInlineFragmentsOnObjects {
+		if r.objectFragmentsRequiresCleanup(inlineFragmentOnUnion.selectionSetInfo.inlineFragmentsOnObjects, parentSelectionValidTypes) {
+			return true
+		}
+	}
+
+	// if union fragment has inline fragments on interfaces
+	// recursively check each fragment for the presence of other interface or union fragments with the same parent selection valid types
+	if inlineFragmentOnUnion.selectionSetInfo.hasInlineFragmentsOnInterfaces {
+		if r.interfaceFragmentsRequiresCleanup(inlineFragmentOnUnion.selectionSetInfo.inlineFragmentsOnInterfaces, parentSelectionValidTypes) {
+			return true
+		}
+	}
+
+	// if union fragment has inline fragments on unions
+	// recursively check each fragment for the presence of other interface or union fragments with the same parent selection valid types
+	if inlineFragmentOnUnion.selectionSetInfo.hasInlineFragmentsOnUnions {
+		if r.unionFragmentsRequiresCleanup(inlineFragmentOnUnion.selectionSetInfo.inlineFragmentsOnUnions, parentSelectionValidTypes) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (r *fieldSelectionRewriter) interfaceFragmentNeedCleanup(inlineFragmentOnInterface inlineFragmentSelectionOnInterface, parentSelectionValidTypes []string) bool {
+	// check that interface type exists on datasource
+	if !r.hasTypeOnDataSource(inlineFragmentOnInterface.typeName) {
+		return true
+	}
+
+	// We need to check if interface type in the given datasource is implemented by parent selection valid types
+	// because it could happen that in the given ds we have all types from interface but not all of them implements interface
+	// so we need to rewrite, because otherwise we won't get responses for all possible types, but only for implementing interface
+	for _, typeName := range parentSelectionValidTypes {
+		if !slices.Contains(inlineFragmentOnInterface.typeNamesImplementingInterfaceInCurrentDS, typeName) {
+			return true
+		}
 	}
 
 	// if interface fragment has inline fragments on objects
 	// check that object type is present within parent selection valid types - e.g. members of union or parent interface
 	// check each fragment for the presence of other interface fragments
-	if inlineFragment.selectionSetInfo.hasInlineFragmentsOnObjects {
-		for _, fragmentOnObject := range inlineFragment.selectionSetInfo.inlineFragmentsOnObjects {
-			if !slices.Contains(parentSelectionValidTypes, fragmentOnObject.typeName) {
-				return true
-			}
-
-			if r.objectFragmentNeedCleanup(fragmentOnObject) {
-				return true
-			}
+	if inlineFragmentOnInterface.selectionSetInfo.hasInlineFragmentsOnObjects {
+		if r.objectFragmentsRequiresCleanup(inlineFragmentOnInterface.selectionSetInfo.inlineFragmentsOnObjects, parentSelectionValidTypes) {
+			return true
 		}
 	}
 
 	// if interface fragment has inline fragments on interfaces
 	// recursively check each fragment for the presence of other interface fragments with the same parent selection valid types
-	if inlineFragment.selectionSetInfo.hasInlineFragmentsOnInterfaces {
-		for _, fragmentOnInterface := range inlineFragment.selectionSetInfo.inlineFragmentsOnInterfaces {
-			if r.interfaceFragmentNeedCleanup(fragmentOnInterface, parentSelectionValidTypes) {
-				return true
-			}
+	if inlineFragmentOnInterface.selectionSetInfo.hasInlineFragmentsOnInterfaces {
+		if r.interfaceFragmentsRequiresCleanup(inlineFragmentOnInterface.selectionSetInfo.inlineFragmentsOnInterfaces, parentSelectionValidTypes) {
+			return true
 		}
 	}
 
-	if inlineFragment.selectionSetInfo.hasFields {
+	if inlineFragmentOnInterface.selectionSetInfo.hasInlineFragmentsOnUnions {
+		if r.unionFragmentsRequiresCleanup(inlineFragmentOnInterface.selectionSetInfo.inlineFragmentsOnUnions, parentSelectionValidTypes) {
+			return true
+		}
+	}
+
+	if inlineFragmentOnInterface.selectionSetInfo.hasFields {
 		// NOTE: maybe we need to filter this typenames by parentSelectionValidTypes?
-		for _, typeName := range inlineFragment.typeNamesImplementingInterfaceInCurrentDS {
-			if !r.typeHasAllFieldLocal(typeName, inlineFragment.selectionSetInfo.fields) {
+		for _, typeName := range inlineFragmentOnInterface.typeNamesImplementingInterfaceInCurrentDS {
+			if !r.typeHasAllFieldLocal(typeName, inlineFragmentOnInterface.selectionSetInfo.fields) {
 				return true
 			}
 
-			if r.hasRequiresConfigurationForField(typeName, inlineFragment.selectionSetInfo.fields) {
+			if r.hasRequiresConfigurationForField(typeName, inlineFragmentOnInterface.selectionSetInfo.fields) {
 				return true
 			}
 		}
@@ -378,4 +445,180 @@ func (r *fieldSelectionRewriter) typeNameSelection() (selectionRef int, fieldRef
 		Ref:  field.Ref,
 		Kind: ast.SelectionKindField,
 	}), field.Ref
+}
+
+func (r *fieldSelectionRewriter) preserveTypeNameSelection(selectionSetInfo selectionSetInfo, selectionRefs *[]int) {
+	// we should preserve __typename if it was in the original query as it is explicitly requested
+	if !selectionSetInfo.hasTypeNameSelection {
+		return
+	}
+
+	selectionRef, _ := r.typeNameSelection()
+	*selectionRefs = append(*selectionRefs, selectionRef)
+}
+
+func (r *fieldSelectionRewriter) fieldTypeNameFromUpstreamSchema(fieldRef int, enclosingTypeName ast.ByteSlice) (typeName string, ok bool) {
+	fieldName := r.operation.FieldNameBytes(fieldRef)
+
+	// if enclosing type was one of the root query types
+	// we need to check if they were renamed in the upstream schema
+	enclosingTypeName = r.typeNameWithRename(enclosingTypeName)
+
+	node, hasNode := r.upstreamDefinition.NodeByName(enclosingTypeName)
+	if !hasNode {
+		var interfaceObjectName string
+
+		for _, objCfg := range r.dsConfiguration.FederationConfiguration().InterfaceObjects {
+			if slices.Contains(objCfg.ConcreteTypeNames, string(enclosingTypeName)) {
+				interfaceObjectName = objCfg.InterfaceTypeName
+				break
+			}
+		}
+
+		if interfaceObjectName == "" {
+			return "", false
+		}
+
+		node, hasNode = r.upstreamDefinition.NodeByNameStr(interfaceObjectName)
+		if !hasNode {
+			return "", false
+		}
+	}
+
+	fieldTypeNode, ok := r.upstreamDefinition.FieldTypeNode(fieldName, node)
+	if !ok {
+		return "", false
+	}
+
+	return r.upstreamDefinition.NodeNameString(fieldTypeNode), true
+}
+
+func (r *fieldSelectionRewriter) getAllowedUnionMemberTypeNames(fieldRef int, unionDefRef int, enclosingTypeName ast.ByteSlice) ([]string, error) {
+	unionTypeName := r.definition.UnionTypeDefinitionNameString(unionDefRef)
+	unionTypeNamesFromDefinition, _ := r.definition.UnionTypeDefinitionMemberTypeNames(unionDefRef)
+
+	// CurrentObject.field typename from the upstream schema
+	fieldTypeName, ok := r.fieldTypeNameFromUpstreamSchema(fieldRef, enclosingTypeName)
+	if !ok {
+		return nil, errors.New("unexpected error: field type name is not found in the upstream schema")
+	}
+
+	// if typename of a field is not equal to the typename of the union type
+	// then it should be a member of the union type
+	if unionTypeName != fieldTypeName {
+		if slices.Contains(unionTypeNamesFromDefinition, fieldTypeName) {
+			return []string{fieldTypeName}, nil
+		}
+
+		// if it is not a member of the union type the config is corrupted
+		return nil, errors.New("unexpected error: field type is not a member of the union type in the federated graph schema")
+	}
+
+	// when typename of a field is equal to the typename of the union type
+	// we need to get allowed types from the upstream schema
+	unionNode, ok := r.upstreamDefinition.NodeByNameStr(unionTypeName)
+	if !ok {
+		return nil, errors.New("unexpected error: union type is not found in the upstream schema")
+	}
+
+	if unionNode.Kind != ast.NodeKindUnionTypeDefinition {
+		return nil, errors.New("unexpected error: node kind is not union type definition in the upstream schema")
+	}
+
+	unionTypeNames, ok := r.upstreamDefinition.UnionTypeDefinitionMemberTypeNames(unionNode.Ref)
+	if !ok {
+		return nil, errors.New("unexpected error: union type definition in the upstream schema do not have any members")
+	}
+	sort.Strings(unionTypeNames)
+
+	return unionTypeNames, nil
+}
+
+func (r *fieldSelectionRewriter) getAllowedInterfaceMemberTypeNames(fieldRef int, interfaceDefRef int, enclosingTypeName ast.ByteSlice) (interfaceTypeName string, typeNames []string, isInterfaceObject bool, err error) {
+	interfaceTypeName = r.definition.InterfaceTypeDefinitionNameString(interfaceDefRef)
+	interfaceTypeNamesFromDefinition, _ := r.definition.InterfaceTypeDefinitionImplementedByObjectWithNames(interfaceDefRef)
+
+	// CurrentObject.field typename from the upstream schema
+	fieldTypeName, ok := r.fieldTypeNameFromUpstreamSchema(fieldRef, enclosingTypeName)
+	if !ok {
+		return "", nil, false, errors.New("unexpected error: field type name is not found in the upstream schema")
+	}
+
+	// when typename of a field is not equal to the typename of the interface type
+	// then it should implement the interface type in the federated graph schema
+	if interfaceTypeName != fieldTypeName {
+		if slices.Contains(interfaceTypeNamesFromDefinition, fieldTypeName) {
+			return fieldTypeName, []string{fieldTypeName}, false, nil
+		}
+
+		// if it doesn't implement an interface type the config is corrupted
+		return "", nil, false, errors.New("unexpected error: field type do not implement the interface in the federated graph schema")
+	}
+
+	interfaceNode, hasNode := r.upstreamDefinition.NodeByNameStr(interfaceTypeName)
+	if !hasNode {
+		return "", nil, false, errors.New("unexpected error: interface type definition not found in the upstream schema")
+	}
+
+	// when node kind is an interface type definition
+	if interfaceNode.Kind == ast.NodeKindInterfaceTypeDefinition {
+		// we collect the implementing types in this datasource
+		localInterfaceTypeNames, _ := r.upstreamDefinition.InterfaceTypeDefinitionImplementedByObjectWithNames(interfaceNode.Ref)
+
+		interfaceTypeNames := make([]string, 0, len(localInterfaceTypeNames))
+
+		// additionally, we need to check if implementing types are interface objects
+		// and replace such typename with concrete types
+		for _, typeName := range localInterfaceTypeNames {
+			isInterfaceObject := false
+			// when typeName is an interface object, we need to add concrete types instead of the interface object type name
+			for _, k := range r.dsConfiguration.FederationConfiguration().InterfaceObjects {
+				if k.InterfaceTypeName == typeName {
+					interfaceTypeNames = append(interfaceTypeNames, k.ConcreteTypeNames...)
+					isInterfaceObject = true
+					break
+				}
+			}
+			// when typename is not an interface object, we can add it as is
+			if !isInterfaceObject {
+				interfaceTypeNames = append(interfaceTypeNames, typeName)
+			}
+		}
+
+		// sort implementing types to be able to compact them
+		sort.Strings(interfaceTypeNames)
+		// remove possible consecutive duplicates
+		interfaceTypeNames = slices.Compact(interfaceTypeNames)
+
+		return interfaceTypeName, interfaceTypeNames, false, nil
+	}
+
+	// otherwise we should get node kind object type definition
+	// which means we are dealing with the interface object
+	for _, k := range r.dsConfiguration.FederationConfiguration().InterfaceObjects {
+		if k.InterfaceTypeName == interfaceTypeName {
+			return interfaceTypeName, k.ConcreteTypeNames, true, nil
+		}
+	}
+
+	return "", nil, false, errors.New("unexpected error: node kind is not interface type definition in the upstream schema")
+}
+
+func (r *fieldSelectionRewriter) typeNameWithRename(typeName ast.ByteSlice) ast.ByteSlice {
+	switch {
+	case bytes.Equal(typeName, ast.DefaultQueryTypeName):
+		if r.upstreamDefinition.Index.QueryTypeName != nil && !bytes.Equal(r.upstreamDefinition.Index.QueryTypeName, typeName) {
+			return r.upstreamDefinition.Index.QueryTypeName
+		}
+	case bytes.Equal(typeName, ast.DefaultMutationTypeName):
+		if r.upstreamDefinition.Index.MutationTypeName != nil && !bytes.Equal(r.upstreamDefinition.Index.MutationTypeName, typeName) {
+			return r.upstreamDefinition.Index.MutationTypeName
+		}
+	case bytes.Equal(typeName, ast.DefaultSubscriptionTypeName):
+		if r.upstreamDefinition.Index.SubscriptionTypeName != nil && !bytes.Equal(r.upstreamDefinition.Index.SubscriptionTypeName, typeName) {
+			return r.upstreamDefinition.Index.SubscriptionTypeName
+		}
+	}
+
+	return typeName
 }

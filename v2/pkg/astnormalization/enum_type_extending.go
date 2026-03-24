@@ -24,6 +24,7 @@ func extendEnumTypeDefinitionKeepingOrphans(walker *astvisitor.Walker) {
 
 type extendEnumTypeDefinitionVisitor struct {
 	*astvisitor.Walker
+
 	operation            *ast.Document
 	keepExtensionOrphans bool
 }

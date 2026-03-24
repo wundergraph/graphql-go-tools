@@ -19,21 +19,24 @@ func TestStaticDataSourcePlanning(t *testing.T) {
 	t.Run("simple", datasourcetesting.RunTest(definition, operation, "",
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
+				RawFetches: []*resolve.FetchItem{
+					{
+						Fetch: &resolve.SingleFetch{
+							DataSourceIdentifier: []byte("staticdatasource.Source"),
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:      `{"hello": "world"}`,
+								DataSource: Source{},
+							},
+						},
+					},
+				},
 				Data: &resolve.Object{
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("hello"),
 							Value: &resolve.String{
+								Path:     []string{"hello"},
 								Nullable: true,
-							},
-						},
-					},
-					Fetches: []resolve.Fetch{
-						&resolve.SingleFetch{
-							DataSourceIdentifier: []byte("staticdatasource.Source"),
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:      "world",
-								DataSource: Source{},
 							},
 						},
 					},
@@ -55,7 +58,7 @@ func TestStaticDataSourcePlanning(t *testing.T) {
 							},
 						},
 						Configuration{
-							Data: "world",
+							Data: `{"hello": "world"}`,
 						},
 					)
 					require.NoError(t, err)
@@ -64,9 +67,8 @@ func TestStaticDataSourcePlanning(t *testing.T) {
 			},
 			Fields: []plan.FieldConfiguration{
 				{
-					TypeName:              "Query",
-					FieldName:             "hello",
-					DisableDefaultMapping: true,
+					TypeName:  "Query",
+					FieldName: "hello",
 				},
 			},
 			DisableResolveFieldPositions: true,

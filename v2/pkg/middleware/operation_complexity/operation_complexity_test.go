@@ -39,6 +39,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 		run(t, testDefinition, `
 				{
 				  users(first: 1) {
+					__typename
 					id
 					balance
 					name
@@ -64,6 +65,23 @@ func TestCalculateOperationComplexity(t *testing.T) {
 					},
 				},
 			},
+		)
+	})
+	t.Run("skipped node", func(t *testing.T) {
+		run(t, testDefinition, `
+				{
+				  activeUsers {
+				    id
+				    balance
+				    name
+				  }
+				}`,
+			OperationStats{
+				NodeCount:  0,
+				Complexity: 0,
+				Depth:      0,
+			},
+			[]RootFieldStats{},
 		)
 	})
 	t.Run("one user with inline fragments", func(t *testing.T) {
@@ -450,6 +468,26 @@ func TestCalculateOperationComplexity(t *testing.T) {
 	t.Run("introspection query", func(t *testing.T) {
 		run(t, testDefinition, introspectionQuery,
 			OperationStats{
+				NodeCount:  59,
+				Complexity: 59,
+				Depth:      13,
+			},
+			[]RootFieldStats{
+				{
+					TypeName:  "Query",
+					FieldName: "__schema",
+					Stats: OperationStats{
+						NodeCount:  59,
+						Complexity: 59,
+						Depth:      12,
+					},
+				},
+			},
+		)
+	})
+	t.Run("introspection query with skip", func(t *testing.T) {
+		runSkipIntrospection(t, testDefinition, introspectionQuery,
+			OperationStats{
 				NodeCount:  0,
 				Complexity: 0,
 				Depth:      0,
@@ -459,17 +497,16 @@ func TestCalculateOperationComplexity(t *testing.T) {
 	})
 }
 
-var run = func(t *testing.T, definition, operation string, expectedGlobalComplexityResult OperationStats, expectedFieldsComplexityResult []RootFieldStats) {
+func runConfig(t *testing.T, definition, operation string, expectedGlobalComplexityResult OperationStats, expectedFieldsComplexityResult []RootFieldStats, skipIntrospection bool) {
 	def := unsafeparser.ParseGraphqlDocumentString(definition)
 	op := unsafeparser.ParseGraphqlDocumentString(operation)
 	report := operationreport.Report{}
 
 	astnormalization.NormalizeOperation(&op, &def, &report)
 
-	actualGlobalComplexityResult, actualFieldsComplexityResult := CalculateOperationComplexity(&op, &def, &report)
-	if report.HasErrors() {
-		require.NoError(t, report)
-	}
+	estimator := NewOperationComplexityEstimator(skipIntrospection)
+	actualGlobalComplexityResult, actualFieldsComplexityResult := estimator.Do(&op, &def, &report)
+	require.False(t, report.HasErrors())
 
 	assert.Equal(t, expectedGlobalComplexityResult.NodeCount, actualGlobalComplexityResult.NodeCount, "unexpected global node count")
 	assert.Equal(t, expectedGlobalComplexityResult.Complexity, actualGlobalComplexityResult.Complexity, "unexpected global complexity")
@@ -477,17 +514,26 @@ var run = func(t *testing.T, definition, operation string, expectedGlobalComplex
 	assert.Equal(t, expectedFieldsComplexityResult, actualFieldsComplexityResult, "unexpected fields complexity result")
 }
 
+func run(t *testing.T, definition, operation string, expectedGlobalComplexityResult OperationStats, expectedFieldsComplexityResult []RootFieldStats) {
+	runConfig(t, definition, operation, expectedGlobalComplexityResult, expectedFieldsComplexityResult, false)
+}
+
+func runSkipIntrospection(t *testing.T, definition, operation string, expectedGlobalComplexityResult OperationStats, expectedFieldsComplexityResult []RootFieldStats) {
+	runConfig(t, definition, operation, expectedGlobalComplexityResult, expectedFieldsComplexityResult, true)
+}
+
 func BenchmarkEstimateComplexity(b *testing.B) {
 	def := unsafeparser.ParseGraphqlDocumentString(testDefinition)
 	op := unsafeparser.ParseGraphqlDocumentString(complexQuery)
-
-	estimator := NewOperationComplexityEstimator()
-	report := operationreport.Report{}
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
+		// We use NewOperationComplexityEstimator for every operation in production, thus
+		// we want it in the benchmarking loop.
+		estimator := NewOperationComplexityEstimator(false)
+		report := operationreport.Report{}
 		globalComplexityResult, _ := estimator.Do(&op, &def, &report)
 		if report.HasErrors() {
 			b.Fatal(report)
@@ -592,11 +638,12 @@ input NewUserInput {
 }
 
 type Query {
-	__schema: __Schema! @nodeCountSkip
+	__schema: __Schema!
     user(id: ID!): User
     users(first: Int! @nodeCountMultiply, afterID: ID): [User]
     transactions(first: Int! @nodeCountMultiply, afterID: ID): [Transaction]
     currentPeriod: String
+	activeUsers: [User] @nodeCountSkip
 }
 
 type Mutation {
@@ -622,7 +669,7 @@ scalar Boolean
 scalar ID @custom(typeName: "string")
 "Directs the executor to include this field or fragment only when the argument is true."
 directive @include(
-    " Included when true."
+    "Included when true."
     if: Boolean!
 ) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
 "Directs the executor to skip this field or fragment when the argument is true."

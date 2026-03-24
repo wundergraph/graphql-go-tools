@@ -7,13 +7,14 @@ import (
 	"fmt"
 	"io"
 	"net"
-
-	"github.com/gobwas/ws"
-	"github.com/gobwas/ws/wsutil"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"time"
 
 	"github.com/buger/jsonparser"
+	"github.com/gobwas/ws"
+	"github.com/gobwas/ws/wsutil"
 	"github.com/jensneuse/abstractlogger"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 // gqlWSConnectionHandler is responsible for handling a connection to an origin
@@ -29,14 +30,19 @@ type gqlWSConnectionHandler struct {
 }
 
 func (h *gqlWSConnectionHandler) ServerClose() {
-	h.updater.Done()
+	// Because the server closes the connection, we need to send a close frame to the event loop.
+	h.updater.Close(resolve.SubscriptionCloseKindDownstreamServiceError)
+
+	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 	_ = ws.WriteFrame(h.conn, ws.MaskFrame(ws.NewCloseFrame(ws.NewCloseFrameBody(ws.StatusNormalClosure, "Normal Closure"))))
 	_ = h.conn.Close()
 }
 
+// ClientClose is called when the client closes the connection. Is called when the trigger is shutdown with all subscriptions.
 func (h *gqlWSConnectionHandler) ClientClose() {
-	h.updater.Done()
+	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 	_ = wsutil.WriteClientText(h.conn, []byte(`{"type":"stop","id":"1"}`))
+	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 	_ = ws.WriteFrame(h.conn, ws.MaskFrame(ws.NewCloseFrame(ws.NewCloseFrameBody(ws.StatusNormalClosure, "Normal Closure"))))
 	_ = h.conn.Close()
 }
@@ -106,7 +112,7 @@ func (h *gqlWSConnectionHandler) StartBlocking() error {
 		return err
 	}
 
-	go h.readBlocking(readCtx, dataCh, errCh)
+	go h.readBlocking(readCtx, h.options.readTimeout, dataCh, errCh)
 
 	for {
 		select {
@@ -154,9 +160,10 @@ func (h *gqlWSConnectionHandler) StartBlocking() error {
 // readBlocking is a dedicated loop running in a separate goroutine
 // because the library "github.com/coder/websocket" doesn't allow reading with a context with Timeout
 // we'll block forever on reading until the context of the gqlWSConnectionHandler stops
-func (h *gqlWSConnectionHandler) readBlocking(ctx context.Context, dataCh chan []byte, errCh chan error) {
+func (h *gqlWSConnectionHandler) readBlocking(ctx context.Context, readTimeout time.Duration, dataCh chan []byte, errCh chan error) {
 	netOpErr := &net.OpError{}
 	for {
+		_ = h.conn.SetReadDeadline(time.Now().Add(readTimeout))
 		data, err := wsutil.ReadServerText(h.conn)
 		if err != nil {
 			if errors.As(err, &netOpErr) {
@@ -185,8 +192,19 @@ func (h *gqlWSConnectionHandler) readBlocking(ctx context.Context, dataCh chan [
 
 func (h *gqlWSConnectionHandler) unsubscribeAllAndCloseConn() {
 	h.unsubscribe()
+	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 	_ = ws.WriteFrame(h.conn, ws.MaskFrame(ws.NewCloseFrame(ws.NewCloseFrameBody(ws.StatusNormalClosure, "Normal Closure"))))
 	_ = h.conn.Close()
+}
+
+func (h *gqlWSConnectionHandler) Ping() {
+	// This protocol has no client side ping/pong mechanism. The server send a ka message to understand
+	// if the connection is still alive. The client only acknowledges the retrieval of the ka message
+	// by consuming it in the readBlocking loop.
+
+	// TODO We could check if we receive a ka message in a certain time frame and if not, we could close the connection
+	// However, because we don't send something to the server, we can't verify if the connection is still healthy and
+	// responsive from both sides.
 }
 
 // subscribe adds a new Subscription to the gqlWSConnectionHandler and sends the startMessage to the origin
@@ -196,6 +214,7 @@ func (h *gqlWSConnectionHandler) subscribe() error {
 		return err
 	}
 	startRequest := fmt.Sprintf(startMessage, "1", string(graphQLBody))
+	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 	err = wsutil.WriteClientText(h.conn, []byte(startRequest))
 	if err != nil {
 		return err
@@ -236,7 +255,7 @@ func (h *gqlWSConnectionHandler) handleMessageTypeComplete(data []byte) {
 	if id != "1" {
 		return
 	}
-	h.updater.Done()
+	h.updater.Complete()
 }
 
 func (h *gqlWSConnectionHandler) handleMessageTypeError(data []byte) {
@@ -275,7 +294,8 @@ func (h *gqlWSConnectionHandler) handleMessageTypeError(data []byte) {
 }
 
 func (h *gqlWSConnectionHandler) unsubscribe() {
-	h.updater.Done()
+	h.updater.Complete()
 	stopRequest := fmt.Sprintf(stopMessage, "1")
+	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 	_ = wsutil.WriteClientText(h.conn, []byte(stopRequest))
 }

@@ -28,8 +28,8 @@
           "attachments": [
             {
               "__typename": "Question",
-              "upc": "top-1",
-              "body": "How do I turn it on?"
+              "body": "How do I turn it on?",
+              "upc": "top-1"
             }
           ]
         },
@@ -96,7 +96,7 @@
                 "raw_input_data": {},
                 "input": {
                   "body": {
-                    "query": "{me {id username history {__typename ... on Store {location} ... on Purchase {wallet {currency}} ... on Sale {location product {upc __typename}}} __typename}}"
+                    "query": "{me {id username history {__typename ... on Purchase {wallet {currency}} ... on Sale {location product {upc __typename}}} __typename}}"
                   },
                   "header": {},
                   "method": "POST",
@@ -170,7 +170,7 @@
                 "duration_since_start_pretty": "1ns",
                 "duration_load_nanoseconds": 1,
                 "duration_load_pretty": "1ns",
-                "single_flight_used": false,
+                "single_flight_used": true,
                 "single_flight_shared_response": false,
                 "load_skipped": false,
                 "load_stats": {
@@ -310,7 +310,7 @@
                     "duration_since_start_pretty": "1ns",
                     "duration_load_nanoseconds": 1,
                     "duration_load_pretty": "1ns",
-                    "single_flight_used": false,
+                    "single_flight_used": true,
                     "single_flight_shared_response": false,
                     "load_skipped": false,
                     "load_stats": {
@@ -409,7 +409,7 @@
                     },
                     "input": {
                       "body": {
-                        "query": "query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename reviews {__typename attachments {__typename ... on Comment {upc __typename ... on Rating {body}} ... on Question {body} ... on Video {upc size}}}}}}",
+                        "query": "query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename reviews {__typename attachments {__typename ... on Question {body upc} ... on Video {upc size} ... on Rating {upc body}}}}}}",
                         "variables": {
                           "representations": [
                             {
@@ -433,9 +433,9 @@
                                 "__typename": "Review",
                                 "attachments": [
                                   {
-                                    "upc": "top-1",
                                     "__typename": "Question",
-                                    "body": "How do I turn it on?"
+                                    "body": "How do I turn it on?",
+                                    "upc": "top-1"
                                   }
                                 ]
                               },
@@ -443,8 +443,8 @@
                                 "__typename": "Review",
                                 "attachments": [
                                   {
-                                    "upc": "top-2",
                                     "__typename": "Rating",
+                                    "upc": "top-2",
                                     "body": "The best hat I have ever bought in my life."
                                   },
                                   {
@@ -481,13 +481,13 @@
                             "status": "200 OK",
                             "headers": {
                               "Content-Length": [
-                                "395"
+                                "349"
                               ],
                               "Content-Type": [
                                 "application/json"
                               ]
                             },
-                            "body_size": 395
+                            "body_size": 349
                           }
                         }
                       }
@@ -496,7 +496,7 @@
                     "duration_since_start_pretty": "1ns",
                     "duration_load_nanoseconds": 1,
                     "duration_load_pretty": "1ns",
-                    "single_flight_used": false,
+                    "single_flight_used": true,
                     "single_flight_shared_response": false,
                     "load_skipped": false,
                     "load_stats": {

@@ -50,7 +50,7 @@ func runTest(schema, operation, expectedJsonSchema string, valid []string, inval
 func TestJsonSchema(t *testing.T) {
 	t.Run("object", runTest(
 		`scalar String input Test { str: String }`,
-		`query ($input: Test){}`,
+		`query ($input: Test){ a }`,
 		`{"type":["object","null"],"properties":{"str":{"type":["string","null"]}},"additionalProperties":false}`,
 		[]string{
 			`{"str":"validString"}`,
@@ -62,7 +62,7 @@ func TestJsonSchema(t *testing.T) {
 	))
 	t.Run("string", runTest(
 		`scalar String input Test { str: String }`,
-		`query ($input: String){}`,
+		`query ($input: String){ a }`,
 		`{"type":["string","null"]}`,
 		[]string{
 			`"validString"`,
@@ -90,7 +90,7 @@ func TestJsonSchema(t *testing.T) {
 	))
 	t.Run("id", runTest(
 		`scalar ID input Test { str: String }`,
-		`query ($input: ID){}`,
+		`query ($input: ID){ a }`,
 		`{"type":["string","integer","null"]}`,
 		[]string{
 			`"validString"`,
@@ -104,7 +104,7 @@ func TestJsonSchema(t *testing.T) {
 	))
 	t.Run("array", runTest(
 		`scalar String`,
-		`query ($input: [String]){}`,
+		`query ($input: [String]){ a }`,
 		`{"type":["array","null"],"items":{"type":["string","null"]}}`,
 		[]string{
 			`null`,
@@ -120,7 +120,7 @@ func TestJsonSchema(t *testing.T) {
 	))
 	t.Run("input object array", runTest(
 		`scalar String input StringInput { str: String }`,
-		`query ($input: [StringInput]){}`,
+		`query ($input: [StringInput]){ a }`,
 		`{"type":["array","null"],"items":{"anyOf": [{"type":["null"]},{"$ref":"#/$defs/StringInput"}]},"$defs":{"StringInput":{"type":["object","null"],"properties":{"str":{"type":["string","null"]}},"additionalProperties":false}}}`,
 		[]string{
 			`null`,
@@ -136,7 +136,7 @@ func TestJsonSchema(t *testing.T) {
 	))
 	t.Run("nested input object both as required and not required", runTest(
 		`scalar String input StringInput { str: String } input Input { requireInput: StringInput! optionalInput: StringInput }`,
-		`query ($input: Input){}`,
+		`query ($input: Input){ a }`,
 		`{"type":["object","null"],"properties":{"optionalInput":{"anyOf":[{"type":["null"]},{"$ref":"#/$defs/StringInput"}]},"requireInput":{"$ref":"#/$defs/StringInputNotNull"}},"required":["requireInput"],"additionalProperties":false,"$defs":{"StringInput":{"type":["object","null"],"properties":{"str":{"type":["string","null"]}},"additionalProperties":false},"StringInputNotNull":{"type":["object"],"properties":{"str":{"type":["string","null"]}},"additionalProperties":false}}}`,
 		[]string{
 			`{"optionalInput": {}, "requireInput": {"str":"validString"}}`,
@@ -149,7 +149,7 @@ func TestJsonSchema(t *testing.T) {
 	))
 	t.Run("nested input object both as required and not required - reverse order", runTest(
 		`scalar String input StringInput { str: String } input Input { optionalInput: StringInput requireInput: StringInput! }`,
-		`query ($input: Input){}`,
+		`query ($input: Input){ a }`,
 		`{"type":["object","null"],"properties":{"optionalInput":{"anyOf":[{"type":["null"]},{"$ref":"#/$defs/StringInput"}]},"requireInput":{"$ref":"#/$defs/StringInputNotNull"}},"required":["requireInput"],"additionalProperties":false,"$defs":{"StringInput":{"type":["object","null"],"properties":{"str":{"type":["string","null"]}},"additionalProperties":false},"StringInputNotNull":{"type":["object"],"properties":{"str":{"type":["string","null"]}},"additionalProperties":false}}}`,
 		[]string{
 			`{"optionalInput": {}, "requireInput": {"str":"validString"}}`,
@@ -162,7 +162,7 @@ func TestJsonSchema(t *testing.T) {
 	))
 	t.Run("optional nested input object used twice", runTest(
 		`scalar String input StringInput { str: String } input Input { optionalInput1: StringInput optionalInput2: StringInput }`,
-		`query ($input: Input){}`,
+		`query ($input: Input){ a }`,
 		`{"type":["object","null"],"properties":{"optionalInput1":{"anyOf":[{"type":["null"]},{"$ref":"#/$defs/StringInput"}]},"optionalInput2":{"anyOf":[{"type":["null"]},{"$ref":"#/$defs/StringInput"}]}},"additionalProperties":false,"$defs":{"StringInput":{"type":["object","null"],"properties":{"str":{"type":["string","null"]}},"additionalProperties":false}}}`,
 		[]string{
 			`{"optionalInput1": {}, "optionalInput2": {"str":"validString"}}`,
@@ -173,7 +173,7 @@ func TestJsonSchema(t *testing.T) {
 	))
 	t.Run("required nested input object used twice", runTest(
 		`scalar String input StringInput { str: String } input Input { requireInput1: StringInput! requireInput2: StringInput! }`,
-		`query ($input: Input){}`,
+		`query ($input: Input){ a }`,
 		`{"type":["object","null"],"properties":{"requireInput1":{"$ref":"#/$defs/StringInputNotNull"},"requireInput2":{"$ref":"#/$defs/StringInputNotNull"}},"required":["requireInput1","requireInput2"],"additionalProperties":false,"$defs":{"StringInputNotNull":{"type":["object"],"properties":{"str":{"type":["string","null"]}},"additionalProperties":false}}}`,
 		[]string{
 			`{"requireInput1": {"str":"validString"}, "requireInput2": {"str":"validString"}}`,
@@ -185,7 +185,7 @@ func TestJsonSchema(t *testing.T) {
 	))
 	t.Run("required array", runTest(
 		`scalar String`,
-		`query ($input: [String]!){}`,
+		`query ($input: [String]!){ a }`,
 		`{"type":["array"],"items":{"type":["string","null"]}}`,
 		[]string{
 			`[]`,
@@ -201,7 +201,7 @@ func TestJsonSchema(t *testing.T) {
 	))
 	t.Run("required array element", runTest(
 		`scalar String`,
-		`query ($input: [String!]){}`,
+		`query ($input: [String!]){ a }`,
 		`{"type":["array","null"],"items":{"type":["string"]}}`,
 		[]string{
 			`null`,
@@ -218,7 +218,7 @@ func TestJsonSchema(t *testing.T) {
 	))
 	t.Run("nested object", runTest(
 		`scalar String scalar Boolean input Test { str: String! nested: Nested } input Nested { boo: Boolean }`,
-		`query ($input: Test){}`,
+		`query ($input: Test){ a }`,
 		`{"type":["object","null"],"properties":{"nested":{"anyOf":[{"type":["null"]},{"$ref":"#/$defs/Nested"}]},"str":{"type":["string"]}},"required":["str"],"additionalProperties":false,"$defs":{"Nested":{"type":["object","null"],"properties":{"boo":{"type":["boolean","null"]}},"additionalProperties":false}}}`,
 		[]string{
 			`null`,
@@ -237,7 +237,7 @@ func TestJsonSchema(t *testing.T) {
 	))
 	t.Run("nested object with override", runTest(
 		`scalar String scalar Boolean input Test { str: String! override: Override } input Override { boo: Boolean }`,
-		`query ($input: Test){}`,
+		`query ($input: Test){ a }`,
 		`{"type":["object","null"],"properties":{"override":{"type":["string","null"]},"str":{"type":["string"]}},"required":["str"],"additionalProperties":false}`,
 		[]string{
 			`null`,
@@ -257,7 +257,7 @@ func TestJsonSchema(t *testing.T) {
 	))
 	t.Run("recursive object", runTest(
 		`scalar String scalar Boolean input Test { str: String! nested: Nested } input Nested { boo: Boolean recursive: Test }`,
-		`query ($input: Test){}`,
+		`query ($input: Test){ a }`,
 		`{"type":["object","null"],"properties":{"nested":{"anyOf":[{"type":["null"]},{"$ref":"#/$defs/Nested"}]},"str":{"type":["string"]}},"required":["str"],"additionalProperties":false,"$defs":{"Nested":{"type":["object","null"],"properties":{"boo":{"type":["boolean","null"]},"recursive":{"anyOf": [{"type":["null"]},{"$ref":"#/$defs/Test"}]}},"additionalProperties":false},"Test":{"type":["object","null"],"properties":{"nested":{"anyOf":[{"type":["null"]},{"$ref":"#/$defs/Nested"}]},"str":{"type":["string"]}},"required":["str"],"additionalProperties":false}}}`,
 		[]string{
 			`{"str":"validString"}`,
@@ -273,7 +273,7 @@ func TestJsonSchema(t *testing.T) {
 	))
 	t.Run("recursive object with multiple branches", runTest(
 		`scalar String scalar Boolean input Root { test: Test another: Another } input Test { str: String! nested: Nested } input Nested { boo: Boolean recursive: Test another: Another } input Another { boo: Boolean }`,
-		`query ($input: Root){}`,
+		`query ($input: Root){ a }`,
 		`{"type":["object","null"],"properties":{"another":{"anyOf":[{"type":["null"]},{"$ref":"#/$defs/Another"}]},"test":{"anyOf":[{"type":["null"]},{"$ref":"#/$defs/Test"}]}},"additionalProperties":false,"$defs":{"Another":{"type":["object","null"],"properties":{"boo":{"type":["boolean","null"]}},"additionalProperties":false},"Nested":{"type":["object","null"],"properties":{"another":{"anyOf":[{"type":["null"]},{"$ref":"#/$defs/Another"}]},"boo":{"type":["boolean","null"]},"recursive":{"anyOf":[{"type":["null"]},{"$ref":"#/$defs/Test"}]}},"additionalProperties":false},"Test":{"type":["object","null"],"properties":{"nested":{"anyOf":[{"type":["null"]},{"$ref":"#/$defs/Nested"}]},"str":{"type":["string"]}},"required":["str"],"additionalProperties":false}}}`,
 		[]string{
 			`{"test":{"str":"validString"}}`,
@@ -287,14 +287,14 @@ func TestJsonSchema(t *testing.T) {
 	))
 	t.Run("complex recursive schema", runTest(
 		complexRecursiveSchema,
-		`query ($input: db_messagesWhereInput){}`,
+		`query ($input: db_messagesWhereInput){ a }`,
 		complexRecursiveSchemaResult,
 		[]string{},
 		[]string{},
 	))
 	t.Run("one level deep sub path", runTest(
 		"input Human { name: String! } scalar String",
-		"query ($human: Human!) { }",
+		"query ($human: Human!) { a }",
 		`{"type":["string"]}`,
 		[]string{
 			`"John Doe"`,
@@ -306,7 +306,7 @@ func TestJsonSchema(t *testing.T) {
 	))
 	t.Run("multi level deep sub path", runTest(
 		"input Human { name: String! pet: Animal } scalar String type Animal { name: String! }",
-		"query ($human: Human!) { }",
+		"query ($human: Human!) { a }",
 		`{"type":["string"]}`,
 		[]string{
 			`"Doggie"`,
@@ -319,7 +319,7 @@ func TestJsonSchema(t *testing.T) {
 	))
 	t.Run("not defined scalar", runTest(
 		`input Container { name: MyScalar }`,
-		`query ($input: Container){}`,
+		`query ($input: Container){ a }`,
 		`{"type":["object", "null"], "properties": {"name": {}}, "additionalProperties": false}`,
 		[]string{},
 		[]string{},

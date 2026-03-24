@@ -3,6 +3,7 @@ package ast
 import (
 	"bytes"
 	"fmt"
+	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/position"
@@ -211,6 +212,18 @@ func (d *Document) SelectionSetHasFieldSelectionWithExactName(set int, name []by
 	return false, InvalidRef
 }
 
+// SelectionSetFieldRefs returns a list of field refs in the selection set.
+// It traverses through the field selections of the selection set and returns the actual field refs.
+func (d *Document) SelectionSetFieldRefs(set int) (refs []int) {
+	for _, selectionRef := range d.SelectionSets[set].SelectionRefs {
+		if d.Selections[selectionRef].Kind == SelectionKindField {
+			refs = append(refs, d.Selections[selectionRef].Ref)
+		}
+	}
+	return
+}
+
+// SelectionSetFieldSelections returns a list of field selection refs in the selection set.
 func (d *Document) SelectionSetFieldSelections(set int) (refs []int) {
 	for _, selectionRef := range d.SelectionSets[set].SelectionRefs {
 		if d.Selections[selectionRef].Kind == SelectionKindField {
@@ -242,10 +255,17 @@ func (d *Document) SelectionSetFieldNames(set int) (fieldNames []string) {
 	return
 }
 
-func (d *Document) SelectionIsFieldSelection(ref int) bool {
-	return d.Selections[ref].Kind == SelectionKindField
-}
+// SelectionSetFieldSetString returns a string of the field names in the selection set separated by a space
+// Example: "{ name status }" -> "name status"
+func (d *Document) SelectionSetFieldSetString(set int) string {
+	fieldSelections := d.SelectionSetFieldSelections(set)
+	builder := strings.Builder{}
+	for i, fieldSelection := range fieldSelections {
+		builder.Write(d.FieldNameBytes(d.Selections[fieldSelection].Ref))
+		if i != len(fieldSelections)-1 {
+			builder.WriteRune(' ')
+		}
+	}
 
-func (d *Document) SelectionIsInlineFragmentSelection(ref int) bool {
-	return d.Selections[ref].Kind == SelectionKindInlineFragment
+	return builder.String()
 }

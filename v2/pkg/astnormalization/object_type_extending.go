@@ -24,6 +24,7 @@ func extendObjectTypeDefinitionKeepingOrphans(walker *astvisitor.Walker) {
 
 type extendObjectTypeDefinitionVisitor struct {
 	*astvisitor.Walker
+
 	operation            *ast.Document
 	keepExtensionOrphans bool
 }

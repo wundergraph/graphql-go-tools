@@ -2,70 +2,19 @@ package astvalidation
 
 import (
 	"bytes"
-	"fmt"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
-// ValidArguments validates if arguments are valid: values and variables has compatible types
-// deep variables comparison is handled by Values
-func ValidArguments() Rule {
-	return func(walker *astvisitor.Walker) {
-		visitor := validArgumentsVisitor{
-			Walker: walker,
-		}
-		walker.RegisterEnterDocumentVisitor(&visitor)
-		walker.RegisterEnterArgumentVisitor(&visitor)
-	}
-}
-
-type validArgumentsVisitor struct {
-	*astvisitor.Walker
-	operation, definition *ast.Document
-}
-
-func (v *validArgumentsVisitor) EnterDocument(operation, definition *ast.Document) {
-	v.operation = operation
-	v.definition = definition
-}
-
-func (v *validArgumentsVisitor) EnterArgument(ref int) {
-	definitionRef, exists := v.ArgumentInputValueDefinition(ref)
-
-	if !exists {
-		return
-	}
-
-	value := v.operation.ArgumentValue(ref)
-	v.validateIfValueSatisfiesInputFieldDefinition(value, definitionRef)
-}
-
-func (v *validArgumentsVisitor) validateIfValueSatisfiesInputFieldDefinition(value ast.Value, inputValueDefinitionRef int) {
+func (v *valuesVisitor) validateIfValueSatisfiesInputFieldDefinition(value ast.Value, inputValueDefinitionRef int) {
 	var (
 		satisfied             bool
 		operationTypeRef      int
 		variableDefinitionRef int
 	)
 
-	switch value.Kind {
-	case ast.ValueKindVariable:
-		satisfied, operationTypeRef, variableDefinitionRef = v.variableValueSatisfiesInputValueDefinition(value.Ref, inputValueDefinitionRef)
-	case ast.ValueKindEnum,
-		ast.ValueKindNull,
-		ast.ValueKindBoolean,
-		ast.ValueKindInteger,
-		ast.ValueKindString,
-		ast.ValueKindFloat,
-		ast.ValueKindObject,
-		ast.ValueKindList:
-		// this types of values are covered by Values() / valuesVisitor
-		return
-	default:
-		v.StopWithInternalErr(fmt.Errorf("validateIfValueSatisfiesInputFieldDefinition: not implemented for value.Kind: %s", value.Kind))
-		return
-	}
+	satisfied, operationTypeRef, variableDefinitionRef = v.variableValueSatisfiesInputValueDefinition(value.Ref, inputValueDefinitionRef)
 
 	if satisfied {
 		return
@@ -95,7 +44,7 @@ func (v *validArgumentsVisitor) validateIfValueSatisfiesInputFieldDefinition(val
 	v.StopWithExternalErr(operationreport.ErrVariableTypeDoesntSatisfyInputValueDefinition(printedValue, actualTypeName, expectedTypeName, value.Position, v.operation.VariableDefinitions[variableDefinitionRef].VariableValue.Position))
 }
 
-func (v *validArgumentsVisitor) variableValueSatisfiesInputValueDefinition(variableValue, inputValueDefinition int) (satisfies bool, operationTypeRef int, variableDefRef int) {
+func (v *valuesVisitor) variableValueSatisfiesInputValueDefinition(variableValue, inputValueDefinition int) (satisfies bool, operationTypeRef int, variableDefRef int) {
 	variableDefinitionRef, exists := v.variableDefinition(variableValue)
 	if !exists {
 		return false, ast.InvalidRef, variableDefinitionRef
@@ -110,7 +59,7 @@ func (v *validArgumentsVisitor) variableValueSatisfiesInputValueDefinition(varia
 	return v.operationTypeSatisfiesDefinitionType(operationTypeRef, definitionTypeRef, hasDefaultValue), operationTypeRef, variableDefinitionRef
 }
 
-func (v *validArgumentsVisitor) variableDefinition(variableValueRef int) (ref int, exists bool) {
+func (v *valuesVisitor) variableDefinition(variableValueRef int) (ref int, exists bool) {
 	variableName := v.operation.VariableValueNameBytes(variableValueRef)
 
 	if v.Ancestors[0].Kind == ast.NodeKindOperationDefinition {
@@ -127,11 +76,11 @@ func (v *validArgumentsVisitor) variableDefinition(variableValueRef int) (ref in
 	return ast.InvalidRef, false
 }
 
-func (v *validArgumentsVisitor) validDefaultValue(value ast.DefaultValue) bool {
+func (v *valuesVisitor) validDefaultValue(value ast.DefaultValue) bool {
 	return value.IsDefined && value.Value.Kind != ast.ValueKindNull
 }
 
-func (v *validArgumentsVisitor) operationTypeSatisfiesDefinitionType(operationTypeRef int, definitionTypeRef int, hasDefaultValue bool) bool {
+func (v *valuesVisitor) operationTypeSatisfiesDefinitionType(operationTypeRef int, definitionTypeRef int, hasDefaultValue bool) bool {
 	opKind := v.operation.Types[operationTypeRef].TypeKind
 	defKind := v.definition.Types[definitionTypeRef].TypeKind
 

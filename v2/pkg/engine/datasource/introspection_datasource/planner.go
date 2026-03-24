@@ -45,21 +45,10 @@ func (p *Planner[T]) DownstreamResponseFieldAlias(_ int) (alias string, exists b
 	return
 }
 
-func (p *Planner[T]) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
-	return plan.DataSourcePlanningBehavior{
-		MergeAliasedRootNodes:      false,
-		OverrideFieldPathFromAlias: true,
-		IncludeTypeNameFields:      true,
-	}
-}
-
 func (p *Planner[T]) EnterField(ref int) {
 	fieldName := p.v.Operation.FieldNameString(ref)
 	fieldAliasOrName := p.v.Operation.FieldAliasOrNameString(ref)
 	switch fieldName {
-	case fieldsFieldName, enumValuesFieldName:
-		p.hasIncludeDeprecatedArgument = p.v.Operation.FieldHasArguments(ref)
-		fallthrough
 	case typeFieldName, schemaFieldName:
 		p.rootField = ref
 		p.rootFieldName = fieldName
@@ -80,15 +69,8 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		MergePath: []string{p.rootFielPath},
 	}
 
-	requiresParallelListItemFetch := false
-	switch p.rootFieldName {
-	case fieldsFieldName, enumValuesFieldName:
-		requiresParallelListItemFetch = p.isArrayItem
-	}
-
 	return resolve.FetchConfiguration{
-		Input:                         p.configureInput(),
-		RequiresParallelListItemFetch: requiresParallelListItemFetch,
+		Input: p.configureInput(),
 		DataSource: &Source{
 			introspectionData: p.introspectionData,
 		},

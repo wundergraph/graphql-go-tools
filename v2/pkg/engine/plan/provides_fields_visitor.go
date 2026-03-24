@@ -9,11 +9,10 @@ import (
 )
 
 type providesInput struct {
-	providesFieldSet, operation, definition *ast.Document
-	report                                  *operationreport.Report
-	operationSelectionSet                   int
-	parentPath                              string
-	dataSource                              DataSource
+	parentTypeName       string
+	providesSelectionSet string
+	definition           *ast.Document
+	parentPath           string
 }
 
 type addTypenamesVisitor struct {
@@ -39,7 +38,7 @@ func (a *addTypenamesVisitor) EnterSelectionSet(ref int) {
 }
 
 func addTypenames(operation, definition *ast.Document, report *operationreport.Report) {
-	walker := astvisitor.NewWalker(32)
+	walker := astvisitor.NewWalkerWithID(32, "AddTypenamesVisitor")
 	visitor := &addTypenamesVisitor{
 		walker:           &walker,
 		providesFieldSet: operation,
@@ -65,144 +64,53 @@ func providesFragment(fieldTypeName string, providesSelectionSet string, definit
 	return providesFieldSet, report
 }
 
-func providesSuggestions(input *providesInput) []*NodeSuggestion {
-	walker := astvisitor.NewWalker(48)
+func providesSuggestions(input *providesInput) (map[string]struct{}, *operationreport.Report) {
+	providesFieldSet, report := providesFragment(input.parentTypeName, input.providesSelectionSet, input.definition)
+	if report.HasErrors() {
+		return nil, report
+	}
+
+	walker := astvisitor.NewWalkerWithID(48, "ProvidesVisitor")
 
 	visitor := &providesVisitor{
-		walker: &walker,
-		input:  input,
+		walker:           &walker,
+		suggestions:      make(map[string]struct{}),
+		providesFieldSet: providesFieldSet,
+		definition:       input.definition,
+		parentTypeName:   input.parentTypeName,
+		parentPath:       input.parentPath,
 	}
-	walker.RegisterEnterDocumentVisitor(visitor)
-	walker.RegisterEnterFragmentDefinitionVisitor(visitor)
-	walker.RegisterFieldVisitor(visitor)
-	walker.RegisterSelectionSetVisitor(visitor)
+	walker.RegisterEnterFieldVisitor(visitor)
 
-	walker.Walk(input.providesFieldSet, input.definition, input.report)
+	walker.Walk(providesFieldSet, input.definition, report)
 
-	return visitor.suggestions
-}
-
-type currentFiedInfo struct {
-	fieldRef                           int
-	fieldName                          string
-	hasSelections                      bool
-	hasSelectedNestedFieldsInOperation bool
-	suggestion                         *NodeSuggestion
+	return visitor.suggestions, report
 }
 
 type providesVisitor struct {
-	walker         *astvisitor.Walker
-	input          *providesInput
-	OperationNodes []ast.Node
+	walker      *astvisitor.Walker
+	suggestions map[string]struct{}
 
-	suggestions   []*NodeSuggestion
-	pathPrefix    string
-	currentFields []*currentFiedInfo
-}
-
-func (v *providesVisitor) EnterFragmentDefinition(ref int) {
-	v.pathPrefix = v.input.providesFieldSet.FragmentDefinitionTypeNameString(ref)
-}
-
-func (v *providesVisitor) EnterDocument(_, _ *ast.Document) {
-	v.OperationNodes = make([]ast.Node, 0, 3)
-	v.OperationNodes = append(v.OperationNodes,
-		ast.Node{Kind: ast.NodeKindSelectionSet, Ref: v.input.operationSelectionSet})
-}
-
-func (v *providesVisitor) EnterSelectionSet(_ int) {
-	if v.walker.Depth == 2 {
-		return
-	}
-	fieldNode := v.OperationNodes[len(v.OperationNodes)-1]
-
-	if fieldSelectionSetRef, ok := v.input.operation.FieldSelectionSet(fieldNode.Ref); ok {
-		selectionSetNode := ast.Node{Kind: ast.NodeKindSelectionSet, Ref: fieldSelectionSetRef}
-		v.OperationNodes = append(v.OperationNodes, selectionSetNode)
-	}
-}
-
-func (v *providesVisitor) LeaveSelectionSet(ref int) {
-	if v.walker.Depth == 0 {
-		return
-	}
-
-	v.OperationNodes = v.OperationNodes[:len(v.OperationNodes)-1]
+	providesFieldSet *ast.Document
+	definition       *ast.Document
+	parentTypeName   string
+	parentPath       string
 }
 
 func (v *providesVisitor) EnterField(ref int) {
-	fieldNameBytes := v.input.providesFieldSet.FieldNameBytes(ref)
-	fieldName := v.input.providesFieldSet.FieldNameUnsafeString(ref)
+	fieldName := v.providesFieldSet.FieldNameUnsafeString(ref)
+	typeName := v.walker.EnclosingTypeDefinition.NameString(v.definition)
 
-	selectionSetRef := v.OperationNodes[len(v.OperationNodes)-1].Ref
-	operationHasField, operationFieldRef := v.input.operation.SelectionSetHasFieldSelectionWithExactName(selectionSetRef, fieldNameBytes)
-	if !operationHasField {
-		// we haven't selected this field in the operation,
-		// so we don't have to add node suggestions for it
-		// and we don't want to check nested fields for this field if any present in the fieldset
-		v.walker.SkipNode()
-		return
-	}
-	if v.input.providesFieldSet.FieldHasSelections(ref) {
-		v.OperationNodes = append(v.OperationNodes, ast.Node{Kind: ast.NodeKindField, Ref: operationFieldRef})
-	}
-
-	typeName := v.walker.EnclosingTypeDefinition.NameString(v.input.definition)
-	parentPath := v.input.parentPath + strings.TrimPrefix(v.walker.Path.DotDelimitedString(), v.pathPrefix)
+	currentPathWithoutFragments := v.walker.Path.WithoutInlineFragmentNames().DotDelimitedString()
+	// remove the parent type name from the path because we are walking a fragment with the provided fields
+	parentPath := v.parentPath + strings.TrimPrefix(currentPathWithoutFragments, v.parentTypeName)
 	currentPath := parentPath + "." + fieldName
 
-	if len(v.currentFields) > 0 {
-		v.currentFields[len(v.currentFields)-1].hasSelectedNestedFieldsInOperation = true
-	}
-
-	// we need to check both as for nested fields in provides we could have some root nodes with external nested fields
-	// e.g. address {street} while street is an external field, address is a root node
-	isRootNode := v.input.dataSource.HasRootNode(typeName, fieldName)
-	isExternalRootNode := v.input.dataSource.HasExternalRootNode(typeName, fieldName)
-	isExternalChildNode := v.input.dataSource.HasExternalChildNode(typeName, fieldName)
-	isExternal := isExternalRootNode || isExternalChildNode
-	isTypeName := fieldName == typeNameField
-
-	hasSelections := v.input.operation.FieldHasSelections(operationFieldRef)
-	suggestion := &NodeSuggestion{
-		FieldRef:       operationFieldRef,
-		TypeName:       typeName,
-		FieldName:      fieldName,
-		DataSourceHash: v.input.dataSource.Hash(),
-		DataSourceID:   v.input.dataSource.Id(),
-		DataSourceName: v.input.dataSource.Name(),
-		Path:           currentPath,
-		ParentPath:     parentPath,
-		IsRootNode:     isRootNode || isExternalRootNode,
-		Selected:       false,
-		IsProvided:     true,
-		IsExternal:     isExternal,
-		IsLeaf:         !hasSelections,
-		isTypeName:     isTypeName,
-		treeNodeId:     TreeNodeID(operationFieldRef),
-	}
-
-	v.currentFields = append(v.currentFields, &currentFiedInfo{
-		fieldRef:      ref,
-		fieldName:     fieldName,
-		hasSelections: v.input.providesFieldSet.FieldHasSelections(ref),
-		suggestion:    suggestion,
-	})
+	v.suggestions[providedFieldKey(typeName, fieldName, currentPath)] = struct{}{}
 }
 
-func (v *providesVisitor) LeaveField(ref int) {
-	if v.input.providesFieldSet.FieldHasSelections(ref) {
-		v.OperationNodes = v.OperationNodes[:len(v.OperationNodes)-1]
-	}
-
-	currentField := v.currentFields[len(v.currentFields)-1]
-	v.currentFields = v.currentFields[:len(v.currentFields)-1]
-
-	if currentField.hasSelections && !currentField.hasSelectedNestedFieldsInOperation {
-		// we don't have to add node suggestions for this field
-		// if it has selections in the fieldset but no nested fields selected in the operation
-		return
-	}
-
-	v.suggestions = append(v.suggestions, currentField.suggestion)
+// providedFieldKey returns a unique key for a provided field
+// it consists of the type name, field name and dot delimited path from a query
+func providedFieldKey(typeName, fieldName, path string) string {
+	return typeName + "|" + fieldName + "|" + path
 }

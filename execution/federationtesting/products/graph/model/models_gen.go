@@ -2,6 +2,9 @@
 
 package model
 
+type Mutation struct {
+}
+
 type Product struct {
 	Upc     string `json:"upc"`
 	Name    string `json:"name"`
@@ -10,3 +13,9 @@ type Product struct {
 }
 
 func (Product) IsEntity() {}
+
+type Query struct {
+}
+
+type Subscription struct {
+}

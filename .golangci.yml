@@ -1,26 +1,43 @@
+version: "2"
 linters:
-  disable-all: true
+  default: none
   enable:
-    - gofmt
-    # - bodyclose
     - errcheck
-    - gosimple
     - govet
     - ineffassign
     - staticcheck
-    - typecheck
+    - bodyclose
+    - embeddedstructfieldcheck
+    - tparallel
     # - unused
-    # - gosec
-    # - gci
 
-linters-settings:
-  gci:
-    sections:
-      - standard
-      - default
-      - prefix(github.com/wundergraph)
-      - prefix(github.com/wundergraph/graphql-go-tools)
-issues:
-  exclude:
-    - "SA1019: subscription.Message is deprecated: Prefer using TransportClient that is based on byte slices instead of this Message struct."
-    - "SA1019: rand\\.Seed.*"
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - staticcheck
+        text: "QF1008:"
+      - path: pkg/astvalidation/reference
+        linters:
+          - staticcheck
+  settings:
+    embeddedstructfieldcheck:
+      # Checks that sync.Mutex and sync.RWMutex are not used as embedded fields.
+      forbid-mutex: true
+
+formatters:
+  enable:
+    - gci
+    - gofmt
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/wundergraph)
+        - prefix(github.com/wundergraph/graphql-go-tools)

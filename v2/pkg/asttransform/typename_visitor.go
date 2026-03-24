@@ -13,11 +13,12 @@ const typenameFieldName = "__typename"
 
 type TypeNameVisitor struct {
 	*astvisitor.Walker
+
 	definition *ast.Document
 }
 
 func NewTypeNameVisitor() *TypeNameVisitor {
-	walker := astvisitor.NewWalker(48)
+	walker := astvisitor.NewWalkerWithID(48, "TypeNameVisitor")
 
 	visitor := &TypeNameVisitor{
 		Walker: &walker,

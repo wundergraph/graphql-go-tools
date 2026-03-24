@@ -17,6 +17,7 @@ func inlineSelectionsFromInlineFragments(walker *astvisitor.Walker) {
 
 type inlineSelectionsFromInlineFragmentsVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition *ast.Document
 }
 

@@ -2,19 +2,33 @@
 package astvalidation
 
 import (
+	"net/http"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 type OperationValidatorOptions struct {
-	ApolloCompatibilityFlags apollocompatibility.Flags
+	ApolloCompatibilityFlags                   apollocompatibility.Flags
+	RelaxFieldSelectionMergingNullabilityCheck bool
 }
 
 func WithApolloCompatibilityFlags(flags apollocompatibility.Flags) Option {
 	return func(options *OperationValidatorOptions) {
 		options.ApolloCompatibilityFlags = flags
+	}
+}
+
+// WithRelaxFieldSelectionMergingNullability enables a deliberate spec deviation that allows
+// differing nullability (e.g. String! vs String) on fields in non-overlapping concrete
+// object types within inline fragments. Without this option, the validator enforces the
+// strict GraphQL spec behavior where nullability must always match.
+func WithRelaxFieldSelectionMergingNullability() Option {
+	return func(options *OperationValidatorOptions) {
+		options.RelaxFieldSelectionMergingNullabilityCheck = true
 	}
 }
 
@@ -27,7 +41,14 @@ func DefaultOperationValidator(options ...Option) *OperationValidator {
 		opt(&opts)
 	}
 	validator := OperationValidator{
-		walker: astvisitor.NewWalker(48),
+		walker: astvisitor.NewWalkerWithID(48, "OperationValidator"),
+	}
+
+	if opts.ApolloCompatibilityFlags.UseGraphQLValidationFailedStatus {
+		validator.walker.OnExternalError = func(err *operationreport.ExternalError) {
+			err.ExtensionCode = errorcodes.GraphQLValidationFailed
+			err.StatusCode = http.StatusBadRequest
+		}
 	}
 
 	validator.RegisterRule(AllVariablesUsed())
@@ -36,10 +57,9 @@ func DefaultOperationValidator(options ...Option) *OperationValidator {
 	validator.RegisterRule(OperationNameUniqueness())
 	validator.RegisterRule(LoneAnonymousOperation())
 	validator.RegisterRule(SubscriptionSingleRootField())
-	validator.RegisterRule(FieldSelections(opts))
-	validator.RegisterRule(FieldSelectionMerging())
+	validator.RegisterRule(FieldSelections())
+	validator.RegisterRule(FieldSelectionMerging(opts.RelaxFieldSelectionMergingNullabilityCheck))
 	validator.RegisterRule(KnownArguments())
-	validator.RegisterRule(ValidArguments())
 	validator.RegisterRule(Values())
 	validator.RegisterRule(ArgumentUniqueness())
 	validator.RegisterRule(RequiredArguments())
@@ -55,7 +75,7 @@ func DefaultOperationValidator(options ...Option) *OperationValidator {
 
 func NewOperationValidator(rules []Rule) *OperationValidator {
 	validator := OperationValidator{
-		walker: astvisitor.NewWalker(48),
+		walker: astvisitor.NewWalkerWithID(48, "OperationValidator"),
 	}
 
 	for _, rule := range rules {

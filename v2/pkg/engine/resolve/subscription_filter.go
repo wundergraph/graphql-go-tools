@@ -3,11 +3,13 @@ package resolve
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"regexp"
 
 	"github.com/buger/jsonparser"
+
 	"github.com/wundergraph/astjson"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 )
 
@@ -77,8 +79,9 @@ var (
 	// findArray is a regex to find all array values in a string
 	// e.g. [1, 2, 3] or ["a", "b", "c"]
 	// it will skip prefix and suffix non array values, e.g. "foo[1, 2, 3]bar" will return [1, 2, 3]
-	findArray                         = regexp.MustCompile(`\[(.*?)\]`)
-	InvalidSubscriptionFilterTemplate = fmt.Errorf("invalid subscription filter template")
+	findArray = regexp.MustCompile(`\[(.*?)\]`)
+
+	ErrInvalidSubscriptionFilterTemplate = errors.New("invalid subscription filter template")
 )
 
 func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte, buf *bytes.Buffer) (bool, error) {
@@ -100,13 +103,14 @@ func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte, buf *byte
 		actualRawBytes := buf.Bytes()
 		// cheap pre-check to see if we can skip the more expensive array check
 		if !bytes.Contains(actualRawBytes, literal.LBRACK) || !bytes.Contains(actualRawBytes, literal.RBRACK) {
-			// We only try to compare the types if a variable segment is used otherwise we just compare the bytes
-			// When more than one segment is used, we will always byte compare the values because two segments
-			// are concatenated and the type is always a string
+			// We only try to compare the types if a variable segment is used, otherwise we just compare the bytes.
+			// When more than one segment is used, we always byte-compare the values because two segments
+			// are concatenated, and the type is always a string.
 			if len(f.Values[i].Segments) == 1 {
 				var valueType jsonparser.ValueType
 
-				if f.Values[i].Segments[0].SegmentType == VariableSegmentType {
+				switch f.Values[i].Segments[0].SegmentType {
+				case VariableSegmentType:
 					value := ctx.Variables.Get(f.Values[i].Segments[0].VariableSourcePath...)
 					if value == nil {
 						return true, nil
@@ -127,7 +131,7 @@ func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte, buf *byte
 					default:
 						return true, nil
 					}
-				} else if f.Values[i].Segments[0].SegmentType == StaticSegmentType {
+				case StaticSegmentType:
 					_, valueType, _, err = jsonparser.Get(f.Values[i].Segments[0].Data)
 					if err != nil {
 						return true, nil
@@ -190,7 +194,7 @@ func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte, buf *byte
 			continue
 		}
 		if len(matches) != 1 || len(matches[0]) != 2 {
-			return false, InvalidSubscriptionFilterTemplate
+			return false, ErrInvalidSubscriptionFilterTemplate
 		}
 		arrayValue := matches[0][0]
 		arrayMatch := false

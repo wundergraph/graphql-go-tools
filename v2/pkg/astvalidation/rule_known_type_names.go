@@ -31,6 +31,7 @@ func KnownTypeNames() Rule {
 
 type knownTypeNamesVisitor struct {
 	*astvisitor.Walker
+
 	definition           *ast.Document
 	definedTypeNameHashs map[uint64]bool
 	referencedTypeNames  map[uint64][]byte

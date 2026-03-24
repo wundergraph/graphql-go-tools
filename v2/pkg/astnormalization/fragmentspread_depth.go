@@ -83,6 +83,7 @@ func (n *nestedDepthCalc) depthForFragment(name ast.ByteSlice) int {
 
 type fragmentSpreadDepthVisitor struct {
 	*astvisitor.Walker
+
 	operation  *ast.Document
 	definition *ast.Document
 	depths     *Depths

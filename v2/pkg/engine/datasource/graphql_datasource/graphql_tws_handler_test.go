@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/flags"
-
 	"github.com/coder/websocket"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/flags"
 )
 
 func TestWebsocketSubscriptionClient_GQLTWS(t *testing.T) {

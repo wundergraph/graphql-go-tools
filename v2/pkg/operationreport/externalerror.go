@@ -2,10 +2,9 @@ package operationreport
 
 import (
 	"fmt"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/position"
-	"net/http"
 )
 
 const (
@@ -26,6 +25,9 @@ const (
 	MissingRequiredFieldOfInputObjectErrMsg = `Field "%s.%s" of required type "%s" was not provided.`
 	UnknownFieldOfInputObjectErrMsg         = `Field "%s" is not defined by type "%s".`
 	DuplicatedFieldInputObjectErrMsg        = `There can be only one input field named "%s".`
+	OneOfInputObjectFieldCountErrMsg        = `OneOf input object "%s" must have exactly one field provided, but %d fields were provided.`
+	OneOfInputObjectNullValueErrMsg         = `OneOf input object "%s" field "%s" value must be non-null.`
+	OneOfInputObjectNullableVariableErrMsg  = `OneOf input object "%s" field "%s" cannot use nullable variable "$%s". Variables used in oneOf fields must be non-nullable.`
 	ValueIsNotAnInputObjectTypeErrMsg       = `Expected value of type "%s", found %s.`
 )
 
@@ -54,14 +56,7 @@ func ErrDocumentDoesntContainExecutableOperation() (err ExternalError) {
 }
 
 func ErrFieldUndefinedOnType(fieldName, typeName ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf("field: %s not defined on type: %s", fieldName, typeName)
-	return err
-}
-
-func ErrApolloCompatibleFieldUndefinedOnType(fieldName, typeName ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf(`Cannot query "%s" on type "%s".`, fieldName, typeName)
-	err.ExtensionCode = errorcodes.GraphQLValidationFailed
-	err.StatusCode = http.StatusBadRequest
+	err.Message = fmt.Sprintf(`Cannot query field "%s" on type "%s".`, fieldName, typeName)
 	return err
 }
 
@@ -166,13 +161,15 @@ func ErrDifferingFieldsOnPotentiallySameType(objectName ast.ByteSlice) (err Exte
 	return err
 }
 
-func ErrFieldSelectionOnScalar(fieldName, scalarTypeName ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf("cannot select field: %s on scalar %s", fieldName, scalarTypeName)
+func ErrFieldSelectionOnLeaf(enumTypeName ast.ByteSlice, typeName string, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(`Field "%s" must not have a selection since type "%s" has no subfields.`, enumTypeName, typeName)
+	err.Locations = LocationsFromPosition(position)
 	return err
 }
 
-func ErrMissingFieldSelectionOnNonScalar(fieldName, enclosingTypeName ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf("non scalar field: %s on type: %s must have selections", fieldName, enclosingTypeName)
+func ErrMissingFieldSelectionOnNonScalar(fieldName ast.ByteSlice, enclosingTypeName string, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(`Field "%s" of type "%s" must have a selection of subfields. Did you mean "%[1]s { ... }"?`, fieldName, enclosingTypeName)
+	err.Locations = LocationsFromPosition(position)
 	return err
 }
 
@@ -218,6 +215,23 @@ func ErrDuplicatedFieldInputObject(fieldName ast.ByteSlice, first, duplicated po
 		},
 	}
 
+	return err
+}
+
+func ErrOneOfInputObjectFieldCount(objName ast.ByteSlice, fieldsProvided int, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(OneOfInputObjectFieldCountErrMsg, objName, fieldsProvided)
+	err.Locations = LocationsFromPosition(position)
+	return err
+}
+
+func ErrOneOfInputObjectNullValue(objName, fieldName ast.ByteSlice, fieldPosition position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(OneOfInputObjectNullValueErrMsg, objName, fieldName)
+	err.Locations = LocationsFromPosition(fieldPosition)
+	return err
+}
+func ErrOneOfInputObjectNullableVariable(objName, fieldName, variableName ast.ByteSlice, fieldPosition, variablePosition position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(OneOfInputObjectNullableVariableErrMsg, objName, fieldName, variableName)
+	err.Locations = LocationsFromPosition(fieldPosition, variablePosition)
 	return err
 }
 
@@ -311,8 +325,9 @@ func ErrVariableTypeDoesntSatisfyInputValueDefinition(value, inputType, expected
 	return err
 }
 
-func ErrVariableNotDefinedOnOperation(variableName, operationName ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf("variable: %s not defined on operation: %s", variableName, operationName)
+func ErrVariableNotDefinedOnOperation(variableName ast.ByteSlice, valuePos position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf("variable \"%s\" is not defined on operation", variableName)
+	err.Locations = LocationsFromPosition(valuePos)
 	return err
 }
 
@@ -382,7 +397,7 @@ func ErrInlineFragmentOnTypeDisallowed(onTypeName ast.ByteSlice) (err ExternalEr
 }
 
 func ErrInlineFragmentOnTypeMismatchEnclosingType(fragmentTypeName, enclosingTypeName ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf("inline fragment on type: %s mismatches enclosing type: %s", fragmentTypeName, enclosingTypeName)
+	err.Message = fmt.Sprintf(`Fragment cannot be spread here as objects of type "%s" can never be of type "%s".`, enclosingTypeName, fragmentTypeName)
 	return err
 }
 

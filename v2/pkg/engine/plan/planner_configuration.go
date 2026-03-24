@@ -62,10 +62,6 @@ func (p *plannerConfiguration[T]) ObjectFetchConfiguration() *objectFetchConfigu
 	return p.objectFetchConfiguration
 }
 
-func (p *plannerConfiguration[T]) DataSourcePlanningBehavior() DataSourcePlanningBehavior {
-	return p.planner.DataSourcePlanningBehavior()
-}
-
 func (p *plannerConfiguration[T]) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
 	return p.planner.DownstreamResponseFieldAlias(downstreamFieldRef)
 }

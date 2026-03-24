@@ -35,7 +35,7 @@ func (v *implicitExtendRootOperationVisitor) EnterDocument(operation, _ *ast.Doc
 
 func (v *implicitExtendRootOperationVisitor) EnterObjectTypeDefinition(ref int) {
 	node := v.operation.ObjectTypeDefinitions[ref]
-	if !(node.HasFieldDefinitions || node.HasDirectives) {
+	if !node.HasFieldDefinitions && !node.HasDirectives {
 		return
 	}
 	switch v.operation.ObjectTypeDefinitionNameString(ref) {

@@ -63,7 +63,7 @@ const (
 
 var rulesMap = map[string][]astvalidation.Rule{
 	ExecutableDefinitionsRule:                 {astvalidation.DocumentContainsExecutableOperation()},
-	FieldsOnCorrectTypeRule:                   {astvalidation.FieldSelections(astvalidation.OperationValidatorOptions{})},
+	FieldsOnCorrectTypeRule:                   {astvalidation.FieldSelections()},
 	KnownArgumentNamesRule:                    {astvalidation.KnownArguments()},
 	KnownArgumentNamesOnDirectivesRule:        {},
 	KnownDirectivesRule:                       {astvalidation.DirectivesAreDefined()},
@@ -86,7 +86,7 @@ var rulesMap = map[string][]astvalidation.Rule{
 	ValuesOfCorrectTypeRule:                   {astvalidation.Values()},
 	VariablesAreInputTypesRule:                {astvalidation.VariablesAreInputTypes()},
 	KnownTypeNamesOperationRule:               {astvalidation.VariablesAreInputTypes(), astvalidation.Fragments()},
-	VariablesInAllowedPositionRule:            {astvalidation.ValidArguments(), astvalidation.Values()},
+	VariablesInAllowedPositionRule:            {astvalidation.Values()},
 
 	// fragments rules
 	FragmentsOnCompositeTypesRule: {astvalidation.Fragments()},
@@ -101,7 +101,7 @@ var rulesMap = map[string][]astvalidation.Rule{
 	UniqueInputFieldNamesRule:  {astvalidation.Values()},
 	UniqueDirectiveNamesRule:   {},
 	LoneSchemaDefinitionRule:   {},
-	ScalarLeafsRule:            {},
+	ScalarLeafsRule:            {astvalidation.FieldSelections()},
 	PossibleTypeExtensionsRule: {},
 }
 
@@ -248,7 +248,7 @@ func ExtendSchema(schema string, sdlStr string) string {
 	report := operationreport.Report{}
 	parser.Parse(&definition, &report)
 
-	res, _ := astprinter.PrintStringIndent(&definition, "  ")
+	res, _ := astprinter.PrintStringIndent(&definition, "    ")
 
 	return res
 }

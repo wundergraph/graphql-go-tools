@@ -4,11 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"regexp"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
+	grpcdatasource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/federation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
@@ -18,6 +19,8 @@ type ConfigurationInput struct {
 	Subscription           *SubscriptionConfiguration
 	SchemaConfiguration    *SchemaConfiguration
 	CustomScalarTypeFields []SingleTypeField
+
+	GRPC *grpcdatasource.GRPCConfiguration
 }
 
 type Configuration struct {
@@ -25,6 +28,8 @@ type Configuration struct {
 	subscription           *SubscriptionConfiguration
 	schemaConfiguration    SchemaConfiguration
 	customScalarTypeFields []SingleTypeField
+
+	grpc *grpcdatasource.GRPCConfiguration
 }
 
 func NewConfiguration(input ConfigurationInput) (Configuration, error) {
@@ -41,8 +46,8 @@ func NewConfiguration(input ConfigurationInput) (Configuration, error) {
 
 	cfg.schemaConfiguration = *input.SchemaConfiguration
 
-	if input.Fetch == nil && input.Subscription == nil {
-		return Configuration{}, errors.New("fetch or subscription configuration is required")
+	if input.Fetch == nil && input.Subscription == nil && input.GRPC == nil {
+		return Configuration{}, errors.New("fetch or subscription or grpc configuration is required")
 	}
 
 	if input.Fetch != nil {
@@ -67,6 +72,10 @@ func NewConfiguration(input ConfigurationInput) (Configuration, error) {
 		}
 	}
 
+	if input.GRPC != nil {
+		cfg.grpc = input.GRPC
+	}
+
 	return cfg, nil
 }
 
@@ -86,10 +95,19 @@ func (c *Configuration) FederationConfiguration() *FederationConfiguration {
 	return c.schemaConfiguration.federation
 }
 
+func (c *Configuration) IsGRPC() bool {
+	return c.grpc != nil
+}
+
 type SingleTypeField struct {
 	TypeName  string
 	FieldName string
 }
+
+// SubscriptionOnStartFn defines a hook function that is called when a subscription starts.
+// It receives the resolve context and the input of the subscription.
+// The function can return an error.
+type SubscriptionOnStartFn func(ctx resolve.StartupHookContext, input []byte) (err error)
 
 type SubscriptionConfiguration struct {
 	URL           string
@@ -105,8 +123,10 @@ type SubscriptionConfiguration struct {
 	// name might be forwarded from the client to the upstream server. This is used to determine
 	// which connections can be multiplexed together, but the subscription engine does not forward
 	// these headers by itself.
-	ForwardedClientHeaderRegularExpressions []*regexp.Regexp
+	ForwardedClientHeaderRegularExpressions []RegularExpression
 	WsSubProtocol                           string
+	// StartupHooks contains the method called when a subscription is started
+	StartupHooks []SubscriptionOnStartFn
 }
 
 type FetchConfiguration struct {
@@ -162,6 +182,14 @@ func NewSchemaConfiguration(upstreamSchema string, federationCfg *FederationConf
 		definitionParser.Parse(definition, report)
 		if report.HasErrors() {
 			return nil, fmt.Errorf("unable to parse federation schema: %v", report)
+		}
+
+		// As BuildFederationSchema is already merged with base definitions, we actually don't want to do it again,
+		// but as we have to parse the schema again, we also need to make sure to add the typename fields to union types again
+		// TODO: find a better way to do this
+		typeNamesVisitor := asttransform.NewTypeNameVisitor()
+		if err := typeNamesVisitor.ExtendSchema(definition); err != nil {
+			return nil, fmt.Errorf("unable to extend federation schema with type names: %v", err)
 		}
 	} else {
 		definition.Input.ResetInputString(cfg.upstreamSchema)

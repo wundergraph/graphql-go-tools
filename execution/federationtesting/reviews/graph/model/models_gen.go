@@ -30,6 +30,9 @@ func (DetatchedQuestion) IsComment()           {}
 func (this DetatchedQuestion) GetUpc() string  { return this.Upc }
 func (this DetatchedQuestion) GetBody() string { return this.Body }
 
+type Mutation struct {
+}
+
 type OtherQuestion struct {
 	Upc  string `json:"upc"`
 	Body string `json:"body"`
@@ -38,6 +41,9 @@ type OtherQuestion struct {
 func (OtherQuestion) IsComment()           {}
 func (this OtherQuestion) GetUpc() string  { return this.Upc }
 func (this OtherQuestion) GetBody() string { return this.Body }
+
+type Query struct {
+}
 
 type Question struct {
 	Upc     string `json:"upc"`

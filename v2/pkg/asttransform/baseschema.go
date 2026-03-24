@@ -148,7 +148,7 @@ scalar Boolean
 scalar ID
 "Directs the executor to include this field or fragment only when the argument is true."
 directive @include(
-    " Included when true."
+    "Included when true."
     if: Boolean!
 ) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
 "Directs the executor to skip this field or fragment when the argument is true."
@@ -164,7 +164,16 @@ directive @deprecated(
     [Markdown](https://daringfireball.net/projects/markdown/).
     """
     reason: String = "No longer supported"
-) on FIELD_DEFINITION | ENUM_VALUE
+) on FIELD_DEFINITION | ARGUMENT_DEFINITION | INPUT_FIELD_DEFINITION | ENUM_VALUE
+
+directive @specifiedBy(url: String!) on SCALAR
+
+"""
+The @oneOf built-in directive marks an input object as a OneOf Input Object.
+Exactly one field must be provided and its value must be non-null at runtime.
+All fields defined within a @oneOf input must be nullable in the schema.
+"""
+directive @oneOf on INPUT_OBJECT
 
 """
 A Directive provides a way to describe alternate runtime execution and type validation behavior in a GraphQL document.
@@ -177,7 +186,7 @@ type __Directive {
     name: String!
     description: String
     locations: [__DirectiveLocation!]!
-    args: [__InputValue!]!
+    args(includeDeprecated: Boolean = false): [__InputValue!]!
     isRepeatable: Boolean!
 }
 
@@ -200,6 +209,8 @@ enum __DirectiveLocation {
     FRAGMENT_SPREAD
     "Location adjacent to an inline fragment."
     INLINE_FRAGMENT
+	"Location adjacent to a variable definition"
+	VARIABLE_DEFINITION
     "Location adjacent to a schema definition."
     SCHEMA
     "Location adjacent to a scalar definition."
@@ -242,7 +253,7 @@ a name, potentially a list of arguments, and a return type.
 type __Field {
     name: String!
     description: String
-    args: [__InputValue!]!
+    args(includeDeprecated: Boolean = false): [__InputValue!]!
     type: __Type!
     isDeprecated: Boolean!
     deprecationReason: String
@@ -256,8 +267,9 @@ type __InputValue {
     name: String!
     description: String
     type: __Type!
-    "A GraphQL-formatted string representing the default value for this input value."
     defaultValue: String
+    isDeprecated: Boolean!
+    deprecationReason: String
 }
 
 """
@@ -266,6 +278,7 @@ available types and directives on the server, as well as the entry points for
 query, mutation, and subscription operations.
 """
 type __Schema {
+    description: String
     "A list of all types supported by this server."
     types: [__Type!]!
     "The type that query operations will be rooted at."
@@ -292,12 +305,20 @@ type __Type {
     kind: __TypeKind!
     name: String
     description: String
+    # must be non-null for OBJECT and INTERFACE, otherwise null.
     fields(includeDeprecated: Boolean = false): [__Field!]
+    # must be non-null for OBJECT and INTERFACE, otherwise null.
     interfaces: [__Type!]
+    # must be non-null for INTERFACE and UNION, otherwise null.
     possibleTypes: [__Type!]
+    # must be non-null for ENUM, otherwise null.
     enumValues(includeDeprecated: Boolean = false): [__EnumValue!]
-    inputFields: [__InputValue!]
+    # must be non-null for INPUT_OBJECT, otherwise null.
+    inputFields(includeDeprecated: Boolean = false): [__InputValue!]
+    # must be non-null for NON_NULL and LIST, otherwise null.
     ofType: __Type
+    # may be non-null for custom SCALAR, otherwise null.
+    specifiedByURL: String
 }
 
 "An enum describing what kind of type a given '__Type' is."

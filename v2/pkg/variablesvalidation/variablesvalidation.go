@@ -7,11 +7,10 @@ import (
 	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/federation"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/federation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
@@ -50,9 +49,17 @@ func (v *variablesVisitor) invalidValueMessage(variableName, variableContent str
 }
 
 func (v *variablesVisitor) newInvalidVariableError(message string) *InvalidVariableError {
+	if v.opts.ApolloRouterCompatibilityFlags.ReplaceInvalidVarError {
+		return &InvalidVariableError{
+			Message:       fmt.Sprintf("invalid type for variable: '%s'", v.currentVariableName),
+			ExtensionCode: errorcodes.ValidationInvalidTypeVariable,
+		}
+	}
+
 	err := &InvalidVariableError{
 		Message: message,
 	}
+
 	if v.opts.ApolloCompatibilityFlags.ReplaceInvalidVarError {
 		err.ExtensionCode = errorcodes.BadUserInput
 	}
@@ -66,11 +73,12 @@ type VariablesValidator struct {
 
 type VariablesValidatorOptions struct {
 	ApolloCompatibilityFlags        apollocompatibility.Flags
+	ApolloRouterCompatibilityFlags  apollocompatibility.ApolloRouterFlags
 	DisableExposingVariablesContent bool
 }
 
 func NewVariablesValidator(options VariablesValidatorOptions) *VariablesValidator {
-	walker := astvisitor.NewWalker(8)
+	walker := astvisitor.NewWalkerWithID(8, "VariablesValidator")
 	visitor := &variablesVisitor{
 		walker: &walker,
 		opts:   options,
@@ -90,7 +98,7 @@ func (v *VariablesValidator) ValidateWithRemap(operation, definition *ast.Docume
 func (v *VariablesValidator) Validate(operation, definition *ast.Document, variables []byte) error {
 	v.visitor.definition = definition
 	v.visitor.operation = operation
-	v.visitor.variables, v.visitor.err = astjson.ParseBytesWithoutCache(variables)
+	v.visitor.variables, v.visitor.err = astjson.ParseBytes(variables)
 	if v.visitor.err != nil {
 		return v.visitor.err
 	}
@@ -124,7 +132,7 @@ func (v *variablesVisitor) renderPath() string {
 		out.Write(item.name)
 		if item.kind == pathItemKindArray {
 			out.WriteString("[")
-			out.WriteString(fmt.Sprintf("%d", item.arrayIndex))
+			fmt.Fprint(out, item.arrayIndex)
 			out.WriteString("]")
 		}
 	}
@@ -164,23 +172,29 @@ func (v *variablesVisitor) popPath() {
 
 func (v *variablesVisitor) EnterVariableDefinition(ref int) {
 	varTypeRef := v.operation.VariableDefinitions[ref].Type
-	varName := v.operation.VariableValueNameBytes(v.operation.VariableDefinitions[ref].VariableValue.Ref)
+	operationVariableNameBytes := v.operation.VariableValueNameBytes(v.operation.VariableDefinitions[ref].VariableValue.Ref)
+	operationVariableName := unsafebytes.BytesToString(operationVariableNameBytes)
 
-	variableNameStr := unsafebytes.BytesToString(varName)
+	var (
+		mappedVariableName string
+		isMapped           bool
+	)
 	if v.variablesMap != nil {
-		if mappedName, ok := v.variablesMap[variableNameStr]; ok {
-			variableNameStr = mappedName
-		}
+		mappedVariableName, isMapped = v.variablesMap[operationVariableName]
 	}
 
-	value := v.variables.Get(variableNameStr)
+	if isMapped {
+		v.currentVariableName = []byte(mappedVariableName)
+		v.currentVariableValue = v.variables.Get(mappedVariableName)
+	} else {
+		v.currentVariableName = operationVariableNameBytes
+		v.currentVariableValue = v.variables.Get(operationVariableName)
+	}
 
 	v.path = v.path[:0]
-	v.pushObjectPath(varName)
-	v.currentVariableName = varName
-	v.currentVariableValue = value
+	v.pushObjectPath(v.currentVariableName)
 
-	v.traverseOperationType(value, varTypeRef)
+	v.traverseOperationType(v.currentVariableValue, varTypeRef)
 }
 
 func (v *variablesVisitor) traverseOperationType(jsonValue *astjson.Value, operationTypeRef int) {
@@ -314,6 +328,11 @@ func (v *variablesVisitor) renderVariableInvalidNullError(variableName []byte, t
 func (v *variablesVisitor) traverseFieldDefinitionType(fieldTypeDefinitionNodeKind ast.NodeKind, fieldName ast.ByteSlice, jsonValue *astjson.Value, typeRef, inputFieldRef int) {
 	if v.definition.TypeIsNonNull(typeRef) {
 		if jsonValue == nil || jsonValue.Type() == astjson.TypeNull {
+
+			if bytes.Equal(v.definition.TypeNameBytes(v.definition.Types[typeRef].OfType), []byte("Upload")) {
+				return
+			}
+
 			// An undefined required input field is valid if it has a default value
 			if v.definition.InputValueDefinitionHasDefaultValue(inputFieldRef) {
 				return
@@ -351,6 +370,64 @@ func (v *variablesVisitor) traverseFieldDefinitionType(fieldTypeDefinitionNodeKi
 	}
 
 	v.traverseNamedTypeNode(jsonValue, v.definition.ResolveTypeNameBytes(typeRef))
+}
+
+func (v *variablesVisitor) violatesOneOfConstraint(inputObjectDefRef int, jsonValue *astjson.Value, typeName []byte) bool {
+	def := v.definition.InputObjectTypeDefinitions[inputObjectDefRef]
+
+	// Check if the input object type has @oneOf directive
+	if !def.HasDirectives {
+		return false
+	}
+	hasOneOfDirective := def.Directives.HasDirectiveByName(v.definition, "oneOf")
+	if !hasOneOfDirective {
+		return false
+	}
+
+	obj := jsonValue.GetObject()
+	totalFieldCount := obj.Len()
+
+	// Prioritize the count error
+	if totalFieldCount != 1 {
+		variableContent := string(jsonValue.MarshalTo(nil))
+		var path string
+		if len(v.path) > 1 {
+			path = fmt.Sprintf(` at "%s"`, v.renderPath())
+		}
+		message := fmt.Sprintf(`%s%s; OneOf input object "%s" must have exactly one field provided, but %d fields were provided.`,
+			v.invalidValueMessage(string(v.currentVariableName), variableContent),
+			path,
+			string(typeName),
+			totalFieldCount)
+		v.err = v.newInvalidVariableError(message)
+		return true
+	}
+
+	// Check if the single field has a null value
+	var nullFieldName []byte
+	obj.Visit(func(key []byte, val *astjson.Value) {
+		if val.Type() == astjson.TypeNull {
+			nullFieldName = key
+		}
+	})
+
+	if nullFieldName == nil {
+		// We have exactly one field, and it's non-null
+		return false
+	}
+
+	variableContent := string(jsonValue.MarshalTo(nil))
+	var path string
+	if len(v.path) > 1 {
+		path = fmt.Sprintf(` at "%s"`, v.renderPath())
+	}
+	v.err = v.newInvalidVariableError(
+		fmt.Sprintf(`%s%s; OneOf input object "%s" field "%s" value must be non-null.`,
+			v.invalidValueMessage(string(v.currentVariableName), variableContent),
+			path,
+			string(typeName),
+			string(nullFieldName)))
+	return true
 }
 
 func (v *variablesVisitor) traverseNamedTypeNode(jsonValue *astjson.Value, typeName []byte) {
@@ -395,6 +472,9 @@ func (v *variablesVisitor) traverseNamedTypeNode(jsonValue *astjson.Value, typeN
 				v.renderVariableFieldNotDefinedError(inputFieldName, typeName)
 				return
 			}
+		}
+		if v.violatesOneOfConstraint(fieldTypeDefinitionNode.Ref, jsonValue, typeName) {
+			return // Error already reported
 		}
 	case ast.NodeKindScalarTypeDefinition:
 		switch unsafebytes.BytesToString(typeName) {

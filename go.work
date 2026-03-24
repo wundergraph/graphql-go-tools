@@ -1,26 +1,10 @@
-go 1.23
-
-toolchain go1.23.3
+go 1.25
 
 use (
-	// v1
-	.
-	// examples
 	examples/federation
-
-	// execution
 	execution
-
-	// testapps
-	testapps/chat
-	testapps/kafka_pubsub
-	testapps/kafka_pubsub/transactional_producer
-
-	// v2
 	v2
 )
-
-replace github.com/99designs/gqlgen => github.com/99designs/gqlgen v0.17.22
 
 replace github.com/tidwall/sjson => github.com/tidwall/sjson v1.0.4
 

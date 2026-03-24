@@ -7,11 +7,13 @@ import (
 )
 
 type Configuration struct {
-	Logger                     abstractlogger.Logger
-	DefaultFlushIntervalMillis int64
-	DataSources                []DataSource
-	Fields                     FieldConfigurations
-	Types                      TypeConfigurations
+	Logger                             abstractlogger.Logger
+	DefaultFlushIntervalMillis         int64
+	DataSources                        []DataSource
+	MaxDataSourceCollectorsConcurrency uint
+	Fields                             FieldConfigurations
+	Types                              TypeConfigurations
+	EntityInterfaceNames               []string
 	// DisableResolveFieldPositions should be set to true for testing purposes
 	// This setting removes position information from all fields
 	// In production, this should be set to false so that error messages are easier to understand
@@ -25,7 +27,38 @@ type Configuration struct {
 
 	MinifySubgraphOperations bool
 
+	// DisableIncludeInfo controls whether the planner generates resolve.FieldInfo (useful in tests).
 	DisableIncludeInfo bool
+
+	// DisableIncludeFieldDependencies controls whether the planner generates
+	// field dependency structures.
+	// It requires DisableIncludeInfo set to false.
+	DisableIncludeFieldDependencies bool
+
+	// BuildFetchReasons allows generating the FetchReasons structure for all the fields.
+	// It may be enabled by some other components of the engine.
+	// It requires DisableIncludeInfo and DisableIncludeFieldDependencies set to false.
+	BuildFetchReasons bool
+
+	// ValidateRequiredExternalFields validates nullable external "@requires" dependencies.
+	// When a subgraph entity fetch returns a null value with an error for a field set specified in
+	// the "@requires" directive, any following fetch that depends on it should not receive such an
+	// entity.
+	// This option requires BuildFetchReasons set to true.
+	ValidateRequiredExternalFields bool
+
+	// ComputeCosts enables static cost computation for operations.
+	ComputeCosts bool
+
+	// When the list size is unknown from directives, this value is used as a default for static cost.
+	StaticCostDefaultListSize int
+
+	// RelaxSubgraphOperationFieldSelectionMergingNullability relaxes the nullability validation
+	// for field selection merging in upstream (subgraph) operations when enclosing types are
+	// non-overlapping concrete object types. This is a deliberate spec deviation.
+	// When true, factories that support it will allow differing nullability
+	// (e.g. String! vs String) on fields in non-overlapping inline fragments.
+	RelaxSubgraphOperationFieldSelectionMergingNullability bool
 }
 
 type DebugConfiguration struct {
@@ -34,8 +67,8 @@ type DebugConfiguration struct {
 	PrintPlanningPaths            bool
 	PrintQueryPlans               bool
 
-	PrintNodeSuggestions bool
-	NodeSuggestion       NodeSuggestionDebugConfiguration
+	PrintNodeSuggestions                  bool
+	PrintNodeSuggestionsFilterNotSelected bool
 
 	NodeSelectionVisitor bool
 	ConfigurationVisitor bool
@@ -95,7 +128,7 @@ type FieldConfiguration struct {
 	TypeName  string
 	FieldName string
 	// DisableDefaultMapping - instructs planner whether to use path mapping coming from Path field
-	DisableDefaultMapping bool
+	DisableDefaultMapping bool // TODO: has no effect as of now, remove?
 	// Path - represents a json path to lookup for a field value in response json
 	Path      []string
 	Arguments ArgumentsConfigurations

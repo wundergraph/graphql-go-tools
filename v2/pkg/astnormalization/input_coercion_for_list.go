@@ -6,11 +6,11 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/tidwall/sjson"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
@@ -57,6 +57,7 @@ func inputCoercionForList(walker *astvisitor.Walker) {
 
 type inputCoercionForListVisitor struct {
 	*astvisitor.Walker
+
 	operation              *ast.Document
 	definition             *ast.Document
 	operationDefinitionRef int

@@ -211,6 +211,108 @@ func TestDocument_ValueToJSON(t *testing.T) {
 			Ref:  0,
 		}
 	}, `{"foo":"bar","baz":{"bat":"bal"},"list":[1,2,3]}`))
+
+	t.Run("ValueKindObject - with not provided variables inside", func(t *testing.T) {
+		createObject := func(doc *Document) Value {
+			return Value{
+				Kind: ValueKindObject,
+				Ref: doc.ImportObjectValue([]int{
+					doc.ImportObjectField([]byte("a"), Value{
+						Kind: ValueKindVariable,
+						Ref:  doc.ImportVariableValue([]byte("a")),
+					}),
+					doc.ImportObjectField([]byte("b"), Value{
+						Kind: ValueKindVariable,
+						Ref:  doc.ImportVariableValue([]byte("b")),
+					}),
+					doc.ImportObjectField([]byte("c"), Value{
+						Kind: ValueKindVariable,
+						Ref:  doc.ImportVariableValue([]byte("c")),
+					}),
+					doc.ImportObjectField([]byte("d"), Value{
+						Kind: ValueKindVariable,
+						Ref:  doc.ImportVariableValue([]byte("d")),
+					}),
+					doc.ImportObjectField([]byte("e"), Value{
+						Kind: ValueKindVariable,
+						Ref:  doc.ImportVariableValue([]byte("e")),
+					}),
+				}),
+			}
+		}
+
+		t.Run("all values present", run(func(doc *Document) Value {
+			doc.Input.Variables = []byte(`{"a":1,"b":2,"c":3,"d":4,"e":5}`)
+
+			return createObject(doc)
+		}, `{"a":1,"b":2,"c":3,"d":4,"e":5}`))
+
+		t.Run("missing value first", run(func(doc *Document) Value {
+			doc.Input.Variables = []byte(`{"b":2,"c":3,"d":4,"e":5}`)
+
+			return createObject(doc)
+		}, `{"b":2,"c":3,"d":4,"e":5}`))
+
+		t.Run("missing 2 first values", run(func(doc *Document) Value {
+			doc.Input.Variables = []byte(`{"c":3,"d":4,"e":5}`)
+
+			return createObject(doc)
+		}, `{"c":3,"d":4,"e":5}`))
+
+		t.Run("missing value in the middle", run(func(doc *Document) Value {
+			doc.Input.Variables = []byte(`{"a":1,"b":2,"d":4,"e":5}`)
+
+			return createObject(doc)
+		}, `{"a":1,"b":2,"d":4,"e":5}`))
+
+		t.Run("missing 2 values in the middle", run(func(doc *Document) Value {
+			doc.Input.Variables = []byte(`{"a":1,"d":4,"e":5}`)
+
+			return createObject(doc)
+		}, `{"a":1,"d":4,"e":5}`))
+
+		t.Run("missing 2 values in-between", run(func(doc *Document) Value {
+			doc.Input.Variables = []byte(`{"a":1,"c":3,"e":5}`)
+
+			return createObject(doc)
+		}, `{"a":1,"c":3,"e":5}`))
+
+		t.Run("missing value last", run(func(doc *Document) Value {
+			doc.Input.Variables = []byte(`{"a":1,"b":2,"c":3,"d":4}`)
+
+			return createObject(doc)
+		}, `{"a":1,"b":2,"c":3,"d":4}`))
+
+		t.Run("missing 2 values last", run(func(doc *Document) Value {
+			doc.Input.Variables = []byte(`{"a":1,"b":2,"c":3}`)
+
+			return createObject(doc)
+		}, `{"a":1,"b":2,"c":3}`))
+
+		t.Run("present only first", run(func(doc *Document) Value {
+			doc.Input.Variables = []byte(`{"a":1}`)
+
+			return createObject(doc)
+		}, `{"a":1}`))
+
+		t.Run("present only middle", run(func(doc *Document) Value {
+			doc.Input.Variables = []byte(`{"c":3}`)
+
+			return createObject(doc)
+		}, `{"c":3}`))
+
+		t.Run("present only last", run(func(doc *Document) Value {
+			doc.Input.Variables = []byte(`{"e":5}`)
+
+			return createObject(doc)
+		}, `{"e":5}`))
+
+		t.Run("all values missing", run(func(doc *Document) Value {
+			doc.Input.Variables = []byte(`{}`)
+
+			return createObject(doc)
+		}, `{}`))
+	})
 }
 
 func TestDocument_PrintValue(t *testing.T) {

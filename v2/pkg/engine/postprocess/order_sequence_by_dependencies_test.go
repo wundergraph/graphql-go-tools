@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
@@ -63,6 +64,21 @@ func TestOrderSquenceByDependencies_ProcessFetchTree(t *testing.T) {
 			{FetchID: 0},
 			{FetchID: 1, DependsOnFetchIDs: []int{0}},
 			{FetchID: 2, DependsOnFetchIDs: []int{1}},
+		}
+		seq := depsToSequence(input)
+		processor.ProcessFetchTree(seq)
+		require.Equal(t, prettyPrint(expected), prettyPrint(sequenceToDeps(seq)))
+	})
+	t.Run("serial + requires dependencies", func(t *testing.T) {
+		input := []resolve.FetchDependencies{
+			{FetchID: 0},
+			{FetchID: 1, DependsOnFetchIDs: []int{0, 2}},
+			{FetchID: 2, DependsOnFetchIDs: []int{0}},
+		}
+		expected := []resolve.FetchDependencies{
+			{FetchID: 0},
+			{FetchID: 2, DependsOnFetchIDs: []int{0}},
+			{FetchID: 1, DependsOnFetchIDs: []int{0, 2}},
 		}
 		seq := depsToSequence(input)
 		processor.ProcessFetchTree(seq)

@@ -60,7 +60,7 @@ func (s *schemaBuilder) extendQueryTypeWithFederationFields(schema string, hasEn
 		name := doc.ObjectTypeDefinitionNameString(i)
 		if name == queryTypeName {
 			s.extendQueryType(doc, i, hasEntities)
-			out, err := astprinter.PrintStringIndent(doc, "  ")
+			out, err := astprinter.PrintStringIndent(doc, "    ")
 			if err != nil {
 				return schema
 			}

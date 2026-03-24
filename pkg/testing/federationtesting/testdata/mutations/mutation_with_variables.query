@@ -1,8 +1,0 @@
-mutation AddReview($authorID: String!, $upc: String!, $review: String!) {
-    addReview(authorID: $authorID upc: $upc, review: $review) {
-        body
-        author {
-            username
-        }
-    }
-}

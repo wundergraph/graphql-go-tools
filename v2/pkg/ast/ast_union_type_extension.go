@@ -6,8 +6,9 @@ import (
 )
 
 type UnionTypeExtension struct {
-	ExtendLiteral position.Position
 	UnionTypeDefinition
+
+	ExtendLiteral position.Position
 }
 
 func (d *Document) UnionTypeExtensionNameBytes(ref int) ByteSlice {

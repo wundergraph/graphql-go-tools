@@ -21,6 +21,7 @@ func ArgumentUniqueness() Rule {
 
 type argumentUniquenessVisitor struct {
 	*astvisitor.Walker
+
 	operation *ast.Document
 }
 

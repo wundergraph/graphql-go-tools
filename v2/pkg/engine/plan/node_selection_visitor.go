@@ -1,7 +1,6 @@
 package plan
 
 import (
-	"errors"
 	"fmt"
 	"slices"
 
@@ -9,12 +8,13 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 )
 
-// nodeSelectionVisitor - walks through the operation multiple times to rewrite operation
-// to be able to resolve fields from different datasources.
-// During walks, it is adding required fields and rewrites abstract selection if it is necessary.
-// We are revisiting query when we have:
-// - new required fields were added to operation
-// - when we have rewritten abstract field selection set
+// nodeSelectionVisitor walks through the operation multiple times to rewrite it
+// to be able to resolve fields from different data sources.
+// If necessary, this visitor might add required fields and rewrite abstract selections.
+//
+// This visitor will walk the operation again if it has:
+//   - added new required fields to the operation,
+//   - rewritten an abstract field selection set.
 type nodeSelectionVisitor struct {
 	debug DebugConfiguration
 
@@ -22,32 +22,51 @@ type nodeSelectionVisitor struct {
 	operation, definition *ast.Document // graphql operation and schema documents
 	walker                *astvisitor.Walker
 
-	dataSources     []DataSource     // data sources configurations, which used by the current operation
+	dataSources     []DataSource     // data sources configurations, used by the current operation
 	nodeSuggestions *NodeSuggestions // nodeSuggestions holds information about suggested data sources for each field
 
-	selectionSetRefs []int // selectionSetRefs is a stack of selection set refs - used to add a required fields
+	selectionSetRefs []int // selectionSetRefs is a stack of selection set refs - used to add required fields
 	skipFieldsRefs   []int // skipFieldsRefs holds required field refs added by planner and should not be added to user response
 
 	pendingKeyRequirements   map[int]pendingKeyRequirements   // pendingKeyRequirements is a map[selectionSetRef][]keyRequirements
 	pendingFieldRequirements map[int]pendingFieldRequirements // pendingFieldRequirements is a map[selectionSetRef]fieldRequirements
 
-	visitedFieldsRequiresChecks map[fieldIndexKey]struct{}                       // visitedFieldsRequiresChecks is a map[FieldRef] of already processed fields which we check for presence of @requires directive
-	visitedFieldsKeyChecks      map[fieldIndexKey]struct{}                       // visitedFieldsKeyChecks is a map[FieldRef] of already processed fields which we check for @key requirements
-	visitedFieldsAbstractChecks map[int]struct{}                                 // visitedFieldsAbstractChecks is a map[FieldRef] of already processed fields which we check for abstract type, e.g. union or interface
-	fieldDependsOn              map[fieldIndexKey][]int                          // fieldDependsOn is a map[fieldRef][]fieldRef - holds list of field refs which are required by a field ref, e.g. field should be planned only after required fields were planned
+	visitedFieldsRequiresChecks map[fieldIndexKey]struct{}                       // visitedFieldsRequiresChecks is a map[fieldIndexKey] of already processed fields which we check for presence of @requires directive
+	visitedFieldsKeyChecks      map[fieldIndexKey]struct{}                       // visitedFieldsKeyChecks is a map[fieldIndexKey] of already processed fields which we check for @key requirements
+	visitedFieldsAbstractChecks map[int]struct{}                                 // visitedFieldsAbstractChecks is a map[fieldRef] of already processed fields which we check for abstract type, e.g. union or interface
+	fieldDependsOn              map[fieldIndexKey][]int                          // fieldDependsOn is a map[fieldIndexKey][]fieldRef - holds list of field refs which are required by a field ref, e.g. field should be planned only after required fields were planned
 	fieldRefDependsOn           map[int][]int                                    // fieldRefDependsOn is a map[fieldRef][]fieldRef - holds list of field refs which are required by a field ref, it is a second index without datasource hash
-	fieldRequirementsConfigs    map[fieldIndexKey][]FederationFieldConfiguration // fieldRequirementsConfigs is a map[fieldRef]FederationFieldConfiguration - holds a list of required configuratuibs for a field ref to later built representation variables
+	fieldRequirementsConfigs    map[fieldIndexKey][]FederationFieldConfiguration // fieldRequirementsConfigs is a map[fieldIndexKey]FederationFieldConfiguration - holds a list of required configuratuibs for a field ref to later built representation variables
 	fieldLandedTo               map[int]DSHash                                   // fieldLandedTo is a map[fieldRef]DSHash - holds a datasource hash where field was landed to
+	fieldDependencyKind         map[fieldDependencyKey]fieldDependencyKind
 
-	secondaryRun        bool // secondaryRun is a flag to indicate that we're running the nodeSelectionVisitor not the first time
-	hasNewFields        bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
-	hasUnresolvedFields bool // hasUnresolvedFields is used to determine if we need to run the planner again. We should set it to true in case we have unresolved fields
+	secondaryRun bool // secondaryRun is a flag to indicate that we're running the nodeSelectionVisitor not the first time
+	hasNewFields bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
 
-	fieldPathCoordinates []KeyConditionCoordinate // currentFieldPathCoordinates is a stack of field path coordinates
+	rewrittenFieldRefs          []int            // rewrittenFieldRefs holds field refs which had their selection sets rewritten during the current walk
+	persistedRewrittenFieldRefs map[int]struct{} // persistedRewrittenFieldRefs holds field refs which had their selection sets rewritten during any of the walks
+
+	// addTypenameInNestedSelections controls forced addition of __typename to nested selection sets
+	// used by "requires" keys, not only when fragments are present.
+	addTypenameInNestedSelections bool
+
+	newFieldRefs map[int]struct{} // newFieldRefs is a set of field refs which were added by the visitor or was modified by a rewrite
 }
 
-func (c *nodeSelectionVisitor) shouldRevisit() bool {
-	return c.hasNewFields || c.hasUnresolvedFields
+func (c *nodeSelectionVisitor) addSkipFieldRefs(fieldRefs ...int) {
+	c.skipFieldsRefs = append(c.skipFieldsRefs, fieldRefs...)
+
+	c.addNewFieldRefs(fieldRefs...)
+}
+
+func (c *nodeSelectionVisitor) addNewFieldRefs(fieldRefs ...int) {
+	for _, fieldRef := range fieldRefs {
+		c.newFieldRefs[fieldRef] = struct{}{}
+	}
+}
+
+type fieldDependencyKey struct {
+	field, dependsOn int
 }
 
 type fieldIndexKey struct {
@@ -58,18 +77,18 @@ type fieldIndexKey struct {
 // selectionSetPendingRequirements - is a wrapper to been able to have predictable order of keyRequirements but at the same time deduplicate keyRequirements
 type pendingKeyRequirements struct {
 	existsTracker      map[DSHash]struct{} // existsTracker allows us to not add duplicated keyRequirements
-	parentDSHashes     []DSHash            // parentDSHashes holds a list of parent data sources hashes
 	requirementConfigs []keyRequirements   // requirementConfigs is a list of keyRequirements which should be added to the selection set
 }
 
 // keyRequirements is a mapping between requestedByPlannerID or requestedByFieldRef, which requested required fields,
-// and selectionSet which should be added
+// and key selectionSet which should be added
 type keyRequirements struct {
-	dsHash               DSHash
+	targetDSHash         DSHash
 	path                 string
 	isInterfaceObject    bool
-	possibleKeys         []FederationFieldConfiguration
+	sc                   SourceConnection
 	requestedByFieldRefs []int
+	typeName             string
 }
 
 type fieldRequirements struct {
@@ -111,18 +130,12 @@ func (c *nodeSelectionVisitor) debugPrint(args ...any) {
 
 func (c *nodeSelectionVisitor) EnterDocument(operation, definition *ast.Document) {
 	c.hasNewFields = false
-	c.hasUnresolvedFields = false
+	c.rewrittenFieldRefs = c.rewrittenFieldRefs[:0]
 
 	if c.selectionSetRefs == nil {
 		c.selectionSetRefs = make([]int, 0, 8)
 	} else {
 		c.selectionSetRefs = c.selectionSetRefs[:0]
-	}
-
-	if c.fieldPathCoordinates == nil {
-		c.fieldPathCoordinates = make([]KeyConditionCoordinate, 0, 8)
-	} else {
-		c.fieldPathCoordinates = c.fieldPathCoordinates[:0]
 	}
 
 	if c.secondaryRun {
@@ -135,11 +148,13 @@ func (c *nodeSelectionVisitor) EnterDocument(operation, definition *ast.Document
 		c.skipFieldsRefs = make([]int, 0, 8)
 	}
 
+	c.persistedRewrittenFieldRefs = make(map[int]struct{})
 	c.visitedFieldsAbstractChecks = make(map[int]struct{})
 	c.visitedFieldsRequiresChecks = make(map[fieldIndexKey]struct{})
 	c.visitedFieldsKeyChecks = make(map[fieldIndexKey]struct{})
 	c.pendingKeyRequirements = make(map[int]pendingKeyRequirements)
 	c.pendingFieldRequirements = make(map[int]pendingFieldRequirements)
+	c.fieldDependencyKind = make(map[fieldDependencyKey]fieldDependencyKind)
 
 	c.fieldDependsOn = make(map[fieldIndexKey][]int)
 	c.fieldRefDependsOn = make(map[int][]int)
@@ -162,16 +177,39 @@ func (c *nodeSelectionVisitor) EnterOperationDefinition(ref int) {
 func (c *nodeSelectionVisitor) EnterSelectionSet(ref int) {
 	c.debugPrint("EnterSelectionSet ref:", ref)
 	c.selectionSetRefs = append(c.selectionSetRefs, ref)
+
+	c.handleRequiresInSelectionSet(ref)
+}
+
+// handleRequiresInSelectionSet adds required fields for fields having @requires directive
+// before walker actually walks into field selections
+// this is needed for the case when requires configuration has deeply nested fields
+// which will modify current field sublings
+func (c *nodeSelectionVisitor) handleRequiresInSelectionSet(selectionSetRef int) {
+	fieldSelectionsRefs := c.operation.SelectionSetFieldSelections(selectionSetRef)
+	for _, fieldSelectionRef := range fieldSelectionsRefs {
+		fieldRef := c.operation.Selections[fieldSelectionRef].Ref
+		// process the field but handle only requires configurations
+		c.handleEnterField(fieldRef, true)
+	}
+
+	// add required fields into operation right away
+	// so when the walker walks into fields, required fields will be already present
+	c.processPendingFieldRequirements(selectionSetRef)
 }
 
 func (c *nodeSelectionVisitor) LeaveSelectionSet(ref int) {
 	c.debugPrint("LeaveSelectionSet ref:", ref)
-	c.processPendingFieldRequirements(ref)
 	c.processPendingKeyRequirements(ref)
 	c.selectionSetRefs = c.selectionSetRefs[:len(c.selectionSetRefs)-1]
 }
 
 func (c *nodeSelectionVisitor) EnterField(fieldRef int) {
+	// process field to handle keys and do rewrites of abstract selections
+	c.handleEnterField(fieldRef, false)
+}
+
+func (c *nodeSelectionVisitor) handleEnterField(fieldRef int, handleRequires bool) {
 	root := c.walker.Ancestors[0]
 	if root.Kind != ast.NodeKindOperationDefinition {
 		return
@@ -181,7 +219,7 @@ func (c *nodeSelectionVisitor) EnterField(fieldRef int) {
 	fieldAliasOrName := c.operation.FieldAliasOrNameString(fieldRef)
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
 
-	c.debugPrint("EnterField ref:", fieldRef, "fieldName:", fieldName, "typeName:", typeName)
+	c.debugPrint("EnterField ref:", fieldRef, "fieldName:", fieldName, "typeName:", typeName, "requires:", handleRequires)
 
 	parentPath := c.walker.Path.DotDelimitedString()
 	currentPath := parentPath + "." + fieldAliasOrName
@@ -189,41 +227,33 @@ func (c *nodeSelectionVisitor) EnterField(fieldRef int) {
 	suggestions := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
 
 	for _, suggestion := range suggestions {
-		if suggestion.IsRequiredKeyField {
-			// it was already selected as a key field
-			// no need to process required fields for it
-			continue
-		}
-
 		dsIdx := slices.IndexFunc(c.dataSources, func(d DataSource) bool {
 			return d.Hash() == suggestion.DataSourceHash
 		})
 		if dsIdx == -1 {
-			c.walker.StopWithInternalErr(errors.New("we should always have a datasource for a suggestion"))
+			c.walker.StopWithInternalErr(fmt.Errorf("do not have a datasource for a field suggestion for field %s at path %s", fieldName, currentPath))
 			return
 		}
 		ds := c.dataSources[dsIdx]
 
-		// check if the field has @requires directive
-		c.handleFieldRequiredByRequires(fieldRef, parentPath, typeName, fieldName, currentPath, ds)
+		if handleRequires {
+			// check if the field has @requires directive
+			c.handleFieldRequiredByRequires(fieldRef, parentPath, typeName, fieldName, currentPath, ds)
+			// skip to the next suggestion as we only handle requires here
+			continue
+		}
 
-		// check key requirements for the field
-		c.handleFieldsRequiredByKey(fieldRef, parentPath, typeName, fieldName, currentPath, ds)
+		if suggestion.requiresKey != nil {
+			// add @key requirements for the field
+			c.handleFieldsRequiredByKey(fieldRef, parentPath, typeName, fieldName, currentPath, ds, *suggestion.requiresKey)
+		}
 
-		// check if a field type is abstract and need rewrites
-		c.rewriteSelectionSetOfFieldWithInterfaceType(fieldRef, ds)
+		// check if field selections are abstract and needs rewrites
+		c.rewriteSelectionSetHavingAbstractFragments(fieldRef, ds)
 	}
-
-	c.fieldPathCoordinates = append(c.fieldPathCoordinates, KeyConditionCoordinate{
-		FieldName: fieldName,
-		TypeName:  typeName,
-	})
 }
 
 func (c *nodeSelectionVisitor) LeaveField(ref int) {
-	if len(c.fieldPathCoordinates) > 0 {
-		c.fieldPathCoordinates = c.fieldPathCoordinates[:len(c.fieldPathCoordinates)-1]
-	}
 }
 
 func (c *nodeSelectionVisitor) handleFieldRequiredByRequires(fieldRef int, parentPath, typeName, fieldName, currentPath string, dsConfig DataSource) {
@@ -240,19 +270,54 @@ func (c *nodeSelectionVisitor) handleFieldRequiredByRequires(fieldRef int, paren
 	}
 
 	requiresConfiguration, exists := dsConfig.RequiredFieldsByRequires(typeName, fieldName)
+
+	if !exists {
+		for _, io := range dsConfig.FederationConfiguration().InterfaceObjects {
+			if slices.Contains(io.ConcreteTypeNames, typeName) {
+				// we should check if we have a @requires configuration for the interface object
+				requiresConfiguration, exists = dsConfig.RequiredFieldsByRequires(io.InterfaceTypeName, fieldName)
+				if exists {
+					requiresConfiguration.TypeName = typeName
+					break
+				}
+			}
+		}
+	}
+
 	if !exists {
 		// we do not have a @requires configuration for the field
 		return
 	}
 
-	// we should plan adding required fields for the field
-	// they will be added in the on LeaveSelectionSet callback for the current selection set
-	// and current field ref will be added to fieldDependsOn map
+	// check if the required fields are already provided
+	input := areRequiredFieldsProvidedInput{
+		typeName:       typeName,
+		requiredFields: requiresConfiguration.SelectionSet,
+		definition:     c.definition,
+		dataSource:     dsConfig,
+		providedFields: c.nodeSuggestions.providedFields[dsConfig.Hash()],
+		parentPath:     parentPath,
+	}
+
+	provided, report := areRequiredFieldsProvided(input)
+	if report.HasErrors() {
+		c.walker.StopWithInternalErr(fmt.Errorf("failed to check if required fields are provided for field %s at path %s: %w", fieldName, currentPath, report))
+		return
+	}
+
+	if provided {
+		// if all fields from requires configuration are provided, we do not need to add them to the operation
+		return
+	}
+
+	// we should plan to add required fields for the field
+	// they will be added in the on LeaveSelectionSet callback for the current selection set,
+	// and the current field ref will be added to the fieldDependsOn map
 	c.addPendingFieldRequirements(fieldRef, dsConfig.Hash(), requiresConfiguration, currentPath, false)
-	c.hasNewFields = true
+	c.handleKeyRequirementsForBackJumpOnSameDataSource(fieldRef, dsConfig, typeName, parentPath)
 }
 
-func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldRef int, parentPath, typeName, fieldName, currentPath string, dsConfig DataSource) {
+func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldRef int, parentPath, typeName, fieldName, currentPath string, dsConfig DataSource, sc SourceConnection) {
 	fieldKey := fieldIndexKey{fieldRef, dsConfig.Hash()}
 	_, visited := c.visitedFieldsKeyChecks[fieldKey]
 	if visited {
@@ -260,23 +325,7 @@ func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldRef int, parentPat
 	}
 	c.visitedFieldsKeyChecks[fieldKey] = struct{}{}
 
-	_, hasRequiresCondition := dsConfig.RequiredFieldsByRequires(typeName, fieldName)
-
-	treeNodeID := TreeNodeID(fieldRef)
-	treeNode, ok := c.nodeSuggestions.responseTree.Find(treeNodeID)
-	if !ok {
-		return
-	}
-
-	// TODO: refactor
-	parent := treeNode.GetParent()
-	parentSuggestions := parent.GetData()
-	var selectedParentsDSHashes []DSHash
-	for _, itemID := range parentSuggestions {
-		if c.nodeSuggestions.items[itemID].Selected {
-			selectedParentsDSHashes = append(selectedParentsDSHashes, c.nodeSuggestions.items[itemID].DataSourceHash)
-		}
-	}
+	selectedParentsDSHashes := c.getSelectedParentsDSHashes(fieldRef)
 
 	isParentHasInterfaceObject := slices.ContainsFunc(selectedParentsDSHashes, func(dsHash DSHash) bool {
 		dsIdx := slices.IndexFunc(c.dataSources, func(d DataSource) bool {
@@ -286,9 +335,7 @@ func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldRef int, parentPat
 			return false
 		}
 
-		ds := c.dataSources[dsIdx]
-
-		return ds.HasInterfaceObject(typeName)
+		return c.dataSources[dsIdx].HasInterfaceObject(typeName)
 	})
 
 	entityInterface := dsConfig.HasEntityInterface(typeName)
@@ -302,43 +349,7 @@ func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldRef int, parentPat
 		return
 	}
 
-	// we should handle key requirements only when the datasource hash differs from the parent datasource hash
-	// it means that this field should be resolved by another datasource
-	// one exception in case field has requires directive - then field is planned on the same datasource
-	// but fields with requires waits for the required fields to be resolved
-	sameAsParentDS := len(selectedParentsDSHashes) == 1 && selectedParentsDSHashes[0] == dsConfig.Hash()
-
-	if sameAsParentDS && !hasRequiresCondition {
-		return
-	}
-
-	keyConfigurations := dsConfig.RequiredFieldsByKey(typeName)
-
-	if len(keyConfigurations) == 0 && hasRequiresCondition {
-		// required fields could be of zero length in case type is not entity
-		// or when entity has disabled entity resolver.
-		// Usually we can't jump to the entity with disabled entity resolver, but there is one known exception
-		// When entity has disabled entity resolver, but we have field with requires directive on this entity
-		// we should add key fields for the field with requires - to pass them into field resolver
-
-		keys := dsConfig.FederationConfiguration().Keys
-		keyConfigurations = keys.FilterByTypeAndResolvability(typeName, false)
-	}
-
-	if len(keyConfigurations) == 0 && !sameAsParentDS {
-		// TODO: planner error
-		return
-	}
-
-	// 1. Current field datasource is the same as parent datasource, and field has requires directive defined
-	if sameAsParentDS {
-		// the most simple case we just need to use the first available key configuration
-		c.addPendingKeyRequirements(fieldRef, dsConfig.Hash(), []FederationFieldConfiguration{keyConfigurations[0]}, false, parentPath, selectedParentsDSHashes)
-		c.hasNewFields = true
-		return
-	}
-
-	c.addPendingKeyRequirements(fieldRef, dsConfig.Hash(), keyConfigurations, interfaceObject, parentPath, selectedParentsDSHashes)
+	c.addPendingKeyRequirements(fieldRef, dsConfig.Hash(), sc, interfaceObject, parentPath, typeName)
 
 	if isParentHasInterfaceObject && !interfaceObject && !entityInterface {
 		c.addPendingFieldRequirements(
@@ -353,8 +364,70 @@ func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldRef int, parentPat
 			true,
 		)
 	}
+}
 
-	c.hasNewFields = true
+func (c *nodeSelectionVisitor) getSelectedParentsDSHashes(fieldRef int) (out []DSHash) {
+	treeNodeID := TreeNodeID(fieldRef)
+	treeNode, ok := c.nodeSuggestions.responseTree.Find(treeNodeID)
+	if !ok {
+		return nil
+	}
+
+	parentIndexes := treeNode.GetParent().GetData()
+
+	for _, itemID := range parentIndexes {
+		if c.nodeSuggestions.items[itemID].Selected {
+			out = append(out, c.nodeSuggestions.items[itemID].DataSourceHash)
+		}
+	}
+
+	return out
+}
+
+func (c *nodeSelectionVisitor) handleKeyRequirementsForBackJumpOnSameDataSource(fieldRef int, dsConfig DataSource, typeName string, parentPath string) {
+	selectedParentsDSHashes := c.getSelectedParentsDSHashes(fieldRef)
+
+	// regularly keys are required only when the datasource hash differs from the parent datasource hash
+	// one exception when the field has requires directive and planned on the same datasource as a parent
+	// in this case we have to add a back jump on the same datasource to get required fields for the field resolver
+	// but jump is possible only with keys, so we have to add any key for this datasource
+	sameAsParentDS := len(selectedParentsDSHashes) == 1 && selectedParentsDSHashes[0] == dsConfig.Hash()
+	if !sameAsParentDS {
+		return
+	}
+
+	keyConfigurations := dsConfig.RequiredFieldsByKey(typeName)
+
+	if len(keyConfigurations) == 0 {
+		// required fields could be of zero length in case type is not entity
+		// or when entity has disabled entity resolver.
+		// Usually we can't jump to the entity with disabled entity resolver, but there is one known exception
+		// When entity has disabled entity resolver, but we have field with requires directive on this entity
+		// we should add key fields for the field with requires - to pass them into field resolver
+
+		keys := dsConfig.FederationConfiguration().Keys
+		keyConfigurations = keys.FilterByTypeAndResolvability(typeName, false)
+	}
+
+	if len(keyConfigurations) == 0 {
+		return
+	}
+
+	keyToUse := keyConfigurations[0]
+
+	sc := SourceConnection{
+		Type: SourceConnectionTypeDirect,
+		Jumps: []KeyJump{
+			{
+				From:         dsConfig.Hash(),
+				To:           dsConfig.Hash(),
+				SelectionSet: keyToUse.SelectionSet,
+				TypeName:     typeName,
+			},
+		},
+	}
+
+	c.addPendingKeyRequirements(fieldRef, dsConfig.Hash(), sc, false, parentPath, typeName)
 }
 
 func (c *nodeSelectionVisitor) addPendingFieldRequirements(requestedByFieldRef int, dsHash DSHash, fieldConfiguration FederationFieldConfiguration, currentPath string, isTypenameForEntityInterface bool) {
@@ -393,38 +466,36 @@ func (c *nodeSelectionVisitor) addPendingFieldRequirements(requestedByFieldRef i
 	}
 
 	c.pendingFieldRequirements[currentSelectionSet] = requirements
-	fieldKey := fieldIndexKey{requestedByFieldRef, dsHash}
-	c.fieldRequirementsConfigs[fieldKey] = append(c.fieldRequirementsConfigs[fieldKey], fieldConfiguration)
 }
 
-func (c *nodeSelectionVisitor) addPendingKeyRequirements(requestedByFieldRef int, dsHash DSHash, possibleFieldConfigurations []FederationFieldConfiguration, isInterfaceObject bool, parentPath string, parentDSHashes []DSHash) {
+func (c *nodeSelectionVisitor) addPendingKeyRequirements(requestedByFieldRef int, dsHash DSHash, sc SourceConnection, isInterfaceObject bool, parentPath string, typeName string) {
 	currentSelectionSet := c.currentSelectionSet()
 
 	requirements, hasRequirements := c.pendingKeyRequirements[currentSelectionSet]
 
 	if !hasRequirements {
 		requirements = pendingKeyRequirements{
-			existsTracker:  make(map[DSHash]struct{}),
-			parentDSHashes: parentDSHashes,
+			existsTracker: make(map[DSHash]struct{}),
 		}
 	}
 
 	existsKey := dsHash
 	if _, exists := requirements.existsTracker[existsKey]; !exists {
 		config := keyRequirements{
-			dsHash:               dsHash,
+			targetDSHash:         dsHash,
 			path:                 parentPath,
 			isInterfaceObject:    isInterfaceObject,
-			possibleKeys:         possibleFieldConfigurations,
+			sc:                   sc,
 			requestedByFieldRefs: []int{requestedByFieldRef},
+			typeName:             typeName,
 		}
 
 		requirements.existsTracker[existsKey] = struct{}{}
 		requirements.requirementConfigs = append(requirements.requirementConfigs, config)
 	} else {
 		for i := range requirements.requirementConfigs {
-			if requirements.requirementConfigs[i].dsHash == dsHash {
-				if slices.Index(requirements.requirementConfigs[i].requestedByFieldRefs, requestedByFieldRef) == -1 {
+			if requirements.requirementConfigs[i].targetDSHash == dsHash {
+				if !slices.Contains(requirements.requirementConfigs[i].requestedByFieldRefs, requestedByFieldRef) {
 					requirements.requirementConfigs[i].requestedByFieldRefs = append(requirements.requirementConfigs[i].requestedByFieldRefs, requestedByFieldRef)
 				}
 				break
@@ -449,34 +520,48 @@ func (c *nodeSelectionVisitor) processPendingFieldRequirements(selectionSetRef i
 
 func (c *nodeSelectionVisitor) addFieldRequirementsToOperation(selectionSetRef int, requirements fieldRequirements) {
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
-	key, report := RequiredFieldsFragment(typeName, requirements.selectionSet, false)
+
+	input := &addRequiredFieldsConfiguration{
+		operation:                     c.operation,
+		definition:                    c.definition,
+		operationSelectionSetRef:      selectionSetRef,
+		isTypeNameForEntityInterface:  requirements.isTypenameForEntityInterface,
+		isKey:                         false,
+		allowTypename:                 false,
+		typeName:                      typeName,
+		fieldSet:                      requirements.selectionSet,
+		addTypenameInNestedSelections: c.addTypenameInNestedSelections,
+	}
+
+	addFieldsResult, report := addRequiredFields(input)
 	if report.HasErrors() {
-		c.walker.StopWithInternalErr(fmt.Errorf("failed to parse required fields %s for %s at path %s", requirements.selectionSet, typeName, requirements.path))
+		c.walker.StopWithInternalErr(fmt.Errorf("failed to add required fields %s for %s at path %s: %w", requirements.selectionSet, typeName, requirements.path, report))
 		return
 	}
+	c.resetVisitedAbstractChecksForModifiedFields(addFieldsResult.modifiedFieldRefs)
 
-	input := &addRequiredFieldsInput{
-		key:                          key,
-		operation:                    c.operation,
-		definition:                   c.definition,
-		report:                       report,
-		operationSelectionSet:        selectionSetRef,
-		isTypeNameForEntityInterface: requirements.isTypenameForEntityInterface,
-	}
-
-	skipFieldRefs, requiredFieldRefs := addRequiredFields(input)
-	if report.HasErrors() {
-		c.walker.StopWithInternalErr(fmt.Errorf("failed to add required fields %s for %s at path %s", requirements.selectionSet, typeName, requirements.path))
-		return
-	}
-
-	c.skipFieldsRefs = append(c.skipFieldsRefs, skipFieldRefs...)
+	c.addSkipFieldRefs(addFieldsResult.skipFieldRefs...)
 	// add mapping for the field dependencies
 	for _, requestedByFieldRef := range requirements.requestedByFieldRefs {
 		fieldKey := fieldIndexKey{requestedByFieldRef, requirements.dsHash}
-		c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], requiredFieldRefs...)
-		c.fieldRefDependsOn[requestedByFieldRef] = append(c.fieldRefDependsOn[requestedByFieldRef], requiredFieldRefs...)
+		c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], addFieldsResult.requiredFieldRefs...)
+		c.fieldRefDependsOn[requestedByFieldRef] = append(c.fieldRefDependsOn[requestedByFieldRef], addFieldsResult.requiredFieldRefs...)
+
+		// TODO: actually we could probably build representations right away?
+		// e.g. build it here, pass to path visitor and down to datasource, without the need to parse it there?
+		fieldConfiguration := FederationFieldConfiguration{
+			TypeName:      typeName,
+			FieldName:     c.operation.FieldNameString(requestedByFieldRef),
+			SelectionSet:  requirements.selectionSet,
+			RemappedPaths: addFieldsResult.remappedPaths,
+		}
+		c.fieldRequirementsConfigs[fieldKey] = append(c.fieldRequirementsConfigs[fieldKey], fieldConfiguration)
+		for _, requiredFieldRef := range addFieldsResult.requiredFieldRefs {
+			c.fieldDependencyKind[fieldDependencyKey{field: requestedByFieldRef, dependsOn: requiredFieldRef}] = fieldDependencyKindRequires
+		}
 	}
+
+	c.hasNewFields = true
 }
 
 func (c *nodeSelectionVisitor) processPendingKeyRequirements(selectionSetRef int) {
@@ -486,202 +571,222 @@ func (c *nodeSelectionVisitor) processPendingKeyRequirements(selectionSetRef int
 	}
 	delete(c.pendingKeyRequirements, selectionSetRef)
 
-	availableHashes := configs.parentDSHashes
-
-	pendingRequirements := configs.requirementConfigs
-	hasPendingRequirements := len(pendingRequirements) > 0
-
-	i := 1
-	for hasPendingRequirements {
-		newAvailableHashes := append([]DSHash{}, availableHashes...)
-		newPendingRequirements := make([]keyRequirements, 0, len(pendingRequirements))
-		for i := 0; i < len(pendingRequirements); i++ {
-			if c.matchDataSourcesByKeyConfiguration(selectionSetRef, pendingRequirements[i], availableHashes) {
-				newAvailableHashes = append(newAvailableHashes, pendingRequirements[i].dsHash)
-			} else {
-				newPendingRequirements = append(newPendingRequirements, pendingRequirements[i])
-			}
-		}
-		availableHashes = newAvailableHashes
-		hasPendingRequirements = len(newPendingRequirements) > 0
-		pendingRequirements = newPendingRequirements
-		i++
-
-		if i > 100 {
-			c.walker.StopWithInternalErr(fmt.Errorf("could not plan key requirements on a path '%s'", c.walker.Path.DotDelimitedString()))
-			return
-		}
-	}
-}
-
-func (c *nodeSelectionVisitor) matchDataSourcesByKeyConfiguration(selectionSetRef int, requirements keyRequirements, dsHashes []DSHash) (matched bool) {
-	for _, ds := range c.dataSources {
-		if !slices.Contains(dsHashes, ds.Hash()) {
-			continue
-		}
-
-		// Note: we iterate over possible target keys in order of appearance,
-		// so it could match on any key, not necessary explicit
-		for _, possibleRequiredFieldConfig := range requirements.possibleKeys {
-			typeName := possibleRequiredFieldConfig.TypeName
-
-			keys := ds.FederationConfiguration().Keys
-
-			// first look into keys with enabled entity resolver
-			keyConfigurations := keys.FilterByTypeAndResolvability(typeName, true)
-			if slices.ContainsFunc(keyConfigurations, func(keyCfg FederationFieldConfiguration) bool {
-				return keyCfg.SelectionSet == possibleRequiredFieldConfig.SelectionSet
-			}) {
-				c.addKeyRequirementsToOperation(selectionSetRef, typeName, requirements, ds, possibleRequiredFieldConfig)
-				return true
-			}
-
-			// second check is for the keys which do not have entity resolver
-			// e.g. resolvable: false or implicit keys
-			keyConfigurations = keys.FilterByTypeAndResolvability(typeName, false)
-
-			var (
-				implicitKeys            []FederationFieldConfiguration
-				conditionalImplicitKeys []FederationFieldConfiguration
-			)
-
-			for _, keyCfg := range keyConfigurations {
-				if len(keyCfg.Conditions) == 0 {
-					implicitKeys = append(implicitKeys, keyCfg)
-					continue
-				}
-
-				conditionalImplicitKeys = append(conditionalImplicitKeys, keyCfg)
-			}
-
-			if slices.ContainsFunc(implicitKeys, func(keyCfg FederationFieldConfiguration) bool {
-				return keyCfg.SelectionSet == possibleRequiredFieldConfig.SelectionSet
-			}) {
-				c.addKeyRequirementsToOperation(selectionSetRef, typeName, requirements, ds, possibleRequiredFieldConfig)
-				return true
-			}
-
-			if slices.ContainsFunc(conditionalImplicitKeys, func(keyCfg FederationFieldConfiguration) bool {
-				hasSelectionSet := keyCfg.SelectionSet == possibleRequiredFieldConfig.SelectionSet
-				if !hasSelectionSet {
-					return false
-				}
-
-				for _, condition := range keyCfg.Conditions {
-					if len(c.fieldPathCoordinates) < len(condition.Coordinates) {
-						return false
-					}
-					if len(condition.Coordinates) < 2 {
-						return false
-					}
-
-					conditionMatch := true
-
-					// we need to match path and type of current path and condition path
-					// for condition path we are skipping the last element - because it is a key field coordinate
-					j := len(c.fieldPathCoordinates) - 1
-					for i := len(condition.Coordinates) - 2; i >= 0; i-- {
-						coordinate := condition.Coordinates[i]
-						fieldCoordinate := c.fieldPathCoordinates[j]
-
-						if coordinate.TypeName != fieldCoordinate.TypeName || coordinate.FieldName != fieldCoordinate.FieldName {
-							conditionMatch = false
-							break
-						}
-						j--
-					}
-
-					if conditionMatch {
-						return true
-					}
-				}
-
-				return false
-			}) {
-				c.addKeyRequirementsToOperation(selectionSetRef, typeName, requirements, ds, possibleRequiredFieldConfig)
-				return true
-			}
-
-		}
+	for _, requirement := range configs.requirementConfigs {
+		c.addKeyRequirementsToOperation(selectionSetRef, requirement)
 	}
 
-	return false
+	// TODO: raise an error in configuration visitor? if fetch is nested, but don't have requirements attached
+	// c.walker.StopWithInternalErr(fmt.Errorf("could not plan key requirements on a path '%s'", c.walker.Path.DotDelimitedString()))
+
 }
 
-func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int, typeName string, requirements keyRequirements, landedTo DataSource, fieldConfiguration FederationFieldConfiguration) {
-	requirementsFromInterfaceObject := requirements.isInterfaceObject
-	requirementsToInterfaceObject := landedTo.HasInterfaceObject(typeName)
+func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int, pendingKey keyRequirements) {
+	requirementsFromInterfaceObject := pendingKey.isInterfaceObject
+	requirementsToInterfaceObject := false
+
+	if requirementsFromInterfaceObject {
+		i := slices.IndexFunc(c.dataSources, func(d DataSource) bool {
+			return d.Hash() == pendingKey.sc.Source
+		})
+
+		if i != -1 {
+			targetDsConfiguration := c.dataSources[i]
+			requirementsToInterfaceObject = targetDsConfiguration.HasInterfaceObject(pendingKey.typeName)
+		}
+	}
 
 	// when we jump from interface object to interface object, we don't need a concrete type __typename to do the jump,
-	// so we have to skip adding __typename field along with other key fields
+	// we also dissalow adding typename because for the interface object type we intentionally do not add root node for a typename
+	// if we will add a typename it will be queried from the concrete types, which we don't want here
+	// so we have to skip adding __typename field
 	dissalowTypeName := requirementsFromInterfaceObject && requirementsToInterfaceObject
 
-	key, report := RequiredFieldsFragment(typeName, fieldConfiguration.SelectionSet, !dissalowTypeName)
-	if report.HasErrors() {
-		c.walker.StopWithInternalErr(fmt.Errorf("failed to parse required fields %s for %s at path %s", fieldConfiguration.SelectionSet, typeName, requirements.path))
-		return
-	}
+	// jumps represents a chain of keys needed to reach from source to the target, in simple case it is just one jump
+	// each key from the next jump will have dependencies on a key fields from the previous jump
 
-	input := &addRequiredFieldsInput{
-		key:                   key,
-		operation:             c.operation,
-		definition:            c.definition,
-		report:                report,
-		operationSelectionSet: selectionSetRef,
-	}
+	var currentFieldRefs []int
+	var previousJump *KeyJump
+	for i, jump := range pendingKey.sc.Jumps {
+		allowTypeName := !dissalowTypeName && i == 0
+		lastJump := i == len(pendingKey.sc.Jumps)-1
 
-	skipFieldRefs, requiredFieldRefs := addRequiredFields(input)
-	if report.HasErrors() {
-		c.walker.StopWithInternalErr(fmt.Errorf("failed to add required fields %s for %s at path %s", fieldConfiguration.SelectionSet, typeName, requirements.path))
-		return
-	}
-
-	c.skipFieldsRefs = append(c.skipFieldsRefs, skipFieldRefs...)
-
-	// add mapping for the field dependencies
-	for _, requestedByFieldRef := range requirements.requestedByFieldRefs {
-		if slices.Contains(requiredFieldRefs, requestedByFieldRef) {
-			// we should not add field ref to fieldDependsOn map if it is part of a key
-			continue
+		input := &addRequiredFieldsConfiguration{
+			operation:                c.operation,
+			definition:               c.definition,
+			operationSelectionSetRef: selectionSetRef,
+			isKey:                    true,
+			allowTypename:            allowTypeName,
+			typeName:                 jump.TypeName,
+			fieldSet:                 jump.SelectionSet,
 		}
 
-		fieldKey := fieldIndexKey{requestedByFieldRef, requirements.dsHash}
-		c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], requiredFieldRefs...)
-		c.fieldRefDependsOn[requestedByFieldRef] = append(c.fieldRefDependsOn[requestedByFieldRef], requiredFieldRefs...)
-		c.fieldRequirementsConfigs[fieldKey] = append(c.fieldRequirementsConfigs[fieldKey], fieldConfiguration)
+		addFieldsResult, report := addRequiredFields(input)
+		if report.HasErrors() {
+			c.walker.StopWithInternalErr(fmt.Errorf("failed to add required key fields %s for %s: %w", jump.SelectionSet, jump.TypeName, report))
+			return
+		}
+		c.resetVisitedAbstractChecksForModifiedFields(addFieldsResult.modifiedFieldRefs)
+
+		// op, _ := astprinter.PrintStringIndentDebug(c.operation, " ")
+		// fmt.Println("operation: ", op)
+
+		c.addSkipFieldRefs(addFieldsResult.skipFieldRefs...)
+
+		// setup deps between key chain items
+		if currentFieldRefs != nil && previousJump != nil {
+			for _, requestedByFieldRef := range addFieldsResult.requiredFieldRefs {
+				fieldKey := fieldIndexKey{requestedByFieldRef, jump.From}
+
+				for _, requiredFieldRef := range currentFieldRefs {
+					if requiredFieldRef == requestedByFieldRef {
+						// we should not add field ref to fieldDependsOn map if it is part of a key,
+						// e.g., if it depends on itself
+						continue
+					}
+					c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], requiredFieldRef)
+					c.fieldRefDependsOn[requestedByFieldRef] = append(c.fieldRefDependsOn[requestedByFieldRef], requiredFieldRef)
+				}
+
+				c.fieldRequirementsConfigs[fieldKey] = append(c.fieldRequirementsConfigs[fieldKey], FederationFieldConfiguration{
+					TypeName:     previousJump.TypeName,
+					SelectionSet: previousJump.SelectionSet,
+				})
+				for _, requiredFieldRef := range currentFieldRefs {
+					c.fieldDependencyKind[fieldDependencyKey{field: requestedByFieldRef, dependsOn: requiredFieldRef}] = fieldDependencyKindKey
+				}
+			}
+		}
+		currentFieldRefs = addFieldsResult.requiredFieldRefs
+
+		// setup deps for the field requested this chain
+		if lastJump {
+			// add mapping for the field dependencies
+			for _, requestedByFieldRef := range pendingKey.requestedByFieldRefs {
+				fieldKey := fieldIndexKey{requestedByFieldRef, pendingKey.targetDSHash}
+
+				for _, requiredFieldRef := range currentFieldRefs {
+					if requiredFieldRef == requestedByFieldRef {
+						// we should not add field ref to fieldDependsOn map if it is part of a key,
+						// e.g., if it depends on itself
+						continue
+					}
+					c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], requiredFieldRef)
+					c.fieldRefDependsOn[requestedByFieldRef] = append(c.fieldRefDependsOn[requestedByFieldRef], requiredFieldRef)
+				}
+
+				c.fieldRequirementsConfigs[fieldKey] = append(c.fieldRequirementsConfigs[fieldKey], FederationFieldConfiguration{
+					TypeName:     jump.TypeName,
+					SelectionSet: jump.SelectionSet,
+				})
+				for _, requiredFieldRef := range currentFieldRefs {
+					c.fieldDependencyKind[fieldDependencyKey{field: requestedByFieldRef, dependsOn: requiredFieldRef}] = fieldDependencyKindKey
+				}
+			}
+		}
+
+		for _, requiredFieldRef := range currentFieldRefs {
+			c.fieldLandedTo[requiredFieldRef] = jump.From
+		}
+
+		previousJump = &jump
 	}
 
-	for _, requiredFieldRef := range requiredFieldRefs {
-		c.fieldLandedTo[requiredFieldRef] = landedTo.Hash()
-	}
+	c.hasNewFields = true
 }
 
-func (c *nodeSelectionVisitor) rewriteSelectionSetOfFieldWithInterfaceType(fieldRef int, ds DataSource) {
+func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldRef int, ds DataSource) {
 	if _, ok := c.visitedFieldsAbstractChecks[fieldRef]; ok {
 		return
 	}
 	c.visitedFieldsAbstractChecks[fieldRef] = struct{}{}
 
-	upstreamSchema, ok := ds.UpstreamSchema()
+	_, ok := ds.UpstreamSchema()
 	if !ok {
 		return
 	}
 
-	rewriter := newFieldSelectionRewriter(c.operation, c.definition)
-	rewriter.SetUpstreamDefinition(upstreamSchema)
-	rewriter.SetDatasourceConfiguration(ds)
+	var options []rewriterOption
+	if _, wasRewritten := c.persistedRewrittenFieldRefs[fieldRef]; wasRewritten {
+		// When field was already rewritten in previous walker runs,
+		// but we are visiting it again - it means that we have appended more required fields to it.
+		// So we have to force rewriting it again, because without force we could end up with duplicated fields outside of fragments.
+		// When newly added fields are local - rewriter will consider that rewrite is not necessary.
+		options = append(options, withForceRewrite())
+	}
 
-	rewritten, err := rewriter.RewriteFieldSelection(fieldRef, c.walker.EnclosingTypeDefinition)
-
+	rewriter, err := newFieldSelectionRewriter(c.operation, c.definition, ds, options...)
 	if err != nil {
-		c.walker.StopWithInternalErr(err)
+		c.walker.StopWithInternalErr(fmt.Errorf("failed to create field selection rewriter for field %s at path %s: %w", c.operation.FieldNameString(fieldRef), c.walker.Path.DotDelimitedString(), err))
 		return
 	}
 
-	if !rewritten {
+	result, err := rewriter.RewriteFieldSelection(fieldRef, c.walker.EnclosingTypeDefinition)
+	if err != nil {
+		c.walker.StopWithInternalErr(fmt.Errorf("failed to rewrite field selection for field %s at path %s: %w", c.operation.FieldNameString(fieldRef), c.walker.Path.DotDelimitedString(), err))
 		return
 	}
 
+	if !result.rewritten {
+		return
+	}
+
+	c.addSkipFieldRefs(rewriter.skipFieldRefs...)
 	c.hasNewFields = true
-	c.walker.Stop()
+	c.rewrittenFieldRefs = append(c.rewrittenFieldRefs, fieldRef)
+	c.persistedRewrittenFieldRefs[fieldRef] = struct{}{}
+
+	c.updateFieldDependsOn(result.changedFieldRefs)
+	c.updateSkipFieldRefs(result.changedFieldRefs)
+
+	// skip walking into a rewritten field instead of stoping the whole visitor
+	// should allow to do fewer walks over the operation
+	c.walker.SkipNode()
+}
+
+// resetVisitedAbstractChecksForModifiedFields - when we modify the operation by adding required fields
+// we need to reset visitedFieldsAbstractChecks for modified fields to allow additional rewrites if necessary
+func (c *nodeSelectionVisitor) resetVisitedAbstractChecksForModifiedFields(modifiedFields []int) {
+	for _, fieldRef := range modifiedFields {
+		delete(c.visitedFieldsAbstractChecks, fieldRef)
+	}
+}
+
+func (c *nodeSelectionVisitor) updateFieldDependsOn(changedFieldRefs map[int][]int) {
+	for key, fieldRefs := range c.fieldDependsOn {
+		updatedFieldRefs := make([]int, 0, len(fieldRefs))
+		for _, fieldRef := range fieldRefs {
+			if newRefs := changedFieldRefs[fieldRef]; newRefs != nil {
+				updatedFieldRefs = append(updatedFieldRefs, newRefs...)
+			} else {
+				updatedFieldRefs = append(updatedFieldRefs, fieldRef)
+			}
+		}
+
+		c.fieldDependsOn[key] = updatedFieldRefs
+	}
+
+	for key, fieldRefs := range c.fieldRefDependsOn {
+		updatedFieldRefs := make([]int, 0, len(fieldRefs))
+		for _, fieldRef := range fieldRefs {
+			if newRefs := changedFieldRefs[fieldRef]; newRefs != nil {
+				updatedFieldRefs = append(updatedFieldRefs, newRefs...)
+			} else {
+				updatedFieldRefs = append(updatedFieldRefs, fieldRef)
+			}
+		}
+
+		c.fieldRefDependsOn[key] = updatedFieldRefs
+	}
+
+	for _, newRefs := range changedFieldRefs {
+		c.addNewFieldRefs(newRefs...)
+	}
+}
+
+func (c *nodeSelectionVisitor) updateSkipFieldRefs(changedFieldRefs map[int][]int) {
+	for _, fieldRef := range c.skipFieldsRefs {
+		if newRefs := changedFieldRefs[fieldRef]; newRefs != nil {
+			c.skipFieldsRefs = append(c.skipFieldsRefs, newRefs...)
+		}
+	}
 }

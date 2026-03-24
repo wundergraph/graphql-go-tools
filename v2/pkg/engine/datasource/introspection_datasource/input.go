@@ -10,33 +10,24 @@ type requestType int
 const (
 	SchemaRequestType requestType = iota + 1
 	TypeRequestType
-	TypeFieldsRequestType
-	TypeEnumValuesRequestType
 )
 
 const (
-	schemaFieldName     = "__schema"
-	typeFieldName       = "__type"
-	fieldsFieldName     = "fields"
-	enumValuesFieldName = "enumValues"
+	schemaFieldName = "__schema"
+	typeFieldName   = "__type"
 )
 
 type introspectionInput struct {
-	RequestType       requestType `json:"request_type"`
-	OnTypeName        *string     `json:"on_type_name"`
-	TypeName          *string     `json:"type_name"`
-	IncludeDeprecated bool        `json:"include_deprecated"`
+	RequestType requestType `json:"request_type"`
+	TypeName    *string     `json:"type_name"`
 }
 
 var (
-	lBrace                         = []byte("{")
-	rBrace                         = []byte("}")
-	comma                          = []byte(",")
-	requestTypeField               = []byte(`"request_type":`)
-	onTypeField                    = []byte(`"on_type_name":"{{ .object.name }}"`)
-	typeNameField                  = []byte(`"type_name":"{{ .arguments.name }}"`)
-	includeDeprecatedFieldArgument = []byte(`"include_deprecated":{{ .arguments.includeDeprecated }}`)
-	includeDeprecatedFalse         = []byte(`"include_deprecated":false`)
+	lBrace           = []byte("{")
+	rBrace           = []byte("}")
+	comma            = []byte(",")
+	requestTypeField = []byte(`"request_type":`)
+	typeNameField    = []byte(`"type_name":"{{ .arguments.name }}"`)
 )
 
 func buildInput(fieldName string, hasIncludeDeprecatedArgument bool) string {
@@ -48,12 +39,6 @@ func buildInput(fieldName string, hasIncludeDeprecatedArgument bool) string {
 		writeRequestTypeField(buf, TypeRequestType)
 		buf.Write(comma)
 		buf.Write(typeNameField)
-	case fieldsFieldName:
-		writeRequestTypeField(buf, TypeFieldsRequestType)
-		writeOnTypeFields(buf, hasIncludeDeprecatedArgument)
-	case enumValuesFieldName:
-		writeRequestTypeField(buf, TypeEnumValuesRequestType)
-		writeOnTypeFields(buf, hasIncludeDeprecatedArgument)
 	default:
 		writeRequestTypeField(buf, SchemaRequestType)
 	}
@@ -66,15 +51,4 @@ func buildInput(fieldName string, hasIncludeDeprecatedArgument bool) string {
 func writeRequestTypeField(buf *bytes.Buffer, inputType requestType) {
 	buf.Write(requestTypeField)
 	buf.Write([]byte(strconv.Itoa(int(inputType))))
-}
-
-func writeOnTypeFields(buf *bytes.Buffer, hasIncludeDeprecatedArgument bool) {
-	buf.Write(comma)
-	buf.Write(onTypeField)
-	buf.Write(comma)
-	if hasIncludeDeprecatedArgument {
-		buf.Write(includeDeprecatedFieldArgument)
-	} else {
-		buf.Write(includeDeprecatedFalse)
-	}
 }

@@ -19,10 +19,11 @@ const _OperationType_name = "OperationTypeUnknownOperationTypeQueryOperationType
 var _OperationType_index = [...]uint8{0, 20, 38, 59, 84}
 
 func (i OperationType) String() string {
-	if i < 0 || i >= OperationType(len(_OperationType_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_OperationType_index)-1 {
 		return "OperationType(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _OperationType_name[_OperationType_index[i]:_OperationType_index[i+1]]
+	return _OperationType_name[_OperationType_index[idx]:_OperationType_index[idx+1]]
 }
 func _() {
 	// An "invalid array index" compiler error signifies that the constant values have changed.
@@ -45,11 +46,11 @@ const _ValueKind_name = "ValueKindUnknownValueKindStringValueKindBooleanValueKin
 var _ValueKind_index = [...]uint8{0, 16, 31, 47, 63, 77, 94, 107, 120, 135, 148}
 
 func (i ValueKind) String() string {
-	i -= 4
-	if i < 0 || i >= ValueKind(len(_ValueKind_index)-1) {
-		return "ValueKind(" + strconv.FormatInt(int64(i+4), 10) + ")"
+	idx := int(i) - 4
+	if i < 4 || idx >= len(_ValueKind_index)-1 {
+		return "ValueKind(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _ValueKind_name[_ValueKind_index[i]:_ValueKind_index[i+1]]
+	return _ValueKind_name[_ValueKind_index[idx]:_ValueKind_index[idx+1]]
 }
 func _() {
 	// An "invalid array index" compiler error signifies that the constant values have changed.
@@ -66,11 +67,11 @@ const _TypeKind_name = "TypeKindUnknownTypeKindNamedTypeKindListTypeKindNonNull"
 var _TypeKind_index = [...]uint8{0, 15, 28, 40, 55}
 
 func (i TypeKind) String() string {
-	i -= 14
-	if i < 0 || i >= TypeKind(len(_TypeKind_index)-1) {
-		return "TypeKind(" + strconv.FormatInt(int64(i+14), 10) + ")"
+	idx := int(i) - 14
+	if i < 14 || idx >= len(_TypeKind_index)-1 {
+		return "TypeKind(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _TypeKind_name[_TypeKind_index[i]:_TypeKind_index[i+1]]
+	return _TypeKind_name[_TypeKind_index[idx]:_TypeKind_index[idx+1]]
 }
 func _() {
 	// An "invalid array index" compiler error signifies that the constant values have changed.
@@ -87,11 +88,11 @@ const _SelectionKind_name = "SelectionKindUnknownSelectionKindFieldSelectionKind
 var _SelectionKind_index = [...]uint8{0, 20, 38, 65, 92}
 
 func (i SelectionKind) String() string {
-	i -= 18
-	if i < 0 || i >= SelectionKind(len(_SelectionKind_index)-1) {
-		return "SelectionKind(" + strconv.FormatInt(int64(i+18), 10) + ")"
+	idx := int(i) - 18
+	if i < 18 || idx >= len(_SelectionKind_index)-1 {
+		return "SelectionKind(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _SelectionKind_name[_SelectionKind_index[i]:_SelectionKind_index[i+1]]
+	return _SelectionKind_name[_SelectionKind_index[idx]:_SelectionKind_index[idx+1]]
 }
 func _() {
 	// An "invalid array index" compiler error signifies that the constant values have changed.
@@ -133,11 +134,11 @@ const _NodeKind_name = "NodeKindUnknownNodeKindSchemaDefinitionNodeKindSchemaExt
 var _NodeKind_index = [...]uint16{0, 15, 39, 62, 90, 117, 148, 178, 205, 231, 254, 280, 307, 332, 365, 393, 425, 453, 480, 507, 534, 554, 567, 590, 612, 634, 660, 676, 693, 719}
 
 func (i NodeKind) String() string {
-	i -= 22
-	if i < 0 || i >= NodeKind(len(_NodeKind_index)-1) {
-		return "NodeKind(" + strconv.FormatInt(int64(i+22), 10) + ")"
+	idx := int(i) - 22
+	if i < 22 || idx >= len(_NodeKind_index)-1 {
+		return "NodeKind(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _NodeKind_name[_NodeKind_index[i]:_NodeKind_index[i+1]]
+	return _NodeKind_name[_NodeKind_index[idx]:_NodeKind_index[idx+1]]
 }
 func _() {
 	// An "invalid array index" compiler error signifies that the constant values have changed.
@@ -154,8 +155,9 @@ const _PathKind_name = "UnknownPathKindArrayIndexFieldNameInlineFragmentName"
 var _PathKind_index = [...]uint8{0, 15, 25, 34, 52}
 
 func (i PathKind) String() string {
-	if i < 0 || i >= PathKind(len(_PathKind_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_PathKind_index)-1 {
 		return "PathKind(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _PathKind_name[_PathKind_index[i]:_PathKind_index[i+1]]
+	return _PathKind_name[_PathKind_index[idx]:_PathKind_index[idx+1]]
 }

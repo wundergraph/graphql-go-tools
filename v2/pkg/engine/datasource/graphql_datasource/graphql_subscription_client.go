@@ -12,7 +12,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptrace"
-	"net/textproto"
 	"strings"
 	"sync"
 	"syscall"
@@ -23,12 +22,18 @@ import (
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	"github.com/jensneuse/abstractlogger"
+	"go.uber.org/atomic"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/netpoll"
-	"go.uber.org/atomic"
 )
 
-const ackWaitTimeout = 30 * time.Second
+const (
+	// The time to write a message to the server connection before timing out
+	writeTimeout = 10 * time.Second
+	// The time to wait for a connection ack message from the server before timing out
+	ackWaitTimeout = 30 * time.Second
+)
 
 type netPollState struct {
 	// connections is a map of fd -> connection to keep track of all active connections
@@ -64,7 +69,10 @@ type subscriptionClient struct {
 	hashPool                   sync.Pool
 	onWsConnectionInitCallback *OnWsConnectionInitCallback
 
-	readTimeout time.Duration
+	readTimeout  time.Duration
+	pingInterval time.Duration
+	frameTimeout time.Duration
+	pingTimeout  time.Duration
 
 	netPoll       netpoll.Poller
 	netPollConfig NetPollConfiguration
@@ -122,6 +130,24 @@ func WithReadTimeout(timeout time.Duration) Options {
 	}
 }
 
+func WithPingInterval(interval time.Duration) Options {
+	return func(options *opts) {
+		options.pingInterval = interval
+	}
+}
+
+func WithFrameTimeout(timeout time.Duration) Options {
+	return func(options *opts) {
+		options.frameTimeout = timeout
+	}
+}
+
+func WithPingTimeout(timeout time.Duration) Options {
+	return func(options *opts) {
+		options.pingTimeout = timeout
+	}
+}
+
 type NetPollConfiguration struct {
 	// Enable can be set to true to enable netPoll
 	Enable bool
@@ -161,6 +187,9 @@ func WithNetPollConfiguration(config NetPollConfiguration) Options {
 
 type opts struct {
 	readTimeout                time.Duration
+	pingInterval               time.Duration
+	pingTimeout                time.Duration
+	frameTimeout               time.Duration
 	log                        abstractlogger.Logger
 	onWsConnectionInitCallback *OnWsConnectionInitCallback
 	netPollConfiguration       NetPollConfiguration
@@ -184,9 +213,14 @@ func IsDefaultGraphQLSubscriptionClient(client GraphQLSubscriptionClient) bool {
 }
 
 func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engineCtx context.Context, options ...Options) GraphQLSubscriptionClient {
+
+	// Defaults
 	op := &opts{
-		readTimeout: time.Millisecond * 100,
-		log:         abstractlogger.NoopLogger,
+		readTimeout:  5 * time.Second,
+		pingInterval: 15 * time.Second,
+		pingTimeout:  30 * time.Second,
+		frameTimeout: 100 * time.Millisecond,
+		log:          abstractlogger.NoopLogger,
 	}
 
 	op.netPollConfiguration.ApplyDefaults()
@@ -201,6 +235,9 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 		engineCtx:       engineCtx,
 		log:             op.log,
 		readTimeout:     op.readTimeout,
+		pingInterval:    op.pingInterval,
+		pingTimeout:     op.pingTimeout,
+		frameTimeout:    op.frameTimeout,
 		hashPool: sync.Pool{
 			New: func() interface{} {
 				return xxhash.New()
@@ -254,27 +291,6 @@ func (c *subscriptionClient) Subscribe(ctx *resolve.Context, options GraphQLSubs
 	return c.subscribeWS(ctx.Context(), c.engineCtx, options, updater)
 }
 
-var (
-	withSSE           = []byte(`sse:true`)
-	withSSEMethodPost = []byte(`sse_method_post:true`)
-)
-
-func (c *subscriptionClient) UniqueRequestID(ctx *resolve.Context, options GraphQLSubscriptionOptions, hash *xxhash.Digest) (err error) {
-	if options.UseSSE {
-		_, err = hash.Write(withSSE)
-		if err != nil {
-			return err
-		}
-	}
-	if options.SSEMethodPost {
-		_, err = hash.Write(withSSEMethodPost)
-		if err != nil {
-			return err
-		}
-	}
-	return c.requestHash(ctx, options, hash)
-}
-
 func (c *subscriptionClient) subscribeSSE(requestContext, engineContext context.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
 	options.readTimeout = c.readTimeout
 	if c.streamingClient == nil {
@@ -290,6 +306,9 @@ func (c *subscriptionClient) subscribeSSE(requestContext, engineContext context.
 
 func (c *subscriptionClient) subscribeWS(requestContext, engineContext context.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
 	options.readTimeout = c.readTimeout
+	options.pingInterval = c.pingInterval
+	options.pingTimeout = c.pingTimeout
+
 	if c.httpClient == nil {
 		return fmt.Errorf("http client is nil")
 	}
@@ -314,6 +333,9 @@ func (c *subscriptionClient) subscribeWS(requestContext, engineContext context.C
 
 func (c *subscriptionClient) asyncSubscribeWS(requestContext, engineContext context.Context, id uint64, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
 	options.readTimeout = c.readTimeout
+	options.pingInterval = c.pingInterval
+	options.pingTimeout = c.pingTimeout
+
 	if c.httpClient == nil {
 		return fmt.Errorf("http client is nil")
 	}
@@ -362,72 +384,6 @@ func (c *subscriptionClient) asyncSubscribeWS(requestContext, engineContext cont
 	return nil
 }
 
-// generateHandlerIDHash generates a Hash based on: URL and Headers to uniquely identify Upgrade Requests
-func (c *subscriptionClient) requestHash(ctx *resolve.Context, options GraphQLSubscriptionOptions, xxh *xxhash.Digest) (err error) {
-	if _, err = xxh.WriteString(options.URL); err != nil {
-		return err
-	}
-	if err := options.Header.Write(xxh); err != nil {
-		return err
-	}
-	// Make sure any header that will be forwarded to the subgraph
-	// is hashed to create the handlerID, this way requests with
-	// different headers will use separate connections.
-	for _, headerName := range options.ForwardedClientHeaderNames {
-		if _, err = xxh.WriteString(headerName); err != nil {
-			return err
-		}
-		for _, val := range ctx.Request.Header[textproto.CanonicalMIMEHeaderKey(headerName)] {
-			if _, err = xxh.WriteString(val); err != nil {
-				return err
-			}
-		}
-	}
-	for _, headerRegexp := range options.ForwardedClientHeaderRegularExpressions {
-		if _, err = xxh.WriteString(headerRegexp.String()); err != nil {
-			return err
-		}
-		for headerName, values := range ctx.Request.Header {
-			if headerRegexp.MatchString(headerName) {
-				for _, val := range values {
-					if _, err = xxh.WriteString(val); err != nil {
-						return err
-					}
-				}
-			}
-		}
-	}
-	if len(ctx.InitialPayload) > 0 {
-		if _, err = xxh.Write(ctx.InitialPayload); err != nil {
-			return err
-		}
-	}
-	if options.Body.Extensions != nil {
-		if _, err = xxh.Write(options.Body.Extensions); err != nil {
-			return err
-		}
-	}
-	if options.Body.Query != "" {
-		_, err = xxh.WriteString(options.Body.Query)
-		if err != nil {
-			return err
-		}
-	}
-	if options.Body.Variables != nil {
-		_, err = xxh.Write(options.Body.Variables)
-		if err != nil {
-			return err
-		}
-	}
-	if options.Body.OperationName != "" {
-		_, err = xxh.WriteString(options.Body.OperationName)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 type UpgradeRequestError struct {
 	URL        string
 	StatusCode int
@@ -438,6 +394,8 @@ func (u *UpgradeRequestError) Error() string {
 }
 
 func (c *subscriptionClient) newWSConnectionHandler(requestContext, engineContext context.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) (*connection, error) {
+	// Any failure will be stored here, needed for deferred body closer.
+	var err error
 
 	conn, subProtocol, err := c.dial(requestContext, options)
 	if err != nil {
@@ -448,32 +406,43 @@ func (c *subscriptionClient) newWSConnectionHandler(requestContext, engineContex
 		return nil, fmt.Errorf("failed to dial connection")
 	}
 
-	connectionInitMessage, err := c.getConnectionInitMessage(requestContext, options.URL, options.Header)
+	// conn is not nil. Any errored return below could lead to a leaking connection.
+	// To avoid this, close connection if failure happened.
+	defer func() {
+		if err != nil {
+			conn.Close()
+		}
+	}()
+
+	initMsg, err := c.getConnectionInitMessage(requestContext, options.URL, options.Header)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(options.InitialPayload) > 0 {
-		connectionInitMessage, err = jsonparser.Set(connectionInitMessage, options.InitialPayload, "payload")
+		initMsg, err = jsonparser.Set(initMsg, options.InitialPayload, "payload")
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	if options.Body.Extensions != nil {
-		connectionInitMessage, err = jsonparser.Set(connectionInitMessage, options.Body.Extensions, "payload", "extensions")
+		initMsg, err = jsonparser.Set(initMsg, options.Body.Extensions, "payload", "extensions")
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	// init + ack
-	err = wsutil.WriteClientText(conn, connectionInitMessage)
+	if err = conn.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
+		return nil, err
+	}
+	err = wsutil.WriteClientText(conn, initMsg)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := waitForAck(conn); err != nil {
+	if err = waitForAck(conn, c.readTimeout, writeTimeout); err != nil {
 		return nil, err
 	}
 
@@ -488,7 +457,7 @@ func (c *subscriptionClient) newWSConnectionHandler(requestContext, engineContex
 }
 
 func (c *subscriptionClient) dial(ctx context.Context, options GraphQLSubscriptionOptions) (conn net.Conn, subProtocol string, err error) {
-	subProtocols := []string{ProtocolGraphQLWS, ProtocolGraphQLTWS}
+	subProtocols := []string{ProtocolGraphQLTWS, ProtocolGraphQLWS}
 	if options.WsSubProtocol != "" && options.WsSubProtocol != "auto" {
 		subProtocols = []string{options.WsSubProtocol}
 	}
@@ -531,7 +500,13 @@ func (c *subscriptionClient) dial(ctx context.Context, options GraphQLSubscripti
 	if err != nil {
 		return nil, "", err
 	}
+
+	// On failed upgrades, we close the body without transferring ownership to the caller.
+
 	if upgradeResponse.StatusCode != http.StatusSwitchingProtocols {
+		// Drain to EOF to allow connection reuse by net/http.
+		_, _ = io.Copy(io.Discard, upgradeResponse.Body)
+		upgradeResponse.Body.Close()
 		return nil, "", &UpgradeRequestError{
 			URL:        u,
 			StatusCode: upgradeResponse.StatusCode,
@@ -540,6 +515,8 @@ func (c *subscriptionClient) dial(ctx context.Context, options GraphQLSubscripti
 
 	accept := computeAcceptKey(challengeKey)
 	if upgradeResponse.Header.Get("Sec-WebSocket-Accept") != accept {
+		_, _ = io.Copy(io.Discard, upgradeResponse.Body)
+		upgradeResponse.Body.Close()
 		return nil, "", fmt.Errorf("invalid Sec-WebSocket-Accept")
 	}
 
@@ -565,7 +542,7 @@ func generateChallengeKey() (string, error) {
 var keyGUID = []byte("258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
 
 func computeAcceptKey(challengeKey string) string {
-	h := sha1.New() //#nosec G401 -- (CWE-326) https://datatracker.ietf.org/doc/html/rfc6455#page-54
+	h := sha1.New() // #nosec G401 -- (CWE-326) https://datatracker.ietf.org/doc/html/rfc6455#page-54
 	h.Write([]byte(challengeKey))
 	h.Write(keyGUID)
 	return base64.StdEncoding.EncodeToString(h.Sum(nil))
@@ -596,20 +573,33 @@ func (c *subscriptionClient) getConnectionInitMessage(ctx context.Context, url s
 }
 
 type ConnectionHandler interface {
+	// StartBlocking starts the connection handler and blocks until the connection is closed
+	// Only used as fallback when epoll is not available
 	StartBlocking() error
+	// HandleMessage handles the incoming message from the connection
 	HandleMessage(data []byte) (done bool)
+	// Ping sends a ping message to the upstream server to keep the connection alive.
+	// Implementers must keep track of the last ping time to initiate a connection shutdown
+	// if the upstream is not sending a pong.
+	Ping()
+	// ServerClose closes the connection from the server side
 	ServerClose()
+	// ClientClose closes the connection from the client side
 	ClientClose()
+	// Subscribe subscribes to the connection
 	Subscribe() error
 }
 
-func waitForAck(conn net.Conn) error {
+func waitForAck(conn net.Conn, readTimeout, writeTimeout time.Duration) error {
 	timer := time.NewTimer(ackWaitTimeout)
 	for {
 		select {
 		case <-timer.C:
 			return fmt.Errorf("timeout while waiting for connection_ack")
 		default:
+		}
+		if err := conn.SetReadDeadline(time.Now().Add(readTimeout)); err != nil {
+			return fmt.Errorf("failed to set read deadline: %w", err)
 		}
 		msg, err := wsutil.ReadServerText(conn)
 		if err != nil {
@@ -619,10 +609,16 @@ func waitForAck(conn net.Conn) error {
 		if err != nil {
 			return err
 		}
+
 		switch respType {
+		// TODO this method mixes message types from different protocols. We should
+		//  move the specific protocol handling to the concrete implementation
 		case messageTypeConnectionKeepAlive:
 			continue
 		case messageTypePing:
+			if err := conn.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
+				return fmt.Errorf("failed to set write deadline: %w", err)
+			}
 			err = wsutil.WriteClientText(conn, []byte(pongMessage))
 			if err != nil {
 				return fmt.Errorf("failed to send pong message: %w", err)
@@ -650,6 +646,7 @@ func (c *subscriptionClient) runNetPoll(ctx context.Context) {
 	// this would not be possible with unbuffered channels
 	handleConnCh := make(chan *connection, c.netPollConfig.WaitForNumEvents)
 	connResults := make(chan connResult, c.netPollConfig.WaitForNumEvents)
+	pingCh := make(chan *connection, c.netPollConfig.WaitForNumEvents)
 
 	// Start workers to handle connection events
 	// MaxEventWorkers defines the parallelism of how many connections can be handled at the same time
@@ -658,6 +655,8 @@ func (c *subscriptionClient) runNetPoll(ctx context.Context) {
 		go func() {
 			for {
 				select {
+				case conn := <-pingCh:
+					conn.handler.Ping()
 				case conn := <-handleConnCh:
 					shouldClose := c.handleConnectionEvent(conn)
 					connResults <- connResult{fd: conn.fd, shouldClose: shouldClose}
@@ -668,6 +667,9 @@ func (c *subscriptionClient) runNetPoll(ctx context.Context) {
 		}()
 	}
 
+	pingTicker := time.NewTicker(c.pingInterval)
+	defer pingTicker.Stop()
+
 	// This is the main netPoll run loop
 	// It's a single threaded event loop that reacts to several events, such as added connections, clients unsubscribing, etc.
 	for {
@@ -675,6 +677,14 @@ func (c *subscriptionClient) runNetPoll(ctx context.Context) {
 		// if the engine context is done, we close the netPoll loop
 		case <-done:
 			return
+		case <-pingTicker.C:
+			// Send a ping to all connections
+			// We distribute the ping to all workers to prevent single threaded bottlenecks
+			// However, this required state synchronization with the last ping time on the handler
+			// because PING and PONG can be handled on different go routines
+			for _, conn := range c.netPollState.connections {
+				pingCh <- conn
+			}
 		case conn := <-c.netPollState.addConn:
 			c.handleAddConn(conn)
 		case id := <-c.netPollState.clientUnsubscribe:
@@ -711,11 +721,8 @@ func (c *subscriptionClient) runNetPoll(ctx context.Context) {
 			// this allows us to keep handling events in parallel while being able to manage connections without locks
 			// as a result, we can handle a large number of connections with a single threaded event loop
 
-			for {
-				if waitForEvents == 0 {
-					// once we have results for all events, we can return to the top level loop and wait for the next tick
-					break
-				}
+			// once we have results for all events, we can return to the top level loop and wait for the next tick
+			for waitForEvents > 0 {
 				select {
 				case result := <-connResults:
 					// if the connection indicates that it should be closed, we close and remove it
@@ -818,7 +825,7 @@ func (c *subscriptionClient) handleServerUnsubscribe(fd int) {
 }
 
 func (c *subscriptionClient) handleConnectionEvent(conn *connection) bool {
-	data, err := readMessage(conn.netConn, c.readTimeout)
+	data, err := readMessage(conn.netConn, c.frameTimeout, c.readTimeout)
 	if err != nil {
 		return handleConnectionError(err)
 	}
@@ -863,7 +870,8 @@ func handleConnectionError(err error) (done bool) {
 	return false
 }
 
-func readMessage(conn net.Conn, timeout time.Duration) ([]byte, error) {
+// readMessage reads a message from the connection
+func readMessage(conn net.Conn, frameTimeout time.Duration, readTimeout time.Duration) ([]byte, error) {
 	controlHandler := wsutil.ControlFrameHandler(conn, ws.StateClientSide)
 	rd := &wsutil.Reader{
 		Source:          conn,
@@ -872,28 +880,49 @@ func readMessage(conn net.Conn, timeout time.Duration) ([]byte, error) {
 		SkipHeaderCheck: false,
 		OnIntermediate:  controlHandler,
 	}
+
 	for {
-		err := conn.SetReadDeadline(time.Now().Add(timeout))
+		// This method is used to check if we have data on the connection. The timeout needs to be much smaller
+		// than the readTimeout to ensure we don't block the connection for too long. If we have no data, we move
+		// on to the next connection.
+		err := conn.SetReadDeadline(time.Now().Add(frameTimeout))
 		if err != nil {
 			return nil, err
 		}
+
+		// If we have data, we can read it. Otherwise, it will timeout and we wait for the next epoll tick
 		hdr, err := rd.NextFrame()
 		if err != nil {
+			// A timeout will not close the connection but return an error
 			return nil, err
 		}
 		if hdr.OpCode.IsControl() {
+			// The controlHandler writes the control frames.
+			// We need to work with a proper timeout to ensure we don't block forever.
+			err := conn.SetWriteDeadline(time.Now().Add(frameTimeout))
+			if err != nil {
+				return nil, err
+			}
+			// Handles PING/PONG and CLOSE frames, but only on the ws protocol level
+			// We still need to handle the PING/PONG frames on the application protocol level
 			if err := controlHandler(hdr, rd); err != nil {
 				return nil, err
 			}
 			continue
 		}
+
+		// We are only interested in text frames
 		if hdr.OpCode&ws.OpText == 0 {
+			// If we see anything else than a text frame, we need to discard the frame
 			if err := rd.Discard(); err != nil {
 				return nil, err
 			}
 			continue
 		}
-		err = conn.SetReadDeadline(time.Now().Add(time.Second))
+
+		// We limit the amount of time we wait for a message to be read from the connection
+		// This is important to ensure we don't block the connection for too long
+		err = conn.SetReadDeadline(time.Now().Add(readTimeout))
 		if err != nil {
 			return nil, err
 		}

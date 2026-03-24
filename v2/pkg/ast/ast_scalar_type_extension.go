@@ -6,8 +6,9 @@ import (
 )
 
 type ScalarTypeExtension struct {
-	ExtendLiteral position.Position
 	ScalarTypeDefinition
+
+	ExtendLiteral position.Position
 }
 
 func (d *Document) ScalarTypeExtensionNameBytes(ref int) ByteSlice {

@@ -7,7 +7,7 @@ import (
 )
 
 func AnalyzePlanKind(operation, definition *ast.Document, operationName string) (operationType ast.OperationType, streaming bool, error error) {
-	walker := astvisitor.NewWalker(48)
+	walker := astvisitor.NewWalkerWithID(48, "PlanKindVisitor")
 	visitor := &planKindVisitor{
 		Walker:        &walker,
 		operationName: operationName,
@@ -29,6 +29,7 @@ func AnalyzePlanKind(operation, definition *ast.Document, operationName string) 
 
 type planKindVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition                 *ast.Document
 	operationName                         string
 	hasStreamDirective, hasDeferDirective bool

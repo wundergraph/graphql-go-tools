@@ -1,5 +1,3 @@
-//go:build !race
-
 package engine
 
 import (
@@ -16,14 +14,15 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/flags"
 )
 
-// This tests produces data races in the generated gql code. Disable it when the race
-// detector is enabled.
 func TestExecutionEngine_FederationAndSubscription_IntegrationTest(t *testing.T) {
+	t.Parallel()
+
 	if flags.IsWindows {
 		t.Skip("skip on windows - test is timing dependent")
 	}
 
 	t.Run("operation", func(t *testing.T) {
+		t.Parallel()
 		ctx, cancelFn := context.WithCancel(context.Background())
 		setup := federationtesting.NewFederationSetup()
 		t.Cleanup(func() {
@@ -60,6 +59,7 @@ func TestExecutionEngine_FederationAndSubscription_IntegrationTest(t *testing.T)
 	})
 
 	t.Run("subscription", func(t *testing.T) {
+		t.Parallel()
 		ctx, cancelFn := context.WithCancel(context.Background())
 		setup := federationtesting.NewFederationSetup()
 		t.Cleanup(func() {

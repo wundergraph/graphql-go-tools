@@ -6,6 +6,8 @@ schema {
     subscription: Subscription
 }
 
+directive @testDeprecated(okArg: String deprecatedArg: String @deprecated(reason: "no such arg")) on FIELD_DEFINITION
+
 type Query {
     hero: Character @deprecated
     droid(id: ID!): Droid
@@ -14,7 +16,7 @@ type Query {
 }
 
 type Mutation {
-    createReview(episode: Episode!, review: ReviewInput!): Review
+    createReview(episode: Episode!, review: ReviewInput! @deprecated(reason: "no reviews")): Review
 }
 
 type Subscription {
@@ -23,7 +25,7 @@ type Subscription {
 
 input ReviewInput {
     stars: Int!
-    commentary: String
+    commentary: String @deprecated(reason: "no comments")
 }
 
 type Review {

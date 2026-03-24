@@ -6,8 +6,9 @@ import (
 )
 
 type ObjectTypeExtension struct {
-	ExtendLiteral position.Position
 	ObjectTypeDefinition
+
+	ExtendLiteral position.Position
 }
 
 func (d *Document) ObjectTypeExtensionNameBytes(ref int) ByteSlice {

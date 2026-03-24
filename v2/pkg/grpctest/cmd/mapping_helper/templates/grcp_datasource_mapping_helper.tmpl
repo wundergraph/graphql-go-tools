@@ -1,0 +1,117 @@
+package grpcdatasource
+
+// testMapping returns a hardcoded default mapping between GraphQL and Protobuf
+func testMapping() *GRPCMapping {
+	return &GRPCMapping{
+		Service: "Products",
+		QueryRPCs: RPCConfigMap[RPCConfig]{
+		{{- range $index, $operation := .OperationMappings}}
+		{{- if eq $operation.Type "OPERATION_TYPE_QUERY"}}
+			"{{$operation.Original}}": {
+				RPC:      "{{$operation.Mapped}}",
+				Request:  "{{$operation.Request}}",
+				Response: "{{$operation.Response}}",
+			},
+		{{- end }}
+		{{- end }}
+		},
+		MutationRPCs: RPCConfigMap[RPCConfig]{
+		{{- range $index, $operation := .OperationMappings}}
+		{{- if eq $operation.Type "OPERATION_TYPE_MUTATION"}}
+			"{{$operation.Original}}": {
+				RPC:      "{{$operation.Mapped}}",
+				Request:  "{{$operation.Request}}",
+				Response: "{{$operation.Response}}",
+			},
+		{{- end }}
+		{{- end }}
+		},
+		SubscriptionRPCs: RPCConfigMap[RPCConfig]{
+		{{- range $index, $operation := .OperationMappings}}
+		{{- if eq $operation.Type "OPERATION_TYPE_SUBSCRIPTION"}}
+			"{{$operation.Original}}": {
+				RPC:      "{{$operation.Mapped}}",
+				Request:  "{{$operation.Request}}",
+				Response: "{{$operation.Response}}",
+			},
+		{{- end }}
+		{{- end }}
+		},
+		ResolveRPCs: RPCConfigMap[ResolveRPCMapping]{
+		{{- range $type, $item := .ResolveRPCs}}
+			"{{$type}}": {
+			{{- range $index, $resolve := $item}}
+				"{{$resolve.LookupMapping.FieldMapping.Original}}": {
+					FieldMappingData: FieldMapData{
+						TargetName: "{{$resolve.LookupMapping.FieldMapping.Mapped}}",
+						ArgumentMappings: FieldArgumentMap{
+							{{- range $index, $argument := $resolve.LookupMapping.FieldMapping.ArgumentMappings}}
+							"{{$argument.Original}}": "{{$argument.Mapped}}",
+							{{- end }}
+						},
+					},
+					RPC:      "{{$resolve.RPC}}",
+					Request:  "{{$resolve.Request}}",
+					Response: "{{$resolve.Response}}",
+				},
+			{{- end }}
+			},
+		{{- end }}
+		},
+		EntityRPCs: map[string][]EntityRPCConfig{
+		{{- range $index, $entity := .EntityMappings}}
+			"{{$entity.TypeName}}": {
+				{
+					Key: "{{$entity.Key}}",
+					RPCConfig: RPCConfig{
+						RPC:      "{{$entity.RPC}}",
+						Request:  "{{$entity.Request}}",
+						Response: "{{$entity.Response}}",
+					},
+					{{- if $entity.RequiredFieldMappings}}
+					RequiredFields: RequiredFieldsRPCMapping{
+						{{- range $idx, $required := $entity.RequiredFieldMappings}}
+						"{{$required.FieldMapping.Original}}": {
+							TargetName: "{{$required.FieldMapping.Mapped}}",
+							RPCConfig: RPCConfig{
+								RPC:      "{{$required.RPC}}",
+								Request:  "{{$required.Request}}",
+								Response: "{{$required.Response}}",
+							},
+						},
+						{{- end}}
+					},
+					{{- end}}
+				},
+			},
+		{{- end }}
+		},
+		EnumValues: map[string][]EnumValueMapping{
+		{{- range $index, $enum := .EnumMappings}}
+			"{{$enum.Type}}": {
+				{{- range $index, $value := .Values}}
+					{Value: "{{$value.Original}}", TargetValue: "{{$value.Mapped}}"},
+				{{- end }}
+			},
+		{{- end }}
+		},
+		Fields: map[string]FieldMap{
+		{{- range $index, $typeField := .TypeFieldMappings}}
+			"{{$typeField.Type}}": {
+				{{- range $index, $field := $typeField.FieldMappings}}
+				"{{$field.Original}}": {
+					TargetName: "{{$field.Mapped}}", 
+					{{- if (gt (len $field.ArgumentMappings) 0)}}
+					ArgumentMappings: FieldArgumentMap{
+					{{- range $index, $argument := $field.ArgumentMappings}}
+						"{{$argument.Original}}": "{{$argument.Mapped}}",
+					{{- end }}
+					},
+					{{- end }}
+				},
+			{{- end}}
+			},
+		{{- end}}
+		},
+	}
+}

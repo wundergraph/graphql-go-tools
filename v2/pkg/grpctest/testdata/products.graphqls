@@ -1,0 +1,603 @@
+# Directive for gRPC field resolvers
+type Product @key(fields: "id") {
+  id: ID!
+  name: String!
+  price: Float!
+  shippingEstimate(input: ShippingEstimateInput!): Float! @connect__fieldResolver(context: "id price")
+  recommendedCategory(maxPrice: Int!): Category @connect__fieldResolver(context: "id name price")
+  mascotRecommendation(includeDetails: Boolean!): Animal @connect__fieldResolver(context: "id name")
+  stockStatus(checkAvailability: Boolean!): ActionResult! @connect__fieldResolver(context: "id name price")
+  productDetails(includeExtended: Boolean!): ProductDetails @connect__fieldResolver(context: "id name price")
+}
+
+type ProductDetails {
+  id: ID!
+  description: String!
+  reviewSummary: ActionResult!
+  recommendedPet: Animal!
+}
+
+type Storage @key(fields: "id") {
+  id: ID!
+  name: String!
+  location: String!
+  itemCount: Int! @external
+  restockData: RestockData! @external
+  stockHealthScore: Float! @requires(fields: "itemCount restockData { lastRestockDate }")
+  
+  # External fields for @requires testing
+  tags: [String!]! @external
+  optionalTags: [String!] @external
+  metadata: StorageMetadata! @external
+  metadataHistory: [StorageMetadata!]! @external
+  
+  # @requires fields returning scalars
+  tagSummary: String! @requires(fields: "tags")
+  optionalTagSummary: String @requires(fields: "optionalTags")
+  metadataScore: Float! @requires(fields: "metadata { capacity zone }")
+  
+  # @requires fields returning complex types
+  processedMetadata: StorageMetadata! @requires(fields: "metadata { capacity zone priority }")
+  optionalProcessedMetadata: StorageMetadata @requires(fields: "metadata { capacity zone }")
+  
+  # @requires fields returning lists
+  processedTags: [String!]! @requires(fields: "tags")
+  optionalProcessedTags: [String!] @requires(fields: "optionalTags")
+  
+  # @requires fields returning lists of complex types
+  processedMetadataHistory: [StorageMetadata!]! @requires(fields: "metadataHistory { capacity zone }")
+
+  # External enum field for direct @requires testing
+  storageKind: CategoryKind! @external
+
+  # External type with nested enum for nested @requires testing
+  categoryInfo: StorageCategoryInfo! @external
+
+  # @requires fields using enums
+  kindSummary: String! @requires(fields: "storageKind")
+  categoryInfoSummary: String! @requires(fields: "categoryInfo { kind name }")
+
+  # @connect_fieldResolver fields
+  storageStatus(checkHealth: Boolean!): ActionResult! @connect__fieldResolver(context: "id name")
+  linkedStorages(depth: Int!): [Storage!]! @connect__fieldResolver(context: "id name location")
+  nearbyStorages(radius: Int): [Storage!] @connect__fieldResolver(context: "id location")
+}
+
+type Warehouse @key(fields: "id") {
+  id: ID!
+  name: String!
+  location: String!
+  inventoryCount: Int! @external
+  restockData: RestockData! @external
+  stockHealthScore: Float! @requires(fields: "inventoryCount restockData { lastRestockDate }")
+}
+
+type RestockData {
+  lastRestockDate: String!
+}
+
+type StorageMetadata {
+  capacity: Int!
+  zone: String!
+  priority: Int!
+}
+
+type StorageCategoryInfo {
+  kind: CategoryKind!
+  name: String!
+}
+
+type User {
+  id: ID!
+  name: String!
+}
+
+type NestedTypeA {
+  id: ID!
+  name: String!
+  b: NestedTypeB!
+}
+
+type NestedTypeB {
+  id: ID!
+  name: String!
+  c: NestedTypeC!
+}
+
+type NestedTypeC {
+  id: ID!
+  name: String!
+}
+
+type RecursiveType {
+  id: ID!
+  name: String!
+  recursiveType: RecursiveType!
+}
+
+type TypeWithMultipleFilterFields {
+  id: ID!
+  name: String!
+  filterField1: String!
+  filterField2: String!
+}
+
+input FilterTypeInput {
+  filterField1: String!
+  filterField2: String!
+}
+
+type TypeWithComplexFilterInput {
+  id: ID!
+  name: String!
+}
+
+input FilterType {
+  name: String!
+  filterField1: String!
+  filterField2: String!
+  pagination: Pagination
+}
+
+input Pagination {
+  page: Int!
+  perPage: Int!
+}
+
+input ComplexFilterTypeInput {
+  filter: FilterType!
+}
+
+input OrderLineInput {
+  productId: ID!
+  quantity: Int!
+  modifiers: [String!]
+}
+
+input OrderInput {
+  orderId: ID!
+  customerName: String!
+  lines: [OrderLineInput!]!
+}
+
+type Order {
+  orderId: ID!
+  customerName: String!
+  totalItems: Int!
+  orderLines: [OrderLine!]
+}
+
+type OrderLine {
+  productId: ID!
+  quantity: Int!
+  modifiers: [String!]
+}
+
+input CategoryFilter {
+  category: CategoryKind!
+  pagination: Pagination
+}
+
+type Category {
+  id: ID!
+  name: String!
+  kind: CategoryKind!
+  productCount(filters: ProductCountFilter): Int! @connect__fieldResolver(context: "id name")
+  subcategories: [Subcategory!]
+  popularityScore(threshold: Int): Int @connect__fieldResolver(context: "id")
+  categoryMetrics(metricType: String!): CategoryMetrics @connect__fieldResolver(context: "id name")
+  mascot(includeVolume: Boolean!): Animal @connect__fieldResolver(context: "id kind")
+  categoryStatus(checkHealth: Boolean!): ActionResult! @connect__fieldResolver(context: "id name")
+  childCategories(include: Boolean): [Category!]! @connect__fieldResolver(context: "id name")
+  optionalCategories(include: Boolean): [Category!] @connect__fieldResolver(context: "id name")
+  # The nullMetrics field is used to test that nested field resolvers are not invoked when the parent result is null.
+  nullMetrics: CategoryMetrics
+  # Argument-less field resolvers
+  totalProducts: Int! @connect__fieldResolver(context: "id")
+  topSubcategory: Subcategory @connect__fieldResolver(context: "id name")
+  activeSubcategories: [Subcategory!]! @connect__fieldResolver(context: "id")
+}
+
+type Subcategory {
+  id: ID!
+  name: String!
+  description: String
+  isActive: Boolean!
+  itemCount(filters: SubcategoryItemFilter): Int! @connect__fieldResolver(context: "id")
+  featuredCategory(includeChildren: Boolean!): Category @connect__fieldResolver(context: "id")
+  # Argument-less field resolver
+  parentCategory: Category @connect__fieldResolver(context: "id")
+}
+
+type CategoryMetrics {
+  id: ID!
+  metricType: String!
+  value: Float!
+  timestamp: String!
+  categoryId: ID!
+  normalizedScore(baseline: Float!): Float! @connect__fieldResolver(context: "id value metricType")
+  relatedCategory(include: Boolean): Category @connect__fieldResolver(context: "categoryId")
+  # Argument-less field resolver (nested: CategoryMetrics is returned by a field resolver on Category)
+  averageScore: Float! @connect__fieldResolver(context: "id metricType")
+}
+
+enum CategoryKind {
+  BOOK
+  ELECTRONICS
+  FURNITURE
+  OTHER
+}
+
+interface Animal {
+  id: ID!
+  name: String!
+  kind: String!
+}
+
+type Cat implements Animal {
+  id: ID!
+  name: String!
+  kind: String!
+  meowVolume: Int!
+  owner: Owner!
+  breed: CatBreed!
+}
+
+type Dog implements Animal {
+  id: ID!
+  name: String!
+  kind: String!
+  barkVolume: Int!
+  owner: Owner!
+  breed: DogBreed!
+}
+
+type Owner {
+  id: ID!
+  name: String!
+  contact: ContactInfo!
+  pet: Animal!
+}
+
+type ContactInfo {
+  email: String!
+  phone: String!
+  address: Address
+}
+
+type Address {
+  street: String!
+  city: String!
+  country: String!
+  zipCode: String!
+}
+
+type CatBreed {
+  id: ID!
+  name: String!
+  origin: String!
+  characteristics: BreedCharacteristics!
+}
+
+type DogBreed {
+  id: ID!
+  name: String!
+  origin: String!
+  characteristics: BreedCharacteristics!
+}
+
+type BreedCharacteristics {
+  size: String!
+  temperament: String!
+  lifespan: String!
+}
+
+# Union Types for Testing
+
+# Search result union - tests union with existing types
+union SearchResult = Product | User | Category
+
+# Action result union - tests success/error patterns
+union ActionResult = ActionSuccess | ActionError
+
+type ActionSuccess {
+  message: String!
+  timestamp: String!
+}
+
+type ActionError {
+  message: String!
+  code: String!
+}
+
+# Test container type for testing field resolvers with interface and union returns
+type TestContainer {
+  id: ID!
+  name: String!
+  description: String
+  details(includeExtended: Boolean!): TestDetails @connect__fieldResolver(context: "id name")
+}
+
+type TestDetails {
+  id: ID!
+  summary: String!
+  pet: Animal!
+  status: ActionResult!
+}
+
+# Input types for union operations
+input SearchInput {
+  query: String!
+  limit: Int
+}
+
+input ActionInput {
+  type: String!
+  payload: String!
+}
+
+# New types for testing nullable fields
+type NullableFieldsType {
+  id: ID!
+  name: String!
+  optionalString: String
+  optionalInt: Int
+  optionalFloat: Float
+  optionalBoolean: Boolean
+  requiredString: String!
+  requiredInt: Int!
+}
+
+# Blog Post with various list types for testing
+type BlogPost {
+  id: ID!
+  title: String!
+  content: String!
+  
+  # Single lists with different nullability
+  tags: [String!]!              # Required list, required items
+  optionalTags: [String!]       # Optional list, required items  
+  categories: [String]!         # Required list, optional items
+  keywords: [String]            # Optional list, optional items
+  
+  # Single lists with different scalar types
+  viewCounts: [Int!]!           # Daily view counts
+  ratings: [Float]              # User ratings (can be null)
+  isPublished: [Boolean!]       # Publication status history
+  
+  # Nested lists (one level deep) with different nullability
+  tagGroups: [[String!]!]!      # Required groups, required group content, required tags
+  relatedTopics: [[String!]]!   # Required groups, optional group content, required topics
+  commentThreads: [[String]!]!  # Required threads, required thread content, optional comments
+  suggestions: [[String]]       # Optional groups, optional group content, optional suggestions
+  
+  # Single lists with complex types
+  relatedCategories: [Category!]!  # Required list of categories this post belongs to
+  contributors: [User!]!           # Required list of users who contributed
+  mentionedProducts: [Product]     # Optional list of products mentioned
+  mentionedUsers: [User]           # Optional list of users mentioned
+  
+  # Nested lists with complex types
+  categoryGroups: [[Category!]!]!  # Required groups of required categories
+  contributorTeams: [[User!]]      # Optional teams of required contributors
+}
+
+# Author with team structure
+type Author {
+  id: ID!
+  name: String!
+  email: String
+  
+  # Single lists
+  skills: [String!]!            # Required skills
+  languages: [String]!         # Required list, optional languages
+  socialLinks: [String]        # Optional social media links
+  
+  # Nested lists for team organization
+  teamsByProject: [[String!]!]! # Projects -> team members (all required)
+  collaborations: [[String]]    # Past collaborations grouped (all optional)
+  
+  # Single lists with complex types
+  writtenPosts: [BlogPost]       # Optional list of blog posts they've written
+  favoriteCategories: [Category!]! # Required list of their favorite categories
+  relatedAuthors: [User]         # Optional list of related authors/collaborators
+  productReviews: [Product]      # Optional list of products they've reviewed
+  
+  # Nested lists with complex types
+  authorGroups: [[User!]]        # Optional groups of required authors they work with
+  categoryPreferences: [[Category!]!]! # Required groups of required category preferences
+  projectTeams: [[User]]         # Optional groups of optional users for projects
+}
+
+# Input types
+input BlogPostInput {
+  title: String!
+  content: String!
+  tags: [String!]!
+  optionalTags: [String!]
+  categories: [String]!
+  keywords: [String]
+  viewCounts: [Int!]!
+  ratings: [Float]
+  isPublished: [Boolean!]
+  tagGroups: [[String!]!]!
+  relatedTopics: [[String!]]!
+  commentThreads: [[String]!]!
+  suggestions: [[String]]
+  
+  # Complex type lists with proper input types
+  relatedCategories: [CategoryInput]   # Single list of categories
+  contributors: [UserInput]           # Single list of contributors
+  categoryGroups: [[CategoryInput!]]  # Nested list of category groups
+}
+
+input AuthorInput {
+  name: String!
+  email: String
+  skills: [String!]!
+  languages: [String]!
+  socialLinks: [String]
+  teamsByProject: [[String!]!]!
+  collaborations: [[String]]
+  
+  # Complex type lists with proper input types
+  favoriteCategories: [CategoryInput!]!  # Single list of favorite categories
+  authorGroups: [[UserInput!]]           # Nested list of author groups
+  projectTeams: [[UserInput]]            # Nested list of project teams (optional)
+}
+
+input BlogPostFilter {
+  title: String
+  hasCategories: Boolean
+  minTags: Int
+}
+
+input AuthorFilter {
+  name: String
+  hasTeams: Boolean
+  skillCount: Int
+}
+
+input NullableFieldsInput {
+  name: String!
+  optionalString: String
+  optionalInt: Int
+  optionalFloat: Float
+  optionalBoolean: Boolean
+  requiredString: String!
+  requiredInt: Int!
+}
+
+input NullableFieldsFilter {
+  name: String
+  optionalString: String
+  includeNulls: Boolean
+}
+
+input CategoryInput {
+  name: String!
+  kind: CategoryKind!
+}
+
+input ProductCountFilter {
+  minPrice: Float
+  maxPrice: Float
+  inStock: Boolean
+  searchTerm: String
+}
+
+input SubcategoryItemFilter {
+  minPrice: Float
+  maxPrice: Float
+  inStock: Boolean
+  isActive: Boolean
+  searchTerm: String
+}
+
+enum ShippingDestination {
+  DOMESTIC
+  EXPRESS
+  INTERNATIONAL
+}
+
+input ShippingEstimateInput {
+  destination: ShippingDestination!
+  weight: Float!
+  expedited: Boolean
+}
+
+type Query {
+  _entities(representations: [_Any!]!): [_Entity!]!
+  users: [User!]!
+  user(id: ID!): User
+  nestedType: [NestedTypeA!]!
+  recursiveType: RecursiveType!
+  typeFilterWithArguments(
+    filterField1: String!
+    filterField2: String!
+  ): [TypeWithMultipleFilterFields!]!
+  typeWithMultipleFilterFields(
+    filter: FilterTypeInput!
+  ): [TypeWithMultipleFilterFields!]!
+  complexFilterType(
+    filter: ComplexFilterTypeInput!
+  ): [TypeWithComplexFilterInput!]!
+  calculateTotals(orders: [OrderInput!]!): [Order!]!
+  categories: [Category!]!
+  category(id: ID!): Category
+  categoriesByKind(kind: CategoryKind!): [Category!]!
+  categoriesByKinds(kinds: [CategoryKind!]!): [Category!]!
+  filterCategories(filter: CategoryFilter!): [Category!]!
+  randomPet: Animal!
+  allPets: [Animal!]!
+  
+  # Union queries
+  search(input: SearchInput!): [SearchResult!]!
+  randomSearchResult: SearchResult!
+  
+  # Nullable fields queries
+  nullableFieldsType: NullableFieldsType!
+  nullableFieldsTypeById(id: ID!): NullableFieldsType
+  nullableFieldsTypeWithFilter(filter: NullableFieldsFilter!): [NullableFieldsType!]!
+  allNullableFieldsTypes: [NullableFieldsType!]!
+  
+  # Blog post queries (testing single and nested lists)
+  blogPost: BlogPost!
+  blogPostById(id: ID!): BlogPost
+  blogPostsWithFilter(filter: BlogPostFilter!): [BlogPost!]!
+  allBlogPosts: [BlogPost!]!
+  
+  # Author queries (testing team structures)
+  author: Author!
+  authorById(id: ID!): Author
+  authorsWithFilter(filter: AuthorFilter!): [Author!]!
+  allAuthors: [Author!]!
+  
+  # Bulk search operations for authors
+  bulkSearchAuthors(filters: [AuthorFilter!]): [Author!]!
+  
+  # Bulk search operations for blog posts
+  bulkSearchBlogPosts(filters: [BlogPostFilter!]): [BlogPost!]!
+  
+  # Test container queries (testing field resolvers with interface and union returns)
+  testContainer(id: ID!): TestContainer!
+  testContainers: [TestContainer!]!
+}
+
+input UserInput {
+  name: String!
+}
+
+type Mutation {
+  createUser(input: UserInput!): User!
+  
+  # Union mutation
+  performAction(input: ActionInput!): ActionResult!
+  
+  # Nullable fields mutation
+  createNullableFieldsType(input: NullableFieldsInput!): NullableFieldsType!
+  updateNullableFieldsType(id: ID!, input: NullableFieldsInput!): NullableFieldsType
+  
+  # Blog post mutations (testing single and nested lists)
+  createBlogPost(input: BlogPostInput!): BlogPost!
+  updateBlogPost(id: ID!, input: BlogPostInput!): BlogPost
+  
+  # Author mutations (testing team structures)
+  createAuthor(input: AuthorInput!): Author!
+  updateAuthor(id: ID!, input: AuthorInput!): Author
+  
+  # Bulk operations for authors
+  bulkCreateAuthors(authors: [AuthorInput!]): [Author!]!
+  bulkUpdateAuthors(authors: [AuthorInput!]): [Author!]!
+  
+  # Bulk operations for blog posts
+  bulkCreateBlogPosts(blogPosts: [BlogPostInput!]): [BlogPost!]!
+  bulkUpdateBlogPosts(blogPosts: [BlogPostInput!]): [BlogPost!]!
+}
+
+union _Entity = Product | Storage | Warehouse
+scalar _Any
+scalar openfed__FieldSet
+
+scalar connect__FieldSet
+directive @connect__fieldResolver(context: connect__FieldSet!) on FIELD_DEFINITION

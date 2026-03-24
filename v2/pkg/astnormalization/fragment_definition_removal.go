@@ -8,6 +8,8 @@ import (
 type FragmentDefinitionRemoval struct {
 }
 
+// removeFragmentDefinitions registers a visitor to mark all the unused fragment definitions
+// as NodeKindUnknown in the operation.
 func removeFragmentDefinitions(walker *astvisitor.Walker) {
 	visitor := &removeFragmentDefinitionsVisitor{
 		walker: walker,

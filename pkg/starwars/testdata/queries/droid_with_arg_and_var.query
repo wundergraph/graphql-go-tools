@@ -1,5 +1,0 @@
-query Droid($droidID: ID!) {
-    droid(id: $droidID) {
-        name
-    }
-}

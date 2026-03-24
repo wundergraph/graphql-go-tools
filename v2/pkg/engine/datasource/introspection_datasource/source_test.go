@@ -27,13 +27,18 @@ func TestSource_Load(t *testing.T) {
 			gen.Generate(&def, &report, &data)
 			require.False(t, report.HasErrors())
 
-			buf := &bytes.Buffer{}
 			source := &Source{introspectionData: &data}
-			require.NoError(t, source.Load(context.Background(), []byte(input), buf))
+			responseData, err := source.Load(context.Background(), nil, []byte(input))
+			require.NoError(t, err)
 
 			actualResponse := &bytes.Buffer{}
-			require.NoError(t, json.Indent(actualResponse, buf.Bytes(), "", "  "))
-			goldie.Assert(t, fixtureName, actualResponse.Bytes())
+			require.NoError(t, json.Indent(actualResponse, responseData, "", "  "))
+			// Trim the trailing newline that json.Indent adds
+			responseBytes := actualResponse.Bytes()
+			if len(responseBytes) > 0 && responseBytes[len(responseBytes)-1] == '\n' {
+				responseBytes = responseBytes[:len(responseBytes)-1]
+			}
+			goldie.Assert(t, fixtureName, responseBytes)
 		}
 	}
 
@@ -41,22 +46,6 @@ func TestSource_Load(t *testing.T) {
 	t.Run("schema introspection with custom root operation types", run(testSchemaWithCustomRootOperationTypes, `{"request_type":1}`, `schema_introspection_with_custom_root_operation_types`))
 	t.Run("type introspection", run(testSchema, `{"request_type":2,"type_name":"Query"}`, `type_introspection`))
 	t.Run("type introspection of not existing type", run(testSchema, `{"request_type":2,"type_name":"NotExisting"}`, `not_existing_type`))
-
-	t.Run("type fields", func(t *testing.T) {
-		t.Run("include deprecated", run(testSchema, `{"request_type":3,"on_type_name":"Query","include_deprecated":true}`, `fields_with_deprecated`))
-
-		t.Run("no deprecated", run(testSchema, `{"request_type":3,"on_type_name":"Query","include_deprecated":false}`, `fields_without_deprecated`))
-
-		t.Run("of not existing type", run(testSchema, `{"request_type":3,"on_type_name":"NotExisting","include_deprecated":true}`, `not_existing_type`))
-	})
-
-	t.Run("type enum values", func(t *testing.T) {
-		t.Run("include deprecated", run(testSchema, `{"request_type":4,"on_type_name":"Episode","include_deprecated":true}`, `enum_values_with_deprecated`))
-
-		t.Run("no deprecated", run(testSchema, `{"request_type":4,"on_type_name":"Episode","include_deprecated":false}`, `enum_values_without_deprecated`))
-
-		t.Run("of not existing type", run(testSchema, `{"request_type":4,"on_type_name":"NotExisting","include_deprecated":true}`, `not_existing_type`))
-	})
 }
 
 const testSchema = `

@@ -58,6 +58,7 @@ func remapVariables(walker *astvisitor.Walker) *variablesMappingVisitor {
 // e.g. field(a: "a", b: "a") will be the same as field(a: $a, b: $a) but different from field(a: $a, b: $b) or field(a: $a, b: $a)
 type variablesMappingVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition *ast.Document
 	mapping               map[string]string
 	variables             []*variableItem
@@ -122,6 +123,14 @@ func (v *variablesMappingVisitor) EnterArgument(ref int) {
 
 	variableDefinitionRef, exists := v.operation.VariableDefinitionByNameAndOperation(v.operationRef, varNameBytes)
 	if !exists {
+		return
+	}
+
+	if v.operation.ResolveTypeNameString(v.operation.VariableDefinitions[variableDefinitionRef].Type) == "Upload" {
+		// do not remap files variable
+		// We should not change file upload variables, because uploads won't work
+		// Having file or files names for the variable is a requirement for the file upload spec
+		// https://github.com/jaydenseric/graphql-multipart-request-spec
 		return
 	}
 

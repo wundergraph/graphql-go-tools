@@ -10,3 +10,9 @@ type Product struct {
 }
 
 func (Product) IsEntity() {}
+
+type Query struct {
+}
+
+type Subscription struct {
+}

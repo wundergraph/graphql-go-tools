@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/wundergraph/go-arena"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
@@ -63,6 +65,7 @@ func newSkipVisitors(skips []int, planner interface{}, allowedToVisit bool) Skip
 // Walker orchestrates the process of walking an AST and calling all registered callbacks
 // Always use NewWalker to instantiate a new Walker
 type Walker struct {
+	walkerID string
 	// Ancestors is the slice of Nodes to the current Node in a callback
 	// don't keep a reference to this slice, always copy it if you want to work with it after the callback returned
 	Ancestors []ast.Node
@@ -92,13 +95,27 @@ type Walker struct {
 	revisit         bool
 	filter          VisitorFilter
 	deferred        []func()
+
+	OnExternalError func(err *operationreport.ExternalError)
+
+	arena arena.Arena
+}
+
+func NewWalkerWithID(ancestorSize int, id string) Walker {
+	return Walker{
+		Ancestors:       make([]ast.Node, 0, ancestorSize),
+		Path:            make([]ast.PathItem, 0, 64),
+		TypeDefinitions: make([]ast.Node, 0, ancestorSize),
+		deferred:        make([]func(), 0, 8),
+		walkerID:        id,
+	}
 }
 
 // NewWalker returns a fully initialized Walker
 func NewWalker(ancestorSize int) Walker {
 	return Walker{
 		Ancestors:       make([]ast.Node, 0, ancestorSize),
-		Path:            make([]ast.PathItem, 0, ancestorSize),
+		Path:            make([]ast.PathItem, 0, 64),
 		TypeDefinitions: make([]ast.Node, 0, ancestorSize),
 		deferred:        make([]func(), 0, 8),
 	}
@@ -107,6 +124,10 @@ func NewWalker(ancestorSize int) Walker {
 // NewDefaultWalker returns a fully initialized Walker with the default ancestor size of 8
 func NewDefaultWalker() Walker {
 	return NewWalker(8)
+}
+
+func NewDefaultWalkerWithID(id string) Walker {
+	return NewWalkerWithID(8, id)
 }
 
 var (
@@ -123,6 +144,9 @@ func WalkerFromPool() *Walker {
 }
 
 func (w *Walker) Release() {
+	if w.arena != nil {
+		w.arena.Reset()
+	}
 	w.ResetVisitors()
 	w.Report = nil
 	w.document = nil
@@ -1363,10 +1387,21 @@ func (w *Walker) SetVisitorFilter(filter VisitorFilter) {
 
 // Walk initiates the walker to start walking the AST from the top root Node
 func (w *Walker) Walk(document, definition *ast.Document, report *operationreport.Report) {
+	// uncomment to get walker labels in pprof profiles
+	// ctx := context.Background()
+	// labels := pprof.Labels("walker_id", w.walkerID)
+	// pprof.Do(ctx, labels, func(ctx context.Context) {
+	// })
+
 	if report == nil {
 		w.Report = &operationreport.Report{}
 	} else {
 		w.Report = report
+	}
+	if w.arena == nil {
+		w.arena = arena.NewMonotonicArena(arena.WithMinBufferSize(64))
+	} else {
+		w.arena.Reset()
 	}
 	w.Ancestors = w.Ancestors[:0]
 	w.Path = w.Path[:0]
@@ -1820,8 +1855,7 @@ func (w *Walker) walkSelectionSet(ref int, skipFor SkipVisitors) {
 
 RefsChanged:
 	for {
-		refs := make([]int, 0, len(w.document.SelectionSets[ref].SelectionRefs))
-		refs = append(refs, w.document.SelectionSets[ref].SelectionRefs...)
+		refs := arena.SliceAppend(w.arena, nil, w.document.SelectionSets[ref].SelectionRefs...)
 
 		for i, j := range refs {
 
@@ -3921,6 +3955,11 @@ func (w *Walker) HandleInternalErr(err error) bool {
 func (w *Walker) StopWithExternalErr(err operationreport.ExternalError) {
 	w.stop = true
 	err.Path = w.Path
+
+	if w.OnExternalError != nil {
+		w.OnExternalError(&err)
+	}
+
 	w.Report.AddExternalError(err)
 }
 
@@ -3990,4 +4029,29 @@ func (w *Walker) FieldDefinitionDirectiveArgumentValueByName(field int, directiv
 	}
 
 	return w.definition.DirectiveArgumentValueByName(directive, argumentName)
+}
+
+// InRootField returns true if the current field is a root field.
+// This helper function can be used in EnterField and LeaveField.
+func (w *Walker) InRootField() bool {
+	return w.CurrentKind == ast.NodeKindField &&
+		len(w.Ancestors) == 2 &&
+		w.Ancestors[0].Kind == ast.NodeKindOperationDefinition
+}
+
+// ResolveInlineFragment returns the inline fragment ref if the current field is inside of
+// an inline fragment.
+// It returns the inline fragment ref and true if the current field is inside of an inline fragment.
+// It returns -1 and false if the current field is not inside of an inline fragment.
+func (w *Walker) ResolveInlineFragment() int {
+	if len(w.Ancestors) < 2 {
+		return ast.InvalidRef
+	}
+
+	node := w.Ancestors[len(w.Ancestors)-2]
+	if node.Kind != ast.NodeKindInlineFragment {
+		return ast.InvalidRef
+	}
+
+	return node.Ref
 }

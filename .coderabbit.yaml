@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "en-US"
+reviews:
+  profile: "chill"
+  high_level_summary: true
+  poem: false
+  suggested_reviewers: false
+  in_progress_fortune: false
+  auto_review:
+    enabled: true
+    drafts: false
+    # Base branches (other than the default branch) to review. Accepts regex patterns.
+    # Use '.*' to match all branches.
+    base_branches: [ ".*" ]
+  path_filters:
+    # Exclude these paths (prefix with !)
+    - "!pkg/**"
+  pre_merge_checks:
+    docstrings:
+      mode: off
+chat:
+  art: false

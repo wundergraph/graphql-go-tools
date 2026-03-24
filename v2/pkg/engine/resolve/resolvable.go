@@ -4,15 +4,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	goerrors "errors"
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
+
 	"github.com/wundergraph/astjson"
+	"github.com/wundergraph/go-arena"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
@@ -30,8 +32,9 @@ type Resolvable struct {
 	errors               *astjson.Value
 	valueCompletion      *astjson.Value
 	skipAddingNullErrors bool
-
-	astjsonArena *astjson.Arena
+	// astjsonArena is the arena to handle json, supplied by Resolver
+	// not thread safe, but Resolvable is single threaded anyways
+	astjsonArena arena.Arena
 	parsers      []*astjson.Parser
 
 	print              bool
@@ -56,23 +59,29 @@ type Resolvable struct {
 	marshalBuf []byte
 
 	enclosingTypeNames []string
+
+	currentFieldInfo *FieldInfo
+
+	// actualListSizes maps the JSON path to the list size in the final response.
+	// Used to compute the actual cost of the operation.
+	actualListSizes map[string]int
 }
 
 type ResolvableOptions struct {
-	ApolloCompatibilityValueCompletionInExtensions  bool
-	ApolloCompatibilityTruncateFloatValues          bool
-	ApolloCompatibilitySuppressFetchErrors          bool
-	ApolloCompatibilityReplaceUndefinedOpFieldError bool
-	ApolloCompatibilityReplaceInvalidVarError       bool
+	ApolloCompatibilityValueCompletionInExtensions bool
+	ApolloCompatibilityTruncateFloatValues         bool
+	ApolloCompatibilitySuppressFetchErrors         bool
+	ApolloCompatibilityReplaceInvalidVarError      bool
 }
 
-func NewResolvable(options ResolvableOptions) *Resolvable {
+func NewResolvable(a arena.Arena, options ResolvableOptions) *Resolvable {
 	return &Resolvable{
 		options:            options,
 		xxh:                xxhash.New(),
 		authorizationAllow: make(map[uint64]struct{}),
 		authorizationDeny:  make(map[uint64]string),
-		astjsonArena:       &astjson.Arena{},
+		astjsonArena:       a,
+		actualListSizes:    make(map[string]int),
 	}
 }
 
@@ -94,7 +103,7 @@ func (r *Resolvable) Reset() {
 	r.operationType = ast.OperationTypeUnknown
 	r.renameTypeNames = r.renameTypeNames[:0]
 	r.authorizationError = nil
-	r.astjsonArena.Reset()
+	r.astjsonArena = nil
 	r.xxh.Reset()
 	for k := range r.authorizationAllow {
 		delete(r.authorizationAllow, k)
@@ -102,20 +111,24 @@ func (r *Resolvable) Reset() {
 	for k := range r.authorizationDeny {
 		delete(r.authorizationDeny, k)
 	}
+	for k := range r.actualListSizes {
+		delete(r.actualListSizes, k)
+	}
 }
 
 func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.OperationType) (err error) {
 	r.ctx = ctx
 	r.operationType = operationType
 	r.renameTypeNames = ctx.RenameTypeNames
-	r.data = r.astjsonArena.NewObject()
-	r.errors = r.astjsonArena.NewArray()
+	r.data = astjson.ObjectValue(r.astjsonArena)
+	// don't init errors! It will heavily increase memory usage
+	r.errors = nil
 	if initialData != nil {
-		initialValue, err := astjson.ParseBytesWithoutCache(initialData)
+		initialValue, err := astjson.ParseBytesWithArena(r.astjsonArena, initialData)
 		if err != nil {
 			return err
 		}
-		r.data, _, err = astjson.MergeValues(r.data, initialValue)
+		r.data, _, err = astjson.MergeValues(r.astjsonArena, r.data, initialValue)
 		if err != nil {
 			return err
 		}
@@ -127,20 +140,22 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 	r.ctx = ctx
 	r.operationType = ast.OperationTypeSubscription
 	r.renameTypeNames = ctx.RenameTypeNames
+	// don't init errors! It will heavily increase memory usage
+	r.errors = nil
 	if initialData != nil {
-		initialValue, err := astjson.ParseBytesWithoutCache(initialData)
+		initialValue, err := astjson.ParseBytesWithArena(r.astjsonArena, initialData)
 		if err != nil {
 			return err
 		}
 		if postProcessing.SelectResponseDataPath == nil {
-			r.data, _, err = astjson.MergeValuesWithPath(r.data, initialValue, postProcessing.MergePath...)
+			r.data, _, err = astjson.MergeValuesWithPath(r.astjsonArena, r.data, initialValue, postProcessing.MergePath...)
 			if err != nil {
 				return err
 			}
 		} else {
 			selectedInitialValue := initialValue.Get(postProcessing.SelectResponseDataPath...)
 			if selectedInitialValue != nil {
-				r.data, _, err = astjson.MergeValuesWithPath(r.data, selectedInitialValue, postProcessing.MergePath...)
+				r.data, _, err = astjson.MergeValuesWithPath(r.astjsonArena, r.data, selectedInitialValue, postProcessing.MergePath...)
 				if err != nil {
 					return err
 				}
@@ -154,10 +169,7 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 		}
 	}
 	if r.data == nil {
-		r.data = r.astjsonArena.NewObject()
-	}
-	if r.errors == nil {
-		r.errors = r.astjsonArena.NewArray()
+		r.data = astjson.ObjectValue(r.astjsonArena)
 	}
 	return
 }
@@ -167,7 +179,8 @@ func (r *Resolvable) ResolveNode(node Node, data *astjson.Value, out io.Writer) 
 	r.print = false
 	r.printErr = nil
 	r.authorizationError = nil
-	r.errors = r.astjsonArena.NewArray()
+	// don't init errors! It will heavily increase memory usage
+	r.errors = nil
 
 	hasErrors := r.walkNode(node, data)
 	if hasErrors {
@@ -233,6 +246,13 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 	return r.printErr
 }
 
+// ensureErrorsInitialized is used to lazily init r.errors if needed
+func (r *Resolvable) ensureErrorsInitialized() {
+	if r.errors == nil {
+		r.errors = astjson.ArrayValue(r.astjsonArena)
+	}
+}
+
 func (r *Resolvable) enclosingTypeName() string {
 	if len(r.enclosingTypeNames) > 0 {
 		return r.enclosingTypeNames[len(r.enclosingTypeNames)-1]
@@ -274,9 +294,7 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 	r.printBytes(colon)
 	r.printBytes(lBrace)
 
-	var (
-		writeComma bool
-	)
+	var writeComma bool
 
 	if r.ctx.authorizer != nil && r.ctx.authorizer.HasResponseExtensionData(r.ctx) {
 		writeComma = true
@@ -447,6 +465,62 @@ func (r *Resolvable) printNode(value *astjson.Value) {
 	_, r.printErr = r.out.Write(r.marshalBuf)
 }
 
+func (r *Resolvable) renderEnumValue(value *astjson.Value, nullable bool) {
+	if r.printErr != nil {
+		return
+	}
+	r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
+	r.renderFieldValue(value, r.marshalBuf, nullable, true)
+}
+
+func (r *Resolvable) renderScalarFieldValue(value *astjson.Value, nullable bool) {
+	if r.printErr != nil {
+		return
+	}
+	r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
+	r.renderFieldValue(value, r.marshalBuf, nullable, false)
+}
+
+// renderScalarFieldString - is used when value require some pre-processing, e.g. unescaping or custom rendering
+func (r *Resolvable) renderScalarFieldBytes(data []byte, nullable bool) {
+	value, err := astjson.ParseBytesWithArena(r.astjsonArena, data)
+	if err != nil {
+		r.printErr = err
+		return
+	}
+
+	r.renderFieldValue(value, data, nullable, false)
+}
+
+func (r *Resolvable) renderFieldValue(value *astjson.Value, valueBytes []byte, nullable bool, isEnum bool) {
+	if r.printErr != nil {
+		return
+	}
+	// if we render a variable that's actually a node, we don't have a context
+	// as such, we skip here because this is not rendering the client response
+	if r.ctx != nil && r.ctx.fieldRenderer != nil {
+		fieldValue := FieldValue{
+			Name:       r.currentFieldInfo.Name,
+			Type:       r.currentFieldInfo.NamedType,
+			ParentType: r.currentFieldInfo.ExactParentTypeName,
+			IsNullable: nullable,
+			IsEnum:     isEnum,
+			Path:       r.renderFieldPath(),
+			Data:       valueBytes,
+			ParsedData: value,
+		}
+		if len(r.path) > 0 {
+			fieldValue.IsListItem = r.path[len(r.path)-1].Name == ""
+		}
+		r.printErr = r.ctx.fieldRenderer.RenderFieldValue(r.ctx, fieldValue, r.out)
+		if r.printErr != nil {
+			return
+		}
+	} else {
+		_, r.printErr = r.out.Write(valueBytes)
+	}
+}
+
 func (r *Resolvable) pushArrayPathElement(index int) {
 	r.path = append(r.path, fastjsonext.PathElement{
 		Idx: index,
@@ -484,6 +558,8 @@ func (r *Resolvable) walkNode(node Node, value *astjson.Value) bool {
 		return r.walkNull()
 	case *String:
 		return r.walkString(n, value)
+	case *StaticString:
+		return r.walkStaticString(n)
 	case *Boolean:
 		return r.walkBoolean(n, value)
 	case *Integer:
@@ -587,12 +663,12 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 					path := obj.Fields[i].Value.NodePath()
 					field := value.Get(path...)
 					if field != nil {
-						astjson.SetNull(value, path...)
+						astjson.SetNull(r.astjsonArena, value, path...)
 					}
 				} else if obj.Nullable && len(obj.Path) > 0 {
 					// if the field value is not nullable, but the object is nullable
 					// we can just set the whole object to null
-					astjson.SetNull(parent, obj.Path...)
+					astjson.SetNull(r.astjsonArena, parent, obj.Path...)
 					return false
 				} else {
 					// if the field value is not nullable and the object is not nullable
@@ -611,11 +687,12 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 			r.printBytes(quote)
 			r.printBytes(colon)
 		}
+		r.currentFieldInfo = obj.Fields[i].Info
 		err := r.walkNode(obj.Fields[i].Value, value)
 		if err {
 			if obj.Nullable {
 				if len(obj.Path) > 0 {
-					astjson.SetNull(parent, obj.Path...)
+					astjson.SetNull(r.astjsonArena, parent, obj.Path...)
 					return false
 				}
 			}
@@ -645,10 +722,9 @@ func (r *Resolvable) authorizeField(value *astjson.Value, field *Field) (skipFie
 	dataSourceID := field.Info.Source.IDs[0]
 	dataSourceName := field.Info.Source.Names[0]
 	typeName := r.objectFieldTypeName(value, field)
-	fieldName := unsafebytes.BytesToString(field.Name)
 	gc := GraphCoordinate{
 		TypeName:  typeName,
-		FieldName: fieldName,
+		FieldName: field.Info.Name,
 	}
 	result, authErr := r.authorize(value, dataSourceID, gc)
 	if authErr != nil {
@@ -701,9 +777,10 @@ func (r *Resolvable) addRejectFieldError(reason string, ds DataSourceInfo, field
 	} else {
 		errorMessage = fmt.Sprintf("Unauthorized to load field '%s', Reason: %s.", fieldPath, reason)
 	}
-	r.ctx.appendSubgraphError(goerrors.Join(errors.New(errorMessage),
-		NewSubgraphError(ds, fieldPath, reason, 0)))
-	fastjsonext.AppendErrorToArray(r.astjsonArena, r.errors, errorMessage, r.path)
+	r.ctx.appendSubgraphErrors(ds, errors.New(errorMessage),
+		NewSubgraphError(ds, fieldPath, reason, 0))
+	r.ensureErrorsInitialized()
+	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.errors, errorMessage, errorcodes.UnauthorizedFieldOrType, r.path)
 	r.popNodePathElement(nodePath)
 }
 
@@ -773,20 +850,39 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 		r.printBytes(lBrack)
 	}
 	values := value.GetArray()
+
+	if !r.print {
+		pathKey := r.currentFieldPath()
+		r.actualListSizes[pathKey] += len(values)
+	}
+
+	hasPrintedValue := false
 	for i, arrayValue := range values {
-		if r.print && i != 0 {
+		skip := false
+		if r.print && arr.SkipItem != nil {
+			skip = arr.SkipItem(r.ctx, arrayValue)
+		}
+
+		if skip {
+			continue
+		}
+
+		if r.print && i != 0 && hasPrintedValue {
 			r.printBytes(comma)
 		}
+
+		hasPrintedValue = true
+
 		r.pushArrayPathElement(i)
 		err := r.walkNode(arr.Item, arrayValue)
 		r.popArrayPathElement()
 		if err {
 			if arr.Item.NodeKind() == NodeKindObject && arr.Item.NodeNullable() {
-				value.SetArrayItem(i, astjson.NullValue)
+				value.SetArrayItem(r.astjsonArena, i, astjson.NullValue)
 				continue
 			}
 			if arr.Nullable {
-				astjson.SetNull(parent, arr.Path...)
+				astjson.SetNull(r.astjsonArena, parent, arr.Path...)
 				return false
 			}
 			return err
@@ -798,9 +894,29 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 	return false
 }
 
+// Helper to build JSON path (field names only, no array indices)
+func (r *Resolvable) currentFieldPath() string {
+	var parts []string
+	for _, elem := range r.path {
+		if elem.Name != "" {
+			parts = append(parts, elem.Name)
+		}
+	}
+	return strings.Join(parts, ".")
+}
+
 func (r *Resolvable) walkNull() bool {
 	if r.print {
 		r.printBytes(null)
+	}
+	return false
+}
+
+func (r *Resolvable) walkStaticString(str *StaticString) bool {
+	if r.print {
+		r.printBytes(quote)
+		r.printBytes([]byte(str.Value))
+		r.printBytes(quote)
 	}
 	return false
 }
@@ -842,10 +958,10 @@ func (r *Resolvable) walkString(s *String, value *astjson.Value) bool {
 				r.printBytes(content)
 				r.printBytes(quote)
 			} else {
-				r.printBytes(content)
+				r.renderScalarFieldBytes(content, s.Nullable)
 			}
 		} else {
-			r.printNode(value)
+			r.renderScalarFieldValue(value, s.Nullable)
 		}
 	}
 	return false
@@ -867,7 +983,7 @@ func (r *Resolvable) walkBoolean(b *Boolean, value *astjson.Value) bool {
 		return r.err()
 	}
 	if r.print {
-		r.printNode(value)
+		r.renderScalarFieldValue(value, b.Nullable)
 	}
 	return false
 }
@@ -888,7 +1004,7 @@ func (r *Resolvable) walkInteger(i *Integer, value *astjson.Value) bool {
 		return r.err()
 	}
 	if r.print {
-		r.printNode(value)
+		r.renderScalarFieldValue(value, i.Nullable)
 	}
 	return false
 }
@@ -918,7 +1034,7 @@ func (r *Resolvable) walkFloat(f *Float, value *astjson.Value) bool {
 				return false
 			}
 		}
-		r.printNode(value)
+		r.renderScalarFieldValue(value, f.Nullable)
 	}
 	return false
 }
@@ -934,7 +1050,7 @@ func (r *Resolvable) walkBigInt(b *BigInt, value *astjson.Value) bool {
 		return r.err()
 	}
 	if r.print {
-		r.printNode(value)
+		r.renderScalarFieldValue(value, b.Nullable)
 	}
 	return false
 }
@@ -950,7 +1066,7 @@ func (r *Resolvable) walkScalar(s *Scalar, value *astjson.Value) bool {
 		return r.err()
 	}
 	if r.print {
-		r.printNode(value)
+		r.renderScalarFieldValue(value, s.Nullable)
 	}
 	return false
 }
@@ -988,7 +1104,7 @@ func (r *Resolvable) walkCustom(c *CustomNode, value *astjson.Value) bool {
 		return r.err()
 	}
 	if r.print {
-		r.printBytes(resolved)
+		r.renderScalarFieldBytes(resolved, c.Nullable)
 	}
 	return false
 }
@@ -1073,7 +1189,11 @@ func (r *Resolvable) walkEnum(e *Enum, value *astjson.Value) bool {
 		 * and not the second walk (which prints the data).
 		 */
 		if !r.print {
-			r.addErrorWithCodeAndPath(fmt.Sprintf(`Enum "%s" cannot represent value: "%s"`, e.TypeName, valueString), errorcodes.InternalServerError, e.Path)
+			if r.options.ApolloCompatibilityValueCompletionInExtensions {
+				r.renderInaccessibleEnumValueError(e)
+			} else {
+				r.addErrorWithCodeAndPath(fmt.Sprintf(`Enum "%s" cannot represent value: "%s"`, e.TypeName, valueString), errorcodes.InternalServerError, e.Path)
+			}
 		}
 		if e.Nullable {
 			return r.walkNull()
@@ -1096,7 +1216,7 @@ func (r *Resolvable) walkEnum(e *Enum, value *astjson.Value) bool {
 		return r.err()
 	}
 	if r.print {
-		r.printNode(value)
+		r.renderEnumValue(value, e.Nullable)
 	}
 	return false
 }
@@ -1117,6 +1237,7 @@ func (r *Resolvable) addNonNullableFieldError(fieldPath []string, parent *astjso
 		r.addValueCompletion(r.renderApolloCompatibleNonNullableErrorMessage(), errorcodes.InvalidGraphql)
 	} else {
 		errorMessage := fmt.Sprintf("Cannot return null for non-nullable field '%s'.", r.renderFieldPath())
+		r.ensureErrorsInitialized()
 		fastjsonext.AppendErrorToArray(r.astjsonArena, r.errors, errorMessage, r.path)
 	}
 	r.popNodePathElement(fieldPath)
@@ -1187,30 +1308,33 @@ func (r *Resolvable) renderFieldCoordinates() string {
 
 func (r *Resolvable) addError(message string, fieldPath []string) {
 	r.pushNodePathElement(fieldPath)
+	r.ensureErrorsInitialized()
 	fastjsonext.AppendErrorToArray(r.astjsonArena, r.errors, message, r.path)
 	r.popNodePathElement(fieldPath)
 }
 
 func (r *Resolvable) addErrorWithCode(message, code string) {
+	r.ensureErrorsInitialized()
 	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.errors, message, code, r.path)
 }
 
 func (r *Resolvable) addErrorWithCodeAndPath(message, code string, fieldPath []string) {
 	r.pushNodePathElement(fieldPath)
+	r.ensureErrorsInitialized()
 	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.errors, message, code, r.path)
 	r.popNodePathElement(fieldPath)
 }
 
 func (r *Resolvable) addValueCompletion(message, code string) {
 	if r.valueCompletion == nil {
-		r.valueCompletion = r.astjsonArena.NewArray()
+		r.valueCompletion = astjson.ArrayValue(r.astjsonArena)
 	}
 	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.valueCompletion, message, code, r.path)
 }
 
 func (r *Resolvable) addValueCompletionWithPath(message, code string, fieldPath []string) {
 	if r.valueCompletion == nil {
-		r.valueCompletion = r.astjsonArena.NewArray()
+		r.valueCompletion = astjson.ArrayValue(r.astjsonArena)
 	}
 	r.pushNodePathElement(fieldPath)
 	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.valueCompletion, message, code, r.path)

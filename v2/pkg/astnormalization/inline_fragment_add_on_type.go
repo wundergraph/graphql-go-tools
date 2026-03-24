@@ -18,6 +18,7 @@ func InlineFragmentAddOnType(walker *astvisitor.Walker) {
 
 type inlineFragmentAddOnTypeVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition *ast.Document
 }
 

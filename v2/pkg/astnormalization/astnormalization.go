@@ -3,7 +3,7 @@ Package astnormalization helps to transform parsed GraphQL AST's into a easier t
 
 # Example
 
-This examples shows how the normalization package helps "simplifying" a GraphQL AST.
+This example shows how the normalization package helps "simplify" a GraphQL AST.
 
 Input:
 
@@ -70,12 +70,13 @@ package astnormalization
 
 import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization/uploads"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 // NormalizeOperation creates a default Normalizer and applies all rules to a given AST
-// In case you're using OperationNormalizer in a hot path you shouldn't be using this function.
+// In case you're using OperationNormalizer in a hot path, you shouldn't be using this function.
 // Create a new OperationNormalizer using NewNormalizer() instead and re-use it.
 func NormalizeOperation(operation, definition *ast.Document, report *operationreport.Report) {
 	normalizer := NewNormalizer(false, false)
@@ -149,6 +150,7 @@ type options struct {
 	removeUnusedVariables                 bool
 	removeNotMatchingOperationDefinitions bool
 	normalizeDefinition                   bool
+	ignoreSkipInclude                     bool
 }
 
 type Option func(options *options)
@@ -189,14 +191,20 @@ func WithNormalizeDefinition() Option {
 	}
 }
 
+func WithIgnoreSkipInclude() Option {
+	return func(options *options) {
+		options.ignoreSkipInclude = true
+	}
+}
+
 func (o *OperationNormalizer) setupOperationWalkers() {
 	o.operationWalkers = make([]walkerStage, 0, 9)
 
-	// NOTE: normalization rules for variables relies on the fact that
-	// we will visit only single operation, so it is important to remove non-matching operations
+	// NOTE: normalization rules for variables rely on the fact that
+	// we will visit only a single operation, so it is important to remove non-matching operations
 	if o.options.removeNotMatchingOperationDefinitions {
-		removeNotMatchingOperationDefinitionsWalker := astvisitor.NewWalker(2)
-		// this rule do not walk deep into ast, so separate walk not expensive,
+		removeNotMatchingOperationDefinitionsWalker := astvisitor.NewWalkerWithID(2, "RemoveNotMatchingOperationDefinitions")
+		// This rule does not walk deep into ast, so a separate walk is not expensive,
 		// but we could not mix this walk with other rules, because they need to go deep
 		o.removeOperationDefinitionsVisitor = removeOperationDefinitions(&removeNotMatchingOperationDefinitionsWalker)
 
@@ -206,11 +214,11 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		})
 	}
 
-	directivesIncludeSkip := astvisitor.NewWalker(8)
-	directiveIncludeSkip(&directivesIncludeSkip)
+	directivesIncludeSkip := astvisitor.NewWalkerWithID(8, "DirectivesIncludeSkip")
+	preventFragmentCycles(&directivesIncludeSkip)
+	directiveIncludeSkipKeepNodes(&directivesIncludeSkip, o.options.ignoreSkipInclude)
 
-	cleanup := astvisitor.NewWalker(8)
-	mergeFieldSelections(&cleanup)
+	cleanup := astvisitor.NewWalkerWithID(8, "Cleanup")
 	deduplicateFields(&cleanup)
 	if o.options.removeUnusedVariables {
 		del := deleteUnusedVariables(&cleanup)
@@ -227,7 +235,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	})
 
 	if o.options.inlineFragmentSpreads {
-		fragmentInline := astvisitor.NewWalker(8)
+		fragmentInline := astvisitor.NewWalkerWithID(8, "FragmentSpreadInline")
 		fragmentSpreadInline(&fragmentInline)
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
 			name:   "fragmentInline",
@@ -236,7 +244,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	}
 
 	if o.options.extractVariables {
-		extractVariablesWalker := astvisitor.NewWalker(8)
+		extractVariablesWalker := astvisitor.NewWalkerWithID(8, "ExtractVariables")
 		extractVariables(&extractVariablesWalker)
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
 			name:   "extractVariables",
@@ -244,7 +252,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		})
 	}
 
-	other := astvisitor.NewWalker(8)
+	other := astvisitor.NewWalkerWithID(8, "Other")
 	removeSelfAliasing(&other)
 	inlineSelectionsFromInlineFragments(&other)
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
@@ -252,7 +260,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		walker: &other,
 	})
 
-	mergeInlineFragments := astvisitor.NewWalker(8)
+	mergeInlineFragments := astvisitor.NewWalkerWithID(8, "MergeInlineFragmentSelections")
 	mergeInlineFragmentSelections(&mergeInlineFragments)
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
 		name:   "mergeInlineFragmentSelections",
@@ -260,7 +268,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	})
 
 	if o.options.removeFragmentDefinitions {
-		removeFragments := astvisitor.NewWalker(8)
+		removeFragments := astvisitor.NewWalkerWithID(8, "RemoveFragmentDefinitions")
 		removeFragmentDefinitions(&removeFragments)
 
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
@@ -270,12 +278,12 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	}
 
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
-		name:   "mergeFieldSelections, deduplicateFields, deleteUnusedVariables",
+		name:   "deduplicateFields, deleteUnusedVariables",
 		walker: &cleanup,
 	})
 
 	if o.options.extractVariables {
-		variablesProcessing := astvisitor.NewWalker(8)
+		variablesProcessing := astvisitor.NewWalkerWithID(8, "VariablesProcessing")
 		inputCoercionForList(&variablesProcessing)
 		extractVariablesDefaultValue(&variablesProcessing)
 		injectInputFieldDefaults(&variablesProcessing)
@@ -330,7 +338,7 @@ func (o *OperationNormalizer) NormalizeNamedOperation(operation, definition *ast
 		}
 
 		// NOTE: debug code - do not remove
-		// printed, _ := astprinter.PrintStringIndent(operation, definition, "  ")
+		// printed, _ := astprinter.PrintStringIndent(operation, "  ")
 		// fmt.Println("\n\nNormalizeOperation stage:", o.operationWalkers[i].name)
 		// fmt.Println(printed)
 		// fmt.Println("variables:", string(operation.Input.Variables))
@@ -338,52 +346,153 @@ func (o *OperationNormalizer) NormalizeNamedOperation(operation, definition *ast
 }
 
 type VariablesNormalizer struct {
-	firstDetectUnused *astvisitor.Walker
-	secondExtract     *astvisitor.Walker
-	thirdDeleteUnused *astvisitor.Walker
-	fourthCoerce      *astvisitor.Walker
+	firstDetectUnused          *astvisitor.Walker
+	secondExtract              *astvisitor.Walker
+	thirdDeleteUnused          *astvisitor.Walker
+	fourthCoerce               *astvisitor.Walker
+	variablesExtractionVisitor *variablesExtractionVisitor
 }
 
 func NewVariablesNormalizer() *VariablesNormalizer {
 	// delete unused modifying variables refs,
 	// so it is safer to run it sequentially with the extraction
-	thirdDeleteUnused := astvisitor.NewWalker(8)
+	thirdDeleteUnused := astvisitor.NewWalkerWithID(8, "DeleteUnusedVariables")
 	del := deleteUnusedVariables(&thirdDeleteUnused)
 
 	// register variable usage detection on the first stage
 	// and pass usage information to the deletion visitor
 	// so it keeps variables that are defined but not used at all
 	// ensuring that validation can still catch them
-	firstDetectUnused := astvisitor.NewWalker(8)
+	firstDetectUnused := astvisitor.NewWalkerWithID(8, "DetectVariableUsage")
 	detectVariableUsage(&firstDetectUnused, del)
 
-	secondExtract := astvisitor.NewWalker(8)
-	extractVariables(&secondExtract)
+	secondExtract := astvisitor.NewWalkerWithID(8, "ExtractVariables")
+	variablesExtractionVisitor := extractVariables(&secondExtract)
 	extractVariablesDefaultValue(&secondExtract)
 
-	fourthCoerce := astvisitor.NewWalker(0)
+	fourthCoerce := astvisitor.NewWalkerWithID(0, "VariablesCoercion")
 	inputCoercionForList(&fourthCoerce)
 
 	return &VariablesNormalizer{
-		firstDetectUnused: &firstDetectUnused,
-		secondExtract:     &secondExtract,
-		thirdDeleteUnused: &thirdDeleteUnused,
-		fourthCoerce:      &fourthCoerce,
+		firstDetectUnused:          &firstDetectUnused,
+		secondExtract:              &secondExtract,
+		thirdDeleteUnused:          &thirdDeleteUnused,
+		fourthCoerce:               &fourthCoerce,
+		variablesExtractionVisitor: variablesExtractionVisitor,
 	}
 }
 
-func (v *VariablesNormalizer) NormalizeOperation(operation, definition *ast.Document, report *operationreport.Report) {
+func (v *VariablesNormalizer) NormalizeOperation(operation, definition *ast.Document, report *operationreport.Report) []uploads.UploadPathMapping {
 	v.firstDetectUnused.Walk(operation, definition, report)
 	if report.HasErrors() {
-		return
+		return nil
 	}
 	v.secondExtract.Walk(operation, definition, report)
 	if report.HasErrors() {
-		return
+		return nil
 	}
 	v.thirdDeleteUnused.Walk(operation, definition, report)
 	if report.HasErrors() {
-		return
+		return nil
 	}
 	v.fourthCoerce.Walk(operation, definition, report)
+
+	return v.variablesExtractionVisitor.uploadsPath
+}
+
+type fragmentCycleVisitor struct {
+	*astvisitor.Walker
+
+	operation, definition *ast.Document
+	currentFragmentRef    int           // current fragment ref
+	spreadsInFragments    map[int][]int // fragment ref -> spread refs
+}
+
+func (f *fragmentCycleVisitor) LeaveDocument(operation, _ *ast.Document) {
+	report := f.Walker.Report
+	if report == nil {
+		return
+	}
+
+	visited := make(map[string]bool)
+	stack := make(map[string]bool)
+
+	for fragmentIdx := range f.spreadsInFragments {
+		f.detectFragmentCycle(fragmentIdx, []int{fragmentIdx}, visited, stack, operation)
+	}
+}
+
+func (f *fragmentCycleVisitor) detectFragmentCycle(fragmentIdx int, path []int, visited, stack map[string]bool, operation *ast.Document) bool {
+	fragName := string(operation.FragmentDefinitionNameBytes(fragmentIdx))
+	if stack[fragName] {
+		// Cycle detected, report using the spread that closes the cycle
+		cycleStart := 0
+		for i, idx := range path {
+			if string(operation.FragmentDefinitionNameBytes(idx)) == fragName {
+				cycleStart = i
+				break
+			}
+		}
+		cyclePath := path[cycleStart:]
+		if len(cyclePath) > 0 {
+			// The spread that closes the cycle is the first spread in the cycle
+			cycleFragIdx := cyclePath[0]
+			spreadName := operation.FragmentDefinitionNameBytes(cycleFragIdx)
+			f.Walker.Report.AddExternalError(operationreport.ErrFragmentSpreadFormsCycle(spreadName))
+		}
+		return true
+	}
+	if visited[fragName] {
+		return false
+	}
+	visited[fragName] = true
+	stack[fragName] = true
+	for _, spreadRef := range f.spreadsInFragments[fragmentIdx] {
+		// Find the fragment definition index for this spread name
+		fragName := operation.FragmentSpreadNameBytes(spreadRef)
+		fragRef, exists := operation.FragmentDefinitionRef(fragName)
+		if exists && f.detectFragmentCycle(fragRef, append(path, fragRef), visited, stack, operation) {
+			return true
+		}
+	}
+	stack[fragName] = false
+	return false
+}
+
+func (f *fragmentCycleVisitor) EnterDocument(operation, definition *ast.Document) {
+	f.operation = operation
+	f.definition = definition
+	f.currentFragmentRef = -1
+	f.spreadsInFragments = make(map[int][]int)
+}
+
+func (f *fragmentCycleVisitor) LeaveFragmentDefinition(ref int) {
+	f.currentFragmentRef = -1
+}
+
+func (f *fragmentCycleVisitor) EnterFragmentDefinition(ref int) {
+	f.currentFragmentRef = ref
+}
+
+func (f *fragmentCycleVisitor) EnterFragmentSpread(ref int) {
+	if f.currentFragmentRef == -1 {
+		return
+	}
+	if _, exists := f.spreadsInFragments[f.currentFragmentRef]; !exists {
+		f.spreadsInFragments[f.currentFragmentRef] = []int{ref}
+		return
+	}
+	f.spreadsInFragments[f.currentFragmentRef] = append(f.spreadsInFragments[f.currentFragmentRef], ref)
+}
+
+func preventFragmentCycles(walker *astvisitor.Walker) *fragmentCycleVisitor {
+	visitor := &fragmentCycleVisitor{
+		Walker:     walker,
+		operation:  nil,
+		definition: nil,
+	}
+	walker.RegisterDocumentVisitor(visitor)
+	walker.RegisterEnterFragmentSpreadVisitor(visitor)
+	walker.RegisterFragmentDefinitionVisitor(visitor)
+	return visitor
 }

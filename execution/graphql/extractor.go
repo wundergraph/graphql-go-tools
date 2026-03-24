@@ -45,6 +45,7 @@ func (e *Extractor) ExtractFieldsFromRequest(request *Request, schema *Schema, r
 
 type requestVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition *ast.Document
 	data                  RequestTypes
 }

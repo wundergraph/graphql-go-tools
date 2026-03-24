@@ -10,11 +10,12 @@ type CustomResolve interface {
 
 type CustomNode struct {
 	CustomResolve
+
 	Nullable bool
 	Path     []string
 }
 
-func (_ *CustomNode) NodeKind() NodeKind {
+func (*CustomNode) NodeKind() NodeKind {
 	return NodeKindCustom
 }
 

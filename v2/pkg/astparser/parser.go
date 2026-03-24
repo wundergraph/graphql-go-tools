@@ -91,10 +91,32 @@ func (p *Parser) Parse(document *ast.Document, report *operationreport.Report) {
 	p.report = report
 	p.tokenize()
 	p.parse()
+	p.precalculate()
 }
 
 func (p *Parser) tokenize() {
 	p.tokenizer.Tokenize(&p.document.Input)
+}
+
+// ParseWithLimits parses all input in a Document.Input into the Document with limits on the number of fields and depth
+func (p *Parser) ParseWithLimits(limits TokenizerLimits, document *ast.Document, report *operationreport.Report) (TokenizerStats, error) {
+	p.document = document
+	p.report = report
+	stats, err := p.tokenizer.TokenizeWithLimits(limits, &p.document.Input)
+	if err != nil {
+		return stats, err
+	}
+	p.parse()
+	p.precalculate()
+	return stats, nil
+}
+
+func (p *Parser) precalculate() {
+	if p.report.HasErrors() {
+		return
+	}
+
+	p.document.PopulateInterfaceTypeDefinitionImplementedByObjects()
 }
 
 func (p *Parser) parse() {
@@ -358,11 +380,7 @@ func (p *Parser) operationTypeFromIdentKeyword(key identkeyword.IdentKeyword) as
 
 func (p *Parser) parseDirectiveList() (list ast.DirectiveList) {
 
-	for {
-
-		if p.peek() != keyword.AT {
-			break
-		}
+	for p.peek() == keyword.AT {
 
 		at := p.read()
 		name := p.mustRead(keyword.IDENT)
@@ -743,8 +761,12 @@ func (p *Parser) parseRootDescription() {
 		p.parseExtension()
 	case identkeyword.SCHEMA:
 		p.parseSchemaDefinition(&description)
+	case identkeyword.QUERY, identkeyword.MUTATION, identkeyword.SUBSCRIPTION:
+		p.parseOperationDefinitionWithDescription(&description)
+	case identkeyword.FRAGMENT:
+		p.parseFragmentDefinitionWithDescription(&description)
 	default:
-		p.errUnexpectedIdentKey(p.read(), next, identkeyword.TYPE, identkeyword.INPUT, identkeyword.SCALAR, identkeyword.INTERFACE, identkeyword.UNION, identkeyword.ENUM, identkeyword.DIRECTIVE)
+		p.errUnexpectedIdentKey(p.read(), next, identkeyword.TYPE, identkeyword.INPUT, identkeyword.SCALAR, identkeyword.INTERFACE, identkeyword.UNION, identkeyword.ENUM, identkeyword.DIRECTIVE, identkeyword.QUERY, identkeyword.MUTATION, identkeyword.SUBSCRIPTION, identkeyword.FRAGMENT)
 	}
 }
 
@@ -873,17 +895,16 @@ func (p *Parser) ParseType() (ref int) {
 
 	first := p.peek()
 
-	if first == keyword.IDENT {
+	switch first {
+	case keyword.IDENT:
 		tok := p.read()
 		ref = p.document.AddNamedTypeWithPosition(tok.Literal, tok.TextPosition)
-	} else if first == keyword.LBRACK {
-
+	case keyword.LBRACK:
 		openList := p.read()
 		ofType := p.ParseType()
 		closeList := p.mustRead(keyword.RBRACK)
-
 		ref = p.document.AddListTypeWithPosition(ofType, openList.TextPosition, closeList.TextPosition)
-	} else {
+	default:
 		p.errUnexpectedToken(p.read(), keyword.IDENT, keyword.LBRACK)
 		return
 	}
@@ -1311,7 +1332,8 @@ func (p *Parser) parseSelectionSet() (int, bool) {
 			set.RBrace = rbraceToken.TextPosition
 
 			if len(set.SelectionRefs) == 0 {
-				return 0, false
+				p.errUnexpectedToken(rbraceToken, keyword.IDENT, keyword.SPREAD)
+				return ast.InvalidRef, false
 			}
 
 			p.document.SelectionSets = append(p.document.SelectionSets, set)
@@ -1457,8 +1479,16 @@ func (p *Parser) parseTypeCondition() (typeCondition ast.TypeCondition) {
 }
 
 func (p *Parser) parseOperationDefinition() {
+	p.parseOperationDefinitionWithDescription(nil)
+}
+
+func (p *Parser) parseOperationDefinitionWithDescription(description *ast.Description) {
 
 	var operationDefinition ast.OperationDefinition
+
+	if description != nil {
+		operationDefinition.Description = *description
+	}
 
 	next, literal := p.peekLiteral()
 	switch next {
@@ -1578,7 +1608,16 @@ func (p *Parser) parseDefaultValue() ast.DefaultValue {
 }
 
 func (p *Parser) parseFragmentDefinition() {
+	p.parseFragmentDefinitionWithDescription(nil)
+}
+
+func (p *Parser) parseFragmentDefinitionWithDescription(description *ast.Description) {
 	var fragmentDefinition ast.FragmentDefinition
+
+	if description != nil {
+		fragmentDefinition.Description = *description
+	}
+
 	fragmentDefinition.FragmentLiteral = p.mustReadIdentKey(identkeyword.FRAGMENT).TextPosition
 	fragmentDefinition.Name = p.mustRead(keyword.IDENT).Literal
 	fragmentDefinition.TypeCondition = p.parseTypeCondition()

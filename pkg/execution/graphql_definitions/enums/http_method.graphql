@@ -1,6 +1,0 @@
-enum HTTP_METHOD {
-    GET
-    POST
-    UPDATE
-    DELETE
-}

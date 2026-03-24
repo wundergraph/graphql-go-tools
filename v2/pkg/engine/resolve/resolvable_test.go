@@ -12,7 +12,7 @@ import (
 
 func TestResolvable_Resolve(t *testing.T) {
 	topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`
-	res := NewResolvable(ResolvableOptions{})
+	res := NewResolvable(nil, ResolvableOptions{})
 	ctx := &Context{
 		Variables: nil,
 	}
@@ -84,7 +84,7 @@ func TestResolvable_Resolve(t *testing.T) {
 
 func TestResolvable_ResolveWithTypeMismatch(t *testing.T) {
 	topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":true}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`
-	res := NewResolvable(ResolvableOptions{})
+	res := NewResolvable(nil, ResolvableOptions{})
 	ctx := &Context{
 		Variables: nil,
 	}
@@ -157,7 +157,7 @@ func TestResolvable_ResolveWithTypeMismatch(t *testing.T) {
 
 func TestResolvable_ResolveWithErrorBubbleUp(t *testing.T) {
 	topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`
-	res := NewResolvable(ResolvableOptions{})
+	res := NewResolvable(nil, ResolvableOptions{})
 	ctx := &Context{
 		Variables: nil,
 	}
@@ -231,7 +231,7 @@ func TestResolvable_ResolveWithErrorBubbleUp(t *testing.T) {
 func TestResolvable_ApolloCompatibilityMode_NonNullability(t *testing.T) {
 	t.Run("Non-nullable root field", func(t *testing.T) {
 		topProducts := `{"topProducts":null}`
-		res := NewResolvable(ResolvableOptions{
+		res := NewResolvable(nil, ResolvableOptions{
 			ApolloCompatibilityValueCompletionInExtensions: true,
 		})
 		ctx := &Context{
@@ -258,7 +258,7 @@ func TestResolvable_ApolloCompatibilityMode_NonNullability(t *testing.T) {
 	})
 	t.Run("Non-Nullable root field and nested field", func(t *testing.T) {
 		topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`
-		res := NewResolvable(ResolvableOptions{
+		res := NewResolvable(nil, ResolvableOptions{
 			ApolloCompatibilityValueCompletionInExtensions: true,
 		})
 		ctx := &Context{
@@ -333,7 +333,7 @@ func TestResolvable_ApolloCompatibilityMode_NonNullability(t *testing.T) {
 	})
 	t.Run("Nullable root field and non-Nullable nested field", func(t *testing.T) {
 		topProducts := `{"topProduct":{"name":null}}`
-		res := NewResolvable(ResolvableOptions{
+		res := NewResolvable(nil, ResolvableOptions{
 			ApolloCompatibilityValueCompletionInExtensions: true,
 		})
 		ctx := &Context{
@@ -370,7 +370,7 @@ func TestResolvable_ApolloCompatibilityMode_NonNullability(t *testing.T) {
 	})
 	t.Run("Non-Nullable sibling field", func(t *testing.T) {
 		topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","reviews":[{"author":{"__typename":"User","name":"Bob"},"body":null}]}]}`
-		res := NewResolvable(ResolvableOptions{
+		res := NewResolvable(nil, ResolvableOptions{
 			ApolloCompatibilityValueCompletionInExtensions: true,
 		})
 		ctx := &Context{
@@ -439,7 +439,7 @@ func TestResolvable_ApolloCompatibilityMode_NonNullability(t *testing.T) {
 	})
 	t.Run("Non-nullable array and array item", func(t *testing.T) {
 		topProducts := `{"topProducts":[null]}`
-		res := NewResolvable(ResolvableOptions{
+		res := NewResolvable(nil, ResolvableOptions{
 			ApolloCompatibilityValueCompletionInExtensions: true,
 		})
 		ctx := &Context{
@@ -469,7 +469,7 @@ func TestResolvable_ApolloCompatibilityMode_NonNullability(t *testing.T) {
 	})
 	t.Run("Nullable array and non-nullable array item", func(t *testing.T) {
 		topProducts := `{"topProducts":[null]}`
-		res := NewResolvable(ResolvableOptions{
+		res := NewResolvable(nil, ResolvableOptions{
 			ApolloCompatibilityValueCompletionInExtensions: true,
 		})
 		ctx := &Context{
@@ -500,7 +500,7 @@ func TestResolvable_ApolloCompatibilityMode_NonNullability(t *testing.T) {
 	})
 	t.Run("Non-Nullable array, array item, and array item field", func(t *testing.T) {
 		topProducts := `{"topProducts":[{"author":{"name":"Name"}},{"author":null}]}`
-		res := NewResolvable(ResolvableOptions{
+		res := NewResolvable(nil, ResolvableOptions{
 			ApolloCompatibilityValueCompletionInExtensions: true,
 		})
 		ctx := &Context{
@@ -549,7 +549,7 @@ func TestResolvable_ApolloCompatibilityMode_NonNullability(t *testing.T) {
 
 func TestResolvable_ResolveWithErrorBubbleUpUntilData(t *testing.T) {
 	topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`
-	res := NewResolvable(ResolvableOptions{})
+	res := NewResolvable(nil, ResolvableOptions{})
 	ctx := &Context{
 		Variables: nil,
 	}
@@ -619,9 +619,143 @@ func TestResolvable_ResolveWithErrorBubbleUpUntilData(t *testing.T) {
 	assert.Equal(t, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.topProducts.reviews.author.name'.","path":["topProducts",0,"reviews",1,"author","name"]}],"data":null}`, out.String())
 }
 
+func TestResolvable_InvalidEnumValues(t *testing.T) {
+	t.Run("Invalid enum value", func(t *testing.T) {
+		enum := `{"enum":"B"}`
+		res := NewResolvable(nil, ResolvableOptions{})
+		ctx := &Context{
+			Variables: nil,
+		}
+		err := res.Init(ctx, []byte(enum), ast.OperationTypeQuery)
+		assert.NoError(t, err)
+		assert.NotNil(t, res)
+		object := &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("enum"),
+					Value: &Enum{
+						InaccessibleValues: make([]string, 0),
+						Values: []string{
+							"A",
+						},
+						TypeName: "Enum",
+						Path:     []string{"enum"},
+					},
+				},
+			},
+		}
+
+		out := &bytes.Buffer{}
+		err = res.Resolve(context.Background(), object, nil, out)
+		assert.NoError(t, err)
+		assert.Equal(t, `{"errors":[{"message":"Enum \"Enum\" cannot represent value: \"B\"","path":["enum"],"extensions":{"code":"INTERNAL_SERVER_ERROR"}}],"data":null}`, out.String())
+	})
+
+	t.Run("Inaccessible enum value", func(t *testing.T) {
+		enum := `{"enum":"B"}`
+		res := NewResolvable(nil, ResolvableOptions{})
+		ctx := &Context{
+			Variables: nil,
+		}
+		err := res.Init(ctx, []byte(enum), ast.OperationTypeQuery)
+		assert.NoError(t, err)
+		assert.NotNil(t, res)
+		object := &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("enum"),
+					Value: &Enum{
+						InaccessibleValues: []string{
+							"B",
+						},
+						Values: []string{
+							"A", "B",
+						},
+						TypeName: "Enum",
+						Path:     []string{"enum"},
+					},
+				},
+			},
+		}
+
+		out := &bytes.Buffer{}
+		err = res.Resolve(context.Background(), object, nil, out)
+		assert.NoError(t, err)
+		assert.Equal(t, `{"errors":[{"message":"Invalid value found for field Query.enum.","path":["enum"],"extensions":{"code":"INVALID_GRAPHQL"}}],"data":null}`, out.String())
+	})
+
+	t.Run("Invalid enum value with value completion Apollo compatibility flag", func(t *testing.T) {
+		enum := `{"enum":"B"}`
+		res := NewResolvable(nil, ResolvableOptions{
+			ApolloCompatibilityValueCompletionInExtensions: true,
+		})
+		ctx := &Context{
+			Variables: nil,
+		}
+		err := res.Init(ctx, []byte(enum), ast.OperationTypeQuery)
+		assert.NoError(t, err)
+		assert.NotNil(t, res)
+		object := &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("enum"),
+					Value: &Enum{
+						InaccessibleValues: make([]string, 0),
+						Values: []string{
+							"A",
+						},
+						TypeName: "Enum",
+						Path:     []string{"enum"},
+					},
+				},
+			},
+		}
+
+		out := &bytes.Buffer{}
+		err = res.Resolve(context.Background(), object, nil, out)
+		assert.NoError(t, err)
+		assert.Equal(t, `{"data":null,"extensions":{"valueCompletion":[{"message":"Invalid value found for field Query.enum.","path":["enum"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
+	})
+
+	t.Run("Inaccessible enum value with value completion Apollo compatibility flag", func(t *testing.T) {
+		enum := `{"enum":"B"}`
+		res := NewResolvable(nil, ResolvableOptions{
+			ApolloCompatibilityValueCompletionInExtensions: true,
+		})
+		ctx := &Context{
+			Variables: nil,
+		}
+		err := res.Init(ctx, []byte(enum), ast.OperationTypeQuery)
+		assert.NoError(t, err)
+		assert.NotNil(t, res)
+		object := &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("enum"),
+					Value: &Enum{
+						InaccessibleValues: []string{
+							"B",
+						},
+						Values: []string{
+							"A", "B",
+						},
+						TypeName: "Enum",
+						Path:     []string{"enum"},
+					},
+				},
+			},
+		}
+
+		out := &bytes.Buffer{}
+		err = res.Resolve(context.Background(), object, nil, out)
+		assert.NoError(t, err)
+		assert.Equal(t, `{"data":null,"extensions":{"valueCompletion":[{"message":"Invalid value found for field Query.enum.","path":["enum"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
+	})
+}
+
 func BenchmarkResolvable_Resolve(b *testing.B) {
 	topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`
-	res := NewResolvable(ResolvableOptions{})
+	res := NewResolvable(nil, ResolvableOptions{})
 	ctx := &Context{
 		Variables: nil,
 	}
@@ -704,7 +838,7 @@ func BenchmarkResolvable_Resolve(b *testing.B) {
 
 func BenchmarkResolvable_ResolveWithErrorBubbleUp(b *testing.B) {
 	topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`
-	res := NewResolvable(ResolvableOptions{})
+	res := NewResolvable(nil, ResolvableOptions{})
 	ctx := &Context{
 		Variables: nil,
 	}
@@ -789,7 +923,7 @@ func BenchmarkResolvable_ResolveWithErrorBubbleUp(b *testing.B) {
 }
 
 func TestResolvable_WithTracingNotStarted(t *testing.T) {
-	res := NewResolvable(ResolvableOptions{})
+	res := NewResolvable(nil, ResolvableOptions{})
 	// Do not start a trace with SetTraceStart(), but request it to be output
 	ctx := NewContext(context.Background())
 	ctx.TracingOptions.Enable = true
@@ -816,7 +950,7 @@ func TestResolvable_WithTracingNotStarted(t *testing.T) {
 
 func TestResolveFloat(t *testing.T) {
 	t.Run("default behaviour", func(t *testing.T) {
-		res := NewResolvable(ResolvableOptions{})
+		res := NewResolvable(nil, ResolvableOptions{})
 		ctx := NewContext(context.Background())
 		err := res.Init(ctx, []byte(`{"f":1.0}`), ast.OperationTypeQuery)
 		assert.NoError(t, err)
@@ -838,7 +972,7 @@ func TestResolveFloat(t *testing.T) {
 		assert.Equal(t, `{"data":{"f":1.0}}`, out.String())
 	})
 	t.Run("invalid float", func(t *testing.T) {
-		res := NewResolvable(ResolvableOptions{})
+		res := NewResolvable(nil, ResolvableOptions{})
 		ctx := NewContext(context.Background())
 		err := res.Init(ctx, []byte(`{"f":false}`), ast.OperationTypeQuery)
 		assert.NoError(t, err)
@@ -860,7 +994,7 @@ func TestResolveFloat(t *testing.T) {
 		assert.Equal(t, `{"errors":[{"message":"Float cannot represent non-float value: \"false\"","path":["f"]}],"data":null}`, out.String())
 	})
 	t.Run("truncate float", func(t *testing.T) {
-		res := NewResolvable(ResolvableOptions{
+		res := NewResolvable(nil, ResolvableOptions{
 			ApolloCompatibilityTruncateFloatValues: true,
 		})
 		ctx := NewContext(context.Background())
@@ -884,7 +1018,7 @@ func TestResolveFloat(t *testing.T) {
 		assert.Equal(t, `{"data":{"f":1}}`, out.String())
 	})
 	t.Run("truncate float with decimal place", func(t *testing.T) {
-		res := NewResolvable(ResolvableOptions{
+		res := NewResolvable(nil, ResolvableOptions{
 			ApolloCompatibilityTruncateFloatValues: true,
 		})
 		ctx := NewContext(context.Background())
@@ -911,7 +1045,7 @@ func TestResolveFloat(t *testing.T) {
 
 func TestResolvable_ValueCompletion(t *testing.T) {
 	t.Run("nested object", func(t *testing.T) {
-		res := NewResolvable(ResolvableOptions{
+		res := NewResolvable(nil, ResolvableOptions{
 			ApolloCompatibilityValueCompletionInExtensions: true,
 		})
 		ctx := NewContext(context.Background())
@@ -1009,7 +1143,7 @@ func TestResolvable_ValueCompletion(t *testing.T) {
         }`)
 
 		t.Run("nullable", func(t *testing.T) {
-			res := NewResolvable(ResolvableOptions{
+			res := NewResolvable(nil, ResolvableOptions{
 				ApolloCompatibilityValueCompletionInExtensions: true,
 			})
 			ctx := NewContext(context.Background())
@@ -1107,7 +1241,7 @@ func TestResolvable_ValueCompletion(t *testing.T) {
 		})
 
 		t.Run("mixed nullability", func(t *testing.T) {
-			res := NewResolvable(ResolvableOptions{
+			res := NewResolvable(nil, ResolvableOptions{
 				ApolloCompatibilityValueCompletionInExtensions: true,
 			})
 			ctx := NewContext(context.Background())
@@ -1208,7 +1342,7 @@ func TestResolvable_ValueCompletion(t *testing.T) {
 
 func TestResolvable_WithTracing(t *testing.T) {
 	topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`
-	res := NewResolvable(ResolvableOptions{})
+	res := NewResolvable(nil, ResolvableOptions{})
 	background := SetTraceStart(context.Background(), true)
 	ctx := NewContext(background)
 	ctx.TracingOptions.Enable = true

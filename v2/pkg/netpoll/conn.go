@@ -19,6 +19,7 @@ func newConnImpl(in net.Conn) ConnImpl {
 // ConnImpl is a net.Conn with GetFD() method.
 type ConnImpl struct {
 	net.Conn
+
 	fd int
 }
 

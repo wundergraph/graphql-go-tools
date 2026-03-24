@@ -3,21 +3,163 @@ package variablesvalidation
 import (
 	"testing"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
-func TestVariablesValidation(t *testing.T) {
+func TestVariablesValidationApolloCompatibility(t *testing.T) {
+	t.Run("extension code is propagated with apollo compatibility flag", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Query { hello(filter: String!): String }`,
+			operation: `query Foo($input: String!) { hello(filter: $input) }`,
+			variables: `{"input":null}`,
+		}
+		err := runTestWithOptions(t, tc, VariablesValidatorOptions{
+			ApolloCompatibilityFlags: apollocompatibility.Flags{
+				ReplaceInvalidVarError: true,
+			},
+		})
+		assert.Equal(t, &InvalidVariableError{
+			ExtensionCode: errorcodes.BadUserInput,
+			Message:       `Variable "$input" got invalid value null; Expected non-nullable type "String!" not to be null.`,
+		}, err)
+	})
 
+	t.Run("apollo router compatibility overrides apollo gateway compatibility", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Query { hello(filter: String!): String }`,
+			operation: `query Foo($input: String!) { hello(filter: $input) }`,
+			variables: `{"input":null}`,
+		}
+		err := runTestWithOptions(t, tc, VariablesValidatorOptions{
+			ApolloCompatibilityFlags: apollocompatibility.Flags{
+				ReplaceInvalidVarError: true,
+			},
+			ApolloRouterCompatibilityFlags: apollocompatibility.ApolloRouterFlags{
+				ReplaceInvalidVarError: true,
+			},
+		})
+		assert.Equal(t, &InvalidVariableError{
+			ExtensionCode: errorcodes.ValidationInvalidTypeVariable,
+			Message:       `invalid type for variable: 'input'`,
+		}, err)
+	})
+
+	t.Run("extension code and reduced error is propagated with apollo router compatibility flag", func(t *testing.T) {
+		// With the apollo router compatibility flag set, a variety of invalid variable errors should be changed
+		// with a different extension and message
+
+		// Shadow runTest to use the apollo router compatibility flag
+		runTest := func(t *testing.T, tc testCase) error {
+			return runTestWithOptions(t, tc, VariablesValidatorOptions{
+				ApolloRouterCompatibilityFlags: apollocompatibility.ApolloRouterFlags{
+					ReplaceInvalidVarError: true,
+				},
+			})
+		}
+		t.Run("variableRequired", func(t *testing.T) {
+			tc := testCase{
+				schema:    `type Query { hello(arg: String!): String }`,
+				operation: `query Foo($bar: String!) { hello }`,
+				variables: `{}`,
+			}
+			err := runTest(t, tc)
+			assert.Equal(t, &InvalidVariableError{
+				ExtensionCode: errorcodes.ValidationInvalidTypeVariable,
+				Message:       `invalid type for variable: 'bar'`,
+			}, err)
+		})
+
+		t.Run("variableRequiredNotProvided", func(t *testing.T) {
+			tc := testCase{
+				schema:    `input Foo { bar: String! } type Query { hello(arg: Foo!): String }`,
+				operation: `query Foo($bar: Foo!) { hello(arg: $bar) }`,
+				variables: `{"bar":{}}`,
+			}
+			err := runTest(t, tc)
+			assert.Equal(t, &InvalidVariableError{
+				ExtensionCode: errorcodes.ValidationInvalidTypeVariable,
+				Message:       `invalid type for variable: 'bar'`,
+			}, err)
+		})
+
+		t.Run("variableInvalidObjectType", func(t *testing.T) {
+			tc := testCase{
+				schema:    `input Foo { bar: String! } type Query { hello(arg: Foo!): String }`,
+				operation: `query Foo($bar: Foo!) { hello(arg: $bar) }`,
+				variables: `{"bar":true}`,
+			}
+			err := runTest(t, tc)
+			assert.Equal(t, &InvalidVariableError{
+				ExtensionCode: errorcodes.ValidationInvalidTypeVariable,
+				Message:       `invalid type for variable: 'bar'`,
+			}, err)
+		})
+
+		t.Run("variableInvalidNestedType", func(t *testing.T) {
+			tc := testCase{
+				schema:    `input Foo { bar: String! } type Query { hello(arg: Foo!): String }`,
+				operation: `query Foo($input: Foo!) { hello(arg: $input) }`,
+				variables: `{"input":{"bar":123}}`,
+			}
+			err := runTest(t, tc)
+			assert.Equal(t, &InvalidVariableError{
+				ExtensionCode: errorcodes.ValidationInvalidTypeVariable,
+				Message:       `invalid type for variable: 'input'`,
+			}, err)
+		})
+
+		t.Run("variableFieldNotDefined", func(t *testing.T) {
+			tc := testCase{
+				schema:    `input Foo { bar: String! } input Bar { foo: Foo! } type Query { hello(arg: Bar!): String }`,
+				operation: `query Foo($input: Bar!) { hello(arg: $input) }`,
+				variables: `{"input":{"foo":{"bar":"hello","baz":"world"}}}`,
+			}
+			err := runTest(t, tc)
+			assert.Equal(t, &InvalidVariableError{
+				ExtensionCode: errorcodes.ValidationInvalidTypeVariable,
+				Message:       `invalid type for variable: 'input'`,
+			}, err)
+		})
+
+		// Apollo Router actually doesn't validate this case, but if they did, they would probably
+		// return this error
+		t.Run("variableEnumValueDoesNotExist", func(t *testing.T) {
+			tc := testCase{
+				schema:    `enum Foo { BAR } type Query { hello(arg: Foo!): String }`,
+				operation: `query Foo($bar: Foo!) { hello(arg: $bar) }`,
+				variables: `{"bar":"BAZ"}`,
+			}
+			err := runTest(t, tc)
+			assert.Equal(t, &InvalidVariableError{
+				ExtensionCode: errorcodes.ValidationInvalidTypeVariable,
+				Message:       `invalid type for variable: 'bar'`,
+			}, err)
+		})
+
+		t.Run("variableInvalidNull", func(t *testing.T) {
+			tc := testCase{
+				schema:    `enum Foo { BAR } type Query { hello(arg: Foo!): String }`,
+				operation: `query Foo($bar: Foo!) { hello(arg: $bar) }`,
+				variables: `{"bar":null}`,
+			}
+			err := runTest(t, tc)
+			assert.Equal(t, &InvalidVariableError{
+				ExtensionCode: errorcodes.ValidationInvalidTypeVariable,
+				Message:       `invalid type for variable: 'bar'`,
+			}, err)
+		})
+	})
+}
+
+func TestVariablesValidation(t *testing.T) {
 	t.Run("required field argument not provided", func(t *testing.T) {
 		tc := testCase{
 			schema:    `type Query { hello(arg: String!): String }`,
@@ -27,6 +169,18 @@ func TestVariablesValidation(t *testing.T) {
 		err := runTest(t, tc)
 		require.Error(t, err)
 		assert.Equal(t, `Variable "$bar" of required type "String!" was not provided.`, err.Error())
+	})
+
+	t.Run("required field argument not provided - with mapping", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Query { hello(arg: String!): String }`,
+			operation: `query Foo($bar: String!) { hello }`,
+			variables: `{}`,
+			mapping:   map[string]string{"bar": "bazz"},
+		}
+		err := runTest(t, tc)
+		require.Error(t, err)
+		assert.Equal(t, `Variable "$bazz" of required type "String!" was not provided.`, err.Error())
 	})
 
 	t.Run("a missing required input produces an error", func(t *testing.T) {
@@ -146,6 +300,18 @@ func TestVariablesValidation(t *testing.T) {
 		assert.Equal(t, `Variable "$input" got invalid value at "input.bar"; Got input type "String", want: "[String]"`, err.Error())
 	})
 
+	t.Run("nested argument is value instead of list - with mapping", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Query { hello(input: Input): String } input Input { bar: [String]! }`,
+			operation: `query Foo($input: Input) { hello(input: $input) }`,
+			variables: `{"honeypot":{"bar":"world"}}`,
+			mapping:   map[string]string{"input": "honeypot"},
+		}
+		err := runTest(t, tc)
+		require.NotNil(t, err)
+		assert.Equal(t, `Variable "$honeypot" got invalid value at "honeypot.bar"; Got input type "String", want: "[String]"`, err.Error())
+	})
+
 	t.Run("nested enum argument is value instead of list - with variable content", func(t *testing.T) {
 		tc := testCase{
 			schema:    `type Query { hello(input: Input): String } input Input { bar: [MyNum]! } enum MyNum { ONE TWO }`,
@@ -210,6 +376,18 @@ func TestVariablesValidation(t *testing.T) {
 		err := runTest(t, tc)
 		assert.NotNil(t, err)
 		assert.Equal(t, `Variable "$bar" got invalid value; Field "bar" of required type "Baz!" was not provided.`, err.Error())
+	})
+
+	t.Run("required nested field field argument of custom scalar not provided - with mapping", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Query { hello(arg: Foo!): String } input Foo { bar: Baz! } scalar Baz`,
+			operation: `query Foo($bar: Foo!) { hello(arg: $bar) }`,
+			variables: `{"abc":{}}`,
+			mapping:   map[string]string{"bar": "abc"},
+		}
+		err := runTest(t, tc)
+		assert.NotNil(t, err)
+		assert.Equal(t, `Variable "$abc" got invalid value; Field "bar" of required type "Baz!" was not provided.`, err.Error())
 	})
 
 	t.Run("required nested field field argument of custom scalar was null - with variable content", func(t *testing.T) {
@@ -1180,22 +1358,7 @@ func TestVariablesValidation(t *testing.T) {
 		err := runTest(t, tc)
 		require.NoError(t, err)
 	})
-	t.Run("extension code is propagated with apollo compatibility flag", func(t *testing.T) {
-		tc := testCase{
-			schema:    `type Query { hello(filter: String!): String }`,
-			operation: `query Foo($input: String!) { hello(filter: $input) }`,
-			variables: `{"input":null}`,
-		}
-		err := runTestWithOptions(t, tc, VariablesValidatorOptions{
-			ApolloCompatibilityFlags: apollocompatibility.Flags{
-				ReplaceInvalidVarError: true,
-			},
-		})
-		assert.Equal(t, &InvalidVariableError{
-			ExtensionCode: errorcodes.BadUserInput,
-			Message:       `Variable "$input" got invalid value null; Expected non-nullable type "String!" not to be null.`,
-		}, err)
-	})
+
 	t.Run("optional Int input object field provided with 1", func(t *testing.T) {
 		tc := testCase{
 			schema:    `input Foo { bar: Int } type Query { hello(arg: Foo): String }`,
@@ -1308,11 +1471,255 @@ func TestVariablesValidation(t *testing.T) {
 		require.Error(t, err)
 		assert.Equal(t, `Variable "$input" got invalid value at "input.foo.bar"; String cannot represent a non string value`, err.Error())
 	})
+
+	t.Run("nested input object provided with null for Upload", func(t *testing.T) {
+		tc := testCase{
+			schema:    `input Foo { file: Upload! } type Query { hello(arg: Foo!): String }`,
+			operation: `query Foo($input: Foo!) { hello(arg: $input) }`,
+			variables: `{"input":{"file":null}}`,
+		}
+		err := runTest(t, tc)
+		require.NoError(t, err)
+	})
+
+	t.Run("nested input object on nested input object provided with null for Upload", func(t *testing.T) {
+		tc := testCase{
+			schema:    `input Foo { bar: Upload! } input Bar { foo: Foo! } type Query { hello(arg: Bar!): String }`,
+			operation: `query Foo($input: Bar!) { hello(arg: $input) }`,
+			variables: `{"input":{"foo":{"bar":null}}}`,
+		}
+		err := runTest(t, tc)
+		require.NoError(t, err)
+	})
+
+	t.Run("oneOf input objects", func(t *testing.T) {
+		catDogSchema := `
+			input PetInput @oneOf {
+				cat: String, dog: String
+			}
+			type Query {
+				pet(input: PetInput!): String
+			}`
+		t.Run("valid cases", func(t *testing.T) {
+			t.Run("exactly one field provided", func(t *testing.T) {
+				tc := testCase{
+					schema:    catDogSchema,
+					operation: `query($input: PetInput!) { pet(input: $input) }`,
+					variables: `{"input": {"cat": "Fluffy"}}`,
+				}
+				err := runTest(t, tc)
+				require.NoError(t, err)
+			})
+			t.Run("exactly one field provided - different field", func(t *testing.T) {
+				tc := testCase{
+					schema:    catDogSchema,
+					operation: `query($input: PetInput!) { pet(input: $input) }`,
+					variables: `{"input": {"dog": "Rex"}}`,
+				}
+				err := runTest(t, tc)
+				require.NoError(t, err)
+			})
+			t.Run("exactly one field provided - via nested var", func(t *testing.T) {
+				tc := testCase{
+					schema:    catDogSchema,
+					operation: `query($s: String) { pet(input: {cat: $s} ) }`,
+					variables: `{"s": "Rex"}`,
+				}
+				err := runTest(t, tc)
+				require.NoError(t, err)
+			})
+			t.Run("exactly one field with complex type", func(t *testing.T) {
+				tc := testCase{
+					schema:    `input CatInput { name: String! } input PetInput @oneOf { cat: CatInput, dog: String } type Query { pet(input: PetInput!): String }`,
+					operation: `query($input: PetInput!) { pet(input: $input) }`,
+					variables: `{"input": {"cat": {"name": "Fluffy"}}}`,
+				}
+				err := runTest(t, tc)
+				require.NoError(t, err)
+			})
+		})
+
+		t.Run("invalid cases", func(t *testing.T) {
+			t.Run("no fields provided", func(t *testing.T) {
+				tc := testCase{
+					schema:    catDogSchema,
+					operation: `query($input: PetInput!) { pet(input: $input) }`,
+					variables: `{"input": {}}`,
+				}
+				err := runTest(t, tc)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), `OneOf input object "PetInput" must have exactly one field provided, but 0 fields were provided`)
+			})
+			t.Run("multiple fields provided", func(t *testing.T) {
+				tc := testCase{
+					schema:    catDogSchema,
+					operation: `query($input: PetInput!) { pet(input: $input) }`,
+					variables: `{"input": {"cat": "Fluffy", "dog": "Rex"}}`,
+				}
+				err := runTest(t, tc)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), `OneOf input object "PetInput" must have exactly one field provided, but 2 fields were provided`)
+			})
+			t.Run("multiple fields with one null", func(t *testing.T) {
+				tc := testCase{
+					schema:    catDogSchema,
+					operation: `query($input: PetInput!) { pet(input: $input) }`,
+					variables: `{"input": {"cat": "Fluffy", "dog": null}}`,
+				}
+				err := runTest(t, tc)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), `Variable "$input" got invalid value; OneOf input object "PetInput" must have exactly one field provided, but 2 fields were provided`)
+			})
+			t.Run("one field provided but null", func(t *testing.T) {
+				tc := testCase{
+					schema:    catDogSchema,
+					operation: `query($input: PetInput!) { pet(input: $input) }`,
+					variables: `{"input": {"dog": null}}`,
+				}
+				err := runTest(t, tc)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), `Variable "$input" got invalid value; OneOf input object "PetInput" field "dog" value must be non-null`)
+			})
+
+			t.Run("all fields null", func(t *testing.T) {
+				tc := testCase{
+					schema:    catDogSchema,
+					operation: `query($input: PetInput!) { pet(input: $input) }`,
+					variables: `{"input": {"cat": null, "dog": null}}`,
+				}
+				err := runTest(t, tc)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), `Variable "$input" got invalid value; OneOf input object "PetInput" must have exactly one field provided, but 2 fields were provided`)
+			})
+		})
+
+		t.Run("nested oneOf input objects", func(t *testing.T) {
+			t.Run("valid nested oneOf", func(t *testing.T) {
+				tc := testCase{
+					schema: `
+						input PetInput @oneOf { cat: String, dog: String }
+						input SearchInput @oneOf { byName: String, byPet: PetInput }
+						type Query { search(input: SearchInput!): String }
+					`,
+					operation: `query($input: SearchInput!) { search(input: $input) }`,
+					variables: `{"input": {"byPet": {"cat": "Fluffy"}}}`,
+				}
+				err := runTest(t, tc)
+				require.NoError(t, err)
+			})
+
+			t.Run("invalid nested oneOf - inner violation", func(t *testing.T) {
+				tc := testCase{
+					schema: `
+						input PetInput @oneOf { cat: String, dog: String }
+						input SearchInput @oneOf { byName: String, byPet: PetInput }
+						type Query { search(input: SearchInput!): String }
+					`,
+					operation: `query($input: SearchInput!) { search(input: $input) }`,
+					variables: `{"input": {"byPet": {"cat": "Fluffy", "dog": "Rex"}}}`,
+				}
+				err := runTest(t, tc)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), `Variable "$input" got invalid value at "input.byPet"; OneOf input object "PetInput" must have exactly one field provided, but 2 fields were provided`)
+			})
+
+			t.Run("invalid nested oneOf - outer violation", func(t *testing.T) {
+				tc := testCase{
+					schema: `
+						input PetInput @oneOf { cat: String, dog: String }
+						input SearchInput @oneOf { byName: String, byPet: PetInput }
+						type Query { search(input: SearchInput!): String }
+					`,
+					operation: `query($input: SearchInput!) { search(input: $input) }`,
+					variables: `{"input": {"byName": "Fluffy", "byPet": {"cat": "Fluffy"}}}`,
+				}
+				err := runTest(t, tc)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), `Variable "$input" got invalid value; OneOf input object "SearchInput" must have exactly one field provided, but 2 fields were provided`)
+			})
+		})
+
+		t.Run("oneOf with lists", func(t *testing.T) {
+			t.Run("valid list of oneOf", func(t *testing.T) {
+				tc := testCase{
+					schema: `
+						input PetInput @oneOf { cat: String, dog: String }
+						type Query { pets(input: [PetInput!]!): String }`,
+					operation: `query($input: [PetInput!]!) { pets(input: $input) }`,
+					variables: `{"input": [{"cat": "Fluffy"}, {"dog": "Rex"}]}`,
+				}
+				err := runTest(t, tc)
+				require.NoError(t, err)
+			})
+			t.Run("invalid list of oneOf - one element violates", func(t *testing.T) {
+				tc := testCase{
+					schema: `
+						input PetInput @oneOf { cat: String, dog: String }
+						type Query { pets(input: [PetInput!]!): String }`,
+					operation: `query($input: [PetInput!]!) { pets(input: $input) }`,
+					variables: `{"input": [{"cat": "Fluffy"}, {"cat": "Whiskers", "dog": "Rex"}]}`,
+				}
+				err := runTest(t, tc)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), `Variable "$input" got invalid value at "input.[1]"; OneOf input object "PetInput" must have exactly one field provided, but 2 fields were provided`)
+			})
+			t.Run("oneOf field is list", func(t *testing.T) {
+				tc := testCase{
+					schema: `
+						input SearchInput @oneOf { names: [String!], ids: [ID!] }
+						type Query { search(input: SearchInput!): String }`,
+					operation: `query($input: SearchInput!) { search(input: $input) }`,
+					variables: `{"input": {"names": ["Fluffy", "Rex"]}}`,
+				}
+				err := runTest(t, tc)
+				require.NoError(t, err)
+			})
+			t.Run("oneOf field is an empty list", func(t *testing.T) {
+				tc := testCase{
+					schema: `
+						input SearchInput @oneOf { names: [String!], ids: [ID!] }
+						type Query { search(input: SearchInput!): String }`,
+					operation: `query($input: SearchInput!) { search(input: $input) }`,
+					variables: `{"input": {"names": []}}`,
+				}
+				err := runTest(t, tc)
+				require.NoError(t, err)
+			})
+		})
+
+		t.Run("oneOf with variables content enabled", func(t *testing.T) {
+			t.Run("multiple fields error with content", func(t *testing.T) {
+				tc := testCase{
+					schema:    `input PetInput @oneOf { cat: String, dog: String } type Query { pet(input: PetInput!): String }`,
+					operation: `query($input: PetInput!) { pet(input: $input) }`,
+					variables: `{"input": {"cat": "Fluffy", "dog": "Rex"}}`,
+				}
+				err := runTestWithVariablesContentEnabled(t, tc)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), `Variable "$input" got invalid value {"cat":"Fluffy","dog":"Rex"}; OneOf input object "PetInput" must have exactly one field provided, but 2 fields were provided`)
+			})
+			t.Run("nested oneOf error shows the value", func(t *testing.T) {
+				tc := testCase{
+					schema: `
+                input PetInput @oneOf { cat: String, dog: String }
+                input SearchInput { pets: [PetInput!] }
+                type Query { search(input: SearchInput!): String }
+            `,
+					operation: `query($input: SearchInput!) { search(input: $input) }`,
+					variables: `{"input": {"pets": [{"cat": "Fluffy"}, {"cat": null}]}}`,
+				}
+				err := runTestWithVariablesContentEnabled(t, tc)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), `Variable "$input" got invalid value {"cat":null} at "input.pets.[1]"; OneOf input object "PetInput" field "cat" value must be non-null`)
+			})
+		})
+	})
 }
 
 type testCase struct {
 	schema, operation, variables string
 	withNormalization            bool
+	mapping                      map[string]string
 }
 
 func runTest(t *testing.T, tc testCase) error {
@@ -1341,7 +1748,8 @@ func runTestWithOptions(t *testing.T, tc testCase, options VariablesValidatorOpt
 		}
 	}
 	validator := NewVariablesValidator(options)
-	return validator.Validate(&op, &def, op.Input.Variables)
+
+	return validator.ValidateWithRemap(&op, &def, op.Input.Variables, tc.mapping)
 }
 
 var inputSchema = `

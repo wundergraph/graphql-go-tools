@@ -1,6 +1,8 @@
 package ast
 
 import (
+	"bytes"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/position"
 )
@@ -61,5 +63,14 @@ func (d *Document) ImportScalarTypeDefinitionWithDirectives(name, description st
 	ref = d.AddScalarTypeDefinition(definition)
 	d.ImportRootNode(ref, NodeKindScalarTypeDefinition)
 
+	return
+}
+
+func (d *Document) ScalarTypeDefinitionDirectiveByName(scalarDefRef int, directiveName ByteSlice) (ref int, exists bool) {
+	for _, i := range d.ScalarTypeDefinitions[scalarDefRef].Directives.Refs {
+		if bytes.Equal(directiveName, d.DirectiveNameBytes(i)) {
+			return i, true
+		}
+	}
 	return
 }

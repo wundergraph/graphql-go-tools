@@ -11,19 +11,22 @@ type ValidationResult struct {
 	Errors graphqlerrors.Errors
 }
 
-func (r *Request) ValidateForSchema(schema *Schema) (result ValidationResult, err error) {
+func (r *Request) ValidateForSchema(schema *Schema, options ...astvalidation.Option) (result ValidationResult, err error) {
 	if schema == nil {
 		return ValidationResult{Valid: false, Errors: nil}, ErrNilSchema
 	}
 
 	schemaHash := schema.Hash()
+	useCache := len(options) == 0
 
 	if r.validForSchema == nil {
 		r.validForSchema = map[uint64]ValidationResult{}
 	}
 
-	if result, ok := r.validForSchema[schemaHash]; ok {
-		return result, nil
+	if useCache {
+		if result, ok := r.validForSchema[schemaHash]; ok {
+			return result, nil
+		}
 	}
 
 	report := r.parseQueryOnce()
@@ -31,13 +34,15 @@ func (r *Request) ValidateForSchema(schema *Schema) (result ValidationResult, er
 		return operationValidationResultFromReport(report)
 	}
 
-	validator := astvalidation.DefaultOperationValidator()
+	validator := astvalidation.DefaultOperationValidator(options...)
 	validator.Validate(&r.document, &schema.document, &report)
 	result, err = operationValidationResultFromReport(report)
 	if err != nil {
 		return result, err
 	}
-	r.validForSchema[schemaHash] = result
+	if useCache {
+		r.validForSchema[schemaHash] = result
+	}
 	return result, err
 }
 

@@ -4,10 +4,8 @@ import (
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/products/graph/model"
 )
 
-var hats []*model.Product
-
-func Reset() {
-	hats = []*model.Product{
+func newProducts() []*model.Product {
+	return []*model.Product{
 		{
 			Upc:     "top-1",
 			Name:    "Trilby",
@@ -27,8 +25,4 @@ func Reset() {
 			InStock: 850,
 		},
 	}
-}
-
-func init() {
-	Reset()
 }

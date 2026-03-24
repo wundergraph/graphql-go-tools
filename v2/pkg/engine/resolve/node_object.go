@@ -9,8 +9,6 @@ type Object struct {
 	Nullable bool
 	Path     []string
 	Fields   []*Field
-	Fetches  []Fetch
-	Fetch    Fetch
 
 	PossibleTypes map[string]struct{} `json:"-"`
 	SourceName    string              `json:"-"`
@@ -26,11 +24,10 @@ func (o *Object) Copy() Node {
 		Nullable: o.Nullable,
 		Path:     o.Path,
 		Fields:   fields,
-		Fetches:  o.Fetches,
 	}
 }
 
-func (_ *Object) NodeKind() NodeKind {
+func (*Object) NodeKind() NodeKind {
 	return NodeKindObject
 }
 
@@ -68,24 +65,24 @@ func (o *Object) Equals(n Node) bool {
 
 type EmptyObject struct{}
 
-func (_ *EmptyObject) NodeKind() NodeKind {
+func (*EmptyObject) NodeKind() NodeKind {
 	return NodeKindEmptyObject
 }
 
-func (_ *EmptyObject) NodePath() []string {
+func (*EmptyObject) NodePath() []string {
 	return nil
 }
 
-func (_ *EmptyObject) NodeNullable() bool {
+func (*EmptyObject) NodeNullable() bool {
 	return false
 }
 
-func (_ *EmptyObject) Equals(n Node) bool {
+func (*EmptyObject) Equals(n Node) bool {
 	_, ok := n.(*EmptyObject)
 	return ok
 }
 
-func (_ *EmptyObject) Copy() Node {
+func (*EmptyObject) Copy() Node {
 	return &EmptyObject{}
 }
 

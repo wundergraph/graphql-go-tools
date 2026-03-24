@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/cespare/xxhash/v2"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
@@ -117,7 +118,7 @@ func (m *Minifier) Minify(operation []byte, definition *ast.Document, options Mi
 		return
 	}
 	if options.Pretty {
-		p := astprinter.NewPrinter([]byte("  "))
+		p := astprinter.NewPrinter([]byte("    "))
 		return true, p.Print(m.out, out)
 	}
 	return true, k.printer.Print(m.out, out)

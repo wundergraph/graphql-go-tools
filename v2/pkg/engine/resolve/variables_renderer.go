@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/buger/jsonparser"
+
 	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -349,7 +350,7 @@ var (
 func (g *GraphQLVariableResolveRenderer) getResolvable() *Resolvable {
 	v := _graphQLVariableResolveRendererPool.Get()
 	if v == nil {
-		return NewResolvable(ResolvableOptions{})
+		return NewResolvable(nil, ResolvableOptions{})
 	}
 	return v.(*Resolvable)
 }

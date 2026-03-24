@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization/uploads"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
@@ -194,6 +195,176 @@ func TestNormalizeOperation(t *testing.T) {
 						}
 					}
 				}`, ``, ``)
+	})
+
+	// The following 3 tests are to test the combined logic of inline fragment selection merging
+	// and a field selection merging. When applied separately, they could not merge the field and
+	// fragments.
+	t.Run("combined inline fragment fields merging 1", func(t *testing.T) {
+		run(t, testDefinition, `
+				query q {
+					pet {
+						... on Dog {
+								... on Pet {
+									...DogName
+									...DogExtraString
+								}
+						}
+					}
+					pet {
+						... on Dog {
+								...DogBarkVolume
+								...DogExtraString
+						}
+					}
+				}
+				fragment DogName on Pet { ... on Dog { name } }
+				fragment DogBarkVolume on Pet { ... on Dog { barkVolume } }
+				fragment DogExtraString on Dog {
+					...DogName
+					extras { 
+						... on DogExtra {
+							string 
+						}
+					}
+				} `, `
+				query q {
+					pet {
+						... on Dog {
+							name
+							extras { 
+								string 
+							}
+							barkVolume
+						}
+					}
+				}`, ``, ``)
+	})
+
+	t.Run("combined inline fragment fields merging 2", func(t *testing.T) {
+		run(t, testDefinition, `
+				query q {
+					pet {
+						...DogExtraString
+					}
+					pet {
+						... on Dog {
+							extras {
+								... on DogExtra {
+									string1
+								}
+							}
+						}
+					}
+				}
+				fragment DogExtraString on Dog {
+					extras { 
+						... on DogExtra {
+							string
+						}
+						... on Pet {
+							__typename
+						}
+					}
+				} `, `
+				query q {
+					pet {
+						... on Dog {
+							extras {
+								string
+								... on Pet {
+									__typename
+								}
+								string1
+							}
+						}
+					}
+				}`, ``, ``)
+	})
+
+	t.Run("combined inline fragment fields merging 3", func(t *testing.T) {
+		run(t, ` schema { query: Query }
+				scalar ID
+				scalar String
+
+				type Query {
+					requestForQuote(id: ID!): Request
+				}
+				type Request { draftQuotePackage: QuotePackage }
+				type QuotePackage { requestedParts: Parts }
+				type Parts { edges: [PartEdge] }
+				type PartEdge { quote: Quote }
+				type Quote { quoteRevision: QuoteRevisionUnion }
+				union QuoteRevisionUnion = QuoteRevision | Node
+				type QuoteRevision { partBreakdown: PartBreakdown }
+				type Node { name: String! }
+				type PartBreakdown {
+					breakdownType: String!
+					cost: String!
+				} `, `
+				query SimplePartQuoteEditorQuery($requestForQuoteId: ID!) {
+				  requestForQuote(id: $requestForQuoteId) {
+					draftQuotePackage {
+					  ...useBreakdownTypeFilter_quotePackage
+					  requestedParts {
+						edges {
+						  quote {
+							quoteRevision {
+							  ... on QuoteRevision {
+								partBreakdown {
+								  cost
+								}
+							  }
+							}
+						  }
+						}
+					  }
+					}
+				  }
+				}
+
+				fragment useBreakdownTypeFilter_quotePackage on QuotePackage {
+				  requestedParts {
+					edges {
+					  quote {
+						quoteRevision {
+						  ... on QuoteRevision {
+							partBreakdown {
+							  breakdownType
+							}
+						  }
+						  ... on Node {
+							__isNode: __typename
+						  }
+						}
+					  }
+					}
+				  }
+				}
+`, `
+				query SimplePartQuoteEditorQuery($requestForQuoteId: ID!) {
+				  requestForQuote(id: $requestForQuoteId) {
+					draftQuotePackage {
+					  requestedParts {
+						edges {
+						  quote {
+							quoteRevision {
+							  ... on QuoteRevision {
+								partBreakdown {
+								  breakdownType
+								  cost
+								}
+							  }
+							  ... on Node {
+								__isNode: __typename
+							  }
+							}
+						  }
+						}
+					  }
+					}
+				  }
+				}`, `123`, `123`)
 	})
 
 	t.Run("fragments", func(t *testing.T) {
@@ -442,7 +613,7 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
 		NormalizeNamedOperation(&operation, &definition, []byte("Items"), &report)
 		assert.False(t, report.HasErrors())
 
-		actual, _ := astprinter.PrintStringIndent(&operation, " ")
+		actual, _ := astprinter.PrintStringIndent(&operation, "  ")
 		assert.Equal(t, expectedQuery, actual)
 	})
 
@@ -751,7 +922,7 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
 		NormalizeNamedOperation(&operation, &definition, []byte("B"), &report)
 		assert.False(t, report.HasErrors())
 
-		actual, _ := astprinter.PrintStringIndent(&operation, " ")
+		actual, _ := astprinter.PrintStringIndent(&operation, "  ")
 		assert.Equal(t, expectedQuery, actual)
 
 		expectedVariables := ``
@@ -827,36 +998,70 @@ func TestParseMissingBaseSchema(t *testing.T) {
 
 func TestVariablesNormalizer(t *testing.T) {
 	t.Parallel()
-	input := `
-		mutation HttpBinPost($foo: String! = "bar" $bar: String! $bazz: String){
-		  httpBinPost(input: {foo: $foo bar: $bazz}){
-			headers {
-			  userAgent
+
+	t.Run("httpBinPost", func(t *testing.T) {
+		t.Parallel()
+		input := `
+			mutation HttpBinPost($foo: String! = "bar" $bar: String! $bazz: String){
+			  httpBinPost(input: {foo: $foo bar: $bazz}){
+				headers {
+				  userAgent
+				}
+				data {
+				  foo
+				}
+			  }
 			}
-			data {
-			  foo
-			}
-		  }
-		}
 		`
 
-	definitionDocument := unsafeparser.ParseGraphqlDocumentString(variablesExtractionDefinition)
-	err := asttransform.MergeDefinitionWithBaseSchema(&definitionDocument)
-	if err != nil {
-		panic(err)
-	}
+		definitionDocument := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(variablesExtractionDefinition)
+		operationDocument := unsafeparser.ParseGraphqlDocumentString(input)
+		operationDocument.Input.Variables = []byte(`{}`)
 
-	operationDocument := unsafeparser.ParseGraphqlDocumentString(input)
-	operationDocument.Input.Variables = []byte(`{}`)
+		normalizer := NewVariablesNormalizer()
+		report := operationreport.Report{}
+		normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
+		require.False(t, report.HasErrors(), report.Error())
 
-	normalizer := NewVariablesNormalizer()
-	report := operationreport.Report{}
-	normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
-	require.False(t, report.HasErrors(), report.Error())
+		out := unsafeprinter.Print(&operationDocument)
+		assert.Equal(t, `mutation HttpBinPost($bar: String!, $a: HttpBinPostInput){httpBinPost(input: $a){headers {userAgent} data {foo}}}`, out)
+		require.Equal(t, `{"a":{"foo":"bar"}}`, string(operationDocument.Input.Variables))
+	})
 
-	out := unsafeprinter.Print(&operationDocument)
-	assert.Equal(t, `mutation HttpBinPost($bar: String!, $a: HttpBinPostInput){httpBinPost(input: $a){headers {userAgent} data {foo}}}`, out)
-	require.Equal(t, `{"a":{"foo":"bar","bar":null}}`, string(operationDocument.Input.Variables))
+	t.Run("file uploads", func(t *testing.T) {
+		definitionDocument := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(`
+			scalar Upload
+			input Input {list: [Upload!]! value: Upload!}
+			input Input2 {oneList: [Input!]! one: Input!}
+			input Input3 {twoList: [Input2!]! two: Input2!}
+			type Mutation { hello(arg: Input3!): String }
+		`)
+
+		operationDocument := unsafeparser.ParseGraphqlDocumentString(`mutation Foo($varOne: [Input2!]! $varTwo: Input2!) { hello(arg: {twoList: $varOne two: $varTwo}) }`)
+		operationDocument.Input.Variables = []byte(`{"varOne":[{"oneList":[{"list":[null,null],"value":null}],"one":{"list":[null],"value":null}}],"varTwo":{"oneList":[{"list":[null,null],"value":null}],"one":{"list":[null],"value":null}}}`)
+
+		normalizer := NewVariablesNormalizer()
+		report := operationreport.Report{}
+		uploadsMapping := normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
+		require.False(t, report.HasErrors(), report.Error())
+
+		out := unsafeprinter.Print(&operationDocument)
+		assert.Equal(t, `mutation Foo($a: Input3!){hello(arg: $a)}`, out)
+		require.Equal(t, `{"a":{"twoList":[{"oneList":[{"list":[null,null],"value":null}],"one":{"list":[null],"value":null}}],"two":{"oneList":[{"list":[null,null],"value":null}],"one":{"list":[null],"value":null}}}}`, string(operationDocument.Input.Variables))
+
+		assert.Equal(t, []uploads.UploadPathMapping{
+			{VariableName: "a", OriginalUploadPath: "variables.varOne.0.oneList.0.list.0", NewUploadPath: "variables.a.twoList.0.oneList.0.list.0"},
+			{VariableName: "a", OriginalUploadPath: "variables.varOne.0.oneList.0.list.1", NewUploadPath: "variables.a.twoList.0.oneList.0.list.1"},
+			{VariableName: "a", OriginalUploadPath: "variables.varOne.0.oneList.0.value", NewUploadPath: "variables.a.twoList.0.oneList.0.value"},
+			{VariableName: "a", OriginalUploadPath: "variables.varOne.0.one.list.0", NewUploadPath: "variables.a.twoList.0.one.list.0"},
+			{VariableName: "a", OriginalUploadPath: "variables.varOne.0.one.value", NewUploadPath: "variables.a.twoList.0.one.value"},
+			{VariableName: "a", OriginalUploadPath: "variables.varTwo.oneList.0.list.0", NewUploadPath: "variables.a.two.oneList.0.list.0"},
+			{VariableName: "a", OriginalUploadPath: "variables.varTwo.oneList.0.list.1", NewUploadPath: "variables.a.two.oneList.0.list.1"},
+			{VariableName: "a", OriginalUploadPath: "variables.varTwo.oneList.0.value", NewUploadPath: "variables.a.two.oneList.0.value"},
+			{VariableName: "a", OriginalUploadPath: "variables.varTwo.one.list.0", NewUploadPath: "variables.a.two.one.list.0"},
+			{VariableName: "a", OriginalUploadPath: "variables.varTwo.one.value", NewUploadPath: "variables.a.two.one.value"},
+		}, uploadsMapping)
+	})
 }
 
 func BenchmarkAstNormalization(b *testing.B) {

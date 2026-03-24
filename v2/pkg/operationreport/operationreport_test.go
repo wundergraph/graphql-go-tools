@@ -18,16 +18,16 @@ func TestExternalErrorMessage(t *testing.T) {
 	}
 
 	t.Run("Passing a non-report returns false",
-		runExternalErrorMessage(testErrorLevel1, false, ""),
+		runExternalErrorMessage(errTestLevel1, false, ""),
 	)
 
 	t.Run("Passing a report retrieves the inner error",
-		runExternalErrorMessage(testWrappedReport, true, externalErrorString),
+		runExternalErrorMessage(errTestWrappedReport, true, externalErrorString),
 	)
 }
 
 func TestUnwrappedErrorMessage(t *testing.T) {
-	actual := UnwrappedErrorMessage(testErrorLevel2)
+	actual := UnwrappedErrorMessage(errTestLevel2)
 	assert.Equal(t, testErrorString, actual)
 }
 
@@ -59,6 +59,6 @@ var testReport = Report{
 	},
 }
 
-var testErrorLevel1 = errors.New(testErrorString)
-var testErrorLevel2 = fmt.Errorf("level 2: %w", testErrorLevel1)
-var testWrappedReport = fmt.Errorf("level 2: %w", testReport)
+var errTestLevel1 = errors.New(testErrorString)
+var errTestLevel2 = fmt.Errorf("level 2: %w", errTestLevel1)
+var errTestWrappedReport = fmt.Errorf("level 2: %w", testReport)

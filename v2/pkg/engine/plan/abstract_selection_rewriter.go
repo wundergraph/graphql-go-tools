@@ -1,18 +1,23 @@
 package plan
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"slices"
-	"sort"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 var (
-	FieldDoesntHaveSelectionSetErr          = errors.New("unexpected error: field does not have a selection set")
-	InlineFragmentDoesntHaveSelectionSetErr = errors.New("unexpected error: inline fragment does not have a selection set")
-	InlineFragmentTypeIsNotExistsErr        = errors.New("unexpected error: inline fragment type condition does not exists")
+	ErrFieldHasNoSelectionSet          = errors.New("unexpected error: field does not have a selection set")
+	ErrInlineFragmentHasNoSelectionSet = errors.New("unexpected error: inline fragment does not have a selection set")
+	ErrInlineFragmentHasNoCondition    = errors.New("unexpected error: inline fragment type condition does not exist")
+
+	ErrNoUpstreamSchema = errors.New("unexpected error: upstream schema is not defined in DataSource")
 )
 
 /*
@@ -60,40 +65,83 @@ type fieldSelectionRewriter struct {
 
 	upstreamDefinition *ast.Document
 	dsConfiguration    DataSource
+
+	skipFieldRefs []int
+	alwaysRewrite bool
 }
 
-func newFieldSelectionRewriter(operation *ast.Document, definition *ast.Document) *fieldSelectionRewriter {
-	return &fieldSelectionRewriter{
-		operation:  operation,
-		definition: definition,
+type RewriteResult struct {
+	rewritten        bool
+	changedFieldRefs map[int][]int // map[fieldRef][]fieldRef - for each original fieldRef list of new fieldRefs
+}
+
+var resultNotRewritten = RewriteResult{}
+
+type rewriterOption func(*rewriterOptions)
+
+type rewriterOptions struct {
+	forceRewrite bool
+}
+
+func withForceRewrite() rewriterOption {
+	return func(o *rewriterOptions) {
+		o.forceRewrite = true
 	}
 }
 
-func (r *fieldSelectionRewriter) SetUpstreamDefinition(upstreamDefinition *ast.Document) {
-	r.upstreamDefinition = upstreamDefinition
-}
-
-func (r *fieldSelectionRewriter) SetDatasourceConfiguration(dsConfiguration DataSource) {
-	r.dsConfiguration = dsConfiguration
-}
-
-func (r *fieldSelectionRewriter) RewriteFieldSelection(fieldRef int, enclosingNode ast.Node) (rewritten bool, err error) {
-	fieldTypeNode, ok := r.definition.FieldTypeNode(r.operation.FieldNameBytes(fieldRef), enclosingNode)
+func newFieldSelectionRewriter(operation *ast.Document, definition *ast.Document, dsConfiguration DataSource, options ...rewriterOption) (*fieldSelectionRewriter, error) {
+	upstreamDefinition, ok := dsConfiguration.UpstreamSchema()
 	if !ok {
-		return false, nil
+		return nil, ErrNoUpstreamSchema
 	}
+
+	opts := &rewriterOptions{}
+	for _, option := range options {
+		option(opts)
+	}
+
+	return &fieldSelectionRewriter{
+		operation:          operation,
+		definition:         definition,
+		upstreamDefinition: upstreamDefinition,
+		dsConfiguration:    dsConfiguration,
+		alwaysRewrite:      dsConfiguration.PlanningBehavior().AlwaysFlattenFragments || opts.forceRewrite,
+	}, nil
+}
+
+func (r *fieldSelectionRewriter) RewriteFieldSelection(fieldRef int, enclosingNode ast.Node) (res RewriteResult, err error) {
+	fieldName := r.operation.FieldNameBytes(fieldRef)
+	fieldTypeNode, ok := r.definition.FieldTypeNode(fieldName, enclosingNode)
+	if !ok {
+		return resultNotRewritten, nil
+	}
+
+	enclosingTypeName := r.definition.NodeNameBytes(enclosingNode)
 
 	switch fieldTypeNode.Kind {
 	case ast.NodeKindInterfaceTypeDefinition:
-		return r.processInterfaceSelection(fieldRef, fieldTypeNode.Ref)
+		res, err = r.processInterfaceSelection(fieldRef, fieldTypeNode.Ref, enclosingTypeName)
+		if err != nil {
+			return resultNotRewritten, fmt.Errorf("failed to rewrite field %s.%s with the interface return type: %w", enclosingTypeName, fieldName, err)
+		}
 	case ast.NodeKindUnionTypeDefinition:
-		return r.processUnionSelection(fieldRef, fieldTypeNode.Ref)
+		res, err = r.processUnionSelection(fieldRef, fieldTypeNode.Ref, enclosingTypeName)
+		if err != nil {
+			return resultNotRewritten, fmt.Errorf("failed to rewrite field %s.%s with the union return type: %w", enclosingTypeName, fieldName, err)
+		}
+	case ast.NodeKindObjectTypeDefinition:
+		res, err = r.processObjectSelection(fieldRef, fieldTypeNode.Ref)
+		if err != nil {
+			return resultNotRewritten, fmt.Errorf("failed to rewrite field %s.%s with the object return type: %w", enclosingTypeName, fieldName, err)
+		}
 	default:
-		return false, nil
+		return resultNotRewritten, nil
 	}
+
+	return res, nil
 }
 
-func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef int) (rewritten bool, err error) {
+func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef int, enclosingTypeName ast.ByteSlice) (res RewriteResult, err error) {
 	/*
 		1) extract inline fragments selections with interface types
 		2) extract inline fragments selections with members of the union
@@ -102,55 +150,79 @@ func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef
 		5) append existing inline fragments with fields from the interfaces
 	*/
 
-	unionTypeName := r.definition.UnionTypeDefinitionNameBytes(unionDefRef)
-	node, hasNode := r.upstreamDefinition.NodeByName(unionTypeName)
-	if !hasNode {
-		return false, errors.New("unexpected error: union type definition not found in the upstream schema")
+	unionTypeNames, err := r.getAllowedUnionMemberTypeNames(fieldRef, unionDefRef, enclosingTypeName)
+	if err != nil {
+		return resultNotRewritten, err
 	}
-	if node.Kind != ast.NodeKindUnionTypeDefinition {
-		return false, errors.New("unexpected error: node kind is not union type definition in the upstream schema")
-	}
-
-	unionTypeNames, ok := r.upstreamDefinition.UnionTypeDefinitionMemberTypeNames(node.Ref)
-	if !ok {
-		return false, nil
-	}
-
-	sort.Strings(unionTypeNames)
 
 	entityNames, _ := r.datasourceHasEntitiesWithName(unionTypeNames)
 
 	selectionSetInfo, err := r.collectFieldInformation(fieldRef)
 	if err != nil {
-		return false, err
+		return resultNotRewritten, err
 	}
 
 	needRewrite := r.unionFieldSelectionNeedsRewrite(selectionSetInfo, unionTypeNames, entityNames)
 	if !needRewrite {
-		return false, nil
+		return resultNotRewritten, nil
 	}
 
-	err = r.rewriteUnionSelection(fieldRef, selectionSetInfo, unionTypeNames, entityNames)
+	fieldRefPaths, _, err := collectPath(r.operation, r.definition, fieldRef, true)
 	if err != nil {
-		return false, err
+		return resultNotRewritten, err
 	}
 
-	return needRewrite, nil
+	err = r.rewriteUnionSelection(fieldRef, selectionSetInfo, unionTypeNames)
+	if err != nil {
+		return resultNotRewritten, err
+	}
+
+	changedRefs, err := r.collectChangedRefs(fieldRef, fieldRefPaths)
+	if err != nil {
+		return resultNotRewritten, err
+	}
+
+	return RewriteResult{
+		rewritten:        true,
+		changedFieldRefs: changedRefs,
+	}, nil
+}
+
+func (r *fieldSelectionRewriter) mustRewrite(s selectionSetInfo) bool {
+	return r.alwaysRewrite &&
+		(s.hasInlineFragmentsOnInterfaces ||
+			s.hasInlineFragmentsOnUnions ||
+			s.hasInlineFragmentsOnObjects)
 }
 
 func (r *fieldSelectionRewriter) unionFieldSelectionNeedsRewrite(selectionSetInfo selectionSetInfo, unionTypeNames, entityNames []string) (needRewrite bool) {
-	// when we have types not exists in the current datasource - we need to rewrite
-	if !r.allFragmentTypesExistsOnDatasource(selectionSetInfo.inlineFragmentsOnObjects) {
+	if r.mustRewrite(selectionSetInfo) {
 		return true
 	}
+	if selectionSetInfo.hasInlineFragmentsOnObjects {
+		// when we have types not exists in the current datasource - we need to rewrite
+		if r.objectFragmentsRequiresCleanup(selectionSetInfo.inlineFragmentsOnObjects, unionTypeNames) {
+			return true
+		}
+	}
 
-	// when we do not have fragments on interfaces, but only on objects - we do not need to rewrite
-	if !selectionSetInfo.hasInlineFragmentsOnInterfaces {
+	// when we do not have fragments on interfaces or union, but only on objects - we do not need to rewrite
+	if !selectionSetInfo.hasInlineFragmentsOnInterfaces && !selectionSetInfo.hasInlineFragmentsOnUnions {
 		return false
 	}
 
-	if r.interfaceFragmentsRequiresCleanup(selectionSetInfo.inlineFragmentsOnInterfaces, unionTypeNames) {
+	if selectionSetInfo.hasInlineFragmentsOnInterfaces &&
+		r.interfaceFragmentsRequiresCleanup(selectionSetInfo.inlineFragmentsOnInterfaces, unionTypeNames) {
 		return true
+	}
+
+	if selectionSetInfo.hasInlineFragmentsOnUnions &&
+		r.unionFragmentsRequiresCleanup(selectionSetInfo.inlineFragmentsOnUnions, unionTypeNames) {
+		return true
+	}
+
+	if !selectionSetInfo.hasInlineFragmentsOnInterfaces {
+		return false
 	}
 
 	// when we do not have fragments on objects, but only on interfaces
@@ -185,27 +257,12 @@ func (r *fieldSelectionRewriter) unionFieldSelectionNeedsRewrite(selectionSetInf
 	return false
 }
 
-func (r *fieldSelectionRewriter) rewriteUnionSelection(fieldRef int, fieldInfo selectionSetInfo, unionTypeNames, entityNames []string) error {
+func (r *fieldSelectionRewriter) rewriteUnionSelection(fieldRef int, fieldInfo selectionSetInfo, unionTypeNames []string) error {
 	newSelectionRefs := make([]int, 0, len(unionTypeNames)+1) // 1 for __typename
-	if fieldInfo.hasTypeNameSelection {
-		// we should preserve __typename if it was in the original query as it is explicitly requested
-		typeNameSelectionRef, _ := r.typeNameSelection()
-		newSelectionRefs = append(newSelectionRefs, typeNameSelectionRef)
-	}
 
-	for _, inlineFragmentOnInterface := range fieldInfo.inlineFragmentsOnInterfaces {
-		// we need to recursively flatten nested fragments on interfaces
-		r.flattenFragmentOnInterface(inlineFragmentOnInterface.selectionSetInfo, inlineFragmentOnInterface.typeNamesImplementingInterface, unionTypeNames, &newSelectionRefs)
-	}
+	r.preserveTypeNameSelection(fieldInfo, &newSelectionRefs)
 
-	// filter existing fragments by type names exists in the current datasource
-	// TODO: do not need to iterate 2 times in filter and here
-	filteredObjectFragments, _ := r.filterFragmentsByTypeNames(fieldInfo.inlineFragmentsOnObjects, unionTypeNames)
-	// copy existing fragments on objects
-	for _, existingObjectFragment := range filteredObjectFragments {
-		fragmentSelectionRef := r.operation.CopySelection(existingObjectFragment.selectionRef)
-		newSelectionRefs = append(newSelectionRefs, fragmentSelectionRef)
-	}
+	r.flattenFragmentOnUnion(fieldInfo, unionTypeNames, &newSelectionRefs)
 
 	return r.replaceFieldSelections(fieldRef, newSelectionRefs)
 }
@@ -220,7 +277,8 @@ func (r *fieldSelectionRewriter) replaceFieldSelections(fieldRef int, newSelecti
 
 	if len(newSelectionRefs) == 0 {
 		// we have to add __typename selection in case there is no other selections
-		typeNameSelectionRef, _ := r.typeNameSelection()
+		typeNameSelectionRef, typeNameFieldRef := r.typeNameSelection()
+		r.skipFieldRefs = append(r.skipFieldRefs, typeNameFieldRef)
 		r.operation.AddSelectionRefToSelectionSet(fieldSelectionSetRef, typeNameSelectionRef)
 	}
 
@@ -232,7 +290,115 @@ func (r *fieldSelectionRewriter) replaceFieldSelections(fieldRef int, newSelecti
 	return nil
 }
 
-func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfaceDefRef int) (rewritten bool, err error) {
+func (r *fieldSelectionRewriter) processObjectSelection(fieldRef int, objectDefRef int) (res RewriteResult, err error) {
+	selectionSetRef, ok := r.operation.FieldSelectionSet(fieldRef)
+	if !ok {
+		return resultNotRewritten, ErrFieldHasNoSelectionSet
+	}
+
+	fieldTypeName := r.definition.ObjectTypeDefinitionNameBytes(objectDefRef)
+	fieldTypeNameStr := r.definition.ObjectTypeDefinitionNameString(objectDefRef)
+
+	if !r.dsConfiguration.HasRootNodeWithTypename(fieldTypeNameStr) {
+		// if the object type is not an entity in the current datasource
+		// we do not need to rewrite it
+		return resultNotRewritten, nil
+	}
+
+	// Doing a full set of checks with collecting inline fragment information
+	// is very expensive, so we are trying to avoid it.
+	// We need to rewrite the object fragment only in case it has fragments
+	// with type condition which is not matching the object type
+
+	inlineFragmentSelectionRefs := r.operation.SelectionSetInlineFragmentSelections(selectionSetRef)
+	if len(inlineFragmentSelectionRefs) == 0 {
+		// no inline fragments on the field, so we do not need to rewrite it
+		return resultNotRewritten, nil
+	}
+
+	hasFragmentsWithNotMatchingType := false
+	for _, inlineFragmentSelectionRef := range inlineFragmentSelectionRefs {
+		inlineFragmentRef := r.operation.Selections[inlineFragmentSelectionRef].Ref
+		typeCondition := r.operation.InlineFragmentTypeConditionName(inlineFragmentRef)
+
+		if !bytes.Equal(typeCondition, fieldTypeName) {
+			hasFragmentsWithNotMatchingType = true
+			break
+		}
+	}
+
+	if !hasFragmentsWithNotMatchingType {
+		return resultNotRewritten, nil
+	}
+
+	selectionSetInfo, err := r.collectFieldInformation(fieldRef)
+	if err != nil {
+		return resultNotRewritten, err
+	}
+
+	needRewrite := r.objectFieldSelectionNeedsRewrite(selectionSetInfo, fieldTypeNameStr)
+	if !needRewrite {
+		return resultNotRewritten, nil
+	}
+
+	fieldRefPaths, _, err := collectPath(r.operation, r.definition, fieldRef, true)
+	if err != nil {
+		return resultNotRewritten, err
+	}
+
+	err = r.rewriteObjectSelection(fieldRef, selectionSetInfo, fieldTypeNameStr)
+	if err != nil {
+		return resultNotRewritten, err
+	}
+
+	changedRefs, err := r.collectChangedRefs(fieldRef, fieldRefPaths)
+	if err != nil {
+		return resultNotRewritten, err
+	}
+
+	return RewriteResult{
+		rewritten:        true,
+		changedFieldRefs: changedRefs,
+	}, nil
+}
+
+func (r *fieldSelectionRewriter) rewriteObjectSelection(fieldRef int, fieldInfo selectionSetInfo, objectTypeName string) error {
+	newSelectionRefs := make([]int, 0, 2)
+
+	if fieldInfo.hasFields {
+		newSelectionRefs = append(newSelectionRefs, r.createFragmentSelection(objectTypeName, fieldInfo.fields))
+	}
+
+	// handling of the object type is similar to the union type, so we reuse the same logic
+	r.flattenFragmentOnUnion(fieldInfo, []string{objectTypeName}, &newSelectionRefs)
+
+	return r.replaceFieldSelections(fieldRef, newSelectionRefs)
+}
+
+func (r *fieldSelectionRewriter) objectFieldSelectionNeedsRewrite(selectionSetInfo selectionSetInfo, objectTypeName string) (needRewrite bool) {
+	if r.mustRewrite(selectionSetInfo) {
+		return true
+	}
+	if selectionSetInfo.hasInlineFragmentsOnObjects {
+		if r.objectFragmentsRequiresCleanup(selectionSetInfo.inlineFragmentsOnObjects, []string{objectTypeName}) {
+			return true
+		}
+	}
+
+	if selectionSetInfo.hasInlineFragmentsOnInterfaces &&
+		r.interfaceFragmentsRequiresCleanup(selectionSetInfo.inlineFragmentsOnInterfaces, []string{objectTypeName}) {
+		return true
+	}
+
+	if selectionSetInfo.hasInlineFragmentsOnUnions &&
+		r.unionFragmentsRequiresCleanup(selectionSetInfo.inlineFragmentsOnUnions, []string{objectTypeName}) {
+		return true
+	}
+
+	return false
+}
+
+func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfaceDefRef int, enclosingTypeName ast.ByteSlice) (res RewriteResult, err error) {
 	/*
 		1) extract selections which is not inline-fragments - e.g. shared selections
 		2) extract selections for each inline fragment
@@ -240,63 +406,85 @@ func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfa
 		4) for types which have inline-fragment - add not selected shared fields to existing inline fragment
 	*/
 
-	interfaceTypeName := r.definition.InterfaceTypeDefinitionNameBytes(interfaceDefRef)
-	node, hasNode := r.upstreamDefinition.NodeByName(interfaceTypeName)
-	if !hasNode {
-		return false, errors.New("unexpected error: interface type definition not found in the upstream schema")
+	interfaceTypeName, interfaceTypeNames, isInterfaceObject, err := r.getAllowedInterfaceMemberTypeNames(fieldRef, interfaceDefRef, enclosingTypeName)
+	if err != nil {
+		return resultNotRewritten, err
 	}
-
-	var isInterfaceObject bool
-	var interfaceTypeNames []string
-
-	if node.Kind != ast.NodeKindInterfaceTypeDefinition {
-		interfaceTypeNameStr := string(interfaceTypeName)
-		for _, k := range r.dsConfiguration.FederationConfiguration().InterfaceObjects {
-			if k.InterfaceTypeName == interfaceTypeNameStr {
-				isInterfaceObject = true
-				interfaceTypeNames = k.ConcreteTypeNames
-				break
-			}
-		}
-
-		if !isInterfaceObject {
-			return false, errors.New("unexpected error: node kind is not interface type definition in the upstream schema")
-		}
-	}
-
-	if !isInterfaceObject {
-		var ok bool
-		interfaceTypeNames, ok = r.upstreamDefinition.InterfaceTypeDefinitionImplementedByObjectWithNames(node.Ref)
-		if !ok {
-			return false, nil
-		}
-	}
-
-	sort.Strings(interfaceTypeNames)
-
 	entityNames, _ := r.datasourceHasEntitiesWithName(interfaceTypeNames)
 
 	selectionSetInfo, err := r.collectFieldInformation(fieldRef)
 	if err != nil {
-		return false, err
+		return resultNotRewritten, err
+	}
+	selectionSetInfo.isInterfaceObject = isInterfaceObject
+
+	needRewrite := r.interfaceFieldSelectionNeedsRewrite(selectionSetInfo, interfaceTypeNames, entityNames, interfaceTypeName)
+	if !needRewrite {
+		return resultNotRewritten, nil
 	}
 
-	needRewrite := r.interfaceFieldSelectionNeedsRewrite(selectionSetInfo, interfaceTypeNames, entityNames)
-	if !needRewrite {
-		return false, nil
+	fieldRefPaths, _, err := collectPath(r.operation, r.definition, fieldRef, true)
+	if err != nil {
+		return resultNotRewritten, err
 	}
 
 	err = r.rewriteInterfaceSelection(fieldRef, selectionSetInfo, interfaceTypeNames)
 	if err != nil {
-		return false, err
+		return resultNotRewritten, err
 	}
 
-	return true, nil
+	changedRefs, err := r.collectChangedRefs(fieldRef, fieldRefPaths)
+	if err != nil {
+		return resultNotRewritten, err
+	}
+
+	return RewriteResult{
+		rewritten:        true,
+		changedFieldRefs: changedRefs,
+	}, nil
 }
 
-func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(selectionSetInfo selectionSetInfo, interfaceTypeNames []string, entityNames []string) (needRewrite bool) {
+func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(selectionSetInfo selectionSetInfo, interfaceTypeNames []string, entityNames []string, interfaceTypeName string) (needRewrite bool) {
+	if r.mustRewrite(selectionSetInfo) {
+		return true
+	}
+
+	if selectionSetInfo.hasFields {
+		// We check that all selected fields are defined on the interface type.
+		// If all implementing types have the field local to the datasource, but interface does not define it - we won't be able to plan such fields.
+		// example:
+		//
+		// current datasource schema:
+		// interface Node {
+		//   id: ID!
+		// }
+		//
+		// type User implements Node {
+		//   id: ID!          <-- local to the current datasource
+		//   name: String!    <-- local to the current datasource, but not defined on the interface
+		// }
+		//
+		// other datasource schema:
+		// interface Node {
+		//   id: ID!
+		//   name: String! <-- defined on the interface and concrete type
+		// }
+		//
+		// type User implements Node {
+		//   id: ID!
+		//   name: String!
+		// }
+		//
+
+		if !r.typeHasAllFieldLocal(interfaceTypeName, selectionSetInfo.fields) {
+			return true
+		}
+	}
+
 	// when we do not have fragments
-	if !selectionSetInfo.hasInlineFragmentsOnInterfaces && !selectionSetInfo.hasInlineFragmentsOnObjects {
+	if !selectionSetInfo.hasInlineFragmentsOnInterfaces &&
+		!selectionSetInfo.hasInlineFragmentsOnUnions &&
+		!selectionSetInfo.hasInlineFragmentsOnObjects {
 		// check that all types implementing the interface have a root node with the requested fields
 		if !r.allEntitiesHaveFieldsAsRootNode(entityNames, selectionSetInfo.fields) {
 			return true
@@ -308,14 +496,22 @@ func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(selectionSe
 	}
 
 	if selectionSetInfo.hasInlineFragmentsOnObjects {
-		// check that all inline fragments types are present in the current datasource
-		if !r.allFragmentTypesExistsOnDatasource(selectionSetInfo.inlineFragmentsOnObjects) {
+		if r.objectFragmentsRequiresCleanup(selectionSetInfo.inlineFragmentsOnObjects, interfaceTypeNames) {
 			return true
 		}
 
 		// check that all inline fragments types are implementing the interface in the current datasource
 		if !r.allFragmentTypesImplementsInterfaceTypes(selectionSetInfo.inlineFragmentsOnObjects, interfaceTypeNames) {
 			return true
+		}
+
+		// In case it is an interface object, and we have fragments on concrete types - we have to add shared __typename selection.
+		// It will mean that we will rewrite a query to separate concrete type fragments,
+		// but due to the nature of the interface object, they eventually will be flattened by datasource
+		// into a single fragment or just a flattened query.
+		// So it should be safe to rewrite a field.
+		if selectionSetInfo.isInterfaceObject {
+			return !selectionSetInfo.hasTypeNameSelection
 		}
 	}
 
@@ -324,6 +520,13 @@ func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(selectionSe
 	// check that all entities without fragments have a root node with the requested fields
 	if selectionSetInfo.hasFields {
 		if !r.allEntitiesHaveFieldsAsRootNode(entitiesWithoutFragment, selectionSetInfo.fields) {
+			return true
+		}
+
+		// check if any implementing type has requiresConfiguration for one of the requested fields
+		if slices.ContainsFunc(entityNames, func(entityName string) bool {
+			return r.hasRequiresConfigurationForField(entityName, selectionSetInfo.fields)
+		}) {
 			return true
 		}
 	}
@@ -337,10 +540,14 @@ func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(selectionSe
 		}
 	}
 
-	if selectionSetInfo.hasInlineFragmentsOnInterfaces {
-		if r.interfaceFragmentsRequiresCleanup(selectionSetInfo.inlineFragmentsOnInterfaces, interfaceTypeNames) {
-			return true
-		}
+	if selectionSetInfo.hasInlineFragmentsOnInterfaces &&
+		r.interfaceFragmentsRequiresCleanup(selectionSetInfo.inlineFragmentsOnInterfaces, interfaceTypeNames) {
+		return true
+	}
+
+	if selectionSetInfo.hasInlineFragmentsOnUnions &&
+		r.unionFragmentsRequiresCleanup(selectionSetInfo.inlineFragmentsOnUnions, interfaceTypeNames) {
+		return true
 	}
 
 	if selectionSetInfo.hasInlineFragmentsOnInterfaces && selectionSetInfo.hasInlineFragmentsOnObjects {
@@ -368,6 +575,15 @@ func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(selectionSe
 func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldInfo selectionSetInfo, interfaceTypeNames []string) error {
 	newSelectionRefs := make([]int, 0, len(interfaceTypeNames)+1) // 1 for __typename
 
+	// When interface is an interface object
+	// When we have fragments on concrete types,
+	// And we do not have __typename selection - we are adding it
+	if fieldInfo.isInterfaceObject && !fieldInfo.hasTypeNameSelection && fieldInfo.hasInlineFragmentsOnObjects {
+		typeNameSelectionRef, typeNameFieldRef := r.typeNameSelection()
+		r.skipFieldRefs = append(r.skipFieldRefs, typeNameFieldRef)
+		newSelectionRefs = append(newSelectionRefs, typeNameSelectionRef)
+	}
+
 	r.flattenFragmentOnInterface(
 		fieldInfo,
 		interfaceTypeNames,
@@ -378,33 +594,28 @@ func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldIn
 	return r.replaceFieldSelections(fieldRef, newSelectionRefs)
 }
 
-func (r *fieldSelectionRewriter) flattenFragmentOnInterface(selectionSetInfo selectionSetInfo, typeNamesImplementingInterfaceInCurrentDS []string, allowedTypeNames []string, selectionRefs *[]int) {
-	if len(typeNamesImplementingInterfaceInCurrentDS) == 0 {
-		return
-	}
-
-	filteredImplementingTypes := make([]string, 0, len(typeNamesImplementingInterfaceInCurrentDS))
-	for _, typeName := range typeNamesImplementingInterfaceInCurrentDS {
+func (r *fieldSelectionRewriter) flattenFragmentOnInterface(selectionSetInfo selectionSetInfo, implementingTypes []string, allowedTypeNames []string, selectionRefs *[]int) {
+	allowedImplementingTypes := make([]string, 0, len(implementingTypes))
+	for _, typeName := range implementingTypes {
 		if slices.Contains(allowedTypeNames, typeName) {
-			filteredImplementingTypes = append(filteredImplementingTypes, typeName)
+			allowedImplementingTypes = append(allowedImplementingTypes, typeName)
 		}
 	}
 
 	if selectionSetInfo.hasFields {
-		for _, typeName := range filteredImplementingTypes {
+		for _, typeName := range allowedImplementingTypes {
 			*selectionRefs = append(*selectionRefs, r.createFragmentSelection(typeName, selectionSetInfo.fields))
 		}
 	}
 
 	for _, inlineFragmentInfo := range selectionSetInfo.inlineFragmentsOnObjects {
-		if !slices.Contains(filteredImplementingTypes, inlineFragmentInfo.typeName) {
+		// for object fragments it is necessary to check if inline fragment type is allowed
+		if !slices.Contains(allowedImplementingTypes, inlineFragmentInfo.typeName) {
 			// remove fragment which not allowed
 			continue
 		}
 
-		fragmentSelectionRef := r.operation.CopySelection(inlineFragmentInfo.selectionRef)
-
-		*selectionRefs = append(*selectionRefs, fragmentSelectionRef)
+		r.flattenFragmentOnObject(inlineFragmentInfo.selectionSetInfo, inlineFragmentInfo.typeName, selectionRefs)
 	}
 
 	for _, inlineFragmentInfo := range selectionSetInfo.inlineFragmentsOnInterfaces {
@@ -412,6 +623,180 @@ func (r *fieldSelectionRewriter) flattenFragmentOnInterface(selectionSetInfo sel
 		// in case of interfaces the only thing which is matter is an interception of implementing types
 		// and parent allowed types
 
-		r.flattenFragmentOnInterface(inlineFragmentInfo.selectionSetInfo, inlineFragmentInfo.typeNamesImplementingInterface, filteredImplementingTypes, selectionRefs)
+		r.flattenFragmentOnInterface(inlineFragmentInfo.selectionSetInfo, inlineFragmentInfo.typeNamesImplementingInterface, allowedImplementingTypes, selectionRefs)
+	}
+
+	for _, inlineFragmentInfo := range selectionSetInfo.inlineFragmentsOnUnions {
+		// We do not check if union fragment type not exists in the current datasource
+		// in case of unions the only thing which is matter is an interception of implementing types
+		// and parent allowed types
+		r.flattenFragmentOnUnion(inlineFragmentInfo.selectionSetInfo, allowedImplementingTypes, selectionRefs)
+	}
+}
+
+func (r *fieldSelectionRewriter) flattenFragmentOnUnion(selectionSetInfo selectionSetInfo, allowedTypeNames []string, selectionRefs *[]int) {
+	r.preserveTypeNameSelection(selectionSetInfo, selectionRefs)
+
+	for _, inlineFragmentInfo := range selectionSetInfo.inlineFragmentsOnObjects {
+		// for object fragments it is necessary to check if inline fragment type is allowed
+		if !slices.Contains(allowedTypeNames, inlineFragmentInfo.typeName) {
+			// remove fragment which not allowed
+			continue
+		}
+
+		r.flattenFragmentOnObject(inlineFragmentInfo.selectionSetInfo, inlineFragmentInfo.typeName, selectionRefs)
+	}
+
+	for _, inlineFragmentInfo := range selectionSetInfo.inlineFragmentsOnInterfaces {
+		// We do not check if interface fragment type not exists in the current datasource
+		// in case of interfaces the only thing which is matter is an interception of implementing types
+		// and parent allowed types
+
+		r.flattenFragmentOnInterface(inlineFragmentInfo.selectionSetInfo, inlineFragmentInfo.typeNamesImplementingInterface, allowedTypeNames, selectionRefs)
+	}
+
+	for _, inlineFragmentInfo := range selectionSetInfo.inlineFragmentsOnUnions {
+		// We do not check if union fragment type not exists in the current datasource
+		// in case of unions the only thing which is matter is an interception of implementing types
+		// and parent allowed types
+		r.flattenFragmentOnUnion(inlineFragmentInfo.selectionSetInfo, allowedTypeNames, selectionRefs)
+	}
+}
+
+func (r *fieldSelectionRewriter) flattenFragmentOnObject(selectionSetInfo selectionSetInfo, typeName string, selectionRefs *[]int) {
+	if selectionSetInfo.hasFields {
+		*selectionRefs = append(*selectionRefs, r.createFragmentSelection(typeName, selectionSetInfo.fields))
+	}
+
+	for _, inlineFragmentInfo := range selectionSetInfo.inlineFragmentsOnInterfaces {
+		// We do not check if interface fragment type not exists in the current datasource
+		// in case of interfaces the only thing which is matter is an interception of implementing types
+		// and parent allowed types
+
+		r.flattenFragmentOnInterface(inlineFragmentInfo.selectionSetInfo, inlineFragmentInfo.typeNamesImplementingInterface, []string{typeName}, selectionRefs)
+	}
+
+	for _, inlineFragmentInfo := range selectionSetInfo.inlineFragmentsOnUnions {
+		// We do not check if union fragment type not exists in the current datasource
+		// in case of unions the only thing which is matter is an interception of implementing types
+		// and parent allowed types
+		r.flattenFragmentOnUnion(inlineFragmentInfo.selectionSetInfo, []string{typeName}, selectionRefs)
+	}
+}
+
+func (r *fieldSelectionRewriter) collectChangedRefs(fieldRef int, fieldRefsPaths map[int]string) (map[int][]int, error) {
+	_, pathsToRefs, err := collectPath(r.operation, r.definition, fieldRef, false)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make(map[int][]int, len(fieldRefsPaths))
+
+	for fieldRef, path := range fieldRefsPaths {
+		newRefs, ok := pathsToRefs[path]
+		if !ok {
+			// TODO: some paths could actually disappear due to rewrite
+			continue
+		}
+
+		if len(newRefs) == 0 {
+			continue
+		}
+
+		if len(newRefs) == 1 && newRefs[0] == fieldRef {
+			continue
+		}
+
+		out[fieldRef] = newRefs
+	}
+
+	return out, nil
+}
+
+type AbstractFieldPathCollector struct {
+	*astvisitor.Walker
+
+	operation  *ast.Document
+	definition *ast.Document
+
+	targetFieldRef int
+	fieldRefPaths  map[int]string
+	pathFieldRefs  map[string][]int
+	fieldToPath    bool
+}
+
+func (v *AbstractFieldPathCollector) EnterField(ref int) {
+	parentPath := v.Walker.Path.WithoutInlineFragmentNames().DotDelimitedString()
+	currentFieldName := v.operation.FieldNameString(ref)
+	currentPath := parentPath + "." + currentFieldName
+
+	if v.fieldToPath {
+		v.fieldRefPaths[ref] = currentPath
+		return
+	}
+
+	if _, ok := v.pathFieldRefs[currentPath]; !ok {
+		v.pathFieldRefs[currentPath] = make([]int, 0, 1)
+	}
+	v.pathFieldRefs[currentPath] = append(v.pathFieldRefs[currentPath], ref)
+}
+
+func collectPath(operation *ast.Document, definition *ast.Document, fieldRef int, fieldToPath bool) (fieldRefPaths map[int]string, pathFieldRefs map[string][]int, err error) {
+	walker := astvisitor.NewWalkerWithID(4, "AbstractFieldPathCollector")
+
+	c := &AbstractFieldPathCollector{
+		Walker:         &walker,
+		operation:      operation,
+		definition:     definition,
+		targetFieldRef: fieldRef,
+		fieldRefPaths:  make(map[int]string),
+		pathFieldRefs:  make(map[string][]int),
+		fieldToPath:    fieldToPath,
+	}
+
+	filter := &FieldLimitedVisitor{
+		Walker:         &walker,
+		targetFieldRef: fieldRef,
+	}
+
+	walker.RegisterFieldVisitor(filter)
+	walker.SetVisitorFilter(filter)
+	walker.RegisterEnterFieldVisitor(c)
+
+	report := &operationreport.Report{}
+	walker.Walk(c.operation, c.definition, report)
+	if report.HasErrors() {
+		return nil, nil, report
+	}
+
+	return c.fieldRefPaths, c.pathFieldRefs, nil
+}
+
+type FieldLimitedVisitor struct {
+	*astvisitor.Walker
+
+	targetFieldRef int
+	allow          bool
+}
+
+func (v *FieldLimitedVisitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor interface{}, skipFor astvisitor.SkipVisitors) bool {
+	if visitor == v {
+		return true
+	}
+
+	return v.allow
+}
+
+func (v *FieldLimitedVisitor) EnterField(ref int) {
+	if ref == v.targetFieldRef {
+		v.allow = true
+		return
+	}
+}
+
+func (v *FieldLimitedVisitor) LeaveField(ref int) {
+	if ref == v.targetFieldRef {
+		v.allow = false
+		v.Stop()
 	}
 }

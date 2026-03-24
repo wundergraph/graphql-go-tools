@@ -2,6 +2,7 @@ package plan
 
 import (
 	"fmt"
+	"runtime/debug"
 	"slices"
 	"sync"
 
@@ -16,54 +17,153 @@ type nodesCollector struct {
 	dataSources []DataSource
 	nodes       *NodeSuggestions
 	report      *operationreport.Report
+	keys        []DSKeyInfo
+
+	maxConcurrency uint
+	seenKeys       map[SeenKeyPath]struct{}
+	fieldInfo      map[int]fieldInfo
+	newFieldRefs   map[int]struct{}
+
+	dsVisitors        []*collectNodesDSVisitor
+	dsVisitorsReports []*operationreport.Report
 }
 
-func (c *nodesCollector) CollectNodes() *NodeSuggestions {
+type DSKeyInfo struct {
+	DSHash   DSHash
+	TypeName string
+	Path     string
+	Keys     []KeyInfo
+}
+
+type KeyIndex struct {
+	Path     string
+	TypeName string
+}
+
+type SeenKeyPath struct {
+	Path     string
+	TypeName string
+	DSHash   DSHash
+}
+
+func (c *nodesCollector) CollectNodes() (keys []DSKeyInfo) {
 	c.buildTree()
 	if c.report.HasErrors() {
 		return nil
 	}
+
+	// reset keys to not preserve already collected keys from previous iterations
+	c.keys = c.keys[:0]
 
 	c.collectNodes()
 	if c.report.HasErrors() {
 		return nil
 	}
 
-	return c.nodes
+	return c.keys
+}
+
+type nodeVisitTask struct {
+	fieldRef     int
+	treeNodeData []int
+	treeNodeId   uint
+}
+
+func (c *nodesCollector) initVisitors() {
+	c.keys = make([]DSKeyInfo, 0, len(c.dataSources))
+	c.dsVisitors = make([]*collectNodesDSVisitor, 0, len(c.dataSources))
+	c.dsVisitorsReports = make([]*operationreport.Report, 0, len(c.dataSources))
+
+	// prepare visitors for each data source
+	for _, dataSource := range c.dataSources {
+		visitor := &collectNodesDSVisitor{
+			operation:             c.operation,
+			definition:            c.definition,
+			nodes:                 c.nodes,
+			info:                  c.fieldInfo,
+			keys:                  make([]DSKeyInfo, 0, 2),
+			localSeenKeys:         make(map[SeenKeyPath]struct{}),
+			localSuggestionLookup: make(map[int]struct{}),
+			providesEntries:       make(map[string]struct{}),
+			globalSeenKeys:        c.seenKeys,
+			dataSource:            dataSource,
+			notExternalKeyPaths:   make(map[string]struct{}),
+		}
+		c.dsVisitors = append(c.dsVisitors, visitor)
+		c.dsVisitorsReports = append(c.dsVisitorsReports, operationreport.NewReport())
+	}
 }
 
 func (c *nodesCollector) collectNodes() {
+	// collect fields to visit
+	nodesToVisit := make([]nodeVisitTask, 0, len(c.operation.Fields))
+	for treeNodeID, treeNode := range TraverseBFS(c.nodes.responseTree) {
+		if treeNodeID == treeRootID {
+			continue
+		}
+		fieldRef := TreeNodeFieldRef(treeNodeID)
 
-	info := getFieldInfo(c.operation, c.definition)
+		if len(c.newFieldRefs) > 0 {
+			if _, ok := c.newFieldRefs[fieldRef]; !ok {
+				// skip field refs which were not added during the current iteration
+				continue
+			}
+		}
+
+		task := nodeVisitTask{
+			fieldRef:     fieldRef,
+			treeNodeData: treeNode.GetData(),
+			treeNodeId:   treeNodeID,
+		}
+
+		nodesToVisit = append(nodesToVisit, task)
+	}
 
 	wg := &sync.WaitGroup{}
-	wg.Add(len(c.dataSources))
-	visitors := make([]*collectNodesVisitor, len(c.dataSources))
-	reports := make([]*operationreport.Report, len(c.dataSources))
+	wg.Add(len(c.dsVisitors))
 
-	for i, dataSource := range c.dataSources {
-		walker := astvisitor.WalkerFromPool()
-		visitor := &collectNodesVisitor{
-			operation:  c.operation,
-			definition: c.definition,
-			walker:     walker,
-			nodes:      c.nodes,
-			info:       info,
-		}
-		walker.RegisterFieldVisitor(visitor)
-		visitor.dataSource = dataSource
-		visitor.keyPaths = make(map[string]struct{})
-		visitors[i] = visitor
-		report := operationreport.Report{}
-		reports[i] = &report
-		go func(walker *astvisitor.Walker, report *operationreport.Report) {
-			walker.Walk(c.operation, c.definition, report)
-			walker.Release()
-			wg.Done()
-		}(walker, &report)
+	// Create a semaphore if concurrency is limited
+	var sem chan struct{}
+	if c.maxConcurrency > 0 {
+		sem = make(chan struct{}, c.maxConcurrency)
 	}
+
+	for i, visitor := range c.dsVisitors {
+		if sem != nil {
+			sem <- struct{}{}
+		}
+		go func(visitor *collectNodesDSVisitor, report *operationreport.Report, nodesToVisit []nodeVisitTask) {
+			defer func() {
+				wg.Done()
+			}()
+			defer func() {
+				if sem != nil {
+					<-sem
+				}
+			}()
+			defer func() {
+				// recover from panic and add it to the report
+				if r := recover(); r != nil {
+					report.AddInternalError(fmt.Errorf("panic: %v stack: %s", r, debug.Stack()))
+				}
+			}()
+
+			// cleanup data from previous runs, but preserve indexes
+			visitor.reset()
+
+			for _, node := range nodesToVisit {
+				if err := visitor.EnterField(node.fieldRef, node.treeNodeData, node.treeNodeId); err != nil {
+					report.AddInternalError(fmt.Errorf("data source %s: %v", visitor.dataSource.Name(), err))
+					// stop processing on error
+					return
+				}
+			}
+		}(visitor, c.dsVisitorsReports[i], nodesToVisit)
+	}
+
 	wg.Wait()
-	for _, report := range reports {
+
+	for _, report := range c.dsVisitorsReports {
 		if report.HasErrors() {
 			for i := range report.ExternalErrors {
 				c.report.AddExternalError(report.ExternalErrors[i])
@@ -74,21 +174,30 @@ func (c *nodesCollector) collectNodes() {
 			return
 		}
 	}
-	// NOTE: collect nodes should never modify the tree and nodes during the walk
+
+	// NOTE: collect nodes should never modify the tree, nodes or seen keys during the walk
 	// it will be a data race
-	for _, visitor := range visitors {
+	for _, visitor := range c.dsVisitors {
 		visitor.applySuggestions()
+
+		c.keys = append(c.keys, visitor.keys...)
+
+		for key := range visitor.localSeenKeys {
+			c.seenKeys[key] = struct{}{}
+		}
 	}
 }
 
 func (c *nodesCollector) buildTree() {
-	walker := astvisitor.NewWalker(32)
+	walker := astvisitor.NewWalkerWithID(32, "TreeBuilderVisitor")
 	visitor := &treeBuilderVisitor{
 		operation:  c.operation,
 		definition: c.definition,
 		walker:     &walker,
 		nodes:      c.nodes,
+		fieldInfo:  c.fieldInfo,
 	}
+
 	walker.RegisterEnterDocumentVisitor(visitor)
 	walker.RegisterFieldVisitor(visitor)
 	walker.Walk(c.operation, c.definition, c.report)
@@ -100,27 +209,30 @@ type treeBuilderVisitor struct {
 	definition    *ast.Document
 	nodes         *NodeSuggestions
 	parentNodeIds []uint
+	fieldInfo     map[int]fieldInfo
 }
 
 func (f *treeBuilderVisitor) EnterDocument(_, _ *ast.Document) {
 	f.parentNodeIds = []uint{treeRootID}
 }
 
-func (f *treeBuilderVisitor) EnterField(ref int) {
-	if f.nodes.IsFieldSeen(ref) {
-		currentNodeId := TreeNodeID(ref)
+func (f *treeBuilderVisitor) EnterField(fieldRef int) {
+	if f.nodes.IsFieldSeen(fieldRef) {
+		currentNodeId := TreeNodeID(fieldRef)
 		f.parentNodeIds = append(f.parentNodeIds, currentNodeId)
 		return
 	}
-	f.nodes.AddSeenField(ref)
+	f.nodes.AddSeenField(fieldRef)
 
 	parentNodeId := f.currentParentID()
-	currentNodeId := TreeNodeID(ref)
+	currentNodeId := TreeNodeID(fieldRef)
 
 	// we intentionally ignore the return values added, exists
 	// because we do not recheck the same field refs, so all added nodes should be new and unique
 	_, _ = f.nodes.responseTree.Add(currentNodeId, parentNodeId, nil)
 	f.parentNodeIds = append(f.parentNodeIds, currentNodeId)
+
+	f.collectFieldInfo(fieldRef)
 }
 
 func (f *treeBuilderVisitor) currentParentID() uint {
@@ -136,21 +248,48 @@ func (f *treeBuilderVisitor) LeaveField(ref int) {
 	}
 }
 
-type collectNodesVisitor struct {
-	walker     *astvisitor.Walker
+type collectNodesDSVisitor struct {
 	operation  *ast.Document
 	definition *ast.Document
 	dataSource DataSource
 
-	localSuggestions []*NodeSuggestion
+	// local suggestions stores suggestions for the current run of collecting fields
+	// they are reset after each run, because each time we collect suggestion only for new field refs
+	localSuggestions      []*NodeSuggestion
+	localSuggestionLookup map[int]struct{}
 
+	// local provides entries, they should survive reset
+	// because unique fields refs are collected only once
+	providesEntries map[string]struct{}
+
+	// global node suggestion, we append to them after each run
 	nodes *NodeSuggestions
 
-	keyPaths map[string]struct{}
-	info     map[int]fieldInfo
+	// notExternalKeyPaths - stores paths of fields used in keys, which marked external
+	// but semantically are not true external
+	notExternalKeyPaths map[string]struct{}
+
+	// reference to a global cache of field info shared between all collector instances
+	info map[int]fieldInfo
+
+	// information about keys available for a given path collected during the current run
+	keys []DSKeyInfo
+
+	// globalSeenKeys - stores key information which is shared globally between collectors, needed to avoid collecting keys on the same path
+	// between different runs, as evaluating keys are very expensive
+	// as it is shared between goroutines of collector we read it during the run, and write after the run finished
+	globalSeenKeys map[SeenKeyPath]struct{}
+	// seen keys local to the current run
+	localSeenKeys map[SeenKeyPath]struct{}
 }
 
-func (f *collectNodesVisitor) hasSuggestionForFieldOnCurrentDataSource(itemIds []int, ref int) (itemID int, ok bool) {
+// reset - cleanups only data which should not be persisted between runs
+func (f *collectNodesDSVisitor) reset() {
+	f.localSuggestions = f.localSuggestions[:0]
+	f.keys = f.keys[:0]
+}
+
+func (f *collectNodesDSVisitor) hasSuggestionForFieldOnCurrentDataSource(itemIds []int, ref int) (itemID int, ok bool) {
 	idx := slices.IndexFunc(itemIds, func(i int) bool {
 		suggestion := f.nodes.items[i]
 		return suggestion.FieldRef == ref && suggestion.DataSourceHash == f.dataSource.Hash()
@@ -163,19 +302,7 @@ func (f *collectNodesVisitor) hasSuggestionForFieldOnCurrentDataSource(itemIds [
 	return -1, false
 }
 
-func (f *collectNodesVisitor) hasLocalSuggestion(ref int) (localItemID int, ok bool) {
-	idx := slices.IndexFunc(f.localSuggestions, func(suggestion *NodeSuggestion) bool {
-		return suggestion.FieldRef == ref
-	})
-
-	if idx != -1 {
-		return idx, true
-	}
-
-	return -1, false
-}
-
-func (f *collectNodesVisitor) hasProvidesConfiguration(typeName, fieldName string) (selectionSet string, ok bool) {
+func (f *collectNodesDSVisitor) hasProvidesConfiguration(typeName, fieldName string) (selectionSet string, ok bool) {
 	providesIdx := slices.IndexFunc(f.dataSource.FederationConfiguration().Provides, func(provide FederationFieldConfiguration) bool {
 		return provide.TypeName == typeName && provide.FieldName == fieldName
 	})
@@ -185,176 +312,155 @@ func (f *collectNodesVisitor) hasProvidesConfiguration(typeName, fieldName strin
 	return f.dataSource.FederationConfiguration().Provides[providesIdx].SelectionSet, true
 }
 
-func (f *collectNodesVisitor) isEntityInterface(typeName string) bool {
+func (f *collectNodesDSVisitor) isEntityInterface(typeName string) bool {
 	cfg := f.dataSource.FederationConfiguration()
 	return cfg.HasEntityInterface(typeName)
 }
 
-func (f *collectNodesVisitor) isInterfaceObject(typeName string) bool {
+func (f *collectNodesDSVisitor) isInterfaceObject(typeName string) bool {
 	cfg := f.dataSource.FederationConfiguration()
 	return cfg.HasInterfaceObject(typeName)
 }
 
 // has disabled entity resolver
-func (f *collectNodesVisitor) allKeysHasDisabledEntityResolver(typeName string) bool {
+func (f *collectNodesDSVisitor) allKeysHasDisabledEntityResolver(typeName string) bool {
 	keys := f.dataSource.FederationConfiguration().Keys
-	return !slices.ContainsFunc(keys.FilterByTypeAndResolvability(typeName, false), func(k FederationFieldConfiguration) bool {
+
+	if len(keys) == 0 {
+		return false
+	}
+
+	keysForType := keys.FilterByTypeAndResolvability(typeName, false)
+
+	// for the root query nodes there will be no keys
+	if len(keysForType) == 0 {
+		return false
+	}
+
+	return !slices.ContainsFunc(keysForType, func(k FederationFieldConfiguration) bool {
 		return !k.DisableEntityResolver
 	})
 }
 
-func (f *collectNodesVisitor) handleProvidesSuggestions(fieldRef int, typeName, fieldName, currentPath string) {
+func (f *collectNodesDSVisitor) handleProvidesSuggestions(fieldRef int, typeName, fieldName, currentPath string, enclosingTypeDefinition ast.Node) error {
 	if !f.operation.FieldHasSelections(fieldRef) {
-		return
+		return nil
 	}
 
 	providesSelectionSet, hasProvides := f.hasProvidesConfiguration(typeName, fieldName)
 	if !hasProvides {
-		return
+		return nil
 	}
 
-	if f.walker.EnclosingTypeDefinition.Kind != ast.NodeKindObjectTypeDefinition {
-		return
+	if enclosingTypeDefinition.Kind != ast.NodeKindObjectTypeDefinition {
+		return nil
 	}
 
-	fieldDefRef, ok := f.definition.ObjectTypeDefinitionFieldWithName(f.walker.EnclosingTypeDefinition.Ref, f.operation.FieldNameBytes(fieldRef))
+	fieldDefRef, ok := f.definition.ObjectTypeDefinitionFieldWithName(enclosingTypeDefinition.Ref, f.operation.FieldNameBytes(fieldRef))
 	if !ok {
-		return
+		return nil
 	}
 	fieldTypeName := f.definition.FieldDefinitionTypeNameString(fieldDefRef)
 
-	providesFieldSet, report := providesFragment(fieldTypeName, providesSelectionSet, f.definition)
-	if report.HasErrors() {
-		f.walker.StopWithInternalErr(fmt.Errorf("failed to parse provides fields for %s.%s at path %s: %v", typeName, fieldName, currentPath, report))
-		return
-	}
-
-	selectionSetRef, ok := f.operation.FieldSelectionSet(fieldRef)
+	_, ok = f.operation.FieldSelectionSet(fieldRef)
 	if !ok {
-		f.walker.StopWithInternalErr(fmt.Errorf("failed to get selection set ref for %s.%s at path %s. Field with provides directive should have a selections", typeName, fieldName, currentPath))
-		return
+		return fmt.Errorf("failed to get selection set ref for %s.%s at path %s. Field with provides directive should have a selections", typeName, fieldName, currentPath)
 	}
 
 	input := &providesInput{
-		providesFieldSet:      providesFieldSet,
-		operation:             f.operation,
-		definition:            f.definition,
-		operationSelectionSet: selectionSetRef,
-		report:                report,
-		parentPath:            currentPath,
-		dataSource:            f.dataSource,
+		parentTypeName:       fieldTypeName,
+		providesSelectionSet: providesSelectionSet,
+		definition:           f.definition,
+		parentPath:           currentPath,
 	}
-	suggestions := providesSuggestions(input)
+	providesSuggestions, report := providesSuggestions(input)
 	if report.HasErrors() {
-		f.walker.StopWithInternalErr(fmt.Errorf("failed to get provides suggestions for %s.%s at path %s: %v", typeName, fieldName, currentPath, report))
-		return
+		return fmt.Errorf("failed to get provides suggestions for %s.%s at path %s: %v", typeName, fieldName, currentPath, report)
 	}
 
-	for _, suggestion := range suggestions {
-		treeNode, _ := f.nodes.responseTree.Find(suggestion.treeNodeId)
-		nodesIndexes := treeNode.GetData()
-
-		exists := slices.ContainsFunc(nodesIndexes, func(i int) bool {
-			return f.nodes.items[i].DataSourceHash == f.dataSource.Hash()
-		})
-		if exists {
-			continue
-		}
-
-		// if suggestions is not exists we adding it
-		f.localSuggestions = append(f.localSuggestions, suggestion)
+	for providedKey := range providesSuggestions {
+		f.providesEntries[providedKey] = struct{}{}
 	}
+
+	return nil
 }
 
-func (f *collectNodesVisitor) shouldAddUnionTypenameFieldSuggestion(info fieldInfo) bool {
-	return info.isTypeName && f.walker.EnclosingTypeDefinition.Kind == ast.NodeKindUnionTypeDefinition
-}
-
-func (f *collectNodesVisitor) isFieldPartOfKey(typeName, currentPath, parentPath string) bool {
-	if _, ok := f.keyPaths[currentPath]; ok {
-		return true
-	}
-
-	keyFields := f.dataSource.RequiredFieldsByKey(typeName)
-	if len(keyFields) == 0 {
+func (f *collectNodesDSVisitor) shouldAddUnionTypenameFieldSuggestion(info fieldInfo) bool {
+	if !info.isTypeName {
 		return false
 	}
 
-	for _, keyField := range keyFields {
-		// keys with disabled entity resolver can't be external
-		if keyField.DisableEntityResolver {
-			continue
-		}
-
-		// if key has conditions it is external and could only be provided
-		// on a certain path
-		if len(keyField.Conditions) > 0 {
-			continue
-		}
-
-		fieldSet, report := RequiredFieldsFragment(typeName, keyField.SelectionSet, false)
-		if report.HasErrors() {
-			return false
-		}
-
-		input := &keyVisitorInput{
-			typeName:   typeName,
-			key:        fieldSet,
-			definition: f.definition,
-			report:     report,
-			parentPath: parentPath,
-		}
-
-		keyPaths := keyFieldPaths(input)
-
-		for _, keyPath := range keyPaths {
-			f.keyPaths[keyPath] = struct{}{}
-		}
+	if info.enclosingTypeDefinition.Kind != ast.NodeKindUnionTypeDefinition {
+		return false
 	}
 
-	_, ok := f.keyPaths[currentPath]
+	// check if datasource has an upstream schema
+	// currently only graphql datasource has an upstream schema
+	dsDef, ok := f.dataSource.UpstreamSchema()
+	if !ok {
+		return false
+	}
+
+	// check if datasource has a union type with such name
+	node, ok := dsDef.NodeByNameStr(info.typeName)
+	if !ok {
+		return false
+	}
+
+	return node.Kind == ast.NodeKindUnionTypeDefinition
+}
+
+func (f *collectNodesDSVisitor) isNotExternalKeyField(currentPath string) bool {
+	_, ok := f.notExternalKeyPaths[currentPath]
 	return ok
 }
 
-func (f *collectNodesVisitor) EnterField(fieldRef int) {
+func (f *collectNodesDSVisitor) EnterField(fieldRef int, itemIds []int, treeNodeId uint) error {
 	info, ok := f.info[fieldRef]
 	if !ok {
-		return
+		return nil
 	}
 
-	// add fields from provides directive on the current field
-	// it needs to be done each time we enter a field
-	// because we add provides suggestion only for a fields present in the query
-	f.handleProvidesSuggestions(fieldRef, info.typeName, info.fieldName, info.currentPath)
+	if err := f.handleProvidesSuggestions(fieldRef, info.typeName, info.fieldName, info.currentPath, info.enclosingTypeDefinition); err != nil {
+		return err
+	}
 
-	currentNodeId := TreeNodeID(fieldRef)
-	treeNode, _ := f.nodes.responseTree.Find(currentNodeId)
-	itemIds := treeNode.GetData()
+	// For pubsub entities could also be a child node, so checking for only root nodes is not enough, so we check for entity keys existence
+	// when we have no keys, it is still expensive to create an index entry for a seen key path,
+	// so we skip check as a whole when there is no entity with such a name
+	if f.dataSource.HasEntity(info.typeName) {
+		// should be done after handling provides
+		if err := f.collectKeysForPath(info.typeName, info.parentPath); err != nil {
+			return err
+		}
+	}
+	if info.possibleTypeNames != nil {
+		// We need to collect keys for all possible types of an abstract type too
+		// because during initial planning we do not know yet if the abstract selection will be rewritten,
+		// This means that in the unmodified query we could try to match abstract to concrete type, which won't match
+		// So we have to add possible choices for each of the concrete types, to make this match possible
+		for _, possibleTypeName := range info.possibleTypeNames {
+			// for each of the possible typenames we also check if we have an entity
+			if f.dataSource.HasEntity(possibleTypeName) {
+				if err := f.collectKeysForPath(possibleTypeName, info.parentPath); err != nil {
+					return err
+				}
+			}
+		}
+	}
 
 	// this is the check for the global suggestions
-	if itemID, ok := f.hasSuggestionForFieldOnCurrentDataSource(itemIds, fieldRef); ok {
-		// when we already have such suggestion we skip adding it
-		// we could have such suggestion if the field was provided or already added on previous steps
-
-		if f.nodes.items[itemID].IsProvided &&
-			f.nodes.items[itemID].IsExternal &&
-			!f.nodes.items[itemID].IsLeaf {
-			// we don't need to add a suggestion for an external provided field childs
-			f.walker.SkipNode()
-		}
-
-		return
+	if _, ok := f.hasSuggestionForFieldOnCurrentDataSource(itemIds, fieldRef); ok {
+		return nil
 	}
 
 	// this is the check for the current collect nodes iterations suggestions
-	if localItemId, ok := f.hasLocalSuggestion(fieldRef); ok {
-		if f.localSuggestions[localItemId].IsProvided &&
-			f.localSuggestions[localItemId].IsExternal &&
-			!f.localSuggestions[localItemId].IsLeaf {
-			// we don't need to add a suggestion for an external provided field childs
-			f.walker.SkipNode()
-		}
+	// whether we already added a suggestion for the field with a typename
+	if _, hasLocalSuggestion := f.localSuggestionLookup[fieldRef]; hasLocalSuggestion {
+		return nil
 	}
+
+	_, isProvided := f.providesEntries[providedFieldKey(info.typeName, info.fieldName, info.currentPath)]
 
 	if info.isTypeName && f.isInterfaceObject(info.typeName) {
 		// we should not add a typename on the interface object
@@ -362,14 +468,15 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 		// we will add a typename field to the interface object query in the datasource planner
 
 		// at the same time we should allow to select a typename on the entity interface
-		return
+		return nil
 	}
 
+	hasRootNodeWithTypename := f.dataSource.HasRootNodeWithTypename(info.typeName)
 	// hasRootNode is true when:
 	// - ds config has a root node for the field
 	// - we have a root node with typename and the field is a __typename field
-	// - the field is a root query type (query, mutation) and the field is a __typename field
-	hasRootNode := f.dataSource.HasRootNode(info.typeName, info.fieldName) || (info.isTypeName && (f.dataSource.HasRootNodeWithTypename(info.typeName) || IsMutationOrQueryRootType(info.typeName)))
+	// we no longer add a typename field for the root query nodes, as it is now handled by the planning visitor
+	hasRootNode := f.dataSource.HasRootNode(info.typeName, info.fieldName) || (info.isTypeName && hasRootNodeWithTypename && !IsMutationOrQueryRootType(info.typeName))
 
 	// hasChildNode is true when:
 	// - ds config has a child node for the field
@@ -386,12 +493,12 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 	hasChildNode = hasChildNode || f.shouldAddUnionTypenameFieldSuggestion(info)
 	isLeaf := !f.operation.FieldHasSelections(fieldRef)
 
-	if isExternal && f.isFieldPartOfKey(info.typeName, info.currentPath, info.parentPath) {
+	if isExternal && f.isNotExternalKeyField(info.currentPath) {
 		// external fields which are part of the key should not be marked as external
 		isExternal = false
 	}
 
-	if hasRootNode || hasChildNode || isExternal {
+	if hasRootNode || hasChildNode || isExternal || isProvided {
 		disabledEntityResolver := hasRootNode && f.allKeysHasDisabledEntityResolver(info.typeName)
 
 		node := NodeSuggestion{
@@ -410,31 +517,21 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 			DisabledEntityResolver:    disabledEntityResolver,
 			IsEntityInterfaceTypeName: info.isTypeName && f.isEntityInterface(info.typeName),
 			IsExternal:                isExternal,
+			IsProvided:                isProvided,
 			IsLeaf:                    isLeaf,
 			isTypeName:                info.isTypeName,
-			treeNodeId:                currentNodeId,
+			treeNodeId:                treeNodeId,
 		}
 
 		f.localSuggestions = append(f.localSuggestions, &node)
+		f.localSuggestionLookup[fieldRef] = struct{}{}
 	}
 
-	//
-	// DO NOT UNCOMMENT
-	// this approach could be harmful because it could prevent us from accessing nested entities fields
-	// think of a case under which conditions it may be useful
-	// if isExternal && !isLeaf {
-	// 	// we don't need to add suggestions for a child fields of an external node
-	// 	f.walker.SkipNode()
-	// 	return
-	// }
-
+	return nil
 }
 
-func (f *collectNodesVisitor) LeaveField(ref int) {
-
-}
-
-func (f *collectNodesVisitor) applySuggestions() {
+func (f *collectNodesDSVisitor) applySuggestions() {
+	// copy local suggestions to the global nodes suggestions
 	for _, suggestion := range f.localSuggestions {
 		f.nodes.addSuggestion(suggestion)
 		itemId := len(f.nodes.items) - 1
@@ -444,6 +541,11 @@ func (f *collectNodesVisitor) applySuggestions() {
 		itemIds = append(itemIds, itemId)
 		treeNode.SetData(itemIds)
 	}
+
+	// apply provides entries
+	for entry := range f.providesEntries {
+		f.nodes.addProvidedField(entry, f.dataSource.Hash())
+	}
 }
 
 func TreeNodeID(fieldRef int) uint {
@@ -451,6 +553,10 @@ func TreeNodeID(fieldRef int) uint {
 	// cause 0 is a valid field ref
 	// but for tree 0 is reserved for the root node
 	return uint(100 + fieldRef)
+}
+
+func TreeNodeFieldRef(nodeID uint) int {
+	return int(nodeID - 100)
 }
 
 const (
@@ -462,34 +568,16 @@ func IsMutationOrQueryRootType(typeName string) bool {
 	return queryTypeName == typeName || mutationTypeName == typeName
 }
 
-func getFieldInfo(operation, definition *ast.Document) map[int]fieldInfo {
-	walker := astvisitor.NewWalker(8)
-	visitor := &fieldInfoVisitor{
-		walker:     &walker,
-		operation:  operation,
-		definition: definition,
-		infoCache:  make(map[int]fieldInfo, len(operation.Fields)),
-	}
-	walker.RegisterEnterFieldVisitor(visitor)
-	report := &operationreport.Report{}
-	walker.Walk(operation, definition, report)
-	return visitor.infoCache
-}
-
-type fieldInfoVisitor struct {
-	walker                *astvisitor.Walker
-	operation, definition *ast.Document
-	infoCache             map[int]fieldInfo
-}
-
 type fieldInfo struct {
 	typeName, fieldName, fieldAliasOrName, parentPath, currentPath string
 	onFragment, isTypeName                                         bool
-	parentPathWithoutFragment                                      *string
+	parentPathWithoutFragment                                      string
 	possibleTypeNames                                              []string
+	currentPathWithoutFragments                                    string
+	enclosingTypeDefinition                                        ast.Node
 }
 
-func (f *fieldInfoVisitor) EnterField(ref int) {
+func (f *treeBuilderVisitor) collectFieldInfo(fieldRef int) {
 	typeName := f.walker.EnclosingTypeDefinition.NameString(f.definition)
 
 	var possibleTypes []string
@@ -501,26 +589,27 @@ func (f *fieldInfoVisitor) EnterField(ref int) {
 	default:
 	}
 
-	fieldName := f.operation.FieldNameUnsafeString(ref)
-	fieldAliasOrName := f.operation.FieldAliasOrNameString(ref)
+	fieldName := f.operation.FieldNameUnsafeString(fieldRef)
+	fieldAliasOrName := f.operation.FieldAliasOrNameString(fieldRef)
 	isTypeName := fieldName == typeNameField
 	parentPath := f.walker.Path.DotDelimitedString()
 	onFragment := f.walker.Path.EndsWithFragment()
-	var parentPathWithoutFragment *string
-	if onFragment {
-		p := f.walker.Path[:len(f.walker.Path)-1].DotDelimitedString()
-		parentPathWithoutFragment = &p
-	}
+	parentPathWithoutFragment := f.walker.Path.WithoutInlineFragmentNames().DotDelimitedString()
+
 	currentPath := fmt.Sprintf("%s.%s", parentPath, fieldAliasOrName)
-	f.infoCache[ref] = fieldInfo{
-		typeName:                  typeName,
-		possibleTypeNames:         possibleTypes,
-		fieldName:                 fieldName,
-		fieldAliasOrName:          fieldAliasOrName,
-		parentPath:                parentPath,
-		currentPath:               currentPath,
-		onFragment:                onFragment,
-		parentPathWithoutFragment: parentPathWithoutFragment,
-		isTypeName:                isTypeName,
+	currentPathWithoutFragments := fmt.Sprintf("%s.%s", parentPathWithoutFragment, fieldAliasOrName)
+
+	f.fieldInfo[fieldRef] = fieldInfo{
+		typeName:                    typeName,
+		possibleTypeNames:           possibleTypes,
+		fieldName:                   fieldName,
+		fieldAliasOrName:            fieldAliasOrName,
+		parentPath:                  parentPath,
+		currentPath:                 currentPath,
+		onFragment:                  onFragment,
+		parentPathWithoutFragment:   parentPathWithoutFragment,
+		currentPathWithoutFragments: currentPathWithoutFragments,
+		isTypeName:                  isTypeName,
+		enclosingTypeDefinition:     f.walker.EnclosingTypeDefinition,
 	}
 }

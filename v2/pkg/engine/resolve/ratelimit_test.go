@@ -55,7 +55,10 @@ func TestRateLimiter(t *testing.T) {
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
-		return res, &Context{ctx: context.Background(), Variables: nil, rateLimiter: limiter, RateLimitOptions: RateLimitOptions{Enable: true}},
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.rateLimiter = limiter
+		resolveCtx.RateLimitOptions = RateLimitOptions{Enable: true}
+		return res, resolveCtx,
 			`{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Fedora"}}]}}}`,
 			func(t *testing.T) {
 				assert.Equal(t, int64(3), limiter.rateLimitPreFetchCalls.Load())
@@ -73,7 +76,10 @@ func TestRateLimiter(t *testing.T) {
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
-		return res, &Context{ctx: context.Background(), Variables: nil, rateLimiter: limiter, RateLimitOptions: RateLimitOptions{Enable: true, IncludeStatsInResponseExtension: true}},
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.rateLimiter = limiter
+		resolveCtx.RateLimitOptions = RateLimitOptions{Enable: true, IncludeStatsInResponseExtension: true}
+		return res, resolveCtx,
 			`{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Fedora"}}]}},"extensions":{"rateLimit":{"Policy":"10 requests per second","Allowed":10,"Used":3}}}`,
 			func(t *testing.T) {
 				assert.Equal(t, int64(3), limiter.rateLimitPreFetchCalls.Load())
@@ -89,7 +95,10 @@ func TestRateLimiter(t *testing.T) {
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
-		return res, &Context{ctx: context.Background(), Variables: nil, rateLimiter: limiter, RateLimitOptions: RateLimitOptions{Enable: true}},
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.rateLimiter = limiter
+		resolveCtx.RateLimitOptions = RateLimitOptions{Enable: true}
+		return res, resolveCtx,
 			`{"errors":[{"message":"Rate limit exceeded for Subgraph 'users' at Path 'query', Reason: rate limit exceeded."},{"message":"Failed to fetch from Subgraph 'reviews' at Path 'query.me'.","extensions":{"errors":[{"message":"Failed to render Fetch Input","path":["me"]}]}},{"message":"Failed to fetch from Subgraph 'products' at Path 'query.me.reviews.@.product'.","extensions":{"errors":[{"message":"Failed to render Fetch Input","path":["me","reviews","@","product"]}]}}],"data":{"me":null}}`,
 			func(t *testing.T) {
 				assert.Equal(t, int64(1), limiter.rateLimitPreFetchCalls.Load())
@@ -105,7 +114,10 @@ func TestRateLimiter(t *testing.T) {
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
-		return res, &Context{ctx: context.Background(), Variables: nil, rateLimiter: limiter, RateLimitOptions: RateLimitOptions{Enable: true, ErrorExtensionCode: RateLimitErrorExtensionCode{Enabled: true, Code: "RATE_LIMIT_EXCEEDED"}}},
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.rateLimiter = limiter
+		resolveCtx.RateLimitOptions = RateLimitOptions{Enable: true, ErrorExtensionCode: RateLimitErrorExtensionCode{Enabled: true, Code: "RATE_LIMIT_EXCEEDED"}}
+		return res, resolveCtx,
 			`{"errors":[{"message":"Rate limit exceeded for Subgraph 'users' at Path 'query', Reason: rate limit exceeded.","extensions":{"code":"RATE_LIMIT_EXCEEDED"}},{"message":"Failed to fetch from Subgraph 'reviews' at Path 'query.me'.","extensions":{"errors":[{"message":"Failed to render Fetch Input","path":["me"]}]}},{"message":"Failed to fetch from Subgraph 'products' at Path 'query.me.reviews.@.product'.","extensions":{"errors":[{"message":"Failed to render Fetch Input","path":["me","reviews","@","product"]}]}}],"data":{"me":null}}`,
 			func(t *testing.T) {
 				assert.Equal(t, int64(1), limiter.rateLimitPreFetchCalls.Load())
@@ -121,7 +133,10 @@ func TestRateLimiter(t *testing.T) {
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
-		return res, Context{ctx: context.Background(), Variables: nil, rateLimiter: limiter, RateLimitOptions: RateLimitOptions{Enable: true}}, ""
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.rateLimiter = limiter
+		resolveCtx.RateLimitOptions = RateLimitOptions{Enable: true}
+		return res, *resolveCtx, ""
 	}))
 	t.Run("deny nested", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
 
@@ -140,7 +155,10 @@ func TestRateLimiter(t *testing.T) {
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
-		return res, &Context{ctx: context.Background(), Variables: nil, rateLimiter: limiter, RateLimitOptions: RateLimitOptions{Enable: true}},
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.rateLimiter = limiter
+		resolveCtx.RateLimitOptions = RateLimitOptions{Enable: true}
+		return res, resolveCtx,
 			`{"errors":[{"message":"Rate limit exceeded for Subgraph 'products' at Path 'query.me.reviews.@.product', Reason: rate limit exceeded."}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`,
 			func(t *testing.T) {
 				assert.Equal(t, int64(3), limiter.rateLimitPreFetchCalls.Load())
@@ -165,7 +183,10 @@ func TestRateLimiter(t *testing.T) {
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
-		return res, &Context{ctx: context.Background(), Variables: nil, rateLimiter: limiter, RateLimitOptions: RateLimitOptions{Enable: true, IncludeStatsInResponseExtension: true}},
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.rateLimiter = limiter
+		resolveCtx.RateLimitOptions = RateLimitOptions{Enable: true, IncludeStatsInResponseExtension: true}
+		return res, resolveCtx,
 			`{"errors":[{"message":"Rate limit exceeded for Subgraph 'products' at Path 'query.me.reviews.@.product', Reason: rate limit exceeded."}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}},"extensions":{"rateLimit":{"Policy":"1 request per second","Allowed":1,"Used":3}}}`,
 			func(t *testing.T) {
 				assert.Equal(t, int64(3), limiter.rateLimitPreFetchCalls.Load())
@@ -188,7 +209,10 @@ func TestRateLimiter(t *testing.T) {
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
-		return res, &Context{ctx: context.Background(), Variables: nil, rateLimiter: limiter, RateLimitOptions: RateLimitOptions{Enable: true}},
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.rateLimiter = limiter
+		resolveCtx.RateLimitOptions = RateLimitOptions{Enable: true}
+		return res, resolveCtx,
 			`{"errors":[{"message":"Rate limit exceeded for Subgraph 'products' at Path 'query.me.reviews.@.product'."}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`,
 			func(t *testing.T) {
 				assert.Equal(t, int64(3), limiter.rateLimitPreFetchCalls.Load())
@@ -211,6 +235,9 @@ func TestRateLimiter(t *testing.T) {
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
-		return res, Context{ctx: context.Background(), Variables: nil, rateLimiter: limiter, RateLimitOptions: RateLimitOptions{Enable: true}}, ""
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.rateLimiter = limiter
+		resolveCtx.RateLimitOptions = RateLimitOptions{Enable: true}
+		return res, *resolveCtx, ""
 	}))
 }
