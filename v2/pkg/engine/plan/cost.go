@@ -655,6 +655,8 @@ func (node *CostTreeNode) validateSliceArguments(configs map[DSHash]*DataSourceC
 		}
 
 		count := 0
+		// The engine has all inlined literal converted to the variables on this stage.
+		// No need to check for literals.
 		if variables != nil {
 			for _, slicingArg := range listSize.SlicingArguments {
 				arg, ok := node.arguments[slicingArg]
