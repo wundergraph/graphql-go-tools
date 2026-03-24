@@ -3132,7 +3132,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields: fieldConfig,
 			},
-			"field 'Query.items' requires exactly one slicing argument, but none was provided",
+			"external: field 'Query.items' requires exactly one slicing argument, but none was provided, locations: [], path: [items]",
 			computeCosts(),
 		))
 
@@ -3163,7 +3163,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields: fieldConfig,
 			},
-			"field 'Query.items' requires exactly one slicing argument, but 2 were provided",
+			"external: field 'Query.items' requires exactly one slicing argument, but 2 were provided, locations: [], path: [items]",
 			computeCosts(),
 		))
 
@@ -3263,6 +3263,89 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			},
 			computeCosts(),
 		))
+
+		t.Run("multiple fields violating - collects all errors", func(t *testing.T) {
+			multiSchema := `
+				type Query {
+					items(first: Int, last: Int): [Item!] # @listSize(assumedSize: 10, slicingArguments: ["first", "last"], requireOneSlicingArgument: true)
+					other(first: Int, last: Int): [Item!] # @listSize(assumedSize: 10, slicingArguments: ["first", "last"], requireOneSlicingArgument: true)
+				}
+				type Item @key(fields: "id") @cost(weight: 2) {
+					id: ID
+				}
+			`
+			multiSchemaObj, err := graphql.NewSchemaFromString(multiSchema)
+			require.NoError(t, err)
+			multiRootNodes := []plan.TypeField{
+				{TypeName: "Query", FieldNames: []string{"items", "other"}},
+				{TypeName: "Item", FieldNames: []string{"id"}},
+			}
+			multiCustomConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+				Fetch: &graphql_datasource.FetchConfiguration{
+					URL:    "https://example.com/",
+					Method: "GET",
+				},
+				SchemaConfiguration: mustSchemaConfig(t, nil, multiSchema),
+			})
+			multiFieldConfig := []plan.FieldConfiguration{
+				{
+					TypeName: "Query", FieldName: "items", Path: []string{"items"},
+					Arguments: []plan.ArgumentConfiguration{
+						{Name: "first", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+						{Name: "last", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+					},
+				},
+				{
+					TypeName: "Query", FieldName: "other", Path: []string{"other"},
+					Arguments: []plan.ArgumentConfiguration{
+						{Name: "first", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+						{Name: "last", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+					},
+				},
+			}
+			multiCostConfig := &plan.DataSourceCostConfig{
+				ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+					{TypeName: "Query", FieldName: "items"}: {
+						AssumedSize: 10, SlicingArguments: []string{"first", "last"}, RequireOneSlicingArgument: true,
+					},
+					{TypeName: "Query", FieldName: "other"}: {
+						AssumedSize: 10, SlicingArguments: []string{"first", "last"}, RequireOneSlicingArgument: true,
+					},
+				},
+				Types: map[string]int{"Item": 2},
+			}
+
+			t.Run("both fields missing slicing argument", runWithAndCompareError(
+				ExecutionEngineTestCase{
+					schema: multiSchemaObj,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{ items { id } other { id } }`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: `{"data":{"items":[],"other":[]}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  multiRootNodes,
+								CostConfig: multiCostConfig,
+							},
+							multiCustomConfig,
+						),
+					},
+					fields: multiFieldConfig,
+				},
+				"external: field 'Query.items' requires exactly one slicing argument, but none was provided, locations: [], path: [items]\n"+
+					"external: field 'Query.other' requires exactly one slicing argument, but none was provided, locations: [], path: [other]",
+				computeCosts(),
+			))
+		})
 	})
 	t.Run("validate requireOneSlicingArgument on abstract types", func(t *testing.T) {
 		// Abstract type tests: @listSize with requireOneSlicingArgument on concrete types,
@@ -3405,7 +3488,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields: abstractFieldConfig,
 			},
-			"field 'Paginated.items' requires exactly one slicing argument, but none was provided",
+			"external: field 'Paginated.items' requires exactly one slicing argument, but none was provided, locations: [], path: [search,items]",
 			computeCosts(),
 		))
 
@@ -3436,7 +3519,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields: abstractFieldConfig,
 			},
-			"field 'Paginated.items' requires exactly one slicing argument, but 2 were provided",
+			"external: field 'Paginated.items' requires exactly one slicing argument, but 2 were provided, locations: [], path: [search,items]",
 			computeCosts(),
 		))
 

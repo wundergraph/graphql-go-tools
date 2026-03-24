@@ -31,6 +31,9 @@ import (
 	"strings"
 
 	"github.com/wundergraph/astjson"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 // We don't allow configuring default weights for enums, scalars and objects.
@@ -586,21 +589,22 @@ func (c *CostCalculator) ActualCost(config Configuration, actualListSizes map[st
 	return c.tree.cost(costConfigs, nil, actualCostMode, actualListSizes)
 }
 
-// ValidateSliceArguments checks that all with fields with slicingArguments and
-// requiring one slicing argument are valid against passed arguments to those fields.
-func (c *CostCalculator) ValidateSliceArguments(config Configuration, variables *astjson.Value) error {
+// ValidateSliceArguments checks that all fields with slicingArguments and
+// requireOneSlicingArgument are valid against the arguments passed to those fields.
+// Violations are collected as external errors into the report.
+func (c *CostCalculator) ValidateSliceArguments(config Configuration, variables *astjson.Value, report *operationreport.Report) {
 	costConfigs := make(map[DSHash]*DataSourceCostConfig)
 	for _, ds := range config.DataSources {
 		if costConfig := ds.GetCostConfig(); costConfig != nil {
 			costConfigs[ds.Hash()] = costConfig
 		}
 	}
-	return c.tree.validateSliceArguments(costConfigs, variables)
+	c.tree.validateSliceArguments(costConfigs, variables, report)
 }
 
-func (node *CostTreeNode) validateSliceArguments(configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value) error {
+func (node *CostTreeNode) validateSliceArguments(configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value, report *operationreport.Report) {
 	if node == nil {
-		return nil
+		return
 	}
 
 	for _, dsHash := range node.dataSourceHashes {
@@ -621,7 +625,7 @@ func (node *CostTreeNode) validateSliceArguments(configs map[DSHash]*DataSourceC
 		}
 
 		count := 0
-		// The engine has all inlined literal converted to the variables on this stage.
+		// The engine has all inlined literals converted to variables at this stage.
 		// No need to check for literals.
 		if variables != nil {
 			for _, slicingArg := range listSize.SlicingArguments {
@@ -639,19 +643,42 @@ func (node *CostTreeNode) validateSliceArguments(configs map[DSHash]*DataSourceC
 			}
 		}
 		if count != 1 {
+			path := node.buildASTPath()
 			if count == 0 {
-				return fmt.Errorf("field '%s' requires exactly one slicing argument, but none was provided", node.fieldCoords)
+				report.AddExternalError(operationreport.ExternalError{
+					Message: fmt.Sprintf("field '%s' requires exactly one slicing argument, but none was provided", node.fieldCoords),
+					Path:    path,
+				})
+			} else {
+				report.AddExternalError(operationreport.ExternalError{
+					Message: fmt.Sprintf("field '%s' requires exactly one slicing argument, but %d were provided", node.fieldCoords, count),
+					Path:    path,
+				})
 			}
-			return fmt.Errorf("field '%s' requires exactly one slicing argument, but %d were provided", node.fieldCoords, count)
 		}
+		// Only report once per field node, even if multiple data sources agree.
+		break
 	}
 
 	for _, child := range node.children {
-		if err := child.validateSliceArguments(configs, variables); err != nil {
-			return err
+		child.validateSliceArguments(configs, variables, report)
+	}
+}
+
+// buildASTPath constructs an ast.Path from the node's jsonPath (e.g. "search.items" → [search,items]).
+func (node *CostTreeNode) buildASTPath() ast.Path {
+	if node.jsonPath == "" {
+		return nil
+	}
+	segments := strings.Split(node.jsonPath, ".")
+	path := make(ast.Path, len(segments))
+	for i, seg := range segments {
+		path[i] = ast.PathItem{
+			Kind:      ast.FieldName,
+			FieldName: []byte(seg),
 		}
 	}
-	return nil
+	return path
 }
 
 // DebugPrint prints the cost tree structure for debugging purposes.

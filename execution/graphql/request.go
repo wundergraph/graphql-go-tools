@@ -214,7 +214,7 @@ func (r *Request) ComputeActualCost(calc *plan.CostCalculator, config plan.Confi
 	if calc != nil {
 		r.actualCost = calc.ActualCost(config, actualListSizes)
 		// Debugging of cost trees. Uncomment to debug.
-		// fmt.Println(calc.DebugPrint(config, variables, actualListSizes))
+		// fmt.Println(calc.DebugPrint(config, nil, actualListSizes))
 	} else {
 		r.actualCost = 0
 	}
