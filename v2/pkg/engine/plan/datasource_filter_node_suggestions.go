@@ -51,6 +51,17 @@ type DeferInfo struct {
 	ParentID string
 }
 
+func (d *DeferInfo) Equals(o *DeferInfo) bool {
+	if d == nil && o == nil {
+		return true
+	}
+	if d == nil || o == nil {
+		return false
+	}
+
+	return d.ID == o.ID && d.Label == o.Label && d.ParentID == o.ParentID
+}
+
 func (n *NodeSuggestion) treeNodeID() uint {
 	return TreeNodeID(n.FieldRef)
 }

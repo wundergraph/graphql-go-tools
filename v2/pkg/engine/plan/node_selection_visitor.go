@@ -568,7 +568,7 @@ func (c *nodeSelectionVisitor) addPendingKeyRequirements(fieldCtx fieldRequireme
 		requirements.requirementConfigs = append(requirements.requirementConfigs, config)
 	} else {
 		for i := range requirements.requirementConfigs {
-			if requirements.requirementConfigs[i].targetDSHash == fieldCtx.dsConfig.Hash() && requirements.requirementConfigs[i].deferInfo == fieldCtx.deferInfo {
+			if requirements.requirementConfigs[i].targetDSHash == fieldCtx.dsConfig.Hash() && requirements.requirementConfigs[i].deferInfo.Equals(fieldCtx.deferInfo) {
 				if !slices.Contains(requirements.requirementConfigs[i].requestedByFieldRefs, fieldCtx.fieldRef) {
 					requirements.requirementConfigs[i].requestedByFieldRefs = append(requirements.requirementConfigs[i].requestedByFieldRefs, fieldCtx.fieldRef)
 				}
