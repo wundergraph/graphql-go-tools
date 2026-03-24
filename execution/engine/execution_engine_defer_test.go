@@ -41,6 +41,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				"id-1",
 				mustFactory(t,
 					testConditionalNetHttpClient(t, conditionalTestCase{
+						reportUnused: true,
 						expectedHost: "first",
 						expectedPath: "/",
 						responses: map[string]sendResponse{
@@ -193,6 +194,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				"id-1",
 				mustFactory(t,
 					testConditionalNetHttpClient(t, conditionalTestCase{
+						reportUnused: true,
 						expectedHost: "first",
 						expectedPath: "/",
 						responses: map[string]sendResponse{
@@ -212,70 +214,22 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 								statusCode: 200,
 								body:       `{"data":{"user":{"info":{"___typename":"Info"}}}}`,
 							},
-							`{"query":"{user {__typename id __internal_1_id: id}}"}`: {
-								statusCode: 200,
-								body:       `{"data":{"user":{"__typename":"User","id":"1","__internal_1_id":"1"}}}`,
-							},
-							`{"query":"{user {id __typename __internal_1_id: id}}"}`: {
-								statusCode: 200,
-								body:       `{"data":{"user":{"id":"1","__typename":"User","__internal_1_id":"1"}}}`,
-							},
 							`{"query":"{user {__typename __internal_id: id __internal_1_id: id}}"}`: {
 								statusCode: 200,
 								body:       `{"data":{"user":{"__typename":"User","__internal_id":"1","__internal_1_id":"1"}}}`,
-							},
-							`{"query":"{user {___typename: __typename __typename __internal_1_id: id}}"}`: {
-								statusCode: 200,
-								body:       `{"data":{"user":{"___typename":"User","__typename":"User","__internal_1_id":"1"}}}`,
-							},
-							`{"query":"{user {___typename: __typename __typename __internal_1_id: id __internal_2_id: id}}"}`: {
-								statusCode: 200,
-								body:       `{"data":{"user":{"___typename":"User","__typename":"User","__internal_1_id":"1","__internal_2_id":"1"}}}`,
-							},
-							`{"query":"{user {info {email} __typename id __internal_1_id: id}}"}`: {
-								statusCode: 200,
-								body:       `{"data":{"user":{"info":{"email":"black@sabbat"},"__typename":"User","id":"1","__internal_1_id":"1"}}}`,
 							},
 							`{"query":"{user {info {___typename: __typename} __typename id}}"}`: {
 								statusCode: 200,
 								body:       `{"data":{"user":{"info":{"___typename":"Info"},"__typename":"User","id":"1"}}}`,
 							},
-							`{"query":"{user {___typename: __typename __typename __internal_3_id: id __internal_4_id: id __internal_5_id: id}}"}`: {
-								statusCode: 200,
-								body:       `{"data":{"user":{"___typename":"User","__typename":"User","__internal_3_id":"1","__internal_4_id":"1","__internal_5_id":"1"}}}`,
-							}, // New alias format: simple __internal_id for first defer scope
-							`{"query":"{user {__typename id __internal_id: id}}"}`: {
-								statusCode: 200,
-								body:       `{"data":{"user":{"__typename":"User","id":"1","__internal_id":"1"}}}`,
-							},
-							`{"query":"{user {id __typename __internal_id: id}}"}`: {
-								statusCode: 200,
-								body:       `{"data":{"user":{"id":"1","__typename":"User","__internal_id":"1"}}}`,
-							},
 							`{"query":"{user {___typename: __typename __typename __internal_id: id}}"}`: {
 								statusCode: 200,
 								body:       `{"data":{"user":{"___typename":"User","__typename":"User","__internal_id":"1"}}}`,
-							},
-							`{"query":"{user {___typename: __typename __typename __internal_id: id __internal_1_id: id}}"}`: {
-								statusCode: 200,
-								body:       `{"data":{"user":{"___typename":"User","__typename":"User","__internal_id":"1","__internal_1_id":"1"}}}`,
-							},
-							`{"query":"{user {info {email} __typename id __internal_id: id}}"}`: {
-								statusCode: 200,
-								body:       `{"data":{"user":{"info":{"email":"black@sabbat"},"__typename":"User","id":"1","__internal_id":"1"}}}`,
 							},
 							`{"query":"{user {___typename: __typename __typename __internal_id: id __internal_4_id: id __internal_5_id: id}}"}`: {
 								statusCode: 200,
 								body:       `{"data":{"user":{"___typename":"User","__typename":"User","__internal_id":"1","__internal_4_id":"1","__internal_5_id":"1"}}}`,
 							},
-							`{"query":"{user {___typename: __typename __typename __internal_id: id __internal_1_id: id __internal_3_id: id __internal_2_id: id}}"}`: {
-								statusCode: 200,
-								body:       `{"data":{"user":{"___typename":"User","__typename":"User","__internal_id":"1","__internal_1_id":"1","__internal_3_id":"1","__internal_2_id":"1"}}}`,
-							},
-							`{"query":"{user {___typename: __typename __typename __internal_id: id __internal_2_id: id}}"}`: {
-								statusCode: 200,
-								body:       `{"data":{"user":{"___typename":"User","__typename":"User","__internal_id":"1","__internal_2_id":"1"}}}`,
-							}, // New format: plain id (no alias for first deferred occurrence)
 							`{"query":"{user {__typename id}}"}`: {
 								statusCode: 200,
 								body:       `{"data":{"user":{"__typename":"User","id":"1"}}}`,
@@ -336,6 +290,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				"id-2",
 				mustFactory(t,
 					testConditionalNetHttpClient(t, conditionalTestCase{
+						reportUnused: true,
 						expectedHost: "second",
 						expectedPath: "/",
 						responses: map[string]sendResponse{
@@ -364,18 +319,6 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 								body:       `{"data":{"_entities":[{"__typename":"User","name":"Black","title":"Sabbat","info":{"phone":"123"}}]}}`,
 							},
 							`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename info {phone}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
-								statusCode: 200,
-								body:       `{"data":{"_entities":[{"__typename":"User","name":"Black","title":"Sabbat","info":{"phone":"123"}}]}}`,
-							},
-							`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name info {___typename: __typename}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
-								statusCode: 200,
-								body:       `{"data":{"_entities":[{"__typename":"User","name":"Black","title":"Sabbat","info":{"phone":"123"}}]}}`,
-							},
-							`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename info {email phone}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
-								statusCode: 200,
-								body:       `{"data":{"_entities":[{"__typename":"User","name":"Black","title":"Sabbat","info":{"phone":"123"}}]}}`,
-							},
-							`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name info {email}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
 								statusCode: 200,
 								body:       `{"data":{"_entities":[{"__typename":"User","name":"Black","title":"Sabbat","info":{"phone":"123"}}]}}`,
 							},
@@ -861,6 +804,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 
 		dataSources := []plan.DataSource{
 			mustGraphqlDataSourceConfiguration(t, "id-1", mustFactory(t, testConditionalNetHttpClient(t, conditionalTestCase{
+				reportUnused: true,
 				expectedHost: "first",
 				expectedPath: "/",
 				responses: map[string]sendResponse{
@@ -869,18 +813,6 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 						statusCode: 200,
 						body:       `{"data":{"user":{"name":"Alice"}}}`,
 					}, // Initial root query when only entity key is needed (account @requires billing+settings from sub2/sub3)
-					`{"query":"{user {id}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"id":"1"}}}`,
-					}, // Initial root query with name also included (name needed for notifications @requires)
-					`{"query":"{user {id name}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"id":"1","name":"Alice"}}}`,
-					},
-					`{"query":"{user {name id}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"name":"Alice","id":"1"}}}`,
-					}, // Defer variants — include __typename and internal id aliases
 					`{"query":"{user {__typename id}}"}`: {
 						statusCode: 200,
 						body:       `{"data":{"user":{"__typename":"User","id":"1"}}}`,
@@ -889,89 +821,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 						statusCode: 200,
 						body:       `{"data":{"user":{"___typename":"User"}}}`,
 					},
-					`{"query":"{user {___typename: __typename __typename __internal_1_id: id}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"___typename":"User","__typename":"User","__internal_1_id":"1"}}}`,
-					},
-					`{"query":"{user {___typename: __typename __typename __internal_2_id: id __internal_1_id: id __internal_3_id: id}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"___typename":"User","__typename":"User","__internal_2_id":"1","__internal_1_id":"1","__internal_3_id":"1"}}}`,
-					},
-					`{"query":"{user {name __typename __internal_1_id: id}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"name":"Alice","__typename":"User","__internal_1_id":"1"}}}`,
-					},
-					`{"query":"{user {name __typename __internal_1_id: id __internal_2_id: id}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"name":"Alice","__typename":"User","__internal_1_id":"1","__internal_2_id":"1"}}}`,
-					},
-					`{"query":"{user {name __typename __internal_1_id: id id __internal_2_id: id}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"name":"Alice","__typename":"User","__internal_1_id":"1","id":"1","__internal_2_id":"1"}}}`,
-					},
-					`{"query":"{user {name __typename __internal_2_id: id __internal_1_id: id}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"name":"Alice","__typename":"User","__internal_2_id":"1","__internal_1_id":"1"}}}`,
-					},
-					`{"query":"{user {__typename id name}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"__typename":"User","id":"1","name":"Alice"}}}`,
-					},
 					`{"query":"{user {name __typename id}}"}`: {
 						statusCode: 200,
 						body:       `{"data":{"user":{"name":"Alice","__typename":"User","id":"1"}}}`,
-					},
-					`{"query":"{user {__typename id __internal_1_id: id}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"__typename":"User","id":"1","__internal_1_id":"1"}}}`,
-					},
-					`{"query":"{user {__typename id __internal_1_id: id __internal_2_id: id}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"__typename":"User","id":"1","__internal_1_id":"1","__internal_2_id":"1"}}}`,
-					},
-					`{"query":"{user {__typename id __internal_1_id: id __internal_2_id: id __internal_3_id: id}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"__typename":"User","id":"1","__internal_1_id":"1","__internal_2_id":"1","__internal_3_id":"1"}}}`,
-					},
-					`{"query":"{user {__typename id name __internal_1_id: id}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"__typename":"User","id":"1","name":"Alice","__internal_1_id":"1"}}}`,
-					},
-					`{"query":"{user {name __typename id __internal_1_id: id}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"name":"Alice","__typename":"User","id":"1","__internal_1_id":"1"}}}`,
-					},
-					`{"query":"{user {__typename id name __internal_1_id: id __internal_2_id: id}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"__typename":"User","id":"1","name":"Alice","__internal_1_id":"1","__internal_2_id":"1"}}}`,
-					},
-					`{"query":"{user {name __typename id __internal_1_id: id __internal_2_id: id}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"name":"Alice","__typename":"User","id":"1","__internal_1_id":"1","__internal_2_id":"1"}}}`,
-					},
-					`{"query":"{user {__typename id name __internal_1_id: id __internal_2_id: id __internal_3_id: id}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"__typename":"User","id":"1","name":"Alice","__internal_1_id":"1","__internal_2_id":"1","__internal_3_id":"1"}}}`,
-					},
-					`{"query":"{user {name __typename id __internal_1_id: id __internal_2_id: id __internal_3_id: id}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"name":"Alice","__typename":"User","id":"1","__internal_1_id":"1","__internal_2_id":"1","__internal_3_id":"1"}}}`,
-					},
-					`{"query":"{user {__typename id __internal_1_id: id __internal_2_id: id __internal_3_id: id __internal_4_id: id}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"__typename":"User","id":"1","__internal_1_id":"1","__internal_2_id":"1","__internal_3_id":"1","__internal_4_id":"1"}}}`,
-					},
-					`{"query":"{user {__typename id name __internal_1_id: id __internal_2_id: id __internal_3_id: id __internal_4_id: id}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"__typename":"User","id":"1","name":"Alice","__internal_1_id":"1","__internal_2_id":"1","__internal_3_id":"1","__internal_4_id":"1"}}}`,
-					}, // Entity fetch for name (when name is in a deferred block)
-					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
-						statusCode: 200,
-						body:       `{"data":{"_entities":[{"__typename":"User","name":"Alice"}]}}`,
-					}, // Entity fetch for account — representations carry @requires data (billing.plan + settings.region)
-					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename account {type limit}}}}","variables":{"representations":[{"__typename":"User","billing":{"plan":"pro"},"settings":{"region":"us-east"},"id":"1"}]}}`: {
-						statusCode: 200,
-						body:       `{"data":{"_entities":[{"__typename":"User","account":{"type":"premium","limit":100}}]}}`,
 					},
 					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename account {type}}}}","variables":{"representations":[{"__typename":"User","billing":{"plan":"pro"},"settings":{"region":"us-east"},"id":"1"}]}}`: {
 						statusCode: 200,
@@ -981,54 +833,6 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 						statusCode: 200,
 						body:       `{"data":{"user":{"account":{"type":"premium"}}}}`,
 					},
-					`{"query":"{user {__internal_1_name: name}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"__internal_1_name":"Alice"}}}`,
-					},
-					`{"query":"{user {__internal_2_name: name}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"__internal_2_name":"Alice"}}}`,
-					},
-					`{"query":"{user {account {type} __internal_2_name: name}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"account":{"type":"premium"},"__internal_2_name":"Alice"}}}`,
-					},
-					`{"query":"{user {__internal_3_name: name}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"__internal_3_name":"Alice"}}}`,
-					},
-					`{"query":"{user {name account {type} __internal_1_name: name}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"name":"Alice","account":{"type":"premium"},"__internal_1_name":"Alice"}}}`,
-					}, // New alias format: simple __internal_id for first defer scope
-					`{"query":"{user {___typename: __typename __typename __internal_id: id}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"___typename":"User","__typename":"User","__internal_id":"1"}}}`,
-					},
-					`{"query":"{user {name __typename __internal_id: id}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"name":"Alice","__typename":"User","__internal_id":"1"}}}`,
-					},
-					`{"query":"{user {name __typename __internal_id: id __internal_1_id: id}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"name":"Alice","__typename":"User","__internal_id":"1","__internal_1_id":"1"}}}`,
-					},
-					`{"query":"{user {name __typename __internal_id: id __internal_2_id: id}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"name":"Alice","__typename":"User","__internal_id":"1","__internal_2_id":"1"}}}`,
-					},
-					`{"query":"{user {name __typename __internal_id: id __internal_2_id: id __internal_1_id: id}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"name":"Alice","__typename":"User","__internal_id":"1","__internal_2_id":"1","__internal_1_id":"1"}}}`,
-					},
-					`{"query":"{user {name __typename __internal_id: id id __internal_2_id: id __internal_1_id: id}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"name":"Alice","__typename":"User","__internal_id":"1","id":"1","__internal_2_id":"1","__internal_1_id":"1"}}}`,
-					},
-					`{"query":"{user {name __typename __internal_id: id __internal_1_id: id __internal_2_id: id}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"name":"Alice","__typename":"User","__internal_id":"1","__internal_1_id":"1","__internal_2_id":"1"}}}`,
-					},
 					`{"query":"{user {__internal_name: name}}"}`: {
 						statusCode: 200,
 						body:       `{"data":{"user":{"__internal_name":"Alice"}}}`,
@@ -1037,14 +841,6 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 						statusCode: 200,
 						body:       `{"data":{"user":{"name":"Alice","account":{"type":"premium"},"__internal_name":"Alice"}}}`,
 					},
-					`{"query":"{user {___typename: __typename __typename __internal_id: id __internal_1_id: id}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"___typename":"User","__typename":"User","__internal_id":"1","__internal_1_id":"1"}}}`,
-					},
-					`{"query":"{user {___typename: __typename __typename __internal_id: id __internal_1_id: id __internal_3_id: id __internal_2_id: id}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"___typename":"User","__typename":"User","__internal_id":"1","__internal_1_id":"1","__internal_3_id":"1","__internal_2_id":"1"}}}`,
-					}, // New format: plain id key field (no alias for first occurrence)
 					`{"query":"{user {___typename: __typename __typename id}}"}`: {
 						statusCode: 200,
 						body:       `{"data":{"user":{"___typename":"User","__typename":"User","id":"1"}}}`,
@@ -1106,6 +902,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}, firstSubgraphSDL),
 			})),
 			mustGraphqlDataSourceConfiguration(t, "id-2", mustFactory(t, testConditionalNetHttpClient(t, conditionalTestCase{
+				reportUnused: true,
 				expectedHost: "second",
 				expectedPath: "/",
 				responses: map[string]sendResponse{
@@ -1114,26 +911,10 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 						statusCode: 200,
 						body:       `{"data":{"_entities":[{"__typename":"User","billing":{"plan":"pro"}}]}}`,
 					},
-					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename billing {plan currency}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
-						statusCode: 200,
-						body:       `{"data":{"_entities":[{"__typename":"User","billing":{"plan":"pro","currency":"USD"}}]}}`,
-					},
-					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename billing {currency}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
-						statusCode: 200,
-						body:       `{"data":{"_entities":[{"__typename":"User","billing":{"currency":"USD"}}]}}`,
-					}, // Entity fetch for notifications — representations carry @requires data (name + settings.language)
 					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename notifications}}}","variables":{"representations":[{"__typename":"User","name":"Alice","settings":{"language":"en"},"id":"1"}]}}`: {
 						statusCode: 200,
 						body:       `{"data":{"_entities":[{"__typename":"User","notifications":["msg1","msg2"]}]}}`,
-					}, // Aliased billing fetches for deferred chunks
-					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename __internal_1_billing: billing {plan}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
-						statusCode: 200,
-						body:       `{"data":{"_entities":[{"__typename":"User","__internal_1_billing":{"plan":"pro"}}]}}`,
 					},
-					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename __internal_2_billing: billing {plan}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
-						statusCode: 200,
-						body:       `{"data":{"_entities":[{"__typename":"User","__internal_2_billing":{"plan":"pro"}}]}}`,
-					}, // New alias format: simple __internal_billing for first defer scope
 					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename __internal_billing: billing {plan}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
 						statusCode: 200,
 						body:       `{"data":{"_entities":[{"__typename":"User","__internal_billing":{"plan":"pro"}}]}}`,
@@ -1142,11 +923,6 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 						statusCode: 200,
 						body:       `{"data":{"_entities":[{"__typename":"User","billing":{"plan":"pro"},"__internal_billing":{"plan":"pro"}}]}}`,
 					},
-					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename billing {plan} __internal_1_billing: billing {plan}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
-						statusCode: 200,
-						body:       `{"data":{"_entities":[{"__typename":"User","billing":{"plan":"pro"},"__internal_1_billing":{"plan":"pro"}}]}}`,
-					}, // Combined billing+notifications fetch (planner merges them into one entity request).
-					// Two field-order variants since the planner may order selections differently.
 					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename billing {plan} notifications}}}","variables":{"representations":[{"__typename":"User","id":"1","name":"Alice","settings":{"language":"en"}}]}}`: {
 						statusCode: 200,
 						body:       `{"data":{"_entities":[{"__typename":"User","billing":{"plan":"pro"},"notifications":["msg1","msg2"]}]}}`,
@@ -1154,10 +930,6 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename notifications billing {plan}}}}","variables":{"representations":[{"__typename":"User","id":"1","name":"Alice","settings":{"language":"en"}}]}}`: {
 						statusCode: 200,
 						body:       `{"data":{"_entities":[{"__typename":"User","notifications":["msg1","msg2"],"billing":{"plan":"pro"}}]}}`,
-					},
-					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename notifications}}}","variables":{"representations":[{"__typename":"User","id":"1","name":"Alice","settings":{"language":"en"}}]}}`: {
-						statusCode: 200,
-						body:       `{"data":{"_entities":[{"__typename":"User","notifications":["msg1","msg2"]}]}}`,
 					},
 				},
 			})), &plan.DataSourceMetadata{
@@ -1204,23 +976,10 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}, secondSubgraphSDL),
 			})),
 			mustGraphqlDataSourceConfiguration(t, "id-3", mustFactory(t, testConditionalNetHttpClient(t, conditionalTestCase{
+				reportUnused: true,
 				expectedHost: "third",
 				expectedPath: "/",
 				responses: map[string]sendResponse{
-					// Entity fetches for settings (needed for both account and notifications @requires)
-					// Aliased settings fetches for deferred chunks
-					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename __internal_1_settings: settings {region}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
-						statusCode: 200,
-						body:       `{"data":{"_entities":[{"__typename":"User","__internal_1_settings":{"region":"us-east"}}]}}`,
-					},
-					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename __internal_2_settings: settings {region}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
-						statusCode: 200,
-						body:       `{"data":{"_entities":[{"__typename":"User","__internal_2_settings":{"region":"us-east"}}]}}`,
-					},
-					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename __internal_1_settings: settings {language}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
-						statusCode: 200,
-						body:       `{"data":{"_entities":[{"__typename":"User","__internal_1_settings":{"language":"en"}}]}}`,
-					},
 					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename __internal_3_settings: settings {language}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
 						statusCode: 200,
 						body:       `{"data":{"_entities":[{"__typename":"User","__internal_3_settings":{"language":"en"}}]}}`,
@@ -1241,14 +1000,6 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 						statusCode: 200,
 						body:       `{"data":{"_entities":[{"__typename":"User","settings":{"language":"en"},"__internal_settings":{"language":"en"}}]}}`,
 					},
-					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename settings {region} __internal_1_settings: settings {region}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
-						statusCode: 200,
-						body:       `{"data":{"_entities":[{"__typename":"User","settings":{"region":"us-east"},"__internal_1_settings":{"region":"us-east"}}]}}`,
-					},
-					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename settings {language} __internal_1_settings: settings {language}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
-						statusCode: 200,
-						body:       `{"data":{"_entities":[{"__typename":"User","settings":{"language":"en"},"__internal_1_settings":{"language":"en"}}]}}`,
-					}, // Original entity fetches for settings
 					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename settings {region}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
 						statusCode: 200,
 						body:       `{"data":{"_entities":[{"__typename":"User","settings":{"region":"us-east"}}]}}`,
