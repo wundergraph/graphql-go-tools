@@ -239,11 +239,20 @@ func (v *requiredFieldsVisitor) handleRequiredField(ref int) {
 	fieldName := v.key.FieldNameBytes(ref)
 	isTypeName := bytes.Equal(fieldName, typeNameFieldBytes)
 
-	// we need to add an alias if the operation has such a field and:
-	// - the field is not a leaf
-	// - the field has arguments
 	isLeafField := !v.key.FieldHasSelections(ref)
+
+	// @requires fields can carry arguments (e.g. price(currency: USD)).
+	// If the same field already appears in the query with different arguments,
+	// the two selections cannot share the same field node, so we must alias the
+	// required copy to avoid clobbering the user's selection.
+	// Key fields never have arguments, so this check is absent in handleKeyField.
 	needAlias := v.key.FieldHasArguments(ref)
+
+	// Unlike handleKeyField, __typename IS included in deferAlias here.
+	// For interface objects (entity interfaces) the planner adds __typename as a
+	// @requires field (not a key field) so the owning subgraph can return the real
+	// concrete type.  That __typename must travel through the same deferred path as
+	// the rest of the requires fields, so it must not be excluded from aliasing.
 	deferAlias := v.config.deferInfo != nil && v.isRootLevel()
 
 	selectionSetRef := v.OperationNodes[len(v.OperationNodes)-1].Ref
@@ -256,9 +265,12 @@ func (v *requiredFieldsVisitor) handleRequiredField(ref int) {
 	}
 
 	if operationHasField && !needAlias && !deferAlias {
-		// we are skipping adding __typename field to the required fields,
-		// because we want to depend only on the regular key fields, not the __typename field
-		// for entity interface we need real typename, so we use this dependency
+		// Skip storing __typename as a required field — we only want to depend on
+		// the actual key fields, not __typename.
+		// Exception: for interface objects the planner adds __typename via @requires
+		// so we do need it as a real dependency in that case.
+		// (handleKeyField always skips __typename here because it handles __typename
+		// through the representation variables builder instead.)
 		if !isTypeName || v.config.isTypeNameForEntityInterface {
 			v.storeRequiredFieldRef(operationFieldRef)
 		}
@@ -284,7 +296,18 @@ func (v *requiredFieldsVisitor) handleKeyField(ref int) {
 	fieldName := v.key.FieldNameBytes(ref)
 	isTypeName := bytes.Equal(fieldName, typeNameFieldBytes)
 	isLeafField := !v.key.FieldHasSelections(ref)
+
+	// Key fields must never alias __typename, even in a deferred context.
+	// __typename is not part of the user-visible key field set; instead it is
+	// always injected by the representation variables builder with the static
+	// name "__typename".  Aliasing it would break that builder.
+	// (handleRequiredField does NOT exclude __typename here because for
+	// interface objects __typename is fetched via @requires, not keys.)
 	deferAlias := v.config.deferInfo != nil && v.isRootLevel() && !isTypeName
+
+	// Key fields cannot have arguments — they are always simple scalar
+	// identifiers — so there is no needAlias check for arguments here
+	// (unlike handleRequiredField).
 
 	selectionSetRef := v.OperationNodes[len(v.OperationNodes)-1].Ref
 	operationHasField, operationFieldRef := v.config.operation.SelectionSetHasFieldSelectionWithExactName(selectionSetRef, fieldName)
@@ -294,9 +317,10 @@ func (v *requiredFieldsVisitor) handleKeyField(ref int) {
 	existingFieldIsDeferred := operationHasField && v.config.deferInfo == nil && v.fieldHasDeferInternal(operationFieldRef)
 
 	if operationHasField && !deferAlias && !existingFieldIsDeferred {
-		// we are skipping adding __typename field to the required fields,
-		// because we want to depend only on the regular key fields, not the __typename field
-		// for entity interface we need real typename, so we use this dependency
+		// Skip storing __typename as a required field.
+		// Unlike handleRequiredField there is no isTypeNameForEntityInterface
+		// exception here: for interface objects the real __typename is fetched
+		// via @requires (handled by handleRequiredField), never as a key field.
 		if !isTypeName {
 			v.storeRequiredFieldRef(operationFieldRef)
 		}
