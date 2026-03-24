@@ -88,7 +88,7 @@ func (ls *FieldListSize) multiplier(arguments map[string]ArgumentInfo, vars *ast
 		}
 
 		var value int
-		// Argument could be a variable or literal value.
+		// Argument could be a variable only on this stage.
 		if arg.hasVariable {
 			if vars == nil {
 				continue
@@ -97,8 +97,6 @@ func (ls *FieldListSize) multiplier(arguments map[string]ArgumentInfo, vars *ast
 				continue
 			}
 			value = vars.GetInt(arg.varName)
-		} else if arg.intValue > 0 {
-			value = arg.intValue
 		}
 
 		if value > 0 && value > multiplier {
