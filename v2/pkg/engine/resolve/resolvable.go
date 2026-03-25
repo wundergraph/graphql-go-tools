@@ -353,13 +353,7 @@ func (r *Resolvable) printDeferEnvelopeOpen() {
 	r.printBytes(lBrace)
 }
 
-func (r *Resolvable) printDeferEnvelopeClose() {
-	if !r.render() {
-		return
-	}
-
-	r.printBytes(rBrace)
-	r.printBytes(comma)
+func (r *Resolvable) printDeferPathAndErrors() {
 	r.printBytes(quote)
 	r.printBytes(literalPath)
 	r.printBytes(quote)
@@ -373,6 +367,16 @@ func (r *Resolvable) printDeferEnvelopeClose() {
 		r.printBytes(colon)
 		r.printNode(r.errors)
 	}
+}
+
+func (r *Resolvable) printDeferEnvelopeClose() {
+	if !r.render() {
+		return
+	}
+
+	r.printBytes(rBrace)
+	r.printBytes(comma)
+	r.printDeferPathAndErrors()
 	r.printBytes(rBrace)
 }
 
@@ -387,19 +391,7 @@ func (r *Resolvable) printDeferEnvelopeNullData() {
 	r.printBytes(colon)
 	r.printBytes(null)
 	r.printBytes(comma)
-	r.printBytes(quote)
-	r.printBytes(literalPath)
-	r.printBytes(quote)
-	r.printBytes(colon)
-	r.renderPath()
-	if r.hasErrors() {
-		r.printBytes(comma)
-		r.printBytes(quote)
-		r.printBytes(literalErrors)
-		r.printBytes(quote)
-		r.printBytes(colon)
-		r.printNode(r.errors)
-	}
+	r.printDeferPathAndErrors()
 	r.printBytes(rBrace)
 }
 
