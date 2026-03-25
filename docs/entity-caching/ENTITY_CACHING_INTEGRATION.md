@@ -115,6 +115,11 @@ plan.EntityCacheConfiguration{
     // is never served. Fresh data is always fetched and compared against cache
     // for staleness detection. L1 cache is unaffected.
     ShadowMode: false,
+
+    // NegativeCacheTTL is the TTL for caching null entity results (entity not found).
+    // When > 0, null responses from _entities are cached as sentinels.
+    // When 0 (default), null entities are not cached.
+    NegativeCacheTTL: 5 * time.Second,
 }
 ```
 
@@ -161,6 +166,11 @@ plan.MutationFieldCacheConfiguration{
     // By default, mutations skip L2 reads AND L2 writes.
     // Set to true to allow entity fetches during this mutation to write to L2.
     EnableEntityL2CachePopulation: true,
+
+    // TTL overrides the entity's default cache TTL for L2 writes triggered by this mutation.
+    // When zero (default), the entity's default TTL (from EntityCacheConfiguration) is used.
+    // Useful for @cachePopulate(maxAge: 60) on mutation fields.
+    TTL: 60 * time.Second,
 }
 ```
 
@@ -168,6 +178,7 @@ plan.MutationFieldCacheConfiguration{
 - Mutations **always skip L2 reads** (always fetch fresh from subgraph)
 - Mutations **skip L2 writes by default**
 - With `EnableEntityL2CachePopulation: true`, entity fetches triggered by this mutation **will write to L2**
+- With `TTL` set, mutation-triggered L2 writes use this TTL instead of the entity's default
 
 ### Mutation Cache Invalidation Configuration
 
@@ -536,7 +547,103 @@ for _, mutation := range snapshot.MutationEvents {
 }
 ```
 
-## 11. Complete Integration Example
+## 11. Cache Trace in Response Extensions
+
+When the trace feature is enabled (`TraceOptions.Enable = true` with `IncludeTraceOutputInResponseExtensions = true`), each fetch in the response's `extensions.trace` includes a `cache_trace` object with per-fetch caching details. This provides real-time visibility into cache behavior for each subgraph call.
+
+### Enabling Cache Trace
+
+Cache trace is included automatically when tracing is enabled. To exclude it (e.g., to reduce response size), set `ExcludeCacheStats: true`:
+
+```go
+opts := engine.WithRequestTraceOptions(resolve.TraceOptions{
+    Enable:                                 true,
+    IncludeTraceOutputInResponseExtensions: true,
+    ExcludeCacheStats:                      false, // default: included
+})
+```
+
+**Zero overhead**: When `Enable` is false or `ExcludeCacheStats` is true, no cache trace data is collected — no timing calls, no allocations, no counting.
+
+### CacheTrace Structure
+
+Each fetch node in `extensions.trace.fetches` includes:
+
+```go
+type CacheTrace struct {
+    L1Enabled  bool   `json:"l1_enabled"`   // L1 enabled for this fetch (runtime state)
+    L2Enabled  bool   `json:"l2_enabled"`   // L2 enabled for this fetch (runtime state)
+    CacheName  string `json:"cache_name"`   // Named cache instance
+    TTLSeconds int64  `json:"ttl_seconds"`  // Configured TTL
+
+    L1Hit  int `json:"l1_hit"`   // L1 cache hits
+    L1Miss int `json:"l1_miss"`  // L1 cache misses
+    L2Hit  int `json:"l2_hit"`   // L2 cache hits
+    L2Miss int `json:"l2_miss"`  // L2 cache misses
+
+    NegativeCacheHits int `json:"negative_cache_hits,omitempty"` // Null entities from cache
+
+    // L2 operation timing
+    L2GetDurationNano   int64  `json:"l2_get_duration_nanoseconds,omitempty"`
+    L2SetDurationNano   int64  `json:"l2_set_duration_nanoseconds,omitempty"`
+    L2SetNegativeDurationNano int64 `json:"l2_set_negative_duration_nanoseconds,omitempty"`
+
+    // Configuration flags
+    PartialCacheLoad            bool `json:"partial_cache_load,omitempty"`
+    ShadowMode                  bool `json:"shadow_mode,omitempty"`
+    ShadowHit                   bool `json:"shadow_hit,omitempty"`
+    IncludeSubgraphHeaderPrefix bool `json:"include_subgraph_header_prefix,omitempty"`
+
+    // Per-entity details (entity/batch fetches only)
+    Entities []CacheTraceEntity `json:"entities,omitempty"`
+
+    // Cache keys used (when ExcludeRawInputData is false)
+    Keys []string `json:"keys,omitempty"`
+
+    // Errors from cache operations
+    L2GetError string `json:"l2_get_error,omitempty"`
+    L2SetError string `json:"l2_set_error,omitempty"`
+}
+```
+
+### Example Response
+
+```json
+{
+  "data": { "topProducts": [...] },
+  "extensions": {
+    "trace": {
+      "fetches": {
+        "kind": "Sequence",
+        "children": [{
+          "kind": "Single",
+          "fetch": {
+            "kind": "Single",
+            "source_name": "accounts",
+            "trace": {
+              "duration_load_nanoseconds": 5000000,
+              "cache_trace": {
+                "l1_enabled": true,
+                "l2_enabled": true,
+                "cache_name": "default",
+                "ttl_seconds": 60,
+                "l1_hit": 0,
+                "l1_miss": 1,
+                "l2_hit": 1,
+                "l2_miss": 0,
+                "l2_get_duration_nanoseconds": 250000,
+                "keys": ["{\"__typename\":\"User\",\"key\":{\"id\":\"1\"}}"]
+              }
+            }
+          }
+        }]
+      }
+    }
+  }
+}
+```
+
+## 12. Complete Integration Example
 
 ```go
 package main
@@ -665,7 +772,7 @@ func setupCaching() {
 }
 ```
 
-## 12. Configuration Reference Summary
+## 13. Configuration Reference Summary
 
 | Configuration | Package | Purpose |
 |--------------|---------|---------|
@@ -680,3 +787,4 @@ func setupCaching() {
 | `LoaderCache` | `v2/pkg/engine/resolve` | Cache backend interface |
 | `EntityCacheInvalidationConfig` | `v2/pkg/engine/resolve` | Extension-based invalidation lookup |
 | `ResolverOptions.Caches` | `v2/pkg/engine/resolve` | Named cache instance registry |
+| `TraceOptions.ExcludeCacheStats` | `v2/pkg/engine/resolve` | Exclude cache trace from response extensions |

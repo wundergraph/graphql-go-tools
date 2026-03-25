@@ -729,6 +729,51 @@ entity's regular TTL, replacing the expired negative sentinel.
 Tests:
 - `v2/pkg/engine/resolve/negative_cache_test.go` — `TestNegativeCaching / "negative cache entry overwritten by real data on subsequent fetch"`
 
+## Cache Trace in Response Extensions
+
+### AC-TRACE-01: Per-fetch cache trace in extensions.trace
+When tracing is enabled (`TraceOptions.Enable = true`) and `ExcludeCacheStats` is false
+(default), each fetch in `extensions.trace.fetches` includes a `cache_trace` object with
+L1/L2 hit/miss counts, L2 Get/Set timing, cache name, TTL, and configuration flags.
+
+Tests:
+- `execution/engine/federation_caching_trace_test.go` — `TestFederationCaching_CacheTraceInExtensions / "L2 miss then hit shows cache_trace in extensions.trace"`
+- `v2/pkg/engine/resolve/cache_trace_test.go` — `TestCacheTrace_JSON` (3 subtests: full serialization, omitempty, shadow mode)
+
+### AC-TRACE-02: Zero overhead when disabled
+When `TraceOptions.Enable` is false or `ExcludeCacheStats` is true, no cache trace data
+is collected: no `time.Now()` calls, no counting, no allocations. The `tracingCache` guard
+(`l.ctx.TracingOptions.Enable && !l.ctx.TracingOptions.ExcludeCacheStats`) short-circuits
+all instrumentation.
+
+Tests:
+- `v2/pkg/engine/resolve/cache_trace_test.go` — `TestBuildCacheTrace / "returns nil when tracing disabled"`
+- `v2/pkg/engine/resolve/cache_trace_test.go` — `TestBuildCacheTrace / "returns nil when ExcludeCacheStats true"`
+
+### AC-TRACE-03: Cache-hit fetches still produce trace
+When L1 or L2 provides a complete hit, `load*Fetch` is never called (so `fetch.Trace` is
+not normally allocated). The `ensureFetchTrace` helper allocates `DataSourceLoadTrace` on
+the cache-hit path so that `CacheTrace` can still be attached.
+
+Tests:
+- `v2/pkg/engine/resolve/cache_trace_test.go` — `TestBuildCacheTrace / "full L1 hit"` (verifies CacheTrace built even when cacheSkipFetch=true)
+
+### AC-TRACE-04: Trace attached after final cache state
+`CacheTrace` is built AFTER `mergeResult` + `populateCachesAfterFetch` complete, ensuring
+L2 write timing, negative cache hits, and shadow comparison results are all captured.
+Attachment happens in `resolveSingle` (after `callOnFinished`) and `resolveParallel`
+Phase 4 (after merge loop).
+
+Tests:
+- `execution/engine/federation_caching_trace_test.go` — `TestFederationCaching_CacheTraceInExtensions` (verifies L2 Set timing present on miss, absent on hit)
+
+### AC-TRACE-05: Predictable debug timings
+When `EnablePredictableDebugTimings` is true, all L2 timing values in `CacheTrace` are
+normalized to `1ns` for deterministic test assertions.
+
+Tests:
+- `v2/pkg/engine/resolve/cache_trace_test.go` — `TestBuildCacheTrace / "predictable debug timings"`
+
 ## Future Improvements
 
 The following features are not yet implemented but are planned or under consideration:
