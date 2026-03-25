@@ -358,6 +358,8 @@ func (l *Loader) tryL1CacheLoad(info *FetchInfo, cacheKeys []*CacheKey, res *res
 		return false
 	}
 
+	tracingCache := l.ctx.TracingOptions.Enable && !l.ctx.TracingOptions.ExcludeCacheStats
+
 	// Extract entity type and data source for analytics
 	var entityType, dataSource string
 	if l.ctx.cacheAnalyticsEnabled() {
@@ -378,8 +380,12 @@ func (l *Loader) tryL1CacheLoad(info *FetchInfo, cacheKeys []*CacheKey, res *res
 					// Entity found with complete data - L1 HIT
 					// Use shallow copy to prevent pointer aliasing with self-referential entities
 					ck.FromCache = l.shallowCopyProvidedFields(cachedValue, info.ProvidesData)
-					if l.ctx.cacheAnalyticsEnabled() {
-						byteSize := len(cachedValue.MarshalTo(nil))
+					analyticsEnabled := l.ctx.cacheAnalyticsEnabled()
+					var byteSize int
+					if analyticsEnabled || tracingCache {
+						byteSize = len(cachedValue.MarshalTo(nil))
+					}
+					if analyticsEnabled {
 						l.ctx.cacheAnalytics.RecordL1KeyEvent(CacheKeyHit, entityType, keyStr, dataSource, byteSize)
 						// Record entity source using plan-time KeyFields
 						if len(res.cacheConfig.KeyFields) > 0 {
@@ -387,6 +393,16 @@ func (l *Loader) tryL1CacheLoad(info *FetchInfo, cacheKeys []*CacheKey, res *res
 							if len(keyJSON) > 0 {
 								l.ctx.cacheAnalytics.RecordEntitySource(entityType, string(keyJSON), FieldSourceL1)
 							}
+						}
+					}
+					if tracingCache {
+						res.cacheTraceL1Hits++
+						if !l.ctx.TracingOptions.ExcludeRawInputData && len(ck.Keys) > 0 {
+							res.cacheTraceEntityDetails = append(res.cacheTraceEntityDetails, CacheTraceEntity{
+								Key:      ck.Keys[0],
+								Source:   "l1",
+								ByteSize: byteSize,
+							})
 						}
 					}
 					foundComplete = true
@@ -404,6 +420,9 @@ func (l *Loader) tryL1CacheLoad(info *FetchInfo, cacheKeys []*CacheKey, res *res
 			allComplete = false
 			if l.ctx.cacheAnalyticsEnabled() && len(ck.Keys) > 0 {
 				l.ctx.cacheAnalytics.RecordL1KeyEvent(CacheKeyMiss, entityType, ck.Keys[0], dataSource, 0)
+			}
+			if tracingCache {
+				res.cacheTraceL1Misses++
 			}
 			// Track fetch item index when partial loading enabled
 			if res.partialCacheEnabled {
@@ -438,6 +457,8 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 		return false, nil
 	}
 
+	tracingCache := l.ctx.TracingOptions.Enable && !l.ctx.TracingOptions.ExcludeCacheStats
+
 	cacheKeyStrings := l.extractCacheKeysStrings(res.goroutineArena, res.l2CacheKeys)
 	if len(cacheKeyStrings) == 0 {
 		res.cacheMustBeUpdated = true
@@ -461,7 +482,7 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 
 	// Get cache entries from L2
 	var l2GetStart time.Time
-	if analyticsEnabled {
+	if analyticsEnabled || tracingCache {
 		l2GetStart = time.Now()
 	}
 	cacheEntries, err := res.cache.Get(ctx, cacheKeyStrings)
@@ -475,6 +496,9 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 			IsEntityFetch: len(res.l1CacheKeys) > 0,
 		})
 	}
+	if tracingCache {
+		res.cacheTraceL2GetDuration = time.Since(l2GetStart)
+	}
 	if err != nil {
 		// L2 cache errors are non-fatal, continue to fetch
 		if analyticsEnabled {
@@ -486,6 +510,9 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 				Message:    truncateErrorMessage(err.Error(), 256),
 				ItemCount:  len(cacheKeyStrings),
 			})
+		}
+		if tracingCache {
+			res.cacheTraceL2GetError = err.Error()
 		}
 		res.cacheMustBeUpdated = true
 		return false, nil
@@ -548,6 +575,15 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 								Shadow: shadowMode,
 							})
 						}
+						if tracingCache {
+							res.cacheTraceNegativeHits++
+							if !l.ctx.TracingOptions.ExcludeRawInputData && len(res.l1CacheKeys[i].Keys) > 0 {
+								res.cacheTraceEntityDetails = append(res.cacheTraceEntityDetails, CacheTraceEntity{
+									Key:    res.l1CacheKeys[i].Keys[0],
+									Source: "negative_cache",
+								})
+							}
+						}
 						if res.partialCacheEnabled {
 							res.cachedItemIndices = append(res.cachedItemIndices, i)
 						}
@@ -556,8 +592,11 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 						if hasAliases {
 							res.l1CacheKeys[i].FromCache = l.denormalizeFromCache(res.goroutineArena, res.l1CacheKeys[i].FromCache, info.ProvidesData)
 						}
+						var byteSize int
+						if (analyticsEnabled || tracingCache) && len(res.l1CacheKeys[i].Keys) > 0 {
+							byteSize = len(res.l1CacheKeys[i].FromCache.MarshalTo(nil))
+						}
 						if analyticsEnabled && len(res.l1CacheKeys[i].Keys) > 0 {
-							byteSize := len(res.l1CacheKeys[i].FromCache.MarshalTo(nil))
 							var cacheAgeMs int64
 							if i < len(res.l2CacheKeys) && len(res.l2CacheKeys[i].Keys) > 0 {
 								cacheAgeMs = computeCacheAgeMs(remainingTTLs[res.l2CacheKeys[i].Keys[0]], res.cacheConfig.TTL)
@@ -584,6 +623,19 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 								remaining = remainingTTLs[res.l2CacheKeys[i].Keys[0]]
 							}
 							l.saveShadowCachedValue(res, i, res.l1CacheKeys[i].FromCache, res.l1CacheKeys[i].Keys[0], remaining)
+							if tracingCache {
+								res.cacheTraceShadowHit = true
+							}
+						}
+						if tracingCache {
+							res.cacheTraceL2Hits++
+							if !l.ctx.TracingOptions.ExcludeRawInputData && len(res.l1CacheKeys[i].Keys) > 0 {
+								res.cacheTraceEntityDetails = append(res.cacheTraceEntityDetails, CacheTraceEntity{
+									Key:      res.l1CacheKeys[i].Keys[0],
+									Source:   "l2",
+									ByteSize: byteSize,
+								})
+							}
 						}
 						// Track cached item index when partial loading enabled
 						if res.partialCacheEnabled {
@@ -612,6 +664,9 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 							Shadow: shadowMode,
 						})
 					}
+					if tracingCache {
+						res.cacheTraceL2Misses++
+					}
 					allComplete = false
 					// Track fetch item index when partial loading enabled
 					if res.partialCacheEnabled {
@@ -629,8 +684,11 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 					if hasAliases {
 						res.l2CacheKeys[i].FromCache = l.denormalizeFromCache(res.goroutineArena, ck.FromCache, info.ProvidesData)
 					}
+					var byteSize int
+					if (analyticsEnabled || tracingCache) && len(ck.Keys) > 0 {
+						byteSize = len(res.l2CacheKeys[i].FromCache.MarshalTo(nil))
+					}
 					if analyticsEnabled && len(ck.Keys) > 0 {
-						byteSize := len(res.l2CacheKeys[i].FromCache.MarshalTo(nil))
 						cacheAgeMs := computeCacheAgeMs(remainingTTLs[ck.Keys[0]], res.cacheConfig.TTL)
 						res.l2AnalyticsEvents = append(res.l2AnalyticsEvents, CacheKeyEvent{
 							CacheKey: ck.Keys[0], EntityType: entityType,
@@ -640,6 +698,16 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 						// Record entity sources from cached root field response
 						if len(res.cacheConfig.KeyFields) > 0 {
 							walkCachedResponseForSources(res.l2CacheKeys[i].FromCache, res.cacheConfig.KeyFields, entityType, FieldSourceL2, &res.l2EntitySources)
+						}
+					}
+					if tracingCache {
+						res.cacheTraceL2Hits++
+						if !l.ctx.TracingOptions.ExcludeRawInputData && len(ck.Keys) > 0 {
+							res.cacheTraceEntityDetails = append(res.cacheTraceEntityDetails, CacheTraceEntity{
+								Key:      ck.Keys[0],
+								Source:   "l2",
+								ByteSize: byteSize,
+							})
 						}
 					}
 					// Track cached item index when partial loading enabled
@@ -668,6 +736,9 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 						Kind: CacheKeyMiss, DataSource: dataSource, ByteSize: 0,
 						Shadow: shadowMode,
 					})
+				}
+				if tracingCache {
+					res.cacheTraceL2Misses++
 				}
 				allComplete = false
 				// Track fetch item index when partial loading enabled
@@ -899,6 +970,8 @@ func (l *Loader) updateL2Cache(res *result) {
 		return
 	}
 
+	tracingCache := l.ctx.TracingOptions.Enable && !l.ctx.TracingOptions.ExcludeCacheStats
+
 	// Use l2CacheKeys (with prefix) if available, otherwise fall back to cacheKeys
 	keysToStore := res.l2CacheKeys
 	if len(keysToStore) == 0 {
@@ -956,7 +1029,15 @@ func (l *Loader) updateL2Cache(res *result) {
 
 	// Store regular (non-null) cache entries
 	if len(cacheEntries) > 0 {
+		var l2SetStart time.Time
+		if tracingCache {
+			l2SetStart = time.Now()
+		}
 		if setErr := res.cache.Set(ctx, cacheEntries, ttl); setErr != nil {
+			if tracingCache {
+				res.cacheTraceL2SetDuration = time.Since(l2SetStart)
+				res.cacheTraceL2SetError = setErr.Error()
+			}
 			if l.ctx.cacheAnalyticsEnabled() {
 				l.ctx.cacheAnalytics.RecordCacheOperationError(CacheOperationError{
 					Operation:  "set",
@@ -968,6 +1049,9 @@ func (l *Loader) updateL2Cache(res *result) {
 				})
 			}
 		} else {
+			if tracingCache {
+				res.cacheTraceL2SetDuration = time.Since(l2SetStart)
+			}
 			writtenEntries = append(writtenEntries, cacheEntries...)
 		}
 	}
@@ -976,7 +1060,15 @@ func (l *Loader) updateL2Cache(res *result) {
 	if res.cacheConfig.NegativeCacheTTL > 0 {
 		negEntries := l.cacheKeysToNegativeEntries(keysToStore)
 		if len(negEntries) > 0 {
+			var l2SetNegStart time.Time
+			if tracingCache {
+				l2SetNegStart = time.Now()
+			}
 			if setErr := res.cache.Set(ctx, negEntries, res.cacheConfig.NegativeCacheTTL); setErr != nil {
+				if tracingCache {
+					res.cacheTraceL2SetNegDuration = time.Since(l2SetNegStart)
+					res.cacheTraceL2SetNegError = setErr.Error()
+				}
 				if l.ctx.cacheAnalyticsEnabled() {
 					l.ctx.cacheAnalytics.RecordCacheOperationError(CacheOperationError{
 						Operation:  "set_negative",
@@ -988,6 +1080,9 @@ func (l *Loader) updateL2Cache(res *result) {
 					})
 				}
 			} else {
+				if tracingCache {
+					res.cacheTraceL2SetNegDuration = time.Since(l2SetNegStart)
+				}
 				writtenEntries = append(writtenEntries, negEntries...)
 			}
 		}

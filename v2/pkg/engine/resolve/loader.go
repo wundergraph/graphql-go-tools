@@ -174,6 +174,22 @@ type result struct {
 	// Used by updateL2Cache to record HeaderImpactEvents.
 	headerHash uint64
 
+	// Cache trace fields — populated during cache operations, consumed by buildCacheTrace.
+	// Written only from the goroutine owning this result (or main thread for sequential).
+	cacheTraceL2GetDuration    time.Duration
+	cacheTraceL2SetDuration    time.Duration // Regular entries Set
+	cacheTraceL2SetNegDuration time.Duration // Negative entries Set
+	cacheTraceL2GetError       string
+	cacheTraceL2SetError       string
+	cacheTraceL2SetNegError    string
+	cacheTraceL1Hits           int
+	cacheTraceL1Misses         int
+	cacheTraceL2Hits           int
+	cacheTraceL2Misses         int
+	cacheTraceNegativeHits     int
+	cacheTraceShadowHit        bool // L2 had data but shadow mode forced fetch
+	cacheTraceEntityDetails    []CacheTraceEntity
+
 	// shadowCachedValues stores cached L2 values when shadow mode is active.
 	// After fresh data arrives, these are compared to detect staleness.
 	// Key is the index into l1CacheKeys (entity fetches) or l2CacheKeys (root fetches).
@@ -467,9 +483,11 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 					return errors.WithStack(err)
 				}
 			}
+			l.attachCacheTrace(nodes[i].Item.Fetch, results[i], getFetchCaching(nodes[i].Item.Fetch))
 		} else {
 			err = l.mergeResult(nodes[i].Item, results[i], itemsItems[i])
 			l.callOnFinished(results[i])
+			l.attachCacheTrace(nodes[i].Item.Fetch, results[i], getFetchCaching(nodes[i].Item.Fetch))
 			if err != nil {
 				return errors.WithStack(err)
 			}
@@ -516,6 +534,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		l.mergeResultAnalytics(res)
 		err = l.mergeResult(item, res, items)
 		l.callOnFinished(res)
+		l.attachCacheTrace(f, res, f.Caching)
 		return err
 	case *BatchEntityFetch:
 		res := l.createOrInitResult(nil, f.PostProcessing, f.Info)
@@ -533,6 +552,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		l.mergeResultAnalytics(res)
 		err = l.mergeResult(item, res, items)
 		l.callOnFinished(res)
+		l.attachCacheTrace(f, res, f.Caching)
 		return err
 	case *EntityFetch:
 		res := l.createOrInitResult(nil, f.PostProcessing, f.Info)
@@ -549,6 +569,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		l.mergeResultAnalytics(res)
 		err = l.mergeResult(item, res, items)
 		l.callOnFinished(res)
+		l.attachCacheTrace(f, res, f.Caching)
 		return err
 	default:
 		return nil
@@ -576,6 +597,121 @@ func (l *Loader) mergeResultAnalytics(res *result) {
 func (l *Loader) callOnFinished(res *result) {
 	if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
 		l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.subgraphErrors))
+	}
+}
+
+// buildCacheTrace constructs a CacheTrace from the result's accumulated cache trace fields.
+// MUST be called AFTER mergeResult + populateCachesAfterFetch, when final state is known.
+func (l *Loader) buildCacheTrace(res *result, cfg FetchCacheConfiguration) *CacheTrace {
+	if !l.ctx.TracingOptions.Enable || l.ctx.TracingOptions.ExcludeCacheStats {
+		return nil
+	}
+	if cfg.CacheKeyTemplate == nil {
+		return nil
+	}
+
+	ct := &CacheTrace{
+		L1Enabled:                   cfg.UseL1Cache && l.ctx.ExecutionOptions.Caching.EnableL1Cache,
+		L2Enabled:                   cfg.Enabled && l.ctx.ExecutionOptions.Caching.EnableL2Cache && res.cache != nil,
+		CacheName:                   cfg.CacheName,
+		TTLSeconds:                  int64(cfg.TTL.Seconds()),
+		L1Hit:                       res.cacheTraceL1Hits,
+		L1Miss:                      res.cacheTraceL1Misses,
+		L2Hit:                       res.cacheTraceL2Hits,
+		L2Miss:                      res.cacheTraceL2Misses,
+		NegativeCacheHits:           res.cacheTraceNegativeHits,
+		PartialCacheLoad:            cfg.EnablePartialCacheLoad,
+		ShadowMode:                  cfg.ShadowMode,
+		ShadowHit:                   res.cacheTraceShadowHit,
+		IncludeSubgraphHeaderPrefix: cfg.IncludeSubgraphHeaderPrefix,
+	}
+
+	if res.cacheTraceL2GetDuration > 0 {
+		ct.L2GetDurationNano = res.cacheTraceL2GetDuration.Nanoseconds()
+		ct.L2GetDurationPretty = res.cacheTraceL2GetDuration.String()
+	}
+	if res.cacheTraceL2SetDuration > 0 {
+		ct.L2SetDurationNano = res.cacheTraceL2SetDuration.Nanoseconds()
+		ct.L2SetDurationPretty = res.cacheTraceL2SetDuration.String()
+	}
+	if res.cacheTraceL2SetNegDuration > 0 {
+		ct.L2SetNegativeDurationNano = res.cacheTraceL2SetNegDuration.Nanoseconds()
+		ct.L2SetNegativeDurationPretty = res.cacheTraceL2SetNegDuration.String()
+	}
+
+	ct.L2GetError = res.cacheTraceL2GetError
+	ct.L2SetError = res.cacheTraceL2SetError
+	ct.L2SetNegativeError = res.cacheTraceL2SetNegError
+
+	if len(res.cacheTraceEntityDetails) > 0 {
+		ct.Entities = res.cacheTraceEntityDetails
+	}
+
+	if !l.ctx.TracingOptions.ExcludeRawInputData {
+		keys := res.l2CacheKeys
+		if len(keys) == 0 {
+			keys = res.l1CacheKeys
+		}
+		for _, ck := range keys {
+			ct.Keys = append(ct.Keys, ck.Keys...)
+		}
+	}
+
+	if l.ctx.TracingOptions.EnablePredictableDebugTimings {
+		if ct.L2GetDurationNano > 0 {
+			ct.L2GetDurationNano = 1
+			ct.L2GetDurationPretty = "1ns"
+		}
+		if ct.L2SetDurationNano > 0 {
+			ct.L2SetDurationNano = 1
+			ct.L2SetDurationPretty = "1ns"
+		}
+		if ct.L2SetNegativeDurationNano > 0 {
+			ct.L2SetNegativeDurationNano = 1
+			ct.L2SetNegativeDurationPretty = "1ns"
+		}
+	}
+
+	return ct
+}
+
+// ensureFetchTrace ensures the fetch has a Trace allocated.
+// Required for cache-hit paths where load*Fetch is skipped.
+func ensureFetchTrace(fetch Fetch) *DataSourceLoadTrace {
+	switch f := fetch.(type) {
+	case *SingleFetch:
+		if f.Trace == nil {
+			f.Trace = &DataSourceLoadTrace{}
+		}
+		return f.Trace
+	case *EntityFetch:
+		if f.Trace == nil {
+			f.Trace = &DataSourceLoadTrace{}
+		}
+		return f.Trace
+	case *BatchEntityFetch:
+		if f.Trace == nil {
+			f.Trace = &DataSourceLoadTrace{}
+		}
+		return f.Trace
+	}
+	return nil
+}
+
+// attachCacheTrace builds and attaches CacheTrace to the fetch's trace.
+// MUST be called AFTER mergeResult + populateCachesAfterFetch.
+// Zero overhead when tracing is disabled or ExcludeCacheStats is true.
+func (l *Loader) attachCacheTrace(fetch Fetch, res *result, cfg FetchCacheConfiguration) {
+	if !l.ctx.TracingOptions.Enable || l.ctx.TracingOptions.ExcludeCacheStats {
+		return
+	}
+	ct := l.buildCacheTrace(res, cfg)
+	if ct == nil {
+		return
+	}
+	trace := ensureFetchTrace(fetch)
+	if trace != nil {
+		trace.CacheTrace = ct
 	}
 }
 
@@ -997,6 +1133,24 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 			// Negative caching: detect when subgraph returned null for this entity in the batch
 			if batch[i] != nil && batch[i].Type() == astjson.TypeNull && res.cacheConfig.NegativeCacheTTL > 0 {
 				res.l2CacheKeys[i].NegativeCacheHit = true
+			}
+		}
+	}
+
+	// Record subgraph-fetched entity details for cache trace BEFORE cache population.
+	tracingCache := l.ctx.TracingOptions.Enable && !l.ctx.TracingOptions.ExcludeCacheStats
+	if tracingCache {
+		if !res.cacheSkipFetch && len(res.l1CacheKeys) > 0 {
+			for i, ck := range res.l1CacheKeys {
+				if res.partialCacheEnabled && slices.Contains(res.cachedItemIndices, i) {
+					continue
+				}
+				if len(ck.Keys) > 0 && !l.ctx.TracingOptions.ExcludeRawInputData {
+					res.cacheTraceEntityDetails = append(res.cacheTraceEntityDetails, CacheTraceEntity{
+						Key:    ck.Keys[0],
+						Source: "subgraph",
+					})
+				}
 			}
 		}
 	}
