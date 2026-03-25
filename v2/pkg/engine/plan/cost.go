@@ -28,6 +28,7 @@ A few things on the TBD list:
 import (
 	"fmt"
 	"math"
+	"net/http"
 	"strings"
 
 	"github.com/wundergraph/astjson"
@@ -646,13 +647,15 @@ func (node *CostTreeNode) validateSliceArguments(configs map[DSHash]*DataSourceC
 			path := node.buildASTPath()
 			if count == 0 {
 				report.AddExternalError(operationreport.ExternalError{
-					Message: fmt.Sprintf("field '%s' requires exactly one slicing argument, but none was provided", node.fieldCoords),
-					Path:    path,
+					Message:    fmt.Sprintf("field '%s' requires exactly one slicing argument, but none was provided", node.fieldCoords),
+					Path:       path,
+					StatusCode: http.StatusBadRequest,
 				})
 			} else {
 				report.AddExternalError(operationreport.ExternalError{
-					Message: fmt.Sprintf("field '%s' requires exactly one slicing argument, but %d were provided", node.fieldCoords, count),
-					Path:    path,
+					Message:    fmt.Sprintf("field '%s' requires exactly one slicing argument, but %d were provided", node.fieldCoords, count),
+					Path:       path,
+					StatusCode: http.StatusBadRequest,
 				})
 			}
 		}
