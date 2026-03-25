@@ -61,6 +61,7 @@ Two-level entity caching system (L1 per-request + L2 external). See:
 ## Testing Conventions
 
 - **Exact assertions only**: use `assert.Equal` with exact expected values, never `GreaterOrEqual`, `Contains`, or vague comparisons
+- **Assert entire structs**: always `assert.Equal` on the complete struct, never iterate over fields asserting individual values. This catches unexpected field changes and makes diffs readable. For large structs, construct the full expected value inline
 - **Snapshot comments**: every event line in `CacheAnalyticsSnapshot` assertions must explain **why** that event occurred
 - **Cache log rule**: every `ClearLog()` must have `GetLog()` + assertions before the next `ClearLog()`
 - **Federation test services**: `accounts`, `products`, `reviews` in `execution/federationtesting/`

@@ -105,7 +105,7 @@ func TestFederationCaching_CacheTraceInExtensions(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 
-		// Request 1: all L2 misses — cache is empty, all fetches go to subgraphs
+		// --- Request 1: all L2 misses — cache is empty, all fetches go to subgraphs ---
 		tracker.Reset()
 		resp1, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL,
 			`query { topProducts { name reviews { body author: authorWithoutProvides { username } } } }`, nil, t)
@@ -115,21 +115,51 @@ func TestFederationCaching_CacheTraceInExtensions(t *testing.T) {
 		require.NotNil(t, trace1, "Response should contain extensions.trace")
 
 		cacheTraces1 := collectCacheTraces(t, trace1)
-		require.True(t, len(cacheTraces1) > 0, "Should have at least one cache_trace entry on first request")
+		require.Equal(t, 3, len(cacheTraces1), "Should have 3 cache traces: products root field, reviews entities, accounts entities")
 
-		for _, ct := range cacheTraces1 {
-			assert.True(t, ct.L2Enabled, "L2 should be enabled for all cached fetches")
-			assert.Equal(t, "default", ct.CacheName, "All fetches use the 'default' cache")
-			assert.Equal(t, int64(30), ct.TTLSeconds, "TTL should be 30s as configured")
-			assert.Equal(t, 0, ct.L2Hit, "No L2 hits on first request — cache is empty")
-			assert.True(t, ct.L2Miss > 0 || ct.L1Miss > 0, "Should have at least one miss (L2 or L1)")
-			if ct.L2Miss > 0 {
-				assert.Equal(t, int64(1), ct.L2SetDurationNano, "Predictable debug timing: Set duration is 1ns") // predictable timing
-				assert.Equal(t, int64(1), ct.L2GetDurationNano, "Predictable debug timing: Get duration is 1ns") // L2 Get always happens (miss returns quickly)
-			}
-		}
+		assert.Equal(t, resolve.CacheTrace{
+			L2Enabled:           true,
+			CacheName:           "default",
+			TTLSeconds:          30,
+			L2Miss:              1, // 1 root field miss: Query.topProducts
+			L2GetDurationNano:   1, // predictable timing
+			L2GetDurationPretty: "1ns",
+			L2SetDurationNano:   1, // L2 Set happened after fetch
+			L2SetDurationPretty: "1ns",
+			Keys:                []string{`{"__typename":"Query","field":"topProducts"}`},
+		}, cacheTraces1[0], "products root field: L2 miss, populated after fetch")
 
-		// Request 2: all L2 hits — cache was populated by Request 1
+		assert.Equal(t, resolve.CacheTrace{
+			L2Enabled:           true,
+			CacheName:           "default",
+			TTLSeconds:          30,
+			L2Miss:              2, // 2 Product entities missed
+			L2GetDurationNano:   1,
+			L2GetDurationPretty: "1ns",
+			L2SetDurationNano:   1,
+			L2SetDurationPretty: "1ns",
+			Keys: []string{
+				`{"__typename":"Product","key":{"upc":"top-1"}}`,
+				`{"__typename":"Product","key":{"upc":"top-2"}}`,
+			},
+		}, cacheTraces1[1], "reviews entities: 2 Product entities missed")
+
+		assert.Equal(t, resolve.CacheTrace{
+			L2Enabled:           true,
+			CacheName:           "default",
+			TTLSeconds:          30,
+			L2Miss:              2, // 2 User entity lookups missed (same user for 2 reviews, deduplicated in batch but 2 cache keys)
+			L2GetDurationNano:   1,
+			L2GetDurationPretty: "1ns",
+			L2SetDurationNano:   1,
+			L2SetDurationPretty: "1ns",
+			Keys: []string{
+				`{"__typename":"User","key":{"id":"1234"}}`,
+				`{"__typename":"User","key":{"id":"1234"}}`,
+			},
+		}, cacheTraces1[2], "accounts entities: User 1234 missed (2 lookups for 2 reviews)")
+
+		// --- Request 2: all L2 hits — cache was populated by Request 1 ---
 		tracker.Reset()
 		resp2, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL,
 			`query { topProducts { name reviews { body author: authorWithoutProvides { username } } } }`, nil, t)
@@ -139,15 +169,54 @@ func TestFederationCaching_CacheTraceInExtensions(t *testing.T) {
 		require.NotNil(t, trace2, "Response should contain extensions.trace on second request")
 
 		cacheTraces2 := collectCacheTraces(t, trace2)
-		require.True(t, len(cacheTraces2) > 0, "Should have at least one cache_trace entry on second request")
+		require.Equal(t, 3, len(cacheTraces2), "Should have 3 cache traces on second request")
 
-		for _, ct := range cacheTraces2 {
-			assert.True(t, ct.L2Enabled, "L2 should be enabled for all cached fetches")
-			assert.True(t, ct.L2Hit > 0, "Should have L2 hits on second request — populated by Request 1")
-			assert.Equal(t, 0, ct.L2Miss, "No L2 misses on second request — all cached")
-			assert.Equal(t, int64(1), ct.L2GetDurationNano, "Predictable debug timing: Get duration is 1ns")
-			assert.Equal(t, int64(0), ct.L2SetDurationNano, "No L2 Set on cache hit — nothing to write")
-		}
+		assert.Equal(t, resolve.CacheTrace{
+			L2Enabled:           true,
+			CacheName:           "default",
+			TTLSeconds:          30,
+			L2Hit:               1, // root field hit from L2
+			L2GetDurationNano:   1,
+			L2GetDurationPretty: "1ns",
+			Entities: []resolve.CacheTraceEntity{
+				{Key: `{"__typename":"Query","field":"topProducts"}`, Source: "l2", ByteSize: 127},
+			},
+			Keys: []string{`{"__typename":"Query","field":"topProducts"}`},
+		}, cacheTraces2[0], "products root field: L2 hit, no Set")
+
+		assert.Equal(t, resolve.CacheTrace{
+			L2Enabled:           true,
+			CacheName:           "default",
+			TTLSeconds:          30,
+			L2Hit:               2, // both Product entities hit
+			L2GetDurationNano:   1,
+			L2GetDurationPretty: "1ns",
+			Entities: []resolve.CacheTraceEntity{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Source: "l2", ByteSize: 132},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Source: "l2", ByteSize: 188},
+			},
+			Keys: []string{
+				`{"__typename":"Product","key":{"upc":"top-1"}}`,
+				`{"__typename":"Product","key":{"upc":"top-2"}}`,
+			},
+		}, cacheTraces2[1], "reviews entities: both Products from L2")
+
+		assert.Equal(t, resolve.CacheTrace{
+			L2Enabled:           true,
+			CacheName:           "default",
+			TTLSeconds:          30,
+			L2Hit:               2, // both User lookups hit (same user, 2 cache key lookups)
+			L2GetDurationNano:   1,
+			L2GetDurationPretty: "1ns",
+			Entities: []resolve.CacheTraceEntity{
+				{Key: `{"__typename":"User","key":{"id":"1234"}}`, Source: "l2", ByteSize: 49},
+				{Key: `{"__typename":"User","key":{"id":"1234"}}`, Source: "l2", ByteSize: 49},
+			},
+			Keys: []string{
+				`{"__typename":"User","key":{"id":"1234"}}`,
+				`{"__typename":"User","key":{"id":"1234"}}`,
+			},
+		}, cacheTraces2[2], "accounts entities: User 1234 from L2 (2 lookups)")
 
 		// On full cache hit, no subgraph calls should be made
 		counts := tracker.GetCounts()
