@@ -228,6 +228,9 @@ keys (multiple fields) and nested keys are supported.
 
 Tests:
 - `v2/pkg/engine/resolve/cache_key_test.go:632` — `TestCachingRenderEntityQueryCacheKeyTemplate`
+- `v2/pkg/engine/resolve/cache_key_test.go:1125` — `TestDerivedEntityCacheKey / "dot-notation entity key field"` (single-level nesting)
+- `v2/pkg/engine/resolve/cache_key_test.go:1148` — `TestDerivedEntityCacheKey / "deeply nested dot-notation entity key field"` (multi-level nesting)
+- `v2/pkg/engine/resolve/cache_key_test.go:1171` — `TestDerivedEntityCacheKey / "dot-notation shared prefix merges into same object"` (shared-prefix merge)
 
 ### AC-KEY-02: Root field key format
 Root field cache keys use `{"__typename":"Query","field":"fieldName","args":{...}}`.
@@ -387,6 +390,17 @@ vs shadow mode) but the comparison logic is identical.
 Tests:
 - `v2/pkg/engine/resolve/mutation_cache_impact_test.go:416` — `TestDetectMutationEntityImpact / "analytics enabled, stale cached value records MutationEvent with IsStale=true"`
 
+### AC-MUT-07: Mutation TTL override
+When `MutationFieldCacheConfiguration.TTL` is non-zero, mutation-triggered L2 cache writes
+use that TTL instead of the entity's default TTL (from `EntityCacheConfiguration`). When
+zero, the entity's default TTL is used. This allows `@cachePopulate(maxAge: 60)` on mutation
+fields to override the entity's default cache duration.
+
+Tests:
+- `v2/pkg/engine/resolve/mutation_cache_ttl_test.go` — `TestMutationCacheTTLOverride / "mutation with TTL override uses override value"`
+- `v2/pkg/engine/resolve/mutation_cache_ttl_test.go` — `TestMutationCacheTTLOverride / "mutation without TTL override uses entity default"`
+- `v2/pkg/engine/resolve/mutation_cache_ttl_test.go` — `TestMutationCacheTTLOverride / "TTL override not applied when mutation L2 population disabled"`
+
 ## Extension-Based Invalidation
 
 ### AC-EXT-01: Subgraph-driven invalidation signals
@@ -465,6 +479,18 @@ trigger-level tests.
 Tests:
 - `v2/pkg/engine/resolve/trigger_cache_test.go:51` — `TestHandleTriggerEntityCache / "populate single entity"` (verifies base key pipeline for populate)
 - `v2/pkg/engine/resolve/trigger_cache_test.go:224` — `TestHandleTriggerEntityCache / "invalidate mode deletes cache entry"` (verifies base key pipeline for invalidate)
+
+### AC-SUB-04: Field-aware subscription config lookup
+When multiple subscription fields return the same entity type, the plan visitor uses
+`FindByTypeAndFieldName` to match the correct `SubscriptionEntityPopulationConfiguration`.
+This prevents order-dependent config selection when subscriptions like `itemCreated` and
+`itemUpdated` both produce configs for the same entity type with different TTLs. Falls back
+to `FindByTypeName` for backward compatibility when `FieldName` is not set.
+
+Tests:
+- `v2/pkg/engine/plan/federation_metadata_test.go` — `TestSubscriptionEntityPopulationConfigurations / "FindByTypeAndFieldName returns field-specific config"`
+- `v2/pkg/engine/plan/federation_metadata_test.go` — `TestSubscriptionEntityPopulationConfigurations / "FindByTypeAndFieldName falls back to nil when field not found"`
+- `v2/pkg/engine/plan/federation_metadata_test.go` — `TestSubscriptionEntityPopulationConfigurations / "FindByTypeAndFieldName with empty FieldName matches empty configs"`
 
 ## Shadow Mode
 
@@ -676,6 +702,34 @@ the number of keys involved. This allows operators to detect cache infrastructur
 
 Tests:
 - `v2/pkg/engine/resolve/mutation_cache_impact_test.go:625` — `TestDetectMutationEntityImpact / "array response invalidates all entities in the list"`
+
+### AC-ANA-07: Cache write event source tracking
+Each `CacheWriteEvent` carries a `Source` field (`CacheOperationSource`) indicating what
+triggered the write: `"query"`, `"mutation"`, or `"subscription"`. This enables the metrics
+exporter to label cache operations by trigger source for dashboard attribution. Subscription
+cache writes are reported via `OnSubscriptionCacheWrite` callback since subscriptions run
+outside per-request analytics.
+
+Tests:
+- `v2/pkg/engine/resolve/cache_analytics_test.go` — `TestCacheAnalyticsCollector_WriteEventSource / "write events preserve source field"`
+- `v2/pkg/engine/resolve/cache_analytics_test.go` — `TestCacheAnalyticsCollector_WriteEventSource / "mutation event preserves source field"`
+- `v2/pkg/engine/resolve/cache_analytics_test.go` — `TestCacheAnalyticsCollector_WriteEventSource / "mixed sources in single snapshot"`
+
+### AC-NEG-05: Negative cache with mutation population
+When a mutation with `EnableMutationL2CachePopulation=true` triggers an entity fetch that
+returns null and `NegativeCacheTTL > 0`, the negative sentinel is stored with the
+`NegativeCacheTTL`, not the entity's regular TTL.
+
+Tests:
+- `v2/pkg/engine/resolve/negative_cache_test.go` — `TestNegativeCaching / "negative cache with mutation population stores sentinel with NegativeCacheTTL"`
+
+### AC-NEG-06: Negative cache entry replaced after TTL expiry
+When a negative cache sentinel expires (TTL elapses) and the entity subsequently becomes
+available, the next fetch retrieves real data from the subgraph and stores it with the
+entity's regular TTL, replacing the expired negative sentinel.
+
+Tests:
+- `v2/pkg/engine/resolve/negative_cache_test.go` — `TestNegativeCaching / "negative cache entry overwritten by real data on subsequent fetch"`
 
 ## Future Improvements
 
