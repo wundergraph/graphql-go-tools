@@ -70,6 +70,7 @@ type Resolvable struct {
 	actualListSizes map[string]int
 
 	incrementalItemWritten bool
+	deferItemDataNull      bool
 }
 
 type ResolvableOptions struct {
@@ -123,6 +124,7 @@ func (r *Resolvable) Reset() {
 	r.deferID = ""
 	r.enableDeferRender = false
 	r.incrementalItemWritten = false
+	r.deferItemDataNull = false
 }
 
 func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.OperationType) (err error) {
@@ -274,6 +276,7 @@ func (r *Resolvable) ResolveDefer(rootData *Object, out io.Writer, hasNext bool)
 	r.deferMode = true
 	r.enableDeferRender = false
 	r.incrementalItemWritten = false
+	r.deferItemDataNull = false
 
 	_ = r.walkObject(rootData, r.data)
 	if r.authorizationError != nil {
@@ -283,8 +286,7 @@ func (r *Resolvable) ResolveDefer(rootData *Object, out io.Writer, hasNext bool)
 	// Second pass: render the incremental response
 	r.enableRender = true
 	r.incrementalItemWritten = false
-	// deferMode stays true
-	// enableDeferRender starts false, will be toggled in walkObject when match found
+	r.enableDeferRender = false // reset: first pass may have left it true on early return
 
 	r.printBytes(lBrace)
 	r.printBytes(quote)
@@ -297,16 +299,7 @@ func (r *Resolvable) ResolveDefer(rootData *Object, out io.Writer, hasNext bool)
 
 	r.printBytes(rBrack)
 
-	r.printHasNext(hasNext)
-
-	if r.hasErrors() {
-		r.printBytes(comma)
-		r.printBytes(quote)
-		r.printBytes(literalErrors)
-		r.printBytes(quote)
-		r.printBytes(colon)
-		r.printNode(r.errors)
-	}
+	r.printHasNext(hasNext && !r.hasErrors())
 
 	r.printBytes(rBrace)
 
@@ -372,6 +365,41 @@ func (r *Resolvable) printDeferEnvelopeClose() {
 	r.printBytes(quote)
 	r.printBytes(colon)
 	r.renderPath()
+	if r.hasErrors() {
+		r.printBytes(comma)
+		r.printBytes(quote)
+		r.printBytes(literalErrors)
+		r.printBytes(quote)
+		r.printBytes(colon)
+		r.printNode(r.errors)
+	}
+	r.printBytes(rBrace)
+}
+
+func (r *Resolvable) printDeferEnvelopeNullData() {
+	if !r.render() {
+		return
+	}
+	r.printBytes(lBrace)
+	r.printBytes(quote)
+	r.printBytes(literalData)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(null)
+	r.printBytes(comma)
+	r.printBytes(quote)
+	r.printBytes(literalPath)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.renderPath()
+	if r.hasErrors() {
+		r.printBytes(comma)
+		r.printBytes(quote)
+		r.printBytes(literalErrors)
+		r.printBytes(quote)
+		r.printBytes(colon)
+		r.printNode(r.errors)
+	}
 	r.printBytes(rBrace)
 }
 
@@ -795,21 +823,35 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 				}
 
 				if r.deferID != "" {
+					if r.deferItemDataNull {
+						// Pre-walk detected null propagating through non-nullable chain;
+						// render {"data":null,"path":[...],"errors":[...]} without walking fields.
+						r.printDeferEnvelopeNullData()
+						r.incrementalItemWritten = true
+						r.enableDeferRender = false
+						return true
+					}
 					r.printDeferEnvelopeOpen()
 				}
 			}
 
 			// render initial batch of fields
-			if r.walkFields(obj, value, parent, walkFieldsFilter{deferFields: deferFields, seek: false, enabled: true}) {
-				return true
-			}
+			hasErrors := r.walkFields(obj, value, parent, walkFieldsFilter{deferFields: deferFields, seek: false, enabled: true})
 
 			if startedRender {
 				if r.deferID != "" {
+					if !r.enableRender && hasErrors {
+						// Pre-walk: null propagated through non-nullable chain; signal render pass.
+						r.deferItemDataNull = true
+					}
 					r.printDeferEnvelopeClose()
 					r.incrementalItemWritten = true
 				}
 				r.enableDeferRender = false
+			}
+
+			if hasErrors {
+				return true
 			}
 		}
 
@@ -982,6 +1024,17 @@ func (r *Resolvable) walkFields(obj *Object, value *astjson.Value, parent *astjs
 		r.currentFieldInfo = obj.Fields[i].Info
 		err := r.walkNode(obj.Fields[i].Value, value)
 		if err {
+			if r.render() {
+				// Field key already written; complete with null to produce valid JSON.
+				r.printBytes(null)
+				if obj.Nullable {
+					// Nullable parent: absorb the error, render null, continue to next field.
+					addComma = true
+					continue
+				}
+				// Non-nullable parent: propagate error; caller closes the envelope.
+				return err
+			}
 			if obj.Nullable {
 				if len(obj.Path) > 0 {
 					astjson.SetNull(r.astjsonArena, parent, obj.Path...)

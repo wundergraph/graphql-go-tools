@@ -1540,7 +1540,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			type Product {
 				id: ID!
 				name: String!
-				nameWithError: String!
+				nameWithError: String
 				price: Float!
 			}
 		`
@@ -1585,10 +1585,6 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 							`{"query":"{product {nameWithError}}"}`: {
 								statusCode: 200,
 								body:       `{"data":{"product":{"nameWithError":null}},"errors":[{"message":"upstream name error","path":["product","nameWithError"]}]}`,
-							},
-							`{"query":"{product {name nameWithError}}"}`: {
-								statusCode: 200,
-								body:       `{"data":{"product":{"name":null,"nameWithError":null}},"errors":[{"message":"upstream name error","path":["product","nameWithError"]}]}`,
 							},
 						},
 					}),
@@ -1657,7 +1653,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			},
 			dataSources: dataSources,
 			expectedResponse: `{"data":{"product":{}},"hasNext":true}
-{"incremental":[{"data":null,"path":["product"],"errors":[{"message":"Cannot return null for non-nullable field 'Query.product.name'.","path":["product","name"]},{"message":"Cannot return null for non-nullable field 'Query.product.name'.","path":["product","name"]}]}],"hasNext":false}
+{"incremental":[{"data":null,"path":["product"],"errors":[{"message":"Cannot return null for non-nullable field 'Query.product.name'.","path":["product","name"]}]}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
 
@@ -1668,7 +1664,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			},
 			dataSources: dataSources,
 			expectedResponse: `{"data":{"product":{}},"hasNext":true}
-{"incremental":[{"data":{"nameWithError":null},"path":["product"],"errors":[{"message":"Failed to fetch from Subgraph 'id-1'."},{"message":"Cannot return null for non-nullable field 'Query.product.nameWithError'.","path":["product","nameWithError"]},{"message":"Cannot return null for non-nullable field 'Query.product.nameWithError'.","path":["product","nameWithError"]}]}],"hasNext":false}
+{"incremental":[{"data":{"nameWithError":null},"path":["product"],"errors":[{"message":"Failed to fetch from Subgraph 'id-1'."}]}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
 
@@ -1679,7 +1675,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			},
 			dataSources: dataSources,
 			expectedResponse: `{"data":{"product":{}},"hasNext":true}
-{"incremental":[{"data": null,"path":["product"],"errors":[{"message":"Cannot return null for non-nullable field 'Query.product.price'.","path":["product","price"]},{"message":"Cannot return null for non-nullable field 'Query.product.price'.","path":["product","price"]}]}],"hasNext":false}
+{"incremental":[{"data":null,"path":["product"],"errors":[{"message":"Cannot return null for non-nullable field 'Query.product.price'.","path":["product","price"]}]}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
 
@@ -1690,7 +1686,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			},
 			dataSources: dataSources,
 			expectedResponse: `{"data":{"product":{}},"hasNext":true}
-{"incremental":[{"data":null,"path":["product"],"errors":[{"message":"Cannot return null for non-nullable field 'Query.product.name'.","path":["product","name"]},{"message":"Cannot return null for non-nullable field 'Query.product.name'.","path":["product","name"]}]}],"hasNext":false}
+{"incremental":[{"data":null,"path":["product"],"errors":[{"message":"Cannot return null for non-nullable field 'Query.product.name'.","path":["product","name"]}]}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
 
@@ -1701,7 +1697,18 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			},
 			dataSources: dataSources,
 			expectedResponse: `{"data":{"product":{}},"hasNext":true}
-{"incremental":[{"data": null,"path":["product"],"errors":[{"message":"Cannot return null for non-nullable field 'Query.product.price'.","path":["product","price"]},{"message":"Cannot return null for non-nullable field 'Query.product.price'.","path":["product","price"]}]}],"hasNext":false}
+{"incremental":[{"data":null,"path":["product"],"errors":[{"message":"Cannot return null for non-nullable field 'Query.product.price'.","path":["product","price"]}]}],"hasNext":false}
+`,
+		}, withStreamingResponse()))
+
+		t.Run("defer error halts subsequent defers - nameWithError then price", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			schema: schema,
+			operation: func(t *testing.T) graphql.Request {
+				return graphql.Request{Query: `{ product { ... @defer { nameWithError } ... @defer { price } } }`}
+			},
+			dataSources: dataSources,
+			expectedResponse: `{"data":{"product":{}},"hasNext":true}
+{"incremental":[{"data":{"nameWithError":null},"path":["product"],"errors":[{"message":"Failed to fetch from Subgraph 'id-1'."}]}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
 
