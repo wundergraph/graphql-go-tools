@@ -290,6 +290,18 @@ type Loader struct {
 	// sequence inherit this flag, checked in updateL2Cache.
 	// By default false: mutations do NOT populate L2 cache.
 	enableMutationL2CachePopulation bool
+	// mutationCacheTTLOverride overrides the entity TTL for mutation-triggered L2 writes.
+	// Set per-mutation-field alongside enableMutationL2CachePopulation.
+	// When zero, the entity's default TTL is used.
+	mutationCacheTTLOverride time.Duration
+}
+
+// cacheOperationSource returns the CacheOperationSource based on the current operation type.
+func (l *Loader) cacheOperationSource() CacheOperationSource {
+	if l.info != nil && l.info.OperationType == ast.OperationTypeMutation {
+		return CacheSourceMutation
+	}
+	return CacheSourceQuery
 }
 
 func (l *Loader) Free() {
@@ -300,6 +312,7 @@ func (l *Loader) Free() {
 	l.l1Cache = nil
 	l.jsonArena = nil
 	l.enableMutationL2CachePopulation = false
+	l.mutationCacheTTLOverride = 0
 	for i, a := range l.goroutineArenas {
 		a.Reset()
 		l2ArenaPool.Put(a)
@@ -310,6 +323,7 @@ func (l *Loader) Free() {
 
 func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, resolvable *Resolvable) (err error) {
 	l.enableMutationL2CachePopulation = false
+	l.mutationCacheTTLOverride = 0
 	l.resolvable = resolvable
 	l.ctx = ctx
 	l.info = response.Info
@@ -486,6 +500,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		// Each mutation root fetch updates this flag; subsequent entity fetches inherit it.
 		if f.Info != nil && f.Info.OperationType == ast.OperationTypeMutation {
 			l.enableMutationL2CachePopulation = f.Caching.EnableMutationL2CachePopulation
+			l.mutationCacheTTLOverride = f.Caching.MutationCacheTTLOverride
 		}
 		res := l.createOrInitResult(nil, f.PostProcessing, f.Info)
 		skip, err := l.tryCacheLoad(l.ctx.ctx, f.Info, f.Caching, items, res)

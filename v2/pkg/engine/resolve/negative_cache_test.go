@@ -474,4 +474,295 @@ func TestNegativeCaching(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("negative cache with mutation population stores sentinel with NegativeCacheTTL", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		cache := NewFakeLoaderCache()
+
+		// Root mutation fetch
+		mutationDS := NewMockDataSource(ctrl)
+		mutationDS.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"createProduct":{"__typename":"Product","id":"prod-new"}}}`), nil
+			}).Times(1)
+
+		// Entity fetch returns null (entity not found after creation — edge case)
+		productDS := NewMockDataSource(ctrl)
+		productDS.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"_entities":[null]}}`), nil
+			}).Times(1)
+
+		cacheKeyTemplate := newProductCacheKeyTemplate()
+		providesData := newNegativeCacheProductProvidesData()
+
+		response := &GraphQLResponse{
+			Info: &GraphQLResponseInfo{
+				OperationType: ast.OperationTypeMutation,
+			},
+			Fetches: Sequence(
+				SingleWithPath(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource: mutationDS,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data"},
+						},
+						Caching: FetchCacheConfiguration{
+							EnableMutationL2CachePopulation: true,
+						},
+					},
+					InputTemplate: InputTemplate{
+						Segments: []TemplateSegment{
+							{
+								Data:        []byte(`{"method":"POST","url":"http://mutation.service","body":{"query":"mutation{createProduct{__typename id}}"}}`),
+								SegmentType: StaticSegmentType,
+							},
+						},
+					},
+					Info: &FetchInfo{
+						DataSourceID:   "mutations",
+						DataSourceName: "mutations",
+						OperationType:  ast.OperationTypeMutation,
+					},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+				}, "mutation"),
+
+				SingleWithPath(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource: productDS,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data", "_entities", "0"},
+						},
+						Caching: FetchCacheConfiguration{
+							Enabled:          true,
+							CacheName:        "default",
+							TTL:              60 * time.Second,
+							CacheKeyTemplate: cacheKeyTemplate,
+							NegativeCacheTTL: 10 * time.Second,
+						},
+					},
+					InputTemplate: InputTemplate{
+						Segments: newNegativeCacheEntitySegments(),
+					},
+					Info: &FetchInfo{
+						DataSourceID:   "products",
+						DataSourceName: "products",
+						OperationType:  ast.OperationTypeQuery, // Entity fetch within mutation gets Query type
+						ProvidesData:   providesData,
+					},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+				}, "mutation.createProduct", ObjectPath("createProduct")),
+			),
+			Data: &Object{
+				Fields: []*Field{
+					{
+						Name: []byte("createProduct"),
+						Value: &Object{
+							Path:     []string{"createProduct"},
+							Nullable: true,
+							Fields: []*Field{
+								{
+									Name: []byte("name"),
+									Value: &String{
+										Path:     []string{"name"},
+										Nullable: true,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		loader := &Loader{
+			caches: map[string]LoaderCache{
+				"default": cache,
+			},
+		}
+
+		ctx := NewContext(context.Background())
+		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+		ctx.ExecutionOptions.Caching.EnableL2Cache = true
+
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		resolvable := NewResolvable(ar, ResolvableOptions{})
+		err := resolvable.Init(ctx, nil, ast.OperationTypeMutation)
+		require.NoError(t, err)
+
+		err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+		require.NoError(t, err)
+
+		// Verify the full cache log: no L2 read (mutations skip L2 reads per AC-MUT-01),
+		// only the negative sentinel write with NegativeCacheTTL (10s)
+		cacheLog := cache.GetLog()
+		assert.Equal(t, []CacheLogEntry{
+			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"id":"prod-new"}}`}, TTL: 10 * time.Second}, // Negative sentinel stored with NegativeCacheTTL (10s), not entity TTL (60s); no prior "get" because mutations skip L2 reads
+		}, cacheLog)
+
+		// Verify the stored value is the null sentinel
+		storedValue := cache.GetValue(`{"__typename":"Product","key":{"id":"prod-new"}}`)
+		assert.Equal(t, "null", string(storedValue), "Negative cache sentinel should be 'null' bytes")
+	})
+
+	t.Run("negative cache entry overwritten by real data on subsequent fetch", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		cache := NewFakeLoaderCache()
+
+		// Root fetch provides the product reference
+		rootDS := NewMockDataSource(ctrl)
+		rootDS.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"product":{"__typename":"Product","id":"prod-1"}}}`), nil
+			}).AnyTimes()
+
+		callCount := 0
+		// Entity fetch: first call returns null, second returns real data
+		productDS := NewMockDataSource(ctrl)
+		productDS.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				callCount++
+				if callCount == 1 {
+					return []byte(`{"data":{"_entities":[null]}}`), nil
+				}
+				return []byte(`{"data":{"_entities":[{"name":"Widget"}]}}`), nil
+			}).Times(2) // Called twice: first stores null, second after cache eviction stores real data
+
+		cacheKeyTemplate := newProductCacheKeyTemplate()
+		providesData := newNegativeCacheProductProvidesData()
+
+		buildResponse := func() *GraphQLResponse {
+			return &GraphQLResponse{
+				Info: &GraphQLResponseInfo{
+					OperationType: ast.OperationTypeQuery,
+				},
+				Fetches: Sequence(
+					SingleWithPath(&SingleFetch{
+						FetchConfiguration: FetchConfiguration{
+							DataSource: rootDS,
+							PostProcessing: PostProcessingConfiguration{
+								SelectResponseDataPath: []string{"data"},
+							},
+						},
+						InputTemplate: InputTemplate{
+							Segments: []TemplateSegment{
+								{
+									Data:        []byte(`{"method":"POST","url":"http://root.service","body":{"query":"{product {__typename id}}"}}`),
+									SegmentType: StaticSegmentType,
+								},
+							},
+						},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					}, "query"),
+
+					SingleWithPath(&SingleFetch{
+						FetchConfiguration: FetchConfiguration{
+							DataSource: productDS,
+							PostProcessing: PostProcessingConfiguration{
+								SelectResponseDataPath: []string{"data", "_entities", "0"},
+							},
+							Caching: FetchCacheConfiguration{
+								Enabled:          true,
+								CacheName:        "default",
+								TTL:              30 * time.Second,
+								CacheKeyTemplate: cacheKeyTemplate,
+								NegativeCacheTTL: 5 * time.Second,
+							},
+						},
+						InputTemplate: InputTemplate{
+							Segments: newNegativeCacheEntitySegments(),
+						},
+						Info: &FetchInfo{
+							DataSourceID:   "products",
+							DataSourceName: "products",
+							OperationType:  ast.OperationTypeQuery,
+							ProvidesData:   providesData,
+						},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					}, "query.product", ObjectPath("product")),
+				),
+				Data: &Object{
+					Fields: []*Field{
+						{
+							Name: []byte("product"),
+							Value: &Object{
+								Path:     []string{"product"},
+								Nullable: true,
+								Fields: []*Field{
+									{
+										Name: []byte("name"),
+										Value: &String{
+											Path:     []string{"name"},
+											Nullable: true,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+		}
+
+		execute := func() string {
+			loader := &Loader{
+				caches: map[string]LoaderCache{
+					"default": cache,
+				},
+			}
+			ctx := NewContext(context.Background())
+			ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+			ctx.ExecutionOptions.Caching.EnableL2Cache = true
+
+			ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+			resolvable := NewResolvable(ar, ResolvableOptions{})
+			err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+			require.NoError(t, err)
+
+			err = loader.LoadGraphQLResponseData(ctx, buildResponse(), resolvable)
+			require.NoError(t, err)
+
+			return string(fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors))
+		}
+
+		// Request 1: returns null for the entity fetch → product has __typename/id from root but no "name"
+		out1 := execute()
+		assert.Equal(t, `{"data":{"product":{"__typename":"Product","id":"prod-1"}}}`, out1, "First request should only have root fields, no entity data")
+
+		productKey := `{"__typename":"Product","key":{"id":"prod-1"}}`
+
+		// Verify request 1 cache log: L2 miss → negative sentinel stored
+		cacheLog := cache.GetLog()
+		assert.Equal(t, []CacheLogEntry{
+			{Operation: "get", Keys: []string{productKey}, Hits: []bool{false}},  // L2 miss: cache empty on first request
+			{Operation: "set", Keys: []string{productKey}, TTL: 5 * time.Second}, // Negative sentinel stored with NegativeCacheTTL (5s)
+		}, cacheLog)
+
+		// Evict the negative sentinel to simulate TTL expiry
+		_ = cache.Delete(context.Background(), []string{productKey})
+		cache.ClearLog()
+
+		// Request 2: negative sentinel evicted, subgraph called again, returns real data
+		out2 := execute()
+		assert.Equal(t, `{"data":{"product":{"__typename":"Product","id":"prod-1","name":"Widget"}}}`, out2, "Second request should return real product data after negative cache eviction")
+
+		// Verify request 2 cache log: L2 miss (sentinel evicted) → real data stored with entity TTL
+		cacheLog2 := cache.GetLog()
+		assert.Equal(t, []CacheLogEntry{
+			{Operation: "get", Keys: []string{productKey}, Hits: []bool{false}},   // L2 miss: negative sentinel was evicted (TTL expiry simulated)
+			{Operation: "set", Keys: []string{productKey}, TTL: 30 * time.Second}, // Real entity data stored with regular TTL (30s), replacing the evicted sentinel
+		}, cacheLog2)
+
+		// Verify the cache now holds real data, not the null sentinel
+		storedValue := cache.GetValue(productKey)
+		assert.Equal(t, `{"__typename":"Product","id":"prod-1","name":"Widget"}`, string(storedValue), "Cache should contain real entity data after sentinel eviction and re-fetch")
+	})
 }

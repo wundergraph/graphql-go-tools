@@ -42,6 +42,23 @@ func HandlerWithCaching(
 	subgraphEntityCachingConfigs engine.SubgraphCachingConfigs,
 	debugMode bool,
 ) *Gateway {
+	return HandlerWithCachingAndOpts(logger, datasourcePoller, httpClient, enableART, loaderCaches, subgraphHeadersBuilder, cachingOptions, subgraphEntityCachingConfigs, debugMode)
+}
+
+// HandlerWithCachingAndOpts is like HandlerWithCaching but accepts additional GatewayOptions
+// for configuring resolver-level options (e.g., OnSubscriptionCacheWrite callbacks).
+func HandlerWithCachingAndOpts(
+	logger log.Logger,
+	datasourcePoller *DatasourcePollerPoller,
+	httpClient *http.Client,
+	enableART bool,
+	loaderCaches map[string]resolve.LoaderCache,
+	subgraphHeadersBuilder resolve.SubgraphHeadersBuilder,
+	cachingOptions resolve.CachingOptions,
+	subgraphEntityCachingConfigs engine.SubgraphCachingConfigs,
+	debugMode bool,
+	extraOpts ...GatewayOption,
+) *Gateway {
 	upgrader := &ws.HTTPUpgrader{
 		Header: http.Header{},
 	}
@@ -56,6 +73,7 @@ func HandlerWithCaching(
 	if len(subgraphEntityCachingConfigs) > 0 {
 		gatewayOpts = append(gatewayOpts, WithSubgraphEntityCachingConfigs(subgraphEntityCachingConfigs))
 	}
+	gatewayOpts = append(gatewayOpts, extraOpts...)
 
 	gateway := NewGateway(gqlHandlerFactory, httpClient, logger, loaderCaches, gatewayOpts...)
 

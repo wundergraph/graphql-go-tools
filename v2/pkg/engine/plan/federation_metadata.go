@@ -220,6 +220,9 @@ type MutationFieldCacheConfiguration struct {
 	// (existing behavior). By default, mutations do NOT populate L2.
 	// Set to true to opt in to L2 cache population for this mutation field.
 	EnableEntityL2CachePopulation bool `json:"enable_entity_l2_cache_population"`
+	// TTL overrides the entity's default cache TTL for L2 writes triggered by this mutation.
+	// When zero, the entity's default TTL (from EntityCacheConfiguration) is used.
+	TTL time.Duration `json:"ttl,omitempty"`
 }
 
 // MutationFieldCacheConfigurations is a collection of mutation field cache configurations.
@@ -248,6 +251,9 @@ func (c MutationFieldCacheConfigurations) FindByFieldName(fieldName string) *Mut
 type SubscriptionEntityPopulationConfiguration struct {
 	// TypeName is the entity type managed by this subscription (e.g., "Product").
 	TypeName string `json:"type_name"`
+	// FieldName is the subscription root field name (e.g., "itemCreated").
+	// Used to disambiguate when multiple subscription fields return the same entity type.
+	FieldName string `json:"field_name,omitempty"`
 	// CacheName identifies which LoaderCache instance to use.
 	CacheName string `json:"cache_name"`
 	// TTL is the time-to-live for populated cache entries.
@@ -263,11 +269,11 @@ type SubscriptionEntityPopulationConfiguration struct {
 // SubscriptionEntityPopulationConfigurations is a collection of subscription entity population configurations.
 type SubscriptionEntityPopulationConfigurations []SubscriptionEntityPopulationConfiguration
 
-// FindByTypeName returns the subscription entity population config for the given entity type.
-// Returns nil if no configuration exists.
-func (c SubscriptionEntityPopulationConfigurations) FindByTypeName(typeName string) *SubscriptionEntityPopulationConfiguration {
+// FindByTypeAndFieldName returns the subscription entity population config matching
+// both the entity type name and subscription field name. Returns nil if no match.
+func (c SubscriptionEntityPopulationConfigurations) FindByTypeAndFieldName(typeName, fieldName string) *SubscriptionEntityPopulationConfiguration {
 	for i := range c {
-		if c[i].TypeName == typeName {
+		if c[i].TypeName == typeName && c[i].FieldName == fieldName {
 			return &c[i]
 		}
 	}

@@ -239,6 +239,14 @@ type ResolverOptions struct {
 	// Invalid values silently fall back to this default.
 	// Only effective when OnErrorEnabled is true.
 	DefaultErrorBehavior ErrorBehavior
+
+	// OnSubscriptionCacheWrite is called when a subscription populates the L2 cache.
+	// Since subscriptions run outside per-request analytics, this callback allows
+	// the router to record cache write events for metrics/dashboards.
+	OnSubscriptionCacheWrite func(event CacheWriteEvent)
+
+	// OnSubscriptionCacheInvalidate is called when a subscription invalidates L2 cache entries.
+	OnSubscriptionCacheInvalidate func(entityType string, keys []string)
 }
 
 // New returns a new Resolver. ctx.Done() is used to cancel all active subscriptions and streams.
@@ -862,6 +870,19 @@ func (r *Resolver) handleTriggerEntityCache(config *triggerEntityCacheConfig, da
 		// not be blocked by cache failures.
 		if len(entries) > 0 {
 			_ = cache.Set(ctx, entries, config.pop.TTL)
+			if r.options.OnSubscriptionCacheWrite != nil {
+				for _, entry := range entries {
+					r.options.OnSubscriptionCacheWrite(CacheWriteEvent{
+						CacheKey:   entry.Key,
+						EntityType: config.pop.EntityTypeName,
+						ByteSize:   len(entry.Value),
+						DataSource: config.pop.DataSourceName,
+						CacheLevel: CacheLevelL2,
+						TTL:        config.pop.TTL,
+						Source:     CacheSourceSubscription,
+					})
+				}
+			}
 		}
 	case SubscriptionCacheModeInvalidate:
 		keys := make([]string, 0, len(cacheKeys))
@@ -872,6 +893,9 @@ func (r *Resolver) handleTriggerEntityCache(config *triggerEntityCacheConfig, da
 		}
 		if len(keys) > 0 {
 			_ = cache.Delete(ctx, keys)
+			if r.options.OnSubscriptionCacheInvalidate != nil {
+				r.options.OnSubscriptionCacheInvalidate(config.pop.EntityTypeName, keys)
+			}
 		}
 	}
 }

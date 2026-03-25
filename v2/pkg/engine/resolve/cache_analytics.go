@@ -36,6 +36,15 @@ const (
 	FieldSourceShadowCached                    // Cached value saved during shadow comparison
 )
 
+// CacheOperationSource identifies what triggered a cache operation.
+type CacheOperationSource string
+
+const (
+	CacheSourceQuery        CacheOperationSource = "query"
+	CacheSourceMutation     CacheOperationSource = "mutation"
+	CacheSourceSubscription CacheOperationSource = "subscription"
+)
+
 // CacheKeyEvent records a single cache key lookup result.
 type CacheKeyEvent struct {
 	CacheKey   string
@@ -55,7 +64,8 @@ type CacheWriteEvent struct {
 	DataSource string
 	CacheLevel CacheLevel
 	TTL        time.Duration
-	Shadow     bool // true if this write occurred in shadow mode
+	Shadow     bool                 // true if this write occurred in shadow mode
+	Source     CacheOperationSource // what triggered this write (query/mutation/subscription)
 }
 
 // FetchTimingEvent records the duration of a subgraph fetch or cache lookup.
@@ -138,6 +148,7 @@ type MutationEvent struct {
 	FreshHash         uint64 // xxhash of mutation response ProvidesData fields
 	CachedBytes       int    // 0 when HadCachedValue=false
 	FreshBytes        int
+	Source            CacheOperationSource // what triggered this event (query/mutation/subscription)
 }
 
 // CacheOperationError records a cache operation (Get/Set/Delete) that returned an error.
@@ -232,7 +243,7 @@ func (c *CacheAnalyticsCollector) MergeL2Events(events []CacheKeyEvent) {
 }
 
 // RecordWrite records a cache write event. Main thread only.
-func (c *CacheAnalyticsCollector) RecordWrite(cacheLevel CacheLevel, entityType, cacheKey, dataSource string, byteSize int, ttl time.Duration) {
+func (c *CacheAnalyticsCollector) RecordWrite(cacheLevel CacheLevel, entityType, cacheKey, dataSource string, byteSize int, ttl time.Duration, source CacheOperationSource) {
 	c.writeEvents = append(c.writeEvents, CacheWriteEvent{
 		CacheKey:   cacheKey,
 		EntityType: entityType,
@@ -240,6 +251,7 @@ func (c *CacheAnalyticsCollector) RecordWrite(cacheLevel CacheLevel, entityType,
 		DataSource: dataSource,
 		CacheLevel: cacheLevel,
 		TTL:        ttl,
+		Source:     source,
 	})
 }
 

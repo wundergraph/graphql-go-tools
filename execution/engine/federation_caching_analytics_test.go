@@ -138,10 +138,10 @@ func TestCacheAnalyticsE2E(t *testing.T) {
 				{CacheKey: keyUser1234, EntityType: "User", Kind: resolve.CacheKeyMiss, DataSource: dsAccounts},      // L2 miss: User entity not yet cached (second review's User 1234 deduplicated in batch)
 			},
 			L2Writes: []resolve.CacheWriteEvent{
-				{CacheKey: keyProductTop1, EntityType: "Product", ByteSize: byteSizeProductTop1, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Written after subgraph fetch on miss
-				{CacheKey: keyProductTop2, EntityType: "Product", ByteSize: byteSizeProductTop2, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Written after subgraph fetch on miss
-				{CacheKey: keyTopProducts, EntityType: "Query", ByteSize: byteSizeTopProducts, DataSource: dsProducts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},  // Root field written to L2 after fetch
-				{CacheKey: keyUser1234, EntityType: "User", ByteSize: byteSizeUser1234, DataSource: dsAccounts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},         // User entity written after accounts fetch
+				{CacheKey: keyProductTop1, EntityType: "Product", ByteSize: byteSizeProductTop1, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery}, // Written after subgraph fetch on miss
+				{CacheKey: keyProductTop2, EntityType: "Product", ByteSize: byteSizeProductTop2, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery}, // Written after subgraph fetch on miss
+				{CacheKey: keyTopProducts, EntityType: "Query", ByteSize: byteSizeTopProducts, DataSource: dsProducts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},  // Root field written to L2 after fetch
+				{CacheKey: keyUser1234, EntityType: "User", ByteSize: byteSizeUser1234, DataSource: dsAccounts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},         // User entity written after accounts fetch
 			},
 			FieldHashes: multiUpstreamFieldHashes,
 			EntityTypes: multiUpstreamEntityTypes,
@@ -212,7 +212,7 @@ func TestCacheAnalyticsE2E(t *testing.T) {
 			},
 			L1Writes: []resolve.CacheWriteEvent{
 				// Query.me root field written to L1 after accounts subgraph fetch
-				{CacheKey: keyMe, EntityType: "Query", ByteSize: byteSizeQueryMe, DataSource: dsAccounts, CacheLevel: resolve.CacheLevelL1},
+				{CacheKey: keyMe, EntityType: "Query", ByteSize: byteSizeQueryMe, DataSource: dsAccounts, CacheLevel: resolve.CacheLevelL1, Source: resolve.CacheSourceQuery},
 			},
 			FieldHashes: []resolve.EntityFieldHash{
 				// Both username entries show L1 source because the entity key resolves to
@@ -266,10 +266,10 @@ func TestCacheAnalyticsE2E(t *testing.T) {
 				{CacheKey: keyUser1234, EntityType: "User", Kind: resolve.CacheKeyMiss, DataSource: dsAccounts},      // L2 miss: User entity not yet cached (second review's User 1234 hits L1 after this fetch)
 			},
 			L2Writes: []resolve.CacheWriteEvent{
-				{CacheKey: keyProductTop1, EntityType: "Product", ByteSize: byteSizeProductTop1, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Written after reviews subgraph fetch
-				{CacheKey: keyProductTop2, EntityType: "Product", ByteSize: byteSizeProductTop2, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Written after reviews subgraph fetch
-				{CacheKey: keyTopProducts, EntityType: "Query", ByteSize: byteSizeTopProducts, DataSource: dsProducts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},  // Root field written after products fetch
-				{CacheKey: keyUser1234, EntityType: "User", ByteSize: byteSizeUser1234, DataSource: dsAccounts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},         // User entity written after accounts fetch
+				{CacheKey: keyProductTop1, EntityType: "Product", ByteSize: byteSizeProductTop1, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery}, // Written after reviews subgraph fetch
+				{CacheKey: keyProductTop2, EntityType: "Product", ByteSize: byteSizeProductTop2, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery}, // Written after reviews subgraph fetch
+				{CacheKey: keyTopProducts, EntityType: "Query", ByteSize: byteSizeTopProducts, DataSource: dsProducts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},  // Root field written after products fetch
+				{CacheKey: keyUser1234, EntityType: "User", ByteSize: byteSizeUser1234, DataSource: dsAccounts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},         // User entity written after accounts fetch
 			},
 			FieldHashes: multiUpstreamFieldHashes,
 			EntityTypes: multiUpstreamEntityTypes,
@@ -355,7 +355,7 @@ func TestCacheAnalyticsE2E(t *testing.T) {
 				{CacheKey: keyUserById1234, EntityType: "Query", Kind: resolve.CacheKeyMiss, DataSource: dsAccountsLocal}, // L2 miss: first request, cache empty
 			},
 			L2Writes: []resolve.CacheWriteEvent{
-				{CacheKey: keyUserById1234, EntityType: "Query", ByteSize: byteSizeUser1234, DataSource: dsAccountsLocal, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Root field written after accounts fetch
+				{CacheKey: keyUserById1234, EntityType: "Query", ByteSize: byteSizeUser1234, DataSource: dsAccountsLocal, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery}, // Root field written after accounts fetch
 			},
 			FieldHashes: []resolve.EntityFieldHash{
 				{EntityType: "User", FieldName: "username", FieldHash: hashUsernameMeLocal, KeyRaw: entityKeyUser1234Local, Source: resolve.FieldSourceSubgraph}, // User returned by root field, data from subgraph
@@ -399,7 +399,7 @@ func TestCacheAnalyticsE2E(t *testing.T) {
 				{CacheKey: keyUserById5678, EntityType: "Query", Kind: resolve.CacheKeyMiss, DataSource: dsAccountsLocal}, // L2 miss: different args, not cached
 			},
 			L2Writes: []resolve.CacheWriteEvent{
-				{CacheKey: keyUserById5678, EntityType: "Query", ByteSize: byteSizeUser5678, DataSource: dsAccountsLocal, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // New args written to L2
+				{CacheKey: keyUserById5678, EntityType: "Query", ByteSize: byteSizeUser5678, DataSource: dsAccountsLocal, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery}, // New args written to L2
 			},
 			FieldHashes: []resolve.EntityFieldHash{
 				{EntityType: "User", FieldName: "username", FieldHash: hashUsername5678Local, KeyRaw: entityKeyUser5678Local, Source: resolve.FieldSourceSubgraph}, // User 5678 data from subgraph
@@ -473,7 +473,7 @@ func TestCacheAnalyticsE2E(t *testing.T) {
 				{CacheKey: keyTopProductsLocal, EntityType: "Query", Kind: resolve.CacheKeyMiss, DataSource: dsProductsLocal}, // L2 miss: first request, cache empty
 			},
 			L2Writes: []resolve.CacheWriteEvent{
-				{CacheKey: keyTopProductsLocal, EntityType: "Query", ByteSize: byteSizeTP, DataSource: dsProductsLocal, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Root field written after products fetch
+				{CacheKey: keyTopProductsLocal, EntityType: "Query", ByteSize: byteSizeTP, DataSource: dsProductsLocal, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery}, // Root field written after products fetch
 			},
 			// Only entity types tracked during resolution (not caching-dependent)
 			FieldHashes: multiUpstreamFieldHashes,
@@ -739,10 +739,10 @@ func TestShadowCacheE2E(t *testing.T) {
 				{CacheKey: keyUser1234, EntityType: "User", Kind: resolve.CacheKeyMiss, DataSource: dsAccounts, Shadow: true},      // Shadow L2 miss: User not yet cached
 			},
 			L2Writes: []resolve.CacheWriteEvent{
-				{CacheKey: keyProductTop1, EntityType: "Product", ByteSize: byteSizeProductTop1, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Written to L2 even in shadow (populates for comparison)
-				{CacheKey: keyProductTop2, EntityType: "Product", ByteSize: byteSizeProductTop2, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Written to L2 even in shadow
-				{CacheKey: keyTopProducts, EntityType: "Query", ByteSize: byteSizeTopProducts, DataSource: dsProducts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},  // Root field written normally (not shadow)
-				{CacheKey: keyUser1234, EntityType: "User", ByteSize: byteSizeUser1234, DataSource: dsAccounts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},         // User entity written for future shadow comparison
+				{CacheKey: keyProductTop1, EntityType: "Product", ByteSize: byteSizeProductTop1, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery}, // Written to L2 even in shadow (populates for comparison)
+				{CacheKey: keyProductTop2, EntityType: "Product", ByteSize: byteSizeProductTop2, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery}, // Written to L2 even in shadow
+				{CacheKey: keyTopProducts, EntityType: "Query", ByteSize: byteSizeTopProducts, DataSource: dsProducts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},  // Root field written normally (not shadow)
+				{CacheKey: keyUser1234, EntityType: "User", ByteSize: byteSizeUser1234, DataSource: dsAccounts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},         // User entity written for future shadow comparison
 			},
 			// No ShadowComparisons: nothing cached yet to compare against
 			FieldHashes: fieldHashesSubgraph,
@@ -768,9 +768,9 @@ func TestShadowCacheE2E(t *testing.T) {
 			},
 			L2Writes: []resolve.CacheWriteEvent{
 				// Only shadow entities re-written (refreshed from subgraph); root field NOT re-written (real cache hit)
-				{CacheKey: keyProductTop1, EntityType: "Product", ByteSize: byteSizeProductTop1, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Shadow re-write: fresh data from subgraph
-				{CacheKey: keyProductTop2, EntityType: "Product", ByteSize: byteSizeProductTop2, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Shadow re-write: fresh data from subgraph
-				{CacheKey: keyUser1234, EntityType: "User", ByteSize: byteSizeUser1234, DataSource: dsAccounts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},         // Shadow re-write: fresh User from accounts
+				{CacheKey: keyProductTop1, EntityType: "Product", ByteSize: byteSizeProductTop1, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery}, // Shadow re-write: fresh data from subgraph
+				{CacheKey: keyProductTop2, EntityType: "Product", ByteSize: byteSizeProductTop2, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery}, // Shadow re-write: fresh data from subgraph
+				{CacheKey: keyUser1234, EntityType: "User", ByteSize: byteSizeUser1234, DataSource: dsAccounts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},         // Shadow re-write: fresh User from accounts
 			},
 			ShadowComparisons: []resolve.ShadowComparisonEvent{
 				{CacheKey: keyProductTop1, EntityType: "Product", IsFresh: true, CachedHash: shadowHashProductTop1, FreshHash: shadowHashProductTop1, CachedBytes: shadowBytesProductTop1, FreshBytes: shadowBytesProductTop1, DataSource: dsReviews, ConfiguredTTL: 30 * time.Second}, // Fresh: cached matches subgraph (data unchanged)
@@ -845,10 +845,10 @@ func TestShadowCacheE2E(t *testing.T) {
 				{CacheKey: keyUser1234, EntityType: "User", Kind: resolve.CacheKeyMiss, DataSource: dsAccounts, Shadow: true}, // Shadow L2 miss: User entity not yet cached
 			},
 			L2Writes: []resolve.CacheWriteEvent{
-				{CacheKey: keyProductTop1, EntityType: "Product", ByteSize: byteSizeProductTop1, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Product written for real caching
-				{CacheKey: keyProductTop2, EntityType: "Product", ByteSize: byteSizeProductTop2, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Product written for real caching
-				{CacheKey: keyTopProducts, EntityType: "Query", ByteSize: byteSizeTopProducts, DataSource: dsProducts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},  // Root field written for real caching
-				{CacheKey: keyUser1234, EntityType: "User", ByteSize: byteSizeUser1234, DataSource: dsAccounts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},         // User written (shadow still populates L2)
+				{CacheKey: keyProductTop1, EntityType: "Product", ByteSize: byteSizeProductTop1, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery}, // Product written for real caching
+				{CacheKey: keyProductTop2, EntityType: "Product", ByteSize: byteSizeProductTop2, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery}, // Product written for real caching
+				{CacheKey: keyTopProducts, EntityType: "Query", ByteSize: byteSizeTopProducts, DataSource: dsProducts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},  // Root field written for real caching
+				{CacheKey: keyUser1234, EntityType: "User", ByteSize: byteSizeUser1234, DataSource: dsAccounts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},         // User written (shadow still populates L2)
 			},
 			FieldHashes: fieldHashesSubgraph,
 			EntityTypes: entityTypes,
@@ -872,7 +872,7 @@ func TestShadowCacheE2E(t *testing.T) {
 			},
 			L2Writes: []resolve.CacheWriteEvent{
 				// Only User re-written (shadow always fetches fresh); Product/root NOT re-written (real hit)
-				{CacheKey: keyUser1234, EntityType: "User", ByteSize: byteSizeUser1234, DataSource: dsAccounts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Shadow re-write: fresh data from accounts
+				{CacheKey: keyUser1234, EntityType: "User", ByteSize: byteSizeUser1234, DataSource: dsAccounts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery}, // Shadow re-write: fresh data from accounts
 			},
 			ShadowComparisons: []resolve.ShadowComparisonEvent{
 				// Only User has shadow comparisons; Product uses real caching
@@ -984,10 +984,10 @@ func TestShadowCacheE2E(t *testing.T) {
 				{CacheKey: keyUser1234, EntityType: "User", Kind: resolve.CacheKeyMiss, DataSource: dsAccounts, Shadow: true}, // Shadow L2 miss: User not yet cached
 			},
 			L2Writes: []resolve.CacheWriteEvent{
-				{CacheKey: keyProductTop1, EntityType: "Product", ByteSize: byteSizeProductTop1, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Product written for real caching
-				{CacheKey: keyProductTop2, EntityType: "Product", ByteSize: byteSizeProductTop2, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Product written for real caching
-				{CacheKey: keyTopProducts, EntityType: "Query", ByteSize: byteSizeTopProducts, DataSource: dsProducts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},  // Root field written for real caching
-				{CacheKey: keyUser1234, EntityType: "User", ByteSize: byteSizeUser1234, DataSource: dsAccounts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},         // User written (shadow still populates L2)
+				{CacheKey: keyProductTop1, EntityType: "Product", ByteSize: byteSizeProductTop1, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery}, // Product written for real caching
+				{CacheKey: keyProductTop2, EntityType: "Product", ByteSize: byteSizeProductTop2, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery}, // Product written for real caching
+				{CacheKey: keyTopProducts, EntityType: "Query", ByteSize: byteSizeTopProducts, DataSource: dsProducts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},  // Root field written for real caching
+				{CacheKey: keyUser1234, EntityType: "User", ByteSize: byteSizeUser1234, DataSource: dsAccounts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},         // User written (shadow still populates L2)
 			},
 			FieldHashes: fieldHashesSubgraph,
 			EntityTypes: entityTypes,
@@ -1008,7 +1008,7 @@ func TestShadowCacheE2E(t *testing.T) {
 			},
 			L2Writes: []resolve.CacheWriteEvent{
 				// Only shadow User re-written; Product/root use real caching (no re-write on hit)
-				{CacheKey: keyUser1234, EntityType: "User", ByteSize: byteSizeUser1234, DataSource: dsAccounts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Shadow re-write with fresh data from accounts
+				{CacheKey: keyUser1234, EntityType: "User", ByteSize: byteSizeUser1234, DataSource: dsAccounts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery}, // Shadow re-write with fresh data from accounts
 			},
 			ShadowComparisons: []resolve.ShadowComparisonEvent{
 				{CacheKey: keyUser1234, EntityType: "User", IsFresh: true, CachedHash: shadowHashUser1234, FreshHash: shadowHashUser1234, CachedBytes: shadowBytesUser1234, FreshBytes: shadowBytesUser1234, DataSource: dsAccounts, ConfiguredTTL: 30 * time.Second}, // Fresh: cached User matches subgraph (safe to graduate)
@@ -1721,7 +1721,7 @@ func TestFederationCachingAliases(t *testing.T) {
 				{CacheKey: keyTopProducts, EntityType: "Query", Kind: resolve.CacheKeyMiss, DataSource: dsProducts}, // L2 miss: first request, cache empty
 			},
 			L2Writes: []resolve.CacheWriteEvent{
-				{CacheKey: keyTopProducts, EntityType: "Query", ByteSize: byteSizeTopProducts, DataSource: dsProducts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second}, // Root field written after products fetch
+				{CacheKey: keyTopProducts, EntityType: "Query", ByteSize: byteSizeTopProducts, DataSource: dsProducts, CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery}, // Root field written after products fetch
 			},
 			FieldHashes: fieldHashes,
 			EntityTypes: entityTypes,
@@ -1855,10 +1855,10 @@ func TestHeaderImpactAnalyticsE2E(t *testing.T) {
 				{CacheKey: `{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", Kind: resolve.CacheKeyMiss, DataSource: "accounts", Shadow: true},        // Shadow L2 miss: User not yet cached
 			},
 			L2Writes: []resolve.CacheWriteEvent{
-				{CacheKey: `11945571715631340836:{"__typename":"Product","key":{"upc":"top-1"}}`, EntityType: "Product", ByteSize: 177, DataSource: "reviews", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
-				{CacheKey: `11945571715631340836:{"__typename":"Product","key":{"upc":"top-2"}}`, EntityType: "Product", ByteSize: 233, DataSource: "reviews", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
-				{CacheKey: `11945571715631340836:{"__typename":"Query","field":"topProducts"}`, EntityType: "Query", ByteSize: 127, DataSource: "products", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
-				{CacheKey: `11945571715631340836:{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", ByteSize: 49, DataSource: "accounts", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
+				{CacheKey: `11945571715631340836:{"__typename":"Product","key":{"upc":"top-1"}}`, EntityType: "Product", ByteSize: 177, DataSource: "reviews", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},
+				{CacheKey: `11945571715631340836:{"__typename":"Product","key":{"upc":"top-2"}}`, EntityType: "Product", ByteSize: 233, DataSource: "reviews", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},
+				{CacheKey: `11945571715631340836:{"__typename":"Query","field":"topProducts"}`, EntityType: "Query", ByteSize: 127, DataSource: "products", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},
+				{CacheKey: `11945571715631340836:{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", ByteSize: 49, DataSource: "accounts", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},
 			},
 			FieldHashes: []resolve.EntityFieldHash{
 				{EntityType: "Product", FieldName: "name", FieldHash: 1032923585965781586, KeyRaw: `{"upc":"top-1"}`, Source: resolve.FieldSourceSubgraph},
@@ -1900,10 +1900,10 @@ func TestHeaderImpactAnalyticsE2E(t *testing.T) {
 				{CacheKey: `{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", Kind: resolve.CacheKeyMiss, DataSource: "accounts", Shadow: true},        // token-B prefix not in cache
 			},
 			L2Writes: []resolve.CacheWriteEvent{
-				{CacheKey: `4753115417090238877:{"__typename":"Product","key":{"upc":"top-1"}}`, EntityType: "Product", ByteSize: 177, DataSource: "reviews", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
-				{CacheKey: `4753115417090238877:{"__typename":"Product","key":{"upc":"top-2"}}`, EntityType: "Product", ByteSize: 233, DataSource: "reviews", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
-				{CacheKey: `4753115417090238877:{"__typename":"Query","field":"topProducts"}`, EntityType: "Query", ByteSize: 127, DataSource: "products", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
-				{CacheKey: `4753115417090238877:{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", ByteSize: 49, DataSource: "accounts", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
+				{CacheKey: `4753115417090238877:{"__typename":"Product","key":{"upc":"top-1"}}`, EntityType: "Product", ByteSize: 177, DataSource: "reviews", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},
+				{CacheKey: `4753115417090238877:{"__typename":"Product","key":{"upc":"top-2"}}`, EntityType: "Product", ByteSize: 233, DataSource: "reviews", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},
+				{CacheKey: `4753115417090238877:{"__typename":"Query","field":"topProducts"}`, EntityType: "Query", ByteSize: 127, DataSource: "products", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},
+				{CacheKey: `4753115417090238877:{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", ByteSize: 49, DataSource: "accounts", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},
 			},
 			FieldHashes: []resolve.EntityFieldHash{
 				{EntityType: "Product", FieldName: "name", FieldHash: 1032923585965781586, KeyRaw: `{"upc":"top-1"}`, Source: resolve.FieldSourceSubgraph},
@@ -1992,10 +1992,10 @@ func TestHeaderImpactAnalyticsE2E(t *testing.T) {
 			},
 			L2Writes: []resolve.CacheWriteEvent{
 				// Authorization: Bearer token-A → header hash prefix 11945571715631340836
-				{CacheKey: `11945571715631340836:{"__typename":"Product","key":{"upc":"top-1"}}`, EntityType: "Product", ByteSize: 177, DataSource: "reviews", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
-				{CacheKey: `11945571715631340836:{"__typename":"Product","key":{"upc":"top-2"}}`, EntityType: "Product", ByteSize: 233, DataSource: "reviews", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
-				{CacheKey: `11945571715631340836:{"__typename":"Query","field":"topProducts"}`, EntityType: "Query", ByteSize: 127, DataSource: "products", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
-				{CacheKey: `11945571715631340836:{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", ByteSize: 49, DataSource: "accounts", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
+				{CacheKey: `11945571715631340836:{"__typename":"Product","key":{"upc":"top-1"}}`, EntityType: "Product", ByteSize: 177, DataSource: "reviews", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},
+				{CacheKey: `11945571715631340836:{"__typename":"Product","key":{"upc":"top-2"}}`, EntityType: "Product", ByteSize: 233, DataSource: "reviews", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},
+				{CacheKey: `11945571715631340836:{"__typename":"Query","field":"topProducts"}`, EntityType: "Query", ByteSize: 127, DataSource: "products", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},
+				{CacheKey: `11945571715631340836:{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", ByteSize: 49, DataSource: "accounts", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},
 			},
 			FieldHashes: []resolve.EntityFieldHash{
 				{EntityType: "Product", FieldName: "name", FieldHash: 1032923585965781586, KeyRaw: `{"upc":"top-1"}`, Source: resolve.FieldSourceSubgraph},
@@ -2096,10 +2096,10 @@ func TestHeaderImpactAnalyticsE2E(t *testing.T) {
 				{CacheKey: `{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", Kind: resolve.CacheKeyMiss, DataSource: "accounts"},
 			},
 			L2Writes: []resolve.CacheWriteEvent{
-				{CacheKey: `{"__typename":"Product","key":{"upc":"top-1"}}`, EntityType: "Product", ByteSize: 177, DataSource: "reviews", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
-				{CacheKey: `{"__typename":"Product","key":{"upc":"top-2"}}`, EntityType: "Product", ByteSize: 233, DataSource: "reviews", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
-				{CacheKey: `{"__typename":"Query","field":"topProducts"}`, EntityType: "Query", ByteSize: 127, DataSource: "products", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
-				{CacheKey: `{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", ByteSize: 49, DataSource: "accounts", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second},
+				{CacheKey: `{"__typename":"Product","key":{"upc":"top-1"}}`, EntityType: "Product", ByteSize: 177, DataSource: "reviews", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},
+				{CacheKey: `{"__typename":"Product","key":{"upc":"top-2"}}`, EntityType: "Product", ByteSize: 233, DataSource: "reviews", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},
+				{CacheKey: `{"__typename":"Query","field":"topProducts"}`, EntityType: "Query", ByteSize: 127, DataSource: "products", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},
+				{CacheKey: `{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", ByteSize: 49, DataSource: "accounts", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},
 			},
 			FieldHashes: []resolve.EntityFieldHash{
 				{EntityType: "Product", FieldName: "name", FieldHash: 1032923585965781586, KeyRaw: `{"upc":"top-1"}`, Source: resolve.FieldSourceSubgraph},

@@ -1,0 +1,7 @@
+subscription UpdatedPrice {
+    updatedPrice {
+        upc
+        name
+        price
+    }
+}

@@ -84,6 +84,7 @@ type cachingGatewayOptions struct {
 	cachingOptions               resolve.CachingOptions
 	subgraphEntityCachingConfigs engine.SubgraphCachingConfigs
 	debugMode                    bool
+	resolverOptionsFns           []func(*resolve.ResolverOptions)
 }
 
 func withCachingEnableART(enableART bool) func(*cachingGatewayOptions) {
@@ -128,6 +129,12 @@ func withDebugMode(enabled bool) func(*cachingGatewayOptions) {
 	}
 }
 
+func withResolverOptions(fn func(*resolve.ResolverOptions)) func(*cachingGatewayOptions) {
+	return func(opts *cachingGatewayOptions) {
+		opts.resolverOptionsFns = append(opts.resolverOptionsFns, fn)
+	}
+}
+
 type cachingGatewayOptionsToFunc func(opts *cachingGatewayOptions)
 
 func addCachingGateway(options ...cachingGatewayOptionsToFunc) func(setup *federationtesting.FederationSetup) *httptest.Server {
@@ -147,7 +154,11 @@ func addCachingGateway(options ...cachingGatewayOptionsToFunc) func(setup *feder
 			{Name: "reviews", URL: setup.ReviewsUpstreamServer.URL},
 		}, httpClient)
 
-		gtw := gateway.HandlerWithCaching(abstractlogger.NoopLogger, poller, httpClient, opts.enableART, opts.withLoaderCache, opts.subgraphHeadersBuilder, opts.cachingOptions, opts.subgraphEntityCachingConfigs, opts.debugMode)
+		var gatewayOpts []gateway.GatewayOption
+		for _, fn := range opts.resolverOptionsFns {
+			gatewayOpts = append(gatewayOpts, gateway.WithResolverOptions(fn))
+		}
+		gtw := gateway.HandlerWithCachingAndOpts(abstractlogger.NoopLogger, poller, httpClient, opts.enableART, opts.withLoaderCache, opts.subgraphHeadersBuilder, opts.cachingOptions, opts.subgraphEntityCachingConfigs, opts.debugMode, gatewayOpts...)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()

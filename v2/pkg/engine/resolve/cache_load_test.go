@@ -1462,10 +1462,10 @@ func TestShadowMode_L2_AlwaysFetches(t *testing.T) {
 				{CacheKey: shadowTestKeyProduct, EntityType: "Product", Kind: CacheKeyMiss, DataSource: "products", Shadow: true}, // First request, L2 is empty; Shadow marks shadow-mode fetch
 			},
 			L1Writes: []CacheWriteEvent{
-				{CacheKey: shadowTestKeyProduct, EntityType: "Product", ByteSize: 59, DataSource: "products", CacheLevel: CacheLevelL1}, // Miss triggered subgraph fetch, result written to L1
+				{CacheKey: shadowTestKeyProduct, EntityType: "Product", ByteSize: 59, DataSource: "products", CacheLevel: CacheLevelL1, Source: CacheSourceQuery}, // Miss triggered subgraph fetch, result written to L1
 			},
 			L2Writes: []CacheWriteEvent{
-				{CacheKey: shadowTestKeyProduct, EntityType: "Product", ByteSize: 59, DataSource: "products", CacheLevel: CacheLevelL2, TTL: 30 * time.Second}, // Miss triggered subgraph fetch, result written to L2
+				{CacheKey: shadowTestKeyProduct, EntityType: "Product", ByteSize: 59, DataSource: "products", CacheLevel: CacheLevelL2, TTL: 30 * time.Second, Source: CacheSourceQuery}, // Miss triggered subgraph fetch, result written to L2
 			},
 		}), normalizeShadowSnap(ctx1.GetCacheStats()))
 
@@ -1499,10 +1499,10 @@ func TestShadowMode_L2_AlwaysFetches(t *testing.T) {
 				{CacheKey: shadowTestKeyProduct, EntityType: "Product", Kind: CacheKeyHit, DataSource: "products", ByteSize: 59, Shadow: true, CacheAgeMs: 5000}, // L2 populated by Request 1, 5s ago; Shadow=true so subgraph is still fetched
 			},
 			L1Writes: []CacheWriteEvent{
-				{CacheKey: shadowTestKeyProduct, EntityType: "Product", ByteSize: 59, DataSource: "products", CacheLevel: CacheLevelL1}, // Written from subgraph response (shadow mode always fetches)
+				{CacheKey: shadowTestKeyProduct, EntityType: "Product", ByteSize: 59, DataSource: "products", CacheLevel: CacheLevelL1, Source: CacheSourceQuery}, // Written from subgraph response (shadow mode always fetches)
 			},
 			L2Writes: []CacheWriteEvent{
-				{CacheKey: shadowTestKeyProduct, EntityType: "Product", ByteSize: 59, DataSource: "products", CacheLevel: CacheLevelL2, TTL: 30 * time.Second}, // Overwritten in L2 with fresh subgraph response
+				{CacheKey: shadowTestKeyProduct, EntityType: "Product", ByteSize: 59, DataSource: "products", CacheLevel: CacheLevelL2, TTL: 30 * time.Second, Source: CacheSourceQuery}, // Overwritten in L2 with fresh subgraph response
 			},
 			ShadowComparisons: []ShadowComparisonEvent{
 				{CacheKey: shadowTestKeyProduct, EntityType: "Product", IsFresh: true, CachedHash: 16331343294028781429, FreshHash: 16331343294028781429, CachedBytes: 36, FreshBytes: 36, DataSource: "products", ConfiguredTTL: 30 * time.Second, CacheAgeMs: 5000}, // Cached data matches subgraph (same hash), no staleness; entry was 5s old
@@ -1644,10 +1644,10 @@ func TestShadowMode_StalenessDetection(t *testing.T) {
 				{CacheKey: shadowTestKeyUser, EntityType: "User", Kind: CacheKeyMiss, DataSource: "accounts", Shadow: true}, // First request, L2 is empty; Shadow marks shadow-mode fetch
 			},
 			L1Writes: []CacheWriteEvent{
-				{CacheKey: shadowTestKeyUser, EntityType: "User", ByteSize: 50, DataSource: "accounts", CacheLevel: CacheLevelL1}, // "Alice" written to L1 after subgraph fetch
+				{CacheKey: shadowTestKeyUser, EntityType: "User", ByteSize: 50, DataSource: "accounts", CacheLevel: CacheLevelL1, Source: CacheSourceQuery}, // "Alice" written to L1 after subgraph fetch
 			},
 			L2Writes: []CacheWriteEvent{
-				{CacheKey: shadowTestKeyUser, EntityType: "User", ByteSize: 50, DataSource: "accounts", CacheLevel: CacheLevelL2, TTL: 30 * time.Second}, // "Alice" written to L2 after subgraph fetch
+				{CacheKey: shadowTestKeyUser, EntityType: "User", ByteSize: 50, DataSource: "accounts", CacheLevel: CacheLevelL2, TTL: 30 * time.Second, Source: CacheSourceQuery}, // "Alice" written to L2 after subgraph fetch
 			},
 		}), normalizeShadowSnap(ctx1.GetCacheStats()))
 
@@ -1682,10 +1682,10 @@ func TestShadowMode_StalenessDetection(t *testing.T) {
 				{CacheKey: shadowTestKeyUser, EntityType: "User", Kind: CacheKeyHit, DataSource: "accounts", ByteSize: 50, Shadow: true, CacheAgeMs: 5000}, // L2 has "Alice" from Request 1, 5s ago; Shadow=true so subgraph is still fetched
 			},
 			L1Writes: []CacheWriteEvent{
-				{CacheKey: shadowTestKeyUser, EntityType: "User", ByteSize: 57, DataSource: "accounts", CacheLevel: CacheLevelL1}, // "AliceUpdated" written to L1 from fresh subgraph response
+				{CacheKey: shadowTestKeyUser, EntityType: "User", ByteSize: 57, DataSource: "accounts", CacheLevel: CacheLevelL1, Source: CacheSourceQuery}, // "AliceUpdated" written to L1 from fresh subgraph response
 			},
 			L2Writes: []CacheWriteEvent{
-				{CacheKey: shadowTestKeyUser, EntityType: "User", ByteSize: 57, DataSource: "accounts", CacheLevel: CacheLevelL2, TTL: 30 * time.Second}, // "AliceUpdated" overwrites "Alice" in L2
+				{CacheKey: shadowTestKeyUser, EntityType: "User", ByteSize: 57, DataSource: "accounts", CacheLevel: CacheLevelL2, TTL: 30 * time.Second, Source: CacheSourceQuery}, // "AliceUpdated" overwrites "Alice" in L2
 			},
 			ShadowComparisons: []ShadowComparisonEvent{
 				{CacheKey: shadowTestKeyUser, EntityType: "User", IsFresh: false, CachedHash: 272931794584083561, FreshHash: 4550742678894771079, CachedBytes: 30, FreshBytes: 37, DataSource: "accounts", ConfiguredTTL: 30 * time.Second, CacheAgeMs: 5000}, // Cached "Alice" differs from fresh "AliceUpdated" (different hashes); entry was 5s old

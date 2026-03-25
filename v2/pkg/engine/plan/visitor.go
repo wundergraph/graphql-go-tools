@@ -1766,24 +1766,15 @@ func (v *Visitor) configureSubscriptionEntityCachePopulation(config *objectFetch
 		return
 	}
 
-	popConfig := fedConfig.SubscriptionEntityPopulation.FindByTypeName(entityTypeName)
+	// Look up subscription entity population config with a 3-tier fallback:
+	// 1. Exact match: type + field name (disambiguates when multiple subscription fields return the same entity type)
+	// 2. Type-only match: backward compat for configs without FieldName set
+	// 3. Union/interface resolution: check member/implementor types
+	resolvedTypeName, popConfig := v.resolveSubscriptionEntityPopulationConfig(entityTypeName, subscriptionField.FieldName, fedConfig)
 	if popConfig == nil {
-		// If the return type is a union, check if any union member has a matching config.
-		resolvedName, resolvedConfig := v.resolveUnionEntityPopulation(entityTypeName, fedConfig)
-		if resolvedConfig != nil {
-			entityTypeName = resolvedName
-			popConfig = resolvedConfig
-		} else {
-			// If the return type is an interface, check if any implementor has a matching config.
-			resolvedName, resolvedConfig = v.resolveInterfaceEntityPopulation(entityTypeName, fedConfig)
-			if resolvedConfig != nil {
-				entityTypeName = resolvedName
-				popConfig = resolvedConfig
-			} else {
-				return
-			}
-		}
+		return
 	}
+	entityTypeName = resolvedTypeName
 	// Build EntityQueryCacheKeyTemplate from entity's @key fields
 	entityKeys := fedConfig.RequiredFieldsByKey(entityTypeName)
 	if len(entityKeys) == 0 {
@@ -1838,9 +1829,31 @@ func (v *Visitor) configureSubscriptionEntityCachePopulation(config *objectFetch
 	}
 }
 
+// resolveSubscriptionEntityPopulationConfig performs a 2-tier lookup for subscription
+// entity population config:
+//  1. Exact match by type name + subscription field name
+//  2. Union/interface member resolution (when the subscription returns an abstract type)
+//
+// Returns the resolved entity type name (may differ from input if an abstract type was
+// resolved to a concrete member) and the config. Returns ("", nil) if no match found.
+func (v *Visitor) resolveSubscriptionEntityPopulationConfig(entityTypeName, fieldName string, fedConfig *FederationMetaData) (string, *SubscriptionEntityPopulationConfiguration) {
+	// Tier 1: exact match on both type and field
+	if config := fedConfig.SubscriptionEntityPopulation.FindByTypeAndFieldName(entityTypeName, fieldName); config != nil {
+		return entityTypeName, config
+	}
+	// Tier 2: abstract type resolution — check union members, then interface implementors
+	if resolvedName, config := v.resolveUnionEntityPopulation(entityTypeName, fieldName, fedConfig); config != nil {
+		return resolvedName, config
+	}
+	if resolvedName, config := v.resolveInterfaceEntityPopulation(entityTypeName, fieldName, fedConfig); config != nil {
+		return resolvedName, config
+	}
+	return "", nil
+}
+
 // resolveUnionEntityPopulation checks if typeName is a union type and returns the first
 // union member that has a SubscriptionEntityPopulation config.
-func (v *Visitor) resolveUnionEntityPopulation(typeName string, fedConfig *FederationMetaData) (string, *SubscriptionEntityPopulationConfiguration) {
+func (v *Visitor) resolveUnionEntityPopulation(typeName, fieldName string, fedConfig *FederationMetaData) (string, *SubscriptionEntityPopulationConfiguration) {
 	node, exists := v.Definition.Index.FirstNodeByNameStr(typeName)
 	if !exists || node.Kind != ast.NodeKindUnionTypeDefinition {
 		return "", nil
@@ -1850,7 +1863,7 @@ func (v *Visitor) resolveUnionEntityPopulation(typeName string, fedConfig *Feder
 		return "", nil
 	}
 	for _, memberName := range memberNames {
-		if cfg := fedConfig.SubscriptionEntityPopulation.FindByTypeName(memberName); cfg != nil {
+		if cfg := fedConfig.SubscriptionEntityPopulation.FindByTypeAndFieldName(memberName, fieldName); cfg != nil {
 			return memberName, cfg
 		}
 	}
@@ -1859,7 +1872,7 @@ func (v *Visitor) resolveUnionEntityPopulation(typeName string, fedConfig *Feder
 
 // resolveInterfaceEntityPopulation checks if typeName is an interface type and returns the first
 // implementor that has a SubscriptionEntityPopulation config.
-func (v *Visitor) resolveInterfaceEntityPopulation(typeName string, fedConfig *FederationMetaData) (string, *SubscriptionEntityPopulationConfiguration) {
+func (v *Visitor) resolveInterfaceEntityPopulation(typeName, fieldName string, fedConfig *FederationMetaData) (string, *SubscriptionEntityPopulationConfiguration) {
 	node, exists := v.Definition.Index.FirstNodeByNameStr(typeName)
 	if !exists || node.Kind != ast.NodeKindInterfaceTypeDefinition {
 		return "", nil
@@ -1869,7 +1882,7 @@ func (v *Visitor) resolveInterfaceEntityPopulation(typeName string, fedConfig *F
 		return "", nil
 	}
 	for _, implementorName := range implementorNames {
-		if cfg := fedConfig.SubscriptionEntityPopulation.FindByTypeName(implementorName); cfg != nil {
+		if cfg := fedConfig.SubscriptionEntityPopulation.FindByTypeAndFieldName(implementorName, fieldName); cfg != nil {
 			return implementorName, cfg
 		}
 	}
@@ -2308,6 +2321,7 @@ func (v *Visitor) configureFetchCaching(internal *objectFetchConfiguration, exte
 		if ds != nil {
 			if mutConfig := ds.MutationFieldCacheConfig(internal.rootFields[0].FieldName); mutConfig != nil {
 				result.EnableMutationL2CachePopulation = mutConfig.EnableEntityL2CachePopulation
+				result.MutationCacheTTLOverride = mutConfig.TTL
 			}
 		}
 	}

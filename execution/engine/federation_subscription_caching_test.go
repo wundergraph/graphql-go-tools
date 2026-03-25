@@ -1755,4 +1755,82 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		require.NotNil(t, entries[0])
 		assert.Equal(t, `{"upc":"top-4","name":"Bowler","price":2,"__typename":"Product"}`, string(entries[0].Value))
 	})
+
+	// =====================================================================
+	// Category 5: Tier 1 field-name disambiguation
+	// =====================================================================
+
+	t.Run("subscription field-name disambiguation - updateProductPrice uses 30s TTL", func(t *testing.T) {
+		defaultCache := NewFakeLoaderCache()
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(map[string]resolve.LoaderCache{"default": defaultCache}),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
+			withSubgraphEntityCachingConfigs(engine.SubgraphCachingConfigs{
+				{
+					SubgraphName: "products",
+					SubscriptionEntityPopulation: plan.SubscriptionEntityPopulationConfigurations{
+						// Two configs for the same entity type, disambiguated by FieldName (Tier 1)
+						{TypeName: "Product", FieldName: "updateProductPrice", CacheName: "default", TTL: 30 * time.Second},
+						{TypeName: "Product", FieldName: "updatedPrice", CacheName: "default", TTL: 60 * time.Second},
+					},
+				},
+			}),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		defaultCache.ClearLog()
+
+		messages := collectSubscriptionMessages(ctx, gqlClient, toWSAddr(setup.GatewayServer.URL),
+			cachingTestQueryPath("subscriptions/subscription_product_only.query"),
+			queryVariables{"upc": "top-4"}, 1, t)
+		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":1}}}}`, messages[0])
+
+		log := defaultCache.GetLog()
+		assert.Equal(t, []CacheLogEntry{
+			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"upc":"top-4"}}`}, TTL: 30 * time.Second}, // Tier 1 match: updateProductPrice config selected (30s), not updatedPrice (60s)
+		}, log)
+	})
+
+	t.Run("subscription field-name disambiguation - updatedPrice uses 60s TTL", func(t *testing.T) {
+		defaultCache := NewFakeLoaderCache()
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(map[string]resolve.LoaderCache{"default": defaultCache}),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
+			withSubgraphEntityCachingConfigs(engine.SubgraphCachingConfigs{
+				{
+					SubgraphName: "products",
+					SubscriptionEntityPopulation: plan.SubscriptionEntityPopulationConfigurations{
+						// Same two configs — this time exercising the updatedPrice field
+						{TypeName: "Product", FieldName: "updateProductPrice", CacheName: "default", TTL: 30 * time.Second},
+						{TypeName: "Product", FieldName: "updatedPrice", CacheName: "default", TTL: 60 * time.Second},
+					},
+				},
+			}),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		defaultCache.ClearLog()
+
+		messages := collectSubscriptionMessages(ctx, gqlClient, toWSAddr(setup.GatewayServer.URL),
+			cachingTestQueryPath("subscriptions/subscription_updated_price.query"),
+			nil, 1, t)
+		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updatedPrice":{"upc":"top-3","name":"Boater","price":10}}}}`, messages[0])
+
+		log := defaultCache.GetLog()
+		assert.Equal(t, []CacheLogEntry{
+			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"upc":"top-3"}}`}, TTL: 60 * time.Second}, // Tier 1 match: updatedPrice config selected (60s), not updateProductPrice (30s)
+		}, log)
+	})
 }

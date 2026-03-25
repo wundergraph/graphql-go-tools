@@ -484,13 +484,11 @@ Tests:
 When multiple subscription fields return the same entity type, the plan visitor uses
 `FindByTypeAndFieldName` to match the correct `SubscriptionEntityPopulationConfiguration`.
 This prevents order-dependent config selection when subscriptions like `itemCreated` and
-`itemUpdated` both produce configs for the same entity type with different TTLs. Falls back
-to `FindByTypeName` for backward compatibility when `FieldName` is not set.
+`itemUpdated` both produce configs for the same entity type with different TTLs.
 
 Tests:
 - `v2/pkg/engine/plan/federation_metadata_test.go` — `TestSubscriptionEntityPopulationConfigurations / "FindByTypeAndFieldName returns field-specific config"`
-- `v2/pkg/engine/plan/federation_metadata_test.go` — `TestSubscriptionEntityPopulationConfigurations / "FindByTypeAndFieldName falls back to nil when field not found"`
-- `v2/pkg/engine/plan/federation_metadata_test.go` — `TestSubscriptionEntityPopulationConfigurations / "FindByTypeAndFieldName with empty FieldName matches empty configs"`
+- `v2/pkg/engine/plan/federation_metadata_test.go` — `TestSubscriptionEntityPopulationConfigurations / "FindByTypeAndFieldName returns nil when field not found"`
 
 ## Shadow Mode
 

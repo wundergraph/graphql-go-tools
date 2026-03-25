@@ -98,9 +98,9 @@ func TestCacheAnalyticsCollector_MergeL2Events(t *testing.T) {
 func TestCacheAnalyticsCollector_WriteEvents(t *testing.T) {
 	c := NewCacheAnalyticsCollector()
 
-	c.RecordWrite(CacheLevelL1, "User", "key1", "accounts", 128, 0)
-	c.RecordWrite(CacheLevelL2, "User", "key2", "accounts", 256, 30*time.Second)
-	c.RecordWrite(CacheLevelL2, "Product", "key3", "products", 512, 60*time.Second)
+	c.RecordWrite(CacheLevelL1, "User", "key1", "accounts", 128, 0, CacheSourceQuery)
+	c.RecordWrite(CacheLevelL2, "User", "key2", "accounts", 256, 30*time.Second, CacheSourceQuery)
+	c.RecordWrite(CacheLevelL2, "Product", "key3", "products", 512, 60*time.Second, CacheSourceQuery)
 
 	snap := c.Snapshot()
 	assert.Equal(t, 1, len(snap.L1Writes), "should have exactly 1 L1 write event")
@@ -282,7 +282,7 @@ func TestCacheAnalyticsCollector_SnapshotDerivedMetrics(t *testing.T) {
 		c.RecordL1KeyEvent(CacheKeyMiss, "User", "k2", "ds", 0)
 		c.RecordL1KeyEvent(CacheKeyHit, "Product", "k3", "ds", 200)
 		c.RecordL2KeyEvent(CacheKeyHit, "User", "k4", "ds", 300)
-		c.RecordWrite(CacheLevelL2, "User", "k5", "ds", 150, 30*time.Second)
+		c.RecordWrite(CacheLevelL2, "User", "k5", "ds", 150, 30*time.Second, CacheSourceQuery)
 
 		snap := c.Snapshot()
 		byEntity := snap.EventsByEntityType()
@@ -303,7 +303,7 @@ func TestCacheAnalyticsCollector_SnapshotDerivedMetrics(t *testing.T) {
 		c.RecordL1KeyEvent(CacheKeyHit, "User", "k1", "accounts", 100)
 		c.RecordL2KeyEvent(CacheKeyMiss, "User", "k2", "accounts", 0)
 		c.RecordL1KeyEvent(CacheKeyHit, "Product", "k3", "products", 200)
-		c.RecordWrite(CacheLevelL2, "Product", "k4", "products", 250, 30*time.Second)
+		c.RecordWrite(CacheLevelL2, "Product", "k4", "products", 250, 30*time.Second, CacheSourceQuery)
 
 		snap := c.Snapshot()
 		byDS := snap.EventsByDataSource()
@@ -1712,9 +1712,9 @@ func TestSnapshotDeduplication(t *testing.T) {
 		c := NewCacheAnalyticsCollector()
 
 		// Same entity written twice from batch positions
-		c.RecordWrite(CacheLevelL2, "User", "user-1234", "accounts", 49, 30*time.Second)
-		c.RecordWrite(CacheLevelL2, "User", "user-1234", "accounts", 49, 30*time.Second)
-		c.RecordWrite(CacheLevelL2, "Product", "product-1", "products", 128, 30*time.Second)
+		c.RecordWrite(CacheLevelL2, "User", "user-1234", "accounts", 49, 30*time.Second, CacheSourceQuery)
+		c.RecordWrite(CacheLevelL2, "User", "user-1234", "accounts", 49, 30*time.Second, CacheSourceQuery)
+		c.RecordWrite(CacheLevelL2, "Product", "product-1", "products", 128, 30*time.Second, CacheSourceQuery)
 
 		snap := c.Snapshot()
 		assert.Equal(t, 2, len(snap.L2Writes), "duplicate User write should be consolidated into one event")
@@ -1839,5 +1839,66 @@ func TestCacheAnalyticsCollector_HeaderImpactEvents(t *testing.T) {
 		c := NewCacheAnalyticsCollector()
 		snap := c.Snapshot()
 		assert.Equal(t, 0, len(snap.HeaderImpactEvents))
+	})
+}
+
+// TestCacheAnalyticsCollector_WriteEventSource verifies that the Source field
+// (query vs mutation vs subscription) survives the record→snapshot pipeline.
+// Without this, analytics consumers can't distinguish why a cache write happened,
+// which breaks per-origin cache hit-rate reporting and mutation-aware invalidation dashboards.
+func TestCacheAnalyticsCollector_WriteEventSource(t *testing.T) {
+	// Each CacheSource variant must appear in the snapshot exactly as recorded.
+	t.Run("write events preserve source field", func(t *testing.T) {
+		c := NewCacheAnalyticsCollector()
+
+		c.RecordWrite(CacheLevelL2, "User", "key1", "accounts", 128, 30*time.Second, CacheSourceQuery)
+		c.RecordWrite(CacheLevelL2, "Product", "key2", "products", 256, 60*time.Second, CacheSourceMutation)
+		c.RecordWrite(CacheLevelL2, "Review", "key3", "reviews", 512, 90*time.Second, CacheSourceSubscription)
+
+		snap := c.Snapshot()
+		// Assert entire L2Writes slice — each event preserves its Source from the recording call
+		assert.Equal(t, []CacheWriteEvent{
+			{CacheKey: "key1", EntityType: "User", ByteSize: 128, DataSource: "accounts", CacheLevel: CacheLevelL2, TTL: 30 * time.Second, Source: CacheSourceQuery},         // Recorded with CacheSourceQuery
+			{CacheKey: "key2", EntityType: "Product", ByteSize: 256, DataSource: "products", CacheLevel: CacheLevelL2, TTL: 60 * time.Second, Source: CacheSourceMutation},   // Recorded with CacheSourceMutation
+			{CacheKey: "key3", EntityType: "Review", ByteSize: 512, DataSource: "reviews", CacheLevel: CacheLevelL2, TTL: 90 * time.Second, Source: CacheSourceSubscription}, // Recorded with CacheSourceSubscription
+		}, snap.L2Writes)
+	})
+
+	// MutationEvent is a struct passed by value — ensure Source isn't zeroed during copy.
+	t.Run("mutation event preserves source field", func(t *testing.T) {
+		c := NewCacheAnalyticsCollector()
+
+		event := MutationEvent{
+			MutationRootField: "updateUsername",
+			EntityType:        "User",
+			EntityCacheKey:    `{"__typename":"User","key":{"id":"1"}}`,
+			HadCachedValue:    true,
+			IsStale:           true,
+			CachedHash:        111,
+			FreshHash:         222,
+			CachedBytes:       64,
+			FreshBytes:        72,
+			Source:            CacheSourceMutation,
+		}
+		c.RecordMutationEvent(event)
+
+		snap := c.Snapshot()
+		// Assert entire MutationEvents slice — Source field preserved through record→snapshot
+		assert.Equal(t, []MutationEvent{event}, snap.MutationEvents)
+	})
+
+	// Same entity type, different sources — verifies events aren't collapsed or overwritten.
+	t.Run("mixed sources in single snapshot", func(t *testing.T) {
+		c := NewCacheAnalyticsCollector()
+
+		c.RecordWrite(CacheLevelL2, "User", "query-key-1", "accounts", 128, 30*time.Second, CacheSourceQuery)       // Write from query resolution
+		c.RecordWrite(CacheLevelL2, "User", "mutation-key-2", "accounts", 256, 30*time.Second, CacheSourceMutation) // Write from mutation resolution
+
+		snap := c.Snapshot()
+		// Assert entire L2Writes — different keys prevent deduplication, each retains its Source
+		assert.Equal(t, []CacheWriteEvent{
+			{CacheKey: "query-key-1", EntityType: "User", ByteSize: 128, DataSource: "accounts", CacheLevel: CacheLevelL2, TTL: 30 * time.Second, Source: CacheSourceQuery},       // Query-triggered write
+			{CacheKey: "mutation-key-2", EntityType: "User", ByteSize: 256, DataSource: "accounts", CacheLevel: CacheLevelL2, TTL: 30 * time.Second, Source: CacheSourceMutation}, // Mutation-triggered write
+		}, snap.L2Writes)
 	})
 }

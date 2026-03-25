@@ -64,6 +64,7 @@ type Gateway struct {
 	logger                       log.Logger
 	loaderCaches                 map[string]resolve.LoaderCache
 	subgraphEntityCachingConfigs engine.SubgraphCachingConfigs
+	resolverOptionsFns           []func(*resolve.ResolverOptions) // Applied to ResolverOptions before creating the engine
 
 	gqlHandler http.Handler
 	mu         *sync.Mutex
@@ -76,6 +77,14 @@ type Gateway struct {
 func WithSubgraphEntityCachingConfigs(configs engine.SubgraphCachingConfigs) GatewayOption {
 	return func(g *Gateway) {
 		g.subgraphEntityCachingConfigs = configs
+	}
+}
+
+// WithResolverOptions adds a function that customizes ResolverOptions before the engine is created.
+// Multiple functions are applied in order.
+func WithResolverOptions(fn func(*resolve.ResolverOptions)) GatewayOption {
+	return func(g *Gateway) {
+		g.resolverOptionsFns = append(g.resolverOptionsFns, fn)
 	}
 }
 
@@ -134,11 +143,15 @@ func (g *Gateway) UpdateDataSources(subgraphsConfigs []engine.SubgraphConfigurat
 		return
 	}
 
-	executionEngine, err := engine.NewExecutionEngine(ctx, g.logger, engineConfig, resolve.ResolverOptions{
+	resolverOpts := resolve.ResolverOptions{
 		MaxConcurrency:     1024,
 		Caches:             g.loaderCaches,
 		EntityCacheConfigs: buildEntityCacheConfigs(g.subgraphEntityCachingConfigs),
-	})
+	}
+	for _, fn := range g.resolverOptionsFns {
+		fn(&resolverOpts)
+	}
+	executionEngine, err := engine.NewExecutionEngine(ctx, g.logger, engineConfig, resolverOpts)
 	if err != nil {
 		g.logger.Error("create engine: %v", log.Error(err))
 		return

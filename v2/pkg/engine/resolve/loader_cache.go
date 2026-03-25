@@ -745,7 +745,7 @@ func (l *Loader) populateL1Cache(fetchItem *FetchItem, res *result, _ []*astjson
 			}
 			if l.ctx.cacheAnalyticsEnabled() {
 				byteSize := len(ck.Item.MarshalTo(nil))
-				l.ctx.cacheAnalytics.RecordWrite(CacheLevelL1, entityType, keyStr, dataSource, byteSize, 0)
+				l.ctx.cacheAnalytics.RecordWrite(CacheLevelL1, entityType, keyStr, dataSource, byteSize, 0, l.cacheOperationSource())
 			}
 		}
 	}
@@ -948,9 +948,15 @@ func (l *Loader) updateL2Cache(res *result) {
 	// Track successfully written entries for analytics
 	var writtenEntries []*CacheEntry
 
+	// Determine effective TTL: use mutation override if set, otherwise entity default
+	ttl := res.cacheConfig.TTL
+	if l.enableMutationL2CachePopulation && l.mutationCacheTTLOverride > 0 {
+		ttl = l.mutationCacheTTLOverride
+	}
+
 	// Store regular (non-null) cache entries
 	if len(cacheEntries) > 0 {
-		if setErr := res.cache.Set(ctx, cacheEntries, res.cacheConfig.TTL); setErr != nil {
+		if setErr := res.cache.Set(ctx, cacheEntries, ttl); setErr != nil {
 			if l.ctx.cacheAnalyticsEnabled() {
 				l.ctx.cacheAnalytics.RecordCacheOperationError(CacheOperationError{
 					Operation:  "set",
@@ -997,7 +1003,7 @@ func (l *Loader) updateL2Cache(res *result) {
 			if entry == nil {
 				continue
 			}
-			l.ctx.cacheAnalytics.RecordWrite(CacheLevelL2, res.analyticsEntityType, entry.Key, res.ds.Name, len(entry.Value), res.cacheConfig.TTL)
+			l.ctx.cacheAnalytics.RecordWrite(CacheLevelL2, res.analyticsEntityType, entry.Key, res.ds.Name, len(entry.Value), ttl, l.cacheOperationSource())
 		}
 	}
 
