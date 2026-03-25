@@ -1534,4 +1534,177 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 		}, withStreamingResponse()))
 	})
 
+	t.Run("non-nullable field errors", func(t *testing.T) {
+		definition := `
+			type Query { product: Product! }
+			type Product {
+				id: ID!
+				name: String!
+				nameWithError: String!
+				price: Float!
+			}
+		`
+
+		firstSubgraphSDL := `
+			type Query { product: Product! }
+			type Product @key(fields: "id") {
+				id: ID!
+				name: String!
+				nameWithError: String
+			}
+		`
+
+		secondSubgraphSDL := `
+			type Product @key(fields: "id") {
+				id: ID!
+				price: Float!
+			}
+		`
+
+		dataSources := []plan.DataSource{
+			mustGraphqlDataSourceConfiguration(t,
+				"id-1",
+				mustFactory(t,
+					testConditionalNetHttpClient(t, conditionalTestCase{
+						reportUnused: true,
+						expectedHost: "first",
+						expectedPath: "/",
+						responses: map[string]sendResponse{
+							`{"query":"{product {___typename: __typename}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"product":{"___typename":"Product"}}}`,
+							},
+							`{"query":"{product {___typename: __typename __typename id}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"product":{"___typename":"Product","__typename":"Product","id":"1"}}}`,
+							},
+							`{"query":"{product {name}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"product":{"name":null}}}`,
+							},
+							`{"query":"{product {nameWithError}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"product":{"nameWithError":null}},"errors":[{"message":"upstream name error","path":["product","nameWithError"]}]}`,
+							},
+							`{"query":"{product {name nameWithError}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"product":{"name":null,"nameWithError":null}},"errors":[{"message":"upstream name error","path":["product","nameWithError"]}]}`,
+							},
+						},
+					}),
+				),
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"product"}},
+						{TypeName: "Product", FieldNames: []string{"id", "name", "nameWithError"}},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{TypeName: "Product", SelectionSet: "id"},
+						},
+					},
+				},
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{URL: "https://first/", Method: "POST"},
+					SchemaConfiguration: mustSchemaConfig(t,
+						&graphql_datasource.FederationConfiguration{Enabled: true, ServiceSDL: firstSubgraphSDL},
+						firstSubgraphSDL,
+					),
+				}),
+			),
+			mustGraphqlDataSourceConfiguration(t,
+				"id-2",
+				mustFactory(t,
+					testConditionalNetHttpClient(t, conditionalTestCase{
+						reportUnused: true,
+						expectedHost: "second",
+						expectedPath: "/",
+						responses: map[string]sendResponse{
+							`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename price}}}","variables":{"representations":[{"__typename":"Product","id":"1"}]}}`: {
+								statusCode: 200,
+								body:       `{"data":{"_entities":[{"__typename":"Product","price":null}]}}`,
+							},
+						},
+					}),
+				),
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Product", FieldNames: []string{"price"}},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{TypeName: "Product", SelectionSet: "id"},
+						},
+					},
+				},
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{URL: "https://second/", Method: "POST"},
+					SchemaConfiguration: mustSchemaConfig(t,
+						&graphql_datasource.FederationConfiguration{Enabled: true, ServiceSDL: secondSubgraphSDL},
+						secondSubgraphSDL,
+					),
+				}),
+			),
+		}
+
+		schema, err := graphql.NewSchemaFromString(definition)
+		require.NoError(t, err)
+
+		t.Run("defer from first subgraph - null non-nullable field", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			schema: schema,
+			operation: func(t *testing.T) graphql.Request {
+				return graphql.Request{Query: `{ product { ... @defer { name } } }`}
+			},
+			dataSources: dataSources,
+			expectedResponse: `{"data":{"product":{}},"hasNext":true}
+{"incremental":[{"data":null,"path":["product"],"errors":[{"message":"Cannot return null for non-nullable field 'Query.product.name'.","path":["product","name"]},{"message":"Cannot return null for non-nullable field 'Query.product.name'.","path":["product","name"]}]}],"hasNext":false}
+`,
+		}, withStreamingResponse()))
+
+		t.Run("defer from first subgraph - null field with upstream error", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			schema: schema,
+			operation: func(t *testing.T) graphql.Request {
+				return graphql.Request{Query: `{ product { ... @defer { nameWithError } } }`}
+			},
+			dataSources: dataSources,
+			expectedResponse: `{"data":{"product":{}},"hasNext":true}
+{"incremental":[{"data":{"nameWithError":null},"path":["product"],"errors":[{"message":"Failed to fetch from Subgraph 'id-1'."},{"message":"Cannot return null for non-nullable field 'Query.product.nameWithError'.","path":["product","nameWithError"]},{"message":"Cannot return null for non-nullable field 'Query.product.nameWithError'.","path":["product","nameWithError"]}]}],"hasNext":false}
+`,
+		}, withStreamingResponse()))
+
+		t.Run("defer from second subgraph - null non-nullable field", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			schema: schema,
+			operation: func(t *testing.T) graphql.Request {
+				return graphql.Request{Query: `{ product { ... @defer { price } } }`}
+			},
+			dataSources: dataSources,
+			expectedResponse: `{"data":{"product":{}},"hasNext":true}
+{"incremental":[{"data": null,"path":["product"],"errors":[{"message":"Cannot return null for non-nullable field 'Query.product.price'.","path":["product","price"]},{"message":"Cannot return null for non-nullable field 'Query.product.price'.","path":["product","price"]}]}],"hasNext":false}
+`,
+		}, withStreamingResponse()))
+
+		t.Run("defer from both subgraphs - null non-nullable fields - name first", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			schema: schema,
+			operation: func(t *testing.T) graphql.Request {
+				return graphql.Request{Query: `{ product { ... @defer { name } ... @defer { price } } }`}
+			},
+			dataSources: dataSources,
+			expectedResponse: `{"data":{"product":{}},"hasNext":true}
+{"incremental":[{"data":null,"path":["product"],"errors":[{"message":"Cannot return null for non-nullable field 'Query.product.name'.","path":["product","name"]},{"message":"Cannot return null for non-nullable field 'Query.product.name'.","path":["product","name"]}]}],"hasNext":false}
+`,
+		}, withStreamingResponse()))
+
+		t.Run("defer from both subgraphs - null non-nullable fields - price first", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			schema: schema,
+			operation: func(t *testing.T) graphql.Request {
+				return graphql.Request{Query: `{ product { ... @defer { price } ... @defer { name } } }`}
+			},
+			dataSources: dataSources,
+			expectedResponse: `{"data":{"product":{}},"hasNext":true}
+{"incremental":[{"data": null,"path":["product"],"errors":[{"message":"Cannot return null for non-nullable field 'Query.product.price'.","path":["product","price"]},{"message":"Cannot return null for non-nullable field 'Query.product.price'.","path":["product","price"]}]}],"hasNext":false}
+`,
+		}, withStreamingResponse()))
+
+	})
+
 }
