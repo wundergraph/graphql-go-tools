@@ -1,6 +1,8 @@
 package resolve
 
 import (
+	"strings"
+
 	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/go-arena"
 
@@ -126,7 +128,7 @@ func (r *RootQueryCacheKeyTemplate) renderDerivedEntityKey(a arena.Arena, ctx *C
 			// Missing or null argument → skip caching
 			return "", jsonBytes
 		}
-		keysObj.Set(a, fm.EntityKeyField, argValue)
+		setNestedKey(a, keysObj, fm.EntityKeyField, argValue)
 	}
 
 	keyObj.Set(a, "key", keysObj)
@@ -144,6 +146,30 @@ func (r *RootQueryCacheKeyTemplate) renderDerivedEntityKey(a arena.Arena, ctx *C
 	}
 	slice = arena.SliceAppend(a, slice, jsonBytes...)
 	return string(slice), jsonBytes
+}
+
+// setNestedKey sets a value on a JSON object, supporting dot-notation for nested keys.
+// For "store.id" with value "123", it produces {"store":{"id":"123"}}.
+// For flat keys (no dot), it behaves like obj.Set(a, key, value).
+func setNestedKey(a arena.Arena, obj *astjson.Value, key string, value *astjson.Value) {
+	parts := strings.Split(key, ".")
+	if len(parts) == 1 {
+		obj.Set(a, key, value)
+		return
+	}
+	// Walk top-down, reusing existing intermediate objects
+	current := obj
+	for i := 0; i < len(parts)-1; i++ {
+		existing := current.Get(parts[i])
+		if existing != nil && existing.Type() == astjson.TypeObject {
+			current = existing
+		} else {
+			next := astjson.ObjectValue(a)
+			current.Set(a, parts[i], next)
+			current = next
+		}
+	}
+	current.Set(a, parts[len(parts)-1], value)
 }
 
 // renderField renders a single field cache key as JSON

@@ -1122,6 +1122,143 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 		assert.Equal(t, []string{`{"__typename":"User","key":{"id":"123"}}`}, cacheKeys[0].Keys)
 	})
 
+	t.Run("dot-notation entity key field", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "productByStore"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "Product",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "store.id", ArgumentPath: []string{"storeId"}},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{Variables: astjson.MustParse(`{"storeId":"123"}`), ctx: context.Background()}
+		data := astjson.MustParse(`{}`)
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(cacheKeys))
+		assert.Equal(t, []string{`{"__typename":"Product","key":{"store":{"id":"123"}}}`}, cacheKeys[0].Keys)
+	})
+
+	t.Run("deeply nested dot-notation entity key field", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "thing"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "Thing",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "owner.company.id", ArgumentPath: []string{"companyId"}},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{Variables: astjson.MustParse(`{"companyId":"abc"}`), ctx: context.Background()}
+		data := astjson.MustParse(`{}`)
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(cacheKeys))
+		assert.Equal(t, []string{`{"__typename":"Thing","key":{"owner":{"company":{"id":"abc"}}}}`}, cacheKeys[0].Keys)
+	})
+
+	t.Run("dot-notation shared prefix merges into same object", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "product"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "Product",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "store.id", ArgumentPath: []string{"storeId"}},
+						{EntityKeyField: "store.region", ArgumentPath: []string{"region"}},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{Variables: astjson.MustParse(`{"storeId":"s1","region":"us"}`), ctx: context.Background()}
+		data := astjson.MustParse(`{}`)
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(cacheKeys))
+		// Both store.id and store.region must appear under the same "store" object
+		assert.Equal(t, []string{`{"__typename":"Product","key":{"store":{"id":"s1","region":"us"}}}`}, cacheKeys[0].Keys)
+	})
+
+	t.Run("multiple entity key mappings - multi-key lookup", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "product"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "Product",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+					},
+				},
+				{
+					EntityTypeName: "Product",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "sku", ArgumentPath: []string{"sku"}},
+						{EntityKeyField: "region", ArgumentPath: []string{"region"}},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{Variables: astjson.MustParse(`{"id":"123","sku":"abc","region":"us"}`), ctx: context.Background()}
+		data := astjson.MustParse(`{}`)
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(cacheKeys))
+		assert.Equal(t, []string{
+			`{"__typename":"Product","key":{"id":"123"}}`,
+			`{"__typename":"Product","key":{"sku":"abc","region":"us"}}`,
+		}, cacheKeys[0].Keys)
+	})
+
+	t.Run("multiple entity key mappings - partial missing skips that key only", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "product"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "Product",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+					},
+				},
+				{
+					EntityTypeName: "Product",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "sku", ArgumentPath: []string{"sku"}},
+						{EntityKeyField: "region", ArgumentPath: []string{"region"}},
+					},
+				},
+			},
+		}
+
+		// Only id and sku provided, region missing → second mapping skipped
+		ctx := &Context{Variables: astjson.MustParse(`{"id":"123","sku":"abc"}`), ctx: context.Background()}
+		data := astjson.MustParse(`{}`)
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(cacheKeys))
+		assert.Equal(t, []string{
+			`{"__typename":"Product","key":{"id":"123"}}`,
+		}, cacheKeys[0].Keys)
+	})
+
 	t.Run("no entity key mapping - uses root field key", func(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
