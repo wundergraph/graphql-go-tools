@@ -744,7 +744,6 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			{TypeName: "Post", FieldNames: []string{"id", "title", "body"}},
 			{TypeName: "Comment", FieldNames: []string{"id", "text"}},
 		}
-		childNodes := []plan.TypeField{}
 		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
 			Fetch: &graphql_datasource.FetchConfiguration{
 				URL:    "https://example.com/",
@@ -789,8 +788,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							}),
 						),
 						&plan.DataSourceMetadata{
-							RootNodes:  rootNodes,
-							ChildNodes: childNodes,
+							RootNodes: rootNodes,
 							CostConfig: &plan.DataSourceCostConfig{
 								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
 									{TypeName: "User", FieldName: "name"}:    {HasWeight: true, Weight: 2},
@@ -852,8 +850,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							}),
 						),
 						&plan.DataSourceMetadata{
-							RootNodes:  rootNodes,
-							ChildNodes: childNodes,
+							RootNodes: rootNodes,
 							CostConfig: &plan.DataSourceCostConfig{
 								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
 									{TypeName: "User", FieldName: "name"}:  {HasWeight: true, Weight: 2},
@@ -3523,5 +3520,353 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			computeCosts(),
 		))
 
+	})
+
+	t.Run("input object cost", func(t *testing.T) {
+		inputObjectSchema := `
+			type Query {
+				create(input: CreateUserInput!): User
+				update(input: UpdateUserInput!): User
+				nested(input: OuterInput!): Boolean
+				recursive(input: RecursiveInput!): Boolean
+				createList(input: CreateUserInput!): [User!] # @listSize(assumedSize: 10)
+
+				# inputOverride(input: CreateUserInput! @cost(weight: 7)): User @cost(weight: 1)
+				inputOverride(input: CreateUserInput!): User 
+			}
+			type User {
+				id: ID!
+				name: String!
+				email: String!
+			}
+			input CreateUserInput {
+				name: String!          # @cost(weight: 5)
+				email: String!         # @cost(weight: 3)
+				age: Int               # @cost(weight: 2)
+			}
+			# nullable fields for null-value test
+			input UpdateUserInput {
+				name: String           # @cost(weight: 6)
+				email: String          # @cost(weight: 4)
+			}
+			input OuterInput {
+				label: String!         # @cost(weight: 2)
+				inner: InnerInput!     # @cost(weight: 3)
+			}
+			input InnerInput {
+				value: Int!            # @cost(weight: 4)
+				note: String           # @cost(weight: 1)
+			}
+			input RecursiveInput {
+				i: Int!                # @cost(weight: 2)
+				rec: RecursiveInput    # @cost(weight: 3)
+			}
+		`
+		schema, err := graphql.NewSchemaFromString(inputObjectSchema)
+		require.NoError(t, err)
+
+		rootNodes := []plan.TypeField{
+			{TypeName: "Query", FieldNames: []string{"create", "update", "nested", "recursive", "createList", "inputOverride"}},
+			{TypeName: "User", FieldNames: []string{"id", "name", "email"}},
+		}
+		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+			Fetch: &graphql_datasource.FetchConfiguration{
+				URL:    "https://example.com/",
+				Method: "GET",
+			},
+			SchemaConfiguration: mustSchemaConfig(t, nil, inputObjectSchema),
+		})
+		costConfig := &plan.DataSourceCostConfig{
+			Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+				{TypeName: "CreateUserInput", FieldName: "name"}:  {HasWeight: true, Weight: 5},
+				{TypeName: "CreateUserInput", FieldName: "email"}: {HasWeight: true, Weight: 3},
+				{TypeName: "CreateUserInput", FieldName: "age"}:   {HasWeight: true, Weight: 2},
+				{TypeName: "UpdateUserInput", FieldName: "name"}:  {HasWeight: true, Weight: 6},
+				{TypeName: "UpdateUserInput", FieldName: "email"}: {HasWeight: true, Weight: 4},
+				{TypeName: "OuterInput", FieldName: "label"}:      {HasWeight: true, Weight: 2},
+				{TypeName: "OuterInput", FieldName: "inner"}:      {HasWeight: true, Weight: 3},
+				{TypeName: "InnerInput", FieldName: "value"}:      {HasWeight: true, Weight: 4},
+				{TypeName: "InnerInput", FieldName: "note"}:       {HasWeight: true, Weight: 1},
+				{TypeName: "RecursiveInput", FieldName: "i"}:      {HasWeight: true, Weight: 2},
+				{TypeName: "RecursiveInput", FieldName: "rec"}:    {HasWeight: true, Weight: 3},
+				{TypeName: "Query", FieldName: "inputOverride"}: {
+					HasWeight:       true,
+					Weight:          1,
+					ArgumentWeights: map[string]int{"input": 7},
+				},
+			},
+			ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+				{TypeName: "Query", FieldName: "createList"}: {AssumedSize: 10},
+			},
+		}
+		fieldConfig := []plan.FieldConfiguration{
+			{
+				TypeName: "Query", FieldName: "create",
+				Arguments: []plan.ArgumentConfiguration{
+					{Name: "input", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+				},
+			},
+			{
+				TypeName: "Query", FieldName: "update",
+				Arguments: []plan.ArgumentConfiguration{
+					{Name: "input", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+				},
+			},
+			{
+				TypeName: "Query", FieldName: "nested",
+				Arguments: []plan.ArgumentConfiguration{
+					{Name: "input", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+				},
+			},
+			{
+				TypeName: "Query", FieldName: "recursive",
+				Arguments: []plan.ArgumentConfiguration{
+					{Name: "input", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+				},
+			},
+			{
+				TypeName: "Query", FieldName: "createList",
+				Arguments: []plan.ArgumentConfiguration{
+					{Name: "input", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+				},
+			},
+			{
+				TypeName: "Query", FieldName: "inputOverride",
+				Arguments: []plan.ArgumentConfiguration{
+					{Name: "input", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+				},
+			},
+		}
+
+		t.Run("basic input object with weighted fields inline", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ create(input: {name: "Alice", email: "a@b.com", age: 30}) { id name } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"create":{"id":"1","name":"Alice"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"create":{"id":"1","name":"Alice"}}}`,
+				expectedEstimatedCost: 11, // argsCost(name:5 + email:3 + age:2 = 10) + round((0 + 1) * 1) = 11
+			},
+			computeCosts(),
+		))
+
+		t.Run("input object via variable with partial fields", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query:     `query($input: CreateUserInput!) { create(input: $input) { id name } }`,
+						Variables: []byte(`{"input": {"name": "Alice", "email": "a@b.com"}}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"create":{"id":"1","name":"Alice"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"create":{"id":"1","name":"Alice"}}}`,
+				expectedEstimatedCost: 9, // argsCost(name:5 + email:3 = 8, age omitted) + round((0 + 1) * 1) = 9
+			},
+			computeCosts(),
+		))
+
+		t.Run("nested input objects", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ nested(input: {label: "hello", inner: {value: 42, note: "n"}}) }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"nested":true}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"nested":true}}`,
+				expectedEstimatedCost: 10, // argsCost(label:2 + inner:3 + value:4 + note:1 = 10) + round((0 + 0) * 1) = 10
+			},
+			computeCosts(),
+		))
+
+		t.Run("recursive input objects", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ recursive(input: {i: 1, rec: {i: 2, rec: {i: 3}}}) }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"recursive":true}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:           fieldConfig,
+				expectedResponse: `{"data":{"recursive":true}}`,
+
+				// countedInputCoords = {A.i: 3, A.rec: 2} implies
+				// argsCost(3*2 + 2*3 = 12) = 12
+				expectedEstimatedCost: 12,
+			},
+			computeCosts(),
+		))
+
+		t.Run("input object on list field argsCost not multiplied", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ createList(input: {name: "Eve", email: "e@f.com"}) { id name } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"createList":[{"id":"1","name":"Eve"},{"id":"2","name":"Eve2"}]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"createList":[{"id":"1","name":"Eve"},{"id":"2","name":"Eve2"}]}}`,
+				expectedEstimatedCost: 18, // argsCost(name:5 + email:3 = 8) + round((0 + 1) * 10) = 18
+				expectedActualCost:    10, // argsCost(8) + round((0 + 1) * 2) = 10
+			},
+			computeCosts(),
+		))
+
+		t.Run("explicit argument weight does not override input object cost", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ inputOverride(input: {name: "Alice", email: "a@b.com", age: 30}) { id } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"inputOverride":{"id":"1"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"inputOverride":{"id":"1"}}}`,
+				expectedEstimatedCost: 18, // argsCost(input:7 + name:5 + email:3 + age:2 = 17) + round((0 + 1) * 1) = 18
+			},
+			computeCosts(),
+		))
+
+		t.Run("null field values not counted", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query:     `query($input: UpdateUserInput!) { update(input: $input) { id } }`,
+						Variables: []byte(`{"input": {"name": "Bob", "email": null}}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"update":{"id":"1"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"update":{"id":"1"}}}`,
+				expectedEstimatedCost: 7, // argsCost(name:6) + round((0 + 1) * 1) = 7
+			},
+			computeCosts(),
+		))
+
+		t.Run("all fields null via variable", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query:     `query($input: UpdateUserInput!) { update(input: $input) { id } }`,
+						Variables: []byte(`{"input": {"name": null, "email": null}}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"update":{"id":"1"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"update":{"id":"1"}}}`,
+				expectedEstimatedCost: 1, // argsCost(0) + round((0 + 1) * 1) = 1
+			},
+			computeCosts(),
+		))
 	})
 }

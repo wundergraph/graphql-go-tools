@@ -517,16 +517,15 @@ type ArgumentInfo struct {
 
 	// If argument is passed an input object, we want to gather counts
 	// for all the field coordinates with non-null values used in the argument.
-	// TBD later when input objects are supported.
 	//
 	// For example, for
 	//    "input A { x: Int, rec: A! }"
 	// following value is passed:
 	//    { x: 1, rec: { x: 2, rec: { x: 3 } } },
-	// then coordCounts will be:
+	// then countedInputCoords will be:
 	//    { {"A", "rec"}: 2, {"A", "x"}: 3 }
 	//
-	coordCounts map[FieldCoordinate]int
+	countedInputCoords map[FieldCoordinate]int
 
 	// isInputObject is true for an input object passed to the argument,
 	// otherwise the argument is Scalar or Enum.
