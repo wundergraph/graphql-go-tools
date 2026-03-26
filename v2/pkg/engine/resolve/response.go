@@ -1,7 +1,9 @@
 package resolve
 
 import (
+	"fmt"
 	"io"
+	"strings"
 
 	"github.com/gobwas/ws"
 
@@ -59,6 +61,30 @@ func (g *GraphQLResponse) SingleFlightAllowed() bool {
 type GraphQLDeferResponse struct {
 	Response *GraphQLResponse
 	Defers   []*DeferFetchGroup
+}
+
+func (r *GraphQLDeferResponse) QueryPlanString() string {
+	indent := func(s string) string {
+		return strings.ReplaceAll(s, "\n", "\n    ")
+	}
+
+	primary := indent(r.Response.Fetches.QueryPlan().PrettyPrint())
+	var secondary []string
+
+	for _, g := range r.Defers {
+		secondary = append(secondary, strings.ReplaceAll(g.Fetches.QueryPlan().PrettyPrint(), "\n", "\n    "))
+	}
+
+	return fmt.Sprintf(`
+QueryPlan {
+  Primary {
+	%s
+  }
+  Deferred [
+    %s
+  ]
+}
+`, primary, strings.Join(secondary, "\n"))
 }
 
 type DeferFetchGroup struct {
