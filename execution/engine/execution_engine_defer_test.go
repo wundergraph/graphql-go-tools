@@ -1714,4 +1714,374 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 
 	})
 
+	t.Run("nested list entities", func(t *testing.T) {
+		definition := `
+			type Query { items: [Item!]! }
+			type Item {
+				id:       ID!
+				name:     String!
+				title:    String!
+				subItems: [SubItem!]!
+			}
+			type SubItem {
+				id:          ID!
+				description: String!
+			}
+		`
+		schema, err := graphql.NewSchemaFromString(definition)
+		require.NoError(t, err)
+
+		// Sub1: owns Query.items, Item.{id,name,subItems}, SubItem.id
+		firstSubgraphSDL := `
+			type Query { items: [Item!]! }
+			type Item @key(fields: "id") {
+				id:       ID!
+				name:     String!
+				subItems: [SubItem!]!
+			}
+			type SubItem @key(fields: "id") {
+				id: ID!
+			}
+		`
+		firstSubgraphDS := mustGraphqlDataSourceConfiguration(t,
+			"id-1",
+			mustFactory(t, testConditionalNetHttpClient(t, conditionalTestCase{
+				reportUnused: true,
+				expectedHost: "first",
+				expectedPath: "/",
+				responses: map[string]sendResponse{
+					`{"query":"{items {___typename: __typename __typename id}}"}`: {
+						statusCode: 200,
+						body:       `{"data":{"items":[{"___typename":"Item","__typename":"Item","id":"1"},{"___typename":"Item","__typename":"Item","id":"2"}]}}`,
+					},
+					`{"query":"{items {name}}"}`: {
+						statusCode: 200,
+						body:       `{"data":{"items":[{"name":"ItemOne"},{"name":"ItemTwo"}]}}`,
+					},
+					`{"query":"{items {___typename: __typename}}"}`: {
+						statusCode: 200,
+						body:       `{"data":{"items":[{"___typename":"Item"},{"___typename":"Item"}]}}`,
+					},
+					`{"query":"{items {subItems {___typename: __typename __typename id}}}"}`: {
+						statusCode: 200,
+						body:       `{"data":{"items":[{"subItems":[{"___typename":"SubItem","__typename":"SubItem","id":"s1"},{"___typename":"SubItem","__typename":"SubItem","id":"s2"}]},{"subItems":[{"___typename":"SubItem","__typename":"SubItem","id":"s3"}]}]}}`,
+					},
+					`{"query":"{items {id}}"}`: {
+						statusCode: 200,
+						body:       `{"data":{"items":[{"id":"1"},{"id":"2"}]}}`,
+					},
+					`{"query":"{items {id name}}"}`: {
+						statusCode: 200,
+						body:       `{"data":{"items":[{"id":"1","name":"ItemOne"},{"id":"2","name":"ItemTwo"}]}}`,
+					},
+					`{"query":"{items {subItems {id __typename __internal_id: id}}}"}`: {
+						statusCode: 200,
+						body:       `{"data":{"items":[{"subItems":[{"id":"s1","__typename":"SubItem","__internal_id":"s1"},{"id":"s2","__typename":"SubItem","__internal_id":"s2"}]},{"subItems":[{"id":"s3","__typename":"SubItem","__internal_id":"s3"}]}]}}`,
+					},
+					`{"query":"{items {___typename: __typename __typename __internal_id: id}}"}`: {
+						statusCode: 200,
+						body:       `{"data":{"items":[{"___typename":"Item","__typename":"Item","__internal_id":"1"},{"___typename":"Item","__typename":"Item","__internal_id":"2"}]}}`,
+					},
+					`{"query":"{items {id __typename __internal_id: id}}"}`: {
+						statusCode: 200,
+						body:       `{"data":{"items":[{"id":"1","__typename":"Item","__internal_id":"1"},{"id":"2","__typename":"Item","__internal_id":"2"}]}}`,
+					},
+					`{"query":"{items {id subItems {id __typename __internal_id: id}}}"}`: {
+						statusCode: 200,
+						body:       `{"data":{"items":[{"id":"1","subItems":[{"id":"s1","__typename":"SubItem","__internal_id":"s1"},{"id":"s2","__typename":"SubItem","__internal_id":"s2"}]},{"id":"2","subItems":[{"id":"s3","__typename":"SubItem","__internal_id":"s3"}]}]}}`,
+					},
+				},
+			})),
+			&plan.DataSourceMetadata{
+				RootNodes: []plan.TypeField{
+					{TypeName: "Query", FieldNames: []string{"items"}},
+					{TypeName: "Item", FieldNames: []string{"id", "name", "subItems"}},
+					{TypeName: "SubItem", FieldNames: []string{"id"}},
+				},
+				ChildNodes: []plan.TypeField{
+					{TypeName: "SubItem", FieldNames: []string{"id"}},
+				},
+				FederationMetaData: plan.FederationMetaData{
+					Keys: plan.FederationFieldConfigurations{
+						{TypeName: "Item", SelectionSet: "id"},
+						{TypeName: "SubItem", SelectionSet: "id"},
+					},
+				},
+			},
+			mustConfiguration(t, graphql_datasource.ConfigurationInput{
+				Fetch: &graphql_datasource.FetchConfiguration{URL: "https://first/", Method: "POST"},
+				SchemaConfiguration: mustSchemaConfig(t,
+					&graphql_datasource.FederationConfiguration{Enabled: true, ServiceSDL: firstSubgraphSDL},
+					firstSubgraphSDL,
+				),
+			}),
+		)
+
+		// Sub2: extends Item with title
+		secondSubgraphSDL := `
+			type Item @key(fields: "id") {
+				id:    ID!
+				title: String!
+			}
+		`
+		secondSubgraphDS := mustGraphqlDataSourceConfiguration(t,
+			"id-2",
+			mustFactory(t, testConditionalNetHttpClient(t, conditionalTestCase{
+				reportUnused: true,
+				expectedHost: "second",
+				expectedPath: "/",
+				responses: map[string]sendResponse{
+					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Item {__typename title}}}","variables":{"representations":[{"__typename":"Item","id":"1"},{"__typename":"Item","id":"2"}]}}`: {
+						statusCode: 200,
+						body:       `{"data":{"_entities":[{"__typename":"Item","title":"TitleOne"},{"__typename":"Item","title":"TitleTwo"}]}}`,
+					},
+				},
+			})),
+			&plan.DataSourceMetadata{
+				RootNodes: []plan.TypeField{
+					{TypeName: "Item", FieldNames: []string{"id", "title"}},
+				},
+				FederationMetaData: plan.FederationMetaData{
+					Keys: plan.FederationFieldConfigurations{
+						{TypeName: "Item", SelectionSet: "id"},
+					},
+				},
+			},
+			mustConfiguration(t, graphql_datasource.ConfigurationInput{
+				Fetch: &graphql_datasource.FetchConfiguration{URL: "https://second/", Method: "POST"},
+				SchemaConfiguration: mustSchemaConfig(t,
+					&graphql_datasource.FederationConfiguration{Enabled: true, ServiceSDL: secondSubgraphSDL},
+					secondSubgraphSDL,
+				),
+			}),
+		)
+
+		// Sub3: extends SubItem with description
+		thirdSubgraphSDL := `
+			type SubItem @key(fields: "id") {
+				id:          ID!
+				description: String!
+			}
+		`
+		thirdSubgraphDS := mustGraphqlDataSourceConfiguration(t,
+			"id-3",
+			mustFactory(t, testConditionalNetHttpClient(t, conditionalTestCase{
+				reportUnused: true,
+				expectedHost: "third",
+				expectedPath: "/",
+				responses: map[string]sendResponse{
+					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on SubItem {__typename description}}}","variables":{"representations":[{"__typename":"SubItem","id":"s1"},{"__typename":"SubItem","id":"s2"},{"__typename":"SubItem","id":"s3"}]}}`: {
+						statusCode: 200,
+						body:       `{"data":{"_entities":[{"__typename":"SubItem","description":"Desc1"},{"__typename":"SubItem","description":"Desc2"},{"__typename":"SubItem","description":"Desc3"}]}}`,
+					},
+				},
+			})),
+			&plan.DataSourceMetadata{
+				RootNodes: []plan.TypeField{
+					{TypeName: "SubItem", FieldNames: []string{"id", "description"}},
+				},
+				FederationMetaData: plan.FederationMetaData{
+					Keys: plan.FederationFieldConfigurations{
+						{TypeName: "SubItem", SelectionSet: "id"},
+					},
+				},
+			},
+			mustConfiguration(t, graphql_datasource.ConfigurationInput{
+				Fetch: &graphql_datasource.FetchConfiguration{URL: "https://third/", Method: "POST"},
+				SchemaConfiguration: mustSchemaConfig(t,
+					&graphql_datasource.FederationConfiguration{Enabled: true, ServiceSDL: thirdSubgraphSDL},
+					thirdSubgraphSDL,
+				),
+			}),
+		)
+
+		dataSources := []plan.DataSource{firstSubgraphDS, secondSubgraphDS, thirdSubgraphDS}
+
+		t.Run("category A - no id in initial response", func(t *testing.T) {
+			t.Run("defer name from sub1", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `{ items { ... @defer { name } } }`}
+				},
+				dataSources: dataSources,
+				expectedResponse: `{"data":{"items":[{},{}]},"hasNext":true}
+{"incremental":[{"data":{"name":"ItemOne"},"path":["items",0]},{"data":{"name":"ItemTwo"},"path":["items",1]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("defer title from sub2", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `{ items { ... @defer { title } } }`}
+				},
+				dataSources: dataSources,
+				expectedResponse: `{"data":{"items":[{},{}]},"hasNext":true}
+{"incremental":[{"data":{"title":"TitleOne"},"path":["items",0]},{"data":{"title":"TitleTwo"},"path":["items",1]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("defer subItems description from sub3", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `{ items { subItems { ... @defer { description } } } }`}
+				},
+				dataSources: dataSources,
+				expectedResponse: `{"data":{"items":[{"subItems":[{},{}]},{"subItems":[{}]}]},"hasNext":true}
+{"incremental":[{"data":{"description":"Desc1"},"path":["items",0,"subItems",0]},{"data":{"description":"Desc2"},"path":["items",0,"subItems",1]},{"data":{"description":"Desc3"},"path":["items",1,"subItems",0]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("items subItems and description all in separate nested defers", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `{ ... @defer { items { id ... @defer { subItems { id ... @defer { description } } } } } }`}
+				},
+				dataSources: dataSources,
+				expectedResponse: `{"data":{},"hasNext":true}
+{"incremental":[{"data":{"items":[{"id":"1"},{"id":"2"}]},"path":[]}],"hasNext":true}
+{"incremental":[{"data":{"subItems":[{"id":"s1"},{"id":"s2"}]},"path":["items",0]},{"data":{"subItems":[{"id":"s3"}]},"path":["items",1]}],"hasNext":true}
+{"incremental":[{"data":{"description":"Desc1"},"path":["items",0,"subItems",0]},{"data":{"description":"Desc2"},"path":["items",0,"subItems",1]},{"data":{"description":"Desc3"},"path":["items",1,"subItems",0]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+		})
+
+		t.Run("category B - id deferred with parallel defers", func(t *testing.T) {
+			t.Run("defer id only", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `{ items { ... @defer { id } } }`}
+				},
+				dataSources: dataSources,
+				expectedResponse: `{"data":{"items":[{},{}]},"hasNext":true}
+{"incremental":[{"data":{"id":"1"},"path":["items",0]},{"data":{"id":"2"},"path":["items",1]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("defer id and name together", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `{ items { ... @defer { id name } } }`}
+				},
+				dataSources: dataSources,
+				expectedResponse: `{"data":{"items":[{},{}]},"hasNext":true}
+{"incremental":[{"data":{"id":"1","name":"ItemOne"},"path":["items",0]},{"data":{"id":"2","name":"ItemTwo"},"path":["items",1]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("defer id in parallel with name", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `{ items { ... @defer { id } ... @defer { name } } }`}
+				},
+				dataSources: dataSources,
+				expectedResponse: `{"data":{"items":[{},{}]},"hasNext":true}
+{"incremental":[{"data":{"id":"1"},"path":["items",0]},{"data":{"id":"2"},"path":["items",1]}],"hasNext":true}
+{"incremental":[{"data":{"name":"ItemOne"},"path":["items",0]},{"data":{"name":"ItemTwo"},"path":["items",1]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("defer id in parallel with title (cross-subgraph)", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `{ items { ... @defer { id } ... @defer { title } } }`}
+				},
+				dataSources: dataSources,
+				expectedResponse: `{"data":{"items":[{},{}]},"hasNext":true}
+{"incremental":[{"data":{"id":"1"},"path":["items",0]},{"data":{"id":"2"},"path":["items",1]}],"hasNext":true}
+{"incremental":[{"data":{"title":"TitleOne"},"path":["items",0]},{"data":{"title":"TitleTwo"},"path":["items",1]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("parallel defers on subItems id and description", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `{ items { id ... @defer { subItems { id } } ... @defer { subItems { description } } } }`}
+				},
+				dataSources: dataSources,
+				expectedResponse: `{"data":{"items":[{"id":"1"},{"id":"2"}]},"hasNext":true}
+{"incremental":[{"data":{"subItems":[{"id":"s1"},{"id":"s2"}]},"path":["items",0]},{"data":{"subItems":[{"id":"s3"}]},"path":["items",1]}],"hasNext":true}
+{"incremental":[{"data":{"description":"Desc1"},"path":["items",0,"subItems",0]},{"data":{"description":"Desc2"},"path":["items",0,"subItems",1]},{"data":{"description":"Desc3"},"path":["items",1,"subItems",0]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+		})
+
+		t.Run("parallel root defers", func(t *testing.T) {
+			t.Run("subItems id then description", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `{ ... @defer { items { subItems { id } } } ... @defer { items { subItems { description } } } }`}
+				},
+				dataSources: dataSources,
+				expectedResponse: `{"data":{},"hasNext":true}
+{"incremental":[{"data":{"items":[{"subItems":[{"id":"s1"},{"id":"s2"}]},{"subItems":[{"id":"s3"}]}]},"path":[]}],"hasNext":true}
+{"incremental":[{"data":{"description":"Desc1"},"path":["items",0,"subItems",0]},{"data":{"description":"Desc2"},"path":["items",0,"subItems",1]},{"data":{"description":"Desc3"},"path":["items",1,"subItems",0]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+		})
+
+		t.Run("category C - nested defers", func(t *testing.T) {
+			t.Run("outer defer items, inner defer name", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `{ ... @defer { items { id ... @defer { name } } } }`}
+				},
+				dataSources: dataSources,
+				expectedResponse: `{"data":{},"hasNext":true}
+{"incremental":[{"data":{"items":[{"id":"1"},{"id":"2"}]},"path":[]}],"hasNext":true}
+{"incremental":[{"data":{"name":"ItemOne"},"path":["items",0]},{"data":{"name":"ItemTwo"},"path":["items",1]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("outer defer items, inner defer title (cross-subgraph)", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `{ ... @defer { items { id ... @defer { title } } } }`}
+				},
+				dataSources: dataSources,
+				expectedResponse: `{"data":{},"hasNext":true}
+{"incremental":[{"data":{"items":[{"id":"1"},{"id":"2"}]},"path":[]}],"hasNext":true}
+{"incremental":[{"data":{"title":"TitleOne"},"path":["items",0]},{"data":{"title":"TitleTwo"},"path":["items",1]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("outer defer items with subItems, inner defer description", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `{ ... @defer { items { id subItems { id ... @defer { description } } } } }`}
+				},
+				dataSources: dataSources,
+				expectedResponse: `{"data":{},"hasNext":true}
+{"incremental":[{"data":{"items":[{"id":"1","subItems":[{"id":"s1"},{"id":"s2"}]},{"id":"2","subItems":[{"id":"s3"}]}]},"path":[]}],"hasNext":true}
+{"incremental":[{"data":{"description":"Desc1"},"path":["items",0,"subItems",0]},{"data":{"description":"Desc2"},"path":["items",0,"subItems",1]},{"data":{"description":"Desc3"},"path":["items",1,"subItems",0]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("three-level defer: query to items to subItems", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `{ ... @defer { items { id ... @defer { subItems { id ... @defer { description } } } } } }`}
+				},
+				dataSources: dataSources,
+				expectedResponse: `{"data":{},"hasNext":true}
+{"incremental":[{"data":{"items":[{"id":"1"},{"id":"2"}]},"path":[]}],"hasNext":true}
+{"incremental":[{"data":{"subItems":[{"id":"s1"},{"id":"s2"}]},"path":["items",0]},{"data":{"subItems":[{"id":"s3"}]},"path":["items",1]}],"hasNext":true}
+{"incremental":[{"data":{"description":"Desc1"},"path":["items",0,"subItems",0]},{"data":{"description":"Desc2"},"path":["items",0,"subItems",1]},{"data":{"description":"Desc3"},"path":["items",1,"subItems",0]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("three-level defer with cross-subgraph at middle level", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `{ ... @defer { items { id ... @defer { title subItems { id ... @defer { description } } } } } }`}
+				},
+				dataSources: dataSources,
+				expectedResponse: `{"data":{},"hasNext":true}
+{"incremental":[{"data":{"items":[{"id":"1"},{"id":"2"}]},"path":[]}],"hasNext":true}
+{"incremental":[{"data":{"title":"TitleOne","subItems":[{"id":"s1"},{"id":"s2"}]},"path":["items",0]},{"data":{"title":"TitleTwo","subItems":[{"id":"s3"}]},"path":["items",1]}],"hasNext":true}
+{"incremental":[{"data":{"description":"Desc1"},"path":["items",0,"subItems",0]},{"data":{"description":"Desc2"},"path":["items",0,"subItems",1]},{"data":{"description":"Desc3"},"path":["items",1,"subItems",0]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+		})
+	})
+
 }
