@@ -216,3 +216,46 @@ func (d *Document) MergeFieldsDefer(left, right int) {
 		}
 	}
 }
+
+// AddDeferInternalDirectiveToField attaches @__defer_internal(id: id, label: label, parentID: parentID) to the given field.
+func (d *Document) AddDeferInternalDirectiveToField(fieldRef int, id, label, parentID string) {
+	if id == "" {
+		return
+	}
+
+	var argRefs []int
+
+	argRefs = append(argRefs, d.AddStringArgument("id", id))
+
+	if label != "" {
+		argRefs = append(argRefs, d.AddStringArgument("label", label))
+	}
+	if parentID != "" {
+		argRefs = append(argRefs, d.AddStringArgument("parentDeferId", parentID))
+	}
+
+	directiveRef := d.AddDirective(Directive{
+		Name:         d.Input.AppendInputBytes(literal.DEFER_INTERNAL),
+		HasArguments: len(argRefs) > 0,
+		Arguments: ArgumentList{
+			Refs: argRefs,
+		},
+	})
+
+	d.AddDirectiveToNode(directiveRef, Node{
+		Kind: NodeKindField,
+		Ref:  fieldRef,
+	})
+}
+
+func (d *Document) FieldInternalDeferID(fieldRef int) (id string, exists bool) {
+	directiveRef, exists := d.Fields[fieldRef].Directives.HasDirectiveByNameBytes(d, literal.DEFER_INTERNAL)
+	if !exists {
+		return "", false
+	}
+	idValue, exists := d.DirectiveArgumentValueByName(directiveRef, []byte("id"))
+	if !exists {
+		return "", false
+	}
+	return d.StringValueContentString(idValue.Ref), true
+}

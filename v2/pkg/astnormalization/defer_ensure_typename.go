@@ -104,7 +104,7 @@ func (f *deferEnsureTypenameVisitor) EnterSelectionSet(ref int) {
 	// no intersection: add a placeholder annotated with the parent's defer id
 	// so it is planned in the parent field defer scope
 	fieldRef := addInternalTypeNamePlaceholder(f.operation, ref)
-	f.addDeferInternalDirective(fieldRef, parentDeferID)
+	f.operation.AddDeferInternalDirectiveToField(fieldRef, parentDeferID, "", "")
 }
 
 // parentFieldDeferID returns the defer id of the nearest enclosing field that
@@ -115,36 +115,11 @@ func (f *deferEnsureTypenameVisitor) parentFieldDeferID() string {
 		if ancestor.Kind != ast.NodeKindField {
 			continue
 		}
-		directiveRef, exists := f.operation.Fields[ancestor.Ref].Directives.HasDirectiveByNameBytes(f.operation, literal.DEFER_INTERNAL)
-		if !exists {
-			return ""
+
+		id, exist := f.operation.FieldInternalDeferID(ancestor.Ref)
+		if exist {
+			return id
 		}
-		idValue, ok := f.operation.DirectiveArgumentValueByName(directiveRef, []byte("id"))
-		if !ok {
-			return ""
-		}
-		return f.operation.StringValueContentString(idValue.Ref)
 	}
 	return ""
-}
-
-// addDeferInternalDirective attaches @__defer_internal(id: deferID) to the given field.
-func (f *deferEnsureTypenameVisitor) addDeferInternalDirective(fieldRef int, deferID string) {
-	strValueRef := f.operation.AddStringValue(ast.StringValue{
-		Content: f.operation.Input.AppendInputString(deferID),
-	})
-	argRef := f.operation.AddArgument(ast.Argument{
-		Name:  f.operation.Input.AppendInputString("id"),
-		Value: ast.Value{Kind: ast.ValueKindString, Ref: strValueRef},
-	})
-	directive := ast.Directive{
-		Name:         f.operation.Input.AppendInputBytes(literal.DEFER_INTERNAL),
-		HasArguments: true,
-		Arguments:    ast.ArgumentList{Refs: []int{argRef}},
-	}
-	directiveRef := f.operation.AddDirective(directive)
-	f.operation.AddDirectiveToNode(directiveRef, ast.Node{
-		Kind: ast.NodeKindField,
-		Ref:  fieldRef,
-	})
 }
