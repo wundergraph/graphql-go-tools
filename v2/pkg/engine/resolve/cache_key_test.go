@@ -1287,8 +1287,8 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 		ctx := &Context{Variables: astjson.MustParse(`{"id":"p1","sku":"ABC","region":"us-east"}`), ctx: context.Background()}
 		data := astjson.MustParse(`{}`)
 		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
-		assert.NoError(t, err)
-		assert.Equal(t, 1, len(cacheKeys))
+		require.NoError(t, err)
+		require.Equal(t, 1, len(cacheKeys))
 		assert.Equal(t, []string{
 			`{"__typename":"Product","key":{"id":"p1"}}`,
 			`{"__typename":"Product","key":{"sku":"ABC","region":"us-east"}}`,
@@ -1322,8 +1322,8 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 		ctx := &Context{Variables: astjson.MustParse(`{"sku":"ABC","region":"us-east"}`), ctx: context.Background()}
 		data := astjson.MustParse(`{}`)
 		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
-		assert.NoError(t, err)
-		assert.Equal(t, 1, len(cacheKeys))
+		require.NoError(t, err)
+		require.Equal(t, 1, len(cacheKeys))
 		assert.Equal(t, []string{
 			`{"__typename":"Product","key":{"sku":"ABC","region":"us-east"}}`,
 		}, cacheKeys[0].Keys)
@@ -1357,8 +1357,8 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 		ctx := &Context{Variables: astjson.MustParse(`{"id":"p1","storeId":"s1","storeRegion":"us"}`), ctx: context.Background()}
 		data := astjson.MustParse(`{}`)
 		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
-		assert.NoError(t, err)
-		assert.Equal(t, 1, len(cacheKeys))
+		require.NoError(t, err)
+		require.Equal(t, 1, len(cacheKeys))
 		assert.Equal(t, []string{
 			`{"__typename":"Product","key":{"id":"p1"}}`,
 			`{"__typename":"Product","key":{"store":{"id":"s1","region":"us"}}}`,
@@ -1392,8 +1392,8 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 		ctx := &Context{Variables: astjson.MustParse(`{"storeId":"s1","storeRegion":"us"}`), ctx: context.Background()}
 		data := astjson.MustParse(`{}`)
 		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
-		assert.NoError(t, err)
-		assert.Equal(t, 1, len(cacheKeys))
+		require.NoError(t, err)
+		require.Equal(t, 1, len(cacheKeys))
 		assert.Equal(t, []string{
 			`{"__typename":"Product","key":{"store":{"id":"s1","region":"us"}}}`,
 		}, cacheKeys[0].Keys)
@@ -1422,8 +1422,8 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 		ctx := &Context{Variables: astjson.MustParse(`{"store":{"id":"s1","region":"us"}}`), ctx: context.Background()}
 		data := astjson.MustParse(`{}`)
 		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
-		assert.NoError(t, err)
-		assert.Equal(t, 1, len(cacheKeys))
+		require.NoError(t, err)
+		require.Equal(t, 1, len(cacheKeys))
 		assert.Equal(t, []string{
 			`{"__typename":"Product","key":{"store":{"id":"s1","region":"us"}}}`,
 		}, cacheKeys[0].Keys)
@@ -1458,8 +1458,8 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 		ctx := &Context{Variables: astjson.MustParse(`{"store":{"id":"s1","region":"us"}}`), ctx: context.Background()}
 		data := astjson.MustParse(`{}`)
 		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
-		assert.NoError(t, err)
-		assert.Equal(t, 1, len(cacheKeys))
+		require.NoError(t, err)
+		require.Equal(t, 1, len(cacheKeys))
 		assert.Equal(t, []string{
 			`{"__typename":"Product","key":{"store":{"id":"s1","region":"us"}}}`,
 		}, cacheKeys[0].Keys)
@@ -1493,8 +1493,8 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 		ctx := &Context{Variables: astjson.MustParse(`{"store":{"id":"s1"},"location":{"city":"Berlin","country":"DE"}}`), ctx: context.Background()}
 		data := astjson.MustParse(`{}`)
 		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
-		assert.NoError(t, err)
-		assert.Equal(t, 1, len(cacheKeys))
+		require.NoError(t, err)
+		require.Equal(t, 1, len(cacheKeys))
 		assert.Equal(t, []string{
 			`{"__typename":"Warehouse","key":{"store":{"id":"s1"}}}`,
 			`{"__typename":"Warehouse","key":{"location":{"city":"Berlin","country":"DE"}}}`,
@@ -1530,10 +1530,153 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 		ctx := &Context{Variables: astjson.MustParse(`{"store":{"id":"s1"}}`), ctx: context.Background()}
 		data := astjson.MustParse(`{}`)
 		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
-		assert.NoError(t, err)
-		assert.Equal(t, 1, len(cacheKeys))
+		require.NoError(t, err)
+		require.Equal(t, 1, len(cacheKeys))
 		assert.Equal(t, []string{
 			`{"__typename":"Warehouse","key":{"store":{"id":"s1"}}}`,
+		}, cacheKeys[0].Keys)
+	})
+
+	t.Run("remap variables - flat key remapped", func(t *testing.T) {
+		// Variable remapping: ArgumentPath ["id"] is remapped to ["a"] via RemapVariables.
+		// The variable "a" holds the actual value in ctx.Variables.
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "User",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{
+			Variables:      astjson.MustParse(`{"a":"user-123"}`),
+			RemapVariables: map[string]string{"id": "a"},
+			ctx:            context.Background(),
+		}
+		data := astjson.MustParse(`{}`)
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
+		require.NoError(t, err)
+		require.Equal(t, 1, len(cacheKeys))
+		assert.Equal(t, []string{
+			`{"__typename":"User","key":{"id":"user-123"}}`,
+		}, cacheKeys[0].Keys)
+	})
+
+	t.Run("remap variables - multiple mappings only flat keys remapped", func(t *testing.T) {
+		// Two mappings: flat @key(fields: "id") + composite @key(fields: "sku region").
+		// RemapVariables maps "id" -> "a", "sku" -> "b", "region" -> "c".
+		// All three are single-element paths, so all get remapped.
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "productByAll"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "Product",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+					},
+				},
+				{
+					EntityTypeName: "Product",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "sku", ArgumentPath: []string{"sku"}},
+						{EntityKeyField: "region", ArgumentPath: []string{"region"}},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{
+			Variables:      astjson.MustParse(`{"a":"p1","b":"ABC","c":"us-east"}`),
+			RemapVariables: map[string]string{"id": "a", "sku": "b", "region": "c"},
+			ctx:            context.Background(),
+		}
+		data := astjson.MustParse(`{}`)
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
+		require.NoError(t, err)
+		require.Equal(t, 1, len(cacheKeys))
+		assert.Equal(t, []string{
+			`{"__typename":"Product","key":{"id":"p1"}}`,
+			`{"__typename":"Product","key":{"sku":"ABC","region":"us-east"}}`,
+		}, cacheKeys[0].Keys)
+	})
+
+	t.Run("remap variables - structured arg path not remapped", func(t *testing.T) {
+		// Multi-element ArgumentPath ["store", "id"] is NOT remapped even if
+		// RemapVariables has a mapping for "store". Remap only applies to
+		// single-element paths (len(argumentPath) == 1).
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "productByStore"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "Product",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "store.id", ArgumentPath: []string{"store", "id"}},
+						{EntityKeyField: "store.region", ArgumentPath: []string{"store", "region"}},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{
+			Variables:      astjson.MustParse(`{"store":{"id":"s1","region":"us"}}`),
+			RemapVariables: map[string]string{"store": "remapped_store"},
+			ctx:            context.Background(),
+		}
+		data := astjson.MustParse(`{}`)
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
+		require.NoError(t, err)
+		require.Equal(t, 1, len(cacheKeys))
+		// Multi-element path ["store", "id"] is NOT remapped -- still reads from "store"
+		assert.Equal(t, []string{
+			`{"__typename":"Product","key":{"store":{"id":"s1","region":"us"}}}`,
+		}, cacheKeys[0].Keys)
+	})
+
+	t.Run("remap variables - partial remap with multi-key", func(t *testing.T) {
+		// Two mappings: flat "id" (remapped) + flat "username" (not remapped).
+		// Only "id" has a RemapVariables entry, "username" uses original variable name.
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "User",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+					},
+				},
+				{
+					EntityTypeName: "User",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "username", ArgumentPath: []string{"username"}},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{
+			Variables:      astjson.MustParse(`{"a":"user-123","username":"Me"}`),
+			RemapVariables: map[string]string{"id": "a"},
+			ctx:            context.Background(),
+		}
+		data := astjson.MustParse(`{}`)
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
+		require.NoError(t, err)
+		require.Equal(t, 1, len(cacheKeys))
+		assert.Equal(t, []string{
+			`{"__typename":"User","key":{"id":"user-123"}}`,
+			`{"__typename":"User","key":{"username":"Me"}}`,
 		}, cacheKeys[0].Keys)
 	})
 
