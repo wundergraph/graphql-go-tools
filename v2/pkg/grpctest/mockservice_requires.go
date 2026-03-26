@@ -297,3 +297,179 @@ func (s *MockService) RequireStorageCategoryInfoSummaryById(_ context.Context, r
 
 	return &productv1.RequireStorageCategoryInfoSummaryByIdResponse{Result: results}, nil
 }
+
+// RequireStorageItemInfoById implements [productv1.ProductServiceServer].
+// Extracts primaryItem interface from fields and formats a summary string.
+func (s *MockService) RequireStorageItemInfoById(_ context.Context, req *productv1.RequireStorageItemInfoByIdRequest) (*productv1.RequireStorageItemInfoByIdResponse, error) {
+	results := make([]*productv1.RequireStorageItemInfoByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		fields := ctx.GetFields()
+		item := fields.GetPrimaryItem()
+
+		var summary string
+		switch v := item.GetInstance().(type) {
+		case *productv1.RequireStorageItemInfoByIdFields_StorageItem_PalletItem:
+			summary = fmt.Sprintf("Pallet: %s (count: %d)", v.PalletItem.GetName(), v.PalletItem.GetPalletCount())
+		case *productv1.RequireStorageItemInfoByIdFields_StorageItem_ContainerItem:
+			summary = fmt.Sprintf("Container: %s (size: %s)", v.ContainerItem.GetName(), v.ContainerItem.GetContainerSize())
+		default:
+			summary = "Unknown item"
+		}
+
+		results = append(results, &productv1.RequireStorageItemInfoByIdResult{
+			ItemInfo: summary,
+		})
+	}
+
+	return &productv1.RequireStorageItemInfoByIdResponse{Result: results}, nil
+}
+
+// RequireStorageOperationReportById implements [productv1.ProductServiceServer].
+// Extracts lastStorageOperation union from fields and formats a report string.
+func (s *MockService) RequireStorageOperationReportById(_ context.Context, req *productv1.RequireStorageOperationReportByIdRequest) (*productv1.RequireStorageOperationReportByIdResponse, error) {
+	results := make([]*productv1.RequireStorageOperationReportByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		fields := ctx.GetFields()
+		op := fields.GetLastStorageOperation()
+
+		var report string
+		switch v := op.GetValue().(type) {
+		case *productv1.RequireStorageOperationReportByIdFields_StorageOperationResult_StorageSuccess:
+			report = fmt.Sprintf("Success: %s at %s", v.StorageSuccess.GetMessage(), v.StorageSuccess.GetCompletedAt())
+		case *productv1.RequireStorageOperationReportByIdFields_StorageOperationResult_StorageFailure:
+			report = fmt.Sprintf("Failure: %s (code: %s)", v.StorageFailure.GetMessage(), v.StorageFailure.GetErrorCode())
+		default:
+			report = "Unknown operation"
+		}
+
+		results = append(results, &productv1.RequireStorageOperationReportByIdResult{
+			OperationReport: report,
+		})
+	}
+
+	return &productv1.RequireStorageOperationReportByIdResponse{Result: results}, nil
+}
+
+// RequireStorageSecuritySummaryById implements [productv1.ProductServiceServer].
+// Extracts securitySetup (concrete wrapping abstract) and formats a summary.
+func (s *MockService) RequireStorageSecuritySummaryById(_ context.Context, req *productv1.RequireStorageSecuritySummaryByIdRequest) (*productv1.RequireStorageSecuritySummaryByIdResponse, error) {
+	results := make([]*productv1.RequireStorageSecuritySummaryByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		fields := ctx.GetFields()
+		setup := fields.GetSecuritySetup()
+
+		itemSummary := "Unknown item"
+		if item := setup.GetPrimaryItem(); item != nil {
+			switch v := item.GetInstance().(type) {
+			case *productv1.RequireStorageSecuritySummaryByIdFields_SecuritySetup_StorageItem_PalletItem:
+				itemSummary = fmt.Sprintf("Pallet: %s (count: %d)", v.PalletItem.GetName(), v.PalletItem.GetPalletCount())
+			case *productv1.RequireStorageSecuritySummaryByIdFields_SecuritySetup_StorageItem_ContainerItem:
+				itemSummary = fmt.Sprintf("Container: %s (size: %s)", v.ContainerItem.GetName(), v.ContainerItem.GetContainerSize())
+			}
+		}
+
+		summary := fmt.Sprintf("[%s] %s", setup.GetSecurityLevel(), itemSummary)
+		results = append(results, &productv1.RequireStorageSecuritySummaryByIdResult{
+			SecuritySummary: summary,
+		})
+	}
+
+	return &productv1.RequireStorageSecuritySummaryByIdResponse{Result: results}, nil
+}
+
+// RequireStorageItemHandlerInfoById implements [productv1.ProductServiceServer].
+// Extracts handler name from within interface fragments.
+func (s *MockService) RequireStorageItemHandlerInfoById(_ context.Context, req *productv1.RequireStorageItemHandlerInfoByIdRequest) (*productv1.RequireStorageItemHandlerInfoByIdResponse, error) {
+	results := make([]*productv1.RequireStorageItemHandlerInfoByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		fields := ctx.GetFields()
+		item := fields.GetPrimaryItem()
+
+		var info string
+		switch v := item.GetInstance().(type) {
+		case *productv1.RequireStorageItemHandlerInfoByIdFields_StorageItem_PalletItem:
+			info = fmt.Sprintf("PalletHandler: %s", v.PalletItem.GetHandler().GetName())
+		case *productv1.RequireStorageItemHandlerInfoByIdFields_StorageItem_ContainerItem:
+			info = fmt.Sprintf("ContainerHandler: %s", v.ContainerItem.GetHandler().GetName())
+		default:
+			info = "Unknown handler"
+		}
+
+		results = append(results, &productv1.RequireStorageItemHandlerInfoByIdResult{
+			ItemHandlerInfo: info,
+		})
+	}
+
+	return &productv1.RequireStorageItemHandlerInfoByIdResponse{Result: results}, nil
+}
+
+// RequireStorageItemSpecsInfoById implements [productv1.ProductServiceServer].
+// Extracts specs and dimensions from deep concrete nesting inside interface fragments.
+func (s *MockService) RequireStorageItemSpecsInfoById(_ context.Context, req *productv1.RequireStorageItemSpecsInfoByIdRequest) (*productv1.RequireStorageItemSpecsInfoByIdResponse, error) {
+	results := make([]*productv1.RequireStorageItemSpecsInfoByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		fields := ctx.GetFields()
+		item := fields.GetPrimaryItem()
+
+		var info string
+		switch v := item.GetInstance().(type) {
+		case *productv1.RequireStorageItemSpecsInfoByIdFields_StorageItem_PalletItem:
+			specs := v.PalletItem.GetSpecs()
+			dims := specs.GetDimensions()
+			info = fmt.Sprintf("PalletSpecs: %s (%.1fx%.1f)", specs.GetName(), dims.GetLength(), dims.GetWidth())
+		case *productv1.RequireStorageItemSpecsInfoByIdFields_StorageItem_ContainerItem:
+			specs := v.ContainerItem.GetSpecs()
+			dims := specs.GetDimensions()
+			info = fmt.Sprintf("ContainerSpecs: %s (%.1fx%.1f)", specs.GetName(), dims.GetLength(), dims.GetWidth())
+		default:
+			info = "Unknown specs"
+		}
+
+		results = append(results, &productv1.RequireStorageItemSpecsInfoByIdResult{
+			ItemSpecsInfo: info,
+		})
+	}
+
+	return &productv1.RequireStorageItemSpecsInfoByIdResponse{Result: results}, nil
+}
+
+// RequireStorageDeepItemInfoById implements [productv1.ProductServiceServer].
+// Extracts nested abstract type through concrete intermediary (handler → assignedItem).
+func (s *MockService) RequireStorageDeepItemInfoById(_ context.Context, req *productv1.RequireStorageDeepItemInfoByIdRequest) (*productv1.RequireStorageDeepItemInfoByIdResponse, error) {
+	results := make([]*productv1.RequireStorageDeepItemInfoByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		fields := ctx.GetFields()
+		item := fields.GetPrimaryItem()
+
+		var info string
+		switch v := item.GetInstance().(type) {
+		case *productv1.RequireStorageDeepItemInfoByIdFields_StorageItem_PalletItem:
+			handler := v.PalletItem.GetHandler()
+			assignedItem := handler.GetAssignedItem()
+			switch av := assignedItem.GetInstance().(type) {
+			case *productv1.RequireStorageDeepItemInfoByIdFields_PalletItem_ItemHandler_StorageItem_ContainerItem:
+				info = fmt.Sprintf("PalletHandler->Container: %s (size: %s)", av.ContainerItem.GetName(), av.ContainerItem.GetContainerSize())
+			case *productv1.RequireStorageDeepItemInfoByIdFields_PalletItem_ItemHandler_StorageItem_PalletItem:
+				info = fmt.Sprintf("PalletHandler->Pallet: %s (count: %d)", av.PalletItem.GetName(), av.PalletItem.GetPalletCount())
+			default:
+				info = "PalletHandler->Unknown"
+			}
+		case *productv1.RequireStorageDeepItemInfoByIdFields_StorageItem_ContainerItem:
+			info = fmt.Sprintf("ContainerHandler: %s", v.ContainerItem.GetHandler().GetName())
+		default:
+			info = "Unknown deep item"
+		}
+
+		results = append(results, &productv1.RequireStorageDeepItemInfoByIdResult{
+			DeepItemInfo: info,
+		})
+	}
+
+	return &productv1.RequireStorageDeepItemInfoByIdResponse{Result: results}, nil
+}

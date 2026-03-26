@@ -948,7 +948,7 @@ func (p *RPCCompiler) setMessageValue(message protoref.Message, fieldName string
 		return nil
 	}
 
-	message.Set(message.Descriptor().Fields().ByName(protoref.Name(fieldName)), value)
+	message.Set(fd, value)
 	return nil
 }
 
@@ -970,150 +970,259 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 		return nil, fmt.Errorf("message %s not found in document", inputMessage.Name)
 	}
 
+	// Handle oneof types (interfaces/unions) by populating the correct oneof field
+	// based on the __typename in the JSON data.
+	if rpcMessage.IsOneOf() {
+		return p.buildOneOfMessage(inputMessage, rpcMessage, data)
+	}
+
 	message := dynamicpb.NewMessage(inputMessage.Desc)
 
 	for _, rpcField := range rpcMessage.Fields {
-		fd := inputMessage.Desc.Fields()
-
-		// Look up the field in the RPC message definition
-		field := inputMessage.GetField(rpcField.Name)
-		if field == nil {
+		fd := inputMessage.Desc.Fields().ByName(protoref.Name(rpcField.Name))
+		if fd == nil {
 			continue
 		}
 
-		// Handle repeated fields (arrays/lists)
-		if field.Repeated {
-			// Get a mutable reference to the list field
-			list := message.Mutable(fd.ByName(protoref.Name(field.Name))).List()
-			// Extract the array elements from the JSON data
-			elements := data.Get(rpcField.JSONPath).Array()
-			if len(elements) == 0 {
-				continue
-			}
-
-			// Process each element and append to the list
-			for _, element := range elements {
-				switch field.Type {
-				case DataTypeMessage:
-					// If we handle entity lookups, we get a list of representation variables that need to
-					// be applied to the correct type names.
-					if !isAllowedForTypename(rpcField.Message, element) {
-						continue
-					}
-
-					fieldMsg, err := p.buildProtoMessage(p.doc.Messages[field.MessageRef], rpcField.Message, element)
-					if err != nil {
-						return nil, err
-					}
-
-					list.Append(protoref.ValueOfMessage(fieldMsg))
-				default:
-					list.Append(p.setValueForKind(field.Type, element))
-				}
-			}
-
-			continue
+		if err := p.processRPCField(inputMessage, message, fd, &rpcField, data); err != nil {
+			return nil, err
 		}
-
-		// Handle nested message fields
-		if field.MessageRef >= 0 {
-			var (
-				fieldMsg protoref.Message
-				err      error
-			)
-			fieldData := data.Get(rpcField.JSONPath)
-
-			switch {
-			case rpcField.IsListType:
-				// Nested and nullable lists are wrapped in a message, therefore we need to handle them differently
-				// than repeated fields. We need to do this because protobuf repeated fields are not nullable and cannot be nested.
-				//
-				// message BlogPost {
-				//   ListOfBoolean is_published = 1;
-				//   ListOfListOfString related_topics = 2;
-				// }
-				if !isNonNullValue(fieldData) {
-					if !rpcField.Optional {
-						return nil, fmt.Errorf("field %s is required but has no value", rpcField.JSONPath)
-					}
-
-					continue
-				}
-
-				if rpcField.ListMetadata == nil {
-					return nil, fmt.Errorf("list metadata not found for field %s", rpcField.JSONPath)
-				}
-
-				fieldMsg, err = p.buildListMessage(inputMessage.Desc, field, &rpcField, data)
-				if err != nil {
-					return nil, err
-				}
-
-				if fieldMsg == nil {
-					continue
-				}
-
-			case rpcField.IsOptionalScalar():
-				// If the field is optional, we are handling a scalar value that is wrapped in a message
-				// as protobuf scalar types are not nullable.
-
-				if !isNonNullValue(fieldData) {
-					// If we don't have a concrete value for an optional field, leave it unset (absent).
-					continue
-				}
-
-				// As those optional messages are well known wrapper types, we can convert them to the underlying message definition.
-				fieldMsg, err = p.buildProtoMessage(
-					p.doc.Messages[field.MessageRef],
-					rpcField.ToOptionalTypeMessage(p.doc.Messages[field.MessageRef].Name),
-					data,
-				)
-
-				if err != nil {
-					return nil, err
-				}
-			default:
-				if !isNonNullValue(fieldData) {
-					if !rpcField.Optional {
-						return nil, fmt.Errorf("field %s is required but has no value", rpcField.JSONPath)
-					}
-
-					continue
-				}
-
-				fieldMsg, err = p.buildProtoMessage(p.doc.Messages[field.MessageRef], rpcField.Message, fieldData)
-				if err != nil {
-					return nil, err
-				}
-			}
-
-			message.Set(inputMessage.Desc.Fields().ByName(protoref.Name(field.Name)), protoref.ValueOfMessage(fieldMsg))
-			continue
-		}
-
-		if field.Type == DataTypeEnum {
-			val, err := p.getEnumValue(rpcField.EnumName, data.Get(rpcField.JSONPath))
-			if err != nil {
-				return nil, err
-			}
-
-			if val != nil {
-				message.Set(fd.ByName(protoref.Name(field.Name)), *val)
-			}
-
-			continue
-		}
-
-		// Handle scalar fields
-		value := data.Get(rpcField.JSONPath)
-		message.Set(fd.ByName(protoref.Name(field.Name)), p.setValueForKind(field.Type, value))
 	}
 
 	return message, nil
 }
 
-func isNonNullValue(data gjson.Result) bool {
-	return data.Exists() && data.Type != gjson.Null
+// processRPCField populates a single field on a protobuf message from JSON data.
+// It dispatches to specialized handlers based on the field's type: repeated, message, enum, or scalar.
+func (p *RPCCompiler) processRPCField(inputMessage Message, message protoref.Message, fd protoref.FieldDescriptor, rpcField *RPCField, data gjson.Result) error {
+	field := inputMessage.GetField(rpcField.Name)
+	if field == nil {
+		return fmt.Errorf("field %s not found in message %s", rpcField.Name, inputMessage.Name)
+	}
+
+	if field.Repeated {
+		return p.processRepeatedField(message, fd, field, rpcField, data)
+	}
+
+	if field.MessageRef >= 0 {
+		return p.processMessageField(inputMessage, message, fd, field, rpcField, data)
+	}
+
+	if field.Type == DataTypeEnum {
+		return p.processEnumField(message, fd, rpcField, data)
+	}
+
+	return p.setMessageValue(message, field.Name, p.setValueForKind(field.Type, data.Get(rpcField.JSONPath)))
+}
+
+// processRepeatedField handles repeated (array/list) fields by iterating
+// JSON array elements and appending each to the protobuf list.
+func (p *RPCCompiler) processRepeatedField(message protoref.Message, fd protoref.FieldDescriptor, field *Field, rpcField *RPCField, data gjson.Result) error {
+	elements := data.Get(rpcField.JSONPath).Array()
+	if len(elements) == 0 {
+		return nil
+	}
+
+	list := message.Mutable(fd).List()
+
+	for _, element := range elements {
+		switch field.Type {
+		case DataTypeMessage:
+			// For entity lookups, filter by __typename to apply only matching representations.
+			if !isAllowedForTypename(rpcField.Message, element) {
+				continue
+			}
+
+			fieldMsg, err := p.buildProtoMessage(p.doc.Messages[field.MessageRef], rpcField.Message, element)
+			if err != nil {
+				return err
+			}
+
+			list.Append(protoref.ValueOfMessage(fieldMsg))
+		default:
+			list.Append(p.setValueForKind(field.Type, element))
+		}
+	}
+
+	return nil
+}
+
+// processMessageField handles nested message fields, dispatching to the
+// appropriate builder based on whether the field is a list wrapper, optional
+// scalar wrapper, or a regular nested message.
+func (p *RPCCompiler) processMessageField(inputMessage Message, message protoref.Message, fd protoref.FieldDescriptor, field *Field, rpcField *RPCField, data gjson.Result) error {
+	fieldMsg, err := p.resolveNestedMessage(inputMessage.Desc, field, rpcField, data)
+	if err != nil {
+		return err
+	}
+
+	if fieldMsg == nil {
+		return nil
+	}
+
+	message.Set(fd, protoref.ValueOfMessage(fieldMsg))
+	return nil
+}
+
+// resolveNestedMessage builds the protobuf message for a nested field.
+// It handles three cases:
+//   - List wrapper types for nullable/nested lists that cannot be expressed as plain repeated fields.
+//   - Optional scalar wrappers (e.g. google.protobuf.StringValue) for nullable scalars.
+//   - Regular nested messages built recursively.
+func (p *RPCCompiler) resolveNestedMessage(inputMessageDesc protoref.MessageDescriptor, field *Field, rpcField *RPCField, data gjson.Result) (protoref.Message, error) {
+	fieldData := data.Get(rpcField.JSONPath)
+
+	switch {
+	case rpcField.IsListType:
+		if isNullValue(fieldData) {
+			if !rpcField.Optional {
+				return nil, fmt.Errorf("field %s is required but has no value", rpcField.JSONPath)
+			}
+			return nil, nil
+		}
+
+		if rpcField.ListMetadata == nil {
+			return nil, fmt.Errorf("list metadata not found for field %s", rpcField.JSONPath)
+		}
+
+		return p.buildListMessage(inputMessageDesc, field, rpcField, data)
+
+	case rpcField.IsOptionalScalar():
+		if isNullValue(fieldData) {
+			// If we don't have a concrete value for an optional field, leave it unset (absent).
+			return nil, nil
+		}
+
+		return p.buildProtoMessage(
+			p.doc.Messages[field.MessageRef],
+			rpcField.ToOptionalTypeMessage(p.doc.Messages[field.MessageRef].Name),
+			data,
+		)
+
+	default:
+		if isNullValue(fieldData) {
+			if !rpcField.Optional {
+				return nil, fmt.Errorf("field %s is required but has no value", rpcField.JSONPath)
+			}
+			return nil, nil
+		}
+
+		return p.buildProtoMessage(p.doc.Messages[field.MessageRef], rpcField.Message, fieldData)
+	}
+}
+
+// processEnumField resolves an enum value by name and sets it on the message.
+func (p *RPCCompiler) processEnumField(message protoref.Message, fd protoref.FieldDescriptor, rpcField *RPCField, data gjson.Result) error {
+	val, err := p.getEnumValue(rpcField.EnumName, data.Get(rpcField.JSONPath))
+	if err != nil {
+		return err
+	}
+
+	message.Set(fd, val)
+	return nil
+}
+
+// buildOneOfMessage constructs a protobuf message for a GraphQL interface or union type.
+// It reads the __typename from the JSON data to determine which concrete type was returned,
+// looks up the matching oneof variant via findOneOfFieldDescriptor, and populates the
+// sub-message with the fragment fields for that concrete type.
+// If __typename is absent or no matching fragment/oneof variant is found, the empty
+// parent message is returned without setting any oneof field.
+func (p *RPCCompiler) buildOneOfMessage(inputMessage Message, rpcMessage *RPCMessage, data gjson.Result) (protoref.Message, error) {
+	message := dynamicpb.NewMessage(inputMessage.Desc)
+	typeName := data.Get("__typename").String()
+	if typeName == "" {
+		return nil, errors.New("unable to build oneof message: __typename is required to determine the concrete type")
+	}
+
+	fragmentFields, ok := rpcMessage.FragmentFields[typeName]
+	if !ok {
+		return message, nil
+	}
+
+	// Find the matching oneof field descriptor for the expected concrete type.
+	oneofFieldDesc := p.findOneOfFieldDescriptor(inputMessage.Desc.Oneofs(), protoref.Name(rpcMessage.OneOfType.FieldName()), protoref.Name(typeName))
+	if oneofFieldDesc == nil {
+		return message, nil
+	}
+
+	// We expect the oneof field to be a message type, as we expect oneofs only for interfaces and unions.
+	if oneofFieldDesc.Kind() != protoref.MessageKind {
+		return nil, fmt.Errorf("unsupported: oneof field %s is not a message type", oneofFieldDesc.Name())
+	}
+
+	subMsg := dynamicpb.NewMessage(oneofFieldDesc.Message())
+	for _, fragmentRPCField := range fragmentFields {
+		subFieldDesc := oneofFieldDesc.Message().Fields().ByName(protoref.Name(fragmentRPCField.Name))
+		if subFieldDesc == nil {
+			continue
+		}
+
+		fullMessageName := p.fullMessageName(oneofFieldDesc.Message())
+		msg, found := p.doc.MessageByName(fullMessageName)
+		if !found {
+			return nil, fmt.Errorf("message %s not found in document", fullMessageName)
+		}
+
+		if err := p.processRPCField(msg, subMsg, subFieldDesc, &fragmentRPCField, data); err != nil {
+			return nil, err
+		}
+	}
+
+	message.Set(oneofFieldDesc, protoref.ValueOfMessage(subMsg))
+
+	return message, nil
+}
+
+// findOneOfFieldDescriptor looks up a oneof field descriptor whose message name matches typeName.
+// This is used when resolving @requires fields that contain interface/union types, which are
+// represented as protobuf oneof fields. Unions use "value" and interfaces use "instance":
+//
+//	message MyUnion {
+//	  oneof value {
+//	    ConcreteTypeA concrete_type_a = 1;
+//	    ConcreteTypeB concrete_type_b = 2;
+//	  }
+//	}
+//
+//	message MyInterface {
+//	  oneof instance {
+//	    ImplementorA implementor_a = 1;
+//	    ImplementorB implementor_b = 2;
+//	  }
+//	}
+//
+// Calling findOneOfFieldDescriptor(MyUnion.oneofs, "value", "ConcreteTypeA") returns the
+// field descriptor for concrete_type_a, allowing the compiler to set the correct oneof
+// variant when constructing the protobuf message.
+func (p *RPCCompiler) findOneOfFieldDescriptor(oneOfs protoref.OneofDescriptors, oneofFieldName, typeName protoref.Name) protoref.FieldDescriptor {
+	if oneOfs == nil || oneOfs.Len() == 0 {
+		return nil
+	}
+
+	oneofDesc := oneOfs.ByName(oneofFieldName)
+	if oneofDesc == nil {
+		return nil
+	}
+
+	for i := range oneofDesc.Fields().Len() {
+		fd := oneofDesc.Fields().Get(i)
+		// For interfaces and unions, we will only be dealing with message types.
+		if fd.Kind() != protoref.MessageKind {
+			continue
+		}
+
+		// The Protobuf representation of the message field will have the concrete type name as the message name.
+		if fd.Message().Name() == typeName {
+			return fd
+		}
+	}
+
+	return nil
+}
+
+func isNullValue(data gjson.Result) bool {
+	return !data.Exists() || data.Type == gjson.Null
 }
 
 // buildListMessage creates a new protobuf message, which reflects a wrapper type to work with a list in GraphQL.
@@ -1177,7 +1286,7 @@ func (p *RPCCompiler) traverseList(rootMsg protoref.Message, level int, field *F
 	itemsField := itemsFieldMsg.Mutable(itemsFieldDesc).List()
 
 	if level >= rpcField.ListMetadata.NestingLevel {
-		switch DataType(rpcField.ProtoTypeName) {
+		switch rpcField.ProtoTypeName {
 		case DataTypeMessage:
 			itemsFieldMsg, ok := p.doc.MessageByName(rpcField.Message.Name)
 			if !ok {
@@ -1201,9 +1310,7 @@ func (p *RPCCompiler) traverseList(rootMsg protoref.Message, level int, field *F
 					return nil, err
 				}
 
-				if val != nil {
-					itemsField.Append(*val)
-				}
+				itemsField.Append(val)
 			}
 		default:
 			for _, element := range elements {
@@ -1232,20 +1339,19 @@ func (p *RPCCompiler) traverseList(rootMsg protoref.Message, level int, field *F
 	return rootMsg, nil
 }
 
-func (p *RPCCompiler) getEnumValue(enumName string, data gjson.Result) (*protoref.Value, error) {
+func (p *RPCCompiler) getEnumValue(enumName string, data gjson.Result) (protoref.Value, error) {
 	enum, ok := p.doc.EnumByName(enumName)
 	if !ok {
-		return nil, fmt.Errorf("enum %s not found in document", enumName)
+		return protoref.Value{}, fmt.Errorf("enum %s not found in document", enumName)
 	}
 
 	for _, enumValue := range enum.Values {
 		if enumValue.GraphqlValue == data.String() {
-			v := protoref.ValueOfEnum(protoref.EnumNumber(enumValue.Number))
-			return &v, nil
+			return protoref.ValueOfEnum(protoref.EnumNumber(enumValue.Number)), nil
 		}
 	}
 
-	return nil, nil
+	return protoref.Value{}, fmt.Errorf("enum value %q not found in enum %s", data.String(), enumName)
 }
 
 // setValueForKind converts a gjson.Result value to the appropriate protobuf value
@@ -1417,13 +1523,8 @@ func (p *RPCCompiler) parseField(f protoref.FieldDescriptor) Field {
 }
 
 func isAllowedForTypename(message *RPCMessage, element gjson.Result) bool {
-	if message == nil {
-		// We assume that having a nil message expects a null value.
-		return true
-	}
-
-	// If we don't have a member types, we assume that the message is allowed for all types.
-	if message.MemberTypes == nil {
+	// If we don't have a message or member types, we assume that the message is allowed for all types.
+	if message == nil || message.MemberTypes == nil {
 		return true
 	}
 
@@ -1433,8 +1534,6 @@ func isAllowedForTypename(message *RPCMessage, element gjson.Result) bool {
 		return true
 	}
 
-	typeString := typeName.String()
-
 	// If we have a type name, we need to check if the message is restricted to a specific type.
-	return slices.Contains(message.MemberTypes, typeString)
+	return slices.Contains(message.MemberTypes, typeName.String())
 }
