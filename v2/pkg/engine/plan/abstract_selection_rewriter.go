@@ -260,8 +260,6 @@ func (r *fieldSelectionRewriter) unionFieldSelectionNeedsRewrite(selectionSetInf
 func (r *fieldSelectionRewriter) rewriteUnionSelection(fieldRef int, fieldInfo selectionSetInfo, unionTypeNames []string) error {
 	newSelectionRefs := make([]int, 0, len(unionTypeNames)+1) // 1 for __typename
 
-	r.preserveTypeNameSelection(fieldInfo, &newSelectionRefs)
-
 	r.flattenFragmentOnUnion(fieldInfo, unionTypeNames, &newSelectionRefs)
 
 	return r.replaceFieldSelections(fieldRef, newSelectionRefs)
@@ -276,10 +274,14 @@ func (r *fieldSelectionRewriter) replaceFieldSelections(fieldRef int, newSelecti
 	}
 
 	if len(newSelectionRefs) == 0 {
+		deferID, _ := r.operation.FieldInternalDeferID(fieldRef)
 		// we have to add __typename selection in case there is no other selections
-		typeNameSelectionRef, typeNameFieldRef := r.typeNameSelection()
+		typeNameSelectionRef, typeNameFieldRef := r.typeNameSelection(deferID)
 		r.skipFieldRefs = append(r.skipFieldRefs, typeNameFieldRef)
 		r.operation.AddSelectionRefToSelectionSet(fieldSelectionSetRef, typeNameSelectionRef)
+
+		// if there is no other selections we could skip normalization
+		return nil
 	}
 
 	normalizer := astnormalization.NewAbstractFieldNormalizer(r.operation, r.definition, fieldRef)
@@ -579,7 +581,8 @@ func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldIn
 	// When we have fragments on concrete types,
 	// And we do not have __typename selection - we are adding it
 	if fieldInfo.isInterfaceObject && !fieldInfo.hasTypeNameSelection && fieldInfo.hasInlineFragmentsOnObjects {
-		typeNameSelectionRef, typeNameFieldRef := r.typeNameSelection()
+		deferID, _ := r.operation.FieldInternalDeferID(fieldRef)
+		typeNameSelectionRef, typeNameFieldRef := r.typeNameSelection(deferID)
 		r.skipFieldRefs = append(r.skipFieldRefs, typeNameFieldRef)
 		newSelectionRefs = append(newSelectionRefs, typeNameSelectionRef)
 	}
@@ -608,35 +611,15 @@ func (r *fieldSelectionRewriter) flattenFragmentOnInterface(selectionSetInfo sel
 		}
 	}
 
-	for _, inlineFragmentInfo := range selectionSetInfo.inlineFragmentsOnObjects {
-		// for object fragments it is necessary to check if inline fragment type is allowed
-		if !slices.Contains(allowedImplementingTypes, inlineFragmentInfo.typeName) {
-			// remove fragment which not allowed
-			continue
-		}
-
-		r.flattenFragmentOnObject(inlineFragmentInfo.selectionSetInfo, inlineFragmentInfo.typeName, selectionRefs)
-	}
-
-	for _, inlineFragmentInfo := range selectionSetInfo.inlineFragmentsOnInterfaces {
-		// We do not check if interface fragment type not exists in the current datasource
-		// in case of interfaces the only thing which is matter is an interception of implementing types
-		// and parent allowed types
-
-		r.flattenFragmentOnInterface(inlineFragmentInfo.selectionSetInfo, inlineFragmentInfo.typeNamesImplementingInterface, allowedImplementingTypes, selectionRefs)
-	}
-
-	for _, inlineFragmentInfo := range selectionSetInfo.inlineFragmentsOnUnions {
-		// We do not check if union fragment type not exists in the current datasource
-		// in case of unions the only thing which is matter is an interception of implementing types
-		// and parent allowed types
-		r.flattenFragmentOnUnion(inlineFragmentInfo.selectionSetInfo, allowedImplementingTypes, selectionRefs)
-	}
+	r.flattenFragments(selectionSetInfo, allowedImplementingTypes, selectionRefs)
 }
 
 func (r *fieldSelectionRewriter) flattenFragmentOnUnion(selectionSetInfo selectionSetInfo, allowedTypeNames []string, selectionRefs *[]int) {
 	r.preserveTypeNameSelection(selectionSetInfo, selectionRefs)
+	r.flattenFragments(selectionSetInfo, allowedTypeNames, selectionRefs)
+}
 
+func (r *fieldSelectionRewriter) flattenFragments(selectionSetInfo selectionSetInfo, allowedTypeNames []string, selectionRefs *[]int) {
 	for _, inlineFragmentInfo := range selectionSetInfo.inlineFragmentsOnObjects {
 		// for object fragments it is necessary to check if inline fragment type is allowed
 		if !slices.Contains(allowedTypeNames, inlineFragmentInfo.typeName) {

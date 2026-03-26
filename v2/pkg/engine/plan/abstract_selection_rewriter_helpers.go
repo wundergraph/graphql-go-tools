@@ -437,10 +437,15 @@ func (r *fieldSelectionRewriter) createFragmentSelection(typeName string, fields
 	})
 }
 
-func (r *fieldSelectionRewriter) typeNameSelection() (selectionRef int, fieldRef int) {
+func (r *fieldSelectionRewriter) typeNameSelection(deferID string) (selectionRef int, fieldRef int) {
 	field := r.operation.AddField(ast.Field{
 		Name: r.operation.Input.AppendInputString("__typename"),
 	})
+
+	if deferID != "" {
+		r.operation.AddDeferInternalDirectiveToField(field.Ref, deferID, "", "")
+	}
+
 	return r.operation.AddSelectionToDocument(ast.Selection{
 		Ref:  field.Ref,
 		Kind: ast.SelectionKindField,
@@ -453,7 +458,7 @@ func (r *fieldSelectionRewriter) preserveTypeNameSelection(selectionSetInfo sele
 		return
 	}
 
-	selectionRef, _ := r.typeNameSelection()
+	selectionRef, _ := r.typeNameSelection(selectionSetInfo.typenameFieldDeferId)
 	*selectionRefs = append(*selectionRefs, selectionRef)
 }
 
