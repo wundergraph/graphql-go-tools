@@ -236,6 +236,10 @@ Tests:
 - `v2/pkg/engine/resolve/cache_key_test.go:1125` — `TestDerivedEntityCacheKey / "dot-notation entity key field"` (single-level nesting)
 - `v2/pkg/engine/resolve/cache_key_test.go:1148` — `TestDerivedEntityCacheKey / "deeply nested dot-notation entity key field"` (multi-level nesting)
 - `v2/pkg/engine/resolve/cache_key_test.go:1171` — `TestDerivedEntityCacheKey / "dot-notation shared prefix merges into same object"` (shared-prefix merge)
+- `v2/pkg/engine/resolve/cache_key_test.go` — `TestDerivedEntityCacheKey / "flat key + composite key - all args present"` (flat + composite multi-key)
+- `v2/pkg/engine/resolve/cache_key_test.go` — `TestDerivedEntityCacheKey / "flat key + nested composite key - all args present"` (flat + nested multi-key)
+- `v2/pkg/engine/resolve/cache_key_test.go` — `TestDerivedEntityCacheKey / "nested composite key - structured argument input"` (structured input arg)
+- `v2/pkg/engine/resolve/cache_key_test.go` — `TestDerivedEntityCacheKey / "two nested composite keys with structured args - both resolve"` (two nested keys)
 
 ### AC-KEY-02: Root field key format
 Root field cache keys use `{"__typename":"Query","field":"fieldName","args":{...}}`.
@@ -243,8 +247,29 @@ Arguments are included when present. Root field keys can optionally map to entit
 via `EntityKeyMappings` so that a root field query and an entity query share the same
 cache entry.
 
+When `EntityKeyMappings` is configured with multiple mappings, the system generates one
+cache key per mapping whose arguments are all available. Mappings with missing arguments
+are skipped — only the mappings where every argument resolves produce a key. This means
+a root field with partial argument coverage generates fewer keys than one with full
+coverage, and writes use only the argument-derived keys (response data is not inspected
+to generate additional keys).
+
+Variable remapping (`ctx.RemapVariables`) applies to single-element argument paths only.
+Multi-element paths (structured argument inputs like `["store", "id"]`) are not remapped.
+
 Tests:
 - `v2/pkg/engine/resolve/cache_key_test.go:13` — `TestCachingRenderRootQueryCacheKeyTemplate`
+- `v2/pkg/engine/resolve/cache_key_test.go` — `TestDerivedEntityCacheKey / "flat key + composite key - only composite args present"` (partial arg coverage skips flat key)
+- `v2/pkg/engine/resolve/cache_key_test.go` — `TestDerivedEntityCacheKey / "flat key + nested composite key - only nested args present"` (partial with nested keys)
+- `v2/pkg/engine/resolve/cache_key_test.go` — `TestDerivedEntityCacheKey / "flat key + nested composite key with structured arg - only nested resolves"` (structured arg partial)
+- `v2/pkg/engine/resolve/cache_key_test.go` — `TestDerivedEntityCacheKey / "two nested composite keys with structured args - only first resolves"` (two nested, one skipped)
+- `v2/pkg/engine/resolve/cache_key_test.go` — `TestDerivedEntityCacheKey / "remap variables - flat key remapped"` (RemapVariables with entity key mapping)
+- `v2/pkg/engine/resolve/cache_key_test.go` — `TestDerivedEntityCacheKey / "remap variables - multiple mappings only flat keys remapped"` (remap with multi-key)
+- `v2/pkg/engine/resolve/cache_key_test.go` — `TestDerivedEntityCacheKey / "remap variables - structured arg path not remapped"` (multi-element path not remapped)
+- `v2/pkg/engine/resolve/cache_key_test.go` — `TestDerivedEntityCacheKey / "remap variables - partial remap with multi-key"` (partial remap across mappings)
+- `execution/engine/federation_caching_test.go` — `TestRootFieldCachingWithArgs / "entity key mapping - two root fields asymmetric key coverage"` (E2E: full-key write, partial-key read cross-lookup)
+- `execution/engine/federation_caching_test.go` — `TestRootFieldCachingWithArgs_PartialKeyWrite / "entity key mapping - partial key write does not generate extra keys from response"` (E2E: write-side limitation with Peek verification)
+- `execution/engine/federation_caching_test.go` — `TestRootFieldCachingWithArgs_PartialKeyWrite / "entity key mapping - flat key cross-lookup from composite key write"` (E2E: flat key cross-lookup from composite write)
 
 ### AC-KEY-03: Subgraph header hash prefix
 When `IncludeSubgraphHeaderPrefix` is enabled, the L2 cache key is prefixed with a hash
@@ -672,7 +697,7 @@ Tests:
 
 ### AC-ANA-03: Aggregate convenience methods
 The `CacheAnalyticsSnapshot` provides pre-computed metrics: `L1HitRate()`, `L2HitRate()`,
-`CachedBytesServed()`, `SubgraphCallsAvoided()`, `AvgCacheAgeMs()`, etc. These are
+`CachedBytesServed()`, `CacheHitCount()`, `AvgCacheAgeMs()`, etc. These are
 derived from the raw events at snapshot time.
 
 Tests:

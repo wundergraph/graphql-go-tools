@@ -325,6 +325,40 @@ When `EntityKeyMappings` is configured on a root field, the L2 cache key uses en
 - `Query.user(id: "123")` → cache key `{"__typename":"User","key":{"id":"123"}}`
 - A subsequent `_entities` fetch for `User(id: "123")` hits the same cache entry
 
+**Multiple key mappings:** An entity with multiple `@key` directives can have multiple `EntityKeyMapping` entries. Each mapping independently generates a cache key when all its arguments are available. If a mapping's arguments are missing from the query variables, that mapping is skipped — the remaining mappings still produce keys.
+
+```go
+// Example: Product has @key(fields: "id") and @key(fields: "sku region")
+EntityKeyMappings: []plan.EntityKeyMapping{
+    {EntityTypeName: "Product", FieldMappings: []plan.FieldMapping{
+        {EntityKeyField: "id", ArgumentPath: []string{"id"}},
+    }},
+    {EntityTypeName: "Product", FieldMappings: []plan.FieldMapping{
+        {EntityKeyField: "sku", ArgumentPath: []string{"sku"}},
+        {EntityKeyField: "region", ArgumentPath: []string{"region"}},
+    }},
+}
+// productByAll(id, sku, region) → 2 cache keys (both mappings resolve)
+// productBySku(sku, region)     → 1 cache key (only sku+region mapping resolves)
+```
+
+**Nested keys with structured arguments:** For entities with nested `@key` fields (e.g., `@key(fields: "store { id region }")`), use dot-notation for `EntityKeyField` and multi-element paths for `ArgumentPath`:
+
+```go
+// Nested key with structured input: query productByStore(store: {id: "s1", region: "us"})
+EntityKeyMappings: []plan.EntityKeyMapping{
+    {EntityTypeName: "Product", FieldMappings: []plan.FieldMapping{
+        {EntityKeyField: "store.id", ArgumentPath: []string{"store", "id"}},
+        {EntityKeyField: "store.region", ArgumentPath: []string{"store", "region"}},
+    }},
+}
+// Produces: {"__typename":"Product","key":{"store":{"id":"s1","region":"us"}}}
+```
+
+**Write-side behavior:** Both L2 reads and writes use the same argument-derived key set. If a root field provides only a subset of arguments (e.g., only `sku` and `region` but not `id`), the write stores under only the matching keys. The system does not inspect the fetched response to generate additional keys from returned fields.
+
+**Variable remapping:** `RemapVariables` applies only to single-element argument paths. Multi-element paths (structured argument navigation like `["store", "id"]`) are not remapped.
+
 ## 6. Cache Behavior by Operation Type
 
 ### Queries
