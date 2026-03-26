@@ -27,7 +27,8 @@ func collectSubscriptionMessages(ctx context.Context, gqlClient *GraphqlClient, 
 	variables queryVariables, count int, t *testing.T) []string {
 	t.Helper()
 
-	messages := gqlClient.Subscription(ctx, wsAddr, queryPath, variables, t)
+	messages, closeSubscription := gqlClient.Subscription(ctx, wsAddr, queryPath, variables, t)
+	defer closeSubscription()
 
 	var result []string
 	for i := 0; i < count; i++ {
@@ -1456,8 +1457,10 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		vars := queryVariables{"upc": "top-4"}
 
 		// Start 2 subscriptions to the same query/variables (same trigger)
-		messages1 := gqlClient.Subscription(ctx, wsAddr, queryPath, vars, t)
-		messages2 := gqlClient.Subscription(ctx, wsAddr, queryPath, vars, t)
+		messages1, close1 := gqlClient.Subscription(ctx, wsAddr, queryPath, vars, t)
+		t.Cleanup(close1)
+		messages2, close2 := gqlClient.Subscription(ctx, wsAddr, queryPath, vars, t)
+		t.Cleanup(close2)
 
 		// Wait for both subscriptions to register by collecting 1 message from each
 		// (the first trigger event will have been processed by then)
@@ -1528,6 +1531,10 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		assert.Equal(t, msg1b, msg2b, "both clients should receive the same event")
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":2}}}}`, msg1b)
 
+		// Close subscriptions before cache log assertions
+		close1()
+		close2()
+
 		// Verify exactly 1 set operation (deduplicated, not 2)
 		subLog := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
@@ -1589,8 +1596,10 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		vars := queryVariables{"upc": "top-4"}
 
 		// Start 2 subscriptions to the same key-only query (same trigger)
-		messages1 := gqlClient.Subscription(ctx, wsAddr, queryPath, vars, t)
-		messages2 := gqlClient.Subscription(ctx, wsAddr, queryPath, vars, t)
+		messages1, close1 := gqlClient.Subscription(ctx, wsAddr, queryPath, vars, t)
+		t.Cleanup(close1)
+		messages2, close2 := gqlClient.Subscription(ctx, wsAddr, queryPath, vars, t)
+		t.Cleanup(close2)
 
 		// Collect first messages from both to let subscriptions register
 		var msg1, msg2 string
@@ -1658,6 +1667,10 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		assert.Equal(t, msg1b, msg2b, "both clients should receive the same event")
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, msg1b)
 
+		// Close subscriptions before cache log assertions
+		close1()
+		close2()
+
 		// Verify exactly 1 delete (deduplicated) + User entity resolution with L2 hits
 		subLog := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
@@ -1705,9 +1718,12 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		vars := queryVariables{"upc": "top-4"}
 
 		// Start 3 subscriptions to the same query/variables (same trigger)
-		messages1 := gqlClient.Subscription(ctx, wsAddr, queryPath, vars, t)
-		messages2 := gqlClient.Subscription(ctx, wsAddr, queryPath, vars, t)
-		messages3 := gqlClient.Subscription(ctx, wsAddr, queryPath, vars, t)
+		messages1, close1 := gqlClient.Subscription(ctx, wsAddr, queryPath, vars, t)
+		t.Cleanup(close1)
+		messages2, close2 := gqlClient.Subscription(ctx, wsAddr, queryPath, vars, t)
+		t.Cleanup(close2)
+		messages3, close3 := gqlClient.Subscription(ctx, wsAddr, queryPath, vars, t)
+		t.Cleanup(close3)
 
 		// Collect first messages from all 3
 		received := 0
@@ -1740,6 +1756,11 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 				t.Fatalf("timeout waiting for second messages, received %d of 3", received)
 			}
 		}
+
+		// Close subscriptions before cache log assertions
+		close1()
+		close2()
+		close3()
 
 		// Verify exactly 1 set operation (deduplicated, not 3)
 		subLog := defaultCache.GetLog()

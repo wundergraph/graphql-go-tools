@@ -845,84 +845,91 @@ func (l *Loader) populateL1CacheForRootFieldEntities(fetchItem *FetchItem) {
 		return
 	}
 
-	// Get the path from any template to find where entities are located
-	// (all templates for the same root field have the same path)
-	var fieldPath []string
-	for _, template := range templates {
+	// Group templates by field path, since composite keys (e.g., "user:User", "viewer:User")
+	// may reference different root fields with different response paths.
+	type pathGroup struct {
+		fieldPath []string
+		// entityType → template
+		templates map[string]*EntityQueryCacheKeyTemplate
+	}
+	groups := map[string]*pathGroup{} // keyed by joined fieldPath
+
+	for compositeKey, template := range templates {
 		entityTemplate, ok := template.(*EntityQueryCacheKeyTemplate)
 		if !ok || entityTemplate.Keys == nil || entityTemplate.Keys.Renderer == nil {
 			continue
 		}
 		obj, ok := entityTemplate.Keys.Renderer.Node.(*Object)
+		if !ok || len(obj.Path) == 0 {
+			continue
+		}
+
+		// Extract entity type from composite key "fieldName:entityType"
+		_, entityType, ok := strings.Cut(compositeKey, ":")
 		if !ok {
-			continue
+			entityType = compositeKey
 		}
-		fieldPath = obj.Path
-		break
+
+		pathKey := strings.Join(obj.Path, "/")
+		g, exists := groups[pathKey]
+		if !exists {
+			g = &pathGroup{
+				fieldPath: obj.Path,
+				templates: map[string]*EntityQueryCacheKeyTemplate{},
+			}
+			groups[pathKey] = g
+		}
+		g.templates[entityType] = entityTemplate
 	}
 
-	if len(fieldPath) == 0 {
-		return
-	}
-
-	// Navigate to the entities using the path
-	entitiesValue := data.Get(fieldPath...)
-	if entitiesValue == nil {
-		return
-	}
-
-	// Handle both single entity (object) and array of entities
-	var entities []*astjson.Value
-	switch entitiesValue.Type() {
-	case astjson.TypeArray:
-		entities = entitiesValue.GetArray()
-	case astjson.TypeObject:
-		entities = []*astjson.Value{entitiesValue}
-	default:
-		return
-	}
-
-	// For each entity, render cache key and store in L1 cache
-	for _, entity := range entities {
-		if entity == nil {
+	// For each path group, navigate to entities and match by __typename
+	for _, g := range groups {
+		entitiesValue := data.Get(g.fieldPath...)
+		if entitiesValue == nil {
 			continue
 		}
 
-		// Extract __typename to find the right template
-		typenameValue := entity.Get("__typename")
-		if typenameValue == nil {
-			continue
-		}
-		// Look up template for this typename
-		template, ok := templates[string(typenameValue.GetStringBytes())]
-		if !ok {
-			continue
-		}
-
-		entityTemplate, ok := template.(*EntityQueryCacheKeyTemplate)
-		if !ok {
+		// Handle both single entity (object) and array of entities
+		var entities []*astjson.Value
+		switch entitiesValue.Type() {
+		case astjson.TypeArray:
+			entities = entitiesValue.GetArray()
+		case astjson.TypeObject:
+			entities = []*astjson.Value{entitiesValue}
+		default:
 			continue
 		}
 
-		// Render cache key(s) for this entity
-		cacheKeys, err := entityTemplate.RenderCacheKeys(l.jsonArena, l.ctx, []*astjson.Value{entity}, "")
-		if err != nil || len(cacheKeys) == 0 {
-			continue
-		}
-
-		// Store in L1 cache, skipping degraded keys with empty key objects
-		for _, ck := range cacheKeys {
-			if ck == nil {
+		for _, entity := range entities {
+			if entity == nil {
 				continue
 			}
-			for _, keyStr := range ck.Keys {
-				// Skip keys with empty key objects — these occur when @key fields are missing
-				// from the query selection. Such keys would collide for all entities of the
-				// same type, causing incorrect cache sharing.
-				if strings.Contains(keyStr, `"key":{}`) {
+
+			// Extract __typename to find the right template
+			typenameValue := entity.Get("__typename")
+			if typenameValue == nil {
+				continue
+			}
+			entityTemplate, ok := g.templates[string(typenameValue.GetStringBytes())]
+			if !ok {
+				continue
+			}
+
+			// Render cache key(s) for this entity
+			// Empty prefix: L1 keys don't need cache isolation (scoped to a single request)
+			cacheKeys, err := entityTemplate.RenderCacheKeys(l.jsonArena, l.ctx, []*astjson.Value{entity}, "")
+			if err != nil || len(cacheKeys) == 0 {
+				continue
+			}
+
+			// Store in L1 cache, skipping degraded keys with empty key objects
+			for _, ck := range cacheKeys {
+				if ck == nil {
 					continue
 				}
-				l.l1Cache.LoadOrStore(keyStr, entity)
+				for _, keyStr := range ck.Keys {
+					l.l1Cache.LoadOrStore(keyStr, entity)
+				}
 			}
 		}
 	}

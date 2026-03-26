@@ -35,10 +35,7 @@ func (r *queryResolver) Me(ctx context.Context) (*model.User, error) {
 
 // User is the resolver for the user field.
 func (r *queryResolver) User(ctx context.Context, id string) (*model.User, error) {
-	name := "User " + id
-	if id == "1234" {
-		name = "Me"
-	}
+	name := GetUsername(id)
 	return &model.User{
 		ID:       id,
 		Username: name,
@@ -270,7 +267,10 @@ func (r *queryResolver) SomeNestedInterfaces(ctx context.Context) ([]model.SomeN
 
 // Greeting is the resolver for the greeting field.
 func (r *userResolver) Greeting(ctx context.Context, obj *model.User, style string) (string, error) {
-	name := GetUsername(obj.ID)
+	name := obj.Username
+	if name == "" {
+		name = GetUsername(obj.ID)
+	}
 	switch style {
 	case "formal":
 		return "Good day, " + name, nil
@@ -285,7 +285,10 @@ func (r *userResolver) Greeting(ctx context.Context, obj *model.User, style stri
 
 // CustomGreeting is the resolver for the customGreeting field.
 func (r *userResolver) CustomGreeting(ctx context.Context, obj *model.User, input model.GreetingInput) (string, error) {
-	name := GetUsername(obj.ID)
+	name := obj.Username
+	if name == "" {
+		name = GetUsername(obj.ID)
+	}
 	var greeting string
 	switch input.Style {
 	case model.GreetingStyleFormal:

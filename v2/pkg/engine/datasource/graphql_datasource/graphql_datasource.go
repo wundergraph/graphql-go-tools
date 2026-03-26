@@ -902,11 +902,8 @@ func (p *Planner[T]) buildAndStoreEntityCacheKeyTemplate(entityTypeName, fieldNa
 	mergedObject.Path = []string{fieldName}
 
 	// Create cache key template with only @key fields (no @requires fields)
-	cacheKeyTemplate := &resolve.EntityQueryCacheKeyTemplate{
-		Keys: resolve.NewResolvableObjectVariable(mergedObject),
-	}
-
-	p.rootFieldEntityCacheKeyTemplates[entityTypeName] = cacheKeyTemplate
+	keys := resolve.NewResolvableObjectVariable(mergedObject)
+	p.rootFieldEntityCacheKeyTemplates[fieldName+":"+entityTypeName] = &resolve.EntityQueryCacheKeyTemplate{Keys: keys}
 }
 
 func (p *Planner[T]) addFieldArguments(upstreamFieldRef int, fieldRef int, fieldConfiguration *plan.FieldConfiguration) {
@@ -921,16 +918,6 @@ func (p *Planner[T]) addFieldArguments(upstreamFieldRef int, fieldRef int, field
 // trackCacheKeyCoordinate ensures a root field is tracked for cache key generation,
 // initializing an empty args slice if it doesn't exist yet
 func (p *Planner[T]) trackCacheKeyCoordinate(coordinate resolve.GraphCoordinate) {
-
-	// Check if the field is already tracked
-	for i := range p.rootFields {
-		if p.rootFields[i].Coordinate.TypeName == coordinate.TypeName &&
-			p.rootFields[i].Coordinate.FieldName == coordinate.FieldName {
-			// Field already tracked
-			return
-		}
-	}
-	// Add the field to the slice
 	p.rootFields = append(p.rootFields, resolve.QueryField{
 		Coordinate: coordinate,
 	})
@@ -941,19 +928,23 @@ func (p *Planner[T]) trackFieldWithArgument(coordinate resolve.GraphCoordinate, 
 	if coordinate.FieldName == "" {
 		return
 	}
-	// Ensure the field is tracked first
-	p.trackCacheKeyCoordinate(coordinate)
-	// Find the field and add the argument
-	for i := range p.rootFields {
+	// Find the last entry with this coordinate (most recently created by EnterField)
+	idx := -1
+	for i := len(p.rootFields) - 1; i >= 0; i-- {
 		if p.rootFields[i].Coordinate.TypeName == coordinate.TypeName &&
 			p.rootFields[i].Coordinate.FieldName == coordinate.FieldName {
-			p.rootFields[i].Args = append(p.rootFields[i].Args, resolve.FieldArgument{
-				Name:     argName,
-				Variable: variable,
-			})
-			return
+			idx = i
+			break
 		}
 	}
+	if idx == -1 {
+		// Should not happen — EnterField always runs before arg tracking
+		return
+	}
+	p.rootFields[idx].Args = append(p.rootFields[idx].Args, resolve.FieldArgument{
+		Name:     argName,
+		Variable: variable,
+	})
 }
 
 func (p *Planner[T]) addCustomField(ref int) (upstreamFieldRef int) {
@@ -1393,11 +1384,15 @@ func (p *Planner[T]) configureFieldArgumentSource(upstreamFieldRef, downstreamFi
 	variableValueRef, argRef := p.upstreamOperation.AddVariableValueArgument([]byte(argumentConfiguration.Name), variableName) // add the argument to the field, but don't redefine it
 	p.upstreamOperation.AddArgumentToField(upstreamFieldRef, argRef)
 
-	coordinate := resolve.GraphCoordinate{
-		TypeName:  fieldConfig.TypeName,
-		FieldName: fieldConfig.FieldName,
+	// Only track arguments for root fields — nested entity fields use @key-based
+	// cache keys (EntityQueryCacheKeyTemplate) which don't include field arguments.
+	if p.isRootField() {
+		coordinate := resolve.GraphCoordinate{
+			TypeName:  fieldConfig.TypeName,
+			FieldName: fieldConfig.FieldName,
+		}
+		p.trackFieldWithArgument(coordinate, argumentConfiguration.Name, contextVariable)
 	}
-	p.trackFieldWithArgument(coordinate, argumentConfiguration.Name, contextVariable)
 
 	if exists { // if the variable exists we don't have to put it onto the variables declaration again, skip
 		return
@@ -1550,11 +1545,15 @@ func (p *Planner[T]) configureObjectFieldSource(upstreamFieldRef, downstreamFiel
 		Renderer: resolve.NewJSONVariableRenderer(),
 	}
 
-	coordinate := resolve.GraphCoordinate{
-		TypeName:  fieldConfiguration.TypeName,
-		FieldName: fieldConfiguration.FieldName,
+	// Only track arguments for root fields — nested entity fields use @key-based
+	// cache keys (EntityQueryCacheKeyTemplate) which don't include field arguments.
+	if p.isRootField() {
+		coordinate := resolve.GraphCoordinate{
+			TypeName:  fieldConfiguration.TypeName,
+			FieldName: fieldConfiguration.FieldName,
+		}
+		p.trackFieldWithArgument(coordinate, argumentConfiguration.Name, variable)
 	}
-	p.trackFieldWithArgument(coordinate, argumentConfiguration.Name, variable)
 
 	objectVariableName, exists := p.variables.AddVariable(variable)
 	if !exists {

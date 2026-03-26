@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sync/atomic"
 	"testing"
 
 	"github.com/gobwas/ws"
@@ -138,7 +139,7 @@ func (g *GraphqlClient) QueryStatusCode(ctx context.Context, addr, queryFilePath
 	return responseBodyBytes
 }
 
-func (g *GraphqlClient) Subscription(ctx context.Context, addr, queryFilePath string, variables queryVariables, t *testing.T) chan []byte {
+func (g *GraphqlClient) Subscription(ctx context.Context, addr, queryFilePath string, variables queryVariables, t *testing.T) (chan []byte, func()) {
 	messageCh := make(chan []byte)
 
 	conn, _, _, err := ws.Dial(ctx, addr)
@@ -166,21 +167,35 @@ func (g *GraphqlClient) Subscription(ctx context.Context, addr, queryFilePath st
 	err = g.sendMessageToServer(conn, startSubscriptionMessage)
 	require.NoError(t, err)
 
+	var closed atomic.Bool
+
+	closeFn := func() {
+		closed.Store(true)
+		_ = conn.Close()
+	}
+
 	// 4. start receiving messages from subscription
 
 	go func() {
-		defer conn.Close()
 		defer close(messageCh)
 
 		for {
 			msgBytes, _, err := wsutil.ReadServerData(conn)
-			require.NoError(t, err)
-
-			messageCh <- msgBytes
+			if err != nil {
+				if !closed.Load() {
+					t.Errorf("unexpected subscription read error: %v", err)
+				}
+				return
+			}
+			select {
+			case messageCh <- msgBytes:
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 
-	return messageCh
+	return messageCh, closeFn
 }
 
 //nolint:staticcheck

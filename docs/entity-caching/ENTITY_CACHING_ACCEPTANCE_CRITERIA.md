@@ -73,9 +73,14 @@ is produced with an empty key object (`{"__typename":"Product","key":{}}`) and t
 is silently stored under this degraded key. It will never match a real entity fetch, so the
 behavior is benign but wasteful.
 
+When the root field is aliased (e.g., `myUser: user(id: $id)`), the entity cache key
+template path uses the alias (`myUser`), not the schema field name (`user`), because
+the response JSON is keyed by the alias.
+
 Tests:
 - `execution/engine/federation_caching_l1_test.go:667` — `TestL1CacheRootFieldEntityListPopulation`
 - `v2/pkg/engine/resolve/l1_cache_test.go:1813` — `TestPopulateL1CacheForRootFieldEntities_MissingKeyFields`
+- `v2/pkg/engine/datasource/graphql_datasource/graphql_datasource_entity_key_mapping_test.go:871` — `aliased root fields use alias in entity cache key path` (verifies alias-based path in `RootFieldL1EntityCacheKeyTemplates`)
 
 ### AC-L1-09: Argument-variant coexistence via field merging
 When the same entity is fetched with different field arguments (e.g., `friends(first:5)`

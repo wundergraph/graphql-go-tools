@@ -160,9 +160,10 @@ func TestFederationIntegrationTest(t *testing.T) {
 		t.Cleanup(cancel)
 
 		wsAddr := strings.ReplaceAll(setup.GatewayServer.URL, "http://", "ws://")
-		messages := gqlClient.Subscription(ctx, wsAddr, testQueryPath("subscriptions/subscription.query"), queryVariables{
+		messages, closeSubscription := gqlClient.Subscription(ctx, wsAddr, testQueryPath("subscriptions/subscription.query"), queryVariables{
 			"upc": "top-1",
 		}, t)
+		t.Cleanup(closeSubscription)
 
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-1","name":"Trilby","price":1}}}}`, string(<-messages))
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-1","name":"Trilby","price":2}}}}`, string(<-messages))

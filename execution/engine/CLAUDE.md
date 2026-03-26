@@ -80,6 +80,29 @@ Every event line in a snapshot assertion MUST have a brief comment explaining **
 {CacheKey: `...`, Kind: resolve.CacheKeyMiss}, // this is a miss
 ```
 
+## Subscription cleanup via t.Cleanup
+
+Always register subscription close functions with `t.Cleanup` immediately after creation. `t.Fatal`/`require` calls `runtime.Goexit()`, skipping any explicit close calls later in the test. `t.Cleanup` is guaranteed to run regardless of how the test exits.
+
+```go
+// CORRECT: cleanup registered immediately, runs even on t.Fatal
+messages1, close1 := gqlClient.Subscription(ctx, wsAddr, queryPath, vars, t)
+t.Cleanup(close1)
+messages2, close2 := gqlClient.Subscription(ctx, wsAddr, queryPath, vars, t)
+t.Cleanup(close2)
+
+// Explicit close before assertions is still fine (double-close is safe)
+close1()
+close2()
+
+// WRONG: close only called explicitly — skipped if t.Fatal fires above
+messages1, close1 := gqlClient.Subscription(ctx, wsAddr, queryPath, vars, t)
+messages2, close2 := gqlClient.Subscription(ctx, wsAddr, queryPath, vars, t)
+// ... t.Fatal("timeout") could fire here ...
+close1()
+close2()
+```
+
 ## Always check every cache log
 
 Every `defaultCache.ClearLog()` MUST be followed by `defaultCache.GetLog()` with full assertions BEFORE the next `ClearLog()` or end of test. Never clear a log without verifying its contents — skipped checks hide regressions.

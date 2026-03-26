@@ -2119,7 +2119,7 @@ func TestPopulateL1CacheForRootFieldEntities_MissingKeyFields(t *testing.T) {
 					Enabled:    true,
 					UseL1Cache: true,
 					RootFieldL1EntityCacheKeyTemplates: map[string]CacheKeyTemplate{
-						"Product": entityTemplate,
+						"topProducts:Product": entityTemplate,
 					},
 				},
 			},

@@ -47,7 +47,8 @@ type Configuration struct {
 	// This option requires BuildFetchReasons set to true.
 	ValidateRequiredExternalFields bool
 
-	// DisableEntityCaching disables planning of entity caching behavior or generating relevant metadata
+	// DisableEntityCaching disables planning of L2 entity caching metadata and mutation-impact logic.
+	// L1 cache templates are still generated regardless of this setting.
 	DisableEntityCaching bool
 	// DisableFetchProvidesData disables planning of meta information about which fields are provided by a fetch
 	DisableFetchProvidesData bool

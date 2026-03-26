@@ -14,7 +14,9 @@ import (
 
 // AddReview is the resolver for the addReview field.
 func (r *mutationResolver) AddReview(ctx context.Context, authorID string, upc string, review string) (*model.Review, error) {
-	// Generate username matching accounts service pattern for @provides
+	// Generate username matching accounts service pattern.
+	// Required by @provides(fields: "username") on Review.author — reviews promises to supply
+	// this field, so the gateway uses this value directly instead of re-fetching from accounts.
 	username := fmt.Sprintf("User %s", authorID)
 	if authorID == "1234" {
 		username = "Me"

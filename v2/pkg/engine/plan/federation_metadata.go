@@ -305,13 +305,13 @@ func (c MutationCacheInvalidationConfigurations) FindByFieldName(fieldName strin
 }
 
 // EntityCacheConfig returns the cache configuration for the given entity type.
-// Returns nil if no configuration exists (caching should be disabled for this entity).
+// Returns nil if no configuration exists (caching is not configured for this entity).
 func (d *FederationMetaData) EntityCacheConfig(typeName string) *EntityCacheConfiguration {
 	return d.EntityCaching.FindByTypeName(typeName)
 }
 
 // RootFieldCacheConfig returns the cache configuration for the given root field.
-// Returns nil if no configuration exists (caching should be disabled for this root field).
+// Returns nil if no configuration exists (caching is not configured for this root field).
 func (d *FederationMetaData) RootFieldCacheConfig(typeName, fieldName string) *RootFieldCacheConfiguration {
 	return d.RootFieldCaching.FindByTypeAndField(typeName, fieldName)
 }

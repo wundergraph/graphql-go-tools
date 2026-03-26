@@ -72,7 +72,7 @@ func makeBatchEntityFetch(fetchID int, entityType string, fieldNames []string, d
 func makeRootFetchWithL1Templates(fetchID int, dependsOnIDs []int, entityTypes []string, providesData *resolve.Object) *resolve.SingleFetch {
 	templates := make(map[string]resolve.CacheKeyTemplate)
 	for _, et := range entityTypes {
-		templates[et] = &resolve.EntityQueryCacheKeyTemplate{}
+		templates["users:"+et] = &resolve.EntityQueryCacheKeyTemplate{}
 	}
 	return &resolve.SingleFetch{
 		FetchDependencies: resolve.FetchDependencies{

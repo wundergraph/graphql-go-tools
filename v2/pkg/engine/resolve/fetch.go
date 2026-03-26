@@ -278,11 +278,11 @@ type FetchConfiguration struct {
 	Caching FetchCacheConfiguration
 }
 
-func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
-	if fc.Input != other.Input {
+func (f *FetchConfiguration) Equals(other *FetchConfiguration) bool {
+	if f.Input != other.Input {
 		return false
 	}
-	if !slices.EqualFunc(fc.Variables, other.Variables, func(a, b Variable) bool {
+	if !slices.EqualFunc(f.Variables, other.Variables, func(a, b Variable) bool {
 		return a.Equals(b)
 	}) {
 		return false
@@ -290,19 +290,49 @@ func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
 
 	// Note: we do not compare datasources, as they will always be a different instance.
 
-	if fc.RequiresEntityFetch != other.RequiresEntityFetch {
+	if f.RequiresEntityFetch != other.RequiresEntityFetch {
 		return false
 	}
-	if fc.RequiresEntityBatchFetch != other.RequiresEntityBatchFetch {
+	if f.RequiresEntityBatchFetch != other.RequiresEntityBatchFetch {
 		return false
 	}
-	if !fc.PostProcessing.Equals(&other.PostProcessing) {
+	if !f.PostProcessing.Equals(&other.PostProcessing) {
 		return false
 	}
-	if fc.SetTemplateOutputToNullOnVariableNull != other.SetTemplateOutputToNullOnVariableNull {
+	if f.SetTemplateOutputToNullOnVariableNull != other.SetTemplateOutputToNullOnVariableNull {
 		return false
 	}
+	return f.Caching.Equals(&other.Caching)
+}
 
+func (f *FetchCacheConfiguration) Equals(other *FetchCacheConfiguration) bool {
+	if f.Enabled != other.Enabled {
+		return false
+	}
+	if f.CacheName != other.CacheName {
+		return false
+	}
+	if f.TTL != other.TTL {
+		return false
+	}
+	if f.IncludeSubgraphHeaderPrefix != other.IncludeSubgraphHeaderPrefix {
+		return false
+	}
+	if f.EnablePartialCacheLoad != other.EnablePartialCacheLoad {
+		return false
+	}
+	if f.ShadowMode != other.ShadowMode {
+		return false
+	}
+	if f.EnableMutationL2CachePopulation != other.EnableMutationL2CachePopulation {
+		return false
+	}
+	if f.MutationCacheTTLOverride != other.MutationCacheTTLOverride {
+		return false
+	}
+	if f.NegativeCacheTTL != other.NegativeCacheTTL {
+		return false
+	}
 	return true
 }
 

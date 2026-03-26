@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/go-arena"
@@ -1450,5 +1451,171 @@ func BenchmarkRenderCacheKeys(b *testing.B) {
 				b.Fatal(err)
 			}
 		}
+	})
+}
+
+func TestRenderCacheKeys_EntityKeyMappings_NotDuplicatedByRootFields(t *testing.T) {
+	a := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+
+	template := &RootQueryCacheKeyTemplate{
+		RootFields: []QueryField{
+			{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "field1"}},
+			{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "field2"}},
+		},
+		EntityKeyMappings: []EntityKeyMappingConfig{
+			{
+				EntityTypeName: "Product",
+				FieldMappings: []EntityFieldMappingConfig{
+					{EntityKeyField: "upc", ArgumentPath: []string{"upc"}},
+				},
+			},
+		},
+	}
+
+	ctx := NewContext(context.Background())
+	ctx.Variables = astjson.MustParse(`{"upc":"top-1"}`)
+
+	items := []*astjson.Value{astjson.NullValue}
+	keys, err := template.RenderCacheKeys(a, ctx, items, "")
+	require.NoError(t, err)
+	require.Len(t, keys, 1, "one CacheKey per item")
+	// Should have exactly 1 key string, not 2 (one per root field)
+	require.Equal(t, []string{
+		`{"__typename":"Product","key":{"upc":"top-1"}}`,
+	}, keys[0].Keys, "EntityKeyMappings should produce one key, not duplicated per root field")
+}
+
+func TestResolveFieldValue(t *testing.T) {
+	a := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+	template := &EntityQueryCacheKeyTemplate{}
+
+	t.Run("String", func(t *testing.T) {
+		data := astjson.MustParse(`{"name":"Alice"}`)
+		result := template.resolveFieldValue(a, &String{Path: []string{"name"}}, data)
+		require.NotNil(t, result)
+		assert.Equal(t, `"Alice"`, string(result.MarshalTo(nil)))
+	})
+
+	t.Run("Scalar", func(t *testing.T) {
+		data := astjson.MustParse(`{"id":"abc-123"}`)
+		result := template.resolveFieldValue(a, &Scalar{Path: []string{"id"}}, data)
+		require.NotNil(t, result)
+		assert.Equal(t, `"abc-123"`, string(result.MarshalTo(nil)))
+	})
+
+	t.Run("Integer", func(t *testing.T) {
+		data := astjson.MustParse(`{"age":42}`)
+		result := template.resolveFieldValue(a, &Integer{Path: []string{"age"}}, data)
+		require.NotNil(t, result)
+		assert.Equal(t, `42`, string(result.MarshalTo(nil)))
+	})
+
+	t.Run("Float", func(t *testing.T) {
+		data := astjson.MustParse(`{"price":19.99}`)
+		result := template.resolveFieldValue(a, &Float{Path: []string{"price"}}, data)
+		require.NotNil(t, result)
+		assert.Equal(t, `19.99`, string(result.MarshalTo(nil)))
+	})
+
+	t.Run("Boolean", func(t *testing.T) {
+		data := astjson.MustParse(`{"active":true}`)
+		result := template.resolveFieldValue(a, &Boolean{Path: []string{"active"}}, data)
+		require.NotNil(t, result)
+		assert.Equal(t, `true`, string(result.MarshalTo(nil)))
+	})
+
+	t.Run("Enum", func(t *testing.T) {
+		data := astjson.MustParse(`{"status":"ACTIVE"}`)
+		result := template.resolveFieldValue(a, &Enum{Path: []string{"status"}}, data)
+		require.NotNil(t, result)
+		assert.Equal(t, `"ACTIVE"`, string(result.MarshalTo(nil)))
+	})
+
+	t.Run("BigInt", func(t *testing.T) {
+		data := astjson.MustParse(`{"bigId":"9007199254740993"}`)
+		result := template.resolveFieldValue(a, &BigInt{Path: []string{"bigId"}}, data)
+		require.NotNil(t, result)
+		assert.Equal(t, `"9007199254740993"`, string(result.MarshalTo(nil)))
+	})
+
+	t.Run("CustomNode", func(t *testing.T) {
+		data := astjson.MustParse(`{"custom":"some-value"}`)
+		result := template.resolveFieldValue(a, &CustomNode{Path: []string{"custom"}}, data)
+		require.NotNil(t, result)
+		assert.Equal(t, `"some-value"`, string(result.MarshalTo(nil)))
+	})
+
+	t.Run("Object", func(t *testing.T) {
+		data := astjson.MustParse(`{"address":{"city":"Berlin","zip":"10115"}}`)
+		node := &Object{
+			Path: []string{"address"},
+			Fields: []*Field{
+				{Name: []byte("city"), Value: &String{Path: []string{"city"}}},
+				{Name: []byte("zip"), Value: &String{Path: []string{"zip"}}},
+			},
+		}
+		result := template.resolveFieldValue(a, node, data)
+		require.NotNil(t, result)
+		assert.Equal(t, `{"city":"Berlin","zip":"10115"}`, string(result.MarshalTo(nil)))
+	})
+
+	t.Run("Object skips __typename", func(t *testing.T) {
+		data := astjson.MustParse(`{"address":{"__typename":"Address","city":"Berlin"}}`)
+		node := &Object{
+			Path: []string{"address"},
+			Fields: []*Field{
+				{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+				{Name: []byte("city"), Value: &String{Path: []string{"city"}}},
+			},
+		}
+		result := template.resolveFieldValue(a, node, data)
+		require.NotNil(t, result)
+		assert.Equal(t, `{"city":"Berlin"}`, string(result.MarshalTo(nil)))
+	})
+
+	t.Run("Object returns nil for null data", func(t *testing.T) {
+		data := astjson.MustParse(`{"address":null}`)
+		node := &Object{
+			Path: []string{"address"},
+			Fields: []*Field{
+				{Name: []byte("city"), Value: &String{Path: []string{"city"}}},
+			},
+		}
+		result := template.resolveFieldValue(a, node, data)
+		assert.Nil(t, result)
+	})
+
+	t.Run("Array", func(t *testing.T) {
+		data := astjson.MustParse(`{"tags":["go","graphql"]}`)
+		node := &Array{
+			Path: []string{"tags"},
+			Item: &String{},
+		}
+		result := template.resolveFieldValue(a, node, data)
+		require.NotNil(t, result)
+		assert.Equal(t, `["go","graphql"]`, string(result.MarshalTo(nil)))
+	})
+
+	t.Run("Array returns nil for missing path", func(t *testing.T) {
+		data := astjson.MustParse(`{}`)
+		node := &Array{
+			Path: []string{"tags"},
+			Item: &String{},
+		}
+		result := template.resolveFieldValue(a, node, data)
+		assert.Nil(t, result)
+	})
+
+	t.Run("missing path returns nil", func(t *testing.T) {
+		data := astjson.MustParse(`{}`)
+		result := template.resolveFieldValue(a, &String{Path: []string{"missing"}}, data)
+		assert.Nil(t, result)
+	})
+
+	t.Run("nested path", func(t *testing.T) {
+		data := astjson.MustParse(`{"a":{"b":{"c":"deep"}}}`)
+		result := template.resolveFieldValue(a, &String{Path: []string{"a", "b", "c"}}, data)
+		require.NotNil(t, result)
+		assert.Equal(t, `"deep"`, string(result.MarshalTo(nil)))
 	})
 }

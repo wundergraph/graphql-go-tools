@@ -55,7 +55,11 @@ func (r *subscriptionResolver) UpdatedPrice(ctx context.Context) (<-chan *model.
 					}
 					p := *product
 					p.Price = rand.Intn(r.maxPrice-r.minPrice+1) + r.minPrice
-					updatedPrice <- &p
+					select {
+					case updatedPrice <- &p:
+					case <-ctx.Done():
+						return
+					}
 					continue
 				}
 
@@ -64,7 +68,11 @@ func (r *subscriptionResolver) UpdatedPrice(ctx context.Context) (<-chan *model.
 				p.Price = r.currentPrice
 				r.currentPrice++
 				r.priceMu.Unlock()
-				updatedPrice <- &p
+				select {
+				case updatedPrice <- &p:
+				case <-ctx.Done():
+					return
+				}
 			}
 		}
 	}()
@@ -92,7 +100,11 @@ func (r *subscriptionResolver) UpdateProductPrice(ctx context.Context, upc strin
 			case <-time.After(100 * time.Millisecond):
 				p := *product
 				p.Price = num
-				updatedPrice <- &p
+				select {
+				case updatedPrice <- &p:
+				case <-ctx.Done():
+					return
+				}
 			}
 		}
 	}()
@@ -131,7 +143,11 @@ func (r *subscriptionResolver) UpdatedPrices(ctx context.Context, first *int) (<
 					p.Price = num + i
 					batch[i] = &p
 				}
-				ch <- batch
+				select {
+				case ch <- batch:
+				case <-ctx.Done():
+					return
+				}
 			}
 		}
 	}()
@@ -156,7 +172,11 @@ func (r *subscriptionResolver) UpdateProductPriceUnion(ctx context.Context, upc 
 			case <-time.After(100 * time.Millisecond):
 				p := *product
 				p.Price = num
-				ch <- &p
+				select {
+				case ch <- &p:
+				case <-ctx.Done():
+					return
+				}
 			}
 		}
 	}()
@@ -181,7 +201,11 @@ func (r *subscriptionResolver) UpdateProductPriceInterface(ctx context.Context, 
 			case <-time.After(100 * time.Millisecond):
 				p := *product
 				p.Price = num
-				ch <- &p
+				select {
+				case ch <- &p:
+				case <-ctx.Done():
+					return
+				}
 			}
 		}
 	}()
@@ -206,7 +230,11 @@ func (r *subscriptionResolver) UpdateDigitalProductPriceUnion(ctx context.Contex
 			case <-time.After(100 * time.Millisecond):
 				p := *dp
 				p.Price = num
-				ch <- &p
+				select {
+				case ch <- &p:
+				case <-ctx.Done():
+					return
+				}
 			}
 		}
 	}()
@@ -231,7 +259,11 @@ func (r *subscriptionResolver) UpdateDigitalProductPriceInterface(ctx context.Co
 			case <-time.After(100 * time.Millisecond):
 				p := *dp
 				p.Price = num
-				ch <- &p
+				select {
+				case ch <- &p:
+				case <-ctx.Done():
+					return
+				}
 			}
 		}
 	}()

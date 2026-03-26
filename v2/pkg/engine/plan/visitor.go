@@ -2423,11 +2423,12 @@ func (v *Visitor) configureFetchCaching(internal *objectFetchConfiguration, exte
 	// L2 cache is enabled - all root fields have the same cache config
 	// UseL1Cache is set by the postprocessor (optimizeL1Cache) when beneficial
 	return resolve.FetchCacheConfiguration{
-		Enabled:                     true,
-		CacheName:                   commonConfig.CacheName,
-		TTL:                         commonConfig.TTL,
-		CacheKeyTemplate:            external.Caching.CacheKeyTemplate,
-		IncludeSubgraphHeaderPrefix: commonConfig.IncludeSubgraphHeaderPrefix,
+		Enabled:                            true,
+		CacheName:                          commonConfig.CacheName,
+		TTL:                                commonConfig.TTL,
+		CacheKeyTemplate:                   external.Caching.CacheKeyTemplate,
+		IncludeSubgraphHeaderPrefix:        commonConfig.IncludeSubgraphHeaderPrefix,
+		RootFieldL1EntityCacheKeyTemplates: external.Caching.RootFieldL1EntityCacheKeyTemplates,
 	}
 }
 

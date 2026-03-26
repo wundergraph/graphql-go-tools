@@ -3,6 +3,7 @@ package engine_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -42,7 +43,12 @@ func (t *subgraphRequestTracker) RoundTrip(req *http.Request) (*http.Response, e
 	// Capture request body
 	var bodyBytes []byte
 	if req.Body != nil {
-		bodyBytes, _ = io.ReadAll(req.Body)
+		var err error
+		bodyBytes, err = io.ReadAll(req.Body)
+		_ = req.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("reading request body: %w", err)
+		}
 		req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 	}
 

@@ -200,6 +200,26 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 					},
 				},
 			},
+			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
+				"user:User": &resolve.EntityQueryCacheKeyTemplate{
+					Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
+						Nullable: true,
+						Path:     []string{"user"},
+						Fields: []*resolve.Field{
+							{
+								Name:        []byte("__typename"),
+								Value:       &resolve.String{Path: []string{"__typename"}},
+								OnTypeNames: [][]byte{[]byte("User")},
+							},
+							{
+								Name:        []byte("id"),
+								Value:       &resolve.Scalar{Path: []string{"id"}},
+								OnTypeNames: [][]byte{[]byte("User")},
+							},
+						},
+					}),
+				},
+			},
 		}, cacheConfigs[0])
 	})
 
@@ -250,6 +270,26 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 							{EntityKeyField: "username", ArgumentPath: []string{"username"}},
 						},
 					},
+				},
+			},
+			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
+				"userByIdAndName:User": &resolve.EntityQueryCacheKeyTemplate{
+					Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
+						Nullable: true,
+						Path:     []string{"userByIdAndName"},
+						Fields: []*resolve.Field{
+							{
+								Name:        []byte("__typename"),
+								Value:       &resolve.String{Path: []string{"__typename"}},
+								OnTypeNames: [][]byte{[]byte("User")},
+							},
+							{
+								Name:        []byte("id"),
+								Value:       &resolve.Scalar{Path: []string{"id"}},
+								OnTypeNames: [][]byte{[]byte("User")},
+							},
+						},
+					}),
 				},
 			},
 		}, cacheConfigs[0])
@@ -304,6 +344,26 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 					},
 				},
 			},
+			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
+				"user:User": &resolve.EntityQueryCacheKeyTemplate{
+					Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
+						Nullable: true,
+						Path:     []string{"user"},
+						Fields: []*resolve.Field{
+							{
+								Name:        []byte("__typename"),
+								Value:       &resolve.String{Path: []string{"__typename"}},
+								OnTypeNames: [][]byte{[]byte("User")},
+							},
+							{
+								Name:        []byte("id"),
+								Value:       &resolve.Scalar{Path: []string{"id"}},
+								OnTypeNames: [][]byte{[]byte("User")},
+							},
+						},
+					}),
+				},
+			},
 		}, cacheConfigs[0])
 	})
 
@@ -354,6 +414,26 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 					},
 				},
 			},
+			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
+				"user:User": &resolve.EntityQueryCacheKeyTemplate{
+					Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
+						Nullable: true,
+						Path:     []string{"user"},
+						Fields: []*resolve.Field{
+							{
+								Name:        []byte("__typename"),
+								Value:       &resolve.String{Path: []string{"__typename"}},
+								OnTypeNames: [][]byte{[]byte("User")},
+							},
+							{
+								Name:        []byte("id"),
+								Value:       &resolve.Scalar{Path: []string{"id"}},
+								OnTypeNames: [][]byte{[]byte("User")},
+							},
+						},
+					}),
+				},
+			},
 		}, cacheConfigs[0])
 	})
 
@@ -385,6 +465,26 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 							{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
 						},
 					},
+				},
+			},
+			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
+				"user:User": &resolve.EntityQueryCacheKeyTemplate{
+					Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
+						Nullable: true,
+						Path:     []string{"user"},
+						Fields: []*resolve.Field{
+							{
+								Name:        []byte("__typename"),
+								Value:       &resolve.String{Path: []string{"__typename"}},
+								OnTypeNames: [][]byte{[]byte("User")},
+							},
+							{
+								Name:        []byte("id"),
+								Value:       &resolve.Scalar{Path: []string{"id"}},
+								OnTypeNames: [][]byte{[]byte("User")},
+							},
+						},
+					}),
 				},
 			},
 		}, cacheConfigs[0])
@@ -436,7 +536,7 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 				},
 			},
 			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
-				"User": &resolve.EntityQueryCacheKeyTemplate{
+				"user:User": &resolve.EntityQueryCacheKeyTemplate{
 					Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
 						Nullable: true,
 						Path:     []string{"user"},
@@ -519,6 +619,31 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 					},
 				},
 			},
+			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
+				"user:User": &resolve.EntityQueryCacheKeyTemplate{
+					Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
+						Nullable: true,
+						Path:     []string{"user"},
+						Fields: []*resolve.Field{
+							{
+								Name:        []byte("__typename"),
+								Value:       &resolve.String{Path: []string{"__typename"}},
+								OnTypeNames: [][]byte{[]byte("User")},
+							},
+							{
+								Name:        []byte("id"),
+								Value:       &resolve.Scalar{Path: []string{"id"}},
+								OnTypeNames: [][]byte{[]byte("User")},
+							},
+							{
+								Name:        []byte("username"),
+								Value:       &resolve.String{Path: []string{"username"}},
+								OnTypeNames: [][]byte{[]byte("User")},
+							},
+						},
+					}),
+				},
+			},
 		}, cacheConfigs[0])
 	})
 
@@ -597,7 +722,304 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 					},
 				},
 			},
+			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
+				"userByIdAndName:User": &resolve.EntityQueryCacheKeyTemplate{
+					Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
+						Nullable: true,
+						Path:     []string{"userByIdAndName"},
+						Fields: []*resolve.Field{
+							{
+								Name:        []byte("__typename"),
+								Value:       &resolve.String{Path: []string{"__typename"}},
+								OnTypeNames: [][]byte{[]byte("User")},
+							},
+							{
+								Name:        []byte("id"),
+								Value:       &resolve.Scalar{Path: []string{"id"}},
+								OnTypeNames: [][]byte{[]byte("User")},
+							},
+							{
+								Name:        []byte("username"),
+								Value:       &resolve.String{Path: []string{"username"}},
+								OnTypeNames: [][]byte{[]byte("User")},
+							},
+						},
+					}),
+				},
+			},
 		}, cacheConfigs[0])
+	})
+
+	t.Run("aliased root fields get separate cache tracking", func(t *testing.T) {
+		// When query has `a: user(id: $id1) { ... } b: user(id: $id2) { ... }`,
+		// each aliased root field produces a separate fetch with its own RootFields entry and Args.
+		// The planner creates separate fetches because the aliases have different variables.
+		rootFieldCaching := plan.RootFieldCacheConfigurations{
+			{
+				TypeName:  "Query",
+				FieldName: "user",
+				CacheName: "default",
+				TTL:       30 * time.Second,
+				EntityKeyMappings: []plan.EntityKeyMapping{
+					{
+						EntityTypeName: "User",
+						FieldMappings: []plan.FieldMapping{
+							{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+						},
+					},
+				},
+			},
+		}
+
+		config := newEntityKeyMappingTestConfig(t, rootFieldCaching, nil, sdl, keys)
+		cacheConfigs := planAndExtractCacheConfig(t, definition,
+			`query Q($id1: ID!, $id2: ID!) { a: user(id: $id1) { id username } b: user(id: $id2) { id username } }`, "Q", config)
+
+		// Each alias gets its own fetch because they have different variables,
+		// so the planner creates 2 separate fetches with 1 root field entry each.
+		require.Equal(t, 2, len(cacheConfigs), "should have 2 fetches (one per alias)")
+
+		assert.Equal(t, resolve.FetchCacheConfiguration{
+			Enabled:   true,
+			CacheName: "default",
+			TTL:       30 * time.Second,
+			CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{
+				RootFields: []resolve.QueryField{
+					{
+						Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+						Args: []resolve.FieldArgument{
+							{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id1"}, Renderer: resolve.NewJSONVariableRenderer()}},
+						},
+					},
+				},
+				EntityKeyMappings: []resolve.EntityKeyMappingConfig{
+					{
+						EntityTypeName: "User",
+						FieldMappings: []resolve.EntityFieldMappingConfig{
+							{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+						},
+					},
+				},
+			},
+			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
+				"a:User": &resolve.EntityQueryCacheKeyTemplate{
+					Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
+						Nullable: true,
+						Path:     []string{"a"},
+						Fields: []*resolve.Field{
+							{
+								Name:        []byte("__typename"),
+								Value:       &resolve.String{Path: []string{"__typename"}},
+								OnTypeNames: [][]byte{[]byte("User")},
+							},
+							{
+								Name:        []byte("id"),
+								Value:       &resolve.Scalar{Path: []string{"id"}},
+								OnTypeNames: [][]byte{[]byte("User")},
+							},
+						},
+					}),
+				},
+			},
+		}, cacheConfigs[0])
+
+		assert.Equal(t, resolve.FetchCacheConfiguration{
+			Enabled:   true,
+			CacheName: "default",
+			TTL:       30 * time.Second,
+			CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{
+				RootFields: []resolve.QueryField{
+					{
+						Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+						Args: []resolve.FieldArgument{
+							{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id2"}, Renderer: resolve.NewJSONVariableRenderer()}},
+						},
+					},
+				},
+				EntityKeyMappings: []resolve.EntityKeyMappingConfig{
+					{
+						EntityTypeName: "User",
+						FieldMappings: []resolve.EntityFieldMappingConfig{
+							{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+						},
+					},
+				},
+			},
+			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
+				"b:User": &resolve.EntityQueryCacheKeyTemplate{
+					Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
+						Nullable: true,
+						Path:     []string{"b"},
+						Fields: []*resolve.Field{
+							{
+								Name:        []byte("__typename"),
+								Value:       &resolve.String{Path: []string{"__typename"}},
+								OnTypeNames: [][]byte{[]byte("User")},
+							},
+							{
+								Name:        []byte("id"),
+								Value:       &resolve.Scalar{Path: []string{"id"}},
+								OnTypeNames: [][]byte{[]byte("User")},
+							},
+						},
+					}),
+				},
+			},
+		}, cacheConfigs[1])
+	})
+
+	t.Run("aliased root fields use alias in entity cache key path", func(t *testing.T) {
+		// When a query uses aliases like `a: user(id: $id1) { ... }`, the
+		// RootFieldL1EntityCacheKeyTemplates must use the alias ("a") as the
+		// response path, not the schema field name ("user"). The response JSON
+		// is keyed by alias, so the template path must match.
+		rootFieldCaching := plan.RootFieldCacheConfigurations{
+			{
+				TypeName:  "Query",
+				FieldName: "user",
+				CacheName: "default",
+				TTL:       30 * time.Second,
+				EntityKeyMappings: []plan.EntityKeyMapping{
+					{
+						EntityTypeName: "User",
+						FieldMappings: []plan.FieldMapping{
+							{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+						},
+					},
+				},
+			},
+		}
+
+		config := newEntityKeyMappingTestConfig(t, rootFieldCaching, nil, sdl, keys)
+		cacheConfigs := planAndExtractCacheConfig(t, definition,
+			`query Q($id: ID!) { myUser: user(id: $id) { id username } }`, "Q", config)
+
+		require.Equal(t, 1, len(cacheConfigs), "should have 1 fetch")
+
+		// The entity cache key template path must use the alias "myUser", not "user"
+		assert.Equal(t, resolve.FetchCacheConfiguration{
+			Enabled:   true,
+			CacheName: "default",
+			TTL:       30 * time.Second,
+			CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{
+				RootFields: []resolve.QueryField{
+					{
+						Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+						Args: []resolve.FieldArgument{
+							{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
+						},
+					},
+				},
+				EntityKeyMappings: []resolve.EntityKeyMappingConfig{
+					{
+						EntityTypeName: "User",
+						FieldMappings: []resolve.EntityFieldMappingConfig{
+							{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+						},
+					},
+				},
+			},
+			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
+				"myUser:User": &resolve.EntityQueryCacheKeyTemplate{
+					Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
+						Nullable: true,
+						Path:     []string{"myUser"},
+						Fields: []*resolve.Field{
+							{
+								Name:        []byte("__typename"),
+								Value:       &resolve.String{Path: []string{"__typename"}},
+								OnTypeNames: [][]byte{[]byte("User")},
+							},
+							{
+								Name:        []byte("id"),
+								Value:       &resolve.Scalar{Path: []string{"id"}},
+								OnTypeNames: [][]byte{[]byte("User")},
+							},
+						},
+					}),
+				},
+			},
+		}, cacheConfigs[0])
+	})
+
+	t.Run("multi-arg root field keeps args together", func(t *testing.T) {
+		// Regression: a root field with multiple arguments (e.g., userByIdAndName(id, username))
+		// must produce exactly 1 RootFields entry with both args, not split them into separate entries.
+		rootFieldCaching := plan.RootFieldCacheConfigurations{
+			{
+				TypeName:  "Query",
+				FieldName: "userByIdAndName",
+				CacheName: "default",
+				TTL:       30 * time.Second,
+				EntityKeyMappings: []plan.EntityKeyMapping{
+					{
+						EntityTypeName: "User",
+						FieldMappings: []plan.FieldMapping{
+							{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+							{EntityKeyField: "username", ArgumentPath: []string{"username"}},
+						},
+					},
+				},
+			},
+		}
+
+		config := newEntityKeyMappingTestConfig(t, rootFieldCaching, nil, sdl, keys)
+		cacheConfigs := planAndExtractCacheConfig(t, definition,
+			`query Q($id: ID!, $username: String!) { userByIdAndName(id: $id, username: $username) { id username } }`, "Q", config)
+
+		require.Equal(t, 1, len(cacheConfigs), "should have 1 fetch")
+		cc := cacheConfigs[0]
+
+		// Exactly 1 root field entry (not split by args)
+		require.Equal(t, 1, len(cc.CacheKeyTemplate.(*resolve.RootQueryCacheKeyTemplate).RootFields),
+			"multi-arg field must produce exactly 1 RootFields entry, not split by args")
+
+		// The entry has both args
+		assert.Equal(t, resolve.FetchCacheConfiguration{
+			Enabled:   true,
+			CacheName: "default",
+			TTL:       30 * time.Second,
+			CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{
+				RootFields: []resolve.QueryField{
+					{
+						Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "userByIdAndName"},
+						Args: []resolve.FieldArgument{
+							{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
+							{Name: "username", Variable: &resolve.ContextVariable{Path: []string{"username"}, Renderer: resolve.NewJSONVariableRenderer()}},
+						},
+					},
+				},
+				EntityKeyMappings: []resolve.EntityKeyMappingConfig{
+					{
+						EntityTypeName: "User",
+						FieldMappings: []resolve.EntityFieldMappingConfig{
+							{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+							{EntityKeyField: "username", ArgumentPath: []string{"username"}},
+						},
+					},
+				},
+			},
+			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
+				"userByIdAndName:User": &resolve.EntityQueryCacheKeyTemplate{
+					Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
+						Nullable: true,
+						Path:     []string{"userByIdAndName"},
+						Fields: []*resolve.Field{
+							{
+								Name:        []byte("__typename"),
+								Value:       &resolve.String{Path: []string{"__typename"}},
+								OnTypeNames: [][]byte{[]byte("User")},
+							},
+							{
+								Name:        []byte("id"),
+								Value:       &resolve.Scalar{Path: []string{"id"}},
+								OnTypeNames: [][]byte{[]byte("User")},
+							},
+						},
+					}),
+				},
+			},
+		}, cc)
 	})
 
 	t.Run("nested object key", func(t *testing.T) {
@@ -722,6 +1144,44 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 							{EntityKeyField: "b", ArgumentPath: []string{"b"}},
 						},
 					},
+				},
+			},
+			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
+				"account:Account": &resolve.EntityQueryCacheKeyTemplate{
+					Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
+						Nullable: true,
+						Path:     []string{"account"},
+						Fields: []*resolve.Field{
+							{
+								Name:        []byte("__typename"),
+								Value:       &resolve.String{Path: []string{"__typename"}},
+								OnTypeNames: [][]byte{[]byte("Account")},
+							},
+							{
+								Name:        []byte("id"),
+								Value:       &resolve.Scalar{Path: []string{"id"}},
+								OnTypeNames: [][]byte{[]byte("Account")},
+							},
+							{
+								Name: []byte("info"),
+								Value: &resolve.Object{
+									Nullable: true,
+									Path:     []string{"info"},
+									Fields: []*resolve.Field{
+										{
+											Name:  []byte("a"),
+											Value: &resolve.Scalar{Path: []string{"a"}},
+										},
+										{
+											Name:  []byte("b"),
+											Value: &resolve.Scalar{Path: []string{"b"}},
+										},
+									},
+								},
+								OnTypeNames: [][]byte{[]byte("Account")},
+							},
+						},
+					}),
 				},
 			},
 		}, cacheConfigs[0])

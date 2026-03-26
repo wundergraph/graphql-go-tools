@@ -70,21 +70,21 @@ func (r *RootQueryCacheKeyTemplate) RenderCacheKeys(a arena.Arena, ctx *Context,
 	jsonBytes := arena.AllocateSlice[byte](a, 0, 64)
 
 	for _, item := range items {
-		// Create KeyEntry for each root field
 		keyEntries := make([]string, 0, len(r.RootFields))
-		for _, field := range r.RootFields {
-			if len(r.EntityKeyMappings) > 0 {
-				// Entity key mapping configured: use entity key format INSTEAD of root field key
-				for _, mapping := range r.EntityKeyMappings {
-					entityKey, jsonBytesOut := r.renderDerivedEntityKey(a, ctx, jsonBytes, mapping, prefix)
-					jsonBytes = jsonBytesOut
-					if entityKey != "" {
-						keyEntries = append(keyEntries, entityKey)
-					}
-					// If entityKey is empty (missing arg), keyEntries stays empty → no caching
+
+		// Entity key mappings are independent of root fields — render once per item
+		if len(r.EntityKeyMappings) > 0 {
+			for _, mapping := range r.EntityKeyMappings {
+				entityKey, jsonBytesOut := r.renderDerivedEntityKey(a, ctx, jsonBytes, mapping, prefix)
+				jsonBytes = jsonBytesOut
+				if entityKey != "" {
+					keyEntries = append(keyEntries, entityKey)
 				}
-			} else {
-				// No entity key mapping: use root field key (current behavior)
+				// If entityKey is empty (missing arg), keyEntries stays empty → no caching
+			}
+		} else {
+			// No entity key mapping: use root field keys
+			for _, field := range r.RootFields {
 				var key string
 				key, jsonBytes = r.renderField(a, ctx, item, jsonBytes, field)
 				if prefix != "" {
@@ -98,6 +98,7 @@ func (r *RootQueryCacheKeyTemplate) RenderCacheKeys(a arena.Arena, ctx *Context,
 				keyEntries = append(keyEntries, key)
 			}
 		}
+
 		cacheKeys = append(cacheKeys, &CacheKey{
 			Item: item,
 			Keys: keyEntries,
@@ -325,6 +326,13 @@ func (e *EntityQueryCacheKeyTemplate) renderCacheKeys(a arena.Arena, ctx *Contex
 			}
 		}
 
+		// Skip entities with empty key objects — @key fields are missing from
+		// the query selection. Such keys would collide for all entities of the
+		// same type, causing incorrect cache sharing.
+		if keysObj.GetObject().Len() == 0 {
+			continue
+		}
+
 		keyObj.Set(a, "key", keysObj)
 
 		// Marshal to JSON and write to buffer
@@ -369,6 +377,10 @@ func (e *EntityQueryCacheKeyTemplate) resolveFieldValue(a arena.Arena, valueNode
 		return data.Get(node.Path...)
 	case *Boolean:
 		// Handle boolean type
+		return data.Get(node.Path...)
+	case *Enum:
+		return data.Get(node.Path...)
+	case *BigInt:
 		return data.Get(node.Path...)
 	case *CustomNode:
 		return data.Get(node.Path...)

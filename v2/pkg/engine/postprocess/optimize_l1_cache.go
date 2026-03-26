@@ -3,6 +3,7 @@ package postprocess
 import (
 	"bytes"
 	"slices"
+	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
@@ -163,7 +164,12 @@ func (o *optimizeL1Cache) collectRootFieldProvidersRecursive(node *resolve.Fetch
 				if len(sf.Caching.RootFieldL1EntityCacheKeyTemplates) > 0 {
 					deps := sf.Dependencies()
 					var entityTypes []string
-					for entityType := range sf.Caching.RootFieldL1EntityCacheKeyTemplates {
+					for compositeKey := range sf.Caching.RootFieldL1EntityCacheKeyTemplates {
+						// Keys are "rootField:EntityType" — extract the entity type after the colon
+						_, entityType, ok := strings.Cut(compositeKey, ":")
+						if !ok {
+							entityType = compositeKey
+						}
 						entityTypes = append(entityTypes, entityType)
 					}
 					// Get providesData from FetchInfo
