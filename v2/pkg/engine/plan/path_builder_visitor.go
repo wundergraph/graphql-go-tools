@@ -1367,6 +1367,8 @@ func (c *pathBuilderVisitor) addPlannerPathForTypename(
 		fragmentRef:      ast.InvalidRef,
 		dsHash:           c.planners[plannerIndex].DataSourceConfiguration().Hash(),
 		pathType:         PathTypeField,
+		deferID:          field.deferID,
+		deferredField:    field.deferField,
 	})
 	return true
 }
