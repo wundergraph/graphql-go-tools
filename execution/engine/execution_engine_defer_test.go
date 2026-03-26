@@ -2084,4 +2084,235 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 		})
 	})
 
+	t.Run("named fragments with defer", func(t *testing.T) {
+		definition := `
+			type Query { products: [Product!]! }
+			type Product {
+				id:    ID!
+				sku:   String!
+				name:  String!
+				price: Float!
+			}
+		`
+		schema, err := graphql.NewSchemaFromString(definition)
+		require.NoError(t, err)
+
+		firstSubgraphSDL := `
+			type Query { products: [Product!]! }
+			type Product @key(fields: "id") {
+				id:  ID!
+				sku: String!
+			}
+		`
+		firstSubgraphDS := mustGraphqlDataSourceConfiguration(t,
+			"id-1",
+			mustFactory(t, testConditionalNetHttpClient(t, conditionalTestCase{
+				reportUnused: true,
+				expectedHost: "first",
+				expectedPath: "/",
+				responses: map[string]sendResponse{
+					`{"query":"{products {___typename: __typename __typename id}}"}`: {
+						statusCode: 200,
+						body:       `{"data":{"products":[{"___typename":"Product","__typename":"Product","id":"1"},{"___typename":"Product","__typename":"Product","id":"2"}]}}`,
+					},
+					`{"query":"{products {___typename: __typename}}"}`: {
+						statusCode: 200,
+						body:       `{"data":{"products":[{"___typename":"Product"},{"___typename":"Product"}]}}`,
+					},
+					`{"query":"{products {id}}"}`: {
+						statusCode: 200,
+						body:       `{"data":{"products":[{"id":"1"},{"id":"2"}]}}`,
+					},
+					`{"query":"{products {sku}}"}`: {
+						statusCode: 200,
+						body:       `{"data":{"products":[{"sku":"sku-1"},{"sku":"sku-2"}]}}`,
+					},
+					`{"query":"{products {id sku}}"}`: {
+						statusCode: 200,
+						body:       `{"data":{"products":[{"id":"1","sku":"sku-1"},{"id":"2","sku":"sku-2"}]}}`,
+					},
+					`{"query":"{products {id __typename}}"}`: {
+						statusCode: 200,
+						body:       `{"data":{"products":[{"id":"1","__typename":"Product"},{"id":"2","__typename":"Product"}]}}`,
+					},
+				},
+			})),
+			&plan.DataSourceMetadata{
+				RootNodes: []plan.TypeField{
+					{TypeName: "Query", FieldNames: []string{"products"}},
+					{TypeName: "Product", FieldNames: []string{"id", "sku"}},
+				},
+				FederationMetaData: plan.FederationMetaData{
+					Keys: plan.FederationFieldConfigurations{
+						{TypeName: "Product", SelectionSet: "id"},
+					},
+				},
+			},
+			mustConfiguration(t, graphql_datasource.ConfigurationInput{
+				Fetch: &graphql_datasource.FetchConfiguration{URL: "https://first/", Method: "POST"},
+				SchemaConfiguration: mustSchemaConfig(t,
+					&graphql_datasource.FederationConfiguration{Enabled: true, ServiceSDL: firstSubgraphSDL},
+					firstSubgraphSDL,
+				),
+			}),
+		)
+
+		secondSubgraphSDL := `
+			type Product @key(fields: "id") {
+				id:    ID!
+				name:  String!
+				price: Float!
+			}
+		`
+		secondSubgraphDS := mustGraphqlDataSourceConfiguration(t,
+			"id-2",
+			mustFactory(t, testConditionalNetHttpClient(t, conditionalTestCase{
+				reportUnused: true,
+				expectedHost: "second",
+				expectedPath: "/",
+				responses: map[string]sendResponse{
+					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename name}}}","variables":{"representations":[{"__typename":"Product","id":"1"},{"__typename":"Product","id":"2"}]}}`: {
+						statusCode: 200,
+						body:       `{"data":{"_entities":[{"__typename":"Product","name":"Product One"},{"__typename":"Product","name":"Product Two"}]}}`,
+					},
+					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename price}}}","variables":{"representations":[{"__typename":"Product","id":"1"},{"__typename":"Product","id":"2"}]}}`: {
+						statusCode: 200,
+						body:       `{"data":{"_entities":[{"__typename":"Product","price":9.99},{"__typename":"Product","price":19.99}]}}`,
+					},
+					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename name price}}}","variables":{"representations":[{"__typename":"Product","id":"1"},{"__typename":"Product","id":"2"}]}}`: {
+						statusCode: 200,
+						body:       `{"data":{"_entities":[{"__typename":"Product","name":"Product One","price":9.99},{"__typename":"Product","name":"Product Two","price":19.99}]}}`,
+					},
+				},
+			})),
+			&plan.DataSourceMetadata{
+				RootNodes: []plan.TypeField{
+					{TypeName: "Product", FieldNames: []string{"id", "name", "price"}},
+				},
+				FederationMetaData: plan.FederationMetaData{
+					Keys: plan.FederationFieldConfigurations{
+						{TypeName: "Product", SelectionSet: "id"},
+					},
+				},
+			},
+			mustConfiguration(t, graphql_datasource.ConfigurationInput{
+				Fetch: &graphql_datasource.FetchConfiguration{URL: "https://second/", Method: "POST"},
+				SchemaConfiguration: mustSchemaConfig(t,
+					&graphql_datasource.FederationConfiguration{Enabled: true, ServiceSDL: secondSubgraphSDL},
+					secondSubgraphSDL,
+				),
+			}),
+		)
+
+		dataSources := []plan.DataSource{firstSubgraphDS, secondSubgraphDS}
+
+		t.Run("category A - defer on named fragment spread", func(t *testing.T) {
+			t.Run("A1 - defer sub1 field sku via fragment spread", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `fragment SkuFields on Product { sku } { products { ...SkuFields @defer } }`}
+				},
+				dataSources: dataSources,
+				expectedResponse: `{"data":{"products":[{},{}]},"hasNext":true}
+{"incremental":[{"data":{"sku":"sku-1"},"path":["products",0]},{"data":{"sku":"sku-2"},"path":["products",1]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("A2 - defer sub2 field name via fragment spread", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `fragment NameFields on Product { name } { products { ...NameFields @defer } }`}
+				},
+				dataSources: dataSources,
+				expectedResponse: `{"data":{"products":[{},{}]},"hasNext":true}
+{"incremental":[{"data":{"name":"Product One"},"path":["products",0]},{"data":{"name":"Product Two"},"path":["products",1]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("A3 - id non-deferred, sub2 name and price deferred via fragment", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `fragment DetailFields on Product { name price } { products { id ...DetailFields @defer } }`}
+				},
+				dataSources: dataSources,
+				expectedResponse: `{"data":{"products":[{"id":"1"},{"id":"2"}]},"hasNext":true}
+{"incremental":[{"data":{"name":"Product One","price":9.99},"path":["products",0]},{"data":{"name":"Product Two","price":19.99},"path":["products",1]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("A4 - parallel fragment spreads from different subgraphs, both deferred", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `fragment SkuFrag on Product { sku } fragment NameFrag on Product { name } { products { ...SkuFrag @defer ...NameFrag @defer } }`}
+				},
+				dataSources: dataSources,
+				expectedResponse: `{"data":{"products":[{},{}]},"hasNext":true}
+{"incremental":[{"data":{"sku":"sku-1"},"path":["products",0]},{"data":{"sku":"sku-2"},"path":["products",1]}],"hasNext":true}
+{"incremental":[{"data":{"name":"Product One"},"path":["products",0]},{"data":{"name":"Product Two"},"path":["products",1]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+		})
+
+		t.Run("category B - defer inside named fragment definition", func(t *testing.T) {
+			t.Run("B1 - defer sub1 field sku inside named fragment", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `fragment ProductFrag on Product { id ... @defer { sku } } { products { ...ProductFrag } }`}
+				},
+				dataSources: dataSources,
+				expectedResponse: `{"data":{"products":[{"id":"1"},{"id":"2"}]},"hasNext":true}
+{"incremental":[{"data":{"sku":"sku-1"},"path":["products",0]},{"data":{"sku":"sku-2"},"path":["products",1]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("B2 - defer sub2 field name inside named fragment", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `fragment ProductFrag on Product { id ... @defer { name } } { products { ...ProductFrag } }`}
+				},
+				dataSources: dataSources,
+				expectedResponse: `{"data":{"products":[{"id":"1"},{"id":"2"}]},"hasNext":true}
+{"incremental":[{"data":{"name":"Product One"},"path":["products",0]},{"data":{"name":"Product Two"},"path":["products",1]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("B3 - parallel sub1 and sub2 defers inside named fragment", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `fragment ProductFrag on Product { id ... @defer { sku } ... @defer { name } } { products { ...ProductFrag } }`}
+				},
+				dataSources: dataSources,
+				expectedResponse: `{"data":{"products":[{"id":"1"},{"id":"2"}]},"hasNext":true}
+{"incremental":[{"data":{"sku":"sku-1"},"path":["products",0]},{"data":{"sku":"sku-2"},"path":["products",1]}],"hasNext":true}
+{"incremental":[{"data":{"name":"Product One"},"path":["products",0]},{"data":{"name":"Product Two"},"path":["products",1]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+		})
+
+		t.Run("category C - defer on spread containing inner defers", func(t *testing.T) {
+			t.Run("C1 - multiple sub1 fields id and sku bundled in single deferred spread", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `fragment SkuIdFrag on Product { id sku } { products { ...SkuIdFrag @defer } }`}
+				},
+				dataSources: dataSources,
+				expectedResponse: `{"data":{"products":[{},{}]},"hasNext":true}
+{"incremental":[{"data":{"id":"1","sku":"sku-1"},"path":["products",0]},{"data":{"id":"2","sku":"sku-2"},"path":["products",1]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("C2 - outer spread deferred delivering sub1 sku, with nested inner sub2 name defer", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `fragment SkuWithName on Product { sku ... @defer { name } } { products { id ...SkuWithName @defer } }`}
+				},
+				dataSources: dataSources,
+				expectedResponse: `{"data":{"products":[{"id":"1"},{"id":"2"}]},"hasNext":true}
+{"incremental":[{"data":{"sku":"sku-1"},"path":["products",0]},{"data":{"sku":"sku-2"},"path":["products",1]}],"hasNext":true}
+{"incremental":[{"data":{"name":"Product One"},"path":["products",0]},{"data":{"name":"Product Two"},"path":["products",1]}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+		})
+	})
+
 }
