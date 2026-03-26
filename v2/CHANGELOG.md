@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.267](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.266...v2.0.0-rc.267) (2026-03-26)
+
+
+### Features
+
+* check slicing Arguments passed when requireOneSlicingArgument ([#1456](https://github.com/wundergraph/graphql-go-tools/issues/1456)) ([72c181f](https://github.com/wundergraph/graphql-go-tools/commit/72c181f8a5316f974985bcd2c7f364bf3fdc997c))
+
 ## [2.0.0-rc.266](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.265...v2.0.0-rc.266) (2026-03-26)
 
 
