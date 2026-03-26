@@ -231,6 +231,11 @@ func (p *printVisitor) EnterVariableDefinition(ref int) {
 		p.write(literal.LPAREN)
 	}
 
+	if p.document.VariableDefinitions[ref].Description.IsDefined {
+		p.must(p.document.PrintDescription(p.document.VariableDefinitions[ref].Description, nil, 0, p.out))
+		p.write(literal.SPACE)
+	}
+
 	p.must(p.document.PrintValue(p.document.VariableDefinitions[ref].VariableValue, p.out))
 	p.write(literal.COLON)
 	p.write(literal.SPACE)

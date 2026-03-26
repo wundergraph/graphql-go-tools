@@ -1,0 +1,18 @@
+"""
+Get an employee by their ID
+"""
+query FindEmployee(
+  "The unique employee identifier"
+  $id: ID!
+  """
+  The department to filter by.
+  Optional parameter for narrowing results.
+  """
+  $department: String
+  $limit: Int = 10
+) {
+  employee(id: $id) {
+    id
+    name
+  }
+}

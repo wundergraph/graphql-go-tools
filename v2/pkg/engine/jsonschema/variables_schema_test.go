@@ -1568,4 +1568,240 @@ func TestBuildJsonSchema(t *testing.T) {
 		// Compare actual JSON with expected JSON
 		assert.JSONEq(t, expectedJSON, string(data), "JSON schema does not match expected structure")
 	})
+
+	t.Run("variable with description propagated to JSON schema", func(t *testing.T) {
+		schemaSDL := scalarDefinitions + `
+			schema {
+				query: Query
+			}
+
+			type Query {
+				employee(id: ID!): Employee
+			}
+
+			type Employee {
+				id: ID!
+				name: String
+			}
+		`
+
+		operationSDL := `
+			"""
+			Get an employee by their ID
+			"""
+			query FindEmployee(
+				"The unique employee identifier"
+				$id: ID!
+			) {
+				employee(id: $id) {
+					id
+					name
+				}
+			}
+		`
+
+		definitionDoc, report := astparser.ParseGraphqlDocumentString(schemaSDL)
+		require.False(t, report.HasErrors(), "schema parsing failed")
+
+		operationDoc, report := astparser.ParseGraphqlDocumentString(operationSDL)
+		require.False(t, report.HasErrors(), "operation parsing failed")
+
+		schema, err := BuildJsonSchema(&operationDoc, &definitionDoc)
+		require.NoError(t, err)
+
+		data, err := json.MarshalIndent(schema, "", "  ")
+		require.NoError(t, err)
+
+		expectedJSON := `{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "The unique employee identifier"
+    }
+  },
+  "required": [
+    "id"
+  ],
+  "additionalProperties": false,
+  "nullable": false
+}`
+
+		assert.JSONEq(t, expectedJSON, string(data))
+	})
+
+	t.Run("variable description fallback to argument description from schema", func(t *testing.T) {
+		schemaSDL := scalarDefinitions + `
+			schema {
+				query: Query
+			}
+
+			type Query {
+				employee(
+					"The employee ID from the HR system"
+					id: ID!
+				): Employee
+			}
+
+			type Employee {
+				id: ID!
+				name: String
+			}
+		`
+
+		// Operation without variable description - should fall back to argument description
+		operationSDL := `
+			query FindEmployee($id: ID!) {
+				employee(id: $id) {
+					id
+					name
+				}
+			}
+		`
+
+		definitionDoc, report := astparser.ParseGraphqlDocumentString(schemaSDL)
+		require.False(t, report.HasErrors(), "schema parsing failed")
+
+		operationDoc, report := astparser.ParseGraphqlDocumentString(operationSDL)
+		require.False(t, report.HasErrors(), "operation parsing failed")
+
+		schema, err := BuildJsonSchema(&operationDoc, &definitionDoc)
+		require.NoError(t, err)
+
+		data, err := json.MarshalIndent(schema, "", "  ")
+		require.NoError(t, err)
+
+		expectedJSON := `{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "The employee ID from the HR system"
+    }
+  },
+  "required": [
+    "id"
+  ],
+  "additionalProperties": false,
+  "nullable": false
+}`
+
+		assert.JSONEq(t, expectedJSON, string(data))
+	})
+
+	t.Run("variable description takes priority over argument description", func(t *testing.T) {
+		schemaSDL := scalarDefinitions + `
+			schema {
+				query: Query
+			}
+
+			type Query {
+				employee(
+					"The employee ID from the HR system"
+					id: ID!
+				): Employee
+			}
+
+			type Employee {
+				id: ID!
+				name: String
+			}
+		`
+
+		// Operation with its own variable description - should take priority
+		operationSDL := `
+			query FindEmployee(
+				"The unique employee identifier"
+				$id: ID!
+			) {
+				employee(id: $id) {
+					id
+					name
+				}
+			}
+		`
+
+		definitionDoc, report := astparser.ParseGraphqlDocumentString(schemaSDL)
+		require.False(t, report.HasErrors(), "schema parsing failed")
+
+		operationDoc, report := astparser.ParseGraphqlDocumentString(operationSDL)
+		require.False(t, report.HasErrors(), "operation parsing failed")
+
+		schema, err := BuildJsonSchema(&operationDoc, &definitionDoc)
+		require.NoError(t, err)
+
+		data, err := json.MarshalIndent(schema, "", "  ")
+		require.NoError(t, err)
+
+		expectedJSON := `{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "The unique employee identifier"
+    }
+  },
+  "required": [
+    "id"
+  ],
+  "additionalProperties": false,
+  "nullable": false
+}`
+
+		assert.JSONEq(t, expectedJSON, string(data))
+	})
+
+	t.Run("no description when neither variable nor argument has one", func(t *testing.T) {
+		schemaSDL := scalarDefinitions + `
+			schema {
+				query: Query
+			}
+
+			type Query {
+				employee(id: ID!): Employee
+			}
+
+			type Employee {
+				id: ID!
+				name: String
+			}
+		`
+
+		operationSDL := `
+			query FindEmployee($id: ID!) {
+				employee(id: $id) {
+					id
+					name
+				}
+			}
+		`
+
+		definitionDoc, report := astparser.ParseGraphqlDocumentString(schemaSDL)
+		require.False(t, report.HasErrors(), "schema parsing failed")
+
+		operationDoc, report := astparser.ParseGraphqlDocumentString(operationSDL)
+		require.False(t, report.HasErrors(), "operation parsing failed")
+
+		schema, err := BuildJsonSchema(&operationDoc, &definitionDoc)
+		require.NoError(t, err)
+
+		data, err := json.MarshalIndent(schema, "", "  ")
+		require.NoError(t, err)
+
+		expectedJSON := `{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id"
+  ],
+  "additionalProperties": false,
+  "nullable": false
+}`
+
+		assert.JSONEq(t, expectedJSON, string(data))
+	})
 }

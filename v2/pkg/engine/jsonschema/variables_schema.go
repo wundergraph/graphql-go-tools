@@ -131,6 +131,17 @@ func (v *VariablesSchemaBuilder) EnterVariableDefinition(ref int) {
 		v.schema.Required = append(v.schema.Required, varName)
 	}
 
+	// Set variable description: use the variable's own description if present (AC2),
+	// otherwise fall back to the field argument description from the schema (AC3)
+	if v.operationDocument.VariableDefinitions[ref].Description.IsDefined {
+		varSchema.Description = v.operationDocument.VariableDefinitionDescriptionString(ref)
+	} else {
+		// Fall back to argument description from schema definition
+		if desc := v.findArgumentDescriptionForVariable(varName); desc != "" {
+			varSchema.Description = desc
+		}
+	}
+
 	// Set default value if exists
 	if v.operationDocument.VariableDefinitionHasDefaultValue(ref) {
 		defaultValue := v.operationDocument.VariableDefinitionDefaultValue(ref)
@@ -148,6 +159,85 @@ func (v *VariablesSchemaBuilder) EnterVariableDefinition(ref int) {
 
 	// Add variable to schema
 	v.schema.Properties[varName] = varSchema
+}
+
+// findArgumentDescriptionForVariable looks up the argument description from the schema definition
+// for a variable by matching it to field arguments in the operation's root selection set.
+func (v *VariablesSchemaBuilder) findArgumentDescriptionForVariable(varName string) string {
+	if len(v.operationDocument.OperationDefinitions) == 0 {
+		return ""
+	}
+
+	operationDef := v.operationDocument.OperationDefinitions[0]
+	if !operationDef.HasSelections {
+		return ""
+	}
+
+	// Determine root type name
+	var rootTypeName string
+	switch operationDef.OperationType {
+	case ast.OperationTypeQuery:
+		rootTypeName = "Query"
+	case ast.OperationTypeMutation:
+		rootTypeName = "Mutation"
+	case ast.OperationTypeSubscription:
+		rootTypeName = "Subscription"
+	default:
+		return ""
+	}
+
+	rootType, exists := v.definitionDocument.Index.FirstNodeByNameStr(rootTypeName)
+	if !exists || rootType.Kind != ast.NodeKindObjectTypeDefinition {
+		return ""
+	}
+
+	// Iterate through root fields in the operation's selection set
+	selectionSetRef := operationDef.SelectionSet
+	for _, selectionRef := range v.operationDocument.SelectionSets[selectionSetRef].SelectionRefs {
+		selection := v.operationDocument.Selections[selectionRef]
+		if selection.Kind != ast.SelectionKindField {
+			continue
+		}
+
+		fieldRef := selection.Ref
+		// Check if this field has arguments referencing our variable
+		if !v.operationDocument.FieldHasArguments(fieldRef) {
+			continue
+		}
+
+		for _, argRef := range v.operationDocument.Fields[fieldRef].Arguments.Refs {
+			argValue := v.operationDocument.ArgumentValue(argRef)
+			if argValue.Kind != ast.ValueKindVariable {
+				continue
+			}
+			argVarName := v.operationDocument.VariableValueNameString(argValue.Ref)
+			if argVarName != varName {
+				continue
+			}
+
+			// Found the argument that references this variable.
+			// Look up the corresponding argument definition in the schema.
+			argName := v.operationDocument.ArgumentNameString(argRef)
+			fieldName := v.operationDocument.FieldNameString(fieldRef)
+
+			// Find this field in the root type definition
+			for _, fieldDefRef := range v.definitionDocument.ObjectTypeDefinitions[rootType.Ref].FieldsDefinition.Refs {
+				if v.definitionDocument.FieldDefinitionNameString(fieldDefRef) != fieldName {
+					continue
+				}
+				// Find the argument definition
+				for _, argDefRef := range v.definitionDocument.FieldDefinitionArgumentsDefinitions(fieldDefRef) {
+					if v.definitionDocument.InputValueDefinitionNameString(argDefRef) == argName {
+						if v.definitionDocument.InputValueDefinitions[argDefRef].Description.IsDefined {
+							return v.definitionDocument.InputValueDefinitionDescriptionString(argDefRef)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return ""
 }
 
 // GetSchema returns the built schema

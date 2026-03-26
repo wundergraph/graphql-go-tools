@@ -2986,6 +2986,41 @@ func TestParseFragmentsWithDescriptions(t *testing.T) {
 	assert.False(t, userWithoutDescFrag.Description.IsDefined, "UserWithoutDescription should not have description")
 }
 
+func TestParseVariablesWithDescriptions(t *testing.T) {
+	operationsFile, err := os.ReadFile("./testdata/variable_with_description.graphql")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	doc, report := ParseGraphqlDocumentBytes(operationsFile)
+	if report.HasErrors() {
+		t.Fatal(report)
+	}
+
+	// Verify we parsed the operation
+	require.Len(t, doc.OperationDefinitions, 1)
+
+	opDef := doc.OperationDefinitions[0]
+	require.True(t, opDef.HasVariableDefinitions)
+	require.Len(t, opDef.VariableDefinitions.Refs, 3)
+
+	// First variable: $id with single-line description
+	var1 := doc.VariableDefinitions[opDef.VariableDefinitions.Refs[0]]
+	assert.True(t, var1.Description.IsDefined, "$id should have description")
+	assert.False(t, var1.Description.IsBlockString, "$id description should be single-line")
+	assert.Equal(t, "The unique employee identifier", doc.Input.ByteSliceString(var1.Description.Content))
+
+	// Second variable: $department with block string description
+	var2 := doc.VariableDefinitions[opDef.VariableDefinitions.Refs[1]]
+	assert.True(t, var2.Description.IsDefined, "$department should have description")
+	assert.True(t, var2.Description.IsBlockString, "$department description should be block string")
+	assert.Contains(t, doc.Input.ByteSliceString(var2.Description.Content), "The department to filter by")
+
+	// Third variable: $limit without description (backward compatibility)
+	var3 := doc.VariableDefinitions[opDef.VariableDefinitions.Refs[2]]
+	assert.False(t, var3.Description.IsDefined, "$limit should not have description")
+}
+
 func BenchmarkParseStarwars(b *testing.B) {
 
 	inputFileName := "./testdata/starwars.schema.graphql"

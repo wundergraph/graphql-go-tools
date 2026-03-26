@@ -16,8 +16,9 @@ type VariableDefinitionList struct {
 
 // VariableDefinition
 // example:
-// $devicePicSize: Int = 100 @small
+// "The device picture size" $devicePicSize: Int = 100 @small
 type VariableDefinition struct {
+	Description   Description       // optional, describes the variable (September 2025 spec)
 	VariableValue Value             // $ Name
 	Colon         position.Position // :
 	Type          int               // e.g. String
@@ -92,4 +93,15 @@ func (d *Document) VariablePathByArgumentRefAndArgumentPath(argumentRef int, arg
 	}
 	// The variable path should be the variable name, e.g., "a", and then the 2nd element from the path onwards
 	return append([]string{string(variableNameBytes)}, argumentPath[1:]...), nil
+}
+
+func (d *Document) VariableDefinitionDescriptionBytes(ref int) ByteSlice {
+	if !d.VariableDefinitions[ref].Description.IsDefined {
+		return nil
+	}
+	return d.Input.ByteSlice(d.VariableDefinitions[ref].Description.Content)
+}
+
+func (d *Document) VariableDefinitionDescriptionString(ref int) string {
+	return unsafebytes.BytesToString(d.VariableDefinitionDescriptionBytes(ref))
 }
