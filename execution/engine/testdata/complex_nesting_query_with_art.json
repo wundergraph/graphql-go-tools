@@ -228,6 +228,14 @@
                     "duration_since_start_nanoseconds": 1,
                     "duration_since_start_pretty": "1ns"
                   }
+                },
+                "cache_trace": {
+                  "l1_enabled": false,
+                  "l2_enabled": false,
+                  "l1_hit": 0,
+                  "l1_miss": 0,
+                  "l2_hit": 0,
+                  "l2_miss": 0
                 }
               }
             }
@@ -368,6 +376,14 @@
                         "duration_since_start_nanoseconds": 1,
                         "duration_since_start_pretty": "1ns"
                       }
+                    },
+                    "cache_trace": {
+                      "l1_enabled": false,
+                      "l2_enabled": false,
+                      "l1_hit": 0,
+                      "l1_miss": 0,
+                      "l2_hit": 0,
+                      "l2_miss": 0
                     }
                   }
                 }
@@ -554,6 +570,14 @@
                         "duration_since_start_nanoseconds": 1,
                         "duration_since_start_pretty": "1ns"
                       }
+                    },
+                    "cache_trace": {
+                      "l1_enabled": false,
+                      "l2_enabled": false,
+                      "l1_hit": 0,
+                      "l1_miss": 0,
+                      "l2_hit": 0,
+                      "l2_miss": 0
                     }
                   }
                 }

@@ -146,7 +146,7 @@ func TestOnSubscriptionCacheCallbacks(t *testing.T) {
 				{
 					SubgraphName: "products",
 					SubscriptionEntityPopulation: plan.SubscriptionEntityPopulationConfigurations{
-						{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second},
+						{TypeName: "Product", FieldName: "updateProductPrice", CacheName: "default", TTL: 30 * time.Second},
 					},
 				},
 			}),
@@ -206,7 +206,7 @@ func TestOnSubscriptionCacheCallbacks(t *testing.T) {
 				{
 					SubgraphName: "products",
 					SubscriptionEntityPopulation: plan.SubscriptionEntityPopulationConfigurations{
-						{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second, EnableInvalidationOnKeyOnly: true},
+						{TypeName: "Product", FieldName: "updateProductPrice", CacheName: "default", TTL: 30 * time.Second, EnableInvalidationOnKeyOnly: true},
 					},
 				},
 			}),

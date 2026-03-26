@@ -1766,10 +1766,9 @@ func (v *Visitor) configureSubscriptionEntityCachePopulation(config *objectFetch
 		return
 	}
 
-	// Look up subscription entity population config with a 3-tier fallback:
+	// Look up subscription entity population config with a 2-tier fallback:
 	// 1. Exact match: type + field name (disambiguates when multiple subscription fields return the same entity type)
-	// 2. Type-only match: backward compat for configs without FieldName set
-	// 3. Union/interface resolution: check member/implementor types
+	// 2. Union/interface resolution: check member/implementor types
 	resolvedTypeName, popConfig := v.resolveSubscriptionEntityPopulationConfig(entityTypeName, subscriptionField.FieldName, fedConfig)
 	if popConfig == nil {
 		return
@@ -1837,7 +1836,7 @@ func (v *Visitor) configureSubscriptionEntityCachePopulation(config *objectFetch
 // Returns the resolved entity type name (may differ from input if an abstract type was
 // resolved to a concrete member) and the config. Returns ("", nil) if no match found.
 func (v *Visitor) resolveSubscriptionEntityPopulationConfig(entityTypeName, fieldName string, fedConfig *FederationMetaData) (string, *SubscriptionEntityPopulationConfiguration) {
-	// Tier 1: exact match on both type and field
+	// Tier 1: exact match on both type and field name
 	if config := fedConfig.SubscriptionEntityPopulation.FindByTypeAndFieldName(entityTypeName, fieldName); config != nil {
 		return entityTypeName, config
 	}

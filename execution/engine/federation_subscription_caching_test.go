@@ -338,7 +338,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			{
 				SubgraphName: "products",
 				SubscriptionEntityPopulation: plan.SubscriptionEntityPopulationConfigurations{
-					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second},
+					{TypeName: "Product", FieldName: "updateProductPrice", CacheName: "default", TTL: 30 * time.Second},
 				},
 			},
 		}
@@ -393,7 +393,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			{
 				SubgraphName: "products",
 				SubscriptionEntityPopulation: plan.SubscriptionEntityPopulationConfigurations{
-					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second},
+					{TypeName: "Product", FieldName: "updateProductPrice", CacheName: "default", TTL: 30 * time.Second},
 				},
 			},
 		}
@@ -449,7 +449,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			{
 				SubgraphName: "products",
 				SubscriptionEntityPopulation: plan.SubscriptionEntityPopulationConfigurations{
-					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second},
+					{TypeName: "Product", FieldName: "updatedPrices", CacheName: "default", TTL: 30 * time.Second},
 				},
 			},
 		}
@@ -583,7 +583,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			{
 				SubgraphName: "products",
 				SubscriptionEntityPopulation: plan.SubscriptionEntityPopulationConfigurations{
-					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second},
+					{TypeName: "Product", FieldName: "updateProductPrice", CacheName: "default", TTL: 30 * time.Second},
 				},
 			},
 			{
@@ -663,7 +663,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			{
 				SubgraphName: "products",
 				SubscriptionEntityPopulation: plan.SubscriptionEntityPopulationConfigurations{
-					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: true},
+					{TypeName: "Product", FieldName: "updateProductPrice", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: true},
 				},
 			},
 		}
@@ -722,7 +722,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			{
 				SubgraphName: "products",
 				SubscriptionEntityPopulation: plan.SubscriptionEntityPopulationConfigurations{
-					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second, EnableInvalidationOnKeyOnly: true},
+					{TypeName: "Product", FieldName: "updateProductPrice", CacheName: "default", TTL: 30 * time.Second, EnableInvalidationOnKeyOnly: true},
 				},
 			},
 			{
@@ -804,7 +804,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			{
 				SubgraphName: "products",
 				SubscriptionEntityPopulation: plan.SubscriptionEntityPopulationConfigurations{
-					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second, EnableInvalidationOnKeyOnly: false},
+					{TypeName: "Product", FieldName: "updateProductPrice", CacheName: "default", TTL: 30 * time.Second, EnableInvalidationOnKeyOnly: false},
 				},
 			},
 			{
@@ -881,7 +881,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			{
 				SubgraphName: "products",
 				SubscriptionEntityPopulation: plan.SubscriptionEntityPopulationConfigurations{
-					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second, EnableInvalidationOnKeyOnly: true},
+					{TypeName: "Product", FieldName: "updateProductPrice", CacheName: "default", TTL: 30 * time.Second, EnableInvalidationOnKeyOnly: true},
 				},
 			},
 			{
@@ -1154,7 +1154,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			{
 				SubgraphName: "products",
 				SubscriptionEntityPopulation: plan.SubscriptionEntityPopulationConfigurations{
-					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second},
+					{TypeName: "Product", FieldName: "updateProductPrice", CacheName: "default", TTL: 30 * time.Second},
 				},
 			},
 		}
@@ -1210,7 +1210,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 				SubgraphName: "products",
 				// Configure for concrete type "Product", not the union "ProductUpdate"
 				SubscriptionEntityPopulation: plan.SubscriptionEntityPopulationConfigurations{
-					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second},
+					{TypeName: "Product", FieldName: "updateProductPriceUnion", CacheName: "default", TTL: 30 * time.Second},
 				},
 			},
 		}
@@ -1266,7 +1266,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 				SubgraphName: "products",
 				// Configure for concrete type "Product", not the interface "ProductInterface"
 				SubscriptionEntityPopulation: plan.SubscriptionEntityPopulationConfigurations{
-					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second},
+					{TypeName: "Product", FieldName: "updateProductPriceInterface", CacheName: "default", TTL: 30 * time.Second},
 				},
 			},
 		}
@@ -1325,7 +1325,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			{
 				SubgraphName: "products",
 				SubscriptionEntityPopulation: plan.SubscriptionEntityPopulationConfigurations{
-					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second},
+					{TypeName: "Product", FieldName: "updateDigitalProductPriceUnion", CacheName: "default", TTL: 30 * time.Second},
 				},
 			},
 		}
@@ -1380,7 +1380,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			{
 				SubgraphName: "products",
 				SubscriptionEntityPopulation: plan.SubscriptionEntityPopulationConfigurations{
-					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second},
+					{TypeName: "Product", FieldName: "updateDigitalProductPriceInterface", CacheName: "default", TTL: 30 * time.Second},
 				},
 			},
 		}
@@ -1435,7 +1435,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			{
 				SubgraphName: "products",
 				SubscriptionEntityPopulation: plan.SubscriptionEntityPopulationConfigurations{
-					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second},
+					{TypeName: "Product", FieldName: "updateProductPrice", CacheName: "default", TTL: 30 * time.Second},
 				},
 			},
 		}
@@ -1560,7 +1560,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			{
 				SubgraphName: "products",
 				SubscriptionEntityPopulation: plan.SubscriptionEntityPopulationConfigurations{
-					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second, EnableInvalidationOnKeyOnly: true},
+					{TypeName: "Product", FieldName: "updateProductPrice", CacheName: "default", TTL: 30 * time.Second, EnableInvalidationOnKeyOnly: true},
 				},
 			},
 			{
@@ -1696,7 +1696,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			{
 				SubgraphName: "products",
 				SubscriptionEntityPopulation: plan.SubscriptionEntityPopulationConfigurations{
-					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second},
+					{TypeName: "Product", FieldName: "updateProductPrice", CacheName: "default", TTL: 30 * time.Second},
 				},
 			},
 		}

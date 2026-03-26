@@ -280,6 +280,7 @@ func (p *Planner[T]) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias
 }
 
 func (p *Planner[T]) Register(visitor *plan.Visitor, configuration plan.DataSourceConfiguration[T], dataSourcePlannerConfiguration plan.DataSourcePlannerConfiguration) error {
+	p.rootFieldEntityCacheKeyTemplates = nil
 
 	p.visitor = visitor
 	p.visitor.Walker.RegisterDocumentVisitor(p)

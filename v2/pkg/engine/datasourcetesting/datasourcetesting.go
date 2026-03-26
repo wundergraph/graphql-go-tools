@@ -28,16 +28,17 @@ import (
 )
 
 type testOptions struct {
-	postProcessors        []*postprocess.Processor
-	skipReason            string
-	withFieldInfo         bool
-	withPrintPlan         bool
-	withFieldDependencies bool
-	withFetchReasons      bool
-	withEntityCaching     bool
-	withFetchProvidesData bool
-	withCacheKeyTemplates bool
-	validationOptions     []astvalidation.Option
+	postProcessors                       []*postprocess.Processor
+	skipReason                           string
+	withFieldInfo                        bool
+	withPrintPlan                        bool
+	withFieldDependencies                bool
+	withFetchReasons                     bool
+	withEntityCaching                    bool
+	withFetchProvidesData                bool
+	withCacheKeyTemplates                bool
+	withRootFieldEntityCacheKeyTemplates bool
+	validationOptions                    []astvalidation.Option
 }
 
 func WithPostProcessors(postProcessors ...*postprocess.Processor) func(*testOptions) {
@@ -107,6 +108,15 @@ func WithFetchProvidesData() func(*testOptions) {
 func WithCacheKeyTemplates() func(*testOptions) {
 	return func(o *testOptions) {
 		o.withCacheKeyTemplates = true
+	}
+}
+
+// WithRootFieldEntityCacheKeyTemplates preserves RootFieldL1EntityCacheKeyTemplates
+// in the plan output. By default these are cleared even with WithCacheKeyTemplates()
+// because planner path assignment can make them non-deterministic.
+func WithRootFieldEntityCacheKeyTemplates() func(*testOptions) {
+	return func(o *testOptions) {
+		o.withRootFieldEntityCacheKeyTemplates = true
 	}
 }
 
@@ -258,6 +268,12 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 		// caching behavior should use WithCacheKeyTemplates() to opt in.
 		if !opts.withCacheKeyTemplates {
 			clearCacheKeyTemplates(actualPlan)
+		} else if !opts.withRootFieldEntityCacheKeyTemplates {
+			// Clear RootFieldL1EntityCacheKeyTemplates even when WithCacheKeyTemplates()
+			// is set, because planner path assignment can make these non-deterministic.
+			// Use WithRootFieldEntityCacheKeyTemplates() to opt in (for single-datasource
+			// configs where behavior is deterministic).
+			clearRootFieldEntityCacheKeyTemplates(actualPlan)
 		}
 
 		// Clear CacheAnalytics from response Object nodes by default since most tests
@@ -365,6 +381,39 @@ func clearCacheKeyTemplateFromFetch(f resolve.Fetch) {
 		// Clear UseL1Cache to avoid test failures when comparing expected vs actual
 		// since the planner now defaults to true but most tests expect false (zero value)
 		fetch.FetchConfiguration.Caching.UseL1Cache = false
+	}
+}
+
+// clearRootFieldEntityCacheKeyTemplates clears only RootFieldL1EntityCacheKeyTemplates from all
+// fetches, preserving CacheKeyTemplate. Used when WithCacheKeyTemplates() is set but
+// root field templates are non-deterministic due to planner path assignment ordering.
+func clearRootFieldEntityCacheKeyTemplates(p plan.Plan) {
+	switch pl := p.(type) {
+	case *plan.SynchronousResponsePlan:
+		if pl.Response != nil && pl.Response.Fetches != nil {
+			clearRootFieldEntityCacheKeyTemplatesFromFetchTree(pl.Response.Fetches)
+		}
+	case *plan.SubscriptionResponsePlan:
+		if pl.Response != nil && pl.Response.Response != nil && pl.Response.Response.Fetches != nil {
+			clearRootFieldEntityCacheKeyTemplatesFromFetchTree(pl.Response.Response.Fetches)
+		}
+	}
+}
+
+func clearRootFieldEntityCacheKeyTemplatesFromFetchTree(node *resolve.FetchTreeNode) {
+	if node == nil {
+		return
+	}
+	if node.Item != nil && node.Item.Fetch != nil {
+		if sf, ok := node.Item.Fetch.(*resolve.SingleFetch); ok {
+			sf.FetchConfiguration.Caching.RootFieldL1EntityCacheKeyTemplates = nil
+		}
+	}
+	if node.Trigger != nil {
+		clearRootFieldEntityCacheKeyTemplatesFromFetchTree(node.Trigger)
+	}
+	for _, child := range node.ChildNodes {
+		clearRootFieldEntityCacheKeyTemplatesFromFetchTree(child)
 	}
 }
 
