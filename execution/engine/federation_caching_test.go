@@ -20,7 +20,9 @@ import (
 )
 
 func TestFederationCaching(t *testing.T) {
+	t.Parallel()
 	t.Run("two subgraphs - miss then hit", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -186,6 +188,7 @@ func TestFederationCaching(t *testing.T) {
 	})
 
 	t.Run("two subgraphs - partial fields then full fields", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -416,6 +419,7 @@ func TestFederationCaching(t *testing.T) {
 	})
 
 	t.Run("two subgraphs - with subgraph header prefix", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -594,7 +598,9 @@ func TestFederationCaching(t *testing.T) {
 }
 
 func TestRootFieldCachingWithArgs(t *testing.T) {
+	t.Parallel()
 	t.Run("root field with args - miss then hit", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -663,6 +669,7 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 	})
 
 	t.Run("root field with args - different args different keys", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -751,6 +758,7 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 	})
 
 	t.Run("entity key mapping - uses entity key format", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -833,6 +841,7 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 	})
 
 	t.Run("entity key mapping - invalidation via entity key", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -906,6 +915,7 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 	})
 
 	t.Run("entity key mapping - cross-lookup from entity fetch", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -1028,6 +1038,7 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 	})
 
 	t.Run("entity key mapping - cross-lookup from root field", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -1153,6 +1164,7 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 	})
 
 	t.Run("entity key mapping + header prefix", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -1220,6 +1232,7 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 	})
 
 	t.Run("root field without args - regression", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -1286,6 +1299,7 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 	})
 
 	t.Run("root field caching + entity caching nested", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -1384,6 +1398,7 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 	})
 
 	t.Run("TTL expiry", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -1433,6 +1448,7 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 	})
 
 	t.Run("concurrency with different IDs", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -1476,6 +1492,7 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 	})
 
 	t.Run("two args - reversed argument order hits cache", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -1544,6 +1561,7 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 	})
 
 	t.Run("root field more fields then fewer fields - cache hit (superset)", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -1611,6 +1629,7 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 	})
 
 	t.Run("root field fewer fields then more fields - cache miss (subset)", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -1701,6 +1720,7 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 	})
 
 	t.Run("entity key mapping - multiple keys single mapping", func(t *testing.T) {
+		t.Parallel()
 		// User has @key(fields: "id") @key(fields: "username"), but root field user(id)
 		// only maps to the "id" key. Adding a second @key doesn't change behavior
 		// when only one key is mapped.
@@ -1786,6 +1806,7 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 	})
 
 	t.Run("entity key mapping - multiple keys multiple mappings", func(t *testing.T) {
+		t.Parallel()
 		// User has @key(fields: "id") @key(fields: "username").
 		// Root field userByIdAndName(id, username) maps to BOTH keys.
 		// Data is stored under 2 entity keys, one per mapping.
@@ -1886,6 +1907,7 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 	})
 
 	t.Run("entity key mapping - multiple mappings partial args", func(t *testing.T) {
+		t.Parallel()
 		// Two entity key mappings configured (id and username),
 		// but only the id variable is provided. The username mapping
 		// cannot resolve → only a single entity cache key is generated.
@@ -1977,6 +1999,7 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 	})
 
 	t.Run("entity key mapping - multiple mappings cross-lookup", func(t *testing.T) {
+		t.Parallel()
 		// Root field userByIdAndName stores under BOTH entity keys.
 		// Entity fetch for User uses @key(fields: "id") → finds data stored by root field.
 		defaultCache := NewFakeLoaderCache()
@@ -2113,6 +2136,7 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 	})
 
 	t.Run("root field not configured - still calls subgraph", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -2162,6 +2186,7 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 	})
 
 	t.Run("entity key mapping - two root fields asymmetric key coverage", func(t *testing.T) {
+		t.Parallel()
 		// userByIdAndName provides both args → 2 cache keys (id + username).
 		// user(id) provides only id → 1 cache key.
 		// Step 1: userByIdAndName writes under both keys.
@@ -2270,7 +2295,9 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 }
 
 func TestRootFieldCachingWithArgs_PartialKeyWrite(t *testing.T) {
+	t.Parallel()
 	t.Run("entity key mapping - partial key write does not generate extra keys from response", func(t *testing.T) {
+		t.Parallel()
 		// Documents current behavior: when user(id) is queried with only the id
 		// mapping matching, the write stores under the id key only.
 		// The username key is NOT generated from the fetched response data.
@@ -2348,6 +2375,7 @@ func TestRootFieldCachingWithArgs_PartialKeyWrite(t *testing.T) {
 	})
 
 	t.Run("entity key mapping - flat key cross-lookup from composite key write", func(t *testing.T) {
+		t.Parallel()
 		// userByIdAndName configured with flat @key(fields: "id") + composite key
 		// using id+username together as a single mapping.
 		// user(id) configured with flat @key(fields: "id") only.
@@ -2455,6 +2483,7 @@ func TestRootFieldCachingWithArgs_PartialKeyWrite(t *testing.T) {
 }
 
 func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
+	t.Parallel()
 	// Shared caching config: entity caching for User on accounts + opt-in L2 population for addReview on reviews.
 	// Mutations do NOT populate L2 by default; subtests that expect L2 population need EnableEntityL2CachePopulation.
 	subgraphCachingConfigs := engine.SubgraphCachingConfigs{
@@ -2479,6 +2508,7 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 	}
 
 	t.Run("mutation skips L2 cache read and writes updated entity", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{"default": defaultCache}
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
@@ -2551,6 +2581,7 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 	})
 
 	t.Run("mutation with no prior cache writes to L2 for subsequent query", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{"default": defaultCache}
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
@@ -2601,6 +2632,7 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 	})
 
 	t.Run("consecutive mutations never read from L2 cache", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{"default": defaultCache}
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
@@ -2656,6 +2688,7 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 	})
 
 	t.Run("query with different fields after mutation hits L2 cache", func(t *testing.T) {
+		t.Parallel()
 		// Entity fetches store complete entity data from the subgraph (all fields the subgraph provides),
 		// not just the fields selected in the current query. So a mutation that triggers entity resolution
 		// for User populates L2 with full User data, and a subsequent query selecting different fields
@@ -2737,6 +2770,7 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 	})
 
 	t.Run("mutation skips L2 write by default without EnableEntityL2CachePopulation", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{"default": defaultCache}
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
@@ -2809,7 +2843,9 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 }
 
 func TestRootFieldSplitByDatasource(t *testing.T) {
+	t.Parallel()
 	t.Run("two root fields same subgraph both cached", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -2883,6 +2919,7 @@ func TestRootFieldSplitByDatasource(t *testing.T) {
 	})
 
 	t.Run("two root fields different TTLs", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -2927,6 +2964,7 @@ func TestRootFieldSplitByDatasource(t *testing.T) {
 	})
 
 	t.Run("mixed cached and uncached root fields", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -2998,6 +3036,7 @@ func TestRootFieldSplitByDatasource(t *testing.T) {
 	})
 
 	t.Run("root field split with entity caching", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -3087,6 +3126,7 @@ func TestRootFieldSplitByDatasource(t *testing.T) {
 	})
 
 	t.Run("independent cache invalidation", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,

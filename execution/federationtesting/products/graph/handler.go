@@ -16,8 +16,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/products/graph/generated"
 )
 
-var websocketConnections atomic.Uint32
-
 type EndpointOptions struct {
 	EnableDebug            bool
 	EnableRandomness       bool
@@ -30,9 +28,37 @@ var TestOptions = EndpointOptions{
 	OverrideUpdateInterval: 50 * time.Millisecond,
 }
 
-func GraphQLEndpointHandler(opts EndpointOptions) http.Handler {
-	websocketConnections.Store(0)
+// Endpoint holds the GraphQL handler and its per-instance websocket connection counter.
+type Endpoint struct {
+	handler              http.Handler
+	websocketConnections atomic.Uint32
+}
 
+// ServeHTTP delegates to the underlying gqlgen handler.
+func (e *Endpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	e.handler.ServeHTTP(w, r)
+}
+
+// WebsocketConnectionsHandler returns an HTTP handler that reports the current
+// websocket connection count for this endpoint instance.
+func (e *Endpoint) WebsocketConnectionsHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		response := map[string]uint32{
+			"websocket_connections": e.websocketConnections.Load(),
+		}
+
+		responseBytes, err := json.Marshal(response)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte("error"))
+			return
+		}
+
+		_, _ = w.Write(responseBytes)
+	}
+}
+
+func GraphQLEndpointHandler(opts EndpointOptions) *Endpoint {
 	updateInterval := time.Second
 	if opts.OverrideUpdateInterval > 0 {
 		updateInterval = opts.OverrideUpdateInterval
@@ -49,6 +75,8 @@ func GraphQLEndpointHandler(opts EndpointOptions) http.Handler {
 		updateInterval:    updateInterval,
 	}
 
+	endpoint := &Endpoint{}
+
 	srv := handler.New(generated.NewExecutableSchema(generated.Config{Resolvers: resolver}))
 
 	srv.AddTransport(transport.POST{})
@@ -60,10 +88,10 @@ func GraphQLEndpointHandler(opts EndpointOptions) http.Handler {
 			},
 		},
 		InitFunc: func(ctx context.Context, ip transport.InitPayload) (context.Context, *transport.InitPayload, error) {
-			websocketConnections.Inc()
+			endpoint.websocketConnections.Inc()
 			go func(ctx context.Context) {
 				<-ctx.Done()
-				websocketConnections.Dec()
+				endpoint.websocketConnections.Dec()
 			}(ctx)
 			return ctx, nil, nil
 		},
@@ -74,20 +102,6 @@ func GraphQLEndpointHandler(opts EndpointOptions) http.Handler {
 		srv.Use(&debug.Tracer{})
 	}
 
-	return srv
-}
-
-func WebsocketConnectionsHandler(w http.ResponseWriter, r *http.Request) {
-	response := map[string]uint32{
-		"websocket_connections": websocketConnections.Load(),
-	}
-
-	responseBytes, err := json.Marshal(response)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte("error"))
-		return
-	}
-
-	_, _ = w.Write(responseBytes)
+	endpoint.handler = srv
+	return endpoint
 }

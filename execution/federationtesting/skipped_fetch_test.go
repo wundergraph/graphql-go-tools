@@ -17,6 +17,7 @@ import (
 )
 
 func TestSkippedFetchOnNullParent(t *testing.T) {
+	t.Parallel()
 	// Users subgraph: returns null for the "user" field.
 	usersServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

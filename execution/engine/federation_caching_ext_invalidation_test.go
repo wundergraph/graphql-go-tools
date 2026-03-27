@@ -11,7 +11,9 @@ import (
 )
 
 func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
+	t.Parallel()
 	t.Run("mutation with extensions invalidation clears L2 cache", func(t *testing.T) {
+		t.Parallel()
 		// Verify that a mutation response with cacheInvalidation extensions
 		// deletes the corresponding L2 cache entry, forcing a re-fetch.
 		env := newExtInvalidationEnv(t)
@@ -57,6 +59,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 	})
 
 	t.Run("invalidation of entity not in cache is a no-op", func(t *testing.T) {
+		t.Parallel()
 		// Invalidating a different entity (User:9999) should not affect
 		// the cached entity (User:1234).
 		env := newExtInvalidationEnv(t)
@@ -88,6 +91,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 	})
 
 	t.Run("multiple entities invalidated in single response", func(t *testing.T) {
+		t.Parallel()
 		// A single mutation response can invalidate multiple entities at once.
 		env := newExtInvalidationEnv(t)
 
@@ -119,6 +123,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 	})
 
 	t.Run("mutation without extensions does not delete", func(t *testing.T) {
+		t.Parallel()
 		// A mutation without cacheInvalidation extensions should not
 		// trigger any cache deletes — cached data survives.
 		env := newExtInvalidationEnv(t)
@@ -145,6 +150,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 	})
 
 	t.Run("coexistence with detectMutationEntityImpact", func(t *testing.T) {
+		t.Parallel()
 		// When BOTH config-based MutationCacheInvalidation AND extensions-based
 		// invalidation target the same key, the delete should be deduplicated
 		// to a single cache.Delete() call.
@@ -176,6 +182,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 	})
 
 	t.Run("query response triggers invalidation", func(t *testing.T) {
+		t.Parallel()
 		// Cache invalidation via extensions is NOT restricted to mutations.
 		// A query (e.g. _entities) response can also carry invalidation extensions.
 		env := newExtInvalidationEnv(t)
@@ -212,6 +219,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 	})
 
 	t.Run("with subgraph header prefix", func(t *testing.T) {
+		t.Parallel()
 		// When IncludeSubgraphHeaderPrefix is enabled, cache keys include a
 		// hash prefix (e.g. "55555:"). Invalidation must use the same prefix.
 		env := newExtInvalidationEnv(t, withHeaderPrefix(55555))
@@ -254,6 +262,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 	})
 
 	t.Run("with L2CacheKeyInterceptor", func(t *testing.T) {
+		t.Parallel()
 		// When an L2CacheKeyInterceptor is configured, cache keys are transformed
 		// (e.g. "tenant-X:" prefix). Invalidation must use the same transformation.
 		env := newExtInvalidationEnv(t, withExtInvL2KeyInterceptor(
@@ -304,6 +313,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 	// -------------------------------------------------------------------------
 
 	t.Run("error response with invalidation extensions still invalidates cache", func(t *testing.T) {
+		t.Parallel()
 		// When a mutation returns BOTH errors AND extensions.cacheInvalidation,
 		// the cache invalidation should still run despite the errors.
 		env := newExtInvalidationEnv(t)
@@ -343,6 +353,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 	// -------------------------------------------------------------------------
 
 	t.Run("coexistence with analytics reports correct staleness", func(t *testing.T) {
+		t.Parallel()
 		// When both config-based and extensions-based invalidation target the same
 		// entity, analytics should correctly report the entity was cached and stale.
 		env := newExtInvalidationEnv(t,
@@ -400,6 +411,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 	})
 
 	t.Run("analytics without prior cache reports no-cache event", func(t *testing.T) {
+		t.Parallel()
 		// When mutation triggers invalidation but entity was never cached,
 		// MutationEvent should show HadCachedValue=false, IsStale=false.
 		env := newExtInvalidationEnv(t,

@@ -640,10 +640,12 @@ func (f *FakeLoaderCache) Peek(key string) ([]byte, bool) {
 
 // TestFakeLoaderCache tests the cache implementation itself
 func TestFakeLoaderCache(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	cache := NewFakeLoaderCache()
 
 	t.Run("SetAndGet", func(t *testing.T) {
+		t.Parallel()
 		// Test basic set and get
 		keys := []string{"key1", "key2", "key3"}
 		entries := []*resolve.CacheEntry{
@@ -678,6 +680,7 @@ func TestFakeLoaderCache(t *testing.T) {
 	})
 
 	t.Run("Delete", func(t *testing.T) {
+		t.Parallel()
 		// Set some keys
 		entries := []*resolve.CacheEntry{
 			{Key: "del1", Value: []byte("v1")},
@@ -701,6 +704,7 @@ func TestFakeLoaderCache(t *testing.T) {
 	})
 
 	t.Run("TTL", func(t *testing.T) {
+		t.Parallel()
 		// Set with 50ms TTL
 		entries := []*resolve.CacheEntry{
 			{Key: "ttl1", Value: []byte("expire1")},
@@ -728,6 +732,7 @@ func TestFakeLoaderCache(t *testing.T) {
 	})
 
 	t.Run("MixedTTL", func(t *testing.T) {
+		t.Parallel()
 		// Set some with TTL, some without
 		err := cache.Set(ctx, []*resolve.CacheEntry{{Key: "perm1", Value: []byte("permanent")}}, 0)
 		require.NoError(t, err)
@@ -747,6 +752,7 @@ func TestFakeLoaderCache(t *testing.T) {
 	})
 
 	t.Run("ThreadSafety", func(t *testing.T) {
+		t.Parallel()
 		// Test concurrent access
 		done := make(chan bool)
 
@@ -788,6 +794,7 @@ func TestFakeLoaderCache(t *testing.T) {
 	})
 
 	t.Run("ResultLengthMatchesKeysLength", func(t *testing.T) {
+		t.Parallel()
 		// Test that result length always matches input keys length
 
 		// Set some data

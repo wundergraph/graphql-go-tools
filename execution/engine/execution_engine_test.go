@@ -62,6 +62,7 @@ func mustFactory(t testing.TB, httpClient *http.Client) plan.PlannerFactory[grap
 
 func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expectedErrorMessage string, options ...executionTestOptions) func(t *testing.T) {
 	return func(t *testing.T) {
+		t.Parallel()
 		t.Helper()
 
 		if testCase.skipReason != "" {
@@ -175,7 +176,9 @@ func mustGraphqlDataSourceConfiguration(t *testing.T, id string, factory plan.Pl
 }
 
 func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
+	t.Parallel()
 	t.Run("no compression", func(t *testing.T) {
+		t.Parallel()
 		rw := graphql.NewEngineResultWriter()
 		_, err := rw.Write([]byte(`{"key": "value"}`))
 		require.NoError(t, err)
@@ -193,6 +196,7 @@ func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 	})
 
 	t.Run("compression based on content encoding header", func(t *testing.T) {
+		t.Parallel()
 		rw := graphql.NewEngineResultWriter()
 		_, err := rw.Write([]byte(`{"key": "value"}`))
 		require.NoError(t, err)
@@ -201,6 +205,7 @@ func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 		headers.Set("Content-Type", "application/json")
 
 		t.Run("gzip", func(t *testing.T) {
+			t.Parallel()
 			headers.Set(httpclient.ContentEncodingHeader, "gzip")
 
 			response := rw.AsHTTPResponse(http.StatusOK, headers)
@@ -219,6 +224,7 @@ func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 		})
 
 		t.Run("deflate", func(t *testing.T) {
+			t.Parallel()
 			headers.Set(httpclient.ContentEncodingHeader, "deflate")
 
 			response := rw.AsHTTPResponse(http.StatusOK, headers)
@@ -237,6 +243,7 @@ func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 }
 
 func TestWithAdditionalHttpHeaders(t *testing.T) {
+	t.Parallel()
 	reqHeader := http.Header{
 		http.CanonicalHeaderKey("X-Other-Key"):       []string{"x-other-value"},
 		http.CanonicalHeaderKey("Date"):              []string{"date-value"},
@@ -247,6 +254,7 @@ func TestWithAdditionalHttpHeaders(t *testing.T) {
 	}
 
 	t.Run("should add all headers to request without excluded keys", func(t *testing.T) {
+		t.Parallel()
 		c := resolve.NewContext(context.Background())
 		c.Request = resolve.Request{
 			Header: nil,
@@ -263,6 +271,7 @@ func TestWithAdditionalHttpHeaders(t *testing.T) {
 	})
 
 	t.Run("should only add headers that are not excluded", func(t *testing.T) {
+		t.Parallel()
 		c := resolve.NewContext(context.Background())
 		c.Request = resolve.Request{
 			Header: nil,
@@ -352,6 +361,7 @@ func relaxFieldSelectionMergingNullability() executionTestOptions {
 }
 
 func TestExecutionEngine_Execute(t *testing.T) {
+	t.Parallel()
 	t.Run("apollo router compatibility subrequest HTTP error enabled", runWithoutError(
 		ExecutionEngineTestCase{
 			schema:    graphql.StarwarsSchema(t),
@@ -540,6 +550,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 	))
 
 	t.Run("introspection", func(t *testing.T) {
+		t.Parallel()
 		schema := graphql.StarwarsSchema(t)
 
 		t.Run("execute type introspection query", runWithoutError(
@@ -1856,6 +1867,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 	))
 
 	t.Run("execute operation with default arguments", func(t *testing.T) {
+		t.Parallel()
 		t.Run("query variables with default value", runWithoutError(
 			ExecutionEngineTestCase{
 				schema: heroWithArgumentSchema(t),
@@ -2326,6 +2338,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 	))
 
 	t.Run("invalid and inaccessible enum values", func(t *testing.T) {
+		t.Parallel()
 		schema, err := graphql.NewSchemaFromString(enumSDL)
 		require.NoError(t, err)
 
@@ -4455,7 +4468,9 @@ func TestExecutionEngine_Execute(t *testing.T) {
 	})
 
 	t.Run("variables", func(t *testing.T) {
+		t.Parallel()
 		t.Run("operation with optional input fields", func(t *testing.T) {
+			t.Parallel()
 			schemaString := `
 				type Query {
 					field(arg: Input): String
@@ -4589,6 +4604,8 @@ func TestExecutionEngine_Execute(t *testing.T) {
 	})
 
 	t.Run("execute operation with nested fetch on one of the types", func(t *testing.T) {
+
+		t.Parallel()
 
 		definition := `
 			type User implements Node {
@@ -4932,7 +4949,10 @@ func TestExecutionEngine_Execute(t *testing.T) {
 
 	t.Run("validation of optional @requires dependencies", func(t *testing.T) {
 
+		t.Parallel()
+
 		t.Run("execute operation with @requires and @external", func(t *testing.T) {
+			t.Parallel()
 			definition := `
 				type User {
 					id: ID!
@@ -5093,6 +5113,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 		})
 
 		t.Run("do not validate non-nullable @requires dependencies", func(t *testing.T) {
+			t.Parallel()
 			definition := `
 				type Query {
 					accounts: [User!]!
@@ -5260,6 +5281,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 		})
 
 		t.Run("validate nullable @requires dependencies", func(t *testing.T) {
+			t.Parallel()
 			definition := `
 				type Query {
 					accounts: [User!]!
@@ -5427,6 +5449,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 		})
 
 		t.Run("validate nested nullable @requires dependencies", func(t *testing.T) {
+			t.Parallel()
 			definition := `
 				type Query {
 					accounts: [User!]!
@@ -5630,6 +5653,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 	})
 
 	t.Run("field merging with different nullability on non-overlapping union types", func(t *testing.T) {
+		t.Parallel()
 		unionSchema := `
 			union Entity = User | Organization
 			type Query { entity: Entity }
@@ -5783,6 +5807,7 @@ func testConditionalNetHttpClient(t *testing.T, testCase conditionalTestCase) *h
 }
 
 func TestExecutionEngine_GetCachedPlan(t *testing.T) {
+	t.Parallel()
 	schema, err := graphql.NewSchemaFromString(testSubscriptionDefinition)
 	require.NoError(t, err)
 
@@ -5852,6 +5877,7 @@ func TestExecutionEngine_GetCachedPlan(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("should reuse cached plan", func(t *testing.T) {
+		t.Parallel()
 		t.Cleanup(engine.executionPlanCache.Purge)
 		require.Equal(t, 0, engine.executionPlanCache.Len())
 
@@ -5880,6 +5906,7 @@ func TestExecutionEngine_GetCachedPlan(t *testing.T) {
 	})
 
 	t.Run("should create new plan and cache it", func(t *testing.T) {
+		t.Parallel()
 		t.Cleanup(engine.executionPlanCache.Purge)
 		require.Equal(t, 0, engine.executionPlanCache.Len())
 

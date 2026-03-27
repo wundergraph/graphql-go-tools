@@ -226,9 +226,11 @@ func executeOperation(t *testing.T, grpcClient grpc.ClientConnInterface, operati
 }
 
 func TestGRPCSubgraphExecution(t *testing.T) {
+	t.Parallel()
 	conn := setupGRPCTestGoPluginServer(t)
 
 	t.Run("running simple query should work", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "UserQuery",
 			Variables:     nil,
@@ -241,6 +243,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should run query with variable", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "UserQuery",
 			Variables: stringify(map[string]any{
@@ -262,6 +265,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should run complex query", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "ComplexFilterTypeQuery",
 			Variables: stringify(map[string]any{
@@ -289,6 +293,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should run query with two arguments and no variables and mapping for field names", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "QueryWithTwoArguments",
 			Query:         `query QueryWithTwoArguments { typeFilterWithArguments(filterField1: "test1", filterField2: "test2") { id name filterField1 filterField2 } }`,
@@ -300,6 +305,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should run query with a complex input type and no variables and mapping for field names", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "ComplexFilterTypeQuery",
 			Query:         `query ComplexFilterTypeQuery { complexFilterType(filter: { filter: { name: "test", filterField1: "test1", filterField2: "test2", pagination: { page: 1, perPage: 10 } } }) { id name } }`,
@@ -311,6 +317,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should run query with a complex input type and variables with different name", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "ComplexFilterTypeQuery",
 			Variables: stringify(map[string]any{
@@ -331,6 +338,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should run query with a type filter with arguments and variables", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "TypeWithMultipleFilterFieldsQuery",
 			Variables: stringify(map[string]any{
@@ -348,6 +356,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should run query with a nested type", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "NestedTypeQuery",
 			Query:         `query NestedTypeQuery { nestedType { id name b { id name c { id name } } } }`,
@@ -359,6 +368,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should run query with a recursive type", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "RecursiveTypeQuery",
 			Query:         `query RecursiveTypeQuery { recursiveType { id name recursiveType { id recursiveType { id name } name } } }`,
@@ -371,6 +381,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should stop when no mapping is found for the operation request", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "UserQuery",
 			Query:         `query UserQuery { user(id: "1") { id name } }`,
@@ -394,6 +405,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 
 	// Category tests to verify enum handling
 	t.Run("should correctly handle query for all categories with enum values", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "CategoriesQuery",
 			Query:         `query CategoriesQuery { categories { id name kind } }`,
@@ -410,6 +422,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should correctly handle query for categories by specific enum kind", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "CategoriesByKindQuery",
 			Variables: stringify(map[string]any{
@@ -435,6 +448,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should correctly handle filter categories with enum and pagination", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "FilterCategoriesQuery",
 			Variables: stringify(map[string]any{
@@ -466,6 +480,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should handle all enum values with explicit mapping", func(t *testing.T) {
+		t.Parallel()
 		// Test each enum value explicitly
 		enumValues := []string{"BOOK", "ELECTRONICS", "FURNITURE", "OTHER"}
 
@@ -502,6 +517,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should handle nullable fields", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "NullableFieldsTypeQuery",
 			Query:         `query NullableFieldsTypeQuery { nullableFieldsType { id optionalString optionalInt optionalFloat optionalBoolean requiredString requiredInt } }`,
@@ -514,6 +530,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should handle nullable fields query by ID with full data", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "NullableFieldsTypeByIdQuery",
 			Variables: stringify(map[string]any{
@@ -540,6 +557,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should handle nullable fields query by ID with partial data", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "NullableFieldsTypeByIdQuery",
 			Variables: stringify(map[string]any{
@@ -566,6 +584,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should handle nullable fields query by ID with minimal data", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "NullableFieldsTypeByIdQuery",
 			Variables: stringify(map[string]any{
@@ -592,6 +611,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should handle nullable fields query by ID returning null for not found", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "NullableFieldsTypeByIdQuery",
 			Variables: stringify(map[string]any{
@@ -614,6 +634,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should handle query for all nullable fields types", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "AllNullableFieldsTypesQuery",
 			Query: `query AllNullableFieldsTypesQuery { 
@@ -637,6 +658,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should handle nullable fields query with filter", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "NullableFieldsTypeWithFilterQuery",
 			Variables: stringify(map[string]any{
@@ -673,6 +695,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should handle create nullable fields type mutation", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "CreateNullableFieldsTypeMutation",
 			Variables: stringify(map[string]any{
@@ -715,6 +738,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should handle create nullable fields type mutation with minimal input", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "CreateNullableFieldsTypeMutation",
 			Variables: stringify(map[string]any{
@@ -753,6 +777,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should handle update nullable fields type mutation", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "UpdateNullableFieldsTypeMutation",
 			Variables: stringify(map[string]any{
@@ -786,6 +811,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should handle update nullable fields type mutation returning null for non-existent ID", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "UpdateNullableFieldsTypeMutation",
 			Variables: stringify(map[string]any{
@@ -814,6 +840,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 
 	// BlogPost and Author list tests
 	t.Run("should handle BlogPost query with scalar lists", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "BlogPostScalarListsQuery",
 			Query: `query BlogPostScalarListsQuery { 
@@ -845,6 +872,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should handle BlogPost query with nested scalar lists", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "BlogPostNestedScalarListsQuery",
 			Query: `query BlogPostNestedScalarListsQuery { 
@@ -866,6 +894,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should handle BlogPost query with complex lists", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "BlogPostComplexListsQuery",
 			Query: `query BlogPostComplexListsQuery { 
@@ -907,6 +936,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should handle BlogPost query with nested complex lists", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "BlogPostNestedComplexListsQuery",
 			Query: `query BlogPostNestedComplexListsQuery { 
@@ -936,6 +966,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should handle BlogPost query by ID", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "BlogPostByIdQuery",
 			Variables: stringify(map[string]any{
@@ -968,6 +999,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should handle BlogPost filtered query", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "BlogPostFilteredQuery",
 			Variables: stringify(map[string]any{
@@ -1004,6 +1036,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should handle Author query with scalar lists", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "AuthorScalarListsQuery",
 			Query: `query AuthorScalarListsQuery { 
@@ -1027,6 +1060,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should handle Author query with nested scalar lists", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "AuthorNestedScalarListsQuery",
 			Query: `query AuthorNestedScalarListsQuery { 
@@ -1046,6 +1080,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should handle Author query with complex lists", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "AuthorComplexListsQuery",
 			Query: `query AuthorComplexListsQuery { 
@@ -1089,6 +1124,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should handle Author query with nested complex lists", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "AuthorNestedComplexListsQuery",
 			Query: `query AuthorNestedComplexListsQuery { 
@@ -1123,6 +1159,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should handle Author query by ID", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "AuthorByIdQuery",
 			Variables: stringify(map[string]any{
@@ -1154,6 +1191,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should handle Author filtered query", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "AuthorFilteredQuery",
 			Variables: stringify(map[string]any{
@@ -1188,6 +1226,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should handle BlogPost creation mutation with complex input lists", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "CreateBlogPostMutation",
 			Variables: stringify(map[string]any{
@@ -1294,6 +1333,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should handle Author creation mutation with complex input lists", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "CreateAuthorMutation",
 			Variables: stringify(map[string]any{
@@ -1377,6 +1417,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should handle all BlogPosts query with lists", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "AllBlogPostsQuery",
 			Query: `query AllBlogPostsQuery { 
@@ -1408,6 +1449,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should handle all Authors query with lists", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "AllAuthorsQuery",
 			Query: `query AllAuthorsQuery { 
@@ -1435,6 +1477,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should handle empty and nullable list items", func(t *testing.T) {
+		t.Parallel()
 		operation := graphql.Request{
 			OperationName: "EmptyAndNullableListItems",
 			Query: `query EmptyAndNullableListItems {

@@ -88,7 +88,9 @@ func partialCacheTestQueryPath(name string) string {
 // When enabled, only cache-missed entities are fetched from subgraphs.
 // When disabled (default), all entities are fetched if any are missing.
 func TestPartialCacheLoading(t *testing.T) {
+	t.Parallel()
 	t.Run("L2 partial cache loading enabled - only missing entities fetched", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -159,6 +161,7 @@ func TestPartialCacheLoading(t *testing.T) {
 	})
 
 	t.Run("L2 partial cache loading enabled - partial cache hit fetches only missing", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -237,6 +240,7 @@ func TestPartialCacheLoading(t *testing.T) {
 	})
 
 	t.Run("L2 partial cache loading disabled - all entities fetched even with partial cache hit", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,

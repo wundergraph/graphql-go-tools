@@ -79,7 +79,9 @@ func walkFetchNode(t *testing.T, node map[string]any, results *[]resolve.CacheTr
 }
 
 func TestFederationCaching_CacheTraceInExtensions(t *testing.T) {
+	t.Parallel()
 	t.Run("L2 miss then hit shows cache_trace in extensions.trace", func(t *testing.T) {
+		t.Parallel()
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
 
 		setup := federationtesting.NewFederationSetup(addCachingGateway(

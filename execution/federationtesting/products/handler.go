@@ -10,8 +10,9 @@ import (
 func Handler() http.Handler {
 	mux := http.NewServeMux()
 
-	mux.Handle("/", graph.GraphQLEndpointHandler(graph.EndpointOptions{EnableDebug: true}))
-	mux.HandleFunc("/websocket_connections", graph.WebsocketConnectionsHandler)
+	endpoint := graph.GraphQLEndpointHandler(graph.EndpointOptions{EnableDebug: true})
+	mux.Handle("/", endpoint)
+	mux.HandleFunc("/websocket_connections", endpoint.WebsocketConnectionsHandler())
 
 	return mux
 }

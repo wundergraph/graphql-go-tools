@@ -26,6 +26,7 @@ import (
 // - NULL: Error yields null at site, no bubbling, errors are collected
 // - HALT: First error stops execution, data becomes null
 func TestErrorBehavior_EndToEnd(t *testing.T) {
+	t.Parallel()
 	// Set up a mock subgraph that returns data with null in non-nullable fields
 	setupErrorScenario := func(t *testing.T, subgraphResponse string) (*ExecutionEngine, *graphql.Schema) {
 		t.Helper()
@@ -119,6 +120,7 @@ func TestErrorBehavior_EndToEnd(t *testing.T) {
 	}
 
 	t.Run("PROPAGATE mode - null bubbles up to nearest nullable ancestor", func(t *testing.T) {
+		t.Parallel()
 		// Subgraph returns null for non-nullable `name` field
 		// In PROPAGATE mode, the null should bubble up to the nullable `user` field
 		subgraphResponse := `{"data":{"user":{"id":"1","name":null,"email":"test@example.com"}}}`
@@ -191,6 +193,7 @@ func TestErrorBehavior_EndToEnd(t *testing.T) {
 	})
 
 	t.Run("NULL mode with multiple errors - all errors collected", func(t *testing.T) {
+		t.Parallel()
 		// Subgraph returns multiple null values for non-nullable fields
 		subgraphResponse := `{"data":{"user":{"id":"1","name":null,"email":"test@example.com","profile":{"bio":null,"avatar":"pic.jpg"}}}}`
 
@@ -214,6 +217,7 @@ func TestErrorBehavior_EndToEnd(t *testing.T) {
 	})
 
 	t.Run("PROPAGATE mode with nested non-nullable - bubble to correct level", func(t *testing.T) {
+		t.Parallel()
 		// Profile has non-nullable bio, profile itself is nullable
 		// Null bio should bubble up to profile becoming null
 		subgraphResponse := `{"data":{"user":{"id":"1","name":"Test","email":"test@example.com","profile":{"bio":null,"avatar":"pic.jpg"}}}}`
@@ -238,6 +242,7 @@ func TestErrorBehavior_EndToEnd(t *testing.T) {
 	})
 
 	t.Run("NULL mode with array containing errors", func(t *testing.T) {
+		t.Parallel()
 		// Array of users where one has null non-nullable field
 		subgraphResponse := `{"data":{"users":[{"id":"1","name":"Alice","email":"alice@example.com","profile":null,"posts":[]},{"id":"2","name":null,"email":"bob@example.com","profile":null,"posts":[]}]}}`
 
@@ -261,6 +266,7 @@ func TestErrorBehavior_EndToEnd(t *testing.T) {
 	})
 
 	t.Run("default behavior without explicit mode is PROPAGATE", func(t *testing.T) {
+		t.Parallel()
 		subgraphResponse := `{"data":{"user":{"id":"1","name":null,"email":"test@example.com"}}}`
 
 		eng, _ := setupErrorScenario(t, subgraphResponse)
@@ -284,6 +290,7 @@ func TestErrorBehavior_EndToEnd(t *testing.T) {
 	})
 
 	t.Run("successful query - no difference between modes", func(t *testing.T) {
+		t.Parallel()
 		// No errors in the response
 		subgraphResponse := `{"data":{"user":{"id":"1","name":"Test User","email":"test@example.com"}}}`
 
@@ -298,6 +305,7 @@ func TestErrorBehavior_EndToEnd(t *testing.T) {
 			resolve.ErrorBehaviorHalt,
 		} {
 			t.Run(mode.String(), func(t *testing.T) {
+				t.Parallel()
 				req := &graphql.Request{
 					Query: query,
 				}
@@ -318,7 +326,9 @@ func TestErrorBehavior_EndToEnd(t *testing.T) {
 
 // TestErrorBehavior_RequestExtensions tests that error behavior can be set via request extensions
 func TestErrorBehavior_RequestExtensions(t *testing.T) {
+	t.Parallel()
 	t.Run("parse NULL from extensions", func(t *testing.T) {
+		t.Parallel()
 		req := &graphql.Request{
 			Query:      `query { user { id name } }`,
 			Extensions: []byte(`{"onError":"NULL"}`),
@@ -330,6 +340,7 @@ func TestErrorBehavior_RequestExtensions(t *testing.T) {
 	})
 
 	t.Run("parse PROPAGATE from extensions", func(t *testing.T) {
+		t.Parallel()
 		req := &graphql.Request{
 			Query:      `query { user { id name } }`,
 			Extensions: []byte(`{"onError":"PROPAGATE"}`),
@@ -341,6 +352,7 @@ func TestErrorBehavior_RequestExtensions(t *testing.T) {
 	})
 
 	t.Run("parse HALT from extensions", func(t *testing.T) {
+		t.Parallel()
 		req := &graphql.Request{
 			Query:      `query { user { id name } }`,
 			Extensions: []byte(`{"onError":"HALT"}`),
@@ -352,6 +364,7 @@ func TestErrorBehavior_RequestExtensions(t *testing.T) {
 	})
 
 	t.Run("invalid onError value returns false", func(t *testing.T) {
+		t.Parallel()
 		req := &graphql.Request{
 			Query:      `query { user { id name } }`,
 			Extensions: []byte(`{"onError":"INVALID"}`),
@@ -363,6 +376,7 @@ func TestErrorBehavior_RequestExtensions(t *testing.T) {
 	})
 
 	t.Run("missing onError returns false", func(t *testing.T) {
+		t.Parallel()
 		req := &graphql.Request{
 			Query:      `query { user { id name } }`,
 			Extensions: []byte(`{"persistedQuery":{"hash":"abc123"}}`),
@@ -374,6 +388,7 @@ func TestErrorBehavior_RequestExtensions(t *testing.T) {
 	})
 
 	t.Run("empty extensions returns false", func(t *testing.T) {
+		t.Parallel()
 		req := &graphql.Request{
 			Query: `query { user { id name } }`,
 		}
@@ -386,6 +401,7 @@ func TestErrorBehavior_RequestExtensions(t *testing.T) {
 
 // TestErrorBehavior_ServiceCapabilityIntrospection tests the __service query for onError capability discovery
 func TestErrorBehavior_ServiceCapabilityIntrospection(t *testing.T) {
+	t.Parallel()
 	// Schema that includes the _Service type for introspection
 	schemaSDL := `
 		type Query {
@@ -438,6 +454,7 @@ func TestErrorBehavior_ServiceCapabilityIntrospection(t *testing.T) {
 	}
 
 	t.Run("introspect onError capability with PROPAGATE default", func(t *testing.T) {
+		t.Parallel()
 		eng := setupServiceIntrospection(t, "PROPAGATE")
 
 		query := `query { __service { capabilities { identifier value description } } }`
@@ -474,6 +491,7 @@ func TestErrorBehavior_ServiceCapabilityIntrospection(t *testing.T) {
 	})
 
 	t.Run("introspect onError capability with NULL default", func(t *testing.T) {
+		t.Parallel()
 		eng := setupServiceIntrospection(t, "NULL")
 
 		query := `query { __service { capabilities { identifier value description } } }`
@@ -510,6 +528,7 @@ func TestErrorBehavior_ServiceCapabilityIntrospection(t *testing.T) {
 	})
 
 	t.Run("introspect onError capability with HALT default", func(t *testing.T) {
+		t.Parallel()
 		eng := setupServiceIntrospection(t, "HALT")
 
 		query := `query { __service { capabilities { identifier value description } } }`
@@ -546,6 +565,7 @@ func TestErrorBehavior_ServiceCapabilityIntrospection(t *testing.T) {
 	})
 
 	t.Run("introspect without default behavior configured", func(t *testing.T) {
+		t.Parallel()
 		eng := setupServiceIntrospection(t, "")
 
 		query := `query { __service { capabilities { identifier value description } } }`
@@ -578,6 +598,7 @@ func TestErrorBehavior_ServiceCapabilityIntrospection(t *testing.T) {
 	})
 
 	t.Run("introspect only identifiers", func(t *testing.T) {
+		t.Parallel()
 		eng := setupServiceIntrospection(t, "PROPAGATE")
 
 		// Client can query only the fields they need
@@ -617,7 +638,9 @@ func TestErrorBehavior_ServiceCapabilityIntrospection(t *testing.T) {
 // 4. Verify introspection shows _Service and _Capability types
 // 5. Verify __service query works
 func TestServiceCapability_CosmoRouterIntegration(t *testing.T) {
+	t.Parallel()
 	t.Run("schema extension and introspection", func(t *testing.T) {
+		t.Parallel()
 		// User's schema - does NOT include _Service, _Capability, or __service
 		userSchemaSDL := `
 			type Query {
@@ -662,6 +685,7 @@ func TestServiceCapability_CosmoRouterIntegration(t *testing.T) {
 
 		// Test __service query works
 		t.Run("__service query returns capabilities", func(t *testing.T) {
+			t.Parallel()
 			query := `{ __service { capabilities { identifier value description } } }`
 			req := &graphql.Request{Query: query}
 
@@ -694,6 +718,7 @@ func TestServiceCapability_CosmoRouterIntegration(t *testing.T) {
 
 		// Test introspection shows _Service type
 		t.Run("introspection returns _Service type", func(t *testing.T) {
+			t.Parallel()
 			query := `{
 				__type(name: "_Service") {
 					name
@@ -725,6 +750,7 @@ func TestServiceCapability_CosmoRouterIntegration(t *testing.T) {
 
 		// Test introspection shows _Capability type
 		t.Run("introspection returns _Capability type", func(t *testing.T) {
+			t.Parallel()
 			query := `{
 				__type(name: "_Capability") {
 					name
@@ -761,6 +787,7 @@ func TestServiceCapability_CosmoRouterIntegration(t *testing.T) {
 		// included in introspection results (like __schema, __type, and now __service).
 		// This is intentional - the query works, it's just hidden from field listings.
 		t.Run("schema introspection shows user-defined fields", func(t *testing.T) {
+			t.Parallel()
 			query := `{
 				__schema {
 					queryType {
@@ -789,6 +816,7 @@ func TestServiceCapability_CosmoRouterIntegration(t *testing.T) {
 	})
 
 	t.Run("works with NULL default error behavior", func(t *testing.T) {
+		t.Parallel()
 		userSchemaSDL := `
 			type Query {
 				hello: String

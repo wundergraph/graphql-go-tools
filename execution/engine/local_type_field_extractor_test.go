@@ -21,6 +21,7 @@ func sortNodesAndFields(nodes []plan.TypeField) {
 }
 
 func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
+	t.Parallel()
 	run := func(t *testing.T, SDL string, expectedRoot, expectedChild []plan.TypeField) {
 		t.Helper()
 
@@ -38,6 +39,7 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 	}
 
 	t.Run("only root operation", func(t *testing.T) {
+		t.Parallel()
 		run(t, `
 			extend type Query {
 				me: User
@@ -66,6 +68,7 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 			})
 	})
 	t.Run("orphan pair", func(t *testing.T) {
+		t.Parallel()
 		run(t, `
 			extend type Query {
 				me: User
@@ -94,6 +97,7 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 			})
 	})
 	t.Run("orphan cycle", func(t *testing.T) {
+		t.Parallel()
 		run(t, `
 			extend type Query {
 				me: User
@@ -123,6 +127,7 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 			})
 	})
 	t.Run("nested child nodes", func(t *testing.T) {
+		t.Parallel()
 		run(t, `
 			extend type Query {
 				me: User
@@ -151,6 +156,7 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 			})
 	})
 	t.Run("child node only available via nested child", func(t *testing.T) {
+		t.Parallel()
 		run(t, `
 			extend type Query {
 				me: User
@@ -179,6 +185,7 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 			})
 	})
 	t.Run("interface", func(t *testing.T) {
+		t.Parallel()
 		run(t, `
 			extend type Query {
 				me: User
@@ -221,6 +228,7 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 			})
 	})
 	t.Run("interface with key directive", func(t *testing.T) {
+		t.Parallel()
 		run(t, `
 			extend type Query {
 				me: User
@@ -266,6 +274,7 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 			})
 	})
 	t.Run("extended interface", func(t *testing.T) {
+		t.Parallel()
 		t.Log("Bug: The concrete types that implement an interface should also be included")
 
 		run(t, `
@@ -310,6 +319,7 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 			})
 	})
 	t.Run("union", func(t *testing.T) {
+		t.Parallel()
 		run(t, `
 			extend type Query {
 				me: User
@@ -347,6 +357,7 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 			})
 	})
 	t.Run("union + interface", func(t *testing.T) {
+		t.Parallel()
 		run(t, `
 			type Query {
 				histories: [History]
@@ -381,6 +392,7 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 			})
 	})
 	t.Run("extended union", func(t *testing.T) {
+		t.Parallel()
 		run(t, `
 			extend type Query {
 				me: User
@@ -418,6 +430,7 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 			})
 	})
 	t.Run("local union extension", func(t *testing.T) {
+		t.Parallel()
 		run(t, `
 			extend type Query {
 				me: User
@@ -463,6 +476,7 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 			})
 	})
 	t.Run("nested Entity definition", func(t *testing.T) {
+		t.Parallel()
 		run(t, `
 			extend type Query {
 				me: User
@@ -488,6 +502,7 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 			})
 	})
 	t.Run("local type extension", func(t *testing.T) {
+		t.Parallel()
 		run(t, `
            extend type Query {
                    reviews(IDs: [ID!]!): [Review!]
@@ -530,6 +545,7 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 			})
 	})
 	t.Run("local type extension defined before local type", func(t *testing.T) {
+		t.Parallel()
 		run(t, `
            extend type Query {
                    reviews(IDs: [ID!]!): [Review!]
@@ -572,6 +588,7 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 			})
 	})
 	t.Run("union types", func(t *testing.T) {
+		t.Parallel()
 		run(t, `
 			extend type Query {
 				search(name: String!): SearchResult
@@ -612,6 +629,7 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 			})
 	})
 	t.Run("interface types", func(t *testing.T) {
+		t.Parallel()
 		run(t, `
 			extend type Query {
 				search(name: String!): Character

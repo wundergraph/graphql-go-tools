@@ -32,7 +32,7 @@ func (r *entityResolver) FindUserByID(ctx context.Context, id string) (*model.Us
 		return nil, fmt.Errorf("user not found: %s", id)
 	}
 
-	name := GetUsername(id)
+	name := r.GetUsername(id)
 
 	// RelatedUsers creates a dependency chain for L1 cache testing:
 	// - User 1234's relatedUsers includes User 1234 (self) and User 7777

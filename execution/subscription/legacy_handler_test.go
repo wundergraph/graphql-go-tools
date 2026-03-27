@@ -42,6 +42,7 @@ func (w *websocketHook) OnBeforeStart(reqCtx context.Context, operation *graphql
 }
 
 func TestHandler_Handle(t *testing.T) {
+	t.Parallel()
 	t.Run("engine v2", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()

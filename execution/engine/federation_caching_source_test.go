@@ -18,6 +18,7 @@ import (
 )
 
 func TestCacheWriteEventSource_MutationL2Write(t *testing.T) {
+	t.Parallel()
 	// Verify that L2 writes triggered by a mutation have Source=CacheSourceMutation in the analytics snapshot.
 	defaultCache := NewFakeLoaderCache()
 
@@ -82,6 +83,7 @@ func TestCacheWriteEventSource_MutationL2Write(t *testing.T) {
 }
 
 func TestMutationCacheTTLOverride_E2E(t *testing.T) {
+	t.Parallel()
 	// Verify that MutationFieldCacheConfiguration.TTL overrides the entity's default TTL.
 	defaultCache := NewFakeLoaderCache()
 
@@ -132,7 +134,9 @@ func TestMutationCacheTTLOverride_E2E(t *testing.T) {
 }
 
 func TestOnSubscriptionCacheCallbacks(t *testing.T) {
+	t.Parallel()
 	t.Run("OnSubscriptionCacheWrite fires on subscription entity population", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 
 		var mu sync.Mutex
@@ -190,6 +194,7 @@ func TestOnSubscriptionCacheCallbacks(t *testing.T) {
 	})
 
 	t.Run("OnSubscriptionCacheInvalidate fires on invalidation-only subscription", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 
 		var mu sync.Mutex

@@ -15,7 +15,7 @@ import (
 
 // UpdateUsername is the resolver for the updateUsername field.
 func (r *mutationResolver) UpdateUsername(ctx context.Context, id string, newUsername string) (*model.User, error) {
-	SetUsername(id, newUsername)
+	r.SetUsername(id, newUsername)
 	return &model.User{
 		ID:       id,
 		Username: newUsername,
@@ -26,7 +26,7 @@ func (r *mutationResolver) UpdateUsername(ctx context.Context, id string, newUse
 func (r *queryResolver) Me(ctx context.Context) (*model.User, error) {
 	return &model.User{
 		ID:       "1234",
-		Username: GetUsername("1234"),
+		Username: r.GetUsername("1234"),
 		Nickname: "nick-Me",
 		History:  histories,
 		RealName: "User Usington",
@@ -35,7 +35,7 @@ func (r *queryResolver) Me(ctx context.Context) (*model.User, error) {
 
 // User is the resolver for the user field.
 func (r *queryResolver) User(ctx context.Context, id string) (*model.User, error) {
-	name := GetUsername(id)
+	name := r.GetUsername(id)
 	return &model.User{
 		ID:       id,
 		Username: name,
@@ -269,7 +269,7 @@ func (r *queryResolver) SomeNestedInterfaces(ctx context.Context) ([]model.SomeN
 func (r *userResolver) Greeting(ctx context.Context, obj *model.User, style string) (string, error) {
 	name := obj.Username
 	if name == "" {
-		name = GetUsername(obj.ID)
+		name = r.GetUsername(obj.ID)
 	}
 	switch style {
 	case "formal":
@@ -287,7 +287,7 @@ func (r *userResolver) Greeting(ctx context.Context, obj *model.User, style stri
 func (r *userResolver) CustomGreeting(ctx context.Context, obj *model.User, input model.GreetingInput) (string, error) {
 	name := obj.Username
 	if name == "" {
-		name = GetUsername(obj.ID)
+		name = r.GetUsername(obj.ID)
 	}
 	var greeting string
 	switch input.Style {

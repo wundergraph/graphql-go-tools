@@ -11,13 +11,14 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/execution/engine"
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting"
-	accounts "github.com/wundergraph/graphql-go-tools/execution/federationtesting/accounts/graph"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 func TestL2CacheOnly(t *testing.T) {
+	t.Parallel()
 	t.Run("L2 enabled - miss then hit across requests", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -189,6 +190,7 @@ func TestL2CacheOnly(t *testing.T) {
 	})
 
 	t.Run("L2 disabled - no external cache operations", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -230,6 +232,7 @@ func TestL2CacheOnly(t *testing.T) {
 }
 
 func TestL1L2CacheCombined(t *testing.T) {
+	t.Parallel()
 	t.Run("L1+L2 enabled - L1 within request, L2 across requests", func(t *testing.T) {
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
@@ -502,7 +505,9 @@ func TestL1L2CacheCombined(t *testing.T) {
 // are cached. This test configures caching for Product but NOT for User, verifying
 // the opt-in nature of the per-entity caching configuration.
 func TestPartialEntityCaching(t *testing.T) {
+	t.Parallel()
 	t.Run("only configured entities are cached", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -600,7 +605,9 @@ func TestPartialEntityCaching(t *testing.T) {
 // TestRootFieldCaching tests that root fields (like Query.topProducts) can be cached
 // when explicitly configured with RootFieldCaching configuration.
 func TestRootFieldCaching(t *testing.T) {
+	t.Parallel()
 	t.Run("root field caching enabled", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -708,6 +715,7 @@ func TestRootFieldCaching(t *testing.T) {
 	})
 
 	t.Run("root field caching NOT enabled - subgraph still called", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -786,6 +794,7 @@ func TestRootFieldCaching(t *testing.T) {
 // return lists of entities.
 
 func TestCacheNotPopulatedOnErrors(t *testing.T) {
+	t.Parallel()
 	// Query that triggers an error in accounts subgraph via error-user
 	// The reviewWithError field returns a review with author ID "error-user"
 	// which causes FindUserByID to return an error
@@ -803,6 +812,7 @@ func TestCacheNotPopulatedOnErrors(t *testing.T) {
 	expectedErrorResponse := `{"errors":[{"message":"Failed to fetch from Subgraph 'accounts' at Path 'reviewWithError.authorWithoutProvides'."},{"message":"Cannot return null for non-nullable field 'Query.reviewWithError.authorWithoutProvides.username'.","path":["reviewWithError","authorWithoutProvides","username"]}],"data":{"reviewWithError":null}}`
 
 	t.Run("L1 only - error response prevents cache population", func(t *testing.T) {
+		t.Parallel()
 		// This test verifies that L1 cache is NOT populated when an error occurs.
 		// If L1 was erroneously populated, the second query would not call accounts.
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
@@ -855,6 +865,7 @@ func TestCacheNotPopulatedOnErrors(t *testing.T) {
 	})
 
 	t.Run("L2 only - error response prevents cache population", func(t *testing.T) {
+		t.Parallel()
 		// This test verifies that L2 cache is NOT populated when an error occurs.
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
@@ -935,6 +946,7 @@ func TestCacheNotPopulatedOnErrors(t *testing.T) {
 	})
 
 	t.Run("L1 and L2 - error response prevents both caches", func(t *testing.T) {
+		t.Parallel()
 		// This test verifies that both L1 and L2 caches are NOT populated when an error occurs.
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
@@ -1013,6 +1025,7 @@ func TestCacheNotPopulatedOnErrors(t *testing.T) {
 	})
 
 	t.Run("error does not pollute cache for subsequent success queries", func(t *testing.T) {
+		t.Parallel()
 		// This test verifies that an error query doesn't pollute the cache
 		// and that subsequent successful queries still work correctly.
 		defaultCache := NewFakeLoaderCache()
@@ -1113,8 +1126,7 @@ func TestCacheNotPopulatedOnErrors(t *testing.T) {
 }
 
 func TestMutationCacheInvalidationE2E(t *testing.T) {
-	accounts.ResetUsers()
-	t.Cleanup(accounts.ResetUsers)
+	t.Parallel()
 
 	// Configure entity caching for User AND mutation invalidation for updateUsername
 	subgraphCachingConfigs := engine.SubgraphCachingConfigs{
@@ -1134,7 +1146,7 @@ func TestMutationCacheInvalidationE2E(t *testing.T) {
 	mutationQuery := `mutation { updateUsername(id: "1234", newUsername: "UpdatedMe") { id username } }`
 
 	t.Run("mutation deletes L2 cache entry", func(t *testing.T) {
-		accounts.ResetUsers()
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{"default": defaultCache}
 
@@ -1198,7 +1210,7 @@ func TestMutationCacheInvalidationE2E(t *testing.T) {
 	})
 
 	t.Run("mutation without invalidation config does not delete", func(t *testing.T) {
-		accounts.ResetUsers()
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{"default": defaultCache}
 

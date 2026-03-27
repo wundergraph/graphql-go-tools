@@ -12,12 +12,12 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/execution/engine"
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting"
-	accounts "github.com/wundergraph/graphql-go-tools/execution/federationtesting/accounts/graph"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 func TestCacheAnalyticsE2E(t *testing.T) {
+	t.Parallel()
 	// Common cache key constants used across subtests
 	const (
 		keyProductTop1 = `{"__typename":"Product","key":{"upc":"top-1"}}`
@@ -104,6 +104,7 @@ func TestCacheAnalyticsE2E(t *testing.T) {
 	expectedResponseBody := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`
 
 	t.Run("L2 miss then hit with analytics", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -168,6 +169,7 @@ func TestCacheAnalyticsE2E(t *testing.T) {
 	})
 
 	t.Run("L1 cache analytics with entity reuse", func(t *testing.T) {
+		t.Parallel()
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
 		trackingClient := &http.Client{Transport: tracker}
 
@@ -228,6 +230,7 @@ func TestCacheAnalyticsE2E(t *testing.T) {
 	})
 
 	t.Run("L1+L2 combined analytics", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -296,6 +299,7 @@ func TestCacheAnalyticsE2E(t *testing.T) {
 	})
 
 	t.Run("root field with args - L2 analytics", func(t *testing.T) {
+		t.Parallel()
 		// Tests that root field caching with arguments properly records L2 analytics events.
 		// This covers the root field path in tryL2CacheLoad (no L1 keys branch).
 		defaultCache := NewFakeLoaderCache()
@@ -412,6 +416,7 @@ func TestCacheAnalyticsE2E(t *testing.T) {
 	})
 
 	t.Run("root field only - L2 analytics without entity caching", func(t *testing.T) {
+		t.Parallel()
 		// Tests root field caching analytics in isolation — only root field caching configured,
 		// no entity caching. Verifies that only root field events appear in analytics.
 		defaultCache := NewFakeLoaderCache()
@@ -503,6 +508,7 @@ func TestCacheAnalyticsE2E(t *testing.T) {
 	})
 
 	t.Run("subgraph fetch records HTTPStatusCode and ResponseBytes", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -543,6 +549,7 @@ func TestCacheAnalyticsE2E(t *testing.T) {
 	})
 
 	t.Run("cache hit has zero HTTPStatusCode and ResponseBytes", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -580,6 +587,7 @@ func TestCacheAnalyticsE2E(t *testing.T) {
 }
 
 func TestShadowCacheE2E(t *testing.T) {
+	t.Parallel()
 	// Cache key constants (same as TestCacheAnalyticsE2E — same federation setup)
 	const (
 		keyProductTop1 = `{"__typename":"Product","key":{"upc":"top-1"}}`
@@ -677,6 +685,7 @@ func TestShadowCacheE2E(t *testing.T) {
 	expectedResponseBody := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`
 
 	t.Run("shadow all entities - always fetches", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{"default": defaultCache}
 
@@ -884,6 +893,7 @@ func TestShadowCacheE2E(t *testing.T) {
 	})
 
 	t.Run("shadow mode without analytics - safety only", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{"default": defaultCache}
 
@@ -937,6 +947,7 @@ func TestShadowCacheE2E(t *testing.T) {
 	})
 
 	t.Run("graduation - shadow to real", func(t *testing.T) {
+		t.Parallel()
 		// Same FakeLoaderCache shared across both engine setups
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{"default": defaultCache}
@@ -1068,8 +1079,7 @@ func TestShadowCacheE2E(t *testing.T) {
 }
 
 func TestMutationImpactE2E(t *testing.T) {
-	accounts.ResetUsers()
-	t.Cleanup(accounts.ResetUsers)
+	t.Parallel()
 
 	// Configure entity caching for User on accounts subgraph
 	subgraphCachingConfigs := engine.SubgraphCachingConfigs{
@@ -1089,7 +1099,7 @@ func TestMutationImpactE2E(t *testing.T) {
 	entityQuery := `query { topProducts { name reviews { body authorWithoutProvides { username } } } }`
 
 	t.Run("mutation with prior cache shows stale entity", func(t *testing.T) {
-		accounts.ResetUsers()
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{"default": defaultCache}
 
@@ -1158,7 +1168,7 @@ func TestMutationImpactE2E(t *testing.T) {
 	})
 
 	t.Run("mutation without prior cache shows no-cache event", func(t *testing.T) {
-		accounts.ResetUsers()
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{"default": defaultCache}
 
@@ -1221,6 +1231,7 @@ func TestMutationImpactE2E(t *testing.T) {
 }
 
 func TestFederationCachingAliases(t *testing.T) {
+	t.Parallel()
 	// Helper to create a standard setup for alias caching tests
 	setupAliasCachingTest := func(t *testing.T) (
 		*federationtesting.FederationSetup,
@@ -1277,6 +1288,7 @@ func TestFederationCachingAliases(t *testing.T) {
 	}
 
 	t.Run("L2 hit - alias then no alias", func(t *testing.T) {
+		t.Parallel()
 		setup, gqlClient, ctx, _, tracker, defaultCache, accountsHost := setupAliasCachingTest(t)
 
 		// Request 1: Use alias userName for username
@@ -1305,6 +1317,7 @@ func TestFederationCachingAliases(t *testing.T) {
 	})
 
 	t.Run("L2 hit - two different aliases for same field", func(t *testing.T) {
+		t.Parallel()
 		setup, gqlClient, ctx, _, tracker, defaultCache, accountsHost := setupAliasCachingTest(t)
 
 		// Request 1: alias u1 for username
@@ -1333,6 +1346,7 @@ func TestFederationCachingAliases(t *testing.T) {
 	})
 
 	t.Run("no collision - alias matches another field name", func(t *testing.T) {
+		t.Parallel()
 		setup, gqlClient, ctx, _, tracker, defaultCache, accountsHost := setupAliasCachingTest(t)
 
 		// Request 1: alias realName for username (realName is another real field on User)
@@ -1363,6 +1377,7 @@ func TestFederationCachingAliases(t *testing.T) {
 	})
 
 	t.Run("no collision - field name used as alias for another field", func(t *testing.T) {
+		t.Parallel()
 		setup, gqlClient, ctx, _, tracker, defaultCache, accountsHost := setupAliasCachingTest(t)
 
 		// Request 1: username field (no alias) - triggers accounts entity fetch for username
@@ -1392,6 +1407,7 @@ func TestFederationCachingAliases(t *testing.T) {
 	})
 
 	t.Run("L2 hit - multiple fields some aliased some not", func(t *testing.T) {
+		t.Parallel()
 		setup, gqlClient, ctx, _, tracker, defaultCache, accountsHost := setupAliasCachingTest(t)
 
 		// Request 1: alias username and include realName (realName comes from reviews, not accounts)
@@ -1421,6 +1437,7 @@ func TestFederationCachingAliases(t *testing.T) {
 	})
 
 	t.Run("L1 hit within single request with aliases", func(t *testing.T) {
+		t.Parallel()
 		// Tests L1 cache with aliased fields across entity fetches within the same request.
 		// Flow:
 		// 1. topProducts -> products
@@ -1475,6 +1492,7 @@ func TestFederationCachingAliases(t *testing.T) {
 	})
 
 	t.Run("L1 hit within single request with mixed alias and no alias", func(t *testing.T) {
+		t.Parallel()
 		// Same as above, but the nested sameUserReviewers uses the original field name (no alias)
 		// while the outer authorWithoutProvides uses an alias. L1 cache stores normalized data,
 		// so the nested fetch should still hit L1 despite the different field naming.
@@ -1524,6 +1542,7 @@ func TestFederationCachingAliases(t *testing.T) {
 	})
 
 	t.Run("L2 hit - aliased root field then original root field", func(t *testing.T) {
+		t.Parallel()
 		setup, gqlClient, ctx, _, tracker, defaultCache, _ := setupAliasCachingTest(t)
 		productsHost := mustParseHost(setup.ProductsUpstreamServer.URL)
 
@@ -1553,6 +1572,7 @@ func TestFederationCachingAliases(t *testing.T) {
 	})
 
 	t.Run("L2 hit - two different root field aliases", func(t *testing.T) {
+		t.Parallel()
 		setup, gqlClient, ctx, _, tracker, defaultCache, _ := setupAliasCachingTest(t)
 		productsHost := mustParseHost(setup.ProductsUpstreamServer.URL)
 
@@ -1582,6 +1602,7 @@ func TestFederationCachingAliases(t *testing.T) {
 	})
 
 	t.Run("L1+L2 combined - alias entity caching across both layers", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -1664,6 +1685,7 @@ func TestFederationCachingAliases(t *testing.T) {
 	})
 
 	t.Run("L2 analytics - aliased root field", func(t *testing.T) {
+		t.Parallel()
 		const (
 			keyTopProducts        = `{"__typename":"Query","field":"topProducts"}`
 			dsProducts            = "products"
@@ -1745,6 +1767,7 @@ func TestFederationCachingAliases(t *testing.T) {
 	})
 
 	t.Run("L1 dedup - two aliases for same entity field in single request", func(t *testing.T) {
+		t.Parallel()
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
 		trackingClient := &http.Client{Transport: tracker}
 
@@ -1788,7 +1811,9 @@ func TestFederationCachingAliases(t *testing.T) {
 }
 
 func TestHeaderImpactAnalyticsE2E(t *testing.T) {
+	t.Parallel()
 	t.Run("shadow mode with header prefix - same response different headers", func(t *testing.T) {
+		t.Parallel()
 		mockHeaders := &headerForwardingMock{
 			headers: map[string]http.Header{
 				"products": {"Authorization": {"Bearer token-A"}},
@@ -2046,6 +2071,7 @@ func TestHeaderImpactAnalyticsE2E(t *testing.T) {
 	})
 
 	t.Run("no events when IncludeSubgraphHeaderPrefix is false", func(t *testing.T) {
+		t.Parallel()
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
 
 		setup := federationtesting.NewFederationSetup(addCachingGateway(

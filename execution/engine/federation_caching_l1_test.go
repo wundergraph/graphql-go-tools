@@ -13,6 +13,7 @@ import (
 )
 
 func TestL1CacheReducesHTTPCalls(t *testing.T) {
+	t.Parallel()
 	// This test demonstrates L1 cache behavior with entity fetches.
 	//
 	// Query structure:
@@ -54,6 +55,7 @@ func TestL1CacheReducesHTTPCalls(t *testing.T) {
 	expectedResponse := `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","reviews":[{"authorWithoutProvides":{"id":"1234","username":"Me"}}]}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","reviews":[{"authorWithoutProvides":{"id":"1234","username":"Me"}}]}}]}}}`
 
 	t.Run("L1 enabled - entity fetches use L1 cache", func(t *testing.T) {
+		t.Parallel()
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
 		trackingClient := &http.Client{Transport: tracker}
 
@@ -91,6 +93,7 @@ func TestL1CacheReducesHTTPCalls(t *testing.T) {
 	})
 
 	t.Run("L1 disabled - more accounts calls without cache", func(t *testing.T) {
+		t.Parallel()
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
 		trackingClient := &http.Client{Transport: tracker}
 
@@ -128,6 +131,7 @@ func TestL1CacheReducesHTTPCalls(t *testing.T) {
 }
 
 func TestL1CacheReducesHTTPCallsInterface(t *testing.T) {
+	t.Parallel()
 	// This test demonstrates L1 cache behavior with interface return types.
 	//
 	// Query structure:
@@ -164,6 +168,7 @@ func TestL1CacheReducesHTTPCallsInterface(t *testing.T) {
 	expectedResponse := `{"data":{"meInterface":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","reviews":[{"authorWithoutProvides":{"id":"1234","username":"Me"}}]}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","reviews":[{"authorWithoutProvides":{"id":"1234","username":"Me"}}]}}]}}}`
 
 	t.Run("L1 enabled - interface entity fetches use L1 cache", func(t *testing.T) {
+		t.Parallel()
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
 		trackingClient := &http.Client{Transport: tracker}
 
@@ -199,6 +204,7 @@ func TestL1CacheReducesHTTPCallsInterface(t *testing.T) {
 	})
 
 	t.Run("L1 disabled - more accounts calls without cache", func(t *testing.T) {
+		t.Parallel()
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
 		trackingClient := &http.Client{Transport: tracker}
 
@@ -235,6 +241,7 @@ func TestL1CacheReducesHTTPCallsInterface(t *testing.T) {
 }
 
 func TestL1CacheReducesHTTPCallsUnion(t *testing.T) {
+	t.Parallel()
 	// This test demonstrates L1 cache behavior with union return types.
 	//
 	// Query structure:
@@ -271,6 +278,7 @@ func TestL1CacheReducesHTTPCallsUnion(t *testing.T) {
 	expectedResponse := `{"data":{"meUnion":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","reviews":[{"authorWithoutProvides":{"id":"1234","username":"Me"}}]}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","reviews":[{"authorWithoutProvides":{"id":"1234","username":"Me"}}]}}]}}}`
 
 	t.Run("L1 enabled - union entity fetches use L1 cache", func(t *testing.T) {
+		t.Parallel()
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
 		trackingClient := &http.Client{Transport: tracker}
 
@@ -306,6 +314,7 @@ func TestL1CacheReducesHTTPCallsUnion(t *testing.T) {
 	})
 
 	t.Run("L1 disabled - more accounts calls without cache", func(t *testing.T) {
+		t.Parallel()
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
 		trackingClient := &http.Client{Transport: tracker}
 
@@ -342,6 +351,7 @@ func TestL1CacheReducesHTTPCallsUnion(t *testing.T) {
 }
 
 func TestL1CacheSelfReferentialEntity(t *testing.T) {
+	t.Parallel()
 	// This test verifies that self-referential entities don't cause
 	// stack overflow when L1 cache is enabled.
 	//
@@ -376,6 +386,7 @@ func TestL1CacheSelfReferentialEntity(t *testing.T) {
 	expectedResponse := `{"data":{"topProducts":[{"reviews":[{"authorWithoutProvides":{"id":"1234","username":"Me","sameUserReviewers":[{"id":"1234","username":"Me"}]}}]},{"reviews":[{"authorWithoutProvides":{"id":"1234","username":"Me","sameUserReviewers":[{"id":"1234","username":"Me"}]}}]}]}}`
 
 	t.Run("self-referential entity should not cause stack overflow", func(t *testing.T) {
+		t.Parallel()
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
 		trackingClient := &http.Client{Transport: tracker}
 
@@ -404,6 +415,7 @@ func TestL1CacheSelfReferentialEntity(t *testing.T) {
 }
 
 func TestL1CacheChildFieldEntityList(t *testing.T) {
+	t.Parallel()
 	// This test verifies L1 cache behavior for User.sameUserReviewers: [User!]!
 	// which returns only the same user (self-reference).
 	//
@@ -447,6 +459,7 @@ func TestL1CacheChildFieldEntityList(t *testing.T) {
 	expectedResponse := `{"data":{"topProducts":[{"reviews":[{"authorWithoutProvides":{"id":"1234","username":"Me","sameUserReviewers":[{"id":"1234","username":"Me"}]}}]},{"reviews":[{"authorWithoutProvides":{"id":"1234","username":"Me","sameUserReviewers":[{"id":"1234","username":"Me"}]}}]}]}}`
 
 	t.Run("L1 enabled - sameUserReviewers fetch entirely skipped via L1 cache", func(t *testing.T) {
+		t.Parallel()
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
 		trackingClient := &http.Client{Transport: tracker}
 
@@ -497,6 +510,7 @@ func TestL1CacheChildFieldEntityList(t *testing.T) {
 	})
 
 	t.Run("L1 disabled - accounts called for sameUserReviewers", func(t *testing.T) {
+		t.Parallel()
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
 		trackingClient := &http.Client{Transport: tracker}
 
@@ -537,6 +551,7 @@ func TestL1CacheChildFieldEntityList(t *testing.T) {
 }
 
 func TestL1CacheNestedEntityListDeduplication(t *testing.T) {
+	t.Parallel()
 	// This test verifies L1 deduplication when the same entity appears
 	// at multiple levels in nested list queries using coReviewers.
 	//
@@ -584,6 +599,7 @@ func TestL1CacheNestedEntityListDeduplication(t *testing.T) {
 	expectedResponse := `{"data":{"topProducts":[{"reviews":[{"authorWithoutProvides":{"id":"1234","username":"Me","coReviewers":[{"id":"1234","username":"Me","coReviewers":[{"id":"1234","username":"Me"},{"id":"7777","username":"User 7777"}]},{"id":"7777","username":"User 7777","coReviewers":[{"id":"7777","username":"User 7777"},{"id":"1234","username":"Me"}]}]}}]},{"reviews":[{"authorWithoutProvides":{"id":"1234","username":"Me","coReviewers":[{"id":"1234","username":"Me","coReviewers":[{"id":"1234","username":"Me"},{"id":"7777","username":"User 7777"}]},{"id":"7777","username":"User 7777","coReviewers":[{"id":"7777","username":"User 7777"},{"id":"1234","username":"Me"}]}]}}]}]}}`
 
 	t.Run("L1 enabled - nested coReviewers benefits from L1 hits", func(t *testing.T) {
+		t.Parallel()
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
 		trackingClient := &http.Client{Transport: tracker}
 
@@ -625,6 +641,7 @@ func TestL1CacheNestedEntityListDeduplication(t *testing.T) {
 	})
 
 	t.Run("L1 disabled - more accounts calls without deduplication", func(t *testing.T) {
+		t.Parallel()
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
 		trackingClient := &http.Client{Transport: tracker}
 
@@ -665,6 +682,7 @@ func TestL1CacheNestedEntityListDeduplication(t *testing.T) {
 }
 
 func TestL1CacheRootFieldEntityListPopulation(t *testing.T) {
+	t.Parallel()
 	// This test verifies L1 cache behavior with a complex nested query starting
 	// from a root field that returns a list of entities.
 	//
@@ -703,6 +721,7 @@ func TestL1CacheRootFieldEntityListPopulation(t *testing.T) {
 	expectedResponse := `{"data":{"topProducts":[{"upc":"top-1","name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"id":"1234","username":"Me","sameUserReviewers":[{"id":"1234","username":"Me"}]}}]},{"upc":"top-2","name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"id":"1234","username":"Me","sameUserReviewers":[{"id":"1234","username":"Me"}]}}]}]}}`
 
 	t.Run("L1 enabled - sameUserReviewers fetch skipped via L1 cache", func(t *testing.T) {
+		t.Parallel()
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
 		trackingClient := &http.Client{Transport: tracker}
 
@@ -754,6 +773,7 @@ func TestL1CacheRootFieldEntityListPopulation(t *testing.T) {
 	})
 
 	t.Run("L1 disabled - more accounts calls without L1 optimization", func(t *testing.T) {
+		t.Parallel()
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
 		trackingClient := &http.Client{Transport: tracker}
 
@@ -806,6 +826,7 @@ func TestL1CacheRootFieldEntityListPopulation(t *testing.T) {
 }
 
 func TestL1CacheRootFieldNonEntityWithNestedEntities(t *testing.T) {
+	t.Parallel()
 	// This test verifies L1 cache behavior when a root field returns a NON-entity type
 	// (Review) that contains nested entities (User via authorWithoutProvides).
 	//
@@ -839,6 +860,7 @@ func TestL1CacheRootFieldNonEntityWithNestedEntities(t *testing.T) {
 	expectedResponse := `{"data":{"topReviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"id":"1234","username":"Me","sameUserReviewers":[{"id":"1234","username":"Me"}]}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"id":"1234","username":"Me","sameUserReviewers":[{"id":"1234","username":"Me"}]}},{"body":"This is the last straw. Hat you will wear. 11/10","authorWithoutProvides":{"id":"7777","username":"User 7777","sameUserReviewers":[{"id":"7777","username":"User 7777"}]}},{"body":"Perfect summer hat.","authorWithoutProvides":{"id":"5678","username":"User 5678","sameUserReviewers":[{"id":"5678","username":"User 5678"}]}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"id":"8888","username":"User 8888","sameUserReviewers":[{"id":"8888","username":"User 8888"}]}}]}}`
 
 	t.Run("L1 enabled - sameUserReviewers fetch skipped via L1 cache", func(t *testing.T) {
+		t.Parallel()
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
 		trackingClient := &http.Client{Transport: tracker}
 
@@ -884,6 +906,7 @@ func TestL1CacheRootFieldNonEntityWithNestedEntities(t *testing.T) {
 	})
 
 	t.Run("L1 disabled - more accounts calls without L1 optimization", func(t *testing.T) {
+		t.Parallel()
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
 		trackingClient := &http.Client{Transport: tracker}
 
@@ -937,6 +960,7 @@ func TestL1CacheRootFieldNonEntityWithNestedEntities(t *testing.T) {
 // The cache should only store successful responses to prevent caching error states.
 
 func TestL1CacheOptimizationReducesSubgraphCalls(t *testing.T) {
+	t.Parallel()
 	// This query demonstrates L1 optimization:
 	// - Query.me returns User entity
 	// - User.sameUserReviewers returns [User] entities
@@ -962,6 +986,7 @@ func TestL1CacheOptimizationReducesSubgraphCalls(t *testing.T) {
 	expectedResponse := `{"data":{"me":{"id":"1234","username":"Me","sameUserReviewers":[{"id":"1234","username":"Me"}]}}}`
 
 	t.Run("L1 optimization enables cache hit between same entity type fetches", func(t *testing.T) {
+		t.Parallel()
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
 		trackingClient := &http.Client{Transport: tracker}
 

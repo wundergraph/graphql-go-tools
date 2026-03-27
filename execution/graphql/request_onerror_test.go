@@ -9,6 +9,7 @@ import (
 )
 
 func TestRequest_GetOnErrorBehavior(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		extensions string
@@ -85,6 +86,7 @@ func TestRequest_GetOnErrorBehavior(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			req := &Request{
 				Extensions: []byte(tc.extensions),
 			}
@@ -96,6 +98,7 @@ func TestRequest_GetOnErrorBehavior(t *testing.T) {
 }
 
 func TestRequest_GetOnErrorBehavior_WithNilExtensions(t *testing.T) {
+	t.Parallel()
 	req := &Request{
 		Query: "{ hello }",
 	}

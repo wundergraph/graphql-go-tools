@@ -188,9 +188,6 @@ type extInvalidationEnv struct {
 func newExtInvalidationEnv(t *testing.T, opts ...extInvalidationOption) *extInvalidationEnv {
 	t.Helper()
 
-	accounts.ResetUsers()
-	t.Cleanup(accounts.ResetUsers)
-
 	var cfg extInvalidationConfig
 	for _, opt := range opts {
 		opt(&cfg)

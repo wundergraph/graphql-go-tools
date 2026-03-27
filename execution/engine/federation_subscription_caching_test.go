@@ -47,11 +47,13 @@ func collectSubscriptionMessages(ctx context.Context, gqlClient *GraphqlClient, 
 }
 
 func TestFederationSubscriptionCaching(t *testing.T) {
+	t.Parallel()
 	// =====================================================================
 	// Category 1: Child fetch L2 read/write within subscription events
 	// =====================================================================
 
 	t.Run("child entity fetch - L2 miss then hit across events", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -145,6 +147,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 	})
 
 	t.Run("L2 pre-populated - subscription child fetch hits L2", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -217,6 +220,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 	})
 
 	t.Run("child entity fetch L2 TTL expiry across events", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -275,6 +279,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 	})
 
 	t.Run("entity caching not configured - no cache operations", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -329,6 +334,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 	// =====================================================================
 
 	t.Run("subscription entity populates L2 - verified via cache", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -384,6 +390,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 	})
 
 	t.Run("subscription populates L2 - cached data has only selected fields", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -440,6 +447,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 	})
 
 	t.Run("subscription entity list populates L2 - multiple entities cached", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -505,6 +513,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 	})
 
 	t.Run("subscription entity population not configured - no L2 writes from subscription", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -569,6 +578,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 	})
 
 	t.Run("subscription entity + child fetch caching combined", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -646,6 +656,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 	})
 
 	t.Run("subscription entity population with header prefix", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -713,6 +724,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 	// =====================================================================
 
 	t.Run("key-only subscription invalidates L2 cache", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -795,6 +807,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 	})
 
 	t.Run("key-only subscription WITHOUT invalidation flag - no cache operation", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -872,6 +885,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 	})
 
 	t.Run("invalidation on every event", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -956,6 +970,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 	// =====================================================================
 
 	t.Run("root field cache config does not apply to subscription root", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -1030,6 +1045,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 	// =====================================================================
 
 	t.Run("multiple subscription events share L2 - second event skips fetch", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -1084,6 +1100,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 	})
 
 	t.Run("subscription with @provides skips entity resolution", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -1145,6 +1162,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 	// =====================================================================
 
 	t.Run("subscription root field alias - entity population works", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -1200,6 +1218,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 	})
 
 	t.Run("subscription union return type - entity population works", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -1256,6 +1275,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 	})
 
 	t.Run("subscription interface return type - entity population works", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -1312,6 +1332,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 	})
 
 	t.Run("subscription union return type - unconfigured type not cached", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -1367,6 +1388,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 	})
 
 	t.Run("subscription interface return type - unconfigured type not cached", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -1426,6 +1448,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 	// =====================================================================
 
 	t.Run("entity population happens once per trigger event with multiple subscriptions", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -1551,6 +1574,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 	})
 
 	t.Run("entity invalidation happens once per trigger event with multiple subscriptions", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -1687,6 +1711,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 	})
 
 	t.Run("three clients - cache operations still happen once", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -1782,6 +1807,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 	// =====================================================================
 
 	t.Run("subscription field-name disambiguation - updateProductPrice uses 30s TTL", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 
 		setup := federationtesting.NewFederationSetup(addCachingGateway(
@@ -1819,6 +1845,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 	})
 
 	t.Run("subscription field-name disambiguation - updatedPrice uses 60s TTL", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 
 		setup := federationtesting.NewFederationSetup(addCachingGateway(

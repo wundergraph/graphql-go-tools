@@ -32,8 +32,9 @@ func mustGraphqlDataSourceConfigurationWithName(t *testing.T, id string, name st
 }
 
 func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
+	t.Parallel()
 	engineCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	t.Cleanup(cancel)
 
 	runWithoutError := func(
 		t *testing.T,
@@ -108,6 +109,7 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tt.run(t, httpClient, streamingClient, []SubgraphConfiguration{
 				{
 					Name: "users",

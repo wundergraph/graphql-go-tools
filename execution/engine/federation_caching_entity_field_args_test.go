@@ -127,6 +127,7 @@ func newEntityFieldArgsSetup(t *testing.T) *entityFieldArgsSetup {
 }
 
 func TestEntityFieldArgsCaching(t *testing.T) {
+	t.Parallel()
 	// peekCache retrieves a cached entry's raw JSON without logging.
 	// Returns empty string if the key is not in cache.
 	peekCache := func(t *testing.T, s *entityFieldArgsSetup, key string) string {
@@ -139,6 +140,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 	}
 
 	t.Run("same args - L2 miss then hit", func(t *testing.T) {
+		t.Parallel()
 		s := newEntityFieldArgsSetup(t)
 
 		query := `query EntityFieldArgsFormal {
@@ -235,6 +237,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 	})
 
 	t.Run("different args - no data mixing", func(t *testing.T) {
+		t.Parallel()
 		s := newEntityFieldArgsSetup(t)
 
 		queryFormal := `query EntityFieldArgsFormal {
@@ -348,6 +351,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 	})
 
 	t.Run("aliases with different args - both cached together", func(t *testing.T) {
+		t.Parallel()
 		s := newEntityFieldArgsSetup(t)
 
 		query := `query EntityFieldArgsAliases {
@@ -435,6 +439,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 	})
 
 	t.Run("aliases cached then single field hits cache", func(t *testing.T) {
+		t.Parallel()
 		s := newEntityFieldArgsSetup(t)
 
 		queryAliases := `query EntityFieldArgsAliases {
@@ -539,6 +544,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 	})
 
 	t.Run("enum argument - miss then hit", func(t *testing.T) {
+		t.Parallel()
 		s := newEntityFieldArgsSetup(t)
 
 		query := `query EntityFieldArgsCustomGreeting($input: GreetingInput!) {
@@ -627,6 +633,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 	})
 
 	t.Run("enum argument - different enum values different cache entries", func(t *testing.T) {
+		t.Parallel()
 		s := newEntityFieldArgsSetup(t)
 
 		query := `query EntityFieldArgsCustomGreeting($input: GreetingInput!) {
@@ -720,6 +727,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 	})
 
 	t.Run("nested input object - changing nested field produces different hash", func(t *testing.T) {
+		t.Parallel()
 		s := newEntityFieldArgsSetup(t)
 
 		query := `query EntityFieldArgsCustomGreeting($input: GreetingInput!) {
@@ -818,6 +826,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 	})
 
 	t.Run("nested input object - different nested fields present", func(t *testing.T) {
+		t.Parallel()
 		s := newEntityFieldArgsSetup(t)
 
 		query := `query EntityFieldArgsCustomGreeting($input: GreetingInput!) {
@@ -916,6 +925,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 	})
 
 	t.Run("nested input object - same fields different key order produces same hash", func(t *testing.T) {
+		t.Parallel()
 		s := newEntityFieldArgsSetup(t)
 
 		query := `query EntityFieldArgsCustomGreeting($input: GreetingInput!) {
@@ -1008,6 +1018,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 	})
 
 	t.Run("different args merge enables third request cache hit", func(t *testing.T) {
+		t.Parallel()
 		s := newEntityFieldArgsSetup(t)
 
 		queryFormal := `query EntityFieldArgsFormal {
@@ -1139,6 +1150,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 	})
 
 	t.Run("different args merge enables combined alias cache hit", func(t *testing.T) {
+		t.Parallel()
 		s := newEntityFieldArgsSetup(t)
 
 		queryFormal := `query EntityFieldArgsFormal {
@@ -1259,6 +1271,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 	})
 
 	t.Run("non-arg fields merge across fetches", func(t *testing.T) {
+		t.Parallel()
 		s := newEntityFieldArgsSetup(t)
 
 		queryUsernameOnly := `query UsernameOnly {

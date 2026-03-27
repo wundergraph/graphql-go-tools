@@ -70,11 +70,10 @@ func testQueryPath(name string) string {
 }
 
 func TestFederationIntegrationTestWithArt(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	t.Parallel()
 
 	setup := federationtesting.NewFederationSetup(addGateway(withEnableART(true)))
-	defer setup.Close()
+	t.Cleanup(setup.Close)
 
 	gqlClient := NewGraphqlClient(http.DefaultClient)
 
@@ -82,10 +81,31 @@ func TestFederationIntegrationTestWithArt(t *testing.T) {
 		rex, err := regexp.Compile(`http://127.0.0.1:\d+`)
 		require.NoError(t, err)
 		resp = rex.ReplaceAllString(resp, "http://localhost/graphql")
+
+		// Normalize timing values that shift under parallel execution load
+		rexNanos, err := regexp.Compile(`"duration_since_start_nanoseconds":\s*\d+`)
+		require.NoError(t, err)
+		resp = rexNanos.ReplaceAllString(resp, `"duration_since_start_nanoseconds":0`)
+
+		rexPretty, err := regexp.Compile(`"duration_since_start_pretty":\s*"[^"]*"`)
+		require.NoError(t, err)
+		resp = rexPretty.ReplaceAllString(resp, `"duration_since_start_pretty":""`)
+
+		rexStartTime, err := regexp.Compile(`"trace_start_time":\s*"[^"]*"`)
+		require.NoError(t, err)
+		resp = rexStartTime.ReplaceAllString(resp, `"trace_start_time":"0"`)
+
+		rexEndTime, err := regexp.Compile(`"trace_start_unix":\s*"[^"]*"`)
+		require.NoError(t, err)
+		resp = rexEndTime.ReplaceAllString(resp, `"trace_start_unix":"0"`)
+
 		return resp
 	}
 
 	t.Run("single upstream query operation with ART", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/complex_nesting.graphql"), nil, t)
 		respString := normalizeResponse(string(resp))
 

@@ -34,6 +34,7 @@ func TestExecutionEngine_FederationAndSubscription_IntegrationTest(t *testing.T)
 		require.NoError(t, err)
 
 		t.Run("should successfully execute a federation operation", func(t *testing.T) {
+			t.Parallel()
 			gqlRequest := &graphql.Request{
 				OperationName: "",
 				Variables:     nil,
@@ -71,6 +72,8 @@ func TestExecutionEngine_FederationAndSubscription_IntegrationTest(t *testing.T)
 		require.NoError(t, err)
 
 		t.Run("should successfully execute a federation subscription", func(t *testing.T) {
+
+			t.Parallel()
 
 			query := `
 subscription UpdatedPrice {
