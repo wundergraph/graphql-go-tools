@@ -6,6 +6,7 @@ on:
       - 'execution/**'
       - '.github/workflows/execution.yml'
       - '.golangci.yml'
+      - '.coderabbit.yaml'
   push:
     branches:
       - master
@@ -14,6 +15,7 @@ on:
       - 'execution/**'
       - '.github/workflows/execution.yml'
       - '.golangci.yml'
+      - '.coderabbit.yaml'
 jobs:
   test:
     name: Build and test (go ${{ matrix.go }} / ${{ matrix.os }})
