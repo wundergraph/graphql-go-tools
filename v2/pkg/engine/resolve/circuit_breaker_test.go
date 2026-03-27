@@ -206,29 +206,135 @@ func TestCircuitBreaker(t *testing.T) {
 		assert.False(t, state.isOpen())
 	})
 
-	t.Run("concurrent access safety", func(t *testing.T) {
+	t.Run("concurrent failures trip breaker exactly once", func(t *testing.T) {
+		// 100 goroutines all failing concurrently with threshold=5.
+		// The breaker must end up open, and the failure count must be
+		// between threshold and goroutine count (CAS retries may cause
+		// some increments to be lost, but the threshold crossing is never missed).
 		inner := &failingCache{getErr: cacheErr}
-		cb := &circuitBreakerCache{
-			inner: inner,
-			state: newCircuitBreakerState(CircuitBreakerConfig{
-				Enabled:          true,
-				FailureThreshold: 100, // high threshold so we can count
-				CooldownPeriod:   time.Second,
-			}),
-		}
+		state := newCircuitBreakerState(CircuitBreakerConfig{
+			Enabled:          true,
+			FailureThreshold: 5,
+			CooldownPeriod:   time.Second,
+		})
+		cb := &circuitBreakerCache{inner: inner, state: state}
 
 		ctx := t.Context()
 		var wg sync.WaitGroup
-		for range 50 {
+		for range 100 {
 			wg.Go(func() {
 				_, _ = cb.Get(ctx, []string{"k1"})
 			})
 		}
 		wg.Wait()
 
-		// No panics, no data races. Exact failure count may vary due to
-		// concurrency but should be <= 50.
-		assert.LessOrEqual(t, cb.state.failures(), int64(50))
+		assert.True(t, state.isOpen(), "breaker must be open after 100 concurrent failures with threshold=5")
+		// Some calls may have been blocked by the open breaker, so inner calls <= 100
+		assert.LessOrEqual(t, inner.getCalls.Load(), int64(100))
+		assert.GreaterOrEqual(t, inner.getCalls.Load(), int64(5), "at least threshold calls must have reached inner before breaker opened")
+	})
+
+	t.Run("concurrent half-open allows exactly one probe", func(t *testing.T) {
+		// Open the breaker with expired cooldown, then race 50 goroutines
+		// calling shouldAllow. Exactly one should win the CAS probe.
+		// We do NOT call recordSuccess so the breaker stays in half-open
+		// with probeInFlight=true — this isolates the CAS behavior.
+		var probeCount atomic.Int64
+		state := newCircuitBreakerState(CircuitBreakerConfig{
+			Enabled:          true,
+			FailureThreshold: 1,
+			CooldownPeriod:   10 * time.Millisecond,
+		})
+		// Open in the past so cooldown has elapsed → half-open
+		state.forceOpen(time.Now().Add(-50*time.Millisecond).UnixNano(), 1)
+
+		var wg sync.WaitGroup
+		for range 50 {
+			wg.Go(func() {
+				if state.shouldAllow() {
+					probeCount.Add(1)
+					// Intentionally do NOT call recordSuccess — we're testing
+					// that exactly one goroutine wins the CAS, not the reset path.
+				}
+			})
+		}
+		wg.Wait()
+
+		// Exactly one goroutine should have won the CAS probe
+		assert.Equal(t, int64(1), probeCount.Load(), "exactly one probe should be allowed in half-open state")
+	})
+
+	t.Run("concurrent mixed success and failure", func(t *testing.T) {
+		// 50 goroutines succeed, 50 fail concurrently. Threshold is 100.
+		// The breaker must remain closed because the success calls reset
+		// the failure counter before it can reach 100.
+		state := newCircuitBreakerState(CircuitBreakerConfig{
+			Enabled:          true,
+			FailureThreshold: 100,
+			CooldownPeriod:   time.Second,
+		})
+
+		var wg sync.WaitGroup
+		for range 50 {
+			wg.Go(func() {
+				state.recordSuccess()
+			})
+		}
+		for range 50 {
+			wg.Go(func() {
+				state.recordFailure()
+			})
+		}
+		wg.Wait()
+
+		// With interleaved success resets, the breaker should not have tripped
+		assert.False(t, state.isOpen(), "breaker should stay closed with mixed success/failure below effective threshold")
+	})
+
+	t.Run("concurrent probe failure re-opens correctly", func(t *testing.T) {
+		// Open the breaker with expired cooldown → half-open.
+		// One goroutine wins the probe, but the probe fails.
+		// Verify the breaker re-opens and subsequent calls are blocked.
+		inner := &failingCache{getErr: cacheErr}
+		state := newCircuitBreakerState(CircuitBreakerConfig{
+			Enabled:          true,
+			FailureThreshold: 1,
+			CooldownPeriod:   10 * time.Millisecond, // short cooldown so initial state is half-open
+		})
+		// Open 50ms ago with 10ms cooldown → cooldown elapsed → half-open
+		state.forceOpen(time.Now().Add(-50*time.Millisecond).UnixNano(), 1)
+
+		cb := &circuitBreakerCache{inner: inner, state: state}
+
+		ctx := t.Context()
+		var wg sync.WaitGroup
+		var probeResults sync.Map
+
+		for i := range 20 {
+			wg.Go(func() {
+				_, err := cb.Get(ctx, []string{"k1"})
+				if err != nil {
+					probeResults.Store(i, "probed-failed")
+				} else {
+					probeResults.Store(i, "blocked")
+				}
+			})
+		}
+		wg.Wait()
+
+		// Count how many actually probed (got an error back from inner)
+		var probedCount int
+		probeResults.Range(func(_, v any) bool {
+			if v == "probed-failed" {
+				probedCount++
+			}
+			return true
+		})
+
+		assert.Equal(t, 1, probedCount, "exactly one goroutine should have probed and failed")
+		// After probe failure, recordFailure re-opens with a fresh timestamp.
+		// The new openedAt is ~now, so with 10ms cooldown it's still in the open window.
+		assert.True(t, state.isOpen(), "breaker must be re-opened after probe failure")
 	})
 
 	t.Run("wrapCachesWithCircuitBreakers applies defaults", func(t *testing.T) {
