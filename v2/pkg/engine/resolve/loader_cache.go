@@ -1412,7 +1412,7 @@ func (l *Loader) detectSingleMutationEntityImpact(
 func (l *Loader) buildEntityBaseKeyJSON(entityTypeName string, entityData *astjson.Value, keyFields []KeyField) string {
 	keyObj := astjson.ObjectValue(l.jsonArena)
 	keyObj.Set(l.jsonArena, "__typename", astjson.StringValue(l.jsonArena, entityTypeName))
-	keysObj := buildEntityKeyValue(l.jsonArena, entityData, keyFields)
+	keysObj := l.buildEntityKeyValue(entityData, keyFields)
 	keyObj.Set(l.jsonArena, "key", keysObj)
 	return string(keyObj.MarshalTo(nil))
 }
@@ -1450,16 +1450,16 @@ func (l *Loader) buildMutationEntityCacheKey(cfg *MutationEntityImpactConfig, en
 }
 
 // buildEntityKeyValue recursively builds a JSON object from entity data using only key fields.
-func buildEntityKeyValue(a arena.Arena, data *astjson.Value, keyFields []KeyField) *astjson.Value {
-	obj := astjson.ObjectValue(a)
+func (l *Loader) buildEntityKeyValue(data *astjson.Value, keyFields []KeyField) *astjson.Value {
+	obj := astjson.ObjectValue(l.jsonArena)
 	for _, kf := range keyFields {
 		if len(kf.Children) > 0 {
 			childData := data.Get(kf.Name)
-			obj.Set(a, kf.Name, buildEntityKeyValue(a, childData, kf.Children))
+			obj.Set(l.jsonArena, kf.Name, l.buildEntityKeyValue(childData, kf.Children))
 		} else {
 			val := data.Get(kf.Name)
 			if val != nil {
-				obj.Set(a, kf.Name, val)
+				obj.Set(l.jsonArena, kf.Name, val)
 			}
 		}
 	}

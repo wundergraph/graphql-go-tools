@@ -65,8 +65,15 @@ func TestNavigateProvidesDataToField(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// buildEntityKeyValue
+// buildEntityKeyValue (Loader method)
 // ---------------------------------------------------------------------------
+
+// testBuildEntityKeyValue is a test helper that creates a minimal Loader
+// to call the buildEntityKeyValue method.
+func testBuildEntityKeyValue(ar arena.Arena, data *astjson.Value, keyFields []KeyField) *astjson.Value {
+	l := &Loader{jsonArena: ar}
+	return l.buildEntityKeyValue(data, keyFields)
+}
 
 func TestBuildEntityKeyValue(t *testing.T) {
 	t.Run("simple key", func(t *testing.T) {
@@ -74,8 +81,7 @@ func TestBuildEntityKeyValue(t *testing.T) {
 		data, err := astjson.ParseWithArena(ar, `{"id":"123","name":"Alice"}`)
 		require.NoError(t, err)
 
-		keyFields := []KeyField{{Name: "id"}}
-		result := buildEntityKeyValue(ar, data, keyFields)
+		result := testBuildEntityKeyValue(ar, data, []KeyField{{Name: "id"}})
 		got := string(result.MarshalTo(nil))
 
 		assert.Equal(t, `{"id":"123"}`, got)
@@ -86,8 +92,7 @@ func TestBuildEntityKeyValue(t *testing.T) {
 		data, err := astjson.ParseWithArena(ar, `{"id":"1","orgId":"acme","name":"Bob"}`)
 		require.NoError(t, err)
 
-		keyFields := []KeyField{{Name: "id"}, {Name: "orgId"}}
-		result := buildEntityKeyValue(ar, data, keyFields)
+		result := testBuildEntityKeyValue(ar, data, []KeyField{{Name: "id"}, {Name: "orgId"}})
 		got := string(result.MarshalTo(nil))
 
 		assert.Equal(t, `{"id":"1","orgId":"acme"}`, got)
@@ -98,10 +103,9 @@ func TestBuildEntityKeyValue(t *testing.T) {
 		data, err := astjson.ParseWithArena(ar, `{"key":{"subId":"x"},"name":"Carol"}`)
 		require.NoError(t, err)
 
-		keyFields := []KeyField{
+		result := testBuildEntityKeyValue(ar, data, []KeyField{
 			{Name: "key", Children: []KeyField{{Name: "subId"}}},
-		}
-		result := buildEntityKeyValue(ar, data, keyFields)
+		})
 		got := string(result.MarshalTo(nil))
 
 		assert.Equal(t, `{"key":{"subId":"x"}}`, got)
@@ -112,8 +116,7 @@ func TestBuildEntityKeyValue(t *testing.T) {
 		data, err := astjson.ParseWithArena(ar, `{"name":"Dave"}`)
 		require.NoError(t, err)
 
-		keyFields := []KeyField{{Name: "id"}}
-		result := buildEntityKeyValue(ar, data, keyFields)
+		result := testBuildEntityKeyValue(ar, data, []KeyField{{Name: "id"}})
 		got := string(result.MarshalTo(nil))
 
 		// "id" is missing in data, so it is omitted from the result
