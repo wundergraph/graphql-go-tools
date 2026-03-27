@@ -1,8 +1,10 @@
 package postprocess
 
 import (
+	"cmp"
 	"maps"
 	"slices"
+	"strconv"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
@@ -24,7 +26,12 @@ func (d *extractDeferFetches) Process(deferPlan *plan.DeferResponsePlan) {
 		ChildNodes: root,
 	}
 
-	deferIds := slices.Sorted(maps.Keys(fetchGroups))
+	// sort defer ids in direct natural order
+	deferIds := slices.SortedFunc(maps.Keys(fetchGroups), func(a, b string) int {
+		an, _ := strconv.Atoi(a)
+		bn, _ := strconv.Atoi(b)
+		return cmp.Compare(an, bn)
+	})
 
 	for _, deferID := range deferIds {
 		fetches := fetchGroups[deferID]
