@@ -23,71 +23,127 @@ type CircuitBreakerConfig struct {
 	CooldownPeriod time.Duration
 }
 
+// cbSnapshot is the immutable state of a circuit breaker, swapped atomically.
+// A single atomic.Pointer load on the fast path (closed state) avoids multiple
+// atomic loads and ensures readers always see a consistent state.
+type cbSnapshot struct {
+	consecutiveFailures int64
+	openedAt            int64 // unix nano timestamp, 0 = closed
+	probeInFlight       bool
+}
+
+// closed is the shared zero-value snapshot for the closed state.
+// Since snapshots are immutable, all closed breakers can share this pointer.
+var closedSnapshot = &cbSnapshot{}
+
 // circuitBreakerState tracks the state of one circuit breaker instance.
-// All fields use atomic operations for goroutine safety (L2 operations run in Phase 2 goroutines).
+// State is stored as an immutable snapshot behind an atomic pointer, so all
+// reads see a consistent view and the fast path (breaker closed) is a single
+// atomic load + nil-like check.
 //
 // States:
 //   - Closed: openedAt == 0. All operations pass through.
 //   - Open: openedAt != 0 && now < openedAt + cooldown. All operations are skipped.
 //   - Half-Open: openedAt != 0 && now >= openedAt + cooldown. One probe request allowed.
 type circuitBreakerState struct {
-	consecutiveFailures atomic.Int64
-	openedAt            atomic.Int64 // unix nano timestamp, 0 = closed
-	probeInFlight       atomic.Bool
-	config              CircuitBreakerConfig
+	snap   atomic.Pointer[cbSnapshot]
+	config CircuitBreakerConfig
 }
 
 func newCircuitBreakerState(config CircuitBreakerConfig) *circuitBreakerState {
-	return &circuitBreakerState{config: config}
+	s := &circuitBreakerState{config: config}
+	s.snap.Store(closedSnapshot)
+	return s
 }
 
 // shouldAllow returns true if the operation should proceed.
-// In half-open state, uses CAS to allow exactly one probe without clearing the
-// open state — openedAt and consecutiveFailures are only reset on probe success.
+// Fast path: single atomic load, check openedAt == 0.
+// In half-open state, uses CAS on the snapshot pointer to allow exactly one probe.
 func (cb *circuitBreakerState) shouldAllow() bool {
-	openedAt := cb.openedAt.Load()
-	if openedAt == 0 {
-		return true // closed
+	snap := cb.snap.Load()
+	if snap.openedAt == 0 {
+		return true // closed — single atomic load on hot path
 	}
 
-	elapsed := time.Since(time.Unix(0, openedAt))
+	elapsed := time.Since(time.Unix(0, snap.openedAt))
 	if elapsed < cb.config.CooldownPeriod {
 		return false // open, cooldown not elapsed
 	}
 
-	// Half-open: allow exactly one probe, but don't mark the breaker closed
-	// until that probe succeeds.
-	return cb.probeInFlight.CompareAndSwap(false, true)
+	// Half-open: allow exactly one probe via CAS on the snapshot pointer.
+	// Only the goroutine that wins the CAS gets to probe.
+	if snap.probeInFlight {
+		return false // another probe already in flight
+	}
+	probing := &cbSnapshot{
+		consecutiveFailures: snap.consecutiveFailures,
+		openedAt:            snap.openedAt,
+		probeInFlight:       true,
+	}
+	return cb.snap.CompareAndSwap(snap, probing)
 }
 
-// recordSuccess resets the breaker to closed state.
+// recordSuccess resets the breaker to closed state with a single atomic store.
 func (cb *circuitBreakerState) recordSuccess() {
-	cb.consecutiveFailures.Store(0)
-	cb.openedAt.Store(0)
-	cb.probeInFlight.Store(false)
+	snap := cb.snap.Load()
+	if snap.openedAt == 0 && snap.consecutiveFailures == 0 {
+		return // already closed — single atomic load on fast path
+	}
+	cb.snap.Store(closedSnapshot)
 }
 
 // recordFailure increments the failure counter and trips the breaker if threshold is reached.
 func (cb *circuitBreakerState) recordFailure() {
-	if cb.probeInFlight.Swap(false) {
-		// Half-open probe failed — reopen immediately.
-		cb.openedAt.Store(time.Now().UnixNano())
-		return
-	}
-	failures := cb.consecutiveFailures.Add(1)
-	if failures >= int64(cb.config.FailureThreshold) {
-		cb.openedAt.Store(time.Now().UnixNano())
+	for {
+		snap := cb.snap.Load()
+		if snap.probeInFlight {
+			// Half-open probe failed — reopen immediately with fresh timestamp.
+			reopened := &cbSnapshot{
+				consecutiveFailures: snap.consecutiveFailures,
+				openedAt:            time.Now().UnixNano(),
+			}
+			if cb.snap.CompareAndSwap(snap, reopened) {
+				return
+			}
+			continue // snapshot changed, retry
+		}
+		newFailures := snap.consecutiveFailures + 1
+		next := &cbSnapshot{
+			consecutiveFailures: newFailures,
+			openedAt:            snap.openedAt,
+		}
+		if newFailures >= int64(cb.config.FailureThreshold) {
+			next.openedAt = time.Now().UnixNano()
+		}
+		if cb.snap.CompareAndSwap(snap, next) {
+			return
+		}
+		// snapshot changed concurrently, retry
 	}
 }
 
 // isOpen returns true if the breaker is currently open (not allowing operations).
 func (cb *circuitBreakerState) isOpen() bool {
-	openedAt := cb.openedAt.Load()
-	if openedAt == 0 {
+	snap := cb.snap.Load()
+	if snap.openedAt == 0 {
 		return false
 	}
-	elapsed := time.Since(time.Unix(0, openedAt))
+	elapsed := time.Since(time.Unix(0, snap.openedAt))
 	return elapsed < cb.config.CooldownPeriod
+}
+
+// forceOpen sets the breaker to open state with the given timestamp.
+// Used only in tests to set up initial conditions.
+func (cb *circuitBreakerState) forceOpen(openedAt int64, failures int64) {
+	cb.snap.Store(&cbSnapshot{
+		consecutiveFailures: failures,
+		openedAt:            openedAt,
+	})
+}
+
+// failures returns the current consecutive failure count. Used in tests.
+func (cb *circuitBreakerState) failures() int64 {
+	return cb.snap.Load().consecutiveFailures
 }
 
 // circuitBreakerCache wraps a LoaderCache with circuit breaker protection.

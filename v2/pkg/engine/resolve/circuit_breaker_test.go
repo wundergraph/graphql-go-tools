@@ -126,7 +126,7 @@ func TestCircuitBreaker(t *testing.T) {
 			CooldownPeriod:   time.Second,
 		})
 		// Force open
-		state.openedAt.Store(time.Now().UnixNano())
+		state.forceOpen(time.Now().UnixNano(), 0)
 
 		cb := &circuitBreakerCache{inner: inner, state: state}
 
@@ -148,8 +148,7 @@ func TestCircuitBreaker(t *testing.T) {
 			CooldownPeriod:   10 * time.Millisecond,
 		})
 		// Open the breaker in the past so cooldown has elapsed
-		state.openedAt.Store(time.Now().Add(-50 * time.Millisecond).UnixNano())
-		state.consecutiveFailures.Store(2)
+		state.forceOpen(time.Now().Add(-50*time.Millisecond).UnixNano(), 2)
 
 		cb := &circuitBreakerCache{inner: inner, state: state}
 
@@ -159,7 +158,7 @@ func TestCircuitBreaker(t *testing.T) {
 		assert.Len(t, entries, 1, "probe should return data")
 		assert.Equal(t, int64(1), inner.getCalls.Load(), "probe should call inner")
 		assert.False(t, cb.state.isOpen(), "breaker should be closed after successful probe")
-		assert.Equal(t, int64(0), cb.state.consecutiveFailures.Load(), "failures should be reset")
+		assert.Equal(t, int64(0), cb.state.failures(), "failures should be reset")
 	})
 
 	t.Run("half-open probe failure re-opens breaker", func(t *testing.T) {
@@ -170,7 +169,7 @@ func TestCircuitBreaker(t *testing.T) {
 			CooldownPeriod:   10 * time.Millisecond,
 		})
 		// Open the breaker in the past so cooldown has elapsed
-		state.openedAt.Store(time.Now().Add(-50 * time.Millisecond).UnixNano())
+		state.forceOpen(time.Now().Add(-50*time.Millisecond).UnixNano(), 0)
 
 		cb := &circuitBreakerCache{inner: inner, state: state}
 
@@ -197,13 +196,13 @@ func TestCircuitBreaker(t *testing.T) {
 		inner.getErr = cacheErr
 		_, _ = cb.Get(ctx, []string{"k1"})
 		_, _ = cb.Get(ctx, []string{"k1"})
-		assert.Equal(t, int64(2), state.consecutiveFailures.Load())
+		assert.Equal(t, int64(2), state.failures())
 
 		// One success resets count
 		inner.getErr = nil
 		_, err := cb.Get(ctx, []string{"k1"})
 		require.NoError(t, err)
-		assert.Equal(t, int64(0), state.consecutiveFailures.Load(), "success should reset failures")
+		assert.Equal(t, int64(0), state.failures(), "success should reset failures")
 		assert.False(t, state.isOpen())
 	})
 
@@ -229,7 +228,7 @@ func TestCircuitBreaker(t *testing.T) {
 
 		// No panics, no data races. Exact failure count may vary due to
 		// concurrency but should be <= 50.
-		assert.LessOrEqual(t, cb.state.consecutiveFailures.Load(), int64(50))
+		assert.LessOrEqual(t, cb.state.failures(), int64(50))
 	})
 
 	t.Run("wrapCachesWithCircuitBreakers applies defaults", func(t *testing.T) {
