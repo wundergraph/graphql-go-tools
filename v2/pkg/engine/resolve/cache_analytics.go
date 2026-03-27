@@ -3,6 +3,7 @@ package resolve
 import (
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/cespare/xxhash/v2"
 
@@ -188,13 +189,10 @@ type CacheAnalyticsCollector struct {
 	entitySources      []entitySourceRecord    // records where each entity's data came from
 	fetchTimings       []FetchTimingEvent      // main thread timings
 	errorEvents        []SubgraphErrorEvent    // main thread errors
-	l2ErrorEvents      []SubgraphErrorEvent    // accumulated in goroutines, merged on main thread
-	l2FetchTimings     []FetchTimingEvent      // accumulated in goroutines, merged on main thread
 	shadowComparisons  []ShadowComparisonEvent // shadow mode staleness comparison events
 	mutationEvents     []MutationEvent         // mutation entity impact events
 	headerImpactEvents []HeaderImpactEvent     // header impact events for L2 writes with header prefix
 	cacheOpErrors      []CacheOperationError   // cache operation errors (main thread)
-	l2CacheOpErrors    []CacheOperationError   // accumulated in goroutines, merged on main thread
 	xxh                *xxhash.Digest
 }
 
@@ -681,21 +679,26 @@ func (s *CacheAnalyticsSnapshot) EventsByDataSource() map[string]DataSourceCache
 	return result
 }
 
-// SubgraphCallsAvoided returns the number of subgraph fetch operations
-// that were avoided due to cache hits (L1 + L2).
-func (s *CacheAnalyticsSnapshot) SubgraphCallsAvoided() int64 {
-	var hits int64
+// L1HitCount returns the number of L1 cache hits.
+func (s *CacheAnalyticsSnapshot) L1HitCount() int64 {
+	var count int64
 	for _, ev := range s.L1Reads {
 		if ev.Kind == CacheKeyHit {
-			hits++
+			count++
 		}
 	}
+	return count
+}
+
+// L2HitCount returns the number of L2 cache hits.
+func (s *CacheAnalyticsSnapshot) L2HitCount() int64 {
+	var count int64
 	for _, ev := range s.L2Reads {
 		if ev.Kind == CacheKeyHit {
-			hits++
+			count++
 		}
 	}
-	return hits
+	return count
 }
 
 // PartialHitRate returns the fraction of cache lookups that were partial hits.
@@ -925,6 +928,9 @@ func computeCacheAgeMs(remainingTTL, originalTTL time.Duration) int64 {
 func truncateErrorMessage(msg string, maxLen int) string {
 	if len(msg) <= maxLen {
 		return msg
+	}
+	for maxLen > 0 && !utf8.RuneStart(msg[maxLen]) {
+		maxLen--
 	}
 	return msg[:maxLen]
 }

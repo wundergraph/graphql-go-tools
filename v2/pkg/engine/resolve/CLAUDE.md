@@ -417,7 +417,7 @@ Enable via `ctx.ExecutionOptions.Caching.EnableCacheAnalytics = true`. After exe
 - `ShadowComparisons` — `[]ShadowComparisonEvent` (cached vs fresh comparison)
 - `MutationEvents` — `[]MutationEvent` (mutation impact on cached entities)
 
-**Convenience methods**: `L1HitRate()`, `L2HitRate()`, `CachedBytesServed()`, `EventsByEntityType()`.
+**Convenience methods**: `L1HitRate()`, `L2HitRate()`, `L1HitCount()`, `L2HitCount()`, `CachedBytesServed()`, `EventsByEntityType()`.
 
 **Thread safety**: Analytics are accumulated per-result in goroutines (`l2AnalyticsEvents`, `l2FetchTimings`, `l2ErrorEvents`), then merged on the main thread via `MergeL2Events()`, `MergeL2FetchTimings()`, `MergeL2Errors()`.
 

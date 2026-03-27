@@ -1183,7 +1183,7 @@ func TestCacheAnalytics_ErrorCodeExtraction(t *testing.T) {
 // Benchmarks
 // =============================================================================
 
-func TestCacheAnalyticsCollector_SubgraphCallsAvoided(t *testing.T) {
+func TestCacheAnalyticsCollector_HitCount(t *testing.T) {
 	c := NewCacheAnalyticsCollector()
 
 	// 2 L1 hits, 1 L1 miss
@@ -1196,12 +1196,14 @@ func TestCacheAnalyticsCollector_SubgraphCallsAvoided(t *testing.T) {
 	c.RecordL2KeyEvent(CacheKeyMiss, "Product", "k5", "products", 0)
 
 	snap := c.Snapshot()
-	assert.Equal(t, int64(3), snap.SubgraphCallsAvoided(), "should have exactly 3 subgraph calls avoided (2 L1 + 1 L2)")
+	assert.Equal(t, int64(2), snap.L1HitCount(), "should have exactly 2 L1 hits")
+	assert.Equal(t, int64(1), snap.L2HitCount(), "should have exactly 1 L2 hit")
 }
 
-func TestCacheAnalyticsCollector_SubgraphCallsAvoided_Zero(t *testing.T) {
+func TestCacheAnalyticsCollector_HitCount_Zero(t *testing.T) {
 	snap := CacheAnalyticsSnapshot{}
-	assert.Equal(t, int64(0), snap.SubgraphCallsAvoided(), "should have 0 subgraph calls avoided when no hits")
+	assert.Equal(t, int64(0), snap.L1HitCount(), "should have 0 L1 hits when no events")
+	assert.Equal(t, int64(0), snap.L2HitCount(), "should have 0 L2 hits when no events")
 }
 
 func TestCacheAnalyticsCollector_FetchTiming(t *testing.T) {
@@ -1446,6 +1448,7 @@ func TestTruncateErrorMessage(t *testing.T) {
 	assert.Equal(t, "12345", truncateErrorMessage("1234567890", 5))
 	assert.Equal(t, "", truncateErrorMessage("", 10))
 	assert.Equal(t, "exact", truncateErrorMessage("exact", 5))
+	assert.Equal(t, "hello ", truncateErrorMessage("hello 世界 test", 8), "cuts before 世 (3-byte char at positions 6-8)")
 }
 
 func BenchmarkCacheAnalytics_Disabled(b *testing.B) {
@@ -1758,7 +1761,8 @@ func TestSnapshotDeduplication(t *testing.T) {
 
 		snap := c.Snapshot()
 		assert.Equal(t, 2, len(snap.L2Reads), "should have 2 unique events after dedup")
-		assert.Equal(t, int64(1), snap.SubgraphCallsAvoided(), "1 unique L2 hit = 1 subgraph call avoided")
+		assert.Equal(t, int64(0), snap.L1HitCount(), "no L1 hits in this test")
+		assert.Equal(t, int64(1), snap.L2HitCount(), "1 unique L2 hit after dedup")
 		assert.Equal(t, int64(49), snap.CachedBytesServed(), "bytes served from 1 unique hit")
 	})
 }

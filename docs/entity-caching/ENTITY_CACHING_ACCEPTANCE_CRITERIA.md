@@ -697,7 +697,7 @@ Tests:
 
 ### AC-ANA-03: Aggregate convenience methods
 The `CacheAnalyticsSnapshot` provides pre-computed metrics: `L1HitRate()`, `L2HitRate()`,
-`CachedBytesServed()`, `CacheHitCount()`, `AvgCacheAgeMs()`, etc. These are
+`CachedBytesServed()`, `L1HitCount()`, `L2HitCount()`, `AvgCacheAgeMs()`, etc. These are
 derived from the raw events at snapshot time.
 
 Tests:
