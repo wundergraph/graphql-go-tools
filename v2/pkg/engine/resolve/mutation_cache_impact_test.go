@@ -210,39 +210,6 @@ func TestBuildMutationEntityCacheKey(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// buildMutationEntityDisplayKey
-// ---------------------------------------------------------------------------
-
-func TestBuildMutationEntityDisplayKey(t *testing.T) {
-	t.Run("display key always without prefix", func(t *testing.T) {
-		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
-		ctx := NewContext(context.Background())
-		// Even with a SubgraphHeadersBuilder, display key has no prefix
-		ctx.SubgraphHeadersBuilder = &mockSubgraphHeadersBuilder{
-			hashes: map[string]uint64{"accounts": 99887766},
-		}
-
-		l := &Loader{
-			jsonArena: ar,
-			ctx:       ctx,
-		}
-
-		entityData, err := astjson.ParseWithArena(ar, `{"id":"1234","username":"Alice"}`)
-		require.NoError(t, err)
-
-		cfg := &MutationEntityImpactConfig{
-			EntityTypeName:              "User",
-			KeyFields:                   []KeyField{{Name: "id"}},
-			CacheName:                   "default",
-			IncludeSubgraphHeaderPrefix: true,
-		}
-
-		got := l.buildMutationEntityDisplayKey(cfg, entityData)
-		assert.Equal(t, `{"__typename":"User","key":{"id":"1234"}}`, got)
-	})
-}
-
-// ---------------------------------------------------------------------------
 // detectMutationEntityImpact
 // ---------------------------------------------------------------------------
 

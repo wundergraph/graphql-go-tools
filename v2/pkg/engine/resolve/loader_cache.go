@@ -40,12 +40,11 @@ type LoaderCache interface {
 }
 
 // extractCacheKeysStrings extracts all unique cache key strings from CacheKeys
-// If includePrefix is true and subgraphName is provided, keys are prefixed with the subgraph header hash.
 func (l *Loader) extractCacheKeysStrings(a arena.Arena, cacheKeys []*CacheKey) []string {
 	if len(cacheKeys) == 0 {
 		return nil
 	}
-	out := arena.AllocateSlice[string](a, 0, len(cacheKeys))
+	out := make([]string, 0, len(cacheKeys))
 	seen := make(map[string]struct{}, len(cacheKeys))
 	for i := range cacheKeys {
 		for j := range cacheKeys[i].Keys {
@@ -54,17 +53,13 @@ func (l *Loader) extractCacheKeysStrings(a arena.Arena, cacheKeys []*CacheKey) [
 				continue
 			}
 			seen[keyStr] = struct{}{}
-			keyLen := len(keyStr)
-			key := arena.AllocateSlice[byte](a, 0, keyLen)
-			key = arena.SliceAppend(a, key, unsafebytes.StringToBytes(keyStr)...)
-			out = arena.SliceAppend(a, out, string(key))
+			out = append(out, keyStr)
 		}
 	}
 	return out
 }
 
 // populateFromCache populates CacheKey.FromCache fields from cache entries
-// If includePrefix is true and subgraphName is provided, keys are looked up with the subgraph header hash prefix.
 func (l *Loader) populateFromCache(a arena.Arena, cacheKeys []*CacheKey, entries []*CacheEntry) (err error) {
 	for i := range entries {
 		if entries[i] == nil || entries[i].Value == nil {
@@ -77,6 +72,7 @@ func (l *Loader) populateFromCache(a arena.Arena, cacheKeys []*CacheKey, entries
 					if err != nil {
 						return errors.WithStack(err)
 					}
+					break
 				}
 			}
 		}
@@ -86,7 +82,6 @@ func (l *Loader) populateFromCache(a arena.Arena, cacheKeys []*CacheKey, entries
 
 // cacheKeysToEntries converts CacheKeys to CacheEntries for storage
 // For each CacheKey, creates entries for all its KeyEntries with the same value
-// If includePrefix is true and subgraphName is provided, keys are prefixed with the subgraph header hash.
 func (l *Loader) cacheKeysToEntries(a arena.Arena, cacheKeys []*CacheKey) ([]*CacheEntry, error) {
 	// Use heap slice for []*CacheEntry — arena memory is noscan, so GC cannot
 	// trace *CacheEntry pointers stored there, risking premature collection.
@@ -775,7 +770,7 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 // Called after successful fetch and merge for entity fetches only.
 // OPTIMIZATION: Only stores if key is missing - existing entries are pointers
 // to the same arena data, so no update needed. This minimizes sync.Map calls.
-func (l *Loader) populateL1Cache(fetchItem *FetchItem, res *result, _ []*astjson.Value) {
+func (l *Loader) populateL1Cache(fetchItem *FetchItem, res *result) {
 	if !l.ctx.ExecutionOptions.Caching.EnableL1Cache {
 		return
 	}
@@ -1360,7 +1355,7 @@ func (l *Loader) detectSingleMutationEntityImpact(
 	}
 
 	// Build display key (without prefix) for analytics
-	displayKey := l.buildMutationEntityDisplayKey(cfg, entityData)
+	displayKey := l.buildEntityBaseKeyJSON(cfg.EntityTypeName, entityData, cfg.KeyFields)
 
 	// Hash the fresh (mutation response) value
 	freshProvides := l.shallowCopyProvidedFields(entityData, entityProvidesData)
@@ -1413,14 +1408,19 @@ func (l *Loader) detectSingleMutationEntityImpact(
 	return deletedKeys
 }
 
+// buildEntityBaseKeyJSON builds the base JSON key for an entity: {"__typename":"...","key":{...}}.
+func (l *Loader) buildEntityBaseKeyJSON(entityTypeName string, entityData *astjson.Value, keyFields []KeyField) string {
+	keyObj := astjson.ObjectValue(l.jsonArena)
+	keyObj.Set(l.jsonArena, "__typename", astjson.StringValue(l.jsonArena, entityTypeName))
+	keysObj := buildEntityKeyValue(l.jsonArena, entityData, keyFields)
+	keyObj.Set(l.jsonArena, "key", keysObj)
+	return string(keyObj.MarshalTo(nil))
+}
+
 // buildMutationEntityCacheKey builds the L2 cache key for a mutation-returned entity.
 // Format: [prefix:]{"__typename":"User","key":{"id":"1234"}}
 func (l *Loader) buildMutationEntityCacheKey(cfg *MutationEntityImpactConfig, entityData *astjson.Value, info *FetchInfo) string {
-	keyObj := astjson.ObjectValue(l.jsonArena)
-	keyObj.Set(l.jsonArena, "__typename", astjson.StringValue(l.jsonArena, cfg.EntityTypeName))
-	keysObj := buildEntityKeyValue(l.jsonArena, entityData, cfg.KeyFields)
-	keyObj.Set(l.jsonArena, "key", keysObj)
-	keyJSON := string(keyObj.MarshalTo(nil))
+	keyJSON := l.buildEntityBaseKeyJSON(cfg.EntityTypeName, entityData, cfg.KeyFields)
 
 	// Apply global prefix and subgraph header prefix to mirror prepareCacheKeys().
 	var cacheKey string
@@ -1447,16 +1447,6 @@ func (l *Loader) buildMutationEntityCacheKey(cfg *MutationEntityImpactConfig, en
 		})
 	}
 	return cacheKey
-}
-
-// buildMutationEntityDisplayKey builds a display key (without prefix) for analytics.
-// Format: {"__typename":"User","key":{"id":"1234"}}
-func (l *Loader) buildMutationEntityDisplayKey(cfg *MutationEntityImpactConfig, entityData *astjson.Value) string {
-	keyObj := astjson.ObjectValue(l.jsonArena)
-	keyObj.Set(l.jsonArena, "__typename", astjson.StringValue(l.jsonArena, cfg.EntityTypeName))
-	keysObj := buildEntityKeyValue(l.jsonArena, entityData, cfg.KeyFields)
-	keyObj.Set(l.jsonArena, "key", keysObj)
-	return string(keyObj.MarshalTo(nil))
 }
 
 // buildEntityKeyValue recursively builds a JSON object from entity data using only key fields.
