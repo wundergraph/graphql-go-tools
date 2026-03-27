@@ -160,7 +160,7 @@ func NewNodeSuggestionsWithSize(size int) *NodeSuggestions {
 	}
 }
 
-func (f *NodeSuggestions) ProcessDefer() {
+func (f *NodeSuggestions) ProcessDefer(fieldRequirementsConfigs map[fieldIndexKey][]FederationFieldConfiguration) {
 	for i := range f.items {
 		if !f.items[i].Selected {
 			continue
@@ -170,14 +170,33 @@ func (f *NodeSuggestions) ProcessDefer() {
 			continue
 		}
 
-		f.propagateDeferParentsUpToRootNode(i)
+		f.propagateDeferParentsUpToRootNode(i, fieldRequirementsConfigs)
 	}
 }
 
-func (f *NodeSuggestions) propagateDeferParentsUpToRootNode(i int) {
+func (f *NodeSuggestions) propagateDeferParentsUpToRootNode(i int, fieldRequirementsConfigs map[fieldIndexKey][]FederationFieldConfiguration) {
 	// if the item is a root node and requires a key we are already able to jump from here,
 	// so we skip propagating defer id
-	if f.items[i].IsRootNode && f.items[i].requiresKey != nil {
+
+	hasKeyDependency := false
+	hasRequiresKey := f.items[i].requiresKey != nil
+
+	// when the deffered field is on the entity and the parent field is on the same datasource
+	// we won't have hasRequiresKey set.
+	// but in case this field has requires directive it will be resolved by entity call,
+	// and it will have requires key configuration
+	if !hasRequiresKey && fieldRequirementsConfigs != nil {
+		requirements, ok := fieldRequirementsConfigs[fieldIndexKey{fieldRef: f.items[i].FieldRef, dsHash: f.items[i].DataSourceHash}]
+		if ok {
+			for _, r := range requirements {
+				if r.FieldName == "" {
+					hasKeyDependency = true
+				}
+			}
+		}
+	}
+
+	if f.items[i].IsRootNode && hasRequiresKey || hasKeyDependency {
 		return
 	}
 

@@ -194,10 +194,7 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 		}
 	}
 
-	// NOTE: this is not enough
-	// If the deffered field is on the entity and entity is jumpable to itself, we need to request keys?
-
-	p.nodeSelectionsVisitor.nodeSuggestions.ProcessDefer()
+	p.nodeSelectionsVisitor.nodeSuggestions.ProcessDefer(p.nodeSelectionsVisitor.fieldRequirementsConfigs)
 
 	return &NodeSelectionResult{
 		dataSources:              p.nodeSelectionsVisitor.dataSources,
