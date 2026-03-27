@@ -87,7 +87,7 @@ func TestErrorBehaviorPropagate(t *testing.T) {
 	assert.NoError(t, err)
 
 	// In PROPAGATE mode, the null bubbles up to user
-	expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'User.name'.","path":["user","name"]}],"data":{"user":null}}`
+	expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.name'.","path":["user","name"]}],"data":{"user":null}}`
 	assert.JSONEq(t, expected, out.String())
 }
 
@@ -131,7 +131,7 @@ func TestErrorBehaviorNull(t *testing.T) {
 	assert.NoError(t, err)
 
 	// In NULL mode, the null does NOT bubble up - user has a name field with null
-	expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'User.name'.","path":["user","name"]}],"data":{"user":{"name":null}}}`
+	expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.name'.","path":["user","name"]}],"data":{"user":{"name":null}}}`
 	assert.JSONEq(t, expected, out.String())
 }
 
@@ -175,7 +175,7 @@ func TestErrorBehaviorHalt(t *testing.T) {
 	assert.NoError(t, err)
 
 	// In HALT mode, data becomes null
-	expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'User.name'.","path":["user","name"]}],"data":null}`
+	expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.name'.","path":["user","name"]}],"data":null}`
 	assert.JSONEq(t, expected, out.String())
 }
 
@@ -231,7 +231,7 @@ func TestErrorBehaviorNullWithMultipleFields(t *testing.T) {
 	assert.NoError(t, err)
 
 	// In NULL mode, the user object should still exist with both errors collected
-	expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'User.name'.","path":["user","name"]},{"message":"Cannot return null for non-nullable field 'User.age'.","path":["user","age"]}],"data":{"user":{"name":null,"email":"test@example.com","age":null}}}`
+	expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.name'.","path":["user","name"]},{"message":"Cannot return null for non-nullable field 'Query.user.age'.","path":["user","age"]}],"data":{"user":{"name":null,"email":"test@example.com","age":null}}}`
 	assert.JSONEq(t, expected, out.String())
 }
 
@@ -292,7 +292,7 @@ func TestErrorBehaviorWithNestedObjects(t *testing.T) {
 	assert.NoError(t, err)
 
 	// In NULL mode, the null doesn't bubble up through address, profile, or user
-	expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'Address.city'.","path":["user","profile","address","city"]}],"data":{"user":{"profile":{"address":{"city":null}}}}}`
+	expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.profile.address.city'.","path":["user","profile","address","city"]}],"data":{"user":{"profile":{"address":{"city":null}}}}}`
 	assert.JSONEq(t, expected, out.String())
 }
 
@@ -337,7 +337,7 @@ func TestErrorBehaviorWithArrays(t *testing.T) {
 
 	// In NULL mode, the array should still contain all items
 	// The second item's name will be null (error) but the item itself should remain
-	expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'User.name'.","path":["users",1,"name"]}],"data":{"users":[{"name":"Alice"},{"name":null},{"name":"Charlie"}]}}`
+	expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.users.name'.","path":["users",1,"name"]}],"data":{"users":[{"name":"Alice"},{"name":null},{"name":"Charlie"}]}}`
 	assert.JSONEq(t, expected, out.String())
 }
 

@@ -1405,7 +1405,7 @@ func (r *Resolvable) addNonNullableFieldError(fieldPath []string, parent *astjso
 	if r.options.ApolloCompatibilityValueCompletionInExtensions {
 		r.addValueCompletion(r.renderApolloCompatibleNonNullableErrorMessage(), errorcodes.InvalidGraphql)
 	} else {
-		errorMessage := fmt.Sprintf("Cannot return null for non-nullable field '%s'.", r.renderFieldCoordinates())
+		errorMessage := fmt.Sprintf("Cannot return null for non-nullable field '%s'.", r.renderFieldPath())
 		r.ensureErrorsInitialized()
 		fastjsonext.AppendErrorToArray(r.astjsonArena, r.errors, errorMessage, r.path)
 	}

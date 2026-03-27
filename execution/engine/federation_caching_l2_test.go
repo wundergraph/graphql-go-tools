@@ -800,7 +800,7 @@ func TestCacheNotPopulatedOnErrors(t *testing.T) {
 	}`
 
 	// Expected error response - data is null due to non-nullable username field error propagation
-	expectedErrorResponse := `{"errors":[{"message":"Failed to fetch from Subgraph 'accounts' at Path 'reviewWithError.authorWithoutProvides'."},{"message":"Cannot return null for non-nullable field 'User.username'.","path":["reviewWithError","authorWithoutProvides","username"]}],"data":{"reviewWithError":null}}`
+	expectedErrorResponse := `{"errors":[{"message":"Failed to fetch from Subgraph 'accounts' at Path 'reviewWithError.authorWithoutProvides'."},{"message":"Cannot return null for non-nullable field 'Query.reviewWithError.authorWithoutProvides.username'.","path":["reviewWithError","authorWithoutProvides","username"]}],"data":{"reviewWithError":null}}`
 
 	t.Run("L1 only - error response prevents cache population", func(t *testing.T) {
 		// This test verifies that L1 cache is NOT populated when an error occurs.

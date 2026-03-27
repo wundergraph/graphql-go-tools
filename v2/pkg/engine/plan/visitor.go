@@ -1229,21 +1229,18 @@ func (v *Visitor) initializePlannerStructures() {
 	v.plannerEntityBoundaryPaths = map[int]string{}
 }
 
+// trackFieldForPlanner adds field information to the planner's tracked object structure.
+// It handles entity boundary detection, __typename field deduplication, and creates
+// the appropriate field value nodes for the planner's representation of the query.
 func (v *Visitor) trackFieldForPlanner(plannerID int, fieldRef int) {
-	// Safety checks
 	if v.planners == nil || plannerID >= len(v.planners) {
 		return
 	}
-	if v.plannerObjects == nil || v.plannerCurrentFields == nil {
-		return
-	}
 
-	// Check if this planner should handle this field
 	if !v.shouldPlannerHandleField(plannerID, fieldRef) {
 		return
 	}
 
-	// Get field information
 	fieldName := v.Operation.FieldNameBytes(fieldRef)
 	fieldAliasOrName := v.Operation.FieldAliasOrNameString(fieldRef)
 
@@ -1287,19 +1284,16 @@ func (v *Visitor) trackFieldForPlanner(plannerID int, fieldRef int) {
 		}
 	}
 
-	// Get the field definition
 	fieldDefinition, ok := v.Walker.FieldDefinition(fieldRef)
 	if !ok {
 		return
 	}
 	fieldType := v.Definition.FieldDefinitionType(fieldDefinition)
 
-	// Create a simple field value for tracking purposes
 	fieldValue := v.createFieldValueForPlanner(fieldRef, fieldType, []string{fieldAliasOrName})
 
 	onTypeNames := v.resolveEntityOnTypeNames(plannerID, fieldRef, fieldName)
 
-	// Create the field
 	field := &resolve.Field{
 		Name:        []byte(fieldAliasOrName),
 		Value:       fieldValue,
@@ -1318,7 +1312,6 @@ func (v *Visitor) trackFieldForPlanner(plannerID int, fieldRef int) {
 		}
 	}
 
-	// Add the field to the current object for this planner
 	if len(v.plannerCurrentFields[plannerID]) > 0 {
 		currentFields := v.plannerCurrentFields[plannerID][len(v.plannerCurrentFields[plannerID])-1]
 		*currentFields.fields = append(*currentFields.fields, field)
@@ -1524,7 +1517,6 @@ func (v *Visitor) isEntityRootField(plannerID int, fieldRef int) bool {
 }
 
 func (v *Visitor) shouldPlannerHandleField(plannerID int, fieldRef int) bool {
-	// Safety checks
 	if v.planners == nil || plannerID >= len(v.planners) {
 		return false
 	}

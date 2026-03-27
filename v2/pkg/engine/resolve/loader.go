@@ -1044,9 +1044,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		l.runCacheInvalidation(fetchItem, res, responseData, cacheInvalidation)
 		// Only populate caches on success (no errors)
 		if !hasErrors {
-			defer func() {
-				l.populateCachesAfterFetch(fetchItem, res, items, responseData, cacheInvalidation)
-			}()
+			l.populateCachesAfterFetch(fetchItem, res, items, responseData, cacheInvalidation)
 		}
 		return nil
 	}
@@ -1181,7 +1179,7 @@ func (l *Loader) runCacheInvalidation(fetchItem *FetchItem, res *result, respons
 func (l *Loader) populateCachesAfterFetch(fetchItem *FetchItem, res *result, items []*astjson.Value, responseData *astjson.Value, cacheInvalidation *astjson.Value) {
 	info := getFetchInfo(fetchItem.Fetch)
 	l.compareShadowValues(res, info)
-	l.populateL1Cache(fetchItem, res, items)
+	l.populateL1Cache(fetchItem, res)
 	l.updateL2Cache(res)
 }
 

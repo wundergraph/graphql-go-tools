@@ -137,7 +137,7 @@ func TestErrorBehavior_EndToEnd(t *testing.T) {
 		err := eng.Execute(ctx, req, &resultWriter, WithErrorBehavior(resolve.ErrorBehaviorPropagate))
 		require.NoError(t, err)
 
-		expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'User.name'.","path":["user","name"]}],"data":{"user":null}}`
+		expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.name'.","path":["user","name"]}],"data":{"user":null}}`
 		assert.JSONEq(t, expected, buf.String())
 	})
 
@@ -162,7 +162,7 @@ func TestErrorBehavior_EndToEnd(t *testing.T) {
 
 		// In NULL mode: error at site, no bubbling - user object preserved with name=null
 		// Error included so client can distinguish error null from intentional null
-		expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'User.name'.","path":["user","name"]}],"data":{"user":{"id":"1","name":null,"email":"test@example.com"}}}`
+		expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.name'.","path":["user","name"]}],"data":{"user":{"id":"1","name":null,"email":"test@example.com"}}}`
 		assert.JSONEq(t, expected, buf.String())
 	})
 
@@ -186,7 +186,7 @@ func TestErrorBehavior_EndToEnd(t *testing.T) {
 		require.NoError(t, err)
 
 		// In HALT mode: execution stops, data becomes null
-		expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'User.name'.","path":["user","name"]}],"data":null}`
+		expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.name'.","path":["user","name"]}],"data":null}`
 		assert.JSONEq(t, expected, buf.String())
 	})
 
@@ -209,7 +209,7 @@ func TestErrorBehavior_EndToEnd(t *testing.T) {
 		require.NoError(t, err)
 
 		// In NULL mode: both errors collected, objects preserved
-		expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'User.name'.","path":["user","name"]},{"message":"Cannot return null for non-nullable field 'Profile.bio'.","path":["user","profile","bio"]}],"data":{"user":{"id":"1","name":null,"email":"test@example.com","profile":{"bio":null,"avatar":"pic.jpg"}}}}`
+		expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.name'.","path":["user","name"]},{"message":"Cannot return null for non-nullable field 'Query.user.profile.bio'.","path":["user","profile","bio"]}],"data":{"user":{"id":"1","name":null,"email":"test@example.com","profile":{"bio":null,"avatar":"pic.jpg"}}}}`
 		assert.JSONEq(t, expected, buf.String())
 	})
 
@@ -233,7 +233,7 @@ func TestErrorBehavior_EndToEnd(t *testing.T) {
 		require.NoError(t, err)
 
 		// In PROPAGATE mode: null bio bubbles up to nullable profile
-		expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'Profile.bio'.","path":["user","profile","bio"]}],"data":{"user":{"id":"1","name":"Test","email":"test@example.com","profile":null}}}`
+		expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.profile.bio'.","path":["user","profile","bio"]}],"data":{"user":{"id":"1","name":"Test","email":"test@example.com","profile":null}}}`
 		assert.JSONEq(t, expected, buf.String())
 	})
 
@@ -256,7 +256,7 @@ func TestErrorBehavior_EndToEnd(t *testing.T) {
 		require.NoError(t, err)
 
 		// In NULL mode: array preserved, second user has null name with error
-		expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'User.name'.","path":["users",1,"name"]}],"data":{"users":[{"id":"1","name":"Alice","email":"alice@example.com"},{"id":"2","name":null,"email":"bob@example.com"}]}}`
+		expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.users.name'.","path":["users",1,"name"]}],"data":{"users":[{"id":"1","name":"Alice","email":"alice@example.com"},{"id":"2","name":null,"email":"bob@example.com"}]}}`
 		assert.JSONEq(t, expected, buf.String())
 	})
 
@@ -279,7 +279,7 @@ func TestErrorBehavior_EndToEnd(t *testing.T) {
 		require.NoError(t, err)
 
 		// Default behavior is PROPAGATE: null bubbles up
-		expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'User.name'.","path":["user","name"]}],"data":{"user":null}}`
+		expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.name'.","path":["user","name"]}],"data":{"user":null}}`
 		assert.JSONEq(t, expected, buf.String())
 	})
 

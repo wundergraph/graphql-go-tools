@@ -362,38 +362,19 @@ func (e *EntityQueryCacheKeyTemplate) renderCacheKeys(a arena.Arena, ctx *Contex
 
 // resolveFieldValue resolves a field value from data based on its template definition
 func (e *EntityQueryCacheKeyTemplate) resolveFieldValue(a arena.Arena, valueNode Node, data *astjson.Value) *astjson.Value {
-	switch node := valueNode.(type) {
-	case *String:
-		// Extract string value from data using the path
-		return data.Get(node.Path...)
-	case *Scalar:
-		// Handle scalar types (like ID) - extract value from data using the path
-		return data.Get(node.Path...)
-	case *Integer:
-		// Handle integer type
-		return data.Get(node.Path...)
-	case *Float:
-		// Handle float type
-		return data.Get(node.Path...)
-	case *Boolean:
-		// Handle boolean type
-		return data.Get(node.Path...)
-	case *Enum:
-		return data.Get(node.Path...)
-	case *BigInt:
-		return data.Get(node.Path...)
-	case *CustomNode:
-		return data.Get(node.Path...)
+	switch n := valueNode.(type) {
+	case *String, *Scalar, *Integer, *Float, *Boolean, *Enum, *BigInt, *CustomNode:
+		return data.Get(n.NodePath()...)
 	case *Object:
 		// For nested objects, recursively build the object using only template-defined fields
 		nestedObj := astjson.ObjectValue(a)
 		// Get the base object from data using the object's path
-		baseData := data.Get(node.Path...)
+		baseData := data.Get(n.Path...)
 		if baseData == nil || baseData.Type() == astjson.TypeNull {
 			return nil
 		}
 		// Recursively resolve each field in the nested object template
-		for _, field := range node.Fields {
+		for _, field := range n.Fields {
 			fieldName := unsafebytes.BytesToString(field.Name)
 			// Skip __typename in nested objects
 			if fieldName == "__typename" {
@@ -407,7 +388,7 @@ func (e *EntityQueryCacheKeyTemplate) resolveFieldValue(a arena.Arena, valueNode
 		return nestedObj
 	case *Array:
 		// Handle arrays by resolving each item based on the Item template
-		arrayValue := data.Get(node.Path...)
+		arrayValue := data.Get(n.Path...)
 		if arrayValue == nil || arrayValue.Type() != astjson.TypeArray {
 			return nil
 		}
@@ -418,7 +399,7 @@ func (e *EntityQueryCacheKeyTemplate) resolveFieldValue(a arena.Arena, valueNode
 			if itemData == nil {
 				continue
 			}
-			resolvedItem := e.resolveFieldValue(a, node.Item, itemData)
+			resolvedItem := e.resolveFieldValue(a, n.Item, itemData)
 			if resolvedItem != nil {
 				resultArray.SetArrayItem(a, resultIndex, resolvedItem)
 				resultIndex++

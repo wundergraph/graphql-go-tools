@@ -288,11 +288,6 @@ func (g *CacheKeyVariableRenderer) GetKind() string {
 	return "cacheKey"
 }
 
-// add renderer that renders both variable name and variable value
-// before rendering, evaluate if the value contains null values
-// if an object contains only null values, set the object to null
-// do this recursively until reaching the root of the object
-
 func (g *CacheKeyVariableRenderer) RenderVariable(ctx context.Context, data *astjson.Value, out io.Writer) error {
 	return g.renderGraphQLValue(data, out)
 }
