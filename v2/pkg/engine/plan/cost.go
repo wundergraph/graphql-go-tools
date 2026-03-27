@@ -410,7 +410,9 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 		for argName, arg := range node.arguments {
 			if fieldWeight != nil {
 				if weight, ok := fieldWeight.ArgumentWeights[argName]; ok {
+					// Weight on the argument of the field
 					argsCost += weight
+					// this means that it will override the inputObject costs. NOT GOOD
 					continue
 				}
 			}
@@ -421,6 +423,18 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 				argsCost += dsCostConfig.EnumScalarTypeWeight(arg.typeName)
 			} else if arg.isInputObject {
 				// TODO: arguments should include costs of input object fields
+				if arg.hasVariable {
+					// Analyze variables that contain input object fields.
+					// If these fields have weight attached, use them for calculation.
+					varValue := variables.Get(arg.varName)
+					// safety check
+					if varValue != nil && varValue.Type() == astjson.TypeObject {
+						// Use the value to extract counts of fields used. This needs to be
+						// mapped to the weight they might have.
+
+						fmt.Println(arg)
+					}
+				}
 			} else {
 				argsCost += dsCostConfig.ObjectTypeWeight(arg.typeName)
 			}

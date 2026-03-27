@@ -3525,27 +3525,27 @@ func TestExecutionEngine_Cost(t *testing.T) {
 	t.Run("input object cost", func(t *testing.T) {
 		inputObjectSchema := `
 			type Query {
-				create(input: CreateUserInput!): User
-				update(input: UpdateUserInput!): User
+				create(input: CreateInput!): User
+				update(input: UpdateInput!): User
 				nested(input: OuterInput!): Boolean
 				recursive(input: RecursiveInput!): Boolean
-				createList(input: CreateUserInput!): [User!] # @listSize(assumedSize: 10)
+				createList(input: CreateInput!): [User!] # @listSize(assumedSize: 10)
 
-				# inputOverride(input: CreateUserInput! @cost(weight: 7)): User @cost(weight: 1)
-				inputOverride(input: CreateUserInput!): User 
+				# inputOverride(input: CreateInput! @cost(weight: 7)): User @cost(weight: 1)
+				inputOverride(input: CreateInput!): User 
 			}
 			type User {
 				id: ID!
 				name: String!
 				email: String!
 			}
-			input CreateUserInput {
+			input CreateInput {
 				name: String!          # @cost(weight: 5)
 				email: String!         # @cost(weight: 3)
 				age: Int               # @cost(weight: 2)
 			}
 			# nullable fields for null-value test
-			input UpdateUserInput {
+			input UpdateInput {
 				name: String           # @cost(weight: 6)
 				email: String          # @cost(weight: 4)
 			}
@@ -3578,17 +3578,17 @@ func TestExecutionEngine_Cost(t *testing.T) {
 		})
 		costConfig := &plan.DataSourceCostConfig{
 			Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
-				{TypeName: "CreateUserInput", FieldName: "name"}:  {HasWeight: true, Weight: 5},
-				{TypeName: "CreateUserInput", FieldName: "email"}: {HasWeight: true, Weight: 3},
-				{TypeName: "CreateUserInput", FieldName: "age"}:   {HasWeight: true, Weight: 2},
-				{TypeName: "UpdateUserInput", FieldName: "name"}:  {HasWeight: true, Weight: 6},
-				{TypeName: "UpdateUserInput", FieldName: "email"}: {HasWeight: true, Weight: 4},
-				{TypeName: "OuterInput", FieldName: "label"}:      {HasWeight: true, Weight: 2},
-				{TypeName: "OuterInput", FieldName: "inner"}:      {HasWeight: true, Weight: 3},
-				{TypeName: "InnerInput", FieldName: "value"}:      {HasWeight: true, Weight: 4},
-				{TypeName: "InnerInput", FieldName: "note"}:       {HasWeight: true, Weight: 1},
-				{TypeName: "RecursiveInput", FieldName: "i"}:      {HasWeight: true, Weight: 2},
-				{TypeName: "RecursiveInput", FieldName: "rec"}:    {HasWeight: true, Weight: 3},
+				{TypeName: "CreateInput", FieldName: "name"}:   {HasWeight: true, Weight: 5},
+				{TypeName: "CreateInput", FieldName: "email"}:  {HasWeight: true, Weight: 3},
+				{TypeName: "CreateInput", FieldName: "age"}:    {HasWeight: true, Weight: 2},
+				{TypeName: "UpdateInput", FieldName: "name"}:   {HasWeight: true, Weight: 6},
+				{TypeName: "UpdateInput", FieldName: "email"}:  {HasWeight: true, Weight: 4},
+				{TypeName: "OuterInput", FieldName: "label"}:   {HasWeight: true, Weight: 2},
+				{TypeName: "OuterInput", FieldName: "inner"}:   {HasWeight: true, Weight: 3},
+				{TypeName: "InnerInput", FieldName: "value"}:   {HasWeight: true, Weight: 4},
+				{TypeName: "InnerInput", FieldName: "note"}:    {HasWeight: true, Weight: 1},
+				{TypeName: "RecursiveInput", FieldName: "i"}:   {HasWeight: true, Weight: 2},
+				{TypeName: "RecursiveInput", FieldName: "rec"}: {HasWeight: true, Weight: 3},
 				{TypeName: "Query", FieldName: "inputOverride"}: {
 					HasWeight:       true,
 					Weight:          1,
@@ -3671,7 +3671,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
-						Query:     `query($input: CreateUserInput!) { create(input: $input) { id name } }`,
+						Query:     `query($input: CreateInput!) { create(input: $input) { id name } }`,
 						Variables: []byte(`{"input": {"name": "Alice", "email": "a@b.com"}}`),
 					}
 				},
@@ -3816,7 +3816,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
-						Query:     `query($input: UpdateUserInput!) { update(input: $input) { id } }`,
+						Query:     `query($input: UpdateInput!) { update(input: $input) { id } }`,
 						Variables: []byte(`{"input": {"name": "Bob", "email": null}}`),
 					}
 				},
@@ -3845,7 +3845,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
-						Query:     `query($input: UpdateUserInput!) { update(input: $input) { id } }`,
+						Query:     `query($input: UpdateInput!) { update(input: $input) { id } }`,
 						Variables: []byte(`{"input": {"name": null, "email": null}}`),
 					}
 				},

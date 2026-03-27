@@ -209,12 +209,10 @@ func (v *CostVisitor) extractFieldArguments(fieldRef int) map[string]ArgumentInf
 				argInfo.isSimple = true
 			case ast.NodeKindInputObjectTypeDefinition:
 				argInfo.isInputObject = true
-
+				// We will analyze the input object fields later when calculating the cost using
+				// the variables.
 			}
 
-			// TODO: we need to analyze variables that contains input object fields.
-			// If these fields has weight attached, use them for calculation.
-			// Inline values extracted into variables here, so we need to inspect them via AST.
 		}
 
 		arguments[argName] = argInfo
