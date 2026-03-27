@@ -525,6 +525,12 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 	return
 }
 
+type inputObjectField struct {
+	typeName      string
+	isList        bool
+	isInputObject bool
+}
+
 type ArgumentInfo struct {
 	// The name of an unwrapped type.
 	typeName string
@@ -540,6 +546,10 @@ type ArgumentInfo struct {
 	//    { {"A", "rec"}: 2, {"A", "x"}: 3 }
 	//
 	countedInputCoords map[FieldCoordinate]int
+
+	// We have to hold this information for later when a variable's JSON is parsed and
+	// there are no types in there.
+	inputObjectFieldTypes map[FieldCoordinate]inputObjectField
 
 	// isInputObject is true for an input object passed to the argument,
 	// otherwise the argument is Scalar or Enum.

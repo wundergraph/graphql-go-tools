@@ -3530,9 +3530,11 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				nested(input: OuterInput!): Boolean
 				recursive(input: RecursiveInput!): Boolean
 				createList(input: CreateInput!): [User!] # @listSize(assumedSize: 10)
+				listed(input: ListInput!): Boolean
 
 				# inputOverride(input: CreateInput! @cost(weight: 7)): User @cost(weight: 1)
 				inputOverride(input: CreateInput!): User 
+
 			}
 			type User {
 				id: ID!
@@ -3561,12 +3563,17 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				i: Int!                # @cost(weight: 2)
 				rec: RecursiveInput    # @cost(weight: 3)
 			}
+			input ListInput {
+				value: Int             # @cost(weight: 7)
+				list: [OuterInput]
+				rec: RecursiveInput
+			}
 		`
 		schema, err := graphql.NewSchemaFromString(inputObjectSchema)
 		require.NoError(t, err)
 
 		rootNodes := []plan.TypeField{
-			{TypeName: "Query", FieldNames: []string{"create", "update", "nested", "recursive", "createList", "inputOverride"}},
+			{TypeName: "Query", FieldNames: []string{"create", "update", "nested", "recursive", "createList", "listed", "inputOverride"}},
 			{TypeName: "User", FieldNames: []string{"id", "name", "email"}},
 		}
 		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
@@ -3589,6 +3596,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				{TypeName: "InnerInput", FieldName: "note"}:    {HasWeight: true, Weight: 1},
 				{TypeName: "RecursiveInput", FieldName: "i"}:   {HasWeight: true, Weight: 2},
 				{TypeName: "RecursiveInput", FieldName: "rec"}: {HasWeight: true, Weight: 3},
+				{TypeName: "ListInput", FieldName: "value"}:    {HasWeight: true, Weight: 7},
 				{TypeName: "Query", FieldName: "inputOverride"}: {
 					HasWeight:       true,
 					Weight:          1,
@@ -3626,6 +3634,12 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			},
 			{
 				TypeName: "Query", FieldName: "createList",
+				Arguments: []plan.ArgumentConfiguration{
+					{Name: "input", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+				},
+			},
+			{
+				TypeName: "Query", FieldName: "listed",
 				Arguments: []plan.ArgumentConfiguration{
 					{Name: "input", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
 				},
@@ -3865,6 +3879,46 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"update":{"id":"1"}}}`,
 				expectedEstimatedCost: 1, // argsCost(0) + round((0 + 1) * 1) = 1
+			},
+			computeCosts(),
+		))
+
+		t.Run("listed field with list of input objects", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ listed(input: {
+									value: 5, 
+									list: [
+										{
+											label: "a", 
+											inner: {value: 1}
+										}, 
+										{
+											label: "b", 
+											inner: {value: 2}
+										}
+									]
+								})}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"listed":true}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"listed":true}}`,
+				expectedEstimatedCost: 25, // 7 + 5*2 + 4*2
 			},
 			computeCosts(),
 		))

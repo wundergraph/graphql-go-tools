@@ -1,6 +1,8 @@
 package plan
 
 import (
+	"fmt"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 )
@@ -209,8 +211,9 @@ func (v *CostVisitor) extractFieldArguments(fieldRef int) map[string]ArgumentInf
 				argInfo.isSimple = true
 			case ast.NodeKindInputObjectTypeDefinition:
 				argInfo.isInputObject = true
-				// We will analyze the input object fields later when calculating the cost using
-				// the variables.
+				argInfo.inputObjectFieldTypes = make(map[FieldCoordinate]inputObjectField)
+				visited := make(map[string]struct{})
+				v.buildInputObjectFieldTypes(argInfo.typeName, node, visited, argInfo.inputObjectFieldTypes)
 			}
 
 		}
@@ -219,6 +222,53 @@ func (v *CostVisitor) extractFieldArguments(fieldRef int) map[string]ArgumentInf
 	}
 
 	return arguments
+}
+
+func (v *CostVisitor) buildInputObjectFieldTypes(typeName string, node ast.Node, visited map[string]struct{}, types map[FieldCoordinate]inputObjectField) {
+	// Visit every input object type only once:
+	if _, ok := visited[typeName]; ok {
+		return
+	}
+	visited[typeName] = struct{}{}
+	fmt.Printf("* build for %v\n", typeName)
+
+	// For every field of the InputObject map fieldCoordinates to TypeName.
+	inputFieldRefs := v.Definition.NodeInputFieldDefinitions(node)
+
+	for _, inputFieldRef := range inputFieldRefs {
+		fieldName := v.Definition.InputValueDefinitionNameString(inputFieldRef)
+		fieldTypeRef := v.Definition.InputValueDefinitionType(inputFieldRef)
+		fieldTypeName, _ := v.Definition.PrintTypeBytes(fieldTypeRef, nil)
+		unwrappedTypeName := v.Definition.ResolveTypeNameString(fieldTypeRef)
+
+		fieldNode, exists := v.Definition.NodeByNameStr(v.Definition.ResolveTypeNameString(fieldTypeRef))
+		if !exists {
+			continue
+		}
+
+		isListType := v.Definition.TypeIsList(fieldTypeRef)
+		fmt.Printf(" Name = %v, list = %v, TypeName = %s (%v)\n",
+			fieldName, isListType, fieldTypeName, unwrappedTypeName)
+		var isInputObject bool
+
+		// If it is an input object type, recursively visit it.
+		switch fieldNode.Kind {
+		case ast.NodeKindInputObjectTypeDefinition:
+			fmt.Printf(" Node = %v\n", fieldNode)
+			isInputObject = true
+			v.buildInputObjectFieldTypes(unwrappedTypeName, fieldNode, visited, types)
+		default:
+			fmt.Printf(" -> %v\n", fieldNode.Kind)
+		}
+
+		coords := FieldCoordinate{typeName, fieldName}
+		types[coords] = inputObjectField{
+			typeName:      unwrappedTypeName,
+			isList:        isListType,
+			isInputObject: isInputObject,
+		}
+
+	}
 }
 
 func (v *CostVisitor) finalCostTree() *CostTreeNode {
