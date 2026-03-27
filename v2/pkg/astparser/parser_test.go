@@ -2997,9 +2997,10 @@ func TestParseVariablesWithDescriptions(t *testing.T) {
 		t.Fatal(report)
 	}
 
-	// Verify we parsed the operation
-	require.Len(t, doc.OperationDefinitions, 1)
+	// Verify we parsed both operations
+	require.Len(t, doc.OperationDefinitions, 2)
 
+	// First operation: multi-line with variable descriptions
 	opDef := doc.OperationDefinitions[0]
 	require.True(t, opDef.HasVariableDefinitions)
 	require.Len(t, opDef.VariableDefinitions.Refs, 3)
@@ -3019,6 +3020,15 @@ func TestParseVariablesWithDescriptions(t *testing.T) {
 	// Third variable: $limit without description (backward compatibility)
 	var3 := doc.VariableDefinitions[opDef.VariableDefinitions.Refs[2]]
 	assert.False(t, var3.Description.IsDefined, "$limit should not have description")
+
+	// Second operation: single-line with variable description
+	opDef2 := doc.OperationDefinitions[1]
+	require.True(t, opDef2.HasVariableDefinitions)
+	require.Len(t, opDef2.VariableDefinitions.Refs, 1)
+
+	singleLineVar := doc.VariableDefinitions[opDef2.VariableDefinitions.Refs[0]]
+	assert.True(t, singleLineVar.Description.IsDefined, "single-line $id should have description")
+	assert.Equal(t, "The user ID", doc.Input.ByteSliceString(singleLineVar.Description.Content))
 }
 
 func BenchmarkParseStarwars(b *testing.B) {

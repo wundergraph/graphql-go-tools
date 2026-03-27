@@ -16,3 +16,5 @@ query FindEmployee(
     name
   }
 }
+
+query SingleLine("The user ID" $id: ID!) { user(id: $id) { id } }

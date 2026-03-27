@@ -162,6 +162,7 @@ func (i *Importer) ImportArguments(refs []int, from, to *ast.Document) []int {
 func (i *Importer) ImportVariableDefinition(ref int, from, to *ast.Document) int {
 
 	variableDefinition := ast.VariableDefinition{
+		Description:   i.ImportDescription(from.VariableDefinitions[ref].Description, from, to),
 		VariableValue: i.ImportValue(from.VariableDefinitions[ref].VariableValue, from, to),
 		Type:          i.ImportType(from.VariableDefinitions[ref].Type, from, to),
 		DefaultValue: ast.DefaultValue{
@@ -182,6 +183,7 @@ func (i *Importer) ImportVariableDefinition(ref int, from, to *ast.Document) int
 func (i *Importer) ImportVariableDefinitionWithRename(ref int, from, to *ast.Document, renameTo string) int {
 
 	variableDefinition := ast.VariableDefinition{
+		Description:   i.ImportDescription(from.VariableDefinitions[ref].Description, from, to),
 		VariableValue: i.ImportValue(from.VariableDefinitions[ref].VariableValue, from, to),
 		Type:          i.ImportTypeWithRename(from.VariableDefinitions[ref].Type, from, to, renameTo),
 		DefaultValue: ast.DefaultValue{
@@ -197,6 +199,14 @@ func (i *Importer) ImportVariableDefinitionWithRename(ref int, from, to *ast.Doc
 
 	to.VariableDefinitions = append(to.VariableDefinitions, variableDefinition)
 	return len(to.VariableDefinitions) - 1
+}
+
+func (i *Importer) ImportDescription(description ast.Description, from, to *ast.Document) ast.Description {
+	if !description.IsDefined {
+		return ast.Description{}
+	}
+	descStr := from.Input.ByteSliceString(description.Content)
+	return to.ImportDescription(descStr)
 }
 
 func (i *Importer) ImportVariableDefinitions(refs []int, from, to *ast.Document) []int {

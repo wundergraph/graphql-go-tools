@@ -318,3 +318,31 @@ func TestImporter_ImportVariableDefinitions(t *testing.T) {
 		[]int{0, 1},
 	))
 }
+
+func TestImportVariableDefinitionWithDescription(t *testing.T) {
+	from, report := astparser.ParseGraphqlDocumentString(`
+		query FindEmployee(
+			"The unique employee identifier"
+			$id: ID!
+		) {
+			employee(id: $id) { id }
+		}
+	`)
+	require.False(t, report.HasErrors())
+
+	to := ast.NewSmallDocument()
+
+	importer := Importer{}
+
+	// Import the variable definition from the source document
+	opDef := from.OperationDefinitions[0]
+	require.Len(t, opDef.VariableDefinitions.Refs, 1)
+
+	srcVarRef := opDef.VariableDefinitions.Refs[0]
+	importedRef := importer.ImportVariableDefinition(srcVarRef, &from, to)
+
+	// Verify the description was preserved
+	importedVar := to.VariableDefinitions[importedRef]
+	assert.True(t, importedVar.Description.IsDefined, "imported variable should have description")
+	assert.Equal(t, "The unique employee identifier", to.Input.ByteSliceString(importedVar.Description.Content))
+}

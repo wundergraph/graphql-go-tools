@@ -1564,9 +1564,6 @@ func (p *Parser) parseVariableDefinitionList() (list ast.VariableDefinitionList)
 				list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
 			}
 			ref := p.parseVariableDefinitionWithDescription(&description)
-			if cap(list.Refs) == 0 {
-				list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
-			}
 			list.Refs = append(list.Refs, ref)
 		case keyword.DOLLAR:
 			if cap(list.Refs) == 0 {
