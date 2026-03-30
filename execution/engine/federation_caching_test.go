@@ -2949,6 +2949,10 @@ func TestRootFieldCachingWithArgs_KeyPopulationAndBackfill(t *testing.T) {
 func TestRootFieldCachingWithArgs_BackfillAfterPartialHit(t *testing.T) {
 	t.Parallel()
 
+	// Scenario: the root field asks for id + username keys, only the id key is in
+	// L2, and that cached entity already contains username. The request should be
+	// served from cache, the missing username key should be backfilled, and the
+	// existing id key should not be rewritten.
 	defaultCache := NewFakeLoaderCache()
 	tracker := newSubgraphCallTracker(http.DefaultTransport)
 
@@ -2989,6 +2993,7 @@ func TestRootFieldCachingWithArgs_BackfillAfterPartialHit(t *testing.T) {
 	idKey := `{"__typename":"User","key":{"id":"1234"}}`
 	usernameKey := `{"__typename":"User","key":{"username":"Me"}}`
 
+	// Seed only the id key with an entity that already proves username.
 	err := defaultCache.Set(ctx, []*resolve.CacheEntry{
 		{Key: idKey, Value: []byte(`{"id":"1234","username":"Me"}`)},
 	}, 20*time.Second)
@@ -3005,6 +3010,7 @@ func TestRootFieldCachingWithArgs_BackfillAfterPartialHit(t *testing.T) {
 
 	defaultCache.ClearLog()
 	tracker.Reset()
+	// Make the root-field request that asks for both id and username mappings.
 	resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL,
 		`query($id: ID!, $username: String!) { userByIdAndName(id: $id, username: $username) { id username } }`,
 		queryVariables{"id": "1234", "username": "Me"}, t)
@@ -3012,6 +3018,9 @@ func TestRootFieldCachingWithArgs_BackfillAfterPartialHit(t *testing.T) {
 	assert.Equal(t, `{"data":{"userByIdAndName":{"id":"1234","username":"Me"}}}`, string(resp))
 	assert.Equal(t, 0, tracker.GetCount(accountsHost))
 
+	// Assert the exact cache story:
+	// 1. L2 reads both requested keys and finds only id.
+	// 2. L2 writes only the missing username key.
 	logAfterQuery := defaultCache.GetLog()
 	assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
 		{
@@ -3021,17 +3030,216 @@ func TestRootFieldCachingWithArgs_BackfillAfterPartialHit(t *testing.T) {
 		},
 		{
 			Operation: "set",
-			Keys:      []string{idKey, usernameKey},
+			Keys:      []string{usernameKey},
 			TTL:       30 * time.Second,
 		},
 	}), sortCacheLogKeys(logAfterQuery))
 
+	// Assert the pre-existing id entry is unchanged and the username key now points
+	// at the same entity payload.
 	idData, idExists := defaultCache.Peek(idKey)
 	assert.True(t, idExists)
 	assert.Equal(t, `{"id":"1234","username":"Me"}`, string(idData))
 	usernameData, usernameExists := defaultCache.Peek(usernameKey)
 	assert.True(t, usernameExists, "cache-hit serve should backfill the missing sibling key")
 	assert.Equal(t, `{"id":"1234","username":"Me"}`, string(usernameData))
+}
+
+func TestRootFieldCachingWithArgs_BackfillRequiresFieldProof(t *testing.T) {
+	t.Parallel()
+
+	// Scenario: the root field asks for id + username keys, only the id key is in
+	// L2, and the cached entity does not contain username. The request can still be
+	// served from cache because it asks for id only, but the missing username key
+	// must not be backfilled from request args alone.
+	defaultCache := NewFakeLoaderCache()
+	tracker := newSubgraphCallTracker(http.DefaultTransport)
+
+	setup := federationtesting.NewFederationSetup(addCachingGateway(
+		withCachingEnableART(false),
+		withCachingLoaderCache(map[string]resolve.LoaderCache{"default": defaultCache}),
+		withHTTPClient(&http.Client{Transport: tracker}),
+		withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
+		withSubgraphEntityCachingConfigs(engine.SubgraphCachingConfigs{
+			{
+				SubgraphName: "accounts",
+				RootFieldCaching: plan.RootFieldCacheConfigurations{
+					{
+						TypeName:  "Query",
+						FieldName: "userByIdAndName",
+						CacheName: "default",
+						TTL:       30 * time.Second,
+						EntityKeyMappings: []plan.EntityKeyMapping{
+							{EntityTypeName: "User", FieldMappings: []plan.FieldMapping{
+								{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+							}},
+							{EntityTypeName: "User", FieldMappings: []plan.FieldMapping{
+								{EntityKeyField: "username", ArgumentPath: []string{"username"}},
+							}},
+						},
+					},
+				},
+			},
+		}),
+	))
+	t.Cleanup(setup.Close)
+	gqlClient := NewGraphqlClient(http.DefaultClient)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+	accountsHost := accountsURLParsed.Host
+	idKey := `{"__typename":"User","key":{"id":"1234"}}`
+	usernameKey := `{"__typename":"User","key":{"username":"Me"}}`
+
+	// Seed only the id key and deliberately omit username from the cached entity.
+	err := defaultCache.Set(ctx, []*resolve.CacheEntry{
+		{Key: idKey, Value: []byte(`{"id":"1234"}`)},
+	}, 20*time.Second)
+	require.NoError(t, err)
+
+	setupLog := defaultCache.GetLog()
+	assert.Equal(t, []CacheLogEntry{
+		{
+			Operation: "set",
+			Keys:      []string{idKey},
+			TTL:       20 * time.Second,
+		},
+	}, setupLog)
+
+	defaultCache.ClearLog()
+	tracker.Reset()
+	// Make a request that only needs id in the response, so the cache-only path is still valid.
+	resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL,
+		`query($id: ID!, $username: String!) { userByIdAndName(id: $id, username: $username) { id } }`,
+		queryVariables{"id": "1234", "username": "Me"}, t)
+
+	assert.Equal(t, `{"data":{"userByIdAndName":{"id":"1234"}}}`, string(resp))
+	assert.Equal(t, 0, tracker.GetCount(accountsHost))
+
+	// Assert the exact cache story:
+	// 1. L2 reads both requested keys and finds only id.
+	// 2. No write happens because the cached entity never proves username.
+	logAfterQuery := defaultCache.GetLog()
+	assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
+		{
+			Operation: "get",
+			Keys:      []string{idKey, usernameKey},
+			Hits:      []bool{true, false},
+		},
+	}), sortCacheLogKeys(logAfterQuery))
+
+	// Assert the id entry remains as seeded and the username key stays absent.
+	idData, idExists := defaultCache.Peek(idKey)
+	assert.True(t, idExists)
+	assert.Equal(t, `{"id":"1234"}`, string(idData))
+	_, usernameExists := defaultCache.Peek(usernameKey)
+	assert.False(t, usernameExists, "missing sibling key must not be backfilled from request args alone")
+}
+
+func TestRootFieldCachingWithArgs_DerivedKeyExpansionAfterFetch(t *testing.T) {
+	t.Parallel()
+
+	// Scenario: the root field asks for id + username keys, but the cache config
+	// also has a third nickname mapping. Only id is seeded, so the fetch runs. The
+	// fetched entity should refresh id, backfill username, and add the extra
+	// nickname key derived from final entity data.
+	defaultCache := NewFakeLoaderCache()
+	tracker := newSubgraphCallTracker(http.DefaultTransport)
+
+	setup := federationtesting.NewFederationSetup(addCachingGateway(
+		withCachingEnableART(false),
+		withCachingLoaderCache(map[string]resolve.LoaderCache{"default": defaultCache}),
+		withHTTPClient(&http.Client{Transport: tracker}),
+		withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
+		withSubgraphEntityCachingConfigs(engine.SubgraphCachingConfigs{
+			{
+				SubgraphName: "accounts",
+				RootFieldCaching: plan.RootFieldCacheConfigurations{
+					{
+						TypeName:  "Query",
+						FieldName: "userByIdAndName",
+						CacheName: "default",
+						TTL:       30 * time.Second,
+						EntityKeyMappings: []plan.EntityKeyMapping{
+							{EntityTypeName: "User", FieldMappings: []plan.FieldMapping{
+								{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+							}},
+							{EntityTypeName: "User", FieldMappings: []plan.FieldMapping{
+								{EntityKeyField: "username", ArgumentPath: []string{"username"}},
+							}},
+							{EntityTypeName: "User", FieldMappings: []plan.FieldMapping{
+								{EntityKeyField: "nickname", ArgumentPath: []string{"nickname"}},
+							}},
+						},
+					},
+				},
+			},
+		}),
+	))
+	t.Cleanup(setup.Close)
+	gqlClient := NewGraphqlClient(http.DefaultClient)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+	accountsHost := accountsURLParsed.Host
+	idKey := `{"__typename":"User","key":{"id":"1234"}}`
+	usernameKey := `{"__typename":"User","key":{"username":"Me"}}`
+	nicknameKey := `{"__typename":"User","key":{"nickname":"nick-Me"}}`
+
+	// Seed only the id key so the request has one cache hit and one requested miss.
+	err := defaultCache.Set(ctx, []*resolve.CacheEntry{
+		{Key: idKey, Value: []byte(`{"id":"1234"}`)},
+	}, 20*time.Second)
+	require.NoError(t, err)
+
+	setupLog := defaultCache.GetLog()
+	assert.Equal(t, []CacheLogEntry{
+		{
+			Operation: "set",
+			Keys:      []string{idKey},
+			TTL:       20 * time.Second,
+		},
+	}, setupLog)
+
+	defaultCache.ClearLog()
+	tracker.Reset()
+	// Make the root-field request. The response returns id, username, and nickname.
+	resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL,
+		`query($id: ID!, $username: String!) { userByIdAndName(id: $id, username: $username) { id username nickname } }`,
+		queryVariables{"id": "1234", "username": "Me"}, t)
+
+	assert.Equal(t, `{"data":{"userByIdAndName":{"id":"1234","username":"Me","nickname":"nick-Me"}}}`, string(resp))
+	assert.Equal(t, 1, tracker.GetCount(accountsHost))
+
+	// Assert the exact cache story:
+	// 1. L2 reads the requested id + username keys and finds only id.
+	// 2. The fetch writes id refresh + username backfill + nickname derived key.
+	logAfterQuery := defaultCache.GetLog()
+	assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
+		{
+			Operation: "get",
+			Keys:      []string{idKey, usernameKey},
+			Hits:      []bool{true, false},
+		},
+		{
+			Operation: "set",
+			Keys:      []string{idKey, usernameKey, nicknameKey},
+			TTL:       30 * time.Second,
+		},
+	}), sortCacheLogKeys(logAfterQuery))
+
+	// Assert all three keys now point at the same final entity payload.
+	idData, idExists := defaultCache.Peek(idKey)
+	assert.True(t, idExists)
+	assert.Equal(t, `{"id":"1234","username":"Me","nickname":"nick-Me"}`, string(idData))
+	usernameData, usernameExists := defaultCache.Peek(usernameKey)
+	assert.True(t, usernameExists)
+	assert.Equal(t, `{"id":"1234","username":"Me","nickname":"nick-Me"}`, string(usernameData))
+	nicknameData, nicknameExists := defaultCache.Peek(nicknameKey)
+	assert.True(t, nicknameExists)
+	assert.Equal(t, `{"id":"1234","username":"Me","nickname":"nick-Me"}`, string(nicknameData))
 }
 
 func TestRootFieldCachingWithArgs_FallbackAfterPartialSelection(t *testing.T) {

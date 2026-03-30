@@ -394,6 +394,27 @@ After mutation completes, delete L2 entry for the returned entity.
 - Populate mode: write entity data to L2 on each subscription event
 - Invalidate mode (`EnableInvalidationOnKeyOnly`): delete L2 entry when subscription provides only @key fields
 
+### Smart Cache Key Backfill (Root Field EntityKeyMappings)
+
+When `EntityKeyMappings` produces multiple L2 keys on read and some miss,
+`updateL2Cache` makes precise per-key write decisions via `cacheKeysToExactRootFieldEntityEntries`.
+
+Two independent write decisions per mapping:
+
+1. **Requested key** (`shouldWriteRequestedKey`): the key rendered from request arguments.
+   Written when it matches the rendered key (backfill) or on the fetch path (refresh).
+   On skip-fetch, only written when `fromCacheNeedsWriteback`.
+2. **Rendered key** (`shouldWriteRenderedKey`): the key rendered from final entity data.
+   On the fetch path, always written — the subgraph is the source of truth.
+   On the skip-fetch path, only written for genuinely new keys (missing or derived),
+   not existing cached keys that would be redundantly rewritten.
+
+This means a value mismatch (request asked for `email:a@` but entity has `email:b@`) writes
+the `b@` key as a derived entry while correctly skipping the unproven `a@` key.
+
+`hasMissingRequestedKeys` replaces the old `needsKeyBackfill` boolean with per-entity precision.
+`cacheMustBeUpdated` is set optimistically before merge; exact filtering happens in `updateL2Cache`.
+
 ### Partial Cache Loading
 
 - **Default** (`EnablePartialCacheLoad = false`): any cache miss → refetch ALL entities in batch
@@ -409,7 +430,7 @@ Enable via `ctx.ExecutionOptions.Caching.EnableCacheAnalytics = true`. After exe
 
 **CacheAnalyticsSnapshot** contains:
 - `L1Reads`, `L2Reads` — `[]CacheKeyEvent` (hit/miss/partial-hit per key)
-- `L1Writes`, `L2Writes` — `[]CacheWriteEvent` (key, size, TTL)
+- `L1Writes`, `L2Writes` — `[]CacheWriteEvent` (key, size, TTL, WriteReason for EntityKeyMappings writes)
 - `FetchTimings` — `[]FetchTimingEvent` (duration, HTTP status, response size, TTFB)
 - `ErrorEvents` — `[]SubgraphErrorEvent`
 - `FieldHashes` — `[]EntityFieldHash` (xxhash of field values for staleness)

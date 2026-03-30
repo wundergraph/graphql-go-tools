@@ -24,6 +24,7 @@ func TestNewInitialHttpRequestContext(t *testing.T) {
 	assert.Equal(t, req, initialReqCtx.Request)
 }
 
+//nolint:tparallel // Subtests intentionally share the same cancellation map and context state.
 func TestSubscriptionCancellations(t *testing.T) {
 	t.Parallel()
 	cancellations := subscriptionCancellations{}

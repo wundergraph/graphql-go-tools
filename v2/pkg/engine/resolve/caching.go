@@ -20,6 +20,9 @@ type CacheKey struct {
 	Item      *astjson.Value
 	FromCache *astjson.Value
 	Keys      []string
+	// missingKeys tracks the requested L2 keys that were absent on read for this entity.
+	// It is used during writeback to distinguish existing-key refreshes from missing-key backfills.
+	missingKeys []string
 	// EntityMergePath enables cache sharing between root field and entity fetches.
 	// On STORE: extracts entity-level data at this path (e.g., ["user"] extracts from {"user":{...}}).
 	// On LOAD: wraps cached entity-level data back at this path (e.g., wraps {...} into {"user":{...}}).

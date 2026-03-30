@@ -355,7 +355,24 @@ EntityKeyMappings: []plan.EntityKeyMapping{
 // Produces: {"__typename":"Product","key":{"store":{"id":"s1","region":"us"}}}
 ```
 
-**Write-side behavior:** Both L2 reads and writes use the same argument-derived key set. If a root field provides only a subset of arguments (e.g., only `sku` and `region` but not `id`), the write stores under only the matching keys. The system does not inspect the fetched response to generate additional keys from returned fields.
+**Write-side behavior:** L2 reads use the argument-derived key set.
+L2 writes use smart cache key backfill to make precise per-key decisions based on
+final entity data:
+
+- **Existing keys** that hit on read are refreshed only when the data changed
+  (multi-candidate writeback) or when a subgraph fetch returned fresh data.
+- **Requested missing keys** (keys generated from arguments on read but absent in L2)
+  are backfilled only when the final entity value proves them — the mapped key field
+  must be present in the entity and render to the exact same key string.
+  Request arguments alone are not sufficient to prove a cache association on write.
+- **Derived keys** beyond the original request are written when the final entity data
+  contains the mapped key fields for other `EntityKeyMapping` entries.
+  For example, if a root field is queried with `id` and the response contains `username`,
+  the `username` key is also written, enabling cross-lookup by `username` on subsequent requests.
+
+If a root field provides only a subset of arguments (e.g., only `sku` and `region` but
+not `id`), the read uses only the matching keys.
+The write may add the `id` key if the subgraph response contains `id`.
 
 **Variable remapping:** `RemapVariables` applies only to single-element argument paths. Multi-element paths (structured argument navigation like `["store", "id"]`) are not remapped.
 

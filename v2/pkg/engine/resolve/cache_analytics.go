@@ -59,14 +59,15 @@ type CacheKeyEvent struct {
 
 // CacheWriteEvent records a single cache write operation.
 type CacheWriteEvent struct {
-	CacheKey   string
-	EntityType string
-	ByteSize   int
-	DataSource string
-	CacheLevel CacheLevel
-	TTL        time.Duration
-	Shadow     bool                 // true if this write occurred in shadow mode
-	Source     CacheOperationSource // what triggered this write (query/mutation/subscription)
+	CacheKey    string
+	EntityType  string
+	ByteSize    int
+	DataSource  string
+	CacheLevel  CacheLevel
+	TTL         time.Duration
+	Shadow      bool                 // true if this write occurred in shadow mode
+	Source      CacheOperationSource // what triggered this write (query/mutation/subscription)
+	WriteReason CacheWriteReason     // why this write occurred (refresh/backfill/derived, empty for non-EntityKeyMappings)
 }
 
 // FetchTimingEvent records the duration of a subgraph fetch or cache lookup.
@@ -241,16 +242,8 @@ func (c *CacheAnalyticsCollector) MergeL2Events(events []CacheKeyEvent) {
 }
 
 // RecordWrite records a cache write event. Main thread only.
-func (c *CacheAnalyticsCollector) RecordWrite(cacheLevel CacheLevel, entityType, cacheKey, dataSource string, byteSize int, ttl time.Duration, source CacheOperationSource) {
-	c.writeEvents = append(c.writeEvents, CacheWriteEvent{
-		CacheKey:   cacheKey,
-		EntityType: entityType,
-		ByteSize:   byteSize,
-		DataSource: dataSource,
-		CacheLevel: cacheLevel,
-		TTL:        ttl,
-		Source:     source,
-	})
+func (c *CacheAnalyticsCollector) RecordWrite(event CacheWriteEvent) {
+	c.writeEvents = append(c.writeEvents, event)
 }
 
 // HashFieldValue computes an xxhash of the given field value bytes and records it

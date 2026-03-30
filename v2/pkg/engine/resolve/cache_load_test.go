@@ -1294,10 +1294,10 @@ func (f *FakeLoaderCache) SetRawData(key string, value []byte, ttl time.Duration
 // Shadow Mode Integration Tests
 // =============================================================================
 
-// normalizeShadowSnap zeroes out non-deterministic fields (FetchTimings.DurationMs)
+// normalizeCacheAnalyticsSnapshot zeroes out non-deterministic fields (FetchTimings.DurationMs)
 // and normalizes empty slices to nil for consistent assert.Equal comparison.
 // CacheAgeMs is deterministic when tests run inside synctest.Test (fake clock).
-func normalizeShadowSnap(snap CacheAnalyticsSnapshot) CacheAnalyticsSnapshot {
+func normalizeCacheAnalyticsSnapshot(snap CacheAnalyticsSnapshot) CacheAnalyticsSnapshot {
 	// Zero out non-deterministic FetchTimings (DurationMs varies between runs)
 	snap.FetchTimings = nil
 
@@ -1454,7 +1454,7 @@ func TestShadowMode_L2_AlwaysFetches(t *testing.T) {
 		out1 := fastjsonext.PrintGraphQLResponse(resolvable1.data, resolvable1.errors)
 		assert.Equal(t, `{"data":{"product":{"__typename":"Product","id":"prod-1","name":"Product One"}}}`, out1)
 
-		assert.Equal(t, normalizeShadowSnap(CacheAnalyticsSnapshot{
+		assert.Equal(t, normalizeCacheAnalyticsSnapshot(CacheAnalyticsSnapshot{
 			L1Reads: []CacheKeyEvent{
 				{CacheKey: shadowTestKeyProduct, EntityType: "Product", Kind: CacheKeyMiss, DataSource: "products"}, // First request, L1 is empty
 			},
@@ -1467,7 +1467,7 @@ func TestShadowMode_L2_AlwaysFetches(t *testing.T) {
 			L2Writes: []CacheWriteEvent{
 				{CacheKey: shadowTestKeyProduct, EntityType: "Product", ByteSize: 59, DataSource: "products", CacheLevel: CacheLevelL2, TTL: 30 * time.Second, Source: CacheSourceQuery}, // Miss triggered subgraph fetch, result written to L2
 			},
-		}), normalizeShadowSnap(ctx1.GetCacheStats()))
+		}), normalizeCacheAnalyticsSnapshot(ctx1.GetCacheStats()))
 
 		// Advance fake clock by 5s so Request 2's L2 hit has a measurable CacheAgeMs
 		time.Sleep(5 * time.Second)
@@ -1491,7 +1491,7 @@ func TestShadowMode_L2_AlwaysFetches(t *testing.T) {
 		out2 := fastjsonext.PrintGraphQLResponse(resolvable2.data, resolvable2.errors)
 		assert.Equal(t, `{"data":{"product":{"__typename":"Product","id":"prod-1","name":"Product One"}}}`, out2)
 
-		assert.Equal(t, normalizeShadowSnap(CacheAnalyticsSnapshot{
+		assert.Equal(t, normalizeCacheAnalyticsSnapshot(CacheAnalyticsSnapshot{
 			L1Reads: []CacheKeyEvent{
 				{CacheKey: shadowTestKeyProduct, EntityType: "Product", Kind: CacheKeyMiss, DataSource: "products"}, // New Loader instance, L1 is per-request and empty
 			},
@@ -1511,7 +1511,7 @@ func TestShadowMode_L2_AlwaysFetches(t *testing.T) {
 				{EntityType: "Product", FieldName: "id", FieldHash: 4016270444951293489, KeyRaw: `{"id":"prod-1"}`, Source: FieldSourceShadowCached},   // Cached "id" field from shadow comparison
 				{EntityType: "Product", FieldName: "name", FieldHash: 8385814294091472045, KeyRaw: `{"id":"prod-1"}`, Source: FieldSourceShadowCached}, // Cached "name" field from shadow comparison
 			},
-		}), normalizeShadowSnap(ctx2.GetCacheStats()))
+		}), normalizeCacheAnalyticsSnapshot(ctx2.GetCacheStats()))
 	})
 }
 
@@ -1636,7 +1636,7 @@ func TestShadowMode_StalenessDetection(t *testing.T) {
 		err = loader1.LoadGraphQLResponseData(ctx1, buildResponse(), resolvable1)
 		require.NoError(t, err)
 
-		assert.Equal(t, normalizeShadowSnap(CacheAnalyticsSnapshot{
+		assert.Equal(t, normalizeCacheAnalyticsSnapshot(CacheAnalyticsSnapshot{
 			L1Reads: []CacheKeyEvent{
 				{CacheKey: shadowTestKeyUser, EntityType: "User", Kind: CacheKeyMiss, DataSource: "accounts"}, // First request, L1 is empty
 			},
@@ -1649,7 +1649,7 @@ func TestShadowMode_StalenessDetection(t *testing.T) {
 			L2Writes: []CacheWriteEvent{
 				{CacheKey: shadowTestKeyUser, EntityType: "User", ByteSize: 50, DataSource: "accounts", CacheLevel: CacheLevelL2, TTL: 30 * time.Second, Source: CacheSourceQuery}, // "Alice" written to L2 after subgraph fetch
 			},
-		}), normalizeShadowSnap(ctx1.GetCacheStats()))
+		}), normalizeCacheAnalyticsSnapshot(ctx1.GetCacheStats()))
 
 		// Advance fake clock by 5s so Request 2's L2 hit has a measurable CacheAgeMs
 		time.Sleep(5 * time.Second)
@@ -1674,7 +1674,7 @@ func TestShadowMode_StalenessDetection(t *testing.T) {
 		out2 := fastjsonext.PrintGraphQLResponse(resolvable2.data, resolvable2.errors)
 		assert.Equal(t, `{"data":{"user":{"__typename":"User","id":"u1","username":"AliceUpdated"}}}`, out2)
 
-		assert.Equal(t, normalizeShadowSnap(CacheAnalyticsSnapshot{
+		assert.Equal(t, normalizeCacheAnalyticsSnapshot(CacheAnalyticsSnapshot{
 			L1Reads: []CacheKeyEvent{
 				{CacheKey: shadowTestKeyUser, EntityType: "User", Kind: CacheKeyMiss, DataSource: "accounts"}, // New Loader instance, L1 is per-request and empty
 			},
@@ -1694,7 +1694,7 @@ func TestShadowMode_StalenessDetection(t *testing.T) {
 				{EntityType: "User", FieldName: "id", FieldHash: 13311642224980425257, KeyRaw: `{"id":"u1"}`, Source: FieldSourceShadowCached},      // Cached "id" field from "Alice" entity
 				{EntityType: "User", FieldName: "username", FieldHash: 5631231822564450273, KeyRaw: `{"id":"u1"}`, Source: FieldSourceShadowCached}, // Cached "username"="Alice" (stale value)
 			},
-		}), normalizeShadowSnap(ctx2.GetCacheStats()))
+		}), normalizeCacheAnalyticsSnapshot(ctx2.GetCacheStats()))
 	})
 }
 
@@ -2292,6 +2292,692 @@ func TestMutationSkipsL2Read(t *testing.T) {
 		out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
 		assert.Equal(t, `{"data":{"updateUser":{"__typename":"Product","id":"prod-1","name":"New Name"}}}`, out, "mutation should fetch fresh data, not use cached stale data")
 	})
+}
+
+func newUserRootQueryTemplate(requestedFields []string, entityKeyFields []string) *RootQueryCacheKeyTemplate {
+	rootArgs := make([]FieldArgument, 0, len(requestedFields))
+	for _, field := range requestedFields {
+		rootArgs = append(rootArgs, FieldArgument{
+			Name: field,
+			Variable: &ContextVariable{
+				Path:     []string{field},
+				Renderer: NewPlainVariableRenderer(),
+			},
+		})
+	}
+
+	entityKeyMappings := make([]EntityKeyMappingConfig, 0, len(entityKeyFields))
+	for _, field := range entityKeyFields {
+		entityKeyMappings = append(entityKeyMappings, EntityKeyMappingConfig{
+			EntityTypeName: "User",
+			FieldMappings: []EntityFieldMappingConfig{
+				{
+					EntityKeyField: field,
+					ArgumentPath:   []string{field},
+				},
+			},
+		})
+	}
+
+	return &RootQueryCacheKeyTemplate{
+		RootFields: []QueryField{
+			{
+				Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"},
+				Args:       rootArgs,
+			},
+		},
+		EntityKeyMappings: entityKeyMappings,
+	}
+}
+
+func newUserRootQueryResponse(rootDS DataSource, cacheKeyTemplate CacheKeyTemplate, providesData *Object) *GraphQLResponse {
+	rootProvidesData := providesData
+	if providesData != nil {
+		rootProvidesData = &Object{
+			Fields: providesData.Fields,
+		}
+		rootProvidesData = &Object{
+			Fields: []*Field{
+				{
+					Name:  []byte("user"),
+					Value: rootProvidesData,
+				},
+			},
+		}
+	}
+
+	return &GraphQLResponse{
+		Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
+		Fetches: Sequence(
+			SingleWithPath(&SingleFetch{
+				FetchConfiguration: FetchConfiguration{
+					DataSource:     rootDS,
+					PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data"}},
+					Caching: FetchCacheConfiguration{
+						Enabled:          true,
+						CacheName:        "default",
+						TTL:              30 * time.Second,
+						CacheKeyTemplate: cacheKeyTemplate,
+					},
+				},
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{Data: []byte(`{"method":"POST"}`), SegmentType: StaticSegmentType},
+					},
+				},
+				Info: &FetchInfo{
+					DataSourceID:   "accounts",
+					DataSourceName: "accounts",
+					RootFields:     []GraphCoordinate{{TypeName: "Query", FieldName: "user"}},
+					OperationType:  ast.OperationTypeQuery,
+					ProvidesData:   rootProvidesData,
+				},
+				DataSourceIdentifier: []byte("graphql_datasource.Source"),
+			}, "query"),
+		),
+		Data: &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("user"),
+					Value: &Object{
+						Path: []string{"user"},
+						Fields: []*Field{
+							{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+							{Name: []byte("email"), Value: &String{Path: []string{"email"}}},
+							{Name: []byte("username"), Value: &String{Path: []string{"username"}}},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestCacheBackfill_SkipFetch_HappyPath(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Scenario: the request asks for id + email keys, only the id key is cached,
+	// and that cached entity already contains the email field required to prove
+	// the missing sibling key. The loader should skip the subgraph fetch, backfill
+	// only the missing email key, and leave the existing id key untouched.
+	cache := NewFakeLoaderCache()
+	idKey := `{"__typename":"User","key":{"id":"u1"}}`
+	emailKey := `{"__typename":"User","key":{"email":"a@example.com"}}`
+
+	// Seed L2 with only the id key. The stored entity is complete enough to serve
+	// the request and to prove that the email key belongs to the same entity.
+	err := cache.Set(t.Context(), []*CacheEntry{
+		{Key: idKey, Value: []byte(`{"__typename":"User","id":"u1","email":"a@example.com","username":"Alice"}`)},
+	}, 30*time.Second)
+	require.NoError(t, err)
+	cache.ClearLog()
+
+	// The request should stay on the cache-only path, so the root datasource must
+	// never be called.
+	rootDS := NewMockDataSource(ctrl)
+	rootDS.EXPECT().Load(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
+	response := newUserRootQueryResponse(
+		rootDS,
+		newUserRootQueryTemplate([]string{"id", "email"}, []string{"id", "email"}),
+		&Object{
+			Fields: []*Field{
+				{Name: []byte("id"), Value: &Scalar{Path: []string{"id"}, Nullable: false}},
+				{Name: []byte("username"), Value: &Scalar{Path: []string{"username"}, Nullable: false}},
+			},
+		},
+	)
+
+	loader := &Loader{caches: map[string]LoaderCache{"default": cache}}
+	ctx := NewContext(t.Context())
+	ctx.Variables = astjson.MustParseBytes([]byte(`{"id":"u1","email":"a@example.com"}`))
+	ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+	ctx.ExecutionOptions.Caching.EnableL1Cache = true
+	ctx.ExecutionOptions.Caching.EnableL2Cache = true
+	ctx.ExecutionOptions.Caching.EnableCacheAnalytics = true
+
+	ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+	resolvable := NewResolvable(ar, ResolvableOptions{})
+	err = resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+	require.NoError(t, err)
+
+	err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+	require.NoError(t, err)
+
+	// Assert the exact cache story:
+	// 1. L2 reads both requested keys and finds only the id key.
+	// 2. L2 writes only the missing email key.
+	assert.Equal(t, []CacheLogEntry{
+		{Operation: "get", Keys: []string{idKey, emailKey}, Hits: []bool{true, false}},
+		{Operation: "set", Keys: []string{emailKey}, Hits: nil, TTL: 30 * time.Second},
+	}, cache.GetLog())
+	// Assert the written value matches the final merged entity and that the
+	// existing id entry was preserved rather than rewritten.
+	assert.Equal(t, `{"__typename":"User","id":"u1","email":"a@example.com","username":"Alice"}`, string(cache.GetValue(emailKey)))
+	assert.Equal(t, `{"__typename":"User","id":"u1","email":"a@example.com","username":"Alice"}`, string(cache.GetValue(idKey)))
+
+	snap := normalizeCacheAnalyticsSnapshot(ctx.GetCacheStats())
+	assert.Equal(t, normalizeCacheAnalyticsSnapshot(CacheAnalyticsSnapshot{
+		L2Reads: []CacheKeyEvent{
+			// id key found in L2 (first key in CacheKey.Keys)
+			{
+				CacheKey:   idKey,
+				EntityType: "Query",
+				Kind:       CacheKeyHit,
+				DataSource: "accounts",
+				ByteSize:   83,
+			},
+		},
+		L2Writes: []CacheWriteEvent{
+			// backfill: missing requested key proven by cached entity data
+			{
+				CacheKey:    emailKey,
+				EntityType:  "Query",
+				ByteSize:    74,
+				DataSource:  "accounts",
+				CacheLevel:  CacheLevelL2,
+				TTL:         30 * time.Second,
+				Source:      CacheSourceQuery,
+				WriteReason: CacheWriteReasonBackfill,
+			},
+		},
+	}), snap)
+}
+
+func TestCacheBackfill_SkipFetch_Counterexample_NotDerivable(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Scenario: the request asks for id + email keys, only the id key is cached,
+	// but the cached entity does not contain email. The loader may still skip the
+	// fetch because the requested response only needs id + username, but it must
+	// not backfill the missing email key from request args alone.
+	cache := NewFakeLoaderCache()
+	idKey := `{"__typename":"User","key":{"id":"u1"}}`
+	emailKey := `{"__typename":"User","key":{"email":"a@example.com"}}`
+
+	// Seed L2 with only the id key and omit email from the cached entity to make
+	// the missing email key impossible to prove from final entity data.
+	err := cache.Set(t.Context(), []*CacheEntry{
+		{Key: idKey, Value: []byte(`{"__typename":"User","id":"u1","username":"Alice"}`)},
+	}, 30*time.Second)
+	require.NoError(t, err)
+	cache.ClearLog()
+
+	// Cache-only path again: the subgraph must not be called.
+	rootDS := NewMockDataSource(ctrl)
+	rootDS.EXPECT().Load(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
+	response := newUserRootQueryResponse(
+		rootDS,
+		newUserRootQueryTemplate([]string{"id", "email"}, []string{"id", "email"}),
+		&Object{
+			Fields: []*Field{
+				{Name: []byte("id"), Value: &Scalar{Path: []string{"id"}, Nullable: false}},
+				{Name: []byte("username"), Value: &Scalar{Path: []string{"username"}, Nullable: false}},
+			},
+		},
+	)
+
+	loader := &Loader{caches: map[string]LoaderCache{"default": cache}}
+	ctx := NewContext(t.Context())
+	ctx.Variables = astjson.MustParseBytes([]byte(`{"id":"u1","email":"a@example.com"}`))
+	ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+	ctx.ExecutionOptions.Caching.EnableL1Cache = true
+	ctx.ExecutionOptions.Caching.EnableL2Cache = true
+	ctx.ExecutionOptions.Caching.EnableCacheAnalytics = true
+
+	ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+	resolvable := NewResolvable(ar, ResolvableOptions{})
+	err = resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+	require.NoError(t, err)
+
+	err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+	require.NoError(t, err)
+
+	// Assert the exact cache story:
+	// 1. L2 reads both requested keys and finds only the id key.
+	// 2. No write happens because email is still not provable from the final entity.
+	assert.Equal(t, []CacheLogEntry{
+		{Operation: "get", Keys: []string{idKey, emailKey}, Hits: []bool{true, false}},
+	}, cache.GetLog())
+	// Assert the missing email key stays absent and the original id entry is unchanged.
+	assert.Nil(t, cache.GetValue(emailKey))
+	assert.Equal(t, `{"__typename":"User","id":"u1","username":"Alice"}`, string(cache.GetValue(idKey)))
+
+	snap := normalizeCacheAnalyticsSnapshot(ctx.GetCacheStats())
+	assert.Equal(t, normalizeCacheAnalyticsSnapshot(CacheAnalyticsSnapshot{
+		L2Reads: []CacheKeyEvent{
+			// id key found in L2 (entity lacks email field)
+			{
+				CacheKey:   idKey,
+				EntityType: "Query",
+				Kind:       CacheKeyHit,
+				DataSource: "accounts",
+				ByteSize:   59,
+			},
+		},
+		// no L2 writes: email field missing from entity, cannot prove emailKey
+	}), snap)
+}
+
+func TestCacheBackfill_FetchPath_HappyPath(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Scenario: the request asks for id + email keys, only the id key is cached,
+	// and the cached entity is too incomplete to satisfy the request. The loader
+	// must fetch fresh data, refresh the existing id key, and backfill the missing
+	// email key from the fetched entity.
+	cache := NewFakeLoaderCache()
+	idKey := `{"__typename":"User","key":{"id":"u1"}}`
+	emailKey := `{"__typename":"User","key":{"email":"a@example.com"}}`
+
+	// Seed L2 with a stale/incomplete id entry so the fetch path is required.
+	err := cache.Set(t.Context(), []*CacheEntry{
+		{Key: idKey, Value: []byte(`{"__typename":"User","id":"u1"}`)},
+	}, 30*time.Second)
+	require.NoError(t, err)
+	cache.ClearLog()
+
+	// The subgraph returns the complete entity, which should refresh id and prove email.
+	rootDS := NewMockDataSource(ctrl)
+	rootDS.EXPECT().
+		Load(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+			return []byte(`{"data":{"user":{"__typename":"User","id":"u1","email":"a@example.com","username":"Alice"}}}`), nil
+		}).Times(1)
+
+	response := newUserRootQueryResponse(
+		rootDS,
+		newUserRootQueryTemplate([]string{"id", "email"}, []string{"id", "email"}),
+		&Object{
+			Fields: []*Field{
+				{Name: []byte("id"), Value: &Scalar{Path: []string{"id"}, Nullable: false}},
+				{Name: []byte("username"), Value: &Scalar{Path: []string{"username"}, Nullable: false}},
+			},
+		},
+	)
+
+	loader := &Loader{caches: map[string]LoaderCache{"default": cache}}
+	ctx := NewContext(t.Context())
+	ctx.Variables = astjson.MustParseBytes([]byte(`{"id":"u1","email":"a@example.com"}`))
+	ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+	ctx.ExecutionOptions.Caching.EnableL1Cache = true
+	ctx.ExecutionOptions.Caching.EnableL2Cache = true
+	ctx.ExecutionOptions.Caching.EnableCacheAnalytics = true
+
+	ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+	resolvable := NewResolvable(ar, ResolvableOptions{})
+	err = resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+	require.NoError(t, err)
+
+	err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+	require.NoError(t, err)
+
+	// Assert the exact cache story:
+	// 1. L2 reads both requested keys and finds only the stale id key.
+	// 2. The fetch runs and writes both the refreshed id key and the backfilled email key.
+	assert.Equal(t, []CacheLogEntry{
+		{Operation: "get", Keys: []string{idKey, emailKey}, Hits: []bool{true, false}},
+		{Operation: "set", Keys: []string{idKey, emailKey}, Hits: nil, TTL: 30 * time.Second},
+	}, cache.GetLog())
+	// Assert both keys now store the same fresh entity payload.
+	assert.Equal(t, `{"__typename":"User","id":"u1","email":"a@example.com","username":"Alice"}`, string(cache.GetValue(idKey)))
+	assert.Equal(t, `{"__typename":"User","id":"u1","email":"a@example.com","username":"Alice"}`, string(cache.GetValue(emailKey)))
+
+	snap := normalizeCacheAnalyticsSnapshot(ctx.GetCacheStats())
+	assert.Equal(t, normalizeCacheAnalyticsSnapshot(CacheAnalyticsSnapshot{
+		L2Reads: []CacheKeyEvent{
+			// id key found but incomplete for ProvidesData → partial hit, fetch needed
+			{
+				CacheKey:   idKey,
+				EntityType: "Query",
+				Kind:       CacheKeyPartialHit,
+				DataSource: "accounts",
+			},
+		},
+		L2Writes: []CacheWriteEvent{
+			// refresh: existing key rewritten with fresh subgraph data
+			{
+				CacheKey:    idKey,
+				EntityType:  "Query",
+				ByteSize:    74,
+				DataSource:  "accounts",
+				CacheLevel:  CacheLevelL2,
+				TTL:         30 * time.Second,
+				Source:      CacheSourceQuery,
+				WriteReason: CacheWriteReasonRefresh,
+			},
+			// backfill: missing requested key proven by subgraph response
+			{
+				CacheKey:    emailKey,
+				EntityType:  "Query",
+				ByteSize:    74,
+				DataSource:  "accounts",
+				CacheLevel:  CacheLevelL2,
+				TTL:         30 * time.Second,
+				Source:      CacheSourceQuery,
+				WriteReason: CacheWriteReasonBackfill,
+			},
+		},
+	}), snap)
+}
+
+func TestCacheBackfill_FetchPath_MissingField(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Scenario: the request asks for id + email keys, only the id key is cached,
+	// and the fetch runs. The fetched entity still does not contain email, so the
+	// loader may refresh the existing id key but must not backfill email.
+	cache := NewFakeLoaderCache()
+	idKey := `{"__typename":"User","key":{"id":"u1"}}`
+	emailKey := `{"__typename":"User","key":{"email":"a@example.com"}}`
+
+	// Seed L2 with an incomplete id entry to force the fetch path.
+	err := cache.Set(t.Context(), []*CacheEntry{
+		{Key: idKey, Value: []byte(`{"__typename":"User","id":"u1"}`)},
+	}, 30*time.Second)
+	require.NoError(t, err)
+	cache.ClearLog()
+
+	// The subgraph returns username but still no email.
+	rootDS := NewMockDataSource(ctrl)
+	rootDS.EXPECT().
+		Load(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+			return []byte(`{"data":{"user":{"__typename":"User","id":"u1","username":"Alice"}}}`), nil
+		}).Times(1)
+
+	response := newUserRootQueryResponse(
+		rootDS,
+		newUserRootQueryTemplate([]string{"id", "email"}, []string{"id", "email"}),
+		&Object{
+			Fields: []*Field{
+				{Name: []byte("id"), Value: &Scalar{Path: []string{"id"}, Nullable: false}},
+				{Name: []byte("username"), Value: &Scalar{Path: []string{"username"}, Nullable: false}},
+			},
+		},
+	)
+
+	loader := &Loader{caches: map[string]LoaderCache{"default": cache}}
+	ctx := NewContext(t.Context())
+	ctx.Variables = astjson.MustParseBytes([]byte(`{"id":"u1","email":"a@example.com"}`))
+	ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+	ctx.ExecutionOptions.Caching.EnableL1Cache = true
+	ctx.ExecutionOptions.Caching.EnableL2Cache = true
+	ctx.ExecutionOptions.Caching.EnableCacheAnalytics = true
+
+	ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+	resolvable := NewResolvable(ar, ResolvableOptions{})
+	err = resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+	require.NoError(t, err)
+
+	err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+	require.NoError(t, err)
+
+	// Assert the exact cache story:
+	// 1. L2 reads both requested keys and finds only the id key.
+	// 2. The fetch refreshes id only.
+	// 3. The missing email key remains absent because the fetched entity never proved it.
+	assert.Equal(t, []CacheLogEntry{
+		{Operation: "get", Keys: []string{idKey, emailKey}, Hits: []bool{true, false}},
+		{Operation: "set", Keys: []string{idKey}, Hits: nil, TTL: 30 * time.Second},
+	}, cache.GetLog())
+	assert.Equal(t, `{"__typename":"User","id":"u1","username":"Alice"}`, string(cache.GetValue(idKey)))
+	assert.Nil(t, cache.GetValue(emailKey))
+
+	snap := normalizeCacheAnalyticsSnapshot(ctx.GetCacheStats())
+	assert.Equal(t, normalizeCacheAnalyticsSnapshot(CacheAnalyticsSnapshot{
+		L2Reads: []CacheKeyEvent{
+			// id key found but incomplete for ProvidesData → partial hit, fetch needed
+			{
+				CacheKey:   idKey,
+				EntityType: "Query",
+				Kind:       CacheKeyPartialHit,
+				DataSource: "accounts",
+			},
+		},
+		L2Writes: []CacheWriteEvent{
+			// refresh: existing key rewritten with fresh data (no email)
+			{
+				CacheKey:    idKey,
+				EntityType:  "Query",
+				ByteSize:    50,
+				DataSource:  "accounts",
+				CacheLevel:  CacheLevelL2,
+				TTL:         30 * time.Second,
+				Source:      CacheSourceQuery,
+				WriteReason: CacheWriteReasonRefresh,
+			},
+		},
+		// no backfill for emailKey: subgraph didn't return email field
+	}), snap)
+}
+
+func TestCacheBackfill_FetchPath_ValueMismatch(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Scenario: the request asks for email=a@example.com, but the fetched entity
+	// comes back with email=b@example.com. The loader must refresh the existing id
+	// key, must NOT backfill the requested email key (a@), but MUST write a derived
+	// key for the actual email value (b@) because it is backend-proven entity data.
+	cache := NewFakeLoaderCache()
+	idKey := `{"__typename":"User","key":{"id":"u1"}}`
+	requestedEmailKey := `{"__typename":"User","key":{"email":"a@example.com"}}`
+	actualEmailKey := `{"__typename":"User","key":{"email":"b@example.com"}}`
+
+	// Seed L2 with an incomplete id entry to force the fetch path.
+	err := cache.Set(t.Context(), []*CacheEntry{
+		{Key: idKey, Value: []byte(`{"__typename":"User","id":"u1"}`)},
+	}, 30*time.Second)
+	require.NoError(t, err)
+	cache.ClearLog()
+
+	// The subgraph returns a different email value than the requested key.
+	rootDS := NewMockDataSource(ctrl)
+	rootDS.EXPECT().
+		Load(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+			return []byte(`{"data":{"user":{"__typename":"User","id":"u1","email":"b@example.com","username":"Alice"}}}`), nil
+		}).Times(1)
+
+	response := newUserRootQueryResponse(
+		rootDS,
+		newUserRootQueryTemplate([]string{"id", "email"}, []string{"id", "email"}),
+		&Object{
+			Fields: []*Field{
+				{Name: []byte("id"), Value: &Scalar{Path: []string{"id"}, Nullable: false}},
+				{Name: []byte("username"), Value: &Scalar{Path: []string{"username"}, Nullable: false}},
+			},
+		},
+	)
+
+	loader := &Loader{caches: map[string]LoaderCache{"default": cache}}
+	ctx := NewContext(t.Context())
+	ctx.Variables = astjson.MustParseBytes([]byte(`{"id":"u1","email":"a@example.com"}`))
+	ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+	ctx.ExecutionOptions.Caching.EnableL1Cache = true
+	ctx.ExecutionOptions.Caching.EnableL2Cache = true
+	ctx.ExecutionOptions.Caching.EnableCacheAnalytics = true
+
+	ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+	resolvable := NewResolvable(ar, ResolvableOptions{})
+	err = resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+	require.NoError(t, err)
+
+	err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+	require.NoError(t, err)
+
+	// Assert the exact cache story:
+	// 1. L2 reads both requested keys and finds only the id key.
+	// 2. The fetch refreshes id with fresh data.
+	// 3. The requested email key (a@) is NOT written — the entity doesn't prove it.
+	// 4. The actual email key (b@) IS written — the subgraph returned b@example.com
+	//    as backend-proven entity data, so we can build and store a key for it.
+	assert.Equal(t, []CacheLogEntry{
+		{Operation: "get", Keys: []string{idKey, requestedEmailKey}, Hits: []bool{true, false}},
+		{Operation: "set", Keys: []string{idKey, actualEmailKey}, Hits: nil, TTL: 30 * time.Second},
+	}, cache.GetLog())
+	assert.Equal(t, `{"__typename":"User","id":"u1","email":"b@example.com","username":"Alice"}`, string(cache.GetValue(idKey)))
+	assert.Nil(t, cache.GetValue(requestedEmailKey))
+	assert.Equal(t, `{"__typename":"User","id":"u1","email":"b@example.com","username":"Alice"}`, string(cache.GetValue(actualEmailKey)))
+
+	snap := normalizeCacheAnalyticsSnapshot(ctx.GetCacheStats())
+	assert.Equal(t, normalizeCacheAnalyticsSnapshot(CacheAnalyticsSnapshot{
+		L2Reads: []CacheKeyEvent{
+			// id key found but incomplete for ProvidesData → partial hit, fetch needed
+			{
+				CacheKey:   idKey,
+				EntityType: "Query",
+				Kind:       CacheKeyPartialHit,
+				DataSource: "accounts",
+			},
+		},
+		L2Writes: []CacheWriteEvent{
+			// refresh: existing key rewritten with fresh subgraph data
+			{
+				CacheKey:    idKey,
+				EntityType:  "Query",
+				ByteSize:    74,
+				DataSource:  "accounts",
+				CacheLevel:  CacheLevelL2,
+				TTL:         30 * time.Second,
+				Source:      CacheSourceQuery,
+				WriteReason: CacheWriteReasonRefresh,
+			},
+			// derived: subgraph returned b@ email, written as new derived key
+			{
+				CacheKey:    actualEmailKey,
+				EntityType:  "Query",
+				ByteSize:    74,
+				DataSource:  "accounts",
+				CacheLevel:  CacheLevelL2,
+				TTL:         30 * time.Second,
+				Source:      CacheSourceQuery,
+				WriteReason: CacheWriteReasonDerived,
+			},
+		},
+	}), snap)
+}
+
+func TestCacheBackfill_DerivedKeyExpansion(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Scenario: the request asks for id + email keys, but the cache config also
+	// knows about username as a third entity key. The fetch runs, returns all
+	// three fields, and the loader should refresh id, backfill email, and add the
+	// extra derived username key from final entity data.
+	cache := NewFakeLoaderCache()
+	idKey := `{"__typename":"User","key":{"id":"u1"}}`
+	emailKey := `{"__typename":"User","key":{"email":"a@example.com"}}`
+	usernameKey := `{"__typename":"User","key":{"username":"Alice"}}`
+
+	// Seed L2 with only the incomplete id entry so the fetch path is required.
+	err := cache.Set(t.Context(), []*CacheEntry{
+		{Key: idKey, Value: []byte(`{"__typename":"User","id":"u1"}`)},
+	}, 30*time.Second)
+	require.NoError(t, err)
+	cache.ClearLog()
+
+	// The subgraph returns the full entity, including the extra username key field.
+	rootDS := NewMockDataSource(ctrl)
+	rootDS.EXPECT().
+		Load(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+			return []byte(`{"data":{"user":{"__typename":"User","id":"u1","email":"a@example.com","username":"Alice"}}}`), nil
+		}).Times(1)
+
+	response := newUserRootQueryResponse(
+		rootDS,
+		newUserRootQueryTemplate([]string{"id", "email"}, []string{"id", "email", "username"}),
+		&Object{
+			Fields: []*Field{
+				{Name: []byte("id"), Value: &Scalar{Path: []string{"id"}, Nullable: false}},
+				{Name: []byte("username"), Value: &Scalar{Path: []string{"username"}, Nullable: false}},
+			},
+		},
+	)
+
+	loader := &Loader{caches: map[string]LoaderCache{"default": cache}}
+	ctx := NewContext(t.Context())
+	ctx.Variables = astjson.MustParseBytes([]byte(`{"id":"u1","email":"a@example.com"}`))
+	ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+	ctx.ExecutionOptions.Caching.EnableL1Cache = true
+	ctx.ExecutionOptions.Caching.EnableL2Cache = true
+	ctx.ExecutionOptions.Caching.EnableCacheAnalytics = true
+
+	ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+	resolvable := NewResolvable(ar, ResolvableOptions{})
+	err = resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+	require.NoError(t, err)
+
+	err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+	require.NoError(t, err)
+
+	// Assert the exact cache story:
+	// 1. L2 reads the requested id + email keys and finds only id.
+	// 2. The fetch refreshes id, backfills email, and adds the derived username key.
+	assert.Equal(t, []CacheLogEntry{
+		{Operation: "get", Keys: []string{idKey, emailKey}, Hits: []bool{true, false}},
+		{Operation: "set", Keys: []string{idKey, emailKey, usernameKey}, Hits: nil, TTL: 30 * time.Second},
+	}, cache.GetLog())
+	// Assert all three keys now point at the same final entity payload.
+	assert.Equal(t, `{"__typename":"User","id":"u1","email":"a@example.com","username":"Alice"}`, string(cache.GetValue(idKey)))
+	assert.Equal(t, `{"__typename":"User","id":"u1","email":"a@example.com","username":"Alice"}`, string(cache.GetValue(emailKey)))
+	assert.Equal(t, `{"__typename":"User","id":"u1","email":"a@example.com","username":"Alice"}`, string(cache.GetValue(usernameKey)))
+
+	snap := normalizeCacheAnalyticsSnapshot(ctx.GetCacheStats())
+	assert.Equal(t, normalizeCacheAnalyticsSnapshot(CacheAnalyticsSnapshot{
+		L2Reads: []CacheKeyEvent{
+			// id key found but incomplete for ProvidesData → partial hit, fetch needed
+			{
+				CacheKey:   idKey,
+				EntityType: "Query",
+				Kind:       CacheKeyPartialHit,
+				DataSource: "accounts",
+			},
+		},
+		L2Writes: []CacheWriteEvent{
+			// refresh: existing key rewritten with fresh subgraph data
+			{
+				CacheKey:    idKey,
+				EntityType:  "Query",
+				ByteSize:    74,
+				DataSource:  "accounts",
+				CacheLevel:  CacheLevelL2,
+				TTL:         30 * time.Second,
+				Source:      CacheSourceQuery,
+				WriteReason: CacheWriteReasonRefresh,
+			},
+			// backfill: missing requested key proven by subgraph response
+			{
+				CacheKey:    emailKey,
+				EntityType:  "Query",
+				ByteSize:    74,
+				DataSource:  "accounts",
+				CacheLevel:  CacheLevelL2,
+				TTL:         30 * time.Second,
+				Source:      CacheSourceQuery,
+				WriteReason: CacheWriteReasonBackfill,
+			},
+			// derived: username key not requested but derivable from entity data
+			{
+				CacheKey:    usernameKey,
+				EntityType:  "Query",
+				ByteSize:    74,
+				DataSource:  "accounts",
+				CacheLevel:  CacheLevelL2,
+				TTL:         30 * time.Second,
+				Source:      CacheSourceQuery,
+				WriteReason: CacheWriteReasonDerived,
+			},
+		},
+	}), snap)
 }
 
 func TestWriteCanonicalJSON(t *testing.T) {

@@ -234,6 +234,7 @@ func TestL2CacheOnly(t *testing.T) {
 func TestL1L2CacheCombined(t *testing.T) {
 	t.Parallel()
 	t.Run("L1+L2 enabled - L1 within request, L2 across requests", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -405,6 +406,7 @@ func TestL1L2CacheCombined(t *testing.T) {
 	})
 
 	t.Run("L1+L2 - cross-request isolation: L1 per-request, L2 shared", func(t *testing.T) {
+		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,

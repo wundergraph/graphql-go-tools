@@ -251,8 +251,12 @@ When `EntityKeyMappings` is configured with multiple mappings, the system genera
 cache key per mapping whose arguments are all available. Mappings with missing arguments
 are skipped — only the mappings where every argument resolves produce a key. This means
 a root field with partial argument coverage generates fewer keys than one with full
-coverage, and writes use only the argument-derived keys (response data is not inspected
-to generate additional keys).
+coverage on the read path.
+
+On the write path, the system uses smart cache key backfill (see AC-L2-BACKFILL section)
+to make precise per-key write decisions based on final entity data. Requested missing keys
+are backfilled when the final entity value proves them, and additional derived keys are
+written when the entity data contains the mapped key fields.
 
 Variable remapping (`ctx.RemapVariables`) applies to single-element argument paths only.
 Multi-element paths (structured argument inputs like `["store", "id"]`) are not remapped.
@@ -268,7 +272,7 @@ Tests:
 - `v2/pkg/engine/resolve/cache_key_test.go` — `TestDerivedEntityCacheKey / "remap variables - structured arg path not remapped"` (multi-element path not remapped)
 - `v2/pkg/engine/resolve/cache_key_test.go` — `TestDerivedEntityCacheKey / "remap variables - partial remap with multi-key"` (partial remap across mappings)
 - `execution/engine/federation_caching_test.go` — `TestRootFieldCachingWithArgs / "entity key mapping - two root fields asymmetric key coverage"` (E2E: full-key write, partial-key read cross-lookup)
-- `execution/engine/federation_caching_test.go` — `TestRootFieldCachingWithArgs_PartialKeyWrite / "entity key mapping - partial key write does not generate extra keys from response"` (E2E: write-side limitation with Peek verification)
+- `execution/engine/federation_caching_test.go` — `TestRootFieldCachingWithArgs_PartialKeyWrite / "entity key mapping - partial key write does not generate extra keys from response"` (E2E: partial-arg write backfills derived keys from response with Peek verification)
 - `execution/engine/federation_caching_test.go` — `TestRootFieldCachingWithArgs_PartialKeyWrite / "entity key mapping - flat key cross-lookup from composite key write"` (E2E: flat key cross-lookup from composite write)
 
 ### AC-KEY-03: Subgraph header hash prefix
@@ -738,6 +742,23 @@ exporter to label cache operations by trigger source for dashboard attribution. 
 cache writes are reported via `OnSubscriptionCacheWrite` callback since subscriptions run
 outside per-request analytics.
 
+### AC-ANA-08: Cache write reason tracking
+Each `CacheWriteEvent` carries a `WriteReason` field (`CacheWriteReason`) indicating why
+the write occurred. For root field `EntityKeyMappings` writes, the reason is one of:
+- `"refresh"` — existing cached key rewritten with fresh or merged data
+- `"backfill"` — missing requested key proven by final entity data
+- `"derived"` — new key derived from entity data that was not in the original request
+
+For entity fetches and non-EntityKeyMappings root field writes, the reason is empty.
+The reason is set on `CacheEntry.WriteReason` during `cacheKeysToExactRootFieldEntityEntries`
+and propagated to `CacheWriteEvent.WriteReason` when `RecordWrite` is called with the event.
+
+Tests:
+- `v2/pkg/engine/resolve/cache_load_test.go:2397` — `TestCacheBackfill_SkipFetch_HappyPath` (backfill reason on emailKey write)
+- `v2/pkg/engine/resolve/cache_load_test.go:2498` — `TestCacheBackfill_FetchPath_HappyPath` (refresh on idKey, backfill on emailKey)
+- `v2/pkg/engine/resolve/cache_load_test.go:2608` — `TestCacheBackfill_FetchPath_ValueMismatch` (refresh on idKey, derived on actualEmailKey)
+- `v2/pkg/engine/resolve/cache_load_test.go:2663` — `TestCacheBackfill_DerivedKeyExpansion` (refresh + backfill + derived across three keys)
+
 Tests:
 - `v2/pkg/engine/resolve/cache_analytics_test.go` — `TestCacheAnalyticsCollector_WriteEventSource / "write events preserve source field"`
 - `v2/pkg/engine/resolve/cache_analytics_test.go` — `TestCacheAnalyticsCollector_WriteEventSource / "mutation event preserves source field"`
@@ -803,6 +824,82 @@ normalized to `1ns` for deterministic test assertions.
 
 Tests:
 - `v2/pkg/engine/resolve/cache_trace_test.go` — `TestBuildCacheTrace / "predictable debug timings"`
+
+## Smart Cache Key Backfill (L2, Root Field EntityKeyMappings)
+
+### AC-L2-BACKFILL-01: Requested missing key backfilled from cached sibling
+When a root field with `EntityKeyMappings` produces multiple L2 keys on read,
+and one key hits while another misses,
+the missing key is backfilled during writeback if the final entity value proves
+the mapped key field.
+The existing key that already had a cache hit is not rewritten unless
+`fromCacheNeedsWriteback` is true.
+
+Tests:
+- `v2/pkg/engine/resolve/cache_load_test.go:2397` — `TestCacheBackfill_SkipFetch_HappyPath` (idKey hits, emailKey misses, cached value contains email → emailKey backfilled, idKey not rewritten)
+
+### AC-L2-BACKFILL-02: Backfill requires entity-field proof
+A requested missing key is NOT backfilled when the final entity value does not contain
+the mapped key field,
+even if the original request arguments were sufficient to construct that key on the read path.
+This prevents creating unvalidated cache associations from request arguments alone.
+
+Tests:
+- `v2/pkg/engine/resolve/cache_load_test.go:2448` — `TestCacheBackfill_SkipFetch_Counterexample_NotDerivable` (cached value lacks email field → zero L2 writes)
+
+### AC-L2-BACKFILL-03: Value mismatch writes the actual key, not the requested key
+When the final entity value contains a mapped key field with a different value than the
+requested key (e.g., request asked for `email:"a@example.com"` but subgraph returned
+`email:"b@example.com"`), the requested key is NOT written, but the actual key derived
+from entity data IS written.
+The subgraph returned this value as backend-proven data, so it is valid to cache under
+the actual key.
+
+Tests:
+- `v2/pkg/engine/resolve/cache_load_test.go:2608` — `TestCacheBackfill_FetchPath_ValueMismatch` (requested `a@` not written, actual `b@` written as derived key)
+
+### AC-L2-BACKFILL-04: Fetch-path refresh plus backfill
+After a partial cache hit forces a subgraph fetch,
+the existing key is refreshed with fresh data and the missing requested key is backfilled
+when the final entity value proves it.
+
+Tests:
+- `v2/pkg/engine/resolve/cache_load_test.go:2498` — `TestCacheBackfill_FetchPath_HappyPath` (idKey refreshed, emailKey backfilled — two writes)
+- `v2/pkg/engine/resolve/cache_load_test.go:2553` — `TestCacheBackfill_FetchPath_MissingField` (subgraph returns no email → only idKey refreshed — one write)
+
+### AC-L2-BACKFILL-05: Derived key expansion from final entity data
+Beyond refreshing existing keys and backfilling requested missing keys,
+the write path also writes additional keys when final backend-proven entity data makes
+those keys derivable via `EntityKeyMappings`,
+even if those keys were not part of the original read request.
+This is the mechanism that enables cross-lookup:
+a query with `id` argument populates the `username` key too,
+so a later query with `username` argument can hit L2.
+
+Tests:
+- `v2/pkg/engine/resolve/cache_load_test.go:2663` — `TestCacheBackfill_DerivedKeyExpansion` (three mappings: id+email requested, username derived — three writes)
+- `execution/engine/federation_caching_test.go:2300` — `TestRootFieldCachingWithArgs_PartialKeyWrite / "entity key mapping - partial key write does not generate extra keys from response"` (E2E: id requested, username derived from response)
+
+### AC-L2-BACKFILL-06: No double-accounting between regular and derived writes
+The regular write path and derived-key expansion use a single `seen` map to prevent
+the same key from being written twice.
+A key that is already included in the regular write set is not re-added by the
+derived-key path.
+
+Tests:
+- `v2/pkg/engine/resolve/cache_load_test.go:2498` — `TestCacheBackfill_FetchPath_HappyPath` (idKey appears in both regular and derived paths, written exactly once)
+
+### AC-L2-BACKFILL-07: Reproducibility checked by rendering, not by guessing
+Write eligibility is determined by rendering keys from final entity data using
+`RenderEntityKeysFromValue` (the same renderer used by `renderDerivedEntityKey` for
+request-arg-based keys).
+This uses the same L2 prefix and interceptor logic as normal cache-key generation.
+When a rendered key matches a requested missing key, it is a backfill.
+When it doesn't match any requested key, it is a derived expansion.
+In both cases, the rendered key string is the cache key — never the requested key.
+
+Tests:
+- `v2/pkg/engine/resolve/cache_load_test.go:2608` — `TestCacheBackfill_FetchPath_ValueMismatch` (rendered key `b@` differs from requested `a@` → `b@` written as derived, `a@` not written)
 
 ## Future Improvements
 

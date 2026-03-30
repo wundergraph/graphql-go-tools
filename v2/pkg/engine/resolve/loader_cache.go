@@ -18,10 +18,23 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
+// CacheWriteReason identifies why a cache entry was written.
+type CacheWriteReason string
+
+const (
+	// CacheWriteReasonRefresh means an existing cached key was rewritten with fresh or merged data.
+	CacheWriteReasonRefresh CacheWriteReason = "refresh"
+	// CacheWriteReasonBackfill means a requested key that missed on read was proven by final entity data.
+	CacheWriteReasonBackfill CacheWriteReason = "backfill"
+	// CacheWriteReasonDerived means a new key was derived from final entity data that was not in the original request.
+	CacheWriteReasonDerived CacheWriteReason = "derived"
+)
+
 type CacheEntry struct {
 	Key          string
 	Value        []byte
-	RemainingTTL time.Duration // remaining TTL from cache (0 = unknown/not supported)
+	RemainingTTL time.Duration    // remaining TTL from cache (0 = unknown/not supported)
+	WriteReason  CacheWriteReason // why this entry was written (empty for reads)
 }
 
 // EntityCacheInvalidationConfig holds the minimal cache settings needed to build
@@ -63,23 +76,31 @@ func (l *Loader) extractCacheKeysStrings(a arena.Arena, cacheKeys []*CacheKey) [
 func (l *Loader) populateFromCache(a arena.Arena, cacheKeys []*CacheKey, entries []*CacheEntry) (err error) {
 	for j := range cacheKeys {
 		cacheKeys[j].FromCache = nil
+		cacheKeys[j].missingKeys = nil
 		cacheKeys[j].fromCacheRemainingTTL = 0
 		cacheKeys[j].fromCacheCandidates = nil
 		cacheKeys[j].fromCacheNeedsWriteback = false
 
 		var candidates []fromCacheCandidate
+		matchedKeys := make(map[string]struct{}, len(cacheKeys[j].Keys))
 		for i := range entries {
 			if entries[i] == nil || entries[i].Value == nil {
 				continue
 			}
 			for k := range cacheKeys[j].Keys {
 				if cacheKeys[j].Keys[k] == entries[i].Key {
+					matchedKeys[entries[i].Key] = struct{}{}
 					candidates = append(candidates, fromCacheCandidate{
 						value:        entries[i].Value,
 						remainingTTL: entries[i].RemainingTTL,
 					})
 					break
 				}
+			}
+		}
+		for _, key := range cacheKeys[j].Keys {
+			if _, ok := matchedKeys[key]; !ok {
+				cacheKeys[j].missingKeys = append(cacheKeys[j].missingKeys, key)
 			}
 		}
 		if len(candidates) == 0 {
@@ -176,18 +197,10 @@ func (l *Loader) resolveMultiCandidateCacheValue(a arena.Arena, ck *CacheKey, pr
 	return false
 }
 
-func needsKeyBackfill(cacheKeys []*CacheKey, entries []*CacheEntry) bool {
-	entrySet := make(map[string]struct{}, len(entries))
-	for _, entry := range entries {
-		if entry != nil && entry.Value != nil {
-			entrySet[entry.Key] = struct{}{}
-		}
-	}
+func hasMissingRequestedKeys(cacheKeys []*CacheKey) bool {
 	for _, ck := range cacheKeys {
-		for _, key := range ck.Keys {
-			if _, ok := entrySet[key]; !ok {
-				return true
-			}
+		if len(ck.missingKeys) > 0 {
+			return true
 		}
 	}
 	return false
@@ -673,6 +686,7 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 		for i := range res.l1CacheKeys {
 			if i < len(res.l2CacheKeys) {
 				res.l1CacheKeys[i].FromCache = res.l2CacheKeys[i].FromCache
+				res.l1CacheKeys[i].missingKeys = res.l2CacheKeys[i].missingKeys
 				res.l1CacheKeys[i].fromCacheRemainingTTL = res.l2CacheKeys[i].fromCacheRemainingTTL
 				res.l1CacheKeys[i].fromCacheCandidates = res.l2CacheKeys[i].fromCacheCandidates
 				res.l1CacheKeys[i].fromCacheNeedsWriteback = res.l2CacheKeys[i].fromCacheNeedsWriteback
@@ -881,7 +895,7 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 
 	if allComplete {
 		res.cacheSkipFetch = true
-		if needsKeyBackfill(res.l2CacheKeys, cacheEntries) || needsResolvedCacheWriteback(res.l2CacheKeys) {
+		if hasMissingRequestedKeys(res.l2CacheKeys) || needsResolvedCacheWriteback(res.l2CacheKeys) {
 			res.cacheMustBeUpdated = true
 		}
 		return true, nil
@@ -936,7 +950,10 @@ func (l *Loader) populateL1Cache(fetchItem *FetchItem, res *result) {
 			}
 			if l.ctx.cacheAnalyticsEnabled() {
 				byteSize := len(ck.Item.MarshalTo(nil))
-				l.ctx.cacheAnalytics.RecordWrite(CacheLevelL1, entityType, keyStr, dataSource, byteSize, 0, l.cacheOperationSource())
+				l.ctx.cacheAnalytics.RecordWrite(CacheWriteEvent{
+					CacheKey: keyStr, EntityType: entityType, ByteSize: byteSize,
+					DataSource: dataSource, CacheLevel: CacheLevelL1, Source: l.cacheOperationSource(),
+				})
 			}
 		}
 	}
@@ -1100,6 +1117,9 @@ func (l *Loader) updateL2Cache(res *result) {
 	tracingCache := l.ctx.TracingOptions.Enable && !l.ctx.TracingOptions.ExcludeCacheStats
 
 	// Use l2CacheKeys (with prefix) if available, otherwise fall back to cacheKeys
+	// prepareCacheKeys renders both cache-key slices from the same input item pointers,
+	// so skip-fetch mergeResult updates are visible through res.l2CacheKeys as well.
+	// Fetch paths additionally rebind both slices to merged objects inside mergeResult.
 	keysToStore := res.l2CacheKeys
 	if len(keysToStore) == 0 {
 		keysToStore = res.l1CacheKeys
@@ -1133,13 +1153,9 @@ func (l *Loader) updateL2Cache(res *result) {
 	}
 
 	// Convert CacheKeys to CacheEntries
-	cacheEntries, err := l.cacheKeysToEntries(l.jsonArena, keysToStore)
+	cacheEntries, err := l.cacheKeysToEntriesForUpdate(l.jsonArena, res, keysToStore)
 	if err != nil {
 		// Cache update errors are non-fatal - silently ignore
-		return
-	}
-	cacheEntries, err = l.appendDerivedRootFieldCacheEntries(l.jsonArena, res, keysToStore, cacheEntries)
-	if err != nil {
 		return
 	}
 
@@ -1229,7 +1245,11 @@ func (l *Loader) updateL2Cache(res *result) {
 			if entry == nil {
 				continue
 			}
-			l.ctx.cacheAnalytics.RecordWrite(CacheLevelL2, res.analyticsEntityType, entry.Key, res.ds.Name, len(entry.Value), ttl, l.cacheOperationSource())
+			l.ctx.cacheAnalytics.RecordWrite(CacheWriteEvent{
+				CacheKey: entry.Key, EntityType: res.analyticsEntityType, ByteSize: len(entry.Value),
+				DataSource: res.ds.Name, CacheLevel: CacheLevelL2, TTL: ttl,
+				Source: l.cacheOperationSource(), WriteReason: entry.WriteReason,
+			})
 		}
 	}
 
@@ -1271,24 +1291,26 @@ func (l *Loader) updateL2Cache(res *result) {
 	}
 }
 
-func (l *Loader) appendDerivedRootFieldCacheEntries(a arena.Arena, res *result, keysToStore []*CacheKey, cacheEntries []*CacheEntry) ([]*CacheEntry, error) {
+func (l *Loader) cacheKeysToEntriesForUpdate(a arena.Arena, res *result, cacheKeys []*CacheKey) ([]*CacheEntry, error) {
 	rootTemplate, ok := res.cacheConfig.CacheKeyTemplate.(*RootQueryCacheKeyTemplate)
-	if !ok || len(rootTemplate.EntityKeyMappings) == 0 {
-		return cacheEntries, nil
+	if ok && len(rootTemplate.EntityKeyMappings) > 0 {
+		return l.cacheKeysToExactRootFieldEntityEntries(a, res, cacheKeys, rootTemplate), nil
 	}
+	return l.cacheKeysToEntries(a, cacheKeys)
+}
 
+func (l *Loader) cacheKeysToExactRootFieldEntityEntries(a arena.Arena, res *result, cacheKeys []*CacheKey, rootTemplate *RootQueryCacheKeyTemplate) []*CacheEntry {
+	// Key-format parity assumption: rendering a key from final entity data must produce
+	// the same string as rendering the requested key from input args when the values match.
 	prefix := l.rootFieldL2CachePrefix(res)
-	seen := make(map[string]struct{}, len(cacheEntries))
-	for _, entry := range cacheEntries {
-		if entry != nil {
-			seen[entry.Key] = struct{}{}
-		}
-	}
+	seen := make(map[string]struct{}, len(cacheKeys))
+	out := make([]*CacheEntry, 0, len(cacheKeys))
 
-	for _, ck := range keysToStore {
-		if ck == nil || ck.Item == nil {
+	for _, ck := range cacheKeys {
+		if ck == nil || ck.Item == nil || ck.NegativeCacheHit {
 			continue
 		}
+
 		entity := ck.Item
 		if len(ck.EntityMergePath) > 0 {
 			entity = ck.Item.Get(ck.EntityMergePath...)
@@ -1297,28 +1319,104 @@ func (l *Loader) appendDerivedRootFieldCacheEntries(a arena.Arena, res *result, 
 			continue
 		}
 
-		derivedKeys := rootTemplate.RenderEntityKeysFromValue(a, entity, prefix)
-		if len(derivedKeys) == 0 {
-			continue
+		missingKeys := make(map[string]struct{}, len(ck.missingKeys))
+		for _, key := range ck.missingKeys {
+			missingKeys[key] = struct{}{}
 		}
 
 		valueBytes := entity.MarshalTo(nil)
-		for _, key := range derivedKeys {
-			key = l.applyL2CacheKeyInterceptor(key, res)
-			if _, ok := seen[key]; ok {
-				continue
+		requestKeyBuf := arena.AllocateSlice[byte](a, 0, 64)
+		renderedKeyBuf := arena.AllocateSlice[byte](a, 0, 64)
+		for _, mapping := range rootTemplate.EntityKeyMappings {
+			requestedKey, requestKeyBufOut := rootTemplate.renderDerivedEntityKey(a, l.ctx, requestKeyBuf, mapping, prefix)
+			requestKeyBuf = requestKeyBufOut
+			if requestedKey != "" {
+				requestedKey = l.applyL2CacheKeyInterceptor(requestedKey, res)
 			}
-			seen[key] = struct{}{}
-			entry := &CacheEntry{
-				Key:   key,
-				Value: arena.AllocateSlice[byte](a, len(valueBytes), len(valueBytes)),
+
+			renderedKey, renderedKeyBufOut := rootTemplate.renderDerivedEntityKeyFromValue(a, entity, renderedKeyBuf, mapping, prefix)
+			renderedKeyBuf = renderedKeyBufOut
+			if renderedKey != "" {
+				renderedKey = l.applyL2CacheKeyInterceptor(renderedKey, res)
 			}
-			copy(entry.Value, valueBytes)
-			cacheEntries = append(cacheEntries, entry)
+
+			// Requested key: write with appropriate reason (refresh or backfill).
+			if requestedKey != "" && shouldWriteRequestedKey(res.cacheSkipFetch, ck.fromCacheNeedsWriteback, requestedKey, renderedKey, missingKeys) {
+				if _, ok := seen[requestedKey]; !ok {
+					seen[requestedKey] = struct{}{}
+					reason := requestedKeyWriteReason(requestedKey, missingKeys)
+					out = append(out, cacheEntryFromValueBytesWithReason(a, requestedKey, valueBytes, reason))
+				}
+			}
+			// Rendered key: write when the entity data proves it.
+			// On the fetch path: always write — the subgraph is the source of truth.
+			// On the skip-fetch path: only write if the key is genuinely new
+			// (not an existing cached key that we'd redundantly rewrite).
+			if renderedKey != "" && shouldWriteRenderedKey(res.cacheSkipFetch, ck.fromCacheNeedsWriteback, renderedKey, missingKeys) {
+				if _, ok := seen[renderedKey]; !ok {
+					seen[renderedKey] = struct{}{}
+					reason := renderedKeyWriteReason(renderedKey, missingKeys)
+					out = append(out, cacheEntryFromValueBytesWithReason(a, renderedKey, valueBytes, reason))
+				}
+			}
 		}
 	}
 
-	return cacheEntries, nil
+	return out
+}
+
+func shouldWriteRequestedKey(cacheSkipFetch bool, fromCacheNeedsWriteback bool, requestedKey string, renderedKey string, missingKeys map[string]struct{}) bool {
+	if _, wasMissing := missingKeys[requestedKey]; wasMissing {
+		return requestedKey == renderedKey
+	}
+	if cacheSkipFetch {
+		return fromCacheNeedsWriteback
+	}
+	return true
+}
+
+// shouldWriteRenderedKey decides whether a rendered key (derived from final entity data)
+// should be written to L2. On the fetch path, always write — the subgraph returned this data.
+// On the skip-fetch path, only write if the key is new (missing or not previously requested),
+// not an existing cached key that would be redundantly rewritten.
+func shouldWriteRenderedKey(cacheSkipFetch bool, fromCacheNeedsWriteback bool, renderedKey string, missingKeys map[string]struct{}) bool {
+	if !cacheSkipFetch {
+		return true
+	}
+	// Skip-fetch path: the entity data came from cache, not from a subgraph.
+	// Write if the key was missing on read (backfill) or if writeback is needed.
+	if _, wasMissing := missingKeys[renderedKey]; wasMissing {
+		return true
+	}
+	return fromCacheNeedsWriteback
+}
+
+func cacheEntryFromValueBytesWithReason(a arena.Arena, key string, valueBytes []byte, reason CacheWriteReason) *CacheEntry {
+	entry := &CacheEntry{
+		Key:         key,
+		Value:       arena.AllocateSlice[byte](a, len(valueBytes), len(valueBytes)),
+		WriteReason: reason,
+	}
+	copy(entry.Value, valueBytes)
+	return entry
+}
+
+// requestedKeyWriteReason returns the write reason for a requested key.
+// If the key was missing on read, it's a backfill; otherwise it's a refresh.
+func requestedKeyWriteReason(key string, missingKeys map[string]struct{}) CacheWriteReason {
+	if _, wasMissing := missingKeys[key]; wasMissing {
+		return CacheWriteReasonBackfill
+	}
+	return CacheWriteReasonRefresh
+}
+
+// renderedKeyWriteReason returns the write reason for a rendered (entity-data-derived) key.
+// If the key was missing on read, it's a backfill; otherwise it's a derived expansion.
+func renderedKeyWriteReason(key string, missingKeys map[string]struct{}) CacheWriteReason {
+	if _, wasMissing := missingKeys[key]; wasMissing {
+		return CacheWriteReasonBackfill
+	}
+	return CacheWriteReasonDerived
 }
 
 func (l *Loader) rootFieldL2CachePrefix(res *result) string {

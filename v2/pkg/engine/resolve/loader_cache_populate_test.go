@@ -45,6 +45,7 @@ func TestPopulateFromCache(t *testing.T) {
 				remainingTTL: 15 * time.Second,
 			},
 		}, cacheKeys[0].fromCacheCandidates)
+		assert.Nil(t, cacheKeys[0].missingKeys)
 		assert.False(t, cacheKeys[0].fromCacheNeedsWriteback)
 	})
 
@@ -91,6 +92,7 @@ func TestPopulateFromCache(t *testing.T) {
 				remainingTTL: 10 * time.Second,
 			},
 		}, cacheKeys[0].fromCacheCandidates)
+		assert.Nil(t, cacheKeys[0].missingKeys)
 	})
 
 	t.Run("known freshness outranks unknown freshness", func(t *testing.T) {
@@ -134,6 +136,7 @@ func TestPopulateFromCache(t *testing.T) {
 				remainingTTL: 0,
 			},
 		}, cacheKeys[0].fromCacheCandidates)
+		assert.Nil(t, cacheKeys[0].missingKeys)
 	})
 
 	t.Run("equal freshness preserves cache.Get order", func(t *testing.T) {
@@ -178,6 +181,46 @@ func TestPopulateFromCache(t *testing.T) {
 				remainingTTL: 25 * time.Second,
 			},
 		}, cacheKeys[0].fromCacheCandidates)
+		assert.Nil(t, cacheKeys[0].missingKeys)
+	})
+
+	t.Run("partial hit records exactly which requested keys were missing", func(t *testing.T) {
+		t.Parallel()
+
+		// Scenario: one CacheKey asks for three concrete L2 keys, but the cache only
+		// returns a value for the id key. populateFromCache should preserve the hit as
+		// FromCache and record the exact missing requested keys in order.
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		l := &Loader{}
+
+		cacheKeys := []*CacheKey{
+			{
+				Item: astjson.MustParse(`{}`),
+				Keys: []string{
+					`{"__typename":"User","key":{"id":"1234"}}`,
+					`{"__typename":"User","key":{"email":"me@example.com"}}`,
+					`{"__typename":"User","key":{"username":"Me"}}`,
+				},
+			},
+		}
+		entries := []*CacheEntry{
+			{
+				Key:          `{"__typename":"User","key":{"id":"1234"}}`,
+				Value:        []byte(`{"id":"1234","username":"Me"}`),
+				RemainingTTL: 20 * time.Second,
+			},
+		}
+
+		err := l.populateFromCache(ar, cacheKeys, entries)
+		require.NoError(t, err)
+		// Assert the hit candidate becomes FromCache and missingKeys keeps only the
+		// two requested keys that did not come back from cache.Get.
+		require.NotNil(t, cacheKeys[0].FromCache)
+		assert.Equal(t, `{"id":"1234","username":"Me"}`, string(cacheKeys[0].FromCache.MarshalTo(nil)))
+		assert.Equal(t, []string{
+			`{"__typename":"User","key":{"email":"me@example.com"}}`,
+			`{"__typename":"User","key":{"username":"Me"}}`,
+		}, cacheKeys[0].missingKeys)
 	})
 
 	t.Run("no keys hit leaves FromCache nil", func(t *testing.T) {
@@ -202,6 +245,10 @@ func TestPopulateFromCache(t *testing.T) {
 		assert.Nil(t, cacheKeys[0].FromCache)
 		assert.Zero(t, cacheKeys[0].fromCacheRemainingTTL)
 		assert.Nil(t, cacheKeys[0].fromCacheCandidates)
+		assert.Equal(t, []string{
+			`{"__typename":"User","key":{"id":"1234"}}`,
+			`{"__typename":"User","key":{"username":"Me"}}`,
+		}, cacheKeys[0].missingKeys)
 		assert.False(t, cacheKeys[0].fromCacheNeedsWriteback)
 	})
 }

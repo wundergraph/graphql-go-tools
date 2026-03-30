@@ -220,11 +220,13 @@ func TestClient_IsConnected(t *testing.T) {
 	websocketClient := NewClient(abstractlogger.NoopLogger, connToClient)
 
 	t.Run("should return true when a connection is established", func(t *testing.T) {
+		t.Parallel()
 		isConnected := websocketClient.IsConnected()
 		assert.True(t, isConnected)
 	})
 
 	t.Run("should return false when a connection is closed", func(t *testing.T) {
+		t.Parallel()
 		err := connToClient.Close()
 		require.NoError(t, err)
 
@@ -241,6 +243,7 @@ func TestClient_Disconnect(t *testing.T) {
 	websocketClient := NewClient(abstractlogger.NoopLogger, connToClient)
 
 	t.Run("should disconnect and indicate a closed connection", func(t *testing.T) {
+		t.Parallel()
 		err := websocketClient.Disconnect()
 		assert.NoError(t, err)
 		assert.Equal(t, true, websocketClient.isClosedConnection)

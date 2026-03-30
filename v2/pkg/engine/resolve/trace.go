@@ -89,9 +89,9 @@ type TraceData struct {
 // Built AFTER mergeResult + populateCachesAfterFetch, when final cache state is known.
 type CacheTrace struct {
 	// Runtime state (global switches AND per-fetch config combined)
-	L1Enabled bool   `json:"l1_enabled"`
-	L2Enabled bool   `json:"l2_enabled"`
-	CacheName string `json:"cache_name,omitempty"`
+	L1Enabled  bool   `json:"l1_enabled"`
+	L2Enabled  bool   `json:"l2_enabled"`
+	CacheName  string `json:"cache_name,omitempty"`
 	TTLSeconds int64  `json:"ttl_seconds,omitempty"`
 
 	// L1 cache results

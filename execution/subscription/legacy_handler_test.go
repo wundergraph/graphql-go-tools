@@ -41,6 +41,7 @@ func (w *websocketHook) OnBeforeStart(reqCtx context.Context, operation *graphql
 	return nil
 }
 
+//nolint:tparallel // Subtests share websocket clients, hooks, and test servers; parallel execution is unsafe here.
 func TestHandler_Handle(t *testing.T) {
 	t.Parallel()
 	t.Run("engine v2", func(t *testing.T) {
