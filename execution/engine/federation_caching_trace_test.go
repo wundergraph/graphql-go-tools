@@ -221,9 +221,6 @@ func TestFederationCaching_CacheTraceInExtensions(t *testing.T) {
 		}, cacheTraces2[2], "accounts entities: User 1234 from L2 (2 lookups)")
 
 		// On full cache hit, no subgraph calls should be made
-		counts := tracker.GetCounts()
-		for host, count := range counts {
-			assert.Equal(t, 0, count, "No subgraph calls expected on full cache hit, but got %d for %s", count, host)
-		}
+		assert.Equal(t, map[string]int{}, tracker.GetCounts(), "no subgraph calls expected on full cache hit")
 	})
 }

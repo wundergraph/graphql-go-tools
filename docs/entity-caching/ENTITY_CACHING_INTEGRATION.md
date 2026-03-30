@@ -38,9 +38,10 @@ type LoaderCache interface {
 }
 
 type CacheEntry struct {
-    Key          string        // Cache key string (JSON format)
-    Value        []byte        // JSON-encoded entity data
-    RemainingTTL time.Duration // Remaining TTL from cache (0 = unknown/not supported)
+    Key          string           // Cache key string (JSON format)
+    Value        []byte           // JSON-encoded entity data
+    RemainingTTL time.Duration    // Remaining TTL from cache (0 = unknown/not supported)
+    WriteReason  CacheWriteReason // Why this entry was written (set by the engine, not by backends)
 }
 ```
 
@@ -521,6 +522,8 @@ type CacheAnalyticsSnapshot struct {
 ```go
 snapshot.L1HitRate()           // float64 [0, 1]
 snapshot.L2HitRate()           // float64 [0, 1]
+snapshot.L1HitCount()          // int64
+snapshot.L2HitCount()          // int64
 snapshot.CachedBytesServed()   // int64
 snapshot.EventsByEntityType()  // map[string]EntityTypeCacheStats
 ```
@@ -539,6 +542,28 @@ type CacheKeyEvent struct {
     Shadow     bool              // Shadow mode event
 }
 ```
+
+**CacheWriteEvent** — per-key cache write:
+```go
+type CacheWriteEvent struct {
+    CacheKey    string               // Cache key
+    EntityType  string               // Entity type name
+    ByteSize    int                  // Written entry size
+    DataSource  string               // Subgraph name
+    CacheLevel  CacheLevel           // CacheLevelL1 or CacheLevelL2
+    TTL         time.Duration        // TTL used for this write
+    Shadow      bool                 // Shadow mode event
+    Source      CacheOperationSource // "query", "mutation", or "subscription"
+    WriteReason CacheWriteReason     // "refresh", "backfill", "derived", or "" (see below)
+}
+```
+
+`WriteReason` is set for root field `EntityKeyMappings` L2 writes:
+- `"refresh"` — existing cached key rewritten with fresh or merged data
+- `"backfill"` — missing requested key proven by final entity data
+- `"derived"` — new key derived from entity data not in the original request
+
+Empty for entity fetches and non-EntityKeyMappings root field writes.
 
 **FetchTimingEvent** — per-fetch timing:
 ```go
