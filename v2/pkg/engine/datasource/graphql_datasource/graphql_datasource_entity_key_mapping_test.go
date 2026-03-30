@@ -202,6 +202,7 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			},
 			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
 				"user:User": &resolve.EntityQueryCacheKeyTemplate{
+					TypeName: "User",
 					Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
 						Nullable: true,
 						Path:     []string{"user"},
@@ -274,6 +275,7 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			},
 			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
 				"userByIdAndName:User": &resolve.EntityQueryCacheKeyTemplate{
+					TypeName: "User",
 					Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
 						Nullable: true,
 						Path:     []string{"userByIdAndName"},
@@ -346,6 +348,7 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			},
 			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
 				"user:User": &resolve.EntityQueryCacheKeyTemplate{
+					TypeName: "User",
 					Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
 						Nullable: true,
 						Path:     []string{"user"},
@@ -416,6 +419,7 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			},
 			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
 				"user:User": &resolve.EntityQueryCacheKeyTemplate{
+					TypeName: "User",
 					Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
 						Nullable: true,
 						Path:     []string{"user"},
@@ -469,6 +473,7 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			},
 			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
 				"user:User": &resolve.EntityQueryCacheKeyTemplate{
+					TypeName: "User",
 					Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
 						Nullable: true,
 						Path:     []string{"user"},
@@ -537,6 +542,7 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			},
 			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
 				"user:User": &resolve.EntityQueryCacheKeyTemplate{
+					TypeName: "User",
 					Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
 						Nullable: true,
 						Path:     []string{"user"},
@@ -621,6 +627,7 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			},
 			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
 				"user:User": &resolve.EntityQueryCacheKeyTemplate{
+					TypeName: "User",
 					Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
 						Nullable: true,
 						Path:     []string{"user"},
@@ -724,6 +731,7 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			},
 			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
 				"userByIdAndName:User": &resolve.EntityQueryCacheKeyTemplate{
+					TypeName: "User",
 					Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
 						Nullable: true,
 						Path:     []string{"userByIdAndName"},
@@ -803,6 +811,7 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			},
 			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
 				"a:User": &resolve.EntityQueryCacheKeyTemplate{
+					TypeName: "User",
 					Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
 						Nullable: true,
 						Path:     []string{"a"},
@@ -847,6 +856,7 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			},
 			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
 				"b:User": &resolve.EntityQueryCacheKeyTemplate{
+					TypeName: "User",
 					Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
 						Nullable: true,
 						Path:     []string{"b"},
@@ -921,6 +931,7 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			},
 			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
 				"myUser:User": &resolve.EntityQueryCacheKeyTemplate{
+					TypeName: "User",
 					Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
 						Nullable: true,
 						Path:     []string{"myUser"},
@@ -1001,6 +1012,7 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			},
 			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
 				"userByIdAndName:User": &resolve.EntityQueryCacheKeyTemplate{
+					TypeName: "User",
 					Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
 						Nullable: true,
 						Path:     []string{"userByIdAndName"},
@@ -1148,6 +1160,7 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			},
 			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
 				"account:Account": &resolve.EntityQueryCacheKeyTemplate{
+					TypeName: "Account",
 					Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
 						Nullable: true,
 						Path:     []string{"account"},

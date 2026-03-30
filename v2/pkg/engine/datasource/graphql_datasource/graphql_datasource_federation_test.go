@@ -1883,6 +1883,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 											},
 										},
 										CacheKeyTemplate: &resolve.EntityQueryCacheKeyTemplate{
+											TypeName: "Account",
 											Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
 												Nullable: true,
 												Fields: []*resolve.Field{

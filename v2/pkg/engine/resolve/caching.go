@@ -303,6 +303,9 @@ type EntityQueryCacheKeyTemplate struct {
 	// Keys contains only @key fields (without @requires fields).
 	// Used for both L1 and L2 cache keys to ensure stable entity identity.
 	Keys *ResolvableObjectVariable
+	// TypeName is the entity type name from the query plan (e.g. "Product", "User").
+	// Used as fallback when __typename is missing from the response data.
+	TypeName string
 }
 
 // KeyFields extracts the full @key structure from the template's Object tree.
@@ -339,12 +342,12 @@ func objectToKeyFields(obj *Object) []KeyField {
 // Uses Keys template (only @key fields) for stable entity identity.
 // Prefix is used for L2 cache isolation (typically subgraph header hash).
 func (e *EntityQueryCacheKeyTemplate) RenderCacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value, prefix string) ([]*CacheKey, error) {
-	return e.renderCacheKeys(a, ctx, items, e.Keys, prefix)
+	return e.renderCacheKeys(a, items, e.Keys, prefix)
 }
 
 // renderCacheKeys is the internal implementation for RenderCacheKeys.
 // Returns one cache key per item for entity queries with keys nested under "key".
-func (e *EntityQueryCacheKeyTemplate) renderCacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value, keysTemplate *ResolvableObjectVariable, prefix string) ([]*CacheKey, error) {
+func (e *EntityQueryCacheKeyTemplate) renderCacheKeys(a arena.Arena, items []*astjson.Value, keysTemplate *ResolvableObjectVariable, prefix string) ([]*CacheKey, error) {
 	jsonBytes := arena.AllocateSlice[byte](a, 0, 64)
 	// Use heap slices for pointer-containing types — arena memory is noscan,
 	// so GC cannot trace pointers stored there, risking premature collection.
@@ -361,8 +364,8 @@ func (e *EntityQueryCacheKeyTemplate) renderCacheKeys(a arena.Arena, ctx *Contex
 		// Extract __typename from the data
 		typename := item.Get("__typename")
 		if typename == nil {
-			// Fallback if no __typename in data
-			keyObj.Set(a, "__typename", astjson.StringValue(a, "Entity"))
+			// Fallback to plan-time type name when __typename is missing from response data
+			keyObj.Set(a, "__typename", astjson.StringValue(a, e.TypeName))
 		} else {
 			keyObj.Set(a, "__typename", typename)
 		}

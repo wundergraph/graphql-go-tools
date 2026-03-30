@@ -904,7 +904,7 @@ func (p *Planner[T]) buildAndStoreEntityCacheKeyTemplate(entityTypeName, fieldNa
 
 	// Create cache key template with only @key fields (no @requires fields)
 	keys := resolve.NewResolvableObjectVariable(mergedObject)
-	p.rootFieldEntityCacheKeyTemplates[fieldName+":"+entityTypeName] = &resolve.EntityQueryCacheKeyTemplate{Keys: keys}
+	p.rootFieldEntityCacheKeyTemplates[fieldName+":"+entityTypeName] = &resolve.EntityQueryCacheKeyTemplate{Keys: keys, TypeName: entityTypeName}
 }
 
 func (p *Planner[T]) addFieldArguments(upstreamFieldRef int, fieldRef int, fieldConfiguration *plan.FieldConfiguration) {
@@ -1065,8 +1065,16 @@ func (p *Planner[T]) addRepresentationsVariable() {
 		cacheKeysVar = representationsVariable
 	}
 
+	// Extract entity type name for cache key fallback when __typename is missing from response.
+	// All RequiredFields entries share the same entity type, so use the first one.
+	var entityTypeName string
+	if len(p.dataSourcePlannerConfig.RequiredFields) > 0 {
+		entityTypeName = p.dataSourcePlannerConfig.RequiredFields[0].TypeName
+	}
+
 	entityCacheKeyTemplate := &resolve.EntityQueryCacheKeyTemplate{
-		Keys: cacheKeysVar,
+		Keys:     cacheKeysVar,
+		TypeName: entityTypeName,
 	}
 
 	p.entityCacheKeyTemplate = entityCacheKeyTemplate

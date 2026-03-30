@@ -1,9 +1,11 @@
 package engine_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -18,6 +20,8 @@ import (
 	"github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/execution/engine"
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting"
@@ -1063,4 +1067,57 @@ func mustParseHost(rawURL string) string {
 		panic(fmt.Sprintf("failed to parse URL %q: %v", rawURL, err))
 	}
 	return parsed.Host
+}
+
+// typenameStrippingTransport is an HTTP transport that removes all "__typename" fields
+// from JSON responses originating from targetHost. This simulates a non-compliant
+// subgraph that omits __typename from entity representations.
+type typenameStrippingTransport struct {
+	inner      http.RoundTripper
+	targetHost string
+}
+
+func (t *typenameStrippingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := t.inner.RoundTrip(req)
+	if err != nil || req.URL.Host != t.targetHost {
+		return resp, err
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		return resp, err
+	}
+
+	// Parse, remove all __typename fields, re-serialize
+	v, err := astjson.ParseBytes(body)
+	if err != nil {
+		resp.Body = io.NopCloser(bytes.NewReader(body))
+		return resp, nil
+	}
+	removeTypeNames(v)
+	stripped := v.MarshalTo(nil)
+
+	resp.Body = io.NopCloser(bytes.NewReader(stripped))
+	resp.ContentLength = int64(len(stripped))
+	return resp, nil
+}
+
+// removeTypeNames recursively deletes all "__typename" keys from a JSON value tree.
+func removeTypeNames(v *astjson.Value) {
+	if v == nil {
+		return
+	}
+	switch v.Type() {
+	case astjson.TypeObject:
+		v.Del("__typename")
+		obj := v.GetObject()
+		obj.Visit(func(key []byte, val *astjson.Value) {
+			removeTypeNames(val)
+		})
+	case astjson.TypeArray:
+		for _, item := range v.GetArray() {
+			removeTypeNames(item)
+		}
+	}
 }

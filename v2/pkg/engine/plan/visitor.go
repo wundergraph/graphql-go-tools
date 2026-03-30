@@ -1786,7 +1786,8 @@ func (v *Visitor) configureSubscriptionEntityCachePopulation(config *objectFetch
 
 	mergedObject := MergeRepresentationVariableNodes(objects)
 	cacheKeyTemplate := &resolve.EntityQueryCacheKeyTemplate{
-		Keys: resolve.NewResolvableObjectVariable(mergedObject),
+		Keys:     resolve.NewResolvableObjectVariable(mergedObject),
+		TypeName: entityTypeName,
 	}
 
 	// Determine populate vs invalidate mode:

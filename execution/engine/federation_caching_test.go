@@ -4144,3 +4144,67 @@ func TestRootFieldSplitByDatasource(t *testing.T) {
 		assert.Equal(t, 1, tracker.GetCount(accountsHost), "Should call accounts once (me re-fetch only)")
 	})
 }
+
+// TestFederationCaching_PlanTimeTypeName verifies that entity cache keys use the type name
+// from the query plan when __typename is missing from the subgraph response data.
+// This tests the fallback path: a non-compliant subgraph omits __typename from its response,
+// but the cache key should still use the correct entity type name (e.g. "Product")
+// rather than a generic fallback.
+func TestFederationCaching_PlanTimeTypeName(t *testing.T) {
+	t.Parallel()
+	defaultCache := NewFakeLoaderCache()
+
+	// Transport that strips __typename from the products subgraph response.
+	// This simulates a non-compliant subgraph that omits __typename from entity data.
+	// The resolver should fall back to the plan-time entity type name for cache keys.
+	strippingTransport := &typenameStrippingTransport{
+		inner: http.DefaultTransport,
+	}
+	trackingClient := &http.Client{Transport: strippingTransport}
+
+	setup := federationtesting.NewFederationSetup(addCachingGateway(
+		withCachingEnableART(false),
+		withCachingLoaderCache(map[string]resolve.LoaderCache{"default": defaultCache}),
+		withHTTPClient(trackingClient),
+		withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
+		withSubgraphEntityCachingConfigs(engine.SubgraphCachingConfigs{
+			{
+				SubgraphName: "reviews",
+				EntityCaching: plan.EntityCacheConfigurations{
+					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: false},
+				},
+			},
+		}),
+	))
+	t.Cleanup(setup.Close)
+
+	// Record the products URL so the transport knows which responses to strip
+	productsURL, _ := url.Parse(setup.ProductsUpstreamServer.URL)
+	strippingTransport.targetHost = productsURL.Host
+
+	gqlClient := NewGraphqlClient(http.DefaultClient)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	defaultCache.ClearLog()
+	resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL,
+		`query { topProducts { name reviews { body } } }`, nil, t)
+
+	// The query should still succeed — missing __typename doesn't crash resolution
+	assert.Contains(t, string(resp), `"topProducts"`)
+	assert.Contains(t, string(resp), `"reviews"`)
+
+	// Cache keys should use "Product" from the query plan, not "Entity".
+	// Only entity caching for reviews/Product is configured, so we get a single L2 get
+	// with both product cache keys using the plan-time type name as fallback.
+	assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
+		{
+			Operation: "get",
+			Keys: []string{
+				`{"__typename":"Product","key":{"upc":"top-1"}}`, // Plan-time TypeName used (no __typename in products response)
+				`{"__typename":"Product","key":{"upc":"top-2"}}`, // Plan-time TypeName used (no __typename in products response)
+			},
+			Hits: []bool{false, false},
+		},
+	}), sortCacheLogKeys(defaultCache.GetLog()))
+}
