@@ -176,19 +176,22 @@ type result struct {
 
 	// Cache trace fields — populated during cache operations, consumed by buildCacheTrace.
 	// Written only from the goroutine owning this result (or main thread for sequential).
-	cacheTraceL2GetDuration    time.Duration
-	cacheTraceL2SetDuration    time.Duration // Regular entries Set
-	cacheTraceL2SetNegDuration time.Duration // Negative entries Set
-	cacheTraceL2GetError       string
-	cacheTraceL2SetError       string
-	cacheTraceL2SetNegError    string
-	cacheTraceL1Hits           int
-	cacheTraceL1Misses         int
-	cacheTraceL2Hits           int
-	cacheTraceL2Misses         int
-	cacheTraceNegativeHits     int
-	cacheTraceShadowHit        bool // L2 had data but shadow mode forced fetch
-	cacheTraceEntityDetails    []CacheTraceEntity
+	cacheTraceL2GetAttempted    bool
+	cacheTraceL2SetAttempted    bool // Regular entries Set
+	cacheTraceL2SetNegAttempted bool // Negative entries Set
+	cacheTraceL2GetDuration     time.Duration
+	cacheTraceL2SetDuration     time.Duration // Regular entries Set
+	cacheTraceL2SetNegDuration  time.Duration // Negative entries Set
+	cacheTraceL2GetError        string
+	cacheTraceL2SetError        string
+	cacheTraceL2SetNegError     string
+	cacheTraceL1Hits            int
+	cacheTraceL1Misses          int
+	cacheTraceL2Hits            int
+	cacheTraceL2Misses          int
+	cacheTraceNegativeHits      int
+	cacheTraceShadowHit         bool // L2 had data but shadow mode forced fetch
+	cacheTraceEntityDetails     []CacheTraceEntity
 
 	// shadowCachedValues stores cached L2 values when shadow mode is active.
 	// After fresh data arrives, these are compared to detect staleness.
@@ -658,15 +661,15 @@ func (l *Loader) buildCacheTrace(res *result, cfg FetchCacheConfiguration) *Cach
 	}
 
 	if l.ctx.TracingOptions.EnablePredictableDebugTimings {
-		if ct.L2GetDurationNano > 0 {
+		if res.cacheTraceL2GetAttempted {
 			ct.L2GetDurationNano = 1
 			ct.L2GetDurationPretty = "1ns"
 		}
-		if ct.L2SetDurationNano > 0 {
+		if res.cacheTraceL2SetAttempted {
 			ct.L2SetDurationNano = 1
 			ct.L2SetDurationPretty = "1ns"
 		}
-		if ct.L2SetNegativeDurationNano > 0 {
+		if res.cacheTraceL2SetNegAttempted {
 			ct.L2SetNegativeDurationNano = 1
 			ct.L2SetNegativeDurationPretty = "1ns"
 		}

@@ -615,6 +615,9 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 	if analyticsEnabled || tracingCache {
 		l2GetStart = time.Now()
 	}
+	if tracingCache {
+		res.cacheTraceL2GetAttempted = true
+	}
 	cacheEntries, err := res.cache.Get(ctx, cacheKeyStrings)
 	if analyticsEnabled {
 		res.l2FetchTimings = append(res.l2FetchTimings, FetchTimingEvent{
@@ -1179,6 +1182,7 @@ func (l *Loader) updateL2Cache(res *result) {
 		var l2SetStart time.Time
 		if tracingCache {
 			l2SetStart = time.Now()
+			res.cacheTraceL2SetAttempted = true
 		}
 		if setErr := res.cache.Set(ctx, cacheEntries, ttl); setErr != nil {
 			if tracingCache {
@@ -1210,6 +1214,7 @@ func (l *Loader) updateL2Cache(res *result) {
 			var l2SetNegStart time.Time
 			if tracingCache {
 				l2SetNegStart = time.Now()
+				res.cacheTraceL2SetNegAttempted = true
 			}
 			if setErr := res.cache.Set(ctx, negEntries, res.cacheConfig.NegativeCacheTTL); setErr != nil {
 				if tracingCache {
