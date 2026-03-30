@@ -18,10 +18,7 @@ It builds on top of IBM spec for @cost and @listSize directive with a few change
 * When weight is specified for the type and a field returns the list of that type,
 this weight (along with children's costs) is multiplied too.
 
-A few things on the TBD list:
-
-* Weights on fields of InputObjects with recursion
-* Weights on arguments of directives
+TODO: Weights on arguments of directives
 
 */
 
@@ -359,8 +356,6 @@ func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, variabl
 // fieldCost is the weight of this field or its returned type
 // argsCost is the sum of argument weights and input fields used on this field.
 // Weights on directives ignored for now.
-//
-// variables are used only for the estimated costs.
 //
 // defaultListSize designates the mode of operation.
 // When it is positive, then its value is used as a fallback value of list sizes for the estimated cost.

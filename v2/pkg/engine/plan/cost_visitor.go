@@ -163,9 +163,7 @@ func (v *CostVisitor) getFieldDataSourceHashes(fieldRef int) []DSHash {
 	return dsHashes
 }
 
-// extractFieldArguments extracts arguments from a field for cost calculation
-// This implementation does not go deep for input objects yet.
-// It should return unwrapped type names for arguments and that is it for now.
+// extractFieldArguments extracts arguments from a field for cost calculation.
 func (v *CostVisitor) extractFieldArguments(fieldRef int) map[string]ArgumentInfo {
 	argRefs := v.Operation.FieldArguments(fieldRef)
 	if len(argRefs) == 0 {
