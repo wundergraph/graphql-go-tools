@@ -207,7 +207,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	}
 
 	if p.config.ComputeCosts {
-		costCalc := NewCostCalculator()
+		costCalc := NewCostCalculator(p.planningVisitor.Config)
 		costCalc.tree = p.costVisitor.finalCostTree()
 		p.planningVisitor.plan.SetCostCalculator(costCalc)
 	}

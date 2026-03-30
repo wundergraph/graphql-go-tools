@@ -198,7 +198,7 @@ func (r *Request) OperationType() (OperationType, error) {
 
 func (r *Request) ComputeEstimatedCost(calc *plan.CostCalculator, config plan.Configuration, variables *astjson.Value) {
 	if calc != nil {
-		r.estimatedCost = calc.EstimateCost(config, variables)
+		r.estimatedCost = calc.EstimateCost(config.StaticCostDefaultListSize, variables)
 		// Debugging of cost trees. Uncomment to debug.
 		// fmt.Println(calc.DebugPrint(config, variables, nil))
 	} else {
@@ -210,9 +210,9 @@ func (r *Request) EstimatedCost() int {
 	return r.estimatedCost
 }
 
-func (r *Request) ComputeActualCost(calc *plan.CostCalculator, config plan.Configuration, variables *astjson.Value, actualListSizes map[string]int) {
+func (r *Request) ComputeActualCost(calc *plan.CostCalculator, variables *astjson.Value, actualListSizes map[string]int) {
 	if calc != nil {
-		r.actualCost = calc.ActualCost(config, variables, actualListSizes)
+		r.actualCost = calc.ActualCost(variables, actualListSizes)
 		// Debugging of cost trees. Uncomment to debug.
 		// fmt.Println(calc.DebugPrint(config, variables, actualListSizes))
 	} else {

@@ -404,9 +404,7 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 	for _, dsHash := range node.dataSourceHashes {
 		dsCostConfig, ok := configs[dsHash]
 		if !ok || dsCostConfig == nil {
-			dsCostConfig = &DataSourceCostConfig{}
-			// Save it for later use by other fields:
-			configs[dsHash] = dsCostConfig
+			continue
 		}
 
 		fieldWeight := dsCostConfig.Weights[node.fieldCoords]
@@ -615,34 +613,35 @@ type CostCalculator struct {
 	// not supposed to change ever again during the lifetime of a process.
 	// Once this tree is built, it is immutable and can be shared between multiple requests.
 	tree *CostTreeNode
+
+	// costConfigs is a map of data source hashes to their cost configuration.
+	costConfigs map[DSHash]*DataSourceCostConfig
 }
 
 // NewCostCalculator creates a new cost calculator. The defaultListSize is floored to 1.
-func NewCostCalculator() *CostCalculator {
+func NewCostCalculator(config Configuration) *CostCalculator {
 	c := CostCalculator{}
-	return &c
-}
-
-// buildCostConfigs extracts cost configurations from all data sources, keyed by data source hash.
-func buildCostConfigs(config Configuration) map[DSHash]*DataSourceCostConfig {
-	costConfigs := make(map[DSHash]*DataSourceCostConfig)
+	// Extract cost configurations from all data sources, keyed by data source hash.
+	// We do it once, it should be immutable in the cache.
+	c.costConfigs = make(map[DSHash]*DataSourceCostConfig)
 	for _, ds := range config.DataSources {
-		if costConfig := ds.GetCostConfig(); costConfig != nil {
-			costConfigs[ds.Hash()] = costConfig
+		dsCostConfig := ds.GetCostConfig()
+		if dsCostConfig == nil {
+			dsCostConfig = &DataSourceCostConfig{}
 		}
+		c.costConfigs[ds.Hash()] = dsCostConfig
 	}
-	return costConfigs
+	return &c
 }
 
 // EstimateCost returns the calculated total static cost.
 // config should be static per process or instance. variables could change between requests.
-func (c *CostCalculator) EstimateCost(config Configuration, variables *astjson.Value) int {
-	defaultListSize := config.StaticCostDefaultListSize
+func (c *CostCalculator) EstimateCost(defaultListSize int, variables *astjson.Value) int {
 	if defaultListSize < 1 {
 		// Zero would estimate all lists as zero.
 		defaultListSize = 1
 	}
-	return c.tree.cost(buildCostConfigs(config), variables, defaultListSize, nil)
+	return c.tree.cost(c.costConfigs, variables, defaultListSize, nil)
 }
 
 const (
@@ -650,15 +649,15 @@ const (
 )
 
 // ActualCost returns the actual cost of the operation that is based on the actual sizes of lists.
-func (c *CostCalculator) ActualCost(config Configuration, variables *astjson.Value, actualListSizes map[string]int) int {
-	return c.tree.cost(buildCostConfigs(config), variables, actualCostMode, actualListSizes)
+func (c *CostCalculator) ActualCost(variables *astjson.Value, actualListSizes map[string]int) int {
+	return c.tree.cost(c.costConfigs, variables, actualCostMode, actualListSizes)
 }
 
 // ValidateSliceArguments checks that all fields with slicingArguments and
 // requireOneSlicingArgument are valid against the arguments passed to those fields.
 // Violations are collected as external errors into the report.
-func (c *CostCalculator) ValidateSliceArguments(config Configuration, variables *astjson.Value, report *operationreport.Report) {
-	c.tree.validateSliceArguments(buildCostConfigs(config), variables, report)
+func (c *CostCalculator) ValidateSliceArguments(variables *astjson.Value, report *operationreport.Report) {
+	c.tree.validateSliceArguments(c.costConfigs, variables, report)
 }
 
 func (node *CostTreeNode) validateSliceArguments(configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value, report *operationreport.Report) {
@@ -748,7 +747,7 @@ func (c *CostCalculator) DebugPrint(config Configuration, variables *astjson.Val
 	if c.tree == nil || len(c.tree.children) == 0 {
 		return "<empty cost tree>"
 	}
-	costConfigs := buildCostConfigs(config)
+	costConfigs := c.costConfigs
 	defaultListSize := config.StaticCostDefaultListSize
 	if defaultListSize < 1 {
 		defaultListSize = 1
