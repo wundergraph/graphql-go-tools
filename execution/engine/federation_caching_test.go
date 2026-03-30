@@ -1957,7 +1957,7 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
 		accountsHost := accountsURLParsed.Host
 
-		// First query - miss, only id mapping resolves → single cache key
+		// First query - miss on id key, then response data backfills the sibling username key too
 		defaultCache.ClearLog()
 		tracker.Reset()
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/user_by_id.query"), queryVariables{"id": "1234"}, t)
@@ -1965,7 +1965,7 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 		assert.Equal(t, 1, tracker.GetCount(accountsHost), "First query should call accounts once")
 
 		logAfterFirst := defaultCache.GetLog()
-		assert.Equal(t, 2, len(logAfterFirst), "Should have get miss + set (single key only)")
+		assert.Equal(t, 2, len(logAfterFirst), "Should have get miss + set (id key plus response-derived username key)")
 		wantLogFirst := []CacheLogEntry{
 			{
 				Operation: "get",
@@ -1974,10 +1974,13 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 			},
 			{
 				Operation: "set",
-				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
+				Keys: []string{
+					`{"__typename":"User","key":{"id":"1234"}}`,
+					`{"__typename":"User","key":{"username":"Me"}}`,
+				},
 			},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "Only id mapping resolves, username mapping skipped (missing variable)")
+		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "The response supplies username, so both entity keys are written")
 
 		// Second query - hit via id key
 		defaultCache.ClearLog()
@@ -2345,7 +2348,7 @@ func TestRootFieldCachingWithArgs_PartialKeyWrite(t *testing.T) {
 		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
 		accountsHost := accountsURLParsed.Host
 
-		// user(id) — only id mapping resolves → 1 write under id key only
+		// user(id) — id mapping resolves from args, username key is derived from the fetched response
 		defaultCache.ClearLog()
 		tracker.Reset()
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/user_by_id.query"), queryVariables{"id": "1234"}, t)
@@ -2361,17 +2364,20 @@ func TestRootFieldCachingWithArgs_PartialKeyWrite(t *testing.T) {
 			},
 			{
 				Operation: "set",
-				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-				// Only id key written — username key NOT generated from response
+				Keys: []string{
+					`{"__typename":"User","key":{"id":"1234"}}`,
+					`{"__typename":"User","key":{"username":"Me"}}`,
+				},
+				// Desired behavior writes both id and username keys once the response provides username.
 			},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "Only id key written (username arg missing)")
+		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "Fetched response should backfill the username key too")
 
-		// Direct cache inspection: id key present, username key absent
+		// Direct cache inspection: both keys present
 		_, idExists := defaultCache.Peek(`{"__typename":"User","key":{"id":"1234"}}`)
 		assert.True(t, idExists, "id key should be in cache")
 		_, usernameExists := defaultCache.Peek(`{"__typename":"User","key":{"username":"Me"}}`)
-		assert.False(t, usernameExists, "username key should NOT be in cache (write-side uses argument-derived keys only)")
+		assert.True(t, usernameExists, "username key should be in cache once the response reveals it")
 	})
 
 	t.Run("entity key mapping - flat key cross-lookup from composite key write", func(t *testing.T) {
@@ -2480,6 +2486,750 @@ func TestRootFieldCachingWithArgs_PartialKeyWrite(t *testing.T) {
 		}
 		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Flat id key cross-lookup succeeds from composite key write")
 	})
+}
+
+func TestRootFieldCachingWithArgs_BothKeysHit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("both entity key mappings hit on second request", func(t *testing.T) {
+		t.Parallel()
+
+		defaultCache := NewFakeLoaderCache()
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(map[string]resolve.LoaderCache{"default": defaultCache}),
+			withHTTPClient(&http.Client{Transport: tracker}),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
+			withSubgraphEntityCachingConfigs(engine.SubgraphCachingConfigs{
+				{
+					SubgraphName: "accounts",
+					RootFieldCaching: plan.RootFieldCacheConfigurations{
+						{
+							TypeName:  "Query",
+							FieldName: "userByIdAndName",
+							CacheName: "default",
+							TTL:       30 * time.Second,
+							EntityKeyMappings: []plan.EntityKeyMapping{
+								{EntityTypeName: "User", FieldMappings: []plan.FieldMapping{
+									{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+								}},
+								{EntityTypeName: "User", FieldMappings: []plan.FieldMapping{
+									{EntityKeyField: "username", ArgumentPath: []string{"username"}},
+								}},
+							},
+						},
+					},
+				},
+			}),
+		))
+		t.Cleanup(setup.Close)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL,
+			`query($id: ID!, $username: String!) { userByIdAndName(id: $id, username: $username) { id username } }`,
+			queryVariables{"id": "1234", "username": "Me"}, t)
+		assert.Equal(t, `{"data":{"userByIdAndName":{"id":"1234","username":"Me"}}}`, string(resp))
+		assert.Equal(t, 1, tracker.GetCount(accountsHost), "First query should fetch from subgraph")
+
+		logAfterFirst := defaultCache.GetLog()
+		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
+			{
+				Operation: "get",
+				Keys: []string{
+					`{"__typename":"User","key":{"id":"1234"}}`,     // id mapping
+					`{"__typename":"User","key":{"username":"Me"}}`, // username mapping
+				},
+				Hits: []bool{false, false}, // L2 empty, both miss
+			},
+			{
+				Operation: "set",
+				Keys: []string{
+					`{"__typename":"User","key":{"id":"1234"}}`,     // store under id key
+					`{"__typename":"User","key":{"username":"Me"}}`, // store under username key
+				},
+			},
+		}), sortCacheLogKeys(logAfterFirst))
+
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL,
+			`query($id: ID!, $username: String!) { userByIdAndName(id: $id, username: $username) { id username } }`,
+			queryVariables{"id": "1234", "username": "Me"}, t)
+		assert.Equal(t, `{"data":{"userByIdAndName":{"id":"1234","username":"Me"}}}`, string(resp))
+		assert.Equal(t, 0, tracker.GetCount(accountsHost), "Second query should skip subgraph (cache hit)")
+
+		logAfterSecond := defaultCache.GetLog()
+		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
+			{
+				Operation: "get",
+				Keys: []string{
+					`{"__typename":"User","key":{"id":"1234"}}`,     // id mapping
+					`{"__typename":"User","key":{"username":"Me"}}`, // username mapping
+				},
+				Hits: []bool{true, true}, // Both keys hit from request 1
+			},
+		}), sortCacheLogKeys(logAfterSecond))
+	})
+}
+
+func TestRootFieldCachingWithArgs_SeededDifferentData(t *testing.T) {
+	t.Parallel()
+
+	t.Run("seeded L2 with different data under each key - fresher entry wins", func(t *testing.T) {
+		t.Parallel()
+
+		defaultCache := NewFakeLoaderCache()
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(map[string]resolve.LoaderCache{"default": defaultCache}),
+			withHTTPClient(&http.Client{Transport: tracker}),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
+			withSubgraphEntityCachingConfigs(engine.SubgraphCachingConfigs{
+				{
+					SubgraphName: "accounts",
+					RootFieldCaching: plan.RootFieldCacheConfigurations{
+						{
+							TypeName:  "Query",
+							FieldName: "userByIdAndName",
+							CacheName: "default",
+							TTL:       30 * time.Second,
+							EntityKeyMappings: []plan.EntityKeyMapping{
+								{EntityTypeName: "User", FieldMappings: []plan.FieldMapping{
+									{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+								}},
+								{EntityTypeName: "User", FieldMappings: []plan.FieldMapping{
+									{EntityKeyField: "username", ArgumentPath: []string{"username"}},
+								}},
+							},
+						},
+					},
+				},
+			}),
+		))
+		t.Cleanup(setup.Close)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+		idKey := `{"__typename":"User","key":{"id":"1234"}}`
+		usernameKey := `{"__typename":"User","key":{"username":"Me"}}`
+
+		err := defaultCache.Set(ctx, []*resolve.CacheEntry{
+			{Key: idKey, Value: []byte(`{"id":"1234","username":"FreshName"}`)},
+		}, 30*time.Second)
+		require.NoError(t, err)
+		err = defaultCache.Set(ctx, []*resolve.CacheEntry{
+			{Key: usernameKey, Value: []byte(`{"id":"1234","username":"StaleName"}`)},
+		}, 10*time.Second)
+		require.NoError(t, err)
+
+		setupLog := defaultCache.GetLog()
+		assert.Equal(t, []CacheLogEntry{
+			{
+				Operation: "set",
+				Keys:      []string{idKey},
+				TTL:       30 * time.Second,
+			},
+			{
+				Operation: "set",
+				Keys:      []string{usernameKey},
+				TTL:       10 * time.Second,
+			},
+		}, setupLog)
+
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL,
+			`query($id: ID!, $username: String!) { userByIdAndName(id: $id, username: $username) { id username } }`,
+			queryVariables{"id": "1234", "username": "Me"}, t)
+
+		assert.Equal(t, `{"data":{"userByIdAndName":{"id":"1234","username":"FreshName"}}}`, string(resp),
+			"desired behavior serves the freshest cached entry when both keys hit")
+		assert.Equal(t, 0, tracker.GetCount(accountsHost),
+			"Should skip subgraph fetch since the selected cached entry passes validation")
+
+		idData, idExists := defaultCache.Peek(idKey)
+		assert.True(t, idExists)
+		assert.Equal(t, `{"id":"1234","username":"FreshName"}`, string(idData))
+		usernameData, usernameExists := defaultCache.Peek(usernameKey)
+		assert.True(t, usernameExists)
+		assert.Equal(t, `{"id":"1234","username":"StaleName"}`, string(usernameData))
+
+		logAfterQuery := defaultCache.GetLog()
+		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
+			{
+				Operation: "get",
+				Keys: []string{
+					`{"__typename":"User","key":{"id":"1234"}}`,
+					`{"__typename":"User","key":{"username":"Me"}}`,
+				},
+				Hits: []bool{true, true}, // Both seeded entries hit
+			},
+		}), sortCacheLogKeys(logAfterQuery))
+	})
+}
+
+func TestRootFieldCachingWithArgs_ComplementaryPartialData(t *testing.T) {
+	t.Parallel()
+
+	t.Run("complementary partial data merges into a complete cache hit", func(t *testing.T) {
+		t.Parallel()
+
+		defaultCache := NewFakeLoaderCache()
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(map[string]resolve.LoaderCache{"default": defaultCache}),
+			withHTTPClient(&http.Client{Transport: tracker}),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
+			withSubgraphEntityCachingConfigs(engine.SubgraphCachingConfigs{
+				{
+					SubgraphName: "accounts",
+					RootFieldCaching: plan.RootFieldCacheConfigurations{
+						{
+							TypeName:  "Query",
+							FieldName: "userByIdAndName",
+							CacheName: "default",
+							TTL:       30 * time.Second,
+							EntityKeyMappings: []plan.EntityKeyMapping{
+								{EntityTypeName: "User", FieldMappings: []plan.FieldMapping{
+									{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+								}},
+								{EntityTypeName: "User", FieldMappings: []plan.FieldMapping{
+									{EntityKeyField: "username", ArgumentPath: []string{"username"}},
+								}},
+							},
+						},
+					},
+				},
+			}),
+		))
+		t.Cleanup(setup.Close)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+		idKey := `{"__typename":"User","key":{"id":"1234"}}`
+		usernameKey := `{"__typename":"User","key":{"username":"Me"}}`
+
+		err := defaultCache.Set(ctx, []*resolve.CacheEntry{
+			{Key: idKey, Value: []byte(`{"id":"1234","username":"Me"}`)},
+		}, 20*time.Second)
+		require.NoError(t, err)
+		err = defaultCache.Set(ctx, []*resolve.CacheEntry{
+			{Key: usernameKey, Value: []byte(`{"id":"1234","nickname":"nick-Me"}`)},
+		}, 30*time.Second)
+		require.NoError(t, err)
+
+		setupLog := defaultCache.GetLog()
+		assert.Equal(t, []CacheLogEntry{
+			{
+				Operation: "set",
+				Keys:      []string{idKey},
+				TTL:       20 * time.Second,
+			},
+			{
+				Operation: "set",
+				Keys:      []string{usernameKey},
+				TTL:       30 * time.Second,
+			},
+		}, setupLog)
+
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL,
+			`query($id: ID!, $username: String!) { userByIdAndName(id: $id, username: $username) { id username nickname } }`,
+			queryVariables{"id": "1234", "username": "Me"}, t)
+
+		assert.Equal(t, `{"data":{"userByIdAndName":{"id":"1234","username":"Me","nickname":"nick-Me"}}}`, string(resp))
+		assert.Equal(t, 0, tracker.GetCount(accountsHost),
+			"desired behavior merges complementary cache hits and skips the subgraph fetch")
+
+		logAfterQuery := defaultCache.GetLog()
+		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
+			{
+				Operation: "get",
+				Keys: []string{
+					idKey,
+					usernameKey,
+				},
+				Hits: []bool{true, true}, // Both seeded entries hit, but selected entry is incomplete
+			},
+			{
+				Operation: "set",
+				Keys: []string{
+					idKey,
+					usernameKey,
+				},
+				TTL: 30 * time.Second,
+			},
+		}), sortCacheLogKeys(logAfterQuery))
+
+		idData, idExists := defaultCache.Peek(idKey)
+		assert.True(t, idExists)
+		assert.Equal(t, `{"id":"1234","username":"Me","nickname":"nick-Me"}`, string(idData))
+		usernameData, usernameExists := defaultCache.Peek(usernameKey)
+		assert.True(t, usernameExists)
+		assert.Equal(t, `{"id":"1234","username":"Me","nickname":"nick-Me"}`, string(usernameData))
+	})
+}
+
+func TestRootFieldCachingWithArgs_KeyPopulationAndBackfill(t *testing.T) {
+	t.Parallel()
+
+	t.Run("5a - full arg query populates both keys verified via Peek", func(t *testing.T) {
+		t.Parallel()
+
+		defaultCache := NewFakeLoaderCache()
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(map[string]resolve.LoaderCache{"default": defaultCache}),
+			withHTTPClient(&http.Client{Transport: tracker}),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
+			withSubgraphEntityCachingConfigs(engine.SubgraphCachingConfigs{
+				{
+					SubgraphName: "accounts",
+					RootFieldCaching: plan.RootFieldCacheConfigurations{
+						{
+							TypeName:  "Query",
+							FieldName: "userByIdAndName",
+							CacheName: "default",
+							TTL:       30 * time.Second,
+							EntityKeyMappings: []plan.EntityKeyMapping{
+								{EntityTypeName: "User", FieldMappings: []plan.FieldMapping{
+									{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+								}},
+								{EntityTypeName: "User", FieldMappings: []plan.FieldMapping{
+									{EntityKeyField: "username", ArgumentPath: []string{"username"}},
+								}},
+							},
+						},
+					},
+				},
+			}),
+		))
+		t.Cleanup(setup.Close)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL,
+			`query($id: ID!, $username: String!) { userByIdAndName(id: $id, username: $username) { id username } }`,
+			queryVariables{"id": "1234", "username": "Me"}, t)
+		assert.Equal(t, `{"data":{"userByIdAndName":{"id":"1234","username":"Me"}}}`, string(resp))
+		assert.Equal(t, 1, tracker.GetCount(accountsHost), "Should fetch from subgraph")
+
+		logAfterQuery := defaultCache.GetLog()
+		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
+			{
+				Operation: "get",
+				Keys: []string{
+					`{"__typename":"User","key":{"id":"1234"}}`,
+					`{"__typename":"User","key":{"username":"Me"}}`,
+				},
+				Hits: []bool{false, false}, // L2 empty
+			},
+			{
+				Operation: "set",
+				Keys: []string{
+					`{"__typename":"User","key":{"id":"1234"}}`,
+					`{"__typename":"User","key":{"username":"Me"}}`,
+				},
+				TTL: 30 * time.Second,
+			},
+		}), sortCacheLogKeys(logAfterQuery))
+
+		idData, idExists := defaultCache.Peek(`{"__typename":"User","key":{"id":"1234"}}`)
+		assert.True(t, idExists, "id key should exist after full-arg query")
+		assert.Equal(t, `{"id":"1234","username":"Me"}`, string(idData))
+
+		usernameData, usernameExists := defaultCache.Peek(`{"__typename":"User","key":{"username":"Me"}}`)
+		assert.True(t, usernameExists, "username key should exist after full-arg query")
+		assert.Equal(t, `{"id":"1234","username":"Me"}`, string(usernameData))
+	})
+
+	t.Run("5b - partial arg query backfills username key from response", func(t *testing.T) {
+		t.Parallel()
+
+		defaultCache := NewFakeLoaderCache()
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(map[string]resolve.LoaderCache{"default": defaultCache}),
+			withHTTPClient(&http.Client{Transport: tracker}),
+			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
+			withSubgraphEntityCachingConfigs(engine.SubgraphCachingConfigs{
+				{
+					SubgraphName: "accounts",
+					RootFieldCaching: plan.RootFieldCacheConfigurations{
+						{
+							TypeName:  "Query",
+							FieldName: "user",
+							CacheName: "default",
+							TTL:       30 * time.Second,
+							EntityKeyMappings: []plan.EntityKeyMapping{
+								{EntityTypeName: "User", FieldMappings: []plan.FieldMapping{
+									{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+								}},
+								{EntityTypeName: "User", FieldMappings: []plan.FieldMapping{
+									{EntityKeyField: "username", ArgumentPath: []string{"username"}},
+								}},
+							},
+						},
+					},
+				},
+			}),
+		))
+		t.Cleanup(setup.Close)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL,
+			`query($id: ID!) { user(id: $id) { id username } }`,
+			queryVariables{"id": "1234"}, t)
+		assert.Equal(t, `{"data":{"user":{"id":"1234","username":"Me"}}}`, string(resp))
+		assert.Equal(t, 1, tracker.GetCount(accountsHost), "Should fetch from subgraph")
+
+		logAfterQuery := defaultCache.GetLog()
+		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
+			{
+				Operation: "get",
+				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
+				Hits:      []bool{false}, // Only id key generated because username arg is missing
+			},
+			{
+				Operation: "set",
+				Keys: []string{
+					`{"__typename":"User","key":{"id":"1234"}}`,
+					`{"__typename":"User","key":{"username":"Me"}}`,
+				},
+				TTL: 30 * time.Second,
+			},
+		}), sortCacheLogKeys(logAfterQuery))
+
+		idData, idExists := defaultCache.Peek(`{"__typename":"User","key":{"id":"1234"}}`)
+		assert.True(t, idExists, "id key should exist")
+		assert.Equal(t, `{"id":"1234","username":"Me"}`, string(idData))
+		usernameData, usernameExists := defaultCache.Peek(`{"__typename":"User","key":{"username":"Me"}}`)
+		assert.True(t, usernameExists, "username key should be backfilled from the fetched response")
+		assert.Equal(t, `{"id":"1234","username":"Me"}`, string(usernameData))
+	})
+}
+
+func TestRootFieldCachingWithArgs_BackfillAfterPartialHit(t *testing.T) {
+	t.Parallel()
+
+	defaultCache := NewFakeLoaderCache()
+	tracker := newSubgraphCallTracker(http.DefaultTransport)
+
+	setup := federationtesting.NewFederationSetup(addCachingGateway(
+		withCachingEnableART(false),
+		withCachingLoaderCache(map[string]resolve.LoaderCache{"default": defaultCache}),
+		withHTTPClient(&http.Client{Transport: tracker}),
+		withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
+		withSubgraphEntityCachingConfigs(engine.SubgraphCachingConfigs{
+			{
+				SubgraphName: "accounts",
+				RootFieldCaching: plan.RootFieldCacheConfigurations{
+					{
+						TypeName:  "Query",
+						FieldName: "userByIdAndName",
+						CacheName: "default",
+						TTL:       30 * time.Second,
+						EntityKeyMappings: []plan.EntityKeyMapping{
+							{EntityTypeName: "User", FieldMappings: []plan.FieldMapping{
+								{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+							}},
+							{EntityTypeName: "User", FieldMappings: []plan.FieldMapping{
+								{EntityKeyField: "username", ArgumentPath: []string{"username"}},
+							}},
+						},
+					},
+				},
+			},
+		}),
+	))
+	t.Cleanup(setup.Close)
+	gqlClient := NewGraphqlClient(http.DefaultClient)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+	accountsHost := accountsURLParsed.Host
+	idKey := `{"__typename":"User","key":{"id":"1234"}}`
+	usernameKey := `{"__typename":"User","key":{"username":"Me"}}`
+
+	err := defaultCache.Set(ctx, []*resolve.CacheEntry{
+		{Key: idKey, Value: []byte(`{"id":"1234","username":"Me"}`)},
+	}, 20*time.Second)
+	require.NoError(t, err)
+
+	setupLog := defaultCache.GetLog()
+	assert.Equal(t, []CacheLogEntry{
+		{
+			Operation: "set",
+			Keys:      []string{idKey},
+			TTL:       20 * time.Second,
+		},
+	}, setupLog)
+
+	defaultCache.ClearLog()
+	tracker.Reset()
+	resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL,
+		`query($id: ID!, $username: String!) { userByIdAndName(id: $id, username: $username) { id username } }`,
+		queryVariables{"id": "1234", "username": "Me"}, t)
+
+	assert.Equal(t, `{"data":{"userByIdAndName":{"id":"1234","username":"Me"}}}`, string(resp))
+	assert.Equal(t, 0, tracker.GetCount(accountsHost))
+
+	logAfterQuery := defaultCache.GetLog()
+	assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
+		{
+			Operation: "get",
+			Keys:      []string{idKey, usernameKey},
+			Hits:      []bool{true, false},
+		},
+		{
+			Operation: "set",
+			Keys:      []string{idKey, usernameKey},
+			TTL:       30 * time.Second,
+		},
+	}), sortCacheLogKeys(logAfterQuery))
+
+	idData, idExists := defaultCache.Peek(idKey)
+	assert.True(t, idExists)
+	assert.Equal(t, `{"id":"1234","username":"Me"}`, string(idData))
+	usernameData, usernameExists := defaultCache.Peek(usernameKey)
+	assert.True(t, usernameExists, "cache-hit serve should backfill the missing sibling key")
+	assert.Equal(t, `{"id":"1234","username":"Me"}`, string(usernameData))
+}
+
+func TestRootFieldCachingWithArgs_FallbackAfterPartialSelection(t *testing.T) {
+	t.Parallel()
+
+	defaultCache := NewFakeLoaderCache()
+	tracker := newSubgraphCallTracker(http.DefaultTransport)
+
+	setup := federationtesting.NewFederationSetup(addCachingGateway(
+		withCachingEnableART(false),
+		withCachingLoaderCache(map[string]resolve.LoaderCache{"default": defaultCache}),
+		withHTTPClient(&http.Client{Transport: tracker}),
+		withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
+		withSubgraphEntityCachingConfigs(engine.SubgraphCachingConfigs{
+			{
+				SubgraphName: "accounts",
+				RootFieldCaching: plan.RootFieldCacheConfigurations{
+					{
+						TypeName:  "Query",
+						FieldName: "userByIdAndName",
+						CacheName: "default",
+						TTL:       30 * time.Second,
+						EntityKeyMappings: []plan.EntityKeyMapping{
+							{EntityTypeName: "User", FieldMappings: []plan.FieldMapping{
+								{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+							}},
+							{EntityTypeName: "User", FieldMappings: []plan.FieldMapping{
+								{EntityKeyField: "username", ArgumentPath: []string{"username"}},
+							}},
+						},
+					},
+				},
+			},
+		}),
+	))
+	t.Cleanup(setup.Close)
+	gqlClient := NewGraphqlClient(http.DefaultClient)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+	accountsHost := accountsURLParsed.Host
+
+	err := defaultCache.Set(ctx, []*resolve.CacheEntry{
+		{Key: `{"__typename":"User","key":{"id":"1234"}}`, Value: []byte(`{"id":"1234","username":"Me","nickname":"nick-Me"}`)},
+	}, 10*time.Second)
+	require.NoError(t, err)
+	err = defaultCache.Set(ctx, []*resolve.CacheEntry{
+		{Key: `{"__typename":"User","key":{"username":"Me"}}`, Value: []byte(`{"id":"1234"}`)},
+	}, 30*time.Second)
+	require.NoError(t, err)
+
+	setupLog := defaultCache.GetLog()
+	assert.Equal(t, []CacheLogEntry{
+		{
+			Operation: "set",
+			Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
+			TTL:       10 * time.Second,
+		},
+		{
+			Operation: "set",
+			Keys:      []string{`{"__typename":"User","key":{"username":"Me"}}`},
+			TTL:       30 * time.Second,
+		},
+	}, setupLog)
+
+	defaultCache.ClearLog()
+	tracker.Reset()
+	resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL,
+		`query($id: ID!, $username: String!) { userByIdAndName(id: $id, username: $username) { id username nickname } }`,
+		queryVariables{"id": "1234", "username": "Me"}, t)
+
+	assert.Equal(t, `{"data":{"userByIdAndName":{"id":"1234","username":"Me","nickname":"nick-Me"}}}`, string(resp))
+	assert.Equal(t, 0, tracker.GetCount(accountsHost), "desired behavior resolves fresh-incomplete vs stale-complete from cache without a fetch")
+
+	logAfterQuery := defaultCache.GetLog()
+	assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
+		{
+			Operation: "get",
+			Keys: []string{
+				`{"__typename":"User","key":{"id":"1234"}}`,
+				`{"__typename":"User","key":{"username":"Me"}}`,
+			},
+			Hits: []bool{true, true},
+		},
+		{
+			Operation: "set",
+			Keys: []string{
+				`{"__typename":"User","key":{"id":"1234"}}`,
+				`{"__typename":"User","key":{"username":"Me"}}`,
+			},
+			TTL: 30 * time.Second,
+		},
+	}), sortCacheLogKeys(logAfterQuery))
+
+	idData, idExists := defaultCache.Peek(`{"__typename":"User","key":{"id":"1234"}}`)
+	assert.True(t, idExists)
+	assert.Equal(t, `{"id":"1234","username":"Me","nickname":"nick-Me"}`, string(idData))
+	usernameData, usernameExists := defaultCache.Peek(`{"__typename":"User","key":{"username":"Me"}}`)
+	assert.True(t, usernameExists)
+	assert.Equal(t, `{"id":"1234","username":"Me","nickname":"nick-Me"}`, string(usernameData))
+}
+
+func TestRootFieldCachingWithArgs_MergeConflictWholeEntrySelection(t *testing.T) {
+	t.Parallel()
+
+	defaultCache := NewFakeLoaderCache()
+	tracker := newSubgraphCallTracker(http.DefaultTransport)
+
+	setup := federationtesting.NewFederationSetup(addCachingGateway(
+		withCachingEnableART(false),
+		withCachingLoaderCache(map[string]resolve.LoaderCache{"default": defaultCache}),
+		withHTTPClient(&http.Client{Transport: tracker}),
+		withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
+		withSubgraphEntityCachingConfigs(engine.SubgraphCachingConfigs{
+			{
+				SubgraphName: "accounts",
+				RootFieldCaching: plan.RootFieldCacheConfigurations{
+					{
+						TypeName:  "Query",
+						FieldName: "userByIdAndName",
+						CacheName: "default",
+						TTL:       30 * time.Second,
+						EntityKeyMappings: []plan.EntityKeyMapping{
+							{EntityTypeName: "User", FieldMappings: []plan.FieldMapping{
+								{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+							}},
+							{EntityTypeName: "User", FieldMappings: []plan.FieldMapping{
+								{EntityKeyField: "username", ArgumentPath: []string{"username"}},
+							}},
+						},
+					},
+				},
+			},
+		}),
+	))
+	t.Cleanup(setup.Close)
+	gqlClient := NewGraphqlClient(http.DefaultClient)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+	accountsHost := accountsURLParsed.Host
+	idKey := `{"__typename":"User","key":{"id":"1234"}}`
+	usernameKey := `{"__typename":"User","key":{"username":"Me"}}`
+
+	err := defaultCache.Set(ctx, []*resolve.CacheEntry{
+		{Key: idKey, Value: []byte(`{"id":"1234","username":"OldName"}`)},
+	}, 20*time.Second)
+	require.NoError(t, err)
+	err = defaultCache.Set(ctx, []*resolve.CacheEntry{
+		{Key: usernameKey, Value: []byte(`{"id":"1234","username":"Me","nickname":"nick-Me"}`)},
+	}, 30*time.Second)
+	require.NoError(t, err)
+
+	setupLog := defaultCache.GetLog()
+	assert.Equal(t, []CacheLogEntry{
+		{
+			Operation: "set",
+			Keys:      []string{idKey},
+			TTL:       20 * time.Second,
+		},
+		{
+			Operation: "set",
+			Keys:      []string{usernameKey},
+			TTL:       30 * time.Second,
+		},
+	}, setupLog)
+
+	defaultCache.ClearLog()
+	tracker.Reset()
+	resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL,
+		`query($id: ID!, $username: String!) { userByIdAndName(id: $id, username: $username) { id username nickname } }`,
+		queryVariables{"id": "1234", "username": "Me"}, t)
+
+	// This fixture is intentionally black-box: the desired observable outcome is that the
+	// fresher overlapping username value wins and the complementary nickname is retained.
+	assert.Equal(t, `{"data":{"userByIdAndName":{"id":"1234","username":"Me","nickname":"nick-Me"}}}`, string(resp))
+	assert.Equal(t, 0, tracker.GetCount(accountsHost))
+
+	logAfterQuery := defaultCache.GetLog()
+	assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
+		{
+			Operation: "get",
+			Keys: []string{
+				idKey,
+				usernameKey,
+			},
+			Hits: []bool{true, true},
+		},
+	}), sortCacheLogKeys(logAfterQuery))
+
+	idData, idExists := defaultCache.Peek(idKey)
+	assert.True(t, idExists)
+	assert.Equal(t, `{"id":"1234","username":"OldName"}`, string(idData))
+	usernameData, usernameExists := defaultCache.Peek(usernameKey)
+	assert.True(t, usernameExists)
+	assert.Equal(t, `{"id":"1234","username":"Me","nickname":"nick-Me"}`, string(usernameData))
 }
 
 func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {

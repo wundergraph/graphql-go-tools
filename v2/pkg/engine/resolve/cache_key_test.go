@@ -1680,6 +1680,134 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 		}, cacheKeys[0].Keys)
 	})
 
+	t.Run("flat key + composite key - neither matches (skip cache)", func(t *testing.T) {
+		// Flat @key(fields: "id") + composite @key(fields: "sku region").
+		// No arguments provided → both mappings skip → empty keys → skip cache.
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "productByAll"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "Product",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+					},
+				},
+				{
+					EntityTypeName: "Product",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "sku", ArgumentPath: []string{"sku"}},
+						{EntityKeyField: "region", ArgumentPath: []string{"region"}},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{Variables: astjson.MustParse(`{"unrelated":"value"}`), ctx: context.Background()}
+		data := astjson.MustParse(`{}`)
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(cacheKeys))
+		assert.Equal(t, []string{}, cacheKeys[0].Keys)
+	})
+
+	t.Run("flat key + nested composite key - neither matches (skip cache)", func(t *testing.T) {
+		// Flat @key(fields: "id") + nested @key(fields: "store { id region }").
+		// No arguments provided → both mappings skip → empty keys → skip cache.
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "productByAll"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "Product",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+					},
+				},
+				{
+					EntityTypeName: "Product",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "store.id", ArgumentPath: []string{"storeId"}},
+						{EntityKeyField: "store.region", ArgumentPath: []string{"storeRegion"}},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{Variables: astjson.MustParse(`{"unrelated":"value"}`), ctx: context.Background()}
+		data := astjson.MustParse(`{}`)
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(cacheKeys))
+		assert.Equal(t, []string{}, cacheKeys[0].Keys)
+	})
+
+	t.Run("flat key + nested composite key with structured arg - neither matches (skip cache)", func(t *testing.T) {
+		// Flat @key(fields: "id") + nested @key(fields: "store { id region }") with structured arg.
+		// No arguments provided → both mappings skip → empty keys → skip cache.
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "productByStore"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "Product",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+					},
+				},
+				{
+					EntityTypeName: "Product",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "store.id", ArgumentPath: []string{"store", "id"}},
+						{EntityKeyField: "store.region", ArgumentPath: []string{"store", "region"}},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{Variables: astjson.MustParse(`{"unrelated":"value"}`), ctx: context.Background()}
+		data := astjson.MustParse(`{}`)
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(cacheKeys))
+		assert.Equal(t, []string{}, cacheKeys[0].Keys)
+	})
+
+	t.Run("two nested composite keys with structured args - neither matches (skip cache)", func(t *testing.T) {
+		// Two nested keys: @key(fields: "store { id }") + @key(fields: "location { city country }").
+		// No arguments provided → both mappings skip → empty keys → skip cache.
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "warehouse"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "Warehouse",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "store.id", ArgumentPath: []string{"store", "id"}},
+					},
+				},
+				{
+					EntityTypeName: "Warehouse",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "location.city", ArgumentPath: []string{"location", "city"}},
+						{EntityKeyField: "location.country", ArgumentPath: []string{"location", "country"}},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{Variables: astjson.MustParse(`{"unrelated":"value"}`), ctx: context.Background()}
+		data := astjson.MustParse(`{}`)
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(cacheKeys))
+		assert.Equal(t, []string{}, cacheKeys[0].Keys)
+	})
+
 	t.Run("no entity key mapping - uses root field key", func(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{

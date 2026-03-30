@@ -2,6 +2,7 @@ package resolve
 
 import (
 	"strings"
+	"time"
 
 	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/go-arena"
@@ -26,6 +27,17 @@ type CacheKey struct {
 	// NegativeCacheHit is set during mergeResult when the subgraph returned null for this entity.
 	// Used by updateL2Cache to store a null sentinel with NegativeCacheTTL instead of regular TTL.
 	NegativeCacheHit bool
+	// fromCacheRemainingTTL tracks the selected candidate freshness for multi-key cache hits.
+	fromCacheRemainingTTL time.Duration
+	// fromCacheCandidates stores all matching L2 candidates for this cache key, sorted freshest first.
+	fromCacheCandidates []fromCacheCandidate
+	// fromCacheNeedsWriteback marks cache-hit resolution paths that should rewrite canonical data to L2.
+	fromCacheNeedsWriteback bool
+}
+
+type fromCacheCandidate struct {
+	value        []byte
+	remainingTTL time.Duration
 }
 
 type RootQueryCacheKeyTemplate struct {
@@ -135,6 +147,53 @@ func (r *RootQueryCacheKeyTemplate) renderDerivedEntityKey(a arena.Arena, ctx *C
 	keyObj.Set(a, "key", keysObj)
 
 	// Marshal to JSON
+	jsonBytes = keyObj.MarshalTo(jsonBytes[:0])
+	l := len(jsonBytes)
+	if prefix != "" {
+		l += 1 + len(prefix)
+	}
+	slice := arena.AllocateSlice[byte](a, 0, l)
+	if prefix != "" {
+		slice = arena.SliceAppend(a, slice, unsafebytes.StringToBytes(prefix)...)
+		slice = arena.SliceAppend(a, slice, []byte(`:`)...)
+	}
+	slice = arena.SliceAppend(a, slice, jsonBytes...)
+	return string(slice), jsonBytes
+}
+
+// RenderEntityKeysFromValue renders derived entity cache keys from entity data instead of request arguments.
+// Missing/null key fields skip that mapping.
+func (r *RootQueryCacheKeyTemplate) RenderEntityKeysFromValue(a arena.Arena, entity *astjson.Value, prefix string) []string {
+	if entity == nil || entity.Type() != astjson.TypeObject || len(r.EntityKeyMappings) == 0 {
+		return nil
+	}
+
+	keys := make([]string, 0, len(r.EntityKeyMappings))
+	jsonBytes := arena.AllocateSlice[byte](a, 0, 64)
+	for _, mapping := range r.EntityKeyMappings {
+		key, jsonBytesOut := r.renderDerivedEntityKeyFromValue(a, entity, jsonBytes, mapping, prefix)
+		jsonBytes = jsonBytesOut
+		if key != "" {
+			keys = append(keys, key)
+		}
+	}
+	return keys
+}
+
+func (r *RootQueryCacheKeyTemplate) renderDerivedEntityKeyFromValue(a arena.Arena, entity *astjson.Value, jsonBytes []byte, mapping EntityKeyMappingConfig, prefix string) (string, []byte) {
+	keyObj := astjson.ObjectValue(a)
+	keyObj.Set(a, "__typename", astjson.StringValue(a, mapping.EntityTypeName))
+
+	keysObj := astjson.ObjectValue(a)
+	for _, fm := range mapping.FieldMappings {
+		value := entity.Get(strings.Split(fm.EntityKeyField, ".")...)
+		if value == nil || value.Type() == astjson.TypeNull {
+			return "", jsonBytes
+		}
+		setNestedKey(a, keysObj, fm.EntityKeyField, value)
+	}
+
+	keyObj.Set(a, "key", keysObj)
 	jsonBytes = keyObj.MarshalTo(jsonBytes[:0])
 	l := len(jsonBytes)
 	if prefix != "" {

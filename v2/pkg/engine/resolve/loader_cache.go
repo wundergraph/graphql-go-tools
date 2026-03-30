@@ -61,23 +61,145 @@ func (l *Loader) extractCacheKeysStrings(a arena.Arena, cacheKeys []*CacheKey) [
 
 // populateFromCache populates CacheKey.FromCache fields from cache entries
 func (l *Loader) populateFromCache(a arena.Arena, cacheKeys []*CacheKey, entries []*CacheEntry) (err error) {
-	for i := range entries {
-		if entries[i] == nil || entries[i].Value == nil {
-			continue
-		}
-		for j := range cacheKeys {
+	for j := range cacheKeys {
+		cacheKeys[j].FromCache = nil
+		cacheKeys[j].fromCacheRemainingTTL = 0
+		cacheKeys[j].fromCacheCandidates = nil
+		cacheKeys[j].fromCacheNeedsWriteback = false
+
+		var candidates []fromCacheCandidate
+		for i := range entries {
+			if entries[i] == nil || entries[i].Value == nil {
+				continue
+			}
 			for k := range cacheKeys[j].Keys {
 				if cacheKeys[j].Keys[k] == entries[i].Key {
-					cacheKeys[j].FromCache, err = astjson.ParseBytesWithArena(a, entries[i].Value)
-					if err != nil {
-						return errors.WithStack(err)
-					}
+					candidates = append(candidates, fromCacheCandidate{
+						value:        entries[i].Value,
+						remainingTTL: entries[i].RemainingTTL,
+					})
 					break
 				}
 			}
 		}
+		if len(candidates) == 0 {
+			continue
+		}
+		slices.SortStableFunc(candidates, func(a, b fromCacheCandidate) int {
+			return compareCacheCandidateFreshness(a.remainingTTL, b.remainingTTL)
+		})
+		cacheKeys[j].fromCacheCandidates = candidates
+		cacheKeys[j].fromCacheRemainingTTL = candidates[0].remainingTTL
+		cacheKeys[j].FromCache, err = astjson.ParseBytesWithArena(a, candidates[0].value)
+		if err != nil {
+			return errors.WithStack(err)
+		}
 	}
 	return nil
+}
+
+func compareCacheCandidateFreshness(a, b time.Duration) int {
+	aKnown := a > 0
+	bKnown := b > 0
+	switch {
+	case aKnown && bKnown:
+		return cmp.Compare(b, a)
+	case aKnown:
+		return -1
+	case bKnown:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func wrapCacheValueAtMergePath(a arena.Arena, value *astjson.Value, mergePath []string) *astjson.Value {
+	if value == nil || len(mergePath) == 0 {
+		return value
+	}
+	wrapped := value
+	for i := len(mergePath) - 1; i >= 0; i-- {
+		obj := astjson.ObjectValue(a)
+		obj.Set(a, mergePath[i], wrapped)
+		wrapped = obj
+	}
+	return wrapped
+}
+
+func (l *Loader) resolveMultiCandidateCacheValue(a arena.Arena, ck *CacheKey, providesData *Object) bool {
+	if ck.FromCache == nil {
+		return false
+	}
+	if providesData == nil || l.validateItemHasRequiredData(ck.FromCache, providesData) {
+		return true
+	}
+	if len(ck.fromCacheCandidates) <= 1 {
+		return false
+	}
+
+	var merged *astjson.Value
+	for i := len(ck.fromCacheCandidates) - 1; i >= 0; i-- {
+		parsed, err := astjson.ParseBytesWithArena(a, ck.fromCacheCandidates[i].value)
+		if err != nil {
+			continue
+		}
+		parsed = wrapCacheValueAtMergePath(a, parsed, ck.EntityMergePath)
+		if merged == nil {
+			merged = parsed
+			continue
+		}
+		if _, _, err = astjson.MergeValues(a, merged, parsed); err != nil {
+			merged = nil
+			break
+		}
+	}
+	if merged != nil && l.validateItemHasRequiredData(merged, providesData) {
+		ck.FromCache = merged
+		ck.fromCacheNeedsWriteback = true
+		return true
+	}
+
+	for i := 1; i < len(ck.fromCacheCandidates); i++ {
+		parsed, err := astjson.ParseBytesWithArena(a, ck.fromCacheCandidates[i].value)
+		if err != nil {
+			continue
+		}
+		parsed = wrapCacheValueAtMergePath(a, parsed, ck.EntityMergePath)
+		if l.validateItemHasRequiredData(parsed, providesData) {
+			ck.FromCache = parsed
+			ck.fromCacheRemainingTTL = ck.fromCacheCandidates[i].remainingTTL
+			ck.fromCacheNeedsWriteback = true
+			return true
+		}
+	}
+
+	return false
+}
+
+func needsKeyBackfill(cacheKeys []*CacheKey, entries []*CacheEntry) bool {
+	entrySet := make(map[string]struct{}, len(entries))
+	for _, entry := range entries {
+		if entry != nil && entry.Value != nil {
+			entrySet[entry.Key] = struct{}{}
+		}
+	}
+	for _, ck := range cacheKeys {
+		for _, key := range ck.Keys {
+			if _, ok := entrySet[key]; !ok {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func needsResolvedCacheWriteback(cacheKeys []*CacheKey) bool {
+	for _, ck := range cacheKeys {
+		if ck.fromCacheNeedsWriteback {
+			return true
+		}
+	}
+	return false
 }
 
 // cacheKeysToEntries converts CacheKeys to CacheEntries for storage
@@ -525,13 +647,7 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 	// so wrap the cached entity data back at the merge path before validation.
 	for _, ck := range res.l2CacheKeys {
 		if len(ck.EntityMergePath) > 0 && ck.FromCache != nil {
-			wrapped := ck.FromCache
-			for i := len(ck.EntityMergePath) - 1; i >= 0; i-- {
-				obj := astjson.ObjectValue(res.goroutineArena)
-				obj.Set(res.goroutineArena, ck.EntityMergePath[i], wrapped)
-				wrapped = obj
-			}
-			ck.FromCache = wrapped
+			ck.FromCache = wrapCacheValueAtMergePath(res.goroutineArena, ck.FromCache, ck.EntityMergePath)
 		}
 	}
 
@@ -557,6 +673,9 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 		for i := range res.l1CacheKeys {
 			if i < len(res.l2CacheKeys) {
 				res.l1CacheKeys[i].FromCache = res.l2CacheKeys[i].FromCache
+				res.l1CacheKeys[i].fromCacheRemainingTTL = res.l2CacheKeys[i].fromCacheRemainingTTL
+				res.l1CacheKeys[i].fromCacheCandidates = res.l2CacheKeys[i].fromCacheCandidates
+				res.l1CacheKeys[i].fromCacheNeedsWriteback = res.l2CacheKeys[i].fromCacheNeedsWriteback
 				// Track per-entity L2 hit/miss (atomic operations - thread-safe)
 				if res.l1CacheKeys[i].FromCache != nil {
 					// Negative cache hit: L2 stored a null sentinel for this entity.
@@ -582,7 +701,10 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 						if res.partialCacheEnabled {
 							res.cachedItemIndices = append(res.cachedItemIndices, i)
 						}
-					} else if info != nil && info.ProvidesData != nil && l.validateItemHasRequiredData(res.l1CacheKeys[i].FromCache, info.ProvidesData) {
+					} else if info != nil && info.ProvidesData != nil && l.resolveMultiCandidateCacheValue(res.goroutineArena, res.l1CacheKeys[i], info.ProvidesData) {
+						res.l2CacheKeys[i].FromCache = res.l1CacheKeys[i].FromCache
+						res.l2CacheKeys[i].fromCacheRemainingTTL = res.l1CacheKeys[i].fromCacheRemainingTTL
+						res.l2CacheKeys[i].fromCacheNeedsWriteback = res.l1CacheKeys[i].fromCacheNeedsWriteback
 						// Denormalize from original field names to current query aliases for merging
 						if hasAliases {
 							res.l1CacheKeys[i].FromCache = l.denormalizeFromCache(res.goroutineArena, res.l1CacheKeys[i].FromCache, info.ProvidesData)
@@ -674,7 +796,7 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 		// Root fetch (no L1 keys) - track directly from L2 keys
 		for i, ck := range res.l2CacheKeys {
 			if ck.FromCache != nil {
-				if info != nil && info.ProvidesData != nil && l.validateItemHasRequiredData(ck.FromCache, info.ProvidesData) {
+				if info != nil && info.ProvidesData != nil && l.resolveMultiCandidateCacheValue(res.goroutineArena, ck, info.ProvidesData) {
 					// Denormalize from original field names to current query aliases for merging
 					if hasAliases {
 						res.l2CacheKeys[i].FromCache = l.denormalizeFromCache(res.goroutineArena, ck.FromCache, info.ProvidesData)
@@ -759,6 +881,9 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 
 	if allComplete {
 		res.cacheSkipFetch = true
+		if needsKeyBackfill(res.l2CacheKeys, cacheEntries) || needsResolvedCacheWriteback(res.l2CacheKeys) {
+			res.cacheMustBeUpdated = true
+		}
 		return true, nil
 	}
 
@@ -1013,6 +1138,10 @@ func (l *Loader) updateL2Cache(res *result) {
 		// Cache update errors are non-fatal - silently ignore
 		return
 	}
+	cacheEntries, err = l.appendDerivedRootFieldCacheEntries(l.jsonArena, res, keysToStore, cacheEntries)
+	if err != nil {
+		return
+	}
 
 	// Enrich context with fetch identity when debug mode is enabled
 	ctx := l.ctx.ctx
@@ -1140,6 +1269,83 @@ func (l *Loader) updateL2Cache(res *result) {
 			})
 		}
 	}
+}
+
+func (l *Loader) appendDerivedRootFieldCacheEntries(a arena.Arena, res *result, keysToStore []*CacheKey, cacheEntries []*CacheEntry) ([]*CacheEntry, error) {
+	rootTemplate, ok := res.cacheConfig.CacheKeyTemplate.(*RootQueryCacheKeyTemplate)
+	if !ok || len(rootTemplate.EntityKeyMappings) == 0 {
+		return cacheEntries, nil
+	}
+
+	prefix := l.rootFieldL2CachePrefix(res)
+	seen := make(map[string]struct{}, len(cacheEntries))
+	for _, entry := range cacheEntries {
+		if entry != nil {
+			seen[entry.Key] = struct{}{}
+		}
+	}
+
+	for _, ck := range keysToStore {
+		if ck == nil || ck.Item == nil {
+			continue
+		}
+		entity := ck.Item
+		if len(ck.EntityMergePath) > 0 {
+			entity = ck.Item.Get(ck.EntityMergePath...)
+		}
+		if entity == nil || entity.Type() != astjson.TypeObject {
+			continue
+		}
+
+		derivedKeys := rootTemplate.RenderEntityKeysFromValue(a, entity, prefix)
+		if len(derivedKeys) == 0 {
+			continue
+		}
+
+		valueBytes := entity.MarshalTo(nil)
+		for _, key := range derivedKeys {
+			key = l.applyL2CacheKeyInterceptor(key, res)
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			entry := &CacheEntry{
+				Key:   key,
+				Value: arena.AllocateSlice[byte](a, len(valueBytes), len(valueBytes)),
+			}
+			copy(entry.Value, valueBytes)
+			cacheEntries = append(cacheEntries, entry)
+		}
+	}
+
+	return cacheEntries, nil
+}
+
+func (l *Loader) rootFieldL2CachePrefix(res *result) string {
+	globalPrefix := l.ctx.ExecutionOptions.Caching.GlobalCacheKeyPrefix
+	if res.headerHash != 0 {
+		headerPrefix := strconv.FormatUint(res.headerHash, 10)
+		if globalPrefix != "" {
+			return globalPrefix + ":" + headerPrefix
+		}
+		return headerPrefix
+	}
+	return globalPrefix
+}
+
+func (l *Loader) applyL2CacheKeyInterceptor(key string, res *result) string {
+	interceptor := l.ctx.ExecutionOptions.Caching.L2CacheKeyInterceptor
+	if interceptor == nil {
+		return key
+	}
+	info := L2CacheKeyInterceptorInfo{
+		SubgraphName: res.ds.Name,
+		CacheName:    res.cacheConfig.CacheName,
+	}
+	if res.fetchInfo != nil && res.fetchInfo.DataSourceName != "" {
+		info.SubgraphName = res.fetchInfo.DataSourceName
+	}
+	return interceptor(l.ctx.ctx, key, info)
 }
 
 // saveShadowCachedValue saves a cached L2 value for later staleness comparison in shadow mode.

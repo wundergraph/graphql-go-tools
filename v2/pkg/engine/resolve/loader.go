@@ -899,6 +899,9 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 				return l.renderErrorsFailedToFetch(fetchItem, res, "invalid cache item")
 			}
 		}
+		if res.cacheMustBeUpdated {
+			l.updateL2Cache(res)
+		}
 		return nil
 	}
 
