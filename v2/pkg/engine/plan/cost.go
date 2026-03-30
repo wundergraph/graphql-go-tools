@@ -453,9 +453,15 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 					// If these fields have weight attached, use them for calculation.
 					varValue := variables.Get(arg.varName)
 					// safety check
-					if varValue != nil && varValue.Type() == astjson.TypeObject {
-						argsCost += inputObjectCost(arg.typeName, variables.GetObject(arg.varName), dsCostConfig.Weights, arg.inputObjectFieldTypes)
-
+					if varValue != nil {
+						switch varValue.Type() {
+						case astjson.TypeObject:
+							argsCost += inputObjectCost(arg.typeName, variables.GetObject(arg.varName), dsCostConfig.Weights, arg.inputObjectFieldTypes)
+						case astjson.TypeArray:
+							for _, item := range varValue.GetArray() {
+								argsCost += inputObjectCost(arg.typeName, item.GetObject(), dsCostConfig.Weights, arg.inputObjectFieldTypes)
+							}
+						}
 					}
 				}
 			} else {

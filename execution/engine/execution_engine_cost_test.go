@@ -3537,6 +3537,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				discounted(input: DiscountedCreateInput!): Boolean
 				negNested(input: NegNestedInput!): Boolean
 				heavyDiscount(input: HeavyDiscountInput!): Boolean
+				createMany(inputs: [CreateInput!]!): Boolean
 			}
 			type User {
 				id: ID!
@@ -3592,7 +3593,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 		require.NoError(t, err)
 
 		rootNodes := []plan.TypeField{
-			{TypeName: "Query", FieldNames: []string{"create", "update", "nested", "recursive", "createList", "listed", "inputOverride", "discounted", "negNested", "heavyDiscount"}},
+			{TypeName: "Query", FieldNames: []string{"create", "update", "nested", "recursive", "createList", "listed", "inputOverride", "discounted", "negNested", "heavyDiscount", "createMany"}},
 			{TypeName: "User", FieldNames: []string{"id", "name", "email"}},
 		}
 		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
@@ -3694,6 +3695,12 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				TypeName: "Query", FieldName: "heavyDiscount",
 				Arguments: []plan.ArgumentConfiguration{
 					{Name: "input", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+				},
+			},
+			{
+				TypeName: "Query", FieldName: "createMany",
+				Arguments: []plan.ArgumentConfiguration{
+					{Name: "inputs", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
 				},
 			},
 		}
@@ -4120,5 +4127,37 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			},
 			computeCosts(),
 		))
+
+		t.Run("list-typed input object argument", func(t *testing.T) {
+			t.Run("should count per-item field weights", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schema,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query:     `query($inputs: [CreateInput!]!) { createMany(inputs: $inputs) }`,
+							Variables: []byte(`{"inputs": [{"name": "A", "email": "a@b.com"}, {"name": "B", "email": "b@c.com", "age": 30}]}`),
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: `{"data":{"createMany":true}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{RootNodes: rootNodes, CostConfig: costConfig},
+							customConfig,
+						),
+					},
+					fields:                fieldConfig,
+					expectedResponse:      `{"data":{"createMany":true}}`,
+					expectedEstimatedCost: intPtr(18), // item1(name:5 + email:3) + item2(name:5 + email:3 + age:2) = 18
+					expectedActualCost:    intPtr(18),
+				},
+				computeCosts(),
+			))
+		})
 	})
 }
