@@ -1,8 +1,6 @@
 package plan
 
 import (
-	"fmt"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 )
@@ -230,7 +228,6 @@ func (v *CostVisitor) buildInputObjectFieldTypes(typeName string, node ast.Node,
 		return
 	}
 	visited[typeName] = struct{}{}
-	fmt.Printf("* build for %v\n", typeName)
 
 	// For every field of the InputObject map fieldCoordinates to TypeName.
 	inputFieldRefs := v.Definition.NodeInputFieldDefinitions(node)
@@ -238,7 +235,6 @@ func (v *CostVisitor) buildInputObjectFieldTypes(typeName string, node ast.Node,
 	for _, inputFieldRef := range inputFieldRefs {
 		fieldName := v.Definition.InputValueDefinitionNameString(inputFieldRef)
 		fieldTypeRef := v.Definition.InputValueDefinitionType(inputFieldRef)
-		fieldTypeName, _ := v.Definition.PrintTypeBytes(fieldTypeRef, nil)
 		unwrappedTypeName := v.Definition.ResolveTypeNameString(fieldTypeRef)
 
 		fieldNode, exists := v.Definition.NodeByNameStr(v.Definition.ResolveTypeNameString(fieldTypeRef))
@@ -247,25 +243,23 @@ func (v *CostVisitor) buildInputObjectFieldTypes(typeName string, node ast.Node,
 		}
 
 		isListType := v.Definition.TypeIsList(fieldTypeRef)
-		fmt.Printf(" Name = %v, list = %v, TypeName = %s (%v)\n",
-			fieldName, isListType, fieldTypeName, unwrappedTypeName)
 		var isInputObject bool
 
 		// If it is an input object type, recursively visit it.
-		switch fieldNode.Kind {
-		case ast.NodeKindInputObjectTypeDefinition:
-			fmt.Printf(" Node = %v\n", fieldNode)
-			isInputObject = true
+		if fieldNode.Kind == ast.NodeKindInputObjectTypeDefinition {
+			if !isListType {
+				// listType has a priority over inputObject type in processing.
+				// These flags are set for the calculation of cost to process the values JSON.
+				isInputObject = true
+			}
 			v.buildInputObjectFieldTypes(unwrappedTypeName, fieldNode, visited, types)
-		default:
-			fmt.Printf(" -> %v\n", fieldNode.Kind)
 		}
 
 		coords := FieldCoordinate{typeName, fieldName}
 		types[coords] = inputObjectField{
-			typeName:      unwrappedTypeName,
-			isList:        isListType,
-			isInputObject: isInputObject,
+			unwrappedTypeName: unwrappedTypeName,
+			isList:            isListType,
+			isInputObject:     isInputObject,
 		}
 
 	}

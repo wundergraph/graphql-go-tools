@@ -210,11 +210,11 @@ func (r *Request) EstimatedCost() int {
 	return r.estimatedCost
 }
 
-func (r *Request) ComputeActualCost(calc *plan.CostCalculator, config plan.Configuration, actualListSizes map[string]int) {
+func (r *Request) ComputeActualCost(calc *plan.CostCalculator, config plan.Configuration, variables *astjson.Value, actualListSizes map[string]int) {
 	if calc != nil {
-		r.actualCost = calc.ActualCost(config, actualListSizes)
+		r.actualCost = calc.ActualCost(config, variables, actualListSizes)
 		// Debugging of cost trees. Uncomment to debug.
-		// fmt.Println(calc.DebugPrint(config, nil, actualListSizes))
+		// fmt.Println(calc.DebugPrint(config, variables, actualListSizes))
 	} else {
 		r.actualCost = 0
 	}
