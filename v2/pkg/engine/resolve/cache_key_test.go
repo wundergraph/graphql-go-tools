@@ -1538,8 +1538,11 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 	})
 
 	t.Run("remap variables - flat key remapped", func(t *testing.T) {
-		// Variable remapping: ArgumentPath ["id"] is remapped to ["a"] via RemapVariables.
-		// The variable "a" holds the actual value in ctx.Variables.
+		// Production scenario: normalizer renames $id → $a.
+		// RemapVariables maps newName → oldName: {"a": "id"}.
+		// ctx.Variables is keyed by the new name: {"a": "user-123"}.
+		// ArgumentPath ["id"] is the original argument name from composition.
+		// Reverse lookup resolves "id" → find "a" via RemapVariables → Variables["a"].
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
 				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"}},
@@ -1556,7 +1559,7 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 
 		ctx := &Context{
 			Variables:      astjson.MustParse(`{"a":"user-123"}`),
-			RemapVariables: map[string]string{"id": "a"},
+			RemapVariables: map[string]string{"a": "id"},
 			ctx:            context.Background(),
 		}
 		data := astjson.MustParse(`{}`)
@@ -1570,8 +1573,8 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 
 	t.Run("remap variables - multiple mappings only flat keys remapped", func(t *testing.T) {
 		// Two mappings: flat @key(fields: "id") + composite @key(fields: "sku region").
-		// RemapVariables maps "id" -> "a", "sku" -> "b", "region" -> "c".
-		// All three are single-element paths, so all get remapped.
+		// RemapVariables maps newName → oldName: "a" → "id", "b" → "sku", "c" → "region".
+		// All three are single-element paths, so all get resolved via reverse lookup.
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
 				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "productByAll"}},
@@ -1595,7 +1598,7 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 
 		ctx := &Context{
 			Variables:      astjson.MustParse(`{"a":"p1","b":"ABC","c":"us-east"}`),
-			RemapVariables: map[string]string{"id": "a", "sku": "b", "region": "c"},
+			RemapVariables: map[string]string{"a": "id", "b": "sku", "c": "region"},
 			ctx:            context.Background(),
 		}
 		data := astjson.MustParse(`{}`)
@@ -1610,7 +1613,7 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 
 	t.Run("remap variables - structured arg path not remapped", func(t *testing.T) {
 		// Multi-element ArgumentPath ["store", "id"] is NOT remapped even if
-		// RemapVariables has a mapping for "store". Remap only applies to
+		// RemapVariables has a mapping whose value is "store". Remap only applies to
 		// single-element paths (len(argumentPath) == 1).
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
@@ -1629,7 +1632,7 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 
 		ctx := &Context{
 			Variables:      astjson.MustParse(`{"store":{"id":"s1","region":"us"}}`),
-			RemapVariables: map[string]string{"store": "remapped_store"},
+			RemapVariables: map[string]string{"remapped_store": "store"},
 			ctx:            context.Background(),
 		}
 		data := astjson.MustParse(`{}`)
@@ -1644,7 +1647,8 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 
 	t.Run("remap variables - partial remap with multi-key", func(t *testing.T) {
 		// Two mappings: flat "id" (remapped) + flat "username" (not remapped).
-		// Only "id" has a RemapVariables entry, "username" uses original variable name.
+		// RemapVariables maps newName → oldName: {"a": "id"}.
+		// "username" has no remap entry — resolved directly from Variables.
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
 				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"}},
@@ -1667,7 +1671,7 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 
 		ctx := &Context{
 			Variables:      astjson.MustParse(`{"a":"user-123","username":"Me"}`),
-			RemapVariables: map[string]string{"id": "a"},
+			RemapVariables: map[string]string{"a": "id"},
 			ctx:            context.Background(),
 		}
 		data := astjson.MustParse(`{}`)

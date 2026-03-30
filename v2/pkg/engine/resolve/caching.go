@@ -132,14 +132,27 @@ func (r *RootQueryCacheKeyTemplate) renderDerivedEntityKey(a arena.Arena, ctx *C
 	keysObj := astjson.ObjectValue(a)
 	for _, fm := range mapping.FieldMappings {
 		argumentPath := fm.ArgumentPath
-		// Apply variable remapping (same as renderField)
+		// Apply variable remapping. RemapVariables maps newName → oldName.
+		// ArgumentPath contains the original argument name (from composition).
+		// ctx.Variables may be keyed by the new sequential name.
 		if len(argumentPath) == 1 && ctx.RemapVariables != nil {
+			// Forward lookup: argumentPath might already be the new name
 			if nameToUse, hasMapping := ctx.RemapVariables[argumentPath[0]]; hasMapping && nameToUse != argumentPath[0] {
 				argumentPath = []string{nameToUse}
 			}
 		}
 
 		argValue := ctx.Variables.Get(argumentPath...)
+		// Reverse lookup: argumentPath is the original name (e.g. "id"),
+		// find which new name (e.g. "a") maps to it in RemapVariables.
+		if argValue == nil && ctx.RemapVariables != nil && len(fm.ArgumentPath) == 1 {
+			for newName, oldName := range ctx.RemapVariables {
+				if oldName == fm.ArgumentPath[0] {
+					argValue = ctx.Variables.Get(newName)
+					break
+				}
+			}
+		}
 		if argValue == nil || argValue.Type() == astjson.TypeNull {
 			// Missing or null argument → skip caching
 			return "", jsonBytes
