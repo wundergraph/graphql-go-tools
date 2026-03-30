@@ -59,14 +59,20 @@ service ProductService {
   rpc QueryUser(QueryUserRequest) returns (QueryUserResponse) {}
   rpc QueryUsers(QueryUsersRequest) returns (QueryUsersResponse) {}
   rpc RequireStorageCategoryInfoSummaryById(RequireStorageCategoryInfoSummaryByIdRequest) returns (RequireStorageCategoryInfoSummaryByIdResponse) {}
+  rpc RequireStorageDeepItemInfoById(RequireStorageDeepItemInfoByIdRequest) returns (RequireStorageDeepItemInfoByIdResponse) {}
+  rpc RequireStorageItemHandlerInfoById(RequireStorageItemHandlerInfoByIdRequest) returns (RequireStorageItemHandlerInfoByIdResponse) {}
+  rpc RequireStorageItemInfoById(RequireStorageItemInfoByIdRequest) returns (RequireStorageItemInfoByIdResponse) {}
+  rpc RequireStorageItemSpecsInfoById(RequireStorageItemSpecsInfoByIdRequest) returns (RequireStorageItemSpecsInfoByIdResponse) {}
   rpc RequireStorageKindSummaryById(RequireStorageKindSummaryByIdRequest) returns (RequireStorageKindSummaryByIdResponse) {}
   rpc RequireStorageMetadataScoreById(RequireStorageMetadataScoreByIdRequest) returns (RequireStorageMetadataScoreByIdResponse) {}
+  rpc RequireStorageOperationReportById(RequireStorageOperationReportByIdRequest) returns (RequireStorageOperationReportByIdResponse) {}
   rpc RequireStorageOptionalProcessedMetadataById(RequireStorageOptionalProcessedMetadataByIdRequest) returns (RequireStorageOptionalProcessedMetadataByIdResponse) {}
   rpc RequireStorageOptionalProcessedTagsById(RequireStorageOptionalProcessedTagsByIdRequest) returns (RequireStorageOptionalProcessedTagsByIdResponse) {}
   rpc RequireStorageOptionalTagSummaryById(RequireStorageOptionalTagSummaryByIdRequest) returns (RequireStorageOptionalTagSummaryByIdResponse) {}
   rpc RequireStorageProcessedMetadataById(RequireStorageProcessedMetadataByIdRequest) returns (RequireStorageProcessedMetadataByIdResponse) {}
   rpc RequireStorageProcessedMetadataHistoryById(RequireStorageProcessedMetadataHistoryByIdRequest) returns (RequireStorageProcessedMetadataHistoryByIdResponse) {}
   rpc RequireStorageProcessedTagsById(RequireStorageProcessedTagsByIdRequest) returns (RequireStorageProcessedTagsByIdResponse) {}
+  rpc RequireStorageSecuritySummaryById(RequireStorageSecuritySummaryByIdRequest) returns (RequireStorageSecuritySummaryByIdResponse) {}
   rpc RequireStorageStockHealthScoreById(RequireStorageStockHealthScoreByIdRequest) returns (RequireStorageStockHealthScoreByIdResponse) {}
   rpc RequireStorageTagSummaryById(RequireStorageTagSummaryByIdRequest) returns (RequireStorageTagSummaryByIdResponse) {}
   rpc RequireWarehouseStockHealthScoreById(RequireWarehouseStockHealthScoreByIdRequest) returns (RequireWarehouseStockHealthScoreByIdResponse) {}
@@ -1548,6 +1554,291 @@ message RequireStorageCategoryInfoSummaryByIdFields {
   StorageCategoryInfo category_info = 1;
 }
 
+message RequireStorageItemInfoByIdRequest {
+  // RequireStorageItemInfoByIdContext provides the context for the required fields method RequireStorageItemInfoById.
+  repeated RequireStorageItemInfoByIdContext context = 1;
+}
+
+message RequireStorageItemInfoByIdContext {
+  LookupStorageByIdRequestKey key = 1;
+  RequireStorageItemInfoByIdFields fields = 2;
+}
+
+message RequireStorageItemInfoByIdResponse {
+  // RequireStorageItemInfoByIdResult provides the result for the required fields method RequireStorageItemInfoById.
+  repeated RequireStorageItemInfoByIdResult result = 1;
+}
+
+message RequireStorageItemInfoByIdResult {
+  string item_info = 1;
+}
+
+message RequireStorageItemInfoByIdFields {
+  message PalletItem {
+    string name = 1;
+    int32 pallet_count = 2;
+  }
+
+  message ContainerItem {
+    string name = 1;
+    string container_size = 2;
+  }
+
+  message StorageItem {
+    oneof instance {
+      ContainerItem container_item = 1;
+      PalletItem pallet_item = 2;
+    }
+  }
+  StorageItem primary_item = 1;
+}
+
+message RequireStorageOperationReportByIdRequest {
+  // RequireStorageOperationReportByIdContext provides the context for the required fields method RequireStorageOperationReportById.
+  repeated RequireStorageOperationReportByIdContext context = 1;
+}
+
+message RequireStorageOperationReportByIdContext {
+  LookupStorageByIdRequestKey key = 1;
+  RequireStorageOperationReportByIdFields fields = 2;
+}
+
+message RequireStorageOperationReportByIdResponse {
+  // RequireStorageOperationReportByIdResult provides the result for the required fields method RequireStorageOperationReportById.
+  repeated RequireStorageOperationReportByIdResult result = 1;
+}
+
+message RequireStorageOperationReportByIdResult {
+  string operation_report = 1;
+}
+
+message RequireStorageOperationReportByIdFields {
+  message StorageSuccess {
+    string message = 1;
+    string completed_at = 2;
+  }
+
+  message StorageFailure {
+    string message = 1;
+    string error_code = 2;
+  }
+
+  message StorageOperationResult {
+    oneof value {
+      StorageFailure storage_failure = 1;
+      StorageSuccess storage_success = 2;
+    }
+  }
+  StorageOperationResult last_storage_operation = 1;
+}
+
+message RequireStorageSecuritySummaryByIdRequest {
+  // RequireStorageSecuritySummaryByIdContext provides the context for the required fields method RequireStorageSecuritySummaryById.
+  repeated RequireStorageSecuritySummaryByIdContext context = 1;
+}
+
+message RequireStorageSecuritySummaryByIdContext {
+  LookupStorageByIdRequestKey key = 1;
+  RequireStorageSecuritySummaryByIdFields fields = 2;
+}
+
+message RequireStorageSecuritySummaryByIdResponse {
+  // RequireStorageSecuritySummaryByIdResult provides the result for the required fields method RequireStorageSecuritySummaryById.
+  repeated RequireStorageSecuritySummaryByIdResult result = 1;
+}
+
+message RequireStorageSecuritySummaryByIdResult {
+  string security_summary = 1;
+}
+
+message RequireStorageSecuritySummaryByIdFields {
+  message SecuritySetup {
+    message PalletItem {
+      string name = 1;
+      int32 pallet_count = 2;
+    }
+
+    message ContainerItem {
+      string name = 1;
+      string container_size = 2;
+    }
+
+    message StorageItem {
+      oneof instance {
+        ContainerItem container_item = 1;
+        PalletItem pallet_item = 2;
+      }
+    }
+    string security_level = 1;
+    StorageItem primary_item = 2;
+  }
+
+  SecuritySetup security_setup = 1;
+}
+
+message RequireStorageItemHandlerInfoByIdRequest {
+  // RequireStorageItemHandlerInfoByIdContext provides the context for the required fields method RequireStorageItemHandlerInfoById.
+  repeated RequireStorageItemHandlerInfoByIdContext context = 1;
+}
+
+message RequireStorageItemHandlerInfoByIdContext {
+  LookupStorageByIdRequestKey key = 1;
+  RequireStorageItemHandlerInfoByIdFields fields = 2;
+}
+
+message RequireStorageItemHandlerInfoByIdResponse {
+  // RequireStorageItemHandlerInfoByIdResult provides the result for the required fields method RequireStorageItemHandlerInfoById.
+  repeated RequireStorageItemHandlerInfoByIdResult result = 1;
+}
+
+message RequireStorageItemHandlerInfoByIdResult {
+  string item_handler_info = 1;
+}
+
+message RequireStorageItemHandlerInfoByIdFields {
+  message PalletItem {
+    message ItemHandler {
+      string name = 1;
+    }
+
+    ItemHandler handler = 1;
+  }
+
+  message ContainerItem {
+    message ItemHandler {
+      string name = 1;
+    }
+
+    ItemHandler handler = 1;
+  }
+
+  message StorageItem {
+    oneof instance {
+      ContainerItem container_item = 1;
+      PalletItem pallet_item = 2;
+    }
+  }
+  StorageItem primary_item = 1;
+}
+
+message RequireStorageItemSpecsInfoByIdRequest {
+  // RequireStorageItemSpecsInfoByIdContext provides the context for the required fields method RequireStorageItemSpecsInfoById.
+  repeated RequireStorageItemSpecsInfoByIdContext context = 1;
+}
+
+message RequireStorageItemSpecsInfoByIdContext {
+  LookupStorageByIdRequestKey key = 1;
+  RequireStorageItemSpecsInfoByIdFields fields = 2;
+}
+
+message RequireStorageItemSpecsInfoByIdResponse {
+  // RequireStorageItemSpecsInfoByIdResult provides the result for the required fields method RequireStorageItemSpecsInfoById.
+  repeated RequireStorageItemSpecsInfoByIdResult result = 1;
+}
+
+message RequireStorageItemSpecsInfoByIdResult {
+  string item_specs_info = 1;
+}
+
+message RequireStorageItemSpecsInfoByIdFields {
+  message PalletItem {
+    message PalletSpecs {
+      message Dimensions {
+        double length = 1;
+        double width = 2;
+      }
+
+      string name = 1;
+      Dimensions dimensions = 2;
+    }
+
+    PalletSpecs specs = 1;
+  }
+
+  message ContainerItem {
+    message ContainerSpecs {
+      message Dimensions {
+        double length = 1;
+        double width = 2;
+      }
+
+      string name = 1;
+      Dimensions dimensions = 2;
+    }
+
+    ContainerSpecs specs = 1;
+  }
+
+  message StorageItem {
+    oneof instance {
+      ContainerItem container_item = 1;
+      PalletItem pallet_item = 2;
+    }
+  }
+  StorageItem primary_item = 1;
+}
+
+message RequireStorageDeepItemInfoByIdRequest {
+  // RequireStorageDeepItemInfoByIdContext provides the context for the required fields method RequireStorageDeepItemInfoById.
+  repeated RequireStorageDeepItemInfoByIdContext context = 1;
+}
+
+message RequireStorageDeepItemInfoByIdContext {
+  LookupStorageByIdRequestKey key = 1;
+  RequireStorageDeepItemInfoByIdFields fields = 2;
+}
+
+message RequireStorageDeepItemInfoByIdResponse {
+  // RequireStorageDeepItemInfoByIdResult provides the result for the required fields method RequireStorageDeepItemInfoById.
+  repeated RequireStorageDeepItemInfoByIdResult result = 1;
+}
+
+message RequireStorageDeepItemInfoByIdResult {
+  string deep_item_info = 1;
+}
+
+message RequireStorageDeepItemInfoByIdFields {
+  message PalletItem {
+    message ItemHandler {
+      message ContainerItem {
+        string name = 1;
+        string container_size = 2;
+      }
+
+      message PalletItem {
+        string name = 1;
+        int32 pallet_count = 2;
+      }
+
+      message StorageItem {
+        oneof instance {
+          ContainerItem container_item = 1;
+          PalletItem pallet_item = 2;
+        }
+      }
+      StorageItem assigned_item = 1;
+    }
+
+    ItemHandler handler = 1;
+  }
+
+  message ContainerItem {
+    message ItemHandler {
+      string name = 1;
+    }
+
+    ItemHandler handler = 1;
+  }
+
+  message StorageItem {
+    oneof instance {
+      ContainerItem container_item = 1;
+      PalletItem pallet_item = 2;
+    }
+  }
+  StorageItem primary_item = 1;
+}
+
 message RequireWarehouseStockHealthScoreByIdRequest {
   // RequireWarehouseStockHealthScoreByIdContext provides the context for the required fields method RequireWarehouseStockHealthScoreById.
   repeated RequireWarehouseStockHealthScoreByIdContext context = 1;
@@ -1948,6 +2239,77 @@ message BreedCharacteristics {
   string size = 1;
   string temperament = 2;
   string lifespan = 3;
+}
+
+message StorageItem {
+  oneof instance {
+  PalletItem pallet_item = 1;
+  ContainerItem container_item = 2;
+  }
+}
+
+message PalletItem {
+  string id = 1;
+  string name = 2;
+  double weight = 3;
+  int32 pallet_count = 4;
+  ItemHandler handler = 5;
+  PalletSpecs specs = 6;
+}
+
+message ContainerItem {
+  string id = 1;
+  string name = 2;
+  double weight = 3;
+  string container_size = 4;
+  ItemHandler handler = 5;
+  ContainerSpecs specs = 6;
+}
+
+message ItemHandler {
+  string id = 1;
+  string name = 2;
+  StorageItem assigned_item = 3;
+}
+
+message PalletSpecs {
+  string name = 1;
+  double max_weight = 2;
+  Dimensions dimensions = 3;
+}
+
+message ContainerSpecs {
+  string name = 1;
+  double volume = 2;
+  Dimensions dimensions = 3;
+}
+
+message Dimensions {
+  double length = 1;
+  double width = 2;
+  double height = 3;
+}
+
+message StorageOperationResult {
+  oneof value {
+  StorageSuccess storage_success = 1;
+  StorageFailure storage_failure = 2;
+  }
+}
+
+message StorageSuccess {
+  string message = 1;
+  string completed_at = 2;
+}
+
+message StorageFailure {
+  string message = 1;
+  string error_code = 2;
+}
+
+message SecuritySetup {
+  string security_level = 1;
+  StorageItem primary_item = 2;
 }
 
 message ActionSuccess {

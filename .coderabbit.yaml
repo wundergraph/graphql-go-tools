@@ -2,7 +2,12 @@
 language: "en-US"
 reviews:
   profile: "chill"
-  high_level_summary: true
+  # When high_level_summary is false, the summary is still generated and inserted
+  # if the @coderabbitai summary placeholder is present in the description.
+  # The setting only suppresses the automatic append behaviour.
+  high_level_summary: false
+  # by default, lets insert summary there, so you could copy it to the message.
+  high_level_summary_in_walkthrough: true
   poem: false
   suggested_reviewers: false
   in_progress_fortune: false

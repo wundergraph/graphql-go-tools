@@ -1708,3 +1708,147 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_And_FieldResolvers(t *te
 		})
 	}
 }
+
+func Test_DataSource_Load_WithEntity_Calls_And_Requires_AbstractTypes(t *testing.T) {
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
+
+	type graphqlError struct {
+		Message string `json:"message"`
+	}
+	type graphqlResponse struct {
+		Data   map[string]interface{} `json:"data"`
+		Errors []graphqlError         `json:"errors,omitempty"`
+	}
+
+	testCases := []struct {
+		name              string
+		query             string
+		vars              string
+		federationConfigs plan.FederationFieldConfigurations
+		validate          func(t *testing.T, data map[string]interface{})
+		validateError     func(t *testing.T, errData []graphqlError)
+	}{
+		{
+			name:  "Query Storage with itemInfo requiring interface type",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Storage { id name itemInfo } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Storage","id":"1","primaryItem":{"__typename":"PalletItem","name":"Heavy Pallet","palletCount":10}},
+				{"__typename":"Storage","id":"2","primaryItem":{"__typename":"ContainerItem","name":"Steel Container","containerSize":"40ft"}}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "itemInfo",
+					SelectionSet: `primaryItem { ... on PalletItem { name palletCount } ... on ContainerItem { name containerSize } }`,
+				},
+			},
+			validate: func(t *testing.T, data map[string]interface{}) {
+				entities, ok := data["_entities"].([]interface{})
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 2)
+
+				storage1, ok := entities[0].(map[string]interface{})
+				require.True(t, ok, "storage1 should be an object")
+				require.Equal(t, "1", storage1["id"])
+				require.Equal(t, "Storage 1", storage1["name"])
+				require.Equal(t, "Pallet: Heavy Pallet (count: 10)", storage1["itemInfo"])
+
+				storage2, ok := entities[1].(map[string]interface{})
+				require.True(t, ok, "storage2 should be an object")
+				require.Equal(t, "2", storage2["id"])
+				require.Equal(t, "Storage 2", storage2["name"])
+				require.Equal(t, "Container: Steel Container (size: 40ft)", storage2["itemInfo"])
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			name:  "Query Storage with operationReport requiring union type",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Storage { id name operationReport } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Storage","id":"1","lastStorageOperation":{"__typename":"StorageSuccess","message":"Item stored","completedAt":"2024-01-15T10:30:00Z"}},
+				{"__typename":"Storage","id":"2","lastStorageOperation":{"__typename":"StorageFailure","message":"Storage full","errorCode":"ERR_FULL"}}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "operationReport",
+					SelectionSet: `lastStorageOperation { ... on StorageSuccess { message completedAt } ... on StorageFailure { message errorCode } }`,
+				},
+			},
+			validate: func(t *testing.T, data map[string]interface{}) {
+				entities, ok := data["_entities"].([]interface{})
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 2)
+
+				storage1, ok := entities[0].(map[string]interface{})
+				require.True(t, ok, "storage1 should be an object")
+				require.Equal(t, "1", storage1["id"])
+				require.Equal(t, "Storage 1", storage1["name"])
+				require.Equal(t, "Success: Item stored at 2024-01-15T10:30:00Z", storage1["operationReport"])
+
+				storage2, ok := entities[1].(map[string]interface{})
+				require.True(t, ok, "storage2 should be an object")
+				require.Equal(t, "2", storage2["id"])
+				require.Equal(t, "Storage 2", storage2["name"])
+				require.Equal(t, "Failure: Storage full (code: ERR_FULL)", storage2["operationReport"])
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Parse the GraphQL schema
+			schemaDoc := grpctest.MustGraphQLSchema(t)
+
+			// Parse the GraphQL query
+			queryDoc, report := astparser.ParseGraphqlDocumentString(tc.query)
+			if report.HasErrors() {
+				t.Fatalf("failed to parse query: %s", report.Error())
+			}
+
+			compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+			if err != nil {
+				t.Fatalf("failed to compile proto: %v", err)
+			}
+
+			// Create the datasource
+			ds, err := NewDataSource(conn, DataSourceConfig{
+				Operation:         &queryDoc,
+				Definition:        &schemaDoc,
+				SubgraphName:      "Products",
+				Mapping:           testMapping(),
+				Compiler:          compiler,
+				FederationConfigs: tc.federationConfigs,
+			})
+			require.NoError(t, err)
+
+			// Execute the query through our datasource
+			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
+			data, err := ds.Load(context.Background(), nil, []byte(input))
+			require.NoError(t, err)
+
+			// Parse the response
+			var resp graphqlResponse
+
+			err = json.Unmarshal(data, &resp)
+			require.NoError(t, err, "Failed to unmarshal response")
+
+			tc.validate(t, resp.Data)
+			tc.validateError(t, resp.Errors)
+		})
+	}
+}

@@ -57,6 +57,25 @@ type Storage @key(fields: "id") {
   kindSummary: String! @requires(fields: "storageKind")
   categoryInfoSummary: String! @requires(fields: "categoryInfo { kind name }")
 
+  # External abstract type fields for @requires testing
+  primaryItem: StorageItem! @external
+  lastStorageOperation: StorageOperationResult! @external
+  securitySetup: SecuritySetup! @external
+
+  # @requires fields using abstract types
+  # Pattern 1: Flat abstract — interface
+  itemInfo: String! @requires(fields: "primaryItem { ... on PalletItem { __typename name palletCount } ... on ContainerItem { __typename name containerSize } }")
+  # Pattern 2: Flat abstract — union
+  operationReport: String! @requires(fields: "lastStorageOperation { ... on StorageSuccess { __typename message completedAt } ... on StorageFailure { __typename message errorCode } }")
+  # Pattern 3: Concrete wrapping abstract
+  securitySummary: String! @requires(fields: "securitySetup { securityLevel primaryItem { ... on PalletItem { __typename name palletCount } ... on ContainerItem { __typename name containerSize } } }")
+  # Pattern 4: Concrete message inside fragment
+  itemHandlerInfo: String! @requires(fields: "primaryItem { ... on PalletItem { __typename handler { name } } ... on ContainerItem { __typename handler { name } } }")
+  # Pattern 5: Deep concrete nesting inside fragment (specs → dimensions)
+  itemSpecsInfo: String! @requires(fields: "primaryItem { ... on PalletItem { __typename specs { name dimensions { length width } } } ... on ContainerItem { __typename specs { name dimensions { length width } } } }")
+  # Pattern 6: Nested abstract through concrete intermediary (handler → assignedItem)
+  deepItemInfo: String! @requires(fields: "primaryItem { ... on PalletItem { __typename handler { assignedItem { ... on ContainerItem { __typename name containerSize } ... on PalletItem { __typename name palletCount } } } } ... on ContainerItem { __typename handler { name } } }")
+
   # @connect_fieldResolver fields
   storageStatus(checkHealth: Boolean!): ActionResult! @connect__fieldResolver(context: "id name")
   linkedStorages(depth: Int!): [Storage!]! @connect__fieldResolver(context: "id name location")
@@ -290,6 +309,73 @@ type BreedCharacteristics {
   size: String!
   temperament: String!
   lifespan: String!
+}
+
+# Storage abstract types for @requires testing
+
+interface StorageItem {
+  id: ID!
+  name: String!
+  weight: Float!
+}
+
+type PalletItem implements StorageItem {
+  id: ID!
+  name: String!
+  weight: Float!
+  palletCount: Int!
+  handler: ItemHandler!
+  specs: PalletSpecs!
+}
+
+type ContainerItem implements StorageItem {
+  id: ID!
+  name: String!
+  weight: Float!
+  containerSize: String!
+  handler: ItemHandler!
+  specs: ContainerSpecs!
+}
+
+type ItemHandler {
+  id: ID!
+  name: String!
+  assignedItem: StorageItem!
+}
+
+type PalletSpecs {
+  name: String!
+  maxWeight: Float!
+  dimensions: Dimensions!
+}
+
+type ContainerSpecs {
+  name: String!
+  volume: Float!
+  dimensions: Dimensions!
+}
+
+type Dimensions {
+  length: Float!
+  width: Float!
+  height: Float!
+}
+
+union StorageOperationResult = StorageSuccess | StorageFailure
+
+type StorageSuccess {
+  message: String!
+  completedAt: String!
+}
+
+type StorageFailure {
+  message: String!
+  errorCode: String!
+}
+
+type SecuritySetup {
+  securityLevel: String!
+  primaryItem: StorageItem!
 }
 
 # Union Types for Testing

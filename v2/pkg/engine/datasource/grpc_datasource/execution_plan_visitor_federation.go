@@ -526,7 +526,7 @@ func (r *rpcPlanVisitorFederation) scaffoldEntityLookup(typeName string, ecd ent
 	walker := astvisitor.WalkerFromPool()
 	defer walker.Release()
 
-	requiredFieldsVisitor := newRequiredFieldsVisitor(walker, keyFieldMessage, r.planCtx)
+	requiredFieldsVisitor := newRequiredFieldsVisitor(walker, keyFieldMessage, r.planCtx.mapping)
 	err := requiredFieldsVisitor.visitWithDefaults(r.definition, typeName, ecd.keyFields)
 	if err != nil {
 		r.walker.StopWithInternalErr(err)
