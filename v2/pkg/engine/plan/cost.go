@@ -29,6 +29,7 @@ import (
 	"strings"
 
 	"github.com/wundergraph/astjson"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
@@ -590,11 +591,9 @@ func inputObjectCost(
 			}
 		} else if typeInfo.isList {
 			valueArray := value.GetArray()
-			if valueArray != nil {
-				for _, item := range valueArray {
-					if item.Type() == astjson.TypeObject {
-						cost += inputObjectCost(typeInfo.unwrappedTypeName, item.GetObject(), weights, types)
-					}
+			for _, item := range valueArray {
+				if item.Type() == astjson.TypeObject {
+					cost += inputObjectCost(typeInfo.unwrappedTypeName, item.GetObject(), weights, types)
 				}
 			}
 		}

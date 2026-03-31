@@ -220,7 +220,10 @@ func (v *CostVisitor) extractFieldArguments(fieldRef int) map[string]ArgumentInf
 	return arguments
 }
 
-func (v *CostVisitor) buildInputObjectFieldTypes(typeName string, node ast.Node, visited map[string]struct{}, types map[FieldCoordinate]inputObjectField) {
+// buildInputObjectFieldTypes recursively resolves and caches the field types of an input object,
+// handling nested input objects by traversing their fields depth-first.
+func (v *CostVisitor) buildInputObjectFieldTypes(typeName string, node ast.Node,
+	visited map[string]struct{}, types map[FieldCoordinate]inputObjectField) {
 	// Visit every input object type only once:
 	if _, ok := visited[typeName]; ok {
 		return
