@@ -104,4 +104,69 @@ func TestRootFieldEntityKeyMappingCacheSharing(t *testing.T) {
 		assert.Equal(t, 0, tracker.GetCount(productsHost), "second request should NOT call products subgraph (root field entity cache hit)")
 		assert.Equal(t, 0, tracker.GetCount(reviewsHost), "second request should NOT call reviews subgraph (entity cache hit)")
 	})
+
+	t.Run("shadow mode with EntityKeyMappings always calls subgraph", func(t *testing.T) {
+		t.Parallel()
+
+		defaultCache := NewFakeLoaderCache()
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(map[string]resolve.LoaderCache{"default": defaultCache}),
+			withHTTPClient(&http.Client{Transport: tracker}),
+			withCachingOptionsFunc(resolve.CachingOptions{
+				EnableL1Cache: false,
+				EnableL2Cache: true,
+			}),
+			withSubgraphEntityCachingConfigs(engine.SubgraphCachingConfigs{
+				{
+					SubgraphName: "products",
+					RootFieldCaching: plan.RootFieldCacheConfigurations{
+						{
+							TypeName:  "Query",
+							FieldName: "product",
+							CacheName: "default",
+							TTL:       30 * time.Second,
+							ShadowMode: true,
+							EntityKeyMappings: []plan.EntityKeyMapping{
+								{
+									EntityTypeName: "Product",
+									FieldMappings: []plan.FieldMapping{
+										{EntityKeyField: "upc", ArgumentPath: []string{"upc"}},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					SubgraphName: "reviews",
+					EntityCaching: plan.EntityCacheConfigurations{
+						{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second},
+					},
+				},
+			}),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		productsURLParsed, _ := url.Parse(setup.ProductsUpstreamServer.URL)
+		productsHost := productsURLParsed.Host
+
+		// Request 1: cache miss → subgraph called
+		tracker.Reset()
+		gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL,
+			`query { product(upc: "top-1") { upc name reviews { body } } }`, nil, t)
+		assert.Equal(t, 1, tracker.GetCount(productsHost), "first request should call products subgraph")
+
+		// Request 2: shadow mode → subgraph MUST be called again (never serve from cache)
+		tracker.Reset()
+		gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL,
+			`query { product(upc: "top-1") { upc name reviews { body } } }`, nil, t)
+		assert.Equal(t, 1, tracker.GetCount(productsHost), "shadow mode should always call products subgraph")
+	})
 }

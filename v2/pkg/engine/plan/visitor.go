@@ -2421,6 +2421,7 @@ func (v *Visitor) configureFetchCaching(internal *objectFetchConfiguration, exte
 		CacheKeyTemplate:                   external.Caching.CacheKeyTemplate,
 		IncludeSubgraphHeaderPrefix:        commonConfig.IncludeSubgraphHeaderPrefix,
 		RootFieldL1EntityCacheKeyTemplates: external.Caching.RootFieldL1EntityCacheKeyTemplates,
+		ShadowMode:                         commonConfig.ShadowMode,
 	}
 }
 
