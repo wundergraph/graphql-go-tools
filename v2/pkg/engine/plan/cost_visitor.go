@@ -262,7 +262,6 @@ func (v *CostVisitor) buildInputObjectFieldTypes(typeName string, node ast.Node,
 			isList:            isListType,
 			isInputObject:     isInputObject,
 		}
-
 	}
 }
 

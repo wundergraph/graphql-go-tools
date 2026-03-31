@@ -850,7 +850,7 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*Da
 	}
 
 	// This is somewhat redundant, but it should not be used in production.
-	// If there is a need to present cost tree to the user,
+	// If there is a need to present a cost tree to the user,
 	// printing should be embedded into the tree calculation process.
 	subtreeCost := node.cost(configs, variables, defaultListSize, actualListSizes)
 	fmt.Fprintf(sb, "%s  subCost=%d\n", indent, subtreeCost)
