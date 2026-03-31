@@ -409,14 +409,9 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 							EntityTypeName: ekm.EntityTypeName,
 						}
 						for _, fm := range ekm.FieldMappings {
-							resolved, err := resolveArgumentPath(fm.ArgumentPath, rf.Args, rf.Coordinate)
-							if err != nil {
-								p.stopWithError(errors.WithStack(err))
-								return resolve.FetchConfiguration{}
-							}
 							mappingConfig.FieldMappings = append(mappingConfig.FieldMappings, resolve.EntityFieldMappingConfig{
 								EntityKeyField: fm.EntityKeyField,
-								ArgumentPath:   resolved,
+								ArgumentPath:   resolveArgumentPath(fm.ArgumentPath, rf.Args),
 							})
 						}
 						template.EntityKeyMappings = append(template.EntityKeyMappings, mappingConfig)
@@ -931,27 +926,24 @@ func (p *Planner[T]) addFieldArguments(upstreamFieldRef int, fieldRef int, field
 // argument names. The root field's tracked Args contain the resolved ContextVariable
 // paths, so we look up by argument name to find the real path.
 //
-// Returns an error if the argument name is not found in the root field's tracked args,
-// which indicates a misconfigured EntityKeyMapping.
-func resolveArgumentPath(argumentPath []string, args []resolve.FieldArgument, rootField resolve.GraphCoordinate) ([]string, error) {
+// When the argument name doesn't match any root field argument, the original path
+// is returned unchanged. This is intentional: some EntityKeyMappings reference entity
+// fields that aren't root field arguments (e.g., "username" on a root field that only
+// takes "id"). These "derived keys" are populated from entity response data on the
+// write path via RenderEntityKeysFromValue — the read path will naturally skip them.
+func resolveArgumentPath(argumentPath []string, args []resolve.FieldArgument) []string {
 	if len(argumentPath) != 1 {
-		return argumentPath, nil
+		return argumentPath
 	}
 	for _, arg := range args {
 		if arg.Name == argumentPath[0] {
 			if cv, ok := arg.Variable.(*resolve.ContextVariable); ok {
-				return cv.Path, nil
+				return cv.Path
 			}
-			return argumentPath, nil
+			return argumentPath
 		}
 	}
-	return nil, fmt.Errorf(
-		"entity cache key mapping for %s.%s references argument %q, "+
-			"but the root field has no argument with that name - "+
-			"L2 cache lookups for this root field will fail silently; "+
-			"check that EntityKeyMapping.ArgumentPath matches a declared argument on the root field",
-		rootField.TypeName, rootField.FieldName, argumentPath[0],
-	)
+	return argumentPath
 }
 
 // trackCacheKeyCoordinate ensures a root field is tracked for cache key generation,
