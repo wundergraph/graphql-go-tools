@@ -616,6 +616,9 @@ type CostCalculator struct {
 
 	// costConfigs is a map of data source hashes to their cost configuration.
 	costConfigs map[DSHash]*DataSourceCostConfig
+
+	// defaultListSize is used as a fallback for list sizes when no specific size is provided.
+	defaultListSize int
 }
 
 // NewCostCalculator creates a new cost calculator. The defaultListSize is floored to 1.
@@ -631,17 +634,18 @@ func NewCostCalculator(config Configuration) *CostCalculator {
 		}
 		c.costConfigs[ds.Hash()] = dsCostConfig
 	}
+	c.defaultListSize = config.StaticCostDefaultListSize
+	if c.defaultListSize < 1 {
+		// Zero would estimate all lists as zero.
+		c.defaultListSize = 1
+	}
 	return &c
 }
 
 // EstimateCost returns the calculated total static cost.
 // config should be static per process or instance. variables could change between requests.
-func (c *CostCalculator) EstimateCost(defaultListSize int, variables *astjson.Value) int {
-	if defaultListSize < 1 {
-		// Zero would estimate all lists as zero.
-		defaultListSize = 1
-	}
-	return c.tree.cost(c.costConfigs, variables, defaultListSize, nil)
+func (c *CostCalculator) EstimateCost(variables *astjson.Value) int {
+	return c.tree.cost(c.costConfigs, variables, c.defaultListSize, nil)
 }
 
 const (
@@ -743,15 +747,12 @@ func (node *CostTreeNode) buildASTPath() ast.Path {
 
 // DebugPrint prints the cost tree structure for debugging purposes.
 // It shows each node's field coordinate, costs, multipliers, and computed totals.
-func (c *CostCalculator) DebugPrint(config Configuration, variables *astjson.Value, actualListSizes map[string]int) string {
+func (c *CostCalculator) DebugPrint(variables *astjson.Value, actualListSizes map[string]int) string {
 	if c.tree == nil || len(c.tree.children) == 0 {
 		return "<empty cost tree>"
 	}
 	costConfigs := c.costConfigs
-	defaultListSize := config.StaticCostDefaultListSize
-	if defaultListSize < 1 {
-		defaultListSize = 1
-	}
+	defaultListSize := c.defaultListSize
 	var sb strings.Builder
 	if actualListSizes != nil {
 		defaultListSize = -1

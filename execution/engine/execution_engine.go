@@ -221,7 +221,7 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 			return report
 		}
 	}
-	operation.ComputeEstimatedCost(costCalculator, e.config.plannerConfig, execContext.resolveContext.Variables)
+	operation.ComputeEstimatedCost(costCalculator, execContext.resolveContext.Variables)
 
 	if execContext.resolveContext.TracingOptions.Enable && !execContext.resolveContext.TracingOptions.ExcludePlannerStats {
 		planningTime := resolve.GetDurationNanoSinceTraceStart(execContext.resolveContext.Context()) - tracePlanStart
