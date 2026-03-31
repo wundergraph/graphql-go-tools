@@ -238,7 +238,7 @@ func (v *CostVisitor) buildInputObjectFieldTypes(typeName string, node ast.Node,
 		fieldTypeRef := v.Definition.InputValueDefinitionType(inputFieldRef)
 		unwrappedTypeName := v.Definition.ResolveTypeNameString(fieldTypeRef)
 
-		fieldNode, exists := v.Definition.NodeByNameStr(v.Definition.ResolveTypeNameString(fieldTypeRef))
+		fieldNode, exists := v.Definition.NodeByNameStr(unwrappedTypeName)
 		if !exists {
 			continue
 		}

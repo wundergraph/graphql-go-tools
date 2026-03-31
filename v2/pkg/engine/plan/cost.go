@@ -254,6 +254,9 @@ func (arg *ArgumentInfo) inputFieldsCost(variables *astjson.Value, weights map[F
 		for _, item := range varValue.GetArray() {
 			cost += inputObjectCost(arg.typeName, item.GetObject(), weights, arg.inputObjectFieldTypes)
 		}
+		// When isList=true and the JSON contains nested arrays (e.g., [[{...}]]),
+		// the inner arrays are skipped since item.Type() == astjson.TypeObject is false
+		// for array items.
 		return cost
 	}
 	return 0
@@ -584,17 +587,17 @@ func inputObjectCost(
 		if value == nil || value.Type() == astjson.TypeNull {
 			return
 		}
-		if typeInfo.isInputObject {
-			valueObj := value.GetObject()
-			if valueObj != nil {
-				cost += inputObjectCost(typeInfo.unwrappedTypeName, valueObj, weights, types)
-			}
-		} else if typeInfo.isList {
+		if typeInfo.isList {
 			valueArray := value.GetArray()
 			for _, item := range valueArray {
 				if item.Type() == astjson.TypeObject {
 					cost += inputObjectCost(typeInfo.unwrappedTypeName, item.GetObject(), weights, types)
 				}
+			}
+		} else if typeInfo.isInputObject {
+			valueObj := value.GetObject()
+			if valueObj != nil {
+				cost += inputObjectCost(typeInfo.unwrappedTypeName, valueObj, weights, types)
 			}
 		}
 		if fw, ok := weights[coords]; ok && fw.HasWeight {
