@@ -804,7 +804,7 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 					{
 						EntityTypeName: "User",
 						FieldMappings: []resolve.EntityFieldMappingConfig{
-							{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+							{EntityKeyField: "id", ArgumentPath: []string{"id1"}},
 						},
 					},
 				},
@@ -849,7 +849,7 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 					{
 						EntityTypeName: "User",
 						FieldMappings: []resolve.EntityFieldMappingConfig{
-							{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+							{EntityKeyField: "id", ArgumentPath: []string{"id2"}},
 						},
 					},
 				},

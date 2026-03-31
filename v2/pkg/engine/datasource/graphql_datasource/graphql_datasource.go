@@ -395,7 +395,11 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 			template := &resolve.RootQueryCacheKeyTemplate{
 				RootFields: rootFieldsCopy,
 			}
-			// Populate entity key mappings from federation config
+			// Populate entity key mappings from federation config.
+			// ArgumentPath in the plan config uses schema argument names (e.g., "upc"),
+			// but ctx.Variables uses normalized variable names (e.g., "a") after variable
+			// extraction. We resolve each ArgumentPath through the root field's tracked
+			// arguments to find the actual ContextVariable path.
 			fedMeta := p.dataSourceConfig.FederationConfiguration()
 			for _, rf := range p.rootFields {
 				rfConfig := fedMeta.RootFieldCacheConfig(rf.Coordinate.TypeName, rf.Coordinate.FieldName)
@@ -405,9 +409,14 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 							EntityTypeName: ekm.EntityTypeName,
 						}
 						for _, fm := range ekm.FieldMappings {
+							resolved, err := resolveArgumentPath(fm.ArgumentPath, rf.Args, rf.Coordinate)
+							if err != nil {
+								p.stopWithError(errors.WithStack(err))
+								return resolve.FetchConfiguration{}
+							}
 							mappingConfig.FieldMappings = append(mappingConfig.FieldMappings, resolve.EntityFieldMappingConfig{
 								EntityKeyField: fm.EntityKeyField,
-								ArgumentPath:   fm.ArgumentPath,
+								ArgumentPath:   resolved,
 							})
 						}
 						template.EntityKeyMappings = append(template.EntityKeyMappings, mappingConfig)
@@ -914,6 +923,35 @@ func (p *Planner[T]) addFieldArguments(upstreamFieldRef int, fieldRef int, field
 			p.configureArgument(upstreamFieldRef, fieldRef, *fieldConfiguration, argumentConfiguration)
 		}
 	}
+}
+
+// resolveArgumentPath translates a schema-level argument name to the actual variable
+// path used in ctx.Variables. After variable extraction, inline literals become
+// variables with sequential names (a, b, c, ...) that differ from the original
+// argument names. The root field's tracked Args contain the resolved ContextVariable
+// paths, so we look up by argument name to find the real path.
+//
+// Returns an error if the argument name is not found in the root field's tracked args,
+// which indicates a misconfigured EntityKeyMapping.
+func resolveArgumentPath(argumentPath []string, args []resolve.FieldArgument, rootField resolve.GraphCoordinate) ([]string, error) {
+	if len(argumentPath) != 1 {
+		return argumentPath, nil
+	}
+	for _, arg := range args {
+		if arg.Name == argumentPath[0] {
+			if cv, ok := arg.Variable.(*resolve.ContextVariable); ok {
+				return cv.Path, nil
+			}
+			return argumentPath, nil
+		}
+	}
+	return nil, fmt.Errorf(
+		"entity cache key mapping for %s.%s references argument %q, "+
+			"but the root field has no argument with that name - "+
+			"L2 cache lookups for this root field will fail silently; "+
+			"check that EntityKeyMapping.ArgumentPath matches a declared argument on the root field",
+		rootField.TypeName, rootField.FieldName, argumentPath[0],
+	)
 }
 
 // trackCacheKeyCoordinate ensures a root field is tracked for cache key generation,
