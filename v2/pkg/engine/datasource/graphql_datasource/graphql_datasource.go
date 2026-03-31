@@ -392,9 +392,7 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		if len(p.rootFields) > 0 {
 			rootFieldsCopy := make([]resolve.QueryField, len(p.rootFields))
 			copy(rootFieldsCopy, p.rootFields)
-			template := &resolve.RootQueryCacheKeyTemplate{
-				RootFields: rootFieldsCopy,
-			}
+			entityKeyMappings := make([]resolve.EntityKeyMappingConfig, 0)
 			// Populate entity key mappings from federation config.
 			// ArgumentPath in the plan config uses schema argument names (e.g., "upc"),
 			// but ctx.Variables uses normalized variable names (e.g., "a") after variable
@@ -410,15 +408,16 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 						}
 						for _, fm := range ekm.FieldMappings {
 							mappingConfig.FieldMappings = append(mappingConfig.FieldMappings, resolve.EntityFieldMappingConfig{
-								EntityKeyField: fm.EntityKeyField,
-								ArgumentPath:   resolveArgumentPath(fm.ArgumentPath, rf.Args),
+								EntityKeyField:      fm.EntityKeyField,
+								ArgumentPath:        resolveArgumentPath(fm.ArgumentPath, rf.Args),
+								ArgumentIsEntityKey: fm.ArgumentIsEntityKey,
 							})
 						}
-						template.EntityKeyMappings = append(template.EntityKeyMappings, mappingConfig)
+						entityKeyMappings = append(entityKeyMappings, mappingConfig)
 					}
 				}
 			}
-			p.entityCacheKeyTemplate = template
+			p.entityCacheKeyTemplate = resolve.NewRootQueryCacheKeyTemplate(rootFieldsCopy, entityKeyMappings)
 		}
 	}
 

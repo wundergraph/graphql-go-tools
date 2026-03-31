@@ -1,6 +1,7 @@
 type Query {
     topProducts(first: Int = 5): [Product]
     product(upc: String!): Product
+    products(upcs: [String!]!): [Product]
 }
 
 type Mutation {

@@ -14,12 +14,25 @@ type CacheKeyTemplate interface {
 	// RenderCacheKeys returns multiple cache keys (one per root field or entity)
 	// Generates keys for all items at once
 	RenderCacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value, prefix string) ([]*CacheKey, error)
+	// IsEntityFetch reports whether the rendered keys describe entity fetch inputs.
+	IsEntityFetch() bool
+	// BatchEntityKeyArgumentPath returns the argument path for root-field batch entity lookups.
+	// Returns nil when the template does not support batch entity key construction.
+	BatchEntityKeyArgumentPath() []string
+	// EntityMergePath returns the entity-level merge path for root-field entity mappings.
+	// Returns nil when the template stores complete response payloads instead of entity payloads.
+	EntityMergePath(postProcessing PostProcessingConfiguration) []string
 }
 
 type CacheKey struct {
 	Item      *astjson.Value
 	FromCache *astjson.Value
 	Keys      []string
+	// BatchIndex records this cache key's position in the original batch argument list.
+	// For batch keys (ArgumentIsEntityKey + list), this is the index into the original
+	// list argument (e.g., ids[0], ids[1], ...). Used for response reassembly.
+	// For non-batch cache keys, this field is unused (default 0).
+	BatchIndex int
 	// missingKeys tracks the requested L2 keys that were absent on read for this entity.
 	// It is used during writeback to distinguish existing-key refreshes from missing-key backfills.
 	missingKeys []string
@@ -46,6 +59,23 @@ type fromCacheCandidate struct {
 type RootQueryCacheKeyTemplate struct {
 	RootFields        []QueryField
 	EntityKeyMappings []EntityKeyMappingConfig
+
+	batchEntityKeyPrecomputed  bool
+	hasBatchEntityKey          bool
+	batchEntityKeyArgumentPath []string
+}
+
+func (*RootQueryCacheKeyTemplate) IsEntityFetch() bool {
+	return false
+}
+
+func NewRootQueryCacheKeyTemplate(rootFields []QueryField, entityKeyMappings []EntityKeyMappingConfig) *RootQueryCacheKeyTemplate {
+	template := &RootQueryCacheKeyTemplate{
+		RootFields:        rootFields,
+		EntityKeyMappings: entityKeyMappings,
+	}
+	template.precomputeDerivedFields()
+	return template
 }
 
 // EntityKeyMappingConfig configures how root field arguments map to entity @key fields
@@ -57,13 +87,62 @@ type EntityKeyMappingConfig struct {
 
 // EntityFieldMappingConfig maps a single entity @key field to a root field argument path.
 type EntityFieldMappingConfig struct {
-	EntityKeyField string
-	ArgumentPath   []string
+	EntityKeyField      string
+	ArgumentPath        []string
+	ArgumentIsEntityKey bool
 }
 
 type QueryField struct {
 	Coordinate GraphCoordinate
 	Args       []FieldArgument
+}
+
+// HasBatchEntityKey returns true if any entity key mapping uses ArgumentIsEntityKey,
+// indicating this root field supports batch cache key construction from list arguments.
+func (r *RootQueryCacheKeyTemplate) HasBatchEntityKey() bool {
+	if r == nil {
+		return false
+	}
+	return r.hasBatchEntityKey
+}
+
+func (r *RootQueryCacheKeyTemplate) precomputeDerivedFields() {
+	if r == nil || r.batchEntityKeyPrecomputed {
+		return
+	}
+	r.batchEntityKeyPrecomputed = true
+	for _, mapping := range r.EntityKeyMappings {
+		for _, fm := range mapping.FieldMappings {
+			if !fm.ArgumentIsEntityKey {
+				continue
+			}
+			r.hasBatchEntityKey = true
+			r.batchEntityKeyArgumentPath = fm.ArgumentPath
+			return
+		}
+	}
+}
+
+// BatchEntityKeyArgumentPath returns the argument path for the batch entity key field mapping.
+// Returns nil if no batch entity key mapping exists.
+func (r *RootQueryCacheKeyTemplate) BatchEntityKeyArgumentPath() []string {
+	if r == nil {
+		return nil
+	}
+	return r.batchEntityKeyArgumentPath
+}
+
+func (r *RootQueryCacheKeyTemplate) EntityMergePath(postProcessing PostProcessingConfiguration) []string {
+	if len(r.EntityKeyMappings) == 0 {
+		return nil
+	}
+
+	entityPath := postProcessing.MergePath
+	if len(entityPath) == 0 && len(r.RootFields) == 1 {
+		entityPath = []string{r.RootFields[0].Coordinate.FieldName}
+	}
+
+	return entityPath
 }
 
 type FieldArgument struct {
@@ -74,10 +153,20 @@ type FieldArgument struct {
 // RenderCacheKeys returns multiple cache keys, one per item.
 // Each cache key contains one or more KeyEntry objects (one per root field).
 // When EntityKeyMappings are configured, entity key format is used INSTEAD of root field format.
+// For batch mode (ArgumentIsEntityKey + list argument), returns one CacheKey per list element
+// with BatchIndex set to the element's position in the original list.
 func (r *RootQueryCacheKeyTemplate) RenderCacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value, prefix string) ([]*CacheKey, error) {
 	if len(r.RootFields) == 0 {
 		return nil, nil
 	}
+
+	// Check for batch mode: ArgumentIsEntityKey + array argument
+	if len(r.EntityKeyMappings) > 0 {
+		if batchKeys, isBatch := r.tryRenderBatchEntityKeys(a, ctx, prefix); isBatch {
+			return batchKeys, nil
+		}
+	}
+
 	// Use heap slices for pointer-containing types (*CacheKey, string) because
 	// arena memory is backed by []byte (noscan) — GC cannot trace pointers stored
 	// in arena memory, which can cause premature collection of heap objects.
@@ -120,6 +209,165 @@ func (r *RootQueryCacheKeyTemplate) RenderCacheKeys(a arena.Arena, ctx *Context,
 		})
 	}
 	return cacheKeys, nil
+}
+
+// tryRenderBatchEntityKeys checks if the entity key mappings contain a batch argument
+// (ArgumentIsEntityKey=true with a JSON array value). If so, it produces one CacheKey
+// per array element with BatchIndex tracking. Returns (nil, false) if not batch mode.
+func (r *RootQueryCacheKeyTemplate) tryRenderBatchEntityKeys(a arena.Arena, ctx *Context, prefix string) ([]*CacheKey, bool) {
+	batchMapping, ok := r.batchEntityKeyMapping()
+	if !ok {
+		return nil, false
+	}
+
+	argValue := resolveArgumentValue(ctx, batchMapping.argumentPath)
+	switch {
+	case argValue == nil || argValue.Type() == astjson.TypeNull:
+		// null argument → return empty batch (caller handles as empty response)
+		return []*CacheKey{}, true
+	case argValue.Type() != astjson.TypeArray:
+		// Scalar value with ArgumentIsEntityKey — fall back to non-batch path
+		return nil, false
+	}
+
+	return r.renderBatchEntityCacheKeys(a, argValue.GetArray(), batchMapping, prefix), true
+}
+
+// resolveArgumentValue extracts a variable value from ctx, handling RemapVariables.
+func resolveArgumentValue(ctx *Context, argumentPath []string) *astjson.Value {
+	if ctx == nil || ctx.Variables == nil {
+		return nil
+	}
+	path := resolveArgumentVariablePath(ctx, argumentPath)
+	return ctx.Variables.Get(path...)
+}
+
+// resolveArgumentVariablePath resolves the variables path for an argument, honoring
+// both the original argument name from composition and any planner remapping in ctx.
+func resolveArgumentVariablePath(ctx *Context, argumentPath []string) []string {
+	// Forward lookup: argumentPath might already be the remapped name
+	path := argumentPath
+	if ctx == nil || ctx.RemapVariables == nil {
+		return path
+	}
+	if len(path) == 1 {
+		if nameToUse, hasMapping := ctx.RemapVariables[path[0]]; hasMapping && nameToUse != path[0] {
+			path = []string{nameToUse}
+		}
+	}
+	// Reverse lookup: argumentPath is the original name, find remapped name
+	if ctx.Variables != nil && ctx.Variables.Get(path...) == nil && len(argumentPath) == 1 {
+		for newName, oldName := range ctx.RemapVariables {
+			if oldName == argumentPath[0] {
+				path = []string{newName}
+				break
+			}
+		}
+	}
+	return path
+}
+
+// cloneVariablesWithBatchIndices clones ctx.Variables and replaces the batch argument
+// array at argumentPath with only the elements referenced by batchIndices.
+func cloneVariablesWithBatchIndices(ctx *Context, argumentPath []string, batchIndices []int) (*astjson.Value, error) {
+	if ctx == nil || ctx.Variables == nil {
+		return nil, nil
+	}
+
+	resolvedPath := resolveArgumentVariablePath(ctx, argumentPath)
+	originalArray := ctx.Variables.Get(resolvedPath...)
+	if originalArray == nil || originalArray.Type() != astjson.TypeArray {
+		return nil, nil
+	}
+
+	clonedVariables, err := astjson.ParseBytes(ctx.Variables.MarshalTo(nil))
+	if err != nil {
+		return nil, err
+	}
+
+	filteredArray := astjson.ArrayValue(nil)
+	elements := clonedVariables.GetArray(resolvedPath...)
+	for _, batchIndex := range batchIndices {
+		if batchIndex < 0 || batchIndex >= len(elements) {
+			continue
+		}
+		astjson.AppendToArray(nil, filteredArray, elements[batchIndex])
+	}
+
+	astjson.SetValue(nil, clonedVariables, filteredArray, resolvedPath...)
+	return clonedVariables, nil
+}
+
+// renderSingleEntityKey renders a cache key for a single entity element.
+// Format: {"__typename":"Product","key":{"upc":"top-1"}} with optional prefix.
+func (r *RootQueryCacheKeyTemplate) renderSingleEntityKey(a arena.Arena, jsonBytes []byte, entityTypeName, keyField string, elemValue *astjson.Value, prefix string) (string, []byte) {
+	if elemValue == nil || elemValue.Type() == astjson.TypeNull {
+		return "", jsonBytes
+	}
+	keyObj := astjson.ObjectValue(a)
+	keyObj.Set(a, "__typename", astjson.StringValue(a, entityTypeName))
+	keysObj := astjson.ObjectValue(a)
+	setNestedKey(a, keysObj, keyField, elemValue)
+	keyObj.Set(a, "key", keysObj)
+
+	jsonBytes = keyObj.MarshalTo(jsonBytes[:0])
+	l := len(jsonBytes)
+	if prefix != "" {
+		l += 1 + len(prefix)
+	}
+	slice := arena.AllocateSlice[byte](a, 0, l)
+	if prefix != "" {
+		slice = arena.SliceAppend(a, slice, unsafebytes.StringToBytes(prefix)...)
+		slice = arena.SliceAppend(a, slice, []byte(`:`)...)
+	}
+	slice = arena.SliceAppend(a, slice, jsonBytes...)
+	return string(slice), jsonBytes
+}
+
+type batchEntityKeyMapping struct {
+	entityTypeName string
+	entityKeyField string
+	argumentPath   []string
+}
+
+// batchEntityKeyMapping returns the single batch-entity mapping for this root template.
+// Composition guarantees at most one ArgumentIsEntityKey mapping per root field.
+func (r *RootQueryCacheKeyTemplate) batchEntityKeyMapping() (batchEntityKeyMapping, bool) {
+	for _, mapping := range r.EntityKeyMappings {
+		for _, fieldMapping := range mapping.FieldMappings {
+			if !fieldMapping.ArgumentIsEntityKey {
+				continue
+			}
+			return batchEntityKeyMapping{
+				entityTypeName: mapping.EntityTypeName,
+				entityKeyField: fieldMapping.EntityKeyField,
+				argumentPath:   fieldMapping.ArgumentPath,
+			}, true
+		}
+	}
+	return batchEntityKeyMapping{}, false
+}
+
+// renderBatchEntityCacheKeys renders one cache key per selected batch argument item.
+func (r *RootQueryCacheKeyTemplate) renderBatchEntityCacheKeys(a arena.Arena, elements []*astjson.Value, mapping batchEntityKeyMapping, prefix string) []*CacheKey {
+	if len(elements) == 0 {
+		return []*CacheKey{}
+	}
+
+	cacheKeys := make([]*CacheKey, 0, len(elements))
+	jsonBytes := arena.AllocateSlice[byte](a, 0, 64)
+	for i, elem := range elements {
+		entityKey, jsonBytesOut := r.renderSingleEntityKey(a, jsonBytes, mapping.entityTypeName, mapping.entityKeyField, elem, prefix)
+		jsonBytes = jsonBytesOut
+		if entityKey == "" {
+			continue
+		}
+		cacheKeys = append(cacheKeys, &CacheKey{
+			Keys:       []string{entityKey},
+			BatchIndex: i,
+		})
+	}
+	return cacheKeys
 }
 
 // renderDerivedEntityKey renders a cache key in entity format using root field arguments.
@@ -321,6 +569,10 @@ type EntityQueryCacheKeyTemplate struct {
 	TypeName string
 }
 
+func (*EntityQueryCacheKeyTemplate) IsEntityFetch() bool {
+	return true
+}
+
 // KeyFields extracts the full @key structure from the template's Object tree.
 func (e *EntityQueryCacheKeyTemplate) KeyFields() []KeyField {
 	if e.Keys == nil || e.Keys.Renderer == nil {
@@ -331,6 +583,14 @@ func (e *EntityQueryCacheKeyTemplate) KeyFields() []KeyField {
 		return nil
 	}
 	return objectToKeyFields(obj)
+}
+
+func (*EntityQueryCacheKeyTemplate) BatchEntityKeyArgumentPath() []string {
+	return nil
+}
+
+func (*EntityQueryCacheKeyTemplate) EntityMergePath(PostProcessingConfiguration) []string {
+	return nil
 }
 
 // objectToKeyFields converts an Object node tree to a KeyField tree.

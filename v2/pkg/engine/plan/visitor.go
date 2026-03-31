@@ -2299,6 +2299,9 @@ func (v *Visitor) configureFetchCaching(internal *objectFetchConfiguration, exte
 		CacheKeyTemplate:                   external.Caching.CacheKeyTemplate,
 		RootFieldL1EntityCacheKeyTemplates: external.Caching.RootFieldL1EntityCacheKeyTemplates,
 	}
+	if rootTemplate, ok := external.Caching.CacheKeyTemplate.(*resolve.RootQueryCacheKeyTemplate); ok {
+		result.BatchEntityKeyArgumentPathHint = rootTemplate.BatchEntityKeyArgumentPath()
+	}
 
 	// For mutations returning cached entities: enable mutation impact detection.
 	// This runs before the L2 caching checks because mutations don't have CacheKeyTemplate
@@ -2365,16 +2368,17 @@ func (v *Visitor) configureFetchCaching(internal *objectFetchConfiguration, exte
 		// L2 cache is enabled for this entity type
 		// UseL1Cache is set by the postprocessor (optimizeL1Cache) when beneficial
 		return resolve.FetchCacheConfiguration{
-			Enabled:                     true,
-			CacheName:                   cacheConfig.CacheName,
-			TTL:                         cacheConfig.TTL,
-			CacheKeyTemplate:            external.Caching.CacheKeyTemplate,
-			IncludeSubgraphHeaderPrefix: cacheConfig.IncludeSubgraphHeaderPrefix,
-			EnablePartialCacheLoad:      cacheConfig.EnablePartialCacheLoad,
-			HashAnalyticsKeys:           cacheConfig.HashAnalyticsKeys,
-			KeyFields:                   keyFields,
-			ShadowMode:                  cacheConfig.ShadowMode,
-			NegativeCacheTTL:            cacheConfig.NegativeCacheTTL,
+			Enabled:                        true,
+			CacheName:                      cacheConfig.CacheName,
+			TTL:                            cacheConfig.TTL,
+			CacheKeyTemplate:               external.Caching.CacheKeyTemplate,
+			IncludeSubgraphHeaderPrefix:    cacheConfig.IncludeSubgraphHeaderPrefix,
+			EnablePartialCacheLoad:         cacheConfig.EnablePartialCacheLoad,
+			HashAnalyticsKeys:              cacheConfig.HashAnalyticsKeys,
+			KeyFields:                      keyFields,
+			ShadowMode:                     cacheConfig.ShadowMode,
+			NegativeCacheTTL:               cacheConfig.NegativeCacheTTL,
+			BatchEntityKeyArgumentPathHint: result.BatchEntityKeyArgumentPathHint,
 		}
 	}
 
@@ -2422,6 +2426,8 @@ func (v *Visitor) configureFetchCaching(internal *objectFetchConfiguration, exte
 		IncludeSubgraphHeaderPrefix:        commonConfig.IncludeSubgraphHeaderPrefix,
 		RootFieldL1EntityCacheKeyTemplates: external.Caching.RootFieldL1EntityCacheKeyTemplates,
 		ShadowMode:                         commonConfig.ShadowMode,
+		PartialBatchLoad:                   commonConfig.PartialBatchLoad,
+		BatchEntityKeyArgumentPathHint:     result.BatchEntityKeyArgumentPathHint,
 	}
 }
 

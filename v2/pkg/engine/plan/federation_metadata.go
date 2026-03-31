@@ -171,6 +171,11 @@ type RootFieldCacheConfiguration struct {
 	// Instead, fresh data is always fetched from the subgraph and compared against the cached value.
 	// Note: shadow mode behavior is currently implemented for entity fetches only.
 	ShadowMode bool `json:"shadow_mode"`
+
+	// PartialBatchLoad enables partial fetch mode for batch arguments (ArgumentIsEntityKey + list).
+	// When false (default), batch cache is all-or-nothing: any miss fetches the full list.
+	// When true, only missing IDs are fetched; cached entities are served directly.
+	PartialBatchLoad bool `json:"partial_batch_load,omitempty"`
 }
 
 // EntityKeyMapping defines how a root field's arguments map to entity @key fields.
@@ -194,6 +199,16 @@ type FieldMapping struct {
 	// Array index: ["ids", "0"] (decimal string)
 	// Subject to ctx.RemapVariables when len==1
 	ArgumentPath []string `json:"argument_path"`
+	// ArgumentIsEntityKey marks the argument as a direct entity key lookup.
+	// When true AND the argument is a list type, each list element maps 1:1
+	// to an entity in the response (positional correspondence).
+	// This enables:
+	//   - Batch cache key construction (one cache key per list element)
+	//   - Empty list optimization ([] → empty response, resolver skipped)
+	//   - Partial fetch mode (fetch only missing entities by filtering the list)
+	// When false, the argument is treated as a filter/search parameter and
+	// the engine cannot make assumptions about the response shape.
+	ArgumentIsEntityKey bool `json:"argument_is_entity_key,omitempty"`
 }
 
 // RootFieldCacheConfigurations is a collection of root field cache configurations.

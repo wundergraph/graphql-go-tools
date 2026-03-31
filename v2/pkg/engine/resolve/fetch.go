@@ -333,6 +333,12 @@ func (f *FetchCacheConfiguration) Equals(other *FetchCacheConfiguration) bool {
 	if f.NegativeCacheTTL != other.NegativeCacheTTL {
 		return false
 	}
+	if f.PartialBatchLoad != other.PartialBatchLoad {
+		return false
+	}
+	if !slices.Equal(f.BatchEntityKeyArgumentPathHint, other.BatchEntityKeyArgumentPathHint) {
+		return false
+	}
 	return true
 }
 
@@ -399,6 +405,42 @@ type FetchCacheConfiguration struct {
 	// repeated subgraph lookups for non-existent entities.
 	// When 0 (default), null entities are not cached.
 	NegativeCacheTTL time.Duration
+
+	// PartialBatchLoad enables partial fetch mode for batch arguments (ArgumentIsEntityKey + list).
+	// When false (default), batch cache is all-or-nothing: any miss fetches the full list.
+	// When true, only missing IDs are fetched; cached entities are served directly.
+	PartialBatchLoad bool
+	// BatchEntityKeyArgumentPathHint describes the root-field argument that acts as the entity key list.
+	// This enables batch short-circuiting and partial variable filtering even when cache reads are disabled.
+	BatchEntityKeyArgumentPathHint []string
+}
+
+func (f FetchCacheConfiguration) isEntityFetch() bool {
+	if f.CacheKeyTemplate == nil {
+		return false
+	}
+	return f.CacheKeyTemplate.IsEntityFetch()
+}
+
+func (f FetchCacheConfiguration) batchEntityKeyArgumentPath() []string {
+	if len(f.BatchEntityKeyArgumentPathHint) > 0 {
+		return f.BatchEntityKeyArgumentPathHint
+	}
+	if f.CacheKeyTemplate == nil {
+		return nil
+	}
+	return f.CacheKeyTemplate.BatchEntityKeyArgumentPath()
+}
+
+func (f FetchCacheConfiguration) hasBatchEntityKey() bool {
+	return len(f.batchEntityKeyArgumentPath()) > 0
+}
+
+func (f FetchCacheConfiguration) entityMergePath(postProcessing PostProcessingConfiguration) []string {
+	if f.CacheKeyTemplate == nil {
+		return nil
+	}
+	return f.CacheKeyTemplate.EntityMergePath(postProcessing)
 }
 
 // MutationEntityImpactConfig holds information for detecting entity cache changes from mutations.

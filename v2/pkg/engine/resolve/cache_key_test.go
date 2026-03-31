@@ -2171,3 +2171,246 @@ func TestResolveFieldValue(t *testing.T) {
 		assert.Equal(t, `"deep"`, string(result.MarshalTo(nil)))
 	})
 }
+
+func TestRenderCacheKeys_BatchEntityKey(t *testing.T) {
+	t.Run("list argument produces multiple cache keys", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "products"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "Product",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "upc", ArgumentPath: []string{"upcs"}, ArgumentIsEntityKey: true},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{Variables: astjson.MustParse(`{"upcs":["p1","p2","p3"]}`), ctx: context.Background()}
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{nil}, "")
+		assert.NoError(t, err)
+		assert.Equal(t, []*CacheKey{
+			{Keys: []string{`{"__typename":"Product","key":{"upc":"p1"}}`}, BatchIndex: 0},
+			{Keys: []string{`{"__typename":"Product","key":{"upc":"p2"}}`}, BatchIndex: 1},
+			{Keys: []string{`{"__typename":"Product","key":{"upc":"p3"}}`}, BatchIndex: 2},
+		}, cacheKeys)
+	})
+
+	t.Run("empty list produces no cache keys", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "products"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "Product",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "upc", ArgumentPath: []string{"upcs"}, ArgumentIsEntityKey: true},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{Variables: astjson.MustParse(`{"upcs":[]}`), ctx: context.Background()}
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{nil}, "")
+		assert.NoError(t, err)
+		assert.Equal(t, 0, len(cacheKeys))
+	})
+
+	t.Run("single-element list produces one cache key", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "products"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "Product",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "upc", ArgumentPath: []string{"upcs"}, ArgumentIsEntityKey: true},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{Variables: astjson.MustParse(`{"upcs":["p1"]}`), ctx: context.Background()}
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{nil}, "")
+		assert.NoError(t, err)
+		assert.Equal(t, []*CacheKey{
+			{Keys: []string{`{"__typename":"Product","key":{"upc":"p1"}}`}, BatchIndex: 0},
+		}, cacheKeys)
+	})
+
+	t.Run("scalar argument with ArgumentIsEntityKey falls back to single key", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{
+					Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "product"},
+					Args: []FieldArgument{
+						{Name: "upc", Variable: &ContextVariable{Path: []string{"upc"}, Renderer: NewCacheKeyVariableRenderer()}},
+					},
+				},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "Product",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "upc", ArgumentPath: []string{"upc"}, ArgumentIsEntityKey: true},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{Variables: astjson.MustParse(`{"upc":"p1"}`), ctx: context.Background()}
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{nil}, "")
+		assert.NoError(t, err)
+		// Falls back to non-batch path — uses renderDerivedEntityKey, same key format
+		assert.Equal(t, 1, len(cacheKeys))
+		assert.Equal(t, []string{`{"__typename":"Product","key":{"upc":"p1"}}`}, cacheKeys[0].Keys)
+	})
+
+	t.Run("batch key format matches scalar key format", func(t *testing.T) {
+		// Scalar lookup
+		scalarTmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{
+					Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "product"},
+					Args: []FieldArgument{
+						{Name: "upc", Variable: &ContextVariable{Path: []string{"upc"}, Renderer: NewCacheKeyVariableRenderer()}},
+					},
+				},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "Product",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "upc", ArgumentPath: []string{"upc"}},
+					},
+				},
+			},
+		}
+
+		scalarCtx := &Context{Variables: astjson.MustParse(`{"upc":"p1"}`), ctx: context.Background()}
+		scalarKeys, err := scalarTmpl.RenderCacheKeys(nil, scalarCtx, []*astjson.Value{nil}, "")
+		assert.NoError(t, err)
+
+		// Batch lookup
+		batchTmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "products"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "Product",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "upc", ArgumentPath: []string{"upcs"}, ArgumentIsEntityKey: true},
+					},
+				},
+			},
+		}
+
+		batchCtx := &Context{Variables: astjson.MustParse(`{"upcs":["p1"]}`), ctx: context.Background()}
+		batchKeys, err := batchTmpl.RenderCacheKeys(nil, batchCtx, []*astjson.Value{nil}, "")
+		assert.NoError(t, err)
+
+		// Same cache key format — enables cache sharing between scalar and batch lookups
+		assert.Equal(t, scalarKeys[0].Keys[0], batchKeys[0].Keys[0])
+	})
+
+	t.Run("null argument produces empty cache keys", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "products"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "Product",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "upc", ArgumentPath: []string{"upcs"}, ArgumentIsEntityKey: true},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{Variables: astjson.MustParse(`{"upcs":null}`), ctx: context.Background()}
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{nil}, "")
+		assert.NoError(t, err)
+		assert.Equal(t, 0, len(cacheKeys))
+	})
+
+	t.Run("list argument with prefix", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "products"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "Product",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "upc", ArgumentPath: []string{"upcs"}, ArgumentIsEntityKey: true},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{Variables: astjson.MustParse(`{"upcs":["p1","p2"]}`), ctx: context.Background()}
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{nil}, "12345")
+		assert.NoError(t, err)
+		assert.Equal(t, []*CacheKey{
+			{Keys: []string{`12345:{"__typename":"Product","key":{"upc":"p1"}}`}, BatchIndex: 0},
+			{Keys: []string{`12345:{"__typename":"Product","key":{"upc":"p2"}}`}, BatchIndex: 1},
+		}, cacheKeys)
+	})
+
+	t.Run("list argument with RemapVariables", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "products"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "Product",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "upc", ArgumentPath: []string{"upcs"}, ArgumentIsEntityKey: true},
+					},
+				},
+			},
+		}
+
+		// Variables use remapped name "a", original is "upcs"
+		ctx := &Context{
+			Variables:      astjson.MustParse(`{"a":["p1","p2"]}`),
+			RemapVariables: map[string]string{"a": "upcs"},
+			ctx:            context.Background(),
+		}
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{nil}, "")
+		assert.NoError(t, err)
+		assert.Equal(t, []*CacheKey{
+			{Keys: []string{`{"__typename":"Product","key":{"upc":"p1"}}`}, BatchIndex: 0},
+			{Keys: []string{`{"__typename":"Product","key":{"upc":"p2"}}`}, BatchIndex: 1},
+		}, cacheKeys)
+	})
+
+	t.Run("constructor precomputes batch entity key metadata", func(t *testing.T) {
+		tmpl := NewRootQueryCacheKeyTemplate(
+			[]QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "products"}},
+			},
+			[]EntityKeyMappingConfig{
+				{
+					EntityTypeName: "Product",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "upc", ArgumentPath: []string{"upcs"}, ArgumentIsEntityKey: true},
+					},
+				},
+			},
+		)
+
+		assert.True(t, tmpl.batchEntityKeyPrecomputed)
+		assert.True(t, tmpl.hasBatchEntityKey)
+		assert.Equal(t, []string{"upcs"}, tmpl.batchEntityKeyArgumentPath)
+		assert.True(t, tmpl.HasBatchEntityKey())
+		assert.Equal(t, []string{"upcs"}, tmpl.BatchEntityKeyArgumentPath())
+	})
+}

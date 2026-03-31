@@ -81,6 +81,10 @@ func collectCacheConfigs(node *resolve.FetchTreeNode, out *[]resolve.FetchCacheC
 	}
 }
 
+func newExpectedRootQueryCacheKeyTemplate(rootFields []resolve.QueryField, entityKeyMappings []resolve.EntityKeyMappingConfig) *resolve.RootQueryCacheKeyTemplate {
+	return resolve.NewRootQueryCacheKeyTemplate(rootFields, entityKeyMappings)
+}
+
 // newEntityKeyMappingTestConfig creates a plan.Configuration for entity key mapping tests
 // with a single "accounts" subgraph that has a User entity.
 func newEntityKeyMappingTestConfig(t *testing.T, rootFieldCaching plan.RootFieldCacheConfigurations, entityCaching plan.EntityCacheConfigurations, sdl string, keys plan.FederationFieldConfigurations) plan.Configuration {
@@ -182,24 +186,21 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			Enabled:   true,
 			CacheName: "default",
 			TTL:       30 * time.Second,
-			CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{
-				RootFields: []resolve.QueryField{
-					{
-						Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
-						Args: []resolve.FieldArgument{
-							{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
-						},
+			CacheKeyTemplate: newExpectedRootQueryCacheKeyTemplate([]resolve.QueryField{
+				{
+					Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					Args: []resolve.FieldArgument{
+						{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
 					},
 				},
-				EntityKeyMappings: []resolve.EntityKeyMappingConfig{
-					{
-						EntityTypeName: "User",
-						FieldMappings: []resolve.EntityFieldMappingConfig{
-							{EntityKeyField: "id", ArgumentPath: []string{"id"}},
-						},
+			}, []resolve.EntityKeyMappingConfig{
+				{
+					EntityTypeName: "User",
+					FieldMappings: []resolve.EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"id"}},
 					},
 				},
-			},
+			}),
 			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
 				"user:User": &resolve.EntityQueryCacheKeyTemplate{
 					TypeName: "User",
@@ -253,26 +254,23 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			Enabled:   true,
 			CacheName: "default",
 			TTL:       30 * time.Second,
-			CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{
-				RootFields: []resolve.QueryField{
-					{
-						Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "userByIdAndName"},
-						Args: []resolve.FieldArgument{
-							{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
-							{Name: "username", Variable: &resolve.ContextVariable{Path: []string{"username"}, Renderer: resolve.NewJSONVariableRenderer()}},
-						},
+			CacheKeyTemplate: newExpectedRootQueryCacheKeyTemplate([]resolve.QueryField{
+				{
+					Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "userByIdAndName"},
+					Args: []resolve.FieldArgument{
+						{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
+						{Name: "username", Variable: &resolve.ContextVariable{Path: []string{"username"}, Renderer: resolve.NewJSONVariableRenderer()}},
 					},
 				},
-				EntityKeyMappings: []resolve.EntityKeyMappingConfig{
-					{
-						EntityTypeName: "User",
-						FieldMappings: []resolve.EntityFieldMappingConfig{
-							{EntityKeyField: "id", ArgumentPath: []string{"id"}},
-							{EntityKeyField: "username", ArgumentPath: []string{"username"}},
-						},
+			}, []resolve.EntityKeyMappingConfig{
+				{
+					EntityTypeName: "User",
+					FieldMappings: []resolve.EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+						{EntityKeyField: "username", ArgumentPath: []string{"username"}},
 					},
 				},
-			},
+			}),
 			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
 				"userByIdAndName:User": &resolve.EntityQueryCacheKeyTemplate{
 					TypeName: "User",
@@ -328,24 +326,21 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			Enabled:   true,
 			CacheName: "default",
 			TTL:       30 * time.Second,
-			CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{
-				RootFields: []resolve.QueryField{
-					{
-						Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
-						Args: []resolve.FieldArgument{
-							{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
-						},
+			CacheKeyTemplate: newExpectedRootQueryCacheKeyTemplate([]resolve.QueryField{
+				{
+					Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					Args: []resolve.FieldArgument{
+						{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
 					},
 				},
-				EntityKeyMappings: []resolve.EntityKeyMappingConfig{
-					{
-						EntityTypeName: "User",
-						FieldMappings: []resolve.EntityFieldMappingConfig{
-							{EntityKeyField: "id", ArgumentPath: []string{"id"}},
-						},
+			}, []resolve.EntityKeyMappingConfig{
+				{
+					EntityTypeName: "User",
+					FieldMappings: []resolve.EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"id"}},
 					},
 				},
-			},
+			}),
 			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
 				"user:User": &resolve.EntityQueryCacheKeyTemplate{
 					TypeName: "User",
@@ -399,24 +394,21 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			CacheName:                   "default",
 			TTL:                         30 * time.Second,
 			IncludeSubgraphHeaderPrefix: true,
-			CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{
-				RootFields: []resolve.QueryField{
-					{
-						Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
-						Args: []resolve.FieldArgument{
-							{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
-						},
+			CacheKeyTemplate: newExpectedRootQueryCacheKeyTemplate([]resolve.QueryField{
+				{
+					Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					Args: []resolve.FieldArgument{
+						{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
 					},
 				},
-				EntityKeyMappings: []resolve.EntityKeyMappingConfig{
-					{
-						EntityTypeName: "User",
-						FieldMappings: []resolve.EntityFieldMappingConfig{
-							{EntityKeyField: "id", ArgumentPath: []string{"id"}},
-						},
+			}, []resolve.EntityKeyMappingConfig{
+				{
+					EntityTypeName: "User",
+					FieldMappings: []resolve.EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"id"}},
 					},
 				},
-			},
+			}),
 			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
 				"user:User": &resolve.EntityQueryCacheKeyTemplate{
 					TypeName: "User",
@@ -461,16 +453,14 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			Enabled:   true,
 			CacheName: "default",
 			TTL:       30 * time.Second,
-			CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{
-				RootFields: []resolve.QueryField{
-					{
-						Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
-						Args: []resolve.FieldArgument{
-							{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
-						},
+			CacheKeyTemplate: newExpectedRootQueryCacheKeyTemplate([]resolve.QueryField{
+				{
+					Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					Args: []resolve.FieldArgument{
+						{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
 					},
 				},
-			},
+			}, []resolve.EntityKeyMappingConfig{}),
 			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
 				"user:User": &resolve.EntityQueryCacheKeyTemplate{
 					TypeName: "User",
@@ -522,24 +512,21 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 		assert.Equal(t, resolve.FetchCacheConfiguration{
 			// When entity caching is globally disabled, Enabled is false but CacheKeyTemplate
 			// is preserved for L1 cache (which is controlled separately)
-			CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{
-				RootFields: []resolve.QueryField{
-					{
-						Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
-						Args: []resolve.FieldArgument{
-							{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
-						},
+			CacheKeyTemplate: newExpectedRootQueryCacheKeyTemplate([]resolve.QueryField{
+				{
+					Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					Args: []resolve.FieldArgument{
+						{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
 					},
 				},
-				EntityKeyMappings: []resolve.EntityKeyMappingConfig{
-					{
-						EntityTypeName: "User",
-						FieldMappings: []resolve.EntityFieldMappingConfig{
-							{EntityKeyField: "id", ArgumentPath: []string{"id"}},
-						},
+			}, []resolve.EntityKeyMappingConfig{
+				{
+					EntityTypeName: "User",
+					FieldMappings: []resolve.EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"id"}},
 					},
 				},
-			},
+			}),
 			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
 				"user:User": &resolve.EntityQueryCacheKeyTemplate{
 					TypeName: "User",
@@ -607,24 +594,21 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			Enabled:   true,
 			CacheName: "default",
 			TTL:       30 * time.Second,
-			CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{
-				RootFields: []resolve.QueryField{
-					{
-						Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
-						Args: []resolve.FieldArgument{
-							{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
-						},
+			CacheKeyTemplate: newExpectedRootQueryCacheKeyTemplate([]resolve.QueryField{
+				{
+					Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					Args: []resolve.FieldArgument{
+						{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
 					},
 				},
-				EntityKeyMappings: []resolve.EntityKeyMappingConfig{
-					{
-						EntityTypeName: "User",
-						FieldMappings: []resolve.EntityFieldMappingConfig{
-							{EntityKeyField: "id", ArgumentPath: []string{"id"}},
-						},
+			}, []resolve.EntityKeyMappingConfig{
+				{
+					EntityTypeName: "User",
+					FieldMappings: []resolve.EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"id"}},
 					},
 				},
-			},
+			}),
 			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
 				"user:User": &resolve.EntityQueryCacheKeyTemplate{
 					TypeName: "User",
@@ -704,31 +688,28 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			Enabled:   true,
 			CacheName: "default",
 			TTL:       30 * time.Second,
-			CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{
-				RootFields: []resolve.QueryField{
-					{
-						Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "userByIdAndName"},
-						Args: []resolve.FieldArgument{
-							{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
-							{Name: "username", Variable: &resolve.ContextVariable{Path: []string{"username"}, Renderer: resolve.NewJSONVariableRenderer()}},
-						},
+			CacheKeyTemplate: newExpectedRootQueryCacheKeyTemplate([]resolve.QueryField{
+				{
+					Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "userByIdAndName"},
+					Args: []resolve.FieldArgument{
+						{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
+						{Name: "username", Variable: &resolve.ContextVariable{Path: []string{"username"}, Renderer: resolve.NewJSONVariableRenderer()}},
 					},
 				},
-				EntityKeyMappings: []resolve.EntityKeyMappingConfig{
-					{
-						EntityTypeName: "User",
-						FieldMappings: []resolve.EntityFieldMappingConfig{
-							{EntityKeyField: "id", ArgumentPath: []string{"id"}},
-						},
-					},
-					{
-						EntityTypeName: "User",
-						FieldMappings: []resolve.EntityFieldMappingConfig{
-							{EntityKeyField: "username", ArgumentPath: []string{"username"}},
-						},
+			}, []resolve.EntityKeyMappingConfig{
+				{
+					EntityTypeName: "User",
+					FieldMappings: []resolve.EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"id"}},
 					},
 				},
-			},
+				{
+					EntityTypeName: "User",
+					FieldMappings: []resolve.EntityFieldMappingConfig{
+						{EntityKeyField: "username", ArgumentPath: []string{"username"}},
+					},
+				},
+			}),
 			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
 				"userByIdAndName:User": &resolve.EntityQueryCacheKeyTemplate{
 					TypeName: "User",
@@ -791,24 +772,21 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			Enabled:   true,
 			CacheName: "default",
 			TTL:       30 * time.Second,
-			CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{
-				RootFields: []resolve.QueryField{
-					{
-						Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
-						Args: []resolve.FieldArgument{
-							{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id1"}, Renderer: resolve.NewJSONVariableRenderer()}},
-						},
+			CacheKeyTemplate: newExpectedRootQueryCacheKeyTemplate([]resolve.QueryField{
+				{
+					Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					Args: []resolve.FieldArgument{
+						{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id1"}, Renderer: resolve.NewJSONVariableRenderer()}},
 					},
 				},
-				EntityKeyMappings: []resolve.EntityKeyMappingConfig{
-					{
-						EntityTypeName: "User",
-						FieldMappings: []resolve.EntityFieldMappingConfig{
-							{EntityKeyField: "id", ArgumentPath: []string{"id1"}},
-						},
+			}, []resolve.EntityKeyMappingConfig{
+				{
+					EntityTypeName: "User",
+					FieldMappings: []resolve.EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"id1"}},
 					},
 				},
-			},
+			}),
 			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
 				"a:User": &resolve.EntityQueryCacheKeyTemplate{
 					TypeName: "User",
@@ -836,24 +814,21 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			Enabled:   true,
 			CacheName: "default",
 			TTL:       30 * time.Second,
-			CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{
-				RootFields: []resolve.QueryField{
-					{
-						Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
-						Args: []resolve.FieldArgument{
-							{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id2"}, Renderer: resolve.NewJSONVariableRenderer()}},
-						},
+			CacheKeyTemplate: newExpectedRootQueryCacheKeyTemplate([]resolve.QueryField{
+				{
+					Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					Args: []resolve.FieldArgument{
+						{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id2"}, Renderer: resolve.NewJSONVariableRenderer()}},
 					},
 				},
-				EntityKeyMappings: []resolve.EntityKeyMappingConfig{
-					{
-						EntityTypeName: "User",
-						FieldMappings: []resolve.EntityFieldMappingConfig{
-							{EntityKeyField: "id", ArgumentPath: []string{"id2"}},
-						},
+			}, []resolve.EntityKeyMappingConfig{
+				{
+					EntityTypeName: "User",
+					FieldMappings: []resolve.EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"id2"}},
 					},
 				},
-			},
+			}),
 			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
 				"b:User": &resolve.EntityQueryCacheKeyTemplate{
 					TypeName: "User",
@@ -911,24 +886,21 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			Enabled:   true,
 			CacheName: "default",
 			TTL:       30 * time.Second,
-			CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{
-				RootFields: []resolve.QueryField{
-					{
-						Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
-						Args: []resolve.FieldArgument{
-							{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
-						},
+			CacheKeyTemplate: newExpectedRootQueryCacheKeyTemplate([]resolve.QueryField{
+				{
+					Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					Args: []resolve.FieldArgument{
+						{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
 					},
 				},
-				EntityKeyMappings: []resolve.EntityKeyMappingConfig{
-					{
-						EntityTypeName: "User",
-						FieldMappings: []resolve.EntityFieldMappingConfig{
-							{EntityKeyField: "id", ArgumentPath: []string{"id"}},
-						},
+			}, []resolve.EntityKeyMappingConfig{
+				{
+					EntityTypeName: "User",
+					FieldMappings: []resolve.EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"id"}},
 					},
 				},
-			},
+			}),
 			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
 				"myUser:User": &resolve.EntityQueryCacheKeyTemplate{
 					TypeName: "User",
@@ -990,26 +962,23 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			Enabled:   true,
 			CacheName: "default",
 			TTL:       30 * time.Second,
-			CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{
-				RootFields: []resolve.QueryField{
-					{
-						Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "userByIdAndName"},
-						Args: []resolve.FieldArgument{
-							{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
-							{Name: "username", Variable: &resolve.ContextVariable{Path: []string{"username"}, Renderer: resolve.NewJSONVariableRenderer()}},
-						},
+			CacheKeyTemplate: newExpectedRootQueryCacheKeyTemplate([]resolve.QueryField{
+				{
+					Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "userByIdAndName"},
+					Args: []resolve.FieldArgument{
+						{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
+						{Name: "username", Variable: &resolve.ContextVariable{Path: []string{"username"}, Renderer: resolve.NewJSONVariableRenderer()}},
 					},
 				},
-				EntityKeyMappings: []resolve.EntityKeyMappingConfig{
-					{
-						EntityTypeName: "User",
-						FieldMappings: []resolve.EntityFieldMappingConfig{
-							{EntityKeyField: "id", ArgumentPath: []string{"id"}},
-							{EntityKeyField: "username", ArgumentPath: []string{"username"}},
-						},
+			}, []resolve.EntityKeyMappingConfig{
+				{
+					EntityTypeName: "User",
+					FieldMappings: []resolve.EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+						{EntityKeyField: "username", ArgumentPath: []string{"username"}},
 					},
 				},
-			},
+			}),
 			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
 				"userByIdAndName:User": &resolve.EntityQueryCacheKeyTemplate{
 					TypeName: "User",
@@ -1136,28 +1105,25 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			Enabled:   true,
 			CacheName: "default",
 			TTL:       30 * time.Second,
-			CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{
-				RootFields: []resolve.QueryField{
-					{
-						Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "account"},
-						Args: []resolve.FieldArgument{
-							{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
-							{Name: "a", Variable: &resolve.ContextVariable{Path: []string{"a"}, Renderer: resolve.NewJSONVariableRenderer()}},
-							{Name: "b", Variable: &resolve.ContextVariable{Path: []string{"b"}, Renderer: resolve.NewJSONVariableRenderer()}},
-						},
+			CacheKeyTemplate: newExpectedRootQueryCacheKeyTemplate([]resolve.QueryField{
+				{
+					Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "account"},
+					Args: []resolve.FieldArgument{
+						{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
+						{Name: "a", Variable: &resolve.ContextVariable{Path: []string{"a"}, Renderer: resolve.NewJSONVariableRenderer()}},
+						{Name: "b", Variable: &resolve.ContextVariable{Path: []string{"b"}, Renderer: resolve.NewJSONVariableRenderer()}},
 					},
 				},
-				EntityKeyMappings: []resolve.EntityKeyMappingConfig{
-					{
-						EntityTypeName: "Account",
-						FieldMappings: []resolve.EntityFieldMappingConfig{
-							{EntityKeyField: "id", ArgumentPath: []string{"id"}},
-							{EntityKeyField: "a", ArgumentPath: []string{"a"}},
-							{EntityKeyField: "b", ArgumentPath: []string{"b"}},
-						},
+			}, []resolve.EntityKeyMappingConfig{
+				{
+					EntityTypeName: "Account",
+					FieldMappings: []resolve.EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+						{EntityKeyField: "a", ArgumentPath: []string{"a"}},
+						{EntityKeyField: "b", ArgumentPath: []string{"b"}},
 					},
 				},
-			},
+			}),
 			RootFieldL1EntityCacheKeyTemplates: map[string]resolve.CacheKeyTemplate{
 				"account:Account": &resolve.EntityQueryCacheKeyTemplate{
 					TypeName: "Account",

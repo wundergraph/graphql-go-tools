@@ -149,6 +149,13 @@ type result struct {
 	cachedItemIndices   []int // Indices of items fully served from cache
 	fetchItemIndices    []int // Indices of items that need to be fetched
 
+	// Batch entity key fields — set when ArgumentIsEntityKey + list argument
+	batchEntityKeyMode       bool     // Whether this fetch uses batch entity key cache lookup
+	batchMergePath           []string // Path to merge the assembled array (e.g. ["products"])
+	batchPartialFetchEnabled bool     // Whether partial fetch mode is enabled for this batch
+	batchCachedIndices       []int    // BatchIndex values of cache-hit entities
+	batchMissedIndices       []int    // BatchIndex values of cache-miss entities
+
 	// l2AnalyticsEvents accumulates L2 cache key events per-result for goroutine safety.
 	// Merged into the collector on the main thread after goroutines complete.
 	l2AnalyticsEvents []CacheKeyEvent
@@ -384,7 +391,7 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 	// Phase 1: Prepare cache keys + L1 check on MAIN thread for ALL nodes
 	// L1 stats use non-atomic operations, so they MUST be on the main thread
 	for i := range nodes {
-		results[i] = &result{}
+		results[i] = l.createOrInitResult(nil, getFetchPostProcessing(nodes[i].Item.Fetch), getFetchInfo(nodes[i].Item.Fetch))
 		itemsItems[i] = l.selectItemsForPath(nodes[i].Item.FetchPath)
 		f := nodes[i].Item.Fetch
 		info := getFetchInfo(f)
@@ -523,12 +530,26 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 			l.enableMutationL2CachePopulation = f.Caching.EnableMutationL2CachePopulation
 			l.mutationCacheTTLOverride = f.Caching.MutationCacheTTLOverride
 		}
+		// Empty list / null key short-circuit for batch entity key lookups.
+		// When ArgumentIsEntityKey is true and the argument is [] or null,
+		// return an empty response without calling the resolver or cache.
+		// This is a fetch-level optimization, not a caching feature.
+		if argPath := f.Caching.batchEntityKeyArgumentPath(); len(argPath) > 0 {
+			argValue := resolveArgumentValue(l.ctx, argPath)
+			if argValue == nil || argValue.Type() == astjson.TypeNull {
+				return l.mergeBatchEmptyResponse(item, f, items)
+			}
+			if argValue.Type() == astjson.TypeArray && len(argValue.GetArray()) == 0 {
+				return l.mergeBatchEmptyResponse(item, f, items)
+			}
+		}
 		res := l.createOrInitResult(nil, f.PostProcessing, f.Info)
 		skip, err := l.tryCacheLoad(l.ctx.ctx, f.Info, f.Caching, items, res)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 		if !skip {
+			// Batch partial fetch filtering is handled inside loadSingleFetch
 			err = l.loadSingleFetch(l.ctx.ctx, f, item, items, res)
 			if err != nil {
 				return err
@@ -878,6 +899,274 @@ func (e ErrMergeResult) Error() string {
 	return fmt.Sprintf("unable to merge results from subgraph %s", e.Subgraph)
 }
 
+// mergeBatchCacheHit assembles cached entities into a JSON array and merges into items.
+// Called when cacheSkipFetch=true and batchEntityKeyMode=true (all batch keys hit cache).
+// The cache keys are in l2CacheKeys, each with FromCache pointing to entity-level data
+// already wrapped at EntityMergePath during tryL2CacheLoad.
+func (l *Loader) mergeBatchCacheHit(fetchItem *FetchItem, res *result, items []*astjson.Value) error {
+	// Determine the maximum batch index to size the result array
+	cacheKeys := res.l2CacheKeys
+	if len(cacheKeys) == 0 {
+		cacheKeys = res.l1CacheKeys
+	}
+	maxIndex := -1
+	for _, ck := range cacheKeys {
+		if ck.BatchIndex > maxIndex {
+			maxIndex = ck.BatchIndex
+		}
+	}
+	if maxIndex < 0 {
+		return nil
+	}
+
+	// Build the entity array. EntityMergePath wrapping was done during L2 load,
+	// so FromCache has the entity at the merge path (e.g. {"products": {...entity...}}).
+	// We need to extract entity-level data for the array.
+	entityArray := astjson.ArrayValue(l.jsonArena)
+	for i := 0; i <= maxIndex; i++ {
+		entityArray.SetArrayItem(l.jsonArena, i, astjson.NullValue)
+	}
+	// Determine the entity extraction path from EntityMergePath (set by prepareCacheKeys).
+	// This is the path used to extract/wrap entity data in the cache (e.g., ["products"]).
+	var entityMergePath []string
+	if len(cacheKeys) > 0 {
+		entityMergePath = cacheKeys[0].EntityMergePath
+	}
+
+	for _, ck := range cacheKeys {
+		if ck.FromCache == nil {
+			continue
+		}
+		// Extract entity from the EntityMergePath wrapper applied during L2 load
+		entity := ck.FromCache
+		if len(entityMergePath) > 0 {
+			if inner := ck.FromCache.Get(entityMergePath...); inner != nil {
+				entity = inner
+			}
+		}
+		entityArray.SetArrayItem(l.jsonArena, ck.BatchIndex, entity)
+	}
+
+	// Build a response object that mirrors the subgraph response shape:
+	// {"fieldName": [entity1, entity2, ...]}
+	// Then merge it at MergePath into items.
+	responseData := astjson.ObjectValue(l.jsonArena)
+	if len(entityMergePath) > 0 {
+		// Set the array under the entity merge path (e.g., {"products": [...]})
+		current := responseData
+		for i := 0; i < len(entityMergePath)-1; i++ {
+			next := astjson.ObjectValue(l.jsonArena)
+			current.Set(l.jsonArena, entityMergePath[i], next)
+			current = next
+		}
+		current.Set(l.jsonArena, entityMergePath[len(entityMergePath)-1], entityArray)
+	}
+
+	if len(items) == 0 {
+		l.resolvable.data = responseData
+	} else if len(items) == 1 {
+		var err error
+		items[0], _, err = astjson.MergeValuesWithPath(l.jsonArena, items[0], responseData, res.batchMergePath...)
+		if err != nil {
+			return l.renderErrorsFailedToFetch(fetchItem, res, "batch cache merge failed")
+		}
+	}
+
+	if res.cacheMustBeUpdated {
+		l.updateL2Cache(res)
+	}
+	return nil
+}
+
+// populateBatchCacheKeysFromResponse extracts individual entities from the response array
+// and sets each batch CacheKey's Item for cache population.
+// Called after mergeResult for batch entity key fetches.
+func (l *Loader) populateBatchCacheKeysFromResponse(res *result, items []*astjson.Value, info *FetchInfo) {
+	if !res.batchEntityKeyMode || len(items) == 0 {
+		return
+	}
+
+	// Navigate to the response array. For root fields, the response is merged into items[0]
+	// at the MergePath, then the actual array is under the root field name.
+	// E.g., for products(upcs: ...), items[0] = {"products": [entity1, entity2, ...]}
+	var arrayPath []string
+	arrayPath = append(arrayPath, res.batchMergePath...)
+	if info != nil && len(info.RootFields) > 0 {
+		arrayPath = append(arrayPath, info.RootFields[0].FieldName)
+	}
+
+	responseArray := items[0].Get(arrayPath...)
+	if responseArray == nil || responseArray.Type() != astjson.TypeArray {
+		return
+	}
+	elements := responseArray.GetArray()
+
+	// In partial fetch mode, skip setting Items for cached indices.
+	// This ensures cacheKeysToEntriesBatch only writes fresh entities.
+	var cachedSet map[int]struct{}
+	if res.batchPartialFetchEnabled && len(res.batchCachedIndices) > 0 {
+		cachedSet = make(map[int]struct{}, len(res.batchCachedIndices))
+		for _, idx := range res.batchCachedIndices {
+			cachedSet[idx] = struct{}{}
+		}
+	}
+
+	// Set each CacheKey's Item to the corresponding array element
+	for _, ck := range res.l2CacheKeys {
+		if ck.BatchIndex >= 0 && ck.BatchIndex < len(elements) {
+			if cachedSet != nil {
+				if _, isCached := cachedSet[ck.BatchIndex]; isCached {
+					continue // Skip: already cached, don't re-write
+				}
+			}
+			ck.Item = elements[ck.BatchIndex]
+			// Clear EntityMergePath — Item already points to entity-level data within the array
+			ck.EntityMergePath = nil
+		}
+	}
+	for _, ck := range res.l1CacheKeys {
+		if ck.BatchIndex >= 0 && ck.BatchIndex < len(elements) {
+			if cachedSet != nil {
+				if _, isCached := cachedSet[ck.BatchIndex]; isCached {
+					continue
+				}
+			}
+			ck.Item = elements[ck.BatchIndex]
+			ck.EntityMergePath = nil
+		}
+	}
+}
+
+// mergeBatchPartialResponse interleaves cached entities with fresh subgraph results
+// for partial batch fetch. The subgraph response only contains the missed entities,
+// and this function rebuilds the full array in original input order.
+func (l *Loader) mergeBatchPartialResponse(res *result, items []*astjson.Value, info *FetchInfo) {
+	if len(items) == 0 {
+		return
+	}
+
+	// Navigate to the response array in the merged items
+	var arrayPath []string
+	arrayPath = append(arrayPath, res.batchMergePath...)
+	if info != nil && len(info.RootFields) > 0 {
+		arrayPath = append(arrayPath, info.RootFields[0].FieldName)
+	}
+
+	freshArray := items[0].Get(arrayPath...)
+	if freshArray == nil || freshArray.Type() != astjson.TypeArray {
+		return
+	}
+	freshElements := freshArray.GetArray()
+
+	// Determine total array size from all batch indices
+	allIndices := append(res.batchCachedIndices, res.batchMissedIndices...)
+	maxIndex := -1
+	for _, idx := range allIndices {
+		if idx > maxIndex {
+			maxIndex = idx
+		}
+	}
+	if maxIndex < 0 {
+		return
+	}
+
+	// Build sets for cached and missed indices
+	cachedSet := make(map[int]struct{}, len(res.batchCachedIndices))
+	for _, idx := range res.batchCachedIndices {
+		cachedSet[idx] = struct{}{}
+	}
+
+	// Build the complete array
+	completeArray := astjson.ArrayValue(l.jsonArena)
+	freshIdx := 0
+	for i := 0; i <= maxIndex; i++ {
+		if _, isCached := cachedSet[i]; isCached {
+			// Find the cached entity from L2 cache keys
+			var entity *astjson.Value
+			for _, ck := range res.l2CacheKeys {
+				if ck.BatchIndex == i && ck.FromCache != nil {
+					entity = ck.FromCache
+					break
+				}
+			}
+			if entity != nil {
+				completeArray.SetArrayItem(l.jsonArena, i, entity)
+			} else {
+				completeArray.SetArrayItem(l.jsonArena, i, astjson.NullValue)
+			}
+		} else {
+			// Fresh entity from subgraph response
+			if freshIdx < len(freshElements) {
+				completeArray.SetArrayItem(l.jsonArena, i, freshElements[freshIdx])
+				freshIdx++
+			} else {
+				completeArray.SetArrayItem(l.jsonArena, i, astjson.NullValue)
+			}
+		}
+	}
+
+	// Replace the response array with the complete interleaved array
+	if len(arrayPath) > 0 {
+		parent := items[0]
+		for i := 0; i < len(arrayPath)-1; i++ {
+			parent = parent.Get(arrayPath[i])
+			if parent == nil {
+				return
+			}
+		}
+		parent.Set(l.jsonArena, arrayPath[len(arrayPath)-1], completeArray)
+	}
+}
+
+// filterBatchVariablesForPartialFetch builds a cloned resolve context whose batch
+// list argument contains only the missed IDs for this partial fetch.
+func (l *Loader) filterBatchVariablesForPartialFetch(res *result, f *SingleFetch) (*Context, error) {
+	argPath := f.Caching.batchEntityKeyArgumentPath()
+	if len(argPath) == 0 {
+		return nil, nil
+	}
+
+	filteredVariables, err := cloneVariablesWithBatchIndices(l.ctx, argPath, res.batchMissedIndices)
+	if err != nil || filteredVariables == nil {
+		return nil, err
+	}
+
+	renderCtx := l.ctx.clone(l.ctx.ctx)
+	renderCtx.Variables = filteredVariables
+	return renderCtx, nil
+}
+
+// mergeBatchEmptyResponse handles the empty list / null key short-circuit for batch entity key lookups.
+// Constructs a response with an empty array at the root field path and merges it into items.
+func (l *Loader) mergeBatchEmptyResponse(_ *FetchItem, f *SingleFetch, items []*astjson.Value) error {
+	// Build a response object that mimics what the subgraph would return:
+	// For products(upcs: []), the subgraph would return {"products": []}
+	// After SelectResponseDataPath, this becomes the responseData.
+	// We need to produce the same shape for normal merge to work.
+	var fieldName string
+	if f.Info != nil && len(f.Info.RootFields) > 0 {
+		fieldName = f.Info.RootFields[0].FieldName
+	}
+
+	emptyArray := astjson.ArrayValue(l.jsonArena)
+	if fieldName != "" {
+		// Build {"fieldName": []} and merge at MergePath
+		responseData := astjson.ObjectValue(l.jsonArena)
+		responseData.Set(l.jsonArena, fieldName, emptyArray)
+		if len(items) == 0 {
+			l.resolvable.data = responseData
+		} else if len(items) == 1 {
+			items[0], _, _ = astjson.MergeValuesWithPath(l.jsonArena, items[0], responseData, f.PostProcessing.MergePath...)
+		}
+	} else {
+		// No field name available — merge empty array at MergePath directly
+		if len(items) == 1 {
+			items[0], _, _ = astjson.MergeValuesWithPath(l.jsonArena, items[0], emptyArray, f.PostProcessing.MergePath...)
+		}
+	}
+	return nil
+}
+
 func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson.Value) error {
 	if res.err != nil {
 		return l.renderErrorsFailedToFetch(fetchItem, res, failedToFetchNoReason)
@@ -886,6 +1175,10 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		return err
 	}
 	if res.cacheSkipFetch {
+		// Batch entity key cache hit: assemble cached entities into an array response.
+		if res.batchEntityKeyMode {
+			return l.mergeBatchCacheHit(fetchItem, res, items)
+		}
 		// Merge cached data into items
 		for _, key := range res.l1CacheKeys {
 			if key.FromCache == nil {
@@ -1035,15 +1328,24 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		if slices.Contains(taintedIndices, 0) {
 			l.taintedObjs.add(items[0])
 		}
-		// Update cache key items to point to merged data for L1 and L2 caches
-		if len(res.l1CacheKeys) > 0 && res.l1CacheKeys[0] != nil {
-			res.l1CacheKeys[0].Item = items[0]
-		}
-		if len(res.l2CacheKeys) > 0 && res.l2CacheKeys[0] != nil {
-			res.l2CacheKeys[0].Item = items[0]
-			// Negative caching: detect when subgraph returned null for this entity
-			if responseData != nil && responseData.Type() == astjson.TypeNull && res.cacheConfig.NegativeCacheTTL > 0 {
-				res.l2CacheKeys[0].NegativeCacheHit = true
+		// Batch entity key mode: map individual entities from the response array to cache keys
+		if res.batchEntityKeyMode {
+			// For partial fetch: interleave cached + fresh entities before populating cache keys
+			if res.batchPartialFetchEnabled && len(res.batchCachedIndices) > 0 {
+				l.mergeBatchPartialResponse(res, items, getFetchInfo(fetchItem.Fetch))
+			}
+			l.populateBatchCacheKeysFromResponse(res, items, getFetchInfo(fetchItem.Fetch))
+		} else {
+			// Update cache key items to point to merged data for L1 and L2 caches
+			if len(res.l1CacheKeys) > 0 && res.l1CacheKeys[0] != nil {
+				res.l1CacheKeys[0].Item = items[0]
+			}
+			if len(res.l2CacheKeys) > 0 && res.l2CacheKeys[0] != nil {
+				res.l2CacheKeys[0].Item = items[0]
+				// Negative caching: detect when subgraph returned null for this entity
+				if responseData != nil && responseData.Type() == astjson.TypeNull && res.cacheConfig.NegativeCacheTTL > 0 {
+					res.l2CacheKeys[0].NegativeCacheHit = true
+				}
 			}
 		}
 		// Always run invalidation, even on partial-error responses.
@@ -1914,7 +2216,18 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, fetchI
 		return nil
 	}
 
-	err := fetch.InputTemplate.Render(l.ctx, inputData, buf)
+	renderCtx := l.ctx
+	if res.batchPartialFetchEnabled && len(res.batchMissedIndices) > 0 && len(res.batchCachedIndices) > 0 {
+		filteredCtx, err := l.filterBatchVariablesForPartialFetch(res, fetch)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		if filteredCtx != nil {
+			renderCtx = filteredCtx
+		}
+	}
+
+	err := fetch.InputTemplate.Render(renderCtx, inputData, buf)
 	if err != nil {
 		res.out = l.renderErrorsInvalidInput(fetchItem)
 		return nil

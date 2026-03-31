@@ -2319,15 +2319,15 @@ func newUserRootQueryTemplate(requestedFields []string, entityKeyFields []string
 		})
 	}
 
-	return &RootQueryCacheKeyTemplate{
-		RootFields: []QueryField{
+	return NewRootQueryCacheKeyTemplate(
+		[]QueryField{
 			{
 				Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"},
 				Args:       rootArgs,
 			},
 		},
-		EntityKeyMappings: entityKeyMappings,
-	}
+		entityKeyMappings,
+	)
 }
 
 func newUserRootQueryResponse(rootDS DataSource, cacheKeyTemplate CacheKeyTemplate, providesData *Object) *GraphQLResponse {

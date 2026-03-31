@@ -36,6 +36,17 @@ func (r *queryResolver) Product(ctx context.Context, upc string) (*model.Product
 	return r.findProduct(upc), nil
 }
 
+// Products is the resolver for the products field.
+// Returns products in the same order as the input UPC list.
+// Unknown UPCs produce null at the corresponding position.
+func (r *queryResolver) Products(ctx context.Context, upcs []string) ([]*model.Product, error) {
+	result := make([]*model.Product, len(upcs))
+	for i, upc := range upcs {
+		result[i] = r.findProduct(upc)
+	}
+	return result, nil
+}
+
 // UpdatedPrice is the resolver for the updatedPrice field.
 func (r *subscriptionResolver) UpdatedPrice(ctx context.Context) (<-chan *model.Product, error) {
 	if len(r.products) == 0 {

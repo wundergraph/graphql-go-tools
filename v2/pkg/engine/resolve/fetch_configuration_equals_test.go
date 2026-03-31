@@ -85,6 +85,18 @@ func TestFetchConfigurationEquals_CachingDifference(t *testing.T) {
 				fc.Caching.NegativeCacheTTL = 5 * time.Second
 			},
 		},
+		{
+			name: "PartialBatchLoad differs",
+			mutate: func(fc *FetchConfiguration) {
+				fc.Caching.PartialBatchLoad = true
+			},
+		},
+		{
+			name: "BatchEntityKeyArgumentPathHint differs",
+			mutate: func(fc *FetchConfiguration) {
+				fc.Caching.BatchEntityKeyArgumentPathHint = []string{"upcs"}
+			},
+		},
 	}
 
 	// Fields intentionally not compared by Equals (not relevant for fetch deduplication):

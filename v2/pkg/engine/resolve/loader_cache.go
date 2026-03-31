@@ -197,6 +197,102 @@ func (l *Loader) resolveMultiCandidateCacheValue(a arena.Arena, ck *CacheKey, pr
 	return false
 }
 
+func batchEntityValidationObject(providesData *Object, entityMergePath []string) *Object {
+	if providesData == nil {
+		return nil
+	}
+	if len(entityMergePath) == 0 {
+		return providesData
+	}
+
+	current := providesData
+	for i, segment := range entityMergePath {
+		var next Node
+		for _, field := range current.Fields {
+			if string(field.Name) == segment || string(field.OriginalName) == segment {
+				next = field.Value
+				break
+			}
+		}
+		if next == nil {
+			return nil
+		}
+		if i == len(entityMergePath)-1 {
+			switch value := next.(type) {
+			case *Object:
+				return value
+			case *Array:
+				obj, _ := value.Item.(*Object)
+				return obj
+			default:
+				return nil
+			}
+		}
+		switch value := next.(type) {
+		case *Object:
+			current = value
+		case *Array:
+			obj, ok := value.Item.(*Object)
+			if !ok {
+				return nil
+			}
+			current = obj
+		default:
+			return nil
+		}
+	}
+
+	return current
+}
+
+func (l *Loader) resolveBatchEntityCacheValue(a arena.Arena, ck *CacheKey, providesData *Object) bool {
+	if ck.FromCache == nil {
+		return false
+	}
+	if providesData == nil || l.validateItemHasRequiredData(ck.FromCache, providesData) {
+		return true
+	}
+	if len(ck.fromCacheCandidates) <= 1 {
+		return false
+	}
+
+	var merged *astjson.Value
+	for i := len(ck.fromCacheCandidates) - 1; i >= 0; i-- {
+		parsed, err := astjson.ParseBytesWithArena(a, ck.fromCacheCandidates[i].value)
+		if err != nil {
+			continue
+		}
+		if merged == nil {
+			merged = parsed
+			continue
+		}
+		if _, _, err = astjson.MergeValues(a, merged, parsed); err != nil {
+			merged = nil
+			break
+		}
+	}
+	if merged != nil && l.validateItemHasRequiredData(merged, providesData) {
+		ck.FromCache = merged
+		ck.fromCacheNeedsWriteback = true
+		return true
+	}
+
+	for i := 1; i < len(ck.fromCacheCandidates); i++ {
+		parsed, err := astjson.ParseBytesWithArena(a, ck.fromCacheCandidates[i].value)
+		if err != nil {
+			continue
+		}
+		if l.validateItemHasRequiredData(parsed, providesData) {
+			ck.FromCache = parsed
+			ck.fromCacheRemainingTTL = ck.fromCacheCandidates[i].remainingTTL
+			ck.fromCacheNeedsWriteback = true
+			return true
+		}
+	}
+
+	return false
+}
+
 func hasMissingRequestedKeys(cacheKeys []*CacheKey) bool {
 	for _, ck := range cacheKeys {
 		if len(ck.missingKeys) > 0 {
@@ -296,7 +392,7 @@ func (l *Loader) prepareCacheKeys(info *FetchInfo, cfg FetchCacheConfiguration, 
 	}
 
 	// Check if this is an entity fetch (L1 only applies to entity fetches)
-	_, isEntity := cfg.CacheKeyTemplate.(*EntityQueryCacheKeyTemplate)
+	isEntity := cfg.isEntityFetch()
 
 	// Set analytics entity type for cache event recording
 	if l.ctx.cacheAnalyticsEnabled() && info != nil && len(info.RootFields) > 0 {
@@ -355,24 +451,32 @@ func (l *Loader) prepareCacheKeys(info *FetchInfo, cfg FetchCacheConfiguration, 
 		}
 	}
 
+	if cfg.hasBatchEntityKey() {
+		cacheKeys := res.l1CacheKeys
+		if len(cacheKeys) == 0 {
+			cacheKeys = res.l2CacheKeys
+		}
+		if len(cacheKeys) > 0 && cacheKeys[0] != nil && cacheKeys[0].Item == nil {
+			res.batchEntityKeyMode = true
+			res.batchMergePath = res.postProcessing.MergePath
+			if cfg.PartialBatchLoad && !cfg.ShadowMode {
+				res.batchPartialFetchEnabled = true
+			}
+		}
+	}
+
 	// When root field uses entity key mapping, set EntityMergePath so that
 	// store/load can extract/wrap entity-level data at the merge path.
-	if rootTemplate, ok := cfg.CacheKeyTemplate.(*RootQueryCacheKeyTemplate); ok && len(rootTemplate.EntityKeyMappings) > 0 {
+	if entityPath := cfg.entityMergePath(res.postProcessing); len(entityPath) > 0 {
 		// Determine the path to extract entity data from the merged response.
 		// If MergePath is set (e.g. ["user"]), use it directly.
 		// Otherwise, the entity data is nested under the root field name in the response
 		// (e.g. for field "user", response is {"user":{...}} and entity data is at ["user"]).
-		entityPath := res.postProcessing.MergePath
-		if len(entityPath) == 0 && len(rootTemplate.RootFields) == 1 {
-			entityPath = []string{rootTemplate.RootFields[0].Coordinate.FieldName}
+		for _, ck := range res.l1CacheKeys {
+			ck.EntityMergePath = entityPath
 		}
-		if len(entityPath) > 0 {
-			for _, ck := range res.l1CacheKeys {
-				ck.EntityMergePath = entityPath
-			}
-			for _, ck := range res.l2CacheKeys {
-				ck.EntityMergePath = entityPath
-			}
+		for _, ck := range res.l2CacheKeys {
+			ck.EntityMergePath = entityPath
 		}
 	}
 
@@ -466,6 +570,12 @@ func (l *Loader) tryCacheLoad(ctx context.Context, info *FetchInfo, cfg FetchCac
 		if res.partialCacheEnabled && len(res.cachedItemIndices) > 0 {
 			// Partial hit from L2 with partial loading enabled
 			// Keep FromCache values, return false to proceed with fetch for missing items
+			return false, nil
+		}
+
+		if res.batchPartialFetchEnabled && len(res.batchCachedIndices) > 0 {
+			// Batch partial hit: some entities cached, some need fetching
+			// Keep FromCache values, return false to proceed with fetch for missing IDs
 			return false, nil
 		}
 	}
@@ -563,6 +673,17 @@ func (l *Loader) tryL1CacheLoad(info *FetchInfo, cacheKeys []*CacheKey, res *res
 	return allComplete
 }
 
+type l2CacheLookupState struct {
+	analyticsEnabled        bool
+	tracingCache            bool
+	shadowMode              bool
+	hasAliases              bool
+	entityType              string
+	dataSource              string
+	remainingTTLs           map[string]time.Duration
+	batchEntityProvidesData *Object
+}
+
 // tryL2CacheLoad checks the external (L2) cache for entity data.
 // Thread-safe: can be called from parallel goroutines (uses atomic L2 stats).
 // Expects res.l2CacheKeys to be pre-populated by prepareCacheKeys().
@@ -658,234 +779,20 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 		return false, nil
 	}
 
-	// When EntityMergePath is set, the cache stores entity-level data (e.g. {"id":"1234","username":"Me"}).
-	// Root field fetches need response-level data (e.g. {"user":{"id":"1234","username":"Me"}}),
-	// so wrap the cached entity data back at the merge path before validation.
-	for _, ck := range res.l2CacheKeys {
-		if len(ck.EntityMergePath) > 0 && ck.FromCache != nil {
-			ck.FromCache = wrapCacheValueAtMergePath(res.goroutineArena, ck.FromCache, ck.EntityMergePath)
-		}
-	}
-
-	// Build map of L2 cache key → RemainingTTL for cache age computation
-	var remainingTTLs map[string]time.Duration
-	if analyticsEnabled {
-		remainingTTLs = make(map[string]time.Duration, len(cacheEntries))
-		for _, entry := range cacheEntries {
-			if entry != nil && entry.RemainingTTL > 0 {
-				remainingTTLs[entry.Key] = entry.RemainingTTL
-			}
-		}
-	}
-
-	shadowMode := res.cacheConfig.ShadowMode
+	state := l.prepareL2LookupState(info, res, cacheEntries, analyticsEnabled, tracingCache, entityType, dataSource)
 
 	// Copy FromCache values from L2 keys to L1 keys (if L1 keys exist) and track per-entity hits/misses
-	// The keys have the same structure, just different key strings
+	// The keys have the same structure, just different key strings.
 	allComplete := true
-	hasAliases := info != nil && info.ProvidesData != nil && info.ProvidesData.HasAliases
-	if len(res.l1CacheKeys) > 0 {
-		// Entity fetch with L1 keys - copy to L1 keys for merging
-		for i := range res.l1CacheKeys {
-			if i < len(res.l2CacheKeys) {
-				res.l1CacheKeys[i].FromCache = res.l2CacheKeys[i].FromCache
-				res.l1CacheKeys[i].missingKeys = res.l2CacheKeys[i].missingKeys
-				res.l1CacheKeys[i].fromCacheRemainingTTL = res.l2CacheKeys[i].fromCacheRemainingTTL
-				res.l1CacheKeys[i].fromCacheCandidates = res.l2CacheKeys[i].fromCacheCandidates
-				res.l1CacheKeys[i].fromCacheNeedsWriteback = res.l2CacheKeys[i].fromCacheNeedsWriteback
-				// Track per-entity L2 hit/miss (atomic operations - thread-safe)
-				if res.l1CacheKeys[i].FromCache != nil {
-					// Negative cache hit: L2 stored a null sentinel for this entity.
-					// The subgraph previously returned null (without errors), meaning it has
-					// nothing for this entity. Treat as a cache hit to avoid re-fetching.
-					if res.l1CacheKeys[i].FromCache.Type() == astjson.TypeNull && res.cacheConfig.NegativeCacheTTL > 0 {
-						if analyticsEnabled && len(res.l1CacheKeys[i].Keys) > 0 {
-							res.l2AnalyticsEvents = append(res.l2AnalyticsEvents, CacheKeyEvent{
-								CacheKey: res.l1CacheKeys[i].Keys[0], EntityType: entityType,
-								Kind: CacheKeyHit, DataSource: dataSource, ByteSize: 4, // "null"
-								Shadow: shadowMode,
-							})
-						}
-						if tracingCache {
-							res.cacheTraceNegativeHits++
-							if !l.ctx.TracingOptions.ExcludeRawInputData && len(res.l1CacheKeys[i].Keys) > 0 {
-								res.cacheTraceEntityDetails = append(res.cacheTraceEntityDetails, CacheTraceEntity{
-									Key:    res.l1CacheKeys[i].Keys[0],
-									Source: "negative_cache",
-								})
-							}
-						}
-						if res.partialCacheEnabled {
-							res.cachedItemIndices = append(res.cachedItemIndices, i)
-						}
-					} else if info != nil && info.ProvidesData != nil && l.resolveMultiCandidateCacheValue(res.goroutineArena, res.l1CacheKeys[i], info.ProvidesData) {
-						res.l2CacheKeys[i].FromCache = res.l1CacheKeys[i].FromCache
-						res.l2CacheKeys[i].fromCacheRemainingTTL = res.l1CacheKeys[i].fromCacheRemainingTTL
-						res.l2CacheKeys[i].fromCacheNeedsWriteback = res.l1CacheKeys[i].fromCacheNeedsWriteback
-						// Denormalize from original field names to current query aliases for merging
-						if hasAliases {
-							res.l1CacheKeys[i].FromCache = l.denormalizeFromCache(res.goroutineArena, res.l1CacheKeys[i].FromCache, info.ProvidesData)
-						}
-						var byteSize int
-						if (analyticsEnabled || tracingCache) && len(res.l1CacheKeys[i].Keys) > 0 {
-							byteSize = len(res.l1CacheKeys[i].FromCache.MarshalTo(nil))
-						}
-						if analyticsEnabled && len(res.l1CacheKeys[i].Keys) > 0 {
-							var cacheAgeMs int64
-							if i < len(res.l2CacheKeys) && len(res.l2CacheKeys[i].Keys) > 0 {
-								cacheAgeMs = computeCacheAgeMs(remainingTTLs[res.l2CacheKeys[i].Keys[0]], res.cacheConfig.TTL)
-							}
-							res.l2AnalyticsEvents = append(res.l2AnalyticsEvents, CacheKeyEvent{
-								CacheKey: res.l1CacheKeys[i].Keys[0], EntityType: entityType,
-								Kind: CacheKeyHit, DataSource: dataSource, ByteSize: byteSize,
-								CacheAgeMs: cacheAgeMs, Shadow: shadowMode,
-							})
-							// Record entity source for L2 hit
-							if len(res.cacheConfig.KeyFields) > 0 {
-								keyJSON := buildEntityKeyJSON(res.l1CacheKeys[i].FromCache, res.cacheConfig.KeyFields)
-								if len(keyJSON) > 0 {
-									res.l2EntitySources = append(res.l2EntitySources, entitySourceRecord{
-										entityType: entityType, keyJSON: string(keyJSON), source: FieldSourceL2,
-									})
-								}
-							}
-						}
-						// In shadow mode, save cached value for staleness comparison
-						if shadowMode {
-							var remaining time.Duration
-							if i < len(res.l2CacheKeys) && len(res.l2CacheKeys[i].Keys) > 0 {
-								remaining = remainingTTLs[res.l2CacheKeys[i].Keys[0]]
-							}
-							l.saveShadowCachedValue(res, i, res.l1CacheKeys[i].FromCache, res.l1CacheKeys[i].Keys[0], remaining)
-							if tracingCache {
-								res.cacheTraceShadowHit = true
-							}
-						}
-						if tracingCache {
-							res.cacheTraceL2Hits++
-							if !l.ctx.TracingOptions.ExcludeRawInputData && len(res.l1CacheKeys[i].Keys) > 0 {
-								res.cacheTraceEntityDetails = append(res.cacheTraceEntityDetails, CacheTraceEntity{
-									Key:      res.l1CacheKeys[i].Keys[0],
-									Source:   "l2",
-									ByteSize: byteSize,
-								})
-							}
-						}
-						// Track cached item index when partial loading enabled
-						if res.partialCacheEnabled {
-							res.cachedItemIndices = append(res.cachedItemIndices, i)
-						}
-					} else {
-						// FromCache is non-nil but missing required fields -> partial hit
-						if analyticsEnabled && len(res.l1CacheKeys[i].Keys) > 0 {
-							res.l2AnalyticsEvents = append(res.l2AnalyticsEvents, CacheKeyEvent{
-								CacheKey: res.l1CacheKeys[i].Keys[0], EntityType: entityType,
-								Kind: CacheKeyPartialHit, DataSource: dataSource, ByteSize: 0,
-								Shadow: shadowMode,
-							})
-						}
-						allComplete = false
-						// Track fetch item index when partial loading enabled
-						if res.partialCacheEnabled {
-							res.fetchItemIndices = append(res.fetchItemIndices, i)
-						}
-					}
-				} else {
-					if analyticsEnabled && len(res.l1CacheKeys[i].Keys) > 0 {
-						res.l2AnalyticsEvents = append(res.l2AnalyticsEvents, CacheKeyEvent{
-							CacheKey: res.l1CacheKeys[i].Keys[0], EntityType: entityType,
-							Kind: CacheKeyMiss, DataSource: dataSource, ByteSize: 0,
-							Shadow: shadowMode,
-						})
-					}
-					if tracingCache {
-						res.cacheTraceL2Misses++
-					}
-					allComplete = false
-					// Track fetch item index when partial loading enabled
-					if res.partialCacheEnabled {
-						res.fetchItemIndices = append(res.fetchItemIndices, i)
-					}
-				}
-			}
-		}
+	if len(res.l1CacheKeys) > 0 && !res.batchEntityKeyMode {
+		allComplete = l.applyEntityFetchL2Results(info, res, state)
 	} else {
-		// Root fetch (no L1 keys) - track directly from L2 keys
-		for i, ck := range res.l2CacheKeys {
-			if ck.FromCache != nil {
-				if info != nil && info.ProvidesData != nil && l.resolveMultiCandidateCacheValue(res.goroutineArena, ck, info.ProvidesData) {
-					// Denormalize from original field names to current query aliases for merging
-					if hasAliases {
-						res.l2CacheKeys[i].FromCache = l.denormalizeFromCache(res.goroutineArena, ck.FromCache, info.ProvidesData)
-					}
-					var byteSize int
-					if (analyticsEnabled || tracingCache) && len(ck.Keys) > 0 {
-						byteSize = len(res.l2CacheKeys[i].FromCache.MarshalTo(nil))
-					}
-					if analyticsEnabled && len(ck.Keys) > 0 {
-						cacheAgeMs := computeCacheAgeMs(remainingTTLs[ck.Keys[0]], res.cacheConfig.TTL)
-						res.l2AnalyticsEvents = append(res.l2AnalyticsEvents, CacheKeyEvent{
-							CacheKey: ck.Keys[0], EntityType: entityType,
-							Kind: CacheKeyHit, DataSource: dataSource, ByteSize: byteSize,
-							CacheAgeMs: cacheAgeMs, Shadow: shadowMode,
-						})
-						// Record entity sources from cached root field response
-						if len(res.cacheConfig.KeyFields) > 0 {
-							walkCachedResponseForSources(res.l2CacheKeys[i].FromCache, res.cacheConfig.KeyFields, entityType, FieldSourceL2, &res.l2EntitySources)
-						}
-					}
-					if tracingCache {
-						res.cacheTraceL2Hits++
-						if !l.ctx.TracingOptions.ExcludeRawInputData && len(ck.Keys) > 0 {
-							res.cacheTraceEntityDetails = append(res.cacheTraceEntityDetails, CacheTraceEntity{
-								Key:      ck.Keys[0],
-								Source:   "l2",
-								ByteSize: byteSize,
-							})
-						}
-					}
-					// Track cached item index when partial loading enabled
-					if res.partialCacheEnabled {
-						res.cachedItemIndices = append(res.cachedItemIndices, i)
-					}
-				} else {
-					// FromCache is non-nil but missing required fields -> partial hit
-					if analyticsEnabled && len(ck.Keys) > 0 {
-						res.l2AnalyticsEvents = append(res.l2AnalyticsEvents, CacheKeyEvent{
-							CacheKey: ck.Keys[0], EntityType: entityType,
-							Kind: CacheKeyPartialHit, DataSource: dataSource, ByteSize: 0,
-							Shadow: shadowMode,
-						})
-					}
-					allComplete = false
-					// Track fetch item index when partial loading enabled
-					if res.partialCacheEnabled {
-						res.fetchItemIndices = append(res.fetchItemIndices, i)
-					}
-				}
-			} else {
-				if analyticsEnabled && len(ck.Keys) > 0 {
-					res.l2AnalyticsEvents = append(res.l2AnalyticsEvents, CacheKeyEvent{
-						CacheKey: ck.Keys[0], EntityType: entityType,
-						Kind: CacheKeyMiss, DataSource: dataSource, ByteSize: 0,
-						Shadow: shadowMode,
-					})
-				}
-				if tracingCache {
-					res.cacheTraceL2Misses++
-				}
-				allComplete = false
-				// Track fetch item index when partial loading enabled
-				if res.partialCacheEnabled {
-					res.fetchItemIndices = append(res.fetchItemIndices, i)
-				}
-			}
-		}
+		allComplete = l.applyRootFetchL2Results(info, res, state)
 	}
 
 	// Shadow mode: even if all items were found in cache, we still need to fetch
 	// fresh data for comparison. Clear FromCache and force fetch.
-	if shadowMode {
+	if state.shadowMode {
 		for _, ck := range res.l1CacheKeys {
 			ck.FromCache = nil
 		}
@@ -906,6 +813,273 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 
 	res.cacheMustBeUpdated = true
 	return false, nil
+}
+
+func (l *Loader) prepareL2LookupState(info *FetchInfo, res *result, cacheEntries []*CacheEntry, analyticsEnabled, tracingCache bool, entityType, dataSource string) l2CacheLookupState {
+	state := l2CacheLookupState{
+		analyticsEnabled: analyticsEnabled,
+		tracingCache:     tracingCache,
+		shadowMode:       res.cacheConfig.ShadowMode,
+		hasAliases:       info != nil && info.ProvidesData != nil && info.ProvidesData.HasAliases,
+		entityType:       entityType,
+		dataSource:       dataSource,
+	}
+
+	if res.batchEntityKeyMode && len(res.l2CacheKeys) > 0 {
+		state.batchEntityProvidesData = batchEntityValidationObject(info.ProvidesData, res.l2CacheKeys[0].EntityMergePath)
+	}
+
+	// When EntityMergePath is set, the cache stores entity-level data (e.g. {"id":"1234","username":"Me"}).
+	// Root field fetches need response-level data (e.g. {"user":{"id":"1234","username":"Me"}}),
+	// so wrap the cached entity data back at the merge path before validation.
+	// Batch entity key lookups keep entity-level values because each cache entry represents
+	// one array element rather than a complete root field response.
+	if !res.batchEntityKeyMode {
+		for _, ck := range res.l2CacheKeys {
+			if len(ck.EntityMergePath) > 0 && ck.FromCache != nil {
+				ck.FromCache = wrapCacheValueAtMergePath(res.goroutineArena, ck.FromCache, ck.EntityMergePath)
+			}
+		}
+	}
+
+	if analyticsEnabled {
+		state.remainingTTLs = make(map[string]time.Duration, len(cacheEntries))
+		for _, entry := range cacheEntries {
+			if entry != nil && entry.RemainingTTL > 0 {
+				state.remainingTTLs[entry.Key] = entry.RemainingTTL
+			}
+		}
+	}
+
+	return state
+}
+
+func (l *Loader) applyEntityFetchL2Results(info *FetchInfo, res *result, state l2CacheLookupState) bool {
+	allComplete := true
+
+	for i := range res.l1CacheKeys {
+		if i >= len(res.l2CacheKeys) {
+			continue
+		}
+
+		res.l1CacheKeys[i].FromCache = res.l2CacheKeys[i].FromCache
+		res.l1CacheKeys[i].missingKeys = res.l2CacheKeys[i].missingKeys
+		res.l1CacheKeys[i].fromCacheRemainingTTL = res.l2CacheKeys[i].fromCacheRemainingTTL
+		res.l1CacheKeys[i].fromCacheCandidates = res.l2CacheKeys[i].fromCacheCandidates
+		res.l1CacheKeys[i].fromCacheNeedsWriteback = res.l2CacheKeys[i].fromCacheNeedsWriteback
+
+		if res.l1CacheKeys[i].FromCache == nil {
+			if state.analyticsEnabled && len(res.l1CacheKeys[i].Keys) > 0 {
+				res.l2AnalyticsEvents = append(res.l2AnalyticsEvents, CacheKeyEvent{
+					CacheKey: res.l1CacheKeys[i].Keys[0], EntityType: state.entityType,
+					Kind: CacheKeyMiss, DataSource: state.dataSource, ByteSize: 0,
+					Shadow: state.shadowMode,
+				})
+			}
+			if state.tracingCache {
+				res.cacheTraceL2Misses++
+			}
+			allComplete = false
+			if res.partialCacheEnabled {
+				res.fetchItemIndices = append(res.fetchItemIndices, i)
+			}
+			continue
+		}
+
+		if res.l1CacheKeys[i].FromCache.Type() == astjson.TypeNull && res.cacheConfig.NegativeCacheTTL > 0 {
+			if state.analyticsEnabled && len(res.l1CacheKeys[i].Keys) > 0 {
+				res.l2AnalyticsEvents = append(res.l2AnalyticsEvents, CacheKeyEvent{
+					CacheKey: res.l1CacheKeys[i].Keys[0], EntityType: state.entityType,
+					Kind: CacheKeyHit, DataSource: state.dataSource, ByteSize: 4,
+					Shadow: state.shadowMode,
+				})
+			}
+			if state.tracingCache {
+				res.cacheTraceNegativeHits++
+				if !l.ctx.TracingOptions.ExcludeRawInputData && len(res.l1CacheKeys[i].Keys) > 0 {
+					res.cacheTraceEntityDetails = append(res.cacheTraceEntityDetails, CacheTraceEntity{
+						Key:    res.l1CacheKeys[i].Keys[0],
+						Source: "negative_cache",
+					})
+				}
+			}
+			if res.partialCacheEnabled {
+				res.cachedItemIndices = append(res.cachedItemIndices, i)
+			}
+			continue
+		}
+
+		if info != nil && info.ProvidesData != nil && !l.resolveMultiCandidateCacheValue(res.goroutineArena, res.l1CacheKeys[i], info.ProvidesData) {
+			if state.analyticsEnabled && len(res.l1CacheKeys[i].Keys) > 0 {
+				res.l2AnalyticsEvents = append(res.l2AnalyticsEvents, CacheKeyEvent{
+					CacheKey: res.l1CacheKeys[i].Keys[0], EntityType: state.entityType,
+					Kind: CacheKeyPartialHit, DataSource: state.dataSource, ByteSize: 0,
+					Shadow: state.shadowMode,
+				})
+			}
+			allComplete = false
+			if res.partialCacheEnabled {
+				res.fetchItemIndices = append(res.fetchItemIndices, i)
+			}
+			continue
+		}
+
+		res.l2CacheKeys[i].FromCache = res.l1CacheKeys[i].FromCache
+		res.l2CacheKeys[i].fromCacheRemainingTTL = res.l1CacheKeys[i].fromCacheRemainingTTL
+		res.l2CacheKeys[i].fromCacheNeedsWriteback = res.l1CacheKeys[i].fromCacheNeedsWriteback
+
+		if state.hasAliases {
+			res.l1CacheKeys[i].FromCache = l.denormalizeFromCache(res.goroutineArena, res.l1CacheKeys[i].FromCache, info.ProvidesData)
+		}
+
+		var byteSize int
+		if (state.analyticsEnabled || state.tracingCache) && len(res.l1CacheKeys[i].Keys) > 0 {
+			byteSize = len(res.l1CacheKeys[i].FromCache.MarshalTo(nil))
+		}
+
+		if state.analyticsEnabled && len(res.l1CacheKeys[i].Keys) > 0 {
+			var cacheAgeMs int64
+			if len(res.l2CacheKeys[i].Keys) > 0 {
+				cacheAgeMs = computeCacheAgeMs(state.remainingTTLs[res.l2CacheKeys[i].Keys[0]], res.cacheConfig.TTL)
+			}
+			res.l2AnalyticsEvents = append(res.l2AnalyticsEvents, CacheKeyEvent{
+				CacheKey: res.l1CacheKeys[i].Keys[0], EntityType: state.entityType,
+				Kind: CacheKeyHit, DataSource: state.dataSource, ByteSize: byteSize,
+				CacheAgeMs: cacheAgeMs, Shadow: state.shadowMode,
+			})
+			if len(res.cacheConfig.KeyFields) > 0 {
+				keyJSON := buildEntityKeyJSON(res.l1CacheKeys[i].FromCache, res.cacheConfig.KeyFields)
+				if len(keyJSON) > 0 {
+					res.l2EntitySources = append(res.l2EntitySources, entitySourceRecord{
+						entityType: state.entityType, keyJSON: string(keyJSON), source: FieldSourceL2,
+					})
+				}
+			}
+		}
+
+		if state.shadowMode {
+			var remaining time.Duration
+			if len(res.l2CacheKeys[i].Keys) > 0 {
+				remaining = state.remainingTTLs[res.l2CacheKeys[i].Keys[0]]
+			}
+			l.saveShadowCachedValue(res, i, res.l1CacheKeys[i].FromCache, res.l1CacheKeys[i].Keys[0], remaining)
+			if state.tracingCache {
+				res.cacheTraceShadowHit = true
+			}
+		}
+
+		if state.tracingCache {
+			res.cacheTraceL2Hits++
+			if !l.ctx.TracingOptions.ExcludeRawInputData && len(res.l1CacheKeys[i].Keys) > 0 {
+				res.cacheTraceEntityDetails = append(res.cacheTraceEntityDetails, CacheTraceEntity{
+					Key:      res.l1CacheKeys[i].Keys[0],
+					Source:   "l2",
+					ByteSize: byteSize,
+				})
+			}
+		}
+
+		if res.partialCacheEnabled {
+			res.cachedItemIndices = append(res.cachedItemIndices, i)
+		}
+	}
+
+	return allComplete
+}
+
+func (l *Loader) applyRootFetchL2Results(info *FetchInfo, res *result, state l2CacheLookupState) bool {
+	allComplete := true
+
+	for i, ck := range res.l2CacheKeys {
+		if ck.FromCache == nil {
+			if state.analyticsEnabled && len(ck.Keys) > 0 {
+				res.l2AnalyticsEvents = append(res.l2AnalyticsEvents, CacheKeyEvent{
+					CacheKey: ck.Keys[0], EntityType: state.entityType,
+					Kind: CacheKeyMiss, DataSource: state.dataSource, ByteSize: 0,
+					Shadow: state.shadowMode,
+				})
+			}
+			if state.tracingCache {
+				res.cacheTraceL2Misses++
+			}
+			allComplete = false
+			if res.partialCacheEnabled {
+				res.fetchItemIndices = append(res.fetchItemIndices, i)
+			}
+			if res.batchPartialFetchEnabled {
+				res.batchMissedIndices = append(res.batchMissedIndices, ck.BatchIndex)
+			}
+			continue
+		}
+
+		providesDataForValidation := info != nil && info.ProvidesData != nil
+		cacheHit := !providesDataForValidation || l.resolveMultiCandidateCacheValue(res.goroutineArena, ck, info.ProvidesData)
+		if res.batchEntityKeyMode {
+			cacheHit = state.batchEntityProvidesData == nil || l.resolveBatchEntityCacheValue(res.goroutineArena, ck, state.batchEntityProvidesData)
+		}
+		if !cacheHit {
+			if state.analyticsEnabled && len(ck.Keys) > 0 {
+				res.l2AnalyticsEvents = append(res.l2AnalyticsEvents, CacheKeyEvent{
+					CacheKey: ck.Keys[0], EntityType: state.entityType,
+					Kind: CacheKeyPartialHit, DataSource: state.dataSource, ByteSize: 0,
+					Shadow: state.shadowMode,
+				})
+			}
+			allComplete = false
+			if res.partialCacheEnabled {
+				res.fetchItemIndices = append(res.fetchItemIndices, i)
+			}
+			if res.batchPartialFetchEnabled {
+				res.batchMissedIndices = append(res.batchMissedIndices, ck.BatchIndex)
+			}
+			continue
+		}
+
+		if state.hasAliases {
+			if res.batchEntityKeyMode && state.batchEntityProvidesData != nil {
+				res.l2CacheKeys[i].FromCache = l.denormalizeFromCache(res.goroutineArena, ck.FromCache, state.batchEntityProvidesData)
+			} else {
+				res.l2CacheKeys[i].FromCache = l.denormalizeFromCache(res.goroutineArena, ck.FromCache, info.ProvidesData)
+			}
+		}
+
+		var byteSize int
+		if (state.analyticsEnabled || state.tracingCache) && len(ck.Keys) > 0 {
+			byteSize = len(res.l2CacheKeys[i].FromCache.MarshalTo(nil))
+		}
+
+		if state.analyticsEnabled && len(ck.Keys) > 0 {
+			cacheAgeMs := computeCacheAgeMs(state.remainingTTLs[ck.Keys[0]], res.cacheConfig.TTL)
+			res.l2AnalyticsEvents = append(res.l2AnalyticsEvents, CacheKeyEvent{
+				CacheKey: ck.Keys[0], EntityType: state.entityType,
+				Kind: CacheKeyHit, DataSource: state.dataSource, ByteSize: byteSize,
+				CacheAgeMs: cacheAgeMs, Shadow: state.shadowMode,
+			})
+			if len(res.cacheConfig.KeyFields) > 0 {
+				walkCachedResponseForSources(res.l2CacheKeys[i].FromCache, res.cacheConfig.KeyFields, state.entityType, FieldSourceL2, &res.l2EntitySources)
+			}
+		}
+
+		if state.tracingCache {
+			res.cacheTraceL2Hits++
+			if !l.ctx.TracingOptions.ExcludeRawInputData && len(ck.Keys) > 0 {
+				res.cacheTraceEntityDetails = append(res.cacheTraceEntityDetails, CacheTraceEntity{
+					Key:      ck.Keys[0],
+					Source:   "l2",
+					ByteSize: byteSize,
+				})
+			}
+		}
+
+		if res.partialCacheEnabled {
+			res.cachedItemIndices = append(res.cachedItemIndices, i)
+		}
+		if res.batchPartialFetchEnabled {
+			res.batchCachedIndices = append(res.batchCachedIndices, ck.BatchIndex)
+		}
+	}
+
+	return allComplete
 }
 
 // populateL1Cache stores entity data in the L1 (per-request) cache for later reuse.
@@ -1099,6 +1273,18 @@ func getFetchCaching(fetch Fetch) FetchCacheConfiguration {
 		return f.Caching
 	}
 	return FetchCacheConfiguration{}
+}
+
+func getFetchPostProcessing(fetch Fetch) PostProcessingConfiguration {
+	switch f := fetch.(type) {
+	case *SingleFetch:
+		return f.PostProcessing
+	case *EntityFetch:
+		return f.PostProcessing
+	case *BatchEntityFetch:
+		return f.PostProcessing
+	}
+	return PostProcessingConfiguration{}
 }
 
 // updateL2Cache writes entity data to the L2 (external) cache.
@@ -1305,6 +1491,12 @@ func (l *Loader) cacheKeysToEntriesForUpdate(a arena.Arena, res *result, cacheKe
 }
 
 func (l *Loader) cacheKeysToExactRootFieldEntityEntries(a arena.Arena, res *result, cacheKeys []*CacheKey, rootTemplate *RootQueryCacheKeyTemplate) []*CacheEntry {
+	// Batch entity key mode: each CacheKey already has the correct L2 key in ck.Keys[0]
+	// and ck.Item points to the individual entity. Use simplified write path.
+	if res.batchEntityKeyMode {
+		return l.cacheKeysToEntriesBatch(a, res, cacheKeys)
+	}
+
 	// Key-format parity assumption: rendering a key from final entity data must produce
 	// the same string as rendering the requested key from input args when the values match.
 	prefix := l.rootFieldL2CachePrefix(res)
@@ -1367,6 +1559,35 @@ func (l *Loader) cacheKeysToExactRootFieldEntityEntries(a arena.Arena, res *resu
 		}
 	}
 
+	return out
+}
+
+// cacheKeysToEntriesBatch converts batch CacheKeys to CacheEntries.
+// For batch mode, each CacheKey already has the correct L2 key and Item pointing to entity data.
+func (l *Loader) cacheKeysToEntriesBatch(a arena.Arena, res *result, cacheKeys []*CacheKey) []*CacheEntry {
+	out := make([]*CacheEntry, 0, len(cacheKeys))
+	seen := make(map[string]struct{}, len(cacheKeys))
+	for _, ck := range cacheKeys {
+		if ck == nil || ck.Item == nil || ck.NegativeCacheHit {
+			continue
+		}
+		if ck.Item.Type() != astjson.TypeObject {
+			continue
+		}
+		for _, key := range ck.Keys {
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			valueBytes := ck.Item.MarshalTo(nil)
+			entryBuf := make([]byte, len(valueBytes))
+			copy(entryBuf, valueBytes)
+			out = append(out, &CacheEntry{
+				Key:   key,
+				Value: entryBuf,
+			})
+		}
+	}
 	return out
 }
 
