@@ -2955,4 +2955,573 @@ func TestExecutionEngine_Cost(t *testing.T) {
 		})
 
 	})
+
+	t.Run("validate requireOneSlicingArgument on concrete types", func(t *testing.T) {
+		listSchema := `
+			type Query {
+			   items(first: Int, last: Int): [Item!] # @listSize(assumedSize: 10, SlicingArguments: ["first", "last"], RequireOneSlicingArgument: true/false)
+			   itemsNoSlicing: [Item!]  # @listSize(assumedSize: 5, RequireOneSlicingArgument: true)
+			}
+			type Item @key(fields: "id") {
+			  id: ID
+			}
+			`
+		schema, err := graphql.NewSchemaFromString(listSchema)
+		require.NoError(t, err)
+		rootNodes := []plan.TypeField{
+			{TypeName: "Query", FieldNames: []string{"items", "itemsNoSlicing"}},
+			{TypeName: "Item", FieldNames: []string{"id"}},
+		}
+		childNodes := []plan.TypeField{}
+		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+			Fetch: &graphql_datasource.FetchConfiguration{
+				URL:    "https://example.com/",
+				Method: "GET",
+			},
+			SchemaConfiguration: mustSchemaConfig(t, nil, listSchema),
+		})
+		fieldConfig := []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "items",
+				Path:      []string{"items"},
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:         "first",
+						SourceType:   plan.FieldArgumentSource,
+						RenderConfig: plan.RenderArgumentAsGraphQLValue,
+					},
+					{
+						Name:         "last",
+						SourceType:   plan.FieldArgumentSource,
+						RenderConfig: plan.RenderArgumentAsGraphQLValue,
+					},
+				},
+			},
+			{
+				TypeName:  "Query",
+				FieldName: "itemsNoSlicing",
+				Path:      []string{"itemsNoSlicing"},
+			},
+		}
+
+		costConfigWithRequireOne := &plan.DataSourceCostConfig{
+			Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+				{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
+			},
+			ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+				{TypeName: "Query", FieldName: "items"}: {
+					AssumedSize:               10,
+					SlicingArguments:          []string{"first", "last"},
+					RequireOneSlicingArgument: true,
+				},
+				{TypeName: "Query", FieldName: "itemsNoSlicing"}: {
+					AssumedSize:               5,
+					RequireOneSlicingArgument: true,
+				},
+			},
+			Types: map[string]int{
+				"Item": 2,
+			},
+		}
+
+		costConfigWithRequireOneDisabled := &plan.DataSourceCostConfig{
+			Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+				{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
+			},
+			ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+				{TypeName: "Query", FieldName: "items"}: {
+					AssumedSize:               10,
+					SlicingArguments:          []string{"first", "last"},
+					RequireOneSlicingArgument: false,
+				},
+			},
+			Types: map[string]int{
+				"Item": 2,
+			},
+		}
+
+		t.Run("no slicingArguments defined - requireOneSlicingArgument ignored", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ itemsNoSlicing { id } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"itemsNoSlicing":[{"id":"1"}]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: costConfigWithRequireOne,
+						},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"itemsNoSlicing":[{"id":"1"}]}}`,
+				expectedEstimatedCost: 15, // assumedSize(5) * (Item(2) + Item.id(1))
+			},
+			computeCosts(),
+		))
+
+		t.Run("exactly one slicing argument provided - valid", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ items(first: 4) { id } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"items":[{"id":"1"}]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: costConfigWithRequireOne,
+						},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"items":[{"id":"1"}]}}`,
+				expectedEstimatedCost: 12, // 4 * (Item(2) + Item.id(1))
+			},
+			computeCosts(),
+		))
+
+		t.Run("no slicing argument provided - error", runWithAndCompareError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ items { id } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"items":[]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: costConfigWithRequireOne,
+						},
+						customConfig,
+					),
+				},
+				fields: fieldConfig,
+			},
+			"external: field 'Query.items' requires exactly one slicing argument, but none was provided, locations: [], path: [items]",
+			computeCosts(),
+		))
+
+		t.Run("multiple slicing arguments provided - error", runWithAndCompareError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ items(first: 5, last: 3) { id } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"items":[]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: costConfigWithRequireOne,
+						},
+						customConfig,
+					),
+				},
+				fields: fieldConfig,
+			},
+			"external: field 'Query.items' requires exactly one slicing argument, but 2 were provided, locations: [], path: [items]",
+			computeCosts(),
+		))
+
+		t.Run("no slicing argument but requireOneSlicingArgument disabled - valid", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ items { id } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"items":[{"id":"1"}]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: costConfigWithRequireOneDisabled,
+						},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"items":[{"id":"1"}]}}`,
+				expectedEstimatedCost: 30, // assumedSize(10) * (Item(2) + Item.id(1))
+			},
+			computeCosts(),
+		))
+
+		t.Run("multiple slicing arguments but requireOneSlicingArgument disabled - valid", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ items(first: 5, last: 3) { id } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"items":[{"id":"1"}]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: costConfigWithRequireOneDisabled,
+						},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"items":[{"id":"1"}]}}`,
+				expectedEstimatedCost: 15, // max(5,3)=5 * (Item(2) + Item.id(1))
+			},
+			computeCosts(),
+		))
+
+		t.Run("slicing argument provided as variable - valid", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query:     `query ($n: Int!) { items(first: $n) { id } }`,
+						Variables: []byte(`{"n": 7}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"items":[{"id":"1"}]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: costConfigWithRequireOne,
+						},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"items":[{"id":"1"}]}}`,
+				expectedEstimatedCost: 21, // 7 * (Item(2) + Item.id(1))
+			},
+			computeCosts(),
+		))
+
+		t.Run("multiple fields violating - collects all errors", func(t *testing.T) {
+			multiSchema := `
+				type Query {
+					items(first: Int, last: Int): [Item!] # @listSize(assumedSize: 10, slicingArguments: ["first", "last"], requireOneSlicingArgument: true)
+					other(first: Int, last: Int): [Item!] # @listSize(assumedSize: 10, slicingArguments: ["first", "last"], requireOneSlicingArgument: true)
+				}
+				type Item @key(fields: "id") @cost(weight: 2) {
+					id: ID
+				}
+			`
+			multiSchemaObj, err := graphql.NewSchemaFromString(multiSchema)
+			require.NoError(t, err)
+			multiRootNodes := []plan.TypeField{
+				{TypeName: "Query", FieldNames: []string{"items", "other"}},
+				{TypeName: "Item", FieldNames: []string{"id"}},
+			}
+			multiCustomConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+				Fetch: &graphql_datasource.FetchConfiguration{
+					URL:    "https://example.com/",
+					Method: "GET",
+				},
+				SchemaConfiguration: mustSchemaConfig(t, nil, multiSchema),
+			})
+			multiFieldConfig := []plan.FieldConfiguration{
+				{
+					TypeName: "Query", FieldName: "items", Path: []string{"items"},
+					Arguments: []plan.ArgumentConfiguration{
+						{Name: "first", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+						{Name: "last", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+					},
+				},
+				{
+					TypeName: "Query", FieldName: "other", Path: []string{"other"},
+					Arguments: []plan.ArgumentConfiguration{
+						{Name: "first", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+						{Name: "last", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+					},
+				},
+			}
+			multiCostConfig := &plan.DataSourceCostConfig{
+				ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+					{TypeName: "Query", FieldName: "items"}: {
+						AssumedSize: 10, SlicingArguments: []string{"first", "last"}, RequireOneSlicingArgument: true,
+					},
+					{TypeName: "Query", FieldName: "other"}: {
+						AssumedSize: 10, SlicingArguments: []string{"first", "last"}, RequireOneSlicingArgument: true,
+					},
+				},
+				Types: map[string]int{"Item": 2},
+			}
+
+			t.Run("both fields missing slicing argument", runWithAndCompareError(
+				ExecutionEngineTestCase{
+					schema: multiSchemaObj,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{ items { id } other { id } }`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: `{"data":{"items":[],"other":[]}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  multiRootNodes,
+								CostConfig: multiCostConfig,
+							},
+							multiCustomConfig,
+						),
+					},
+					fields: multiFieldConfig,
+				},
+				"external: field 'Query.items' requires exactly one slicing argument, but none was provided, locations: [], path: [items]\n"+
+					"external: field 'Query.other' requires exactly one slicing argument, but none was provided, locations: [], path: [other]",
+				computeCosts(),
+			))
+		})
+	})
+	t.Run("validate requireOneSlicingArgument on abstract types", func(t *testing.T) {
+		// Abstract type tests: @listSize with requireOneSlicingArgument on concrete types,
+		// accessed through an interface field.
+		abstractSchema := `
+			interface Paginated {
+				items(first: Int, last: Int): [Item!]
+			}
+			type UserPaginated implements Paginated {
+				items(first: Int, last: Int): [Item!] # @listSize(assumedSize: 10, SlicingArguments: ["first", "last"], RequireOneSlicingArgument: true)
+			}
+			type PostPaginated implements Paginated {
+				items(first: Int, last: Int): [Item!] # @listSize(assumedSize: 10, SlicingArguments: ["first", "last"], RequireOneSlicingArgument: false)
+			}
+			type Item @key(fields: "id") {
+				id: ID!
+			}
+			type Query {
+				search: Paginated
+			}
+			`
+		abstractSchemaObj, err := graphql.NewSchemaFromString(abstractSchema)
+		require.NoError(t, err)
+		abstractRootNodes := []plan.TypeField{
+			{TypeName: "Query", FieldNames: []string{"search"}},
+			{TypeName: "UserPaginated", FieldNames: []string{"items"}},
+			{TypeName: "PostPaginated", FieldNames: []string{"items"}},
+			{TypeName: "Item", FieldNames: []string{"id"}},
+		}
+		abstractChildNodes := []plan.TypeField{
+			{TypeName: "Paginated", FieldNames: []string{"items"}},
+		}
+		abstractCustomConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+			Fetch: &graphql_datasource.FetchConfiguration{
+				URL:    "https://example.com/",
+				Method: "GET",
+			},
+			SchemaConfiguration: mustSchemaConfig(t, nil, abstractSchema),
+		})
+		abstractFieldConfig := []plan.FieldConfiguration{
+			{
+				TypeName: "Query", FieldName: "search", Path: []string{"search"},
+			},
+			{
+				TypeName: "Paginated", FieldName: "items", Path: []string{"items"},
+				Arguments: []plan.ArgumentConfiguration{
+					{Name: "first", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+					{Name: "last", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+				},
+			},
+			{
+				TypeName: "UserPaginated", FieldName: "items", Path: []string{"items"},
+				Arguments: []plan.ArgumentConfiguration{
+					{Name: "first", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+					{Name: "last", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+				},
+			},
+			{
+				TypeName: "PostPaginated", FieldName: "items", Path: []string{"items"},
+				Arguments: []plan.ArgumentConfiguration{
+					{Name: "first", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+					{Name: "last", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+				},
+			},
+		}
+		abstractCostConfig := &plan.DataSourceCostConfig{
+			ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+				{TypeName: "UserPaginated", FieldName: "items"}: {
+					AssumedSize:               10,
+					SlicingArguments:          []string{"first", "last"},
+					RequireOneSlicingArgument: false,
+				},
+				{TypeName: "PostPaginated", FieldName: "items"}: {
+					AssumedSize:               10,
+					SlicingArguments:          []string{"first", "last"},
+					RequireOneSlicingArgument: true,
+				},
+			},
+			Types: map[string]int{
+				"Item": 2,
+			},
+		}
+
+		t.Run("abstract type - exactly one slicing argument - valid", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: abstractSchemaObj,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ search { items(first: 5) { id } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"search":{"__typename":"UserPaginated","items":[{"id":"1"}]}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  abstractRootNodes,
+							ChildNodes: abstractChildNodes,
+							CostConfig: abstractCostConfig,
+						},
+						abstractCustomConfig,
+					),
+				},
+				fields:                abstractFieldConfig,
+				expectedResponse:      `{"data":{"search":{"items":[{"id":"1"}]}}}`,
+				expectedEstimatedCost: 11, // Paginated(1) + 5 * (Item(2) + Item.id(0))
+			},
+			computeCosts(),
+		))
+
+		t.Run("abstract type - no slicing argument - error", runWithAndCompareError(
+			ExecutionEngineTestCase{
+				schema: abstractSchemaObj,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ search { items { id } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"search":{"__typename":"UserPaginated","items":[]}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  abstractRootNodes,
+							ChildNodes: abstractChildNodes,
+							CostConfig: abstractCostConfig,
+						},
+						abstractCustomConfig,
+					),
+				},
+				fields: abstractFieldConfig,
+			},
+			"external: field 'Paginated.items' requires exactly one slicing argument, but none was provided, locations: [], path: [search,items]",
+			computeCosts(),
+		))
+
+		t.Run("abstract type - multiple slicing arguments - error", runWithAndCompareError(
+			ExecutionEngineTestCase{
+				schema: abstractSchemaObj,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ search { items(first: 5, last: 3) { id } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"search":{"__typename":"UserPaginated","items":[]}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  abstractRootNodes,
+							ChildNodes: abstractChildNodes,
+							CostConfig: abstractCostConfig,
+						},
+						abstractCustomConfig,
+					),
+				},
+				fields: abstractFieldConfig,
+			},
+			"external: field 'Paginated.items' requires exactly one slicing argument, but 2 were provided, locations: [], path: [search,items]",
+			computeCosts(),
+		))
+
+	})
 }

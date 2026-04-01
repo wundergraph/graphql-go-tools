@@ -1073,7 +1073,7 @@ func (r *rpcPlanningContext) getFieldsFromFieldResolverDirective(parentNode ast.
 	walker := astvisitor.WalkerFromPool()
 	defer walker.Release()
 
-	v := newRequiredFieldsVisitor(walker, &RPCMessage{}, r)
+	v := newRequiredFieldsVisitor(walker, &RPCMessage{}, r.mapping)
 	if err := v.visitWithDefaults(r.definition, parentNode.NameString(r.definition), fieldsString); err != nil {
 		return nil, err
 	}
@@ -1420,7 +1420,7 @@ func (r *rpcPlanningContext) createRequiredFieldsRPCCall(callIndex int, subgraph
 	walker := astvisitor.WalkerFromPool()
 	defer walker.Release()
 
-	vis := newRequiredFieldsVisitor(walker, fieldMessage, r)
+	vis := newRequiredFieldsVisitor(walker, fieldMessage, r.mapping)
 	if err := vis.visit(r.definition, typeName, requiredField.selectionSet, requiredFieldVisitorConfig{
 		referenceNestedMessages: true,
 	}); err != nil {
