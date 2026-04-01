@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -172,6 +173,25 @@ func addCachingGateway(options ...cachingGatewayOptionsToFunc) func(setup *feder
 	}
 }
 
+func waitForGatewayReady(t *testing.T, gatewayURL string) {
+	t.Helper()
+
+	require.Eventually(t, func() bool {
+		resp, err := http.Post(gatewayURL, "application/json", bytes.NewBufferString(`{"query":"query { __typename }"}`))
+		if err != nil {
+			return false
+		}
+		defer resp.Body.Close()
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return false
+		}
+
+		return resp.StatusCode == http.StatusOK && bytes.Contains(body, []byte(`"__typename":"Query"`))
+	}, time.Second, 10*time.Millisecond)
+}
+
 // mockSubgraphHeadersBuilder is a mock implementation of SubgraphHeadersBuilder
 type mockSubgraphHeadersBuilder struct {
 	hashes map[string]uint64
@@ -256,12 +276,20 @@ func cachingTestQueryPath(name string) string {
 }
 
 type CacheLogEntry struct {
-	Operation string        // "get", "set", "delete"
+	Operation CacheOperation
 	Keys      []string      // Keys involved in the operation
 	Hits      []bool        // For Get: whether each key was a hit (true) or miss (false)
 	TTL       time.Duration // For Set: the TTL used
 	Caller    string        // Fetch identity when debug enabled: "accounts: entity(User)" or "products: rootField(Query.topProducts)"
 }
+
+type CacheOperation string
+
+const (
+	CacheOperationGet    CacheOperation = "get"
+	CacheOperationSet    CacheOperation = "set"
+	CacheOperationDelete CacheOperation = "delete"
+)
 
 // sortCacheLogKeys sorts the keys (and corresponding hits) in each cache log entry.
 // This makes comparisons order-independent when multiple keys are present.
@@ -458,6 +486,7 @@ type FakeLoaderCache struct {
 	mu      sync.RWMutex
 	storage map[string]cacheEntry
 	log     []CacheLogEntry
+	waiters []cacheLogWaiter
 }
 
 func NewFakeLoaderCache() *FakeLoaderCache {
@@ -465,6 +494,12 @@ func NewFakeLoaderCache() *FakeLoaderCache {
 		storage: make(map[string]cacheEntry),
 		log:     make([]CacheLogEntry, 0),
 	}
+}
+
+type cacheLogWaiter struct {
+	operation CacheOperation
+	keys      []string
+	ch        chan CacheLogEntry
 }
 
 func (f *FakeLoaderCache) cleanupExpired() {
@@ -515,11 +550,12 @@ func (f *FakeLoaderCache) Get(ctx context.Context, keys []string) ([]*resolve.Ca
 		caller = cfi.String()
 	}
 	f.log = append(f.log, CacheLogEntry{
-		Operation: "get",
+		Operation: CacheOperationGet,
 		Keys:      keys,
 		Hits:      hits,
 		Caller:    caller,
 	})
+	f.notifyWaitersLocked(f.log[len(f.log)-1])
 
 	return result, nil
 }
@@ -562,12 +598,13 @@ func (f *FakeLoaderCache) Set(ctx context.Context, entries []*resolve.CacheEntry
 		caller = cfi.String()
 	}
 	f.log = append(f.log, CacheLogEntry{
-		Operation: "set",
+		Operation: CacheOperationSet,
 		Keys:      keys,
 		Hits:      nil, // Set operations don't have hits/misses
 		TTL:       ttl,
 		Caller:    caller,
 	})
+	f.notifyWaitersLocked(f.log[len(f.log)-1])
 
 	return nil
 }
@@ -589,13 +626,40 @@ func (f *FakeLoaderCache) Delete(ctx context.Context, keys []string) error {
 		caller = cfi.String()
 	}
 	f.log = append(f.log, CacheLogEntry{
-		Operation: "delete",
+		Operation: CacheOperationDelete,
 		Keys:      keys,
 		Hits:      nil, // Delete operations don't have hits/misses
 		Caller:    caller,
 	})
+	f.notifyWaitersLocked(f.log[len(f.log)-1])
 
 	return nil
+}
+
+func (f *FakeLoaderCache) WaitForOperation(operation CacheOperation, keys []string) <-chan CacheLogEntry {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	ch := make(chan CacheLogEntry, 1)
+	f.waiters = append(f.waiters, cacheLogWaiter{
+		operation: operation,
+		keys:      append([]string(nil), keys...),
+		ch:        ch,
+	})
+	return ch
+}
+
+func (f *FakeLoaderCache) notifyWaitersLocked(entry CacheLogEntry) {
+	remaining := f.waiters[:0]
+	for _, waiter := range f.waiters {
+		if waiter.operation == entry.Operation && slices.Equal(waiter.keys, entry.Keys) {
+			waiter.ch <- entry
+			close(waiter.ch)
+			continue
+		}
+		remaining = append(remaining, waiter)
+	}
+	f.waiters = remaining
 }
 
 // GetLog returns a copy of the cache operation log
@@ -795,6 +859,34 @@ func TestFakeLoaderCache(t *testing.T) {
 		<-done
 		<-done
 		<-done
+	})
+
+	t.Run("WaitForOperation", func(t *testing.T) {
+		t.Parallel()
+
+		waitForDelete := cache.WaitForOperation(CacheOperationDelete, []string{"watched-key"})
+
+		err := cache.Set(ctx, []*resolve.CacheEntry{
+			{Key: "watched-key", Value: []byte("value")},
+		}, 0)
+		require.NoError(t, err)
+
+		err = cache.Delete(ctx, []string{"watched-key"})
+		require.NoError(t, err)
+
+		select {
+		case entry, ok := <-waitForDelete:
+			require.True(t, ok)
+			assert.Equal(t, CacheLogEntry{
+				Operation: CacheOperationDelete,
+				Keys:      []string{"watched-key"},
+				Hits:      nil,
+				TTL:       0,
+				Caller:    "",
+			}, entry)
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for delete notification")
+		}
 	})
 
 	t.Run("ResultLengthMatchesKeysLength", func(t *testing.T) {

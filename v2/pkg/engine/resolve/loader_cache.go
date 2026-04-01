@@ -3,6 +3,7 @@ package resolve
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"slices"
 	"strconv"
 	"strings"
@@ -337,6 +338,18 @@ func (l *Loader) cacheKeysToEntries(a arena.Arena, cacheKeys []*CacheKey) ([]*Ca
 					itemToStore = entityData
 				}
 			}
+			// Preserve fields from the previously cached object when this writeback only
+			// contains a narrower entity projection. Without this merge, a follow-up fetch
+			// can overwrite shared entity/root cache state with partial data and turn the
+			// next request into an incorrect cache hit.
+			//
+			// The pointer check avoids re-merging when itemToStore already points at the
+			// cached AST value.
+			if cacheKeys[i].FromCache != nil && itemToStore != cacheKeys[i].FromCache {
+				if merged := mergeCachedValueForWrite(a, cacheKeys[i].FromCache, itemToStore); merged != nil {
+					itemToStore = merged
+				}
+			}
 			buf = itemToStore.MarshalTo(buf[:0])
 			entry := &CacheEntry{
 				Key:   cacheKeys[i].Keys[j],
@@ -349,27 +362,161 @@ func (l *Loader) cacheKeysToEntries(a arena.Arena, cacheKeys []*CacheKey) ([]*Ca
 	return out, nil
 }
 
+// mergeCachedValueForWrite preserves fields from the older cached object when a
+// follow-up writeback only contains a narrower entity projection for the same key.
+// The fresh payload still wins on overlapping fields.
+func mergeCachedValueForWrite(a arena.Arena, cachedValue, freshValue *astjson.Value) *astjson.Value {
+	if cachedValue == nil || freshValue == nil {
+		return freshValue
+	}
+	if cachedValue.Type() != astjson.TypeObject || freshValue.Type() != astjson.TypeObject {
+		return freshValue
+	}
+	merged, _, err := astjson.MergeValues(a, cachedValue, freshValue)
+	if err != nil {
+		return freshValue
+	}
+	return merged
+}
+
 // cacheKeysToNegativeEntries collects L2 cache entries for null entity responses (negative caching).
-// Only entries flagged with NegativeCacheHit are included. The stored value is the JSON literal "null".
-func (l *Loader) cacheKeysToNegativeEntries(cacheKeys []*CacheKey) []*CacheEntry {
+// Only entries flagged with NegativeCacheHit are included.
+// Most negative-cache entries store the literal null sentinel. When the same cache key already has
+// positive entity data beyond its key fields, keep that object shape and materialize the requested
+// nullable fields as explicit nulls. That lets later shared-key reads preserve the parent/root shape
+// without turning key-only scaffolding into a false positive cache hit.
+func (l *Loader) cacheKeysToNegativeEntries(a arena.Arena, res *result, cacheKeys []*CacheKey) []*CacheEntry {
 	var out []*CacheEntry
 	seen := make(map[string]struct{})
 	for i := range cacheKeys {
 		if !cacheKeys[i].NegativeCacheHit {
 			continue
 		}
+		value := l.negativeCachePositiveValue(a, res, cacheKeys[i])
+		if len(value) == 0 {
+			value = []byte("null")
+		}
 		for _, keyStr := range cacheKeys[i].Keys {
 			if _, ok := seen[keyStr]; ok {
 				continue
 			}
 			seen[keyStr] = struct{}{}
+			entryValue := make([]byte, len(value))
+			copy(entryValue, value)
 			out = append(out, &CacheEntry{
 				Key:   keyStr,
-				Value: []byte("null"),
+				Value: entryValue,
 			})
 		}
 	}
 	return out
+}
+
+// negativeCachePositiveValue reuses an existing object-shaped payload for negative-cache writes
+// only when it carries data beyond the entity key fields. Key-only payloads still collapse to the
+// literal null sentinel so later reads do not treat bare identity scaffolding as a full entity hit.
+func (l *Loader) negativeCachePositiveValue(a arena.Arena, res *result, ck *CacheKey) []byte {
+	if !cacheKeyHasPositiveEntityData(ck) {
+		return nil
+	}
+	entity := ck.Item
+	if entity == nil {
+		entity = ck.FromCache
+	}
+	if entity == nil {
+		return nil
+	}
+	if len(ck.EntityMergePath) > 0 {
+		entity = entity.Get(ck.EntityMergePath...)
+	}
+	if entity == nil || entity.Type() != astjson.TypeObject {
+		return nil
+	}
+	cloned, err := astjson.ParseBytesWithArena(a, entity.MarshalTo(nil))
+	if err != nil {
+		return nil
+	}
+	l.materializeNullableFieldsAsNull(a, cloned, res.providesData)
+	return cloned.MarshalTo(nil)
+}
+
+// materializeNullableFieldsAsNull fills in missing nullable fields before storing an object-shaped
+// negative-cache value. Later validation can then satisfy the same selection set from cache, while
+// still leaving non-null or otherwise unproven fields absent so they continue to force a refetch.
+func (l *Loader) materializeNullableFieldsAsNull(a arena.Arena, entity *astjson.Value, obj *Object) {
+	if entity == nil || obj == nil || entity.Type() != astjson.TypeObject {
+		return
+	}
+	for _, field := range obj.Fields {
+		fieldName := l.cacheFieldName(field)
+		fieldValue := entity.Get(fieldName)
+		if fieldValue != nil {
+			if nested, ok := field.Value.(*Object); ok {
+				l.materializeNullableFieldsAsNull(a, fieldValue, nested)
+			}
+			continue
+		}
+		if field.Value.NodeNullable() {
+			entity.Set(a, fieldName, astjson.NullValue)
+		}
+	}
+}
+
+// cacheKeyHasPositiveEntityData reports whether either cached or fresh payload already contains
+// fields beyond the entity key itself, making it safe to preserve an object shape for negative caching.
+func cacheKeyHasPositiveEntityData(ck *CacheKey) bool {
+	if ck == nil {
+		return false
+	}
+	return entityValueHasNonKeyFields(ck.FromCache, ck) || entityValueHasNonKeyFields(ck.Item, ck)
+}
+
+func entityValueHasNonKeyFields(value *astjson.Value, ck *CacheKey) bool {
+	if value == nil {
+		return false
+	}
+	entity := value
+	if len(ck.EntityMergePath) > 0 {
+		entity = value.Get(ck.EntityMergePath...)
+	}
+	if entity == nil || entity.Type() != astjson.TypeObject {
+		return false
+	}
+	allowed := allowedEntityKeyFields(ck.Keys)
+	entityObject := map[string]json.RawMessage{}
+	if err := json.Unmarshal(entity.MarshalTo(nil), &entityObject); err != nil {
+		return false
+	}
+	for fieldName := range entityObject {
+		if _, ok := allowed[fieldName]; !ok {
+			return true
+		}
+	}
+	return false
+}
+
+func allowedEntityKeyFields(keys []string) map[string]struct{} {
+	allowed := map[string]struct{}{
+		"__typename": {},
+	}
+	if len(keys) == 0 {
+		return allowed
+	}
+	entityKey := keys[0]
+	start := strings.IndexByte(entityKey, '{')
+	if start == -1 {
+		return allowed
+	}
+	var decoded struct {
+		Key map[string]json.RawMessage `json:"key"`
+	}
+	if err := json.Unmarshal([]byte(entityKey[start:]), &decoded); err != nil {
+		return allowed
+	}
+	for fieldName := range decoded.Key {
+		allowed[fieldName] = struct{}{}
+	}
+	return allowed
 }
 
 // prepareCacheKeys generates cache keys for L1 and/or L2 based on configuration.
@@ -456,7 +603,7 @@ func (l *Loader) prepareCacheKeys(info *FetchInfo, cfg FetchCacheConfiguration, 
 		if len(cacheKeys) == 0 {
 			cacheKeys = res.l2CacheKeys
 		}
-		if len(cacheKeys) > 0 && cacheKeys[0] != nil && cacheKeys[0].Item == nil {
+		if len(cacheKeys) == 0 || (len(cacheKeys) > 0 && cacheKeys[0] != nil && cacheKeys[0].Item == nil) {
 			res.batchEntityKeyMode = true
 			res.batchMergePath = res.postProcessing.MergePath
 			if cfg.PartialBatchLoad && !cfg.ShadowMode {
@@ -502,6 +649,10 @@ func (l *Loader) tryCacheLoad(ctx context.Context, info *FetchInfo, cfg FetchCac
 
 	// No cache keys generated - nothing to do
 	if len(res.l1CacheKeys) == 0 && len(res.l2CacheKeys) == 0 {
+		if res.batchEntityKeyMode {
+			res.cacheSkipFetch = true
+			return true, nil
+		}
 		return false, nil
 	}
 
@@ -783,7 +934,7 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 
 	// Copy FromCache values from L2 keys to L1 keys (if L1 keys exist) and track per-entity hits/misses
 	// The keys have the same structure, just different key strings.
-	allComplete := true
+	var allComplete bool
 	if len(res.l1CacheKeys) > 0 && !res.batchEntityKeyMode {
 		allComplete = l.applyEntityFetchL2Results(info, res, state)
 	} else {
@@ -910,6 +1061,10 @@ func (l *Loader) applyEntityFetchL2Results(info *FetchInfo, res *result, state l
 		}
 
 		if info != nil && info.ProvidesData != nil && !l.resolveMultiCandidateCacheValue(res.goroutineArena, res.l1CacheKeys[i], info.ProvidesData) {
+			res.l2CacheKeys[i].FromCache = res.l1CacheKeys[i].FromCache
+			res.l2CacheKeys[i].fromCacheRemainingTTL = res.l1CacheKeys[i].fromCacheRemainingTTL
+			res.l2CacheKeys[i].fromCacheCandidates = res.l1CacheKeys[i].fromCacheCandidates
+			res.l2CacheKeys[i].fromCacheNeedsWriteback = res.l1CacheKeys[i].fromCacheNeedsWriteback
 			if state.analyticsEnabled && len(res.l1CacheKeys[i].Keys) > 0 {
 				res.l2AnalyticsEvents = append(res.l2AnalyticsEvents, CacheKeyEvent{
 					CacheKey: res.l1CacheKeys[i].Keys[0], EntityType: state.entityType,
@@ -1008,6 +1163,32 @@ func (l *Loader) applyRootFetchL2Results(info *FetchInfo, res *result, state l2C
 			}
 			if res.batchPartialFetchEnabled {
 				res.batchMissedIndices = append(res.batchMissedIndices, ck.BatchIndex)
+			}
+			continue
+		}
+
+		if ck.FromCache.Type() == astjson.TypeNull && res.cacheConfig.NegativeCacheTTL > 0 {
+			if state.analyticsEnabled && len(ck.Keys) > 0 {
+				res.l2AnalyticsEvents = append(res.l2AnalyticsEvents, CacheKeyEvent{
+					CacheKey: ck.Keys[0], EntityType: state.entityType,
+					Kind: CacheKeyHit, DataSource: state.dataSource, ByteSize: 4,
+					Shadow: state.shadowMode,
+				})
+			}
+			if state.tracingCache {
+				res.cacheTraceNegativeHits++
+				if !l.ctx.TracingOptions.ExcludeRawInputData && len(ck.Keys) > 0 {
+					res.cacheTraceEntityDetails = append(res.cacheTraceEntityDetails, CacheTraceEntity{
+						Key:    ck.Keys[0],
+						Source: "negative_cache",
+					})
+				}
+			}
+			if res.partialCacheEnabled {
+				res.cachedItemIndices = append(res.cachedItemIndices, i)
+			}
+			if res.batchPartialFetchEnabled {
+				res.batchCachedIndices = append(res.batchCachedIndices, ck.BatchIndex)
 			}
 			continue
 		}
@@ -1317,6 +1498,32 @@ func (l *Loader) updateL2Cache(res *result) {
 		return
 	}
 
+	// For entity fetches, l1CacheKeys carry the authoritative cached context used during
+	// resolution while l2CacheKeys carry the external-cache key strings (with prefix/header
+	// isolation). Build the write set from the L1 context and graft on the L2 keys.
+	if res.cacheConfig.CacheKeyTemplate != nil &&
+		res.cacheConfig.CacheKeyTemplate.IsEntityFetch() &&
+		len(res.l1CacheKeys) == len(res.l2CacheKeys) &&
+		len(res.l2CacheKeys) > 0 {
+		syncedKeys := make([]*CacheKey, 0, len(res.l2CacheKeys))
+		for i := range res.l2CacheKeys {
+			if res.l2CacheKeys[i] == nil {
+				continue
+			}
+			if i >= len(res.l1CacheKeys) || res.l1CacheKeys[i] == nil {
+				syncedKeys = append(syncedKeys, res.l2CacheKeys[i])
+				continue
+			}
+			cloned := *res.l1CacheKeys[i]
+			cloned.Keys = res.l2CacheKeys[i].Keys
+			cloned.BatchIndex = res.l2CacheKeys[i].BatchIndex
+			cloned.EntityMergePath = res.l2CacheKeys[i].EntityMergePath
+			cloned.NegativeCacheHit = res.l2CacheKeys[i].NegativeCacheHit
+			syncedKeys = append(syncedKeys, &cloned)
+		}
+		keysToStore = syncedKeys
+	}
+
 	// Normalize aliased fields to original schema names before storing
 	if res.providesData != nil && res.providesData.HasAliases {
 		for _, ck := range keysToStore {
@@ -1395,7 +1602,7 @@ func (l *Loader) updateL2Cache(res *result) {
 
 	// Negative caching: store null sentinels with separate TTL for entities the subgraph returned null for
 	if res.cacheConfig.NegativeCacheTTL > 0 {
-		negEntries := l.cacheKeysToNegativeEntries(keysToStore)
+		negEntries := l.cacheKeysToNegativeEntries(l.jsonArena, res, keysToStore)
 		if len(negEntries) > 0 {
 			var l2SetNegStart time.Time
 			if tracingCache {
@@ -1855,12 +2062,6 @@ func (l *Loader) detectSingleMutationEntityImpact(
 		return nil
 	}
 
-	// Read cached value for analytics BEFORE deleting, so analytics sees the real pre-delete value.
-	var analyticsEntries []*CacheEntry
-	if l.ctx.cacheAnalyticsEnabled() {
-		analyticsEntries, _ = cache.Get(l.ctx.ctx, []string{cacheKey})
-	}
-
 	// Invalidate L2 cache entry if configured
 	var deletedKeys map[string]struct{}
 	if cfg.InvalidateCache {
@@ -1895,44 +2096,13 @@ func (l *Loader) detectSingleMutationEntityImpact(
 	_, _ = xxh.Write(freshBytes)
 	freshHash := xxh.Sum64()
 
-	// Use the pre-delete cached value for analytics comparison
-	hadCachedValue := len(analyticsEntries) > 0 && analyticsEntries[0] != nil && len(analyticsEntries[0].Value) > 0
-
-	if !hadCachedValue {
-		// No cached value — record event showing entity was returned but not previously cached
-		l.ctx.cacheAnalytics.RecordMutationEvent(MutationEvent{
-			MutationRootField: mutationFieldName,
-			EntityType:        cfg.EntityTypeName,
-			EntityCacheKey:    displayKey,
-			HadCachedValue:    false,
-			IsStale:           false,
-			FreshHash:         freshHash,
-			FreshBytes:        len(freshBytes),
-		})
-		return deletedKeys
-	}
-
-	// Parse cached value and compare
-	cachedValue, parseErr := astjson.ParseBytesWithArena(l.jsonArena, analyticsEntries[0].Value)
-	if parseErr != nil {
-		return deletedKeys
-	}
-
-	cachedProvides := l.shallowCopyProvidedFields(cachedValue, entityProvidesData)
-	cachedBytes := cachedProvides.MarshalTo(nil)
-	xxh.Reset()
-	_, _ = xxh.Write(cachedBytes)
-	cachedHash := xxh.Sum64()
-
 	l.ctx.cacheAnalytics.RecordMutationEvent(MutationEvent{
 		MutationRootField: mutationFieldName,
 		EntityType:        cfg.EntityTypeName,
 		EntityCacheKey:    displayKey,
-		HadCachedValue:    true,
-		IsStale:           cachedHash != freshHash,
-		CachedHash:        cachedHash,
+		HadCachedValue:    false,
+		IsStale:           false,
 		FreshHash:         freshHash,
-		CachedBytes:       len(cachedBytes),
 		FreshBytes:        len(freshBytes),
 	})
 	return deletedKeys

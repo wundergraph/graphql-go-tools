@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -62,7 +61,7 @@ func TestExecutionEngine_FederationAndSubscription_IntegrationTest(t *testing.T)
 	t.Run("subscription", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFn := context.WithCancel(context.Background())
-		setup := federationtesting.NewFederationSetup()
+		setup := federationtesting.NewManualFederationSetup()
 		t.Cleanup(func() {
 			cancelFn()
 			setup.Close()
@@ -113,19 +112,19 @@ subscription UpdatedPrice {
 				_ = engine.Execute(execCtx, gqlRequest, &resultWriter)
 			}()
 
-			assert.Eventuallyf(t, func() bool {
-				msg := `{"data":{"updatedPrice":{"name":"Boater","price":%d,"reviews":[{"body":"This is the last straw. Hat you will wear. 11/10","author":{"id":"7777","username":"User 7777"}}]}}}`
-				price := 10
+			trigger, err := setup.NextProductSubscription(ctx)
+			require.NoError(t, err)
 
-				firstMessage := <-message
-				expectedFirstMessage := fmt.Sprintf(msg, price)
-				assert.Equal(t, expectedFirstMessage, firstMessage)
+			trigger.Emit()
+			trigger.Emit()
 
-				secondMessage := <-message
-				expectedSecondMessage := fmt.Sprintf(msg, price+1)
-				assert.Equal(t, expectedSecondMessage, secondMessage)
-				return true
-			}, time.Second*20, 10*time.Millisecond, "did not receive expected messages")
+			msg := `{"data":{"updatedPrice":{"name":"Boater","price":%d,"reviews":[{"body":"This is the last straw. Hat you will wear. 11/10","author":{"id":"7777","username":"User 7777"}}]}}}`
+
+			firstMessage := <-message
+			assert.Equal(t, fmt.Sprintf(msg, 10), firstMessage)
+
+			secondMessage := <-message
+			assert.Equal(t, fmt.Sprintf(msg, 11), secondMessage)
 		})
 	})
 }

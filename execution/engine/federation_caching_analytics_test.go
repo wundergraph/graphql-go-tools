@@ -1124,7 +1124,8 @@ func TestMutationImpactE2E(t *testing.T) {
 		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, entityQuery, nil, t)
 		assert.Contains(t, string(resp), `"username":"Me"`)
 
-		// Request 2: Mutation — should detect stale cached entity
+		// Request 2: Mutation — analytics must identify the mutation entity,
+		// but mutations are not allowed to read L2 for stale-value inspection.
 		tracker.Reset()
 		respMut, headersMut := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, mutationQuery, nil, t)
 		assert.Contains(t, string(respMut), `"UpdatedMe"`)
@@ -1137,8 +1138,8 @@ func TestMutationImpactE2E(t *testing.T) {
 		assert.Equal(t, "updateUsername", event.MutationRootField)
 		assert.Equal(t, "User", event.EntityType)
 		assert.Equal(t, `{"__typename":"User","key":{"id":"1234"}}`, event.EntityCacheKey)
-		assert.Equal(t, true, event.HadCachedValue, "should have found cached value")
-		assert.Equal(t, true, event.IsStale, "cached value should be stale (username changed)")
+		assert.Equal(t, false, event.HadCachedValue, "mutations must not read cache, even for analytics")
+		assert.Equal(t, false, event.IsStale, "without a cache read there is no stale-value comparison")
 
 		// Record discovered values for exact assertion
 		t.Logf("MutationImpact event: %+v", event)
@@ -1156,8 +1157,8 @@ func TestMutationImpactE2E(t *testing.T) {
 					MutationRootField: "updateUsername",
 					EntityType:        "User",
 					EntityCacheKey:    `{"__typename":"User","key":{"id":"1234"}}`,
-					HadCachedValue:    true, // L2 had cached value from Request 1 query
-					IsStale:           true, // Cached "Me" differs from fresh "UpdatedMe"
+					HadCachedValue:    false, // Mutation analytics must not read L2
+					IsStale:           false, // No cache read means no stale comparison
 					CachedHash:        event.CachedHash,
 					FreshHash:         event.FreshHash,
 					CachedBytes:       event.CachedBytes,

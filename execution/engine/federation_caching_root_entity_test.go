@@ -1,6 +1,7 @@
 package engine_test
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"net/url"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/execution/engine"
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting"
+	reviews "github.com/wundergraph/graphql-go-tools/execution/federationtesting/reviews/graph"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
@@ -124,10 +126,10 @@ func TestRootFieldEntityKeyMappingCacheSharing(t *testing.T) {
 					SubgraphName: "products",
 					RootFieldCaching: plan.RootFieldCacheConfigurations{
 						{
-							TypeName:  "Query",
-							FieldName: "product",
-							CacheName: "default",
-							TTL:       30 * time.Second,
+							TypeName:   "Query",
+							FieldName:  "product",
+							CacheName:  "default",
+							TTL:        30 * time.Second,
 							ShadowMode: true,
 							EntityKeyMappings: []plan.EntityKeyMapping{
 								{
@@ -168,5 +170,326 @@ func TestRootFieldEntityKeyMappingCacheSharing(t *testing.T) {
 		gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL,
 			`query { product(upc: "top-1") { upc name reviews { body } } }`, nil, t)
 		assert.Equal(t, 1, tracker.GetCount(productsHost), "shadow mode should always call products subgraph")
+	})
+
+	t.Run("root field with EntityKeyMappings caches nullable negative entity response without nulling root object", func(t *testing.T) {
+		t.Parallel()
+
+		defaultCache := NewFakeLoaderCache()
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+
+		reviewsInterceptor := newSubgraphResponseInterceptor(reviews.GraphQLEndpointHandler(reviews.TestOptions))
+		reviewsInterceptor.SetModifier(func(body []byte) []byte {
+			if bytes.Contains(body, []byte(`"_service"`)) {
+				return body
+			}
+			return []byte(`{"data":{"_entities":[null]}}`)
+		})
+
+		setup := newFederationSetupWithReviewInterceptor(reviewsInterceptor, addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(map[string]resolve.LoaderCache{"default": defaultCache}),
+			withHTTPClient(&http.Client{Transport: tracker}),
+			withCachingOptionsFunc(resolve.CachingOptions{
+				EnableL1Cache: false,
+				EnableL2Cache: true,
+			}),
+			withSubgraphEntityCachingConfigs(engine.SubgraphCachingConfigs{
+				{
+					SubgraphName: "products",
+					RootFieldCaching: plan.RootFieldCacheConfigurations{
+						{
+							TypeName:  "Query",
+							FieldName: "product",
+							CacheName: "default",
+							TTL:       30 * time.Second,
+							EntityKeyMappings: []plan.EntityKeyMapping{
+								{
+									EntityTypeName: "Product",
+									FieldMappings: []plan.FieldMapping{
+										{EntityKeyField: "upc", ArgumentPath: []string{"upc"}},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					SubgraphName: "reviews",
+					EntityCaching: plan.EntityCacheConfigurations{
+						{
+							TypeName:         "Product",
+							CacheName:        "default",
+							TTL:              30 * time.Second,
+							NegativeCacheTTL: 10 * time.Second,
+						},
+					},
+				},
+			}),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		productsURLParsed, _ := url.Parse(setup.ProductsUpstreamServer.URL)
+		reviewsURLParsed, _ := url.Parse(setup.ReviewsUpstreamServer.URL)
+		productsHost := productsURLParsed.Host
+		reviewsHost := reviewsURLParsed.Host
+		query := `query { product(upc: "top-1") { upc name reviews { body } } }`
+		expected := `{"data":{"product":{"upc":"top-1","name":"Trilby","reviews":null}}}`
+		productKey := `{"__typename":"Product","key":{"upc":"top-1"}}`
+
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+		assert.Equal(t, expected, string(resp))
+		assert.Equal(t, 1, tracker.GetCount(productsHost), "first request should call products subgraph")
+		assert.Equal(t, 1, tracker.GetCount(reviewsHost), "first request should call reviews subgraph")
+
+		storedValue, exists := defaultCache.Peek(productKey)
+		assert.True(t, exists, "shared entity/root cache key should be populated")
+		assert.JSONEq(t, `{"__typename":"Product","upc":"top-1","name":"Trilby","reviews":null}`, string(storedValue))
+
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp2, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+		assert.Equal(t, expected, string(resp2))
+		assert.Equal(t, 0, tracker.GetCount(productsHost), "second request should skip products subgraph on shared-key root cache hit")
+		assert.Equal(t, 0, tracker.GetCount(reviewsHost), "second request should skip reviews subgraph on shared-key negative cache hit")
+		assert.Equal(t, []CacheLogEntry{
+			{
+				Operation: "get",
+				Keys:      []string{productKey},
+				Hits:      []bool{true},
+			},
+			{
+				Operation: "get",
+				Keys:      []string{productKey},
+				Hits:      []bool{true},
+			},
+		}, defaultCache.GetLog())
+	})
+
+	t.Run("root field with EntityKeyMappings reuses cached nullable negative field for narrower follow-up query", func(t *testing.T) {
+		t.Parallel()
+
+		defaultCache := NewFakeLoaderCache()
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+
+		reviewsInterceptor := newSubgraphResponseInterceptor(reviews.GraphQLEndpointHandler(reviews.TestOptions))
+		reviewsInterceptor.SetModifier(func(body []byte) []byte {
+			if bytes.Contains(body, []byte(`"_service"`)) {
+				return body
+			}
+			return []byte(`{"data":{"_entities":[null]}}`)
+		})
+
+		setup := newFederationSetupWithReviewInterceptor(reviewsInterceptor, addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(map[string]resolve.LoaderCache{"default": defaultCache}),
+			withHTTPClient(&http.Client{Transport: tracker}),
+			withCachingOptionsFunc(resolve.CachingOptions{
+				EnableL1Cache: false,
+				EnableL2Cache: true,
+			}),
+			withSubgraphEntityCachingConfigs(engine.SubgraphCachingConfigs{
+				{
+					SubgraphName: "products",
+					RootFieldCaching: plan.RootFieldCacheConfigurations{
+						{
+							TypeName:  "Query",
+							FieldName: "product",
+							CacheName: "default",
+							TTL:       30 * time.Second,
+							EntityKeyMappings: []plan.EntityKeyMapping{
+								{
+									EntityTypeName: "Product",
+									FieldMappings: []plan.FieldMapping{
+										{EntityKeyField: "upc", ArgumentPath: []string{"upc"}},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					SubgraphName: "reviews",
+					EntityCaching: plan.EntityCacheConfigurations{
+						{
+							TypeName:         "Product",
+							CacheName:        "default",
+							TTL:              30 * time.Second,
+							NegativeCacheTTL: 10 * time.Second,
+						},
+					},
+				},
+			}),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		productsURLParsed, _ := url.Parse(setup.ProductsUpstreamServer.URL)
+		reviewsURLParsed, _ := url.Parse(setup.ReviewsUpstreamServer.URL)
+		productsHost := productsURLParsed.Host
+		reviewsHost := reviewsURLParsed.Host
+		seedQuery := `query { product(upc: "top-1") { upc name reviews { body } } }`
+		followUpQuery := `query { product(upc: "top-1") { upc reviews { body } } }`
+		productKey := `{"__typename":"Product","key":{"upc":"top-1"}}`
+
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, seedQuery, nil, t)
+		assert.Equal(t, `{"data":{"product":{"upc":"top-1","name":"Trilby","reviews":null}}}`, string(resp))
+		assert.Equal(t, 1, tracker.GetCount(productsHost), "seed request should call products subgraph")
+		assert.Equal(t, 1, tracker.GetCount(reviewsHost), "seed request should call reviews subgraph")
+		assert.Equal(t, sortCacheLogKeysWithTTL([]CacheLogEntry{
+			{
+				Operation: "get",
+				Keys:      []string{productKey},
+				Hits:      []bool{false},
+			},
+			{
+				Operation: "set",
+				Keys:      []string{productKey},
+				TTL:       30 * time.Second,
+			},
+			{
+				Operation: "get",
+				Keys:      []string{productKey},
+				Hits:      []bool{true},
+			},
+			{
+				Operation: "set",
+				Keys:      []string{productKey},
+				TTL:       10 * time.Second,
+			},
+		}), sortCacheLogKeysWithTTL(defaultCache.GetLog()))
+		storedValue, exists := defaultCache.Peek(productKey)
+		assert.True(t, exists, "shared entity/root cache key should be populated after the seed request")
+		assert.JSONEq(t, `{"__typename":"Product","upc":"top-1","name":"Trilby","reviews":null}`, string(storedValue))
+
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp2, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, followUpQuery, nil, t)
+		assert.Equal(t, `{"data":{"product":{"upc":"top-1","reviews":null}}}`, string(resp2))
+		assert.Equal(t, 0, tracker.GetCount(productsHost), "follow-up query should skip products subgraph on shared-key root cache hit")
+		assert.Equal(t, 0, tracker.GetCount(reviewsHost), "follow-up query should skip reviews subgraph because reviews:null is already cached")
+		assert.Equal(t, []CacheLogEntry{
+			{
+				Operation: "get",
+				Keys:      []string{productKey},
+				Hits:      []bool{true},
+			},
+			{
+				Operation: "get",
+				Keys:      []string{productKey},
+				Hits:      []bool{true},
+			},
+		}, defaultCache.GetLog())
+	})
+
+	t.Run("root field with EntityKeyMappings does not cache nullable negative entity response when NegativeCacheTTL is unset", func(t *testing.T) {
+		t.Parallel()
+
+		defaultCache := NewFakeLoaderCache()
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+
+		reviewsInterceptor := newSubgraphResponseInterceptor(reviews.GraphQLEndpointHandler(reviews.TestOptions))
+		reviewsInterceptor.SetModifier(func(body []byte) []byte {
+			if bytes.Contains(body, []byte(`"_service"`)) {
+				return body
+			}
+			return []byte(`{"data":{"_entities":[null]}}`)
+		})
+
+		setup := newFederationSetupWithReviewInterceptor(reviewsInterceptor, addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(map[string]resolve.LoaderCache{"default": defaultCache}),
+			withHTTPClient(&http.Client{Transport: tracker}),
+			withCachingOptionsFunc(resolve.CachingOptions{
+				EnableL1Cache: false,
+				EnableL2Cache: true,
+			}),
+			withSubgraphEntityCachingConfigs(engine.SubgraphCachingConfigs{
+				{
+					SubgraphName: "products",
+					RootFieldCaching: plan.RootFieldCacheConfigurations{
+						{
+							TypeName:  "Query",
+							FieldName: "product",
+							CacheName: "default",
+							TTL:       30 * time.Second,
+							EntityKeyMappings: []plan.EntityKeyMapping{
+								{
+									EntityTypeName: "Product",
+									FieldMappings: []plan.FieldMapping{
+										{EntityKeyField: "upc", ArgumentPath: []string{"upc"}},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					SubgraphName: "reviews",
+					EntityCaching: plan.EntityCacheConfigurations{
+						{
+							TypeName:  "Product",
+							CacheName: "default",
+							TTL:       30 * time.Second,
+						},
+					},
+				},
+			}),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		productsURLParsed, _ := url.Parse(setup.ProductsUpstreamServer.URL)
+		reviewsURLParsed, _ := url.Parse(setup.ReviewsUpstreamServer.URL)
+		productsHost := productsURLParsed.Host
+		reviewsHost := reviewsURLParsed.Host
+		query := `query { product(upc: "top-1") { upc name reviews { body } } }`
+		expected := `{"data":{"product":{"upc":"top-1","name":"Trilby","reviews":null}}}`
+		productKey := `{"__typename":"Product","key":{"upc":"top-1"}}`
+
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+		assert.Equal(t, expected, string(resp))
+		assert.Equal(t, 1, tracker.GetCount(productsHost), "first request should call products subgraph")
+		assert.Equal(t, 1, tracker.GetCount(reviewsHost), "first request should call reviews subgraph")
+		assert.Equal(t, []CacheLogEntry{
+			{
+				Operation: "get",
+				Keys:      []string{productKey},
+				Hits:      []bool{false},
+			},
+		}, defaultCache.GetLog())
+
+		_, exists := defaultCache.Peek(productKey)
+		assert.False(t, exists, "shared entity/root cache key should remain empty when negative caching is disabled")
+
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp2, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+		assert.Equal(t, expected, string(resp2))
+		assert.Equal(t, 1, tracker.GetCount(productsHost), "second request should call products subgraph again when shared-key root caching is skipped")
+		assert.Equal(t, 1, tracker.GetCount(reviewsHost), "second request should call reviews subgraph again when negative caching is disabled")
+		assert.Equal(t, []CacheLogEntry{
+			{
+				Operation: "get",
+				Keys:      []string{productKey},
+				Hits:      []bool{false},
+			},
+		}, defaultCache.GetLog())
 	})
 }

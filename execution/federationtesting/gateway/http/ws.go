@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net"
+	"sync"
 
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
@@ -20,6 +21,7 @@ type WebsocketSubscriptionClient struct {
 	clientConn net.Conn
 	// isClosedConnection indicates if the websocket connection is closed.
 	isClosedConnection bool
+	mu                 sync.RWMutex
 }
 
 // NewWebsocketSubscriptionClient will create a new websocket subscription client.
@@ -72,7 +74,7 @@ func (w *WebsocketSubscriptionClient) ReadFromClient() (message *subscription.Me
 //
 //nolint:staticcheck
 func (w *WebsocketSubscriptionClient) WriteToClient(message subscription.Message) error {
-	if w.isClosedConnection {
+	if !w.IsConnected() {
 		return nil
 	}
 
@@ -101,6 +103,8 @@ func (w *WebsocketSubscriptionClient) WriteToClient(message subscription.Message
 
 // IsConnected will indicate if the websocket connection is still established.
 func (w *WebsocketSubscriptionClient) IsConnected() bool {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
 	return !w.isClosedConnection
 }
 
@@ -109,17 +113,25 @@ func (w *WebsocketSubscriptionClient) Disconnect() error {
 	w.logger.Debug("http.GraphQLHTTPRequestHandler.Disconnect()",
 		abstractlogger.String("message", "disconnecting client"),
 	)
-	w.isClosedConnection = true
+	w.changeConnectionStateToClosed()
 	return w.clientConn.Close()
 }
 
 // isClosedConnectionError will indicate if the given error is a connection closed error.
 func (w *WebsocketSubscriptionClient) isClosedConnectionError(err error) bool {
 	if _, ok := err.(wsutil.ClosedError); ok {
-		w.isClosedConnection = true
+		w.changeConnectionStateToClosed()
 	}
 
+	w.mu.RLock()
+	defer w.mu.RUnlock()
 	return w.isClosedConnection
+}
+
+func (w *WebsocketSubscriptionClient) changeConnectionStateToClosed() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.isClosedConnection = true
 }
 
 func HandleWebsocket(done chan bool, errChan chan error, conn net.Conn, executorPool subscription.ExecutorPool, logger abstractlogger.Logger) {

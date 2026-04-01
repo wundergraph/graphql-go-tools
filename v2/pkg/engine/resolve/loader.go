@@ -916,6 +916,28 @@ func (l *Loader) mergeBatchCacheHit(fetchItem *FetchItem, res *result, items []*
 		}
 	}
 	if maxIndex < 0 {
+		responseData := astjson.ObjectValue(l.jsonArena)
+		fieldName := ""
+		if res.fetchInfo != nil && len(res.fetchInfo.RootFields) > 0 {
+			fieldName = res.fetchInfo.RootFields[0].FieldName
+		}
+		if fieldName != "" {
+			// Preserve the subgraph response shape for an empty batch, e.g. {"products":[]}.
+			responseData.Set(l.jsonArena, fieldName, astjson.ArrayValue(l.jsonArena))
+		}
+		if len(items) == 0 {
+			// Root-level merge: replace the response data directly.
+			l.resolvable.data = responseData
+			return nil
+		}
+		if len(items) == 1 {
+			var err error
+			// Nested merge: attach the empty shaped response at the configured batch merge path.
+			items[0], _, err = astjson.MergeValuesWithPath(l.jsonArena, items[0], responseData, res.batchMergePath...)
+			if err != nil {
+				return l.renderErrorsFailedToFetch(fetchItem, res, "batch cache merge failed")
+			}
+		}
 		return nil
 	}
 
@@ -1275,10 +1297,14 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	}
 
 	// Check if data needs processing.
-	// When negative caching is enabled, null responseData is valid (entity not found)
-	// and should flow through to the merge path where NegativeCacheHit gets set.
-	negativeCachingNull := res.cacheConfig.NegativeCacheTTL > 0 && len(items) > 0 && responseData != nil && responseData.Type() == astjson.TypeNull
-	if res.postProcessing.SelectResponseDataPath != nil && astjson.ValueIsNull(responseData) && !negativeCachingNull {
+	// For fetches selecting a specific _entities[index] item, a null responseData means
+	// the subgraph had no matching entity. That is a valid GraphQL response even when
+	// negative caching is disabled.
+	entityNull := len(items) > 0 &&
+		responseData != nil &&
+		responseData.Type() == astjson.TypeNull &&
+		selectsSingleEntityResult(res.postProcessing.SelectResponseDataPath)
+	if res.postProcessing.SelectResponseDataPath != nil && astjson.ValueIsNull(responseData) && !entityNull {
 		// When:
 		// - No errors or data are present
 		// - Status code is not within the 2XX range
@@ -1317,13 +1343,15 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		return nil
 	}
 	if len(items) == 1 && res.batchStats == nil {
-		items[0], _, err = astjson.MergeValuesWithPath(l.jsonArena, items[0], responseData, res.postProcessing.MergePath...)
-		if err != nil {
-			return errors.WithStack(ErrMergeResult{
-				Subgraph: res.ds.Name,
-				Reason:   err,
-				Path:     fetchItem.ResponsePath,
-			})
+		if responseData != nil && responseData.Type() != astjson.TypeNull {
+			items[0], _, err = astjson.MergeValuesWithPath(l.jsonArena, items[0], responseData, res.postProcessing.MergePath...)
+			if err != nil {
+				return errors.WithStack(ErrMergeResult{
+					Subgraph: res.ds.Name,
+					Reason:   err,
+					Path:     fetchItem.ResponsePath,
+				})
+			}
 		}
 		if slices.Contains(taintedIndices, 0) {
 			l.taintedObjs.add(items[0])
@@ -1342,8 +1370,9 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 			}
 			if len(res.l2CacheKeys) > 0 && res.l2CacheKeys[0] != nil {
 				res.l2CacheKeys[0].Item = items[0]
-				// Negative caching: detect when subgraph returned null for this entity
-				if responseData != nil && responseData.Type() == astjson.TypeNull && res.cacheConfig.NegativeCacheTTL > 0 {
+				// Detect explicit null entity responses so regular cache writes are suppressed.
+				// Actual negative-sentinel persistence is still gated by NegativeCacheTTL in updateL2Cache.
+				if responseData != nil && responseData.Type() == astjson.TypeNull {
 					res.l2CacheKeys[0].NegativeCacheHit = true
 				}
 			}
@@ -1373,13 +1402,17 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		for batchIndex, targets := range res.batchStats {
 			src := batch[batchIndex]
 			for targetIdx, target := range targets {
-				mergedTarget, _, mErr := astjson.MergeValuesWithPath(l.jsonArena, target, src, res.postProcessing.MergePath...)
-				if mErr != nil {
-					return errors.WithStack(ErrMergeResult{
-						Subgraph: res.ds.Name,
-						Reason:   mErr,
-						Path:     fetchItem.ResponsePath,
-					})
+				mergedTarget := target
+				if src != nil && src.Type() != astjson.TypeNull {
+					var mErr error
+					mergedTarget, _, mErr = astjson.MergeValuesWithPath(l.jsonArena, target, src, res.postProcessing.MergePath...)
+					if mErr != nil {
+						return errors.WithStack(ErrMergeResult{
+							Subgraph: res.ds.Name,
+							Reason:   mErr,
+							Path:     fetchItem.ResponsePath,
+						})
+					}
 				}
 				// Track the original to merged mapping
 				originalToMerged[target] = mergedTarget
@@ -1403,6 +1436,10 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 				if merged, ok := originalToMerged[ck.Item]; ok {
 					ck.Item = merged
 				}
+				if batchIndex := ck.BatchIndex; batchIndex >= 0 && batchIndex < len(batch) &&
+					batch[batchIndex] != nil && batch[batchIndex].Type() == astjson.TypeNull {
+					ck.NegativeCacheHit = true
+				}
 			}
 		}
 		// Always run invalidation, even on partial-error responses.
@@ -1419,13 +1456,15 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	}
 
 	for i := range items {
-		items[i], _, err = astjson.MergeValuesWithPath(l.jsonArena, items[i], batch[i], res.postProcessing.MergePath...)
-		if err != nil {
-			return errors.WithStack(ErrMergeResult{
-				Subgraph: res.ds.Name,
-				Reason:   err,
-				Path:     fetchItem.ResponsePath,
-			})
+		if batch[i] != nil && batch[i].Type() != astjson.TypeNull {
+			items[i], _, err = astjson.MergeValuesWithPath(l.jsonArena, items[i], batch[i], res.postProcessing.MergePath...)
+			if err != nil {
+				return errors.WithStack(ErrMergeResult{
+					Subgraph: res.ds.Name,
+					Reason:   err,
+					Path:     fetchItem.ResponsePath,
+				})
+			}
 		}
 		if slices.Contains(taintedIndices, i) {
 			l.taintedObjs.add(items[i])
@@ -1436,8 +1475,9 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		}
 		if i < len(res.l2CacheKeys) && res.l2CacheKeys[i] != nil {
 			res.l2CacheKeys[i].Item = items[i]
-			// Negative caching: detect when subgraph returned null for this entity in the batch
-			if batch[i] != nil && batch[i].Type() == astjson.TypeNull && res.cacheConfig.NegativeCacheTTL > 0 {
+			// Detect explicit null entity responses so regular cache writes are suppressed.
+			// Actual negative-sentinel persistence is still gated by NegativeCacheTTL in updateL2Cache.
+			if batch[i] != nil && batch[i].Type() == astjson.TypeNull {
 				res.l2CacheKeys[i].NegativeCacheHit = true
 			}
 		}
@@ -1653,6 +1693,19 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 	astjson.AppendToArray(l.jsonArena, l.resolvable.errors, errorObject)
 
 	return nil
+}
+
+func selectsSingleEntityResult(path []string) bool {
+	if len(path) < 3 {
+		return false
+	}
+
+	if path[len(path)-2] != "_entities" {
+		return false
+	}
+
+	_, err := strconv.Atoi(path[len(path)-1])
+	return err == nil
 }
 
 // optionallyAllowCustomExtensionProperties removes all properties from the "extensions" object

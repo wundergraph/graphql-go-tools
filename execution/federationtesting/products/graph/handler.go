@@ -17,9 +17,10 @@ import (
 )
 
 type EndpointOptions struct {
-	EnableDebug            bool
-	EnableRandomness       bool
-	OverrideUpdateInterval time.Duration
+	EnableDebug                    bool
+	EnableRandomness               bool
+	OverrideUpdateInterval         time.Duration
+	EnableManualSubscriptionEvents bool
 }
 
 var TestOptions = EndpointOptions{
@@ -32,6 +33,7 @@ var TestOptions = EndpointOptions{
 type Endpoint struct {
 	handler              http.Handler
 	websocketConnections atomic.Uint32
+	subscriptionEvents   *ManualSubscriptionEventSource
 }
 
 // ServeHTTP delegates to the underlying gqlgen handler.
@@ -64,18 +66,23 @@ func GraphQLEndpointHandler(opts EndpointOptions) *Endpoint {
 		updateInterval = opts.OverrideUpdateInterval
 	}
 
+	var subscriptionEvents *ManualSubscriptionEventSource
+	if opts.EnableManualSubscriptionEvents {
+		subscriptionEvents = NewManualSubscriptionEventSource()
+	}
 	resolver := &Resolver{
-		products:          newProducts(),
-		extraProducts:     newExtraProducts(),
-		digitalProducts:   newDigitalProducts(),
-		randomnessEnabled: opts.EnableRandomness,
-		minPrice:          10,
-		maxPrice:          1499,
-		currentPrice:      10,
-		updateInterval:    updateInterval,
+		products:           newProducts(),
+		extraProducts:      newExtraProducts(),
+		digitalProducts:    newDigitalProducts(),
+		randomnessEnabled:  opts.EnableRandomness,
+		minPrice:           10,
+		maxPrice:           1499,
+		currentPrice:       10,
+		updateInterval:     updateInterval,
+		subscriptionEvents: subscriptionEvents,
 	}
 
-	endpoint := &Endpoint{}
+	endpoint := &Endpoint{subscriptionEvents: subscriptionEvents}
 
 	srv := handler.New(generated.NewExecutableSchema(generated.Config{Resolvers: resolver}))
 
@@ -104,4 +111,9 @@ func GraphQLEndpointHandler(opts EndpointOptions) *Endpoint {
 
 	endpoint.handler = srv
 	return endpoint
+}
+
+// SubscriptionEvents returns the manual event source for active subscriptions.
+func (e *Endpoint) SubscriptionEvents() *ManualSubscriptionEventSource {
+	return e.subscriptionEvents
 }

@@ -22,7 +22,7 @@ func TestCacheWriteEventSource_MutationL2Write(t *testing.T) {
 	// Verify that L2 writes triggered by a mutation have Source=CacheSourceMutation in the analytics snapshot.
 	defaultCache := NewFakeLoaderCache()
 
-	setup := federationtesting.NewFederationSetup(addCachingGateway(
+	setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 		withCachingEnableART(false),
 		withCachingLoaderCache(map[string]resolve.LoaderCache{"default": defaultCache}),
 		withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true, EnableCacheAnalytics: true}),
@@ -87,7 +87,7 @@ func TestMutationCacheTTLOverride_E2E(t *testing.T) {
 	// Verify that MutationFieldCacheConfiguration.TTL overrides the entity's default TTL.
 	defaultCache := NewFakeLoaderCache()
 
-	setup := federationtesting.NewFederationSetup(addCachingGateway(
+	setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 		withCachingEnableART(false),
 		withCachingLoaderCache(map[string]resolve.LoaderCache{"default": defaultCache}),
 		withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
@@ -142,7 +142,7 @@ func TestOnSubscriptionCacheCallbacks(t *testing.T) {
 		var mu sync.Mutex
 		var writeEvents []resolve.CacheWriteEvent
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(
+		setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(map[string]resolve.LoaderCache{"default": defaultCache}),
 			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
@@ -171,7 +171,7 @@ func TestOnSubscriptionCacheCallbacks(t *testing.T) {
 		wsAddr := strings.ReplaceAll(setup.GatewayServer.URL, "http://", "ws://")
 
 		// Subscribe to product updates — subscription entity population writes Product to L2
-		messages := collectSubscriptionMessages(ctx, gqlClient, wsAddr,
+		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
 			cachingTestQueryPath("subscriptions/subscription_product_only.query"),
 			queryVariables{"upc": "top-4"}, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":1}}}}`, messages[0])
@@ -203,7 +203,7 @@ func TestOnSubscriptionCacheCallbacks(t *testing.T) {
 			keys       []string
 		}
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(
+		setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(map[string]resolve.LoaderCache{"default": defaultCache}),
 			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
@@ -242,7 +242,7 @@ func TestOnSubscriptionCacheCallbacks(t *testing.T) {
 
 		// Subscribe using key-only query — selects only @key field (upc), so invalidation mode triggers
 		defaultCache.ClearLog()
-		messages := collectSubscriptionMessages(ctx, gqlClient, wsAddr,
+		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
 			cachingTestQueryPath("subscriptions/subscription_product_key_only.query"),
 			queryVariables{"upc": "top-4"}, 1, t)
 		require.Equal(t, 1, len(messages))

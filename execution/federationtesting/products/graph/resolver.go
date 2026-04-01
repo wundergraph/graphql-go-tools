@@ -11,15 +11,16 @@ import (
 )
 
 type Resolver struct {
-	products          []*model.Product
-	extraProducts     []*model.Product
-	digitalProducts   []*model.DigitalProduct
-	randomnessEnabled bool
-	minPrice          int
-	maxPrice          int
-	currentPrice      int
-	updateInterval    time.Duration
-	priceMu           sync.Mutex
+	products           []*model.Product
+	extraProducts      []*model.Product
+	digitalProducts    []*model.DigitalProduct
+	randomnessEnabled  bool
+	minPrice           int
+	maxPrice           int
+	currentPrice       int
+	updateInterval     time.Duration
+	priceMu            sync.Mutex
+	subscriptionEvents *ManualSubscriptionEventSource
 }
 
 // findProduct searches both products and extraProducts by UPC.

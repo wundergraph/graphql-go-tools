@@ -316,6 +316,7 @@ func TestDetectMutationEntityImpact(t *testing.T) {
 		_ = cache.Set(context.Background(), []*CacheEntry{
 			{Key: cacheKey, Value: []byte(`{"id":"1234","username":"OldMe"}`)},
 		}, 0)
+		cache.ClearLog()
 
 		ctx := NewContext(context.Background())
 		ctx.ExecutionOptions.Caching.EnableCacheAnalytics = true
@@ -383,13 +384,14 @@ func TestDetectMutationEntityImpact(t *testing.T) {
 		assert.NotEqual(t, 0, event.FreshBytes)
 	})
 
-	t.Run("analytics enabled, stale cached value records MutationEvent with IsStale=true", func(t *testing.T) {
+	t.Run("analytics enabled still avoids mutation-time cache reads for stale entries", func(t *testing.T) {
 		cache := NewFakeLoaderCache()
 		cacheKey := `{"__typename":"User","key":{"id":"1234"}}`
 		// Cached value has username="OldMe" (differs from mutation response)
 		_ = cache.Set(context.Background(), []*CacheEntry{
 			{Key: cacheKey, Value: []byte(`{"id":"1234","username":"OldMe"}`)},
 		}, 0)
+		cache.ClearLog()
 
 		ctx := NewContext(context.Background())
 		ctx.ExecutionOptions.Caching.EnableCacheAnalytics = true
@@ -417,22 +419,23 @@ func TestDetectMutationEntityImpact(t *testing.T) {
 		event := stats.MutationEvents[0]
 		assert.Equal(t, "updateUsername", event.MutationRootField)
 		assert.Equal(t, "User", event.EntityType)
-		assert.Equal(t, true, event.HadCachedValue) // cache was populated
-		assert.Equal(t, true, event.IsStale)        // username changed: OldMe -> NewMe
-		assert.NotEqual(t, uint64(0), event.CachedHash)
+		assert.Equal(t, false, event.HadCachedValue)
+		assert.Equal(t, false, event.IsStale)
+		assert.Equal(t, uint64(0), event.CachedHash)
 		assert.NotEqual(t, uint64(0), event.FreshHash)
-		assert.NotEqual(t, event.CachedHash, event.FreshHash) // hashes differ because content differs
-		assert.NotEqual(t, 0, event.CachedBytes)
+		assert.Equal(t, 0, event.CachedBytes)
 		assert.NotEqual(t, 0, event.FreshBytes)
+		assert.Equal(t, []CacheLogEntry{{Operation: "delete", Keys: []string{cacheKey}}}, cache.GetLog())
 	})
 
-	t.Run("analytics enabled, fresh cached value records MutationEvent with IsStale=false", func(t *testing.T) {
+	t.Run("analytics enabled still avoids mutation-time cache reads for fresh entries", func(t *testing.T) {
 		cache := NewFakeLoaderCache()
 		cacheKey := `{"__typename":"User","key":{"id":"1234"}}`
 		// Cached value matches the mutation response exactly
 		_ = cache.Set(context.Background(), []*CacheEntry{
 			{Key: cacheKey, Value: []byte(`{"id":"1234","username":"NewMe"}`)},
 		}, 0)
+		cache.ClearLog()
 
 		ctx := NewContext(context.Background())
 		ctx.ExecutionOptions.Caching.EnableCacheAnalytics = true
@@ -460,12 +463,12 @@ func TestDetectMutationEntityImpact(t *testing.T) {
 		event := stats.MutationEvents[0]
 		assert.Equal(t, "updateUsername", event.MutationRootField)
 		assert.Equal(t, "User", event.EntityType)
-		assert.Equal(t, true, event.HadCachedValue)        // cache was populated
-		assert.Equal(t, false, event.IsStale)              // cached value matches mutation response
-		assert.Equal(t, event.CachedHash, event.FreshHash) // hashes are equal
-		assert.NotEqual(t, uint64(0), event.CachedHash)
-		assert.NotEqual(t, 0, event.CachedBytes)
+		assert.Equal(t, false, event.HadCachedValue)
+		assert.Equal(t, false, event.IsStale)
+		assert.Equal(t, uint64(0), event.CachedHash)
+		assert.Equal(t, 0, event.CachedBytes)
 		assert.NotEqual(t, 0, event.FreshBytes)
+		assert.Equal(t, []CacheLogEntry{{Operation: "delete", Keys: []string{cacheKey}}}, cache.GetLog())
 	})
 
 	t.Run("InvalidateCache false with analytics records event but no Delete", func(t *testing.T) {
@@ -497,10 +500,9 @@ func TestDetectMutationEntityImpact(t *testing.T) {
 		deletedKeys := l.detectMutationEntityImpact(res, info, responseData)
 		assert.Nil(t, deletedKeys, "no keys should be deleted when InvalidateCache=false")
 
-		// Verify only a Get was logged (for analytics), no Delete
+		// Verify mutation analytics does not issue a cache read.
 		log := cache.GetLog()
-		require.Len(t, log, 1, "exactly 1 cache operation: Get for analytics comparison")
-		assert.Equal(t, "get", log[0].Operation)
+		require.Len(t, log, 0, "mutation impact analytics must not read from cache")
 
 		// Verify cache entry still exists
 		entries, _ := cache.Get(context.Background(), []string{cacheKey})
@@ -509,8 +511,8 @@ func TestDetectMutationEntityImpact(t *testing.T) {
 		// Verify MutationEvent was recorded
 		stats := ctx.GetCacheStats()
 		require.Len(t, stats.MutationEvents, 1)
-		assert.Equal(t, true, stats.MutationEvents[0].HadCachedValue)
-		assert.Equal(t, true, stats.MutationEvents[0].IsStale) // username changed
+		assert.Equal(t, false, stats.MutationEvents[0].HadCachedValue)
+		assert.Equal(t, false, stats.MutationEvents[0].IsStale)
 	})
 
 	t.Run("no caches map returns nil", func(t *testing.T) {
@@ -647,9 +649,9 @@ func TestDetectMutationEntityImpact(t *testing.T) {
 		stats := ctx.GetCacheStats()
 		require.Len(t, stats.MutationEvents, 2, "should record mutation event for each entity in the list")
 		assert.Equal(t, cacheKey1, stats.MutationEvents[0].EntityCacheKey)
-		assert.Equal(t, true, stats.MutationEvents[0].HadCachedValue)
+		assert.Equal(t, false, stats.MutationEvents[0].HadCachedValue)
 		assert.Equal(t, cacheKey2, stats.MutationEvents[1].EntityCacheKey)
-		assert.Equal(t, true, stats.MutationEvents[1].HadCachedValue)
+		assert.Equal(t, false, stats.MutationEvents[1].HadCachedValue)
 	})
 
 	t.Run("array response with non-object items skips them", func(t *testing.T) {

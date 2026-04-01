@@ -375,7 +375,7 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 		assert.Equal(t, mutationResponse, mutResp)
 		env.clearModifier()
 
-		// Analytics should report correct staleness detection.
+		// Analytics should still identify the mutation entity, but must not read L2.
 		snap := normalizeSnapshot(parseCacheAnalytics(t, headers))
 		require.Equal(t, 1, len(snap.MutationEvents), "should have exactly 1 mutation impact event")
 
@@ -393,8 +393,8 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 					MutationRootField: "updateUsername",
 					EntityType:        "User",
 					EntityCacheKey:    extInvUserKey,
-					HadCachedValue:    true, // L2 had cached value from prior query
-					IsStale:           true, // Cached "Me" differs from fresh "UpdatedMe"
+					HadCachedValue:    false, // Mutation analytics must not read L2
+					IsStale:           false, // No cache read means no stale comparison
 					CachedHash:        event.CachedHash,
 					FreshHash:         event.FreshHash,
 					CachedBytes:       event.CachedBytes,
@@ -405,9 +405,8 @@ func TestFederationCaching_ExtensionsInvalidation(t *testing.T) {
 
 		// Verify dedup still works — single delete despite both mechanisms.
 		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
-			{Operation: "get", Keys: []string{extInvUserKey}, Hits: []bool{true}}, // analytics reads cached value before delete
-			{Operation: "delete", Keys: []string{extInvUserKey}},                  // config-based delete (extensions-based skipped via dedup)
-		}), env.cacheLog(), "analytics read before delete, single delete despite both mechanisms")
+			{Operation: "delete", Keys: []string{extInvUserKey}}, // config-based delete (extensions-based skipped via dedup)
+		}), env.cacheLog(), "single delete despite both mechanisms; analytics must not read cache")
 	})
 
 	t.Run("analytics without prior cache reports no-cache event", func(t *testing.T) {

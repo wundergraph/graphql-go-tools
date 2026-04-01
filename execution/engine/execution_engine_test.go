@@ -197,15 +197,15 @@ func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 
 	t.Run("compression based on content encoding header", func(t *testing.T) {
 		t.Parallel()
-		rw := graphql.NewEngineResultWriter()
-		_, err := rw.Write([]byte(`{"key": "value"}`))
-		require.NoError(t, err)
-
-		headers := make(http.Header)
-		headers.Set("Content-Type", "application/json")
 
 		t.Run("gzip", func(t *testing.T) {
 			t.Parallel()
+			rw := graphql.NewEngineResultWriter()
+			_, err := rw.Write([]byte(`{"key": "value"}`))
+			require.NoError(t, err)
+
+			headers := make(http.Header)
+			headers.Set("Content-Type", "application/json")
 			headers.Set(httpclient.ContentEncodingHeader, "gzip")
 
 			response := rw.AsHTTPResponse(http.StatusOK, headers)
@@ -225,6 +225,12 @@ func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 
 		t.Run("deflate", func(t *testing.T) {
 			t.Parallel()
+			rw := graphql.NewEngineResultWriter()
+			_, err := rw.Write([]byte(`{"key": "value"}`))
+			require.NoError(t, err)
+
+			headers := make(http.Header)
+			headers.Set("Content-Type", "application/json")
 			headers.Set(httpclient.ContentEncodingHeader, "deflate")
 
 			response := rw.AsHTTPResponse(http.StatusOK, headers)
@@ -5871,13 +5877,20 @@ func TestExecutionEngine_GetCachedPlan(t *testing.T) {
 		),
 	})
 
-	engine, err := NewExecutionEngine(context.Background(), abstractlogger.NoopLogger, engineConfig, resolve.ResolverOptions{
-		MaxConcurrency: 1024,
-	})
-	require.NoError(t, err)
+	newEngine := func(t *testing.T) *ExecutionEngine {
+		t.Helper()
+
+		engine, err := NewExecutionEngine(context.Background(), abstractlogger.NoopLogger, engineConfig, resolve.ResolverOptions{
+			MaxConcurrency: 1024,
+		})
+		require.NoError(t, err)
+
+		return engine
+	}
 
 	t.Run("should reuse cached plan", func(t *testing.T) {
 		t.Parallel()
+		engine := newEngine(t)
 		t.Cleanup(engine.executionPlanCache.Purge)
 		require.Equal(t, 0, engine.executionPlanCache.Len())
 
@@ -5907,6 +5920,7 @@ func TestExecutionEngine_GetCachedPlan(t *testing.T) {
 
 	t.Run("should create new plan and cache it", func(t *testing.T) {
 		t.Parallel()
+		engine := newEngine(t)
 		t.Cleanup(engine.executionPlanCache.Purge)
 		require.Equal(t, 0, engine.executionPlanCache.Len())
 

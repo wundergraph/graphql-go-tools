@@ -1,10 +1,13 @@
 package federationtesting
 
 import (
+	"context"
+	"fmt"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	accounts "github.com/wundergraph/graphql-go-tools/execution/federationtesting/accounts/graph"
 	products "github.com/wundergraph/graphql-go-tools/execution/federationtesting/products/graph"
@@ -47,14 +50,26 @@ func LoadTestingSubgraphSDL(upstream Upstream) ([]byte, error) {
 }
 
 func NewFederationSetup(addGateway ...func(s *FederationSetup) *httptest.Server) *FederationSetup {
+	return newFederationSetup(false, addGateway...)
+}
+
+func NewManualFederationSetup(addGateway ...func(s *FederationSetup) *httptest.Server) *FederationSetup {
+	return newFederationSetup(true, addGateway...)
+}
+
+func newFederationSetup(enableManualSubscriptionEvents bool, addGateway ...func(s *FederationSetup) *httptest.Server) *FederationSetup {
 	accountUpstreamServer := httptest.NewServer(accounts.GraphQLEndpointHandler(accounts.TestOptions))
-	productsUpstreamServer := httptest.NewServer(products.GraphQLEndpointHandler(products.TestOptions))
+	productOptions := products.TestOptions
+	productOptions.EnableManualSubscriptionEvents = enableManualSubscriptionEvents
+	productsEndpoint := products.GraphQLEndpointHandler(productOptions)
+	productsUpstreamServer := httptest.NewServer(productsEndpoint)
 	reviewsUpstreamServer := httptest.NewServer(reviews.GraphQLEndpointHandler(reviews.TestOptions))
 
 	setup := &FederationSetup{
-		AccountsUpstreamServer: accountUpstreamServer,
-		ProductsUpstreamServer: productsUpstreamServer,
-		ReviewsUpstreamServer:  reviewsUpstreamServer,
+		AccountsUpstreamServer:     accountUpstreamServer,
+		ProductsUpstreamServer:     productsUpstreamServer,
+		ReviewsUpstreamServer:      reviewsUpstreamServer,
+		productsSubscriptionEvents: productsEndpoint.SubscriptionEvents(),
 	}
 
 	if len(addGateway) > 0 {
@@ -65,10 +80,11 @@ func NewFederationSetup(addGateway ...func(s *FederationSetup) *httptest.Server)
 }
 
 type FederationSetup struct {
-	AccountsUpstreamServer *httptest.Server
-	ProductsUpstreamServer *httptest.Server
-	ReviewsUpstreamServer  *httptest.Server
-	GatewayServer          *httptest.Server
+	AccountsUpstreamServer     *httptest.Server
+	ProductsUpstreamServer     *httptest.Server
+	ReviewsUpstreamServer      *httptest.Server
+	GatewayServer              *httptest.Server
+	productsSubscriptionEvents *products.ManualSubscriptionEventSource
 }
 
 func (f *FederationSetup) Close() {
@@ -78,4 +94,15 @@ func (f *FederationSetup) Close() {
 	if f.GatewayServer != nil {
 		f.GatewayServer.Close()
 	}
+}
+
+func (f *FederationSetup) NextProductSubscription(ctx context.Context) (*products.ManualSubscriptionHandle, error) {
+	if f.productsSubscriptionEvents == nil {
+		return nil, fmt.Errorf("manual product subscriptions are not enabled for this setup")
+	}
+
+	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	return f.productsSubscriptionEvents.NextSubscription(waitCtx)
 }

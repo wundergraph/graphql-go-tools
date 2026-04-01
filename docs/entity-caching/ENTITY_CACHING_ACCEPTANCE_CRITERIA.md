@@ -825,6 +825,92 @@ normalized to `1ns` for deterministic test assertions.
 Tests:
 - `v2/pkg/engine/resolve/cache_trace_test.go` — `TestBuildCacheTrace / "predictable debug timings"`
 
+## Batch Entity Key Mode (Root Field with List Arguments)
+
+### AC-BATCH-01: Per-element cache key construction
+When `ArgumentIsEntityKey: true` is set on a `FieldMapping` and the root field argument
+is a list (e.g., `ids: ["1","2","3"]`),
+the engine constructs one cache key per list element using entity key format.
+Each key is identical to what an `_entities` fetch would produce for the same entity,
+enabling cache sharing between root fields and entity resolution.
+
+Tests:
+- `v2/pkg/engine/resolve/cache_key_test.go:2175` — `TestRenderCacheKeys_BatchEntityKey` (batch key format, single and multi-element lists)
+- `v2/pkg/engine/resolve/cache_key_test.go:2273` — `TestRenderCacheKeys_BatchEntityKey / "batch key format matches scalar key format"` (scalar and batch produce identical keys for the same ID)
+
+### AC-BATCH-02: Positional correspondence via BatchIndex
+Each cache key records its position in the original list argument via `CacheKey.BatchIndex`.
+This is used during response reassembly to place cached and fresh entities in the correct
+output positions.
+For non-batch cache keys, `BatchIndex` is unused (default 0).
+
+Tests:
+- `v2/pkg/engine/resolve/cache_key_test.go:2175` — `TestRenderCacheKeys_BatchEntityKey` (verifies BatchIndex 0, 1, 2 for three-element list)
+
+### AC-BATCH-03: Empty list short-circuit
+When the list argument is `[]` or `null`,
+the engine returns an empty response (`[]`) immediately without calling the resolver
+or the cache.
+This avoids unnecessary subgraph calls and cache operations for trivially empty queries.
+
+Tests:
+- `v2/pkg/engine/resolve/loader_batch_short_circuit_test.go:16` — `TestLoader_BatchEntityKeyEmptyListShortCircuit`
+- `execution/engine/federation_caching_batch_test.go:330` — `TestBatchEntityCacheLookup_FullFetch_EmptyList`
+
+### AC-BATCH-04: Full fetch mode (all-or-nothing)
+When `PartialBatchLoad` is false (default),
+any cache miss in a batch causes the full list argument to be sent to the subgraph.
+All returned entities are cached individually with their entity keys.
+
+Tests:
+- `execution/engine/federation_caching_batch_test.go:60` — `TestBatchEntityCacheLookup_FullFetch_AllMiss` (no cache entries, full list fetched)
+- `execution/engine/federation_caching_batch_test.go:141` — `TestBatchEntityCacheLookup_FullFetch_AllHit` (all cached, no subgraph call)
+- `execution/engine/federation_caching_batch_test.go:237` — `TestBatchEntityCacheLookup_FullFetch_PartialMiss_FetchesAll` (partial hit, full list refetched)
+- `execution/engine/federation_caching_batch_test.go:499` — `TestBatchEntityCacheLookup_FullFetch_SingleElement` (single-element list behaves like scalar)
+
+### AC-BATCH-05: Partial fetch mode (fetch only missing)
+When `PartialBatchLoad` is true,
+only IDs with cache misses are sent to the subgraph.
+The input list variable is filtered to exclude IDs that were cache hits.
+Cached entities are merged with fresh results in the correct positional order.
+
+Tests:
+- `execution/engine/federation_caching_batch_test.go:579` — `TestBatchEntityCacheLookup_PartialFetch_SomeCached` (some hit, only missing IDs fetched)
+- `execution/engine/federation_caching_batch_test.go:676` — `TestBatchEntityCacheLookup_PartialFetch_AllHit` (all cached, no subgraph call)
+- `execution/engine/federation_caching_batch_test.go:769` — `TestBatchEntityCacheLookup_PartialFetch_AllMiss` (none cached, full list fetched)
+- `execution/engine/federation_caching_batch_test.go:848` — `TestBatchEntityCacheLookup_PartialFetch_OrderPreservation` (response order matches input list order)
+
+### AC-BATCH-06: Cache sharing between scalar and batch root fields
+Batch entity keys use the same format as scalar `EntityKeyMappings`.
+A scalar root field `product(id: "1")` and a batch root field `products(ids: ["1","2"])`
+both produce `{"__typename":"Product","key":{"id":"1"}}` for ID `"1"`,
+so they share the same L2 cache entry.
+
+Tests:
+- `execution/engine/federation_caching_batch_test.go:390` — `TestBatchEntityCacheLookup_CacheKeySharing_ScalarAndBatch` (scalar write, batch read hits same cache entry)
+- `v2/pkg/engine/resolve/cache_key_test.go:2273` — `TestRenderCacheKeys_BatchEntityKey / "batch key format matches scalar key format"`
+
+### AC-BATCH-07: Constructor precomputes batch metadata
+`NewRootQueryCacheKeyTemplate` precomputes batch entity key information
+(argument path, entity type, merge path) via `precomputeDerivedFields()`.
+The precomputed values are exposed via `BatchEntityKeyArgumentPath()` and
+`EntityMergePath()` on the `CacheKeyTemplate` interface.
+
+Tests:
+- `v2/pkg/engine/resolve/cache_key_test.go:2395` — `TestRenderCacheKeys_BatchEntityKey / "constructor precomputes batch entity key metadata"`
+
+## TypeName Fallback
+
+### AC-TYPENAME-01: Plan-time TypeName used when __typename missing
+When `__typename` is missing from the response data,
+the plan-time `TypeName` field on `EntityQueryCacheKeyTemplate` is used as fallback
+for the cache key's `__typename` value.
+This ensures cache keys always reflect the correct entity type
+rather than falling back to a hardcoded default.
+
+Tests:
+- `v2/pkg/engine/resolve/cache_key_test.go:632` — `TestCachingRenderEntityQueryCacheKeyTemplate` (TypeName field set on template)
+
 ## Smart Cache Key Backfill (L2, Root Field EntityKeyMappings)
 
 ### AC-L2-BACKFILL-01: Requested missing key backfilled from cached sibling

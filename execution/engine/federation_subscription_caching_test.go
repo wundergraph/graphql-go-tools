@@ -23,12 +23,19 @@ func toWSAddr(httpURL string) string {
 }
 
 // collectSubscriptionMessages subscribes and collects exactly count messages.
-func collectSubscriptionMessages(ctx context.Context, gqlClient *GraphqlClient, wsAddr, queryPath string,
+func collectSubscriptionMessages(ctx context.Context, gqlClient *GraphqlClient, setup *federationtesting.FederationSetup, wsAddr, queryPath string,
 	variables queryVariables, count int, t *testing.T) []string {
 	t.Helper()
 
 	messages, closeSubscription := gqlClient.Subscription(ctx, wsAddr, queryPath, variables, t)
 	defer closeSubscription()
+
+	trigger, err := setup.NextProductSubscription(ctx)
+	require.NoError(t, err)
+
+	for i := 0; i < count; i++ {
+		trigger.Emit()
+	}
 
 	var result []string
 	for i := 0; i < count; i++ {
@@ -46,8 +53,8 @@ func collectSubscriptionMessages(ctx context.Context, gqlClient *GraphqlClient, 
 	return result
 }
 
+//nolint:tparallel // Timing-sensitive subscription cache tests need a few subtests to run before parallel siblings.
 func TestFederationSubscriptionCaching(t *testing.T) {
-	t.Parallel()
 	// =====================================================================
 	// Category 1: Child fetch L2 read/write within subscription events
 	// =====================================================================
@@ -74,7 +81,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			},
 		}
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(
+		setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withHTTPClient(trackingClient),
@@ -96,7 +103,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		defaultCache.ClearLog()
 		tracker.Reset()
 
-		messages := collectSubscriptionMessages(ctx, gqlClient, wsAddr,
+		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
 			cachingTestQueryPath("subscriptions/subscription_product_with_reviews.query"),
 			queryVariables{"upc": "top-4"}, 2, t)
 
@@ -120,7 +127,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		wantLog := []CacheLogEntry{
 			{
-				Operation: "get",
+				Operation: CacheOperationGet,
 				Keys: []string{
 					`{"__typename":"User","key":{"id":"5678"}}`,
 					`{"__typename":"User","key":{"id":"8888"}}`,
@@ -128,14 +135,14 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 				Hits: []bool{false, false},
 			},
 			{
-				Operation: "set",
+				Operation: CacheOperationSet,
 				Keys: []string{
 					`{"__typename":"User","key":{"id":"5678"}}`,
 					`{"__typename":"User","key":{"id":"8888"}}`,
 				},
 			},
 			{
-				Operation: "get",
+				Operation: CacheOperationGet,
 				Keys: []string{
 					`{"__typename":"User","key":{"id":"5678"}}`,
 					`{"__typename":"User","key":{"id":"8888"}}`,
@@ -167,7 +174,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			},
 		}
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(
+		setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withHTTPClient(trackingClient),
@@ -194,7 +201,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		defaultCache.ClearLog()
 		tracker.Reset()
 
-		messages := collectSubscriptionMessages(ctx, gqlClient, toWSAddr(setup.GatewayServer.URL),
+		messages := collectSubscriptionMessages(ctx, gqlClient, setup, toWSAddr(setup.GatewayServer.URL),
 			cachingTestQueryPath("subscriptions/subscription_product_with_reviews.query"),
 			queryVariables{"upc": "top-4"}, 1, t)
 
@@ -208,7 +215,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		cacheLog := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
 			{
-				Operation: "get",
+				Operation: CacheOperationGet,
 				Keys: []string{
 					`{"__typename":"User","key":{"id":"5678"}}`,
 					`{"__typename":"User","key":{"id":"8888"}}`,
@@ -220,7 +227,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 	})
 
 	t.Run("child entity fetch L2 TTL expiry across events", func(t *testing.T) {
-		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -241,7 +247,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			},
 		}
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(
+		setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withHTTPClient(trackingClient),
@@ -264,14 +270,24 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		// Event 2 (~200ms): Within TTL → L2 hit → no call
 		// Event 3 (~300ms): After TTL expiry → L2 miss → accounts called again
 		tracker.Reset()
-		messages := collectSubscriptionMessages(ctx, gqlClient, wsAddr,
-			cachingTestQueryPath("subscriptions/subscription_product_with_reviews.query"),
-			queryVariables{"upc": "top-4"}, 3, t)
+		messages, closeSubscription := gqlClient.Subscription(ctx, wsAddr, cachingTestQueryPath("subscriptions/subscription_product_with_reviews.query"), queryVariables{"upc": "top-4"}, t)
+		t.Cleanup(closeSubscription)
 
-		require.Equal(t, 3, len(messages))
-		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":1,"reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, messages[0])
-		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":2,"reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, messages[1])
-		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":3,"reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, messages[2])
+		trigger, err := setup.NextProductSubscription(ctx)
+		require.NoError(t, err)
+
+		trigger.Emit()
+		first := <-messages
+		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":1,"reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, string(first))
+
+		trigger.Emit()
+		second := <-messages
+		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":2,"reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, string(second))
+
+		time.Sleep(200 * time.Millisecond)
+		trigger.Emit()
+		third := <-messages
+		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":3,"reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, string(third))
 
 		// Accounts should be called exactly 2 times (event 1 and event 3)
 		accountsCalls := tracker.GetCount(accountsHost)
@@ -293,7 +309,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		// No entity caching configured for accounts
 		subgraphCachingConfigs := engine.SubgraphCachingConfigs{}
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(
+		setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withHTTPClient(trackingClient),
@@ -314,7 +330,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		defaultCache.ClearLog()
 		tracker.Reset()
 
-		messages := collectSubscriptionMessages(ctx, gqlClient, wsAddr,
+		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
 			cachingTestQueryPath("subscriptions/subscription_product_with_reviews.query"),
 			queryVariables{"upc": "top-4"}, 2, t)
 
@@ -349,7 +365,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			},
 		}
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(
+		setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
@@ -366,7 +382,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		// Subscribe to product updates - selects name, price beyond @key(upc) → populate mode
 		defaultCache.ClearLog()
 
-		messages := collectSubscriptionMessages(ctx, gqlClient, wsAddr,
+		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
 			cachingTestQueryPath("subscriptions/subscription_product_only.query"),
 			queryVariables{"upc": "top-4"}, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":1}}}}`, messages[0])
@@ -375,7 +391,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		subLog := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
 			{
-				Operation: "set",
+				Operation: CacheOperationSet,
 				Keys:      []string{`{"__typename":"Product","key":{"upc":"top-4"}}`},
 			},
 		}
@@ -405,7 +421,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			},
 		}
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(
+		setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
@@ -423,7 +439,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		// but NOT inStock. The subscription should populate L2 with only these fields.
 		defaultCache.ClearLog()
 
-		messages := collectSubscriptionMessages(ctx, gqlClient, wsAddr,
+		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
 			cachingTestQueryPath("subscriptions/subscription_product_only.query"),
 			queryVariables{"upc": "top-4"}, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":1}}}}`, messages[0])
@@ -432,7 +448,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		subLog := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
 			{
-				Operation: "set",
+				Operation: CacheOperationSet,
 				Keys:      []string{`{"__typename":"Product","key":{"upc":"top-4"}}`},
 			},
 		}
@@ -462,7 +478,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			},
 		}
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(
+		setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
@@ -479,7 +495,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		// Subscribe to updatedPrices which returns a list of products (top-1, top-2, top-3)
 		defaultCache.ClearLog()
 
-		messages := collectSubscriptionMessages(ctx, gqlClient, wsAddr,
+		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
 			cachingTestQueryPath("subscriptions/subscription_all_prices_with_reviews.query"),
 			nil, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updatedPrices":[{"upc":"top-1","name":"Trilby","price":1,"reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"upc":"top-2","name":"Fedora","price":2,"reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]},{"upc":"top-3","name":"Boater","price":3,"reviews":[{"body":"This is the last straw. Hat you will wear. 11/10","authorWithoutProvides":{"username":"User 7777"}}]}]}}}`, messages[0])
@@ -487,7 +503,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		// Verify L2 was populated with all 3 product entities
 		subLog := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
-			{Operation: "set", Keys: []string{
+			{Operation: CacheOperationSet, Keys: []string{
 				`{"__typename":"Product","key":{"upc":"top-1"}}`,
 				`{"__typename":"Product","key":{"upc":"top-2"}}`,
 				`{"__typename":"Product","key":{"upc":"top-3"}}`,
@@ -534,7 +550,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			},
 		}
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(
+		setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withHTTPClient(trackingClient),
@@ -556,7 +572,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		defaultCache.ClearLog()
 		tracker.Reset()
 
-		messages := collectSubscriptionMessages(ctx, gqlClient, wsAddr,
+		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
 			cachingTestQueryPath("subscriptions/subscription_product_only.query"),
 			queryVariables{"upc": "top-4"}, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":1}}}}`, messages[0])
@@ -604,7 +620,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			},
 		}
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(
+		setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withHTTPClient(trackingClient),
@@ -627,7 +643,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		defaultCache.ClearLog()
 		tracker.Reset()
 
-		messages := collectSubscriptionMessages(ctx, gqlClient, wsAddr,
+		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
 			cachingTestQueryPath("subscriptions/subscription_product_with_reviews.query"),
 			queryVariables{"upc": "top-4"}, 2, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":1,"reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, messages[0])
@@ -679,7 +695,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			},
 		}
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(
+		setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withSubgraphHeadersBuilder(mockHeadersBuilder),
@@ -696,7 +712,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		defaultCache.ClearLog()
 
-		messages := collectSubscriptionMessages(ctx, gqlClient, wsAddr,
+		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
 			cachingTestQueryPath("subscriptions/subscription_product_only.query"),
 			queryVariables{"upc": "top-4"}, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":1}}}}`, messages[0])
@@ -705,7 +721,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		subLog := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
 			{
-				Operation: "set",
+				Operation: CacheOperationSet,
 				Keys:      []string{`11111:{"__typename":"Product","key":{"upc":"top-4"}}`},
 			},
 		}
@@ -745,7 +761,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			},
 		}
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(
+		setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
@@ -774,7 +790,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		defaultCache.ClearLog()
 
 		wsAddr := toWSAddr(setup.GatewayServer.URL)
-		messages := collectSubscriptionMessages(ctx, gqlClient, wsAddr,
+		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
 			cachingTestQueryPath("subscriptions/subscription_product_key_only.query"),
 			queryVariables{"upc": "top-4"}, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, messages[0])
@@ -782,9 +798,9 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		// Verify cache delete + User entity resolution
 		subLog := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
-			{Operation: "delete", Keys: []string{`{"__typename":"Product","key":{"upc":"top-4"}}`}},
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}, Hits: []bool{false, false}},
-			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}},
+			{Operation: CacheOperationDelete, Keys: []string{`{"__typename":"Product","key":{"upc":"top-4"}}`}},
+			{Operation: CacheOperationGet, Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}, Hits: []bool{false, false}},
+			{Operation: CacheOperationSet, Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}},
 		}
 		assert.Equal(t, sortCacheLogKeys(wantLog), sortCacheLogKeys(subLog), "subscription should delete Product and resolve Users")
 
@@ -828,7 +844,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			},
 		}
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(
+		setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
@@ -852,7 +868,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		defaultCache.ClearLog()
 
 		wsAddr := toWSAddr(setup.GatewayServer.URL)
-		messages := collectSubscriptionMessages(ctx, gqlClient, wsAddr,
+		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
 			cachingTestQueryPath("subscriptions/subscription_product_key_only.query"),
 			queryVariables{"upc": "top-4"}, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, messages[0])
@@ -860,8 +876,8 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		// No delete for Product (invalidation disabled), only User entity resolution
 		subLog := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}, Hits: []bool{false, false}},
-			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}},
+			{Operation: CacheOperationGet, Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}, Hits: []bool{false, false}},
+			{Operation: CacheOperationSet, Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}},
 		}
 		assert.Equal(t, sortCacheLogKeys(wantLog), sortCacheLogKeys(subLog), "no delete for Product, only User entity resolution")
 
@@ -906,7 +922,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			},
 		}
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(
+		setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
@@ -931,19 +947,28 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		defaultCache.ClearLog()
 
 		wsAddr := toWSAddr(setup.GatewayServer.URL)
-		messages := collectSubscriptionMessages(ctx, gqlClient, wsAddr,
-			cachingTestQueryPath("subscriptions/subscription_product_key_only.query"),
-			queryVariables{"upc": "top-4"}, 2, t)
-		assert.Equal(t, 2, len(messages))
+		messages, closeSubscription := gqlClient.Subscription(ctx, wsAddr, cachingTestQueryPath("subscriptions/subscription_product_key_only.query"), queryVariables{"upc": "top-4"}, t)
+		t.Cleanup(closeSubscription)
+
+		handle, err := setup.NextProductSubscription(ctx)
+		require.NoError(t, err)
+
+		handle.Emit()
+		firstMessage := <-messages
+		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, string(firstMessage))
+
+		handle.Emit()
+		secondMessage := <-messages
+		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, string(secondMessage))
 
 		// Verify 2 delete operations (one per event) + User entity resolution
 		subLog := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
-			{Operation: "delete", Keys: []string{`{"__typename":"Product","key":{"upc":"top-4"}}`}},
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}, Hits: []bool{false, false}},
-			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}},
-			{Operation: "delete", Keys: []string{`{"__typename":"Product","key":{"upc":"top-4"}}`}},
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}, Hits: []bool{true, true}},
+			{Operation: CacheOperationDelete, Keys: []string{`{"__typename":"Product","key":{"upc":"top-4"}}`}},
+			{Operation: CacheOperationGet, Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}, Hits: []bool{false, false}},
+			{Operation: CacheOperationSet, Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}},
+			{Operation: CacheOperationDelete, Keys: []string{`{"__typename":"Product","key":{"upc":"top-4"}}`}},
+			{Operation: CacheOperationGet, Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}, Hits: []bool{true, true}},
 		}
 		assert.Equal(t, sortCacheLogKeys(wantLog), sortCacheLogKeys(subLog), "should have 2 delete operations (one per event) + User entity resolution")
 
@@ -996,7 +1021,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			},
 		}
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(
+		setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withHTTPClient(trackingClient),
@@ -1013,7 +1038,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		defaultCache.ClearLog()
 
-		messages := collectSubscriptionMessages(ctx, gqlClient, wsAddr,
+		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
 			cachingTestQueryPath("subscriptions/subscription_product_with_reviews.query"),
 			queryVariables{"upc": "top-4"}, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":1,"reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, messages[0])
@@ -1022,8 +1047,8 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		// No root field cache operations, only User entity caching
 		cacheLog := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}, Hits: []bool{false, false}},
-			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}},
+			{Operation: CacheOperationGet, Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}, Hits: []bool{false, false}},
+			{Operation: CacheOperationSet, Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}},
 		}
 		assert.Equal(t, sortCacheLogKeys(wantLog), sortCacheLogKeys(cacheLog), "no root field cache, only User entity caching")
 
@@ -1065,7 +1090,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			},
 		}
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(
+		setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withHTTPClient(trackingClient),
@@ -1086,7 +1111,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		defaultCache.ClearLog()
 		tracker.Reset()
 
-		messages := collectSubscriptionMessages(ctx, gqlClient, wsAddr,
+		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
 			cachingTestQueryPath("subscriptions/subscription_product_with_reviews.query"),
 			queryVariables{"upc": "top-4"}, 2, t)
 
@@ -1120,7 +1145,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			},
 		}
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(
+		setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withHTTPClient(trackingClient),
@@ -1142,7 +1167,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		tracker.Reset()
 
 		// Uses author (with @provides) - no entity resolution for User
-		messages := collectSubscriptionMessages(ctx, gqlClient, wsAddr,
+		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
 			cachingTestQueryPath("subscriptions/subscription_product_with_provides.query"),
 			queryVariables{"upc": "top-4"}, 2, t)
 
@@ -1177,7 +1202,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			},
 		}
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(
+		setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
@@ -1194,7 +1219,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		defaultCache.ClearLog()
 
 		// Uses alias: "priceUpdate: updateProductPrice(upc: $upc)"
-		messages := collectSubscriptionMessages(ctx, gqlClient, wsAddr,
+		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
 			cachingTestQueryPath("subscriptions/subscription_product_alias.query"),
 			queryVariables{"upc": "top-4"}, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"priceUpdate":{"upc":"top-4","name":"Bowler","price":1}}}}`, messages[0])
@@ -1203,7 +1228,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		subLog := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
 			{
-				Operation: "set",
+				Operation: CacheOperationSet,
 				Keys:      []string{`{"__typename":"Product","key":{"upc":"top-4"}}`},
 			},
 		}
@@ -1234,7 +1259,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			},
 		}
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(
+		setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
@@ -1251,7 +1276,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		defaultCache.ClearLog()
 
 		// Uses union return type: updateProductPriceUnion returns ProductUpdate union
-		messages := collectSubscriptionMessages(ctx, gqlClient, wsAddr,
+		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
 			cachingTestQueryPath("subscriptions/subscription_product_union.query"),
 			queryVariables{"upc": "top-4"}, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPriceUnion":{"upc":"top-4","name":"Bowler","price":1}}}}`, messages[0])
@@ -1260,7 +1285,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		subLog := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
 			{
-				Operation: "set",
+				Operation: CacheOperationSet,
 				Keys:      []string{`{"__typename":"Product","key":{"upc":"top-4"}}`},
 			},
 		}
@@ -1291,7 +1316,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			},
 		}
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(
+		setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
@@ -1308,7 +1333,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		defaultCache.ClearLog()
 
 		// Uses interface return type: updateProductPriceInterface returns ProductInterface
-		messages := collectSubscriptionMessages(ctx, gqlClient, wsAddr,
+		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
 			cachingTestQueryPath("subscriptions/subscription_product_interface.query"),
 			queryVariables{"upc": "top-4"}, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPriceInterface":{"upc":"top-4","name":"Bowler","price":1}}}}`, messages[0])
@@ -1317,7 +1342,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		subLog := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
 			{
-				Operation: "set",
+				Operation: CacheOperationSet,
 				Keys:      []string{`{"__typename":"Product","key":{"upc":"top-4"}}`},
 			},
 		}
@@ -1351,7 +1376,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			},
 		}
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(
+		setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
@@ -1368,7 +1393,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		defaultCache.ClearLog()
 
 		// Subscribe via union field that returns DigitalProduct (not Product)
-		messages := collectSubscriptionMessages(ctx, gqlClient, wsAddr,
+		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
 			cachingTestQueryPath("subscriptions/subscription_digital_product_union.query"),
 			queryVariables{"upc": "digital-1"}, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateDigitalProductPriceUnion":{"upc":"digital-1","name":"eBook: GraphQL in Action","price":1}}}}`, messages[0])
@@ -1407,7 +1432,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			},
 		}
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(
+		setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
@@ -1424,7 +1449,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		defaultCache.ClearLog()
 
 		// Subscribe via interface field that returns DigitalProduct (not Product)
-		messages := collectSubscriptionMessages(ctx, gqlClient, wsAddr,
+		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
 			cachingTestQueryPath("subscriptions/subscription_digital_product_interface.query"),
 			queryVariables{"upc": "digital-1"}, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateDigitalProductPriceInterface":{"upc":"digital-1","name":"eBook: GraphQL in Action","price":1}}}}`, messages[0])
@@ -1463,7 +1488,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			},
 		}
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(
+		setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
@@ -1485,10 +1510,13 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		messages2, close2 := gqlClient.Subscription(ctx, wsAddr, queryPath, vars, t)
 		t.Cleanup(close2)
 
-		// Wait for both subscriptions to register by collecting 1 message from each
-		// (the first trigger event will have been processed by then)
+		handle, err := setup.NextProductSubscription(ctx)
+		require.NoError(t, err)
+
+		handle.Emit()
+
 		var msg1, msg2 string
-		for i := 0; i < 2; i++ {
+		for msg1 == "" || msg2 == "" {
 			select {
 			case m := <-messages1:
 				msg1 = string(m)
@@ -1499,32 +1527,17 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			}
 		}
 
-		// Both clients should receive data
-		if msg1 == "" {
-			select {
-			case m := <-messages1:
-				msg1 = string(m)
-			case <-time.After(5 * time.Second):
-				t.Fatal("timeout waiting for message from client 1")
-			}
-		}
-		if msg2 == "" {
-			select {
-			case m := <-messages2:
-				msg2 = string(m)
-			case <-time.After(5 * time.Second):
-				t.Fatal("timeout waiting for message from client 2")
-			}
-		}
-
 		assert.Equal(t, msg1, msg2, "both clients should receive the same event")
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":1}}}}`, msg1)
 
 		// ClearLog and collect second event to measure deduplication
 		defaultCache.ClearLog()
+		setNotification := defaultCache.WaitForOperation(CacheOperationSet, []string{`{"__typename":"Product","key":{"upc":"top-4"}}`})
+
+		handle.Emit()
 
 		var msg1b, msg2b string
-		for i := 0; i < 2; i++ {
+		for msg1b == "" || msg2b == "" {
 			select {
 			case m := <-messages1:
 				msg1b = string(m)
@@ -1532,22 +1545,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 				msg2b = string(m)
 			case <-time.After(5 * time.Second):
 				t.Fatal("timeout waiting for second messages")
-			}
-		}
-		if msg1b == "" {
-			select {
-			case m := <-messages1:
-				msg1b = string(m)
-			case <-time.After(5 * time.Second):
-				t.Fatal("timeout waiting for second message from client 1")
-			}
-		}
-		if msg2b == "" {
-			select {
-			case m := <-messages2:
-				msg2b = string(m)
-			case <-time.After(5 * time.Second):
-				t.Fatal("timeout waiting for second message from client 2")
 			}
 		}
 
@@ -1558,10 +1555,24 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		close1()
 		close2()
 
+		select {
+		case entry, ok := <-setNotification:
+			require.True(t, ok, "set notification channel should be closed after delivery")
+			assert.Equal(t, CacheLogEntry{
+				Operation: CacheOperationSet,
+				Keys:      []string{`{"__typename":"Product","key":{"upc":"top-4"}}`},
+				Hits:      nil,
+				TTL:       30 * time.Second,
+				Caller:    "",
+			}, entry)
+		case <-time.After(5 * time.Second):
+			t.Fatal("timeout waiting for Product cache population")
+		}
+
 		// Verify exactly 1 set operation (deduplicated, not 2)
 		subLog := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
-			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"upc":"top-4"}}`}},
+			{Operation: CacheOperationSet, Keys: []string{`{"__typename":"Product","key":{"upc":"top-4"}}`}},
 		}
 		assert.Equal(t, sortCacheLogKeys(wantLog), sortCacheLogKeys(subLog), "should have exactly 1 L2 set for Product (deduplicated, not 2)")
 
@@ -1574,7 +1585,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 	})
 
 	t.Run("entity invalidation happens once per trigger event with multiple subscriptions", func(t *testing.T) {
-		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{
 			"default": defaultCache,
@@ -1595,7 +1605,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			},
 		}
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(
+		setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
@@ -1625,9 +1635,13 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		messages2, close2 := gqlClient.Subscription(ctx, wsAddr, queryPath, vars, t)
 		t.Cleanup(close2)
 
-		// Collect first messages from both to let subscriptions register
+		handle, err := setup.NextProductSubscription(ctx)
+		require.NoError(t, err)
+
+		handle.Emit()
+
 		var msg1, msg2 string
-		for i := 0; i < 2; i++ {
+		for msg1 == "" || msg2 == "" {
 			select {
 			case m := <-messages1:
 				msg1 = string(m)
@@ -1637,31 +1651,18 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 				t.Fatal("timeout waiting for first messages")
 			}
 		}
-		if msg1 == "" {
-			select {
-			case m := <-messages1:
-				msg1 = string(m)
-			case <-time.After(5 * time.Second):
-				t.Fatal("timeout waiting for message from client 1")
-			}
-		}
-		if msg2 == "" {
-			select {
-			case m := <-messages2:
-				msg2 = string(m)
-			case <-time.After(5 * time.Second):
-				t.Fatal("timeout waiting for message from client 2")
-			}
-		}
 
 		assert.Equal(t, msg1, msg2, "both clients should receive the same event")
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, msg1)
 
 		// ClearLog and collect second event to measure deduplication
 		defaultCache.ClearLog()
+		deleteNotification := defaultCache.WaitForOperation(CacheOperationDelete, []string{entityKey})
+
+		handle.Emit()
 
 		var msg1b, msg2b string
-		for i := 0; i < 2; i++ {
+		for msg1b == "" || msg2b == "" {
 			select {
 			case m := <-messages1:
 				msg1b = string(m)
@@ -1669,22 +1670,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 				msg2b = string(m)
 			case <-time.After(5 * time.Second):
 				t.Fatal("timeout waiting for second messages")
-			}
-		}
-		if msg1b == "" {
-			select {
-			case m := <-messages1:
-				msg1b = string(m)
-			case <-time.After(5 * time.Second):
-				t.Fatal("timeout waiting for second message from client 1")
-			}
-		}
-		if msg2b == "" {
-			select {
-			case m := <-messages2:
-				msg2b = string(m)
-			case <-time.After(5 * time.Second):
-				t.Fatal("timeout waiting for second message from client 2")
 			}
 		}
 
@@ -1695,13 +1680,27 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		close1()
 		close2()
 
-		// Verify exactly 1 delete (deduplicated) + User entity resolution with L2 hits
-		subLog := defaultCache.GetLog()
-		wantLog := []CacheLogEntry{
-			{Operation: "delete", Keys: []string{`{"__typename":"Product","key":{"upc":"top-4"}}`}},
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}, Hits: []bool{true, true}},
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}, Hits: []bool{true, true}},
+		select {
+		case entry, ok := <-deleteNotification:
+			require.True(t, ok, "delete notification channel should be closed after delivery")
+			assert.Equal(t, CacheLogEntry{
+				Operation: CacheOperationDelete,
+				Keys:      []string{entityKey},
+				Hits:      nil,
+				TTL:       0,
+				Caller:    "",
+			}, entry)
+		case <-time.After(5 * time.Second):
+			t.Fatal("timeout waiting for Product cache invalidation")
 		}
+
+		// Verify exactly 1 delete (deduplicated) + User entity resolution with L2 hits
+		wantLog := []CacheLogEntry{
+			{Operation: CacheOperationDelete, Keys: []string{`{"__typename":"Product","key":{"upc":"top-4"}}`}},
+			{Operation: CacheOperationGet, Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}, Hits: []bool{true, true}},
+			{Operation: CacheOperationGet, Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}, Hits: []bool{true, true}},
+		}
+		subLog := defaultCache.GetLog()
 		assert.Equal(t, sortCacheLogKeys(wantLog), sortCacheLogKeys(subLog), "should have exactly 1 L2 delete for Product (deduplicated, not 2)")
 
 		// Verify entity is gone from cache
@@ -1726,7 +1725,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			},
 		}
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(
+		setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
@@ -1750,7 +1749,11 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		messages3, close3 := gqlClient.Subscription(ctx, wsAddr, queryPath, vars, t)
 		t.Cleanup(close3)
 
-		// Collect first messages from all 3
+		handle, err := setup.NextProductSubscription(ctx)
+		require.NoError(t, err)
+
+		handle.Emit()
+
 		received := 0
 		for received < 3 {
 			select {
@@ -1767,6 +1770,9 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		// ClearLog and collect second event to measure deduplication
 		defaultCache.ClearLog()
+		setNotification := defaultCache.WaitForOperation(CacheOperationSet, []string{`{"__typename":"Product","key":{"upc":"top-4"}}`})
+
+		handle.Emit()
 
 		received = 0
 		for received < 3 {
@@ -1787,10 +1793,24 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		close2()
 		close3()
 
+		select {
+		case entry, ok := <-setNotification:
+			require.True(t, ok, "set notification channel should be closed after delivery")
+			assert.Equal(t, CacheLogEntry{
+				Operation: CacheOperationSet,
+				Keys:      []string{`{"__typename":"Product","key":{"upc":"top-4"}}`},
+				Hits:      nil,
+				TTL:       30 * time.Second,
+				Caller:    "",
+			}, entry)
+		case <-time.After(5 * time.Second):
+			t.Fatal("timeout waiting for Product cache population")
+		}
+
 		// Verify exactly 1 set operation (deduplicated, not 3)
 		subLog := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
-			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"upc":"top-4"}}`}},
+			{Operation: CacheOperationSet, Keys: []string{`{"__typename":"Product","key":{"upc":"top-4"}}`}},
 		}
 		assert.Equal(t, sortCacheLogKeys(wantLog), sortCacheLogKeys(subLog), "should have exactly 1 L2 set for Product (deduplicated, not 3)")
 
@@ -1810,7 +1830,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(
+		setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(map[string]resolve.LoaderCache{"default": defaultCache}),
 			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
@@ -1833,14 +1853,14 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		defaultCache.ClearLog()
 
-		messages := collectSubscriptionMessages(ctx, gqlClient, toWSAddr(setup.GatewayServer.URL),
+		messages := collectSubscriptionMessages(ctx, gqlClient, setup, toWSAddr(setup.GatewayServer.URL),
 			cachingTestQueryPath("subscriptions/subscription_product_only.query"),
 			queryVariables{"upc": "top-4"}, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":1}}}}`, messages[0])
 
 		log := defaultCache.GetLog()
 		assert.Equal(t, []CacheLogEntry{
-			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"upc":"top-4"}}`}, TTL: 30 * time.Second}, // Tier 1 match: updateProductPrice config selected (30s), not updatedPrice (60s)
+			{Operation: CacheOperationSet, Keys: []string{`{"__typename":"Product","key":{"upc":"top-4"}}`}, TTL: 30 * time.Second}, // Tier 1 match: updateProductPrice config selected (30s), not updatedPrice (60s)
 		}, log)
 	})
 
@@ -1848,7 +1868,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 
-		setup := federationtesting.NewFederationSetup(addCachingGateway(
+		setup := federationtesting.NewManualFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(map[string]resolve.LoaderCache{"default": defaultCache}),
 			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
@@ -1871,14 +1891,14 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		defaultCache.ClearLog()
 
-		messages := collectSubscriptionMessages(ctx, gqlClient, toWSAddr(setup.GatewayServer.URL),
+		messages := collectSubscriptionMessages(ctx, gqlClient, setup, toWSAddr(setup.GatewayServer.URL),
 			cachingTestQueryPath("subscriptions/subscription_updated_price.query"),
 			nil, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updatedPrice":{"upc":"top-3","name":"Boater","price":10}}}}`, messages[0])
 
 		log := defaultCache.GetLog()
 		assert.Equal(t, []CacheLogEntry{
-			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"upc":"top-3"}}`}, TTL: 60 * time.Second}, // Tier 1 match: updatedPrice config selected (60s), not updateProductPrice (30s)
+			{Operation: CacheOperationSet, Keys: []string{`{"__typename":"Product","key":{"upc":"top-3"}}`}, TTL: 60 * time.Second}, // Tier 1 match: updatedPrice config selected (60s), not updateProductPrice (30s)
 		}, log)
 	})
 }

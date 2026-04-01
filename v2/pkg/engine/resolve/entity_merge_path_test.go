@@ -428,6 +428,30 @@ func TestEntityMergePath(t *testing.T) {
 			require.Equal(t, 1, len(entries))
 			assert.Equal(t, `{"id":"1234"}`, string(entries[0].Value))
 		})
+
+		t.Run("partial writeback merges cached entity fields before storing", func(t *testing.T) {
+			ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+			loader := &Loader{
+				jsonArena: ar,
+			}
+
+			cacheKeys := []*CacheKey{
+				{
+					Item:      astjson.MustParseBytes([]byte(`{"id":"1234","brand":"Acme"}`)),
+					FromCache: astjson.MustParseBytes([]byte(`{"id":"1234","name":"Table","sku":"sku-1234"}`)),
+					Keys:      []string{`{"__typename":"Product","key":{"id":"1234"}}`},
+				},
+			}
+
+			entries, err := loader.cacheKeysToEntries(ar, cacheKeys)
+			require.NoError(t, err)
+			assert.Equal(t, []*CacheEntry{
+				{
+					Key:   `{"__typename":"Product","key":{"id":"1234"}}`,
+					Value: []byte(`{"id":"1234","name":"Table","sku":"sku-1234","brand":"Acme"}`),
+				},
+			}, entries)
+		})
 	})
 
 	// Group 3: tryL2CacheLoad — Wrap cached entity data on load

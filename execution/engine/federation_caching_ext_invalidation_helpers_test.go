@@ -125,6 +125,26 @@ func newFederationSetupWithInterceptor(
 	return setup
 }
 
+// newFederationSetupWithReviewInterceptor creates a FederationSetup where the reviews
+// subgraph is wrapped with the response interceptor.
+func newFederationSetupWithReviewInterceptor(
+	interceptor *subgraphResponseInterceptor,
+	gatewayFn func(*federationtesting.FederationSetup) *httptest.Server,
+) *federationtesting.FederationSetup {
+	accountsServer := httptest.NewServer(accounts.GraphQLEndpointHandler(accounts.TestOptions))
+	productsServer := httptest.NewServer(products.GraphQLEndpointHandler(products.TestOptions))
+	reviewsServer := httptest.NewServer(interceptor)
+
+	setup := &federationtesting.FederationSetup{
+		AccountsUpstreamServer: accountsServer,
+		ProductsUpstreamServer: productsServer,
+		ReviewsUpstreamServer:  reviewsServer,
+	}
+
+	setup.GatewayServer = gatewayFn(setup)
+	return setup
+}
+
 // ---------------------------------------------------------------------------
 // extInvalidationEnv — test environment for extensions cache invalidation tests
 // ---------------------------------------------------------------------------

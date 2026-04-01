@@ -122,7 +122,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	t.Parallel()
 
 	// Shared setup for all read-only tests (minimizes open ports)
-	setup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
+	setup := federationtesting.NewManualFederationSetup(addGateway(withEnableART(false)))
 	t.Cleanup(setup.Close)
 	gqlClient := NewGraphqlClient(http.DefaultClient)
 
@@ -184,6 +184,11 @@ func TestFederationIntegrationTest(t *testing.T) {
 			"upc": "top-1",
 		}, t)
 		t.Cleanup(closeSubscription)
+
+		trigger, err := setup.NextProductSubscription(ctx)
+		require.NoError(t, err)
+		trigger.Emit()
+		trigger.Emit()
 
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-1","name":"Trilby","price":1}}}}`, string(<-messages))
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-1","name":"Trilby","price":2}}}}`, string(<-messages))

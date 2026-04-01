@@ -1,6 +1,7 @@
 package engine_test
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"net/url"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/execution/engine"
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting"
+	reviews "github.com/wundergraph/graphql-go-tools/execution/federationtesting/reviews/graph"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
@@ -228,6 +230,220 @@ func TestL2CacheOnly(t *testing.T) {
 		// Verify no cache operations
 		log := defaultCache.GetLog()
 		assert.Empty(t, log, "No L2 cache operations should occur when L2 is disabled")
+	})
+
+	t.Run("L2 enabled - nullable null entity is negatively cached without nulling parent objects", func(t *testing.T) {
+		t.Parallel()
+
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{
+			"default": defaultCache,
+		}
+
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{
+			Transport: tracker,
+		}
+
+		reviewsInterceptor := newSubgraphResponseInterceptor(reviews.GraphQLEndpointHandler(reviews.TestOptions))
+		reviewsInterceptor.SetModifier(func(body []byte) []byte {
+			if bytes.Contains(body, []byte(`"_service"`)) {
+				return body
+			}
+			return []byte(`{"data":{"_entities":[null,null]}}`)
+		})
+
+		cachingOpts := resolve.CachingOptions{
+			EnableL1Cache: false,
+			EnableL2Cache: true,
+		}
+
+		subgraphCachingConfigs := engine.SubgraphCachingConfigs{
+			{
+				SubgraphName: "reviews",
+				EntityCaching: plan.EntityCacheConfigurations{
+					{
+						TypeName:                    "Product",
+						CacheName:                   "default",
+						TTL:                         30 * time.Second,
+						NegativeCacheTTL:            10 * time.Second,
+						IncludeSubgraphHeaderPrefix: false,
+					},
+				},
+			},
+		}
+
+		setup := newFederationSetupWithReviewInterceptor(reviewsInterceptor, addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(cachingOpts),
+			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
+		))
+		t.Cleanup(setup.Close)
+		waitForGatewayReady(t, setup.GatewayServer.URL)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		productsHost := mustParseHost(setup.ProductsUpstreamServer.URL)
+		reviewsHost := mustParseHost(setup.ReviewsUpstreamServer.URL)
+		query := `query { topProducts { name reviews { body } } }`
+		expected := `{"data":{"topProducts":[{"name":"Trilby","reviews":null},{"name":"Fedora","reviews":null}]}}`
+		productKeyTop1 := `{"__typename":"Product","key":{"upc":"top-1"}}`
+		productKeyTop2 := `{"__typename":"Product","key":{"upc":"top-2"}}`
+
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, query, nil, t)
+		assert.Equal(t, expected, string(resp))
+		assert.Equal(t, 1, tracker.GetCount(productsHost), "first request should call products subgraph")
+		assert.Equal(t, 1, tracker.GetCount(reviewsHost), "first request should call reviews subgraph")
+		assert.Equal(t, sortCacheLogKeysWithTTL([]CacheLogEntry{
+			{
+				Operation: "get",
+				Keys: []string{
+					productKeyTop1,
+					productKeyTop2,
+				},
+				Hits: []bool{false, false},
+			},
+			{
+				Operation: "set",
+				Keys: []string{
+					productKeyTop1,
+					productKeyTop2,
+				},
+				TTL: 10 * time.Second,
+			},
+		}), sortCacheLogKeysWithTTL(defaultCache.GetLog()))
+
+		top1Value, top1Exists := defaultCache.Peek(productKeyTop1)
+		assert.True(t, top1Exists)
+		assert.JSONEq(t, `{"__typename":"Product","upc":"top-1","name":"Trilby","reviews":null}`, string(top1Value))
+		top2Value, top2Exists := defaultCache.Peek(productKeyTop2)
+		assert.True(t, top2Exists)
+		assert.JSONEq(t, `{"__typename":"Product","upc":"top-2","name":"Fedora","reviews":null}`, string(top2Value))
+
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, query, nil, t)
+		assert.Equal(t, expected, string(resp))
+		assert.Equal(t, 1, tracker.GetCount(productsHost), "second request should still call products (root field not cached)")
+		assert.Equal(t, 0, tracker.GetCount(reviewsHost), "second request should skip reviews subgraph on negative cache hit")
+		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
+			{
+				Operation: "get",
+				Keys: []string{
+					productKeyTop1,
+					productKeyTop2,
+				},
+				Hits: []bool{true, true},
+			},
+		}), sortCacheLogKeys(defaultCache.GetLog()))
+	})
+
+	t.Run("L2 enabled - nullable null entity is not cached when NegativeCacheTTL is zero", func(t *testing.T) {
+		t.Parallel()
+
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{
+			"default": defaultCache,
+		}
+
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{
+			Transport: tracker,
+		}
+
+		reviewsInterceptor := newSubgraphResponseInterceptor(reviews.GraphQLEndpointHandler(reviews.TestOptions))
+		reviewsInterceptor.SetModifier(func(body []byte) []byte {
+			if bytes.Contains(body, []byte(`"_service"`)) {
+				return body
+			}
+			return []byte(`{"data":{"_entities":[null,null]}}`)
+		})
+
+		cachingOpts := resolve.CachingOptions{
+			EnableL1Cache: false,
+			EnableL2Cache: true,
+		}
+
+		subgraphCachingConfigs := engine.SubgraphCachingConfigs{
+			{
+				SubgraphName: "reviews",
+				EntityCaching: plan.EntityCacheConfigurations{
+					{
+						TypeName:                    "Product",
+						CacheName:                   "default",
+						TTL:                         30 * time.Second,
+						NegativeCacheTTL:            0,
+						IncludeSubgraphHeaderPrefix: false,
+					},
+				},
+			},
+		}
+
+		setup := newFederationSetupWithReviewInterceptor(reviewsInterceptor, addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(cachingOpts),
+			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
+		))
+		t.Cleanup(setup.Close)
+		waitForGatewayReady(t, setup.GatewayServer.URL)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		productsHost := mustParseHost(setup.ProductsUpstreamServer.URL)
+		reviewsHost := mustParseHost(setup.ReviewsUpstreamServer.URL)
+		query := `query { topProducts { name reviews { body } } }`
+		expected := `{"data":{"topProducts":[{"name":"Trilby","reviews":null},{"name":"Fedora","reviews":null}]}}`
+		productKeyTop1 := `{"__typename":"Product","key":{"upc":"top-1"}}`
+		productKeyTop2 := `{"__typename":"Product","key":{"upc":"top-2"}}`
+
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, query, nil, t)
+		assert.Equal(t, expected, string(resp))
+		assert.Equal(t, 1, tracker.GetCount(productsHost), "first request should call products subgraph")
+		assert.Equal(t, 1, tracker.GetCount(reviewsHost), "first request should call reviews subgraph")
+		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
+			{
+				Operation: "get",
+				Keys: []string{
+					productKeyTop1,
+					productKeyTop2,
+				},
+				Hits: []bool{false, false},
+			},
+		}), sortCacheLogKeys(defaultCache.GetLog()))
+
+		_, top1Exists := defaultCache.Peek(productKeyTop1)
+		assert.False(t, top1Exists)
+		_, top2Exists := defaultCache.Peek(productKeyTop2)
+		assert.False(t, top2Exists)
+
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, query, nil, t)
+		assert.Equal(t, expected, string(resp))
+		assert.Equal(t, 1, tracker.GetCount(productsHost), "second request should still call products (root field not cached)")
+		assert.Equal(t, 1, tracker.GetCount(reviewsHost), "second request should call reviews again when negative caching is disabled")
+		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
+			{
+				Operation: "get",
+				Keys: []string{
+					productKeyTop1,
+					productKeyTop2,
+				},
+				Hits: []bool{false, false},
+			},
+		}), sortCacheLogKeys(defaultCache.GetLog()))
 	})
 }
 
