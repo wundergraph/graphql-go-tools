@@ -473,22 +473,38 @@ func TestRootFieldEntityKeyMappingCacheSharing(t *testing.T) {
 				Keys:      []string{productKey},
 				Hits:      []bool{false},
 			},
+			{
+				Operation: "set",
+				Keys:      []string{productKey},
+				TTL:       30 * time.Second,
+			},
+			{
+				Operation: "get",
+				Keys:      []string{productKey},
+				Hits:      []bool{true},
+			},
 		}, defaultCache.GetLog())
 
-		_, exists := defaultCache.Peek(productKey)
-		assert.False(t, exists, "shared entity/root cache key should remain empty when negative caching is disabled")
+		storedValue, exists := defaultCache.Peek(productKey)
+		assert.True(t, exists, "shared entity/root cache key should still hold the positive root payload")
+		assert.JSONEq(t, `{"__typename":"Product","upc":"top-1","name":"Trilby"}`, string(storedValue))
 
 		defaultCache.ClearLog()
 		tracker.Reset()
 		resp2, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
 		assert.Equal(t, expected, string(resp2))
-		assert.Equal(t, 1, tracker.GetCount(productsHost), "second request should call products subgraph again when shared-key root caching is skipped")
+		assert.Equal(t, 0, tracker.GetCount(productsHost), "second request should skip products subgraph on shared-key root cache hit")
 		assert.Equal(t, 1, tracker.GetCount(reviewsHost), "second request should call reviews subgraph again when negative caching is disabled")
 		assert.Equal(t, []CacheLogEntry{
 			{
 				Operation: "get",
 				Keys:      []string{productKey},
-				Hits:      []bool{false},
+				Hits:      []bool{true},
+			},
+			{
+				Operation: "get",
+				Keys:      []string{productKey},
+				Hits:      []bool{true},
 			},
 		}, defaultCache.GetLog())
 	})
