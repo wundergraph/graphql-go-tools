@@ -451,25 +451,14 @@ func (f *FederationEngineConfigFactory) graphqlDataSourceFactory() (plan.Planner
 func (f *FederationEngineConfigFactory) subscriptionClient(
 	httpClient *http.Client,
 	streamingClient *http.Client,
-	subscriptionType SubscriptionType,
+	_ SubscriptionType,
 	subscriptionClientFactory graphql_datasource.GraphQLSubscriptionClientFactory,
 ) (graphql_datasource.GraphQLSubscriptionClient, error) {
-	var graphqlSubscriptionClient graphql_datasource.GraphQLSubscriptionClient
-	switch subscriptionType {
-	case SubscriptionTypeGraphQLTransportWS:
-		graphqlSubscriptionClient = subscriptionClientFactory.NewSubscriptionClient(
-			f.engineCtx,
-			graphql_datasource.WithUpgradeClient(httpClient),
-			graphql_datasource.WithStreamingClient(streamingClient),
-		)
-	default:
-		// for compatibility reasons we fall back to graphql-ws protocol
-		graphqlSubscriptionClient = subscriptionClientFactory.NewSubscriptionClient(
-			f.engineCtx,
-			graphql_datasource.WithUpgradeClient(httpClient),
-			graphql_datasource.WithStreamingClient(streamingClient),
-		)
-	}
+	graphqlSubscriptionClient := subscriptionClientFactory.NewSubscriptionClient(
+		f.engineCtx,
+		graphql_datasource.WithUpgradeClient(httpClient),
+		graphql_datasource.WithStreamingClient(streamingClient),
+	)
 
 	ok := graphql_datasource.IsDefaultGraphQLSubscriptionClient(graphqlSubscriptionClient)
 	if !ok {
