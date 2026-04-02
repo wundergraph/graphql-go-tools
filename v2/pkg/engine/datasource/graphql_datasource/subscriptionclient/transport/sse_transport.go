@@ -156,12 +156,12 @@ func buildPOSTRequest(ctx context.Context, req *common.Request, opts common.Opti
 		return nil, fmt.Errorf("create request: %w", err)
 	}
 
+	// Add custom headers first, then set SSE-required headers so they cannot be overwritten
+	maps.Copy(httpReq.Header, opts.Headers)
+
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "text/event-stream")
 	httpReq.Header.Set("Cache-Control", "no-cache")
-
-	// Add custom headers
-	maps.Copy(httpReq.Header, opts.Headers)
 
 	return httpReq, nil
 }
@@ -205,11 +205,11 @@ func buildGETRequest(ctx context.Context, req *common.Request, opts common.Optio
 		return nil, fmt.Errorf("create request: %w", err)
 	}
 
+	// Add custom headers first, then set SSE-required headers so they cannot be overwritten
+	maps.Copy(httpReq.Header, opts.Headers)
+
 	httpReq.Header.Set("Accept", "text/event-stream")
 	httpReq.Header.Set("Cache-Control", "no-cache")
-
-	// Add custom headers
-	maps.Copy(httpReq.Header, opts.Headers)
 
 	return httpReq, nil
 }
