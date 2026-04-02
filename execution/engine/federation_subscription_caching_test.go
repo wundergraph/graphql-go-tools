@@ -33,12 +33,10 @@ func collectSubscriptionMessages(ctx context.Context, gqlClient *GraphqlClient, 
 	trigger, err := setup.NextProductSubscription(ctx)
 	require.NoError(t, err)
 
-	for i := 0; i < count; i++ {
-		trigger.Emit()
-	}
-
 	var result []string
 	for i := 0; i < count; i++ {
+		trigger.Emit()
+
 		select {
 		case msg, ok := <-messages:
 			if !ok {
