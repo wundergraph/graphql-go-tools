@@ -83,6 +83,8 @@ func (p *GraphQLTransportWS) Init(ctx context.Context, conn *websocket.Conn, pay
 				return fmt.Errorf("pre-init pong: %w", err)
 			}
 			continue
+		case gtwsTypePong:
+			continue
 		default:
 			return fmt.Errorf("%w: got %q", ErrAckNotReceived, ackMessage.Type)
 		}
