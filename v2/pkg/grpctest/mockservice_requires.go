@@ -492,7 +492,7 @@ func (s *MockService) RequireStorageMultiFilteredTagSummaryById(_ context.Contex
 					break
 				}
 			}
-			if len(filteredTags) == maxResults {
+			if len(filteredTags) >= maxResults {
 				break
 			}
 		}
