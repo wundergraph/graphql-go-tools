@@ -383,17 +383,19 @@ func formatRPCMessage(sb *strings.Builder, message RPCMessage, indent int) {
 }
 
 type rpcPlanningContext struct {
-	operation  *ast.Document
-	definition *ast.Document
-	mapping    *GRPCMapping
+	operation        *ast.Document
+	definition       *ast.Document
+	mapping          *GRPCMapping
+	visitedInputTypes map[string]*RPCMessage
 }
 
 // newRPCPlanningContext creates a new RPCPlanningContext.
 func newRPCPlanningContext(operation *ast.Document, definition *ast.Document, mapping *GRPCMapping) *rpcPlanningContext {
 	return &rpcPlanningContext{
-		operation:  operation,
-		definition: definition,
-		mapping:    mapping,
+		operation:         operation,
+		definition:        definition,
+		mapping:           mapping,
+		visitedInputTypes: make(map[string]*RPCMessage),
 	}
 }
 
@@ -684,11 +686,26 @@ func (r *rpcPlanningContext) buildMessageFromInputObjectType(node *ast.Node) (*R
 		return nil, fmt.Errorf("unable to build message from input object type definition - incorrect type: %s", node.Kind)
 	}
 
+	typeName := node.NameString(r.definition)
+
+	// If we've already started building this type, return the in-progress message
+	// pointer to break the recursion cycle. The message's fields are populated by
+	// the caller that first entered this type, so the pointer will be complete once
+	// the top-level call returns.
+	if existing, ok := r.visitedInputTypes[typeName]; ok {
+		return existing, nil
+	}
+
 	inputObjectDefinition := r.definition.InputObjectTypeDefinitions[node.Ref]
 	message := &RPCMessage{
-		Name:   node.NameString(r.definition),
+		Name:   typeName,
 		Fields: make(RPCFields, 0, len(inputObjectDefinition.InputFieldsDefinition.Refs)),
 	}
+
+	// Register the message before recursing into fields so that recursive
+	// references resolve to this same pointer.
+	r.visitedInputTypes[typeName] = message
+
 	for _, inputFieldRef := range inputObjectDefinition.InputFieldsDefinition.Refs {
 		field, err := r.buildMessageFieldFromInputValueDefinition(inputFieldRef, node)
 		if err != nil {
