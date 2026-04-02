@@ -67,7 +67,9 @@ func WithStreamingClient(c *http.Client) SubscriptionClientOption {
 // If not set, logging is disabled (silent operation).
 func WithLogger(log abstractlogger.Logger) SubscriptionClientOption {
 	return func(cfg *SubscriptionClientConfig) {
-		cfg.Logger = log
+		if log != nil {
+			cfg.Logger = log
+		}
 	}
 }
 
