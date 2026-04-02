@@ -32,9 +32,8 @@ func TestWSConnection_Subscribe(t *testing.T) {
 		cancel, err := wsc.subscribe(context.Background(), "sub-1", &common.Request{
 			Query: "subscription { test }",
 		}, handler)
-		defer cancel()
-
 		require.NoError(t, err)
+		defer cancel()
 		assert.Len(t, proto.SubscribeCalls(), 1)
 		assert.Equal(t, "sub-1", proto.SubscribeCalls()[0].ID)
 	})
