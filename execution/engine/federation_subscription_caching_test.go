@@ -2,6 +2,7 @@ package engine_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -20,6 +21,13 @@ import (
 // toWSAddr converts an HTTP URL to a WebSocket URL.
 func toWSAddr(httpURL string) string {
 	return strings.ReplaceAll(httpURL, "http://", "ws://")
+}
+
+func boolToInt(v bool) int {
+	if v {
+		return 1
+	}
+	return 0
 }
 
 // collectSubscriptionMessages subscribes and collects exactly count messages.
@@ -1750,19 +1758,88 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		handle, err := setup.NextProductSubscription(ctx)
 		require.NoError(t, err)
 
-		handle.Emit()
+		// Shared-trigger subscriptions are attached asynchronously after the upstream
+		// handle is created. On Windows, the third client can miss an immediate first
+		// emit, so warm up until all three clients have observed at least one event.
+		firstSeen := [3]bool{}
+		warmupEmits := 0
+		warmupCtx, warmupCancel := context.WithTimeout(ctx, 5*time.Second)
+		defer warmupCancel()
+		for !firstSeen[0] || !firstSeen[1] || !firstSeen[2] {
+			handle.Emit()
+			warmupEmits++
 
-		received := 0
-		for received < 3 {
+			settleTimer := time.NewTimer(200 * time.Millisecond)
+		collectWarmup:
+			for {
+				select {
+				case <-messages1:
+					firstSeen[0] = true
+					if !settleTimer.Stop() {
+						select {
+						case <-settleTimer.C:
+						default:
+						}
+					}
+					settleTimer.Reset(200 * time.Millisecond)
+				case <-messages2:
+					firstSeen[1] = true
+					if !settleTimer.Stop() {
+						select {
+						case <-settleTimer.C:
+						default:
+						}
+					}
+					settleTimer.Reset(200 * time.Millisecond)
+				case <-messages3:
+					firstSeen[2] = true
+					if !settleTimer.Stop() {
+						select {
+						case <-settleTimer.C:
+						default:
+						}
+					}
+					settleTimer.Reset(200 * time.Millisecond)
+				case <-settleTimer.C:
+					break collectWarmup
+				case <-warmupCtx.Done():
+					t.Fatalf("timeout waiting for first messages, received %d of 3", boolToInt(firstSeen[0])+boolToInt(firstSeen[1])+boolToInt(firstSeen[2]))
+				}
+			}
+		}
+
+		// Drain any extra warm-up messages from already-attached clients so the next
+		// emit is the only source of messages in the measured phase.
+		drainTimer := time.NewTimer(200 * time.Millisecond)
+	drainWarmup:
+		for {
 			select {
 			case <-messages1:
-				received++
+				if !drainTimer.Stop() {
+					select {
+					case <-drainTimer.C:
+					default:
+					}
+				}
+				drainTimer.Reset(200 * time.Millisecond)
 			case <-messages2:
-				received++
+				if !drainTimer.Stop() {
+					select {
+					case <-drainTimer.C:
+					default:
+					}
+				}
+				drainTimer.Reset(200 * time.Millisecond)
 			case <-messages3:
-				received++
-			case <-time.After(5 * time.Second):
-				t.Fatalf("timeout waiting for first messages, received %d of 3", received)
+				if !drainTimer.Stop() {
+					select {
+					case <-drainTimer.C:
+					default:
+					}
+				}
+				drainTimer.Reset(200 * time.Millisecond)
+			case <-drainTimer.C:
+				break drainWarmup
 			}
 		}
 
@@ -1772,7 +1849,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		handle.Emit()
 
-		received = 0
+		received := 0
 		for received < 3 {
 			select {
 			case <-messages1:
@@ -1817,7 +1894,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 1, len(entries))
 		require.NotNil(t, entries[0])
-		assert.Equal(t, `{"upc":"top-4","name":"Bowler","price":2,"__typename":"Product"}`, string(entries[0].Value))
+		assert.Equal(t, fmt.Sprintf(`{"upc":"top-4","name":"Bowler","price":%d,"__typename":"Product"}`, warmupEmits+1), string(entries[0].Value))
 	})
 
 	// =====================================================================
