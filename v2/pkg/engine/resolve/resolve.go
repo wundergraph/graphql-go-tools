@@ -478,13 +478,9 @@ type subscriptionState struct {
 	lastWriteTime atomic.Int64
 }
 
-type subscriptionFinalizer struct {
-	sub *subscriptionState
-}
-
-func runSubscriptionFinalizers(finalizers []subscriptionFinalizer) {
-	for _, f := range finalizers {
-		f.sub.done()
+func closeSubs(subs []*subscriptionState) {
+	for _, s := range subs {
+		s.done()
 	}
 }
 
@@ -497,7 +493,7 @@ func (s *subscriptionState) done() {
 }
 
 // complete delivers a "subscription done" signal to the downstream writer.
-// Called by handleTriggerComplete, not through finalizers.
+// Called by handleTriggerComplete, not through toClose.
 func (s *subscriptionState) complete() {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
@@ -505,7 +501,7 @@ func (s *subscriptionState) complete() {
 }
 
 // error delivers a terminal error payload to the downstream writer.
-// Called by handleTriggerError, not through finalizers.
+// Called by handleTriggerError, not through toClose.
 func (s *subscriptionState) error(data []byte) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
@@ -799,13 +795,13 @@ func (r *Resolver) markTriggerInitialized(triggerID uint64) {
 }
 
 // doneTriggerFromUpdater performs cleanup for a trigger from a datasource/updater goroutine.
-// It detaches the trigger, runs done finalizers (close completed channels), and cancels the trigger context.
+// It detaches the trigger, runs done toClose (close completed channels), and cancels the trigger context.
 func (r *Resolver) doneTriggerFromUpdater(triggerID uint64) {
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:shutdown:%d\n", triggerID)
 	}
 	r.mu.Lock()
-	removed, finalizers, cancel, initialized := r.detachTriggerLocked(triggerID)
+	removed, toClose, cancel, initialized := r.detachTriggerLocked(triggerID)
 	if r.reporter != nil {
 		r.reporter.SubscriptionCountDec(removed)
 		if initialized {
@@ -813,7 +809,7 @@ func (r *Resolver) doneTriggerFromUpdater(triggerID uint64) {
 		}
 	}
 	r.mu.Unlock()
-	runSubscriptionFinalizers(finalizers)
+	closeSubs(toClose)
 	if cancel != nil {
 		cancel()
 	}
@@ -867,26 +863,26 @@ func (r *Resolver) handleTriggerError(triggerID uint64, data []byte) {
 	}
 }
 
-func (r *Resolver) handleCompleteSubscription(id SubscriptionIdentifier) (int, []subscriptionFinalizer, context.CancelFunc, bool) {
+func (r *Resolver) handleCompleteSubscription(id SubscriptionIdentifier) (int, []*subscriptionState, context.CancelFunc, bool) {
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:remove:%d:%d\n", id.ConnectionID, id.SubscriptionID)
 	}
 	return r.removeSubscriptionByID(id)
 }
 
-func (r *Resolver) handleRemoveSubscription(id SubscriptionIdentifier) (int, []subscriptionFinalizer, context.CancelFunc, bool) {
+func (r *Resolver) handleRemoveSubscription(id SubscriptionIdentifier) (int, []*subscriptionState, context.CancelFunc, bool) {
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:remove:%d:%d\n", id.ConnectionID, id.SubscriptionID)
 	}
 	return r.removeSubscriptionByID(id)
 }
 
-func (r *Resolver) handleRemoveClient(id int64) (int, []subscriptionFinalizer, []context.CancelFunc, int) {
+func (r *Resolver) handleRemoveClient(id int64) (int, []*subscriptionState, []context.CancelFunc, int) {
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:remove:client:%d\n", id)
 	}
 	removed := 0
-	finalizers := make([]subscriptionFinalizer, 0)
+	toClose := make([]*subscriptionState, 0)
 	cancels := make([]context.CancelFunc, 0)
 	triggerDec := 0
 	idsForConn := r.subscriptionsByConnection[id]
@@ -897,7 +893,7 @@ func (r *Resolver) handleRemoveClient(id int64) (int, []subscriptionFinalizer, [
 	for _, sid := range ids {
 		rem, fz, cancel, initialized := r.removeSubscriptionByID(sid)
 		removed += rem
-		finalizers = append(finalizers, fz...)
+		toClose = append(toClose, fz...)
 		if cancel != nil {
 			cancels = append(cancels, cancel)
 			if initialized {
@@ -905,12 +901,12 @@ func (r *Resolver) handleRemoveClient(id int64) (int, []subscriptionFinalizer, [
 			}
 		}
 	}
-	return removed, finalizers, cancels, triggerDec
+	return removed, toClose, cancels, triggerDec
 }
 
 // removeSubscriptionByID removes a single subscription by id.
 // r.mu must be held by the caller.
-func (r *Resolver) removeSubscriptionByID(id SubscriptionIdentifier) (int, []subscriptionFinalizer, context.CancelFunc, bool) {
+func (r *Resolver) removeSubscriptionByID(id SubscriptionIdentifier) (int, []*subscriptionState, context.CancelFunc, bool) {
 	s, ok := r.subscriptionsByID[id]
 	if !ok {
 		return 0, nil, nil, false
@@ -930,11 +926,9 @@ func (r *Resolver) removeSubscriptionByID(id SubscriptionIdentifier) (int, []sub
 		return 0, nil, nil, false
 	}
 
-	var finalizers []subscriptionFinalizer
+	var toClose []*subscriptionState
 	if s.removed.CompareAndSwap(false, true) {
-		finalizers = append(finalizers, subscriptionFinalizer{
-			sub: s,
-		})
+		toClose = append(toClose, s)
 	}
 	delete(trig.subscriptions, id)
 	empty := len(trig.subscriptions) == 0
@@ -950,26 +944,24 @@ func (r *Resolver) removeSubscriptionByID(id SubscriptionIdentifier) (int, []sub
 		initialized = trig.initialized
 	}
 
-	return 1, finalizers, cancel, initialized
+	return 1, toClose, cancel, initialized
 }
 
 // detachTriggerLocked removes all subscriptions for the trigger and removes the trigger from resolver maps.
 // r.mu must be held by the caller.
-func (r *Resolver) detachTriggerLocked(id uint64) (int, []subscriptionFinalizer, context.CancelFunc, bool) {
+func (r *Resolver) detachTriggerLocked(id uint64) (int, []*subscriptionState, context.CancelFunc, bool) {
 	trig, ok := r.triggers[id]
 	if !ok {
 		return 0, nil, nil, false
 	}
 
-	finalizers := make([]subscriptionFinalizer, 0, len(trig.subscriptions))
+	toClose := make([]*subscriptionState, 0, len(trig.subscriptions))
 	removed := 0
 
 	trig.mu.Lock()
 	for sid, s := range trig.subscriptions {
 		if s.removed.CompareAndSwap(false, true) {
-			finalizers = append(finalizers, subscriptionFinalizer{
-				sub: s,
-			})
+			toClose = append(toClose, s)
 		}
 		delete(trig.subscriptions, sid)
 		r.removeSubscriptionIndex(sid)
@@ -979,7 +971,7 @@ func (r *Resolver) detachTriggerLocked(id uint64) (int, []subscriptionFinalizer,
 
 	delete(r.triggers, id)
 
-	return removed, finalizers, trig.cancel, trig.initialized
+	return removed, toClose, trig.cancel, trig.initialized
 }
 
 // pendingWrite holds the context and subscription for a deferred write outside the lock.
@@ -1123,15 +1115,15 @@ func (r *Resolver) shutdownResolver() {
 		triggerIDs = append(triggerIDs, id)
 	}
 
-	allFinalizers := make([]subscriptionFinalizer, 0)
+	allToClose := make([]*subscriptionState, 0)
 	cancels := make([]context.CancelFunc, 0, len(triggerIDs))
 	removedTotal := 0
 	triggerDec := 0
 
 	for _, id := range triggerIDs {
-		removed, finalizers, cancel, initialized := r.detachTriggerLocked(id)
+		removed, toClose, cancel, initialized := r.detachTriggerLocked(id)
 		removedTotal += removed
-		allFinalizers = append(allFinalizers, finalizers...)
+		allToClose = append(allToClose, toClose...)
 		if cancel != nil {
 			cancels = append(cancels, cancel)
 		}
@@ -1152,7 +1144,7 @@ func (r *Resolver) shutdownResolver() {
 	r.subscriptionsByConnection = make(map[int64]map[SubscriptionIdentifier]*subscriptionState)
 	r.mu.Unlock()
 
-	runSubscriptionFinalizers(allFinalizers)
+	closeSubs(allToClose)
 	for _, cancel := range cancels {
 		cancel()
 	}
@@ -1201,7 +1193,7 @@ func (r *Resolver) CompleteSubscription(id SubscriptionIdentifier) error {
 	}
 	// Grab the sub before removal so we can send a "complete" frame after releasing r.mu.
 	sub := r.subscriptionsByID[id]
-	removed, finalizers, cancel, initialized := r.handleCompleteSubscription(id)
+	removed, toClose, cancel, initialized := r.handleCompleteSubscription(id)
 	if r.reporter != nil {
 		r.reporter.SubscriptionCountDec(removed)
 		if cancel != nil && initialized {
@@ -1215,7 +1207,7 @@ func (r *Resolver) CompleteSubscription(id SubscriptionIdentifier) error {
 	if sub != nil {
 		sub.complete()
 	}
-	runSubscriptionFinalizers(finalizers)
+	closeSubs(toClose)
 	if cancel != nil {
 		cancel()
 	}
@@ -1228,7 +1220,7 @@ func (r *Resolver) UnsubscribeSubscription(id SubscriptionIdentifier) error {
 		r.mu.Unlock()
 		return r.ctx.Err()
 	}
-	removed, finalizers, cancel, initialized := r.handleRemoveSubscription(id)
+	removed, toClose, cancel, initialized := r.handleRemoveSubscription(id)
 	if r.reporter != nil {
 		r.reporter.SubscriptionCountDec(removed)
 		if cancel != nil && initialized {
@@ -1236,7 +1228,7 @@ func (r *Resolver) UnsubscribeSubscription(id SubscriptionIdentifier) error {
 		}
 	}
 	r.mu.Unlock()
-	runSubscriptionFinalizers(finalizers)
+	closeSubs(toClose)
 	if cancel != nil {
 		cancel()
 	}
@@ -1249,7 +1241,7 @@ func (r *Resolver) UnsubscribeClient(connectionID int64) error {
 		r.mu.Unlock()
 		return r.ctx.Err()
 	}
-	removed, finalizers, cancels, triggerDec := r.handleRemoveClient(connectionID)
+	removed, toClose, cancels, triggerDec := r.handleRemoveClient(connectionID)
 	if r.reporter != nil {
 		r.reporter.SubscriptionCountDec(removed)
 		if triggerDec > 0 {
@@ -1257,7 +1249,7 @@ func (r *Resolver) UnsubscribeClient(connectionID int64) error {
 		}
 	}
 	r.mu.Unlock()
-	runSubscriptionFinalizers(finalizers)
+	closeSubs(toClose)
 	for _, cancel := range cancels {
 		cancel()
 	}

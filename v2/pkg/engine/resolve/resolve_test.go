@@ -5339,7 +5339,6 @@ type SubscriptionRecorder struct {
 	buf      *bytes.Buffer
 	messages []string
 	complete atomic.Bool
-	done     atomic.Bool
 	errors   [][]byte
 	mux      sync.Mutex
 	onFlush  func(p []byte)
@@ -5390,20 +5389,6 @@ func (s *SubscriptionRecorder) AwaitComplete(t *testing.T, timeout time.Duration
 		}
 		if time.Now().After(deadline) {
 			t.Fatalf("timed out waiting for complete")
-		}
-		time.Sleep(time.Millisecond * 10)
-	}
-}
-
-func (s *SubscriptionRecorder) AwaitDone(t *testing.T, timeout time.Duration) {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for {
-		if s.done.Load() {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("timed out waiting for done")
 		}
 		time.Sleep(time.Millisecond * 10)
 	}
