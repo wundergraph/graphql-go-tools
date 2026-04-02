@@ -416,6 +416,7 @@ func TestWSTransport_ConcurrentSubscribe(t *testing.T) {
 				handler, receive := collectingHandler()
 				cancel, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { test }"}, opts, handler)
 				if err != nil {
+					t.Errorf("subscribe error: %v", err)
 					return
 				}
 				defer cancel()

@@ -65,23 +65,22 @@ func TestSSEConnection_ReadLoop(t *testing.T) {
 		))
 		resp := &http.Response{Body: body}
 		handler, receive := collectingHandler()
-		conn := newSSEConnection(resp, handler)
+		wrappedHandler, collect := waitForMessages(handler)
+		conn := newSSEConnection(resp, wrappedHandler)
 
 		go conn.readLoop()
 
-		var messages []*common.Message
-
 		// First message
 		msg1 := receive(t, 1*time.Second)
-		messages = append(messages, msg1)
 		assert.NotNil(t, msg1.Payload)
 		assert.Equal(t, common.MessageTypeData, msg1.Type)
 
 		// Complete message
 		msg2 := receive(t, 1*time.Second)
-		messages = append(messages, msg2)
 		assert.Equal(t, common.MessageTypeComplete, msg2.Type)
 
+		// Wait and verify no more messages arrive after complete
+		messages := collect(100 * time.Millisecond)
 		assert.Len(t, messages, 2, "should receive exactly 2 messages before stopping")
 	})
 }
@@ -124,7 +123,7 @@ func (r *errorReader) Read(_ []byte) (int, error) {
 	return 0, r.err
 }
 
-// trackingCloser tracks if Close was called
+// trackingCloser tracks if Close was called and forwards to the underlying reader if it implements io.Closer.
 type trackingCloser struct {
 	io.Reader
 
@@ -133,5 +132,8 @@ type trackingCloser struct {
 
 func (c *trackingCloser) Close() error {
 	c.closed.Store(true)
+	if closer, ok := c.Reader.(io.Closer); ok {
+		return closer.Close()
+	}
 	return nil
 }
