@@ -46,7 +46,7 @@ func (p *GraphQLWS) Init(ctx context.Context, conn *websocket.Conn, payload map[
 		initMsg.Payload = payload
 	}
 	timeout := p.AckTimeout
-	if timeout == 0 {
+	if timeout <= 0 {
 		timeout = 30 * time.Second
 	}
 
