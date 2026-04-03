@@ -7,9 +7,11 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
@@ -18,7 +20,14 @@ type TestLoaderHooks struct {
 	preFetchCalls  atomic.Int64
 	postFetchCalls atomic.Int64
 	errors         []error
+	finishedCalls  []finishedFetchCall
 	mu             sync.Mutex
+}
+
+type finishedFetchCall struct {
+	ds           DataSourceInfo
+	err          error
+	loadDuration time.Duration
 }
 
 func NewTestLoaderHooks() *TestLoaderHooks {
@@ -34,10 +43,214 @@ func (f *TestLoaderHooks) OnLoad(ctx context.Context, ds DataSourceInfo) context
 func (f *TestLoaderHooks) OnFinished(ctx context.Context, ds DataSourceInfo, responseInfo *ResponseInfo) {
 	f.postFetchCalls.Add(1)
 
+	if responseInfo == nil {
+		responseInfo = &ResponseInfo{}
+	}
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	f.errors = append(f.errors, responseInfo.Err)
+	f.finishedCalls = append(f.finishedCalls, finishedFetchCall{
+		ds:           ds,
+		err:          responseInfo.Err,
+		loadDuration: responseInfo.LoadDuration,
+	})
+}
+
+func (f *TestLoaderHooks) FinishedCalls() []finishedFetchCall {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]finishedFetchCall(nil), f.finishedCalls...)
+}
+
+func finishedCallByDataSource(t *testing.T, calls []finishedFetchCall, dsName string) finishedFetchCall {
+	t.Helper()
+
+	for _, call := range calls {
+		if call.ds.Name == dsName {
+			return call
+		}
+	}
+
+	t.Fatalf("finished call for datasource %q not found", dsName)
+	return finishedFetchCall{}
+}
+
+func TestLoaderHooks_LoadDuration(t *testing.T) {
+	t.Run("parallel fetches keep per-fetch durations", func(t *testing.T) {
+		rCtx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		r := newResolver(rCtx)
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.LoaderHooks = NewTestLoaderHooks()
+
+		fastDS := &_fakeDataSource{
+			data:              []byte(`{"data":{"fast":"fast"}}`),
+			artificialLatency: 20 * time.Millisecond,
+		}
+		slowDS := &_fakeDataSource{
+			data:              []byte(`{"data":{"slow":"slow"}}`),
+			artificialLatency: 180 * time.Millisecond,
+		}
+
+		response := &GraphQLResponse{
+			Info: &GraphQLResponseInfo{
+				OperationType: ast.OperationTypeQuery,
+			},
+			Fetches: Parallel(
+				Single(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource: fastDS,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data"},
+						},
+					},
+					Info: &FetchInfo{
+						DataSourceID:   "Fast",
+						DataSourceName: "Fast",
+					},
+				}),
+				Single(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource: slowDS,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data"},
+						},
+					},
+					Info: &FetchInfo{
+						DataSourceID:   "Slow",
+						DataSourceName: "Slow",
+					},
+				}),
+			),
+			Data: &Object{
+				Fields: []*Field{
+					{
+						Name: []byte("fast"),
+						Value: &String{
+							Path:     []string{"fast"},
+							Nullable: false,
+						},
+					},
+					{
+						Name: []byte("slow"),
+						Value: &String{
+							Path:     []string{"slow"},
+							Nullable: false,
+						},
+					},
+				},
+			},
+		}
+
+		buf := &bytes.Buffer{}
+		_, err := r.ResolveGraphQLResponse(resolveCtx, response, nil, buf)
+		require.NoError(t, err)
+		require.JSONEq(t, `{"data":{"fast":"fast","slow":"slow"}}`, buf.String())
+
+		hooks := resolveCtx.LoaderHooks.(*TestLoaderHooks)
+		require.Equal(t, int64(2), hooks.preFetchCalls.Load())
+		require.Equal(t, int64(2), hooks.postFetchCalls.Load())
+
+		calls := hooks.FinishedCalls()
+		require.Len(t, calls, 2)
+
+		fastCall := finishedCallByDataSource(t, calls, "Fast")
+		slowCall := finishedCallByDataSource(t, calls, "Slow")
+
+		require.Greater(t, fastCall.loadDuration, time.Duration(0))
+		require.Greater(t, slowCall.loadDuration, time.Duration(0))
+		require.Greater(t, slowCall.loadDuration, fastCall.loadDuration+80*time.Millisecond)
+		require.Less(t, fastCall.loadDuration, 100*time.Millisecond)
+	})
+
+	t.Run("singleflight followers include shared wait time", func(t *testing.T) {
+		rCtx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		r := newResolver(rCtx)
+		ds := newBlockingDataSource([]byte(`{"value":"slow"}`))
+		defer ds.Release()
+
+		hooks := NewTestLoaderHooks()
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.LoaderHooks = hooks
+
+		response := &GraphQLResponse{
+			Info: &GraphQLResponseInfo{
+				OperationType: ast.OperationTypeQuery,
+			},
+			Fetches: Parallel(
+				Single(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource: ds,
+					},
+					Info: &FetchInfo{
+						DataSourceID:   "Shared",
+						DataSourceName: "Shared",
+					},
+				}),
+				Single(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource: ds,
+					},
+					Info: &FetchInfo{
+						DataSourceID:   "Shared",
+						DataSourceName: "Shared",
+					},
+				}),
+			),
+			Data: &Object{
+				Fields: []*Field{
+					{
+						Name: []byte("value"),
+						Value: &String{
+							Path:     []string{"value"},
+							Nullable: false,
+						},
+					},
+				},
+			},
+		}
+
+		type resolveResult struct {
+			output string
+			err    error
+		}
+
+		resultCh := make(chan resolveResult, 1)
+		go func() {
+			buf := &bytes.Buffer{}
+			_, err := r.ResolveGraphQLResponse(resolveCtx, response, nil, buf)
+			resultCh <- resolveResult{output: buf.String(), err: err}
+		}()
+
+		select {
+		case <-ds.Ready():
+		case <-time.After(time.Second):
+			t.Fatalf("timeout waiting for singleflight leader")
+		}
+
+		require.Eventually(t, func() bool {
+			return hooks.preFetchCalls.Load() == 2
+		}, time.Second, 10*time.Millisecond)
+		time.Sleep(80 * time.Millisecond)
+		ds.Release()
+
+		result := <-resultCh
+		require.NoError(t, result.err)
+		require.JSONEq(t, `{"data":{"value":"slow"}}`, result.output)
+
+		calls := hooks.FinishedCalls()
+		require.Len(t, calls, 2)
+
+		for _, call := range calls {
+			require.Greater(t, call.loadDuration, 60*time.Millisecond)
+		}
+	})
 }
 
 func TestLoaderHooks_FetchPipeline(t *testing.T) {

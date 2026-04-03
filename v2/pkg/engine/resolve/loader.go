@@ -52,8 +52,9 @@ type DataSourceInfo struct {
 }
 
 type ResponseInfo struct {
-	StatusCode int
-	Err        error
+	StatusCode   int
+	Err          error
+	LoadDuration time.Duration
 	// Request is the original request that was sent to the subgraph. This should only be used for reading purposes,
 	// in order to ensure there aren't memory conflicts, and the body will be nil, as it was read already.
 	Request *http.Request
@@ -71,6 +72,7 @@ func newResponseInfo(res *result, subgraphErrors map[string]error) *ResponseInfo
 	responseInfo := &ResponseInfo{
 		StatusCode:   res.statusCode,
 		Err:          subgraphErrors[res.ds.Name],
+		LoadDuration: res.loadDuration,
 		responseBody: res.out,
 	}
 	if res.httpResponseContext != nil {
@@ -113,9 +115,10 @@ type result struct {
 	fetchSkipped     bool
 	nestedMergeItems []*result
 
-	statusCode int
-	err        error
-	ds         DataSourceInfo
+	statusCode   int
+	err          error
+	loadDuration time.Duration
+	ds           DataSourceInfo
 
 	authorizationRejected        bool
 	authorizationRejectedReasons []string
@@ -1665,6 +1668,10 @@ func (l *Loader) singleFlightAllowed(fetchItem *FetchItem) bool {
 }
 
 func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem *FetchItem, input []byte, res *result) error {
+	loadStart := time.Now()
+	defer func() {
+		res.loadDuration = time.Since(loadStart)
+	}()
 
 	if l.info != nil {
 		ctx = context.WithValue(ctx, operationTypeContextKey, l.info.OperationType)
