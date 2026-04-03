@@ -8,6 +8,7 @@ on:
       - '.github/workflows/release.yml'
       - 'commitlint.config.js'
       - '.golangci.yml'
+      - '.coderabbit.yaml'
   push:
     branches:
       - master
@@ -18,6 +19,7 @@ on:
       - '.github/workflows/release.yml'
       - 'commitlint.config.js'
       - '.golangci.yml'
+      - '.coderabbit.yaml'
 jobs:
   test:
     name: Build and test (go ${{ matrix.go }} / ${{ matrix.os }})

@@ -2,6 +2,7 @@ package plan
 
 import (
 	"encoding/json"
+	"fmt"
 	"slices"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -89,9 +90,15 @@ type KeyCondition struct {
 	FieldPath   []string          `json:"field_path"`
 }
 
+// FieldCoordinate contains coordinates of a field in a type
+// TODO: rename to FieldCoordinates
 type FieldCoordinate struct {
 	TypeName  string `json:"type_name"`
 	FieldName string `json:"field_name"`
+}
+
+func (f FieldCoordinate) String() string {
+	return fmt.Sprintf("%s.%s", f.TypeName, f.FieldName)
 }
 
 // parseSelectionSet parses the selection set and stores the parsed AST in parsedSelectionSet.
