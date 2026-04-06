@@ -808,11 +808,10 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				expectedHost: "first",
 				expectedPath: "/",
 				responses: map[string]sendResponse{
-					// Direct root queries (non-defer, no entity deps)
 					`{"query":"{user {name}}"}`: {
 						statusCode: 200,
 						body:       `{"data":{"user":{"name":"Alice"}}}`,
-					}, // Initial root query when only entity key is needed (account @requires billing+settings from sub2/sub3)
+					},
 					`{"query":"{user {__typename id}}"}`: {
 						statusCode: 200,
 						body:       `{"data":{"user":{"__typename":"User","id":"1"}}}`,
@@ -828,10 +827,6 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename account {type}}}}","variables":{"representations":[{"__typename":"User","billing":{"plan":"pro"},"settings":{"region":"us-east"},"id":"1"}]}}`: {
 						statusCode: 200,
 						body:       `{"data":{"_entities":[{"__typename":"User","account":{"type":"premium"}}]}}`,
-					}, // Direct root queries for deferred account/name fields
-					`{"query":"{user {account {type}}}"}`: {
-						statusCode: 200,
-						body:       `{"data":{"user":{"account":{"type":"premium"}}}}`,
 					},
 					`{"query":"{user {__internal_name: name}}"}`: {
 						statusCode: 200,
@@ -844,7 +839,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					`{"query":"{user {___typename: __typename __typename id}}"}`: {
 						statusCode: 200,
 						body:       `{"data":{"user":{"___typename":"User","__typename":"User","id":"1"}}}`,
-					}, // Deferred sub1 root fetch without redundant plain name (covered by __internal_name alias)
+					},
 					`{"query":"{user {account {type} __internal_name: name}}"}`: {
 						statusCode: 200,
 						body:       `{"data":{"user":{"account":{"type":"premium"},"__internal_name":"Alice"}}}`,
@@ -906,7 +901,6 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				expectedHost: "second",
 				expectedPath: "/",
 				responses: map[string]sendResponse{
-					// Entity fetches for billing.plan (needed as @requires input for sub1 account)
 					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename billing {plan}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
 						statusCode: 200,
 						body:       `{"data":{"_entities":[{"__typename":"User","billing":{"plan":"pro"}}]}}`,
@@ -987,7 +981,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename __internal_2_settings: settings {language}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
 						statusCode: 200,
 						body:       `{"data":{"_entities":[{"__typename":"User","__internal_2_settings":{"language":"en"}}]}}`,
-					}, // New alias format: simple __internal_settings for first defer scope
+					},
 					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename __internal_settings: settings {region}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
 						statusCode: 200,
 						body:       `{"data":{"_entities":[{"__typename":"User","__internal_settings":{"region":"us-east"}}]}}`,
@@ -1011,7 +1005,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename settings {region language}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
 						statusCode: 200,
 						body:       `{"data":{"_entities":[{"__typename":"User","settings":{"region":"us-east","language":"en"}}]}}`,
-					}, // Combined region+language with simple alias (new format)
+					},
 					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename __internal_settings: settings {region language}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
 						statusCode: 200,
 						body:       `{"data":{"_entities":[{"__typename":"User","__internal_settings":{"region":"us-east","language":"en"}}]}}`,
@@ -2174,10 +2168,6 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename name}}}","variables":{"representations":[{"__typename":"Product","id":"1"},{"__typename":"Product","id":"2"}]}}`: {
 						statusCode: 200,
 						body:       `{"data":{"_entities":[{"__typename":"Product","name":"Product One"},{"__typename":"Product","name":"Product Two"}]}}`,
-					},
-					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename price}}}","variables":{"representations":[{"__typename":"Product","id":"1"},{"__typename":"Product","id":"2"}]}}`: {
-						statusCode: 200,
-						body:       `{"data":{"_entities":[{"__typename":"Product","price":9.99},{"__typename":"Product","price":19.99}]}}`,
 					},
 					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename name price}}}","variables":{"representations":[{"__typename":"Product","id":"1"},{"__typename":"Product","id":"2"}]}}`: {
 						statusCode: 200,

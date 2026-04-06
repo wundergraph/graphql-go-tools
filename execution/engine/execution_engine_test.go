@@ -111,6 +111,7 @@ func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expected
 		if opts.streamingResponse {
 			resultWriter.SetFlushCallback(func(data []byte) {
 				streamingBuf.Write(data)
+				streamingBuf.Write([]byte{'\n'})
 			})
 		}
 
