@@ -382,7 +382,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			schema, err := graphql.NewSchemaFromString(tc.definition)
 			require.NoError(t, err)
 
-			t.Run("single deffered field", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("single deffered field", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
@@ -404,7 +404,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("single deffered field between regular fields", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("single deffered field between regular fields", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
@@ -427,7 +427,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("multiple deffered fields", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("multiple deffered fields", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
@@ -450,7 +450,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("multiple deffered fields - all object fields deferred", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("multiple deffered fields - all object fields deferred", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
@@ -473,7 +473,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("nested defers", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("nested defers", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
@@ -499,7 +499,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("nested defers variation", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("nested defers variation", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
@@ -522,7 +522,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("parallel defers", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("parallel defers", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
@@ -548,7 +548,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("defer nested object", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("defer nested object", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
@@ -573,7 +573,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("defer nested object with duplicated non defered object", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("defer nested object with duplicated non defered object", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
@@ -601,7 +601,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("defer nested object fields", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("defer nested object fields", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
@@ -626,7 +626,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("extensive parallel defers across all possible fields", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("extensive parallel defers across all possible fields", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
@@ -661,7 +661,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("extensive fully nested defers across all possible fields", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("extensive fully nested defers across all possible fields", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
@@ -1054,7 +1054,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			})),
 		}
 
-		t.Run("non-defer - name only", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		t.Run("non-defer - name only", runWithoutError(ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{
@@ -1065,7 +1065,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			expectedResponse: `{"data":{"user":{"name":"Alice"}}}`,
 		}))
 
-		t.Run("non-defer - account requires billing and settings", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		t.Run("non-defer - account requires billing and settings", runWithoutError(ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{
@@ -1076,7 +1076,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			expectedResponse: `{"data":{"user":{"account":{"type":"premium"}}}}`,
 		}))
 
-		t.Run("non-defer - notifications requires name and settings", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		t.Run("non-defer - notifications requires name and settings", runWithoutError(ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{
@@ -1087,7 +1087,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			expectedResponse: `{"data":{"user":{"notifications":["msg1","msg2"]}}}`,
 		}))
 
-		t.Run("non-defer - both requires fields together", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		t.Run("non-defer - both requires fields together", runWithoutError(ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{
@@ -1098,7 +1098,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			expectedResponse: `{"data":{"user":{"name":"Alice","account":{"type":"premium"},"notifications":["msg1","msg2"]}}}`,
 		}))
 
-		t.Run("non-defer - all fields including raw billing and settings", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		t.Run("non-defer - all fields including raw billing and settings", runWithoutError(ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{
@@ -1109,7 +1109,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			expectedResponse: `{"data":{"user":{"name":"Alice","billing":{"plan":"pro"},"settings":{"region":"us-east"},"account":{"type":"premium"},"notifications":["msg1","msg2"]}}}`,
 		}))
 
-		t.Run("defer - account field deferred", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		t.Run("defer - account field deferred", runWithoutError(ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{
@@ -1131,7 +1131,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 		}, withStreamingResponse()))
 
-		t.Run("defer - notifications field deferred", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		t.Run("defer - notifications field deferred", runWithoutError(ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{
@@ -1153,7 +1153,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 		}, withStreamingResponse()))
 
-		t.Run("defer - all user fields deferred in single block", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		t.Run("defer - all user fields deferred in single block", runWithoutError(ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{
@@ -1176,7 +1176,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 		}, withStreamingResponse()))
 
-		t.Run("all user fields without defer", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		t.Run("all user fields without defer", runWithoutError(ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{
@@ -1195,7 +1195,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			expectedResponse: `{"data":{"user":{"name":"Alice","account":{"type":"premium"},"notifications":["msg1","msg2"]}}}`,
 		}))
 
-		t.Run("defer - parallel defers on both cross-subgraph requires fields", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		t.Run("defer - parallel defers on both cross-subgraph requires fields", runWithoutError(ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{
@@ -1221,7 +1221,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 		}, withStreamingResponse()))
 
-		t.Run("defer - nested defers: outer has account, inner has notifications", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		t.Run("defer - nested defers: outer has account, inner has notifications", runWithoutError(ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{
@@ -1247,7 +1247,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 		}, withStreamingResponse()))
 
-		t.Run("defer - parallel defers on raw entity fields alongside requires", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		t.Run("defer - parallel defers on raw entity fields alongside requires", runWithoutError(ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{
@@ -1274,7 +1274,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 		}, withStreamingResponse()))
 
-		t.Run("defer - deeply nested requires: account outer, notifications inner, with raw fields", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		t.Run("defer - deeply nested requires: account outer, notifications inner, with raw fields", runWithoutError(ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{
@@ -1306,7 +1306,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 
 		// Defer versions of each non-defer test — verify @defer doesn't break @requires resolution.
 
-		t.Run("defer - name only", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		t.Run("defer - name only", runWithoutError(ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{
@@ -1325,7 +1325,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 		}, withStreamingResponse()))
 
-		t.Run("defer - only account deferred (no other immediate fields)", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		t.Run("defer - only account deferred (no other immediate fields)", runWithoutError(ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{
@@ -1344,7 +1344,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 		}, withStreamingResponse()))
 
-		t.Run("defer - only notifications deferred (no other immediate fields)", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		t.Run("defer - only notifications deferred (no other immediate fields)", runWithoutError(ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{
@@ -1363,7 +1363,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 		}, withStreamingResponse()))
 
-		t.Run("defer - all fields in single defer block", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		t.Run("defer - all fields in single defer block", runWithoutError(ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{
@@ -1391,7 +1391,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 		// Tests mixing requires-source fields (billing, settings) with derived @requires fields
 		// (account, notifications) in same or parallel defer blocks.
 
-		t.Run("defer - requires source (billing) and derived field (account) in same defer block", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		t.Run("defer - requires source (billing) and derived field (account) in same defer block", runWithoutError(ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{
@@ -1414,7 +1414,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 		}, withStreamingResponse()))
 
-		t.Run("defer - requires source (billing) and derived field (account) in parallel defers", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		t.Run("defer - requires source (billing) and derived field (account) in parallel defers", runWithoutError(ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{
@@ -1436,7 +1436,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 		}, withStreamingResponse()))
 
-		t.Run("defer - requires source (settings) and derived field (notifications) in same defer block", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		t.Run("defer - requires source (settings) and derived field (notifications) in same defer block", runWithoutError(ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{
@@ -1459,7 +1459,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 		}, withStreamingResponse()))
 
-		t.Run("defer - requires source (settings) and derived field (notifications) in parallel defers", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		t.Run("defer - requires source (settings) and derived field (notifications) in parallel defers", runWithoutError(ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{
@@ -1481,7 +1481,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 		}, withStreamingResponse()))
 
-		t.Run("defer - all requires sources deferred together, then derived fields deferred in parallel", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		t.Run("defer - all requires sources deferred together, then derived fields deferred in parallel", runWithoutError(ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{
@@ -1509,7 +1509,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 		}, withStreamingResponse()))
 
-		t.Run("defer - requires sources immediate, both derived fields deferred in parallel", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		t.Run("defer - requires sources immediate, both derived fields deferred in parallel", runWithoutError(ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{
@@ -1646,7 +1646,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 		schema, err := graphql.NewSchemaFromString(definition)
 		require.NoError(t, err)
 
-		t.Run("defer from first subgraph - null non-nullable field", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		t.Run("defer from first subgraph - null non-nullable field", runWithoutError(ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{Query: `{ product { ... @defer { name } } }`}
@@ -1657,7 +1657,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 		}, withStreamingResponse()))
 
-		t.Run("defer from first subgraph - null field with upstream error", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		t.Run("defer from first subgraph - null field with upstream error", runWithoutError(ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{Query: `{ product { ... @defer { nameWithError } } }`}
@@ -1668,7 +1668,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 		}, withStreamingResponse()))
 
-		t.Run("defer from second subgraph - null non-nullable field", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		t.Run("defer from second subgraph - null non-nullable field", runWithoutError(ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{Query: `{ product { ... @defer { price } } }`}
@@ -1679,7 +1679,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 		}, withStreamingResponse()))
 
-		t.Run("defer from both subgraphs - null non-nullable fields - name first", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		t.Run("defer from both subgraphs - null non-nullable fields - name first", runWithoutError(ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{Query: `{ product { ... @defer { name } ... @defer { price } } }`}
@@ -1690,7 +1690,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 		}, withStreamingResponse()))
 
-		t.Run("defer from both subgraphs - null non-nullable fields - price first", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		t.Run("defer from both subgraphs - null non-nullable fields - price first", runWithoutError(ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{Query: `{ product { ... @defer { price } ... @defer { name } } }`}
@@ -1701,7 +1701,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 		}, withStreamingResponse()))
 
-		t.Run("defer error halts subsequent defers - nameWithError then price", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+		t.Run("defer error halts subsequent defers - nameWithError then price", runWithoutError(ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{Query: `{ product { ... @defer { nameWithError } ... @defer { price } } }`}
@@ -1898,7 +1898,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 		dataSources := []plan.DataSource{firstSubgraphDS, secondSubgraphDS, thirdSubgraphDS}
 
 		t.Run("category A - no id in initial response", func(t *testing.T) {
-			t.Run("defer name from sub1", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("defer name from sub1", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{Query: `{ items { ... @defer { name } } }`}
@@ -1909,7 +1909,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("defer title from sub2", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("defer title from sub2", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{Query: `{ items { ... @defer { title } } }`}
@@ -1920,7 +1920,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("defer subItems description from sub3", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("defer subItems description from sub3", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{Query: `{ items { subItems { ... @defer { description } } } }`}
@@ -1931,7 +1931,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("items subItems and description all in separate nested defers", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("items subItems and description all in separate nested defers", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{Query: `{ ... @defer { items { id ... @defer { subItems { id ... @defer { description } } } } } }`}
@@ -1946,7 +1946,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 		})
 
 		t.Run("category B - id deferred with parallel defers", func(t *testing.T) {
-			t.Run("defer id only", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("defer id only", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{Query: `{ items { ... @defer { id } } }`}
@@ -1957,7 +1957,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("defer id and name together", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("defer id and name together", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{Query: `{ items { ... @defer { id name } } }`}
@@ -1968,7 +1968,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("defer id in parallel with name", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("defer id in parallel with name", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{Query: `{ items { ... @defer { id } ... @defer { name } } }`}
@@ -1980,7 +1980,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("defer id in parallel with title (cross-subgraph)", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("defer id in parallel with title (cross-subgraph)", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{Query: `{ items { ... @defer { id } ... @defer { title } } }`}
@@ -1992,7 +1992,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("parallel defers on subItems id and description", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("parallel defers on subItems id and description", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{Query: `{ items { id ... @defer { subItems { id } } ... @defer { subItems { description } } } }`}
@@ -2006,7 +2006,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 		})
 
 		t.Run("parallel root defers", func(t *testing.T) {
-			t.Run("subItems id then description", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("subItems id then description", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{Query: `{ ... @defer { items { subItems { id } } } ... @defer { items { subItems { description } } } }`}
@@ -2020,7 +2020,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 		})
 
 		t.Run("category C - nested defers", func(t *testing.T) {
-			t.Run("outer defer items, inner defer name", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("outer defer items, inner defer name", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{Query: `{ ... @defer { items { id ... @defer { name } } } }`}
@@ -2032,7 +2032,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("outer defer items, inner defer title (cross-subgraph)", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("outer defer items, inner defer title (cross-subgraph)", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{Query: `{ ... @defer { items { id ... @defer { title } } } }`}
@@ -2044,7 +2044,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("outer defer items with subItems, inner defer description", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("outer defer items with subItems, inner defer description", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{Query: `{ ... @defer { items { id subItems { id ... @defer { description } } } } }`}
@@ -2056,7 +2056,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("three-level defer: query to items to subItems", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("three-level defer: query to items to subItems", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{Query: `{ ... @defer { items { id ... @defer { subItems { id ... @defer { description } } } } } }`}
@@ -2069,7 +2069,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("three-level defer with cross-subgraph at middle level", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("three-level defer with cross-subgraph at middle level", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{Query: `{ ... @defer { items { id ... @defer { title subItems { id ... @defer { description } } } } } }`}
@@ -2207,7 +2207,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 		dataSources := []plan.DataSource{firstSubgraphDS, secondSubgraphDS}
 
 		t.Run("category A - defer on named fragment spread", func(t *testing.T) {
-			t.Run("A1 - defer sub1 field sku via fragment spread", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("A1 - defer sub1 field sku via fragment spread", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{Query: `fragment SkuFields on Product { sku } { products { ...SkuFields @defer } }`}
@@ -2218,7 +2218,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("A2 - defer sub2 field name via fragment spread", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("A2 - defer sub2 field name via fragment spread", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{Query: `fragment NameFields on Product { name } { products { ...NameFields @defer } }`}
@@ -2229,7 +2229,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("A3 - id non-deferred, sub2 name and price deferred via fragment", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("A3 - id non-deferred, sub2 name and price deferred via fragment", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{Query: `fragment DetailFields on Product { name price } { products { id ...DetailFields @defer } }`}
@@ -2240,7 +2240,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("A4 - parallel fragment spreads from different subgraphs, both deferred", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("A4 - parallel fragment spreads from different subgraphs, both deferred", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{Query: `fragment SkuFrag on Product { sku } fragment NameFrag on Product { name } { products { ...SkuFrag @defer ...NameFrag @defer } }`}
@@ -2254,7 +2254,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 		})
 
 		t.Run("category B - defer inside named fragment definition", func(t *testing.T) {
-			t.Run("B1 - defer sub1 field sku inside named fragment", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("B1 - defer sub1 field sku inside named fragment", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{Query: `fragment ProductFrag on Product { id ... @defer { sku } } { products { ...ProductFrag } }`}
@@ -2265,7 +2265,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("B2 - defer sub2 field name inside named fragment", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("B2 - defer sub2 field name inside named fragment", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{Query: `fragment ProductFrag on Product { id ... @defer { name } } { products { ...ProductFrag } }`}
@@ -2276,7 +2276,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("B3 - parallel sub1 and sub2 defers inside named fragment", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("B3 - parallel sub1 and sub2 defers inside named fragment", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{Query: `fragment ProductFrag on Product { id ... @defer { sku } ... @defer { name } } { products { ...ProductFrag } }`}
@@ -2290,7 +2290,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 		})
 
 		t.Run("category C - defer on spread containing inner defers", func(t *testing.T) {
-			t.Run("C1 - multiple sub1 fields id and sku bundled in single deferred spread", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("C1 - multiple sub1 fields id and sku bundled in single deferred spread", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{Query: `fragment SkuIdFrag on Product { id sku } { products { ...SkuIdFrag @defer } }`}
@@ -2301,7 +2301,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("C2 - outer spread deferred delivering sub1 sku, with nested inner sub2 name defer", runExecutionEngineTestWithoutError(ExecutionEngineTestCase{
+			t.Run("C2 - outer spread deferred delivering sub1 sku, with nested inner sub2 name defer", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{Query: `fragment SkuWithName on Product { sku ... @defer { name } } { products { id ...SkuWithName @defer } }`}
