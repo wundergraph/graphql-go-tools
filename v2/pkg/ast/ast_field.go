@@ -192,9 +192,11 @@ func (d *Document) MergeFieldsDefer(left, right int) {
 		d.Fields[left].Directives.RemoveDirectiveByRef(leftDeferDirectiveRef)
 		d.Fields[left].HasDirectives = len(d.Fields[left].Directives.Refs) > 0
 	case !leftDeferExists:
-		// do nothing, right will be discarded
+		// do nothing, as we are merging right into left
+		// and left do not have the defer,
+		// so right will be discarded
 	default:
-		// both have the defer, wins defer will smaller id
+		// both have the defer; defer with smaller id wins
 		leftDeferIdValue, _ := d.DirectiveArgumentValueByName(leftDeferDirectiveRef, []byte("id"))
 		rightDeferIdValue, _ := d.DirectiveArgumentValueByName(rightDeferDirectiveRef, []byte("id"))
 
@@ -207,7 +209,7 @@ func (d *Document) MergeFieldsDefer(left, right int) {
 		case leftId == rightId:
 			// do nothing, they are equal
 		case leftId < rightId:
-			// left wins, remove right
+			// left wins, right discarded
 		case leftId > rightId:
 			d.Fields[left].Directives.RemoveDirectiveByRef(leftDeferDirectiveRef)
 			// append a right defer to the left
