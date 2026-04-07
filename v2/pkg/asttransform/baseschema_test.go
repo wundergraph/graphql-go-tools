@@ -13,13 +13,18 @@ import (
 )
 
 func runTestMerge(definition, fixtureName string) func(t *testing.T) {
-	return runTestMergeWithDefer(definition, fixtureName, false)
+	return runTestMergeWithInternal(definition, fixtureName, true)
 }
 
-func runTestMergeWithDefer(definition, fixtureName string, internalDefer bool) func(t *testing.T) {
+func runTestMergeWithInternal(definition, fixtureName string, includeInternal bool) func(t *testing.T) {
 	return func(t *testing.T) {
 		doc := unsafeparser.ParseGraphqlDocumentString(definition)
-		err := asttransform.MergeDefinitionWithBaseSchema(&doc)
+		var err error
+		if includeInternal {
+			err = asttransform.MergeDefinitionWithBaseSchema(&doc)
+		} else {
+			err = asttransform.MergeDefinitionWithBaseSchemaWithInternal(&doc, false)
+		}
 		require.NoError(t, err)
 		buf := bytes.Buffer{}
 		err = astprinter.PrintIndent(&doc, []byte("    "), &buf)
@@ -48,11 +53,11 @@ func TestMergeDefinitionWithBaseSchema(t *testing.T) {
 				m: String!
 			}
 	`, "mutation_only"))
-	t.Run("mutation only - internal defer", runTestMergeWithDefer(`
+	t.Run("mutation only - no internal", runTestMergeWithInternal(`
 			type Mutation {
 				m: String!
 			}
-	`, "mutation_only_internal_defer", true))
+	`, "mutation_only_no_internal", false))
 	t.Run("schema with mutation", runTestMerge(`
 			schema {
 				mutation: Mutation
