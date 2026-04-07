@@ -132,6 +132,7 @@ func TestProxyEngineConfigFactory_EngineConfiguration(t *testing.T) {
 		expectedConfig.SetFieldConfigurations(expectedFieldConfigs)
 		sortFieldConfigurations(config.FieldConfigurations())
 
+		assert.Equal(t, graphqlGeneratorFullSchema, string(config.Schema().RawSchema()))
 		assert.Equal(t, expectedConfig, config)
 	})
 
