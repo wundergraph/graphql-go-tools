@@ -4148,8 +4148,8 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			shouldRewrite: true,
 		},
 		{
-			name:      "union selection with deferred __typename - preserves defer directive on __typename after rewrite",
-			fieldName: "accounts",
+			name:       "union selection with deferred __typename - preserves defer directive on __typename after rewrite",
+			fieldName:  "accounts",
 			definition: definition,
 			upstreamDefinition: `
 				type User {
@@ -4206,7 +4206,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			shouldRewrite: true,
 		},
 		{
-			name: "interface selection with deferred __typename - preserves defer directive when shared field is copied into fragments",
+			name:       "interface selection with deferred __typename - preserves defer directive when shared field is copied into fragments",
 			definition: definition,
 			upstreamDefinition: `
 				interface Node {
