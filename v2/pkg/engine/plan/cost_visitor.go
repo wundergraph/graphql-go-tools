@@ -66,6 +66,7 @@ func (v *CostVisitor) EnterField(fieldRef int) {
 	unwrappedTypeName := v.Definition.ResolveTypeNameString(fieldDefinitionTypeRef)
 
 	arguments := v.extractFieldArguments(fieldRef)
+	directiveArgs := v.extractFieldDirectives(fieldDefinitionRef)
 
 	// Check and push through if the unwrapped type of this field is interface or union.
 	unwrappedTypeNode, exists := v.Definition.NodeByNameStr(unwrappedTypeName)
@@ -101,7 +102,7 @@ func (v *CostVisitor) EnterField(fieldRef int) {
 	}
 
 	isEnclosingTypeAbstract := v.Walker.EnclosingTypeDefinition.Kind.IsAbstractType()
-	// Create a skeleton node. dataSourceHashes will be filled in leaveFieldCost
+	// Partially filled node. dataSourceHashes will be filled in leaveFieldCost
 	node := CostTreeNode{
 		fieldRef:                fieldRef,
 		fieldCoords:             FieldCoordinate{typeName, fieldName},
@@ -112,10 +113,11 @@ func (v *CostVisitor) EnterField(fieldRef int) {
 		returnsAbstractType:     isAbstractType,
 		isEnclosingTypeAbstract: isEnclosingTypeAbstract,
 		arguments:               arguments,
+		directiveArguments:      directiveArgs,
 		jsonPath:                jsonPath,
 	}
 
-	// Attach to parent
+	// Attach to the parent
 	if len(v.stack) > 0 {
 		parent := v.stack[len(v.stack)-1]
 		parent.children = append(parent.children, &node)
@@ -263,6 +265,57 @@ func (v *CostVisitor) buildInputObjectFieldTypes(typeName string, node ast.Node,
 			isInputObject:     isInputObject,
 		}
 	}
+}
+
+// extractFieldDirectives extracts directives applied to a field definition in the schema.
+func (v *CostVisitor) extractFieldDirectives(fieldDefinitionRef int) []DirectiveArgCoords {
+	directiveRefs := v.Definition.FieldDefinitionDirectives(fieldDefinitionRef)
+	if len(directiveRefs) == 0 {
+		return nil
+	}
+
+	directives := make([]DirectiveArgCoords, 0, len(directiveRefs))
+	for _, directiveRef := range directiveRefs {
+		directiveName := v.Definition.DirectiveNameString(directiveRef)
+		args := make(map[string]struct{})
+
+		// Populate from the directive definition to make defaulted arguments visible
+		// during cost calculation.
+		directiveDefRef, ok := v.Definition.DirectiveDefinitionByName(directiveName)
+		if !ok {
+			continue
+		}
+		directiveDef := v.Definition.DirectiveDefinitions[directiveDefRef]
+		if directiveDef.HasArgumentsDefinitions {
+			for _, inputValRef := range directiveDef.ArgumentsDefinition.Refs {
+				argName := v.Definition.InputValueDefinitionNameString(inputValRef)
+				defaultValue := v.Definition.InputValueDefinitionDefaultValue(inputValRef)
+				if defaultValue.Kind != ast.ValueKindUnknown && defaultValue.Kind != ast.ValueKindNull {
+					args[argName] = struct{}{}
+				}
+			}
+		}
+
+		// Override with explicitly provided arguments at the usage site.
+		// Null values exclude the argument from cost calculation (even if a default existed).
+		for _, argRef := range v.Definition.DirectiveArgumentSet(directiveRef) {
+			argName := v.Definition.ArgumentNameString(argRef)
+			if v.Definition.ArgumentValue(argRef).Kind == ast.ValueKindNull {
+				delete(args, argName)
+			} else {
+				args[argName] = struct{}{}
+			}
+		}
+
+		for argName := range args {
+			directives = append(directives, DirectiveArgCoords{
+				DirectiveName: directiveName,
+				ArgName:       argName,
+			})
+		}
+	}
+
+	return directives
 }
 
 func (v *CostVisitor) finalCostTree() *CostTreeNode {

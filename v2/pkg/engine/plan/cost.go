@@ -113,6 +113,11 @@ func (ls *FieldListSize) multiplier(arguments map[string]ArgumentInfo, vars *ast
 	return multiplier
 }
 
+type DirectiveArgCoords struct {
+	DirectiveName string
+	ArgName       string
+}
+
 // DataSourceCostConfig holds all cost configurations for a data source.
 // This data is passed from the composition.
 type DataSourceCostConfig struct {
@@ -130,12 +135,11 @@ type DataSourceCostConfig struct {
 	// Location: ENUM, OBJECT, SCALAR
 	Types map[string]int
 
-	// Arguments on directives is a special case. They use a special kind of coordinate:
-	// directive name + argument name. That should be the key mapped to the weight.
-	//
-	// Directives can be used on [input] object fields and arguments of fields. This creates
+	// DirectiveArguments maps Arguments on directives to the weight.
+	// Directives can be used on input object fields and arguments of fields. This creates
 	// mutual recursion between them; it complicates cost calculation.
-	// We avoid them intentionally in the first iteration.
+	// We avoid them intentionally for now.
+	DirectiveArguments map[DirectiveArgCoords]int
 }
 
 // NewDataSourceCostConfig creates a new cost config with defaults
@@ -198,6 +202,9 @@ type CostTreeNode struct {
 	// arguments contain the values of arguments passed to the field.
 	arguments map[string]ArgumentInfo
 
+	// directiveArguments contain directive arguments of non-null value for this field.
+	directiveArguments []DirectiveArgCoords
+
 	jsonPath string // JSON path using aliases too
 
 	returnsListType         bool
@@ -227,6 +234,16 @@ type ArgumentInfo struct {
 
 	// The name of the variable that has value for this argument.
 	varName string
+}
+
+// DirectiveInfo stores information about a directive applied to a field definition,
+// including its name and the arguments it was invoked with.
+type DirectiveInfo struct {
+	// name of the directive (e.g. "approx" for @approx)
+	name string
+
+	// arguments indicate the presence of a non-null value for an argument name
+	arguments map[string]struct{}
 }
 
 // inputObjectField describes the type of input object field.
@@ -476,6 +493,13 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 				} else {
 					argsCost += dsCostConfig.ObjectTypeWeight(arg.typeName)
 				}
+			}
+		}
+
+		for _, dirArgCoords := range node.directiveArguments {
+			weight, ok := dsCostConfig.DirectiveArguments[dirArgCoords]
+			if ok {
+				directiveCost += weight
 			}
 		}
 
