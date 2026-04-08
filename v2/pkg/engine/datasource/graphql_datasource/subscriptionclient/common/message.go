@@ -8,7 +8,7 @@ import (
 var ErrConnectionClosed = errors.New("connection closed")
 
 // MessageType identifies the kind of message delivered on a subscription channel.
-type MessageType int
+type MessageType uint8
 
 const (
 	MessageTypeUnknown         MessageType = iota

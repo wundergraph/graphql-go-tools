@@ -63,7 +63,7 @@ func (m *WireMessage) IntoClientMessage() *common.Message {
 }
 
 // WireMessageType identifies the message type.
-type WireMessageType int
+type WireMessageType uint8
 
 const (
 	MessageData WireMessageType = iota
