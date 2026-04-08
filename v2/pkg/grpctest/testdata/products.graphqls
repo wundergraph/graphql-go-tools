@@ -80,6 +80,11 @@ type Storage @key(fields: "id") {
   storageStatus(checkHealth: Boolean!): ActionResult! @connect__fieldResolver(context: "id name")
   linkedStorages(depth: Int!): [Storage!]! @connect__fieldResolver(context: "id name location")
   nearbyStorages(radius: Int): [Storage!] @connect__fieldResolver(context: "id location")
+
+  # @requires fields in combination with field arguments
+  filteredTagSummary(prefix: String!): String @requires(fields: "tags")
+  multiFilteredTagSummary(prefixes: [String!]!, maxResults: Int!): String @requires(fields: "tags")
+  nullableFilteredTagSummary(prefix: String): String @requires(fields: "tags")
 }
 
 type Warehouse @key(fields: "id") {
