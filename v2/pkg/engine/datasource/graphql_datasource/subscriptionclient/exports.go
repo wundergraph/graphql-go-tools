@@ -6,7 +6,8 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/transport"
 )
 
-// Re-export common types for single-import convenience.
+// Re-exports from internal sub-packages (common, protocol, transport) so that
+// callers can import this package alone instead of reaching into internals.
 
 type (
 	Message         = common.Message
