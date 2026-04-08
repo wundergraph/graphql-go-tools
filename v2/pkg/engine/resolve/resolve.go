@@ -57,6 +57,8 @@ type Resolver struct {
 	options        ResolverOptions
 	maxConcurrency chan struct{}
 
+	// mu protects: shutdown, triggers, subscriptionsByID, subscriptionsByConnection.
+	// Lock ordering: subscriptionUpdater.mu > Resolver.mu > trigger.mu (then subscriptionState.writeMu outside those locks).
 	mu                        sync.Mutex
 	shutdown                  bool
 	triggers                  map[uint64]*trigger
@@ -440,7 +442,10 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 	return resp, err
 }
 
+// trigger groups subscriptions that share a data source and input.
 type trigger struct {
+	// mu protects subscriptions and initialized.
+	// Uses snapshot-and-release: held only during map access, released before I/O.
 	mu            sync.RWMutex
 	id            uint64
 	cancel        context.CancelFunc
@@ -461,6 +466,7 @@ func (t *trigger) subscriptionIds() map[context.Context]SubscriptionIdentifier {
 	return subs
 }
 
+// subscriptionState tracks a single active subscription.
 type subscriptionState struct {
 	triggerID uint64
 	resolve   *GraphQLSubscription
@@ -469,7 +475,9 @@ type subscriptionState struct {
 	id        SubscriptionIdentifier
 	heartbeat bool
 	completed chan struct{}
-	writeMu   sync.Mutex
+	// writeMu protects all writes to writer (Complete, Error, Write, Flush, Heartbeat).
+	// Paired with the removed atomic to prevent writes after removal.
+	writeMu sync.Mutex
 	// removed guards against writes after the subscription has been removed.
 	// Uses CompareAndSwap to prevent double-close of the completed channel.
 	removed atomic.Bool
@@ -667,6 +675,7 @@ func (r *Resolver) executeStartupHooks(add *addSubscription, updater *subscripti
 	return nil
 }
 
+// addSubscriptionIndex updates the by-ID and by-connection indexes. Resolver.mu must be held.
 func (r *Resolver) addSubscriptionIndex(s *subscriptionState) {
 	id := s.id
 	r.subscriptionsByID[id] = s
@@ -678,6 +687,7 @@ func (r *Resolver) addSubscriptionIndex(s *subscriptionState) {
 	byConn[id] = s
 }
 
+// removeSubscriptionIndex removes from the by-ID and by-connection indexes. Resolver.mu must be held.
 func (r *Resolver) removeSubscriptionIndex(id SubscriptionIdentifier) {
 	delete(r.subscriptionsByID, id)
 	byConn, ok := r.subscriptionsByConnection[id.ConnectionID]
@@ -1456,7 +1466,15 @@ func (r *Resolver) subscriptionInput(ctx *Context, subscription *GraphQLSubscrip
 	return input, nil
 }
 
+// subscriptionUpdater implements SubscriptionUpdater, the callback API for data sources.
 type subscriptionUpdater struct {
+	// mu serves two roles:
+	//
+	// 1. Event serialization gate -- held across the entire Update() call including
+	//    wg.Wait(), ensuring event A fully completes before event B begins. 
+	//
+	// 2. Lifecycle guard -- the done flag prevents callbacks after Done() has torn down
+	//    the trigger. Every method checks done || ctx.Err() under the lock before proceeding.
 	mu        sync.Mutex
 	done      bool
 	debug     bool
