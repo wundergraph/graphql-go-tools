@@ -39,8 +39,9 @@ func (e *EngineResultWriter) Heartbeat() error {
 	return nil
 }
 
-func (e *EngineResultWriter) Error(_ []byte) {
-
+func (e *EngineResultWriter) Error(data []byte) {
+	e.buf.Write(data)
+	e.Flush()
 }
 
 func (e *EngineResultWriter) SetFlushCallback(flushCb func(data []byte)) {
