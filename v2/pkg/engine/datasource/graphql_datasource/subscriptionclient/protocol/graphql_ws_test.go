@@ -53,8 +53,10 @@ func TestGraphQLWS_Init(t *testing.T) {
 
 		conn := dialGWS(t, server)
 
-		p := &GraphQLWS{AckTimeout: 50 * time.Millisecond}
-		err := p.Init(t.Context(), conn, nil)
+		p := NewGraphQLWS()
+		ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+		defer cancel()
+		err := p.Init(ctx, conn, nil)
 
 		require.ErrorIs(t, err, ErrAckTimeout)
 	})

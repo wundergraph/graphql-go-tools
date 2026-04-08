@@ -20,7 +20,12 @@ import (
 
 // ErrDialFailed indicates that the WebSocket dial (TCP + HTTP upgrade) failed.
 // The underlying cause is available via errors.Unwrap.
-var ErrDialFailed = errors.New("websocket dial failed")
+var (
+	ErrDialFailed = errors.New("websocket dial failed")
+
+	defaultReadLimit  = int64(1024 * 1024) // 1MB
+	defaultAckTimeout = 30 * time.Second
+)
 
 // ErrInitFailed indicates that the GraphQL protocol init (connection_init /
 // connection_ack handshake) failed after a successful WebSocket dial. The
@@ -44,16 +49,36 @@ func (e ErrInvalidSubprotocol) Error() string {
 
 // WSTransportOptions configures a WSTransport.
 type WSTransportOptions struct {
+	// UpgradeClient is the HTTP client used for the WebSocket upgrade request.
 	UpgradeClient *http.Client
-	Logger        abstractlogger.Logger
-	PingInterval  time.Duration
-	PingTimeout   time.Duration
-	AckTimeout    time.Duration
-	WriteTimeout  time.Duration
-	ReadLimit     int64
+
+	// Logger is the logger used for transport and connection-level events.
+	Logger abstractlogger.Logger
+
+	// ReadLimit is the maximum message size in bytes the WebSocket connection
+	// will accept. Default: 1MB.
+	ReadLimit int64
+
+	// PingInterval is how often the transport sends a ping to each connection.
+	// Zero disables pinging.
+	PingInterval time.Duration
+
+	// PingTimeout is how long a connection may go without a pong before it is
+	// considered dead. Only meaningful when PingInterval is set.
+	PingTimeout time.Duration
+
+	// AckTimeout is the maximum time to wait for a connection_ack during the
+	// protocol init handshake. Passed to the protocol at construction.
+	// Default: 30s.
+	AckTimeout time.Duration
+
+	// WriteTimeout is the deadline applied to each WebSocket write (subscribe,
+	// unsubscribe, ping, pong). Passed to each connection. Default: 5s.
+	WriteTimeout time.Duration
+
 	// IdleTimeout is the duration a connection stays open after its last
-	// subscription is removed, allowing new subscriptions to reuse it
-	// without re-dialing. Zero means close immediately.
+	// subscription is removed, allowing new subscriptions to reuse it without
+	// re-dialing. Zero means close immediately.
 	IdleTimeout time.Duration
 }
 
@@ -83,14 +108,17 @@ func NewWSTransport(ctx context.Context, opts WSTransportOptions) *WSTransport {
 	if opts.UpgradeClient == nil {
 		opts.UpgradeClient = http.DefaultClient
 	}
+
 	if opts.Logger == nil {
 		opts.Logger = abstractlogger.NoopLogger
 	}
+
 	if opts.ReadLimit <= 0 {
 		opts.ReadLimit = defaultReadLimit
 	}
-	if opts.WriteTimeout <= 0 {
-		opts.WriteTimeout = defaultWriteTimeout
+
+	if opts.AckTimeout <= 0 {
+		opts.AckTimeout = defaultAckTimeout
 	}
 
 	t := &WSTransport{
@@ -146,7 +174,7 @@ func (t *WSTransport) pingLoop() {
 					continue
 				}
 
-				if err := conn.sendPing(t.opts.WriteTimeout); err != nil {
+				if err := conn.sendPing(); err != nil {
 					t.opts.Logger.Debug("wsTransport.pingLoop",
 						abstractlogger.String("action", "ping_failed"),
 						abstractlogger.Error(err),
@@ -155,16 +183,6 @@ func (t *WSTransport) pingLoop() {
 			}
 		}
 	}
-}
-
-// ReadLimit returns the configured read limit.
-func (t *WSTransport) ReadLimit() int64 {
-	return t.opts.ReadLimit
-}
-
-// WriteTimeout returns the configured write timeout for new connections.
-func (t *WSTransport) WriteTimeout() time.Duration {
-	return t.opts.WriteTimeout
 }
 
 func (t *WSTransport) ConnCount() int {
@@ -262,7 +280,10 @@ func (t *WSTransport) dial(ctx context.Context, key uint64, opts common.Options)
 		return nil, err
 	}
 
-	if err := proto.Init(ctx, wsConn, opts.InitPayload); err != nil {
+	initCtx, initCancel := context.WithTimeout(ctx, t.opts.AckTimeout)
+	defer initCancel()
+
+	if err := proto.Init(initCtx, wsConn, opts.InitPayload); err != nil {
 		t.opts.Logger.Error("wsTransport.dial",
 			abstractlogger.String("endpoint", opts.Endpoint),
 			abstractlogger.String("error", "protocol init failed"),
@@ -299,17 +320,9 @@ func (t *WSTransport) negotiateSubprotocol(requested common.WSSubprotocol, accep
 
 	switch common.WSSubprotocol(accepted) {
 	case common.SubprotocolGraphQLTransportWS:
-		p := protocol.NewGraphQLTransportWS()
-		if t.opts.AckTimeout > 0 {
-			p.AckTimeout = t.opts.AckTimeout
-		}
-		return p, nil
+		return protocol.NewGraphQLTransportWS(), nil
 	case common.SubprotocolGraphQLWS:
-		p := protocol.NewGraphQLWS()
-		if t.opts.AckTimeout > 0 {
-			p.AckTimeout = t.opts.AckTimeout
-		}
-		return p, nil
+		return protocol.NewGraphQLWS(), nil
 	default:
 		return nil, ErrInvalidSubprotocol(accepted)
 	}

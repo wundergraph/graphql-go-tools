@@ -19,7 +19,6 @@ var (
 	ErrSubscriptionExists = errors.New("subscription ID already exists")
 
 	defaultWriteTimeout = 5 * time.Second
-	defaultReadLimit    = int64(1024 * 1024) // 1MB
 )
 
 type wsConnectionOptions struct {
@@ -98,7 +97,10 @@ func (c *wsConnection) subscribe(ctx context.Context, id string, req *common.Req
 	c.subs[id] = handler
 	c.subsMu.Unlock()
 
-	if err := c.protocol.Subscribe(ctx, c.conn, id, req); err != nil {
+	subscribeCtx, subscribeCancel := context.WithTimeout(ctx, c.writeTimeout)
+	defer subscribeCancel()
+
+	if err := c.protocol.Subscribe(subscribeCtx, c.conn, id, req); err != nil {
 		c.log.Error("wsConnection.Subscribe",
 			abstractlogger.String("id", id),
 			abstractlogger.Error(err),
@@ -253,8 +255,8 @@ func (c *wsConnection) subCount() int {
 }
 
 // sendPing sends a protocol-level ping message and records the timestamp.
-func (c *wsConnection) sendPing(timeout time.Duration) error {
-	pingCtx, cancel := context.WithTimeout(c.ctx, timeout)
+func (c *wsConnection) sendPing() error {
+	pingCtx, cancel := context.WithTimeout(c.ctx, c.writeTimeout)
 	defer cancel()
 
 	err := c.protocol.Ping(pingCtx, c.conn)

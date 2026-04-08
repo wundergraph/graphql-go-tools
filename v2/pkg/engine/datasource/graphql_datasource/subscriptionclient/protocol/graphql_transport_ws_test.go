@@ -53,8 +53,10 @@ func TestGraphQLTransportWS_Init(t *testing.T) {
 
 		conn := dialGTWS(t, server)
 
-		p := &GraphQLTransportWS{AckTimeout: 50 * time.Millisecond}
-		err := p.Init(t.Context(), conn, nil)
+		p := NewGraphQLTransportWS()
+		ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+		defer cancel()
+		err := p.Init(ctx, conn, nil)
 
 		require.ErrorIs(t, err, ErrAckTimeout)
 	})

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
@@ -15,9 +14,7 @@ import (
 
 // GraphQLWS implements the legacy graphql-ws protocol.
 // See: https://github.com/apollographql/subscriptions-transport-ws/blob/master/PROTOCOL.md
-type GraphQLWS struct {
-	AckTimeout time.Duration
-}
+type GraphQLWS struct{}
 
 const (
 	gwsTypeConnectionInit      = "connection_init"
@@ -32,9 +29,7 @@ const (
 )
 
 func NewGraphQLWS() *GraphQLWS {
-	return &GraphQLWS{
-		AckTimeout: 30 * time.Second,
-	}
+	return &GraphQLWS{}
 }
 
 // Init implements Protocol.
@@ -45,21 +40,13 @@ func (p *GraphQLWS) Init(ctx context.Context, conn *websocket.Conn, payload map[
 	if payload != nil {
 		initMsg.Payload = payload
 	}
-	timeout := p.AckTimeout
-	if timeout <= 0 {
-		timeout = 30 * time.Second
-	}
-
-	ackCtx, ackCancel := context.WithTimeout(ctx, timeout)
-	defer ackCancel()
-
-	if err := wsjson.Write(ackCtx, conn, initMsg); err != nil {
+	if err := wsjson.Write(ctx, conn, initMsg); err != nil {
 		return fmt.Errorf("write connection_init: %w", err)
 	}
 
 	for {
 		var ackMessage incomingMessage
-		if err := wsjson.Read(ackCtx, conn, &ackMessage); err != nil {
+		if err := wsjson.Read(ctx, conn, &ackMessage); err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
 				return ErrAckTimeout
 			}

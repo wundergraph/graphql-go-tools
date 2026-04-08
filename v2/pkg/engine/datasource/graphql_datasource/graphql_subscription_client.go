@@ -21,7 +21,7 @@ type SubscriptionClientConfig struct {
 	StreamingClient *http.Client
 	Logger          abstractlogger.Logger
 
-	// Timeouts
+	// Timeouts and limits
 	PingInterval time.Duration
 	PingTimeout  time.Duration
 	AckTimeout   time.Duration
@@ -37,7 +37,6 @@ func defaultSubscriptionClientConfig() *SubscriptionClientConfig {
 
 		PingInterval: 30 * time.Second,
 		PingTimeout:  10 * time.Second,
-		AckTimeout:   30 * time.Second,
 	}
 }
 

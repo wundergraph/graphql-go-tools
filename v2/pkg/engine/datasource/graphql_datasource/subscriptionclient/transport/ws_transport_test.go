@@ -1068,7 +1068,7 @@ func TestWSTransport_Defaults(t *testing.T) {
 
 		tr := NewWSTransport(t.Context(), WSTransportOptions{})
 
-		assert.Equal(t, defaultReadLimit, tr.ReadLimit())
+		assert.Equal(t, defaultReadLimit, tr.opts.ReadLimit)
 	})
 
 	t.Run("applies default read limit for zero value", func(t *testing.T) {
@@ -1076,7 +1076,7 @@ func TestWSTransport_Defaults(t *testing.T) {
 
 		tr := NewWSTransport(t.Context(), WSTransportOptions{ReadLimit: 0})
 
-		assert.Equal(t, defaultReadLimit, tr.ReadLimit())
+		assert.Equal(t, defaultReadLimit, tr.opts.ReadLimit)
 	})
 
 	t.Run("overrides read limit when provided", func(t *testing.T) {
@@ -1084,7 +1084,7 @@ func TestWSTransport_Defaults(t *testing.T) {
 
 		tr := NewWSTransport(t.Context(), WSTransportOptions{ReadLimit: 2 * 1024 * 1024})
 
-		assert.Equal(t, int64(2*1024*1024), tr.ReadLimit())
+		assert.Equal(t, int64(2*1024*1024), tr.opts.ReadLimit)
 	})
 
 	t.Run("ignores negative read limit", func(t *testing.T) {
@@ -1092,24 +1092,9 @@ func TestWSTransport_Defaults(t *testing.T) {
 
 		tr := NewWSTransport(t.Context(), WSTransportOptions{ReadLimit: -1})
 
-		assert.Equal(t, defaultReadLimit, tr.ReadLimit())
+		assert.Equal(t, defaultReadLimit, tr.opts.ReadLimit)
 	})
 
-	t.Run("applies default write timeout", func(t *testing.T) {
-		t.Parallel()
-
-		tr := NewWSTransport(t.Context(), WSTransportOptions{})
-
-		assert.Equal(t, defaultWriteTimeout, tr.WriteTimeout())
-	})
-
-	t.Run("overrides write timeout when provided", func(t *testing.T) {
-		t.Parallel()
-
-		tr := NewWSTransport(t.Context(), WSTransportOptions{WriteTimeout: 10 * time.Second})
-
-		assert.Equal(t, 10*time.Second, tr.WriteTimeout())
-	})
 }
 
 // Test helpers

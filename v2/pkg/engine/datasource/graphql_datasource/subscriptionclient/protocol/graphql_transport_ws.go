@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
@@ -15,9 +14,7 @@ import (
 
 // GraphQLTransportWS implements the graphql-transport-ws protocol.
 // See: https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md
-type GraphQLTransportWS struct {
-	AckTimeout time.Duration
-}
+type GraphQLTransportWS struct{}
 
 const (
 	gtwsTypeConnectionInit = "connection_init"
@@ -43,9 +40,7 @@ type incomingMessage struct {
 }
 
 func NewGraphQLTransportWS() *GraphQLTransportWS {
-	return &GraphQLTransportWS{
-		AckTimeout: 30 * time.Second,
-	}
+	return &GraphQLTransportWS{}
 }
 
 // Init implements Protocol.
@@ -56,21 +51,13 @@ func (p *GraphQLTransportWS) Init(ctx context.Context, conn *websocket.Conn, pay
 	if payload != nil {
 		initMsg.Payload = payload
 	}
-	timeout := p.AckTimeout
-	if timeout <= 0 {
-		timeout = 30 * time.Second
-	}
-
-	ackCtx, ackCancel := context.WithTimeout(ctx, timeout)
-	defer ackCancel()
-
-	if err := wsjson.Write(ackCtx, conn, initMsg); err != nil {
+	if err := wsjson.Write(ctx, conn, initMsg); err != nil {
 		return fmt.Errorf("write connection_init: %w", err)
 	}
 
 	for {
 		var ackMessage incomingMessage
-		if err := wsjson.Read(ackCtx, conn, &ackMessage); err != nil {
+		if err := wsjson.Read(ctx, conn, &ackMessage); err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
 				return ErrAckTimeout
 			}
@@ -81,7 +68,7 @@ func (p *GraphQLTransportWS) Init(ctx context.Context, conn *websocket.Conn, pay
 		case gtwsTypeConnectionAck:
 			return nil
 		case gtwsTypePing:
-			if err := p.Pong(ackCtx, conn); err != nil {
+			if err := p.Pong(ctx, conn); err != nil {
 				return fmt.Errorf("pre-init pong: %w", err)
 			}
 			continue
