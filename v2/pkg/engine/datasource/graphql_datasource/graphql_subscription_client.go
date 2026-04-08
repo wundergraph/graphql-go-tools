@@ -257,9 +257,9 @@ func convertToClientOptions(options GraphQLSubscriptionOptions) (client.Options,
 // mapWSSubprotocol maps the string subprotocol to the client.WSSubprotocol type.
 func mapWSSubprotocol(proto string) client.WSSubprotocol {
 	switch proto {
-	case "graphql-ws":
+	case string(client.SubprotocolGraphQLWS):
 		return client.SubprotocolGraphQLWS
-	case "graphql-transport-ws":
+	case string(client.SubprotocolGraphQLTransportWS):
 		return client.SubprotocolGraphQLTransportWS
 	default:
 		return client.SubprotocolAuto
