@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.269](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.268...v2.0.0-rc.269) (2026-04-08)
+
+
+### Features
+
+* handle recursion for arguments containing input objects ([#1461](https://github.com/wundergraph/graphql-go-tools/issues/1461)) ([ba21793](https://github.com/wundergraph/graphql-go-tools/commit/ba21793c75bdd68a1f6bf70583cc09cbd767139b))
+
 ## [2.0.0-rc.268](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.267...v2.0.0-rc.268) (2026-04-07)
 
 
