@@ -13,6 +13,12 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
 )
 
+// GraphQLTransportWS implements the graphql-transport-ws protocol.
+// See: https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md
+type GraphQLTransportWS struct {
+	AckTimeout time.Duration
+}
+
 const (
 	gtwsTypeConnectionInit = "connection_init"
 	gtwsTypeConnectionAck  = "connection_ack"
@@ -34,10 +40,6 @@ type incomingMessage struct {
 	ID      string          `json:"id,omitempty"`
 	Type    string          `json:"type"`
 	Payload json.RawMessage `json:"payload,omitempty"`
-}
-
-type GraphQLTransportWS struct {
-	AckTimeout time.Duration
 }
 
 func NewGraphQLTransportWS() *GraphQLTransportWS {

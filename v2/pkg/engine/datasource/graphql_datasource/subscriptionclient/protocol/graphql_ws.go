@@ -13,6 +13,12 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
 )
 
+// GraphQLWS implements the legacy graphql-ws protocol.
+// See: https://github.com/apollographql/subscriptions-transport-ws/blob/master/PROTOCOL.md
+type GraphQLWS struct {
+	AckTimeout time.Duration
+}
+
 const (
 	gwsTypeConnectionInit      = "connection_init"
 	gwsTypeConnectionAck       = "connection_ack"
@@ -24,12 +30,6 @@ const (
 	gwsTypeComplete            = "complete"
 	gwsTypeStop                = "stop"
 )
-
-// GraphQLWS implements the legacy graphql-ws protocol.
-// See: https://github.com/apollographql/subscriptions-transport-ws/blob/master/PROTOCOL.md
-type GraphQLWS struct {
-	AckTimeout time.Duration
-}
 
 func NewGraphQLWS() *GraphQLWS {
 	return &GraphQLWS{
