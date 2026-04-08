@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.268](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.267...v2.0.0-rc.268) (2026-04-07)
+
+
+### Features
+
+* add support for fields with arguments and requires directive ([#1452](https://github.com/wundergraph/graphql-go-tools/issues/1452)) ([58469c3](https://github.com/wundergraph/graphql-go-tools/commit/58469c39c9f9b2c610bbe36febb6cd7fce319127))
+
 ## [2.0.0-rc.267](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.266...v2.0.0-rc.267) (2026-03-26)
 
 
