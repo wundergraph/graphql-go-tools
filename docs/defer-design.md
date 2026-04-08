@@ -331,7 +331,14 @@ During this pass, authorization checks run and null-bubbling through non-nullabl
 
 The same walk runs again. For each object node that has matching deferred fields, the render pass must decide which incremental item envelope to produce. This decision is made before writing any bytes for that item, based on `deferItemDataNull` set during pass 1.
 
-###### Normal envelope (`deferItemDataNull=false`)
+The `"path"` value in the envelope is taken from `r.path` — the path stack at the moment the object is entered, pointing to the location in the response tree where the client should merge the incremental data.
+
+A single `ResolveDefer` call can produce **multiple incremental items** within the one envelope — one per object node that owns matching deferred fields, found by the seeker as it traverses the tree. Array items also produce separate entries: each element of a list that contains deferred fields gets its own incremental item with an index in its path.
+
+`hasNext: true` is written on all chunks except the last. The last chunk in the loop writes `hasNext: false`.
+
+
+##### Normal envelope (`deferItemDataNull=false`)
 
 The outer `{"incremental": [` wrapper is opened, then `printDeferEnvelopeOpen` writes `{"data": {`, the deferred fields are rendered inside, then `printDeferEnvelopeClose` appends `}, "path": [...]}`. The result is:
 
@@ -339,17 +346,16 @@ The outer `{"incremental": [` wrapper is opened, then `printDeferEnvelopeOpen` w
 {"incremental": [{"data": {"expensiveField": "..."}, "path": ["user"]}], "hasNext": ...}
 ```
 
-###### Null envelope (`deferItemDataNull=true`)
+##### Null envelope (`deferItemDataNull=true`)
 
-`printDeferEnvelopeNullData` writes the entire item as `{"data": null, "path": [...], "errors": [...]}` in one shot — the normal `{"data": {` opener and the outer `{"incremental": [` wrapper are never written. The walker returns immediately without descending further.
+`printDeferEnvelopeNullData` writes the entire item as
+```json
+{"data": null, "path": [...], "errors": [...]}
+```
+
+in one shot — the normal `{"data": {` opener and the outer `{"incremental": [` wrapper are never written. The walker returns immediately without descending further.
 
 This is exactly why the pre-walk is necessary. Each chunk is assembled in an intermediate buffer before being flushed to the client. Once bytes have been written into that buffer you cannot go back and modify them — for example you cannot change `{"data": {field: "value"}` into `{"data": null, ...}` after the fact. The pre-walk ensures the render pass knows which shape to produce before it writes the first byte.
-
-The `"path"` value in both envelopes is taken from `r.path` — the path stack at the moment the object is entered, pointing to the location in the response tree where the client should merge the incremental data.
-
-A single `ResolveDefer` call can produce **multiple incremental items** within the one envelope — one per object node that owns matching deferred fields, found by the seeker as it traverses the tree. Array items also produce separate entries: each element of a list that contains deferred fields gets its own incremental item with an index in its path.
-
-`hasNext: true` is written on all chunks except the last. The last chunk in the loop writes `hasNext: false`.
 
 ---
 
