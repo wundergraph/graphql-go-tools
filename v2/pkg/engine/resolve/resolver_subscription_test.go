@@ -1,7 +1,6 @@
 package resolve
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -232,7 +231,6 @@ func TestResolver_HeartbeatError_DoesNotDeadlockOnUnsubscribe(t *testing.T) {
 		id:            triggerID,
 		cancel:        func() {},
 		subscriptions: map[SubscriptionIdentifier]*subscriptionState{subID: s},
-		updateBuf:     bytes.NewBuffer(make([]byte, 0, 1024)),
 	}
 	resolver.subscriptionsByID[subID] = s
 	resolver.subscriptionsByConnection[subID.ConnectionID] = map[SubscriptionIdentifier]*subscriptionState{subID: s}

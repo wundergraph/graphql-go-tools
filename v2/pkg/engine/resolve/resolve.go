@@ -445,7 +445,6 @@ type trigger struct {
 	id            uint64
 	cancel        context.CancelFunc
 	subscriptions map[SubscriptionIdentifier]*subscriptionState
-	updateBuf     *bytes.Buffer
 	// initialized is set to true when the trigger is started and initialized
 	initialized bool
 	updater     *subscriptionUpdater
@@ -743,7 +742,6 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 	trig = &trigger{
 		id:            triggerID,
 		subscriptions: make(map[SubscriptionIdentifier]*subscriptionState),
-		updateBuf:     bytes.NewBuffer(make([]byte, 0, 1024)),
 		cancel:        cancel,
 		updater:       updater,
 	}
@@ -1007,7 +1005,7 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 		if s.ctx.ctx.Err() != nil {
 			continue
 		}
-		skip, err := s.resolve.Filter.SkipEvent(s.ctx, data, trig.updateBuf)
+		skip, err := s.resolve.Filter.SkipEvent(s.ctx, data)
 		if err != nil {
 			filterErrors = append(filterErrors, pendingFilterError{s.ctx, err, s.resolve.Response, s.writer})
 			continue
@@ -1054,7 +1052,7 @@ func (r *Resolver) handleUpdateSubscription(id uint64, data []byte, subIdentifie
 	s, ok := trig.subscriptions[subIdentifier]
 	if ok {
 		if s.ctx.ctx.Err() == nil {
-			skip, err := s.resolve.Filter.SkipEvent(s.ctx, data, trig.updateBuf)
+			skip, err := s.resolve.Filter.SkipEvent(s.ctx, data)
 			if err != nil {
 				filterErr = &pendingFilterError{s.ctx, err, s.resolve.Response, s.writer}
 			} else if !skip {
