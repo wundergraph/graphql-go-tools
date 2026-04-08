@@ -83,11 +83,12 @@ func newWSConnection(conn *websocket.Conn, proto protocol.Protocol, opts wsConne
 }
 
 func (c *wsConnection) subscribe(ctx context.Context, id string, req *common.Request, handler common.Handler) (func(), error) {
+	c.subsMu.Lock()
+
 	if c.closed.Load() {
+		c.subsMu.Unlock()
 		return nil, common.ErrConnectionClosed
 	}
-
-	c.subsMu.Lock()
 
 	if _, exists := c.subs[id]; exists {
 		c.subsMu.Unlock()

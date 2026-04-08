@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"runtime"
 	"net/http/httptest"
 	"strings"
 	"sync"
@@ -65,6 +66,65 @@ func TestWSConnection_Subscribe(t *testing.T) {
 		_, err := wsc.subscribe(context.Background(), "sub-1", &common.Request{}, func(_ *common.Message) {})
 
 		assert.ErrorIs(t, err, common.ErrConnectionClosed)
+	})
+
+	t.Run("returns ErrConnectionClosed when shutdown races before lock acquisition", func(t *testing.T) {
+		t.Parallel()
+
+		// Test for TOCTOU between closed.Load() and subsMu.Lock()
+		// in subscribe().
+		//
+		// Without a closed re-check under the lock, this sequence is possible:
+		// 1. subscribe: closed.Load() → false  (check)
+		// 2. shutdown:  closed.CAS(false,true)  (invalidates the check)
+		// 3. shutdown:  swaps c.subs, dispatches errors to old handlers
+		// 4. subscribe: subsMu.Lock(), adds handler to NEW empty map (use)
+		// 5. subscribe: protocol.Subscribe → nil (mock doesn't check conn)
+		// 6. subscribe returns (cancel, nil) — looks successful
+		//
+		// The handler is now orphaned: closed=true prevents any future
+		// shutdown from running (CAS fails), so the handler will never
+		// receive a terminal message. This test forces the exact interleaving
+		// deterministically.
+
+		conn, _ := newTestConn(t)
+		proto := newMockProtocol()
+		wsc := newWSConnection(conn, proto, wsConnectionOptions{})
+
+		// Step 1: Hold subsMu so subscribe() blocks after its closed check.
+		wsc.subsMu.Lock()
+
+		subscribeResult := make(chan error, 1)
+		go func() {
+			// Passes closed.Load() (still false), then blocks on subsMu.Lock().
+			_, err := wsc.subscribe(context.Background(), "sub-race", &common.Request{}, func(_ *common.Message) {})
+			subscribeResult <- err
+		}()
+
+		// Let the goroutine reach the blocked Lock().
+		runtime.Gosched()
+		time.Sleep(5 * time.Millisecond)
+
+		// Step 2: Simulate what shutdown does first — set closed=true.
+		// We set it directly rather than calling shutdown() because shutdown
+		// also needs subsMu (which we hold), and we want to control ordering.
+		wsc.closed.Store(true)
+
+		// Step 3: Release the lock. subscribe() now enters the critical
+		// section with a stale view: it saw closed=false, but closed is now true.
+		wsc.subsMu.Unlock()
+
+		select {
+		case err := <-subscribeResult:
+			// With the fix: subscribe re-checks closed under the lock → ErrConnectionClosed.
+			// Without the fix: subscribe succeeds (nil error) — the handler is orphaned
+			// because closed=true means no future shutdown() can deliver a terminal message.
+			require.ErrorIs(t, err, common.ErrConnectionClosed,
+				"subscribe must detect closed state under the lock; without this check "+
+					"the handler is orphaned (closed=true prevents future shutdown)")
+		case <-time.After(time.Second):
+			t.Fatal("subscribe did not return within timeout")
+		}
 	})
 
 	t.Run("returns error when protocol subscribe fails", func(t *testing.T) {
