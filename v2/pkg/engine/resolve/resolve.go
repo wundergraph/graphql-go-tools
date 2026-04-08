@@ -676,7 +676,10 @@ func (r *Resolver) executeStartupHooks(add *addSubscription, updater *subscripti
 }
 
 // registerSubscriptionLocked updates the by-ID and by-connection indexes.
-func (r *Resolver) registerSubscriptionLocked(s *subscriptionState) {
+func (r *Resolver) registerSubscriptionLocked(trig *trigger, s *subscriptionState) {
+	trig.mu.Lock()
+	trig.subscriptions[s.id] = s
+	trig.mu.Unlock()
 	id := s.id
 	r.subscriptionsByID[id] = s
 	byConn, ok := r.subscriptionsByConnection[id.ConnectionID]
@@ -700,8 +703,13 @@ func (r *Resolver) unregisterSubscriptionLocked(id SubscriptionIdentifier) {
 	}
 }
 
-// addSubscriptionLocked registers a new subscription under the given trigger.
-func (r *Resolver) addSubscriptionLocked(triggerID uint64, add *addSubscription) {
+// addSubscription registers a new subscription under the given trigger.
+func (r *Resolver) addSubscription(triggerID uint64, add *addSubscription) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.shutdown {
+		return r.ctx.Err()
+	}
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:add:%d:%d\n", triggerID, add.id.SubscriptionID)
 	}
@@ -726,16 +734,13 @@ func (r *Resolver) addSubscriptionLocked(triggerID uint64, add *addSubscription)
 			fmt.Printf("resolver:trigger:subscription:added:%d:%d\n", triggerID, add.id.SubscriptionID)
 		}
 		// Register first so startup hooks can deliver initial data via UpdateSubscription.
-		trig.mu.Lock()
-		trig.subscriptions[add.id] = s
-		trig.mu.Unlock()
-		r.registerSubscriptionLocked(s)
+		r.registerSubscriptionLocked(trig, s)
 		// Execute the startup hooks in a goroutine to avoid holding the lock.
 		// On failure, executeStartupHooks calls UnsubscribeSubscription to clean up.
 		go func() {
 			_ = r.executeStartupHooks(add, trig.updater)
 		}()
-		return
+		return nil
 	}
 
 	if r.options.Debug {
@@ -756,11 +761,8 @@ func (r *Resolver) addSubscriptionLocked(triggerID uint64, add *addSubscription)
 		updater:       updater,
 	}
 	r.triggers[triggerID] = trig
-	trig.mu.Lock()
-	trig.subscriptions[add.id] = s
-	trig.mu.Unlock()
 	updater.subsFn = trig.subscriptionIds
-	r.registerSubscriptionLocked(s)
+	r.registerSubscriptionLocked(trig, s)
 
 	if r.reporter != nil {
 		r.reporter.SubscriptionCountInc(1)
@@ -793,6 +795,7 @@ func (r *Resolver) addSubscriptionLocked(triggerID uint64, add *addSubscription)
 			fmt.Printf("resolver:trigger:started:%d\n", triggerID)
 		}
 	}()
+	return nil
 }
 
 // markTriggerInitialized marks a trigger as initialized under the lock.
@@ -871,7 +874,12 @@ func (r *Resolver) handleTriggerError(triggerID uint64, data []byte) {
 	}
 }
 
-func (r *Resolver) removeClientLocked(id int64) removeClientResult {
+func (r *Resolver) removeClient(id int64) removeClientResult {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.shutdown {
+		return removeClientResult{}
+	}
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:remove:client:%d\n", id)
 	}
@@ -895,12 +903,19 @@ func (r *Resolver) removeClientLocked(id int64) removeClientResult {
 			}
 		}
 	}
-	return removeClientResult{
+	res := removeClientResult{
 		removed:    removed,
 		toClose:    toClose,
 		cancels:    cancels,
 		triggerDec: triggerDec,
 	}
+	if r.reporter != nil {
+		r.reporter.SubscriptionCountDec(res.removed)
+		if res.triggerDec > 0 {
+			r.reporter.TriggerCountDec(res.triggerDec)
+		}
+	}
+	return res
 }
 
 // removeSubscriptionLocked removes a single subscription by id.
@@ -1225,19 +1240,7 @@ func (r *Resolver) UnsubscribeSubscription(id SubscriptionIdentifier) error {
 }
 
 func (r *Resolver) UnsubscribeClient(connectionID int64) error {
-	r.mu.Lock()
-	if r.shutdown {
-		r.mu.Unlock()
-		return r.ctx.Err()
-	}
-	res := r.removeClientLocked(connectionID)
-	if r.reporter != nil {
-		r.reporter.SubscriptionCountDec(res.removed)
-		if res.triggerDec > 0 {
-			r.reporter.TriggerCountDec(res.triggerDec)
-		}
-	}
-	r.mu.Unlock()
+	res := r.removeClient(connectionID)
 	closeSubs(res.toClose)
 	for _, cancel := range res.cancels {
 		cancel()
@@ -1313,12 +1316,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 
 	completed := make(chan struct{})
 
-	r.mu.Lock()
-	if r.shutdown {
-		r.mu.Unlock()
-		return r.ctx.Err()
-	}
-	r.addSubscriptionLocked(triggerID, &addSubscription{
+	if err := r.addSubscription(triggerID, &addSubscription{
 		ctx:        ctx,
 		input:      input,
 		resolve:    subscription,
@@ -1327,8 +1325,9 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		completed:  completed,
 		sourceName: subscription.Trigger.SourceName,
 		headers:    headers,
-	})
-	r.mu.Unlock()
+	}); err != nil {
+		return err
+	}
 
 	// This will immediately block until one of the following conditions is met:
 	select {
@@ -1402,16 +1401,7 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 
 	headers, triggerID := r.prepareTrigger(ctx, subscription.Trigger.SourceName, input)
 
-	r.mu.Lock()
-	if err := ctx.ctx.Err(); err != nil {
-		r.mu.Unlock()
-		return err
-	}
-	if r.shutdown {
-		r.mu.Unlock()
-		return r.ctx.Err()
-	}
-	r.addSubscriptionLocked(triggerID, &addSubscription{
+	return r.addSubscription(triggerID, &addSubscription{
 		ctx:        ctx,
 		input:      input,
 		resolve:    subscription,
@@ -1421,8 +1411,6 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 		sourceName: subscription.Trigger.SourceName,
 		headers:    headers,
 	})
-	r.mu.Unlock()
-	return nil
 }
 
 func (r *Resolver) subscriptionInput(ctx *Context, subscription *GraphQLSubscription) (input []byte, err error) {
