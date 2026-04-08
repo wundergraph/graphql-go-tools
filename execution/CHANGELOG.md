@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.11.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.10.0...execution/v1.11.0) (2026-04-08)
+
+
+### Features
+
+* check slicing Arguments passed when requireOneSlicingArgument ([#1456](https://github.com/wundergraph/graphql-go-tools/issues/1456)) ([72c181f](https://github.com/wundergraph/graphql-go-tools/commit/72c181f8a5316f974985bcd2c7f364bf3fdc997c))
+* handle recursion for arguments containing input objects ([#1461](https://github.com/wundergraph/graphql-go-tools/issues/1461)) ([ba21793](https://github.com/wundergraph/graphql-go-tools/commit/ba21793c75bdd68a1f6bf70583cc09cbd767139b))
+
 ## [1.10.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.9.0...execution/v1.10.0) (2026-03-19)
 
 
