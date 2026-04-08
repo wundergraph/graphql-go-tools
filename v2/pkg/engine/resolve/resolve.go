@@ -444,14 +444,14 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 
 // trigger groups subscriptions that share a data source and input.
 type trigger struct {
-	// mu protects subscriptions and initialized.
+	// mu protects subscriptions.
 	// Uses snapshot-and-release: held only during map access, released before I/O.
 	mu            sync.RWMutex
 	id            uint64
 	cancel        context.CancelFunc
 	subscriptions map[SubscriptionIdentifier]*subscriptionState
-	// initialized is set to true when the trigger is started and initialized
-	initialized bool
+	// initialized is set to true when the trigger is started and initialized.
+	initialized atomic.Bool
 	updater     *subscriptionUpdater
 }
 
@@ -464,6 +464,70 @@ func (t *trigger) subscriptionIds() map[context.Context]SubscriptionIdentifier {
 		subs[sub.ctx.Context()] = sub.id
 	}
 	return subs
+}
+
+// snapshotSubscriptions returns a point-in-time copy of all subscriptions.
+func (t *trigger) snapshotSubscriptions() []*subscriptionState {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	subs := make([]*subscriptionState, 0, len(t.subscriptions))
+	for _, s := range t.subscriptions {
+		subs = append(subs, s)
+	}
+	return subs
+}
+
+// evalFilter runs SkipEvent for a single subscription. Must be called under t.mu.
+func (t *trigger) evalFilter(s *subscriptionState, data []byte) (*subscriptionState, *pendingFilterError) {
+	if s.ctx.ctx.Err() != nil {
+		return nil, nil
+	}
+	skip, err := s.resolve.Filter.SkipEvent(s.ctx, data)
+	if err != nil {
+		fe := pendingFilterError{s.ctx, err, s.resolve.Response, s.writer}
+		return nil, &fe
+	}
+	if skip {
+		return nil, nil
+	}
+	return s, nil
+}
+
+// filterSubscriptions evaluates SkipEvent for every active subscription and
+// partitions them into pending updates and filter errors.
+func (t *trigger) filterSubscriptions(data []byte) ([]*subscriptionState, []pendingFilterError) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	var subs []*subscriptionState
+	var filterErrors []pendingFilterError
+
+	for _, s := range t.subscriptions {
+		pending, filterErr := t.evalFilter(s, data)
+		if pending != nil {
+			subs = append(subs, pending)
+		}
+		if filterErr != nil {
+			filterErrors = append(filterErrors, *filterErr)
+		}
+	}
+
+	return subs, filterErrors
+}
+
+// filterSubscription evaluates SkipEvent for a single subscription by ID.
+func (t *trigger) filterSubscription(id SubscriptionIdentifier, data []byte) (*subscriptionState, *pendingFilterError) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	s, ok := t.subscriptions[id]
+	if !ok {
+		return nil, nil
+	}
+
+	sub, filterErr := t.evalFilter(s, data)
+
+	return sub, filterErr
 }
 
 // subscriptionState tracks a single active subscription.
@@ -635,18 +699,6 @@ func (r *Resolver) executeSubscriptionHeartbeat(sub *subscriptionState) {
 	}
 }
 
-func (r *Resolver) handleTriggerInitialized(triggerID uint64) {
-	trig, ok := r.triggers[triggerID]
-	if !ok {
-		return
-	}
-	trig.initialized = true
-
-	if r.reporter != nil {
-		r.reporter.TriggerCountInc(1)
-	}
-}
-
 type StartupHookContext struct {
 	Context context.Context
 	Updater func(data []byte)
@@ -798,11 +850,23 @@ func (r *Resolver) addSubscription(triggerID uint64, add *addSubscription) error
 	return nil
 }
 
-// markTriggerInitialized marks a trigger as initialized under the lock.
-func (r *Resolver) markTriggerInitialized(triggerID uint64) {
+func (r *Resolver) getTrigger(id uint64) (*trigger, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.handleTriggerInitialized(triggerID)
+	trig, ok := r.triggers[id]
+	return trig, ok
+}
+
+// markTriggerInitialized marks a trigger as initialized and reports it.
+func (r *Resolver) markTriggerInitialized(triggerID uint64) {
+	trig, ok := r.getTrigger(triggerID)
+	if !ok {
+		return
+	}
+	trig.initialized.Store(true)
+	if r.reporter != nil {
+		r.reporter.TriggerCountInc(1)
+	}
 }
 
 // doneTriggerFromUpdater performs cleanup for a trigger from a datasource/updater goroutine.
@@ -829,19 +893,11 @@ func (r *Resolver) doneTriggerFromUpdater(triggerID uint64) {
 // handleTriggerComplete delivers a complete signal to all subscriptions on the trigger.
 // Does NOT detach the trigger — Done() does that.
 func (r *Resolver) handleTriggerComplete(triggerID uint64) {
-	r.mu.Lock()
-	trig, ok := r.triggers[triggerID]
+	trig, ok := r.getTrigger(triggerID)
 	if !ok {
-		r.mu.Unlock()
 		return
 	}
-	trig.mu.Lock()
-	subs := make([]*subscriptionState, 0, len(trig.subscriptions))
-	for _, s := range trig.subscriptions {
-		subs = append(subs, s)
-	}
-	trig.mu.Unlock()
-	r.mu.Unlock()
+	subs := trig.snapshotSubscriptions()
 
 	for _, s := range subs {
 		if !s.removed.Load() {
@@ -853,19 +909,11 @@ func (r *Resolver) handleTriggerComplete(triggerID uint64) {
 // handleTriggerError delivers a terminal error to all subscriptions on the trigger,
 // bypassing the resolve pipeline. Does NOT detach the trigger — Done() does that.
 func (r *Resolver) handleTriggerError(triggerID uint64, data []byte) {
-	r.mu.Lock()
-	trig, ok := r.triggers[triggerID]
+	trig, ok := r.getTrigger(triggerID)
 	if !ok {
-		r.mu.Unlock()
 		return
 	}
-	trig.mu.Lock()
-	subs := make([]*subscriptionState, 0, len(trig.subscriptions))
-	for _, s := range trig.subscriptions {
-		subs = append(subs, s)
-	}
-	trig.mu.Unlock()
-	r.mu.Unlock()
+	subs := trig.snapshotSubscriptions()
 
 	for _, s := range subs {
 		if !s.removed.Load() {
@@ -955,7 +1003,7 @@ func (r *Resolver) removeSubscriptionLocked(id SubscriptionIdentifier) removeRes
 	if empty {
 		delete(r.triggers, trig.id)
 		triggerCancel = trig.cancel
-		initialized = trig.initialized
+		initialized = trig.initialized.Load()
 	}
 
 	return removeResult{
@@ -994,7 +1042,7 @@ func (r *Resolver) detachTriggerLocked(id uint64) removeResult {
 		removed:       removed,
 		toClose:       toClose,
 		triggerCancel: trig.cancel,
-		initialized:   trig.initialized,
+		initialized:   trig.initialized.Load(),
 	}
 }
 
@@ -1023,9 +1071,7 @@ type pendingFilterError struct {
 // The lock is released before performing I/O to avoid deadlocks when executeSubscriptionUpdate
 // calls AsyncUnsubscribeSubscription on flush failure.
 func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
-	r.mu.Lock()
-	trig, ok := r.triggers[id]
-	r.mu.Unlock()
+	trig, ok := r.getTrigger(id)
 	if !ok {
 		return
 	}
@@ -1033,31 +1079,14 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 		fmt.Printf("resolver:trigger:update:%d\n", id)
 	}
 
-	var pending []*subscriptionState
-	var filterErrors []pendingFilterError
-	trig.mu.Lock()
-	for _, s := range trig.subscriptions {
-		if s.ctx.ctx.Err() != nil {
-			continue
-		}
-		skip, err := s.resolve.Filter.SkipEvent(s.ctx, data)
-		if err != nil {
-			filterErrors = append(filterErrors, pendingFilterError{s.ctx, err, s.resolve.Response, s.writer})
-			continue
-		}
-		if skip {
-			continue
-		}
-		pending = append(pending, s)
-	}
-	trig.mu.Unlock()
+	subs, filterErrors := trig.filterSubscriptions(data)
 
 	for _, fe := range filterErrors {
 		r.asyncErrorWriter.WriteError(fe.ctx, fe.err, fe.response, fe.writer)
 	}
 
 	var wg sync.WaitGroup
-	for _, sub := range pending {
+	for _, sub := range subs {
 		if sub.removed.Load() {
 			continue
 		}
@@ -1070,9 +1099,7 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 
 // handleUpdateSubscription sends data to a single subscription using snapshot-and-release.
 func (r *Resolver) handleUpdateSubscription(id uint64, data []byte, subIdentifier SubscriptionIdentifier) {
-	r.mu.Lock()
-	trig, ok := r.triggers[id]
-	r.mu.Unlock()
+	trig, ok := r.getTrigger(id)
 	if !ok {
 		return
 	}
@@ -1081,42 +1108,26 @@ func (r *Resolver) handleUpdateSubscription(id uint64, data []byte, subIdentifie
 		fmt.Printf("resolver:trigger:subscription:update:%d:%d,%d\n", id, subIdentifier.ConnectionID, subIdentifier.SubscriptionID)
 	}
 
-	var target *subscriptionState
-	var filterErr *pendingFilterError
-	trig.mu.Lock()
-	s, ok := trig.subscriptions[subIdentifier]
-	if ok {
-		if s.ctx.ctx.Err() == nil {
-			skip, err := s.resolve.Filter.SkipEvent(s.ctx, data)
-			if err != nil {
-				filterErr = &pendingFilterError{s.ctx, err, s.resolve.Response, s.writer}
-			} else if !skip {
-				target = s
-			}
-		}
-	}
-	trig.mu.Unlock()
+	sub, filterErr := trig.filterSubscription(subIdentifier, data)
 
 	if filterErr != nil {
 		r.asyncErrorWriter.WriteError(filterErr.ctx, filterErr.err, filterErr.response, filterErr.writer)
 	}
 
-	if target != nil && !target.removed.Load() {
-		r.executeSubscriptionUpdate(target.ctx, target, data)
+	if sub != nil && !sub.removed.Load() {
+		r.executeSubscriptionUpdate(sub.ctx, sub, data)
 	}
 }
 
 func (r *Resolver) heartbeatTriggerSubscriptions(id uint64) {
-	r.mu.Lock()
-	trig, ok := r.triggers[id]
-	r.mu.Unlock()
+	trig, ok := r.getTrigger(id)
 	if !ok {
 		return
 	}
 
-	targets := make([]*subscriptionState, 0, len(trig.subscriptions))
-	trig.mu.RLock()
-	for _, s := range trig.subscriptions {
+	subs := trig.snapshotSubscriptions()
+	targets := make([]*subscriptionState, 0, len(subs))
+	for _, s := range subs {
 		if !s.heartbeat || s.removed.Load() {
 			continue
 		}
@@ -1125,7 +1136,6 @@ func (r *Resolver) heartbeatTriggerSubscriptions(id uint64) {
 		}
 		targets = append(targets, s)
 	}
-	trig.mu.RUnlock()
 
 	for _, s := range targets {
 		r.executeSubscriptionHeartbeat(s)
