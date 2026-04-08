@@ -92,7 +92,7 @@ func (p *GraphQLWS) Unsubscribe(ctx context.Context, conn *websocket.Conn, id st
 }
 
 // Read implements Protocol.
-func (p *GraphQLWS) Read(ctx context.Context, conn *websocket.Conn) (*Message, error) {
+func (p *GraphQLWS) Read(ctx context.Context, conn *websocket.Conn) (*WireMessage, error) {
 	var raw incomingMessage
 	if err := wsjson.Read(ctx, conn, &raw); err != nil {
 		return nil, fmt.Errorf("read message: %w", err)
@@ -115,8 +115,8 @@ func (p *GraphQLWS) Pong(ctx context.Context, conn *websocket.Conn) error {
 	return nil
 }
 
-func (p *GraphQLWS) decode(raw incomingMessage) (*Message, error) {
-	msg := &Message{
+func (p *GraphQLWS) decode(raw incomingMessage) (*WireMessage, error) {
+	msg := &WireMessage{
 		ID: raw.ID,
 	}
 

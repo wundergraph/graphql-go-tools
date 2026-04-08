@@ -193,7 +193,7 @@ func (c *wsConnection) readLoop() {
 	}
 }
 
-func (c *wsConnection) dispatch(msg *protocol.Message) {
+func (c *wsConnection) dispatch(msg *protocol.WireMessage) {
 	c.subsMu.RLock()
 	handler, exists := c.subs[msg.ID]
 	c.subsMu.RUnlock()

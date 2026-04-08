@@ -99,7 +99,7 @@ func TestWSConnection_ReadLoop(t *testing.T) {
 
 		go wsc.readLoop()
 
-		proto.PushMessage(&protocol.Message{
+		proto.PushMessage(&protocol.WireMessage{
 			ID:      "sub-1",
 			Type:    protocol.MessageData,
 			Payload: &common.ExecutionResult{Data: json.RawMessage(`{"value": 42}`)},
@@ -123,7 +123,7 @@ func TestWSConnection_ReadLoop(t *testing.T) {
 
 		go wsc.readLoop()
 
-		proto.PushMessage(&protocol.Message{
+		proto.PushMessage(&protocol.WireMessage{
 			ID:   "sub-1",
 			Type: protocol.MessageComplete,
 		})
@@ -141,7 +141,7 @@ func TestWSConnection_ReadLoop(t *testing.T) {
 
 		go wsc.readLoop()
 
-		proto.PushMessage(&protocol.Message{Type: protocol.MessagePing})
+		proto.PushMessage(&protocol.WireMessage{Type: protocol.MessagePing})
 
 		assert.Eventually(t, func() bool {
 			return proto.PongCount() > 0
@@ -162,13 +162,13 @@ func TestWSConnection_ReadLoop(t *testing.T) {
 
 		go wsc.readLoop()
 
-		proto.PushMessage(&protocol.Message{
+		proto.PushMessage(&protocol.WireMessage{
 			ID:      "unknown-sub",
 			Type:    protocol.MessageData,
 			Payload: &common.ExecutionResult{Data: json.RawMessage(`{"wrong": true}`)},
 		})
 
-		proto.PushMessage(&protocol.Message{
+		proto.PushMessage(&protocol.WireMessage{
 			ID:      "sub-1",
 			Type:    protocol.MessageData,
 			Payload: &common.ExecutionResult{Data: json.RawMessage(`{"right": true}`)},
@@ -508,10 +508,10 @@ func TestWSConnection_WriteTimeout(t *testing.T) {
 		go wsc.readLoop()
 
 		// Send ping (will trigger slow pong)
-		proto.PushMessage(&protocol.Message{Type: protocol.MessagePing})
+		proto.PushMessage(&protocol.WireMessage{Type: protocol.MessagePing})
 
 		// Send data message right after
-		proto.PushMessage(&protocol.Message{
+		proto.PushMessage(&protocol.WireMessage{
 			ID:      "sub-1",
 			Type:    protocol.MessageData,
 			Payload: &common.ExecutionResult{Data: json.RawMessage(`{"test": true}`)},
@@ -621,7 +621,7 @@ type mockProtocol struct {
 	unsubscribeDelay time.Duration
 	pongDelay        time.Duration
 
-	messages chan *protocol.Message
+	messages chan *protocol.WireMessage
 }
 
 type subscribeCall struct {
@@ -631,7 +631,7 @@ type subscribeCall struct {
 
 func newMockProtocol() *mockProtocol {
 	return &mockProtocol{
-		messages: make(chan *protocol.Message, 100),
+		messages: make(chan *protocol.WireMessage, 100),
 	}
 }
 
@@ -663,7 +663,7 @@ func (m *mockProtocol) Unsubscribe(ctx context.Context, conn *websocket.Conn, id
 	return nil
 }
 
-func (m *mockProtocol) Read(ctx context.Context, conn *websocket.Conn) (*protocol.Message, error) {
+func (m *mockProtocol) Read(ctx context.Context, conn *websocket.Conn) (*protocol.WireMessage, error) {
 	select {
 	case msg := <-m.messages:
 		return msg, nil
@@ -691,7 +691,7 @@ func (m *mockProtocol) Pong(ctx context.Context, conn *websocket.Conn) error {
 	return nil
 }
 
-func (m *mockProtocol) PushMessage(msg *protocol.Message) {
+func (m *mockProtocol) PushMessage(msg *protocol.WireMessage) {
 	m.messages <- msg
 }
 

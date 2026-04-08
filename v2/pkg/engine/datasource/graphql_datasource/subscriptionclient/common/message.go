@@ -23,6 +23,7 @@ func (t MessageType) IsTerminal() bool {
 	return t == MessageTypeError || t == MessageTypeComplete || t == MessageTypeConnectionError
 }
 
+// Message is a single subscription event delivered to a Handler.
 type Message struct {
 	Type    MessageType
 	Payload *ExecutionResult
@@ -33,12 +34,14 @@ type Message struct {
 // transport's read goroutine; a slow handler blocks message delivery.
 type Handler func(msg *Message)
 
+// ExecutionResult is the GraphQL response payload for data and error messages.
 type ExecutionResult struct {
 	Data       json.RawMessage `json:"data,omitempty"`
 	Errors     json.RawMessage `json:"errors,omitempty"`
 	Extensions json.RawMessage `json:"extensions,omitempty"`
 }
 
+// Request is a GraphQL operation sent to the server when subscribing.
 type Request struct {
 	Query         string          `json:"query"`
 	OperationName string          `json:"operationName,omitempty"`

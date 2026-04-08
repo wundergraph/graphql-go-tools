@@ -4,21 +4,24 @@ import (
 	"net/http"
 )
 
+// TransportType selects the subscription transport mechanism.
 type TransportType string
 
 const (
-	TransportWS  TransportType = "ws"
-	TransportSSE TransportType = "sse"
+	TransportWS  TransportType = "ws"  // WebSocket connection
+	TransportSSE TransportType = "sse" // Server-Sent Events over HTTP
 )
 
+// WSSubprotocol selects the GraphQL-over-WebSocket subprotocol.
 type WSSubprotocol string
 
 const (
 	SubprotocolAuto               WSSubprotocol = ""                     // Auto, negotiated with the server
-	SubprotocolGraphQLTransportWS WSSubprotocol = "graphql-transport-ws" // Modern subprotocol
-	SubprotocolGraphQLWS          WSSubprotocol = "graphql-ws"           // Legacy subprotocol, deprecated
+	SubprotocolGraphQLTransportWS WSSubprotocol = "graphql-transport-ws" // Modern protocol from The Guild
+	SubprotocolGraphQLWS          WSSubprotocol = "graphql-ws"           // Legacy Apollo protocol, deprecated
 )
 
+// Subprotocols returns the WebSocket subprotocol strings to offer during the upgrade handshake.
 func (s WSSubprotocol) Subprotocols() []string {
 	switch s {
 	case SubprotocolAuto:
@@ -40,6 +43,7 @@ const (
 	SSEMethodGET  SSEMethod = "GET"  // GET with query parameters (traditional SSE)
 )
 
+// Options configures a single subscription request (endpoint, headers, transport selection).
 type Options struct {
 	Endpoint    string
 	Headers     http.Header

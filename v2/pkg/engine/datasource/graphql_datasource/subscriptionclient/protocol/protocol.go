@@ -9,17 +9,24 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
 )
 
+// Protocol defines the message framing and behaviour used on a WS connection.
 type Protocol interface {
+	// Init performs the connection handshake with the server.
 	Init(ctx context.Context, conn *websocket.Conn, payload map[string]any) error
 
+	// Subscribe starts a subscription for the given operation.
 	Subscribe(ctx context.Context, conn *websocket.Conn, id string, req *common.Request) error
 
+	// Unsubscribe ends a subscription.
 	Unsubscribe(ctx context.Context, conn *websocket.Conn, id string) error
 
-	Read(ctx context.Context, conn *websocket.Conn) (*Message, error)
+	// Read blocks until the next message arrives and decodes it.
+	Read(ctx context.Context, conn *websocket.Conn) (*WireMessage, error)
 
+	// Ping requests a liveness check from the server. No-op for protocols that don't support it.
 	Ping(ctx context.Context, conn *websocket.Conn) error
 
+	// Pong responds to a server liveness check. No-op for protocols that don't support it.
 	Pong(ctx context.Context, conn *websocket.Conn) error
 }
 
@@ -29,14 +36,17 @@ var (
 	ErrConnectionError = errors.New("connection error from server")
 )
 
-type Message struct {
+// WireMessage is a decoded wire-level protocol message.
+// It is different from the common message format because it still contains the ID and internal type,
+// which is not exposed to consumers.
+type WireMessage struct {
 	ID      string
-	Type    MessageType
+	Type    WireMessageType
 	Payload *common.ExecutionResult
 	Err     error
 }
 
-func (m *Message) IntoClientMessage() *common.Message {
+func (m *WireMessage) IntoClientMessage() *common.Message {
 	switch m.Type {
 	case MessageData:
 		return &common.Message{Type: common.MessageTypeData, Payload: m.Payload}
@@ -52,18 +62,18 @@ func (m *Message) IntoClientMessage() *common.Message {
 	}
 }
 
-// MessageType identifies the message type.
-type MessageType int
+// WireMessageType identifies the message type.
+type WireMessageType int
 
 const (
-	MessageData MessageType = iota
+	MessageData WireMessageType = iota
 	MessageError
 	MessageComplete
 	MessagePing
 	MessagePong
 )
 
-func (t MessageType) String() string {
+func (t WireMessageType) String() string {
 	switch t {
 	case MessageData:
 		return "data"
