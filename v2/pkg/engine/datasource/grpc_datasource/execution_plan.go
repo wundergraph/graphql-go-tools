@@ -383,9 +383,9 @@ func formatRPCMessage(sb *strings.Builder, message RPCMessage, indent int) {
 }
 
 type rpcPlanningContext struct {
-	operation        *ast.Document
-	definition       *ast.Document
-	mapping          *GRPCMapping
+	operation         *ast.Document
+	definition        *ast.Document
+	mapping           *GRPCMapping
 	visitedInputTypes map[string]*RPCMessage
 }
 
@@ -395,7 +395,7 @@ func newRPCPlanningContext(operation *ast.Document, definition *ast.Document, ma
 		operation:         operation,
 		definition:        definition,
 		mapping:           mapping,
-		visitedInputTypes: make(map[string]*RPCMessage),
+		visitedInputTypes: make(map[string]*RPCMessage, len(definition.InputObjectTypeDefinitions)),
 	}
 }
 
