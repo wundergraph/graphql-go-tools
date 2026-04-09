@@ -854,6 +854,186 @@ func TestAddRequiredFields(t *testing.T) {
 			expectedRemappedPaths:       map[string]string{"User.settings": "__internal_2_settings"},
 		},
 		{
+			name: "requires with inline fragments in deferred context - enforce typename and assign defer directive",
+			definition: `
+				type Query {
+					account: Account
+				}
+				type Account {
+					id: ID!
+					node: Node!
+				}
+				interface Node {
+					id: ID!
+				}
+				type User implements Node {
+					id: ID!
+					name: String!
+				}
+				type Admin implements Node {
+					id: ID!
+					role: String!
+				}`,
+			operation: `
+				query {
+					account {
+						id
+					}
+				}`,
+			typeName:  "Account",
+			fieldSet:  "node { ... on User { name } ... on Admin { role } }",
+			isKey:     false,
+			deferInfo: &DeferInfo{ID: "1"},
+			// addTypenameSelection now calls applyDeferInternalDirective so the
+			// auto-added __typename (triggered by inline fragments) carries @__defer_internal
+			expectedOperation: `
+				query {
+					account {
+						id
+						__internal_node: node @__defer_internal(id: "1") {
+							__typename @__defer_internal(id: "1")
+							... on User {
+								name @__defer_internal(id: "1")
+							}
+							... on Admin {
+								role @__defer_internal(id: "1")
+							}
+						}
+					}
+				}`,
+			expectedSkipFieldsCount:     4, // __internal_node alias, __typename, name, role
+			expectedRequiredFieldsCount: 3, // node, name, role (__typename not stored)
+			expectedRemappedPaths:       map[string]string{"Account.node": "__internal_node"},
+		},
+		{
+			name: "requires with addTypenameInNestedSelections no fragments, but typenames are enforced",
+			definition: `
+				type Query {
+					user: User
+				}
+				type User {
+					id: ID!
+					account: Account!
+					fullAccount: String!
+				}
+				type Account {
+					id: ID!
+					type: String!
+				}`,
+			operation: `
+				query {
+					user {
+						fullAccount
+					}
+				}`,
+			typeName:                   "User",
+			fieldSet:                   "account { id }",
+			isKey:                      false,
+			deferInfo:                  &DeferInfo{ID: "1"},
+			enforceTypenameForRequired: true,
+			expectedOperation: `
+				query {
+					user {
+						fullAccount
+						__internal_account: account @__defer_internal(id: "1") {
+							__typename @__defer_internal(id: "1")
+							id @__defer_internal(id: "1")
+						}
+					}
+				}`,
+			expectedSkipFieldsCount:     3, // __internal_account alias, __typename, id
+			expectedRequiredFieldsCount: 2, // account, id (__typename not stored)
+			expectedRemappedPaths:       map[string]string{"User.account": "__internal_account"},
+		},
+		{
+			name: "requires with addTypenameInNestedSelections no fragments, typenames are not enforced",
+			definition: `
+				type Query {
+					user: User
+				}
+				type User {
+					id: ID!
+					account: Account!
+					fullAccount: String!
+				}
+				type Account {
+					id: ID!
+					type: String!
+				}`,
+			operation: `
+				query {
+					user {
+						fullAccount
+					}
+				}`,
+			typeName:  "User",
+			fieldSet:  "account { id }",
+			isKey:     false,
+			deferInfo: &DeferInfo{ID: "1"},
+			expectedOperation: `
+				query {
+					user {
+						fullAccount
+						__internal_account: account @__defer_internal(id: "1") {
+							id @__defer_internal(id: "1")
+						}
+					}
+				}`,
+			expectedSkipFieldsCount:     2, // __internal_account alias, id
+			expectedRequiredFieldsCount: 2, // account, id (__typename not stored)
+			expectedRemappedPaths:       map[string]string{"User.account": "__internal_account"},
+		},
+		{
+			name: "requires with inline fragments and explicit typename in fieldSet in deferred context - do not add duplicated typename",
+			definition: `
+				type Query {
+					account: Account
+				}
+				type Account {
+					id: ID!
+					node: Node!
+				}
+				interface Node {
+					id: ID!
+				}
+				type User implements Node {
+					id: ID!
+					name: String!
+				}
+				type Admin implements Node {
+					id: ID!
+					role: String!
+				}`,
+			operation: `
+				query {
+					account {
+						id
+					}
+				}`,
+			typeName:  "Account",
+			fieldSet:  "node { __typename ... on User { name } ... on Admin { role } }",
+			isKey:     false,
+			deferInfo: &DeferInfo{ID: "1"},
+			expectedOperation: `
+				query {
+					account {
+						id
+						__internal_node: node @__defer_internal(id: "1") {
+							__typename @__defer_internal(id: "1")
+							... on User {
+								name @__defer_internal(id: "1")
+							}
+							... on Admin {
+								role @__defer_internal(id: "1")
+							}
+						}
+					}
+				}`,
+			expectedSkipFieldsCount:     4, // __internal_node alias, __typename, name, role
+			expectedRequiredFieldsCount: 3, // node, name, role (__typename not stored)
+			expectedRemappedPaths:       map[string]string{"Account.node": "__internal_node"},
+		},
+		{
 			name: "requires with defer id - third call with same conflict defer id reuses conflict alias",
 			definition: `
 				type Query { user: User }

@@ -169,25 +169,33 @@ func (v *requiredFieldsVisitor) EnterSelectionSet(ref int) {
 	}
 	operationNode := v.OperationNodes[len(v.OperationNodes)-1]
 
-	keySelectionSetHasFragments := len(v.key.SelectionSetInlineFragmentSelections(ref)) > 0
-
 	if operationNode.Kind == ast.NodeKindField {
+		keySelectionSetHasFragments := len(v.key.SelectionSetInlineFragmentSelections(ref)) > 0
 		enforcedTypename := v.config.addTypenameInNestedSelections && !v.config.isKey
+
+		needTypeName := keySelectionSetHasFragments || enforcedTypename
+
+		// check if the operation already has a selection set for the given operation node
 		if fieldSelectionSetRef, ok := v.config.operation.FieldSelectionSet(operationNode.Ref); ok {
 			selectionSetNode := ast.Node{Kind: ast.NodeKindSelectionSet, Ref: fieldSelectionSetRef}
-			if (keySelectionSetHasFragments || enforcedTypename) &&
-				!v.selectionSetHasTypeNameSelection(fieldSelectionSetRef) {
+			// if we need a typename and operation selection set do not yet have a typename field selection
+			if needTypeName && !v.selectionSetHasTypeNameSelection(fieldSelectionSetRef) {
 				v.addTypenameSelection(fieldSelectionSetRef)
 			}
 			v.OperationNodes = append(v.OperationNodes, selectionSetNode)
 			return
 		}
 
+		// if the key/requires fieldSet already contains the __typename, we do not need to add a duplicate,
+		// as it will be added in the enterFied
+		keySelectionHasTypeName, _ := v.key.SelectionSetHasFieldSelectionWithExactName(ref, typeNameFieldBytes)
+
 		selectionSetNode := v.config.operation.AddSelectionSet()
-		if keySelectionSetHasFragments || enforcedTypename {
+		if needTypeName && !keySelectionHasTypeName {
 			v.addTypenameSelection(selectionSetNode.Ref)
 		}
 
+		// append a selection set for the field
 		v.config.operation.Fields[operationNode.Ref].HasSelections = true
 		v.config.operation.Fields[operationNode.Ref].SelectionSet = selectionSetNode.Ref
 		v.OperationNodes = append(v.OperationNodes, selectionSetNode)
@@ -195,6 +203,7 @@ func (v *requiredFieldsVisitor) EnterSelectionSet(ref int) {
 	}
 
 	// operation node kind InlineFragment
+	// append a selection set for the inline fragment
 	selectionSetNode := v.config.operation.AddSelectionSet()
 	v.config.operation.InlineFragments[operationNode.Ref].HasSelections = true
 	v.config.operation.InlineFragments[operationNode.Ref].SelectionSet = selectionSetNode.Ref
@@ -271,9 +280,11 @@ func (v *requiredFieldsVisitor) selectionSetHasTypeNameSelection(operationSelect
 // addTypenameSelection adds __typename selection to the operation when the key/requires selection set has inline fragments
 func (v *requiredFieldsVisitor) addTypenameSelection(operationSelectionSetRef int) {
 	field := v.config.operation.AddField(ast.Field{
-		Name: v.config.operation.Input.AppendInputString("__typename"),
+		Name: v.config.operation.Input.AppendInputString(typeNameField),
 	})
 	v.skipFieldRefs = append(v.skipFieldRefs, field.Ref)
+
+	v.applyDeferInternalDirective(field.Ref)
 
 	v.config.operation.AddSelection(operationSelectionSetRef, ast.Selection{
 		Ref:  field.Ref,
@@ -290,21 +301,6 @@ func (v *requiredFieldsVisitor) LeaveSelectionSet(ref int) {
 }
 
 func (v *requiredFieldsVisitor) EnterField(ref int) {
-	if v.config.isKey {
-		v.handleKeyField(ref)
-		return
-	}
-
-	v.handleRequiredField(ref)
-}
-
-func (v *requiredFieldsVisitor) isRootLevel() bool {
-	return len(v.OperationNodes) == 1
-}
-
-// handleRequiredField is the EnterField entry point for @requires fields.
-// It builds requiredFieldInfo and dispatches to the deferred or non-deferred path.
-func (v *requiredFieldsVisitor) handleRequiredField(ref int) {
 	fieldName := v.key.FieldNameBytes(ref)
 
 	fi := requiredFieldInfo{
@@ -315,6 +311,21 @@ func (v *requiredFieldsVisitor) handleRequiredField(ref int) {
 		selectionSetRef: v.OperationNodes[len(v.OperationNodes)-1].Ref,
 	}
 
+	if v.config.isKey {
+		v.handleKeyField(fi)
+		return
+	}
+
+	v.handleRequiredField(fi)
+}
+
+func (v *requiredFieldsVisitor) isRootLevel() bool {
+	return len(v.OperationNodes) == 1
+}
+
+// handleRequiredField is the EnterField entry point for @requires fields.
+// It builds requiredFieldInfo and dispatches to the deferred or non-deferred path.
+func (v *requiredFieldsVisitor) handleRequiredField(fi requiredFieldInfo) {
 	// Unlike handleKeyField, __typename IS included in the deferred path here.
 	// For interface objects (entity interfaces) the planner adds __typename as a
 	// @requires field (not a key field) so the owning subgraph can return the real
@@ -402,28 +413,18 @@ func (v *requiredFieldsVisitor) handleRequiredFieldNonDeferred(field requiredFie
 
 // handleKeyField is the EnterField entry point for key fields.
 // It builds requiredFieldInfo and dispatches to the deferred or non-deferred path.
-func (v *requiredFieldsVisitor) handleKeyField(keyFieldRef int) {
-	fieldName := v.key.FieldNameBytes(keyFieldRef)
-
-	field := requiredFieldInfo{
-		ref:             keyFieldRef,
-		fieldName:       fieldName,
-		isTypeName:      bytes.Equal(fieldName, typeNameFieldBytes),
-		isLeaf:          !v.key.FieldHasSelections(keyFieldRef),
-		selectionSetRef: v.OperationNodes[len(v.OperationNodes)-1].Ref,
-	}
-
+func (v *requiredFieldsVisitor) handleKeyField(fi requiredFieldInfo) {
 	// Key fields must never alias __typename, even in a deferred context.
 	// __typename is not part of the user-visible key field set; instead it is
 	// always injected by the representation variables builder with the static
 	// name "__typename". Aliasing it would break that builder.
 	// (handleRequiredField does NOT exclude __typename here because for
 	// interface objects __typename is fetched via @requires, not keys.)
-	if v.config.deferInfo != nil && v.isRootLevel() && !field.isTypeName {
-		v.handleKeyFieldDeferred(field)
+	if v.config.deferInfo != nil && v.isRootLevel() && !fi.isTypeName {
+		v.handleKeyFieldDeferred(fi)
 		return
 	}
-	v.handleKeyFieldNonDeferred(field)
+	v.handleKeyFieldNonDeferred(fi)
 }
 
 // handleKeyFieldDeferred handles key fields in a deferred context.
