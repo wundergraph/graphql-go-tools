@@ -100,10 +100,8 @@ func TestExecutionPlan_RecursiveInputTypes(t *testing.T) {
 		require.Len(t, conditionsField.Message.Fields, 4)
 
 		// The and/or fields should reference the same ConditionsInput message (cycle).
-		andField := conditionsField.Message.Fields[0]
-		orField := conditionsField.Message.Fields[1]
-		require.Equal(t, "and", andField.JSONPath)
-		require.Equal(t, "or", orField.JSONPath)
+		andField := findField(t, conditionsField.Message.Fields, "and")
+		orField := findField(t, conditionsField.Message.Fields, "or")
 		require.True(t, andField.Message == conditionsField.Message, "and field should reference the same ConditionsInput message")
 		require.True(t, orField.Message == conditionsField.Message, "or field should reference the same ConditionsInput message")
 	})
@@ -152,8 +150,7 @@ func TestExecutionPlan_RecursiveInputTypes(t *testing.T) {
 		require.Len(t, inputField.Message.Fields, 2)
 
 		// The child field should reference the same FilterInput message.
-		childField := inputField.Message.Fields[0]
-		require.Equal(t, "child", childField.JSONPath)
+		childField := findField(t, inputField.Message.Fields, "child")
 		require.True(t, childField.Message == inputField.Message, "child field should reference the same FilterInput message")
 	})
 
@@ -201,16 +198,27 @@ func TestExecutionPlan_RecursiveInputTypes(t *testing.T) {
 		require.Len(t, exprField.Message.Fields, 2)
 
 		// ExprInput.not -> NotExprInput.expr -> ExprInput (cycle)
-		notField := exprField.Message.Fields[0]
-		require.Equal(t, "not", notField.JSONPath)
+		notField := findField(t, exprField.Message.Fields, "not")
 		require.NotNil(t, notField.Message)
 		require.Equal(t, "NotExprInput", notField.Message.Name)
 		require.Len(t, notField.Message.Fields, 1)
 
-		backRef := notField.Message.Fields[0]
-		require.Equal(t, "expr", backRef.JSONPath)
+		backRef := findField(t, notField.Message.Fields, "expr")
 		require.True(t, backRef.Message == exprField.Message, "NotExprInput.expr should reference the same ExprInput message")
 	})
+}
+
+func findField(t *testing.T, fields RPCFields, jsonPath string) RPCField {
+	t.Helper()
+
+	for _, f := range fields {
+		if f.JSONPath == jsonPath {
+			return f
+		}
+	}
+
+	t.Fatalf("field with JSONPath %q not found", jsonPath)
+	return RPCField{}
 }
 
 func planRecursiveTest(t *testing.T, query, schema string, mapping *GRPCMapping) *RPCExecutionPlan {
