@@ -36,6 +36,18 @@ func (s *MockService) QueryCategories(ctx context.Context, in *productv1.QueryCa
 	}, nil
 }
 
+// Implementation for QueryCategory
+func (s *MockService) QueryCategory(ctx context.Context, in *productv1.QueryCategoryRequest) (*productv1.QueryCategoryResponse, error) {
+	id := in.GetId()
+	return &productv1.QueryCategoryResponse{
+		Category: &productv1.Category{
+			Id:   id,
+			Name: fmt.Sprintf("Category %s", id),
+			Kind: productv1.CategoryKind_CATEGORY_KIND_BOOK,
+		},
+	}, nil
+}
+
 // Implementation for QueryCategoriesByKind
 func (s *MockService) QueryCategoriesByKind(ctx context.Context, in *productv1.QueryCategoriesByKindRequest) (*productv1.QueryCategoriesByKindResponse, error) {
 	kind := in.GetKind()

@@ -215,7 +215,13 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 	if report.HasErrors() {
 		return report
 	}
-	operation.ComputeEstimatedCost(costCalculator, e.config.plannerConfig, execContext.resolveContext.Variables)
+	if costCalculator != nil {
+		costCalculator.ValidateSliceArguments(execContext.resolveContext.Variables, &report)
+		if report.HasErrors() {
+			return report
+		}
+	}
+	operation.ComputeEstimatedCost(costCalculator, execContext.resolveContext.Variables)
 
 	if execContext.resolveContext.TracingOptions.Enable && !execContext.resolveContext.TracingOptions.ExcludePlannerStats {
 		planningTime := resolve.GetDurationNanoSinceTraceStart(execContext.resolveContext.Context()) - tracePlanStart
@@ -234,7 +240,7 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 			return err
 		}
 		if resp != nil {
-			operation.ComputeActualCost(costCalculator, e.config.plannerConfig, execContext.resolveContext.ActualListSizes)
+			operation.ComputeActualCost(costCalculator, execContext.resolveContext.Variables, execContext.resolveContext.ActualListSizes)
 		}
 		return nil
 	case *plan.SubscriptionResponsePlan:

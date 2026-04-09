@@ -262,10 +262,9 @@ func (f *DataSourceFilter) selectUniqNodeParentsUpToRootNode(i int) {
 		nodesIdsToSelect = append(nodesIdsToSelect, parentIdx)
 
 		if f.nodes.items[parentIdx].IsExternal && !f.nodes.items[i].IsProvided {
-			// such a parent can't be selected,
-			// so we skip this parent but continue looking for a potential root node higher
-			current = parentIdx
-			continue
+			// parent can't be selected because it is fully external
+			// we will have to find another way to get to this node
+			break
 		}
 
 		// TODO: there could be a potential situation when we have selected root node with enabled entity resolver,

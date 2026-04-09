@@ -277,6 +277,10 @@ func (j *jsonBuilder) flattenObject(value *astjson.Value, path ast.Path) ([]*ast
 
 	segment := path[0]
 	current := value.Get(segment.FieldName.String())
+	if current == nil {
+		return nil, fmt.Errorf("field %s not found in object", segment.FieldName.String())
+	}
+
 	result := make([]*astjson.Value, 0)
 	switch current.Type() {
 	case astjson.TypeObject:
@@ -350,7 +354,7 @@ func (j *jsonBuilder) marshalResponseJSON(message *RPCMessage, data protoref.Mes
 	validFields := message.Fields
 	if message.IsOneOf() {
 		// For oneOf types, add type-specific fields based on the actual concrete type
-		validFields = append(validFields, message.FieldSelectionSet.SelectFieldsForTypes(message.SelectValidTypes(string(data.Type().Descriptor().Name())))...)
+		validFields = append(validFields, message.FragmentFields.SelectFieldsForTypes(message.SelectValidTypes(string(data.Type().Descriptor().Name())))...)
 	}
 
 	// Process each field in the message

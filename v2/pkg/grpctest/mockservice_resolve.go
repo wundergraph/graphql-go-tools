@@ -410,6 +410,34 @@ func (s *MockService) ResolveTestContainerDetails(_ context.Context, req *produc
 	}, nil
 }
 
+// ResolveCategoryMetricsRelatedCategory implements productv1.ProductServiceServer.
+func (s *MockService) ResolveCategoryMetricsRelatedCategory(_ context.Context, req *productv1.ResolveCategoryMetricsRelatedCategoryRequest) (*productv1.ResolveCategoryMetricsRelatedCategoryResponse, error) {
+	results := make([]*productv1.ResolveCategoryMetricsRelatedCategoryResult, 0, len(req.GetContext()))
+
+	include := true
+	if req.GetFieldArgs() != nil && req.GetFieldArgs().GetInclude() != nil {
+		include = req.GetFieldArgs().GetInclude().GetValue()
+	}
+
+	for i, ctx := range req.GetContext() {
+		var relatedCategory *productv1.Category
+		if include {
+			relatedCategory = &productv1.Category{
+				Id:   fmt.Sprintf("related-category-%s-%d", ctx.GetCategoryId(), i),
+				Name: fmt.Sprintf("Related Category for %s", ctx.GetCategoryId()),
+				Kind: productv1.CategoryKind_CATEGORY_KIND_BOOK,
+			}
+		}
+		results = append(results, &productv1.ResolveCategoryMetricsRelatedCategoryResult{
+			RelatedCategory: relatedCategory,
+		})
+	}
+
+	return &productv1.ResolveCategoryMetricsRelatedCategoryResponse{
+		Result: results,
+	}, nil
+}
+
 // ResolveCategoryMetricsNormalizedScore implements productv1.ProductServiceServer.
 func (s *MockService) ResolveCategoryMetricsNormalizedScore(_ context.Context, req *productv1.ResolveCategoryMetricsNormalizedScoreRequest) (*productv1.ResolveCategoryMetricsNormalizedScoreResponse, error) {
 	results := make([]*productv1.ResolveCategoryMetricsNormalizedScoreResult, 0, len(req.GetContext()))
@@ -857,4 +885,233 @@ func (s *MockService) ResolveCategoryProductCount(ctx context.Context, req *prod
 	}
 
 	return resp, nil
+}
+
+// ResolveStorageStorageStatus implements productv1.ProductServiceServer.
+func (s *MockService) ResolveStorageStorageStatus(_ context.Context, req *productv1.ResolveStorageStorageStatusRequest) (*productv1.ResolveStorageStorageStatusResponse, error) {
+	results := make([]*productv1.ResolveStorageStorageStatusResult, 0, len(req.GetContext()))
+
+	checkHealth := false
+	if req.GetFieldArgs() != nil {
+		checkHealth = req.GetFieldArgs().GetCheckHealth()
+	}
+
+	for i, ctx := range req.GetContext() {
+		var actionResult *productv1.ActionResult
+
+		if checkHealth && i%3 == 0 {
+			// Return error status for health check failures
+			actionResult = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionError{
+					ActionError: &productv1.ActionError{
+						Message: fmt.Sprintf("Health check failed for storage %s", ctx.GetName()),
+						Code:    "STORAGE_HEALTH_CHECK_FAILED",
+					},
+				},
+			}
+		} else {
+			// Return success status
+			actionResult = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionSuccess{
+					ActionSuccess: &productv1.ActionSuccess{
+						Message:   fmt.Sprintf("Storage %s is healthy", ctx.GetName()),
+						Timestamp: "2024-01-01T00:00:00Z",
+					},
+				},
+			}
+		}
+
+		results = append(results, &productv1.ResolveStorageStorageStatusResult{
+			StorageStatus: actionResult,
+		})
+	}
+
+	return &productv1.ResolveStorageStorageStatusResponse{
+		Result: results,
+	}, nil
+}
+
+// ResolveStorageLinkedStorages implements productv1.ProductServiceServer.
+func (s *MockService) ResolveStorageLinkedStorages(_ context.Context, req *productv1.ResolveStorageLinkedStoragesRequest) (*productv1.ResolveStorageLinkedStoragesResponse, error) {
+	results := make([]*productv1.ResolveStorageLinkedStoragesResult, len(req.GetContext()))
+
+	depth := int32(1)
+	if req.GetFieldArgs() != nil {
+		depth = req.GetFieldArgs().GetDepth()
+	}
+
+	for i, ctx := range req.GetContext() {
+		// Generate linked storages based on depth
+		linkedStorages := make([]*productv1.Storage, 0, depth)
+		for j := int32(0); j < depth; j++ {
+			linkedStorages = append(linkedStorages, &productv1.Storage{
+				Id:       fmt.Sprintf("linked-storage-%s-%d", ctx.GetId(), j),
+				Name:     fmt.Sprintf("Linked Storage %s %d", ctx.GetName(), j),
+				Location: fmt.Sprintf("%s-linked-%d", ctx.GetLocation(), j),
+			})
+		}
+
+		results[i] = &productv1.ResolveStorageLinkedStoragesResult{
+			LinkedStorages: linkedStorages,
+		}
+	}
+
+	return &productv1.ResolveStorageLinkedStoragesResponse{
+		Result: results,
+	}, nil
+}
+
+// ResolveStorageNearbyStorages implements productv1.ProductServiceServer.
+func (s *MockService) ResolveStorageNearbyStorages(_ context.Context, req *productv1.ResolveStorageNearbyStoragesRequest) (*productv1.ResolveStorageNearbyStoragesResponse, error) {
+	results := make([]*productv1.ResolveStorageNearbyStoragesResult, 0, len(req.GetContext()))
+
+	// Check if radius arg is set - if nil or 0, return nil for nearbyStorages
+	radius := int32(0)
+	if req.GetFieldArgs() != nil && req.GetFieldArgs().GetRadius() != nil {
+		radius = req.GetFieldArgs().GetRadius().GetValue()
+	}
+
+	for i, ctx := range req.GetContext() {
+		var nearbyStorages *productv1.ListOfStorage
+
+		if radius > 0 {
+			// Generate nearby storages based on radius
+			storages := make([]*productv1.Storage, 0, radius)
+			for j := int32(0); j < radius && j < 5; j++ { // Cap at 5 storages
+				storages = append(storages, &productv1.Storage{
+					Id:       fmt.Sprintf("nearby-storage-%s-%d", ctx.GetId(), j),
+					Name:     fmt.Sprintf("Nearby Storage %d", j),
+					Location: fmt.Sprintf("%s-nearby-%d", ctx.GetLocation(), j),
+				})
+			}
+			nearbyStorages = &productv1.ListOfStorage{
+				List: &productv1.ListOfStorage_List{
+					Items: storages,
+				},
+			}
+		} else if i%2 == 0 {
+			// For even indices with no radius, return empty list
+			nearbyStorages = &productv1.ListOfStorage{
+				List: &productv1.ListOfStorage_List{
+					Items: []*productv1.Storage{},
+				},
+			}
+		}
+		// For odd indices with no radius, nearbyStorages remains nil
+
+		results = append(results, &productv1.ResolveStorageNearbyStoragesResult{
+			NearbyStorages: nearbyStorages,
+		})
+	}
+
+	return &productv1.ResolveStorageNearbyStoragesResponse{
+		Result: results,
+	}, nil
+}
+
+// ResolveCategoryTotalProducts implements productv1.ProductServiceServer.
+func (s *MockService) ResolveCategoryTotalProducts(_ context.Context, req *productv1.ResolveCategoryTotalProductsRequest) (*productv1.ResolveCategoryTotalProductsResponse, error) {
+	results := make([]*productv1.ResolveCategoryTotalProductsResult, 0, len(req.GetContext()))
+
+	for i, ctx := range req.GetContext() {
+		_ = ctx
+		results = append(results, &productv1.ResolveCategoryTotalProductsResult{
+			TotalProducts: int32((i + 1) * 42),
+		})
+	}
+
+	return &productv1.ResolveCategoryTotalProductsResponse{
+		Result: results,
+	}, nil
+}
+
+// ResolveCategoryTopSubcategory implements productv1.ProductServiceServer.
+func (s *MockService) ResolveCategoryTopSubcategory(_ context.Context, req *productv1.ResolveCategoryTopSubcategoryRequest) (*productv1.ResolveCategoryTopSubcategoryResponse, error) {
+	results := make([]*productv1.ResolveCategoryTopSubcategoryResult, 0, len(req.GetContext()))
+
+	for i, ctx := range req.GetContext() {
+		// Return nil for every other context to test nullable handling
+		var subcategory *productv1.Subcategory
+		if i%2 == 0 {
+			subcategory = &productv1.Subcategory{
+				Id:          fmt.Sprintf("top-sub-%s-%d", ctx.GetId(), i),
+				Name:        fmt.Sprintf("Top Subcategory for %s", ctx.GetName()),
+				Description: wrapperspb.String(fmt.Sprintf("Top subcategory of %s", ctx.GetName())),
+				IsActive:    true,
+			}
+		}
+		results = append(results, &productv1.ResolveCategoryTopSubcategoryResult{
+			TopSubcategory: subcategory,
+		})
+	}
+
+	return &productv1.ResolveCategoryTopSubcategoryResponse{
+		Result: results,
+	}, nil
+}
+
+// ResolveCategoryActiveSubcategories implements productv1.ProductServiceServer.
+func (s *MockService) ResolveCategoryActiveSubcategories(_ context.Context, req *productv1.ResolveCategoryActiveSubcategoriesRequest) (*productv1.ResolveCategoryActiveSubcategoriesResponse, error) {
+	results := make([]*productv1.ResolveCategoryActiveSubcategoriesResult, 0, len(req.GetContext()))
+
+	for i, ctx := range req.GetContext() {
+		results = append(results, &productv1.ResolveCategoryActiveSubcategoriesResult{
+			ActiveSubcategories: []*productv1.Subcategory{
+				{
+					Id:       fmt.Sprintf("active-sub-%s-%d-0", ctx.GetId(), i),
+					Name:     fmt.Sprintf("Active Sub 0 for %s", ctx.GetId()),
+					IsActive: true,
+				},
+				{
+					Id:       fmt.Sprintf("active-sub-%s-%d-1", ctx.GetId(), i),
+					Name:     fmt.Sprintf("Active Sub 1 for %s", ctx.GetId()),
+					IsActive: true,
+				},
+			},
+		})
+	}
+
+	return &productv1.ResolveCategoryActiveSubcategoriesResponse{
+		Result: results,
+	}, nil
+}
+
+// ResolveSubcategoryParentCategory implements productv1.ProductServiceServer.
+func (s *MockService) ResolveSubcategoryParentCategory(_ context.Context, req *productv1.ResolveSubcategoryParentCategoryRequest) (*productv1.ResolveSubcategoryParentCategoryResponse, error) {
+	results := make([]*productv1.ResolveSubcategoryParentCategoryResult, 0, len(req.GetContext()))
+
+	for i, ctx := range req.GetContext() {
+		// Return nil for every other context to test nullable handling
+		var category *productv1.Category
+		if i%2 == 0 {
+			category = &productv1.Category{
+				Id:   fmt.Sprintf("parent-cat-%s-%d", ctx.GetId(), i),
+				Name: fmt.Sprintf("Parent Category for %s", ctx.GetId()),
+				Kind: productv1.CategoryKind_CATEGORY_KIND_BOOK,
+			}
+		}
+		results = append(results, &productv1.ResolveSubcategoryParentCategoryResult{
+			ParentCategory: category,
+		})
+	}
+
+	return &productv1.ResolveSubcategoryParentCategoryResponse{
+		Result: results,
+	}, nil
+}
+
+// ResolveCategoryMetricsAverageScore implements productv1.ProductServiceServer.
+func (s *MockService) ResolveCategoryMetricsAverageScore(_ context.Context, req *productv1.ResolveCategoryMetricsAverageScoreRequest) (*productv1.ResolveCategoryMetricsAverageScoreResponse, error) {
+	results := make([]*productv1.ResolveCategoryMetricsAverageScoreResult, 0, len(req.GetContext()))
+
+	for i, ctx := range req.GetContext() {
+		_ = ctx
+		results = append(results, &productv1.ResolveCategoryMetricsAverageScoreResult{
+			AverageScore: float64(i+1) * 3.14,
+		})
+	}
+
+	return &productv1.ResolveCategoryMetricsAverageScoreResponse{
+		Result: results,
+	}, nil
 }
