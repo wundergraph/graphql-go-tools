@@ -163,9 +163,7 @@ func (v *CostVisitor) getFieldDataSourceHashes(fieldRef int) []DSHash {
 	return dsHashes
 }
 
-// extractFieldArguments extracts arguments from a field for cost calculation
-// This implementation does not go deep for input objects yet.
-// It should return unwrapped type names for arguments and that is it for now.
+// extractFieldArguments extracts arguments from a field for cost calculation.
 func (v *CostVisitor) extractFieldArguments(fieldRef int) map[string]ArgumentInfo {
 	argRefs := v.Operation.FieldArguments(fieldRef)
 	if len(argRefs) == 0 {
@@ -209,18 +207,62 @@ func (v *CostVisitor) extractFieldArguments(fieldRef int) map[string]ArgumentInf
 				argInfo.isSimple = true
 			case ast.NodeKindInputObjectTypeDefinition:
 				argInfo.isInputObject = true
-
+				argInfo.inputObjectFieldTypes = make(map[FieldCoordinate]inputObjectField)
+				visited := make(map[string]struct{})
+				v.buildInputObjectFieldTypes(argInfo.typeName, node, visited, argInfo.inputObjectFieldTypes)
 			}
 
-			// TODO: we need to analyze variables that contains input object fields.
-			// If these fields has weight attached, use them for calculation.
-			// Inline values extracted into variables here, so we need to inspect them via AST.
 		}
 
 		arguments[argName] = argInfo
 	}
 
 	return arguments
+}
+
+// buildInputObjectFieldTypes recursively resolves and caches the field types of an input object,
+// handling nested input objects by traversing their fields depth-first.
+func (v *CostVisitor) buildInputObjectFieldTypes(typeName string, node ast.Node,
+	visited map[string]struct{}, types map[FieldCoordinate]inputObjectField) {
+	// Visit every input object type only once:
+	if _, ok := visited[typeName]; ok {
+		return
+	}
+	visited[typeName] = struct{}{}
+
+	// For every field of the InputObject map fieldCoordinates to TypeName.
+	inputFieldRefs := v.Definition.NodeInputFieldDefinitions(node)
+
+	for _, inputFieldRef := range inputFieldRefs {
+		fieldName := v.Definition.InputValueDefinitionNameString(inputFieldRef)
+		fieldTypeRef := v.Definition.InputValueDefinitionType(inputFieldRef)
+		unwrappedTypeName := v.Definition.ResolveTypeNameString(fieldTypeRef)
+
+		fieldNode, exists := v.Definition.NodeByNameStr(unwrappedTypeName)
+		if !exists {
+			continue
+		}
+
+		isListType := v.Definition.TypeIsList(fieldTypeRef)
+		var isInputObject bool
+
+		// If it is an input object type, recursively visit it.
+		if fieldNode.Kind == ast.NodeKindInputObjectTypeDefinition {
+			if !isListType {
+				// listType has a priority over inputObject type in processing.
+				// These flags are set for the calculation of cost to process the values JSON.
+				isInputObject = true
+			}
+			v.buildInputObjectFieldTypes(unwrappedTypeName, fieldNode, visited, types)
+		}
+
+		coords := FieldCoordinate{typeName, fieldName}
+		types[coords] = inputObjectField{
+			unwrappedTypeName: unwrappedTypeName,
+			isList:            isListType,
+			isInputObject:     isInputObject,
+		}
+	}
 }
 
 func (v *CostVisitor) finalCostTree() *CostTreeNode {

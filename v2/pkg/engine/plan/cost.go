@@ -18,10 +18,7 @@ It builds on top of IBM spec for @cost and @listSize directive with a few change
 * When weight is specified for the type and a field returns the list of that type,
 this weight (along with children's costs) is multiplied too.
 
-A few things on the TBD list:
-
-* Weights on fields of InputObjects with recursion
-* Weights on arguments of directives
+TODO: Weights on arguments of directives
 
 */
 
@@ -209,6 +206,62 @@ type CostTreeNode struct {
 	isEnclosingTypeAbstract bool
 }
 
+type ArgumentInfo struct {
+	// The name of an unwrapped type.
+	typeName string
+
+	// inputObjectFieldTypes maps field coordinate of an input object to inputObjectField.
+	// We have to gather it for later, when a variable's JSON is parsed and
+	// there are no types in there.
+	inputObjectFieldTypes map[FieldCoordinate]inputObjectField
+
+	// isInputObject is true for an input object passed to the argument,
+	// otherwise the argument is Scalar or Enum.
+	isInputObject bool
+
+	// isSimple is true for scalars and enums
+	isSimple bool
+
+	// When the argument points to a variable, it contains the name of the variable.
+	hasVariable bool
+
+	// The name of the variable that has value for this argument.
+	varName string
+}
+
+// inputObjectField describes the type of input object field.
+type inputObjectField struct {
+	unwrappedTypeName string
+	isList            bool // True if it should be processed as a list. Have priority over isInputObject
+	isInputObject     bool // True if it should be processed as an input object.
+}
+
+// inputFieldsCost computes the cost of input object fields from the variable value.
+// It handles both single objects and arrays of objects.
+func (arg *ArgumentInfo) inputFieldsCost(variables *astjson.Value, weights map[FieldCoordinate]*FieldWeight) int {
+	if !arg.hasVariable {
+		return 0
+	}
+	varValue := variables.Get(arg.varName)
+	if varValue == nil {
+		return 0
+	}
+	switch varValue.Type() {
+	case astjson.TypeObject:
+		return inputObjectCost(arg.typeName, varValue.GetObject(), weights, arg.inputObjectFieldTypes)
+	case astjson.TypeArray:
+		cost := 0
+		for _, item := range varValue.GetArray() {
+			cost += inputObjectCost(arg.typeName, item.GetObject(), weights, arg.inputObjectFieldTypes)
+		}
+		// When isList=true and the JSON contains nested arrays (e.g., [[{...}]]),
+		// the inner arrays are skipped since item.Type() == astjson.TypeObject is false
+		// for array items.
+		return cost
+	}
+	return 0
+}
+
 func (node *CostTreeNode) maxWeightImplementingField(config *DataSourceCostConfig, fieldName string) *FieldWeight {
 	var maxWeight *FieldWeight
 	for _, implTypeName := range node.implementingTypeNames {
@@ -331,8 +384,6 @@ func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, variabl
 // argsCost is the sum of argument weights and input fields used on this field.
 // Weights on directives ignored for now.
 //
-// variables are used only for the estimated costs.
-//
 // defaultListSize designates the mode of operation.
 // When it is positive, then its value is used as a fallback value of list sizes for the estimated cost.
 // When it is negative, then it computes the actual cost. And it uses the actualListSizes map.
@@ -357,9 +408,7 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 	for _, dsHash := range node.dataSourceHashes {
 		dsCostConfig, ok := configs[dsHash]
 		if !ok || dsCostConfig == nil {
-			dsCostConfig = &DataSourceCostConfig{}
-			// Save it for later use by other fields:
-			configs[dsHash] = dsCostConfig
+			continue
 		}
 
 		fieldWeight := dsCostConfig.Weights[node.fieldCoords]
@@ -408,23 +457,26 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 		}
 
 		for argName, arg := range node.arguments {
+			// Add explicit argument weight if present.
+			argumentWeightFound := false
 			if fieldWeight != nil {
 				if weight, ok := fieldWeight.ArgumentWeights[argName]; ok {
 					argsCost += weight
-					continue
+					argumentWeightFound = true
 				}
 			}
-			// Take into account the type of the argument.
-			// If the argument definition itself does not have weight attached,
-			// but the type of the argument does have weight attached to it.
-			if arg.isSimple {
-				argsCost += dsCostConfig.EnumScalarTypeWeight(arg.typeName)
-			} else if arg.isInputObject {
-				// TODO: arguments should include costs of input object fields
-			} else {
-				argsCost += dsCostConfig.ObjectTypeWeight(arg.typeName)
-			}
 
+			// Input objects always add field-level costs, as the spec says.
+			// For other types, the explicit argument weight replaces the default type weight.
+			if arg.isInputObject {
+				argsCost += arg.inputFieldsCost(variables, dsCostConfig.Weights)
+			} else if !argumentWeightFound {
+				if arg.isSimple {
+					argsCost += dsCostConfig.EnumScalarTypeWeight(arg.typeName)
+				} else {
+					argsCost += dsCostConfig.ObjectTypeWeight(arg.typeName)
+				}
+			}
 		}
 
 		if !node.returnsListType || !isEstimation {
@@ -511,68 +563,91 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 	return
 }
 
-type ArgumentInfo struct {
-	// The name of an unwrapped type.
-	typeName string
+// inputObjectCost recursively computes the cost of an input object argument (typeName)
+// by walking its JSON value. It adds a cost of each field found in weights. It uses types
+// to figure out types and the kind of value it encounters.
+// Given a schema "input Filter { name: String @cost(weight: 5), nested: Filter }"
+// and a variable "{ name: "foo", nested: { name: "bar" } }", the cost would be 5 + 5 = 10
+func inputObjectCost(
+	typeName string,
+	value *astjson.Object,
+	weights map[FieldCoordinate]*FieldWeight,
+	types map[FieldCoordinate]inputObjectField) int {
+	if value == nil {
+		return 0
+	}
+	cost := 0
 
-	// If argument is passed an input object, we want to gather counts
-	// for all the field coordinates with non-null values used in the argument.
-	// TBD later when input objects are supported.
-	//
-	// For example, for
-	//    "input A { x: Int, rec: A! }"
-	// following value is passed:
-	//    { x: 1, rec: { x: 2, rec: { x: 3 } } },
-	// then coordCounts will be:
-	//    { {"A", "rec"}: 2, {"A", "x"}: 3 }
-	//
-	coordCounts map[FieldCoordinate]int
-
-	// isInputObject is true for an input object passed to the argument,
-	// otherwise the argument is Scalar or Enum.
-	isInputObject bool
-
-	// isSimple is true for scalars and enums
-	isSimple bool
-
-	// When the argument points to a variable, it contains the name of the variable.
-	hasVariable bool
-
-	// The name of the variable that has value for this argument.
-	varName string
+	processKeyValue := func(fieldName []byte, value *astjson.Value) {
+		coords := FieldCoordinate{typeName, string(fieldName)}
+		typeInfo, found := types[coords]
+		if !found {
+			return
+		}
+		if value == nil || value.Type() == astjson.TypeNull {
+			return
+		}
+		if typeInfo.isList {
+			valueArray := value.GetArray()
+			for _, item := range valueArray {
+				if item.Type() == astjson.TypeObject {
+					cost += inputObjectCost(typeInfo.unwrappedTypeName, item.GetObject(), weights, types)
+				}
+			}
+		} else if typeInfo.isInputObject {
+			valueObj := value.GetObject()
+			if valueObj != nil {
+				cost += inputObjectCost(typeInfo.unwrappedTypeName, valueObj, weights, types)
+			}
+		}
+		if fw, ok := weights[coords]; ok && fw.HasWeight {
+			cost += fw.Weight
+		}
+	}
+	value.Visit(processKeyValue)
+	return cost
 }
 
 // CostCalculator manages cost calculation during AST traversal
 type CostCalculator struct {
 	// tree points to the root of the complete cost tree. Calculator tree is built once per query,
 	// then it is cached as part of the plan cache and
-	// not supposed to change again even during lifetime of a process.
+	// not supposed to change ever again during the lifetime of a process.
+	// Once this tree is built, it is immutable and can be shared between multiple requests.
 	tree *CostTreeNode
+
+	// costConfigs is a map of data source hashes to their cost configuration.
+	costConfigs map[DSHash]*DataSourceCostConfig
+
+	// defaultListSize is used as a fallback for list sizes when no specific size is provided.
+	defaultListSize int
 }
 
 // NewCostCalculator creates a new cost calculator. The defaultListSize is floored to 1.
-func NewCostCalculator() *CostCalculator {
+func NewCostCalculator(config Configuration) *CostCalculator {
 	c := CostCalculator{}
+	// Extract cost configurations from all data sources, keyed by data source hash.
+	// We do it once, it should be immutable in the cache.
+	c.costConfigs = make(map[DSHash]*DataSourceCostConfig)
+	for _, ds := range config.DataSources {
+		dsCostConfig := ds.GetCostConfig()
+		if dsCostConfig == nil {
+			dsCostConfig = &DataSourceCostConfig{}
+		}
+		c.costConfigs[ds.Hash()] = dsCostConfig
+	}
+	c.defaultListSize = config.StaticCostDefaultListSize
+	if c.defaultListSize < 1 {
+		// Zero would estimate all lists as zero.
+		c.defaultListSize = 1
+	}
 	return &c
 }
 
 // EstimateCost returns the calculated total static cost.
 // config should be static per process or instance. variables could change between requests.
-func (c *CostCalculator) EstimateCost(config Configuration, variables *astjson.Value) int {
-	// costConfigs maps data source hash to its cost configuration. At the runtime we do not change
-	// this at all. It could be set once per router process.
-	costConfigs := make(map[DSHash]*DataSourceCostConfig)
-	for _, ds := range config.DataSources {
-		if costConfig := ds.GetCostConfig(); costConfig != nil {
-			costConfigs[ds.Hash()] = costConfig
-		}
-	}
-	defaultListSize := config.StaticCostDefaultListSize
-	if defaultListSize < 1 {
-		// Zero would estimate all lists as zero.
-		defaultListSize = 1
-	}
-	return c.tree.cost(costConfigs, variables, defaultListSize, nil)
+func (c *CostCalculator) EstimateCost(variables *astjson.Value) int {
+	return c.tree.cost(c.costConfigs, variables, c.defaultListSize, nil)
 }
 
 const (
@@ -580,27 +655,15 @@ const (
 )
 
 // ActualCost returns the actual cost of the operation that is based on the actual sizes of lists.
-func (c *CostCalculator) ActualCost(config Configuration, actualListSizes map[string]int) int {
-	costConfigs := make(map[DSHash]*DataSourceCostConfig)
-	for _, ds := range config.DataSources {
-		if costConfig := ds.GetCostConfig(); costConfig != nil {
-			costConfigs[ds.Hash()] = costConfig
-		}
-	}
-	return c.tree.cost(costConfigs, nil, actualCostMode, actualListSizes)
+func (c *CostCalculator) ActualCost(variables *astjson.Value, actualListSizes map[string]int) int {
+	return c.tree.cost(c.costConfigs, variables, actualCostMode, actualListSizes)
 }
 
 // ValidateSliceArguments checks that all fields with slicingArguments and
 // requireOneSlicingArgument are valid against the arguments passed to those fields.
 // Violations are collected as external errors into the report.
-func (c *CostCalculator) ValidateSliceArguments(config Configuration, variables *astjson.Value, report *operationreport.Report) {
-	costConfigs := make(map[DSHash]*DataSourceCostConfig)
-	for _, ds := range config.DataSources {
-		if costConfig := ds.GetCostConfig(); costConfig != nil {
-			costConfigs[ds.Hash()] = costConfig
-		}
-	}
-	c.tree.validateSliceArguments(costConfigs, variables, report)
+func (c *CostCalculator) ValidateSliceArguments(variables *astjson.Value, report *operationreport.Report) {
+	c.tree.validateSliceArguments(c.costConfigs, variables, report)
 }
 
 func (node *CostTreeNode) validateSliceArguments(configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value, report *operationreport.Report) {
@@ -686,20 +749,12 @@ func (node *CostTreeNode) buildASTPath() ast.Path {
 
 // DebugPrint prints the cost tree structure for debugging purposes.
 // It shows each node's field coordinate, costs, multipliers, and computed totals.
-func (c *CostCalculator) DebugPrint(config Configuration, variables *astjson.Value, actualListSizes map[string]int) string {
+func (c *CostCalculator) DebugPrint(variables *astjson.Value, actualListSizes map[string]int) string {
 	if c.tree == nil || len(c.tree.children) == 0 {
 		return "<empty cost tree>"
 	}
-	costConfigs := make(map[DSHash]*DataSourceCostConfig)
-	for _, ds := range config.DataSources {
-		if costConfig := ds.GetCostConfig(); costConfig != nil {
-			costConfigs[ds.Hash()] = costConfig
-		}
-	}
-	defaultListSize := config.StaticCostDefaultListSize
-	if defaultListSize < 1 {
-		defaultListSize = 1
-	}
+	costConfigs := c.costConfigs
+	defaultListSize := c.defaultListSize
 	var sb strings.Builder
 	if actualListSizes != nil {
 		defaultListSize = -1
@@ -795,7 +850,7 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*Da
 	}
 
 	// This is somewhat redundant, but it should not be used in production.
-	// If there is a need to present cost tree to the user,
+	// If there is a need to present a cost tree to the user,
 	// printing should be embedded into the tree calculation process.
 	subtreeCost := node.cost(configs, variables, defaultListSize, actualListSizes)
 	fmt.Fprintf(sb, "%s  subCost=%d\n", indent, subtreeCost)
