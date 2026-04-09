@@ -1041,14 +1041,14 @@ func TestAddRequiredFields(t *testing.T) {
 			// operation pre-seeded: plain id is deferred (from prior entity planner),
 			// plus __internal_id already created by a prior key planner
 			// (deferInfo.ID="1", parentFieldDeferID="1")
-			operation: `query { user { id @__defer_internal(id: "1") name __internal_id: id @__defer_internal(id: "1") } }`,
+			operation:          `query { user { id @__defer_internal(id: "1") name __internal_id: id @__defer_internal(id: "1") } }`,
 			typeName:           "User",
 			fieldSet:           "id",
 			isKey:              true,
 			deferInfo:          &DeferInfo{ID: "3"},
 			parentFieldDeferID: "1",
 			// effectiveDeferID = parentFieldDeferID = "1" matches __internal_id's directive → reuse it
-			expectedOperation: `query { user { id @__defer_internal(id: "1") name __internal_id: id @__defer_internal(id: "1") } }`,
+			expectedOperation:           `query { user { id @__defer_internal(id: "1") name __internal_id: id @__defer_internal(id: "1") } }`,
 			expectedSkipFieldsCount:     0,
 			expectedRequiredFieldsCount: 1,
 			expectedRemappedPaths:       map[string]string{"User.id": "__internal_id"},
@@ -1058,13 +1058,13 @@ func TestAddRequiredFields(t *testing.T) {
 			definition: `
 				type Query { user: User }
 				type User { id: ID! name: String! }`,
-			operation: `query { user { id @__defer_internal(id: "1") name __internal_id: id @__defer_internal(id: "1") } }`,
-			typeName:           "User",
-			fieldSet:           "id",
-			isKey:              true,
-			deferInfo:          &DeferInfo{ID: "5"},
-			parentFieldDeferID: "1",
-			expectedOperation: `query { user { id @__defer_internal(id: "1") name __internal_id: id @__defer_internal(id: "1") } }`,
+			operation:                   `query { user { id @__defer_internal(id: "1") name __internal_id: id @__defer_internal(id: "1") } }`,
+			typeName:                    "User",
+			fieldSet:                    "id",
+			isKey:                       true,
+			deferInfo:                   &DeferInfo{ID: "5"},
+			parentFieldDeferID:          "1",
+			expectedOperation:           `query { user { id @__defer_internal(id: "1") name __internal_id: id @__defer_internal(id: "1") } }`,
 			expectedSkipFieldsCount:     0,
 			expectedRequiredFieldsCount: 1,
 			expectedRemappedPaths:       map[string]string{"User.id": "__internal_id"},
@@ -1075,7 +1075,7 @@ func TestAddRequiredFields(t *testing.T) {
 				type Query { user: User }
 				type User { id: ID! name: String! }`,
 			// __internal_id belongs to parent scope "1"; new planner has parentFieldDeferID="2"
-			operation: `query { user { id @__defer_internal(id: "1") name __internal_id: id @__defer_internal(id: "1") } }`,
+			operation:          `query { user { id @__defer_internal(id: "1") name __internal_id: id @__defer_internal(id: "1") } }`,
 			typeName:           "User",
 			fieldSet:           "id",
 			isKey:              true,
