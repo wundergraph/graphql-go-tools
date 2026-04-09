@@ -68,8 +68,11 @@ type Resolver struct {
 	allowedErrorExtensionFields map[string]struct{}
 	allowedErrorFields          map[string]struct{}
 
-	reporter         Reporter
-	asyncErrorWriter AsyncErrorWriter
+	reporter Reporter
+
+	// errorFormatter is a function provided by the router that formats Go errors into GraphQL responses and writes them to a writer.
+	// It's not really async, and it needs to be done under the writer's mutex. This is complex and should be resolved in the future.
+	errorFormatter AsyncErrorWriter
 
 	propagateSubgraphErrors      bool
 	propagateSubgraphStatusCodes bool
@@ -94,7 +97,7 @@ type Resolver struct {
 }
 
 func (r *Resolver) SetAsyncErrorWriter(w AsyncErrorWriter) {
-	r.asyncErrorWriter = w
+	r.errorFormatter = w
 }
 
 type tools struct {
@@ -271,7 +274,7 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		subscriptionsByID:            make(map[SubscriptionIdentifier]*subscriptionState),
 		subscriptionsByConnection:    make(map[int64]map[SubscriptionIdentifier]*subscriptionState),
 		reporter:                     options.Reporter,
-		asyncErrorWriter:             options.AsyncErrorWriter,
+		errorFormatter:               options.AsyncErrorWriter,
 		allowedErrorExtensionFields:  allowedExtensionFields,
 		allowedErrorFields:           allowedErrorFields,
 		heartbeatInterval:            options.SubscriptionHeartbeatInterval,
@@ -484,7 +487,7 @@ func (t *trigger) evalFilter(s *subscriptionState, data []byte) (*subscriptionSt
 	}
 	skip, err := s.resolve.Filter.SkipEvent(s.ctx, data)
 	if err != nil {
-		fe := pendingFilterError{s.ctx, err, s.resolve.Response, s.writer}
+		fe := pendingFilterError{s.ctx, err, s.resolve.Response, s}
 		return nil, &fe
 	}
 	if skip {
@@ -579,6 +582,27 @@ func (s *subscriptionState) error(data []byte) {
 	s.writer.Error(data)
 }
 
+// writeError delivers a formatted error to the downstream writer under writeMu.
+func (s *subscriptionState) writeError(w AsyncErrorWriter, ctx *Context, err error, response *GraphQLResponse) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	if s.removed.Load() {
+		return
+	}
+	w.WriteError(ctx, err, response, s.writer)
+}
+
+// sendHeartbeat sends a keep-alive frame to the downstream writer under writeMu.
+// @TODO: this is bad, see ENG-9356
+func (s *subscriptionState) sendHeartbeat() error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	if s.removed.Load() {
+		return nil
+	}
+	return s.writer.Heartbeat()
+}
+
 func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscriptionState, sharedInput []byte) {
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:update:%d\n", sub.id.SubscriptionID)
@@ -598,11 +622,7 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 
 	if err := t.resolvable.InitSubscription(resolveCtx, input, sub.resolve.Trigger.PostProcessing); err != nil {
 		r.resolveArenaPool.Release(resolveArena)
-		sub.writeMu.Lock()
-		if !sub.removed.Load() {
-			r.asyncErrorWriter.WriteError(resolveCtx, err, sub.resolve.Response, sub.writer)
-		}
-		sub.writeMu.Unlock()
+		sub.writeError(r.errorFormatter, resolveCtx, err, sub.resolve.Response)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:init:failed:%d\n", sub.id.SubscriptionID)
 		}
@@ -614,11 +634,7 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 
 	if err := t.loader.LoadGraphQLResponseData(resolveCtx, sub.resolve.Response, t.resolvable); err != nil {
 		r.resolveArenaPool.Release(resolveArena)
-		sub.writeMu.Lock()
-		if !sub.removed.Load() {
-			r.asyncErrorWriter.WriteError(resolveCtx, err, sub.resolve.Response, sub.writer)
-		}
-		sub.writeMu.Unlock()
+		sub.writeError(r.errorFormatter, resolveCtx, err, sub.resolve.Response)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:load:failed:%d\n", sub.id.SubscriptionID)
 		}
@@ -637,7 +653,7 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 
 	if err := t.resolvable.Resolve(resolveCtx.ctx, sub.resolve.Response.Data, sub.resolve.Response.Fetches, sub.writer); err != nil {
 		r.resolveArenaPool.Release(resolveArena)
-		r.asyncErrorWriter.WriteError(resolveCtx, err, sub.resolve.Response, sub.writer)
+		r.errorFormatter.WriteError(resolveCtx, err, sub.resolve.Response, sub.writer)
 		sub.writeMu.Unlock()
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:resolve:failed:%d\n", sub.id.SubscriptionID)
@@ -680,19 +696,10 @@ func (r *Resolver) executeSubscriptionHeartbeat(sub *subscriptionState) {
 		return
 	}
 
-	sub.writeMu.Lock()
-
-	if sub.removed.Load() {
-		sub.writeMu.Unlock()
-		return
-	}
-
-	if err := sub.writer.Heartbeat(); err != nil {
-		sub.writeMu.Unlock()
+	if err := sub.sendHeartbeat(); err != nil {
 		_ = r.UnsubscribeSubscription(sub.id)
 		return
 	}
-	sub.writeMu.Unlock()
 
 	if r.reporter != nil {
 		r.reporter.SubscriptionUpdateSent()
@@ -704,7 +711,7 @@ type StartupHookContext struct {
 	Updater func(data []byte)
 }
 
-func (r *Resolver) executeStartupHooks(add *addSubscription, updater *subscriptionUpdater) error {
+func (r *Resolver) executeStartupHooks(add *addSubscription, sub *subscriptionState, updater *subscriptionUpdater) error {
 	hook, ok := add.resolve.Trigger.Source.(HookableSubscriptionDataSource)
 	if ok {
 		hookCtx := StartupHookContext{
@@ -719,7 +726,7 @@ func (r *Resolver) executeStartupHooks(add *addSubscription, updater *subscripti
 			if r.options.Debug {
 				fmt.Printf("resolver:trigger:subscription:startup:failed:%d\n", add.id.SubscriptionID)
 			}
-			r.asyncErrorWriter.WriteError(add.ctx, err, add.resolve.Response, add.writer)
+			sub.writeError(r.errorFormatter, add.ctx, err, add.resolve.Response)
 			_ = r.UnsubscribeSubscription(add.id)
 			return err
 		}
@@ -790,7 +797,7 @@ func (r *Resolver) addSubscription(triggerID uint64, add *addSubscription) error
 		// Execute the startup hooks in a goroutine to avoid holding the lock.
 		// On failure, executeStartupHooks calls UnsubscribeSubscription to clean up.
 		go func() {
-			_ = r.executeStartupHooks(add, trig.updater)
+			_ = r.executeStartupHooks(add, s, trig.updater)
 		}()
 		return nil
 	}
@@ -826,7 +833,7 @@ func (r *Resolver) addSubscription(triggerID uint64, add *addSubscription) error
 		}
 
 		// This is blocking so the startup hook can decide if a subscription should be started or not by returning an error
-		err := r.executeStartupHooks(add, trig.updater)
+		err := r.executeStartupHooks(add, s, trig.updater)
 		if err != nil {
 			return
 		}
@@ -836,7 +843,7 @@ func (r *Resolver) addSubscription(triggerID uint64, add *addSubscription) error
 			if r.options.Debug {
 				fmt.Printf("resolver:trigger:failed:%d\n", triggerID)
 			}
-			r.asyncErrorWriter.WriteError(add.ctx, err, add.resolve.Response, add.writer)
+			s.writeError(r.errorFormatter, add.ctx, err, add.resolve.Response)
 			r.doneTriggerFromUpdater(triggerID)
 			return
 		}
@@ -1064,7 +1071,7 @@ type pendingFilterError struct {
 	ctx      *Context
 	err      error
 	response *GraphQLResponse
-	writer   SubscriptionResponseWriter
+	sub      *subscriptionState
 }
 
 // handleTriggerUpdate sends data to all subscriptions of a trigger using snapshot-and-release.
@@ -1082,7 +1089,7 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 	subs, filterErrors := trig.filterSubscriptions(data)
 
 	for _, fe := range filterErrors {
-		r.asyncErrorWriter.WriteError(fe.ctx, fe.err, fe.response, fe.writer)
+		fe.sub.writeError(r.errorFormatter, fe.ctx, fe.err, fe.response)
 	}
 
 	var wg sync.WaitGroup
@@ -1111,7 +1118,7 @@ func (r *Resolver) handleUpdateSubscription(id uint64, data []byte, subIdentifie
 	sub, filterErr := trig.filterSubscription(subIdentifier, data)
 
 	if filterErr != nil {
-		r.asyncErrorWriter.WriteError(filterErr.ctx, filterErr.err, filterErr.response, filterErr.writer)
+		filterErr.sub.writeError(r.errorFormatter, filterErr.ctx, filterErr.err, filterErr.response)
 	}
 
 	if sub != nil && !sub.removed.Load() {
