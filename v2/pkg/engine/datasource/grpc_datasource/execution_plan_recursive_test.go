@@ -142,6 +142,7 @@ func TestExecutionPlan_RecursiveInputTypes(t *testing.T) {
 
 		require.Len(t, plan.Calls, 1)
 		call := plan.Calls[0]
+		require.Equal(t, "Filter", call.MethodName)
 
 		require.Len(t, call.Request.Fields, 1)
 		inputField := call.Request.Fields[0]
@@ -190,6 +191,7 @@ func TestExecutionPlan_RecursiveInputTypes(t *testing.T) {
 
 		require.Len(t, plan.Calls, 1)
 		call := plan.Calls[0]
+		require.Equal(t, "Evaluate", call.MethodName)
 
 		require.Len(t, call.Request.Fields, 1)
 		exprField := call.Request.Fields[0]
