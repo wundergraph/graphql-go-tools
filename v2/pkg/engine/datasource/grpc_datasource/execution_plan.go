@@ -1073,7 +1073,7 @@ func (r *rpcPlanningContext) getFieldsFromFieldResolverDirective(parentNode ast.
 	walker := astvisitor.WalkerFromPool()
 	defer walker.Release()
 
-	v := newRequiredFieldsVisitor(walker, &RPCMessage{}, r)
+	v := newRequiredFieldsVisitor(walker, &RPCMessage{}, r.mapping)
 	if err := v.visitWithDefaults(r.definition, parentNode.NameString(r.definition), fieldsString); err != nil {
 		return nil, err
 	}
@@ -1420,11 +1420,30 @@ func (r *rpcPlanningContext) createRequiredFieldsRPCCall(callIndex int, subgraph
 	walker := astvisitor.WalkerFromPool()
 	defer walker.Release()
 
-	vis := newRequiredFieldsVisitor(walker, fieldMessage, r)
+	vis := newRequiredFieldsVisitor(walker, fieldMessage, r.mapping)
 	if err := vis.visit(r.definition, typeName, requiredField.selectionSet, requiredFieldVisitorConfig{
 		referenceNestedMessages: true,
 	}); err != nil {
 		return RPCCall{}, err
+	}
+
+	if len(requiredField.fieldArguments) > 0 {
+		fieldArgsMessage := &RPCMessage{
+			Name: rpcConfig.RPC + "Args",
+		}
+		fieldArgsMessage.Fields = make(RPCFields, len(requiredField.fieldArguments))
+		for i, arg := range requiredField.fieldArguments {
+			field, err := r.createRPCFieldFromFieldArgument(arg)
+			if err != nil {
+				return RPCCall{}, err
+			}
+			fieldArgsMessage.Fields[i] = field
+		}
+		call.Request.Fields = append(call.Request.Fields, RPCField{
+			Name:          fieldArgsFieldName,
+			ProtoTypeName: DataTypeMessage,
+			Message:       fieldArgsMessage,
+		})
 	}
 
 	return call, nil

@@ -297,3 +297,277 @@ func (s *MockService) RequireStorageCategoryInfoSummaryById(_ context.Context, r
 
 	return &productv1.RequireStorageCategoryInfoSummaryByIdResponse{Result: results}, nil
 }
+
+// RequireStorageItemInfoById implements [productv1.ProductServiceServer].
+// Extracts primaryItem interface from fields and formats a summary string.
+func (s *MockService) RequireStorageItemInfoById(_ context.Context, req *productv1.RequireStorageItemInfoByIdRequest) (*productv1.RequireStorageItemInfoByIdResponse, error) {
+	results := make([]*productv1.RequireStorageItemInfoByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		fields := ctx.GetFields()
+		item := fields.GetPrimaryItem()
+
+		var summary string
+		switch v := item.GetInstance().(type) {
+		case *productv1.RequireStorageItemInfoByIdFields_StorageItem_PalletItem:
+			summary = fmt.Sprintf("Pallet: %s (count: %d)", v.PalletItem.GetName(), v.PalletItem.GetPalletCount())
+		case *productv1.RequireStorageItemInfoByIdFields_StorageItem_ContainerItem:
+			summary = fmt.Sprintf("Container: %s (size: %s)", v.ContainerItem.GetName(), v.ContainerItem.GetContainerSize())
+		default:
+			summary = "Unknown item"
+		}
+
+		results = append(results, &productv1.RequireStorageItemInfoByIdResult{
+			ItemInfo: summary,
+		})
+	}
+
+	return &productv1.RequireStorageItemInfoByIdResponse{Result: results}, nil
+}
+
+// RequireStorageOperationReportById implements [productv1.ProductServiceServer].
+// Extracts lastStorageOperation union from fields and formats a report string.
+func (s *MockService) RequireStorageOperationReportById(_ context.Context, req *productv1.RequireStorageOperationReportByIdRequest) (*productv1.RequireStorageOperationReportByIdResponse, error) {
+	results := make([]*productv1.RequireStorageOperationReportByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		fields := ctx.GetFields()
+		op := fields.GetLastStorageOperation()
+
+		var report string
+		switch v := op.GetValue().(type) {
+		case *productv1.RequireStorageOperationReportByIdFields_StorageOperationResult_StorageSuccess:
+			report = fmt.Sprintf("Success: %s at %s", v.StorageSuccess.GetMessage(), v.StorageSuccess.GetCompletedAt())
+		case *productv1.RequireStorageOperationReportByIdFields_StorageOperationResult_StorageFailure:
+			report = fmt.Sprintf("Failure: %s (code: %s)", v.StorageFailure.GetMessage(), v.StorageFailure.GetErrorCode())
+		default:
+			report = "Unknown operation"
+		}
+
+		results = append(results, &productv1.RequireStorageOperationReportByIdResult{
+			OperationReport: report,
+		})
+	}
+
+	return &productv1.RequireStorageOperationReportByIdResponse{Result: results}, nil
+}
+
+// RequireStorageSecuritySummaryById implements [productv1.ProductServiceServer].
+// Extracts securitySetup (concrete wrapping abstract) and formats a summary.
+func (s *MockService) RequireStorageSecuritySummaryById(_ context.Context, req *productv1.RequireStorageSecuritySummaryByIdRequest) (*productv1.RequireStorageSecuritySummaryByIdResponse, error) {
+	results := make([]*productv1.RequireStorageSecuritySummaryByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		fields := ctx.GetFields()
+		setup := fields.GetSecuritySetup()
+
+		itemSummary := "Unknown item"
+		if item := setup.GetPrimaryItem(); item != nil {
+			switch v := item.GetInstance().(type) {
+			case *productv1.RequireStorageSecuritySummaryByIdFields_SecuritySetup_StorageItem_PalletItem:
+				itemSummary = fmt.Sprintf("Pallet: %s (count: %d)", v.PalletItem.GetName(), v.PalletItem.GetPalletCount())
+			case *productv1.RequireStorageSecuritySummaryByIdFields_SecuritySetup_StorageItem_ContainerItem:
+				itemSummary = fmt.Sprintf("Container: %s (size: %s)", v.ContainerItem.GetName(), v.ContainerItem.GetContainerSize())
+			}
+		}
+
+		summary := fmt.Sprintf("[%s] %s", setup.GetSecurityLevel(), itemSummary)
+		results = append(results, &productv1.RequireStorageSecuritySummaryByIdResult{
+			SecuritySummary: summary,
+		})
+	}
+
+	return &productv1.RequireStorageSecuritySummaryByIdResponse{Result: results}, nil
+}
+
+// RequireStorageItemHandlerInfoById implements [productv1.ProductServiceServer].
+// Extracts handler name from within interface fragments.
+func (s *MockService) RequireStorageItemHandlerInfoById(_ context.Context, req *productv1.RequireStorageItemHandlerInfoByIdRequest) (*productv1.RequireStorageItemHandlerInfoByIdResponse, error) {
+	results := make([]*productv1.RequireStorageItemHandlerInfoByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		fields := ctx.GetFields()
+		item := fields.GetPrimaryItem()
+
+		var info string
+		switch v := item.GetInstance().(type) {
+		case *productv1.RequireStorageItemHandlerInfoByIdFields_StorageItem_PalletItem:
+			info = fmt.Sprintf("PalletHandler: %s", v.PalletItem.GetHandler().GetName())
+		case *productv1.RequireStorageItemHandlerInfoByIdFields_StorageItem_ContainerItem:
+			info = fmt.Sprintf("ContainerHandler: %s", v.ContainerItem.GetHandler().GetName())
+		default:
+			info = "Unknown handler"
+		}
+
+		results = append(results, &productv1.RequireStorageItemHandlerInfoByIdResult{
+			ItemHandlerInfo: info,
+		})
+	}
+
+	return &productv1.RequireStorageItemHandlerInfoByIdResponse{Result: results}, nil
+}
+
+// RequireStorageItemSpecsInfoById implements [productv1.ProductServiceServer].
+// Extracts specs and dimensions from deep concrete nesting inside interface fragments.
+func (s *MockService) RequireStorageItemSpecsInfoById(_ context.Context, req *productv1.RequireStorageItemSpecsInfoByIdRequest) (*productv1.RequireStorageItemSpecsInfoByIdResponse, error) {
+	results := make([]*productv1.RequireStorageItemSpecsInfoByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		fields := ctx.GetFields()
+		item := fields.GetPrimaryItem()
+
+		var info string
+		switch v := item.GetInstance().(type) {
+		case *productv1.RequireStorageItemSpecsInfoByIdFields_StorageItem_PalletItem:
+			specs := v.PalletItem.GetSpecs()
+			dims := specs.GetDimensions()
+			info = fmt.Sprintf("PalletSpecs: %s (%.1fx%.1f)", specs.GetName(), dims.GetLength(), dims.GetWidth())
+		case *productv1.RequireStorageItemSpecsInfoByIdFields_StorageItem_ContainerItem:
+			specs := v.ContainerItem.GetSpecs()
+			dims := specs.GetDimensions()
+			info = fmt.Sprintf("ContainerSpecs: %s (%.1fx%.1f)", specs.GetName(), dims.GetLength(), dims.GetWidth())
+		default:
+			info = "Unknown specs"
+		}
+
+		results = append(results, &productv1.RequireStorageItemSpecsInfoByIdResult{
+			ItemSpecsInfo: info,
+		})
+	}
+
+	return &productv1.RequireStorageItemSpecsInfoByIdResponse{Result: results}, nil
+}
+
+// RequireStorageDeepItemInfoById implements [productv1.ProductServiceServer].
+// Extracts nested abstract type through concrete intermediary (handler → assignedItem).
+func (s *MockService) RequireStorageDeepItemInfoById(_ context.Context, req *productv1.RequireStorageDeepItemInfoByIdRequest) (*productv1.RequireStorageDeepItemInfoByIdResponse, error) {
+	results := make([]*productv1.RequireStorageDeepItemInfoByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		fields := ctx.GetFields()
+		item := fields.GetPrimaryItem()
+
+		var info string
+		switch v := item.GetInstance().(type) {
+		case *productv1.RequireStorageDeepItemInfoByIdFields_StorageItem_PalletItem:
+			handler := v.PalletItem.GetHandler()
+			assignedItem := handler.GetAssignedItem()
+			switch av := assignedItem.GetInstance().(type) {
+			case *productv1.RequireStorageDeepItemInfoByIdFields_PalletItem_ItemHandler_StorageItem_ContainerItem:
+				info = fmt.Sprintf("PalletHandler->Container: %s (size: %s)", av.ContainerItem.GetName(), av.ContainerItem.GetContainerSize())
+			case *productv1.RequireStorageDeepItemInfoByIdFields_PalletItem_ItemHandler_StorageItem_PalletItem:
+				info = fmt.Sprintf("PalletHandler->Pallet: %s (count: %d)", av.PalletItem.GetName(), av.PalletItem.GetPalletCount())
+			default:
+				info = "PalletHandler->Unknown"
+			}
+		case *productv1.RequireStorageDeepItemInfoByIdFields_StorageItem_ContainerItem:
+			info = fmt.Sprintf("ContainerHandler: %s", v.ContainerItem.GetHandler().GetName())
+		default:
+			info = "Unknown deep item"
+		}
+
+		results = append(results, &productv1.RequireStorageDeepItemInfoByIdResult{
+			DeepItemInfo: info,
+		})
+	}
+
+	return &productv1.RequireStorageDeepItemInfoByIdResponse{Result: results}, nil
+}
+
+// RequireStorageMultiFilteredTagSummaryById implements [productv1.ProductServiceServer].
+// Returns a comma separated list of tags matching any of the given prefixes, capped at maxResults.
+func (s *MockService) RequireStorageMultiFilteredTagSummaryById(_ context.Context, req *productv1.RequireStorageMultiFilteredTagSummaryByIdRequest) (*productv1.RequireStorageMultiFilteredTagSummaryByIdResponse, error) {
+	prefixes := req.GetFieldArgs().GetPrefixes()
+	maxResults := int(req.GetFieldArgs().GetMaxResults())
+	results := make([]*productv1.RequireStorageMultiFilteredTagSummaryByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		tags := ctx.GetFields().GetTags()
+
+		filteredTags := make([]string, 0, len(tags))
+		for _, tag := range tags {
+			for _, p := range prefixes {
+				if strings.HasPrefix(tag, p) {
+					filteredTags = append(filteredTags, tag)
+					break
+				}
+			}
+			if len(filteredTags) >= maxResults {
+				break
+			}
+		}
+
+		var summary *wrapperspb.StringValue
+		if len(filteredTags) > 0 {
+			summary = &wrapperspb.StringValue{Value: strings.Join(filteredTags, ", ")}
+		}
+
+		results = append(results, &productv1.RequireStorageMultiFilteredTagSummaryByIdResult{
+			MultiFilteredTagSummary: summary,
+		})
+	}
+
+	return &productv1.RequireStorageMultiFilteredTagSummaryByIdResponse{Result: results}, nil
+}
+
+// RequireStorageNullableFilteredTagSummaryById implements [productv1.ProductServiceServer].
+// Returns a comma separated list of tags matching an optional prefix. If prefix is nil, all tags are returned.
+func (s *MockService) RequireStorageNullableFilteredTagSummaryById(_ context.Context, req *productv1.RequireStorageNullableFilteredTagSummaryByIdRequest) (*productv1.RequireStorageNullableFilteredTagSummaryByIdResponse, error) {
+	prefixArg := req.GetFieldArgs().GetPrefix()
+	results := make([]*productv1.RequireStorageNullableFilteredTagSummaryByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		tags := ctx.GetFields().GetTags()
+
+		var filteredTags []string
+		if prefixArg == nil {
+			filteredTags = tags
+		} else {
+			for _, tag := range tags {
+				if strings.HasPrefix(tag, prefixArg.GetValue()) {
+					filteredTags = append(filteredTags, tag)
+				}
+			}
+		}
+
+		var summary *wrapperspb.StringValue
+		if len(filteredTags) > 0 {
+			summary = &wrapperspb.StringValue{Value: strings.Join(filteredTags, ", ")}
+		}
+
+		results = append(results, &productv1.RequireStorageNullableFilteredTagSummaryByIdResult{
+			NullableFilteredTagSummary: summary,
+		})
+	}
+
+	return &productv1.RequireStorageNullableFilteredTagSummaryByIdResponse{Result: results}, nil
+}
+
+// RequireStorageFilteredTagSummaryById implements [productv1.ProductServiceServer].
+// Returns a comma separated list of tags having a specific prefix as given by field argument "prefix".
+func (s *MockService) RequireStorageFilteredTagSummaryById(_ context.Context, req *productv1.RequireStorageFilteredTagSummaryByIdRequest) (*productv1.RequireStorageFilteredTagSummaryByIdResponse, error) {
+	prefix := req.GetFieldArgs().GetPrefix()
+	results := make([]*productv1.RequireStorageFilteredTagSummaryByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		tags := ctx.GetFields().GetTags()
+
+		filteredTags := make([]string, 0, len(tags))
+		for _, tag := range tags {
+			if strings.HasPrefix(tag, prefix) {
+				filteredTags = append(filteredTags, tag)
+			}
+		}
+
+		var filteredTagSummary *wrapperspb.StringValue
+		if len(filteredTags) > 0 {
+			filteredTagSummary = &wrapperspb.StringValue{Value: strings.Join(filteredTags, ", ")}
+		}
+
+		results = append(results, &productv1.RequireStorageFilteredTagSummaryByIdResult{
+			FilteredTagSummary: filteredTagSummary,
+		})
+	}
+
+	return &productv1.RequireStorageFilteredTagSummaryByIdResponse{Result: results}, nil
+}

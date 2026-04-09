@@ -439,6 +439,17 @@ func (r *rpcPlanVisitorFederation) enterRequiredField(ref, fieldDefRef int, pare
 	requiredField.ref = ref
 	requiredField.fieldDefRef = fieldDefRef
 	requiredField.resultField = field
+
+	fieldArgs := r.operation.FieldArguments(ref)
+	if len(fieldArgs) > 0 {
+		fieldArguments, err := r.planCtx.parseFieldArguments(r.walker, fieldDefRef, fieldArgs)
+		if err != nil {
+			r.walker.StopWithInternalErr(err)
+			return
+		}
+		requiredField.fieldArguments = fieldArguments
+	}
+
 	config.requiredFields[index] = requiredField
 }
 
@@ -526,7 +537,7 @@ func (r *rpcPlanVisitorFederation) scaffoldEntityLookup(typeName string, ecd ent
 	walker := astvisitor.WalkerFromPool()
 	defer walker.Release()
 
-	requiredFieldsVisitor := newRequiredFieldsVisitor(walker, keyFieldMessage, r.planCtx)
+	requiredFieldsVisitor := newRequiredFieldsVisitor(walker, keyFieldMessage, r.planCtx.mapping)
 	err := requiredFieldsVisitor.visitWithDefaults(r.definition, typeName, ecd.keyFields)
 	if err != nil {
 		r.walker.StopWithInternalErr(err)
@@ -594,11 +605,12 @@ type entityInfo struct {
 type entityConfig map[string]entityConfigData
 
 type requiredField struct {
-	fieldName    string
-	ref          int
-	fieldDefRef  int
-	selectionSet string
-	resultField  RPCField
+	fieldName      string
+	ref            int
+	fieldDefRef    int
+	selectionSet   string
+	resultField    RPCField
+	fieldArguments []fieldArgument
 }
 type entityConfigData struct {
 	keyFields       string

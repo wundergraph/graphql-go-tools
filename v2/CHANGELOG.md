@@ -1,5 +1,45 @@
 # Changelog
 
+## [2.0.0-rc.270](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.269...v2.0.0-rc.270) (2026-04-09)
+
+
+### Bug Fixes
+
+* entity null fetch produces resolver error ([#1379](https://github.com/wundergraph/graphql-go-tools/issues/1379)) ([a753eb3](https://github.com/wundergraph/graphql-go-tools/commit/a753eb3320b4e969bb9d80308188751c3c15db73))
+
+## [2.0.0-rc.269](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.268...v2.0.0-rc.269) (2026-04-08)
+
+
+### Features
+
+* handle recursion for arguments containing input objects ([#1461](https://github.com/wundergraph/graphql-go-tools/issues/1461)) ([ba21793](https://github.com/wundergraph/graphql-go-tools/commit/ba21793c75bdd68a1f6bf70583cc09cbd767139b))
+
+## [2.0.0-rc.268](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.267...v2.0.0-rc.268) (2026-04-07)
+
+
+### Features
+
+* add support for fields with arguments and requires directive ([#1452](https://github.com/wundergraph/graphql-go-tools/issues/1452)) ([58469c3](https://github.com/wundergraph/graphql-go-tools/commit/58469c39c9f9b2c610bbe36febb6cd7fce319127))
+
+## [2.0.0-rc.267](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.266...v2.0.0-rc.267) (2026-03-26)
+
+
+### Features
+
+* check slicing Arguments passed when requireOneSlicingArgument ([#1456](https://github.com/wundergraph/graphql-go-tools/issues/1456)) ([72c181f](https://github.com/wundergraph/graphql-go-tools/commit/72c181f8a5316f974985bcd2c7f364bf3fdc997c))
+
+## [2.0.0-rc.266](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.265...v2.0.0-rc.266) (2026-03-26)
+
+
+### Features
+
+* add support for composite types in go-tools ([#1448](https://github.com/wundergraph/graphql-go-tools/issues/1448)) ([646ea97](https://github.com/wundergraph/graphql-go-tools/commit/646ea972487408214377ddd7014a53337da7ad04))
+
+
+### Bug Fixes
+
+* preserve nullable nested input presence in gRPC compiler ([#1447](https://github.com/wundergraph/graphql-go-tools/issues/1447)) ([900d450](https://github.com/wundergraph/graphql-go-tools/commit/900d450cebe0dc05d74d0aec2b5b28c71bb55005))
+
 ## [2.0.0-rc.265](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.264...v2.0.0-rc.265) (2026-03-17)
 
 
