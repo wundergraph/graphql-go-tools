@@ -140,17 +140,19 @@ func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expected
 			assert.Equal(t, testCase.expectedResponse, actualResponse)
 		}
 
-		if testCase.expectedEstimatedCost != 0 {
+		if testCase.expectedEstimatedCost != nil {
 			gotCost := operation.EstimatedCost()
-			require.Equal(t, testCase.expectedEstimatedCost, gotCost)
+			require.Equal(t, *testCase.expectedEstimatedCost, gotCost)
 		}
 
-		if testCase.expectedActualCost != 0 {
+		if testCase.expectedActualCost != nil {
 			gotActualCost := operation.ActualCost()
-			require.Equal(t, testCase.expectedActualCost, gotActualCost)
+			require.Equal(t, *testCase.expectedActualCost, gotActualCost)
 		}
 	}
 }
+
+func intPtr(v int) *int { return &v }
 
 func runWithAndCompareError(testCase ExecutionEngineTestCase, expectedErrorMessage string, options ...executionTestOptions) func(t *testing.T) {
 	return runExecutionTest(testCase, true, expectedErrorMessage, options...)
@@ -303,8 +305,8 @@ type ExecutionEngineTestCase struct {
 	expectedResponse      string
 	expectedJSONResponse  string
 	expectedFixture       string
-	expectedEstimatedCost int
-	expectedActualCost    int
+	expectedEstimatedCost *int
+	expectedActualCost    *int
 }
 
 type _executionTestOptions struct {
@@ -4924,7 +4926,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				// Children total = 7 + 3 = 10
 				// (is it possible to improve accuracy here by using the largest fragment instead of the sum?)
 				// Total = (5 + 10) * 3 = 45
-				expectedEstimatedCost: 45,
+				expectedEstimatedCost: intPtr(45),
 			},
 			computeCosts(),
 		))

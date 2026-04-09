@@ -157,6 +157,145 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 				require.Empty(t, errorData)
 			},
 		},
+		{
+			name:  "Query Storage with filteredTagSummary (@requires + field argument)",
+			query: `query($representations: [_Any!]!, $prefix: String!) { _entities(representations: $representations) { ...on Storage { __typename name filteredTagSummary(prefix: $prefix) } } }`,
+			vars: `{"variables":{
+				"prefix": "e",
+				"representations":[
+					{"__typename":"Storage","id":"1","tags":["electronics","hot-deals","books"]},
+					{"__typename":"Storage","id":"2","tags":["new-arrivals","premium"]}
+				]
+			}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "filteredTagSummary",
+					SelectionSet: "tags",
+				},
+			},
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				entities, ok := data["_entities"].([]interface{})
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 2, "should return 2 entities")
+
+				// Storage 1: tags contain "electronics" which starts with "e"
+				entity1, ok := entities[0].(map[string]interface{})
+				require.True(t, ok, "entity 1 should be an object")
+				require.Equal(t, "Storage", entity1["__typename"])
+				require.Equal(t, "Storage 1", entity1["name"])
+				require.Equal(t, "electronics", entity1["filteredTagSummary"])
+
+				// Storage 2: no tags start with "e" → filteredTagSummary is null
+				entity2, ok := entities[1].(map[string]interface{})
+				require.True(t, ok, "entity 2 should be an object")
+				require.Equal(t, "Storage", entity2["__typename"])
+				require.Equal(t, "Storage 2", entity2["name"])
+				require.Nil(t, entity2["filteredTagSummary"])
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			name:  "Query Storage with multiFilteredTagSummary (@requires + two field arguments, one repeated)",
+			query: `query($representations: [_Any!]!, $prefixes: [String!]!, $maxResults: Int!) { _entities(representations: $representations) { ...on Storage { __typename name multiFilteredTagSummary(prefixes: $prefixes, maxResults: $maxResults) } } }`,
+			vars: `{"variables":{
+				"prefixes": ["e", "h"],
+				"maxResults": 2,
+				"representations":[
+					{"__typename":"Storage","id":"1","tags":["electronics","hot-deals","books","extra"]},
+					{"__typename":"Storage","id":"2","tags":["new-arrivals","premium"]}
+				]
+			}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "multiFilteredTagSummary",
+					SelectionSet: "tags",
+				},
+			},
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				entities, ok := data["_entities"].([]interface{})
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 2, "should return 2 entities")
+
+				// Storage 1: tags "electronics" (prefix "e") and "hot-deals" (prefix "h") match; capped at maxResults=2
+				entity1, ok := entities[0].(map[string]interface{})
+				require.True(t, ok, "entity 1 should be an object")
+				require.Equal(t, "Storage", entity1["__typename"])
+				require.Equal(t, "Storage 1", entity1["name"])
+				require.Equal(t, "electronics, hot-deals", entity1["multiFilteredTagSummary"])
+
+				// Storage 2: no tags match any prefix → multiFilteredTagSummary is null
+				entity2, ok := entities[1].(map[string]interface{})
+				require.True(t, ok, "entity 2 should be an object")
+				require.Equal(t, "Storage", entity2["__typename"])
+				require.Equal(t, "Storage 2", entity2["name"])
+				require.Nil(t, entity2["multiFilteredTagSummary"])
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			name:  "Query Storage with nullableFilteredTagSummary (@requires + nullable field argument)",
+			query: `query($representations: [_Any!]!, $prefix: String) { _entities(representations: $representations) { ...on Storage { __typename name nullableFilteredTagSummary(prefix: $prefix) } } }`,
+			vars: `{"variables":{
+				"prefix": null,
+				"representations":[
+					{"__typename":"Storage","id":"1","tags":["electronics","hot-deals","books"]},
+					{"__typename":"Storage","id":"2","tags":[]}
+				]
+			}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "nullableFilteredTagSummary",
+					SelectionSet: "tags",
+				},
+			},
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				entities, ok := data["_entities"].([]interface{})
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 2, "should return 2 entities")
+
+				// Storage 1: prefix is null → all tags returned
+				entity1, ok := entities[0].(map[string]interface{})
+				require.True(t, ok, "entity 1 should be an object")
+				require.Equal(t, "Storage", entity1["__typename"])
+				require.Equal(t, "Storage 1", entity1["name"])
+				require.Equal(t, "electronics, hot-deals, books", entity1["nullableFilteredTagSummary"])
+
+				// Storage 2: no tags → nullableFilteredTagSummary is null
+				entity2, ok := entities[1].(map[string]interface{})
+				require.True(t, ok, "entity 2 should be an object")
+				require.Equal(t, "Storage", entity2["__typename"])
+				require.Equal(t, "Storage 2", entity2["name"])
+				require.Nil(t, entity2["nullableFilteredTagSummary"])
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
 	}
 
 	for _, tc := range testCases {
