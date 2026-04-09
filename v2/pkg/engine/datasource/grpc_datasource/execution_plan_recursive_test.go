@@ -8,6 +8,47 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 )
 
+func TestExecutionPlan_RecursiveInputTypes_String(t *testing.T) {
+	t.Parallel()
+
+	schema := `
+			type Query {
+				search(conditions: ConditionsInput): [Result!]!
+			}
+
+			type Result {
+				id: ID!
+				name: String!
+			}
+
+			input ConditionsInput {
+				and: [ConditionsInput!]
+				or: [ConditionsInput!]
+				key: String
+				value: String
+			}`
+
+	mapping := &GRPCMapping{
+		Service: "Search",
+		QueryRPCs: map[string]RPCConfig{
+			"search": {
+				RPC:      "Search",
+				Request:  "SearchRequest",
+				Response: "SearchResponse",
+			},
+		},
+	}
+
+	query := `query SearchQuery($conditions: ConditionsInput) { search(conditions: $conditions) { id name } }`
+
+	plan := planRecursiveTest(t, query, schema, mapping)
+
+	// String() traverses the plan via formatRPCMessage which has no cycle detection.
+	// This should not stack overflow.
+	result := plan.String()
+	require.NotEmpty(t, result)
+}
+
 func TestExecutionPlan_RecursiveInputTypes(t *testing.T) {
 	t.Parallel()
 

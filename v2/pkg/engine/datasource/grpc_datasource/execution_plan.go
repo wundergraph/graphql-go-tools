@@ -363,6 +363,11 @@ func NewPlanner(subgraphName string, mapping *GRPCMapping, federationConfigs pla
 
 // formatRPCMessage formats an RPCMessage and adds it to the string builder with the specified indentation
 func formatRPCMessage(sb *strings.Builder, message RPCMessage, indent int) {
+	visited := make(map[*RPCMessage]struct{})
+	formatRPCMessageVisited(sb, message, indent, visited)
+}
+
+func formatRPCMessageVisited(sb *strings.Builder, message RPCMessage, indent int, visited map[*RPCMessage]struct{}) {
 	indentStr := strings.Repeat(" ", indent)
 
 	fmt.Fprintf(sb, "%sName: %s\n", indentStr, message.Name)
@@ -375,10 +380,17 @@ func formatRPCMessage(sb *strings.Builder, message RPCMessage, indent int) {
 		fmt.Fprintf(sb, "%s    JSONPath: %s\n", indentStr, field.JSONPath)
 		fmt.Fprintf(sb, "%s    ResolvePath: %s\n", indentStr, field.ResolvePath.String())
 
-		if field.Message != nil {
-			fmt.Fprintf(sb, "%s    Message:\n", indentStr)
-			formatRPCMessage(sb, *field.Message, indent+6)
+		if field.Message == nil {
+			return
 		}
+
+		fmt.Fprintf(sb, "%s    Message:\n", indentStr)
+		if _, seen := visited[field.Message]; seen {
+			fmt.Fprintf(sb, "%s      <recursive: %s>\n", indentStr, field.Message.Name)
+			continue
+		}
+		visited[field.Message] = struct{}{}
+		formatRPCMessageVisited(sb, *field.Message, indent+6, visited)
 	}
 }
 
