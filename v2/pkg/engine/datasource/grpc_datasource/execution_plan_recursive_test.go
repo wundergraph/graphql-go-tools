@@ -9,6 +9,7 @@ import (
 )
 
 func TestExecutionPlan_RecursiveInputTypes_String(t *testing.T) {
+	// Verify stringer method does not overflow on recursive inputs
 	t.Parallel()
 
 	schema := `
@@ -43,10 +44,10 @@ func TestExecutionPlan_RecursiveInputTypes_String(t *testing.T) {
 
 	plan := planRecursiveTest(t, query, schema, mapping)
 
-	// String() traverses the plan via formatRPCMessage which has no cycle detection.
-	// This should not stack overflow.
 	result := plan.String()
-	require.NotEmpty(t, result)
+	// formatRPCMessage must emit the recursive placeholder instead of overflowing.
+	require.Contains(t, result, "ConditionsInput")
+	require.Contains(t, result, "<recursive: ConditionsInput>")
 }
 
 func TestExecutionPlan_RecursiveInputTypes(t *testing.T) {
