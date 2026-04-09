@@ -713,126 +713,175 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			computeCosts(),
 		))
 
-		t.Run("field with @approx directive - cost weight on directive argument", runWithoutError(
-			ExecutionEngineTestCase{
-				schema: graphql.StarwarsSchema(t),
-				operation: func(t *testing.T) graphql.Request {
-					return graphql.Request{
-						Query: `{
+		t.Run("cost on argument of directive", func(t *testing.T) {
+			t.Run("directive with non-null argument on a field (search) adds to cost", runWithoutError(
+				// search(name: String!): SearchResult @approx
+				ExecutionEngineTestCase{
+					schema: graphql.StarwarsSchema(t),
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{
 								search(name: "Luke") {
 									... on Human { name }
 								}
 							}`,
-					}
-				},
-				dataSources: []plan.DataSource{
-					mustGraphqlDataSourceConfiguration(t, "id",
-						mustFactory(t,
-							testNetHttpClient(t, roundTripperTestCase{
-								expectedHost:     "example.com",
-								expectedPath:     "/",
-								expectedBody:     "",
-								sendResponseBody: `{"data":{"search":{"__typename":"Human","name":"Luke"}}}`,
-								sendStatusCode:   200,
-							}),
-						),
-						&plan.DataSourceMetadata{
-							RootNodes:  rootNodes,
-							ChildNodes: childNodes,
-							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
-									{TypeName: "Query", FieldName: "search"}: {
-										HasWeight:       true,
-										Weight:          3,
-										ArgumentWeights: map[string]int{"name": 2},
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost:     "example.com",
+									expectedPath:     "/",
+									expectedBody:     "",
+									sendResponseBody: `{"data":{"search":{"__typename":"Human","name":"Luke"}}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+										{TypeName: "Query", FieldName: "search"}: {
+											HasWeight:       true,
+											Weight:          3,
+											ArgumentWeights: map[string]int{"name": 2},
+										},
+										{TypeName: "Human", FieldName: "name"}: {HasWeight: true, Weight: 5},
 									},
-									{TypeName: "Human", FieldName: "name"}: {HasWeight: true, Weight: 5},
-								},
-								DirectiveArguments: map[plan.DirectiveArgCoords]int{
-									{DirectiveName: "approx", ArgName: "tolerance"}: -5,
-									// @deprecated is not on this field so it should not contribute.
-									{DirectiveName: "deprecated", ArgName: "reason"}: -100,
+									DirectiveArguments: map[plan.DirectiveArgCoords]int{
+										{DirectiveName: "approx", ArgName: "tolerance"}: -5,
+										// @deprecated is not on this field so it should not contribute.
+										{DirectiveName: "deprecated", ArgName: "reason"}: -100,
+									},
 								},
 							},
-						},
-						customConfig,
-					),
-				},
-				fields: []plan.FieldConfiguration{
-					{
-						TypeName: "Query", FieldName: "search",
-						Arguments: []plan.ArgumentConfiguration{
-							{
-								Name:         "name",
-								SourceType:   plan.FieldArgumentSource,
-								RenderConfig: plan.RenderArgumentAsGraphQLValue,
+							customConfig,
+						),
+					},
+					fields: []plan.FieldConfiguration{
+						{
+							TypeName: "Query", FieldName: "search",
+							Arguments: []plan.ArgumentConfiguration{
+								{
+									Name:         "name",
+									SourceType:   plan.FieldArgumentSource,
+									RenderConfig: plan.RenderArgumentAsGraphQLValue,
+								},
 							},
 						},
 					},
+					expectedResponse: `{"data":{"search":{"name":"Luke"}}}`,
+					// Query.search(3) + name arg(2) + Human.name(5) + @approx.tolerance(-5) = 5
+					expectedEstimatedCost: intPtr(5),
+					expectedActualCost:    intPtr(5),
 				},
-				expectedResponse: `{"data":{"search":{"name":"Luke"}}}`,
-				// Query.search(3) + name arg(2) + Human.name(5) + @approx.tolerance(-5) = 5
-				expectedEstimatedCost: intPtr(5),
-				expectedActualCost:    intPtr(5),
-			},
-			computeCosts(),
-		))
+				computeCosts(),
+			))
 
-		t.Run("field with null directive arg does not affect cost", runWithoutError(
-			ExecutionEngineTestCase{
-				schema: graphql.StarwarsSchema(t),
-				operation: func(t *testing.T) graphql.Request {
-					return graphql.Request{
-						Query: `{
+			t.Run("querying interface accounts for directive costs on implementations", runWithoutError(
+				// type Droid implements Character { name: String! @approx }
+				ExecutionEngineTestCase{
+					schema: graphql.StarwarsSchema(t),
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{
+								hero { name }
+							}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost:     "example.com",
+									expectedPath:     "/",
+									expectedBody:     "",
+									sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke Skywalker"}}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+										{TypeName: "Human", FieldName: "name"}: {HasWeight: true, Weight: 5},
+									},
+									DirectiveArguments: map[plan.DirectiveArgCoords]int{
+										{DirectiveName: "approx", ArgName: "tolerance"}: -5,
+									},
+								},
+							},
+							customConfig,
+						),
+					},
+					fields:           []plan.FieldConfiguration{},
+					expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+					// Query.hero(1) + Human.name(5) + @approx.tolerance(-5) = 1
+					expectedEstimatedCost: intPtr(1),
+					expectedActualCost:    intPtr(1),
+				},
+				computeCosts(),
+			))
+
+			t.Run("field with directive of null-value arg does not affect cost", runWithoutError(
+				// droid(id: ID!): Droid @approx(tolerance: null)
+				ExecutionEngineTestCase{
+					schema: graphql.StarwarsSchema(t),
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{
 								droid(id: "R2D2") {
-									name
 									primaryFunction
 								}
 							}`,
-					}
-				},
-				dataSources: []plan.DataSource{
-					mustGraphqlDataSourceConfiguration(t, "id",
-						mustFactory(t,
-							testNetHttpClient(t, roundTripperTestCase{
-								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
-								sendResponseBody: `{"data":{"droid":{"name":"R2D2","primaryFunction":"no"}}}`,
-								sendStatusCode:   200,
-							}),
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: `{"data":{"droid":{"primaryFunction":"no"}}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+										{TypeName: "Droid", FieldName: "primaryFunction"}: {HasWeight: true, Weight: 17},
+									},
+									DirectiveArguments: map[plan.DirectiveArgCoords]int{
+										{DirectiveName: "approx", ArgName: "tolerance"}: -5,
+									},
+								}},
+							customConfig,
 						),
-						&plan.DataSourceMetadata{
-							RootNodes:  rootNodes,
-							ChildNodes: childNodes,
-							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
-									{TypeName: "Droid", FieldName: "name"}: {HasWeight: true, Weight: 17},
+					},
+					fields: []plan.FieldConfiguration{
+						{
+							TypeName: "Query", FieldName: "droid",
+							Arguments: []plan.ArgumentConfiguration{
+								{
+									Name:         "id",
+									SourceType:   plan.FieldArgumentSource,
+									RenderConfig: plan.RenderArgumentAsGraphQLValue,
 								},
-								DirectiveArguments: map[plan.DirectiveArgCoords]int{
-									{DirectiveName: "approx", ArgName: "tolerance"}: -5,
-								},
-							}},
-						customConfig,
-					),
-				},
-				fields: []plan.FieldConfiguration{
-					{
-						TypeName: "Query", FieldName: "droid",
-						Arguments: []plan.ArgumentConfiguration{
-							{
-								Name:         "id",
-								SourceType:   plan.FieldArgumentSource,
-								RenderConfig: plan.RenderArgumentAsGraphQLValue,
 							},
 						},
 					},
+					expectedResponse: `{"data":{"droid":{"primaryFunction":"no"}}}`,
+					// Query.droid (1) + droid.primaryFunction (17); @approx.tolerance is null
+					expectedEstimatedCost: intPtr(18),
+					expectedActualCost:    intPtr(18),
 				},
-				expectedResponse: `{"data":{"droid":{"name":"R2D2","primaryFunction":"no"}}}`,
-				// Query.droid (1) + droid.name (17); @approx.tolerance is null
-				expectedEstimatedCost: intPtr(18),
-				expectedActualCost:    intPtr(18),
-			},
-			computeCosts(),
-		))
+				computeCosts(),
+			))
+		})
 
 	})
 

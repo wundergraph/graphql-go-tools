@@ -55,7 +55,7 @@ type Human implements Character {
 }
 
 type Droid implements Character {
-    name: String!
+    name: String! @approx
     primaryFunction: String!
     friends: [Character]
 }
