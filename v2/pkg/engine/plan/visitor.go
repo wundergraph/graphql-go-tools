@@ -1362,7 +1362,7 @@ func (v *Visitor) buildFetchReasons(fetchID int) []resolve.FetchReason {
 
 	for _, fieldRef := range fields {
 		fieldName := v.Operation.FieldNameString(fieldRef)
-		if fieldName == "__typename" {
+		if fieldName == typeNameField {
 			continue
 		}
 		typeName := v.fieldEnclosingTypeNames[fieldRef]

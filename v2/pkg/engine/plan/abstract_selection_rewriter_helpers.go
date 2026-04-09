@@ -439,7 +439,7 @@ func (r *fieldSelectionRewriter) createFragmentSelection(typeName string, fields
 
 func (r *fieldSelectionRewriter) typeNameSelection(deferID string) (selectionRef int, fieldRef int) {
 	field := r.operation.AddField(ast.Field{
-		Name: r.operation.Input.AppendInputString("__typename"),
+		Name: r.operation.Input.AppendInputString(typeNameField),
 	})
 
 	if deferID != "" {

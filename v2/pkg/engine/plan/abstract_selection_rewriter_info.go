@@ -70,7 +70,7 @@ func (r *fieldSelectionRewriter) selectionSetFieldSelections(selectionSetRef int
 		fieldRef := r.operation.Selections[fieldSelectionRef].Ref
 		fieldName := r.operation.FieldNameString(fieldRef)
 
-		if fieldName == "__typename" {
+		if fieldName == typeNameField {
 			hasTypename = true
 			typeNameFieldDeferID, _ = r.operation.FieldInternalDeferID(fieldRef)
 		}

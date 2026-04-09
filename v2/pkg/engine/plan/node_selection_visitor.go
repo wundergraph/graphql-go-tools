@@ -421,7 +421,7 @@ func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldCtx fieldRequireme
 			FederationFieldConfiguration{
 				TypeName:     fieldCtx.typeName,
 				FieldName:    fieldCtx.fieldName,
-				SelectionSet: "__typename",
+				SelectionSet: typeNameField,
 			},
 			true,
 		)
