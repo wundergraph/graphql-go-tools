@@ -226,10 +226,6 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 								statusCode: 200,
 								body:       `{"data":{"user":{"___typename":"User","__typename":"User","__internal_id":"1"}}}`,
 							},
-							`{"query":"{user {___typename: __typename __typename __internal_id: id __internal_4_id: id __internal_5_id: id}}"}`: {
-								statusCode: 200,
-								body:       `{"data":{"user":{"___typename":"User","__typename":"User","__internal_id":"1","__internal_4_id":"1","__internal_5_id":"1"}}}`,
-							},
 							`{"query":"{user {__typename id}}"}`: {
 								statusCode: 200,
 								body:       `{"data":{"user":{"__typename":"User","id":"1"}}}`,

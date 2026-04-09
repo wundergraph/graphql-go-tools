@@ -1034,6 +1034,68 @@ func TestAddRequiredFields(t *testing.T) {
 			expectedRemappedPaths:       map[string]string{"Account.node": "__internal_node"},
 		},
 		{
+			name: "key with defer id - second planner with different defer id but same parent defer id reuses existing alias",
+			definition: `
+				type Query { user: User }
+				type User { id: ID! name: String! }`,
+			// operation pre-seeded: plain id is deferred (from prior entity planner),
+			// plus __internal_id already created by a prior key planner
+			// (deferInfo.ID="1", parentFieldDeferID="1")
+			operation: `query { user { id @__defer_internal(id: "1") name __internal_id: id @__defer_internal(id: "1") } }`,
+			typeName:           "User",
+			fieldSet:           "id",
+			isKey:              true,
+			deferInfo:          &DeferInfo{ID: "3"},
+			parentFieldDeferID: "1",
+			// effectiveDeferID = parentFieldDeferID = "1" matches __internal_id's directive → reuse it
+			expectedOperation: `query { user { id @__defer_internal(id: "1") name __internal_id: id @__defer_internal(id: "1") } }`,
+			expectedSkipFieldsCount:     0,
+			expectedRequiredFieldsCount: 1,
+			expectedRemappedPaths:       map[string]string{"User.id": "__internal_id"},
+		},
+		{
+			name: "key with defer id - third planner with yet another defer id but same parent defer id reuses existing alias",
+			definition: `
+				type Query { user: User }
+				type User { id: ID! name: String! }`,
+			operation: `query { user { id @__defer_internal(id: "1") name __internal_id: id @__defer_internal(id: "1") } }`,
+			typeName:           "User",
+			fieldSet:           "id",
+			isKey:              true,
+			deferInfo:          &DeferInfo{ID: "5"},
+			parentFieldDeferID: "1",
+			expectedOperation: `query { user { id @__defer_internal(id: "1") name __internal_id: id @__defer_internal(id: "1") } }`,
+			expectedSkipFieldsCount:     0,
+			expectedRequiredFieldsCount: 1,
+			expectedRemappedPaths:       map[string]string{"User.id": "__internal_id"},
+		},
+		{
+			name: "key with defer id - different parent defer id still creates separate alias",
+			definition: `
+				type Query { user: User }
+				type User { id: ID! name: String! }`,
+			// __internal_id belongs to parent scope "1"; new planner has parentFieldDeferID="2"
+			operation: `query { user { id @__defer_internal(id: "1") name __internal_id: id @__defer_internal(id: "1") } }`,
+			typeName:           "User",
+			fieldSet:           "id",
+			isKey:              true,
+			deferInfo:          &DeferInfo{ID: "3"},
+			parentFieldDeferID: "2",
+			// effectiveDeferID = "2" != "1" → Level 2 → creates __internal_2_id
+			expectedOperation: `
+				query {
+					user {
+						id @__defer_internal(id: "1")
+						name
+						__internal_id: id @__defer_internal(id: "1")
+						__internal_2_id: id @__defer_internal(id: "2")
+					}
+				}`,
+			expectedSkipFieldsCount:     1,
+			expectedRequiredFieldsCount: 1,
+			expectedRemappedPaths:       map[string]string{"User.id": "__internal_2_id"},
+		},
+		{
 			name: "requires with defer id - third call with same conflict defer id reuses conflict alias",
 			definition: `
 				type Query { user: User }
