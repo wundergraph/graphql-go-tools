@@ -27,10 +27,16 @@ const (
 	DefaultHeartbeatInterval = 5 * time.Second
 )
 
-// ConnectionIDs is used to create unique connection IDs for each subscription
-// Whenever a new connection is created, use this to generate a new ID
-// It is public because it can be used in more high level packages to instantiate a new connection
-var ConnectionIDs atomic.Int64
+// ConnectionID identifies a client connection for subscription routing.
+type ConnectionID int64
+
+// connectionIDs is the monotonic counter backing NewConnectionID.
+var connectionIDs atomic.Int64
+
+// NewConnectionID returns a unique ConnectionID via an atomic increment.
+func NewConnectionID() ConnectionID {
+	return ConnectionID(connectionIDs.Add(1))
+}
 
 type Reporter interface {
 	// SubscriptionUpdateSent called when a new subscription update is sent
@@ -63,7 +69,7 @@ type Resolver struct {
 	shutdown                  bool
 	triggers                  map[uint64]*trigger
 	subscriptionsByID         map[SubscriptionIdentifier]*subscriptionState
-	subscriptionsByConnection map[int64]map[SubscriptionIdentifier]*subscriptionState
+	subscriptionsByConnection map[ConnectionID]map[SubscriptionIdentifier]*subscriptionState
 
 	allowedErrorExtensionFields map[string]struct{}
 	allowedErrorFields          map[string]struct{}
@@ -272,7 +278,7 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		propagateSubgraphStatusCodes: options.PropagateSubgraphStatusCodes,
 		triggers:                     make(map[uint64]*trigger),
 		subscriptionsByID:            make(map[SubscriptionIdentifier]*subscriptionState),
-		subscriptionsByConnection:    make(map[int64]map[SubscriptionIdentifier]*subscriptionState),
+		subscriptionsByConnection:    make(map[ConnectionID]map[SubscriptionIdentifier]*subscriptionState),
 		reporter:                     options.Reporter,
 		errorFormatter:               options.AsyncErrorWriter,
 		allowedErrorExtensionFields:  allowedExtensionFields,
@@ -929,7 +935,7 @@ func (r *Resolver) handleTriggerError(triggerID uint64, data []byte) {
 	}
 }
 
-func (r *Resolver) removeClient(id int64) removeClientResult {
+func (r *Resolver) removeClient(id ConnectionID) removeClientResult {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.shutdown {
@@ -1191,7 +1197,7 @@ func (r *Resolver) shutdownResolver() {
 
 	r.triggers = make(map[uint64]*trigger)
 	r.subscriptionsByID = make(map[SubscriptionIdentifier]*subscriptionState)
-	r.subscriptionsByConnection = make(map[int64]map[SubscriptionIdentifier]*subscriptionState)
+	r.subscriptionsByConnection = make(map[ConnectionID]map[SubscriptionIdentifier]*subscriptionState)
 	r.mu.Unlock()
 
 	closeSubs(allToClose)
@@ -1231,7 +1237,7 @@ func (r *Resolver) sendTriggerHeartbeats() {
 }
 
 type SubscriptionIdentifier struct {
-	ConnectionID   int64
+	ConnectionID   ConnectionID
 	SubscriptionID int64
 }
 
@@ -1256,7 +1262,7 @@ func (r *Resolver) UnsubscribeSubscription(id SubscriptionIdentifier) error {
 	return nil
 }
 
-func (r *Resolver) UnsubscribeClient(connectionID int64) error {
+func (r *Resolver) UnsubscribeClient(connectionID ConnectionID) error {
 	res := r.removeClient(connectionID)
 	closeSubs(res.toClose)
 	for _, cancel := range res.cancels {
@@ -1324,7 +1330,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 
 	headers, triggerID := r.prepareTrigger(ctx, subscription.Trigger.SourceName, input)
 	id := SubscriptionIdentifier{
-		ConnectionID:   ConnectionIDs.Add(1),
+		ConnectionID:   NewConnectionID(),
 		SubscriptionID: 0,
 	}
 	if r.options.Debug {

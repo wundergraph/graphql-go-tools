@@ -6109,7 +6109,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		}
 
 		for i := 1; i <= 10; i++ {
-			id.ConnectionID = int64(i)
+			id.ConnectionID = ConnectionID(i)
 			id.SubscriptionID = int64(i)
 			recorder.complete.Store(false)
 			err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)

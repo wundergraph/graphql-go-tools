@@ -73,9 +73,12 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 		abstractlogger.String("method", string(method)),
 	)
 
+	// Derive a request context that outlives ctx (via WithoutCancel) so we can
+	// control its lifetime independently. Two AfterFunc registrations tie the
+	// request to both shutdown paths:
+	//   - t.ctx cancel: transport-wide shutdown, tears down all in-flight requests.
+	//   - ctx cancel: individual subscription cancelled by the caller.
 	requestCtx, requestCancel := context.WithCancel(context.WithoutCancel(ctx))
-
-	// Attach cancel to transport context
 	context.AfterFunc(t.ctx, requestCancel)
 	context.AfterFunc(ctx, requestCancel)
 
