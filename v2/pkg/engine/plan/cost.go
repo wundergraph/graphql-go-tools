@@ -400,7 +400,7 @@ func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, variabl
 //
 // fieldCost is the weight of this field or its returned type
 // argsCost is the sum of argument weights and input fields used on this field.
-// Weights on directives ignored for now.
+// directiveCost is the sum of directive argument weights.
 //
 // defaultListSize designates the mode of operation.
 // When it is positive, then its value is used as a fallback value of list sizes for the estimated cost.
@@ -409,7 +409,7 @@ func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, variabl
 // When estimating cost, it picks the highest multiplier among different data sources.
 // Also, it picks the maximum field weight of implementing types and then
 // the maximum among slicing arguments.
-func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value, defaultListSize int, actualListSizes map[string]int) (fieldCost, argsCost, directiveCost int, multiplier float64) {
+func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostConfig, variables *astjson.Value, defaultListSize int, actualListSizes map[string]int) (fieldCost, argsCost, directivesCost int, multiplier float64) {
 	if len(node.dataSourceHashes) <= 0 {
 		// no data source is responsible for this field
 		return
@@ -418,7 +418,7 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 	parent := node.parent
 	fieldCost = 0
 	argsCost = 0
-	directiveCost = 0
+	directivesCost = 0
 	multiplier = 0
 
 	isEstimation := defaultListSize > 0
@@ -501,11 +501,11 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 		// or from implementing types when the enclosing type is abstract.
 		if node.isEnclosingTypeAbstract && parent.returnsAbstractType {
 			for _, weight := range parent.maxDirectiveArgumentWeightsImplementingFields(dsCostConfig, node.fieldCoords.FieldName) {
-				directiveCost += weight
+				directivesCost += weight
 			}
 		} else if fieldWeight != nil {
 			for _, weight := range fieldWeight.DirectiveArgumentWeights {
-				directiveCost += weight
+				directivesCost += weight
 			}
 		}
 
