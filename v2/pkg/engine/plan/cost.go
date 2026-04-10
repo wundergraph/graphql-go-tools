@@ -18,8 +18,6 @@ It builds on top of IBM spec for @cost and @listSize directive with a few change
 * When weight is specified for the type and a field returns the list of that type,
 this weight (along with children's costs) is multiplied too.
 
-TODO: Weights on arguments of directives
-
 */
 
 import (
@@ -40,8 +38,8 @@ import (
 const DefaultEnumScalarWeight = 0
 const DefaultObjectWeight = 1
 
-// FieldWeight defines cost configuration for a specific field of an object or input object.
-type FieldWeight struct {
+// FieldCost defines cost configuration for a specific field of an object or input object.
+type FieldCost struct {
 
 	// Weight is the cost of this field definition. It could be negative or zero.
 	// Should be used only if HasWeight is true.
@@ -53,6 +51,10 @@ type FieldWeight struct {
 	// ArgumentWeights maps an argument name to its weight.
 	// Location: ARGUMENT_DEFINITION
 	ArgumentWeights map[string]int
+
+	// DirectiveArgumentWeights maps a directive.argument coords to its weight.
+	// Populated by composition from @cost on directive argument definitions.
+	DirectiveArgumentWeights map[string]int
 }
 
 // FieldListSize contains parsed data from the @listSize directive for an object field.
@@ -113,17 +115,12 @@ func (ls *FieldListSize) multiplier(arguments map[string]ArgumentInfo, vars *ast
 	return multiplier
 }
 
-type DirectiveArgCoords struct {
-	DirectiveName string
-	ArgName       string
-}
-
 // DataSourceCostConfig holds all cost configurations for a data source.
 // This data is passed from the composition.
 type DataSourceCostConfig struct {
 	// Weights maps field coordinate to its weights. Cannot be on fields of interfaces.
 	// Location: FIELD_DEFINITION, INPUT_FIELD_DEFINITION
-	Weights map[FieldCoordinate]*FieldWeight
+	Weights map[FieldCoordinate]*FieldCost
 
 	// ListSizes maps field coordinates to their respective list size configurations.
 	// Location: FIELD_DEFINITION
@@ -134,18 +131,12 @@ type DataSourceCostConfig struct {
 	// Weight assigned to the field or argument definitions overrides the weight of type definition.
 	// Location: ENUM, OBJECT, SCALAR
 	Types map[string]int
-
-	// DirectiveArguments maps Arguments on directives to the weight.
-	// Directives can be used on input object fields and arguments of fields. This creates
-	// mutual recursion between them; it complicates cost calculation.
-	// We avoid them intentionally for now.
-	DirectiveArguments map[DirectiveArgCoords]int
 }
 
 // NewDataSourceCostConfig creates a new cost config with defaults
 func NewDataSourceCostConfig() *DataSourceCostConfig {
 	return &DataSourceCostConfig{
-		Weights:   make(map[FieldCoordinate]*FieldWeight),
+		Weights:   make(map[FieldCoordinate]*FieldCost),
 		ListSizes: make(map[FieldCoordinate]*FieldListSize),
 		Types:     make(map[string]int),
 	}
@@ -202,9 +193,6 @@ type CostTreeNode struct {
 	// arguments contain the values of arguments passed to the field.
 	arguments map[string]ArgumentInfo
 
-	// directiveArguments contain directive arguments of non-null value for this field.
-	directiveArguments []DirectiveArgCoords
-
 	jsonPath string // JSON path using aliases too
 
 	returnsListType         bool
@@ -236,16 +224,6 @@ type ArgumentInfo struct {
 	varName string
 }
 
-// DirectiveInfo stores information about a directive applied to a field definition,
-// including its name and the arguments it was invoked with.
-type DirectiveInfo struct {
-	// name of the directive (e.g. "approx" for @approx)
-	name string
-
-	// arguments indicate the presence of a non-null value for an argument name
-	arguments map[string]struct{}
-}
-
 // inputObjectField describes the type of input object field.
 type inputObjectField struct {
 	unwrappedTypeName string
@@ -255,7 +233,7 @@ type inputObjectField struct {
 
 // inputFieldsCost computes the cost of input object fields from the variable value.
 // It handles both single objects and arrays of objects.
-func (arg *ArgumentInfo) inputFieldsCost(variables *astjson.Value, weights map[FieldCoordinate]*FieldWeight) int {
+func (arg *ArgumentInfo) inputFieldsCost(variables *astjson.Value, weights map[FieldCoordinate]*FieldCost) int {
 	if !arg.hasVariable {
 		return 0
 	}
@@ -279,8 +257,8 @@ func (arg *ArgumentInfo) inputFieldsCost(variables *astjson.Value, weights map[F
 	return 0
 }
 
-func (node *CostTreeNode) maxWeightImplementingField(config *DataSourceCostConfig, fieldName string) *FieldWeight {
-	var maxWeight *FieldWeight
+func (node *CostTreeNode) maxWeightImplementingField(config *DataSourceCostConfig, fieldName string) *FieldCost {
+	var maxWeight *FieldCost
 	for _, implTypeName := range node.implementingTypeNames {
 		// Get the cost config for the field of an implementing type.
 		coord := FieldCoordinate{implTypeName, fieldName}
@@ -341,6 +319,29 @@ func (node *CostTreeNode) sizedFieldImplementingFields(config *DataSourceCostCon
 			if sf == childFieldName {
 				result = append(result, listSize)
 				break
+			}
+		}
+	}
+	return result
+}
+
+// maxDirectiveArgumentWeightsImplementingFields returns the union of DirectiveArgumentWeights
+// from implementing types' field definitions. For each directive.argument pair, it takes the
+// maximum weight across all implementing types.
+func (node *CostTreeNode) maxDirectiveArgumentWeightsImplementingFields(config *DataSourceCostConfig, fieldName string) map[string]int {
+	var result map[string]int
+	for _, implTypeName := range node.implementingTypeNames {
+		coords := FieldCoordinate{implTypeName, fieldName}
+		fw := config.Weights[coords]
+		if fw == nil || len(fw.DirectiveArgumentWeights) == 0 {
+			continue
+		}
+		if result == nil {
+			result = make(map[string]int)
+		}
+		for dirArg, weight := range fw.DirectiveArgumentWeights {
+			if existing, ok := result[dirArg]; !ok || weight > existing {
+				result[dirArg] = weight
 			}
 		}
 	}
@@ -496,9 +497,14 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 			}
 		}
 
-		for _, dirArgCoords := range node.directiveArguments {
-			weight, ok := dsCostConfig.DirectiveArguments[dirArgCoords]
-			if ok {
+		// Directive weights: sum from the field's own DirectiveArgumentWeights,
+		// or from implementing types when the enclosing type is abstract.
+		if node.isEnclosingTypeAbstract && parent.returnsAbstractType {
+			for _, weight := range parent.maxDirectiveArgumentWeightsImplementingFields(dsCostConfig, node.fieldCoords.FieldName) {
+				directiveCost += weight
+			}
+		} else if fieldWeight != nil {
+			for _, weight := range fieldWeight.DirectiveArgumentWeights {
 				directiveCost += weight
 			}
 		}
@@ -595,7 +601,7 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 func inputObjectCost(
 	typeName string,
 	value *astjson.Object,
-	weights map[FieldCoordinate]*FieldWeight,
+	weights map[FieldCoordinate]*FieldCost,
 	types map[FieldCoordinate]inputObjectField) int {
 	if value == nil {
 		return 0
