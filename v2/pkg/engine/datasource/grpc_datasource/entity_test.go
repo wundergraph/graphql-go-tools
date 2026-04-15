@@ -136,19 +136,19 @@ func TestValidateEntityResponse(t *testing.T) {
 
 	t.Run("returns error when data is nil", func(t *testing.T) {
 		err := validateEntityResponse(nil, "Product", reps)
-		assert.ErrorContains(t, err, "data is required")
+		assert.ErrorContains(t, err, "validateEntityResponse: subgraph response data is nil")
 	})
 
 	t.Run("returns error when requested entity type is empty", func(t *testing.T) {
 		data := astjson.MustParse(`{"_entities":[]}`)
 		err := validateEntityResponse(data, "", reps)
-		assert.ErrorContains(t, err, "requested entity type is required")
+		assert.ErrorContains(t, err, "validateEntityResponse: requested entity type is empty")
 	})
 
 	t.Run("returns error when representations are empty", func(t *testing.T) {
 		data := astjson.MustParse(`{"_entities":[]}`)
 		err := validateEntityResponse(data, "Product", nil)
-		assert.ErrorContains(t, err, "representations are required")
+		assert.ErrorContains(t, err, "validateEntityResponse: no entity representations provided")
 	})
 
 	t.Run("returns error when entity count mismatches representation count", func(t *testing.T) {

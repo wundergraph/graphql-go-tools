@@ -47,15 +47,15 @@ func getRepesentations(variables gjson.Result) []gjson.Result {
 // len(response entities) == len(indexMap), which this function establishes.
 func validateEntityResponse(data *astjson.Value, requestedEntityType string, representations []gjson.Result) error {
 	if data == nil {
-		return errors.New("data is required")
+		return errors.New("validateEntityResponse: subgraph response data is nil")
 	}
 
 	if requestedEntityType == "" {
-		return errors.New("requested entity type is required")
+		return errors.New("validateEntityResponse: requested entity type is empty; the entity RPC plan is missing a RequestedEntityType")
 	}
 
 	if len(representations) == 0 {
-		return errors.New("representations are required")
+		return errors.New("validateEntityResponse: no entity representations provided in the request variables")
 	}
 
 	expected := 0
