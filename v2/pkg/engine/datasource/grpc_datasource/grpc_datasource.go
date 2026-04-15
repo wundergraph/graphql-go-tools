@@ -92,7 +92,7 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 // It processes the input JSON data to make gRPC calls and returns
 // the response data.
 //
-// Headers are converted to gRPC metadata and part of gRPC calls.
+// Headers are converted to gRPC metadata and are part of gRPC calls.
 //
 // The input is expected to contain the necessary information to make
 // a gRPC call, including service name, method name, and request data.
@@ -100,9 +100,7 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 	// get variables from input
 	variables := gjson.Parse(unsafebytes.BytesToString(input)).Get("body.variables")
 
-	var (
-		poolItems []*arena.PoolItem
-	)
+	var poolItems []*arena.PoolItem
 	defer func() {
 		d.pool.ReleaseMany(poolItems)
 	}()

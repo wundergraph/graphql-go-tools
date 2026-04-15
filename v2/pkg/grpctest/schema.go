@@ -349,6 +349,16 @@ func GetFieldConfigurations() plan.FieldConfigurations {
 				},
 			},
 		},
+		{
+			TypeName:  "Query",
+			FieldName: "conditionalSearch",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "conditions",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
 	}
 }
 
@@ -410,6 +420,7 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 					"authorById",
 					"authorsWithFilter",
 					"allAuthors",
+					"conditionalSearch",
 				},
 			},
 			{
@@ -800,6 +811,23 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 				FieldNames: []string{
 					"name",
 					"kind",
+				},
+			},
+			{
+				TypeName: "ConditionsInput",
+				FieldNames: []string{
+					"and",
+					"or",
+					"key",
+					"value",
+				},
+			},
+			{
+				TypeName: "ConditionalSearchResult",
+				FieldNames: []string{
+					"id",
+					"name",
+					"matchedConditions",
 				},
 			},
 		},
