@@ -91,6 +91,47 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 			},
 		},
 		{
+			name:  "Query interface entity Resource",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ... on Resource { __typename id name } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Resource","id":"1"},
+				{"__typename":"Resource","id":"2"},
+				{"__typename":"Resource","id":"3"}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Resource",
+					SelectionSet: "id",
+				},
+			},
+			validate: func(t *testing.T, data map[string]interface{}) {
+				entities, ok := data["_entities"].([]interface{})
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 3, "Should return 3 entities")
+
+				// Entity 0: Product (i%3 == 0)
+				e0, ok := entities[0].(map[string]interface{})
+				require.True(t, ok)
+				require.Equal(t, "1", e0["id"])
+				require.Equal(t, "Product 1", e0["name"])
+
+				// Entity 1: Storage (i%3 == 1)
+				e1, ok := entities[1].(map[string]interface{})
+				require.True(t, ok)
+				require.Equal(t, "2", e1["id"])
+				require.Equal(t, "Storage 2", e1["name"])
+
+				// Entity 2: Warehouse (i%3 == 2)
+				e2, ok := entities[2].(map[string]interface{})
+				require.True(t, ok)
+				require.Equal(t, "3", e2["id"])
+				require.Equal(t, "Warehouse 3", e2["name"])
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
 			name:  "Query warehouse and expect an error",
 			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Warehouse { id name } } }`,
 			vars: `{"variables":{"representations":[

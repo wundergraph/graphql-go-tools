@@ -559,8 +559,9 @@ func TestMarshalResponseJSON(t *testing.T) {
 	responseMessageDesc := responseMsg.Desc
 	responseMessage := dynamicpb.NewMessage(responseMessageDesc)
 	responseMessage.Mutable(responseMessageDesc.Fields().ByName("result")).List().Append(protoref.ValueOfMessage(productMessage))
-
-	jsonBuilder := newJSONBuilder(nil, nil, gjson.Result{})
+	require.NoError(t, err)
+	jsonBuilder, err := newJSONBuilder(nil, &DataSource{}, gjson.Result{})
+	require.NoError(t, err)
 	responseJSON, err := jsonBuilder.marshalResponseJSON(&response, responseMessage)
 	require.NoError(t, err)
 	require.Equal(t, `{"_entities":[{"__typename":"Product","id":"123","name_different":"test","price_different":123.45}]}`, responseJSON.String())

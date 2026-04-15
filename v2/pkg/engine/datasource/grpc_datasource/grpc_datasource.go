@@ -47,6 +47,7 @@ type DataSource struct {
 	rc                *RPCCompiler
 	mapping           *GRPCMapping
 	federationConfigs plan.FederationFieldConfigurations
+	definition        *ast.Document
 	disabled          bool
 
 	pool *arena.Pool
@@ -82,6 +83,7 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 		cc:                client,
 		rc:                config.Compiler,
 		mapping:           config.Mapping,
+		definition:        config.Definition,
 		federationConfigs: config.FederationConfigs,
 		disabled:          config.Disabled,
 		pool:              arena.NewArenaPool(),
@@ -109,7 +111,10 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 
 	item := d.acquirePoolItem(input, 0)
 	poolItems = append(poolItems, item)
-	builder := newJSONBuilder(item.Arena, d.mapping, variables)
+	builder, err := newJSONBuilder(item.Arena, d, variables)
+	if err != nil {
+		return nil, err
+	}
 
 	if d.disabled {
 		return builder.writeErrorBytes(fmt.Errorf("gRPC datasource needs to be enabled to be used")), nil
@@ -145,7 +150,11 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 		for index, serviceCall := range serviceCalls {
 			item := d.acquirePoolItem(input, index)
 			poolItems = append(poolItems, item)
-			builder := newJSONBuilder(item.Arena, d.mapping, variables)
+			builder, err := newJSONBuilder(item.Arena, d, variables)
+			if err != nil {
+				return err
+			}
+
 			errGrp.Go(func() error {
 				// Invoke the gRPC method - this will populate serviceCall.Output
 
@@ -162,7 +171,7 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 				// In case of a federated response, we need to ensure that the response is valid.
 				// The number of entities per type must match the number of lookup keys in the variablese
 				if serviceCall.RPC.Kind == CallKindEntity {
-					err = builder.validateFederatedResponse(response)
+					err = builder.validateFederatedResponse(response, serviceCall.RPC.RequestedEntityType)
 					if err != nil {
 						return err
 					}

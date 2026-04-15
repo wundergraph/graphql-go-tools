@@ -32,41 +32,47 @@ type entityIndex struct {
 	resultIndex         int // Index where this entity should appear in the final result
 }
 
-// indexMap maps GraphQL type names to their corresponding entity indices
-// This allows proper ordering of federated entities by type
-type indexMap map[string][]entityIndex
+type typeLinker map[string]string
 
-// getResultIndex returns the correct result index for an entity based on its type
-// and representation index. This ensures federated entities maintain proper ordering
-// across multiple subgraph responses.
-func (i indexMap) getResultIndex(val *astjson.Value, representationIndex int) int {
-	if i == nil {
-		return representationIndex
-	}
-
-	if val == nil {
-		return representationIndex
-	}
-
-	// Extract the __typename field to determine entity type
-	typeName := val.Get("__typename").GetStringBytes()
-
-	// Find the correct result index for this type and representation index
-	for _, entityIndex := range i[string(typeName)] {
-		if entityIndex.representationIndex == representationIndex {
-			return entityIndex.resultIndex
+func (t typeLinker) add(interfaceName string, linkedTypes ...string) {
+	for _, linkedType := range linkedTypes {
+		if _, ok := t[linkedType]; !ok {
+			t[linkedType] = interfaceName
 		}
 	}
+}
 
-	// Fallback to representation index if no mapping found
-	return representationIndex
+// getLinkedTypes returns the possible interface names for a given type
+func (t typeLinker) getLinkedType(memberTypeName string) (string, bool) {
+	if t == nil {
+		return "", false
+	}
+
+	if interfaceName, ok := t[memberTypeName]; ok {
+		return interfaceName, true
+	}
+
+	return "", false
+}
+
+func (t typeLinker) isEmpty() bool {
+	return len(t) == 0
+}
+
+func newTypeLinker() typeLinker {
+	return make(typeLinker)
+}
+
+type indexMap struct {
+	typeLinker typeLinker
+	entities   map[string][]entityIndex
 }
 
 // createRepresentationIndexMap builds an index mapping for GraphQL federation entities
 // from the variables containing entity representations. This map is used to ensure
 // that entities are returned in the correct order when merging responses from multiple
 // subgraphs, which is critical for GraphQL federation correctness.
-func createRepresentationIndexMap(variables gjson.Result) indexMap {
+func createRepresentationIndexMap(definition *ast.Document, variables gjson.Result) *indexMap {
 	var representations []gjson.Result
 	r := variables.Get("representations")
 	if !r.Exists() {
@@ -74,12 +80,21 @@ func createRepresentationIndexMap(variables gjson.Result) indexMap {
 	}
 
 	representations = r.Array()
-	im := make(indexMap)
+	im := &indexMap{
+		typeLinker: newTypeLinker(),
+		entities:   make(map[string][]entityIndex),
+	}
+
 	indexSet := make(map[string]int) // Track count per type name
 
 	// Build mapping for each representation
 	for i, representation := range representations {
 		typeName := representation.Get("__typename").String()
+
+		memberTypes := getMemberTypesForInterface(definition, typeName)
+		if len(memberTypes) > 0 {
+			im.typeLinker.add(typeName, memberTypes...)
+		}
 
 		// Initialize counter for new type names
 		if _, ok := indexSet[typeName]; !ok {
@@ -89,13 +104,98 @@ func createRepresentationIndexMap(variables gjson.Result) indexMap {
 		// Increment index for this type
 		indexSet[typeName]++
 
-		// Create mapping entry for this entity
-		im[typeName] = append(im[typeName], entityIndex{
+		im.entities[typeName] = append(im.entities[typeName], entityIndex{
 			representationIndex: indexSet[typeName], // Position within entities of this type
 			resultIndex:         i,                  // Position in the overall result array
 		})
 	}
 	return im
+}
+
+func getMemberTypesForInterface(definition *ast.Document, typeName string) []string {
+	node, found := definition.NodeByNameStr(typeName)
+	if !found {
+		// This should probably be an error?
+		return nil
+	}
+
+	if node.Kind != ast.NodeKindInterfaceTypeDefinition {
+		return nil
+	}
+
+	memberTypes, _ := definition.InterfaceTypeDefinitionImplementedByObjectWithNames(node.Ref)
+	return memberTypes
+
+}
+
+// getResultIndex returns the correct result index for an entity based on its type
+// and representation index. This ensures federated entities maintain proper ordering
+// across multiple subgraph responses.
+func (i *indexMap) getResultIndex(val *astjson.Value, representationIndex int) int {
+	if i == nil || i.entities == nil {
+		return representationIndex
+	}
+
+	if val == nil {
+		return representationIndex
+	}
+
+	typeName := val.Get("__typename").GetStringBytes()
+	entities, ok := i.entities[string(typeName)]
+	if !ok {
+		linkedType, found := i.typeLinker.getLinkedType(string(typeName))
+		if found {
+			for _, entityIndex := range i.entities[linkedType] {
+				if entityIndex.representationIndex == representationIndex {
+					return entityIndex.resultIndex
+				}
+			}
+		}
+	}
+
+	for _, entityIndex := range entities {
+		if entityIndex.representationIndex == representationIndex {
+			return entityIndex.resultIndex
+		}
+	}
+
+	return representationIndex
+}
+
+func (i *indexMap) validate(entityCountPerType map[string]int, requestedEntityType string) error {
+	variables, found := i.entities[requestedEntityType]
+	if !found {
+		return fmt.Errorf("entity type %s received in the subgraph response, but was not expected", requestedEntityType)
+	}
+
+	if i.typeLinker.isEmpty() {
+		subgraphEntityCount, found := entityCountPerType[requestedEntityType]
+		if !found {
+			return fmt.Errorf("entity type %s received in the subgraph response, but was not expected", requestedEntityType)
+		}
+
+		if len(variables) != subgraphEntityCount {
+			return fmt.Errorf("entity type %s received %d entities in the subgraph response, but %d are expected", requestedEntityType, subgraphEntityCount, len(variables))
+		}
+
+		return nil
+	}
+
+	totalCount := 0
+	for typeName, count := range entityCountPerType {
+		interfaceName, found := i.typeLinker.getLinkedType(typeName)
+		if !found || interfaceName != requestedEntityType {
+			continue
+		}
+
+		totalCount += count
+	}
+
+	if totalCount != len(variables) {
+		return fmt.Errorf("interface object %s received %d entities in the subgraph response, but %d are expected", requestedEntityType, totalCount, len(variables))
+	}
+
+	return nil
 }
 
 // jsonBuilder is the core component responsible for converting gRPC protobuf responses
@@ -107,26 +207,30 @@ func createRepresentationIndexMap(variables gjson.Result) indexMap {
 type jsonBuilder struct {
 	mapping   *GRPCMapping // Mapping configuration for GraphQL to gRPC translation
 	variables gjson.Result // GraphQL variables containing entity representations
-	indexMap  indexMap     // Entity index mapping for federation ordering
+	indexMap  *indexMap    // Entity index mapping for federation ordering
 	jsonArena arena.Arena
 }
 
 // newJSONBuilder creates a new JSON builder instance with the provided mapping
 // and variables. The builder automatically creates an index map for proper
 // federation entity ordering if representations are present in the variables.
-func newJSONBuilder(a arena.Arena, mapping *GRPCMapping, variables gjson.Result) *jsonBuilder {
-	return &jsonBuilder{
-		mapping:   mapping,
-		variables: variables,
-		indexMap:  createRepresentationIndexMap(variables),
-		jsonArena: a,
+func newJSONBuilder(a arena.Arena, d *DataSource, variables gjson.Result) (*jsonBuilder, error) {
+	if d == nil {
+		return nil, errors.New("data source is required")
 	}
+
+	return &jsonBuilder{
+		mapping:   d.mapping,
+		variables: variables,
+		indexMap:  createRepresentationIndexMap(d.definition, variables),
+		jsonArena: a,
+	}, nil
 }
 
 // validateFederatedResponse validates that the federated response is valid
 // by checking that the number of entities per type is correct.
 // For non-federated responses, this function is a no-op.
-func (j *jsonBuilder) validateFederatedResponse(response *astjson.Value) error {
+func (j *jsonBuilder) validateFederatedResponse(response *astjson.Value, requestedEntityType string) error {
 	if j.indexMap == nil {
 		return nil
 	}
@@ -139,23 +243,17 @@ func (j *jsonBuilder) validateFederatedResponse(response *astjson.Value) error {
 	}
 
 	// Count the number of entities per type
-	entitiyCountPerType := make(map[string]int)
+	entityCountPerType := make(map[string]int)
 	for _, entity := range entities {
 		entityType := entity.Get("__typename").GetStringBytes()
-		entitiyCountPerType[string(entityType)]++
+		entityCountPerType[string(entityType)]++
 	}
 
-	// Check that the number of entities per type is correct and exists in the index map.
-	for typeName, count := range entitiyCountPerType {
-		em, found := j.indexMap[typeName]
-		if !found {
-			return fmt.Errorf("entity type %s received in the subgraph response, but was not expected", typeName)
-		}
-
-		if len(em) != count {
-			return fmt.Errorf("entity type %s received %d entities in the subgraph response, but %d are expected", typeName, count, len(em))
-		}
+	err = j.indexMap.validate(entityCountPerType, requestedEntityType)
+	if err != nil {
+		return err
 	}
+
 	return nil
 }
 
@@ -163,7 +261,7 @@ func (j *jsonBuilder) validateFederatedResponse(response *astjson.Value) error {
 // This is a critical function for GraphQL federation where multiple subgraphs may
 // return entities that need to be merged in the correct order.
 func (j *jsonBuilder) mergeValues(left *astjson.Value, right *astjson.Value) (*astjson.Value, error) {
-	if len(j.indexMap) == 0 {
+	if j.indexMap == nil {
 		// No federation index map available - use simple merge
 		// This path is taken for non-federated queries
 		root, _, err := astjson.MergeValues(j.jsonArena, left, right)
@@ -368,9 +466,9 @@ func (j *jsonBuilder) marshalResponseJSON(message *RPCMessage, data protoref.Mes
 			}
 
 			// Type-specific static value - match against member types
-			for _, memberTypes := range message.MemberTypes {
-				if memberTypes == string(data.Type().Descriptor().Name()) {
-					root.Set(j.jsonArena, field.AliasOrPath(), astjson.StringValue(j.jsonArena, memberTypes))
+			for _, memberType := range message.MemberTypes {
+				if memberType == string(data.Type().Descriptor().Name()) {
+					root.Set(j.jsonArena, field.AliasOrPath(), astjson.StringValue(j.jsonArena, memberType))
 					break
 				}
 			}

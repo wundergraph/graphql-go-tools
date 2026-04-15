@@ -1,5 +1,10 @@
 # Directive for gRPC field resolvers
-type Product @key(fields: "id") {
+interface Resource @key(fields: "id") {
+  id: ID!
+  name: String!
+}
+
+type Product implements Resource @key(fields: "id") {
   id: ID!
   name: String!
   price: Float!
@@ -17,7 +22,7 @@ type ProductDetails {
   recommendedPet: Animal!
 }
 
-type Storage @key(fields: "id") {
+type Storage implements Resource @key(fields: "id") {
   id: ID!
   name: String!
   location: String!
@@ -87,7 +92,7 @@ type Storage @key(fields: "id") {
   nullableFilteredTagSummary(prefix: String): String @requires(fields: "tags")
 }
 
-type Warehouse @key(fields: "id") {
+type Warehouse implements Resource @key(fields: "id") {
   id: ID!
   name: String!
   location: String!
@@ -686,7 +691,7 @@ type Mutation {
   bulkUpdateBlogPosts(blogPosts: [BlogPostInput!]): [BlogPost!]!
 }
 
-union _Entity = Product | Storage | Warehouse
+union _Entity = Product | Storage | Warehouse | Resource
 scalar _Any
 scalar openfed__FieldSet
 

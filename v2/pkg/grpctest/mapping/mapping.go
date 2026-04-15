@@ -520,6 +520,16 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 			},
 		},
 		EntityRPCs: map[string][]grpcdatasource.EntityRPCConfig{
+			"Resource": {
+				{
+					Key: "id",
+					RPCConfig: grpcdatasource.RPCConfig{
+						RPC:      "LookupResourceById",
+						Request:  "LookupResourceByIdRequest",
+						Response: "LookupResourceByIdResponse",
+					},
+				},
+			},
 			"Product": {
 				{
 					Key: "id",

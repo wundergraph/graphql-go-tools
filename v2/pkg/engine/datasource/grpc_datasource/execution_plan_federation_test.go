@@ -52,9 +52,10 @@ func TestExecutionPlan_Federation_EntityLookup(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupProductById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupProductById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Product",
 						// Define the structure of the request message
 						Request: RPCMessage{
 							Name: "LookupProductByIdRequest",
@@ -121,6 +122,87 @@ func TestExecutionPlan_Federation_EntityLookup(t *testing.T) {
 			},
 		},
 		{
+			name:    "Should create an execution plan for an interface entity lookup",
+			query:   `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Resource { __typename id name } } }`,
+			mapping: testMapping(),
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Resource",
+					SelectionSet: "id",
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName:         "Products",
+						MethodName:          "LookupResourceById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Resource",
+						Request: RPCMessage{
+							Name: "LookupResourceByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "keys",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name:        "LookupResourceByIdRequestKey",
+										MemberTypes: []string{"Resource"},
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "LookupResourceByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
+									Message: &RPCMessage{
+										Name:      "Resource",
+										OneOfType: OneOfTypeInterface,
+										MemberTypes: []string{
+											"Product",
+											"Storage",
+											"Warehouse",
+										},
+										Fields: []RPCField{
+											{
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "Resource",
+											},
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
 			name:    "Should create an execution plan for an entity lookup multiple types",
 			query:   `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Product { __typename id name price } ... on Storage { __typename id name location } } }`,
 			mapping: testMapping(),
@@ -137,9 +219,10 @@ func TestExecutionPlan_Federation_EntityLookup(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupProductById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupProductById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Product",
 						Request: RPCMessage{
 							Name: "LookupProductByIdRequest",
 							Fields: []RPCField{
@@ -202,10 +285,11 @@ func TestExecutionPlan_Federation_EntityLookup(t *testing.T) {
 						},
 					},
 					{
-						ID:          1,
-						ServiceName: "Products",
-						MethodName:  "LookupStorageById",
-						Kind:        CallKindEntity,
+						ID:                  1,
+						ServiceName:         "Products",
+						MethodName:          "LookupStorageById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Storage",
 						Request: RPCMessage{
 							Name: "LookupStorageByIdRequest",
 							Fields: []RPCField{
@@ -348,9 +432,10 @@ func TestExecutionPlan_Federation_EntityKeys(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupUserById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupUserById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "User",
 						// Define the structure of the request message
 						Request: RPCMessage{
 							Name: "LookupUserByIdRequest",
@@ -458,9 +543,10 @@ func TestExecutionPlan_Federation_EntityKeys(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupUserByIdAndAddress",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupUserByIdAndAddress",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "User",
 						// Define the structure of the request message
 						Request: RPCMessage{
 							Name: "LookupUserByIdAndAddressRequest",
@@ -572,9 +658,10 @@ func TestExecutionPlan_Federation_EntityKeys(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupUserByIdAndName",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupUserByIdAndName",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "User",
 						Request: RPCMessage{
 							Name: "LookupUserByIdAndNameRequest",
 							Fields: []RPCField{
@@ -674,9 +761,10 @@ func TestExecutionPlan_Federation_EntityKeys(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupUserByIdAndName",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupUserByIdAndName",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "User",
 						Request: RPCMessage{
 							Name: "LookupUserByIdAndNameRequest",
 							Fields: []RPCField{
@@ -782,9 +870,10 @@ func TestExecutionPlan_Federation_EntityKeys(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupUserByIdAndNameAndAddress",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupUserByIdAndNameAndAddress",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "User",
 						Request: RPCMessage{
 							Name: "LookupUserByIdAndNameAndAddressRequest",
 							Fields: []RPCField{
@@ -906,9 +995,10 @@ func TestExecutionPlan_Federation_EntityKeys(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupUserById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupUserById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "User",
 						// Define the structure of the request message
 						Request: RPCMessage{
 							Name: "LookupUserByIdRequest",
@@ -1085,9 +1175,10 @@ func TestEntityLookupWithNestedInlineFragments(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupUserById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupUserById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "User",
 						Request: RPCMessage{
 							Name: "LookupUserByIdRequest",
 							Fields: []RPCField{
@@ -1210,9 +1301,10 @@ func TestEntityLookupWithNestedInlineFragments(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupUserById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupUserById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "User",
 						Request: RPCMessage{
 							Name: "LookupUserByIdRequest",
 							Fields: []RPCField{
@@ -1314,9 +1406,10 @@ func TestEntityLookupWithNestedInlineFragments(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupUserById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupUserById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "User",
 						Request: RPCMessage{
 							Name: "LookupUserByIdRequest",
 							Fields: []RPCField{
@@ -1423,9 +1516,10 @@ func TestEntityLookupWithNestedInlineFragments(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupUserById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupUserById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "User",
 						Request: RPCMessage{
 							Name: "LookupUserByIdRequest",
 							Fields: []RPCField{
@@ -1687,9 +1781,10 @@ func TestEntityLookupWithFieldResolvers_ComplexResolverInNestedMessage(t *testin
 	expectedPlan := &RPCExecutionPlan{
 		Calls: []RPCCall{
 			{
-				ServiceName: "Products",
-				MethodName:  "LookupProductById",
-				Kind:        CallKindEntity,
+				ServiceName:         "Products",
+				MethodName:          "LookupProductById",
+				Kind:                CallKindEntity,
+				RequestedEntityType: "Product",
 				Request: RPCMessage{
 					Name: "LookupProductByIdRequest",
 					Fields: []RPCField{
