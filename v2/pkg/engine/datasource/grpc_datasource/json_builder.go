@@ -31,20 +31,18 @@ const (
 // - Protobuf to GraphQL type conversion
 // - Error response formatting
 type jsonBuilder struct {
-	mapping   *GRPCMapping    // Mapping configuration for GraphQL to gRPC translation
-	variables gjson.Result    // GraphQL variables containing entity representations
-	indexMap  *entityIndexMap // Entity index mapping for federation ordering
+	mapping   *GRPCMapping // Mapping configuration for GraphQL to gRPC translation
+	variables gjson.Result // GraphQL variables containing entity representations
 	jsonArena arena.Arena
 }
 
 // newJSONBuilder creates a new JSON builder instance with the provided mapping
 // and variables. The builder automatically creates an index map for proper
 // federation entity ordering if representations are present in the variables.
-func newJSONBuilder(a arena.Arena, mapping *GRPCMapping, variables gjson.Result, indexMap *entityIndexMap) (*jsonBuilder, error) {
+func newJSONBuilder(a arena.Arena, mapping *GRPCMapping, variables gjson.Result) (*jsonBuilder, error) {
 	return &jsonBuilder{
 		mapping:   mapping,
 		variables: variables,
-		indexMap:  indexMap,
 		jsonArena: a,
 	}, nil
 }
@@ -52,26 +50,15 @@ func newJSONBuilder(a arena.Arena, mapping *GRPCMapping, variables gjson.Result,
 // mergeValues combines two JSON values while preserving proper federation entity ordering.
 // This is a critical function for GraphQL federation where multiple subgraphs may
 // return entities that need to be merged in the correct order.
-func (j *jsonBuilder) mergeValues(left *astjson.Value, right *astjson.Value) (*astjson.Value, error) {
-	if j.indexMap == nil {
+func (j *jsonBuilder) mergeValues(left *astjson.Value, right resultData) (*astjson.Value, error) {
+	if right.kind != CallKindEntity {
 		// No federation index map available - use simple merge
 		// This path is taken for non-federated queries
-		root, _, err := astjson.MergeValues(j.jsonArena, left, right)
+		root, _, err := astjson.MergeValues(j.jsonArena, left, right.response)
 		if err != nil {
 			return nil, err
 		}
 		return root, nil
-	}
-
-	// Federation entities present - must preserve representation order
-	leftObject, err := left.Object()
-	if err != nil {
-		return nil, err
-	}
-
-	// If left side is empty, just return right side
-	if leftObject.Len() == 0 {
-		return right, nil
 	}
 
 	// Perform federation-aware entity merging
@@ -81,7 +68,8 @@ func (j *jsonBuilder) mergeValues(left *astjson.Value, right *astjson.Value) (*a
 // mergeEntities performs federation-aware merging of entity arrays from multiple subgraph responses.
 // This function ensures that entities are placed in the correct positions in the final response
 // array based on their original representation order, which is critical for GraphQL federation.
-func (j *jsonBuilder) mergeEntities(left *astjson.Value, right *astjson.Value) (*astjson.Value, error) {
+func (j *jsonBuilder) mergeEntities(left *astjson.Value, rightResult resultData) (*astjson.Value, error) {
+	right := rightResult.response
 
 	// Create the response structure with _entities array
 	entities := astjson.ObjectValue(j.jsonArena)
@@ -89,24 +77,17 @@ func (j *jsonBuilder) mergeEntities(left *astjson.Value, right *astjson.Value) (
 	arr := entities.Get(entityPath)
 
 	// Extract entity arrays from both responses
-	leftRepresentations, err := left.Get(entityPath).Array()
-	if err != nil {
-		return nil, err
-	}
-
-	rightRepresentations, err := right.Get(entityPath).Array()
-	if err != nil {
-		return nil, err
-	}
+	leftRepresentations := left.Get(entityPath).GetArray()
+	rightRepresentations := right.Get(entityPath).GetArray()
 
 	// Merge left entities using index mapping to preserve order
 	for index, lr := range leftRepresentations {
-		arr.SetArrayItem(j.jsonArena, j.indexMap.getResultIndex(lr, index), lr)
+		arr.SetArrayItem(j.jsonArena, index, lr)
 	}
 
 	// Merge right entities using index mapping to preserve order
 	for index, rr := range rightRepresentations {
-		arr.SetArrayItem(j.jsonArena, j.indexMap.getResultIndex(rr, index), rr)
+		arr.SetArrayItem(j.jsonArena, rightResult.entityIndexMap[index], rr)
 	}
 
 	return entities, nil

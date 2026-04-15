@@ -30,9 +30,10 @@ import (
 )
 
 type resultData struct {
-	kind         CallKind
-	response     *astjson.Value
-	responsePath ast.Path
+	kind           CallKind
+	response       *astjson.Value
+	responsePath   ast.Path
+	entityIndexMap entityIndexMap
 }
 
 // Verify DataSource implements the resolve.DataSource interface
@@ -112,13 +113,7 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 	item := d.acquirePoolItem(input, 0)
 	poolItems = append(poolItems, item)
 
-	var indexMap *entityIndexMap
-	representations := getRepesentations(variables)
-	if len(representations) > 0 {
-		indexMap = createEntityIndexMap(d.definition, representations)
-	}
-
-	builder, err := newJSONBuilder(item.Arena, d.mapping, variables, indexMap)
+	builder, err := newJSONBuilder(item.Arena, d.mapping, variables)
 	if err != nil {
 		return nil, err
 	}
@@ -144,6 +139,7 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 
 	root := astjson.ObjectValue(nil)
 
+	representations := getRepesentations(variables)
 	if err := graph.TopologicalSortResolve(func(nodes []FetchItem) error {
 		serviceCalls, err := d.rc.CompileFetches(graph, nodes, variables)
 		if err != nil {
@@ -158,7 +154,7 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 			item := d.acquirePoolItem(input, index)
 			poolItems = append(poolItems, item)
 
-			builder, err := newJSONBuilder(item.Arena, d.mapping, variables, nil)
+			builder, err := newJSONBuilder(item.Arena, d.mapping, variables)
 			if err != nil {
 				return err
 			}
@@ -175,19 +171,21 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 					return err
 				}
 
+				results[index] = resultData{
+					kind:         serviceCall.RPC.Kind,
+					response:     response,
+					responsePath: serviceCall.RPC.ResponsePath,
+				}
+
 				// In case of a federated response, we need to ensure that the response is valid.
-				// The number of entities per type must match the number of lookup keys in the variablese
+				// The number of entities per type must match the number of lookup keys in the variables
 				if serviceCall.RPC.Kind == CallKindEntity {
 					err := validateEntityResponse(response, serviceCall.RPC.RequestedEntityType, representations)
 					if err != nil {
 						return err
 					}
-				}
 
-				results[index] = resultData{
-					kind:         serviceCall.RPC.Kind,
-					response:     response,
-					responsePath: serviceCall.RPC.ResponsePath,
+					results[index].entityIndexMap = newEntityIndexMap(serviceCall.RPC.RequestedEntityType, representations)
 				}
 
 				return nil
@@ -203,7 +201,7 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 			case CallKindResolve, CallKindRequired:
 				err = builder.mergeWithPath(root, result.response, result.responsePath)
 			default:
-				root, err = builder.mergeValues(root, result.response)
+				root, err = builder.mergeValues(root, result)
 			}
 			if err != nil {
 				return err
