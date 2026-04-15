@@ -9,19 +9,23 @@ import (
 	"github.com/wundergraph/astjson"
 )
 
+// entityIndexMap maps positions in the typed gRPC response back to positions
+// in the original representations array. The slice index is the response
+// position; the value is the representation index. It is built per call by
+// recording the position of every representation whose __typename matches
+// the requested entity type.
 type entityIndexMap []int
 
+// newEntityIndexMap builds the index map for a single entity call by collecting
+// the positions of representations whose __typename matches the requested type.
+// A single pass over representations populates the slice.
 func newEntityIndexMap(requestedEntityType string, representations []gjson.Result) entityIndexMap {
-	indexMap := make(entityIndexMap, filteredRepresentationCount(representations, requestedEntityType))
-
-	requestedTypeIndex := 0
+	indexMap := make(entityIndexMap, 0, len(representations))
 	for i, representation := range representations {
 		if representation.Get(typenameFieldName).String() == requestedEntityType {
-			indexMap[requestedTypeIndex] = i
-			requestedTypeIndex++
+			indexMap = append(indexMap, i)
 		}
 	}
-
 	return indexMap
 }
 
@@ -36,39 +40,35 @@ func getRepesentations(variables gjson.Result) []gjson.Result {
 	return r.Array()
 }
 
-// validateEntityResponse validates that the entity response is valid
-// by checking that the number of entities for a requested type matches the number of representations for that type.
-func validateEntityResponse(data *astjson.Value, requestedEntityType string, repesentations []gjson.Result) error {
+// validateEntityResponse verifies that the number of entities returned by the
+// subgraph matches the number of representations of the requested type.
+// Callers should subsequently build an entityIndexMap via newEntityIndexMap to
+// merge the response — mergeEntities relies on the invariant that
+// len(response entities) == len(indexMap), which this function establishes.
+func validateEntityResponse(data *astjson.Value, requestedEntityType string, representations []gjson.Result) error {
 	if data == nil {
-		return errors.New("unable to create entity validator: data is required")
+		return errors.New("data is required")
 	}
 
 	if requestedEntityType == "" {
-		return errors.New("unable to create entity validator: requested entity type is required")
+		return errors.New("requested entity type is required")
 	}
 
-	if len(repesentations) == 0 {
-		return errors.New("unable to create entity validator: representations are required")
+	if len(representations) == 0 {
+		return errors.New("representations are required")
+	}
+
+	expected := 0
+	for _, representation := range representations {
+		if representation.Get(typenameFieldName).String() == requestedEntityType {
+			expected++
+		}
 	}
 
 	entities := data.Get(entityPath).GetArray()
-	filteredRepresentationCount := filteredRepresentationCount(repesentations, requestedEntityType)
-
-	if len(entities) != filteredRepresentationCount {
-		return fmt.Errorf("entity type %s received %d entities in the subgraph response, but %d are expected", requestedEntityType, len(entities), filteredRepresentationCount)
+	if len(entities) != expected {
+		return fmt.Errorf("entity type %s received %d entities in the subgraph response, but %d are expected", requestedEntityType, len(entities), expected)
 	}
 
 	return nil
-}
-
-// filteredRepresentationCount filters the representations for a given entity type.
-// It returns the number of representations for the given entity type.
-func filteredRepresentationCount(repesentations []gjson.Result, requestedEntityType string) int {
-	count := 0
-	for _, representation := range repesentations {
-		if representation.Get(typenameFieldName).String() == requestedEntityType {
-			count++
-		}
-	}
-	return count
 }

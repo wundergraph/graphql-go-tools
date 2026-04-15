@@ -178,10 +178,11 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 				}
 
 				// In case of a federated response, we need to ensure that the response is valid.
-				// The number of entities per type must match the number of lookup keys in the variables
+				// The number of entities per type must match the number of lookup keys in the variables.
+				// On success we build the index map used by mergeEntities to place each response
+				// entity at the correct position in the final _entities array.
 				if serviceCall.RPC.Kind == CallKindEntity {
-					err := validateEntityResponse(response, serviceCall.RPC.RequestedEntityType, representations)
-					if err != nil {
+					if err := validateEntityResponse(response, serviceCall.RPC.RequestedEntityType, representations); err != nil {
 						return err
 					}
 

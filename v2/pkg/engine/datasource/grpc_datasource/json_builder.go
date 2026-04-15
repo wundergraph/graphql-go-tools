@@ -68,25 +68,28 @@ func (j *jsonBuilder) mergeValues(left *astjson.Value, right resultData) (*astjs
 // mergeEntities performs federation-aware merging of entity arrays from multiple subgraph responses.
 // This function ensures that entities are placed in the correct positions in the final response
 // array based on their original representation order, which is critical for GraphQL federation.
+//
+// entityIndexMap is indexed directly without bounds checks: if the lengths
+// did not match we would have already aborted in validateEntityResponse.
+//
+// On the first call, left is the empty root object and we allocate a fresh
+// _entities array. On subsequent calls, left is the result of a previous
+// mergeEntities call and already holds the _entities array, so we mutate it
+// in place rather than copying every accumulated entity into a new array.
 func (j *jsonBuilder) mergeEntities(left *astjson.Value, rightResult resultData) (*astjson.Value, error) {
 	right := rightResult.response
+	rightEntities := right.Get(entityPath).GetArray()
 
-	// Create the response structure with _entities array
-	entities := astjson.ObjectValue(j.jsonArena)
-	entities.Set(j.jsonArena, entityPath, astjson.ArrayValue(j.jsonArena))
-	arr := entities.Get(entityPath)
-
-	// Extract entity arrays from both responses
-	leftRepresentations := left.Get(entityPath).GetArray()
-	rightRepresentations := right.Get(entityPath).GetArray()
-
-	// Merge left entities using index mapping to preserve order
-	for index, lr := range leftRepresentations {
-		arr.SetArrayItem(j.jsonArena, index, lr)
+	entities := left
+	arr := left.Get(entityPath)
+	if arr == nil || arr.Type() != astjson.TypeArray {
+		entities = astjson.ObjectValue(j.jsonArena)
+		entities.Set(j.jsonArena, entityPath, astjson.ArrayValue(j.jsonArena))
+		arr = entities.Get(entityPath)
 	}
 
-	// Merge right entities using index mapping to preserve order
-	for index, rr := range rightRepresentations {
+	// Place right's entities at their global positions in the merged array.
+	for index, rr := range rightEntities {
 		arr.SetArrayItem(j.jsonArena, rightResult.entityIndexMap[index], rr)
 	}
 

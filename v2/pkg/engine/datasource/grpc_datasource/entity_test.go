@@ -87,6 +87,24 @@ func TestNewEntityIndexMap(t *testing.T) {
 
 		assert.Equal(t, entityIndexMap{0, 1, 2}, newEntityIndexMap("Product", reps))
 	})
+
+	t.Run("interface entity matches by typename string only", func(t *testing.T) {
+		// Interface-entity representations carry the interface name as __typename
+		// (e.g. "Resource"). The index map cares only about the typename string,
+		// not whether it refers to an interface or a concrete type.
+		reps := getRepesentations(gjson.Parse(`{"representations":[
+			{"__typename":"Resource","id":"1"},
+			{"__typename":"Product","id":"2"},
+			{"__typename":"Resource","id":"3"},
+			{"__typename":"Storage","id":"4"},
+			{"__typename":"Resource","id":"5"}
+		]}`))
+
+		assert.Equal(t, entityIndexMap{0, 2, 4}, newEntityIndexMap("Resource", reps))
+		// Concrete types in the same list are independent.
+		assert.Equal(t, entityIndexMap{1}, newEntityIndexMap("Product", reps))
+		assert.Equal(t, entityIndexMap{3}, newEntityIndexMap("Storage", reps))
+	})
 }
 
 func TestGetRepresentations(t *testing.T) {
@@ -144,7 +162,7 @@ func TestValidateEntityResponse(t *testing.T) {
 		assert.NoError(t, validateEntityResponse(data, "Product", reps))
 	})
 
-	t.Run("filters representations by requested type before counting", func(t *testing.T) {
+	t.Run("counts only representations of the requested type", func(t *testing.T) {
 		mixedReps := getRepesentations(gjson.Parse(`{"representations":[
 			{"__typename":"Product","id":"1"},
 			{"__typename":"Storage","id":"2"},
@@ -154,40 +172,15 @@ func TestValidateEntityResponse(t *testing.T) {
 		assert.NoError(t, validateEntityResponse(data, "Product", mixedReps))
 	})
 
+	t.Run("returns error when _entities key is missing", func(t *testing.T) {
+		data := astjson.MustParse(`{}`)
+		err := validateEntityResponse(data, "Product", reps)
+		assert.ErrorContains(t, err, "entity type Product received 0 entities in the subgraph response, but 2 are expected")
+	})
+
 	t.Run("returns error when _entities path is not an array", func(t *testing.T) {
 		data := astjson.MustParse(`{"_entities":"not an array"}`)
 		err := validateEntityResponse(data, "Product", reps)
 		assert.Error(t, err)
-	})
-}
-
-func TestFilterRepresentations(t *testing.T) {
-	reps := getRepesentations(gjson.Parse(`{"representations":[
-		{"__typename":"Product","id":"1"},
-		{"__typename":"Storage","id":"2"},
-		{"__typename":"Product","id":"3"},
-		{"__typename":"Warehouse","id":"4"}
-	]}`))
-
-	t.Run("returns empty slice when nothing matches", func(t *testing.T) {
-		filtered := filteredRepresentationCount(reps, "Unknown")
-		assert.NotNil(t, filtered)
-		assert.Empty(t, filtered)
-	})
-
-	t.Run("returns matching representations only", func(t *testing.T) {
-		filtered := filteredRepresentationCount(reps, "Product")
-		assert.Equal(t, 2, filtered)
-	})
-
-	t.Run("returns single match", func(t *testing.T) {
-		filtered := filteredRepresentationCount(reps, "Warehouse")
-		assert.Equal(t, 1, filtered)
-	})
-
-	t.Run("returns empty slice for empty input", func(t *testing.T) {
-		filtered := filteredRepresentationCount(nil, "Product")
-		assert.NotNil(t, filtered)
-		assert.Empty(t, filtered)
 	})
 }
