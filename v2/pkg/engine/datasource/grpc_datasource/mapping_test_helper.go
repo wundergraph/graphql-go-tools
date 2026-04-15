@@ -524,6 +524,16 @@ func testMapping() *GRPCMapping {
 					},
 				},
 			},
+			"Subresource": {
+				{
+					Key: "id",
+					RPCConfig: RPCConfig{
+						RPC:      "LookupSubresourceById",
+						Request:  "LookupSubresourceByIdRequest",
+						Response: "LookupSubresourceByIdResponse",
+					},
+				},
+			},
 			"Product": {
 				{
 					Key: "id",

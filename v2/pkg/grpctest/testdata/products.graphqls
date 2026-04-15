@@ -4,7 +4,12 @@ interface Resource @key(fields: "id") {
   name: String!
 }
 
-type Product implements Resource @key(fields: "id") {
+interface Subresource @key(fields: "id") {
+  id: ID!
+  name: String!
+}
+
+type Product implements Resource & Subresource @key(fields: "id") {
   id: ID!
   name: String!
   price: Float!
@@ -92,7 +97,7 @@ type Storage implements Resource @key(fields: "id") {
   nullableFilteredTagSummary(prefix: String): String @requires(fields: "tags")
 }
 
-type Warehouse implements Resource @key(fields: "id") {
+type Warehouse implements Resource & Subresource @key(fields: "id") {
   id: ID!
   name: String!
   location: String!
@@ -691,7 +696,7 @@ type Mutation {
   bulkUpdateBlogPosts(blogPosts: [BlogPostInput!]): [BlogPost!]!
 }
 
-union _Entity = Product | Storage | Warehouse | Resource
+union _Entity = Product | Storage | Warehouse | Resource | Subresource
 scalar _Any
 scalar openfed__FieldSet
 

@@ -22,6 +22,7 @@ const (
 	ProductService_LookupProductById_FullMethodName                            = "/productv1.ProductService/LookupProductById"
 	ProductService_LookupResourceById_FullMethodName                           = "/productv1.ProductService/LookupResourceById"
 	ProductService_LookupStorageById_FullMethodName                            = "/productv1.ProductService/LookupStorageById"
+	ProductService_LookupSubresourceById_FullMethodName                        = "/productv1.ProductService/LookupSubresourceById"
 	ProductService_LookupWarehouseById_FullMethodName                          = "/productv1.ProductService/LookupWarehouseById"
 	ProductService_MutationBulkCreateAuthors_FullMethodName                    = "/productv1.ProductService/MutationBulkCreateAuthors"
 	ProductService_MutationBulkCreateBlogPosts_FullMethodName                  = "/productv1.ProductService/MutationBulkCreateBlogPosts"
@@ -128,6 +129,8 @@ type ProductServiceClient interface {
 	LookupResourceById(ctx context.Context, in *LookupResourceByIdRequest, opts ...grpc.CallOption) (*LookupResourceByIdResponse, error)
 	// Lookup Storage entity by id
 	LookupStorageById(ctx context.Context, in *LookupStorageByIdRequest, opts ...grpc.CallOption) (*LookupStorageByIdResponse, error)
+	// Lookup Subresource entity by id
+	LookupSubresourceById(ctx context.Context, in *LookupSubresourceByIdRequest, opts ...grpc.CallOption) (*LookupSubresourceByIdResponse, error)
 	// Lookup Warehouse entity by id
 	LookupWarehouseById(ctx context.Context, in *LookupWarehouseByIdRequest, opts ...grpc.CallOption) (*LookupWarehouseByIdResponse, error)
 	MutationBulkCreateAuthors(ctx context.Context, in *MutationBulkCreateAuthorsRequest, opts ...grpc.CallOption) (*MutationBulkCreateAuthorsResponse, error)
@@ -255,6 +258,16 @@ func (c *productServiceClient) LookupStorageById(ctx context.Context, in *Lookup
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(LookupStorageByIdResponse)
 	err := c.cc.Invoke(ctx, ProductService_LookupStorageById_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) LookupSubresourceById(ctx context.Context, in *LookupSubresourceByIdRequest, opts ...grpc.CallOption) (*LookupSubresourceByIdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(LookupSubresourceByIdResponse)
+	err := c.cc.Invoke(ctx, ProductService_LookupSubresourceById_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1193,6 +1206,8 @@ type ProductServiceServer interface {
 	LookupResourceById(context.Context, *LookupResourceByIdRequest) (*LookupResourceByIdResponse, error)
 	// Lookup Storage entity by id
 	LookupStorageById(context.Context, *LookupStorageByIdRequest) (*LookupStorageByIdResponse, error)
+	// Lookup Subresource entity by id
+	LookupSubresourceById(context.Context, *LookupSubresourceByIdRequest) (*LookupSubresourceByIdResponse, error)
 	// Lookup Warehouse entity by id
 	LookupWarehouseById(context.Context, *LookupWarehouseByIdRequest) (*LookupWarehouseByIdResponse, error)
 	MutationBulkCreateAuthors(context.Context, *MutationBulkCreateAuthorsRequest) (*MutationBulkCreateAuthorsResponse, error)
@@ -1304,6 +1319,9 @@ func (UnimplementedProductServiceServer) LookupResourceById(context.Context, *Lo
 }
 func (UnimplementedProductServiceServer) LookupStorageById(context.Context, *LookupStorageByIdRequest) (*LookupStorageByIdResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method LookupStorageById not implemented")
+}
+func (UnimplementedProductServiceServer) LookupSubresourceById(context.Context, *LookupSubresourceByIdRequest) (*LookupSubresourceByIdResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method LookupSubresourceById not implemented")
 }
 func (UnimplementedProductServiceServer) LookupWarehouseById(context.Context, *LookupWarehouseByIdRequest) (*LookupWarehouseByIdResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method LookupWarehouseById not implemented")
@@ -1652,6 +1670,24 @@ func _ProductService_LookupStorageById_Handler(srv interface{}, ctx context.Cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProductServiceServer).LookupStorageById(ctx, req.(*LookupStorageByIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_LookupSubresourceById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LookupSubresourceByIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).LookupSubresourceById(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_LookupSubresourceById_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).LookupSubresourceById(ctx, req.(*LookupSubresourceByIdRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -3330,6 +3366,10 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "LookupStorageById",
 			Handler:    _ProductService_LookupStorageById_Handler,
+		},
+		{
+			MethodName: "LookupSubresourceById",
+			Handler:    _ProductService_LookupSubresourceById_Handler,
 		},
 		{
 			MethodName: "LookupWarehouseById",

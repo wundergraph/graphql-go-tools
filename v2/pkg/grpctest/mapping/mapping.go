@@ -530,6 +530,16 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					},
 				},
 			},
+			"Subresource": {
+				{
+					Key: "id",
+					RPCConfig: grpcdatasource.RPCConfig{
+						RPC:      "LookupSubresourceById",
+						Request:  "LookupSubresourceByIdRequest",
+						Response: "LookupSubresourceByIdResponse",
+					},
+				},
+			},
 			"Product": {
 				{
 					Key: "id",

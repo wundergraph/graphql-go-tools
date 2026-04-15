@@ -132,6 +132,122 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 			},
 		},
 		{
+			name:  "Query two interface entities Resource and Subresource in one call",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ... on Resource { __typename id name } ... on Subresource { __typename id name } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Resource","id":"1"},
+				{"__typename":"Subresource","id":"2"},
+				{"__typename":"Resource","id":"3"},
+				{"__typename":"Subresource","id":"4"}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Resource",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Subresource",
+					SelectionSet: "id",
+				},
+			},
+			validate: func(t *testing.T, data map[string]interface{}) {
+				entities, ok := data["_entities"].([]interface{})
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 4, "Should return 4 entities")
+
+				// Position 0: Resource lookup, i=0 → mock returns Product variant.
+				// __typename is the resolved concrete type (Product), not the interface name.
+				e0, ok := entities[0].(map[string]interface{})
+				require.True(t, ok)
+				require.Equal(t, "Product", e0["__typename"])
+				require.Equal(t, "1", e0["id"])
+				require.Equal(t, "Product 1", e0["name"])
+
+				// Position 1: Subresource lookup, i=0 → mock returns Product variant.
+				e1, ok := entities[1].(map[string]interface{})
+				require.True(t, ok)
+				require.Equal(t, "Product", e1["__typename"])
+				require.Equal(t, "2", e1["id"])
+				require.Equal(t, "Product 2", e1["name"])
+
+				// Position 2: Resource lookup, i=1 → mock returns Storage variant.
+				e2, ok := entities[2].(map[string]interface{})
+				require.True(t, ok)
+				require.Equal(t, "Storage", e2["__typename"])
+				require.Equal(t, "3", e2["id"])
+				require.Equal(t, "Storage 3", e2["name"])
+
+				// Position 3: Subresource lookup, i=1 → mock returns Warehouse variant.
+				e3, ok := entities[3].(map[string]interface{})
+				require.True(t, ok)
+				require.Equal(t, "Warehouse", e3["__typename"])
+				require.Equal(t, "4", e3["id"])
+				require.Equal(t, "Warehouse 4", e3["name"])
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			name:  "Query interface entity Resource together with concrete entity Product",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ... on Resource { __typename id name } ... on Product { __typename id name price } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Resource","id":"1"},
+				{"__typename":"Product","id":"2"},
+				{"__typename":"Resource","id":"3"},
+				{"__typename":"Product","id":"4"}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Resource",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Product",
+					SelectionSet: "id",
+				},
+			},
+			validate: func(t *testing.T, data map[string]interface{}) {
+				entities, ok := data["_entities"].([]interface{})
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 4, "Should return 4 entities")
+
+				// Position 0: Resource lookup, i=0 → mock returns Product variant.
+				// __typename is the resolved concrete type (Product), not the interface name.
+				e0, ok := entities[0].(map[string]interface{})
+				require.True(t, ok)
+				require.Equal(t, "Product", e0["__typename"])
+				require.Equal(t, "1", e0["id"])
+				require.Equal(t, "Product 1", e0["name"])
+
+				// Position 1: Product lookup, i=0 → concrete Product (with price).
+				e1, ok := entities[1].(map[string]interface{})
+				require.True(t, ok)
+				require.Equal(t, "Product", e1["__typename"])
+				require.Equal(t, "2", e1["id"])
+				require.Equal(t, "Product 2", e1["name"])
+				require.InDelta(t, 99.99, e1["price"], 0.01)
+
+				// Position 2: Resource lookup, i=1 → mock returns Storage variant.
+				e2, ok := entities[2].(map[string]interface{})
+				require.True(t, ok)
+				require.Equal(t, "Storage", e2["__typename"])
+				require.Equal(t, "3", e2["id"])
+				require.Equal(t, "Storage 3", e2["name"])
+
+				// Position 3: Product lookup, i=1 → concrete Product (with price).
+				e3, ok := entities[3].(map[string]interface{})
+				require.True(t, ok)
+				require.Equal(t, "Product", e3["__typename"])
+				require.Equal(t, "4", e3["id"])
+				require.Equal(t, "Product 4", e3["name"])
+				require.InDelta(t, 99.99, e3["price"], 0.01)
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
 			name:  "Query warehouse and expect an error",
 			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Warehouse { id name } } }`,
 			vars: `{"variables":{"representations":[
