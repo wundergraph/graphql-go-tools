@@ -58,6 +58,84 @@ func (s *MockService) LookupProductById(ctx context.Context, in *productv1.Looku
 	}, nil
 }
 
+func (s *MockService) LookupResourceById(ctx context.Context, in *productv1.LookupResourceByIdRequest) (*productv1.LookupResourceByIdResponse, error) {
+	var results []*productv1.Resource
+
+	for i, input := range in.GetKeys() {
+		resourceId := input.GetId()
+		switch i % 3 {
+		case 0:
+			results = append(results, &productv1.Resource{
+				Instance: &productv1.Resource_Product{
+					Product: &productv1.Product{
+						Id:    resourceId,
+						Name:  fmt.Sprintf("Product %s", resourceId),
+						Price: 99.99,
+					},
+				},
+			})
+		case 1:
+			results = append(results, &productv1.Resource{
+				Instance: &productv1.Resource_Storage{
+					Storage: &productv1.Storage{
+						Id:       resourceId,
+						Name:     fmt.Sprintf("Storage %s", resourceId),
+						Location: fmt.Sprintf("Location %d", rand.Intn(100)),
+					},
+				},
+			})
+		case 2:
+			results = append(results, &productv1.Resource{
+				Instance: &productv1.Resource_Warehouse{
+					Warehouse: &productv1.Warehouse{
+						Id:       resourceId,
+						Name:     fmt.Sprintf("Warehouse %s", resourceId),
+						Location: fmt.Sprintf("Location %d", rand.Intn(100)),
+					},
+				},
+			})
+		}
+	}
+
+	return &productv1.LookupResourceByIdResponse{
+		Result: results,
+	}, nil
+}
+
+func (s *MockService) LookupSubresourceById(ctx context.Context, in *productv1.LookupSubresourceByIdRequest) (*productv1.LookupSubresourceByIdResponse, error) {
+	var results []*productv1.Subresource
+
+	for i, input := range in.GetKeys() {
+		subresourceId := input.GetId()
+		switch i % 2 {
+		case 0:
+			results = append(results, &productv1.Subresource{
+				Instance: &productv1.Subresource_Product{
+					Product: &productv1.Product{
+						Id:    subresourceId,
+						Name:  fmt.Sprintf("Product %s", subresourceId),
+						Price: 99.99,
+					},
+				},
+			})
+		case 1:
+			results = append(results, &productv1.Subresource{
+				Instance: &productv1.Subresource_Warehouse{
+					Warehouse: &productv1.Warehouse{
+						Id:       subresourceId,
+						Name:     fmt.Sprintf("Warehouse %s", subresourceId),
+						Location: fmt.Sprintf("Location %d", rand.Intn(100)),
+					},
+				},
+			})
+		}
+	}
+
+	return &productv1.LookupSubresourceByIdResponse{
+		Result: results,
+	}, nil
+}
+
 func (s *MockService) LookupStorageById(ctx context.Context, in *productv1.LookupStorageByIdRequest) (*productv1.LookupStorageByIdResponse, error) {
 	var results []*productv1.Storage
 

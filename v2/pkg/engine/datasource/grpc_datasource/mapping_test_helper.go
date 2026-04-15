@@ -514,6 +514,26 @@ func testMapping() *GRPCMapping {
 			},
 		},
 		EntityRPCs: map[string][]EntityRPCConfig{
+			"Resource": {
+				{
+					Key: "id",
+					RPCConfig: RPCConfig{
+						RPC:      "LookupResourceById",
+						Request:  "LookupResourceByIdRequest",
+						Response: "LookupResourceByIdResponse",
+					},
+				},
+			},
+			"Subresource": {
+				{
+					Key: "id",
+					RPCConfig: RPCConfig{
+						RPC:      "LookupSubresourceById",
+						Request:  "LookupSubresourceByIdRequest",
+						Response: "LookupSubresourceByIdResponse",
+					},
+				},
+			},
 			"Product": {
 				{
 					Key: "id",

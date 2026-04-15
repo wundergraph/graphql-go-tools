@@ -30,9 +30,10 @@ import (
 )
 
 type resultData struct {
-	kind         CallKind
-	response     *astjson.Value
-	responsePath ast.Path
+	kind           CallKind
+	response       *astjson.Value
+	responsePath   ast.Path
+	entityIndexMap entityIndexMap
 }
 
 // Verify DataSource implements the resolve.DataSource interface
@@ -47,6 +48,7 @@ type DataSource struct {
 	rc                *RPCCompiler
 	mapping           *GRPCMapping
 	federationConfigs plan.FederationFieldConfigurations
+	definition        *ast.Document
 	disabled          bool
 
 	pool *arena.Pool
@@ -82,6 +84,7 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 		cc:                client,
 		rc:                config.Compiler,
 		mapping:           config.Mapping,
+		definition:        config.Definition,
 		federationConfigs: config.FederationConfigs,
 		disabled:          config.Disabled,
 		pool:              arena.NewArenaPool(),
@@ -109,7 +112,11 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 
 	item := d.acquirePoolItem(input, 0)
 	poolItems = append(poolItems, item)
-	builder := newJSONBuilder(item.Arena, d.mapping, variables)
+
+	builder, err := newJSONBuilder(item.Arena, d.mapping, variables)
+	if err != nil {
+		return nil, err
+	}
 
 	if d.disabled {
 		return builder.writeErrorBytes(fmt.Errorf("gRPC datasource needs to be enabled to be used")), nil
@@ -132,6 +139,7 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 
 	root := astjson.ObjectValue(nil)
 
+	representations := getRepesentations(variables)
 	if err := graph.TopologicalSortResolve(func(nodes []FetchItem) error {
 		serviceCalls, err := d.rc.CompileFetches(graph, nodes, variables)
 		if err != nil {
@@ -145,10 +153,14 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 		for index, serviceCall := range serviceCalls {
 			item := d.acquirePoolItem(input, index)
 			poolItems = append(poolItems, item)
-			builder := newJSONBuilder(item.Arena, d.mapping, variables)
+
+			builder, err := newJSONBuilder(item.Arena, d.mapping, variables)
+			if err != nil {
+				return err
+			}
+
 			errGrp.Go(func() error {
 				// Invoke the gRPC method - this will populate serviceCall.Output
-
 				err := d.cc.Invoke(errGrpCtx, serviceCall.MethodFullName(), serviceCall.Input, serviceCall.Output)
 				if err != nil {
 					return err
@@ -159,19 +171,22 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 					return err
 				}
 
-				// In case of a federated response, we need to ensure that the response is valid.
-				// The number of entities per type must match the number of lookup keys in the variablese
-				if serviceCall.RPC.Kind == CallKindEntity {
-					err = builder.validateFederatedResponse(response)
-					if err != nil {
-						return err
-					}
-				}
-
 				results[index] = resultData{
 					kind:         serviceCall.RPC.Kind,
 					response:     response,
 					responsePath: serviceCall.RPC.ResponsePath,
+				}
+
+				// In case of a federated response, we need to ensure that the response is valid.
+				// The number of entities per type must match the number of lookup keys in the variables.
+				// On success we build the index map used by mergeEntities to place each response
+				// entity at the correct position in the final _entities array.
+				if serviceCall.RPC.Kind == CallKindEntity {
+					if err := validateEntityResponse(response, serviceCall.RPC.RequestedEntityType, representations); err != nil {
+						return err
+					}
+
+					results[index].entityIndexMap = newEntityIndexMap(serviceCall.RPC.RequestedEntityType, representations)
 				}
 
 				return nil
@@ -187,7 +202,7 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 			case CallKindResolve, CallKindRequired:
 				err = builder.mergeWithPath(root, result.response, result.responsePath)
 			default:
-				root, err = builder.mergeValues(root, result.response)
+				root, err = builder.mergeValues(root, result)
 			}
 			if err != nil {
 				return err

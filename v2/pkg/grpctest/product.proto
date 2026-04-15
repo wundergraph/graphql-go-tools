@@ -9,8 +9,12 @@ import "google/protobuf/wrappers.proto";
 service ProductService {
   // Lookup Product entity by id
   rpc LookupProductById(LookupProductByIdRequest) returns (LookupProductByIdResponse) {}
+  // Lookup Resource entity by id
+  rpc LookupResourceById(LookupResourceByIdRequest) returns (LookupResourceByIdResponse) {}
   // Lookup Storage entity by id
   rpc LookupStorageById(LookupStorageByIdRequest) returns (LookupStorageByIdResponse) {}
+  // Lookup Subresource entity by id
+  rpc LookupSubresourceById(LookupSubresourceByIdRequest) returns (LookupSubresourceByIdResponse) {}
   // Lookup Warehouse entity by id
   rpc LookupWarehouseById(LookupWarehouseByIdRequest) returns (LookupWarehouseByIdResponse) {}
   rpc MutationBulkCreateAuthors(MutationBulkCreateAuthorsRequest) returns (MutationBulkCreateAuthorsResponse) {}
@@ -253,6 +257,74 @@ message ListOfUserInput {
   }
   List list = 1;
 }
+// Key message for Resource entity lookup
+message LookupResourceByIdRequestKey {
+  // Key field for Resource entity lookup.
+  string id = 1;
+}
+
+// Request message for Resource entity lookup.
+message LookupResourceByIdRequest {
+  /*
+   * List of keys to look up Resource entities.
+   * Order matters - each key maps to one entity in LookupResourceByIdResponse.
+   */
+  repeated LookupResourceByIdRequestKey keys = 1;
+}
+
+// Response message for Resource entity lookup.
+message LookupResourceByIdResponse {
+  /*
+   * List of Resource entities in the same order as the keys in LookupResourceByIdRequest.
+   * Always return the same number of entities as keys. Use null for entities that cannot be found.
+   * 
+   * Example:
+   *   LookupUserByIdRequest:
+   *     keys:
+   *       - id: 1
+   *       - id: 2
+   *   LookupUserByIdResponse:
+   *     result:
+   *       - id: 1 # User with id 1 found
+   *       - null  # User with id 2 not found
+   */
+  repeated Resource result = 1;
+}
+
+// Key message for Subresource entity lookup
+message LookupSubresourceByIdRequestKey {
+  // Key field for Subresource entity lookup.
+  string id = 1;
+}
+
+// Request message for Subresource entity lookup.
+message LookupSubresourceByIdRequest {
+  /*
+   * List of keys to look up Subresource entities.
+   * Order matters - each key maps to one entity in LookupSubresourceByIdResponse.
+   */
+  repeated LookupSubresourceByIdRequestKey keys = 1;
+}
+
+// Response message for Subresource entity lookup.
+message LookupSubresourceByIdResponse {
+  /*
+   * List of Subresource entities in the same order as the keys in LookupSubresourceByIdRequest.
+   * Always return the same number of entities as keys. Use null for entities that cannot be found.
+   * 
+   * Example:
+   *   LookupUserByIdRequest:
+   *     keys:
+   *       - id: 1
+   *       - id: 2
+   *   LookupUserByIdResponse:
+   *     result:
+   *       - id: 1 # User with id 1 found
+   *       - null  # User with id 2 not found
+   */
+  repeated Subresource result = 1;
+}
+
 // Key message for Product entity lookup
 message LookupProductByIdRequestKey {
   // Key field for Product entity lookup.
@@ -1956,6 +2028,21 @@ message RequireWarehouseStockHealthScoreByIdFields {
 
   int32 inventory_count = 1;
   RestockData restock_data = 2;
+}
+
+message Resource {
+  oneof instance {
+  Product product = 1;
+  Storage storage = 2;
+  Warehouse warehouse = 3;
+  }
+}
+
+message Subresource {
+  oneof instance {
+  Product product = 1;
+  Warehouse warehouse = 2;
+  }
 }
 
 message Product {
