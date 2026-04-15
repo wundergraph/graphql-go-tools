@@ -80,12 +80,14 @@ func (j *jsonBuilder) mergeEntities(left *astjson.Value, rightResult resultData)
 	right := rightResult.response
 	rightEntities := right.Get(entityPath).GetArray()
 
-	entities := left
+	if left == nil {
+		left = astjson.ObjectValue(j.jsonArena)
+	}
+
 	arr := left.Get(entityPath)
 	if arr == nil || arr.Type() != astjson.TypeArray {
-		entities = astjson.ObjectValue(j.jsonArena)
-		entities.Set(j.jsonArena, entityPath, astjson.ArrayValue(j.jsonArena))
-		arr = entities.Get(entityPath)
+		left.Set(j.jsonArena, entityPath, astjson.ArrayValue(j.jsonArena))
+		arr = left.Get(entityPath)
 	}
 
 	// Place right's entities at their global positions in the merged array.
@@ -93,7 +95,7 @@ func (j *jsonBuilder) mergeEntities(left *astjson.Value, rightResult resultData)
 		arr.SetArrayItem(j.jsonArena, rightResult.entityIndexMap[index], rr)
 	}
 
-	return entities, nil
+	return left, nil
 }
 
 // mergeWithPath merges a JSON value with a resolved value by its path.
