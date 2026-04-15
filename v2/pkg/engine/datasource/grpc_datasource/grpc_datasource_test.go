@@ -560,7 +560,7 @@ func TestMarshalResponseJSON(t *testing.T) {
 	responseMessage := dynamicpb.NewMessage(responseMessageDesc)
 	responseMessage.Mutable(responseMessageDesc.Fields().ByName("result")).List().Append(protoref.ValueOfMessage(productMessage))
 	require.NoError(t, err)
-	jsonBuilder, err := newJSONBuilder(nil, &DataSource{}, gjson.Result{})
+	jsonBuilder, err := newJSONBuilder(nil, testMapping(), gjson.Result{}, nil)
 	require.NoError(t, err)
 	responseJSON, err := jsonBuilder.marshalResponseJSON(&response, responseMessage)
 	require.NoError(t, err)

@@ -111,7 +111,14 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 
 	item := d.acquirePoolItem(input, 0)
 	poolItems = append(poolItems, item)
-	builder, err := newJSONBuilder(item.Arena, d, variables)
+
+	var indexMap *entityIndexMap
+	representations := getRepesentations(variables)
+	if len(representations) > 0 {
+		indexMap = createEntityIndexMap(d.definition, representations)
+	}
+
+	builder, err := newJSONBuilder(item.Arena, d.mapping, variables, indexMap)
 	if err != nil {
 		return nil, err
 	}
@@ -150,14 +157,14 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 		for index, serviceCall := range serviceCalls {
 			item := d.acquirePoolItem(input, index)
 			poolItems = append(poolItems, item)
-			builder, err := newJSONBuilder(item.Arena, d, variables)
+
+			builder, err := newJSONBuilder(item.Arena, d.mapping, variables, nil)
 			if err != nil {
 				return err
 			}
 
 			errGrp.Go(func() error {
 				// Invoke the gRPC method - this will populate serviceCall.Output
-
 				err := d.cc.Invoke(errGrpCtx, serviceCall.MethodFullName(), serviceCall.Input, serviceCall.Output)
 				if err != nil {
 					return err
@@ -171,7 +178,7 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 				// In case of a federated response, we need to ensure that the response is valid.
 				// The number of entities per type must match the number of lookup keys in the variablese
 				if serviceCall.RPC.Kind == CallKindEntity {
-					err = builder.validateFederatedResponse(response, serviceCall.RPC.RequestedEntityType)
+					err := validateEntityResponse(response, serviceCall.RPC.RequestedEntityType, representations)
 					if err != nil {
 						return err
 					}
