@@ -12,9 +12,9 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
 )
 
-// GraphQLWS implements the legacy graphql-ws protocol.
+// graphqlWS implements the legacy graphql-ws protocol.
 // See: https://github.com/apollographql/subscriptions-transport-ws/blob/master/PROTOCOL.md
-type GraphQLWS struct{}
+type graphqlWS struct{}
 
 const (
 	gwsTypeConnectionInit      = "connection_init"
@@ -28,12 +28,12 @@ const (
 	gwsTypeStop                = "stop"
 )
 
-func NewGraphQLWS() *GraphQLWS {
-	return &GraphQLWS{}
+func NewGraphQLWS() *graphqlWS {
+	return &graphqlWS{}
 }
 
 // Init implements Protocol.
-func (p *GraphQLWS) Init(ctx context.Context, conn *websocket.Conn, payload map[string]any) error {
+func (p *graphqlWS) Init(ctx context.Context, conn *websocket.Conn, payload map[string]any) error {
 	initMsg := outgoingMessage{
 		Type: gwsTypeConnectionInit,
 	}
@@ -73,7 +73,7 @@ func (p *GraphQLWS) Init(ctx context.Context, conn *websocket.Conn, payload map[
 }
 
 // Subscribe implements Protocol.
-func (p *GraphQLWS) Subscribe(ctx context.Context, conn *websocket.Conn, id string, req *common.Request) error {
+func (p *graphqlWS) Subscribe(ctx context.Context, conn *websocket.Conn, id string, req *common.Request) error {
 	msg := outgoingMessage{
 		ID:      id,
 		Type:    gwsTypeStart,
@@ -83,7 +83,7 @@ func (p *GraphQLWS) Subscribe(ctx context.Context, conn *websocket.Conn, id stri
 }
 
 // Unsubscribe implements Protocol.
-func (p *GraphQLWS) Unsubscribe(ctx context.Context, conn *websocket.Conn, id string) error {
+func (p *graphqlWS) Unsubscribe(ctx context.Context, conn *websocket.Conn, id string) error {
 	msg := outgoingMessage{
 		ID:   id,
 		Type: gwsTypeStop,
@@ -92,7 +92,7 @@ func (p *GraphQLWS) Unsubscribe(ctx context.Context, conn *websocket.Conn, id st
 }
 
 // Read implements Protocol.
-func (p *GraphQLWS) Read(ctx context.Context, conn *websocket.Conn) (*WireMessage, error) {
+func (p *graphqlWS) Read(ctx context.Context, conn *websocket.Conn) (*WireMessage, error) {
 	var raw incomingMessage
 	if err := wsjson.Read(ctx, conn, &raw); err != nil {
 		return nil, fmt.Errorf("read message: %w", err)
@@ -101,7 +101,7 @@ func (p *GraphQLWS) Read(ctx context.Context, conn *websocket.Conn) (*WireMessag
 	return p.decode(raw)
 }
 
-func (p *GraphQLWS) decode(raw incomingMessage) (*WireMessage, error) {
+func (p *graphqlWS) decode(raw incomingMessage) (*WireMessage, error) {
 	msg := &WireMessage{
 		ID: raw.ID,
 	}
@@ -145,4 +145,4 @@ func (p *GraphQLWS) decode(raw incomingMessage) (*WireMessage, error) {
 	return msg, nil
 }
 
-var _ Protocol = (*GraphQLWS)(nil)
+var _ Protocol = (*graphqlWS)(nil)

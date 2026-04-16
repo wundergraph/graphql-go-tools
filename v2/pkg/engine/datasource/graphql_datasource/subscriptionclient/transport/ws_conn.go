@@ -246,11 +246,6 @@ func (c *wsConnection) closeConn() {
 	c.shutdown(common.ErrConnectionClosed)
 }
 
-// writeTimeoutDuration returns the configured write timeout.
-func (c *wsConnection) writeTimeoutDuration() time.Duration {
-	return c.writeTimeout
-}
-
 func (c *wsConnection) subCount() int {
 	c.subsMu.RLock()
 	defer c.subsMu.RUnlock()

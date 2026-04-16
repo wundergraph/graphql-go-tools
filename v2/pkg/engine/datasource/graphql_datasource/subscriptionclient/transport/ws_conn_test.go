@@ -594,7 +594,7 @@ func TestWSConnection_Defaults(t *testing.T) {
 		proto := newMockProtocol()
 		wsc := newWSConnection(conn, proto, wsConnectionOptions{})
 
-		assert.Equal(t, defaultWriteTimeout, wsc.writeTimeoutDuration())
+		assert.Equal(t, defaultWriteTimeout, wsc.writeTimeout)
 	})
 
 	t.Run("applies default write timeout for zero value", func(t *testing.T) {
@@ -606,7 +606,7 @@ func TestWSConnection_Defaults(t *testing.T) {
 			writeTimeout: 0,
 		})
 
-		assert.Equal(t, defaultWriteTimeout, wsc.writeTimeoutDuration())
+		assert.Equal(t, defaultWriteTimeout, wsc.writeTimeout)
 	})
 
 	t.Run("overrides write timeout when provided", func(t *testing.T) {
@@ -618,7 +618,7 @@ func TestWSConnection_Defaults(t *testing.T) {
 			writeTimeout: 10 * time.Second,
 		})
 
-		assert.Equal(t, 10*time.Second, wsc.writeTimeoutDuration())
+		assert.Equal(t, 10*time.Second, wsc.writeTimeout)
 	})
 
 	t.Run("ignores negative write timeout", func(t *testing.T) {
@@ -630,7 +630,7 @@ func TestWSConnection_Defaults(t *testing.T) {
 			writeTimeout: -1 * time.Second,
 		})
 
-		assert.Equal(t, defaultWriteTimeout, wsc.writeTimeoutDuration())
+		assert.Equal(t, defaultWriteTimeout, wsc.writeTimeout)
 	})
 }
 

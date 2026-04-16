@@ -12,9 +12,9 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
 )
 
-// GraphQLTransportWS implements the graphql-transport-ws protocol.
+// graphqlTransportWS implements the graphql-transport-ws protocol.
 // See: https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md
-type GraphQLTransportWS struct{}
+type graphqlTransportWS struct{}
 
 const (
 	gtwsTypeConnectionInit = "connection_init"
@@ -39,12 +39,12 @@ type incomingMessage struct {
 	Payload json.RawMessage `json:"payload,omitempty"`
 }
 
-func NewGraphQLTransportWS() *GraphQLTransportWS {
-	return &GraphQLTransportWS{}
+func NewGraphQLTransportWS() *graphqlTransportWS {
+	return &graphqlTransportWS{}
 }
 
 // Init implements Protocol.
-func (p *GraphQLTransportWS) Init(ctx context.Context, conn *websocket.Conn, payload map[string]any) error {
+func (p *graphqlTransportWS) Init(ctx context.Context, conn *websocket.Conn, payload map[string]any) error {
 	initMsg := outgoingMessage{
 		Type: gtwsTypeConnectionInit,
 	}
@@ -81,7 +81,7 @@ func (p *GraphQLTransportWS) Init(ctx context.Context, conn *websocket.Conn, pay
 }
 
 // Ping implements Pinger.
-func (p *GraphQLTransportWS) Ping(ctx context.Context, conn *websocket.Conn) error {
+func (p *graphqlTransportWS) Ping(ctx context.Context, conn *websocket.Conn) error {
 	msg := outgoingMessage{
 		Type: gtwsTypePing,
 	}
@@ -89,7 +89,7 @@ func (p *GraphQLTransportWS) Ping(ctx context.Context, conn *websocket.Conn) err
 }
 
 // Pong implements Pinger.
-func (p *GraphQLTransportWS) Pong(ctx context.Context, conn *websocket.Conn) error {
+func (p *graphqlTransportWS) Pong(ctx context.Context, conn *websocket.Conn) error {
 	msg := outgoingMessage{
 		Type: gtwsTypePong,
 	}
@@ -97,7 +97,7 @@ func (p *GraphQLTransportWS) Pong(ctx context.Context, conn *websocket.Conn) err
 }
 
 // Read implements Protocol.
-func (p *GraphQLTransportWS) Read(ctx context.Context, conn *websocket.Conn) (*WireMessage, error) {
+func (p *graphqlTransportWS) Read(ctx context.Context, conn *websocket.Conn) (*WireMessage, error) {
 	var raw incomingMessage
 	if err := wsjson.Read(ctx, conn, &raw); err != nil {
 		return nil, fmt.Errorf("read message: %w", err)
@@ -107,7 +107,7 @@ func (p *GraphQLTransportWS) Read(ctx context.Context, conn *websocket.Conn) (*W
 }
 
 // Subscribe implements Protocol.
-func (p *GraphQLTransportWS) Subscribe(ctx context.Context, conn *websocket.Conn, id string, req *common.Request) error {
+func (p *graphqlTransportWS) Subscribe(ctx context.Context, conn *websocket.Conn, id string, req *common.Request) error {
 	msg := outgoingMessage{
 		ID:      id,
 		Type:    gtwsTypeSubscribe,
@@ -117,7 +117,7 @@ func (p *GraphQLTransportWS) Subscribe(ctx context.Context, conn *websocket.Conn
 }
 
 // Unsubscribe implements Protocol.
-func (p *GraphQLTransportWS) Unsubscribe(ctx context.Context, conn *websocket.Conn, id string) error {
+func (p *graphqlTransportWS) Unsubscribe(ctx context.Context, conn *websocket.Conn, id string) error {
 	msg := outgoingMessage{
 		ID:   id,
 		Type: gtwsTypeComplete,
@@ -125,7 +125,7 @@ func (p *GraphQLTransportWS) Unsubscribe(ctx context.Context, conn *websocket.Co
 	return wsjson.Write(ctx, conn, msg)
 }
 
-func (p *GraphQLTransportWS) decode(raw incomingMessage) (*WireMessage, error) {
+func (p *graphqlTransportWS) decode(raw incomingMessage) (*WireMessage, error) {
 	msg := &WireMessage{
 		ID: raw.ID,
 	}
@@ -163,6 +163,6 @@ func (p *GraphQLTransportWS) decode(raw incomingMessage) (*WireMessage, error) {
 }
 
 var (
-	_ Protocol = (*GraphQLTransportWS)(nil)
-	_ Pinger   = (*GraphQLTransportWS)(nil)
+	_ Protocol = (*graphqlTransportWS)(nil)
+	_ Pinger   = (*graphqlTransportWS)(nil)
 )
