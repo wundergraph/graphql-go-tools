@@ -717,27 +717,22 @@ type StartupHookContext struct {
 	Updater func(data []byte)
 }
 
-func (r *Resolver) executeStartupHooks(add *addSubscription, sub *subscriptionState, updater *subscriptionUpdater) error {
+func (r *Resolver) executeStartupHooks(add *addSubscription, updater *subscriptionUpdater) error {
 	hook, ok := add.resolve.Trigger.Source.(HookableSubscriptionDataSource)
-	if ok {
-		hookCtx := StartupHookContext{
-			Context: add.ctx.Context(),
-			Updater: func(data []byte) {
-				updater.UpdateSubscription(add.id, data)
-			},
-		}
-
-		err := hook.SubscriptionOnStart(hookCtx, add.input)
-		if err != nil {
-			if r.options.Debug {
-				fmt.Printf("resolver:trigger:subscription:startup:failed:%d\n", add.id.SubscriptionID)
-			}
-			sub.writeError(r.errorFormatter, add.ctx, err, add.resolve.Response)
-			_ = r.UnsubscribeSubscription(add.id)
-			return err
-		}
+	if !ok {
+		return nil
 	}
-	return nil
+	hookCtx := StartupHookContext{
+		Context: add.ctx.Context(),
+		Updater: func(data []byte) {
+			updater.UpdateSubscription(add.id, data)
+		},
+	}
+	err := hook.SubscriptionOnStart(hookCtx, add.input)
+	if err != nil && r.options.Debug {
+		fmt.Printf("resolver:trigger:subscription:startup:failed:%d\n", add.id.SubscriptionID)
+	}
+	return err
 }
 
 // registerSubscriptionLocked updates the by-ID and by-connection indexes.
@@ -801,9 +796,11 @@ func (r *Resolver) addSubscription(triggerID uint64, add *addSubscription) error
 		// Register first so startup hooks can deliver initial data via UpdateSubscription.
 		r.registerSubscriptionLocked(trig, s)
 		// Execute the startup hooks in a goroutine to avoid holding the lock.
-		// On failure, executeStartupHooks calls UnsubscribeSubscription to clean up.
 		go func() {
-			_ = r.executeStartupHooks(add, s, trig.updater)
+			if err := r.executeStartupHooks(add, trig.updater); err != nil {
+				s.writeError(r.errorFormatter, add.ctx, err, add.resolve.Response)
+				_ = r.UnsubscribeSubscription(add.id)
+			}
 		}()
 		return nil
 	}
@@ -838,13 +835,12 @@ func (r *Resolver) addSubscription(triggerID uint64, add *addSubscription) error
 			fmt.Printf("resolver:trigger:start:%d\n", triggerID)
 		}
 
-		// This is blocking so the startup hook can decide if a subscription should be started or not by returning an error
-		err := r.executeStartupHooks(add, s, trig.updater)
-		if err != nil {
-			return
+		// The startup hook is blocking so it can reject the subscription before Source.Start.
+		// If either step fails, broadcast the error to all subs and tear down the trigger.
+		err := r.executeStartupHooks(add, trig.updater)
+		if err == nil {
+			err = add.resolve.Trigger.Source.Start(cloneCtx, add.headers, add.input, trig.updater)
 		}
-
-		err = add.resolve.Trigger.Source.Start(cloneCtx, add.headers, add.input, trig.updater)
 		if err != nil {
 			if r.options.Debug {
 				fmt.Printf("resolver:trigger:failed:%d\n", triggerID)

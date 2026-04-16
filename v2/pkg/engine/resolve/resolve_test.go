@@ -8127,6 +8127,118 @@ func TestSourceStartFailure(t *testing.T) {
 	})
 }
 
+// hookFailStream is a SubscriptionDataSource + HookableSubscriptionDataSource.
+// The hook for the subscription whose context matches failCtx blocks until
+// subBRegistered is closed, then returns an error. All other hooks succeed.
+type hookFailStream struct {
+	subBRegistered chan struct{}
+	failCtx        context.Context
+	sourceStarted  atomic.Bool
+}
+
+func (s *hookFailStream) Start(_ *Context, _ http.Header, _ []byte, _ SubscriptionUpdater) error {
+	s.sourceStarted.Store(true)
+	select {}
+}
+
+func (s *hookFailStream) SubscriptionOnStart(ctx StartupHookContext, _ []byte) error {
+	if ctx.Context == s.failCtx {
+		<-s.subBRegistered
+		return errors.New("startup hook failed")
+	}
+	return nil
+}
+
+func TestStartupHookFailure(t *testing.T) {
+	t.Run("cleans up all subscribers when trigger creator hook fails", func(t *testing.T) {
+		resolverCtx, cancelResolver := context.WithCancel(context.Background())
+		defer cancelResolver()
+
+		ctxAInner, cancelA := context.WithCancel(context.Background())
+		defer cancelA()
+		ctxBInner, cancelB := context.WithCancel(context.Background())
+		defer cancelB()
+
+		subBRegistered := make(chan struct{})
+
+		stream := &hookFailStream{
+			subBRegistered: subBRegistered,
+			failCtx:        ctxAInner,
+		}
+
+		plan := &GraphQLSubscription{
+			Trigger: GraphQLSubscriptionTrigger{
+				Source: stream,
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							SegmentType: StaticSegmentType,
+							Data:        []byte(`{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`),
+						},
+					},
+				},
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
+				},
+			},
+			Response: &GraphQLResponse{
+				Data: &Object{
+					Fields: []*Field{
+						{
+							Name: []byte("counter"),
+							Value: &Integer{
+								Path: []string{"counter"},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		resolver := New(resolverCtx, ResolverOptions{
+			MaxConcurrency:                1024,
+			AsyncErrorWriter:              &TestErrorWriter{},
+			SubscriptionHeartbeatInterval: time.Hour,
+		})
+
+		writerA := &SubscriptionRecorder{buf: &bytes.Buffer{}}
+		writerB := &SubscriptionRecorder{buf: &bytes.Buffer{}}
+
+		idA := SubscriptionIdentifier{ConnectionID: NewConnectionID(), SubscriptionID: 1}
+		idB := SubscriptionIdentifier{ConnectionID: NewConnectionID(), SubscriptionID: 2}
+
+		ctxA := NewContext(ctxAInner)
+		ctxB := NewContext(ctxBInner)
+
+		// Subscribe A — creates the trigger.
+		err := resolver.AsyncResolveGraphQLSubscription(ctxA, plan, writerA, idA)
+		require.NoError(t, err)
+
+		// Subscribe B — joins the existing trigger.
+		err = resolver.AsyncResolveGraphQLSubscription(ctxB, plan, writerB, idB)
+		require.NoError(t, err)
+
+		// Unblock A's startup hook so it fails.
+		close(subBRegistered)
+
+		// Sub A should receive an error.
+		writerA.AwaitAnyMessageCount(t, time.Second)
+
+		// Sub B should also be cleaned up — not left orphaned on a triggerless source.
+		require.Eventually(t, func() bool {
+			writerB.mux.Lock()
+			hasMessages := len(writerB.messages) > 0
+			writerB.mux.Unlock()
+			return hasMessages || writerB.complete.Load()
+		}, 2*time.Second, 10*time.Millisecond,
+			"sub B was orphaned: no error, no complete — "+
+				"trigger left without a data source after first subscription's startup hook failed")
+
+		require.False(t, stream.sourceStarted.Load(), "Source.Start() should not have been called")
+	})
+}
+
 func Benchmark_NoCheckNestedBatching(b *testing.B) {
 	rCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
