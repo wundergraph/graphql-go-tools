@@ -30,12 +30,12 @@ const (
 // ConnectionID identifies a client connection for subscription routing.
 type ConnectionID int64
 
-// connectionIDs is the monotonic counter backing NewConnectionID.
-var connectionIDs atomic.Int64
+// connectionIDCounter is the monotonic counter backing NewConnectionID.
+var connectionIDCounter atomic.Int64
 
 // NewConnectionID returns a unique ConnectionID via an atomic increment.
 func NewConnectionID() ConnectionID {
-	return ConnectionID(connectionIDs.Add(1))
+	return ConnectionID(connectionIDCounter.Add(1))
 }
 
 type Reporter interface {
