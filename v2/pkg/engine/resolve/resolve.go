@@ -849,7 +849,9 @@ func (r *Resolver) addSubscription(triggerID uint64, add *addSubscription) error
 			if r.options.Debug {
 				fmt.Printf("resolver:trigger:failed:%d\n", triggerID)
 			}
-			s.writeError(r.errorFormatter, add.ctx, err, add.resolve.Response)
+			for _, sub := range trig.snapshotSubscriptions() {
+				sub.writeError(r.errorFormatter, sub.ctx, err, sub.resolve.Response)
+			}
 			r.doneTriggerFromUpdater(triggerID)
 			return
 		}
@@ -865,8 +867,8 @@ func (r *Resolver) addSubscription(triggerID uint64, add *addSubscription) error
 
 func (r *Resolver) getTrigger(id uint64) (*trigger, bool) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	trig, ok := r.triggers[id]
+	r.mu.Unlock()
 	return trig, ok
 }
 

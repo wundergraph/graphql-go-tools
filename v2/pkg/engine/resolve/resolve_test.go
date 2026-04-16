@@ -8046,6 +8046,87 @@ func Benchmark_NestedBatchingArena(b *testing.B) {
 	})
 }
 
+// startFailStream blocks until subBReady is closed, then returns an error from Start.
+type startFailStream struct {
+	subBReady chan struct{}
+}
+
+func (s *startFailStream) Start(_ *Context, _ http.Header, _ []byte, _ SubscriptionUpdater) error {
+	<-s.subBReady
+	return errors.New("connection refused")
+}
+
+func TestSourceStartFailure(t *testing.T) {
+	t.Run("broadcasts error to all subscribers", func(t *testing.T) {
+		resolverCtx, cancelResolver := context.WithCancel(context.Background())
+		defer cancelResolver()
+
+		subBReady := make(chan struct{})
+
+		stream := &startFailStream{subBReady: subBReady}
+
+		plan := &GraphQLSubscription{
+			Trigger: GraphQLSubscriptionTrigger{
+				Source: stream,
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							SegmentType: StaticSegmentType,
+							Data:        []byte(`{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`),
+						},
+					},
+				},
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
+				},
+			},
+			Response: &GraphQLResponse{
+				Data: &Object{
+					Fields: []*Field{
+						{
+							Name: []byte("counter"),
+							Value: &Integer{
+								Path: []string{"counter"},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		resolver := New(resolverCtx, ResolverOptions{
+			MaxConcurrency:                1024,
+			AsyncErrorWriter:              &TestErrorWriter{},
+			SubscriptionHeartbeatInterval: time.Hour,
+		})
+
+		writerA := &SubscriptionRecorder{buf: &bytes.Buffer{}}
+		writerB := &SubscriptionRecorder{buf: &bytes.Buffer{}}
+
+		idA := SubscriptionIdentifier{ConnectionID: NewConnectionID(), SubscriptionID: 1}
+		idB := SubscriptionIdentifier{ConnectionID: NewConnectionID(), SubscriptionID: 2}
+
+		ctxA := NewContext(context.Background())
+		ctxB := NewContext(context.Background())
+
+		// Subscribe A — creates the trigger.
+		err := resolver.AsyncResolveGraphQLSubscription(ctxA, plan, writerA, idA)
+		require.NoError(t, err)
+
+		// Subscribe B — joins the existing trigger.
+		err = resolver.AsyncResolveGraphQLSubscription(ctxB, plan, writerB, idB)
+		require.NoError(t, err)
+
+		// Unblock Source.Start() so it returns an error.
+		close(subBReady)
+
+		timeout := 2 * time.Second
+		writerA.AwaitAnyMessageCount(t, timeout)
+		writerB.AwaitAnyMessageCount(t, timeout)
+	})
+}
+
 func Benchmark_NoCheckNestedBatching(b *testing.B) {
 	rCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
