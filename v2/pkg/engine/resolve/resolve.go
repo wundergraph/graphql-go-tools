@@ -1080,9 +1080,7 @@ type pendingFilterError struct {
 	sub      *subscriptionState
 }
 
-// handleTriggerUpdate sends data to all subscriptions of a trigger using snapshot-and-release.
-// The lock is released before performing I/O to avoid deadlocks when executeSubscriptionUpdate
-// calls AsyncUnsubscribeSubscription on flush failure.
+// handleTriggerUpdate sends data to all subscriptions of a trigger.
 func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 	trig, ok := r.getTrigger(id)
 	if !ok {
@@ -1110,7 +1108,7 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 	wg.Wait()
 }
 
-// handleUpdateSubscription sends data to a single subscription using snapshot-and-release.
+// handleUpdateSubscription sends data to a single subscription.
 func (r *Resolver) handleUpdateSubscription(id uint64, data []byte, subIdentifier SubscriptionIdentifier) {
 	trig, ok := r.getTrigger(id)
 	if !ok {
