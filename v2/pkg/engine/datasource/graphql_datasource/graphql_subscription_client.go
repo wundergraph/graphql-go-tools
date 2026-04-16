@@ -27,6 +27,11 @@ type SubscriptionClientConfig struct {
 	AckTimeout   time.Duration
 	WriteTimeout time.Duration
 	ReadLimit    int64
+
+	// DefaultErrorExtensionCode is the extension code attached to GraphQL
+	// errors produced by upstream connection failures. Should match the
+	// resolve package's setting for consistent error formatting.
+	DefaultErrorExtensionCode string
 }
 
 func defaultSubscriptionClientConfig() *SubscriptionClientConfig {
@@ -106,6 +111,14 @@ func WithWriteTimeout(d time.Duration) SubscriptionClientOption {
 	}
 }
 
+// WithDefaultErrorExtensionCode sets the extension code attached to GraphQL
+// errors produced by upstream connection failures.
+func WithDefaultErrorExtensionCode(code string) SubscriptionClientOption {
+	return func(cfg *SubscriptionClientConfig) {
+		cfg.DefaultErrorExtensionCode = code
+	}
+}
+
 // WithReadLimit sets the maximum size in bytes for incoming WebSocket messages.
 // Default: 1MB.
 func WithReadLimit(n int64) SubscriptionClientOption {
@@ -117,7 +130,8 @@ func WithReadLimit(n int64) SubscriptionClientOption {
 // subscriptionClientV2 implements GraphQLSubscriptionClient using the new
 // channel-based subscription client.
 type subscriptionClientV2 struct {
-	client *client.Client
+	client                    *client.Client
+	defaultErrorExtensionCode string
 }
 
 // NewGraphQLSubscriptionClient creates a new subscription client.
@@ -128,6 +142,7 @@ func NewGraphQLSubscriptionClient(ctx context.Context, opts ...SubscriptionClien
 	}
 
 	return &subscriptionClientV2{
+		defaultErrorExtensionCode: cfg.DefaultErrorExtensionCode,
 		client: client.New(ctx, client.Config{
 			UpgradeClient:   cfg.UpgradeClient,
 			StreamingClient: cfg.StreamingClient,
@@ -148,12 +163,12 @@ func (c *subscriptionClientV2) Subscribe(ctx *resolve.Context, options GraphQLSu
 		return err
 	}
 
-	handler := buildMessageHandler(updater)
+	handler := buildMessageHandler(updater, c.defaultErrorExtensionCode)
 
 	cancel, err := c.client.Subscribe(ctx.Context(), req, opts, handler)
 	if err != nil {
 		if isUpstreamError(err) {
-			updater.Error(formatUpstreamServiceError(err))
+			updater.Error(formatUpstreamServiceError(err, c.defaultErrorExtensionCode))
 			updater.Done()
 			return nil
 		}
@@ -169,11 +184,11 @@ func (c *subscriptionClientV2) Subscribe(ctx *resolve.Context, options GraphQLSu
 }
 
 // buildMessageHandler creates the handler that bridges client.Message → resolve.SubscriptionUpdater.
-func buildMessageHandler(updater resolve.SubscriptionUpdater) client.Handler {
+func buildMessageHandler(updater resolve.SubscriptionUpdater, errorCode string) client.Handler {
 	return func(msg *client.Message) {
 		switch msg.Type {
 		case client.MessageTypeConnectionError:
-			updater.Error(formatUpstreamServiceError(msg.Err))
+			updater.Error(formatUpstreamServiceError(msg.Err, errorCode))
 			updater.Done()
 		case client.MessageTypeError:
 			data, err := json.Marshal(msg.Payload)
@@ -200,7 +215,7 @@ func buildMessageHandler(updater resolve.SubscriptionUpdater) client.Handler {
 }
 
 // isUpstreamError reports whether err is a connection-level upstream error
-// that should be reported to the client as an UPSTREAM_SERVICE_ERROR.
+// that should be surfaced as a GraphQL error to the client.
 // ErrFailedUpgrade and ErrInvalidSubprotocol are intentionally excluded so
 // they propagate to the router, which formats detailed error messages
 // (e.g. including the subgraph name and HTTP status code).
@@ -267,10 +282,9 @@ func mapWSSubprotocol(proto string) client.WSSubprotocol {
 }
 
 // formatUpstreamServiceError formats a connection-level error as a GraphQL error
-// response with the UPSTREAM_SERVICE_ERROR extension code. If the error chain
-// contains a WebSocket close error, the close code and reason are included in
-// extensions.
-func formatUpstreamServiceError(err error) []byte {
+// response with the configured error extension code. If the error chain contains
+// a WebSocket close error, the close code and reason are included in extensions.
+func formatUpstreamServiceError(err error, code string) []byte {
 	type errorExtensions struct {
 		Code      string `json:"code"`
 		CloseCode int    `json:"closeCode,omitempty"`
@@ -284,7 +298,7 @@ func formatUpstreamServiceError(err error) []byte {
 
 	gqlErr := graphqlError{
 		Message:    "upstream service error",
-		Extensions: errorExtensions{Code: "UPSTREAM_SERVICE_ERROR"},
+		Extensions: errorExtensions{Code: code},
 	}
 
 	var closeErr websocket.CloseError

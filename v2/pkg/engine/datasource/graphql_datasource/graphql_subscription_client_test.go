@@ -47,20 +47,20 @@ func (t *testBridgeUpdater) Subscriptions() map[context.Context]resolve.Subscrip
 func TestBuildMessageHandlerRoutesEachMessageTypeCorrectly(t *testing.T) {
 	t.Run("error is upstream service error for connection error", func(t *testing.T) {
 		updater := &testBridgeUpdater{}
-		handler := buildMessageHandler(updater)
+		handler := buildMessageHandler(updater, "DOWNSTREAM_SERVICE_ERROR")
 
 		handler(&client.Message{Type: client.MessageTypeConnectionError, Err: client.ErrConnectionClosed})
 
 		require.True(t, updater.done)
 		require.Len(t, updater.errors, 1)
-		assert.Contains(t, string(updater.errors[0]), "UPSTREAM_SERVICE_ERROR")
+		assert.Contains(t, string(updater.errors[0]), "DOWNSTREAM_SERVICE_ERROR")
 		require.Empty(t, updater.updates)
 		require.False(t, updater.completed)
 	})
 
 	t.Run("error contains payload for graphql error", func(t *testing.T) {
 		updater := &testBridgeUpdater{}
-		handler := buildMessageHandler(updater)
+		handler := buildMessageHandler(updater, "DOWNSTREAM_SERVICE_ERROR")
 
 		handler(&client.Message{
 			Type: client.MessageTypeError,
@@ -78,7 +78,7 @@ func TestBuildMessageHandlerRoutesEachMessageTypeCorrectly(t *testing.T) {
 
 	t.Run("update is delivered without completing for data message", func(t *testing.T) {
 		updater := &testBridgeUpdater{}
-		handler := buildMessageHandler(updater)
+		handler := buildMessageHandler(updater, "DOWNSTREAM_SERVICE_ERROR")
 
 		handler(&client.Message{
 			Type: client.MessageTypeData,
@@ -96,7 +96,7 @@ func TestBuildMessageHandlerRoutesEachMessageTypeCorrectly(t *testing.T) {
 
 	t.Run("complete and done are set for complete message", func(t *testing.T) {
 		updater := &testBridgeUpdater{}
-		handler := buildMessageHandler(updater)
+		handler := buildMessageHandler(updater, "DOWNSTREAM_SERVICE_ERROR")
 
 		handler(&client.Message{Type: client.MessageTypeComplete})
 
