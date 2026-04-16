@@ -732,6 +732,8 @@ func (m *mockProtocol) Read(ctx context.Context, conn *websocket.Conn) (*protoco
 	}
 }
 
+// Ping and Pong implement protocol.Pinger — the mock simulates graphql-transport-ws.
+
 func (m *mockProtocol) Ping(ctx context.Context, conn *websocket.Conn) error {
 	return nil
 }

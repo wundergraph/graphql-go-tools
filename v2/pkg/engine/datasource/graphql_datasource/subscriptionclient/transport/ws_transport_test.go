@@ -1058,6 +1058,102 @@ func TestWSTransport_Heartbeat(t *testing.T) {
 		time.Sleep(250 * time.Millisecond)
 		assert.Equal(t, 1, tr.ConnCount())
 	})
+
+	t.Run("legacy graphql-ws survives ping timeout with ka messages", func(t *testing.T) {
+		t.Parallel()
+
+		// Server sends periodic ka (keep-alive) messages, never expects client pings.
+		server := newLegacyGraphQLWSServer(t, func(ctx context.Context, conn *websocket.Conn) {
+			var msg map[string]any
+			_ = wsjson.Read(ctx, conn, &msg)
+
+			// Read in the background so the close handshake completes promptly.
+			closed := make(chan struct{})
+			go func() {
+				defer close(closed)
+				var discard map[string]any
+				_ = wsjson.Read(ctx, conn, &discard)
+			}()
+
+			for {
+				select {
+				case <-closed:
+					return
+				case <-ctx.Done():
+					return
+				case <-time.After(30 * time.Millisecond):
+					if err := wsjson.Write(ctx, conn, map[string]string{"type": "ka"}); err != nil {
+						return
+					}
+				}
+			}
+		})
+
+		// Enable ping loop with a tight timeout. Legacy connections are
+		// unaffected because sendPing is a no-op for non-Pinger protocols,
+		// so lastPingSentAt stays zero and pongOverdue never triggers.
+		tr := NewWSTransport(t.Context(), WSTransportOptions{
+			PingInterval: 50 * time.Millisecond,
+			PingTimeout:  150 * time.Millisecond,
+			WriteTimeout: 100 * time.Millisecond,
+		})
+
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
+			Query: "subscription { test }",
+		}, common.Options{
+			Endpoint:      server.URL,
+			Transport:     common.TransportWS,
+			WSSubprotocol: common.SubprotocolGraphQLWS,
+		}, func(_ *common.Message) {})
+		require.NoError(t, err)
+		defer cancel()
+
+		// Survive well past the ping timeout — several cycles.
+		time.Sleep(400 * time.Millisecond)
+		assert.Equal(t, 1, tr.ConnCount())
+	})
+
+	t.Run("legacy graphql-ws does not send client pings", func(t *testing.T) {
+		t.Parallel()
+
+		// Track any messages the server receives after the subscribe.
+		var extraMessages atomic.Int32
+		server := newLegacyGraphQLWSServer(t, func(ctx context.Context, conn *websocket.Conn) {
+			// Read subscribe
+			var msg map[string]any
+			_ = wsjson.Read(ctx, conn, &msg)
+
+			// Any further messages from the client are unexpected — legacy
+			// clients should never send ping.
+			for {
+				var incoming map[string]any
+				if err := wsjson.Read(ctx, conn, &incoming); err != nil {
+					return
+				}
+				extraMessages.Add(1)
+			}
+		})
+
+		tr := NewWSTransport(t.Context(), WSTransportOptions{
+			PingInterval: 50 * time.Millisecond,
+		})
+
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
+			Query: "subscription { test }",
+		}, common.Options{
+			Endpoint:      server.URL,
+			Transport:     common.TransportWS,
+			WSSubprotocol: common.SubprotocolGraphQLWS,
+		}, func(_ *common.Message) {})
+		require.NoError(t, err)
+		defer cancel()
+
+		// Wait long enough for several ping cycles to pass.
+		time.Sleep(200 * time.Millisecond)
+
+		// Server should not have received any messages (no pings sent).
+		assert.Equal(t, int32(0), extraMessages.Load())
+	})
 }
 
 func TestWSTransport_Defaults(t *testing.T) {

@@ -80,7 +80,7 @@ func (p *GraphQLTransportWS) Init(ctx context.Context, conn *websocket.Conn, pay
 	}
 }
 
-// Ping implements Protocol.
+// Ping implements Pinger.
 func (p *GraphQLTransportWS) Ping(ctx context.Context, conn *websocket.Conn) error {
 	msg := outgoingMessage{
 		Type: gtwsTypePing,
@@ -88,7 +88,7 @@ func (p *GraphQLTransportWS) Ping(ctx context.Context, conn *websocket.Conn) err
 	return wsjson.Write(ctx, conn, msg)
 }
 
-// Pong implements Protocol.
+// Pong implements Pinger.
 func (p *GraphQLTransportWS) Pong(ctx context.Context, conn *websocket.Conn) error {
 	msg := outgoingMessage{
 		Type: gtwsTypePong,
@@ -162,4 +162,7 @@ func (p *GraphQLTransportWS) decode(raw incomingMessage) (*WireMessage, error) {
 	return msg, nil
 }
 
-var _ Protocol = (*GraphQLTransportWS)(nil)
+var (
+	_ Protocol = (*GraphQLTransportWS)(nil)
+	_ Pinger   = (*GraphQLTransportWS)(nil)
+)

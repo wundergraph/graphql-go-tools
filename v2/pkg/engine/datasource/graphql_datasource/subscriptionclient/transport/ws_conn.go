@@ -182,9 +182,11 @@ func (c *wsConnection) readLoop() {
 		switch msg.Type {
 		case protocol.MessagePing:
 			c.log.Debug("wsConnection.ReadLoop", abstractlogger.String("message", "ping"))
-			pongCtx, cancel := context.WithTimeout(c.ctx, c.writeTimeout)
-			_ = c.protocol.Pong(pongCtx, c.conn)
-			cancel()
+			if pinger, ok := c.protocol.(protocol.Pinger); ok {
+				pongCtx, cancel := context.WithTimeout(c.ctx, c.writeTimeout)
+				_ = pinger.Pong(pongCtx, c.conn)
+				cancel()
+			}
 		case protocol.MessagePong:
 			c.lastPongAt.Store(time.Now().UnixNano())
 			c.log.Debug("wsConnection.ReadLoop", abstractlogger.String("message", "pong"))
@@ -256,11 +258,18 @@ func (c *wsConnection) subCount() int {
 }
 
 // sendPing sends a protocol-level ping message and records the timestamp.
+// For protocols that don't implement Pinger (e.g. legacy graphql-ws),
+// this is a no-op — lastPingSentAt stays zero so pongOverdue never triggers.
 func (c *wsConnection) sendPing() error {
+	pinger, ok := c.protocol.(protocol.Pinger)
+	if !ok {
+		return nil
+	}
+
 	pingCtx, cancel := context.WithTimeout(c.ctx, c.writeTimeout)
 	defer cancel()
 
-	err := c.protocol.Ping(pingCtx, c.conn)
+	err := pinger.Ping(pingCtx, c.conn)
 	if err != nil {
 		return err
 	}

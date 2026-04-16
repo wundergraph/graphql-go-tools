@@ -312,32 +312,6 @@ func TestGraphQLWSLegacy_Read(t *testing.T) {
 	})
 }
 
-func TestGraphQLWSLegacy_PingPong(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ping is a no-op for legacy protocol", func(t *testing.T) {
-		t.Parallel()
-
-		// Legacy protocol doesn't support client-initiated ping
-		p := NewGraphQLWS()
-
-		// This should not error, just be a no-op
-		err := p.Ping(context.Background(), nil)
-		require.NoError(t, err)
-	})
-
-	t.Run("pong is a no-op for legacy protocol", func(t *testing.T) {
-		t.Parallel()
-
-		// Legacy protocol doesn't support pong
-		p := NewGraphQLWS()
-
-		// This should not error, just be a no-op
-		err := p.Pong(context.Background(), nil)
-		require.NoError(t, err)
-	})
-}
-
 func newGWSTestServer(t *testing.T, handler func(ctx context.Context, conn *websocket.Conn)) *httptest.Server {
 	t.Helper()
 

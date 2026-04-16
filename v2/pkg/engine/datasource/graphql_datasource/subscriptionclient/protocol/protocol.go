@@ -22,11 +22,13 @@ type Protocol interface {
 
 	// Read blocks until the next message arrives and decodes it.
 	Read(ctx context.Context, conn *websocket.Conn) (*WireMessage, error)
+}
 
-	// Ping requests a liveness check from the server. No-op for protocols that don't support it.
+// Pinger is an optional interface for protocols that support client-initiated
+// ping/pong (e.g. graphql-transport-ws). Protocols that only have server-initiated
+// keep-alive (e.g. legacy graphql-ws with ka messages) do not implement this.
+type Pinger interface {
 	Ping(ctx context.Context, conn *websocket.Conn) error
-
-	// Pong responds to a server liveness check. No-op for protocols that don't support it.
 	Pong(ctx context.Context, conn *websocket.Conn) error
 }
 

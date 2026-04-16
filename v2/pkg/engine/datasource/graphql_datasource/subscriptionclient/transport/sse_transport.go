@@ -73,6 +73,19 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 		abstractlogger.String("method", string(method)),
 	)
 
+	switch method {
+	case common.SSEMethodPOST:
+		httpReq, err = buildPOSTRequest(req, opts)
+	case common.SSEMethodGET:
+		httpReq, err = buildGETRequest(req, opts)
+	default:
+		return nil, fmt.Errorf("unsupported SSE method: %s", method)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
 	// Derive a request context that outlives ctx (via WithoutCancel) so we can
 	// control its lifetime independently. Two AfterFunc registrations tie the
 	// request to both shutdown paths:
@@ -82,22 +95,12 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 	context.AfterFunc(t.ctx, requestCancel)
 	context.AfterFunc(ctx, requestCancel)
 
-	switch method {
-	case common.SSEMethodPOST:
-		httpReq, err = buildPOSTRequest(requestCtx, req, opts)
-	case common.SSEMethodGET:
-		httpReq, err = buildGETRequest(requestCtx, req, opts)
-	default:
-		return nil, fmt.Errorf("unsupported SSE method: %s", method)
-	}
-
-	if err != nil {
-		return nil, err
-	}
+	httpReq = httpReq.WithContext(requestCtx)
 
 	// Execute request
 	resp, err := t.client.Do(httpReq)
 	if err != nil {
+		requestCancel()
 		t.log.Error("sseTransport.Subscribe",
 			abstractlogger.String("endpoint", opts.Endpoint),
 			abstractlogger.Error(err),
@@ -106,6 +109,7 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		requestCancel()
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodySize))
 		resp.Body.Close()
 		t.log.Error("sseTransport.Subscribe",
@@ -120,6 +124,7 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 
 	// Verify content type (should be text/event-stream)
 	if err := t.validateContentType(resp); err != nil {
+		requestCancel()
 		resp.Body.Close()
 		return nil, err
 	}
@@ -148,13 +153,13 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 }
 
 // buildPOSTRequest creates a POST request with JSON body (graphql-sse spec).
-func buildPOSTRequest(ctx context.Context, req *common.Request, opts common.Options) (*http.Request, error) {
+func buildPOSTRequest(req *common.Request, opts common.Options) (*http.Request, error) {
 	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, opts.Endpoint, bytes.NewReader(body))
+	httpReq, err := http.NewRequest(http.MethodPost, opts.Endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -170,7 +175,7 @@ func buildPOSTRequest(ctx context.Context, req *common.Request, opts common.Opti
 }
 
 // buildGETRequest creates a GET request with query parameters (traditional SSE).
-func buildGETRequest(ctx context.Context, req *common.Request, opts common.Options) (*http.Request, error) {
+func buildGETRequest(req *common.Request, opts common.Options) (*http.Request, error) {
 	// Parse the endpoint URL
 	u, err := url.Parse(opts.Endpoint)
 	if err != nil {
@@ -203,7 +208,7 @@ func buildGETRequest(ctx context.Context, req *common.Request, opts common.Optio
 
 	u.RawQuery = q.Encode()
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	httpReq, err := http.NewRequest(http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}

@@ -101,20 +101,6 @@ func (p *GraphQLWS) Read(ctx context.Context, conn *websocket.Conn) (*WireMessag
 	return p.decode(raw)
 }
 
-// Ping implements Protocol.
-// Legacy protocol doesn't support client-initiated ping, this is a no-op.
-func (p *GraphQLWS) Ping(ctx context.Context, conn *websocket.Conn) error {
-	// Legacy protocol doesn't have client ping - only server sends ka
-	return nil
-}
-
-// Pong implements Protocol.
-// Legacy protocol doesn't support pong messages, this is a no-op.
-func (p *GraphQLWS) Pong(ctx context.Context, conn *websocket.Conn) error {
-	// Legacy protocol doesn't have pong
-	return nil
-}
-
 func (p *GraphQLWS) decode(raw incomingMessage) (*WireMessage, error) {
 	msg := &WireMessage{
 		ID: raw.ID,
