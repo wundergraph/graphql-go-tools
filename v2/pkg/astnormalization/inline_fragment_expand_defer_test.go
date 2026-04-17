@@ -16,7 +16,7 @@ func TestInlineFragmentExpandDefer(t *testing.T) {
 					query dog {
 						dog {
 							... {
-								name  @__defer_internal(id: "1")
+								name  @__defer_internal(id: 1)
 							}
 						}
 					}`)
@@ -55,28 +55,28 @@ func TestInlineFragmentExpandDefer(t *testing.T) {
 					query pet {
 						pet {
 							... on Dog {
-								name @__defer_internal(id: "1")
-								nickname @__defer_internal(id: "1")
+								name @__defer_internal(id: 1)
+								nickname @__defer_internal(id: 1)
 								... {
-									barkVolume @__defer_internal(id: "2", parentDeferId: "1")
+									barkVolume @__defer_internal(id: 2, parentDeferId: 1)
 								}
 							}
 							... on Dog {
 								... {
-									extra @__defer_internal(id: "3") {	
-										noString @__defer_internal(id: "3")
+									extra @__defer_internal(id: 3) {	
+										noString @__defer_internal(id: 3)
 									}
 								}
 								... {
-									extra @__defer_internal(id: "4") {	
-										string @__defer_internal(id: "4")
-										noString @__defer_internal(id: "4")
+									extra @__defer_internal(id: 4) {	
+										string @__defer_internal(id: 4)
+										noString @__defer_internal(id: 4)
 									}
 								}
 							}
 							... on Cat {
-								name @__defer_internal(id: "5")
-								meowVolume @__defer_internal(id: "5")
+								name @__defer_internal(id: 5)
+								meowVolume @__defer_internal(id: 5)
 							}
 						}
 					}`, runOptions{indent: true})

@@ -88,7 +88,7 @@ QueryPlan {
 }
 
 type DeferFetchGroup struct {
-	DeferID string
+	DeferID int
 	Fetches *FetchTreeNode
 }
 

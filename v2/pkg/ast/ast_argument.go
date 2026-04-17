@@ -3,6 +3,7 @@ package ast
 import (
 	"bytes"
 	"io"
+	"strconv"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
@@ -203,6 +204,19 @@ func (d *Document) AddStringArgument(name, value string) int {
 	arg := Argument{
 		Name:  d.Input.AppendInputString(name),
 		Value: Value{Kind: ValueKindString, Ref: strValueRef},
+	}
+
+	return d.AddArgument(arg)
+}
+
+func (d *Document) AddIntArgument(name string, value int) int {
+	intValueRef := d.AddIntValue(IntValue{
+		Raw: d.Input.AppendInputString(strconv.Itoa(value)),
+	})
+
+	arg := Argument{
+		Name:  d.Input.AppendInputString(name),
+		Value: Value{Kind: ValueKindInteger, Ref: intValueRef},
 	}
 
 	return d.AddArgument(arg)

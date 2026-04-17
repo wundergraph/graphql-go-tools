@@ -10,13 +10,13 @@ func TestDeferEnsureTypename(t *testing.T) {
 				{
 					user {
 						id
-						name @__defer_internal(id: "1")
+						name @__defer_internal(id: 1)
 					}
 				}`, `
 				{
 					user {
 						id
-						name @__defer_internal(id: "1")
+						name @__defer_internal(id: 1)
 					}
 				}`)
 	})
@@ -25,14 +25,14 @@ func TestDeferEnsureTypename(t *testing.T) {
 		run(t, deferEnsureTypename, testDefinition, `
 				{
 					user {
-						name @__defer_internal(id: "1")
-						age @__defer_internal(id: "1")
+						name @__defer_internal(id: 1)
+						age @__defer_internal(id: 1)
 					}
 				}`, `
 				{
 					user {
-						name @__defer_internal(id: "1")
-						age @__defer_internal(id: "1")
+						name @__defer_internal(id: 1)
+						age @__defer_internal(id: 1)
 						___typename: __typename
 					}
 				}`)
@@ -42,14 +42,14 @@ func TestDeferEnsureTypename(t *testing.T) {
 		run(t, deferEnsureTypename, testDefinition, `
 				{
 					user {
-						name @__defer_internal(id: "1")
-						age @__defer_internal(id: "2")
+						name @__defer_internal(id: 1)
+						age @__defer_internal(id: 2)
 					}
 				}`, `
 				{
 					user {
-						name @__defer_internal(id: "1")
-						age @__defer_internal(id: "2")
+						name @__defer_internal(id: 1)
+						age @__defer_internal(id: 2)
 						___typename: __typename
 					}
 				}`)
@@ -58,15 +58,15 @@ func TestDeferEnsureTypename(t *testing.T) {
 	t.Run("all fields deferred, parent deferred with same id - intersection, no placeholder", func(t *testing.T) {
 		run(t, deferEnsureTypename, testDefinition, `
 				{
-					user @__defer_internal(id: "1") {
-						name @__defer_internal(id: "1")
-						age @__defer_internal(id: "2")
+					user @__defer_internal(id: 1) {
+						name @__defer_internal(id: 1)
+						age @__defer_internal(id: 2)
 					}
 				}`, `
 				{
-					user @__defer_internal(id: "1") {
-						name @__defer_internal(id: "1")
-						age @__defer_internal(id: "2")
+					user @__defer_internal(id: 1) {
+						name @__defer_internal(id: 1)
+						age @__defer_internal(id: 2)
 					}
 				}`)
 	})
@@ -74,16 +74,16 @@ func TestDeferEnsureTypename(t *testing.T) {
 	t.Run("all fields deferred, parent deferred with different id - no intersection, placeholder with parent id added", func(t *testing.T) {
 		run(t, deferEnsureTypename, testDefinition, `
 				{
-					user @__defer_internal(id: "1") {
-						name @__defer_internal(id: "2")
-						age @__defer_internal(id: "3")
+					user @__defer_internal(id: 1) {
+						name @__defer_internal(id: 2)
+						age @__defer_internal(id: 3)
 					}
 				}`, `
 				{
-					user @__defer_internal(id: "1") {
-						name @__defer_internal(id: "2")
-						age @__defer_internal(id: "3")
-						___typename: __typename @__defer_internal(id: "1")
+					user @__defer_internal(id: 1) {
+						name @__defer_internal(id: 2)
+						age @__defer_internal(id: 3)
+						___typename: __typename @__defer_internal(id: 1)
 					}
 				}`)
 	})

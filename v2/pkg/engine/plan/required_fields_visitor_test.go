@@ -24,7 +24,7 @@ func TestAddRequiredFields(t *testing.T) {
 		selectionSetRef              int
 		enforceTypenameForRequired   bool
 		deferInfo                    *DeferInfo
-		parentFieldDeferID           string
+		parentFieldDeferID           int
 
 		// output
 		expectedOperation           string
@@ -495,7 +495,7 @@ func TestAddRequiredFields(t *testing.T) {
 			typeName:  "User",
 			fieldSet:  "id",
 			isKey:     true,
-			deferInfo: &DeferInfo{ID: "1"},
+			deferInfo: &DeferInfo{ID: 1},
 			expectedOperation: `
 				query {
 					user {
@@ -516,7 +516,7 @@ func TestAddRequiredFields(t *testing.T) {
 			typeName:  "User",
 			fieldSet:  "id",
 			isKey:     true,
-			deferInfo: &DeferInfo{ID: "1"},
+			deferInfo: &DeferInfo{ID: 1},
 			expectedOperation: `
 				query {
 					user {
@@ -537,13 +537,13 @@ func TestAddRequiredFields(t *testing.T) {
 			typeName:  "User",
 			fieldSet:  "firstName lastName",
 			isKey:     false,
-			deferInfo: &DeferInfo{ID: "1"},
+			deferInfo: &DeferInfo{ID: 1},
 			expectedOperation: `
 				query {
 					user {
 						fullName
-						__internal_firstName: firstName @__defer_internal(id: "1")
-						__internal_lastName: lastName @__defer_internal(id: "1")
+						__internal_firstName: firstName @__defer_internal(id: 1)
+						__internal_lastName: lastName @__defer_internal(id: 1)
 					}
 				}`,
 			expectedSkipFieldsCount:     2,
@@ -562,13 +562,13 @@ func TestAddRequiredFields(t *testing.T) {
 			typeName:  "User",
 			fieldSet:  "firstName",
 			isKey:     false,
-			deferInfo: &DeferInfo{ID: "1"},
+			deferInfo: &DeferInfo{ID: 1},
 			expectedOperation: `
 				query {
 					user {
 						firstName
 						fullName
-						__internal_firstName: firstName @__defer_internal(id: "1")
+						__internal_firstName: firstName @__defer_internal(id: 1)
 					}
 				}`,
 			expectedSkipFieldsCount:     1,
@@ -585,7 +585,7 @@ func TestAddRequiredFields(t *testing.T) {
 			typeName:        "User",
 			fieldSet:        "address { street }",
 			isKey:           true,
-			deferInfo:       &DeferInfo{ID: "1"},
+			deferInfo:       &DeferInfo{ID: 1},
 			selectionSetRef: 1,
 			// existing plain address is reused; street is added into it
 			expectedOperation: `
@@ -611,13 +611,13 @@ func TestAddRequiredFields(t *testing.T) {
 			typeName:           "User",
 			fieldSet:           "id",
 			isKey:              true,
-			deferInfo:          &DeferInfo{ID: "2", ParentID: "2"},
-			parentFieldDeferID: "1",
+			deferInfo:          &DeferInfo{ID: 2, ParentID: 2},
+			parentFieldDeferID: 1,
 			expectedOperation: `
 				query {
 					user {
 						name
-						id @__defer_internal(id: "1")
+						id @__defer_internal(id: 1)
 					}
 				}`,
 			expectedSkipFieldsCount:     1,
@@ -633,12 +633,12 @@ func TestAddRequiredFields(t *testing.T) {
 			typeName:  "User",
 			fieldSet:  "firstName",
 			isKey:     false,
-			deferInfo: &DeferInfo{ID: "2", Label: "myLabel", ParentID: "1"},
+			deferInfo: &DeferInfo{ID: 2, Label: "myLabel", ParentID: 1},
 			expectedOperation: `
 				query {
 					user {
 						fullName
-						__internal_firstName: firstName @__defer_internal(id: "2", label: "myLabel", parentDeferId: "1")
+						__internal_firstName: firstName @__defer_internal(id: 2, label: "myLabel", parentDeferId: 1)
 					}
 				}`,
 			expectedSkipFieldsCount:     1,
@@ -655,8 +655,8 @@ func TestAddRequiredFields(t *testing.T) {
 			typeName:           "User",
 			fieldSet:           "address { street }",
 			isKey:              true,
-			deferInfo:          &DeferInfo{ID: "2", ParentID: "1"},
-			parentFieldDeferID: "1",
+			deferInfo:          &DeferInfo{ID: 2, ParentID: 1},
+			parentFieldDeferID: 1,
 			selectionSetRef:    1,
 			// existing plain address reused; street added with @deferInternal
 			expectedOperation: `
@@ -664,7 +664,7 @@ func TestAddRequiredFields(t *testing.T) {
 					user {
 						address {
 							city
-							street @__defer_internal(id: "1")
+							street @__defer_internal(id: 1)
 						}
 					}
 				}`,
@@ -683,13 +683,13 @@ func TestAddRequiredFields(t *testing.T) {
 			typeName:  "User",
 			fieldSet:  "address { street }",
 			isKey:     false,
-			deferInfo: &DeferInfo{ID: "2", ParentID: "1"},
+			deferInfo: &DeferInfo{ID: 2, ParentID: 1},
 			expectedOperation: `
 				query {
 					user {
 						fullAddress
-						__internal_address: address @__defer_internal(id: "2", parentDeferId: "1") {
-							street @__defer_internal(id: "2", parentDeferId: "1")
+						__internal_address: address @__defer_internal(id: 2, parentDeferId: 1) {
+							street @__defer_internal(id: 2, parentDeferId: 1)
 						}
 					}
 				}`,
@@ -703,7 +703,7 @@ func TestAddRequiredFields(t *testing.T) {
 			definition: `
 				type Query { user: User }
 				type User { id: ID! name: String! }`,
-			operation: `query { user { id @__defer_internal(id: "1") name } }`,
+			operation: `query { user { id @__defer_internal(id: 1) name } }`,
 			typeName:  "User",
 			fieldSet:  "id",
 			isKey:     true,
@@ -711,7 +711,7 @@ func TestAddRequiredFields(t *testing.T) {
 			expectedOperation: `
 				query {
 					user {
-						id @__defer_internal(id: "1")
+						id @__defer_internal(id: 1)
 						name
 						__internal_id: id
 					}
@@ -725,7 +725,7 @@ func TestAddRequiredFields(t *testing.T) {
 			definition: `
 				type Query { user: User }
 				type User { id: ID! firstName: String! fullName: String! }`,
-			operation: `query { user { firstName @__defer_internal(id: "1") fullName } }`,
+			operation: `query { user { firstName @__defer_internal(id: 1) fullName } }`,
 			typeName:  "User",
 			fieldSet:  "firstName",
 			isKey:     false,
@@ -733,7 +733,7 @@ func TestAddRequiredFields(t *testing.T) {
 			expectedOperation: `
 				query {
 					user {
-						firstName @__defer_internal(id: "1")
+						firstName @__defer_internal(id: 1)
 						fullName
 						__internal_firstName: firstName
 					}
@@ -748,7 +748,7 @@ func TestAddRequiredFields(t *testing.T) {
 				type Query { user: User }
 				type User { id: ID! address: Address! }
 				type Address { street: String! city: String! }`,
-			operation:       `query { user { address { street @__defer_internal(id: "1") city } } }`,
+			operation:       `query { user { address { street @__defer_internal(id: 1) city } } }`,
 			typeName:        "User",
 			fieldSet:        "address { street }",
 			isKey:           true,
@@ -758,7 +758,7 @@ func TestAddRequiredFields(t *testing.T) {
 				query {
 					user {
 						address {
-							street @__defer_internal(id: "1")
+							street @__defer_internal(id: 1)
 							city
 							__internal_street: street
 						}
@@ -775,7 +775,7 @@ func TestAddRequiredFields(t *testing.T) {
 				type Query { user: User }
 				type User { id: ID! address: Address! fullAddress: String! }
 				type Address { street: String! city: String! }`,
-			operation:       `query { user { address { street @__defer_internal(id: "1") city } fullAddress } }`,
+			operation:       `query { user { address { street @__defer_internal(id: 1) city } fullAddress } }`,
 			typeName:        "User",
 			fieldSet:        "address { street }",
 			isKey:           false,
@@ -785,7 +785,7 @@ func TestAddRequiredFields(t *testing.T) {
 				query {
 					user {
 						address {
-							street @__defer_internal(id: "1")
+							street @__defer_internal(id: 1)
 							city
 							__internal_street: street
 						}
@@ -806,18 +806,18 @@ func TestAddRequiredFields(t *testing.T) {
 				type Account { type: String! }`,
 			// operation already has __internal_settings from a prior addRequiredFields call;
 			// nested region also carries the defer directive
-			operation:       `query { user { fullName __internal_settings: settings @__defer_internal(id: "1") { region @__defer_internal(id: "1") } account } }`,
+			operation:       `query { user { fullName __internal_settings: settings @__defer_internal(id: 1) { region @__defer_internal(id: 1) } account } }`,
 			typeName:        "User",
 			fieldSet:        "settings { region }",
 			isKey:           false,
 			selectionSetRef: 1,
-			deferInfo:       &DeferInfo{ID: "1"},
+			deferInfo:       &DeferInfo{ID: 1},
 			// __internal_settings already exists with same defer scope — reuse it; no new field added
 			expectedOperation: `
 				query {
 					user {
 						fullName
-						__internal_settings: settings @__defer_internal(id: "1") { region @__defer_internal(id: "1") }
+						__internal_settings: settings @__defer_internal(id: 1) { region @__defer_internal(id: 1) }
 						account
 					}
 				}`,
@@ -833,20 +833,20 @@ func TestAddRequiredFields(t *testing.T) {
 				type Settings { region: String! }
 				type Account { type: String! }`,
 			// operation has __internal_settings belonging to defer scope "1" with directive on nested field too
-			operation:       `query { user { fullName __internal_settings: settings @__defer_internal(id: "1") { region @__defer_internal(id: "1") } account } }`,
+			operation:       `query { user { fullName __internal_settings: settings @__defer_internal(id: 1) { region @__defer_internal(id: 1) } account } }`,
 			typeName:        "User",
 			fieldSet:        "settings { region }",
 			isKey:           false,
 			selectionSetRef: 1, // user's inner selection set; ref 0 is the pre-seeded settings' inner selection set
-			deferInfo:       &DeferInfo{ID: "2"},
+			deferInfo:       &DeferInfo{ID: 2},
 			// __internal_settings exists but belongs to defer "1"; no __internal_2_settings yet — create it
 			expectedOperation: `
 				query {
 					user {
 						fullName
-						__internal_settings: settings @__defer_internal(id: "1") { region @__defer_internal(id: "1") }
+						__internal_settings: settings @__defer_internal(id: 1) { region @__defer_internal(id: 1) }
 						account
-						__internal_2_settings: settings @__defer_internal(id: "2") { region @__defer_internal(id: "2") }
+						__internal_2_settings: settings @__defer_internal(id: 2) { region @__defer_internal(id: 2) }
 					}
 				}`,
 			expectedSkipFieldsCount:     2, // __internal_2_settings + nested region
@@ -883,20 +883,20 @@ func TestAddRequiredFields(t *testing.T) {
 			typeName:  "Account",
 			fieldSet:  "node { ... on User { name } ... on Admin { role } }",
 			isKey:     false,
-			deferInfo: &DeferInfo{ID: "1"},
+			deferInfo: &DeferInfo{ID: 1},
 			// addTypenameSelection now calls applyDeferInternalDirective so the
 			// auto-added __typename (triggered by inline fragments) carries @__defer_internal
 			expectedOperation: `
 				query {
 					account {
 						id
-						__internal_node: node @__defer_internal(id: "1") {
-							__typename @__defer_internal(id: "1")
+						__internal_node: node @__defer_internal(id: 1) {
+							__typename @__defer_internal(id: 1)
 							... on User {
-								name @__defer_internal(id: "1")
+								name @__defer_internal(id: 1)
 							}
 							... on Admin {
-								role @__defer_internal(id: "1")
+								role @__defer_internal(id: 1)
 							}
 						}
 					}
@@ -929,15 +929,15 @@ func TestAddRequiredFields(t *testing.T) {
 			typeName:                   "User",
 			fieldSet:                   "account { id }",
 			isKey:                      false,
-			deferInfo:                  &DeferInfo{ID: "1"},
+			deferInfo:                  &DeferInfo{ID: 1},
 			enforceTypenameForRequired: true,
 			expectedOperation: `
 				query {
 					user {
 						fullAccount
-						__internal_account: account @__defer_internal(id: "1") {
-							__typename @__defer_internal(id: "1")
-							id @__defer_internal(id: "1")
+						__internal_account: account @__defer_internal(id: 1) {
+							__typename @__defer_internal(id: 1)
+							id @__defer_internal(id: 1)
 						}
 					}
 				}`,
@@ -969,13 +969,13 @@ func TestAddRequiredFields(t *testing.T) {
 			typeName:  "User",
 			fieldSet:  "account { id }",
 			isKey:     false,
-			deferInfo: &DeferInfo{ID: "1"},
+			deferInfo: &DeferInfo{ID: 1},
 			expectedOperation: `
 				query {
 					user {
 						fullAccount
-						__internal_account: account @__defer_internal(id: "1") {
-							id @__defer_internal(id: "1")
+						__internal_account: account @__defer_internal(id: 1) {
+							id @__defer_internal(id: 1)
 						}
 					}
 				}`,
@@ -1013,18 +1013,18 @@ func TestAddRequiredFields(t *testing.T) {
 			typeName:  "Account",
 			fieldSet:  "node { __typename ... on User { name } ... on Admin { role } }",
 			isKey:     false,
-			deferInfo: &DeferInfo{ID: "1"},
+			deferInfo: &DeferInfo{ID: 1},
 			expectedOperation: `
 				query {
 					account {
 						id
-						__internal_node: node @__defer_internal(id: "1") {
-							__typename @__defer_internal(id: "1")
+						__internal_node: node @__defer_internal(id: 1) {
+							__typename @__defer_internal(id: 1)
 							... on User {
-								name @__defer_internal(id: "1")
+								name @__defer_internal(id: 1)
 							}
 							... on Admin {
-								role @__defer_internal(id: "1")
+								role @__defer_internal(id: 1)
 							}
 						}
 					}
@@ -1041,14 +1041,14 @@ func TestAddRequiredFields(t *testing.T) {
 			// operation pre-seeded: plain id is deferred (from prior entity planner),
 			// plus __internal_id already created by a prior key planner
 			// (deferInfo.ID="1", parentFieldDeferID="1")
-			operation:          `query { user { id @__defer_internal(id: "1") name __internal_id: id @__defer_internal(id: "1") } }`,
+			operation:          `query { user { id @__defer_internal(id: 1) name __internal_id: id @__defer_internal(id: 1) } }`,
 			typeName:           "User",
 			fieldSet:           "id",
 			isKey:              true,
-			deferInfo:          &DeferInfo{ID: "3"},
-			parentFieldDeferID: "1",
+			deferInfo:          &DeferInfo{ID: 3},
+			parentFieldDeferID: 1,
 			// effectiveDeferID = parentFieldDeferID = "1" matches __internal_id's directive → reuse it
-			expectedOperation:           `query { user { id @__defer_internal(id: "1") name __internal_id: id @__defer_internal(id: "1") } }`,
+			expectedOperation:           `query { user { id @__defer_internal(id: 1) name __internal_id: id @__defer_internal(id: 1) } }`,
 			expectedSkipFieldsCount:     0,
 			expectedRequiredFieldsCount: 1,
 			expectedRemappedPaths:       map[string]string{"User.id": "__internal_id"},
@@ -1058,13 +1058,13 @@ func TestAddRequiredFields(t *testing.T) {
 			definition: `
 				type Query { user: User }
 				type User { id: ID! name: String! }`,
-			operation:                   `query { user { id @__defer_internal(id: "1") name __internal_id: id @__defer_internal(id: "1") } }`,
+			operation:                   `query { user { id @__defer_internal(id: 1) name __internal_id: id @__defer_internal(id: 1) } }`,
 			typeName:                    "User",
 			fieldSet:                    "id",
 			isKey:                       true,
-			deferInfo:                   &DeferInfo{ID: "5"},
-			parentFieldDeferID:          "1",
-			expectedOperation:           `query { user { id @__defer_internal(id: "1") name __internal_id: id @__defer_internal(id: "1") } }`,
+			deferInfo:                   &DeferInfo{ID: 5},
+			parentFieldDeferID:          1,
+			expectedOperation:           `query { user { id @__defer_internal(id: 1) name __internal_id: id @__defer_internal(id: 1) } }`,
 			expectedSkipFieldsCount:     0,
 			expectedRequiredFieldsCount: 1,
 			expectedRemappedPaths:       map[string]string{"User.id": "__internal_id"},
@@ -1075,20 +1075,20 @@ func TestAddRequiredFields(t *testing.T) {
 				type Query { user: User }
 				type User { id: ID! name: String! }`,
 			// __internal_id belongs to parent scope "1"; new planner has parentFieldDeferID="2"
-			operation:          `query { user { id @__defer_internal(id: "1") name __internal_id: id @__defer_internal(id: "1") } }`,
+			operation:          `query { user { id @__defer_internal(id: 1) name __internal_id: id @__defer_internal(id: 1) } }`,
 			typeName:           "User",
 			fieldSet:           "id",
 			isKey:              true,
-			deferInfo:          &DeferInfo{ID: "3"},
-			parentFieldDeferID: "2",
+			deferInfo:          &DeferInfo{ID: 3},
+			parentFieldDeferID: 2,
 			// effectiveDeferID = "2" != "1" → Level 2 → creates __internal_2_id
 			expectedOperation: `
 				query {
 					user {
-						id @__defer_internal(id: "1")
+						id @__defer_internal(id: 1)
 						name
-						__internal_id: id @__defer_internal(id: "1")
-						__internal_2_id: id @__defer_internal(id: "2")
+						__internal_id: id @__defer_internal(id: 1)
+						__internal_2_id: id @__defer_internal(id: 2)
 					}
 				}`,
 			expectedSkipFieldsCount:     1,
@@ -1104,20 +1104,20 @@ func TestAddRequiredFields(t *testing.T) {
 				type Account { type: String! }`,
 			operation: `query { user {
 				fullName
-				__internal_settings: settings @__defer_internal(id: "1") { region @__defer_internal(id: "1") }
-				__internal_2_settings: settings @__defer_internal(id: "2") { region @__defer_internal(id: "2") }
+				__internal_settings: settings @__defer_internal(id: 1) { region @__defer_internal(id: 1) }
+				__internal_2_settings: settings @__defer_internal(id: 2) { region @__defer_internal(id: 2) }
 				account
 			} }`,
 			typeName:        "User",
 			fieldSet:        "settings { region }",
 			isKey:           false,
 			selectionSetRef: 2, // user's inner selection set; refs 0 and 1 are the two pre-seeded settings' inner selection sets
-			deferInfo:       &DeferInfo{ID: "2"},
+			deferInfo:       &DeferInfo{ID: 2},
 			// __internal_settings exists but defer "1" != "2"; __internal_2_settings exists with defer "2" — reuse it
 			expectedOperation: `query { user {
 				fullName
-				__internal_settings: settings @__defer_internal(id: "1") { region @__defer_internal(id: "1") }
-				__internal_2_settings: settings @__defer_internal(id: "2") { region @__defer_internal(id: "2") }
+				__internal_settings: settings @__defer_internal(id: 1) { region @__defer_internal(id: 1) }
+				__internal_2_settings: settings @__defer_internal(id: 2) { region @__defer_internal(id: 2) }
 				account
 			} }`,
 			expectedSkipFieldsCount:     0,

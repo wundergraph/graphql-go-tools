@@ -75,9 +75,9 @@ func (f *deferEnsureTypenameVisitor) EnterSelectionSet(ref int) {
 			allDeferred = false
 			break
 		}
-		if parentDeferID != "" && !hasDeferIntersection {
+		if parentDeferID != 0 && !hasDeferIntersection {
 			idValue, ok := f.operation.DirectiveArgumentValueByName(directiveRef, []byte("id"))
-			if ok && f.operation.StringValueContentString(idValue.Ref) == parentDeferID {
+			if ok && idValue.Kind == ast.ValueKindInteger && int(f.operation.IntValueAsInt32(idValue.Ref)) == parentDeferID {
 				hasDeferIntersection = true
 			}
 		}
@@ -88,7 +88,7 @@ func (f *deferEnsureTypenameVisitor) EnterSelectionSet(ref int) {
 		return
 	}
 
-	if parentDeferID == "" {
+	if parentDeferID == 0 {
 		// the enclosing field is not deferred; add a plain placeholder so the
 		// selection set has at least one non-deferred field selection
 		addInternalTypeNamePlaceholder(f.operation, ref)
@@ -104,12 +104,12 @@ func (f *deferEnsureTypenameVisitor) EnterSelectionSet(ref int) {
 	// no intersection: add a placeholder annotated with the parent's defer id
 	// so it is planned in the parent field defer scope
 	fieldRef := addInternalTypeNamePlaceholder(f.operation, ref)
-	f.operation.AddDeferInternalDirectiveToField(fieldRef, parentDeferID, "", "")
+	f.operation.AddDeferInternalDirectiveToField(fieldRef, parentDeferID, "", 0)
 }
 
 // parentFieldDeferID returns the defer id of the nearest enclosing field that
 // carries a @__defer_internal directive, or an empty string if there is none.
-func (f *deferEnsureTypenameVisitor) parentFieldDeferID() string {
+func (f *deferEnsureTypenameVisitor) parentFieldDeferID() int {
 	for i := len(f.Ancestors) - 1; i >= 0; i-- {
 		ancestor := f.Ancestors[i]
 		if ancestor.Kind != ast.NodeKindField {
@@ -121,5 +121,5 @@ func (f *deferEnsureTypenameVisitor) parentFieldDeferID() string {
 			return id
 		}
 	}
-	return ""
+	return 0
 }

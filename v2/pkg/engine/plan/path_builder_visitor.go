@@ -123,7 +123,7 @@ type objectFetchConfiguration struct {
 	dependsOnFetchIDs  []int
 	rootFields         []resolve.GraphCoordinate
 	operationType      ast.OperationType
-	deferID            string
+	deferID            int
 }
 
 type currentFieldInfo struct {
@@ -136,7 +136,7 @@ type currentFieldInfo struct {
 	suggestion          *NodeSuggestion
 	ds                  DataSource
 	shareable           bool
-	deferID             string
+	deferID             int
 	deferField          bool
 }
 
@@ -575,7 +575,7 @@ func (c *pathBuilderVisitor) EnterField(fieldRef int) {
 
 		// normal field planning is handled if the field itself is not deferred
 		if !hasDeferInfo {
-			field.deferID = ""
+			field.deferID = 0
 			field.deferField = false
 			c.handlePlanningField(field)
 		}
@@ -631,7 +631,7 @@ func (c *pathBuilderVisitor) haveChildFieldsToPlan(field *currentFieldInfo) bool
 			return false
 		}
 
-		if field.deferID == "" {
+		if field.deferID == 0 {
 			return childNode.deferInfo == nil
 		}
 
@@ -839,12 +839,12 @@ func (c *pathBuilderVisitor) planWithExistingPlanners(field *currentFieldInfo) (
 			continue
 		}
 
-		if plannerConfig.DeferID() != "" && field.deferID == "" {
+		if plannerConfig.DeferID() != 0 && field.deferID == 0 {
 			// do not plan a non-deferred field on a deferred planner
 			continue
 		}
 
-		if field.deferID != "" && plannerConfig.DeferID() != field.deferID {
+		if field.deferID != 0 && plannerConfig.DeferID() != field.deferID {
 			// do not plan a deferred field on a planner with different defer id
 			// or not a deferred planner
 			continue

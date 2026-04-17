@@ -180,5 +180,5 @@ type StreamField struct {
 }
 
 type DeferField struct {
-	DeferID string
+	DeferID int
 }

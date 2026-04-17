@@ -7,7 +7,6 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 )
 
 // nodeSelectionVisitor walks through the operation multiple times to rewrite it
@@ -82,7 +81,7 @@ type fieldIndexKey struct {
 // selectionSetPendingRequirements - is a wrapper to been able to have predictable order of keyRequirements but at the same time deduplicate keyRequirements
 type pendingKeyRequirementExistsKey struct {
 	dsHash  DSHash
-	deferID string
+	deferID int
 }
 
 type pendingKeyRequirements struct {
@@ -100,7 +99,7 @@ type keyRequirements struct {
 	requestedByFieldRefs []int
 	typeName             string
 	deferInfo            *DeferInfo
-	parentFieldDeferID   string
+	parentFieldDeferID   int
 }
 
 type fieldRequirements struct {
@@ -110,7 +109,7 @@ type fieldRequirements struct {
 	requestedByFieldRefs         []int
 	isTypenameForEntityInterface bool
 	deferInfo                    *DeferInfo
-	parentFieldDeferID           string
+	parentFieldDeferID           int
 }
 
 type pendingFieldRequirements struct {
@@ -122,7 +121,7 @@ type pendingFieldRequirementExistsKey struct {
 	dsHash                       DSHash
 	selectionSet                 string
 	isTypenameForEntityInterface bool
-	deferID                      string
+	deferID                      int
 }
 
 func (c *nodeSelectionVisitor) currentSelectionSet() int {
@@ -232,7 +231,7 @@ type fieldRequirementsContext struct {
 	currentPath        string
 	dsConfig           DataSource
 	deferInfo          *DeferInfo
-	parentFieldDeferID string
+	parentFieldDeferID int
 }
 
 func (c *nodeSelectionVisitor) handleEnterField(fieldRef int, handleRequires bool) {
@@ -291,23 +290,19 @@ func (c *nodeSelectionVisitor) handleEnterField(fieldRef int, handleRequires boo
 
 // wrappingFieldDeferID walks the walker ancestors in reverse to find the nearest wrapping field
 // that has a @__defer_internal directive and returns its "id" argument value.
-func (c *nodeSelectionVisitor) wrappingFieldDeferID() string {
+func (c *nodeSelectionVisitor) wrappingFieldDeferID() int {
 	for i := len(c.walker.Ancestors) - 1; i >= 0; i-- {
 		ancestor := c.walker.Ancestors[i]
 		if ancestor.Kind != ast.NodeKindField {
 			continue
 		}
-		directiveRef, exists := c.operation.Fields[ancestor.Ref].Directives.HasDirectiveByNameBytes(c.operation, literal.DEFER_INTERNAL)
+		id, exists := c.operation.FieldInternalDeferID(ancestor.Ref)
 		if !exists {
-			return ""
+			return 0
 		}
-		idValue, ok := c.operation.DirectiveArgumentValueByName(directiveRef, []byte("id"))
-		if !ok {
-			return ""
-		}
-		return c.operation.StringValueContentString(idValue.Ref)
+		return id
 	}
-	return ""
+	return 0
 }
 
 func (c *nodeSelectionVisitor) LeaveField(ref int) {
@@ -502,7 +497,7 @@ func (c *nodeSelectionVisitor) addPendingFieldRequirements(fieldCtx fieldRequire
 		}
 	}
 
-	deferID := ""
+	deferID := 0
 	if fieldCtx.deferInfo != nil {
 		deferID = fieldCtx.deferInfo.ID
 	}
@@ -547,7 +542,7 @@ func (c *nodeSelectionVisitor) addPendingKeyRequirements(fieldCtx fieldRequireme
 		}
 	}
 
-	deferID := ""
+	deferID := 0
 	if fieldCtx.deferInfo != nil {
 		deferID = fieldCtx.deferInfo.ID
 	}

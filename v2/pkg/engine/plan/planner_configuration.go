@@ -28,7 +28,7 @@ type PlannerConfiguration interface {
 
 	ObjectFetchConfiguration() *objectFetchConfiguration
 	DataSourceConfiguration() DataSource
-	DeferID() string
+	DeferID() int
 
 	RequiredFields() *FederationFieldConfigurations
 
@@ -62,7 +62,7 @@ func (p *plannerConfiguration[T]) ObjectFetchConfiguration() *objectFetchConfigu
 	return p.objectFetchConfiguration
 }
 
-func (p *plannerConfiguration[T]) DeferID() string {
+func (p *plannerConfiguration[T]) DeferID() int {
 	return p.objectFetchConfiguration.deferID
 }
 
@@ -249,7 +249,7 @@ type pathConfiguration struct {
 	pathType   PathType
 
 	deferredField bool
-	deferID       string
+	deferID       int
 }
 
 type PathType int
@@ -263,7 +263,7 @@ const (
 func (p *pathConfiguration) String() string {
 	switch p.pathType {
 	case PathTypeField:
-		return fmt.Sprintf(`{"ds":%d,"path":"%s","fieldRef":%3d,"typeName":"%s","shouldWalkFields":%t,"isRootNode":%t,"pathType":"field","deferID":"%s"}`, p.dsHash, p.path, p.fieldRef, p.typeName, p.shouldWalkFields, p.isRootNode, p.deferID)
+		return fmt.Sprintf(`{"ds":%d,"path":"%s","fieldRef":%3d,"typeName":"%s","shouldWalkFields":%t,"isRootNode":%t,"pathType":"field","deferID":%d}`, p.dsHash, p.path, p.fieldRef, p.typeName, p.shouldWalkFields, p.isRootNode, p.deferID)
 	case PathTypeFragment:
 		return fmt.Sprintf(`{"ds":%d,"path":"%s","fragmentRef":%3d,"shouldWalkFields":%t,"pathType":"fragment"}`, p.dsHash, p.path, p.fragmentRef, p.shouldWalkFields)
 	case PathTypeParent:

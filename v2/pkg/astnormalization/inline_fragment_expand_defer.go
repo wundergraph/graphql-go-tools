@@ -1,8 +1,6 @@
 package astnormalization
 
 import (
-	"fmt"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
@@ -28,8 +26,8 @@ type inlineFragmentExpandDeferVisitor struct {
 }
 
 type deferInfo struct {
-	parentDeferId string
-	id            string
+	parentDeferId int
+	id            int
 	label         string
 	fragmentRef   int
 }
@@ -86,14 +84,14 @@ func (f *inlineFragmentExpandDeferVisitor) EnterInlineFragment(ref int) {
 
 	f.currentDeferId++
 
-	parentDeferId := ""
+	parentDeferId := 0
 	if len(f.defers) > 0 {
 		parentDeferId = f.defers[len(f.defers)-1].id
 	}
 
 	deferInfo := deferInfo{
 		parentDeferId: parentDeferId,
-		id:            fmt.Sprintf("%d", f.currentDeferId),
+		id:            f.currentDeferId,
 		label:         label,
 		fragmentRef:   ref,
 	}
@@ -130,46 +128,6 @@ func (f *inlineFragmentExpandDeferVisitor) EnterSelectionSet(ref int) {
 }
 
 func (f *inlineFragmentExpandDeferVisitor) addInternalDeferDirective(fieldRef int) {
-	var argRefs []int
-
 	deferInfo := f.defers[len(f.defers)-1]
-
-	if deferInfo.id != "" {
-		argRefs = append(argRefs, f.addStringArgument("id", deferInfo.id))
-	}
-
-	if deferInfo.parentDeferId != "" {
-		argRefs = append(argRefs, f.addStringArgument("parentDeferId", deferInfo.parentDeferId))
-	}
-
-	if deferInfo.label != "" {
-		argRefs = append(argRefs, f.addStringArgument("label", deferInfo.label))
-	}
-
-	directive := ast.Directive{
-		Name:         f.operation.Input.AppendInputBytes(literal.DEFER_INTERNAL),
-		HasArguments: len(argRefs) > 0,
-		Arguments: ast.ArgumentList{
-			Refs: argRefs,
-		},
-	}
-	directiveRef := f.operation.AddDirective(directive)
-
-	f.operation.AddDirectiveToNode(directiveRef, ast.Node{
-		Kind: ast.NodeKindField,
-		Ref:  fieldRef,
-	})
-}
-
-func (f *inlineFragmentExpandDeferVisitor) addStringArgument(name, value string) int {
-	strValueRef := f.operation.AddStringValue(ast.StringValue{
-		Content: f.operation.Input.AppendInputString(value),
-	})
-
-	arg := ast.Argument{
-		Name:  f.operation.Input.AppendInputString(name),
-		Value: ast.Value{Kind: ast.ValueKindString, Ref: strValueRef},
-	}
-
-	return f.operation.AddArgument(arg)
+	f.operation.AddDeferInternalDirectiveToField(fieldRef, deferInfo.id, deferInfo.label, deferInfo.parentDeferId)
 }

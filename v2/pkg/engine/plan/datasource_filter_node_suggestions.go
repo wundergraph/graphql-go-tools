@@ -40,15 +40,15 @@ type NodeSuggestion struct {
 
 	deferInfo       *DeferInfo
 	deferParentPath bool
-	deferIDs        []string
+	deferIDs        []int
 
 	requiresKey *SourceConnection
 }
 
 type DeferInfo struct {
-	ID       string
+	ID       int
 	Label    string
-	ParentID string
+	ParentID int
 }
 
 func (d *DeferInfo) Equals(o *DeferInfo) bool {

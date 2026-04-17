@@ -55,7 +55,7 @@ type Resolvable struct {
 	wroteData           bool
 	skipValueCompletion bool
 	deferMode           bool
-	deferID             string
+	deferID             int
 
 	typeNames [][]byte
 
@@ -121,7 +121,7 @@ func (r *Resolvable) Reset() {
 		delete(r.actualListSizes, k)
 	}
 	r.deferMode = false
-	r.deferID = ""
+	r.deferID = 0
 	r.enableDeferRender = false
 	r.incrementalItemWritten = false
 	r.deferItemDataNull = false
@@ -814,7 +814,7 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 					r.printBytes(comma)
 				}
 
-				if r.deferID != "" {
+				if r.deferID != 0 {
 					if r.deferItemDataNull {
 						// Pre-walk detected null propagating through non-nullable chain;
 						// render {"data":null,"path":[...],"errors":[...]} without walking fields.
@@ -831,7 +831,7 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 			hasErrors := r.walkFields(obj, value, parent, walkFieldsFilter{deferFields: deferFields, seek: false, enabled: true})
 
 			if startedRender {
-				if r.deferID != "" {
+				if r.deferID != 0 {
 					if !r.enableRender && hasErrors {
 						// Pre-walk: null propagated through non-nullable chain; signal render pass.
 						r.deferItemDataNull = true
@@ -847,7 +847,7 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 			}
 		}
 
-		if r.deferID != "" && len(seekFiels) > 0 {
+		if r.deferID != 0 && len(seekFiels) > 0 {
 			// seek for additional nested defer fields
 			if r.walkFields(obj, value, parent, walkFieldsFilter{seekFields: seekFiels, seek: true, enabled: true}) {
 				return true
@@ -875,7 +875,7 @@ func (r *Resolvable) collectDeferFields(obj *Object) (deferFields map[int]struct
 			continue
 		}
 
-		if r.deferID == "" {
+		if r.deferID == 0 {
 			// we are rendering the initial response
 
 			// skip all fields with defer
@@ -905,12 +905,9 @@ func (r *Resolvable) collectDeferFields(obj *Object) (deferFields map[int]struct
 			// which means this nodes already was fetched,
 			// as defers ordered by id
 
-			fieldDeferId, _ := strconv.Atoi(obj.Fields[i].Defer.DeferID)
-			currentDeferIDInt, _ := strconv.Atoi(r.deferID)
-
 			// TODO: it is a temporary solution,
 			// because defer could be parallel
-			if currentDeferIDInt < fieldDeferId {
+			if r.deferID < obj.Fields[i].Defer.DeferID {
 				continue
 			}
 

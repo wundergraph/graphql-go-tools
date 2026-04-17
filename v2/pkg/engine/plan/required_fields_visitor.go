@@ -60,7 +60,7 @@ type addRequiredFieldsConfiguration struct {
 	typeName                     string
 	fieldSet                     string
 	deferInfo                    *DeferInfo
-	parentFieldDeferID           string
+	parentFieldDeferID           int
 
 	// addTypenameInNestedSelections controls forced addition of __typename to nested selection sets
 	// used by "requires" keys, not only when fragments are present.
@@ -217,19 +217,19 @@ func (v *requiredFieldsVisitor) fieldHasDeferInternal(fieldRef int) bool {
 
 // fieldDeferID returns the "id" argument value of the @__defer_internal directive
 // on fieldRef, or "" if the directive is not present.
-func (v *requiredFieldsVisitor) fieldDeferID(fieldRef int) string {
+func (v *requiredFieldsVisitor) fieldDeferID(fieldRef int) int {
 	for _, dirRef := range v.config.operation.Fields[fieldRef].Directives.Refs {
 		if !bytes.Equal(v.config.operation.DirectiveNameBytes(dirRef), literal.DEFER_INTERNAL) {
 			continue // not the right directive
 		}
 		// found @__defer_internal — extract the "id" argument
 		val, ok := v.config.operation.DirectiveArgumentValueByName(dirRef, []byte("id"))
-		if !ok || val.Kind != ast.ValueKindString {
+		if !ok || val.Kind != ast.ValueKindInteger {
 			continue
 		}
-		return v.config.operation.StringValueContentString(val.Ref)
+		return int(v.config.operation.IntValueAsInt(val.Ref))
 	}
-	return ""
+	return 0
 }
 
 type deferAliasResult struct {
@@ -248,8 +248,8 @@ type deferAliasResult struct {
 // the same parentFieldDeferID would fail to recognise each other's aliases and
 // create redundant copies (e.g. __internal_id, __internal_3_id, __internal_5_id all
 // bearing the same @__defer_internal(id: "1")).
-func (v *requiredFieldsVisitor) effectiveDeferID() string {
-	if v.config.isKey && v.config.parentFieldDeferID != "" {
+func (v *requiredFieldsVisitor) effectiveDeferID() int {
+	if v.config.isKey && v.config.parentFieldDeferID != 0 {
 		return v.config.parentFieldDeferID
 	}
 	return v.config.deferInfo.ID
@@ -280,7 +280,7 @@ func (v *requiredFieldsVisitor) resolveDeferredAlias(fieldName ast.ByteSlice, se
 
 	// --- Level 2: simple alias belongs to a different scope ---
 	// look for an existing conflict alias __internal_{effectiveID}_{fieldName}
-	conflictAlias := fmt.Appendf(nil, "__internal_%s_%s", effectiveID, fieldName)
+	conflictAlias := fmt.Appendf(nil, "__internal_%d_%s", effectiveID, fieldName)
 	conflictExists, conflictRef := v.config.operation.SelectionSetHasFieldSelectionWithNameOrAliasBytes(selectionSetRef, conflictAlias)
 	if conflictExists {
 		// conflict alias already exists for this scope — reuse it
@@ -552,7 +552,7 @@ func (v *requiredFieldsVisitor) addRequiredField(keyFieldRef int, fieldName ast.
 	if addAlias {
 		var fullAliasName []byte
 		if includeDeferIDInAlias && v.config.deferInfo != nil {
-			fullAliasName = fmt.Appendf(nil, "__internal_%s_%s", v.effectiveDeferID(), fieldName)
+			fullAliasName = fmt.Appendf(nil, "__internal_%d_%s", v.effectiveDeferID(), fieldName)
 		} else {
 			fullAliasName = append([]byte("__internal_"), fieldName...)
 		}
@@ -610,11 +610,11 @@ func (v *requiredFieldsVisitor) applyDeferInternalDirective(fieldRef int) {
 
 	// when we are adding key fields
 	// and the parent field has the defer id
-	if v.config.parentFieldDeferID != "" {
+	if v.config.parentFieldDeferID != 0 {
 		// for key fields: use parentFieldDeferID as the id
 		// key should be in scope of the parent defer id, not be the deferred inside the same fragment,
 		// otherwise it can't be planned properly
-		v.config.operation.AddDeferInternalDirectiveToField(fieldRef, v.config.parentFieldDeferID, "", "")
+		v.config.operation.AddDeferInternalDirectiveToField(fieldRef, v.config.parentFieldDeferID, "", 0)
 	}
 
 	// if the parent field does not have a defer id,

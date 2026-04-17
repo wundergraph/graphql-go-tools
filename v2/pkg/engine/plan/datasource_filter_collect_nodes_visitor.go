@@ -626,12 +626,14 @@ func (f *treeBuilderVisitor) deferInfo(fieldRef int) *DeferInfo {
 
 	info := &DeferInfo{}
 
-	idValue, _ := f.operation.DirectiveArgumentValueByName(deferDirectiveRef, []byte("id"))
-	info.ID = f.operation.StringValueContentString(idValue.Ref)
+	idValue, idExists := f.operation.DirectiveArgumentValueByName(deferDirectiveRef, []byte("id"))
+	if idExists && idValue.Kind == ast.ValueKindInteger {
+		info.ID = int(f.operation.IntValueAsInt(idValue.Ref))
+	}
 
 	parentIdValue, exists := f.operation.DirectiveArgumentValueByName(deferDirectiveRef, []byte("parentDeferId"))
-	if exists {
-		info.ParentID = f.operation.StringValueContentString(parentIdValue.Ref)
+	if exists && parentIdValue.Kind == ast.ValueKindInteger {
+		info.ParentID = int(f.operation.IntValueAsInt(parentIdValue.Ref))
 	}
 
 	labelValue, exists := f.operation.DirectiveArgumentValueByName(deferDirectiveRef, []byte("label"))

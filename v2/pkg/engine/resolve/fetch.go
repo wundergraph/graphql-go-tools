@@ -110,7 +110,7 @@ func (s *SingleFetch) FetchInfo() *FetchInfo {
 type FetchDependencies struct {
 	FetchID           int
 	DependsOnFetchIDs []int
-	DeferID           string
+	DeferID           int
 }
 
 type PostProcessingConfiguration struct {

@@ -2,7 +2,6 @@ package ast
 
 import (
 	"bytes"
-	"strconv"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
@@ -200,8 +199,8 @@ func (d *Document) MergeFieldsDefer(left, right int) {
 		leftDeferIdValue, _ := d.DirectiveArgumentValueByName(leftDeferDirectiveRef, []byte("id"))
 		rightDeferIdValue, _ := d.DirectiveArgumentValueByName(rightDeferDirectiveRef, []byte("id"))
 
-		leftId, _ := strconv.Atoi(d.StringValueContentString(leftDeferIdValue.Ref))
-		rightId, _ := strconv.Atoi(d.StringValueContentString(rightDeferIdValue.Ref))
+		leftId := int(d.IntValueAsInt(leftDeferIdValue.Ref))
+		rightId := int(d.IntValueAsInt(rightDeferIdValue.Ref))
 
 		// TODO: need to handle parent id too
 
@@ -219,21 +218,21 @@ func (d *Document) MergeFieldsDefer(left, right int) {
 	}
 }
 
-// AddDeferInternalDirectiveToField attaches @__defer_internal(id: id, label: label, parentID: parentID) to the given field.
-func (d *Document) AddDeferInternalDirectiveToField(fieldRef int, id, label, parentID string) {
-	if id == "" {
+// AddDeferInternalDirectiveToField attaches @__defer_internal(id: id, label: label, parentDeferId: parentID) to the given field.
+func (d *Document) AddDeferInternalDirectiveToField(fieldRef int, id int, label string, parentID int) {
+	if id == 0 {
 		return
 	}
 
 	var argRefs []int
 
-	argRefs = append(argRefs, d.AddStringArgument("id", id))
+	argRefs = append(argRefs, d.AddIntArgument("id", id))
 
 	if label != "" {
 		argRefs = append(argRefs, d.AddStringArgument("label", label))
 	}
-	if parentID != "" {
-		argRefs = append(argRefs, d.AddStringArgument("parentDeferId", parentID))
+	if parentID != 0 {
+		argRefs = append(argRefs, d.AddIntArgument("parentDeferId", parentID))
 	}
 
 	directiveRef := d.AddDirective(Directive{
@@ -250,14 +249,17 @@ func (d *Document) AddDeferInternalDirectiveToField(fieldRef int, id, label, par
 	})
 }
 
-func (d *Document) FieldInternalDeferID(fieldRef int) (id string, exists bool) {
+func (d *Document) FieldInternalDeferID(fieldRef int) (id int, exists bool) {
 	directiveRef, exists := d.Fields[fieldRef].Directives.HasDirectiveByNameBytes(d, literal.DEFER_INTERNAL)
 	if !exists {
-		return "", false
+		return 0, false
 	}
 	idValue, exists := d.DirectiveArgumentValueByName(directiveRef, []byte("id"))
 	if !exists {
-		return "", false
+		return 0, false
 	}
-	return d.StringValueContentString(idValue.Ref), true
+	if idValue.Kind != ValueKindInteger {
+		return 0, false
+	}
+	return int(d.IntValueAsInt(idValue.Ref)), true
 }

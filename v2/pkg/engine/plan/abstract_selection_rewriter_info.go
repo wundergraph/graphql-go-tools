@@ -18,7 +18,7 @@ type selectionSetInfo struct {
 	hasInlineFragmentsOnInterfaces bool
 	inlineFragmentsOnUnions        []inlineFragmentSelectionOnUnion
 	hasInlineFragmentsOnUnions     bool
-	typenameFieldDeferId           string
+	typenameFieldDeferId           int
 }
 
 type fieldSelection struct {
@@ -63,7 +63,7 @@ func (s *inlineFragmentSelection) isFragmentOnInterface() bool {
 	return s.definitionNodeKind == ast.NodeKindInterfaceTypeDefinition
 }
 
-func (r *fieldSelectionRewriter) selectionSetFieldSelections(selectionSetRef int) (fieldSelections []fieldSelection, hasTypename bool, typeNameFieldDeferID string) {
+func (r *fieldSelectionRewriter) selectionSetFieldSelections(selectionSetRef int) (fieldSelections []fieldSelection, hasTypename bool, typeNameFieldDeferID int) {
 	fieldSelectionRefs := r.operation.SelectionSetFieldSelections(selectionSetRef)
 	fieldSelections = make([]fieldSelection, 0, len(fieldSelectionRefs))
 	for _, fieldSelectionRef := range fieldSelectionRefs {

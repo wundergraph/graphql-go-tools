@@ -103,7 +103,7 @@ func TestGraphQLDataSourceDefer(t *testing.T) {
 									resolve.Single(&resolve.SingleFetch{
 										FetchDependencies: resolve.FetchDependencies{
 											FetchID: 0,
-											DeferID: "1",
+											DeferID: 1,
 										},
 										FetchConfiguration: resolve.FetchConfiguration{
 											Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {title}}"}}`,
@@ -145,7 +145,7 @@ func TestGraphQLDataSourceDefer(t *testing.T) {
 													{
 														Name: []byte("title"),
 														Defer: &resolve.DeferField{
-															DeferID: "1",
+															DeferID: 1,
 														},
 														Value: &resolve.String{
 															Path: []string{"title"},
@@ -217,7 +217,7 @@ func TestGraphQLDataSourceDefer(t *testing.T) {
 													{
 														Name: []byte("title"),
 														Defer: &resolve.DeferField{
-															DeferID: "1",
+															DeferID: 1,
 														},
 														Value: &resolve.String{
 															Path: []string{"title"},
@@ -231,12 +231,12 @@ func TestGraphQLDataSourceDefer(t *testing.T) {
 							},
 							Defers: []*resolve.DeferFetchGroup{
 								{
-									DeferID: "1",
+									DeferID: 1,
 									Fetches: resolve.Sequence(
 										resolve.Single(&resolve.SingleFetch{
 											FetchDependencies: resolve.FetchDependencies{
 												FetchID: 0,
-												DeferID: "1",
+												DeferID: 1,
 											},
 											FetchConfiguration: resolve.FetchConfiguration{
 												Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {title}}"}}`,
@@ -445,7 +445,7 @@ func TestGraphQLDataSourceDefer(t *testing.T) {
 										FetchDependencies: resolve.FetchDependencies{
 											FetchID:           2,
 											DependsOnFetchIDs: []int{0},
-											DeferID:           "1",
+											DeferID:           1,
 										}, FetchConfiguration: resolve.FetchConfiguration{
 											RequiresEntityBatchFetch:              false,
 											RequiresEntityFetch:                   true,
@@ -507,7 +507,7 @@ func TestGraphQLDataSourceDefer(t *testing.T) {
 													{
 														Name: []byte("lastName"),
 														Defer: &resolve.DeferField{
-															DeferID: "1",
+															DeferID: 1,
 														},
 														Value: &resolve.String{
 															Path: []string{"lastName"},
@@ -620,7 +620,7 @@ func TestGraphQLDataSourceDefer(t *testing.T) {
 													{
 														Name: []byte("lastName"),
 														Defer: &resolve.DeferField{
-															DeferID: "1",
+															DeferID: 1,
 														},
 														Value: &resolve.String{
 															Path: []string{"lastName"},
@@ -634,13 +634,13 @@ func TestGraphQLDataSourceDefer(t *testing.T) {
 							},
 							Defers: []*resolve.DeferFetchGroup{
 								{
-									DeferID: "1",
+									DeferID: 1,
 									Fetches: resolve.Sequence(
 										resolve.SingleWithPath(&resolve.SingleFetch{
 											FetchDependencies: resolve.FetchDependencies{
 												FetchID:           2,
 												DependsOnFetchIDs: []int{0},
-												DeferID:           "1",
+												DeferID:           1,
 											}, FetchConfiguration: resolve.FetchConfiguration{
 												RequiresEntityBatchFetch:              false,
 												RequiresEntityFetch:                   true,

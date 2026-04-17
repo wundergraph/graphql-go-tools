@@ -4185,7 +4185,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			operation: `
 				query {
 					accounts {
-						__typename @__defer_internal(id: "defer-1")
+						__typename @__defer_internal(id: 1)
 						... on Node {
 							name
 						}
@@ -4194,7 +4194,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			expectedOperation: `
 				query {
 					accounts {
-						__typename @__defer_internal(id: "defer-1")
+						__typename @__defer_internal(id: 1)
 						... on Admin {
 							name
 						}
@@ -4245,7 +4245,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			operation: `
 				query {
 					iface {
-						__typename @__defer_internal(id: "defer-1")
+						__typename @__defer_internal(id: 1)
 						name
 						... on User {
 							isUser
@@ -4259,12 +4259,12 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				query {
 					iface {
 						... on Admin {
-							__typename @__defer_internal(id: "defer-1")
+							__typename @__defer_internal(id: 1)
 							name
 							id
 						}
 						... on User {
-							__typename @__defer_internal(id: "defer-1")
+							__typename @__defer_internal(id: 1)
 							name
 							isUser
 						}
@@ -4338,7 +4338,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				}),
 			operation: `
 				query {
-					iface @__defer_internal(id: "defer-1") {
+					iface @__defer_internal(id: 1) {
 						... on Moderator {
 							isModerator
 						}
@@ -4346,8 +4346,8 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				}`,
 			expectedOperation: `
 				query {
-					iface @__defer_internal(id: "defer-1") {
-						__typename @__defer_internal(id: "defer-1")
+					iface @__defer_internal(id: 1) {
+						__typename @__defer_internal(id: 1)
 					}
 				}`,
 			shouldRewrite: true,
@@ -4403,7 +4403,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			fieldName: "user",
 			operation: `
 				query {
-					user @__defer_internal(id: "defer-1") {
+					user @__defer_internal(id: 1) {
 						... on Admin {
 							id
 						}
@@ -4411,8 +4411,8 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				}`,
 			expectedOperation: `
 				query {
-					user @__defer_internal(id: "defer-1") {
-						__typename @__defer_internal(id: "defer-1")
+					user @__defer_internal(id: 1) {
+						__typename @__defer_internal(id: 1)
 						... on Admin {
 							id
 						}

@@ -986,7 +986,7 @@ func (v *Visitor) EnterOperationDefinition(opRef int) {
 			break
 		}
 
-		if v.planners[i].DeferID() != "" {
+		if v.planners[i].DeferID() != 0 {
 			isDefer = true
 			break
 		}

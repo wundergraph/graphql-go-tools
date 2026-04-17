@@ -1,10 +1,8 @@
 package postprocess
 
 import (
-	"cmp"
 	"maps"
 	"slices"
-	"strconv"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
@@ -27,11 +25,7 @@ func (d *extractDeferFetches) Process(deferPlan *plan.DeferResponsePlan) {
 	}
 
 	// sort defer ids in direct natural order
-	deferIds := slices.SortedFunc(maps.Keys(fetchGroups), func(a, b string) int {
-		an, _ := strconv.Atoi(a)
-		bn, _ := strconv.Atoi(b)
-		return cmp.Compare(an, bn)
-	})
+	deferIds := slices.Sorted(maps.Keys(fetchGroups))
 
 	for _, deferID := range deferIds {
 		fetches := fetchGroups[deferID]
@@ -47,12 +41,12 @@ func (d *extractDeferFetches) Process(deferPlan *plan.DeferResponsePlan) {
 	}
 }
 
-func (d *extractDeferFetches) fetchGroups(deferPlan *plan.DeferResponsePlan) (root []*resolve.FetchTreeNode, deffered map[string][]*resolve.FetchTreeNode) {
-	fetchGroups := make(map[string][]*resolve.FetchTreeNode)
+func (d *extractDeferFetches) fetchGroups(deferPlan *plan.DeferResponsePlan) (root []*resolve.FetchTreeNode, deffered map[int][]*resolve.FetchTreeNode) {
+	fetchGroups := make(map[int][]*resolve.FetchTreeNode)
 
 	for _, fetch := range deferPlan.Response.Response.Fetches.ChildNodes {
 		deferID := fetch.Item.Fetch.Dependencies().DeferID
-		if deferID == "" {
+		if deferID == 0 {
 			root = append(root, fetch)
 			continue
 		}

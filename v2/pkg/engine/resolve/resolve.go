@@ -462,7 +462,7 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 		}
 
 		t.resolvable.deferMode = true
-		t.resolvable.deferID = ""
+		t.resolvable.deferID = 0
 
 		// render initial response
 		err = t.resolvable.Resolve(ctx.ctx, response.Response.Data, response.Response.Fetches, writer)
