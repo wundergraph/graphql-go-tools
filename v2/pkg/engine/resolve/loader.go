@@ -131,6 +131,9 @@ type result struct {
 	httpResponseContext *httpclient.ResponseContext
 	// out is the subgraph response body
 	out               []byte
+	outMerge          NativeMergeResult
+	outValue          *astjson.Value
+	outCleanup        func()
 	singleFlightStats *singleFlightStats
 	tools             *batchEntityTools
 }
@@ -190,6 +193,8 @@ type Loader struct {
 	// singleFlight is the SubgraphRequestSingleFlight object shared across all client requests.
 	// It's thread safe and can be used to de-duplicate subgraph requests.
 	singleFlight *SubgraphRequestSingleFlight
+
+	pendingCleanups []func()
 }
 
 func (l *Loader) Free() {
@@ -197,6 +202,10 @@ func (l *Loader) Free() {
 	l.ctx = nil
 	l.resolvable = nil
 	l.taintedObjs = nil
+	for _, cleanup := range l.pendingCleanups {
+		cleanup()
+	}
+	l.pendingCleanups = l.pendingCleanups[:0]
 }
 
 func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, resolvable *Resolvable) (err error) {
@@ -324,6 +333,9 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 
 func (l *Loader) callOnFinished(res *result) {
 	if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
+		if res.out == nil && res.outMerge != nil {
+			res.out = res.outMerge.MarshalTo(nil)
+		}
 		l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.subgraphErrors))
 	}
 }
@@ -485,21 +497,54 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	if res.fetchSkipped {
 		return nil
 	}
-	if len(res.out) == 0 {
-		return l.renderErrorsFailedToFetch(fetchItem, res, emptyGraphQLResponse)
-	}
-	// astjson.ParseBytesWithArena copies bytes onto the arena internally,
-	// tying the byte lifecycle to the arena and preventing GC-related segfaults.
-	response, err := astjson.ParseBytesWithArena(l.jsonArena, res.out)
-	if err != nil {
-		// Fall back to status code if parsing fails and non-2XX
-		if (res.statusCode > 0 && res.statusCode < 200) || res.statusCode >= 300 {
-			return l.renderErrorsStatusFallback(fetchItem, res, res.statusCode)
+	if res.outMerge != nil {
+		if res.outCleanup != nil {
+			l.pendingCleanups = append(l.pendingCleanups, res.outCleanup)
+			res.outCleanup = nil
 		}
-		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponse)
+		responseData, err := res.outMerge.MergeInto(l.jsonArena, items, res.postProcessing, res.batchStats)
+		if err != nil {
+			return errors.WithStack(ErrMergeResult{
+				Subgraph: res.ds.Name,
+				Reason:   err,
+				Path:     fetchItem.ResponsePath,
+			})
+		}
+		if len(items) == 0 {
+			if responseData == nil || responseData.Type() != astjson.TypeObject {
+				return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape)
+			}
+			l.resolvable.data = responseData
+		}
+		return nil
+	}
+	var response *astjson.Value
+	if res.outValue != nil {
+		response = res.outValue
+		if res.outCleanup != nil {
+			l.pendingCleanups = append(l.pendingCleanups, res.outCleanup)
+			res.outCleanup = nil
+		}
+		res.outValue = nil
+	} else {
+		if len(res.out) == 0 {
+			return l.renderErrorsFailedToFetch(fetchItem, res, emptyGraphQLResponse)
+		}
+		// astjson.ParseBytesWithArena copies bytes onto the arena internally,
+		// tying the byte lifecycle to the arena and preventing GC-related segfaults.
+		var err error
+		response, err = astjson.ParseBytesWithArena(l.jsonArena, res.out)
+		if err != nil {
+			// Fall back to status code if parsing fails and non-2XX
+			if (res.statusCode > 0 && res.statusCode < 200) || res.statusCode >= 300 {
+				return l.renderErrorsStatusFallback(fetchItem, res, res.statusCode)
+			}
+			return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponse)
+		}
 	}
 
 	var responseData *astjson.Value
+	var err error
 	if res.postProcessing.SelectResponseDataPath != nil {
 		responseData = response.Get(res.postProcessing.SelectResponseDataPath...)
 	} else {
@@ -1759,6 +1804,38 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 }
 
 func (l *Loader) loadByContextDirect(ctx context.Context, source DataSource, headers http.Header, input []byte, res *result) error {
+	if native, ok := source.(NativeMergeDataSource); ok {
+		if l.ctx.Files != nil {
+			res.outMerge, res.outCleanup, res.err = native.LoadWithFilesResult(ctx, headers, input, l.ctx.Files)
+		} else {
+			res.outMerge, res.outCleanup, res.err = native.LoadResult(ctx, headers, input)
+		}
+		if res.err != nil {
+			if res.outCleanup != nil {
+				res.outCleanup()
+				res.outCleanup = nil
+			}
+			return errors.WithStack(res.err)
+		}
+		if res.outMerge != nil {
+			return nil
+		}
+	}
+	if native, ok := source.(NativeDataSource); ok {
+		if l.ctx.Files != nil {
+			res.outValue, res.outCleanup, res.err = native.LoadWithFilesValue(ctx, headers, input, l.ctx.Files)
+		} else {
+			res.outValue, res.outCleanup, res.err = native.LoadValue(ctx, headers, input)
+		}
+		if res.err != nil {
+			if res.outCleanup != nil {
+				res.outCleanup()
+				res.outCleanup = nil
+			}
+			return errors.WithStack(res.err)
+		}
+		return nil
+	}
 	if l.ctx.Files != nil {
 		res.out, res.err = source.LoadWithFiles(ctx, headers, input, l.ctx.Files)
 	} else {

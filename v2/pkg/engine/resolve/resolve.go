@@ -332,6 +332,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	}()
 
 	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, nil)
+	defer t.loader.Free()
 
 	err := t.resolvable.Init(ctx, data, response.Info.OperationType)
 	if err != nil {
@@ -384,6 +385,7 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 	resolveArena := r.resolveArenaPool.Acquire(ctx.Request.ID)
 	// we're intentionally not using defer Release to have more control over the timing (see below)
 	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena)
+	defer t.loader.Free()
 
 	err = t.resolvable.Init(ctx, nil, response.Info.OperationType)
 	if err != nil {

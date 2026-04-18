@@ -44,6 +44,7 @@ require (
 )
 
 require (
+	buf.build/go/hyperpb v0.1.3 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/bitfield/gotestdox v0.2.2 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
@@ -70,6 +71,7 @@ require (
 	github.com/sosodev/duration v1.3.1 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
+	github.com/timandy/routine v1.1.5 // indirect
 	github.com/urfave/cli/v2 v2.27.7 // indirect
 	github.com/xrash/smetrics v0.0.0-20250705151800-55b8f293f342 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
@@ -77,7 +79,7 @@ require (
 	golang.org/x/net v0.46.0 // indirect
 	golang.org/x/term v0.36.0 // indirect
 	golang.org/x/tools v0.38.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250115164207-1a7da9e5054f // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250811230008-5f3141c8851a // indirect
 	gopkg.in/cenkalti/backoff.v1 v1.1.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
