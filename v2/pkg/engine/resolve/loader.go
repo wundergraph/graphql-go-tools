@@ -129,8 +129,18 @@ type result struct {
 	loaderHookContext context.Context
 
 	httpResponseContext *httpclient.ResponseContext
-	// out is the subgraph response body
-	out               []byte
+	// out is the subgraph response body. Historically datasources produced
+	// JSON bytes here and the loader reparsed them via astjson.ParseBytesWithArena.
+	// The new DataSource interface returns an *astjson.Value directly. out is
+	// still populated on the error-injection / cache-retrieval / response-hook
+	// paths where raw bytes are authoritative.
+	out []byte
+	// outValue is the Value returned by the new-style DataSource.Load. Rooted on
+	// the datasource's per-call arena; valid until outCleanup is invoked.
+	outValue *astjson.Value
+	// outCleanup, if non-nil, releases the datasource's per-call arena back to
+	// its pool. Called by the loader after all reads from outValue are complete.
+	outCleanup        func()
 	singleFlightStats *singleFlightStats
 	tools             *batchEntityTools
 }
@@ -190,6 +200,41 @@ type Loader struct {
 	// singleFlight is the SubgraphRequestSingleFlight object shared across all client requests.
 	// It's thread safe and can be used to de-duplicate subgraph requests.
 	singleFlight *SubgraphRequestSingleFlight
+
+	// pendingCleanups holds cleanup callbacks from DataSource.Load calls whose
+	// returned *astjson.Value is being held alive through the rendering phase.
+	// Instead of deep-copying each response onto jsonArena (one extra arena
+	// allocation per response node) and freeing the datasource's arena immediately,
+	// we keep the source arenas live for the lifetime of the response. The loader's
+	// resolvable.data carries cross-arena references, which are safe to read as
+	// long as the source arenas stay alive. Free() invokes all pending cleanups
+	// at once — called after the response writer has consumed resolvable.data.
+	//
+	// Trade-off: N datasource arenas are held concurrently (memory) vs.
+	// N deep-copies eliminated (allocation + CPU). For typical workloads with
+	// small per-fetch responses and few fetches, the memory cost is tiny and
+	// the allocation savings are significant — especially for gRPC datasources
+	// whose responses are built field-by-field on their pool arenas.
+	pendingCleanups []func()
+}
+
+// inputBufferPool recycles bytes.Buffers used by loadSingleFetch / loadBatch
+// to render InputTemplate contents. Without the pool each fetch allocated a
+// fresh Buffer backing array, observed at >90MB accumulated in the end-to-end
+// gRPC profile.
+var inputBufferPool = sync.Pool{
+	New: func() any { return new(bytes.Buffer) },
+}
+
+// ContextSkippingDataSource is an optional opt-in for DataSources that never
+// need the HTTP-layer response context (status codes, HTTP response object).
+// Loader checks for this interface and skips httpclient.InjectResponseContext,
+// eliminating one context.WithValue allocation per fetch.
+//
+// gRPC datasources opt in; HTTP-based datasources rely on the response context
+// for status-code propagation and do NOT implement this.
+type ContextSkippingDataSource interface {
+	SkipsHTTPResponseContext()
 }
 
 func (l *Loader) Free() {
@@ -197,6 +242,14 @@ func (l *Loader) Free() {
 	l.ctx = nil
 	l.resolvable = nil
 	l.taintedObjs = nil
+
+	// Fire deferred datasource cleanups now — the previous request's response
+	// has been fully consumed and no further reads from those arenas are
+	// possible. Safe to release them back to their pools.
+	for _, cleanup := range l.pendingCleanups {
+		cleanup()
+	}
+	l.pendingCleanups = l.pendingCleanups[:0]
 }
 
 func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, resolvable *Resolvable) (err error) {
@@ -485,18 +538,43 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	if res.fetchSkipped {
 		return nil
 	}
-	if len(res.out) == 0 {
-		return l.renderErrorsFailedToFetch(fetchItem, res, emptyGraphQLResponse)
-	}
-	// astjson.ParseBytesWithArena copies bytes onto the arena internally,
-	// tying the byte lifecycle to the arena and preventing GC-related segfaults.
-	response, err := astjson.ParseBytesWithArena(l.jsonArena, res.out)
-	if err != nil {
-		// Fall back to status code if parsing fails and non-2XX
-		if (res.statusCode > 0 && res.statusCode < 200) || res.statusCode >= 300 {
-			return l.renderErrorsStatusFallback(fetchItem, res, res.statusCode)
+	// Prefer the arena-rooted *astjson.Value produced by the new-style DataSource.Load.
+	// We skip the deep-copy and simply hold the datasource's arena alive through
+	// the rendering phase: loader.Free() fires all pending cleanups after the
+	// response writer has consumed resolvable.data. This eliminates one full
+	// tree-walk + per-node arena allocation per fetch, at the cost of holding
+	// N datasource arenas concurrently (N = number of fetches per request).
+	//
+	// Safety: all reads of the Value happen before Free() is invoked. Both
+	// loader-side processing (this function) and the resolver's response
+	// writer run before the next request's loader.Free(). Cross-arena pointers
+	// stored in resolvable.data stay valid until then.
+	//
+	// Fallback: parse res.out bytes when only the legacy byte path populated it
+	// (error injection, cache retrieval, in-flight migrations of test doubles).
+	var response *astjson.Value
+	var err error
+	if res.outValue != nil {
+		response = res.outValue
+		if res.outCleanup != nil {
+			l.pendingCleanups = append(l.pendingCleanups, res.outCleanup)
+			res.outCleanup = nil
 		}
-		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponse)
+		res.outValue = nil
+	} else {
+		if len(res.out) == 0 {
+			return l.renderErrorsFailedToFetch(fetchItem, res, emptyGraphQLResponse)
+		}
+		// astjson.ParseBytesWithArena copies bytes onto the arena internally,
+		// tying the byte lifecycle to the arena and preventing GC-related segfaults.
+		response, err = astjson.ParseBytesWithArena(l.jsonArena, res.out)
+		if err != nil {
+			// Fall back to status code if parsing fails and non-2XX
+			if (res.statusCode > 0 && res.statusCode < 200) || res.statusCode >= 300 {
+				return l.renderErrorsStatusFallback(fetchItem, res, res.statusCode)
+			}
+			return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponse)
+		}
 	}
 
 	var responseData *astjson.Value
@@ -1288,7 +1366,13 @@ func (l *Loader) validatePreFetch(input []byte, info *FetchInfo, res *result) (a
 
 func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, fetchItem *FetchItem, items []*astjson.Value, res *result) error {
 	res.init(fetch.PostProcessing, fetch.Info)
-	buf := bytes.NewBuffer(nil)
+	// Pool the input-render buffer — each fetch allocates one, at >90MB on the
+	// hyperpb end-to-end profile. After executeSourceLoad returns, the buffer's
+	// bytes are no longer referenced (the source has copied what it needs), so
+	// it's safe to return to the pool.
+	buf := inputBufferPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer inputBufferPool.Put(buf)
 
 	inputData := l.itemsData(items)
 	if l.ctx.TracingOptions.Enable {
@@ -1760,11 +1844,15 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 
 func (l *Loader) loadByContextDirect(ctx context.Context, source DataSource, headers http.Header, input []byte, res *result) error {
 	if l.ctx.Files != nil {
-		res.out, res.err = source.LoadWithFiles(ctx, headers, input, l.ctx.Files)
+		res.outValue, res.outCleanup, res.err = source.LoadWithFiles(ctx, headers, input, l.ctx.Files)
 	} else {
-		res.out, res.err = source.Load(ctx, headers, input)
+		res.outValue, res.outCleanup, res.err = source.Load(ctx, headers, input)
 	}
 	if res.err != nil {
+		if res.outCleanup != nil {
+			res.outCleanup()
+			res.outCleanup = nil
+		}
 		return errors.WithStack(res.err)
 	}
 	return nil
@@ -1900,8 +1988,14 @@ func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, so
 			ctx = httptrace.WithClientTrace(ctx, clientTrace)
 		}
 	}
+	// Skip the HTTP-response-context injection when the datasource explicitly
+	// signals it doesn't need it (gRPC, static, introspection). Saves one
+	// context.WithValue allocation per fetch — visible at ~4% of allocs on
+	// hyperpb end-to-end profiles.
 	var responseContext *httpclient.ResponseContext
-	ctx, responseContext = httpclient.InjectResponseContext(ctx)
+	if _, skip := source.(ContextSkippingDataSource); !skip {
+		ctx, responseContext = httpclient.InjectResponseContext(ctx)
+	}
 
 	if l.ctx.LoaderHooks != nil {
 		res.loaderHookContext = l.ctx.LoaderHooks.OnLoad(ctx, res.ds)
@@ -1918,8 +2012,10 @@ func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, so
 		res.err = l.loadByContext(ctx, source, fetchItem, input, res)
 	}
 
-	res.statusCode = responseContext.StatusCode
-	res.httpResponseContext = responseContext
+	if responseContext != nil {
+		res.statusCode = responseContext.StatusCode
+		res.httpResponseContext = responseContext
+	}
 
 	if l.ctx.TracingOptions.Enable {
 		if res.singleFlightStats != nil {

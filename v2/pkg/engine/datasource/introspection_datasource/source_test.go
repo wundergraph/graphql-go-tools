@@ -28,8 +28,9 @@ func TestSource_Load(t *testing.T) {
 			require.False(t, report.HasErrors())
 
 			source := &Source{introspectionData: &data}
-			responseData, err := source.Load(context.Background(), nil, []byte(input))
+			responseValue, _, err := source.Load(context.Background(), nil, []byte(input))
 			require.NoError(t, err)
+			responseData := responseValue.MarshalTo(nil)
 
 			actualResponse := &bytes.Buffer{}
 			require.NoError(t, json.Indent(actualResponse, responseData, "", "  "))

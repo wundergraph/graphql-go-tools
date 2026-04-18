@@ -329,13 +329,13 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 
 			// Execute the query through our datasource
 			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			data, err := ds.Load(context.Background(), nil, []byte(input))
+			dataValue, _, err := ds.Load(context.Background(), nil, []byte(input))
 			require.NoError(t, err)
 
 			// Parse the response
 			var resp graphqlResponse
 
-			err = json.Unmarshal(data, &resp)
+			err = json.Unmarshal(dataValue.MarshalTo(nil), &resp)
 			require.NoError(t, err, "Failed to unmarshal response")
 
 			tc.validate(t, resp.Data)
@@ -629,13 +629,13 @@ func Test_DataSource_Load_WithEntity_Calls_WithCompositeTypes(t *testing.T) {
 
 			// Execute the query through our datasource
 			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			data, err := ds.Load(context.Background(), nil, []byte(input))
+			dataValue, _, err := ds.Load(context.Background(), nil, []byte(input))
 			require.NoError(t, err)
 
 			// Parse the response
 			var resp graphqlResponse
 
-			err = json.Unmarshal(data, &resp)
+			err = json.Unmarshal(dataValue.MarshalTo(nil), &resp)
 			require.NoError(t, err, "Failed to unmarshal response")
 
 			tc.validate(t, resp.Data)
@@ -1418,13 +1418,13 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires(t *testing.T) {
 
 			// Execute the query through our datasource
 			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			data, err := ds.Load(context.Background(), nil, []byte(input))
+			dataValue, _, err := ds.Load(context.Background(), nil, []byte(input))
 			require.NoError(t, err)
 
 			// Parse the response
 			var resp graphqlResponse
 
-			err = json.Unmarshal(data, &resp)
+			err = json.Unmarshal(dataValue.MarshalTo(nil), &resp)
 			require.NoError(t, err, "Failed to unmarshal response")
 
 			tc.validate(t, resp.Data)
@@ -1833,13 +1833,13 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_And_FieldResolvers(t *te
 
 			// Execute the query through our datasource
 			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			data, err := ds.Load(context.Background(), nil, []byte(input))
+			dataValue, _, err := ds.Load(context.Background(), nil, []byte(input))
 			require.NoError(t, err)
 
 			// Parse the response
 			var resp graphqlResponse
 
-			err = json.Unmarshal(data, &resp)
+			err = json.Unmarshal(dataValue.MarshalTo(nil), &resp)
 			require.NoError(t, err, "Failed to unmarshal response")
 
 			tc.validate(t, resp.Data)
@@ -1977,13 +1977,13 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_AbstractTypes(t *testing
 
 			// Execute the query through our datasource
 			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			data, err := ds.Load(context.Background(), nil, []byte(input))
+			dataValue, _, err := ds.Load(context.Background(), nil, []byte(input))
 			require.NoError(t, err)
 
 			// Parse the response
 			var resp graphqlResponse
 
-			err = json.Unmarshal(data, &resp)
+			err = json.Unmarshal(dataValue.MarshalTo(nil), &resp)
 			require.NoError(t, err, "Failed to unmarshal response")
 
 			tc.validate(t, resp.Data)

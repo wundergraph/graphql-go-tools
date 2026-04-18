@@ -160,7 +160,7 @@ func Test_DataSource_Load_NullMetrics_NestedResolversNotInvoked(t *testing.T) {
 	require.NoError(t, err)
 
 	input := fmt.Sprintf(`{"query":%q,"body":%s}`, query, vars)
-	_, err = ds.Load(context.Background(), nil, []byte(input))
+	_, _, err = ds.Load(context.Background(), nil, []byte(input))
 	require.NoError(t, err)
 
 	require.Equal(t, int64(1), spy.categoriesCalls.Load(), "QueryCategories must be called")
@@ -201,7 +201,7 @@ func Test_DataSource_Load_NullCategory_FieldResolversNotInvoked(t *testing.T) {
 	require.NoError(t, err)
 
 	input := fmt.Sprintf(`{"query":%q,"body":%s}`, query, vars)
-	_, err = ds.Load(context.Background(), nil, []byte(input))
+	_, _, err = ds.Load(context.Background(), nil, []byte(input))
 	require.NoError(t, err)
 
 	require.Equal(t, int64(1), spy.categoryCalls.Load(), "QueryCategory must be called once")
@@ -236,7 +236,7 @@ func Test_DataSource_Load_ArgumentLessFieldResolversCalled(t *testing.T) {
 	require.NoError(t, err)
 
 	input := fmt.Sprintf(`{"query":%q,"body":%s}`, query, vars)
-	_, err = ds.Load(context.Background(), nil, []byte(input))
+	_, _, err = ds.Load(context.Background(), nil, []byte(input))
 	require.NoError(t, err)
 
 	assert.Equal(t, int64(1), spy.categoriesCalls.Load(), "QueryCategories must be called")
@@ -277,7 +277,7 @@ func Test_DataSource_Load_NullCategory_ArgumentLessFieldResolversNotInvoked(t *t
 	require.NoError(t, err)
 
 	input := fmt.Sprintf(`{"query":%q,"body":%s}`, query, vars)
-	_, err = ds.Load(context.Background(), nil, []byte(input))
+	_, _, err = ds.Load(context.Background(), nil, []byte(input))
 	require.NoError(t, err)
 
 	require.Equal(t, int64(1), spy.categoryCalls.Load(), "QueryCategory must be called once")

@@ -17,6 +17,7 @@ import (
 	"github.com/jensneuse/abstractlogger"
 	"github.com/pkg/errors"
 	"github.com/tidwall/sjson"
+	"github.com/wundergraph/astjson"
 	"google.golang.org/grpc"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -1947,14 +1948,30 @@ func (s *Source) replaceEmptyObject(variables []byte) ([]byte, bool) {
 	return variables, false
 }
 
-func (s *Source) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
+func (s *Source) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (*astjson.Value, func(), error) {
 	input = s.compactAndUnNullVariables(input)
-	return httpclient.DoMultipartForm(s.httpClient, ctx, headers, input, files)
+	data, err := httpclient.DoMultipartForm(s.httpClient, ctx, headers, input, files)
+	if err != nil {
+		return nil, nil, err
+	}
+	v, parseErr := astjson.ParseBytes(data)
+	if parseErr != nil {
+		return nil, nil, parseErr
+	}
+	return v, nil, nil
 }
 
-func (s *Source) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
+func (s *Source) Load(ctx context.Context, headers http.Header, input []byte) (*astjson.Value, func(), error) {
 	input = s.compactAndUnNullVariables(input)
-	return httpclient.Do(s.httpClient, ctx, headers, input)
+	data, err := httpclient.Do(s.httpClient, ctx, headers, input)
+	if err != nil {
+		return nil, nil, err
+	}
+	v, parseErr := astjson.ParseBytes(data)
+	if parseErr != nil {
+		return nil, nil, parseErr
+	}
+	return v, nil, nil
 }
 
 type GraphQLSubscriptionClient interface {

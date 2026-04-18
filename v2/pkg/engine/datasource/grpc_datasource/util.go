@@ -2,15 +2,6 @@ package grpcdatasource
 
 import "github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 
-// initializeSlice initializes a slice with a given length and a given value.
-func initializeSlice[T any](len int, zero T) []T {
-	s := make([]T, len)
-	for i := range s {
-		s[i] = zero
-	}
-	return s
-}
-
 // stack is a generic LIFO (Last In First Out) data structure that stores elements of type T.
 type stack[T any] []T
 
