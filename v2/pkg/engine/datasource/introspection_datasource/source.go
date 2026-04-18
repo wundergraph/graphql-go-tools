@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/wundergraph/astjson"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/introspection"
 )
@@ -19,21 +21,31 @@ type Source struct {
 	introspectionData *introspection.Data
 }
 
-func (s *Source) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
+func (s *Source) Load(ctx context.Context, headers http.Header, input []byte) (*astjson.Value, func(), error) {
 	var req introspectionInput
 	if err := json.Unmarshal(input, &req); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
+	var data []byte
+	var err error
 	if req.RequestType == TypeRequestType {
-		return s.singleTypeBytes(req.TypeName)
+		data, err = s.singleTypeBytes(req.TypeName)
+	} else {
+		data, err = json.Marshal(s.introspectionData.Schema)
 	}
-
-	return json.Marshal(s.introspectionData.Schema)
+	if err != nil {
+		return nil, nil, err
+	}
+	v, parseErr := astjson.ParseBytes(data)
+	if parseErr != nil {
+		return nil, nil, parseErr
+	}
+	return v, nil, nil
 }
 
-func (s *Source) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
-	return nil, errors.New("introspection data source does not support file uploads")
+func (s *Source) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (*astjson.Value, func(), error) {
+	return nil, nil, errors.New("introspection data source does not support file uploads")
 }
 
 func (s *Source) typeInfo(typeName *string) *introspection.FullType {

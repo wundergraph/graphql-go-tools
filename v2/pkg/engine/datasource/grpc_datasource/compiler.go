@@ -348,7 +348,7 @@ type ServiceCall struct {
 	ServiceName string
 	// MethodName is the name of the method on the service to call
 	MethodName string
-	// Input is the input message for the gRPC call
+	// Input is the input message for the gRPC call (dynamicpb or generated proto).
 	Input protoref.Message
 	// Output is the output message for the gRPC call
 	Output protoref.Message
@@ -445,12 +445,12 @@ func (p *RPCCompiler) CompileNode(graph *DependencyGraph, fetch FetchItem, input
 		return ServiceCall{}, err
 	}
 
-	var request protoref.Message
 	inputMessage, ok := p.doc.MessageByName(call.Request.Name)
 	if !ok {
 		return ServiceCall{}, fmt.Errorf("input message %s not found in document", call.Request.Name)
 	}
 
+	var request protoref.Message
 	switch call.Kind {
 	case CallKindStandard, CallKindEntity:
 		request, err = p.buildProtoMessage(inputMessage, &call.Request, inputData)
@@ -490,7 +490,6 @@ func (p *RPCCompiler) CompileNode(graph *DependencyGraph, fetch FetchItem, input
 		Output:      response,
 		RPC:         call,
 	}, nil
-
 }
 
 func (p *RPCCompiler) resolveServiceName(call *RPCCall) (string, bool) {
@@ -733,21 +732,33 @@ func (p *RPCCompiler) buildRequiredFieldsMessage(inputMessage Message, rpcMessag
 
 func (p *RPCCompiler) resolveContextData(context FetchItem, contextField *RPCField) []map[string]protoref.Value {
 	if context.ServiceCall == nil || context.ServiceCall.Output == nil {
-		return []map[string]protoref.Value{}
+		return nil
 	}
 
-	contextValues := make([]map[string]protoref.Value, 0)
+	nFields := len(contextField.Message.Fields)
+	var contextValues []map[string]protoref.Value
 	for _, field := range contextField.Message.Fields {
 		values := p.resolveContextDataForPath(context.ServiceCall.Output, field.ResolvePath)
 
-		for index, value := range values {
-			if index >= len(contextValues) {
-				contextValues = append(contextValues, make(map[string]protoref.Value))
+		// Grow contextValues once up to len(values) when it's first known, preserving
+		// capacity across subsequent fields. Each inner map is pre-sized for nFields
+		// so the first Set doesn't trigger bucket growth.
+		if len(values) > len(contextValues) {
+			if cap(contextValues) < len(values) {
+				newSlice := make([]map[string]protoref.Value, len(values))
+				copy(newSlice, contextValues)
+				contextValues = newSlice
+			} else {
+				contextValues = contextValues[:len(values)]
 			}
-
-			contextValues[index][field.Name] = value
 		}
 
+		for index, value := range values {
+			if contextValues[index] == nil {
+				contextValues[index] = make(map[string]protoref.Value, nFields)
+			}
+			contextValues[index][field.Name] = value
+		}
 	}
 
 	return contextValues

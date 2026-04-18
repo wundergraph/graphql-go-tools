@@ -14,6 +14,7 @@ import (
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
@@ -1075,10 +1076,10 @@ type FakeDataSource struct {
 	source *StatefulSource
 }
 
-func (f *FakeDataSource) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
-	return nil, nil
+func (f *FakeDataSource) Load(ctx context.Context, headers http.Header, input []byte) (*astjson.Value, func(), error) {
+	return nil, nil, nil
 }
 
-func (f *FakeDataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
-	return nil, nil
+func (f *FakeDataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (*astjson.Value, func(), error) {
+	return nil, nil, nil
 }

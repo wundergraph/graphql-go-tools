@@ -419,7 +419,8 @@ func TestCompileNestedLists(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, len(serviceCalls))
 
-	proto := serviceCalls[0].Input
+	proto, ok := serviceCalls[0].Input.(protoreflect.Message)
+	require.True(t, ok, "expected Input to be a protoreflect.Message on the standard compile path")
 
 	msgDesc := proto.Descriptor()
 

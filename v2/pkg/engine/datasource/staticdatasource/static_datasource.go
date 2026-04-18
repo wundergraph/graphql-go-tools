@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/jensneuse/abstractlogger"
+	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
@@ -71,10 +72,21 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 
 type Source struct{}
 
-func (Source) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
-	return input, nil
+// Load parses the static input JSON into an *astjson.Value. The returned value
+// is rooted on a freshly-allocated arena private to this call; cleanup returns
+// that arena to the GC when the loader finishes with it.
+//
+// We don't pool the arena — static datasources are typically used for a small
+// number of hand-configured responses, not in high-throughput paths; the
+// simplicity is worth more than the per-call arena alloc.
+func (Source) Load(ctx context.Context, headers http.Header, input []byte) (*astjson.Value, func(), error) {
+	v, err := astjson.ParseBytes(input)
+	if err != nil {
+		return nil, nil, err
+	}
+	return v, nil, nil
 }
 
-func (Source) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
+func (Source) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (*astjson.Value, func(), error) {
 	panic("not implemented")
 }

@@ -31,7 +31,7 @@ type _fakeDataSource struct {
 	artificialLatency time.Duration
 }
 
-func (f *_fakeDataSource) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
+func (f *_fakeDataSource) Load(ctx context.Context, headers http.Header, input []byte) (*astjson.Value, func(), error) {
 	if f.artificialLatency != 0 {
 		time.Sleep(f.artificialLatency)
 	}
@@ -40,10 +40,14 @@ func (f *_fakeDataSource) Load(ctx context.Context, headers http.Header, input [
 			require.Equal(f.t, string(f.input), string(input), "input mismatch")
 		}
 	}
-	return f.data, nil
+	v, err := astjson.ParseBytes(f.data)
+	if err != nil {
+		return nil, nil, err
+	}
+	return v, nil, nil
 }
 
-func (f *_fakeDataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
+func (f *_fakeDataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (*astjson.Value, func(), error) {
 	if f.artificialLatency != 0 {
 		time.Sleep(f.artificialLatency)
 	}
@@ -52,7 +56,11 @@ func (f *_fakeDataSource) LoadWithFiles(ctx context.Context, headers http.Header
 			require.Equal(f.t, string(f.input), string(input), "input mismatch")
 		}
 	}
-	return f.data, nil
+	v, err := astjson.ParseBytes(f.data)
+	if err != nil {
+		return nil, nil, err
+	}
+	return v, nil, nil
 }
 
 func FakeDataSource(data string) *_fakeDataSource {
@@ -92,14 +100,22 @@ func (f *blockingDataSource) waitForRelease() {
 	<-f.release
 }
 
-func (f *blockingDataSource) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
+func (f *blockingDataSource) Load(ctx context.Context, headers http.Header, input []byte) (*astjson.Value, func(), error) {
 	f.waitForRelease()
-	return f.data, nil
+	v, err := astjson.ParseBytes(f.data)
+	if err != nil {
+		return nil, nil, err
+	}
+	return v, nil, nil
 }
 
-func (f *blockingDataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
+func (f *blockingDataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (*astjson.Value, func(), error) {
 	f.waitForRelease()
-	return f.data, nil
+	v, err := astjson.ParseBytes(f.data)
+	if err != nil {
+		return nil, nil, err
+	}
+	return v, nil, nil
 }
 
 func (f *blockingDataSource) Ready() <-chan struct{} {
@@ -461,12 +477,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 	}))
 	t.Run("fetch with context variable resolver", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
+		mockValue, _ := astjson.Parse(`{"name":"Jens"}`)
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any(), []byte(`{"id":1}`)).
-			Do(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
-				return []byte(`{"name":"Jens"}`), nil
-			}).
-			Return([]byte(`{"name":"Jens"}`), nil)
+			Return(mockValue, (func())(nil), nil)
 		res := &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
 				FetchConfiguration: FetchConfiguration{

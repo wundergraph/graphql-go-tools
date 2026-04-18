@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"sync"
 
 	"github.com/tidwall/gjson"
 	"google.golang.org/grpc/codes"
@@ -121,6 +122,32 @@ func newJSONBuilder(a arena.Arena, mapping *GRPCMapping, variables gjson.Result)
 		indexMap:  createRepresentationIndexMap(variables),
 		jsonArena: a,
 	}
+}
+
+// jsonBuilderPool recycles jsonBuilder structs. The builder is stateless beyond the
+// four fields set on each acquisition, so a simple Reset on return is sufficient.
+// Cuts one allocation per service call in the Load hot path.
+var jsonBuilderPool = sync.Pool{
+	New: func() any { return &jsonBuilder{} },
+}
+
+// acquireJSONBuilderWithIndexMap gets a pooled *jsonBuilder and initializes its
+// fields. Matches the shape of newJSONBuilderWithIndexMap but reuses backing memory.
+// Caller must return the builder via releaseJSONBuilder after use.
+func acquireJSONBuilderWithIndexMap(a arena.Arena, mapping *GRPCMapping, variables gjson.Result, im indexMap) *jsonBuilder {
+	b := jsonBuilderPool.Get().(*jsonBuilder)
+	b.mapping = mapping
+	b.variables = variables
+	b.indexMap = im
+	b.jsonArena = a
+	return b
+}
+
+// releaseJSONBuilder zeros the builder's fields (so pooled instances don't retain
+// references to arenas/maps from prior requests) and returns it to the pool.
+func releaseJSONBuilder(b *jsonBuilder) {
+	*b = jsonBuilder{}
+	jsonBuilderPool.Put(b)
 }
 
 // validateFederatedResponse validates that the federated response is valid

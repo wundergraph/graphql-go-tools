@@ -8,10 +8,10 @@ package grpcdatasource
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/tidwall/gjson"
@@ -50,6 +50,17 @@ type DataSource struct {
 	disabled          bool
 
 	pool *arena.Pool
+
+	// graphPool recycles DependencyGraph instances built from d.plan. Plan is immutable
+	// so the graph's nodes+fetches slices are reusable; only per-request ServiceCall
+	// pointers are cleared on put via resetForReuse.
+	graphPool sync.Pool
+
+	// methodFullNames caches "/ServiceName/MethodName" strings per RPCCall.ID.
+	// Avoids the per-Load strings.Builder allocation in ServiceCall.MethodFullName.
+	// Built eagerly at NewDataSource; plan.Calls is immutable so the cache is safe
+	// to share across all requests without locking.
+	methodFullNames map[int]string
 }
 
 type ProtoConfig struct {
@@ -77,7 +88,7 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 		return nil, err
 	}
 
-	return &DataSource{
+	ds := &DataSource{
 		plan:              plan,
 		cc:                client,
 		rc:                config.Compiler,
@@ -85,7 +96,58 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 		federationConfigs: config.FederationConfigs,
 		disabled:          config.Disabled,
 		pool:              arena.NewArenaPool(),
-	}, nil
+	}
+	ds.graphPool = sync.Pool{
+		New: func() any { return NewDependencyGraph(ds.plan) },
+	}
+
+	// Precompute gRPC method full names for every RPC call in the plan. Requires a
+	// compiler lookup to resolve the full service name, so it's done once here rather
+	// than on every Load. The built values are stable for the plan's lifetime.
+	ds.methodFullNames = make(map[int]string, len(plan.Calls))
+	for i := range plan.Calls {
+		call := &plan.Calls[i]
+		serviceName := call.ServiceName
+		if svc := config.Compiler.doc.ServiceByName(call.ServiceName); svc != nil {
+			serviceName = svc.FullName
+		} else {
+			// Fallback matching resolveServiceName's secondary lookup by method name.
+			for _, svc := range config.Compiler.doc.Services {
+				for _, methodRef := range svc.MethodsRefs {
+					if config.Compiler.doc.Methods[methodRef].Name == call.MethodName {
+						serviceName = svc.FullName
+						break
+					}
+				}
+			}
+		}
+		ds.methodFullNames[call.ID] = "/" + serviceName + "/" + call.MethodName
+	}
+
+	// V1 is the correctness fallback (simple dynamicpb only).
+	// V2 (DataSourceV2) is the performance path.
+	return ds, nil
+}
+
+// acquirePoolItemForIndex mixes the precomputed base hash with an index to pick a pool arena.
+// Using a stateless splitmix-style mix avoids allocating an *xxhash.Digest per call site.
+func (d *DataSource) acquirePoolItemForIndex(baseKey uint64, index int) *arena.PoolItem {
+	const golden = 0x9E3779B97F4A7C15 // 2^64 / phi, standard mixing constant
+	key := baseKey ^ (uint64(index)+1)*golden
+	return d.pool.Acquire(key)
+}
+
+// loadScratch carries per-Load scratch slices that are reused via sync.Pool.
+// Keeps the poolItems slice out of the Load stack frame so the underlying array
+// can be reused across requests.
+type loadScratch struct {
+	poolItems []*arena.PoolItem
+}
+
+var loadScratchPool = sync.Pool{
+	New: func() any {
+		return &loadScratch{poolItems: make([]*arena.PoolItem, 0, 8)}
+	},
 }
 
 // Load implements resolve.DataSource interface.
@@ -96,23 +158,58 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 //
 // The input is expected to contain the necessary information to make
 // a gRPC call, including service name, method name, and request data.
-func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
+func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte) (*astjson.Value, func(), error) {
 	// get variables from input
 	variables := gjson.Parse(unsafebytes.BytesToString(input)).Get("body.variables")
 
-	var (
-		poolItems []*arena.PoolItem
-	)
+	// Precompute the federation entity index map once per request. Previously this was
+	// recomputed inside every newJSONBuilder call (once per service call), even though
+	// the representations are identical across calls in a single Load.
+	im := createRepresentationIndexMap(variables)
+
+	// Compute the arena-pool base key once; per-call keys are derived by index mixing.
+	baseKey := xxhash.Sum64(input)
+
+	// Resources acquired during Load and held until the loader finishes with the
+	// returned astjson.Value. The cleanup func returned from Load releases them.
+	// On error paths we invoke cleanup directly before returning.
+	scratch := loadScratchPool.Get().(*loadScratch)
+	var graph *DependencyGraph
+	var rootBuilder *jsonBuilder
+
+	cleanup := func() {
+		d.pool.ReleaseMany(scratch.poolItems)
+		scratch.poolItems = scratch.poolItems[:0]
+		loadScratchPool.Put(scratch)
+		if graph != nil {
+			graph.resetForReuse()
+			d.graphPool.Put(graph)
+		}
+		if rootBuilder != nil {
+			releaseJSONBuilder(rootBuilder)
+		}
+	}
+	// failCleanup runs cleanup on any failure path before returning so we don't
+	// leak pooled resources back to callers that never saw a value.
+	done := false
 	defer func() {
-		d.pool.ReleaseMany(poolItems)
+		if !done {
+			cleanup()
+		}
 	}()
 
-	item := d.acquirePoolItem(input, 0)
-	poolItems = append(poolItems, item)
-	builder := newJSONBuilder(item.Arena, d.mapping, variables)
-
 	if d.disabled {
-		return builder.writeErrorBytes(fmt.Errorf("gRPC datasource needs to be enabled to be used")), nil
+		item := d.acquirePoolItemForIndex(baseKey, 0)
+		scratch.poolItems = append(scratch.poolItems, item)
+		builder := acquireJSONBuilderWithIndexMap(item.Arena, d.mapping, variables, im)
+		errBytes := builder.writeErrorBytes(fmt.Errorf("gRPC datasource needs to be enabled to be used"))
+		releaseJSONBuilder(builder)
+		v, parseErr := astjson.ParseBytesWithArena(item.Arena, errBytes)
+		if parseErr != nil {
+			return nil, nil, parseErr
+		}
+		done = true
+		return v, cleanup, nil
 	}
 
 	// convert headers to grpc metadata and attach to ctx
@@ -128,9 +225,54 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 		ctx = metadata.AppendToOutgoingContext(ctx, pairs...)
 	}
 
-	graph := NewDependencyGraph(d.plan)
+	graph = d.graphPool.Get().(*DependencyGraph)
 
-	root := astjson.ObjectValue(nil)
+	// Arena used for top-level assembly (root object, final merge). Separate from the
+	// per-service-call arenas so large per-call allocations can be reclaimed independently.
+	rootItem := d.acquirePoolItemForIndex(baseKey, 0)
+	scratch.poolItems = append(scratch.poolItems, rootItem)
+	rootBuilder = acquireJSONBuilderWithIndexMap(rootItem.Arena, d.mapping, variables, im)
+	// root is the in-progress merged response tree. Rooted on rootItem.Arena.
+	// The final data envelope `{"data": root}` is constructed via rootBuilder.toDataObject.
+	root := astjson.ObjectValue(rootItem.Arena)
+
+	// Shared invokeOne helper used by both single-call and multi-call paths. Writes
+	// the decoded response into *out. For single call, *out is a stack-allocated
+	// resultData; for multi call it's an element of the per-batch results slice.
+	invokeOne := func(serviceCall ServiceCall, callCtx context.Context, builder *jsonBuilder, out *resultData) error {
+		if err := d.cc.Invoke(callCtx, d.methodFullNames[serviceCall.RPC.ID], serviceCall.Input, serviceCall.Output); err != nil {
+			return err
+		}
+
+		response, err := builder.marshalResponseJSON(&serviceCall.RPC.Response, serviceCall.Output)
+		if err != nil {
+			return err
+		}
+
+		if serviceCall.RPC.Kind == CallKindEntity {
+			if err := builder.validateFederatedResponse(response); err != nil {
+				return err
+			}
+		}
+
+		*out = resultData{
+			kind:         serviceCall.RPC.Kind,
+			response:     response,
+			responsePath: serviceCall.RPC.ResponsePath,
+		}
+		return nil
+	}
+
+	mergeResult := func(r *resultData) error {
+		var err error
+		switch r.kind {
+		case CallKindResolve, CallKindRequired:
+			err = rootBuilder.mergeWithPath(root, r.response, r.responsePath)
+		default:
+			root, err = rootBuilder.mergeValues(root, r.response)
+		}
+		return err
+	}
 
 	if err := graph.TopologicalSortResolve(func(nodes []FetchItem) error {
 		serviceCalls, err := d.rc.CompileFetches(graph, nodes, variables)
@@ -138,80 +280,67 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 			return err
 		}
 
-		results := make([]resultData, len(serviceCalls))
-		errGrp, errGrpCtx := errgroup.WithContext(ctx)
+		// Single-call fast path. Avoids: errgroup, goroutine, per-batch slice allocations
+		// (results, callBuilders). The entire batch runs inline.
+		// This is the overwhelmingly common case for simple queries.
+		if len(serviceCalls) == 1 {
+			sc := &serviceCalls[0]
+			item := d.acquirePoolItemForIndex(baseKey, 1)
+			scratch.poolItems = append(scratch.poolItems, item)
+			builder := acquireJSONBuilderWithIndexMap(item.Arena, d.mapping, variables, im)
+			defer releaseJSONBuilder(builder)
 
-		// make gRPC calls
-		for index, serviceCall := range serviceCalls {
-			item := d.acquirePoolItem(input, index)
-			poolItems = append(poolItems, item)
-			builder := newJSONBuilder(item.Arena, d.mapping, variables)
-			errGrp.Go(func() error {
-				// Invoke the gRPC method - this will populate serviceCall.Output
-
-				err := d.cc.Invoke(errGrpCtx, serviceCall.MethodFullName(), serviceCall.Input, serviceCall.Output)
-				if err != nil {
-					return err
-				}
-
-				response, err := builder.marshalResponseJSON(&serviceCall.RPC.Response, serviceCall.Output)
-				if err != nil {
-					return err
-				}
-
-				// In case of a federated response, we need to ensure that the response is valid.
-				// The number of entities per type must match the number of lookup keys in the variablese
-				if serviceCall.RPC.Kind == CallKindEntity {
-					err = builder.validateFederatedResponse(response)
-					if err != nil {
-						return err
-					}
-				}
-
-				results[index] = resultData{
-					kind:         serviceCall.RPC.Kind,
-					response:     response,
-					responsePath: serviceCall.RPC.ResponsePath,
-				}
-
-				return nil
-			})
+			var result resultData
+			if err := invokeOne(*sc, ctx, builder, &result); err != nil {
+				return err
+			}
+			return mergeResult(&result)
 		}
 
+		results := make([]resultData, len(serviceCalls))
+		callBuilders := make([]*jsonBuilder, 0, len(serviceCalls))
+		defer func() {
+			for _, b := range callBuilders {
+				releaseJSONBuilder(b)
+			}
+		}()
+
+		errGrp, errGrpCtx := errgroup.WithContext(ctx)
+		for index, serviceCall := range serviceCalls {
+			item := d.acquirePoolItemForIndex(baseKey, index+1)
+			scratch.poolItems = append(scratch.poolItems, item)
+			builder := acquireJSONBuilderWithIndexMap(item.Arena, d.mapping, variables, im)
+			callBuilders = append(callBuilders, builder)
+			errGrp.Go(func() error {
+				return invokeOne(serviceCall, errGrpCtx, builder, &results[index])
+			})
+		}
 		if err := errGrp.Wait(); err != nil {
 			return err
 		}
 
-		for _, result := range results {
-			switch result.kind {
-			case CallKindResolve, CallKindRequired:
-				err = builder.mergeWithPath(root, result.response, result.responsePath)
-			default:
-				root, err = builder.mergeValues(root, result.response)
-			}
-			if err != nil {
+		for i := range results {
+			if err := mergeResult(&results[i]); err != nil {
 				return err
 			}
 		}
-
 		return nil
 	}); err != nil {
-		return builder.writeErrorBytes(err), nil
+		errBytes := rootBuilder.writeErrorBytes(err)
+		v, parseErr := astjson.ParseBytesWithArena(rootItem.Arena, errBytes)
+		if parseErr != nil {
+			return nil, nil, parseErr
+		}
+		done = true
+		return v, cleanup, nil
 	}
 
-	value := builder.toDataObject(root)
-	return value.MarshalTo(nil), err
-}
-
-func (d *DataSource) acquirePoolItem(input []byte, index int) *arena.PoolItem {
-	keyGen := xxhash.New()
-	_, _ = keyGen.Write(input)
-	var b [8]byte
-	binary.LittleEndian.PutUint64(b[:], uint64(index))
-	_, _ = keyGen.Write(b[:])
-	key := keyGen.Sum64()
-	item := d.pool.Acquire(key)
-	return item
+	// Build the {"data": root} envelope on our arena and hand ownership to the
+	// caller. Cleanup releases the pool items / builders / shareds after the
+	// loader has finished reading the Value.
+	value := rootBuilder.toDataObject(root)
+	done = true
+	return value, cleanup, nil
 }
 
 // LoadWithFiles implements resolve.DataSource interface.
@@ -221,6 +350,12 @@ func (d *DataSource) acquirePoolItem(input []byte, index int) *arena.PoolItem {
 // might not be applicable for most gRPC use cases.
 //
 // Currently unimplemented.
-func (d *DataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
+func (d *DataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (*astjson.Value, func(), error) {
 	panic("unimplemented")
 }
+
+// SkipsHTTPResponseContext implements resolve.ContextSkippingDataSource. gRPC
+// responses don't produce HTTP response contexts (status codes, response objects)
+// so the loader can skip the per-fetch httpclient.InjectResponseContext call
+// and its associated context.WithValue allocation.
+func (d *DataSource) SkipsHTTPResponseContext() {}

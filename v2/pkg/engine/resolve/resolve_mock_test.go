@@ -10,6 +10,7 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
+	astjson "github.com/wundergraph/astjson"
 	httpclient "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 )
 
@@ -37,12 +38,21 @@ func (m *MockDataSource) EXPECT() *MockDataSourceMockRecorder {
 }
 
 // Load mocks base method.
-func (m *MockDataSource) Load(arg0 context.Context, arg1 http.Header, arg2 []byte) ([]byte, error) {
+//
+// The mock is lenient about Return arity to ease migration from the old
+// ([]byte, error) interface to the new (*astjson.Value, func(), error):
+//
+//	.Return(value, cleanup, err)                    // new-style, fully-typed
+//	.Return(value, nil, err)                        // new-style, no cleanup
+//	.Return([]byte(`...`), nil) or .Return(..., err)// legacy bytes — parsed here
+//
+// ret[0] is checked for both *astjson.Value (new) and []byte (legacy). The
+// error position is the LAST ret entry. The middle position (if present) is
+// optionally the cleanup func.
+func (m *MockDataSource) Load(arg0 context.Context, arg1 http.Header, arg2 []byte) (*astjson.Value, func(), error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Load", arg0, arg1, arg2)
-	ret0, _ := ret[0].([]byte)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	return unpackMockLoadReturn(ret)
 }
 
 // Load indicates an expected call of Load.
@@ -52,12 +62,46 @@ func (mr *MockDataSourceMockRecorder) Load(arg0, arg1, arg2 interface{}) *gomock
 }
 
 // LoadWithFiles mocks base method.
-func (m *MockDataSource) LoadWithFiles(arg0 context.Context, arg1 http.Header, arg2 []byte, arg3 []*httpclient.FileUpload) ([]byte, error) {
+func (m *MockDataSource) LoadWithFiles(arg0 context.Context, arg1 http.Header, arg2 []byte, arg3 []*httpclient.FileUpload) (*astjson.Value, func(), error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LoadWithFiles", arg0, arg1, arg2, arg3)
-	ret0, _ := ret[0].([]byte)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	return unpackMockLoadReturn(ret)
+}
+
+// unpackMockLoadReturn tolerates both new-style (Value, cleanup, err) and
+// legacy-style ([]byte, err) Return shapes so existing mock expectations keep
+// working through the interface migration.
+func unpackMockLoadReturn(ret []interface{}) (*astjson.Value, func(), error) {
+	var (
+		value   *astjson.Value
+		cleanup func()
+		err     error
+	)
+	if len(ret) == 0 {
+		return nil, nil, nil
+	}
+	// ret[last] is always the error.
+	if last := ret[len(ret)-1]; last != nil {
+		err, _ = last.(error)
+	}
+	// ret[0] may be *astjson.Value (new) or []byte (legacy).
+	switch v := ret[0].(type) {
+	case *astjson.Value:
+		value = v
+	case []byte:
+		if len(v) > 0 && err == nil {
+			parsed, parseErr := astjson.ParseBytes(v)
+			if parseErr != nil {
+				return nil, nil, parseErr
+			}
+			value = parsed
+		}
+	}
+	// cleanup lives in the middle slot on new-style returns.
+	if len(ret) >= 3 {
+		cleanup, _ = ret[1].(func())
+	}
+	return value, cleanup, err
 }
 
 // LoadWithFiles indicates an expected call of LoadWithFiles.

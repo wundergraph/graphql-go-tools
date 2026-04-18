@@ -9,6 +9,8 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/wundergraph/astjson"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 )
@@ -18,12 +20,12 @@ type _errorReturningDataSource struct {
 	err error
 }
 
-func (d *_errorReturningDataSource) Load(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
-	return nil, d.err
+func (d *_errorReturningDataSource) Load(ctx context.Context, headers http.Header, input []byte) (*astjson.Value, func(), error) {
+	return nil, nil, d.err
 }
 
-func (d *_errorReturningDataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) ([]byte, error) {
-	return nil, d.err
+func (d *_errorReturningDataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (*astjson.Value, func(), error) {
+	return nil, nil, d.err
 }
 
 // _statusCodeDataSource implements DataSource and injects an HTTP status code into the response context.
@@ -32,14 +34,21 @@ type _statusCodeDataSource struct {
 	statusCode int
 }
 
-func (d *_statusCodeDataSource) Load(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
+func (d *_statusCodeDataSource) Load(ctx context.Context, headers http.Header, input []byte) (*astjson.Value, func(), error) {
 	if rc := httpclient.GetResponseContext(ctx); rc != nil {
 		rc.StatusCode = d.statusCode
 	}
-	return []byte(d.data), nil
+	if d.data == "" {
+		return nil, nil, nil
+	}
+	v, err := astjson.ParseBytes([]byte(d.data))
+	if err != nil {
+		return nil, nil, err
+	}
+	return v, nil, nil
 }
 
-func (d *_statusCodeDataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) ([]byte, error) {
+func (d *_statusCodeDataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (*astjson.Value, func(), error) {
 	return d.Load(ctx, headers, input)
 }
 
