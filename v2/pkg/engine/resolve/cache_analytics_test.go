@@ -2045,8 +2045,12 @@ func TestSnapshotIndependentOfPooledCollector(t *testing.T) {
 // the snapshot aliases the collector's backing arrays and the next request
 // overwrites positions the caller is still reading.
 func TestSnapshotSlicesAreIndependent(t *testing.T) {
-	c := AcquireCacheAnalyticsCollector()
-	t.Cleanup(func() { ReleaseCacheAnalyticsCollector(c) })
+	// Use a fresh collector instead of Acquire: RecordMutationEvent and
+	// RecordCacheOperationError initialize slices that NewCacheAnalyticsCollector
+	// leaves nil; Releasing the collector would leave the pool with a non-nil
+	// empty slice and break downstream tests that assert.Equal a snapshot with
+	// MutationEvents/CacheOpErrors set to nil.
+	c := NewCacheAnalyticsCollector()
 
 	c.RecordFetchTiming(FetchTimingEvent{DataSource: "ds-orig", DurationMs: 111})
 	c.RecordError(SubgraphErrorEvent{DataSource: "ds-orig"})
