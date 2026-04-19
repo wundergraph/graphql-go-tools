@@ -648,37 +648,31 @@ func TestFakeLoaderCache(t *testing.T) {
 	t.Run("SetAndGet", func(t *testing.T) {
 		t.Parallel()
 		cache := NewFakeLoaderCache()
-		// Test basic set and get
-		keys := []string{"key1", "key2", "key3"}
-		entries := []*resolve.CacheEntry{
+
+		err := cache.Set(ctx, []*resolve.CacheEntry{
 			{Key: "key1", Value: []byte("value1")},
 			{Key: "key2", Value: []byte("value2")},
 			{Key: "key3", Value: []byte("value3")},
-		}
-
-		err := cache.Set(ctx, entries, 0) // No TTL
+		}, 0) // No TTL → RemainingTTL stays 0 on Get
 		require.NoError(t, err)
 
-		// Get all keys
-		result, err := cache.Get(ctx, keys)
+		// Get all keys in insertion order
+		result, err := cache.Get(ctx, []string{"key1", "key2", "key3"})
 		require.NoError(t, err)
-		require.Len(t, result, 3)
-		assert.NotNil(t, result[0])
-		assert.Equal(t, "value1", string(result[0].Value))
-		assert.NotNil(t, result[1])
-		assert.Equal(t, "value2", string(result[1].Value))
-		assert.NotNil(t, result[2])
-		assert.Equal(t, "value3", string(result[2].Value))
+		assert.Equal(t, []*resolve.CacheEntry{
+			{Key: "key1", Value: []byte("value1")},
+			{Key: "key2", Value: []byte("value2")},
+			{Key: "key3", Value: []byte("value3")},
+		}, result)
 
-		// Get partial keys
+		// Get partial keys: mix of existing and missing; missing slots are nil.
 		result, err = cache.Get(ctx, []string{"key2", "key4", "key1"})
 		require.NoError(t, err)
-		require.Len(t, result, 3)
-		assert.NotNil(t, result[0])
-		assert.Equal(t, "value2", string(result[0].Value))
-		assert.Nil(t, result[1]) // key4 doesn't exist
-		assert.NotNil(t, result[2])
-		assert.Equal(t, "value1", string(result[2].Value))
+		assert.Equal(t, []*resolve.CacheEntry{
+			{Key: "key2", Value: []byte("value2")},
+			nil,
+			{Key: "key1", Value: []byte("value1")},
+		}, result)
 	})
 
 	t.Run("Delete", func(t *testing.T) {
@@ -742,7 +736,7 @@ func TestFakeLoaderCache(t *testing.T) {
 	t.Run("MixedTTL", func(t *testing.T) {
 		t.Parallel()
 		cache := NewFakeLoaderCache()
-		// Set some with TTL, some without
+
 		err := cache.Set(ctx, []*resolve.CacheEntry{{Key: "perm1", Value: []byte("permanent")}}, 0)
 		require.NoError(t, err)
 
@@ -755,12 +749,12 @@ func TestFakeLoaderCache(t *testing.T) {
 			return !ok
 		}, 500*time.Millisecond, 5*time.Millisecond, "ttl should expire")
 
-		// Check both
 		result, err := cache.Get(ctx, []string{"perm1", "temp1"})
 		require.NoError(t, err)
-		assert.NotNil(t, result[0])
-		assert.Equal(t, "permanent", string(result[0].Value)) // Still exists
-		assert.Nil(t, result[1])                              // Expired
+		assert.Equal(t, []*resolve.CacheEntry{
+			{Key: "perm1", Value: []byte("permanent")}, // No TTL → RemainingTTL stays 0
+			nil, // temp1 expired and was cleaned up by Get
+		}, result)
 	})
 
 	t.Run("ThreadSafety", func(t *testing.T) {
@@ -837,46 +831,33 @@ func TestFakeLoaderCache(t *testing.T) {
 	t.Run("ResultLengthMatchesKeysLength", func(t *testing.T) {
 		t.Parallel()
 		cache := NewFakeLoaderCache()
-		// Test that result length always matches input keys length
 
-		// Set some data
 		err := cache.Set(ctx, []*resolve.CacheEntry{
 			{Key: "exist1", Value: []byte("data1")},
 			{Key: "exist3", Value: []byte("data3")},
-		}, 0)
+		}, 0) // No TTL → RemainingTTL stays 0 on Get
 		require.NoError(t, err)
 
-		// Request mix of existing and non-existing keys
-		keys := []string{"exist1", "missing1", "exist3", "missing2", "missing3"}
-		result, err := cache.Get(ctx, keys)
+		// Mix of existing and missing keys: result slots align with keys, missing → nil.
+		result, err := cache.Get(ctx, []string{"exist1", "missing1", "exist3", "missing2", "missing3"})
 		require.NoError(t, err)
+		assert.Equal(t, []*resolve.CacheEntry{
+			{Key: "exist1", Value: []byte("data1")},
+			nil,
+			{Key: "exist3", Value: []byte("data3")},
+			nil,
+			nil,
+		}, result)
 
-		// Verify length matches exactly
-		assert.Len(t, result, len(keys), "Result length must match keys length")
-		assert.Len(t, result, 5, "Should return exactly 5 results")
-
-		// Verify correct values
-		assert.NotNil(t, result[0])
-		assert.Equal(t, "data1", string(result[0].Value)) // exist1
-		assert.Nil(t, result[1])                          // missing1
-		assert.NotNil(t, result[2])
-		assert.Equal(t, "data3", string(result[2].Value)) // exist3
-		assert.Nil(t, result[3])                          // missing2
-		assert.Nil(t, result[4])                          // missing3
-
-		// Test with all missing keys
-		allMissingKeys := []string{"missing4", "missing5", "missing6"}
-		result, err = cache.Get(ctx, allMissingKeys)
+		// All-missing lookup: every slot is nil, length equals input length.
+		result, err = cache.Get(ctx, []string{"missing4", "missing5", "missing6"})
 		require.NoError(t, err)
-		assert.Len(t, result, 3, "Should return 3 results for 3 keys")
-		assert.Nil(t, result[0])
-		assert.Nil(t, result[1])
-		assert.Nil(t, result[2])
+		assert.Equal(t, []*resolve.CacheEntry{nil, nil, nil}, result)
 
-		// Test with empty keys
+		// Empty input: empty result slice.
 		result, err = cache.Get(ctx, []string{})
 		require.NoError(t, err)
-		assert.Len(t, result, 0, "Should return empty slice for empty keys")
+		assert.Equal(t, []*resolve.CacheEntry{}, result)
 	})
 }
 

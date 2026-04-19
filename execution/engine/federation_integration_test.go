@@ -214,8 +214,19 @@ func TestFederationIntegrationTest(t *testing.T) {
 		trigger.Emit()
 		trigger.Emit()
 
-		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-1","name":"Trilby","price":1}}}}`, string(<-messages))
-		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-1","name":"Trilby","price":2}}}}`, string(<-messages))
+		// Guard channel reads: a broken subscription should fail the test fast, not hang it.
+		recv := func() string {
+			select {
+			case msg := <-messages:
+				return string(msg)
+			case <-time.After(5 * time.Second):
+				t.Fatal("timed out waiting for subscription message")
+				return ""
+			}
+		}
+
+		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-1","name":"Trilby","price":1}}}}`, recv())
+		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-1","name":"Trilby","price":2}}}}`, recv())
 	})
 
 	t.Run("Multiple queries and nested fragments", func(t *testing.T) {

@@ -1275,6 +1275,7 @@ func TestL1CacheOptimizationReducesSubgraphCalls(t *testing.T) {
 	})
 
 	t.Run("Without L1, same query requires more subgraph calls", func(t *testing.T) {
+		t.Parallel()
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
 		trackingClient := &http.Client{Transport: tracker}
 

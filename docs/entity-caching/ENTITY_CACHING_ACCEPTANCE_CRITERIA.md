@@ -7,8 +7,19 @@ entities across requests via external stores like Redis.
 ## L1 Cache (Per-Request, In-Memory)
 
 ### AC-L1-01: Request-scoped isolation
-Each GraphQL request gets its own L1 cache instance (a fresh `sync.Map` on the Loader).
-No data leaks between requests. The cache is discarded when the request completes.
+Each GraphQL request gets its own L1 cache instances on the Loader, discarded when the
+request completes. Two plain maps live at the L1 layer, both freshly allocated per Loader
+and both accessed main-thread-only:
+
+- **Entity L1 cache** (`Loader.l1Cache`, `map[string]*astjson.Value`): per-request entity
+  dedup; read via `tryL1CacheLoad`, written via `populateL1Cache` (entity fetches) and
+  `populateL1CacheForRootFieldEntities` (root-field entity promotion). No locking —
+  goroutines never touch it.
+- **`@requestScoped` coordinate L1** (`Loader.requestScopedL1`, `map[string]*astjson.Value`):
+  per-subgraph export values keyed by `{subgraphName}.{key}`, populated/read in Phase 1.5,
+  Phase 3.5 and `resolveSingle`.
+
+Neither is a `sync.Map`. No data leaks between requests.
 
 Tests:
 - `v2/pkg/engine/resolve/l1_cache_test.go:24` — `TestL1Cache / "L1 hit - same entity fetched twice in same request"`
@@ -40,7 +51,7 @@ Tests:
 - `v2/pkg/engine/resolve/l1_l2_cache_e2e_test.go:899` — `TestL1CacheSkipsParallelFetch`
 - `execution/engine/federation_caching_l1_test.go:449` — `TestL1CacheSelfReferentialEntity / "L1 enabled - sameUserReviewers fetch entirely skipped via L1 cache"`
 
-### AC-L1-06: Disabled by default
+### AC-L1-05: Disabled by default
 L1 caching must be explicitly enabled per-request via
 `ctx.ExecutionOptions.Caching.EnableL1Cache = true`. When disabled, every entity fetch
 goes through the normal L2/subgraph path.
@@ -48,7 +59,7 @@ goes through the normal L2/subgraph path.
 Tests:
 - `execution/engine/federation_caching_l1_test.go:93` — `TestL1CacheReducesHTTPCalls / "L1 disabled - more accounts calls without cache"`
 
-### AC-L1-07: StructuralCopy on L1 read and write
+### AC-L1-06: StructuralCopy on L1 read and write
 Every L1 cache write StructuralCopies the value onto `l.jsonArena`.
 Entity L1 uses `structuralCopyNormalizedPassthrough` — renames aliases
 to schema names via an ephemeral `astjson.Transform` while keeping ALL
@@ -85,7 +96,7 @@ Tests:
 - `v2/pkg/engine/resolve/loader_cache_transform_test.go` — `TestStructuralCopyNormalized_*` (alias/arg-suffix normalize + denormalize)
 - `v2/pkg/engine/resolve/l1_l2_cache_e2e_test.go` — `TestL1CacheFieldAccumulation` (3-fetch field accumulation with passthrough)
 
-### AC-L1-09: Union-based L1 optimization
+### AC-L1-07: Union-based L1 optimization
 The postprocessor (`optimize_l1_cache.go`) computes the **union** of all
 ancestor providers' ProvidesData fields when deciding whether to enable
 L1 for a fetch.
@@ -298,6 +309,22 @@ Tests:
 Negative caching is configured per entity type via `EntityCacheConfiguration.NegativeCacheTTL`.
 Different entity types can have different negative cache TTLs, or have it disabled entirely
 (TTL = 0).
+
+### AC-NEG-05: Negative cache with mutation population
+When a mutation with `EnableMutationL2CachePopulation=true` triggers an entity fetch that
+returns null and `NegativeCacheTTL > 0`, the negative sentinel is stored with the
+`NegativeCacheTTL`, not the entity's regular TTL.
+
+Tests:
+- `v2/pkg/engine/resolve/negative_cache_test.go` — `TestNegativeCaching / "negative cache with mutation population stores sentinel with NegativeCacheTTL"`
+
+### AC-NEG-06: Negative cache entry replaced after TTL expiry
+When a negative cache sentinel expires (TTL elapses) and the entity subsequently becomes
+available, the next fetch retrieves real data from the subgraph and stores it with the
+entity's regular TTL, replacing the expired negative sentinel.
+
+Tests:
+- `v2/pkg/engine/resolve/negative_cache_test.go` — `TestNegativeCaching / "negative cache entry overwritten by real data on subsequent fetch"`
 
 ## Cache Key Construction
 
@@ -654,10 +681,19 @@ Tests:
 
 ## Thread Safety
 
-### AC-THREAD-01: L1 on main thread with sync.Map
-L1 cache reads (`Load`) and writes (`Store`) use `sync.Map` and occur on the main thread
-only. The `sync.Map` provides safety for the concurrent `LoadOrStore` pattern used during
-root field entity population.
+### AC-THREAD-01: Entity L1 and coordinate L1 on main thread
+Both L1 structures on the Loader are plain `map[string]*astjson.Value` accessed only on
+the resolver's main thread — there is no cross-goroutine sharing and therefore no locking:
+
+- Entity L1 (`l1Cache`) is read via `tryL1CacheLoad` in Phase 1 and written via
+  `populateL1Cache` / `populateL1CacheForRootFieldEntities` in Phase 4 of
+  `resolveParallel`, all on the main thread.
+- Coordinate L1 (`requestScopedL1`) is read/written by `tryRequestScopedInjection` and
+  `exportRequestScopedFields`, called from Phase 1.5, Phase 3.5 and `resolveSingle`,
+  also main-thread only.
+
+Neither map is a `sync.Map`; parallel fetches never touch L1 directly — they complete,
+merge on the main thread, and L1 updates happen synchronously during that merge.
 
 Tests:
 - `v2/pkg/engine/resolve/l1_cache_test.go:24` — `TestL1Cache / "L1 hit - same entity fetched twice in same request"`
@@ -696,14 +732,15 @@ onto the same arena. Phase 2HTTP goroutines only return a `[]byte` body and neve
 the arena, so there is no goroutine-arena pool, no cross-arena references in the
 response tree, and no lifetime coupling between goroutines and response rendering.
 
-The root-field L1 promotion path and entity L1 writes both DeepCopy onto `l.jsonArena`
-before storing in `l1Cache`, so the stored `*astjson.Value` is always owned by the
-Loader's own arena regardless of what arena the source value came from. This closes
-the previous "cross-arena reference" hazard at the storage site rather than at the
-goroutine boundary.
+The root-field L1 promotion path and entity L1 writes both run `StructuralCopy` (or
+`StructuralCopyWithTransform` when aliases need rewriting) onto `l.jsonArena` before
+storing in `l1Cache`. Container nodes are cloned onto the Loader's arena; leaf values
+are aliased from the source — safe because all participants share the same arena
+lifetime within a request. This closes the previous "cross-arena reference" hazard at
+the storage site rather than at the goroutine boundary.
 
 Tests:
-- `v2/pkg/engine/resolve/arena_thread_safety_gc_test.go:21` — `TestCrossArenaMergeValuesCreatesShallowReferences` (documents the shallow merge semantics that motivate the always-DeepCopy rule)
+- `v2/pkg/engine/resolve/arena_thread_safety_gc_test.go:21` — `TestCrossArenaMergeValuesCreatesShallowReferences` (documents the shallow merge semantics that motivate the always-StructuralCopy rule)
 - `v2/pkg/engine/resolve/arena_thread_safety_gc_test.go:83` — `TestGoroutineArenaLifetimeWithDeferredRelease`
 - `v2/pkg/engine/resolve/arena_thread_safety_gc_test.go:137` — `Benchmark_CrossArenaGCSafety`
 - `v2/pkg/engine/resolve/arena_thread_safety_bench_test.go:40` — `BenchmarkConcurrentArena`
@@ -849,22 +886,6 @@ Tests:
 - `v2/pkg/engine/resolve/cache_analytics_test.go` — `TestCacheAnalyticsCollector_WriteEventSource / "write events preserve source field"`
 - `v2/pkg/engine/resolve/cache_analytics_test.go` — `TestCacheAnalyticsCollector_WriteEventSource / "mutation event preserves source field"`
 - `v2/pkg/engine/resolve/cache_analytics_test.go` — `TestCacheAnalyticsCollector_WriteEventSource / "mixed sources in single snapshot"`
-
-### AC-NEG-05: Negative cache with mutation population
-When a mutation with `EnableMutationL2CachePopulation=true` triggers an entity fetch that
-returns null and `NegativeCacheTTL > 0`, the negative sentinel is stored with the
-`NegativeCacheTTL`, not the entity's regular TTL.
-
-Tests:
-- `v2/pkg/engine/resolve/negative_cache_test.go` — `TestNegativeCaching / "negative cache with mutation population stores sentinel with NegativeCacheTTL"`
-
-### AC-NEG-06: Negative cache entry replaced after TTL expiry
-When a negative cache sentinel expires (TTL elapses) and the entity subsequently becomes
-available, the next fetch retrieves real data from the subgraph and stores it with the
-entity's regular TTL, replacing the expired negative sentinel.
-
-Tests:
-- `v2/pkg/engine/resolve/negative_cache_test.go` — `TestNegativeCaching / "negative cache entry overwritten by real data on subsequent fetch"`
 
 ## Cache Trace in Response Extensions
 
@@ -1075,8 +1096,8 @@ Tests:
 
 ## @requestScoped Coordinate L1 Cache
 
-The coordinate L1 cache is a per-request `sync.Map` on the Loader (`requestScopedL1`),
-separate from the entity L1 cache.
+The coordinate L1 cache is a per-request plain `map[string]*astjson.Value` on the Loader
+(`requestScopedL1`), main-thread only, separate from the entity L1 cache.
 It stores field values keyed by subgraph-qualified strings (e.g., `"viewer.currentViewer"`).
 
 ### Directive
@@ -1105,12 +1126,12 @@ from L1 (subject to widening checks and alias-aware normalization).
 ### AC-RS-01: L1 storage uses schema-normalized values via the `ProvidesData` pipeline
 
 The coordinate L1 cache uses the same `astjson.Transform` pipeline as entity L1 and L2
-caches. Per-field `normalizeXform` / `denormalizeXform` Transforms are built from the
-`RequestScopedField.ProvidesData` `*Object` tree. Writes DeepCopy onto `l.jsonArena`
-via `astjson.DeepCopyWithTransform` (applying the normalize Transform). Reads DeepCopy
-back onto `l.jsonArena` via `astjson.DeepCopyWithTransform` with the denormalize
-Transform, re-applying aliases for the current query's selection set. The planner
-populates `ProvidesData` in `populateRequestScopedFieldsProvidesData` in `visitor.go`.
+caches. Per-field normalize/denormalize Transforms are built from the
+`RequestScopedField.ProvidesData` `*Object` tree. Writes run `structuralCopyNormalized`
+(which delegates to `StructuralCopyWithTransform`) onto `l.jsonArena` to strip aliases.
+Reads run `structuralCopyDenormalized` back onto `l.jsonArena` to re-apply aliases for
+the current query's selection set. The planner populates `ProvidesData` in
+`populateRequestScopedFieldsProvidesData` in `visitor.go`.
 
 Values in L1 are stored under schema field names (aliases normalized away on write),
 and re-aliased on read per the current query's selection set.

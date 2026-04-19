@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -138,10 +139,18 @@ func (g *GraphqlClient) Subscription(ctx context.Context, addr, queryFilePath st
 	require.NoError(t, err)
 
 	var closed atomic.Bool
+	var closeOnce sync.Once
+	done := make(chan struct{})
 
+	// closeFn signals the reader goroutine to exit. `done` unblocks a pending
+	// send on messageCh that conn.Close() cannot reach; `closed` tells the
+	// read loop the resulting read error is expected.
 	closeFn := func() {
-		closed.Store(true)
-		_ = conn.Close()
+		closeOnce.Do(func() {
+			closed.Store(true)
+			close(done)
+			_ = conn.Close()
+		})
 	}
 
 	// 4. start receiving messages from subscription
@@ -159,6 +168,8 @@ func (g *GraphqlClient) Subscription(ctx context.Context, addr, queryFilePath st
 			}
 			select {
 			case messageCh <- msgBytes:
+			case <-done:
+				return
 			case <-ctx.Done():
 				return
 			}

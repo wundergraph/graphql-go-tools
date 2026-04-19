@@ -36,7 +36,13 @@ import (
 func TestRemapVariablesEntityCacheKey(t *testing.T) {
 	t.Parallel()
 
-	t.Run("forward lookup resolves remapped variable for entity cache key", func(t *testing.T) {
+	// Subtest name: the engine-level scenario this test can actually express is
+	// "RemapVariables plumbing produces a valid entity cache key and L2 miss→hit
+	// cycle." The RemapVariables forward-lookup branch itself is covered directly
+	// in v2/pkg/engine/resolve/cache_key_test.go, which can construct the
+	// ArgumentPath/Variables/RemapVariables split without engine validation getting
+	// in the way.
+	t.Run("entity cache key derivation works end-to-end with RemapVariables configured", func(t *testing.T) {
 		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
 		tracker := newSubgraphCallTracker(http.DefaultTransport)

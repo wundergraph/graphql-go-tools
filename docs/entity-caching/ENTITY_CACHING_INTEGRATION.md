@@ -8,7 +8,7 @@ The caching system has two levels:
 
 | Level | Storage | Scope | Applies To | Default |
 |-------|---------|-------|-----------|---------|
-| **L1** | In-memory `sync.Map` per request | Single request | Entity fetches only | Disabled |
+| **L1** | In-memory plain `map` per request, main-thread only | Single request | Entity fetches only | Disabled |
 | **L2** | External cache (Redis, etc.) | Cross-request with TTL | Entity + root field fetches | Disabled |
 
 Both levels are opt-in and disabled by default. L1 prevents redundant fetches for the same entity within a single request. L2 shares entity data across requests.
@@ -574,8 +574,13 @@ With `EnableInvalidationOnKeyOnly: true`, subscription events that only contain 
 
 Call `LoaderCache.Delete()` directly with cache keys. The key format is:
 ```text
-[optional-interceptor-prefix:][optional-header-hash:]{"__typename":"TypeName","key":{...}}
+[optional-global-prefix:][optional-interceptor-prefix:][optional-header-hash:]{"__typename":"TypeName","key":{...}}
 ```
+
+If `GlobalCacheKeyPrefix` is configured on the router, reads and writes both prepend it
+to every key. Manual invalidation callers must include the same global prefix, otherwise
+`Delete()` will target a different key than the live reads/writes use and the entry will
+remain in the cache.
 
 ## 8. Partial Cache Loading
 
