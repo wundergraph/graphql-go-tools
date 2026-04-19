@@ -261,12 +261,12 @@ func TestBatchEntityCache_PartialHitFetchesMissing(t *testing.T) {
 						// No MergePath for root field fetches - data is merged at root level
 					},
 					Caching: FetchCacheConfiguration{
-						Enabled:              true,
-						CacheName:            "default",
-						TTL:                  30 * time.Second,
-						CacheKeyTemplate:     tmpl,
+						Enabled:                true,
+						CacheName:              "default",
+						TTL:                    30 * time.Second,
+						CacheKeyTemplate:       tmpl,
 						EnablePartialCacheLoad: true,
-						PartialBatchLoad:     true,
+						PartialBatchLoad:       true,
 					},
 				},
 				InputTemplate: InputTemplate{
@@ -547,26 +547,26 @@ func TestBatchEntityCache_AnalyticsTracking(t *testing.T) {
 	require.Equal(t, 3, len(stats.L2Reads))
 	assert.Equal(t, CacheKeyEvent{
 		CacheKey:   `{"__typename":"Product","key":{"upc":"top-1"}}`,
-		EntityType: "Query",                                          // Root field fetch uses the root type name
-		Kind:       CacheKeyHit,                                      // top-1 was seeded in L2 cache
+		EntityType: "Query",     // Root field fetch uses the root type name
+		Kind:       CacheKeyHit, // top-1 was seeded in L2 cache
 		DataSource: "products",
 		ByteSize:   len(`{"upc":"top-1","name":"Trilby","price":11}`),
-		CacheAgeMs: stats.L2Reads[0].CacheAgeMs,                     // dynamic, just preserve actual
+		CacheAgeMs: stats.L2Reads[0].CacheAgeMs, // dynamic, just preserve actual
 	}, stats.L2Reads[0])
 	assert.Equal(t, CacheKeyEvent{
 		CacheKey:   `{"__typename":"Product","key":{"upc":"top-2"}}`,
-		EntityType: "Query",     // Root field fetch uses the root type name
+		EntityType: "Query",      // Root field fetch uses the root type name
 		Kind:       CacheKeyMiss, // top-2 was not in L2 cache
 		DataSource: "products",
 		ByteSize:   0,
 	}, stats.L2Reads[1])
 	assert.Equal(t, CacheKeyEvent{
 		CacheKey:   `{"__typename":"Product","key":{"upc":"top-3"}}`,
-		EntityType: "Query",                                          // Root field fetch uses the root type name
-		Kind:       CacheKeyHit,                                      // top-3 was seeded in L2 cache
+		EntityType: "Query",     // Root field fetch uses the root type name
+		Kind:       CacheKeyHit, // top-3 was seeded in L2 cache
 		DataSource: "products",
 		ByteSize:   len(`{"upc":"top-3","name":"Boater","price":33}`),
-		CacheAgeMs: stats.L2Reads[2].CacheAgeMs,                     // dynamic, just preserve actual
+		CacheAgeMs: stats.L2Reads[2].CacheAgeMs, // dynamic, just preserve actual
 	}, stats.L2Reads[2])
 }
 
@@ -708,7 +708,7 @@ func TestBatchEntityCache_TracingEnabled(t *testing.T) {
 	ctx.ExecutionOptions.Caching.EnableL2Cache = true
 	// Enable tracing to exercise tracing branches in applyRootFetchL2Results + updateL2Cache
 	ctx.TracingOptions = TraceOptions{
-		Enable:                       true,
+		Enable:                        true,
 		EnablePredictableDebugTimings: true,
 	}
 

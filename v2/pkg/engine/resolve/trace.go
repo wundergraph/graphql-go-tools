@@ -146,9 +146,9 @@ type CacheTrace struct {
 
 // CacheTraceEntity records cache outcome for a single entity in batch fetches.
 type CacheTraceEntity struct {
-	Key                string  `json:"key"`                            // Cache key (or hash)
-	Source             string  `json:"source"`                         // "l1", "l2", "subgraph", "negative_cache"
-	ByteSize           int     `json:"byte_size,omitempty"`            // Size of cached/fetched data
+	Key                 string  `json:"key"`                             // Cache key (or hash)
+	Source              string  `json:"source"`                          // "l1", "l2", "subgraph", "negative_cache"
+	ByteSize            int     `json:"byte_size,omitempty"`             // Size of cached/fetched data
 	RemainingTTLSeconds float64 `json:"remaining_ttl_seconds,omitempty"` // Remaining TTL in seconds (L2 hits only, 0 = unknown)
 }
 

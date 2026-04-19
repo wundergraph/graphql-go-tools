@@ -14,10 +14,10 @@
 // from the cache. StructuralCopy is what provides that isolation today.
 //
 // These tests are designed to:
-//   1. Pass on current master (proving the invariant holds today).
-//   2. Fail if a candidate StructuralCopy is removed AND it was load-bearing
-//      (i.e., mutations to the merged tree would corrupt a shared container
-//      node inside FromCache).
+//  1. Pass on current master (proving the invariant holds today).
+//  2. Fail if a candidate StructuralCopy is removed AND it was load-bearing
+//     (i.e., mutations to the merged tree would corrupt a shared container
+//     node inside FromCache).
 //
 // If a test still passes after a removal, the copy is provably redundant at
 // that site, given how MergeValues and the response tree interact today.

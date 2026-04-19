@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
 	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/go-arena"
 )
@@ -410,9 +411,9 @@ func TestTryL2CacheLoad_AllEmptyKeysSkipsBackend(t *testing.T) {
 
 	l := &Loader{ctx: ctx}
 	res := &result{
-		cache:        inner,
-		l2CacheKeys:  []*CacheKey{{Keys: []string{"", ""}}},
-		cacheConfig:  FetchCacheConfiguration{CacheName: "default"},
+		cache:       inner,
+		l2CacheKeys: []*CacheKey{{Keys: []string{"", ""}}},
+		cacheConfig: FetchCacheConfiguration{CacheName: "default"},
 	}
 
 	skip, err := l.tryL2CacheLoad(t.Context(), &FetchInfo{DataSourceName: "users"}, res)
@@ -433,13 +434,13 @@ func TestShouldWriteRequestedKey(t *testing.T) {
 	missing := map[string]struct{}{requested: {}}
 
 	tests := []struct {
-		name             string
-		cacheSkipFetch   bool
-		writeback        bool
-		requested        string
-		rendered         string
-		missingKeys      map[string]struct{}
-		want             bool
+		name           string
+		cacheSkipFetch bool
+		writeback      bool
+		requested      string
+		rendered       string
+		missingKeys    map[string]struct{}
+		want           bool
 	}{
 		{
 			name:        "fetch path, key not previously requested → always write",

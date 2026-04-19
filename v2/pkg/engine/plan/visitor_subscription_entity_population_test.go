@@ -54,13 +54,13 @@ func TestVisitorEntityKeyFieldNames(t *testing.T) {
 				SelectionSet: "{",
 			},
 			{
-				TypeName:          "User",
-				SelectionSet:      "id",
+				TypeName:           "User",
+				SelectionSet:       "id",
 				parsedSelectionSet: &ast.Document{},
 			},
 			{
-				TypeName:          "User",
-				SelectionSet:      "id",
+				TypeName:           "User",
+				SelectionSet:       "id",
 				parsedSelectionSet: unnamedFieldDoc,
 			},
 			{

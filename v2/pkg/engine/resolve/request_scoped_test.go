@@ -218,7 +218,7 @@ func TestTryRequestScopedInjection(t *testing.T) {
 		t.Parallel()
 
 		l := &Loader{
-			jsonArena: arena.NewMonotonicArena(arena.WithMinBufferSize(1024)),
+			jsonArena:       arena.NewMonotonicArena(arena.WithMinBufferSize(1024)),
 			requestScopedL1: map[string]*astjson.Value{},
 		}
 		cfg := FetchCacheConfiguration{}
@@ -232,7 +232,7 @@ func TestTryRequestScopedInjection(t *testing.T) {
 		t.Parallel()
 
 		l := &Loader{
-			jsonArena: arena.NewMonotonicArena(arena.WithMinBufferSize(1024)),
+			jsonArena:       arena.NewMonotonicArena(arena.WithMinBufferSize(1024)),
 			requestScopedL1: map[string]*astjson.Value{},
 		}
 		cfg := FetchCacheConfiguration{
@@ -256,7 +256,7 @@ func TestTryRequestScopedInjection(t *testing.T) {
 
 		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
 		l := &Loader{
-			jsonArena: ar,
+			jsonArena:       ar,
 			requestScopedL1: map[string]*astjson.Value{},
 		}
 
@@ -290,7 +290,7 @@ func TestTryRequestScopedInjection(t *testing.T) {
 
 		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
 		l := &Loader{
-			jsonArena: ar,
+			jsonArena:       ar,
 			requestScopedL1: map[string]*astjson.Value{},
 		}
 
@@ -322,7 +322,7 @@ func TestTryRequestScopedInjection(t *testing.T) {
 
 		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
 		l := &Loader{
-			jsonArena: ar,
+			jsonArena:       ar,
 			requestScopedL1: map[string]*astjson.Value{},
 		}
 
@@ -357,7 +357,7 @@ func TestTryRequestScopedInjection(t *testing.T) {
 
 		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
 		l := &Loader{
-			jsonArena: ar,
+			jsonArena:       ar,
 			requestScopedL1: map[string]*astjson.Value{},
 		}
 
@@ -388,7 +388,7 @@ func TestTryRequestScopedInjection(t *testing.T) {
 
 		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
 		l := &Loader{
-			jsonArena: ar,
+			jsonArena:       ar,
 			requestScopedL1: map[string]*astjson.Value{},
 		}
 
@@ -446,7 +446,7 @@ func TestExportRequestScopedFields(t *testing.T) {
 
 		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
 		l := &Loader{
-			jsonArena: ar,
+			jsonArena:       ar,
 			requestScopedL1: map[string]*astjson.Value{},
 		}
 
@@ -475,7 +475,7 @@ func TestExportRequestScopedFields(t *testing.T) {
 
 		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
 		l := &Loader{
-			jsonArena: ar,
+			jsonArena:       ar,
 			requestScopedL1: map[string]*astjson.Value{},
 		}
 
@@ -502,7 +502,7 @@ func TestExportRequestScopedFields(t *testing.T) {
 
 		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
 		l := &Loader{
-			jsonArena: ar,
+			jsonArena:       ar,
 			requestScopedL1: map[string]*astjson.Value{},
 		}
 

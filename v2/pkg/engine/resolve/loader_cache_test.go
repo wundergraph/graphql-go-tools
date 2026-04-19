@@ -290,7 +290,7 @@ func TestLoaderBuildCacheTrace_PredictableDebugTimingsNormalizeZeroDurationOpera
 	})
 
 	assert.Equal(t, &CacheTrace{
-		DurationSinceStartNano:   1,  // predictable debug timing
+		DurationSinceStartNano:   1, // predictable debug timing
 		DurationSinceStartPretty: "1ns",
 		DurationNano:             1,
 		DurationPretty:           "1ns",

@@ -100,9 +100,9 @@ func TestRootFieldEntityKeyMappingCacheSharing(t *testing.T) {
 		assert.Equal(t, 1, tracker.GetCount(productsHost), "first request should call products subgraph once")
 		assert.Equal(t, 1, tracker.GetCount(reviewsHost), "first request should call reviews subgraph once")
 		assert.Equal(t, sortCacheLogKeysWithTTL([]CacheLogEntry{
-			{Operation: "get", Keys: []string{productKey}, Hits: []bool{false}}, // Products root field: cold cache, cache miss
+			{Operation: "get", Keys: []string{productKey}, Hits: []bool{false}},   // Products root field: cold cache, cache miss
 			{Operation: "set", Keys: []string{productKey}, TTL: 30 * time.Second}, // Products root field: write products payload under shared key
-			{Operation: "get", Keys: []string{productKey}, Hits: []bool{true}},   // Reviews entity fetch: hits the shared root payload written above
+			{Operation: "get", Keys: []string{productKey}, Hits: []bool{true}},    // Reviews entity fetch: hits the shared root payload written above
 			{Operation: "set", Keys: []string{productKey}, TTL: 30 * time.Second}, // Reviews entity fetch: merge reviews payload into shared key
 		}), sortCacheLogKeysWithTTL(defaultCache.GetLog()))
 
@@ -186,9 +186,9 @@ func TestRootFieldEntityKeyMappingCacheSharing(t *testing.T) {
 		assert.Equal(t, 1, tracker.GetCount(productsHost), "first request should call products subgraph")
 		assert.Equal(t, 1, tracker.GetCount(reviewsHost), "first request should call reviews subgraph")
 		assert.Equal(t, sortCacheLogKeysWithTTL([]CacheLogEntry{
-			{Operation: "get", Keys: []string{productKey}, Hits: []bool{false}}, // Products root field (shadow): cold cache shadow read, miss
+			{Operation: "get", Keys: []string{productKey}, Hits: []bool{false}},   // Products root field (shadow): cold cache shadow read, miss
 			{Operation: "set", Keys: []string{productKey}, TTL: 30 * time.Second}, // Products root field (shadow): shadow write of products payload
-			{Operation: "get", Keys: []string{productKey}, Hits: []bool{true}},   // Reviews entity fetch (non-shadow): hits the shared shadow-written key
+			{Operation: "get", Keys: []string{productKey}, Hits: []bool{true}},    // Reviews entity fetch (non-shadow): hits the shared shadow-written key
 			{Operation: "set", Keys: []string{productKey}, TTL: 30 * time.Second}, // Reviews entity fetch (non-shadow): merge reviews payload under shared key
 		}), sortCacheLogKeysWithTTL(defaultCache.GetLog()))
 
@@ -200,9 +200,9 @@ func TestRootFieldEntityKeyMappingCacheSharing(t *testing.T) {
 		assert.Equal(t, 1, tracker.GetCount(productsHost), "shadow mode should always call products subgraph")
 		assert.Equal(t, 0, tracker.GetCount(reviewsHost), "reviews entity cache is non-shadow, so second request should hit cache")
 		assert.Equal(t, sortCacheLogKeysWithTTL([]CacheLogEntry{
-			{Operation: "get", Keys: []string{productKey}, Hits: []bool{true}},   // Products root field (shadow): hit, but shadow mode ignores the cached value
+			{Operation: "get", Keys: []string{productKey}, Hits: []bool{true}},    // Products root field (shadow): hit, but shadow mode ignores the cached value
 			{Operation: "set", Keys: []string{productKey}, TTL: 30 * time.Second}, // Products root field (shadow): shadow re-write after subgraph call
-			{Operation: "get", Keys: []string{productKey}, Hits: []bool{true}},   // Reviews entity fetch (non-shadow): cache hit, skip subgraph
+			{Operation: "get", Keys: []string{productKey}, Hits: []bool{true}},    // Reviews entity fetch (non-shadow): cache hit, skip subgraph
 		}), sortCacheLogKeysWithTTL(defaultCache.GetLog()))
 	})
 
@@ -288,9 +288,9 @@ func TestRootFieldEntityKeyMappingCacheSharing(t *testing.T) {
 		assert.True(t, exists, "shared entity/root cache key should be populated")
 		assert.Equal(t, compactJSONForAssert(t, `{"__typename":"Product","upc":"top-1","name":"Trilby","reviews":null}`), compactJSONForAssert(t, string(storedValue)))
 		assert.Equal(t, sortCacheLogKeysWithTTL([]CacheLogEntry{
-			{Operation: "get", Keys: []string{productKey}, Hits: []bool{false}}, // Products root field: cold cache, cache miss
+			{Operation: "get", Keys: []string{productKey}, Hits: []bool{false}},   // Products root field: cold cache, cache miss
 			{Operation: "set", Keys: []string{productKey}, TTL: 30 * time.Second}, // Products root field: write positive payload under shared key with 30s TTL
-			{Operation: "get", Keys: []string{productKey}, Hits: []bool{true}},   // Reviews entity fetch: hits the shared root payload written above
+			{Operation: "get", Keys: []string{productKey}, Hits: []bool{true}},    // Reviews entity fetch: hits the shared root payload written above
 			{Operation: "set", Keys: []string{productKey}, TTL: 10 * time.Second}, // Reviews entity fetch: merge reviews:null negative payload with 10s NegativeCacheTTL
 		}), sortCacheLogKeysWithTTL(defaultCache.GetLog()))
 

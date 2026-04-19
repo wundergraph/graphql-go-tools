@@ -1179,8 +1179,6 @@ func (f *FakeLoaderCache) Get(ctx context.Context, keys []string) ([]*CacheEntry
 	return result, nil
 }
 
-
-
 func (f *FakeLoaderCache) Set(ctx context.Context, entries []*CacheEntry, ttl time.Duration) error {
 	if len(entries) == 0 {
 		return nil

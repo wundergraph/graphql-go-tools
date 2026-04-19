@@ -90,8 +90,8 @@ type Planner[T Configuration] struct {
 	// rootFieldEntityCacheKeyTemplates tracks root field types (plural in case of interfaces/unions)
 	// and their correlating cache keys (excluding @requires) to allow L1 cache population
 	// for root fields that return an entity
-	rootFieldEntityCacheKeyTemplates   map[string]resolve.CacheKeyTemplate
-	requestScopedResponseKeys          map[string]string // schema field name → response key (alias or name) for @requestScoped entity fields
+	rootFieldEntityCacheKeyTemplates map[string]resolve.CacheKeyTemplate
+	requestScopedResponseKeys        map[string]string // schema field name → response key (alias or name) for @requestScoped entity fields
 
 	// federation
 

@@ -218,6 +218,58 @@ func wrapCacheValueAtMergePath(a arena.Arena, value *astjson.Value, mergePath []
 	return wrapped
 }
 
+func (l *Loader) reorderCacheValueToSelectionOrder(a arena.Arena, value *astjson.Value, node Node) *astjson.Value {
+	if value == nil || node == nil {
+		return value
+	}
+
+	switch n := node.(type) {
+	case *Object:
+		if value.Type() != astjson.TypeObject {
+			return value
+		}
+		reordered := astjson.ObjectValue(a)
+		seen := make(map[string]struct{}, len(n.Fields))
+		for _, field := range n.Fields {
+			fieldName := l.cacheFieldName(field)
+			fieldValue := value.Get(fieldName)
+			if fieldValue == nil {
+				continue
+			}
+			reordered.Set(a, fieldName, l.reorderCacheValueToSelectionOrder(a, fieldValue, field.Value))
+			seen[fieldName] = struct{}{}
+		}
+
+		obj, err := value.Object()
+		if err != nil {
+			return value
+		}
+		obj.Visit(func(key []byte, fieldValue *astjson.Value) {
+			fieldName := string(key)
+			if _, ok := seen[fieldName]; ok {
+				return
+			}
+			reordered.Set(a, fieldName, fieldValue)
+		})
+		return reordered
+	case *Array:
+		if value.Type() != astjson.TypeArray {
+			return value
+		}
+		items, err := value.Array()
+		if err != nil {
+			return value
+		}
+		reordered := astjson.ArrayValue(a)
+		for i, item := range items {
+			reordered.SetArrayItem(a, i, l.reorderCacheValueToSelectionOrder(a, item, n.Item))
+		}
+		return reordered
+	default:
+		return value
+	}
+}
+
 func (l *Loader) resolveMultiCandidateCacheValue(a arena.Arena, ck *CacheKey, providesData *Object) bool {
 	if ck.FromCache == nil {
 		return false
@@ -246,7 +298,7 @@ func (l *Loader) resolveMultiCandidateCacheValue(a arena.Arena, ck *CacheKey, pr
 		}
 	}
 	if merged != nil && l.validateItemHasRequiredData(merged, providesData) {
-		ck.FromCache = merged
+		ck.FromCache = l.reorderCacheValueToSelectionOrder(a, merged, providesData)
 		ck.fromCacheNeedsWriteback = true
 		return true
 	}
@@ -258,7 +310,7 @@ func (l *Loader) resolveMultiCandidateCacheValue(a arena.Arena, ck *CacheKey, pr
 		}
 		parsed = wrapCacheValueAtMergePath(a, parsed, ck.EntityMergePath)
 		if l.validateItemHasRequiredData(parsed, providesData) {
-			ck.FromCache = parsed
+			ck.FromCache = l.reorderCacheValueToSelectionOrder(a, parsed, providesData)
 			ck.fromCacheRemainingTTL = ck.fromCacheCandidates[i].remainingTTL
 			ck.fromCacheNeedsWriteback = true
 			return true
@@ -343,7 +395,7 @@ func (l *Loader) resolveBatchEntityCacheValue(a arena.Arena, ck *CacheKey, provi
 		}
 	}
 	if merged != nil && l.validateItemHasRequiredData(merged, providesData) {
-		ck.FromCache = merged
+		ck.FromCache = l.reorderCacheValueToSelectionOrder(a, merged, providesData)
 		ck.fromCacheNeedsWriteback = true
 		return true
 	}
@@ -354,7 +406,7 @@ func (l *Loader) resolveBatchEntityCacheValue(a arena.Arena, ck *CacheKey, provi
 			continue
 		}
 		if l.validateItemHasRequiredData(parsed, providesData) {
-			ck.FromCache = parsed
+			ck.FromCache = l.reorderCacheValueToSelectionOrder(a, parsed, providesData)
 			ck.fromCacheRemainingTTL = ck.fromCacheCandidates[i].remainingTTL
 			ck.fromCacheNeedsWriteback = true
 			return true

@@ -19,7 +19,7 @@ func newCacheMergeTestLoader(t *testing.T) (*Loader, arena.Arena) {
 	ctx := NewContext(context.Background())
 	ctx.ExecutionOptions.Caching.EnableL2Cache = true
 	resolvable := NewResolvable(ar, ResolvableOptions{})
-	resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+	require.NoError(t, resolvable.Init(ctx, nil, ast.OperationTypeQuery))
 	l := &Loader{
 		jsonArena:  ar,
 		resolvable: resolvable,
@@ -331,7 +331,7 @@ func TestPopulateBatchCacheKeysFromResponse(t *testing.T) {
 			batchEntityKeyMode:       true,
 			batchPartialFetchEnabled: true,
 			batchCachedIndices:       []int{0, 2}, // indices 0 and 2 are cached
-			l2CacheKeys:             []*CacheKey{ck0, ck1, ck2},
+			l2CacheKeys:              []*CacheKey{ck0, ck1, ck2},
 		}
 		items := []*astjson.Value{responseObj}
 

@@ -25,6 +25,13 @@ type CacheKeyTemplate interface {
 }
 
 type CacheKey struct {
+	// cachedData groups the non-FromCache cache-read state (candidates, freshness,
+	// writeback flag). Embedded so promoted field access keeps call sites unchanged;
+	// FromCache stays at the top level for struct-literal compatibility across tests.
+	// Set together by populateCacheKeysFromIndex / candidate-resolution helpers and
+	// propagated together when mirroring between L1 and L2 cache keys.
+	cachedData
+
 	Item      *astjson.Value
 	FromCache *astjson.Value
 	Keys      []string
@@ -43,12 +50,6 @@ type CacheKey struct {
 	// NegativeCacheHit is set during mergeResult when the subgraph returned null for this entity.
 	// Used by updateL2Cache to store a null sentinel with NegativeCacheTTL instead of regular TTL.
 	NegativeCacheHit bool
-	// cachedData groups the non-FromCache cache-read state (candidates, freshness,
-	// writeback flag). Embedded so promoted field access keeps call sites unchanged;
-	// FromCache stays at the top level for struct-literal compatibility across tests.
-	// Set together by populateCacheKeysFromIndex / candidate-resolution helpers and
-	// propagated together when mirroring between L1 and L2 cache keys.
-	cachedData
 }
 
 // cachedData bundles the auxiliary cache-read state for a CacheKey.

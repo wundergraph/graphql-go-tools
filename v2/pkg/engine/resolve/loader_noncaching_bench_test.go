@@ -98,7 +98,9 @@ func BenchmarkNonCachingMergeResult(b *testing.B) {
 			ctx.ExecutionOptions.Caching.EnableL1Cache = false
 			ctx.ExecutionOptions.Caching.EnableL2Cache = false
 			resolvable := NewResolvable(ar, ResolvableOptions{})
-			resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+			if err := resolvable.Init(ctx, nil, ast.OperationTypeQuery); err != nil {
+				b.Fatal(err)
+			}
 			l := &Loader{
 				jsonArena:  ar,
 				resolvable: resolvable,

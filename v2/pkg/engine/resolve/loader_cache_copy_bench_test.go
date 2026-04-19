@@ -40,7 +40,9 @@ func newBenchCopyLoader() (*Loader, arena.Arena) {
 	ctx := NewContext(context.Background())
 	ctx.ExecutionOptions.Caching.EnableL2Cache = true
 	resolvable := NewResolvable(ar, ResolvableOptions{})
-	resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+	if err := resolvable.Init(ctx, nil, ast.OperationTypeQuery); err != nil {
+		panic(err)
+	}
 	return &Loader{
 		jsonArena:  ar,
 		resolvable: resolvable,

@@ -140,26 +140,31 @@ func TestFindObjectFieldByResponseKey(t *testing.T) {
 	}
 
 	t.Run("matches by response key", func(t *testing.T) {
+		t.Parallel()
 		sub := findObjectFieldByResponseKey(obj, "cv")
 		assert.NotNil(t, sub)
 	})
 
 	t.Run("schema name does not match when aliased", func(t *testing.T) {
+		t.Parallel()
 		sub := findObjectFieldByResponseKey(obj, "currentViewer")
 		assert.Nil(t, sub)
 	})
 
 	t.Run("scalar field returns nil", func(t *testing.T) {
+		t.Parallel()
 		sub := findObjectFieldByResponseKey(obj, "id")
 		assert.Nil(t, sub)
 	})
 
 	t.Run("not found returns nil", func(t *testing.T) {
+		t.Parallel()
 		sub := findObjectFieldByResponseKey(obj, "unknown")
 		assert.Nil(t, sub)
 	})
 
 	t.Run("nil obj returns nil", func(t *testing.T) {
+		t.Parallel()
 		sub := findObjectFieldByResponseKey(nil, "anything")
 		assert.Nil(t, sub)
 	})

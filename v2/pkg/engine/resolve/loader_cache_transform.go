@@ -106,7 +106,6 @@ func (l *Loader) structuralCopyDenormalized(v *astjson.Value, obj *Object) *astj
 	return l.parser.StructuralCopyWithTransform(l.jsonArena, v, t)
 }
 
-
 // fieldMeta stages per-field Transform data while children are being built.
 // Kept at package level so it can live on the Loader's transformMetas slab
 // (avoids a per-call `make([]fieldMeta, ...)` heap allocation).

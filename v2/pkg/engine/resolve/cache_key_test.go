@@ -2568,6 +2568,7 @@ func TestEntityQueryCacheKeyTemplate_NumericKeyCoercion(t *testing.T) {
 	t.Parallel()
 
 	t.Run("flat numeric @key field is coerced to string", func(t *testing.T) {
+		t.Parallel()
 		tmpl := &EntityQueryCacheKeyTemplate{
 			Keys: NewResolvableObjectVariable(&Object{
 				Fields: []*Field{
@@ -2589,6 +2590,7 @@ func TestEntityQueryCacheKeyTemplate_NumericKeyCoercion(t *testing.T) {
 	})
 
 	t.Run("float @key field is coerced to string", func(t *testing.T) {
+		t.Parallel()
 		tmpl := &EntityQueryCacheKeyTemplate{
 			Keys: NewResolvableObjectVariable(&Object{
 				Fields: []*Field{
@@ -2609,6 +2611,7 @@ func TestEntityQueryCacheKeyTemplate_NumericKeyCoercion(t *testing.T) {
 	})
 
 	t.Run("nested composite numeric @key is coerced at all levels", func(t *testing.T) {
+		t.Parallel()
 		// Composite @key: Store is keyed by location.id where location is a
 		// nested Object node in the template and id is numeric in the response.
 		tmpl := &EntityQueryCacheKeyTemplate{
@@ -2640,6 +2643,7 @@ func TestEntityQueryCacheKeyTemplate_NumericKeyCoercion(t *testing.T) {
 	})
 
 	t.Run("string @key field is unchanged", func(t *testing.T) {
+		t.Parallel()
 		// Regression guard: coercion must be a no-op for strings.
 		tmpl := &EntityQueryCacheKeyTemplate{
 			Keys: NewResolvableObjectVariable(&Object{
