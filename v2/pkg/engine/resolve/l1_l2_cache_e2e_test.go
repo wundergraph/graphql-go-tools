@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/go-arena"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -467,7 +468,7 @@ func TestL1L2CacheEndToEnd(t *testing.T) {
 		}
 
 		// Run twice with L2 disabled
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			ctx := NewContext(context.Background())
 			ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
 			ctx.ExecutionOptions.Caching.EnableL1Cache = false
@@ -1068,5 +1069,571 @@ func TestL1CacheSkipsParallelFetch(t *testing.T) {
 		}
 		assert.Equal(t, 2, l1Hits, "L1 should have 2 hits (parallel fetch for same entities skipped)")
 		assert.Equal(t, 2, l1Misses, "L1 should have 2 misses (first entity fetch)")
+	})
+
+}
+
+func TestL1CacheFieldAccumulation(t *testing.T) {
+	t.Run("fields from fetch 1 survive fetch 2 merge and are available for fetch 3", func(t *testing.T) {
+		// Scenario: 3 sequential entity fetches for the same entity (User:1),
+		// each with different ProvidesData (different field sets).
+		//
+		// Fetch 1: ProvidesData = {name}
+		//   → L1 MISS, calls subgraph, stores {__typename, id, name} in L1
+		//
+		// Fetch 2: ProvidesData = {email}
+		//   → L1 HIT but widening check fails (cached value lacks "email")
+		//   → Calls subgraph, gets {__typename, id, email}
+		//   → Merges into L1: {__typename, id, name, email}
+		//
+		// Fetch 3: ProvidesData = {name}
+		//   → L1 HIT, widening check passes ("name" is in L1 from fetch 1)
+		//   → Skips subgraph call
+		//
+		// This proves:
+		// 1. L1 passthrough write preserves all fields (including @key "id")
+		// 2. L1 merge accumulates fields across fetches
+		// 3. Fetch 1's "name" survives fetch 2's merge and is available for fetch 3
+		// 4. Fetch 3 consumes a field that fetch 2 did NOT provide
+
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		rootDS := NewMockDataSource(ctrl)
+		rootDS.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"user":{"__typename":"User","id":"1"}}}`), nil
+			}).Times(1)
+
+		// Fetch 1: returns name only
+		entityDS1 := NewMockDataSource(ctrl)
+		entityDS1.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"_entities":[{"__typename":"User","id":"1","name":"Alice"}]}}`), nil
+			}).Times(1)
+
+		// Fetch 2: returns email only (NOT name — fetch 2's subgraph doesn't provide name)
+		entityDS2 := NewMockDataSource(ctrl)
+		entityDS2.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"_entities":[{"__typename":"User","id":"1","email":"alice@example.com"}]}}`), nil
+			}).Times(1)
+
+		// Fetch 3: should NOT be called — "name" is in L1 from fetch 1
+		entityDS3 := NewMockDataSource(ctrl)
+		entityDS3.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			Times(0)
+
+		userCacheKeyTemplate := &EntityQueryCacheKeyTemplate{
+			Keys: NewResolvableObjectVariable(&Object{
+				Fields: []*Field{
+					{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+					{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+				},
+			}),
+		}
+
+		providesData1 := &Object{
+			Fields: []*Field{
+				{Name: []byte("name"), Value: &Scalar{}},
+			},
+		}
+		ComputeHasAliases(providesData1)
+
+		providesData2 := &Object{
+			Fields: []*Field{
+				{Name: []byte("email"), Value: &Scalar{}},
+			},
+		}
+		ComputeHasAliases(providesData2)
+
+		// Fetch 3 wants "name" — a field from fetch 1, NOT from fetch 2.
+		providesData3 := &Object{
+			Fields: []*Field{
+				{Name: []byte("name"), Value: &Scalar{}},
+			},
+		}
+		ComputeHasAliases(providesData3)
+
+		entityInput := BatchInput{
+			Header: InputTemplate{Segments: []TemplateSegment{{Data: []byte(`{"method":"POST","url":"http://users","body":{"query":"q","variables":{"representations":[`), SegmentType: StaticSegmentType}}},
+			Items: []InputTemplate{{Segments: []TemplateSegment{{
+				SegmentType:  VariableSegmentType,
+				VariableKind: ResolvableObjectVariableKind,
+				Renderer: NewGraphQLVariableResolveRenderer(&Object{Fields: []*Field{
+					{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+					{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+				}}),
+			}}}},
+			Footer: InputTemplate{Segments: []TemplateSegment{{Data: []byte(`]}}}`), SegmentType: StaticSegmentType}}},
+		}
+
+		response := &GraphQLResponse{
+			Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
+			Fetches: Sequence(
+				SingleWithPath(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource:     rootDS,
+						PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data"}},
+					},
+					InputTemplate: InputTemplate{
+						Segments: []TemplateSegment{{Data: []byte(`{"method":"POST","url":"http://users"}`), SegmentType: StaticSegmentType}},
+					},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+				}, "query"),
+				SingleWithPath(&BatchEntityFetch{
+					Input:          entityInput,
+					DataSource:     entityDS1,
+					PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data", "_entities"}},
+					Info: &FetchInfo{
+						DataSourceName: "users",
+						OperationType:  ast.OperationTypeQuery,
+						ProvidesData:   providesData1,
+					},
+					Caching: FetchCacheConfiguration{
+						Enabled:          true,
+						CacheName:        "default",
+						CacheKeyTemplate: userCacheKeyTemplate,
+						UseL1Cache:       true,
+					},
+				}, "query.user", ObjectPath("user")),
+				SingleWithPath(&BatchEntityFetch{
+					Input:          entityInput,
+					DataSource:     entityDS2,
+					PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data", "_entities"}},
+					Info: &FetchInfo{
+						DataSourceName: "users",
+						OperationType:  ast.OperationTypeQuery,
+						ProvidesData:   providesData2,
+					},
+					Caching: FetchCacheConfiguration{
+						Enabled:          true,
+						CacheName:        "default",
+						CacheKeyTemplate: userCacheKeyTemplate,
+						UseL1Cache:       true,
+					},
+				}, "query.user", ObjectPath("user")),
+				SingleWithPath(&BatchEntityFetch{
+					Input:          entityInput,
+					DataSource:     entityDS3,
+					PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data", "_entities"}},
+					Info: &FetchInfo{
+						DataSourceName: "users",
+						OperationType:  ast.OperationTypeQuery,
+						ProvidesData:   providesData3,
+					},
+					Caching: FetchCacheConfiguration{
+						Enabled:          true,
+						CacheName:        "default",
+						CacheKeyTemplate: userCacheKeyTemplate,
+						UseL1Cache:       true,
+					},
+				}, "query.user", ObjectPath("user")),
+			),
+			Data: &Object{
+				Fields: []*Field{
+					{
+						Name: []byte("user"),
+						Value: &Object{
+							Path: []string{"user"},
+							Fields: []*Field{
+								{Name: []byte("name"), Value: &String{Path: []string{"name"}}},
+								{Name: []byte("email"), Value: &String{Path: []string{"email"}}},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(4096))
+		ctx := NewContext(context.Background())
+		ctx.ExecutionOptions.Caching.EnableL1Cache = true
+		ctx.ExecutionOptions.Caching.EnableCacheAnalytics = true
+		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+
+		resolvable := NewResolvable(ar, ResolvableOptions{})
+		err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+		require.NoError(t, err)
+
+		loader := &Loader{
+			ctx:        ctx,
+			jsonArena:  ar,
+			l1Cache:    map[string]*astjson.Value{},
+			resolvable: resolvable,
+			caches:     map[string]LoaderCache{"default": NewFakeLoaderCache()},
+		}
+
+		err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+		require.NoError(t, err)
+
+		out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
+		// Extra fields (__typename, id) from L1 passthrough are present in the
+		// merged data tree but harmless — the render walk only outputs fields
+		// listed in the response plan.
+		assert.Equal(t, `{"data":{"user":{"__typename":"User","id":"1","name":"Alice","email":"alice@example.com"}}}`, string(out))
+
+		stats := ctx.GetCacheStats()
+		// Fetch 1: L1 miss → subgraph call → stores {name, id, __typename}
+		// Fetch 2: L1 hit but widening fails (no email) → subgraph call → merges email into L1
+		// Fetch 3: L1 hit, widening passes (name present from fetch 1) → no subgraph call
+		var l1Hits, l1Misses int
+		for _, ev := range stats.L1Reads {
+			if ev.Kind == CacheKeyHit {
+				l1Hits++
+			} else {
+				l1Misses++
+			}
+		}
+		assert.Equal(t, 1, l1Hits, "Fetch 3 should hit L1 (name from fetch 1 survived fetch 2's merge)")
+		assert.Equal(t, 1, l1Misses, "Fetch 1 should miss L1 (cache empty)")
+
+		// Verify the L1 cache entry contains ALL accumulated fields.
+		const cacheKey = `{"__typename":"User","key":{"id":"1"}}`
+		cached, ok := loader.l1Cache[cacheKey]
+		require.True(t, ok, "L1 should have User:1 entry")
+		cachedJSON := string(cached.MarshalTo(nil))
+		assert.Equal(t, `{"__typename":"User","id":"1","name":"Alice","email":"alice@example.com"}`, cachedJSON,
+			"L1 entry must contain name (fetch 1), email (fetch 2 merge), and key fields (id, __typename) via passthrough")
+	})
+
+	t.Run("different aliases for same field across fetches", func(t *testing.T) {
+		// Fetch 1: ProvidesData = {nickname: name} (alias "nickname" for field "name")
+		//   → L1 MISS, calls subgraph, stores {__typename, id, name} in L1 (normalized)
+		//
+		// Fetch 2: ProvidesData = {email}
+		//   → L1 widening miss (no email), calls subgraph
+		//
+		// Fetch 3: ProvidesData = {displayName: name} (different alias for same field)
+		//   → L1 HIT: L1 stores schema-name "name", denormalize maps it to "displayName"
+
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		rootDS := NewMockDataSource(ctrl)
+		rootDS.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"user":{"__typename":"User","id":"1"}}}`), nil
+			}).Times(1)
+
+		entityDS1 := NewMockDataSource(ctrl)
+		entityDS1.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				// Subgraph returns schema field name "name", response has alias "nickname"
+				return []byte(`{"data":{"_entities":[{"__typename":"User","id":"1","nickname":"Alice"}]}}`), nil
+			}).Times(1)
+
+		entityDS2 := NewMockDataSource(ctrl)
+		entityDS2.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"_entities":[{"__typename":"User","id":"1","email":"alice@example.com"}]}}`), nil
+			}).Times(1)
+
+		// Fetch 3 should NOT call subgraph — "name" is in L1 from fetch 1
+		entityDS3 := NewMockDataSource(ctrl)
+		entityDS3.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			Times(0)
+
+		userCacheKeyTemplate := &EntityQueryCacheKeyTemplate{
+			Keys: NewResolvableObjectVariable(&Object{
+				Fields: []*Field{
+					{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+					{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+				},
+			}),
+		}
+
+		// Fetch 1: alias "nickname" → schema "name"
+		providesData1 := &Object{
+			HasAliases: true,
+			Fields: []*Field{
+				{Name: []byte("nickname"), OriginalName: []byte("name"), Value: &Scalar{}},
+			},
+		}
+
+		providesData2 := &Object{
+			Fields: []*Field{
+				{Name: []byte("email"), Value: &Scalar{}},
+			},
+		}
+		ComputeHasAliases(providesData2)
+
+		// Fetch 3: alias "displayName" → schema "name"
+		providesData3 := &Object{
+			HasAliases: true,
+			Fields: []*Field{
+				{Name: []byte("displayName"), OriginalName: []byte("name"), Value: &Scalar{}},
+			},
+		}
+
+		entityInput := BatchInput{
+			Header: InputTemplate{Segments: []TemplateSegment{{Data: []byte(`{"method":"POST","url":"http://users","body":{"query":"q","variables":{"representations":[`), SegmentType: StaticSegmentType}}},
+			Items: []InputTemplate{{Segments: []TemplateSegment{{
+				SegmentType:  VariableSegmentType,
+				VariableKind: ResolvableObjectVariableKind,
+				Renderer: NewGraphQLVariableResolveRenderer(&Object{Fields: []*Field{
+					{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+					{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+				}}),
+			}}}},
+			Footer: InputTemplate{Segments: []TemplateSegment{{Data: []byte(`]}}}`), SegmentType: StaticSegmentType}}},
+		}
+
+		response := &GraphQLResponse{
+			Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
+			Fetches: Sequence(
+				SingleWithPath(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource:     rootDS,
+						PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data"}},
+					},
+					InputTemplate: InputTemplate{
+						Segments: []TemplateSegment{{Data: []byte(`{"method":"POST","url":"http://users"}`), SegmentType: StaticSegmentType}},
+					},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+				}, "query"),
+				SingleWithPath(&BatchEntityFetch{
+					Input:          entityInput,
+					DataSource:     entityDS1,
+					PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data", "_entities"}},
+					Info:           &FetchInfo{DataSourceName: "users", OperationType: ast.OperationTypeQuery, ProvidesData: providesData1},
+					Caching:        FetchCacheConfiguration{Enabled: true, CacheName: "default", CacheKeyTemplate: userCacheKeyTemplate, UseL1Cache: true},
+				}, "query.user", ObjectPath("user")),
+				SingleWithPath(&BatchEntityFetch{
+					Input:          entityInput,
+					DataSource:     entityDS2,
+					PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data", "_entities"}},
+					Info:           &FetchInfo{DataSourceName: "users", OperationType: ast.OperationTypeQuery, ProvidesData: providesData2},
+					Caching:        FetchCacheConfiguration{Enabled: true, CacheName: "default", CacheKeyTemplate: userCacheKeyTemplate, UseL1Cache: true},
+				}, "query.user", ObjectPath("user")),
+				SingleWithPath(&BatchEntityFetch{
+					Input:          entityInput,
+					DataSource:     entityDS3,
+					PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data", "_entities"}},
+					Info:           &FetchInfo{DataSourceName: "users", OperationType: ast.OperationTypeQuery, ProvidesData: providesData3},
+					Caching:        FetchCacheConfiguration{Enabled: true, CacheName: "default", CacheKeyTemplate: userCacheKeyTemplate, UseL1Cache: true},
+				}, "query.user", ObjectPath("user")),
+			),
+			Data: &Object{
+				Fields: []*Field{
+					{Name: []byte("user"), Value: &Object{
+						Path: []string{"user"},
+						Fields: []*Field{
+							{Name: []byte("displayName"), Value: &String{Path: []string{"displayName"}}},
+							{Name: []byte("email"), Value: &String{Path: []string{"email"}}},
+						},
+					}},
+				},
+			},
+		}
+
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(4096))
+		ctx := NewContext(context.Background())
+		ctx.ExecutionOptions.Caching.EnableL1Cache = true
+		ctx.ExecutionOptions.Caching.EnableCacheAnalytics = true
+		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+
+		resolvable := NewResolvable(ar, ResolvableOptions{})
+		err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+		require.NoError(t, err)
+
+		loader := &Loader{
+			ctx:        ctx,
+			jsonArena:  ar,
+			l1Cache:    map[string]*astjson.Value{},
+			resolvable: resolvable,
+			caches:     map[string]LoaderCache{"default": NewFakeLoaderCache()},
+		}
+
+		err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+		require.NoError(t, err)
+
+		out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
+		assert.Equal(t, `{"data":{"user":{"__typename":"User","id":"1","nickname":"Alice","email":"alice@example.com","displayName":"Alice"}}}`, string(out),
+			"fetch 3 should get name via different alias (displayName)")
+
+		stats := ctx.GetCacheStats()
+		var l1Hits int
+		for _, ev := range stats.L1Reads {
+			if ev.Kind == CacheKeyHit {
+				l1Hits++
+			}
+		}
+		assert.Equal(t, 1, l1Hits, "Fetch 3 should hit L1 (schema name 'name' stored by fetch 1, denormalized to 'displayName')")
+	})
+
+	t.Run("alias then no alias for same field", func(t *testing.T) {
+		// Fetch 1: ProvidesData = {nickname: name} (alias)
+		//   → L1 MISS, stores normalized "name" in L1
+		//
+		// Fetch 2: ProvidesData = {email}
+		//   → L1 widening miss
+		//
+		// Fetch 3: ProvidesData = {name} (no alias, schema name)
+		//   → L1 HIT: "name" is in L1 from fetch 1's normalized write
+
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		rootDS := NewMockDataSource(ctrl)
+		rootDS.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"user":{"__typename":"User","id":"1"}}}`), nil
+			}).Times(1)
+
+		entityDS1 := NewMockDataSource(ctrl)
+		entityDS1.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"_entities":[{"__typename":"User","id":"1","nickname":"Alice"}]}}`), nil
+			}).Times(1)
+
+		entityDS2 := NewMockDataSource(ctrl)
+		entityDS2.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"_entities":[{"__typename":"User","id":"1","email":"alice@example.com"}]}}`), nil
+			}).Times(1)
+
+		entityDS3 := NewMockDataSource(ctrl)
+		entityDS3.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			Times(0) // L1 hit
+
+		userCacheKeyTemplate := &EntityQueryCacheKeyTemplate{
+			Keys: NewResolvableObjectVariable(&Object{
+				Fields: []*Field{
+					{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+					{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+				},
+			}),
+		}
+
+		// Fetch 1: alias "nickname" → schema "name"
+		providesData1 := &Object{
+			HasAliases: true,
+			Fields: []*Field{
+				{Name: []byte("nickname"), OriginalName: []byte("name"), Value: &Scalar{}},
+			},
+		}
+
+		providesData2 := &Object{
+			Fields: []*Field{
+				{Name: []byte("email"), Value: &Scalar{}},
+			},
+		}
+		ComputeHasAliases(providesData2)
+
+		// Fetch 3: no alias, uses schema name directly
+		providesData3 := &Object{
+			Fields: []*Field{
+				{Name: []byte("name"), Value: &Scalar{}},
+			},
+		}
+		ComputeHasAliases(providesData3)
+
+		entityInput := BatchInput{
+			Header: InputTemplate{Segments: []TemplateSegment{{Data: []byte(`{"method":"POST","url":"http://users","body":{"query":"q","variables":{"representations":[`), SegmentType: StaticSegmentType}}},
+			Items: []InputTemplate{{Segments: []TemplateSegment{{
+				SegmentType:  VariableSegmentType,
+				VariableKind: ResolvableObjectVariableKind,
+				Renderer: NewGraphQLVariableResolveRenderer(&Object{Fields: []*Field{
+					{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+					{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+				}}),
+			}}}},
+			Footer: InputTemplate{Segments: []TemplateSegment{{Data: []byte(`]}}}`), SegmentType: StaticSegmentType}}},
+		}
+
+		response := &GraphQLResponse{
+			Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
+			Fetches: Sequence(
+				SingleWithPath(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource:     rootDS,
+						PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data"}},
+					},
+					InputTemplate: InputTemplate{
+						Segments: []TemplateSegment{{Data: []byte(`{"method":"POST","url":"http://users"}`), SegmentType: StaticSegmentType}},
+					},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+				}, "query"),
+				SingleWithPath(&BatchEntityFetch{
+					Input:          entityInput,
+					DataSource:     entityDS1,
+					PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data", "_entities"}},
+					Info:           &FetchInfo{DataSourceName: "users", OperationType: ast.OperationTypeQuery, ProvidesData: providesData1},
+					Caching:        FetchCacheConfiguration{Enabled: true, CacheName: "default", CacheKeyTemplate: userCacheKeyTemplate, UseL1Cache: true},
+				}, "query.user", ObjectPath("user")),
+				SingleWithPath(&BatchEntityFetch{
+					Input:          entityInput,
+					DataSource:     entityDS2,
+					PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data", "_entities"}},
+					Info:           &FetchInfo{DataSourceName: "users", OperationType: ast.OperationTypeQuery, ProvidesData: providesData2},
+					Caching:        FetchCacheConfiguration{Enabled: true, CacheName: "default", CacheKeyTemplate: userCacheKeyTemplate, UseL1Cache: true},
+				}, "query.user", ObjectPath("user")),
+				SingleWithPath(&BatchEntityFetch{
+					Input:          entityInput,
+					DataSource:     entityDS3,
+					PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data", "_entities"}},
+					Info:           &FetchInfo{DataSourceName: "users", OperationType: ast.OperationTypeQuery, ProvidesData: providesData3},
+					Caching:        FetchCacheConfiguration{Enabled: true, CacheName: "default", CacheKeyTemplate: userCacheKeyTemplate, UseL1Cache: true},
+				}, "query.user", ObjectPath("user")),
+			),
+			Data: &Object{
+				Fields: []*Field{
+					{Name: []byte("user"), Value: &Object{
+						Path: []string{"user"},
+						Fields: []*Field{
+							{Name: []byte("name"), Value: &String{Path: []string{"name"}}},
+							{Name: []byte("email"), Value: &String{Path: []string{"email"}}},
+						},
+					}},
+				},
+			},
+		}
+
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(4096))
+		ctx := NewContext(context.Background())
+		ctx.ExecutionOptions.Caching.EnableL1Cache = true
+		ctx.ExecutionOptions.Caching.EnableCacheAnalytics = true
+		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+
+		resolvable := NewResolvable(ar, ResolvableOptions{})
+		err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+		require.NoError(t, err)
+
+		loader := &Loader{
+			ctx:        ctx,
+			jsonArena:  ar,
+			l1Cache:    map[string]*astjson.Value{},
+			resolvable: resolvable,
+			caches:     map[string]LoaderCache{"default": NewFakeLoaderCache()},
+		}
+
+		err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+		require.NoError(t, err)
+
+		out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
+		assert.Equal(t, `{"data":{"user":{"__typename":"User","id":"1","nickname":"Alice","email":"alice@example.com","name":"Alice"}}}`, string(out),
+			"fetch 3 should get name (no alias) from L1")
+
+		stats := ctx.GetCacheStats()
+		var l1Hits int
+		for _, ev := range stats.L1Reads {
+			if ev.Kind == CacheKeyHit {
+				l1Hits++
+			}
+		}
+		assert.Equal(t, 1, l1Hits, "Fetch 3 should hit L1 (schema name 'name' stored by fetch 1's alias normalize)")
 	})
 }

@@ -24,7 +24,7 @@ import (
 // Solution: EntityMergePath records the JSON path (e.g. ["user"]) at which the
 // entity data is nested in the root field response. On store, cacheKeysToEntries
 // strips the wrapper. On load, tryL2CacheLoad re-wraps the entity data.
-func TestEntityMergePath(t *testing.T) {
+func TestEntityMergePath_AllPathVariants(t *testing.T) {
 
 	// Group 1: prepareCacheKeys — EntityMergePath assignment
 
@@ -44,7 +44,8 @@ func TestEntityMergePath(t *testing.T) {
 				CacheKeyTemplate: &RootQueryCacheKeyTemplate{
 					RootFields: []QueryField{
 						{
-							Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"},
+							Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "user"},
+							ResponseKey: "user",
 							Args: []FieldArgument{
 								{
 									Name: "id",
@@ -93,7 +94,8 @@ func TestEntityMergePath(t *testing.T) {
 				CacheKeyTemplate: &RootQueryCacheKeyTemplate{
 					RootFields: []QueryField{
 						{
-							Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"},
+							Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "user"},
+							ResponseKey: "user",
 							Args: []FieldArgument{
 								{
 									Name: "id",
@@ -146,7 +148,8 @@ func TestEntityMergePath(t *testing.T) {
 				CacheKeyTemplate: &RootQueryCacheKeyTemplate{
 					RootFields: []QueryField{
 						{
-							Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"},
+							Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "user"},
+							ResponseKey: "user",
 							Args: []FieldArgument{
 								{
 									Name: "id",
@@ -231,7 +234,8 @@ func TestEntityMergePath(t *testing.T) {
 				CacheKeyTemplate: &RootQueryCacheKeyTemplate{
 					RootFields: []QueryField{
 						{
-							Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"},
+							Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "user"},
+							ResponseKey: "user",
 							Args: []FieldArgument{
 								{
 									Name: "id",
@@ -243,7 +247,8 @@ func TestEntityMergePath(t *testing.T) {
 							},
 						},
 						{
-							Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "account"},
+							Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "account"},
+							ResponseKey: "account",
 							Args: []FieldArgument{
 								{
 									Name: "id",
@@ -291,7 +296,8 @@ func TestEntityMergePath(t *testing.T) {
 				CacheKeyTemplate: &RootQueryCacheKeyTemplate{
 					RootFields: []QueryField{
 						{
-							Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"},
+							Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "user"},
+							ResponseKey: "user",
 							Args: []FieldArgument{
 								{
 									Name: "id",
@@ -303,7 +309,8 @@ func TestEntityMergePath(t *testing.T) {
 							},
 						},
 						{
-							Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "account"},
+							Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "account"},
+							ResponseKey: "account",
 							Args: []FieldArgument{
 								{
 									Name: "id",
@@ -815,7 +822,8 @@ func TestEntityMergePath(t *testing.T) {
 				CacheKeyTemplate: &RootQueryCacheKeyTemplate{
 					RootFields: []QueryField{
 						{
-							Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"},
+							Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "user"},
+							ResponseKey: "user",
 							Args: []FieldArgument{
 								{
 									Name: "id",

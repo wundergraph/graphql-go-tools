@@ -133,6 +133,18 @@ type CDerObj struct {
 	Last   string `json:"last"`
 }
 
+type CacheEntity struct {
+	ID string `json:"id"`
+	A  string `json:"a"`
+	B  string `json:"b"`
+	C  string `json:"c"`
+	D  string `json:"d"`
+	E  string `json:"e"`
+	F  string `json:"f"`
+}
+
+func (CacheEntity) IsEntity() {}
+
 type Cat struct {
 	Name string `json:"name"`
 }

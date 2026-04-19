@@ -30,7 +30,7 @@ func cacheLoadAllocs(a arena.Arena) {
 	outer := astjson.ObjectValue(a)
 	outer.Set(a, "data", obj)
 
-	// 4. denormalizeFromCache: create new object tree
+	// 4. denormalize via DeepCopyWithTransform: create new object tree
 	result := astjson.ObjectValue(a)
 	result.Set(a, "productName", v.Get("name"))
 	result.Set(a, "productPrice", v.Get("price"))

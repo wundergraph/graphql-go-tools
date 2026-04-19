@@ -104,8 +104,7 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 	t.Run("Subgraph errors are available on resolve context when error propagation is disabled", func(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
-		rCtx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		rCtx := t.Context()
 		r := New(rCtx, ResolverOptions{
 			MaxConcurrency:               1024,
 			Debug:                        false,
@@ -152,7 +151,7 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 		}
 
 		buf := &bytes.Buffer{}
-		_, err := r.ResolveGraphQLResponse(resolveCtx, resp, nil, buf)
+		_, err := r.ResolveGraphQLResponse(resolveCtx, resp, buf)
 		assert.NoError(t, err)
 		assert.Equal(t, `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at Path 'query'."}],"data":{"name":null}}`, buf.String())
 		ctrl.Finish()

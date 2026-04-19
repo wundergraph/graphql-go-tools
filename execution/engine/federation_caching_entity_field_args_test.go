@@ -126,6 +126,8 @@ func newEntityFieldArgsSetup(t *testing.T) *entityFieldArgsSetup {
 	}
 }
 
+// TestEntityFieldArgsCaching verifies that entity fields with arguments produce distinct
+// cache entries (via xxhash suffix), so different argument values never share cached data.
 func TestEntityFieldArgsCaching(t *testing.T) {
 	t.Parallel()
 	// peekCache retrieves a cached entry's raw JSON without logging.
@@ -560,7 +562,7 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 			}
 		}`
 
-		vars := queryVariables{"input": map[string]interface{}{"style": "FORMAL"}}
+		vars := queryVariables{"input": map[string]any{"style": "FORMAL"}}
 
 		// Request 1: customGreeting with enum FORMAL - should miss
 		s.defaultCache.ClearLog()
@@ -649,8 +651,8 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 			}
 		}`
 
-		varsFormal := queryVariables{"input": map[string]interface{}{"style": "FORMAL"}}
-		varsCasual := queryVariables{"input": map[string]interface{}{"style": "CASUAL"}}
+		varsFormal := queryVariables{"input": map[string]any{"style": "FORMAL"}}
+		varsCasual := queryVariables{"input": map[string]any{"style": "CASUAL"}}
 
 		expectedFormal := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","customGreeting":"Good day, Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","customGreeting":"Good day, Me"}}]}]}}`
 		expectedCasual := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","customGreeting":"Hey, Me!"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","customGreeting":"Hey, Me!"}}]}]}}`
@@ -743,13 +745,13 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 			}
 		}`
 
-		varsUppercase := queryVariables{"input": map[string]interface{}{
+		varsUppercase := queryVariables{"input": map[string]any{
 			"style":      "FORMAL",
-			"formatting": map[string]interface{}{"uppercase": true},
+			"formatting": map[string]any{"uppercase": true},
 		}}
-		varsNoUppercase := queryVariables{"input": map[string]interface{}{
+		varsNoUppercase := queryVariables{"input": map[string]any{
 			"style":      "FORMAL",
-			"formatting": map[string]interface{}{"uppercase": false},
+			"formatting": map[string]any{"uppercase": false},
 		}}
 
 		expectedUppercase := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","customGreeting":"GOOD DAY, ME"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","customGreeting":"GOOD DAY, ME"}}]}]}}`
@@ -842,13 +844,13 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 			}
 		}`
 
-		varsUppercase := queryVariables{"input": map[string]interface{}{
+		varsUppercase := queryVariables{"input": map[string]any{
 			"style":      "FORMAL",
-			"formatting": map[string]interface{}{"uppercase": true},
+			"formatting": map[string]any{"uppercase": true},
 		}}
-		varsPrefix := queryVariables{"input": map[string]interface{}{
+		varsPrefix := queryVariables{"input": map[string]any{
 			"style":      "FORMAL",
-			"formatting": map[string]interface{}{"prefix": "Dr."},
+			"formatting": map[string]any{"prefix": "Dr."},
 		}}
 
 		expectedUppercase := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","customGreeting":"GOOD DAY, ME"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","customGreeting":"GOOD DAY, ME"}}]}]}}`

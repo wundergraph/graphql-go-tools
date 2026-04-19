@@ -181,33 +181,40 @@ type result struct {
 	// Used by updateL2Cache to record HeaderImpactEvents.
 	headerHash uint64
 
+	// includeHeaderPrefix mirrors `cfg.IncludeSubgraphHeaderPrefix && SubgraphHeadersBuilder != nil`
+	// for the active fetch. The headerHash alone can't distinguish "no headers forwarded"
+	// (hash == 0 with header partitioning ON — must still produce a "0:" prefix so the WRITE
+	// matches the READ) from "header partitioning OFF" (hash == 0 — must NOT add a prefix).
+	// Set in tryL2CacheLoad alongside headerHash; read by rootFieldL2CachePrefix.
+	includeHeaderPrefix bool
+
 	// Cache trace fields — populated during cache operations, consumed by buildCacheTrace.
 	// Written only from the goroutine owning this result (or main thread for sequential).
-	cacheTraceL2GetAttempted    bool
-	cacheTraceL2SetAttempted    bool // Regular entries Set
-	cacheTraceL2SetNegAttempted bool // Negative entries Set
-	cacheTraceL2GetDuration     time.Duration
-	cacheTraceL2SetDuration     time.Duration // Regular entries Set
-	cacheTraceL2SetNegDuration  time.Duration // Negative entries Set
-	cacheTraceL2GetError        string
-	cacheTraceL2SetError        string
-	cacheTraceL2SetNegError     string
-	cacheTraceL1Hits            int
-	cacheTraceL1Misses          int
-	cacheTraceL2Hits            int
-	cacheTraceL2Misses          int
-	cacheTraceNegativeHits      int
-	cacheTraceShadowHit         bool // L2 had data but shadow mode forced fetch
-	cacheTraceEntityDetails     []CacheTraceEntity
+	cacheTraceDurationSinceStartNano int64 // when cache processing started (nanos since trace start)
+	cacheTraceDurationNano           int64 // total cache processing time (nanos)
+	cacheTraceEntityCount            int   // total entities involved in this fetch
+	cacheTraceL2GetAttempted         bool
+	cacheTraceL2SetAttempted         bool // Regular entries Set
+	cacheTraceL2SetNegAttempted      bool // Negative entries Set
+	cacheTraceL2GetDuration          time.Duration
+	cacheTraceL2SetDuration          time.Duration // Regular entries Set
+	cacheTraceL2SetNegDuration       time.Duration // Negative entries Set
+	cacheTraceL2GetError             string
+	cacheTraceL2SetError             string
+	cacheTraceL2SetNegError          string
+	cacheTraceL1Hits                 int
+	cacheTraceL1Misses               int
+	cacheTraceRequestScopedHits      int // entities satisfied by @requestScoped coordinate L1
+	cacheTraceL2Hits                 int
+	cacheTraceL2Misses               int
+	cacheTraceNegativeHits           int
+	cacheTraceShadowHit              bool // L2 had data but shadow mode forced fetch
+	cacheTraceEntityDetails          []CacheTraceEntity
 
 	// shadowCachedValues stores cached L2 values when shadow mode is active.
 	// After fresh data arrives, these are compared to detect staleness.
 	// Key is the index into l1CacheKeys (entity fetches) or l2CacheKeys (root fetches).
 	shadowCachedValues map[int]shadowCacheEntry
-
-	// goroutineArena is the per-goroutine arena for L2 cache allocations during Phase 2.
-	// Acquired from l2ArenaPool before the goroutine starts, released in Loader.Free().
-	goroutineArena arena.Arena
 }
 
 // shadowCacheEntry holds a cached value saved during shadow mode L2 lookup.
@@ -284,9 +291,6 @@ type Loader struct {
 	// Not thread safe — only use from the main goroutine.
 	// Don't Reset or Release; the Resolver handles this.
 	//
-	// Phase 2 goroutines use per-goroutine arenas (see goroutineArenas)
-	// instead of jsonArena to avoid data races.
-	//
 	// IMPORTANT: All astjson *Value nodes returned by ParseWithArena,
 	// ParseBytesWithArena, StringValue, etc. live on this arena.
 	// Never store heap-allocated *Value into an arena-owned container —
@@ -294,11 +298,28 @@ type Loader struct {
 	// a heap *Value could be collected while still referenced.
 	jsonArena arena.Arena
 
-	// goroutineArenas collects per-goroutine arenas acquired during Phase 2
-	// parallel execution. Released together with jsonArena in Free(), because
-	// MergeValues creates cross-arena references from the response tree into
-	// these arenas.
-	goroutineArenas []arena.Arena
+	// parser is a re-usable astjson.Parser owned by this Loader and used ONLY
+	// from the main thread. Its scratch slabs (counts, containerSizes, counters,
+	// tokenLens) grow to the high-water mark of any JSON the Loader has parsed
+	// and are retained across calls. Same lifetime rule as jsonArena: never touch
+	// from a goroutine.
+	parser astjson.Parser
+
+	// transformEntries is a reusable backing slice for building
+	// astjson.Transform descriptors. Resliced to [:0] before each use.
+	// Since transforms are built and consumed synchronously on the main
+	// thread (never stored), a single slice suffices.
+	transformEntries []astjson.TransformEntry
+
+	// transforms is a reusable backing slice for astjson.Transform
+	// headers (child/array transforms). Same lifecycle as transformEntries.
+	transforms []astjson.Transform
+
+	// transformMetas is a reusable backing slice for per-field staging data
+	// (fieldMeta) used while building a Transform tree. Pre-grown in
+	// resetTransformSlabs to avoid per-call heap allocations. Same lifecycle
+	// as transformEntries / transforms.
+	transformMetas []fieldMeta
 
 	// singleFlight is the SubgraphRequestSingleFlight object shared across all client requests.
 	// It's thread safe and can be used to de-duplicate subgraph requests.
@@ -306,15 +327,47 @@ type Loader struct {
 
 	// l1Cache is the per-request entity cache (L1).
 	// Key: cache key string (WITHOUT subgraph header prefix)
-	// Value: *astjson.Value pointer to entity in jsonArena
-	// Thread-safe via sync.Map for parallel fetch support.
+	// Value: *astjson.Value pointing into l.jsonArena (StructuralCopy on both read and write).
 	// Only used for entity fetches, NOT root fetches (root fields have no prior entity data).
-	l1Cache *sync.Map
+	//
+	// MAIN-THREAD ONLY: plain map, NOT sync.Map. Every read and write happens on the
+	// resolver main thread:
+	//   - reads:  tryL1CacheLoad in resolveParallel Phase 1 / resolveSingle's tryCacheLoad
+	//   - writes: populateL1Cache / populateL1CacheForRootFieldEntities, called from
+	//             populateCachesAfterFetch via mergeResult (Phase 4 of resolveParallel
+	//             and in resolveSingle after a successful subgraph fetch)
+	// Phase 2 HTTP goroutines never touch this map — bulkL2Lookup moved the L2 read
+	// to the main thread, and merge/cache-population run sequentially in Phase 4.
+	// If you add a new access site, it must also be on the main thread.
+	//
+	// IMPORTANT: L1 writes always StructuralCopy onto l.jsonArena (with normalize
+	// passthrough for alias/arg normalization). Reads also StructuralCopy
+	// to give the consumer a fresh, mutable value owned by the current request arena.
+	l1Cache map[string]*astjson.Value
+
+	// requestScopedL1 is a per-request cache for @requestScoped field values.
+	// Key: coordinate string (e.g. "viewer.Personalized.currentViewer")
+	// Value: *astjson.Value pointer to the cached field value in jsonArena.
+	// Separate from l1Cache which is keyed by entity cache keys.
+	//
+	// MAIN-THREAD ONLY: same lifetime and threading rules as l1Cache. Reads happen in
+	// tryRequestScopedInjection (Phase 1.5 / Phase 3.5 / resolveSingle), writes in
+	// exportRequestScopedFields (invoked from the main thread after merge).
+	// The same arena-lifetime rule applies here: only detached values owned by
+	// l.jsonArena may be stored.
+	requestScopedL1 map[string]*astjson.Value
 
 	// enableMutationL2CachePopulation is set per-mutation-field in resolveSingle
 	// when processing a root mutation fetch. Entity fetches that follow in the
 	// sequence inherit this flag, checked in updateL2Cache.
 	// By default false: mutations do NOT populate L2 cache.
+	//
+	// Inheritance is opaque from this declaration: the flag is assigned at the
+	// SingleFetch branch in (*Loader).resolveSingle (loader.go, case
+	// *SingleFetch with OperationType == Mutation) and consumed at
+	// (*Loader).updateL2Cache in loader_cache.go. The mutation root sets it;
+	// subsequent entity fetches in the same sequence observe it until the
+	// next mutation root reassigns or Loader.Free() zeroes it.
 	enableMutationL2CachePopulation bool
 	// mutationCacheTTLOverride overrides the entity TTL for mutation-triggered L2 writes.
 	// Set per-mutation-field alongside enableMutationL2CachePopulation.
@@ -336,15 +389,12 @@ func (l *Loader) Free() {
 	l.resolvable = nil
 	l.taintedObjs = nil
 	l.l1Cache = nil
+	l.requestScopedL1 = nil
 	l.jsonArena = nil
 	l.enableMutationL2CachePopulation = false
 	l.mutationCacheTTLOverride = 0
-	for i, a := range l.goroutineArenas {
-		a.Reset()
-		l2ArenaPool.Put(a)
-		l.goroutineArenas[i] = nil
-	}
-	l.goroutineArenas = l.goroutineArenas[:0]
+	// l.parser is intentionally retained — it holds no arena references and its
+	// scratch slabs amortize across requests.
 }
 
 func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, resolvable *Resolvable) (err error) {
@@ -354,7 +404,8 @@ func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse
 	l.ctx = ctx
 	l.info = response.Info
 	l.taintedObjs = make(taintedObjects)
-	l.l1Cache = &sync.Map{}
+	l.l1Cache = make(map[string]*astjson.Value)
+	l.requestScopedL1 = make(map[string]*astjson.Value)
 	ctx.initCacheAnalytics()
 	return l.resolveFetchNode(response.Fetches)
 }
@@ -397,6 +448,12 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 		info := getFetchInfo(f)
 		cfg := getFetchCaching(f)
 
+		// Record cache trace start time
+		tracingCache := l.ctx.TracingOptions.Enable && !l.ctx.TracingOptions.ExcludeCacheStats
+		if tracingCache {
+			results[i].cacheTraceDurationSinceStartNano = GetDurationNanoSinceTraceStart(l.ctx.ctx)
+		}
+
 		// Set partial loading flag BEFORE cache lookup so tracking arrays are populated
 		// Shadow mode forces partial loading off - all items always fetched
 		if cfg.ShadowMode {
@@ -409,6 +466,17 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 		isEntityFetch, err := l.prepareCacheKeys(info, cfg, itemsItems[i], results[i])
 		if err != nil {
 			return errors.WithStack(err)
+		}
+
+		// Set entity count from cache keys
+		if len(results[i].l2CacheKeys) > 0 {
+			for _, ck := range results[i].l2CacheKeys {
+				results[i].cacheTraceEntityCount += len(ck.Keys)
+			}
+		} else if len(results[i].l1CacheKeys) > 0 {
+			for _, ck := range results[i].l1CacheKeys {
+				results[i].cacheTraceEntityCount += len(ck.Keys)
+			}
 		}
 
 		// L1 Check (main thread only - not thread-safe)
@@ -430,10 +498,74 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 				results[i].fetchItemIndices = nil
 			}
 		}
+
 	}
 
-	// Phase 2: Parallel L2 + fetch for nodes that didn't fully hit L1
-	// L2 stats use atomic operations - thread-safe
+	// Phase 1.5: @requestScoped coordinate L1 injection (main thread, before fetches).
+	//
+	// Iterating synchronously here and checking tryRequestScopedInjection BEFORE launching
+	// Phase 2 goroutines lets us skip the entire subgraph round-trip when the per-request
+	// L1 already holds the hinted value (populated by an earlier fetch in the same plan).
+	//
+	// Without this step, each parallel batch entity fetch would still launch an HTTP call
+	// even when the data is already in requestScopedL1 — the post-fetch phase below would
+	// then mark the fetch as LoadSkipped, but the round-trip (and its artificial latency in
+	// demos) has already been paid. For a query with @requestScoped currentViewer selected
+	// at multiple nesting depths, that means N viewer fetches where 1 would suffice.
+	//
+	// Safety: injection mutates the fetch's own `items` slice. Each node in `nodes` has its
+	// own disjoint `items` (different entities in the response tree), so running this on the
+	// main thread in a loop is free of cross-node races. The post-fetch Phase 3.5 loop is
+	// kept as a fallback for hints that become satisfiable later (e.g., a hint depending on
+	// data an in-flight goroutine is still producing).
+	for i := range nodes {
+		res := results[i]
+		if res.cacheSkipFetch || res.fetchSkipped {
+			continue
+		}
+		cfg := getFetchCaching(nodes[i].Item.Fetch)
+		if l.tryRequestScopedInjection(res, cfg, itemsItems[i]) {
+			res.fetchSkipped = true
+			res.cacheTraceRequestScopedHits = res.cacheTraceEntityCount
+			if l.ctx.TracingOptions.Enable {
+				ensureFetchTrace(nodes[i].Item.Fetch).LoadSkipped = true
+			}
+		}
+	}
+
+	// Phase 2L2: Bulk L2 lookup on the main thread.
+	// Replaces the per-fetch L2 read that previously happened inside Phase 2 goroutines.
+	// All L2 parsing happens here on l.jsonArena via l.parser. After this call:
+	//   - res.cacheSkipFetch is set for fetches whose L2 hits cover all entities
+	//   - res.l2CacheKeys[].FromCache is populated for partial hits
+	//   - res.l2AnalyticsEvents / l2FetchTimings have been accumulated
+	//   - attachCachedOutputToTrace has been called for each cache-skip fetch
+	// Goroutines launched in Phase 2 below run HTTP fetches only.
+	if l.ctx.ExecutionOptions.Caching.EnableL2Cache {
+		if err := l.bulkL2Lookup(l.ctx.ctx, nodes, results); err != nil {
+			return errors.WithStack(err)
+		}
+	}
+
+	// Snapshot cacheTraceDurationNano for each parallel-path result at the end of
+	// main-thread cache work (Phase 1 + Phase 1.5 + Phase 2L2). After this point we
+	// run Phase 2 HTTP goroutines and Phase 3.5/4 merge — those are NOT cache work,
+	// so including them in the cache duration (as the lazy fallback in buildCacheTrace
+	// used to do) reported the entire batch wall-clock under the L1/requestScoped
+	// "duration_nanoseconds" field. The playground then displayed multi-millisecond
+	// "L1 hit" timings, even though the actual L1/coordinate-cache lookups on the main
+	// thread take a handful of microseconds. Capturing now gives every result an
+	// accurate cache-work duration regardless of how slow any sibling HTTP fetch is.
+	if l.ctx.TracingOptions.Enable && !l.ctx.TracingOptions.ExcludeCacheStats {
+		nowNs := GetDurationNanoSinceTraceStart(l.ctx.ctx)
+		for i := range results {
+			if results[i].cacheTraceDurationSinceStartNano > 0 && results[i].cacheTraceDurationNano == 0 {
+				results[i].cacheTraceDurationNano = nowNs - results[i].cacheTraceDurationSinceStartNano
+			}
+		}
+	}
+
+	// Phase 2: Parallel HTTP fetches for nodes that didn't fully hit L1 or L2.
 	g, ctx := errgroup.WithContext(l.ctx.ctx)
 	for i := range nodes {
 		f := nodes[i].Item.Fetch
@@ -441,20 +573,22 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 		items := itemsItems[i]
 		res := results[i]
 
-		// Skip goroutine if L1 was a complete hit
-		if res.cacheSkipFetch {
+		// Skip goroutine if L1 was a complete hit, or if Phase 1.5 already
+		// satisfied this fetch from the @requestScoped coordinate L1, or if
+		// bulkL2Lookup already satisfied the fetch.
+		if res.cacheSkipFetch || res.fetchSkipped {
 			continue
 		}
 
-		// Acquire a per-goroutine arena for L2 cache allocations.
-		// Released in Loader.Free(), not here, because MergeValues
-		// creates cross-arena references from the response tree.
-		goroutineArena := l2ArenaPool.Get().(arena.Arena)
-		l.goroutineArenas = append(l.goroutineArenas, goroutineArena)
-		res.goroutineArena = goroutineArena
-
+		// Goroutine thread-safety contract: the spawned goroutine does HTTP
+		// only — it must never allocate on l.jsonArena, parse JSON, or touch
+		// l.parser, l1Cache, or requestScopedL1. The arena is not
+		// thread-safe and has no goroutine-arena pool anymore; the raw
+		// subgraph []byte is stashed on *result and parsed on the main
+		// thread in Phase 4 via mergeResult → parseBytesWithArena.
+		// See v2/pkg/engine/resolve/CLAUDE.md §"Thread Safety Model".
 		g.Go(func() error {
-			return l.loadFetchL2Only(ctx, f, item, items, res)
+			return l.loadFetchHTTP(ctx, f, item, items, res)
 		})
 	}
 	err := g.Wait()
@@ -483,6 +617,22 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 		}
 	}
 
+	// Phase 3.5: RequestScoped injection (main thread, after all fetches complete)
+	// This runs between fetch completion and merge so injected data doesn't interfere
+	// with other parallel fetches that are still populating entity items.
+	for i := range results {
+		if !results[i].cacheSkipFetch && !results[i].fetchSkipped {
+			cfg := getFetchCaching(nodes[i].Item.Fetch)
+			if l.tryRequestScopedInjection(results[i], cfg, itemsItems[i]) {
+				results[i].fetchSkipped = true
+				results[i].cacheTraceRequestScopedHits = results[i].cacheTraceEntityCount
+				if l.ctx.TracingOptions.Enable {
+					ensureFetchTrace(nodes[i].Item.Fetch).LoadSkipped = true
+				}
+			}
+		}
+	}
+
 	// Phase 4: Merge results (main thread)
 	for i := range results {
 		if results[i].nestedMergeItems != nil {
@@ -502,6 +652,8 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 				return errors.WithStack(err)
 			}
 		}
+		// Export requestScoped fields after merge (main thread)
+		l.exportRequestScopedFields(results[i], getFetchCaching(nodes[i].Item.Fetch), itemsItems[i])
 	}
 	return nil
 }
@@ -526,6 +678,8 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 	case *SingleFetch:
 		// Propagate mutation field cache config to loader for child entity fetches.
 		// Each mutation root fetch updates this flag; subsequent entity fetches inherit it.
+		// This is the inheritance site for Loader.enableMutationL2CachePopulation
+		// (field declared in the Loader struct above); consumed in updateL2Cache.
 		if f.Info != nil && f.Info.OperationType == ast.OperationTypeMutation {
 			l.enableMutationL2CachePopulation = f.Caching.EnableMutationL2CachePopulation
 			l.mutationCacheTTLOverride = f.Caching.MutationCacheTTLOverride
@@ -549,14 +703,32 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 			return errors.WithStack(err)
 		}
 		if !skip {
+			if l.tryRequestScopedInjection(res, f.Caching, items) {
+				res.cacheTraceRequestScopedHits = res.cacheTraceEntityCount
+				if l.ctx.TracingOptions.Enable {
+					ensureFetchTrace(f).LoadSkipped = true
+				}
+				l.exportRequestScopedFields(res, f.Caching, items)
+				l.attachCacheTrace(f, res, f.Caching)
+				return nil
+			}
+		}
+		if !skip {
 			// Batch partial fetch filtering is handled inside loadSingleFetch
 			err = l.loadSingleFetch(l.ctx.ctx, f, item, items, res)
 			if err != nil {
 				return err
 			}
+		} else if l.ctx.TracingOptions.Enable {
+			// Cache hit covered everything — the subgraph was not called. Mirror the
+			// LoadSkipped reporting that the bulk-parallel paths (resolveParallel) and
+			// the @requestScoped injection branch above already do, so observability
+			// can distinguish "served from cache" from "fetched fresh".
+			ensureFetchTrace(f).LoadSkipped = true
 		}
 		l.mergeResultAnalytics(res)
 		err = l.mergeResult(item, res, items)
+		l.exportRequestScopedFields(res, f.Caching, items)
 		l.callOnFinished(res)
 		l.attachCacheTrace(f, res, f.Caching)
 		return err
@@ -568,13 +740,33 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 			return errors.WithStack(err)
 		}
 		if !skip {
+			if l.tryRequestScopedInjection(res, f.Caching, items) {
+				// Data was injected directly onto items — skip fetch AND merge
+				res.cacheTraceRequestScopedHits = res.cacheTraceEntityCount
+				if l.ctx.TracingOptions.Enable {
+					ensureFetchTrace(f).LoadSkipped = true
+				}
+				l.attachCachedOutputToTrace(f, res)
+				l.exportRequestScopedFields(res, f.Caching, items)
+				l.attachCacheTrace(f, res, f.Caching)
+				return nil
+			}
+		}
+		if !skip {
 			err = l.loadBatchEntityFetch(l.ctx.ctx, item, f, items, res)
 			if err != nil {
 				return errors.WithStack(err)
 			}
+		} else {
+			l.attachCachedOutputToTrace(f, res)
+			if l.ctx.TracingOptions.Enable {
+				// Cache hit covered every entity in the batch — record LoadSkipped.
+				ensureFetchTrace(f).LoadSkipped = true
+			}
 		}
 		l.mergeResultAnalytics(res)
 		err = l.mergeResult(item, res, items)
+		l.exportRequestScopedFields(res, f.Caching, items)
 		l.callOnFinished(res)
 		l.attachCacheTrace(f, res, f.Caching)
 		return err
@@ -585,13 +777,32 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 			return errors.WithStack(err)
 		}
 		if !skip {
+			if l.tryRequestScopedInjection(res, f.Caching, items) {
+				res.cacheTraceRequestScopedHits = res.cacheTraceEntityCount
+				if l.ctx.TracingOptions.Enable {
+					ensureFetchTrace(f).LoadSkipped = true
+				}
+				l.attachCachedOutputToTrace(f, res)
+				l.exportRequestScopedFields(res, f.Caching, items)
+				l.attachCacheTrace(f, res, f.Caching)
+				return nil
+			}
+		}
+		if !skip {
 			err = l.loadEntityFetch(l.ctx.ctx, item, f, items, res)
 			if err != nil {
 				return errors.WithStack(err)
 			}
+		} else {
+			l.attachCachedOutputToTrace(f, res)
+			if l.ctx.TracingOptions.Enable {
+				// Cache hit covered the entity — record LoadSkipped.
+				ensureFetchTrace(f).LoadSkipped = true
+			}
 		}
 		l.mergeResultAnalytics(res)
 		err = l.mergeResult(item, res, items)
+		l.exportRequestScopedFields(res, f.Caching, items)
 		l.callOnFinished(res)
 		l.attachCacheTrace(f, res, f.Caching)
 		return err
@@ -634,13 +845,35 @@ func (l *Loader) buildCacheTrace(res *result, cfg FetchCacheConfiguration) *Cach
 		return nil
 	}
 
+	// Cache duration is captured inline:
+	//   - Sequential path: tryCacheLoad's defer (loader_cache.go ~689) records start→end
+	//     of all cache work for this fetch (prepareCacheKeys + L1 + L2).
+	//   - Parallel path: resolveParallel snapshots duration after Phase 2L2 completes,
+	//     i.e. at the end of main-thread cache work, BEFORE Phase 2 HTTP goroutines run.
+	// Both paths set res.cacheTraceDurationNano at a point where all cache work for the
+	// fetch is done, so there is no fallback-compute here. An earlier version of this
+	// function computed a wall-clock delta at attachCacheTrace time, which for parallel
+	// batches reported the slowest sibling's HTTP fetch as the "L1 hit duration".
+
+	// Fold @requestScoped coordinate L1 hits into the L1 counters.
+	// Entities satisfied by requestScoped injection were recorded as L1 misses
+	// during Phase 1 (entity L1 check). Now that requestScoped has run, convert
+	// those misses to hits so the trace accurately reflects L1-level cache efficiency.
+	l1Hits := res.cacheTraceL1Hits + res.cacheTraceRequestScopedHits
+	l1Misses := max(res.cacheTraceL1Misses-res.cacheTraceRequestScopedHits, 0)
+
 	ct := &CacheTrace{
+		DurationSinceStartNano:      res.cacheTraceDurationSinceStartNano,
+		DurationSinceStartPretty:    time.Duration(res.cacheTraceDurationSinceStartNano).String(),
+		DurationNano:                res.cacheTraceDurationNano,
+		DurationPretty:              time.Duration(res.cacheTraceDurationNano).String(),
 		L1Enabled:                   cfg.UseL1Cache && l.ctx.ExecutionOptions.Caching.EnableL1Cache,
 		L2Enabled:                   cfg.Enabled && l.ctx.ExecutionOptions.Caching.EnableL2Cache && res.cache != nil,
 		CacheName:                   cfg.CacheName,
 		TTLSeconds:                  int64(cfg.TTL.Seconds()),
-		L1Hit:                       res.cacheTraceL1Hits,
-		L1Miss:                      res.cacheTraceL1Misses,
+		EntityCount:                 res.cacheTraceEntityCount,
+		L1Hit:                       l1Hits,
+		L1Miss:                      l1Misses,
 		L2Hit:                       res.cacheTraceL2Hits,
 		L2Miss:                      res.cacheTraceL2Misses,
 		NegativeCacheHits:           res.cacheTraceNegativeHits,
@@ -682,6 +915,10 @@ func (l *Loader) buildCacheTrace(res *result, cfg FetchCacheConfiguration) *Cach
 	}
 
 	if l.ctx.TracingOptions.EnablePredictableDebugTimings {
+		ct.DurationSinceStartNano = 1
+		ct.DurationSinceStartPretty = "1ns"
+		ct.DurationNano = 1
+		ct.DurationPretty = "1ns"
 		if res.cacheTraceL2GetAttempted {
 			ct.L2GetDurationNano = 1
 			ct.L2GetDurationPretty = "1ns"
@@ -725,6 +962,65 @@ func ensureFetchTrace(fetch Fetch) *DataSourceLoadTrace {
 // attachCacheTrace builds and attaches CacheTrace to the fetch's trace.
 // MUST be called AFTER mergeResult + populateCachesAfterFetch.
 // Zero overhead when tracing is disabled or ExcludeCacheStats is true.
+// attachCachedOutputToTrace serializes the cached entity values into a
+// synthetic _entities response and stores it as trace output. This makes
+// cache-hit fetch responses visible in ART traces so dev tools (like the
+// playground's cache explorer) can show per-fetch response diffs between
+// cached and uncached runs. Only called when tracing is enabled.
+func (l *Loader) attachCachedOutputToTrace(fetch Fetch, res *result) {
+	if !l.ctx.TracingOptions.Enable || l.ctx.TracingOptions.ExcludeOutput {
+		return
+	}
+	trace := ensureFetchTrace(fetch)
+	if trace == nil {
+		return
+	}
+	// Build a synthetic {"data":{"_entities":[...]}} from cached values.
+	// After tryL2CacheLoad, cached values are copied to l1CacheKeys[].FromCache
+	// (line ~1094 in loader_cache.go). Check both arrays in case only one is
+	// populated. Also check l2CacheKeys directly for the L2-only path.
+	var entities [][]byte
+	for _, ck := range res.l1CacheKeys {
+		if ck.FromCache != nil {
+			entities = append(entities, ck.FromCache.MarshalTo(nil))
+		}
+	}
+	if len(entities) == 0 {
+		for _, ck := range res.l2CacheKeys {
+			if ck.FromCache != nil {
+				entities = append(entities, ck.FromCache.MarshalTo(nil))
+			}
+		}
+	}
+	if len(entities) == 0 {
+		return
+	}
+	if len(entities) == 0 {
+		return
+	}
+	// Assemble: {"data":{"_entities":[<entity1>,<entity2>,...]}}
+	// Each `e` came from astjson.Value.MarshalTo(nil), which emits compact, dedup-key
+	// JSON directly. No whitespace to compact, no duplicate keys to dedupe. So we
+	// emit the buffer as-is — skipping compactJSON's json.Compact + ParseBytes +
+	// DeduplicateObjectKeysRecursively + MarshalTo round-trip, which dominated
+	// Phase 2L2 cost on ART-traced cache-hit requests (measured ~1–2ms per parallel
+	// batch on a 32-entity L2 hit chain, vs. ~400µs with this step skipped).
+	totalLen := len(`{"data":{"_entities":[]}}`)
+	for _, e := range entities {
+		totalLen += len(e) + 1 // entity + separator
+	}
+	buf := make([]byte, 0, totalLen)
+	buf = append(buf, `{"data":{"_entities":[`...)
+	for i, e := range entities {
+		if i > 0 {
+			buf = append(buf, ',')
+		}
+		buf = append(buf, e...)
+	}
+	buf = append(buf, ']', '}', '}')
+	trace.Output = buf
+}
+
 func (l *Loader) attachCacheTrace(fetch Fetch, res *result, cfg FetchCacheConfiguration) {
 	if !l.ctx.TracingOptions.Enable || l.ctx.TracingOptions.ExcludeCacheStats {
 		return
@@ -827,29 +1123,15 @@ func (l *Loader) itemsData(items []*astjson.Value) *astjson.Value {
 	return arr
 }
 
-// loadFetchL2Only loads data assuming L1 cache has already been checked on main thread.
-// Used by resolveParallel to avoid L1 access from goroutines (L1 stats are not thread-safe).
-// If res.cacheSkipFetch is true, returns immediately (L1 hit).
-// Otherwise checks L2 cache (thread-safe) and performs actual fetch if needed.
-func (l *Loader) loadFetchL2Only(ctx context.Context, fetch Fetch, fetchItem *FetchItem, items []*astjson.Value, res *result) error {
-	// If L1 was a complete hit, skip everything
+// loadFetchHTTP loads data assuming L1/L2 cache checks have already happened
+// on the main thread. This function runs inside a goroutine and only performs
+// HTTP I/O via the underlying DataSource. Response parsing happens later in
+// mergeResult on the main thread.
+func (l *Loader) loadFetchHTTP(ctx context.Context, fetch Fetch, fetchItem *FetchItem, items []*astjson.Value, res *result) error {
+	// If L1/L2 was a complete hit, skip everything.
 	if res.cacheSkipFetch {
 		return nil
 	}
-
-	info := getFetchInfo(fetch)
-
-	// Check L2 cache (thread-safe - uses atomic stats)
-	if l.ctx.ExecutionOptions.Caching.EnableL2Cache && len(res.l2CacheKeys) > 0 {
-		skip, err := l.tryL2CacheLoad(ctx, info, res)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		if skip {
-			return nil
-		}
-	}
-
 	// Perform actual fetch
 	switch f := fetch.(type) {
 	case *SingleFetch:
@@ -860,18 +1142,6 @@ func (l *Loader) loadFetchL2Only(ctx context.Context, fetch Fetch, fetchItem *Fe
 		return l.loadEntityFetch(ctx, fetchItem, f, items, res)
 	case *BatchEntityFetch:
 		res = l.createOrInitResult(res, f.PostProcessing, f.Info)
-		return l.loadBatchEntityFetch(ctx, fetchItem, f, items, res)
-	}
-	return nil
-}
-
-func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, fetchItem *FetchItem, items []*astjson.Value, res *result) error {
-	switch f := fetch.(type) {
-	case *SingleFetch:
-		return l.loadSingleFetch(ctx, f, fetchItem, items, res)
-	case *EntityFetch:
-		return l.loadEntityFetch(ctx, fetchItem, f, items, res)
-	case *BatchEntityFetch:
 		return l.loadBatchEntityFetch(ctx, fetchItem, f, items, res)
 	}
 	return nil
@@ -933,7 +1203,7 @@ func (l *Loader) mergeBatchCacheHit(fetchItem *FetchItem, res *result, items []*
 		if len(items) == 1 {
 			var err error
 			// Nested merge: attach the empty shaped response at the configured batch merge path.
-			items[0], _, err = astjson.MergeValuesWithPath(l.jsonArena, items[0], responseData, res.batchMergePath...)
+			items[0], err = astjson.MergeValuesWithPath(l.jsonArena, items[0], responseData, res.batchMergePath...)
 			if err != nil {
 				return l.renderErrorsFailedToFetch(fetchItem, res, "batch cache merge failed")
 			}
@@ -966,7 +1236,9 @@ func (l *Loader) mergeBatchCacheHit(fetchItem *FetchItem, res *result, items []*
 				entity = inner
 			}
 		}
-		entityArray.SetArrayItem(l.jsonArena, ck.BatchIndex, entity)
+		// Cached entities may be backed by a per-goroutine arena. Detach them onto
+		// the loader's response arena before splicing them into the final response tree.
+		entityArray.SetArrayItem(l.jsonArena, ck.BatchIndex, l.parser.StructuralCopy(l.jsonArena, entity))
 	}
 
 	// Build a response object that mirrors the subgraph response shape:
@@ -984,11 +1256,17 @@ func (l *Loader) mergeBatchCacheHit(fetchItem *FetchItem, res *result, items []*
 		current.Set(l.jsonArena, entityMergePath[len(entityMergePath)-1], entityArray)
 	}
 
+	responseValue := responseData
+	if selectsBatchEntityArrayResult(res.postProcessing.SelectResponseDataPath) ||
+		slices.Equal(res.batchMergePath, entityMergePath) {
+		responseValue = entityArray
+	}
+
 	if len(items) == 0 {
 		l.resolvable.data = responseData
 	} else if len(items) == 1 {
 		var err error
-		items[0], _, err = astjson.MergeValuesWithPath(l.jsonArena, items[0], responseData, res.batchMergePath...)
+		items[0], err = astjson.MergeValuesWithPath(l.jsonArena, items[0], responseValue, res.batchMergePath...)
 		if err != nil {
 			return l.renderErrorsFailedToFetch(fetchItem, res, "batch cache merge failed")
 		}
@@ -1112,7 +1390,7 @@ func (l *Loader) mergeBatchPartialResponse(res *result, items []*astjson.Value, 
 				}
 			}
 			if entity != nil {
-				completeArray.SetArrayItem(l.jsonArena, i, entity)
+				completeArray.SetArrayItem(l.jsonArena, i, l.parser.StructuralCopy(l.jsonArena, entity))
 			} else {
 				completeArray.SetArrayItem(l.jsonArena, i, astjson.NullValue)
 			}
@@ -1178,12 +1456,12 @@ func (l *Loader) mergeBatchEmptyResponse(_ *FetchItem, f *SingleFetch, items []*
 		if len(items) == 0 {
 			l.resolvable.data = responseData
 		} else if len(items) == 1 {
-			items[0], _, _ = astjson.MergeValuesWithPath(l.jsonArena, items[0], responseData, f.PostProcessing.MergePath...)
+			items[0], _ = astjson.MergeValuesWithPath(l.jsonArena, items[0], responseData, f.PostProcessing.MergePath...)
 		}
 	} else {
 		// No field name available — merge empty array at MergePath directly
 		if len(items) == 1 {
-			items[0], _, _ = astjson.MergeValuesWithPath(l.jsonArena, items[0], emptyArray, f.PostProcessing.MergePath...)
+			items[0], _ = astjson.MergeValuesWithPath(l.jsonArena, items[0], emptyArray, f.PostProcessing.MergePath...)
 		}
 	}
 	return nil
@@ -1212,7 +1490,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 				continue
 			}
 			// Merge cached data into item
-			_, _, err := astjson.MergeValues(l.jsonArena, key.Item, key.FromCache)
+			_, err := astjson.MergeValues(l.jsonArena, key.Item, l.parser.StructuralCopy(l.jsonArena, key.FromCache))
 			if err != nil {
 				return l.renderErrorsFailedToFetch(fetchItem, res, "invalid cache item")
 			}
@@ -1231,7 +1509,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 				if res.l1CacheKeys[idx].FromCache.Type() == astjson.TypeNull {
 					continue
 				}
-				_, _, err := astjson.MergeValues(l.jsonArena, res.l1CacheKeys[idx].Item, res.l1CacheKeys[idx].FromCache)
+				_, err := astjson.MergeValues(l.jsonArena, res.l1CacheKeys[idx].Item, l.parser.StructuralCopy(l.jsonArena, res.l1CacheKeys[idx].FromCache))
 				if err != nil {
 					return l.renderErrorsFailedToFetch(fetchItem, res, "invalid cache item")
 				}
@@ -1338,13 +1616,13 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		l.runCacheInvalidation(fetchItem, res, responseData, cacheInvalidation)
 		// Only populate caches on success (no errors)
 		if !hasErrors {
-			l.populateCachesAfterFetch(fetchItem, res, items, responseData, cacheInvalidation)
+			l.populateCachesAfterFetch(fetchItem, res)
 		}
 		return nil
 	}
 	if len(items) == 1 && res.batchStats == nil {
 		if responseData != nil && responseData.Type() != astjson.TypeNull {
-			items[0], _, err = astjson.MergeValuesWithPath(l.jsonArena, items[0], responseData, res.postProcessing.MergePath...)
+			items[0], err = astjson.MergeValuesWithPath(l.jsonArena, items[0], responseData, res.postProcessing.MergePath...)
 			if err != nil {
 				return errors.WithStack(ErrMergeResult{
 					Subgraph: res.ds.Name,
@@ -1381,7 +1659,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		l.runCacheInvalidation(fetchItem, res, responseData, cacheInvalidation)
 		// Only populate caches on success (no errors)
 		if !hasErrors {
-			l.populateCachesAfterFetch(fetchItem, res, items, responseData, cacheInvalidation)
+			l.populateCachesAfterFetch(fetchItem, res)
 		}
 		return nil
 	}
@@ -1405,7 +1683,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 				mergedTarget := target
 				if src != nil && src.Type() != astjson.TypeNull {
 					var mErr error
-					mergedTarget, _, mErr = astjson.MergeValuesWithPath(l.jsonArena, target, src, res.postProcessing.MergePath...)
+					mergedTarget, mErr = astjson.MergeValuesWithPath(l.jsonArena, target, src, res.postProcessing.MergePath...)
 					if mErr != nil {
 						return errors.WithStack(ErrMergeResult{
 							Subgraph: res.ds.Name,
@@ -1446,7 +1724,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		l.runCacheInvalidation(fetchItem, res, responseData, cacheInvalidation)
 		// Only populate caches on success (no errors)
 		if !hasErrors {
-			l.populateCachesAfterFetch(fetchItem, res, items, responseData, cacheInvalidation)
+			l.populateCachesAfterFetch(fetchItem, res)
 		}
 		return nil
 	}
@@ -1457,7 +1735,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 
 	for i := range items {
 		if batch[i] != nil && batch[i].Type() != astjson.TypeNull {
-			items[i], _, err = astjson.MergeValuesWithPath(l.jsonArena, items[i], batch[i], res.postProcessing.MergePath...)
+			items[i], err = astjson.MergeValuesWithPath(l.jsonArena, items[i], batch[i], res.postProcessing.MergePath...)
 			if err != nil {
 				return errors.WithStack(ErrMergeResult{
 					Subgraph: res.ds.Name,
@@ -1505,7 +1783,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	l.runCacheInvalidation(fetchItem, res, responseData, cacheInvalidation)
 	// Only populate caches on success (no errors)
 	if !hasErrors {
-		l.populateCachesAfterFetch(fetchItem, res, items, responseData, cacheInvalidation)
+		l.populateCachesAfterFetch(fetchItem, res)
 	}
 	return nil
 }
@@ -1524,7 +1802,7 @@ func (l *Loader) runCacheInvalidation(fetchItem *FetchItem, res *result, respons
 //
 // Invalidation (detectMutationEntityImpact + processExtensionsCacheInvalidation) is
 // called via runCacheInvalidation at each call site unconditionally before this function.
-func (l *Loader) populateCachesAfterFetch(fetchItem *FetchItem, res *result, items []*astjson.Value, responseData *astjson.Value, cacheInvalidation *astjson.Value) {
+func (l *Loader) populateCachesAfterFetch(fetchItem *FetchItem, res *result) {
 	info := getFetchInfo(fetchItem.Fetch)
 	l.compareShadowValues(res, info)
 	l.populateL1Cache(fetchItem, res)
@@ -1706,6 +1984,14 @@ func selectsSingleEntityResult(path []string) bool {
 
 	_, err := strconv.Atoi(path[len(path)-1])
 	return err == nil
+}
+
+func selectsBatchEntityArrayResult(path []string) bool {
+	if len(path) == 0 {
+		return false
+	}
+
+	return path[len(path)-1] == "_entities"
 }
 
 // optionallyAllowCustomExtensionProperties removes all properties from the "extensions" object
@@ -2169,7 +2455,7 @@ func (l *Loader) renderRateLimitRejectedErrors(fetchItem *FetchItem, res *result
 		if err != nil {
 			return err
 		}
-		errorObject, _, err = astjson.MergeValuesWithPath(l.jsonArena, errorObject, extension, "extensions")
+		errorObject, err = astjson.MergeValuesWithPath(l.jsonArena, errorObject, extension, "extensions")
 		if err != nil {
 			return err
 		}
@@ -2416,15 +2702,6 @@ func (p *_batchEntityToolPool) Put(item *batchEntityTools) {
 
 var (
 	batchEntityToolPool = _batchEntityToolPool{}
-
-	// l2ArenaPool provides per-goroutine arenas for Phase 2 L2 cache allocations.
-	// Goroutine arenas are released in Loader.Free() (not inside the goroutine),
-	// because MergeValues creates cross-arena references into these arenas.
-	l2ArenaPool = sync.Pool{
-		New: func() any {
-			return arena.NewMonotonicArena(arena.WithMinBufferSize(4096))
-		},
-	}
 )
 
 func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetchItem *FetchItem, fetch *BatchEntityFetch, items []*astjson.Value, res *result) error {
@@ -2573,7 +2850,7 @@ WithNextItem:
 }
 
 func redactHeaders(rawJSON json.RawMessage) (json.RawMessage, error) {
-	var obj map[string]interface{}
+	var obj map[string]any
 
 	sensitiveHeaders := []string{
 		"authorization",
@@ -2590,7 +2867,7 @@ func redactHeaders(rawJSON json.RawMessage) (json.RawMessage, error) {
 	}
 
 	if headers, ok := obj["header"]; ok {
-		if headerMap, isMap := headers.(map[string]interface{}); isMap {
+		if headerMap, isMap := headers.(map[string]any); isMap {
 			for key, values := range headerMap {
 				if slices.Contains(sensitiveHeaders, strings.ToLower(key)) {
 					headerMap[key] = []string{"****"}

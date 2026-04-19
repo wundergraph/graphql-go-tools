@@ -25,6 +25,20 @@ func (r *entityResolver) FindAdminByID(ctx context.Context, id string) (*model.A
 	}, nil
 }
 
+// FindCacheEntityByID is the resolver for the findCacheEntityByID field.
+// Always returns the same deterministic data for any ID.
+func (r *entityResolver) FindCacheEntityByID(ctx context.Context, id string) (*model.CacheEntity, error) {
+	return &model.CacheEntity{
+		ID: id,
+		A:  "a-" + id,
+		B:  "b-" + id,
+		C:  "c-" + id,
+		D:  "d-" + id,
+		E:  "e-" + id,
+		F:  "f-" + id,
+	}, nil
+}
+
 // FindUserByID is the resolver for the findUserByID field.
 func (r *entityResolver) FindUserByID(ctx context.Context, id string) (*model.User, error) {
 	// Error triggering for cache error handling tests

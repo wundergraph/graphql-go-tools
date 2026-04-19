@@ -2,8 +2,29 @@ package resolve
 
 import (
 	"context"
+	"errors"
+	"maps"
 	"sync/atomic"
 	"time"
+)
+
+// ErrCircuitBreakerOpen is returned by the circuit breaker cache wrappers
+// (Get / Set / Delete) when the breaker is open. It lets callers distinguish
+// a breaker short-circuit from either a true backend error or a genuine cache
+// miss. Callers that do not care can continue to treat any non-nil error as a
+// soft failure; callers that want to suppress analytics noise from a breaker
+// skip should check it with errors.Is.
+var ErrCircuitBreakerOpen = errors.New("circuit breaker open")
+
+// Default circuit breaker parameters applied by wrapCachesWithCircuitBreakers
+// when CircuitBreakerConfig values are zero or unset.
+const (
+	// DefaultFailureThreshold is the number of consecutive failures that trips
+	// the breaker when CircuitBreakerConfig.FailureThreshold is not set.
+	DefaultFailureThreshold = 5
+	// DefaultCooldownPeriod is how long the breaker stays open before allowing
+	// a probe request when CircuitBreakerConfig.CooldownPeriod is not set.
+	DefaultCooldownPeriod = 10 * time.Second
 )
 
 // CircuitBreakerConfig configures the L2 cache circuit breaker for a named cache instance.
@@ -148,9 +169,14 @@ func (cb *circuitBreakerState) failures() int64 {
 
 // circuitBreakerCache wraps a LoaderCache with circuit breaker protection.
 // When the breaker is open:
-//   - Get returns (nil, nil) — treated as all cache misses by existing code
-//   - Set returns nil — same as current non-fatal error handling
-//   - Delete returns nil — same as current non-fatal error handling
+//   - Get returns (nil, ErrCircuitBreakerOpen) — callers treat via errors.Is as a clean skip
+//   - Set returns ErrCircuitBreakerOpen — same, analytics should not record as a backend error
+//   - Delete returns ErrCircuitBreakerOpen — same
+//
+// Returning the sentinel (instead of nil) preserves the "fall back to subgraph"
+// behavior for callers that only check for a non-nil value/error, while letting
+// callers that care distinguish a breaker-skip from a real backend failure.
+// The sentinel is a package-level singleton so the open path stays allocation-free.
 type circuitBreakerCache struct {
 	inner LoaderCache
 	state *circuitBreakerState
@@ -158,7 +184,7 @@ type circuitBreakerCache struct {
 
 func (c *circuitBreakerCache) Get(ctx context.Context, keys []string) ([]*CacheEntry, error) {
 	if !c.state.shouldAllow() {
-		return nil, nil
+		return nil, ErrCircuitBreakerOpen
 	}
 	entries, err := c.inner.Get(ctx, keys)
 	if err != nil {
@@ -171,7 +197,7 @@ func (c *circuitBreakerCache) Get(ctx context.Context, keys []string) ([]*CacheE
 
 func (c *circuitBreakerCache) Set(ctx context.Context, entries []*CacheEntry, ttl time.Duration) error {
 	if !c.state.shouldAllow() {
-		return nil
+		return ErrCircuitBreakerOpen
 	}
 	err := c.inner.Set(ctx, entries, ttl)
 	if err != nil {
@@ -184,7 +210,7 @@ func (c *circuitBreakerCache) Set(ctx context.Context, entries []*CacheEntry, tt
 
 func (c *circuitBreakerCache) Delete(ctx context.Context, keys []string) error {
 	if !c.state.shouldAllow() {
-		return nil
+		return ErrCircuitBreakerOpen
 	}
 	err := c.inner.Delete(ctx, keys)
 	if err != nil {
@@ -203,19 +229,17 @@ func wrapCachesWithCircuitBreakers(caches map[string]LoaderCache, configs map[st
 		return caches
 	}
 	wrapped := make(map[string]LoaderCache, len(caches))
-	for name, cache := range caches {
-		wrapped[name] = cache
-	}
+	maps.Copy(wrapped, caches)
 	for name, cbConfig := range configs {
 		cache, ok := wrapped[name]
 		if !ok || !cbConfig.Enabled {
 			continue
 		}
 		if cbConfig.FailureThreshold <= 0 {
-			cbConfig.FailureThreshold = 5
+			cbConfig.FailureThreshold = DefaultFailureThreshold
 		}
 		if cbConfig.CooldownPeriod <= 0 {
-			cbConfig.CooldownPeriod = 10 * time.Second
+			cbConfig.CooldownPeriod = DefaultCooldownPeriod
 		}
 		wrapped[name] = &circuitBreakerCache{
 			inner: cache,

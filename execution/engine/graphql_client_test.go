@@ -20,7 +20,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/execution/subscription"
 )
 
-type queryVariables map[string]interface{}
+type queryVariables map[string]any
 
 func requestBody(t *testing.T, query string, variables queryVariables) []byte {
 	var variableJsonBytes []byte
@@ -70,7 +70,7 @@ func (g *GraphqlClient) Query(ctx context.Context, addr, queryFilePath string, v
 	responseBodyBytes, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Contains(t, resp.Header.Get("Content-Type"), "application/json")
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 	return responseBodyBytes
 }
@@ -87,7 +87,7 @@ func (g *GraphqlClient) QueryWithHeaders(ctx context.Context, addr, queryFilePat
 	responseBodyBytes, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Contains(t, resp.Header.Get("Content-Type"), "application/json")
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 	return responseBodyBytes, resp.Header
 }
@@ -103,7 +103,7 @@ func (g *GraphqlClient) QueryString(ctx context.Context, addr, query string, var
 	responseBodyBytes, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Contains(t, resp.Header.Get("Content-Type"), "application/json")
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 	return responseBodyBytes
 }
@@ -121,7 +121,7 @@ func (g *GraphqlClient) QueryStringWithHeaders(ctx context.Context, addr, query 
 	responseBodyBytes, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Contains(t, resp.Header.Get("Content-Type"), "application/json")
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 	return responseBodyBytes, resp.Header
 }

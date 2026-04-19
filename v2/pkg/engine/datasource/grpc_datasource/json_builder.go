@@ -166,7 +166,7 @@ func (j *jsonBuilder) mergeValues(left *astjson.Value, right *astjson.Value) (*a
 	if len(j.indexMap) == 0 {
 		// No federation index map available - use simple merge
 		// This path is taken for non-federated queries
-		root, _, err := astjson.MergeValues(j.jsonArena, left, right)
+		root, err := astjson.MergeValues(j.jsonArena, left, right)
 		if err != nil {
 			return nil, err
 		}
@@ -455,7 +455,7 @@ func (j *jsonBuilder) marshalResponseJSON(message *RPCMessage, data protoref.Mes
 
 			if field.JSONPath == "" {
 				// Field should be merged into parent object (flattened)
-				root, _, err = astjson.MergeValues(j.jsonArena, root, value)
+				root, err = astjson.MergeValues(j.jsonArena, root, value)
 				if err != nil {
 					return nil, err
 				}

@@ -17,7 +17,9 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
-func TestL2CacheOnly(t *testing.T) {
+// TestFederationCaching_L2Only verifies L2-only caching (L1 disabled) across multiple requests,
+// ensuring that L2 miss-then-hit behavior and subgraph call elimination work correctly.
+func TestFederationCaching_L2Only(t *testing.T) {
 	t.Parallel()
 	t.Run("L2 enabled - miss then hit across requests", func(t *testing.T) {
 		t.Parallel()
@@ -88,7 +90,8 @@ func TestL2CacheOnly(t *testing.T) {
 
 		logAfterFirst := defaultCache.GetLog()
 		// Cache operations: get/set for Query.topProducts, Product entities, User entities = 6 operations
-		assert.Equal(t, 6, len(logAfterFirst), "Should have exactly 6 cache operations (get/set for Query, Products, Users)")
+		// get/set for Query, Products, Users = 6 operations
+		assert.Equal(t, 6, len(logAfterFirst))
 
 		// Verify the exact cache access log (order may vary for keys within each operation)
 		wantLogFirst := []CacheLogEntry{
@@ -133,15 +136,15 @@ func TestL2CacheOnly(t *testing.T) {
 				},
 			},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "First query cache log should match expected")
+		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst))
 
-		// Verify subgraph calls for first query
+		// Subgraph calls: each called once (cold cache)
 		productsCallsFirst := tracker.GetCount(productsHost)
 		reviewsCallsFirst := tracker.GetCount(reviewsHost)
 		accountsCallsFirst := tracker.GetCount(accountsHost)
-		assert.Equal(t, 1, productsCallsFirst, "First query should call products subgraph exactly once")
-		assert.Equal(t, 1, reviewsCallsFirst, "First query should call reviews subgraph exactly once")
-		assert.Equal(t, 1, accountsCallsFirst, "First query should call accounts subgraph for User entity resolution")
+		assert.Equal(t, 1, productsCallsFirst)
+		assert.Equal(t, 1, reviewsCallsFirst)
+		assert.Equal(t, 1, accountsCallsFirst)
 
 		// Second query - all fetches should hit cache
 		defaultCache.ClearLog()
@@ -152,7 +155,8 @@ func TestL2CacheOnly(t *testing.T) {
 		// Verify L2 cache hits
 		logAfterSecond := defaultCache.GetLog()
 		// All cache operations should be gets with hits: Query.topProducts, Product entities, User entities
-		assert.Equal(t, 3, len(logAfterSecond), "Second query should have 3 cache get operations (all hits)")
+		// All hits: 3 get operations
+		assert.Equal(t, 3, len(logAfterSecond))
 
 		// Verify the exact cache access log for second query (all hits)
 		wantLogSecond := []CacheLogEntry{
@@ -180,15 +184,15 @@ func TestL2CacheOnly(t *testing.T) {
 				Hits: []bool{true},
 			},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Second query cache log should match expected (all hits)")
+		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond))
 
-		// Verify subgraph calls for second query - all should be cached
+		// Subgraph calls: all skipped (warm cache)
 		productsCallsSecond := tracker.GetCount(productsHost)
 		reviewsCallsSecond := tracker.GetCount(reviewsHost)
 		accountsCallsSecond := tracker.GetCount(accountsHost)
-		assert.Equal(t, 0, productsCallsSecond, "Second query should not call products subgraph (root field cache hit)")
-		assert.Equal(t, 0, reviewsCallsSecond, "Second query should not call reviews subgraph (entity cache hit)")
-		assert.Equal(t, 0, accountsCallsSecond, "Second query should not call accounts subgraph (entity cache hit)")
+		assert.Equal(t, 0, productsCallsSecond)
+		assert.Equal(t, 0, reviewsCallsSecond)
+		assert.Equal(t, 0, accountsCallsSecond)
 	})
 
 	t.Run("L2 disabled - no external cache operations", func(t *testing.T) {
@@ -321,10 +325,10 @@ func TestL2CacheOnly(t *testing.T) {
 
 		top1Value, top1Exists := defaultCache.Peek(productKeyTop1)
 		assert.True(t, top1Exists)
-		assert.JSONEq(t, `{"__typename":"Product","upc":"top-1","name":"Trilby","reviews":null}`, string(top1Value))
+		assert.Equal(t, compactJSONForAssert(t, `{"__typename":"Product","upc":"top-1","name":"Trilby","reviews":null}`), compactJSONForAssert(t, string(top1Value)))
 		top2Value, top2Exists := defaultCache.Peek(productKeyTop2)
 		assert.True(t, top2Exists)
-		assert.JSONEq(t, `{"__typename":"Product","upc":"top-2","name":"Fedora","reviews":null}`, string(top2Value))
+		assert.Equal(t, compactJSONForAssert(t, `{"__typename":"Product","upc":"top-2","name":"Fedora","reviews":null}`), compactJSONForAssert(t, string(top2Value)))
 
 		defaultCache.ClearLog()
 		tracker.Reset()
@@ -447,7 +451,9 @@ func TestL2CacheOnly(t *testing.T) {
 	})
 }
 
-func TestL1L2CacheCombined(t *testing.T) {
+// TestFederationCaching_L1L2Combined verifies that L1 and L2 caches work together:
+// L1 deduplicates within a request, L2 persists across requests.
+func TestFederationCaching_L1L2Combined(t *testing.T) {
 	t.Parallel()
 	t.Run("L1+L2 enabled - L1 within request, L2 across requests", func(t *testing.T) {
 		t.Parallel()
@@ -519,7 +525,8 @@ func TestL1L2CacheCombined(t *testing.T) {
 
 		logAfterFirst := defaultCache.GetLog()
 		// Cache operations: get/set for Query.topProducts, Product entities, User entities = 6 operations
-		assert.Equal(t, 6, len(logAfterFirst), "Should have exactly 6 cache operations (get/set for Query, Products, Users)")
+		// get/set for Query, Products, Users = 6 operations
+		assert.Equal(t, 6, len(logAfterFirst))
 
 		// Verify the exact cache access log (order may vary for keys within each operation)
 		wantLogFirst := []CacheLogEntry{
@@ -564,15 +571,15 @@ func TestL1L2CacheCombined(t *testing.T) {
 				},
 			},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "First query cache log should match expected")
+		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst))
 
-		// Verify subgraph calls for first query
+		// Subgraph calls: each called once (cold cache)
 		productsCallsFirst := tracker.GetCount(productsHost)
 		reviewsCallsFirst := tracker.GetCount(reviewsHost)
 		accountsCallsFirst := tracker.GetCount(accountsHost)
-		assert.Equal(t, 1, productsCallsFirst, "First query should call products subgraph exactly once")
-		assert.Equal(t, 1, reviewsCallsFirst, "First query should call reviews subgraph exactly once")
-		assert.Equal(t, 1, accountsCallsFirst, "First query should call accounts subgraph for User entity resolution")
+		assert.Equal(t, 1, productsCallsFirst)
+		assert.Equal(t, 1, reviewsCallsFirst)
+		assert.Equal(t, 1, accountsCallsFirst)
 
 		// Second query - new request means fresh L1, but L2 should hit
 		defaultCache.ClearLog()
@@ -582,7 +589,8 @@ func TestL1L2CacheCombined(t *testing.T) {
 
 		logAfterSecond := defaultCache.GetLog()
 		// All cache operations should be gets with hits: Query.topProducts, Product entities, User entities
-		assert.Equal(t, 3, len(logAfterSecond), "Second query should have 3 cache get operations (all hits)")
+		// All hits: 3 get operations
+		assert.Equal(t, 3, len(logAfterSecond))
 
 		// Verify the exact cache access log for second query (all hits)
 		wantLogSecond := []CacheLogEntry{
@@ -722,7 +730,9 @@ func TestL1L2CacheCombined(t *testing.T) {
 // TestPartialEntityCaching demonstrates that only explicitly configured entity types
 // are cached. This test configures caching for Product but NOT for User, verifying
 // the opt-in nature of the per-entity caching configuration.
-func TestPartialEntityCaching(t *testing.T) {
+// TestFederationCaching_PartialEntityFetch verifies partial cache loading: when some entities
+// in a batch are cached and others are not, only the missing ones are fetched from the subgraph.
+func TestFederationCaching_PartialEntityFetch(t *testing.T) {
 	t.Parallel()
 	t.Run("only configured entities are cached", func(t *testing.T) {
 		t.Parallel()
@@ -822,7 +832,9 @@ func TestPartialEntityCaching(t *testing.T) {
 
 // TestRootFieldCaching tests that root fields (like Query.topProducts) can be cached
 // when explicitly configured with RootFieldCaching configuration.
-func TestRootFieldCaching(t *testing.T) {
+// TestFederationCaching_RootFieldCaching verifies that root field responses are cached as a whole
+// and served from L2 on subsequent requests, skipping the subgraph entirely.
+func TestFederationCaching_RootFieldCaching(t *testing.T) {
 	t.Parallel()
 	t.Run("root field caching enabled", func(t *testing.T) {
 		t.Parallel()
@@ -1011,7 +1023,9 @@ func TestRootFieldCaching(t *testing.T) {
 // These tests verify L1 caching behavior when root fields or child fields
 // return lists of entities.
 
-func TestCacheNotPopulatedOnErrors(t *testing.T) {
+// TestFederationCaching_ErrorSkipsCache verifies that subgraph error responses are never cached,
+// ensuring that transient errors do not poison the L2 cache.
+func TestFederationCaching_ErrorSkipsCache(t *testing.T) {
 	t.Parallel()
 	// Query that triggers an error in accounts subgraph via error-user
 	// The reviewWithError field returns a review with author ID "error-user"
@@ -1343,7 +1357,9 @@ func TestCacheNotPopulatedOnErrors(t *testing.T) {
 	})
 }
 
-func TestMutationCacheInvalidationE2E(t *testing.T) {
+// TestFederationCaching_MutationInvalidation verifies that mutation-configured cache invalidation
+// deletes the affected entity's L2 entry, forcing a re-fetch on the next query.
+func TestFederationCaching_MutationInvalidation(t *testing.T) {
 	t.Parallel()
 
 	// Configure entity caching for User AND mutation invalidation for updateUsername
@@ -1390,21 +1406,21 @@ func TestMutationCacheInvalidationE2E(t *testing.T) {
 		tracker.Reset()
 		defaultCache.ClearLog()
 		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, entityQuery, nil, t)
-		assert.Contains(t, string(resp), `"username":"Me"`)
+		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
 		assert.Equal(t, 1, tracker.GetCount(accountsHost), "should call accounts subgraph once to populate cache")
 
 		// Request 2: Same query — should hit L2 cache, no accounts call
 		tracker.Reset()
 		defaultCache.ClearLog()
 		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, entityQuery, nil, t)
-		assert.Contains(t, string(resp), `"username":"Me"`)
+		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
 		assert.Equal(t, 0, tracker.GetCount(accountsHost), "should NOT call accounts subgraph (L2 hit)")
 
 		// Request 3: Mutation — should delete the L2 cache entry
 		tracker.Reset()
 		defaultCache.ClearLog()
 		respMut := gqlClient.QueryString(ctx, setup.GatewayServer.URL, mutationQuery, nil, t)
-		assert.Contains(t, string(respMut), `"UpdatedMe"`)
+		assert.Equal(t, `{"data":{"updateUsername":{"id":"1234","username":"UpdatedMe"}}}`, string(respMut))
 
 		// Verify the cache log contains a delete operation
 		mutationLog := defaultCache.GetLog()
@@ -1413,8 +1429,7 @@ func TestMutationCacheInvalidationE2E(t *testing.T) {
 			if entry.Operation == "delete" {
 				hasDelete = true
 				assert.Equal(t, 1, len(entry.Keys), "delete should have exactly 1 key")
-				assert.Contains(t, entry.Keys[0], `"__typename":"User"`)
-				assert.Contains(t, entry.Keys[0], `"id":"1234"`)
+				assert.Equal(t, `{"__typename":"User","key":{"id":"1234"}}`, entry.Keys[0])
 			}
 		}
 		assert.True(t, hasDelete, "mutation should trigger a cache delete operation")
@@ -1423,7 +1438,7 @@ func TestMutationCacheInvalidationE2E(t *testing.T) {
 		tracker.Reset()
 		defaultCache.ClearLog()
 		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, entityQuery, nil, t)
-		assert.Contains(t, string(resp), `"username":"UpdatedMe"`)
+		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"UpdatedMe"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"UpdatedMe"}}]}]}}`, string(resp))
 		assert.Equal(t, 1, tracker.GetCount(accountsHost), "should call accounts subgraph again (L2 entry was deleted)")
 	})
 
@@ -1464,13 +1479,13 @@ func TestMutationCacheInvalidationE2E(t *testing.T) {
 		// Request 1: Query to populate L2 cache
 		tracker.Reset()
 		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, entityQuery, nil, t)
-		assert.Contains(t, string(resp), `"username":"Me"`)
+		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
 
 		// Request 2: Mutation — should NOT delete L2 cache entry
 		tracker.Reset()
 		defaultCache.ClearLog()
 		respMut := gqlClient.QueryString(ctx, setup.GatewayServer.URL, mutationQuery, nil, t)
-		assert.Contains(t, string(respMut), `"UpdatedMe"`)
+		assert.Equal(t, `{"data":{"updateUsername":{"id":"1234","username":"UpdatedMe"}}}`, string(respMut))
 
 		// Verify no delete operation in cache log
 		mutationLog := defaultCache.GetLog()

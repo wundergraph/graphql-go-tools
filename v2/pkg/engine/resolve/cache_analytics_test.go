@@ -21,6 +21,9 @@ import (
 // Unit Tests for CacheAnalyticsCollector
 // =============================================================================
 
+// TestCacheAnalyticsCollector_RecordEvents verifies that L1/L2 key events are
+// recorded with correct fields. Without this, cache analytics could silently
+// drop or misattribute events.
 func TestCacheAnalyticsCollector_RecordEvents(t *testing.T) {
 	t.Run("L1 and L2 key events are recorded with exact counts", func(t *testing.T) {
 		c := NewCacheAnalyticsCollector()
@@ -34,8 +37,9 @@ func TestCacheAnalyticsCollector_RecordEvents(t *testing.T) {
 
 		snap := c.Snapshot()
 
-		assert.Equal(t, 3, len(snap.L1Reads), "should have exactly 3 L1 key events")
-		assert.Equal(t, 2, len(snap.L2Reads), "should have exactly 2 L2 key events")
+		// L1: 3 events recorded (2 hits + 1 miss), L2: 2 events (1 hit + 1 miss)
+		assert.Equal(t, 3, len(snap.L1Reads))
+		assert.Equal(t, 2, len(snap.L2Reads))
 
 		// Verify specific events
 		assert.Equal(t, CacheKeyHit, snap.L1Reads[0].Kind)
@@ -56,12 +60,14 @@ func TestCacheAnalyticsCollector_RecordEvents(t *testing.T) {
 
 		snap := c.Snapshot()
 
-		assert.Equal(t, 2, len(snap.L2Reads), "should have exactly 2 L2 key events")
+		assert.Equal(t, 2, len(snap.L2Reads))
 		assert.Equal(t, CacheKeyPartialHit, snap.L2Reads[0].Kind)
 		assert.Equal(t, CacheKeyHit, snap.L2Reads[1].Kind)
 	})
 }
 
+// TestCacheAnalyticsCollector_MergeL2Events verifies that L2 events accumulated
+// in goroutines merge correctly into the collector on the main thread.
 func TestCacheAnalyticsCollector_MergeL2Events(t *testing.T) {
 	c := NewCacheAnalyticsCollector()
 
@@ -79,7 +85,8 @@ func TestCacheAnalyticsCollector_MergeL2Events(t *testing.T) {
 	c.MergeL2Events(events2)
 
 	snap := c.Snapshot()
-	assert.Equal(t, 3, len(snap.L2Reads), "should have exactly 3 merged L2 events")
+	// 2 events from goroutine 1 + 1 from goroutine 2
+	assert.Equal(t, 3, len(snap.L2Reads))
 
 	// Count hits and misses from events
 	var l2Hits, l2Misses int
@@ -91,10 +98,12 @@ func TestCacheAnalyticsCollector_MergeL2Events(t *testing.T) {
 			l2Misses++
 		}
 	}
-	assert.Equal(t, 2, l2Hits, "should have exactly 2 L2 hits")
-	assert.Equal(t, 1, l2Misses, "should have exactly 1 L2 miss")
+	assert.Equal(t, 2, l2Hits)
+	assert.Equal(t, 1, l2Misses)
 }
 
+// TestCacheAnalyticsCollector_WriteEvents verifies that L1/L2 write events
+// are partitioned correctly and carry TTL and size metadata.
 func TestCacheAnalyticsCollector_WriteEvents(t *testing.T) {
 	c := NewCacheAnalyticsCollector()
 
@@ -103,8 +112,9 @@ func TestCacheAnalyticsCollector_WriteEvents(t *testing.T) {
 	c.RecordWrite(CacheWriteEvent{CacheKey: "key3", EntityType: "Product", ByteSize: 512, DataSource: "products", CacheLevel: CacheLevelL2, TTL: 60 * time.Second, Source: CacheSourceQuery})
 
 	snap := c.Snapshot()
-	assert.Equal(t, 1, len(snap.L1Writes), "should have exactly 1 L1 write event")
-	assert.Equal(t, 2, len(snap.L2Writes), "should have exactly 2 L2 write events")
+	// 1 L1 write, 2 L2 writes
+	assert.Equal(t, 1, len(snap.L1Writes))
+	assert.Equal(t, 2, len(snap.L2Writes))
 
 	assert.Equal(t, time.Duration(0), snap.L1Writes[0].TTL)
 	assert.Equal(t, 128, snap.L1Writes[0].ByteSize)
@@ -117,6 +127,9 @@ func TestCacheAnalyticsCollector_WriteEvents(t *testing.T) {
 	assert.Equal(t, 512, snap.L2Writes[1].ByteSize)
 }
 
+// TestCacheAnalyticsCollector_FieldHashing verifies xxhash-based field value
+// hashing for staleness detection. Same input must produce identical hashes,
+// different input must produce different hashes.
 func TestCacheAnalyticsCollector_FieldHashing(t *testing.T) {
 	t.Run("same input produces same hash", func(t *testing.T) {
 		c := NewCacheAnalyticsCollector()
@@ -125,8 +138,8 @@ func TestCacheAnalyticsCollector_FieldHashing(t *testing.T) {
 		c.HashFieldValue("User", "name", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceSubgraph)
 
 		snap := c.Snapshot()
-		assert.Equal(t, 2, len(snap.FieldHashes), "should have exactly 2 field hashes")
-		assert.Equal(t, snap.FieldHashes[0].FieldHash, snap.FieldHashes[1].FieldHash, "same input should produce same hash")
+		assert.Equal(t, 2, len(snap.FieldHashes))
+		assert.Equal(t, snap.FieldHashes[0].FieldHash, snap.FieldHashes[1].FieldHash, "same input = same hash")
 		assert.Equal(t, "User", snap.FieldHashes[0].EntityType)
 		assert.Equal(t, "name", snap.FieldHashes[0].FieldName)
 		assert.Equal(t, `{"id":"1"}`, snap.FieldHashes[0].KeyRaw)
@@ -140,8 +153,8 @@ func TestCacheAnalyticsCollector_FieldHashing(t *testing.T) {
 		c.HashFieldValue("User", "name", []byte(`"Bob"`), `{"id":"2"}`, 0, FieldSourceSubgraph)
 
 		snap := c.Snapshot()
-		assert.Equal(t, 2, len(snap.FieldHashes), "should have exactly 2 field hashes")
-		assert.NotEqual(t, snap.FieldHashes[0].FieldHash, snap.FieldHashes[1].FieldHash, "different input should produce different hash")
+		assert.Equal(t, 2, len(snap.FieldHashes))
+		assert.NotEqual(t, snap.FieldHashes[0].FieldHash, snap.FieldHashes[1].FieldHash, "different input = different hash")
 	})
 
 	t.Run("hashed keys mode", func(t *testing.T) {
@@ -171,6 +184,9 @@ func TestCacheAnalyticsCollector_FieldHashing(t *testing.T) {
 	})
 }
 
+// TestCacheAnalyticsCollector_EntityCounts verifies per-type entity instance
+// counting and unique key tracking. Duplicate keys should increment count
+// but not unique keys.
 func TestCacheAnalyticsCollector_EntityCounts(t *testing.T) {
 	c := NewCacheAnalyticsCollector()
 
@@ -180,7 +196,7 @@ func TestCacheAnalyticsCollector_EntityCounts(t *testing.T) {
 	c.IncrementEntityCount("Product", `{"upc":"top-1"}`)
 
 	snap := c.Snapshot()
-	assert.Equal(t, 2, len(snap.EntityTypes), "should have exactly 2 entity types")
+	assert.Equal(t, 2, len(snap.EntityTypes))
 
 	// Find counts by type
 	var userCount, productCount int
@@ -192,8 +208,9 @@ func TestCacheAnalyticsCollector_EntityCounts(t *testing.T) {
 			productCount = et.Count
 		}
 	}
-	assert.Equal(t, 3, userCount, "should have exactly 3 User instances")
-	assert.Equal(t, 1, productCount, "should have exactly 1 Product instance")
+	// User: 3 instances (id:1 twice + id:2), Product: 1 instance
+	assert.Equal(t, 3, userCount)
+	assert.Equal(t, 1, productCount)
 
 	// Verify unique keys
 	var userUniqueKeys, productUniqueKeys int
@@ -205,10 +222,13 @@ func TestCacheAnalyticsCollector_EntityCounts(t *testing.T) {
 			productUniqueKeys = et.UniqueKeys
 		}
 	}
-	assert.Equal(t, 2, userUniqueKeys, "should have exactly 2 unique User keys (id:1, id:2)")
-	assert.Equal(t, 1, productUniqueKeys, "should have exactly 1 unique Product key")
+	// User: 2 unique keys (id:1, id:2), Product: 1 unique key
+	assert.Equal(t, 2, userUniqueKeys)
+	assert.Equal(t, 1, productUniqueKeys)
 }
 
+// TestCacheAnalyticsCollector_EntitySourceTracking verifies that the source
+// (subgraph, L1, L2) of each entity is recorded and retrievable by type+key.
 func TestCacheAnalyticsCollector_EntitySourceTracking(t *testing.T) {
 	c := NewCacheAnalyticsCollector()
 
@@ -219,9 +239,12 @@ func TestCacheAnalyticsCollector_EntitySourceTracking(t *testing.T) {
 	assert.Equal(t, FieldSourceSubgraph, c.EntitySource("User", `{"id":"1"}`))
 	assert.Equal(t, FieldSourceL1, c.EntitySource("User", `{"id":"2"}`))
 	assert.Equal(t, FieldSourceL2, c.EntitySource("Product", `{"upc":"top-1"}`))
-	assert.Equal(t, FieldSourceSubgraph, c.EntitySource("Unknown", `{"id":"99"}`), "unknown returns default Subgraph")
+	// Unknown entity defaults to Subgraph source
+	assert.Equal(t, FieldSourceSubgraph, c.EntitySource("Unknown", `{"id":"99"}`))
 }
 
+// TestCacheAnalyticsCollector_MergeEntitySources verifies that entity source
+// records from goroutines merge into the main thread collector.
 func TestCacheAnalyticsCollector_MergeEntitySources(t *testing.T) {
 	c := NewCacheAnalyticsCollector()
 
@@ -236,6 +259,8 @@ func TestCacheAnalyticsCollector_MergeEntitySources(t *testing.T) {
 	assert.Equal(t, FieldSourceL2, c.EntitySource("User", `{"id":"2"}`))
 }
 
+// TestCacheAnalyticsCollector_SnapshotDerivedMetrics verifies computed metrics
+// (hit rates, bytes served, entity/datasource breakdowns) derived from raw events.
 func TestCacheAnalyticsCollector_SnapshotDerivedMetrics(t *testing.T) {
 	t.Run("hit rates", func(t *testing.T) {
 		c := NewCacheAnalyticsCollector()
@@ -252,8 +277,9 @@ func TestCacheAnalyticsCollector_SnapshotDerivedMetrics(t *testing.T) {
 
 		snap := c.Snapshot()
 
-		assert.Equal(t, 0.75, snap.L1HitRate(), "L1 hit rate should be 0.75")
-		assert.Equal(t, 0.5, snap.L2HitRate(), "L2 hit rate should be 0.5")
+		// 3 L1 hits / 4 total = 0.75, 1 L2 hit / 2 total = 0.5
+		assert.Equal(t, 0.75, snap.L1HitRate())
+		assert.Equal(t, 0.5, snap.L2HitRate())
 	})
 
 	t.Run("zero events returns zero hit rate", func(t *testing.T) {
@@ -272,7 +298,8 @@ func TestCacheAnalyticsCollector_SnapshotDerivedMetrics(t *testing.T) {
 		c.RecordL2KeyEvent(CacheKeyMiss, "User", "k5", "ds", 0)
 
 		snap := c.Snapshot()
-		assert.Equal(t, int64(600), snap.CachedBytesServed(), "should have exactly 600 bytes served from cache")
+		// 100 + 200 (L1 hits) + 300 (L2 hit) = 600
+		assert.Equal(t, int64(600), snap.CachedBytesServed())
 	})
 
 	t.Run("events by entity type", func(t *testing.T) {
@@ -327,10 +354,13 @@ func TestCacheAnalyticsCollector_SnapshotDerivedMetrics(t *testing.T) {
 
 		snap := c.Snapshot()
 		// 1 partial hit out of 4 total events = 0.25
-		assert.Equal(t, 0.25, snap.PartialHitRate(), "partial hit rate should be 0.25")
+		assert.Equal(t, 0.25, snap.PartialHitRate())
 	})
 }
 
+// TestCacheAnalyticsCollector_DisabledReturnsEmpty verifies that GetCacheStats()
+// returns an empty snapshot when EnableCacheAnalytics is not set. This ensures
+// zero overhead when analytics is off.
 func TestCacheAnalyticsCollector_DisabledReturnsEmpty(t *testing.T) {
 	// When analytics is disabled, GetCacheStats() returns an empty snapshot
 	ctx := NewContext(context.Background())
@@ -339,14 +369,17 @@ func TestCacheAnalyticsCollector_DisabledReturnsEmpty(t *testing.T) {
 
 	// All nil because EnableCacheAnalytics was not set, so no collector exists
 	snap := ctx.GetCacheStats()
-	assert.Nil(t, snap.L1Reads, "L1 reads should be nil when disabled")
-	assert.Nil(t, snap.L2Reads, "L2 reads should be nil when disabled")
-	assert.Nil(t, snap.L1Writes, "L1 writes should be nil when disabled")
-	assert.Nil(t, snap.L2Writes, "L2 writes should be nil when disabled")
-	assert.Nil(t, snap.FieldHashes, "field hashes should be nil when disabled")
-	assert.Nil(t, snap.EntityTypes, "entity types should be nil when disabled")
+	// All nil because EnableCacheAnalytics was not set
+	assert.Nil(t, snap.L1Reads)
+	assert.Nil(t, snap.L2Reads)
+	assert.Nil(t, snap.L1Writes)
+	assert.Nil(t, snap.L2Writes)
+	assert.Nil(t, snap.FieldHashes)
+	assert.Nil(t, snap.EntityTypes)
 }
 
+// TestBuildEntityKeyJSON verifies that entity key JSON is built from @key fields
+// only, ignoring other fields. Composite keys must include nested sub-selections.
 func TestBuildEntityKeyJSON(t *testing.T) {
 	t.Run("simple key", func(t *testing.T) {
 		var parser astjson.Parser
@@ -379,6 +412,8 @@ func TestBuildEntityKeyJSON(t *testing.T) {
 	})
 }
 
+// TestParseKeyFields verifies parsing of @key field selection strings into
+// structured KeyField slices, including nested composite keys.
 func TestParseKeyFields(t *testing.T) {
 	t.Run("simple key", func(t *testing.T) {
 		fields := ParseKeyFields("id")
@@ -406,6 +441,8 @@ func TestParseKeyFields(t *testing.T) {
 // Integration Tests
 // =============================================================================
 
+// TestCacheAnalytics_L1Integration verifies end-to-end L1 cache analytics:
+// first entity fetch misses (cold cache), second fetch for same entity hits L1.
 func TestCacheAnalytics_L1Integration(t *testing.T) {
 	t.Run("L1 analytics records hit and miss events", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -584,7 +621,7 @@ func TestCacheAnalytics_L1Integration(t *testing.T) {
 		snap := ctx.GetCacheStats()
 
 		// 2 events: 1st entity fetch misses (cache empty), 2nd hits (populated by 1st)
-		assert.Equal(t, 2, len(snap.L1Reads), "should have exactly 2 L1 key events")
+		assert.Equal(t, 2, len(snap.L1Reads))
 
 		// 1st fetch: L1 miss (empty cache), 2nd fetch: L1 hit (same entity cached by 1st)
 		var l1Hits, l1Misses int
@@ -593,23 +630,25 @@ func TestCacheAnalytics_L1Integration(t *testing.T) {
 			assert.Equal(t, "products", ev.DataSource)
 			if ev.Kind == CacheKeyHit {
 				l1Hits++
-				assert.Equal(t, 59, ev.ByteSize, "hit should have correct byte size")
+				assert.Equal(t, 59, ev.ByteSize)
 			} else {
 				l1Misses++
 			}
 		}
-		assert.Equal(t, 1, l1Hits, "should have exactly 1 L1 hit event")
-		assert.Equal(t, 1, l1Misses, "should have exactly 1 L1 miss event")
+		assert.Equal(t, 1, l1Hits)
+		assert.Equal(t, 1, l1Misses)
 
 		// L1 writes occur after 1st entity fetch resolved from subgraph
-		assert.Equal(t, 1, len(snap.L1Writes), "should have exactly 1 L1 write event")
+		assert.Equal(t, 1, len(snap.L1Writes))
 		for _, we := range snap.L1Writes {
 			assert.Equal(t, "Product", we.EntityType)
-			assert.Equal(t, 59, we.ByteSize, "L1 write should have correct byte size")
+			assert.Equal(t, 59, we.ByteSize)
 		}
 	})
 }
 
+// TestCacheAnalytics_L2Integration verifies end-to-end L2 cache analytics:
+// first request misses L2, fetches from subgraph, and writes to L2.
 func TestCacheAnalytics_L2Integration(t *testing.T) {
 	t.Run("L2 analytics records hit and write events", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -746,20 +785,23 @@ func TestCacheAnalytics_L2Integration(t *testing.T) {
 		snap := ctx.GetCacheStats()
 
 		// L1 miss: single entity fetch, L1 cache empty (no prior population)
-		assert.Equal(t, 1, len(snap.L1Reads), "should have exactly 1 L1 key event")
+		assert.Equal(t, 1, len(snap.L1Reads))
 		assert.Equal(t, CacheKeyMiss, snap.L1Reads[0].Kind)
 
 		// L2 miss: first request, L2 cache starts empty
-		assert.Equal(t, 1, len(snap.L2Reads), "should have exactly 1 L2 key event")
+		assert.Equal(t, 1, len(snap.L2Reads))
 		assert.Equal(t, CacheKeyMiss, snap.L2Reads[0].Kind)
 
 		// Entity written to L2 after subgraph fetch; TTL from FetchCacheConfiguration
-		assert.Equal(t, 1, len(snap.L2Writes), "should have exactly 1 L2 write event")
-		assert.Equal(t, 30*time.Second, snap.L2Writes[0].TTL, "L2 write should have correct TTL")
-		assert.Equal(t, 59, snap.L2Writes[0].ByteSize, "L2 write should have correct byte size")
+		assert.Equal(t, 1, len(snap.L2Writes))
+		assert.Equal(t, 30*time.Second, snap.L2Writes[0].TTL)
+		assert.Equal(t, 59, snap.L2Writes[0].ByteSize)
 	})
 }
 
+// TestCacheAnalytics_UseL1CacheDisabled verifies that no L1 events are recorded
+// when UseL1Cache is false on the fetch configuration. This prevents spurious
+// analytics for fetches that deliberately bypass L1.
 func TestCacheAnalytics_UseL1CacheDisabled(t *testing.T) {
 	t.Run("no L1 events when UseL1Cache is false", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -887,10 +929,13 @@ func TestCacheAnalytics_UseL1CacheDisabled(t *testing.T) {
 		snap := ctx.GetCacheStats()
 
 		// UseL1Cache=false on FetchCacheConfiguration skips L1 lookup entirely
-		assert.Equal(t, 0, len(snap.L1Reads), "should have 0 L1 key events when UseL1Cache is false")
+		// UseL1Cache=false on FetchCacheConfiguration skips L1 lookup entirely
+		assert.Equal(t, 0, len(snap.L1Reads))
 	})
 }
 
+// TestCacheAnalytics_EntityCounting_Integration verifies that entity instances
+// are counted during the two-pass resolution walk (not just during loading).
 func TestCacheAnalytics_EntityCounting_Integration(t *testing.T) {
 	t.Run("entity instances counted during resolution", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -1019,12 +1064,14 @@ func TestCacheAnalytics_EntityCounting_Integration(t *testing.T) {
 		snap := ctx.GetCacheStats()
 
 		// 1 entity type (User); 2 instances from batch fetch (Alice, Bob)
-		require.Equal(t, 1, len(snap.EntityTypes), "should have exactly 1 entity type")
+		require.Equal(t, 1, len(snap.EntityTypes))
 		assert.Equal(t, "User", snap.EntityTypes[0].TypeName)
-		assert.Equal(t, 2, snap.EntityTypes[0].Count, "should have exactly 2 User entity instances")
+		assert.Equal(t, 2, snap.EntityTypes[0].Count)
 	})
 }
 
+// TestCacheAnalytics_ErrorCodeExtraction verifies that extensions.code is
+// extracted from subgraph error responses into analytics error events.
 func TestCacheAnalytics_ErrorCodeExtraction(t *testing.T) {
 	t.Run("extracts extensions.code from subgraph error", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -1095,11 +1142,11 @@ func TestCacheAnalytics_ErrorCodeExtraction(t *testing.T) {
 
 		snap := ctx.GetCacheStats()
 
-		require.Equal(t, 1, len(snap.ErrorEvents), "should have exactly 1 error event")
+		// Code extracted from errors[0].extensions.code in the subgraph response
+		require.Equal(t, 1, len(snap.ErrorEvents))
 		assert.Equal(t, "products", snap.ErrorEvents[0].DataSource)
 		assert.Equal(t, "not authorized", snap.ErrorEvents[0].Message)
-		// Code extracted from errors[0].extensions.code in the subgraph response
-		assert.Equal(t, "UNAUTHORIZED", snap.ErrorEvents[0].Code, "should extract extensions.code")
+		assert.Equal(t, "UNAUTHORIZED", snap.ErrorEvents[0].Code)
 	})
 
 	t.Run("empty code when no extensions.code", func(t *testing.T) {
@@ -1171,11 +1218,11 @@ func TestCacheAnalytics_ErrorCodeExtraction(t *testing.T) {
 
 		snap := ctx.GetCacheStats()
 
-		require.Equal(t, 1, len(snap.ErrorEvents), "should have exactly 1 error event")
+		// Code is empty because the response error has no extensions object
+		require.Equal(t, 1, len(snap.ErrorEvents))
 		assert.Equal(t, "products", snap.ErrorEvents[0].DataSource)
 		assert.Equal(t, "internal server error", snap.ErrorEvents[0].Message)
-		// Code is empty because the response error has no extensions object
-		assert.Equal(t, "", snap.ErrorEvents[0].Code, "should be empty when no extensions.code")
+		assert.Equal(t, "", snap.ErrorEvents[0].Code)
 	})
 }
 
@@ -1183,6 +1230,8 @@ func TestCacheAnalytics_ErrorCodeExtraction(t *testing.T) {
 // Benchmarks
 // =============================================================================
 
+// TestCacheAnalyticsCollector_HitCount verifies the L1HitCount/L2HitCount
+// convenience methods that count only hit events from raw event slices.
 func TestCacheAnalyticsCollector_HitCount(t *testing.T) {
 	c := NewCacheAnalyticsCollector()
 
@@ -1196,16 +1245,22 @@ func TestCacheAnalyticsCollector_HitCount(t *testing.T) {
 	c.RecordL2KeyEvent(CacheKeyMiss, "Product", "k5", "products", 0)
 
 	snap := c.Snapshot()
-	assert.Equal(t, int64(2), snap.L1HitCount(), "should have exactly 2 L1 hits")
-	assert.Equal(t, int64(1), snap.L2HitCount(), "should have exactly 1 L2 hit")
+	// 2 L1 hits out of 3, 1 L2 hit out of 2
+	assert.Equal(t, int64(2), snap.L1HitCount())
+	assert.Equal(t, int64(1), snap.L2HitCount())
 }
 
+// TestCacheAnalyticsCollector_HitCount_Zero verifies hit counts return 0
+// on an empty snapshot (no events recorded).
 func TestCacheAnalyticsCollector_HitCount_Zero(t *testing.T) {
 	snap := CacheAnalyticsSnapshot{}
-	assert.Equal(t, int64(0), snap.L1HitCount(), "should have 0 L1 hits when no events")
-	assert.Equal(t, int64(0), snap.L2HitCount(), "should have 0 L2 hits when no events")
+	assert.Equal(t, int64(0), snap.L1HitCount())
+	assert.Equal(t, int64(0), snap.L2HitCount())
 }
 
+// TestCacheAnalyticsCollector_FetchTiming verifies fetch timing recording,
+// merging from goroutines, average duration computation, and time-saved
+// estimation based on cache hits.
 func TestCacheAnalyticsCollector_FetchTiming(t *testing.T) {
 	t.Run("fetch timings recorded and merged", func(t *testing.T) {
 		c := NewCacheAnalyticsCollector()
@@ -1228,7 +1283,8 @@ func TestCacheAnalyticsCollector_FetchTiming(t *testing.T) {
 		c.MergeL2FetchTimings(l2Timings)
 
 		snap := c.Snapshot()
-		assert.Equal(t, 3, len(snap.FetchTimings), "should have exactly 3 fetch timing events")
+		// 1 main-thread + 2 merged from goroutines
+		assert.Equal(t, 3, len(snap.FetchTimings))
 
 		assert.Equal(t, "accounts", snap.FetchTimings[0].DataSource)
 		assert.Equal(t, FieldSourceSubgraph, snap.FetchTimings[0].Source)
@@ -1249,9 +1305,10 @@ func TestCacheAnalyticsCollector_FetchTiming(t *testing.T) {
 		c.RecordFetchTiming(FetchTimingEvent{DataSource: "products", DurationMs: 10, Source: FieldSourceSubgraph})
 
 		snap := c.Snapshot()
-		assert.Equal(t, int64(5), snap.AvgFetchDurationMs("accounts"), "avg accounts fetch should be 5ms")
-		assert.Equal(t, int64(10), snap.AvgFetchDurationMs("products"), "avg products fetch should be 10ms")
-		assert.Equal(t, int64(0), snap.AvgFetchDurationMs("unknown"), "unknown datasource should return 0")
+		// accounts: (4+6)/2 = 5ms (L2 excluded), products: 10/1 = 10ms
+		assert.Equal(t, int64(5), snap.AvgFetchDurationMs("accounts"))
+		assert.Equal(t, int64(10), snap.AvgFetchDurationMs("products"))
+		assert.Equal(t, int64(0), snap.AvgFetchDurationMs("unknown"))
 	})
 
 	t.Run("total time saved", func(t *testing.T) {
@@ -1268,10 +1325,12 @@ func TestCacheAnalyticsCollector_FetchTiming(t *testing.T) {
 
 		snap := c.Snapshot()
 		// avg fetch duration = 5ms, 3 hits = 15ms saved
-		assert.Equal(t, int64(15), snap.TotalTimeSavedMs(), "total time saved should be 15ms")
+		assert.Equal(t, int64(15), snap.TotalTimeSavedMs())
 	})
 }
 
+// TestCacheAnalyticsCollector_ErrorEvents verifies error event recording,
+// goroutine merging, per-datasource breakdown, and error rate computation.
 func TestCacheAnalyticsCollector_ErrorEvents(t *testing.T) {
 	t.Run("error events recorded and merged", func(t *testing.T) {
 		c := NewCacheAnalyticsCollector()
@@ -1289,7 +1348,7 @@ func TestCacheAnalyticsCollector_ErrorEvents(t *testing.T) {
 		c.MergeL2Errors(l2Errors)
 
 		snap := c.Snapshot()
-		assert.Equal(t, 2, len(snap.ErrorEvents), "should have exactly 2 error events")
+		assert.Equal(t, 2, len(snap.ErrorEvents))
 		assert.Equal(t, "accounts", snap.ErrorEvents[0].DataSource)
 		assert.Equal(t, "connection refused", snap.ErrorEvents[0].Message)
 		assert.Equal(t, "products", snap.ErrorEvents[1].DataSource)
@@ -1305,8 +1364,8 @@ func TestCacheAnalyticsCollector_ErrorEvents(t *testing.T) {
 
 		snap := c.Snapshot()
 		byDS := snap.ErrorsByDataSource()
-		assert.Equal(t, 2, byDS["accounts"], "accounts should have exactly 2 errors")
-		assert.Equal(t, 1, byDS["products"], "products should have exactly 1 error")
+		assert.Equal(t, 2, byDS["accounts"])
+		assert.Equal(t, 1, byDS["products"])
 	})
 
 	t.Run("errors by datasource returns nil when no errors", func(t *testing.T) {
@@ -1324,7 +1383,8 @@ func TestCacheAnalyticsCollector_ErrorEvents(t *testing.T) {
 		c.RecordError(SubgraphErrorEvent{DataSource: "accounts", Message: "err"})
 
 		snap := c.Snapshot()
-		assert.Equal(t, 0.25, snap.ErrorRate(), "error rate should be 0.25")
+		// 1 error / (3 fetches + 1 error) = 0.25
+		assert.Equal(t, 0.25, snap.ErrorRate())
 	})
 
 	t.Run("error rate zero when no errors", func(t *testing.T) {
@@ -1349,12 +1409,14 @@ func TestCacheAnalyticsCollector_ErrorEvents(t *testing.T) {
 		})
 
 		snap := c.Snapshot()
-		assert.Equal(t, 2, len(snap.ErrorEvents), "should have exactly 2 error events")
-		assert.Equal(t, "UNAUTHORIZED", snap.ErrorEvents[0].Code, "should capture error code")
-		assert.Equal(t, "", snap.ErrorEvents[1].Code, "should be empty when no extensions.code")
+		assert.Equal(t, 2, len(snap.ErrorEvents))
+		assert.Equal(t, "UNAUTHORIZED", snap.ErrorEvents[0].Code)
+		assert.Equal(t, "", snap.ErrorEvents[1].Code)
 	})
 }
 
+// TestCacheAnalyticsCollector_UniqueKeys verifies that entity unique key tracking
+// correctly deduplicates keys while counting all instances.
 func TestCacheAnalyticsCollector_UniqueKeys(t *testing.T) {
 	t.Run("unique keys tracked correctly", func(t *testing.T) {
 		c := NewCacheAnalyticsCollector()
@@ -1394,13 +1456,15 @@ func TestCacheAnalyticsCollector_UniqueKeys(t *testing.T) {
 	})
 }
 
+// TestCacheAnalyticsCollector_CacheAge verifies cache age computation from
+// remaining TTL, and average/max age aggregation across L2 hit events.
 func TestCacheAnalyticsCollector_CacheAge(t *testing.T) {
 	t.Run("cache age computed correctly", func(t *testing.T) {
 		// Test computeCacheAgeMs directly
-		assert.Equal(t, int64(5000), computeCacheAgeMs(25*time.Second, 30*time.Second), "age should be 5000ms")
-		assert.Equal(t, int64(0), computeCacheAgeMs(0, 30*time.Second), "zero remaining returns 0")
-		assert.Equal(t, int64(0), computeCacheAgeMs(30*time.Second, 0), "zero TTL returns 0")
-		assert.Equal(t, int64(0), computeCacheAgeMs(35*time.Second, 30*time.Second), "negative age returns 0")
+		assert.Equal(t, int64(5000), computeCacheAgeMs(25*time.Second, 30*time.Second))
+		assert.Equal(t, int64(0), computeCacheAgeMs(0, 30*time.Second))
+		assert.Equal(t, int64(0), computeCacheAgeMs(30*time.Second, 0))
+		assert.Equal(t, int64(0), computeCacheAgeMs(35*time.Second, 30*time.Second))
 	})
 
 	t.Run("avg cache age", func(t *testing.T) {
@@ -1415,13 +1479,14 @@ func TestCacheAnalyticsCollector_CacheAge(t *testing.T) {
 		})
 
 		snap := c.Snapshot()
-		assert.Equal(t, int64(10000), snap.AvgCacheAgeMs("User"), "avg User age should be 10000ms")
-		assert.Equal(t, int64(3000), snap.AvgCacheAgeMs("Product"), "avg Product age should be 3000ms")
-		assert.Equal(t, int64(0), snap.AvgCacheAgeMs("Unknown"), "unknown entity returns 0")
+		// User: (5000+15000)/2 = 10000, Product: 3000/1
+		assert.Equal(t, int64(10000), snap.AvgCacheAgeMs("User"))
+		assert.Equal(t, int64(3000), snap.AvgCacheAgeMs("Product"))
+		assert.Equal(t, int64(0), snap.AvgCacheAgeMs("Unknown"))
 
 		// Empty entity type = all types
 		// (5000 + 15000 + 3000) / 3 = 7666
-		assert.Equal(t, int64(7666), snap.AvgCacheAgeMs(""), "avg age across all types should be 7666ms")
+		assert.Equal(t, int64(7666), snap.AvgCacheAgeMs(""))
 	})
 
 	t.Run("max cache age", func(t *testing.T) {
@@ -1434,7 +1499,7 @@ func TestCacheAnalyticsCollector_CacheAge(t *testing.T) {
 		})
 
 		snap := c.Snapshot()
-		assert.Equal(t, int64(20000), snap.MaxCacheAgeMs(), "max age should be 20000ms")
+		assert.Equal(t, int64(20000), snap.MaxCacheAgeMs())
 	})
 
 	t.Run("max cache age zero when no hits", func(t *testing.T) {
@@ -1443,6 +1508,8 @@ func TestCacheAnalyticsCollector_CacheAge(t *testing.T) {
 	})
 }
 
+// TestTruncateErrorMessage verifies UTF-8-safe truncation of error messages
+// to prevent oversized analytics payloads.
 func TestTruncateErrorMessage(t *testing.T) {
 	assert.Equal(t, "short", truncateErrorMessage("short", 10))
 	assert.Equal(t, "12345", truncateErrorMessage("1234567890", 5))
@@ -1458,7 +1525,7 @@ func BenchmarkCacheAnalytics_Disabled(b *testing.B) {
 	// EnableCacheAnalytics = false (default)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		// This is the guard check that should be essentially free
 		if ctx.cacheAnalyticsEnabled() {
 			ctx.cacheAnalytics.RecordL1KeyEvent(CacheKeyHit, "User", "key", "ds", 100)
@@ -1473,7 +1540,7 @@ func BenchmarkCacheAnalytics_Enabled(b *testing.B) {
 	ctx.initCacheAnalytics()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		if ctx.cacheAnalyticsEnabled() {
 			ctx.cacheAnalytics.RecordL1KeyEvent(CacheKeyHit, "User", "key", "ds", 100)
 		}
@@ -1484,6 +1551,9 @@ func BenchmarkCacheAnalytics_Enabled(b *testing.B) {
 // Shadow Mode Unit Tests
 // =============================================================================
 
+// TestFieldSourceShadowCached verifies that FieldSourceShadowCached is a
+// distinct source value that can be used in field hashing alongside
+// Subgraph/L1/L2 sources for shadow mode comparisons.
 func TestFieldSourceShadowCached(t *testing.T) {
 	t.Run("constant value", func(t *testing.T) {
 		assert.Equal(t, FieldSource(3), FieldSourceShadowCached, "FieldSourceShadowCached should be 3")
@@ -1495,11 +1565,11 @@ func TestFieldSourceShadowCached(t *testing.T) {
 		c.HashFieldValue("User", "username", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceShadowCached)
 
 		snap := c.Snapshot()
-		require.Equal(t, 1, len(snap.FieldHashes), "should have exactly 1 field hash")
+		require.Equal(t, 1, len(snap.FieldHashes))
 		assert.Equal(t, "User", snap.FieldHashes[0].EntityType)
 		assert.Equal(t, "username", snap.FieldHashes[0].FieldName)
 		assert.Equal(t, `{"id":"1"}`, snap.FieldHashes[0].KeyRaw)
-		assert.Equal(t, FieldSourceShadowCached, snap.FieldHashes[0].Source, "source should be FieldSourceShadowCached")
+		assert.Equal(t, FieldSourceShadowCached, snap.FieldHashes[0].Source)
 	})
 
 	t.Run("can distinguish from other sources", func(t *testing.T) {
@@ -1509,14 +1579,16 @@ func TestFieldSourceShadowCached(t *testing.T) {
 		c.HashFieldValue("User", "name", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceShadowCached)
 
 		snap := c.Snapshot()
-		require.Equal(t, 2, len(snap.FieldHashes), "should have exactly 2 field hashes")
+		require.Equal(t, 2, len(snap.FieldHashes))
 		assert.Equal(t, FieldSourceSubgraph, snap.FieldHashes[0].Source)
 		assert.Equal(t, FieldSourceShadowCached, snap.FieldHashes[1].Source)
 		// Same input, same hash regardless of source
-		assert.Equal(t, snap.FieldHashes[0].FieldHash, snap.FieldHashes[1].FieldHash, "same input should produce same hash")
+		assert.Equal(t, snap.FieldHashes[0].FieldHash, snap.FieldHashes[1].FieldHash, "same input = same hash")
 	})
 }
 
+// TestShadowComparisonEvent_Recording verifies that shadow comparison events
+// capture all fields (hash, size, age, TTL) needed to detect staleness.
 func TestShadowComparisonEvent_Recording(t *testing.T) {
 	c := NewCacheAnalyticsCollector()
 
@@ -1546,7 +1618,7 @@ func TestShadowComparisonEvent_Recording(t *testing.T) {
 	})
 
 	snap := c.Snapshot()
-	assert.Equal(t, 2, len(snap.ShadowComparisons), "should have exactly 2 shadow comparisons")
+	assert.Equal(t, 2, len(snap.ShadowComparisons))
 
 	assert.Equal(t, "key1", snap.ShadowComparisons[0].CacheKey)
 	assert.Equal(t, "User", snap.ShadowComparisons[0].EntityType)
@@ -1569,6 +1641,8 @@ func TestShadowComparisonEvent_Recording(t *testing.T) {
 	assert.Equal(t, 60*time.Second, snap.ShadowComparisons[1].ConfiguredTTL)
 }
 
+// TestShadowFreshnessRate verifies the freshness rate calculation across
+// all shadow comparisons (fresh / total).
 func TestShadowFreshnessRate(t *testing.T) {
 	t.Run("mix of fresh and stale", func(t *testing.T) {
 		c := NewCacheAnalyticsCollector()
@@ -1579,7 +1653,8 @@ func TestShadowFreshnessRate(t *testing.T) {
 		c.RecordShadowComparison(ShadowComparisonEvent{CacheKey: "k4", EntityType: "User", IsFresh: true})
 
 		snap := c.Snapshot()
-		assert.Equal(t, 0.75, snap.ShadowFreshnessRate(), "freshness rate should be 0.75")
+		// 3 fresh / 4 total = 0.75
+		assert.Equal(t, 0.75, snap.ShadowFreshnessRate())
 	})
 
 	t.Run("all fresh", func(t *testing.T) {
@@ -1589,7 +1664,7 @@ func TestShadowFreshnessRate(t *testing.T) {
 		c.RecordShadowComparison(ShadowComparisonEvent{CacheKey: "k2", IsFresh: true})
 
 		snap := c.Snapshot()
-		assert.Equal(t, 1.0, snap.ShadowFreshnessRate(), "freshness rate should be 1.0")
+		assert.Equal(t, 1.0, snap.ShadowFreshnessRate())
 	})
 
 	t.Run("all stale", func(t *testing.T) {
@@ -1599,15 +1674,17 @@ func TestShadowFreshnessRate(t *testing.T) {
 		c.RecordShadowComparison(ShadowComparisonEvent{CacheKey: "k2", IsFresh: false})
 
 		snap := c.Snapshot()
-		assert.Equal(t, 0.0, snap.ShadowFreshnessRate(), "freshness rate should be 0.0")
+		assert.Equal(t, 0.0, snap.ShadowFreshnessRate())
 	})
 
 	t.Run("empty returns zero", func(t *testing.T) {
 		snap := CacheAnalyticsSnapshot{}
-		assert.Equal(t, 0.0, snap.ShadowFreshnessRate(), "freshness rate should be 0.0 with no events")
+		assert.Equal(t, 0.0, snap.ShadowFreshnessRate())
 	})
 }
 
+// TestShadowFreshnessRateByEntityType verifies per-entity-type freshness rate
+// breakdown for shadow mode comparisons.
 func TestShadowFreshnessRateByEntityType(t *testing.T) {
 	c := NewCacheAnalyticsCollector()
 
@@ -1619,8 +1696,9 @@ func TestShadowFreshnessRateByEntityType(t *testing.T) {
 	snap := c.Snapshot()
 	byType := snap.ShadowFreshnessRateByEntityType()
 
-	assert.Equal(t, 0.5, byType["User"], "User freshness rate should be 0.5")
-	assert.Equal(t, 1.0, byType["Product"], "Product freshness rate should be 1.0")
+	// User: 1 fresh / 2 = 0.5, Product: 2 fresh / 2 = 1.0
+	assert.Equal(t, 0.5, byType["User"])
+	assert.Equal(t, 1.0, byType["Product"])
 }
 
 func TestShadowFreshnessRateByEntityType_Empty(t *testing.T) {
@@ -1674,7 +1752,7 @@ func BenchmarkFieldHashing(b *testing.B) {
 	value := []byte(`"some-user-id-value-12345"`)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		c.HashFieldValue("User", "id", value, `{"id":"1"}`, 0, FieldSourceSubgraph)
 	}
 }

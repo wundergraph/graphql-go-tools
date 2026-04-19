@@ -73,6 +73,16 @@ type ComplexityRoot struct {
 		Middle func(childComplexity int) int
 	}
 
+	CacheEntity struct {
+		A  func(childComplexity int) int
+		B  func(childComplexity int) int
+		C  func(childComplexity int) int
+		D  func(childComplexity int) int
+		E  func(childComplexity int) int
+		F  func(childComplexity int) int
+		ID func(childComplexity int) int
+	}
+
 	Cat struct {
 		Name func(childComplexity int) int
 	}
@@ -90,8 +100,9 @@ type ComplexityRoot struct {
 	}
 
 	Entity struct {
-		FindAdminByID func(childComplexity int, id string) int
-		FindUserByID  func(childComplexity int, id string) int
+		FindAdminByID       func(childComplexity int, id string) int
+		FindCacheEntityByID func(childComplexity int, id string) int
+		FindUserByID        func(childComplexity int, id string) int
 	}
 
 	Mutation struct {
@@ -110,6 +121,7 @@ type ComplexityRoot struct {
 
 	Query struct {
 		AbstractList         func(childComplexity int) int
+		CacheEntity          func(childComplexity int, id string) int
 		Cat                  func(childComplexity int) int
 		Cds                  func(childComplexity int) int
 		Histories            func(childComplexity int) int
@@ -203,6 +215,7 @@ type ComplexityRoot struct {
 
 type EntityResolver interface {
 	FindAdminByID(ctx context.Context, id string) (*model.Admin, error)
+	FindCacheEntityByID(ctx context.Context, id string) (*model.CacheEntity, error)
 	FindUserByID(ctx context.Context, id string) (*model.User, error)
 }
 type MutationResolver interface {
@@ -217,6 +230,7 @@ type QueryResolver interface {
 	Identifiable(ctx context.Context) (model.Identifiable, error)
 	Histories(ctx context.Context) ([]model.History, error)
 	Cat(ctx context.Context) (*model.Cat, error)
+	CacheEntity(ctx context.Context, id string) (*model.CacheEntity, error)
 	InterfaceUnion(ctx context.Context, which model.Which) (model.Ab, error)
 	AbstractList(ctx context.Context) ([]model.AbstractListItem, error)
 	TitleName(ctx context.Context) (*model.TitleName, error)
@@ -311,6 +325,55 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.CDerObj.Middle(childComplexity), true
 
+	case "CacheEntity.a":
+		if e.complexity.CacheEntity.A == nil {
+			break
+		}
+
+		return e.complexity.CacheEntity.A(childComplexity), true
+
+	case "CacheEntity.b":
+		if e.complexity.CacheEntity.B == nil {
+			break
+		}
+
+		return e.complexity.CacheEntity.B(childComplexity), true
+
+	case "CacheEntity.c":
+		if e.complexity.CacheEntity.C == nil {
+			break
+		}
+
+		return e.complexity.CacheEntity.C(childComplexity), true
+
+	case "CacheEntity.d":
+		if e.complexity.CacheEntity.D == nil {
+			break
+		}
+
+		return e.complexity.CacheEntity.D(childComplexity), true
+
+	case "CacheEntity.e":
+		if e.complexity.CacheEntity.E == nil {
+			break
+		}
+
+		return e.complexity.CacheEntity.E(childComplexity), true
+
+	case "CacheEntity.f":
+		if e.complexity.CacheEntity.F == nil {
+			break
+		}
+
+		return e.complexity.CacheEntity.F(childComplexity), true
+
+	case "CacheEntity.id":
+		if e.complexity.CacheEntity.ID == nil {
+			break
+		}
+
+		return e.complexity.CacheEntity.ID(childComplexity), true
+
 	case "Cat.name":
 		if e.complexity.Cat.Name == nil {
 			break
@@ -350,6 +413,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Entity.FindAdminByID(childComplexity, args["id"].(string)), true
+
+	case "Entity.findCacheEntityByID":
+		if e.complexity.Entity.FindCacheEntityByID == nil {
+			break
+		}
+
+		args, err := ec.field_Entity_findCacheEntityByID_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Entity.FindCacheEntityByID(childComplexity, args["id"].(string)), true
 
 	case "Entity.findUserByID":
 		if e.complexity.Entity.FindUserByID == nil {
@@ -409,6 +484,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.AbstractList(childComplexity), true
+
+	case "Query.cacheEntity":
+		if e.complexity.Query.CacheEntity == nil {
+			break
+		}
+
+		args, err := ec.field_Query_cacheEntity_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.CacheEntity(childComplexity, args["id"].(string)), true
 
 	case "Query.cat":
 		if e.complexity.Query.Cat == nil {
@@ -921,6 +1008,9 @@ var sources = []*ast.Source{
     histories: [History]
     cat: Cat
 
+    # L1 cache union optimization testing
+    cacheEntity(id: ID!): CacheEntity!
+
     # merge data test cases
     interfaceUnion(which: Which! = A): AB
     abstractList: [AbstractListItem]
@@ -1129,6 +1219,21 @@ type CDerObj {
     last: String!
 }
 
+# CacheEntity is a self-referential entity designed for L1 cache testing.
+# It has many scalar fields (a-f) so tests can select different field subsets
+# at each tree level, creating entity fetches with different ProvidesData.
+# The ` + "`" + `nested` + "`" + ` field (defined in reviews subgraph) returns the same entity,
+# enabling arbitrary-depth sequential entity fetch chains for the same key.
+type CacheEntity @key(fields: "id") {
+    id: ID!
+    a: String!
+    b: String!
+    c: String!
+    d: String!
+    e: String!
+    f: String!
+}
+
 # Admin is another entity that implements Identifiable for testing interface/union caching
 type Admin implements Identifiable @key(fields: "id") {
     id: ID!
@@ -1149,11 +1254,12 @@ union MeUnion = User | Admin`, BuiltIn: false},
 `, BuiltIn: true},
 	{Name: "../../federation/entity.graphql", Input: `
 # a union of all types that use the @key directive
-union _Entity = Admin | Product | User
+union _Entity = Admin | CacheEntity | Product | User
 
 # fake type to build resolver interfaces for users to implement
 type Entity {
 	findAdminByID(id: ID!,): Admin!
+	findCacheEntityByID(id: ID!,): CacheEntity!
 	findUserByID(id: ID!,): User!
 }
 
@@ -1184,6 +1290,34 @@ func (ec *executionContext) field_Entity_findAdminByID_args(ctx context.Context,
 	return args, nil
 }
 func (ec *executionContext) field_Entity_findAdminByID_argsID(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	if _, ok := rawArgs["id"]; !ok {
+		var zeroVal string
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+	if tmp, ok := rawArgs["id"]; ok {
+		return ec.unmarshalNID2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Entity_findCacheEntityByID_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Entity_findCacheEntityByID_argsID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Entity_findCacheEntityByID_argsID(
 	ctx context.Context,
 	rawArgs map[string]any,
 ) (string, error) {
@@ -1333,6 +1467,34 @@ func (ec *executionContext) field_Query__entities_argsRepresentations(
 	}
 
 	var zeroVal []map[string]any
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Query_cacheEntity_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Query_cacheEntity_argsID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Query_cacheEntity_argsID(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	if _, ok := rawArgs["id"]; !ok {
+		var zeroVal string
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+	if tmp, ok := rawArgs["id"]; ok {
+		return ec.unmarshalNID2string(ctx, tmp)
+	}
+
+	var zeroVal string
 	return zeroVal, nil
 }
 
@@ -2020,6 +2182,314 @@ func (ec *executionContext) fieldContext_CDerObj_last(_ context.Context, field g
 	return fc, nil
 }
 
+func (ec *executionContext) _CacheEntity_id(ctx context.Context, field graphql.CollectedField, obj *model.CacheEntity) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_CacheEntity_id(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_CacheEntity_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CacheEntity",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CacheEntity_a(ctx context.Context, field graphql.CollectedField, obj *model.CacheEntity) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_CacheEntity_a(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.A, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_CacheEntity_a(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CacheEntity",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CacheEntity_b(ctx context.Context, field graphql.CollectedField, obj *model.CacheEntity) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_CacheEntity_b(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.B, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_CacheEntity_b(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CacheEntity",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CacheEntity_c(ctx context.Context, field graphql.CollectedField, obj *model.CacheEntity) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_CacheEntity_c(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.C, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_CacheEntity_c(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CacheEntity",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CacheEntity_d(ctx context.Context, field graphql.CollectedField, obj *model.CacheEntity) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_CacheEntity_d(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.D, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_CacheEntity_d(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CacheEntity",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CacheEntity_e(ctx context.Context, field graphql.CollectedField, obj *model.CacheEntity) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_CacheEntity_e(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.E, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_CacheEntity_e(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CacheEntity",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CacheEntity_f(ctx context.Context, field graphql.CollectedField, obj *model.CacheEntity) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_CacheEntity_f(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.F, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_CacheEntity_f(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CacheEntity",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Cat_name(ctx context.Context, field graphql.CollectedField, obj *model.Cat) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Cat_name(ctx, field)
 	if err != nil {
@@ -2258,6 +2728,77 @@ func (ec *executionContext) fieldContext_Entity_findAdminByID(ctx context.Contex
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Entity_findAdminByID_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Entity_findCacheEntityByID(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Entity_findCacheEntityByID(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Entity().FindCacheEntityByID(rctx, fc.Args["id"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.CacheEntity)
+	fc.Result = res
+	return ec.marshalNCacheEntity2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐCacheEntity(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Entity_findCacheEntityByID(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Entity",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_CacheEntity_id(ctx, field)
+			case "a":
+				return ec.fieldContext_CacheEntity_a(ctx, field)
+			case "b":
+				return ec.fieldContext_CacheEntity_b(ctx, field)
+			case "c":
+				return ec.fieldContext_CacheEntity_c(ctx, field)
+			case "d":
+				return ec.fieldContext_CacheEntity_d(ctx, field)
+			case "e":
+				return ec.fieldContext_CacheEntity_e(ctx, field)
+			case "f":
+				return ec.fieldContext_CacheEntity_f(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CacheEntity", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Entity_findCacheEntityByID_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -2991,6 +3532,77 @@ func (ec *executionContext) fieldContext_Query_cat(_ context.Context, field grap
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Cat", field.Name)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_cacheEntity(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_cacheEntity(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().CacheEntity(rctx, fc.Args["id"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.CacheEntity)
+	fc.Result = res
+	return ec.marshalNCacheEntity2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐCacheEntity(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_cacheEntity(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_CacheEntity_id(ctx, field)
+			case "a":
+				return ec.fieldContext_CacheEntity_a(ctx, field)
+			case "b":
+				return ec.fieldContext_CacheEntity_b(ctx, field)
+			case "c":
+				return ec.fieldContext_CacheEntity_c(ctx, field)
+			case "d":
+				return ec.fieldContext_CacheEntity_d(ctx, field)
+			case "e":
+				return ec.fieldContext_CacheEntity_e(ctx, field)
+			case "f":
+				return ec.fieldContext_CacheEntity_f(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CacheEntity", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_cacheEntity_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -7580,6 +8192,13 @@ func (ec *executionContext) __Entity(ctx context.Context, sel ast.SelectionSet, 
 			return graphql.Null
 		}
 		return ec._Product(ctx, sel, obj)
+	case model.CacheEntity:
+		return ec._CacheEntity(ctx, sel, &obj)
+	case *model.CacheEntity:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._CacheEntity(ctx, sel, obj)
 	default:
 		panic(fmt.Errorf("unexpected type %T", obj))
 	}
@@ -7801,6 +8420,75 @@ func (ec *executionContext) _CDerObj(ctx context.Context, sel ast.SelectionSet, 
 	return out
 }
 
+var cacheEntityImplementors = []string{"CacheEntity", "_Entity"}
+
+func (ec *executionContext) _CacheEntity(ctx context.Context, sel ast.SelectionSet, obj *model.CacheEntity) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, cacheEntityImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CacheEntity")
+		case "id":
+			out.Values[i] = ec._CacheEntity_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "a":
+			out.Values[i] = ec._CacheEntity_a(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "b":
+			out.Values[i] = ec._CacheEntity_b(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "c":
+			out.Values[i] = ec._CacheEntity_c(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "d":
+			out.Values[i] = ec._CacheEntity_d(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "e":
+			out.Values[i] = ec._CacheEntity_e(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "f":
+			out.Values[i] = ec._CacheEntity_f(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var catImplementors = []string{"Cat"}
 
 func (ec *executionContext) _Cat(ctx context.Context, sel ast.SelectionSet, obj *model.Cat) graphql.Marshaler {
@@ -7983,6 +8671,28 @@ func (ec *executionContext) _Entity(ctx context.Context, sel ast.SelectionSet) g
 					}
 				}()
 				res = ec._Entity_findAdminByID(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "findCacheEntityByID":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Entity_findCacheEntityByID(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -8336,6 +9046,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_cat(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "cacheEntity":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_cacheEntity(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
 				return res
 			}
 
@@ -9543,6 +10275,20 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) marshalNCacheEntity2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐCacheEntity(ctx context.Context, sel ast.SelectionSet, v model.CacheEntity) graphql.Marshaler {
+	return ec._CacheEntity(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNCacheEntity2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐCacheEntity(ctx context.Context, sel ast.SelectionSet, v *model.CacheEntity) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CacheEntity(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNFloat2float64(ctx context.Context, v any) (float64, error) {

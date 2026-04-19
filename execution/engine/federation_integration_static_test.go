@@ -44,8 +44,7 @@ func TestExecutionEngine_FederationAndSubscription_IntegrationTest(t *testing.T)
 			require.NoError(t, err)
 			require.True(t, validationResult.Valid)
 
-			execCtx, execCtxCancelFn := context.WithCancel(context.Background())
-			defer execCtxCancelFn()
+			execCtx := t.Context()
 
 			resultWriter := graphql.NewEngineResultWriter()
 			err = engine.Execute(execCtx, gqlRequest, &resultWriter)
@@ -99,8 +98,7 @@ subscription UpdatedPrice {
 			require.NoError(t, err)
 			require.True(t, validationResult.Valid)
 
-			execCtx, execCtxCancelFn := context.WithCancel(context.Background())
-			defer execCtxCancelFn()
+			execCtx := t.Context()
 
 			message := make(chan string)
 			resultWriter := graphql.NewEngineResultWriter()

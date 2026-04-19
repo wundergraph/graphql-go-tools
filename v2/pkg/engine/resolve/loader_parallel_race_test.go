@@ -19,7 +19,7 @@ import (
 // TestResolveParallel_NoConcurrentArenaRace verifies that parallel entity fetches
 // with L2 caching do not race on the arena. This test exercises the goroutine code
 // paths in resolveParallel Phase 2 (extractCacheKeysStrings, populateFromCache,
-// denormalizeFromCache) which allocate from per-goroutine arenas.
+// DeepCopyWithTransform denormalization) which allocate from per-goroutine arenas.
 //
 // Run with: go test -race -run TestResolveParallel_NoConcurrentArenaRace ./v2/pkg/engine/resolve/... -v -count=1
 func TestResolveParallel_NoConcurrentArenaRace(t *testing.T) {
@@ -182,8 +182,7 @@ func TestResolveParallel_NoConcurrentArenaRace(t *testing.T) {
 			require.NoError(t, err)
 
 			out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
-			assert.Contains(t, out, `"id":"prod-1"`)
-			assert.Contains(t, out, `"id":"prod-2"`)
+			assert.Equal(t, `{"data":{"products":[{"__typename":"Product","id":"prod-1","name":"Widget","inStock":true},{"__typename":"Product","id":"prod-2","name":"Gadget","inStock":false}]}}`, out)
 
 			loader.Free()
 			ar.Reset()
@@ -342,8 +341,7 @@ func TestResolveParallel_NoConcurrentArenaRace(t *testing.T) {
 			require.NoError(t, err)
 
 			out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
-			assert.Contains(t, out, `"id":"prod-1"`)
-			assert.Contains(t, out, `"id":"prod-2"`)
+			assert.Equal(t, `{"data":{"products":[{"__typename":"Product","id":"prod-1","name":"Widget","inStock":true},{"__typename":"Product","id":"prod-2","name":"Gadget","inStock":false}]}}`, out)
 
 			loader.Free()
 			ar.Reset()

@@ -1,6 +1,7 @@
 package resolve
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -14,6 +15,9 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastjsonext"
 )
 
+// TestEntityFetchWritebackPreservesExistingCachedFields verifies that partial entity fetches
+// merge new fields into existing cached entries instead of overwriting them.
+// Without this, a narrow projection (e.g. only "brand") would wipe previously cached fields (e.g. "title").
 func TestEntityFetchWritebackPreservesExistingCachedFields(t *testing.T) {
 	cache := NewFakeLoaderCache()
 	productKey := `{"__typename":"Product","key":{"id":"prod-1"}}`
@@ -57,6 +61,9 @@ func TestEntityFetchWritebackPreservesExistingCachedFields(t *testing.T) {
 	}, cache.GetLog())
 }
 
+// TestRootFieldEntityCacheEntrySurvivesLaterPartialEntityFetch verifies that a root field's
+// cache entry (stored via EntityKeyMappings) is not overwritten when a later entity fetch
+// writes a narrower projection to the same shared entity key.
 func TestRootFieldEntityCacheEntrySurvivesLaterPartialEntityFetch(t *testing.T) {
 	cache := NewFakeLoaderCache()
 	productKey := `{"__typename":"Product","key":{"id":"prod-1"}}`
@@ -194,12 +201,17 @@ func buildSingleProductFieldResponse(rootDS, entityDS DataSource, fields []produ
 }
 
 func productEntityResponse(fields []productFieldSpec) []byte {
-	payload := `{"data":{"_entities":[{"__typename":"Product","id":"prod-1"`
+	var payload strings.Builder
+	payload.WriteString(`{"data":{"_entities":[{"__typename":"Product","id":"prod-1"`)
 	for _, field := range fields {
-		payload += `,"` + field.name + `":"` + field.value + `"`
+		payload.WriteString(`,"`)
+		payload.WriteString(field.name)
+		payload.WriteString(`":"`)
+		payload.WriteString(field.value)
+		payload.WriteString(`"`)
 	}
-	payload += `}]}}`
-	return []byte(payload)
+	payload.WriteString(`}]}}`)
+	return []byte(payload.String())
 }
 
 func runProductByIDRootRequest(t *testing.T, cache LoaderCache) string {
@@ -221,7 +233,8 @@ func runProductByIDRootRequest(t *testing.T, cache LoaderCache) string {
 						TTL:       30 * time.Second,
 						CacheKeyTemplate: NewRootQueryCacheKeyTemplate(
 							[]QueryField{{
-								Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "productById"},
+								Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "productById"},
+								ResponseKey: "productById",
 								Args: []FieldArgument{{
 									Name: "id",
 									Variable: &ContextVariable{

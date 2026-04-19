@@ -1,6 +1,7 @@
 package resolve
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -11,7 +12,11 @@ import (
 	"github.com/wundergraph/go-arena"
 )
 
-func TestPopulateFromCache(t *testing.T) {
+// TestLoader_PopulateFromCache verifies that populateFromCache correctly assigns
+// cache hits to FromCache, tracks freshness ordering across multi-key entities,
+// and records missing keys for partial hits. Without this, stale or wrong candidates
+// could be served from L2 cache.
+func TestLoader_PopulateFromCache(t *testing.T) {
 	t.Parallel()
 
 	t.Run("single key single entry sets FromCache", func(t *testing.T) {
@@ -251,4 +256,54 @@ func TestPopulateFromCache(t *testing.T) {
 		}, cacheKeys[0].missingKeys)
 		assert.False(t, cacheKeys[0].fromCacheNeedsWriteback)
 	})
+}
+
+// TestLoaderBuildCacheTrace_PredictableDebugTimingsNormalizeZeroDurationOperations
+// verifies that predictable debug timings normalize zero-duration L2 operations to 1ns.
+// Without this, flaky timing values would make trace output non-deterministic in tests.
+func TestLoaderBuildCacheTrace_PredictableDebugTimingsNormalizeZeroDurationOperations(t *testing.T) {
+	ctx := NewContext(context.Background())
+	ctx.TracingOptions = TraceOptions{
+		Enable:                        true,
+		EnablePredictableDebugTimings: true,
+	}
+	ctx.ExecutionOptions.Caching.EnableL2Cache = true
+
+	loader := &Loader{ctx: ctx}
+	res := &result{
+		cache:                    NewFakeLoaderCache(),
+		cacheTraceL2GetAttempted: true,
+		cacheTraceL2SetAttempted: true,
+		cacheTraceL2Misses:       1,
+		cacheTraceL2SetError:     "write failed",
+		cacheTraceEntityCount:    1,
+		l2CacheKeys: []*CacheKey{
+			{Keys: []string{"key-1"}},
+		},
+	}
+
+	trace := loader.buildCacheTrace(res, FetchCacheConfiguration{
+		Enabled:          true,
+		CacheName:        "default",
+		TTL:              30 * time.Second,
+		CacheKeyTemplate: &EntityQueryCacheKeyTemplate{},
+	})
+
+	assert.Equal(t, &CacheTrace{
+		DurationSinceStartNano:   1,  // predictable debug timing
+		DurationSinceStartPretty: "1ns",
+		DurationNano:             1,
+		DurationPretty:           "1ns",
+		L2Enabled:                true,
+		CacheName:                "default",
+		TTLSeconds:               30,
+		EntityCount:              1, // 1 cache key
+		L2Miss:                   1,
+		L2GetDurationNano:        1,
+		L2GetDurationPretty:      "1ns",
+		L2SetDurationNano:        1,
+		L2SetDurationPretty:      "1ns",
+		Keys:                     []string{"key-1"},
+		L2SetError:               "write failed",
+	}, trace)
 }

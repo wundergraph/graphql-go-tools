@@ -250,7 +250,7 @@ func TestRootFieldEntityKeyMappingCacheSharing(t *testing.T) {
 
 		storedValue, exists := defaultCache.Peek(productKey)
 		assert.True(t, exists, "shared entity/root cache key should be populated")
-		assert.JSONEq(t, `{"__typename":"Product","upc":"top-1","name":"Trilby","reviews":null}`, string(storedValue))
+		assert.Equal(t, compactJSONForAssert(t, `{"__typename":"Product","upc":"top-1","name":"Trilby","reviews":null}`), compactJSONForAssert(t, string(storedValue)))
 
 		defaultCache.ClearLog()
 		tracker.Reset()
@@ -371,7 +371,7 @@ func TestRootFieldEntityKeyMappingCacheSharing(t *testing.T) {
 		}), sortCacheLogKeysWithTTL(defaultCache.GetLog()))
 		storedValue, exists := defaultCache.Peek(productKey)
 		assert.True(t, exists, "shared entity/root cache key should be populated after the seed request")
-		assert.JSONEq(t, `{"__typename":"Product","upc":"top-1","name":"Trilby","reviews":null}`, string(storedValue))
+		assert.Equal(t, compactJSONForAssert(t, `{"__typename":"Product","upc":"top-1","name":"Trilby","reviews":null}`), compactJSONForAssert(t, string(storedValue)))
 
 		defaultCache.ClearLog()
 		tracker.Reset()
@@ -487,7 +487,7 @@ func TestRootFieldEntityKeyMappingCacheSharing(t *testing.T) {
 
 		storedValue, exists := defaultCache.Peek(productKey)
 		assert.True(t, exists, "shared entity/root cache key should still hold the positive root payload")
-		assert.JSONEq(t, `{"__typename":"Product","upc":"top-1","name":"Trilby"}`, string(storedValue))
+		assert.Equal(t, compactJSONForAssert(t, `{"__typename":"Product","upc":"top-1","name":"Trilby"}`), compactJSONForAssert(t, string(storedValue)))
 
 		defaultCache.ClearLog()
 		tracker.Reset()

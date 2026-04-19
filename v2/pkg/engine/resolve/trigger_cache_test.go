@@ -47,6 +47,9 @@ func productCacheKeyTemplate() *EntityQueryCacheKeyTemplate {
 	}
 }
 
+// TestHandleTriggerEntityCache verifies subscription-driven entity cache operations:
+// populate (set), invalidate (delete), typename injection, and filtering.
+// Without this, subscription events could corrupt or fail to update the L2 cache.
 func TestHandleTriggerEntityCache(t *testing.T) {
 	t.Run("populate single entity", func(t *testing.T) {
 		cache := NewFakeLoaderCache()
@@ -76,20 +79,21 @@ func TestHandleTriggerEntityCache(t *testing.T) {
 
 		log := cache.GetLog()
 		// Expect exactly 1 set with 1 key
-		require.Equal(t, 1, len(log), "should have exactly 1 cache operation")
+		// Verify single set with correct key and TTL
+		require.Equal(t, 1, len(log))
 		assert.Equal(t, CacheLogEntry{
 			Operation: "set",
 			Keys:      []string{`{"__typename":"Product","key":{"id":"prod-1"}}`},
 			Hits:      nil,
 			TTL:       30 * time.Second,
-		}, log[0], "should set the entity with correct cache key")
+		}, log[0])
 
-		// Verify stored data
+		// Verify stored data includes injected __typename
 		entries, err := cache.Get(context.Background(), []string{`{"__typename":"Product","key":{"id":"prod-1"}}`})
 		require.NoError(t, err)
-		require.Equal(t, 1, len(entries), "should return exactly 1 entry")
-		require.NotNil(t, entries[0], "entry should not be nil")
-		assert.Equal(t, `{"id":"prod-1","name":"Widget","price":9.99,"__typename":"Product"}`, string(entries[0].Value), "stored data should match original entity with injected __typename")
+		require.Equal(t, 1, len(entries))
+		require.NotNil(t, entries[0])
+		assert.Equal(t, `{"id":"prod-1","name":"Widget","price":9.99,"__typename":"Product"}`, string(entries[0].Value))
 	})
 
 	t.Run("populate array of entities", func(t *testing.T) {
@@ -119,13 +123,13 @@ func TestHandleTriggerEntityCache(t *testing.T) {
 		r.handleTriggerEntityCache(config, data)
 
 		log := cache.GetLog()
-		// Expect exactly 1 set with 2 keys
-		require.Equal(t, 1, len(log), "should have exactly 1 cache operation")
-		assert.Equal(t, "set", log[0].Operation, "operation should be set")
+		// Verify single set with both entity keys
+		require.Equal(t, 1, len(log))
+		assert.Equal(t, "set", log[0].Operation)
 		assert.Equal(t, []string{
 			`{"__typename":"Product","key":{"id":"prod-1"}}`,
 			`{"__typename":"Product","key":{"id":"prod-2"}}`,
-		}, log[0].Keys, "should set both entities with correct cache keys")
+		}, log[0].Keys)
 	})
 
 	t.Run("typename filtering skips non-matching entities", func(t *testing.T) {
@@ -159,25 +163,25 @@ func TestHandleTriggerEntityCache(t *testing.T) {
 		r.handleTriggerEntityCache(config, data)
 
 		log := cache.GetLog()
-		// Expect exactly 1 set with 2 keys (the 2 Products, not the Review)
-		require.Equal(t, 1, len(log), "should have exactly 1 cache operation")
-		assert.Equal(t, "set", log[0].Operation, "operation should be set")
+		// Only Products cached, not the Review
+		require.Equal(t, 1, len(log))
+		assert.Equal(t, "set", log[0].Operation)
 		assert.Equal(t, []string{
 			`{"__typename":"Product","key":{"id":"prod-1"}}`,
 			`{"__typename":"Product","key":{"id":"prod-2"}}`,
-		}, log[0].Keys, "should only cache Product entities, not Review")
+		}, log[0].Keys)
 
-		// Verify stored data integrity — the items[:0] bug would corrupt values
+		// Verify stored data integrity (the items[:0] bug would corrupt values)
 		entries, err := cache.Get(context.Background(), []string{
 			`{"__typename":"Product","key":{"id":"prod-1"}}`,
 			`{"__typename":"Product","key":{"id":"prod-2"}}`,
 		})
 		require.NoError(t, err)
-		require.Equal(t, 2, len(entries), "should return exactly 2 entries")
-		require.NotNil(t, entries[0], "first entry should not be nil")
-		require.NotNil(t, entries[1], "second entry should not be nil")
-		assert.Equal(t, `{"__typename":"Product","id":"prod-1","name":"Widget"}`, string(entries[0].Value), "first Product data should be intact")
-		assert.Equal(t, `{"__typename":"Product","id":"prod-2","name":"Gadget"}`, string(entries[1].Value), "second Product data should be intact")
+		require.Equal(t, 2, len(entries))
+		require.NotNil(t, entries[0])
+		require.NotNil(t, entries[1])
+		assert.Equal(t, `{"__typename":"Product","id":"prod-1","name":"Widget"}`, string(entries[0].Value))
+		assert.Equal(t, `{"__typename":"Product","id":"prod-2","name":"Gadget"}`, string(entries[1].Value))
 	})
 
 	t.Run("missing typename gets injected", func(t *testing.T) {
@@ -208,17 +212,17 @@ func TestHandleTriggerEntityCache(t *testing.T) {
 		r.handleTriggerEntityCache(config, data)
 
 		log := cache.GetLog()
-		require.Equal(t, 1, len(log), "should have exactly 1 cache operation")
-		assert.Equal(t, "set", log[0].Operation, "operation should be set")
-		// Cache key should include "Product" typename even though it wasn't in the data
-		assert.Equal(t, []string{`{"__typename":"Product","key":{"id":"prod-1"}}`}, log[0].Keys, "cache key should use injected typename")
+		// Cache key should include injected "Product" typename
+		require.Equal(t, 1, len(log))
+		assert.Equal(t, "set", log[0].Operation)
+		assert.Equal(t, []string{`{"__typename":"Product","key":{"id":"prod-1"}}`}, log[0].Keys)
 
 		// Verify stored data includes injected __typename
 		entries, err := cache.Get(context.Background(), []string{`{"__typename":"Product","key":{"id":"prod-1"}}`})
 		require.NoError(t, err)
-		require.Equal(t, 1, len(entries), "should return exactly 1 entry")
-		require.NotNil(t, entries[0], "entry should not be nil")
-		assert.Equal(t, `{"id":"prod-1","name":"Widget","__typename":"Product"}`, string(entries[0].Value), "stored data should include injected __typename")
+		require.Equal(t, 1, len(entries))
+		require.NotNil(t, entries[0])
+		assert.Equal(t, `{"id":"prod-1","name":"Widget","__typename":"Product"}`, string(entries[0].Value))
 	})
 
 	t.Run("invalidate mode deletes cache entry", func(t *testing.T) {
@@ -255,19 +259,19 @@ func TestHandleTriggerEntityCache(t *testing.T) {
 		r.handleTriggerEntityCache(config, data)
 
 		log := cache.GetLog()
-		// Expect exactly 1 delete with 1 key
-		require.Equal(t, 1, len(log), "should have exactly 1 cache operation")
+		// Verify delete operation
+		require.Equal(t, 1, len(log))
 		assert.Equal(t, CacheLogEntry{
 			Operation: "delete",
 			Keys:      []string{`{"__typename":"Product","key":{"id":"prod-1"}}`},
 			Hits:      nil,
-		}, log[0], "should delete the correct cache key")
+		}, log[0])
 
 		// Verify the entry is gone
 		entries, err := cache.Get(context.Background(), []string{`{"__typename":"Product","key":{"id":"prod-1"}}`})
 		require.NoError(t, err)
-		require.Equal(t, 1, len(entries), "should return exactly 1 result")
-		assert.Nil(t, entries[0], "entry should be nil after deletion")
+		require.Equal(t, 1, len(entries))
+		assert.Nil(t, entries[0])
 	})
 
 	t.Run("missing cache name returns early", func(t *testing.T) {
@@ -299,6 +303,6 @@ func TestHandleTriggerEntityCache(t *testing.T) {
 		r.handleTriggerEntityCache(config, data)
 
 		log := cache.GetLog()
-		assert.Equal(t, 0, len(log), "should not perform any cache operations when cache name is missing")
+		assert.Equal(t, 0, len(log))
 	})
 }

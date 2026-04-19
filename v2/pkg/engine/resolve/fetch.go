@@ -413,6 +413,37 @@ type FetchCacheConfiguration struct {
 	// BatchEntityKeyArgumentPathHint describes the root-field argument that acts as the entity key list.
 	// This enables batch short-circuiting and partial variable filtering even when cache reads are disabled.
 	BatchEntityKeyArgumentPathHint []string
+
+	// RequestScopedFields lists fields annotated with @requestScoped whose values are
+	// identical for all entities in a request. Each field participates in per-request
+	// L1 caching symmetrically: it can be injected from L1 (skipping the fetch) AND
+	// exported to L1 (populating the cache after a fetch).
+	RequestScopedFields []RequestScopedField
+}
+
+// RequestScopedField describes a field that participates in per-request L1 caching.
+//
+// Symmetric model: every @requestScoped field is both a reader (inject from L1
+// before fetch) and a writer (export to L1 after fetch). There is no separate
+// hint/export distinction.
+//
+// The L1 cache stores values in normalized form (schema field names + arg hashes).
+// ProvidesData describes the shape the query expects AT THIS FETCH LOCATION,
+// using response-side field names (aliases). The resolver uses ProvidesData for:
+//   - Injection: `validateItemHasRequiredData` + `structuralCopyProjected`
+//   - Export: `structuralCopyNormalized` (alias → schema name, arg → arg-hash)
+type RequestScopedField struct {
+	// FieldName is the response key at the entity-fetch location (alias if present,
+	// else the schema field name). Used when writing the injected value onto entity items.
+	FieldName string
+	// FieldPath is the path in the response data (e.g. ["currentViewer"]).
+	// Uses response keys (aliases) as they appear in the current fetch's output.
+	FieldPath []string
+	// L1Key is the coordinate-based L1 cache key (e.g. "viewer.Personalized.currentViewer").
+	L1Key string
+	// ProvidesData describes the field's value shape at this fetch location,
+	// including nested sub-fields, aliases, and arg variants.
+	ProvidesData *Object
 }
 
 func (f FetchCacheConfiguration) isEntityFetch() bool {
@@ -453,6 +484,16 @@ type MutationEntityImpactConfig struct {
 	// InvalidateCache when true causes the L2 cache entry for this entity to be deleted
 	// after the mutation completes. Configured per mutation field via MutationCacheInvalidationConfiguration.
 	InvalidateCache bool
+	// PopulateCache when true causes the L2 cache entry for this entity to be written
+	// directly from the mutation response payload after the mutation completes. Use case:
+	// `@cachePopulate` on a single-subgraph mutation that returns the full entity, where
+	// no follow-up entity fetch exists to inherit EnableMutationL2CachePopulation.
+	// Mutually informative with InvalidateCache (a single mutation field is annotated with
+	// only one or the other in composition).
+	PopulateCache bool
+	// PopulateTTL is the TTL to use when writing under PopulateCache. When zero the cache
+	// implementation's default TTL applies.
+	PopulateTTL time.Duration
 }
 
 // FetchDependency explains how a GraphCoordinate depends on other GraphCoordinates from other fetches

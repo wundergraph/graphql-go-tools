@@ -87,7 +87,9 @@ func partialCacheTestQueryPath(name string) string {
 // TestPartialCacheLoading tests the EnablePartialCacheLoad feature for entity caching.
 // When enabled, only cache-missed entities are fetched from subgraphs.
 // When disabled (default), all entities are fetched if any are missing.
-func TestPartialCacheLoading(t *testing.T) {
+// TestFederationCaching_PartialLoading verifies partial cache loading end-to-end: when some
+// entities in a batch are cached, only the uncached ones are fetched from the subgraph.
+func TestFederationCaching_PartialLoading(t *testing.T) {
 	t.Parallel()
 	t.Run("L2 partial cache loading enabled - only missing entities fetched", func(t *testing.T) {
 		t.Parallel()

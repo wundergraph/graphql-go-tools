@@ -172,6 +172,25 @@ func (ec *executionContext) resolveEntity(
 
 			return entity, nil
 		}
+	case "CacheEntity":
+		resolverName, err := entityResolverNameForCacheEntity(ctx, rep)
+		if err != nil {
+			return nil, fmt.Errorf(`finding resolver for Entity "CacheEntity": %w`, err)
+		}
+		switch resolverName {
+
+		case "findCacheEntityByID":
+			id0, err := ec.unmarshalNID2string(ctx, rep["id"])
+			if err != nil {
+				return nil, fmt.Errorf(`unmarshalling param 0 for findCacheEntityByID(): %w`, err)
+			}
+			entity, err := ec.resolvers.Entity().FindCacheEntityByID(ctx, id0)
+			if err != nil {
+				return nil, fmt.Errorf(`resolving Entity "CacheEntity": %w`, err)
+			}
+
+			return entity, nil
+		}
 	case "User":
 		resolverName, err := entityResolverNameForUser(ctx, rep)
 		if err != nil {
@@ -249,6 +268,41 @@ func entityResolverNameForAdmin(ctx context.Context, rep EntityRepresentation) (
 		return "findAdminByID", nil
 	}
 	return "", fmt.Errorf("%w for Admin due to %v", ErrTypeNotFound,
+		errors.Join(entityResolverErrs...).Error())
+}
+
+func entityResolverNameForCacheEntity(ctx context.Context, rep EntityRepresentation) (string, error) {
+	// we collect errors because a later entity resolver may work fine
+	// when an entity has multiple keys
+	entityResolverErrs := []error{}
+	for {
+		var (
+			m   EntityRepresentation
+			val any
+			ok  bool
+		)
+		_ = val
+		// if all of the KeyFields values for this resolver are null,
+		// we shouldn't use use it
+		allNull := true
+		m = rep
+		val, ok = m["id"]
+		if !ok {
+			entityResolverErrs = append(entityResolverErrs,
+				fmt.Errorf("%w due to missing Key Field \"id\" for CacheEntity", ErrTypeNotFound))
+			break
+		}
+		if allNull {
+			allNull = val == nil
+		}
+		if allNull {
+			entityResolverErrs = append(entityResolverErrs,
+				fmt.Errorf("%w due to all null value KeyFields for CacheEntity", ErrTypeNotFound))
+			break
+		}
+		return "findCacheEntityByID", nil
+	}
+	return "", fmt.Errorf("%w for CacheEntity due to %v", ErrTypeNotFound,
 		errors.Join(entityResolverErrs...).Error())
 }
 

@@ -3,6 +3,7 @@ package engine
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -17,6 +18,18 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
+
+func compactJSONForAssert(t testing.TB, input string) string {
+	t.Helper()
+
+	var value any
+	err := json.Unmarshal([]byte(input), &value)
+	require.NoError(t, err)
+
+	normalized, err := json.Marshal(value)
+	require.NoError(t, err)
+	return string(normalized)
+}
 
 // TestErrorBehavior_EndToEnd tests the onError request parameter behavior
 // as specified in GraphQL spec PR #1163.
@@ -140,7 +153,7 @@ func TestErrorBehavior_EndToEnd(t *testing.T) {
 		require.NoError(t, err)
 
 		expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.name'.","path":["user","name"]}],"data":{"user":null}}`
-		assert.JSONEq(t, expected, buf.String())
+		assert.Equal(t, compactJSONForAssert(t, expected), compactJSONForAssert(t, buf.String()))
 	})
 
 	t.Run("NULL mode - error at site, no bubbling, errors collected", func(t *testing.T) {
@@ -165,7 +178,7 @@ func TestErrorBehavior_EndToEnd(t *testing.T) {
 		// In NULL mode: error at site, no bubbling - user object preserved with name=null
 		// Error included so client can distinguish error null from intentional null
 		expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.name'.","path":["user","name"]}],"data":{"user":{"id":"1","name":null,"email":"test@example.com"}}}`
-		assert.JSONEq(t, expected, buf.String())
+		assert.Equal(t, compactJSONForAssert(t, expected), compactJSONForAssert(t, buf.String()))
 	})
 
 	t.Run("HALT mode - first error stops execution, data becomes null", func(t *testing.T) {
@@ -189,7 +202,7 @@ func TestErrorBehavior_EndToEnd(t *testing.T) {
 
 		// In HALT mode: execution stops, data becomes null
 		expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.name'.","path":["user","name"]}],"data":null}`
-		assert.JSONEq(t, expected, buf.String())
+		assert.Equal(t, compactJSONForAssert(t, expected), compactJSONForAssert(t, buf.String()))
 	})
 
 	t.Run("NULL mode with multiple errors - all errors collected", func(t *testing.T) {
@@ -213,7 +226,7 @@ func TestErrorBehavior_EndToEnd(t *testing.T) {
 
 		// In NULL mode: both errors collected, objects preserved
 		expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.name'.","path":["user","name"]},{"message":"Cannot return null for non-nullable field 'Query.user.profile.bio'.","path":["user","profile","bio"]}],"data":{"user":{"id":"1","name":null,"email":"test@example.com","profile":{"bio":null,"avatar":"pic.jpg"}}}}`
-		assert.JSONEq(t, expected, buf.String())
+		assert.Equal(t, compactJSONForAssert(t, expected), compactJSONForAssert(t, buf.String()))
 	})
 
 	t.Run("PROPAGATE mode with nested non-nullable - bubble to correct level", func(t *testing.T) {
@@ -238,7 +251,7 @@ func TestErrorBehavior_EndToEnd(t *testing.T) {
 
 		// In PROPAGATE mode: null bio bubbles up to nullable profile
 		expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.profile.bio'.","path":["user","profile","bio"]}],"data":{"user":{"id":"1","name":"Test","email":"test@example.com","profile":null}}}`
-		assert.JSONEq(t, expected, buf.String())
+		assert.Equal(t, compactJSONForAssert(t, expected), compactJSONForAssert(t, buf.String()))
 	})
 
 	t.Run("NULL mode with array containing errors", func(t *testing.T) {
@@ -262,7 +275,7 @@ func TestErrorBehavior_EndToEnd(t *testing.T) {
 
 		// In NULL mode: array preserved, second user has null name with error
 		expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.users.name'.","path":["users",1,"name"]}],"data":{"users":[{"id":"1","name":"Alice","email":"alice@example.com"},{"id":"2","name":null,"email":"bob@example.com"}]}}`
-		assert.JSONEq(t, expected, buf.String())
+		assert.Equal(t, compactJSONForAssert(t, expected), compactJSONForAssert(t, buf.String()))
 	})
 
 	t.Run("default behavior without explicit mode is PROPAGATE", func(t *testing.T) {
@@ -286,7 +299,7 @@ func TestErrorBehavior_EndToEnd(t *testing.T) {
 
 		// Default behavior is PROPAGATE: null bubbles up
 		expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.name'.","path":["user","name"]}],"data":{"user":null}}`
-		assert.JSONEq(t, expected, buf.String())
+		assert.Equal(t, compactJSONForAssert(t, expected), compactJSONForAssert(t, buf.String()))
 	})
 
 	t.Run("successful query - no difference between modes", func(t *testing.T) {
@@ -318,7 +331,7 @@ func TestErrorBehavior_EndToEnd(t *testing.T) {
 				require.NoError(t, err)
 
 				// All modes should return the same successful result
-				assert.JSONEq(t, expected, buf.String())
+				assert.Equal(t, compactJSONForAssert(t, expected), compactJSONForAssert(t, buf.String()))
 			})
 		}
 	})
@@ -487,7 +500,7 @@ func TestErrorBehavior_ServiceCapabilityIntrospection(t *testing.T) {
 				}
 			}
 		}`
-		assert.JSONEq(t, expected, buf.String())
+		assert.Equal(t, compactJSONForAssert(t, expected), compactJSONForAssert(t, buf.String()))
 	})
 
 	t.Run("introspect onError capability with NULL default", func(t *testing.T) {
@@ -524,7 +537,7 @@ func TestErrorBehavior_ServiceCapabilityIntrospection(t *testing.T) {
 				}
 			}
 		}`
-		assert.JSONEq(t, expected, buf.String())
+		assert.Equal(t, compactJSONForAssert(t, expected), compactJSONForAssert(t, buf.String()))
 	})
 
 	t.Run("introspect onError capability with HALT default", func(t *testing.T) {
@@ -561,7 +574,7 @@ func TestErrorBehavior_ServiceCapabilityIntrospection(t *testing.T) {
 				}
 			}
 		}`
-		assert.JSONEq(t, expected, buf.String())
+		assert.Equal(t, compactJSONForAssert(t, expected), compactJSONForAssert(t, buf.String()))
 	})
 
 	t.Run("introspect without default behavior configured", func(t *testing.T) {
@@ -594,7 +607,7 @@ func TestErrorBehavior_ServiceCapabilityIntrospection(t *testing.T) {
 				}
 			}
 		}`
-		assert.JSONEq(t, expected, buf.String())
+		assert.Equal(t, compactJSONForAssert(t, expected), compactJSONForAssert(t, buf.String()))
 	})
 
 	t.Run("introspect only identifiers", func(t *testing.T) {
@@ -624,7 +637,7 @@ func TestErrorBehavior_ServiceCapabilityIntrospection(t *testing.T) {
 				}
 			}
 		}`
-		assert.JSONEq(t, expected, buf.String())
+		assert.Equal(t, compactJSONForAssert(t, expected), compactJSONForAssert(t, buf.String()))
 	})
 }
 
@@ -713,7 +726,7 @@ func TestServiceCapability_CosmoRouterIntegration(t *testing.T) {
 					}
 				}
 			}`
-			assert.JSONEq(t, expected, buf.String())
+			assert.Equal(t, compactJSONForAssert(t, expected), compactJSONForAssert(t, buf.String()))
 		})
 
 		// Test introspection shows _Service type
@@ -745,7 +758,7 @@ func TestServiceCapability_CosmoRouterIntegration(t *testing.T) {
 					}
 				}
 			}`
-			assert.JSONEq(t, expected, buf.String())
+			assert.Equal(t, compactJSONForAssert(t, expected), compactJSONForAssert(t, buf.String()))
 		})
 
 		// Test introspection shows _Capability type
@@ -779,7 +792,7 @@ func TestServiceCapability_CosmoRouterIntegration(t *testing.T) {
 					}
 				}
 			}`
-			assert.JSONEq(t, expected, buf.String())
+			assert.Equal(t, compactJSONForAssert(t, expected), compactJSONForAssert(t, buf.String()))
 		})
 
 		// Test __schema introspection shows user fields (but not __ prefixed fields per GraphQL spec)
@@ -807,7 +820,7 @@ func TestServiceCapability_CosmoRouterIntegration(t *testing.T) {
 
 			// Verify user-defined fields are present
 			result := buf.String()
-			assert.Contains(t, result, `"name":"user"`)
+			assert.Equal(t, `{"data":{"__schema":{"queryType":{"fields":[{"name":"user"}]}}}}`, result)
 
 			// NOTE: __service is NOT in the fields list (per GraphQL spec - __ prefixed fields
 			// are hidden from introspection). This matches __schema and __type behavior.
@@ -858,7 +871,6 @@ func TestServiceCapability_CosmoRouterIntegration(t *testing.T) {
 
 		// Verify NULL default is returned
 		result := buf.String()
-		assert.Contains(t, result, `"identifier":"graphql.defaultErrorBehavior"`)
-		assert.Contains(t, result, `"value":"NULL"`)
+		assert.Equal(t, `{"data":{"__service":{"capabilities":[{"identifier":"graphql.onError","value":null},{"identifier":"graphql.defaultErrorBehavior","value":"NULL"}]}}}`, result)
 	})
 }

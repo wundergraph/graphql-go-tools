@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -68,9 +69,7 @@ func (t *subgraphCallTracker) GetCounts() map[string]int {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	result := make(map[string]int)
-	for k, v := range t.counts {
-		result[k] = v
-	}
+	maps.Copy(result, t.counts)
 	return result
 }
 
@@ -90,6 +89,7 @@ type cachingGatewayOptions struct {
 	subgraphEntityCachingConfigs engine.SubgraphCachingConfigs
 	debugMode                    bool
 	resolverOptionsFns           []func(*resolve.ResolverOptions)
+	remapVariables               map[string]string
 }
 
 func withCachingEnableART(enableART bool) func(*cachingGatewayOptions) {
@@ -140,6 +140,12 @@ func withResolverOptions(fn func(*resolve.ResolverOptions)) func(*cachingGateway
 	}
 }
 
+func withRemapVariables(remap map[string]string) func(*cachingGatewayOptions) {
+	return func(opts *cachingGatewayOptions) {
+		opts.remapVariables = remap
+	}
+}
+
 type cachingGatewayOptionsToFunc func(opts *cachingGatewayOptions)
 
 func addCachingGateway(options ...cachingGatewayOptionsToFunc) func(setup *federationtesting.FederationSetup) *httptest.Server {
@@ -162,6 +168,9 @@ func addCachingGateway(options ...cachingGatewayOptionsToFunc) func(setup *feder
 		var gatewayOpts []gateway.GatewayOption
 		for _, fn := range opts.resolverOptionsFns {
 			gatewayOpts = append(gatewayOpts, gateway.WithResolverOptions(fn))
+		}
+		if len(opts.remapVariables) > 0 {
+			gatewayOpts = append(gatewayOpts, gateway.WithRemapVariables(opts.remapVariables))
 		}
 		gtw := gateway.HandlerWithCachingAndOpts(abstractlogger.NoopLogger, poller, httpClient, opts.enableART, opts.withLoaderCache, opts.subgraphHeadersBuilder, opts.cachingOptions, opts.subgraphEntityCachingConfigs, opts.debugMode, gatewayOpts...)
 
@@ -280,7 +289,6 @@ type CacheLogEntry struct {
 	Keys      []string      // Keys involved in the operation
 	Hits      []bool        // For Get: whether each key was a hit (true) or miss (false)
 	TTL       time.Duration // For Set: the TTL used
-	Caller    string        // Fetch identity when debug enabled: "accounts: entity(User)" or "products: rootField(Query.topProducts)"
 }
 
 type CacheOperation string
@@ -293,7 +301,6 @@ const (
 
 // sortCacheLogKeys sorts the keys (and corresponding hits) in each cache log entry.
 // This makes comparisons order-independent when multiple keys are present.
-// Caller is intentionally stripped — it's for debug logging, not assertions.
 func sortCacheLogKeys(log []CacheLogEntry) []CacheLogEntry {
 	sorted := make([]CacheLogEntry, len(log))
 	for i, entry := range log {
@@ -329,53 +336,6 @@ func sortCacheLogKeys(log []CacheLogEntry) []CacheLogEntry {
 			Operation: entry.Operation,
 			Keys:      make([]string, len(pairs)),
 			Hits:      nil,
-		}
-		if len(entry.Hits) > 0 {
-			sorted[i].Hits = make([]bool, len(pairs))
-		}
-		for j := range pairs {
-			sorted[i].Keys[j] = pairs[j].key
-			if sorted[i].Hits != nil {
-				sorted[i].Hits[j] = pairs[j].hit
-			}
-		}
-	}
-	return sorted
-}
-
-// sortCacheLogKeysWithCaller is like sortCacheLogKeys but preserves the Caller field.
-// Use this when you want assertions to verify which Loader method chain triggered each cache event.
-func sortCacheLogKeysWithCaller(log []CacheLogEntry) []CacheLogEntry {
-	sorted := make([]CacheLogEntry, len(log))
-	for i, entry := range log {
-		if len(entry.Keys) <= 1 {
-			sorted[i] = CacheLogEntry{
-				Operation: entry.Operation,
-				Keys:      entry.Keys,
-				Hits:      entry.Hits,
-				Caller:    entry.Caller,
-			}
-			continue
-		}
-
-		pairs := make([]struct {
-			key string
-			hit bool
-		}, len(entry.Keys))
-		for j := range entry.Keys {
-			pairs[j].key = entry.Keys[j]
-			if entry.Hits != nil && j < len(entry.Hits) {
-				pairs[j].hit = entry.Hits[j]
-			}
-		}
-		sort.Slice(pairs, func(a, b int) bool {
-			return pairs[a].key < pairs[b].key
-		})
-		sorted[i] = CacheLogEntry{
-			Operation: entry.Operation,
-			Keys:      make([]string, len(pairs)),
-			Hits:      nil,
-			Caller:    entry.Caller,
 		}
 		if len(entry.Hits) > 0 {
 			sorted[i].Hits = make([]bool, len(pairs))
@@ -545,20 +505,17 @@ func (f *FakeLoaderCache) Get(ctx context.Context, keys []string) ([]*resolve.Ca
 	}
 
 	// Log the operation
-	caller := ""
-	if cfi := resolve.GetCacheFetchInfo(ctx); cfi != nil {
-		caller = cfi.String()
-	}
 	f.log = append(f.log, CacheLogEntry{
 		Operation: CacheOperationGet,
 		Keys:      keys,
 		Hits:      hits,
-		Caller:    caller,
 	})
 	f.notifyWaitersLocked(f.log[len(f.log)-1])
 
 	return result, nil
 }
+
+
 
 func (f *FakeLoaderCache) Set(ctx context.Context, entries []*resolve.CacheEntry, ttl time.Duration) error {
 	if len(entries) == 0 {
@@ -593,16 +550,11 @@ func (f *FakeLoaderCache) Set(ctx context.Context, entries []*resolve.CacheEntry
 	}
 
 	// Log the operation
-	caller := ""
-	if cfi := resolve.GetCacheFetchInfo(ctx); cfi != nil {
-		caller = cfi.String()
-	}
 	f.log = append(f.log, CacheLogEntry{
 		Operation: CacheOperationSet,
 		Keys:      keys,
 		Hits:      nil, // Set operations don't have hits/misses
 		TTL:       ttl,
-		Caller:    caller,
 	})
 	f.notifyWaitersLocked(f.log[len(f.log)-1])
 
@@ -621,15 +573,10 @@ func (f *FakeLoaderCache) Delete(ctx context.Context, keys []string) error {
 	}
 
 	// Log the operation
-	caller := ""
-	if cfi := resolve.GetCacheFetchInfo(ctx); cfi != nil {
-		caller = cfi.String()
-	}
 	f.log = append(f.log, CacheLogEntry{
 		Operation: CacheOperationDelete,
 		Keys:      keys,
 		Hits:      nil, // Delete operations don't have hits/misses
-		Caller:    caller,
 	})
 	f.notifyWaitersLocked(f.log[len(f.log)-1])
 
@@ -664,17 +611,6 @@ func (f *FakeLoaderCache) notifyWaitersLocked(entry CacheLogEntry) {
 
 // GetLog returns a copy of the cache operation log
 func (f *FakeLoaderCache) GetLog() []CacheLogEntry {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
-	logCopy := make([]CacheLogEntry, len(f.log))
-	copy(logCopy, f.log)
-	return logCopy
-}
-
-// GetLogWithCaller returns a copy of the cache operation log with Caller populated.
-// Use this with sortCacheLogKeysWithCaller to assert on both operation details and
-// the Loader method chain that triggered each cache event.
-func (f *FakeLoaderCache) GetLogWithCaller() []CacheLogEntry {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	logCopy := make([]CacheLogEntry, len(f.log))
@@ -789,8 +725,12 @@ func TestFakeLoaderCache(t *testing.T) {
 		assert.NotNil(t, result[1])
 		assert.Equal(t, "expire2", string(result[1].Value))
 
-		// Wait for expiration
-		time.Sleep(60 * time.Millisecond)
+		// Wait for expiration (TTL-driven, deterministic via Peek)
+		assert.Eventually(t, func() bool {
+			_, ok1 := cache.Peek("ttl1")
+			_, ok2 := cache.Peek("ttl2")
+			return !ok1 && !ok2
+		}, 500*time.Millisecond, 5*time.Millisecond, "ttl should expire")
 
 		// Get again - should be nil
 		result, err = cache.Get(ctx, []string{"ttl1", "ttl2"})
@@ -808,8 +748,11 @@ func TestFakeLoaderCache(t *testing.T) {
 		err = cache.Set(ctx, []*resolve.CacheEntry{{Key: "temp1", Value: []byte("temporary")}}, 50*time.Millisecond)
 		require.NoError(t, err)
 
-		// Wait for temporary to expire
-		time.Sleep(60 * time.Millisecond)
+		// Wait for temporary to expire (TTL-driven, deterministic via Peek)
+		assert.Eventually(t, func() bool {
+			_, ok := cache.Peek("temp1")
+			return !ok
+		}, 500*time.Millisecond, 5*time.Millisecond, "ttl should expire")
 
 		// Check both
 		result, err := cache.Get(ctx, []string{"perm1", "temp1"})
@@ -826,7 +769,7 @@ func TestFakeLoaderCache(t *testing.T) {
 
 		// Writer goroutine
 		go func() {
-			for i := 0; i < 100; i++ {
+			for i := range 100 {
 				key := fmt.Sprintf("concurrent_%d", i)
 				value := fmt.Sprintf("value_%d", i)
 				err := cache.Set(ctx, []*resolve.CacheEntry{{Key: key, Value: []byte(value)}}, 0)
@@ -837,7 +780,7 @@ func TestFakeLoaderCache(t *testing.T) {
 
 		// Reader goroutine
 		go func() {
-			for i := 0; i < 100; i++ {
+			for i := range 100 {
 				key := fmt.Sprintf("concurrent_%d", i%50)
 				_, err := cache.Get(ctx, []string{key})
 				assert.NoError(t, err)
@@ -847,7 +790,7 @@ func TestFakeLoaderCache(t *testing.T) {
 
 		// Deleter goroutine
 		go func() {
-			for i := 0; i < 50; i++ {
+			for i := range 50 {
 				key := fmt.Sprintf("concurrent_%d", i*2)
 				err := cache.Delete(ctx, []string{key})
 				assert.NoError(t, err)
@@ -882,7 +825,6 @@ func TestFakeLoaderCache(t *testing.T) {
 				Keys:      []string{"watched-key"},
 				Hits:      nil,
 				TTL:       0,
-				Caller:    "",
 			}, entry)
 		case <-time.After(time.Second):
 			t.Fatal("timeout waiting for delete notification")

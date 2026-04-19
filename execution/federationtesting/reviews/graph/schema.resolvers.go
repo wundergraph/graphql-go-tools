@@ -12,6 +12,14 @@ import (
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/reviews/graph/model"
 )
 
+// Nested is the resolver for the nested field.
+// Always returns the same entity (same ID as parent), creating a self-referential
+// chain for L1 cache testing. Each nesting level triggers a new entity fetch
+// to the accounts subgraph for whatever fields the query selects.
+func (r *cacheEntityResolver) Nested(ctx context.Context, obj *model.CacheEntity) (*model.CacheEntity, error) {
+	return &model.CacheEntity{ID: obj.ID}, nil
+}
+
 // AddReview is the resolver for the addReview field.
 func (r *mutationResolver) AddReview(ctx context.Context, authorID string, upc string, review string) (*model.Review, error) {
 	// Generate username matching accounts service pattern.
@@ -182,6 +190,9 @@ func (r *userResolver) SameUserReviewers(ctx context.Context, obj *model.User) (
 	}, nil
 }
 
+// CacheEntity returns generated.CacheEntityResolver implementation.
+func (r *Resolver) CacheEntity() generated.CacheEntityResolver { return &cacheEntityResolver{r} }
+
 // Mutation returns generated.MutationResolver implementation.
 func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResolver{r} }
 
@@ -197,6 +208,7 @@ func (r *Resolver) Review() generated.ReviewResolver { return &reviewResolver{r}
 // User returns generated.UserResolver implementation.
 func (r *Resolver) User() generated.UserResolver { return &userResolver{r} }
 
+type cacheEntityResolver struct{ *Resolver }
 type mutationResolver struct{ *Resolver }
 type productResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }

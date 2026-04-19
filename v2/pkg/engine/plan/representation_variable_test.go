@@ -10,6 +10,9 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
+// Verifies that BuildRepresentationVariableNode produces the correct resolve.Object
+// tree for entity representation variables (_Any types) used in _entities queries.
+// Incorrect representation variables cause entity resolution failures at runtime.
 func TestBuildRepresentationVariableNode(t *testing.T) {
 	runTest := func(t *testing.T, definitionStr string, cfg FederationFieldConfiguration, federationMeta FederationMetaData, expectedNode *resolve.Object) {
 		t.Helper()
@@ -349,6 +352,8 @@ func TestBuildRepresentationVariableNode(t *testing.T) {
 	})
 }
 
+// Verifies that merging multiple representation variable nodes correctly
+// combines fields from different entity types into a single representation object.
 func TestMergeRepresentationVariableNodes(t *testing.T) {
 	t.Run("different entities by OnTypeNames", func(t *testing.T) {
 		userRepresentation := &resolve.Object{

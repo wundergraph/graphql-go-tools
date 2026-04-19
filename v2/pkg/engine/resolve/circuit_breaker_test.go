@@ -41,7 +41,10 @@ func (c *failingCache) Delete(_ context.Context, _ []string) error {
 	return c.deleteErr
 }
 
-func TestCircuitBreaker(t *testing.T) {
+// TestCircuitBreaker_OpenCloseTransitions verifies circuit breaker state machine transitions
+// (closed/open/half-open) for L2 cache wrappers. Without this, cache outages could cascade
+// into subgraph overload or silent data loss.
+func TestCircuitBreaker_OpenCloseTransitions(t *testing.T) {
 	cacheErr := errors.New("redis: connection refused")
 
 	t.Run("closed - passes through on success", func(t *testing.T) {
@@ -86,13 +89,14 @@ func TestCircuitBreaker(t *testing.T) {
 		_, _ = cb.Get(ctx, []string{"k1"})
 		_, _ = cb.Get(ctx, []string{"k1"})
 
-		assert.Equal(t, int64(2), inner.getCalls.Load(), "both calls should pass through")
-		assert.False(t, cb.state.isOpen(), "breaker should remain closed")
+		// Two failures below threshold of 3 — still closed
+		assert.Equal(t, int64(2), inner.getCalls.Load())
+		assert.False(t, cb.state.isOpen())
 
-		// Third call still passes through (threshold is reached ON this call)
+		// Third call passes through (threshold reached ON this call)
 		_, _ = cb.Get(ctx, []string{"k1"})
-		assert.Equal(t, int64(3), inner.getCalls.Load(), "threshold call should pass through")
-		assert.True(t, cb.state.isOpen(), "breaker should be open after reaching threshold")
+		assert.Equal(t, int64(3), inner.getCalls.Load())
+		assert.True(t, cb.state.isOpen())
 	})
 
 	t.Run("opens after consecutive failures reach threshold", func(t *testing.T) {
@@ -111,11 +115,12 @@ func TestCircuitBreaker(t *testing.T) {
 		_, _ = cb.Get(ctx, []string{"k1"})
 		assert.True(t, cb.state.isOpen())
 
-		// While open, Get returns nil/nil, inner is not called
+		// While open: Get returns nil + ErrCircuitBreakerOpen, inner is not called
 		entries, err := cb.Get(ctx, []string{"k1"})
-		assert.NoError(t, err, "open breaker returns nil error")
-		assert.Nil(t, entries, "open breaker returns nil entries (all-miss)")
-		assert.Equal(t, int64(2), inner.getCalls.Load(), "inner should not be called when open")
+		assert.Equal(t, ErrCircuitBreakerOpen, err)
+		assert.True(t, errors.Is(err, ErrCircuitBreakerOpen))
+		assert.Nil(t, entries)
+		assert.Equal(t, int64(2), inner.getCalls.Load())
 	})
 
 	t.Run("open breaker skips Set and Delete", func(t *testing.T) {
@@ -131,13 +136,16 @@ func TestCircuitBreaker(t *testing.T) {
 		cb := &circuitBreakerCache{inner: inner, state: state}
 
 		ctx := t.Context()
+		// Open breaker: Set and Delete return ErrCircuitBreakerOpen and skip the inner cache
 		err := cb.Set(ctx, []*CacheEntry{{Key: "k1"}}, time.Minute)
-		assert.NoError(t, err, "open breaker Set returns nil")
-		assert.Equal(t, int64(0), inner.setCalls.Load(), "inner Set not called when open")
+		assert.Equal(t, ErrCircuitBreakerOpen, err)
+		assert.True(t, errors.Is(err, ErrCircuitBreakerOpen))
+		assert.Equal(t, int64(0), inner.setCalls.Load())
 
 		err = cb.Delete(ctx, []string{"k1"})
-		assert.NoError(t, err, "open breaker Delete returns nil")
-		assert.Equal(t, int64(0), inner.delCalls.Load(), "inner Delete not called when open")
+		assert.Equal(t, ErrCircuitBreakerOpen, err)
+		assert.True(t, errors.Is(err, ErrCircuitBreakerOpen))
+		assert.Equal(t, int64(0), inner.delCalls.Load())
 	})
 
 	t.Run("half-open probe success closes breaker", func(t *testing.T) {
@@ -155,10 +163,11 @@ func TestCircuitBreaker(t *testing.T) {
 		ctx := t.Context()
 		entries, err := cb.Get(ctx, []string{"k1"})
 		require.NoError(t, err)
-		assert.Len(t, entries, 1, "probe should return data")
-		assert.Equal(t, int64(1), inner.getCalls.Load(), "probe should call inner")
-		assert.False(t, cb.state.isOpen(), "breaker should be closed after successful probe")
-		assert.Equal(t, int64(0), cb.state.failures(), "failures should be reset")
+		// Successful probe: breaker closes, failures reset
+		assert.Len(t, entries, 1)
+		assert.Equal(t, int64(1), inner.getCalls.Load())
+		assert.False(t, cb.state.isOpen())
+		assert.Equal(t, int64(0), cb.state.failures())
 	})
 
 	t.Run("half-open probe failure re-opens breaker", func(t *testing.T) {
@@ -174,10 +183,11 @@ func TestCircuitBreaker(t *testing.T) {
 		cb := &circuitBreakerCache{inner: inner, state: state}
 
 		ctx := t.Context()
+		// Failed probe: breaker re-opens
 		_, err := cb.Get(ctx, []string{"k1"})
-		assert.Error(t, err, "probe failure should return error")
-		assert.Equal(t, int64(1), inner.getCalls.Load(), "probe should call inner")
-		assert.True(t, cb.state.isOpen(), "breaker should re-open after failed probe")
+		assert.Error(t, err)
+		assert.Equal(t, int64(1), inner.getCalls.Load())
+		assert.True(t, cb.state.isOpen())
 	})
 
 	t.Run("success resets consecutive failure count", func(t *testing.T) {
@@ -200,9 +210,10 @@ func TestCircuitBreaker(t *testing.T) {
 
 		// One success resets count
 		inner.getErr = nil
+		// One success resets the failure counter
 		_, err := cb.Get(ctx, []string{"k1"})
 		require.NoError(t, err)
-		assert.Equal(t, int64(0), state.failures(), "success should reset failures")
+		assert.Equal(t, int64(0), state.failures())
 		assert.False(t, state.isOpen())
 	})
 
@@ -228,10 +239,10 @@ func TestCircuitBreaker(t *testing.T) {
 		}
 		wg.Wait()
 
-		assert.True(t, state.isOpen(), "breaker must be open after 100 concurrent failures with threshold=5")
-		// Some calls may have been blocked by the open breaker, so inner calls <= 100
-		assert.LessOrEqual(t, inner.getCalls.Load(), int64(100))
-		assert.GreaterOrEqual(t, inner.getCalls.Load(), int64(5), "at least threshold calls must have reached inner before breaker opened")
+		assert.True(t, state.isOpen())
+		if inner.getCalls.Load() < int64(5) {
+			t.Fatalf("expected at least 5 inner calls before breaker opened, got %d", inner.getCalls.Load())
+		}
 	})
 
 	t.Run("concurrent half-open allows exactly one probe", func(t *testing.T) {
@@ -261,7 +272,7 @@ func TestCircuitBreaker(t *testing.T) {
 		wg.Wait()
 
 		// Exactly one goroutine should have won the CAS probe
-		assert.Equal(t, int64(1), probeCount.Load(), "exactly one probe should be allowed in half-open state")
+		assert.Equal(t, int64(1), probeCount.Load())
 	})
 
 	t.Run("concurrent mixed success and failure", func(t *testing.T) {
@@ -288,7 +299,7 @@ func TestCircuitBreaker(t *testing.T) {
 		wg.Wait()
 
 		// With interleaved success resets, the breaker should not have tripped
-		assert.False(t, state.isOpen(), "breaker should stay closed with mixed success/failure below effective threshold")
+		assert.False(t, state.isOpen())
 	})
 
 	t.Run("concurrent probe failure re-opens correctly", func(t *testing.T) {
@@ -313,10 +324,16 @@ func TestCircuitBreaker(t *testing.T) {
 		for i := range 20 {
 			wg.Go(func() {
 				_, err := cb.Get(ctx, []string{"k1"})
-				if err != nil {
-					probeResults.Store(i, "probed-failed")
-				} else {
+				switch {
+				case err == nil:
+					// Probe succeeded — should not happen here because inner always fails.
+					probeResults.Store(i, "probed-succeeded")
+				case errors.Is(err, ErrCircuitBreakerOpen):
+					// Breaker blocked the call before reaching inner.
 					probeResults.Store(i, "blocked")
+				default:
+					// Inner cache returned an error (the one goroutine that won the probe).
+					probeResults.Store(i, "probed-failed")
 				}
 			})
 		}
@@ -331,10 +348,10 @@ func TestCircuitBreaker(t *testing.T) {
 			return true
 		})
 
-		assert.Equal(t, 1, probedCount, "exactly one goroutine should have probed and failed")
+		assert.Equal(t, 1, probedCount)
 		// After probe failure, recordFailure re-opens with a fresh timestamp.
 		// The new openedAt is ~now, so with 10ms cooldown it's still in the open window.
-		assert.True(t, state.isOpen(), "breaker must be re-opened after probe failure")
+		assert.True(t, state.isOpen())
 	})
 
 	t.Run("wrapCachesWithCircuitBreakers applies defaults", func(t *testing.T) {
@@ -347,12 +364,12 @@ func TestCircuitBreaker(t *testing.T) {
 		result := wrapCachesWithCircuitBreakers(caches, configs)
 
 		wrapped, ok := result["default"].(*circuitBreakerCache)
-		require.True(t, ok, "cache should be wrapped")
-		assert.Equal(t, 5, wrapped.state.config.FailureThreshold, "default threshold should be 5")
-		assert.Equal(t, 10*time.Second, wrapped.state.config.CooldownPeriod, "default cooldown should be 10s")
-		// Original map should not be mutated
+		// Verify defaults applied and original map not mutated
+		require.True(t, ok)
+		assert.Equal(t, 5, wrapped.state.config.FailureThreshold)
+		assert.Equal(t, 10*time.Second, wrapped.state.config.CooldownPeriod)
 		_, originalWrapped := caches["default"].(*circuitBreakerCache)
-		assert.False(t, originalWrapped, "original map should not be mutated")
+		assert.False(t, originalWrapped)
 	})
 
 	t.Run("wrapCachesWithCircuitBreakers skips disabled", func(t *testing.T) {
@@ -365,7 +382,7 @@ func TestCircuitBreaker(t *testing.T) {
 		result := wrapCachesWithCircuitBreakers(caches, configs)
 
 		_, ok := result["default"].(*circuitBreakerCache)
-		assert.False(t, ok, "disabled breaker should not wrap the cache")
+		assert.False(t, ok)
 	})
 
 	t.Run("wrapCachesWithCircuitBreakers ignores missing cache names", func(t *testing.T) {
@@ -377,6 +394,42 @@ func TestCircuitBreaker(t *testing.T) {
 		result := wrapCachesWithCircuitBreakers(caches, configs)
 
 		_, ok := result["default"].(*circuitBreakerCache)
-		assert.False(t, ok, "unrelated cache should not be wrapped")
+		assert.False(t, ok)
 	})
+}
+
+// TestCircuitBreaker_OpenReturnsSentinel verifies that open-breaker Get/Set/Delete
+// return ErrCircuitBreakerOpen so callers can distinguish a breaker-skip from a
+// real backend error via errors.Is. This is the signal used by loader_cache.go
+// call sites to suppress analytics/trace error recording when the breaker trips.
+func TestCircuitBreaker_OpenReturnsSentinel(t *testing.T) {
+	inner := &failingCache{}
+	state := newCircuitBreakerState(CircuitBreakerConfig{
+		Enabled:          true,
+		FailureThreshold: 1,
+		CooldownPeriod:   time.Second,
+	})
+	// Force open so every call short-circuits.
+	state.forceOpen(time.Now().UnixNano(), 1)
+	cb := &circuitBreakerCache{inner: inner, state: state}
+
+	ctx := t.Context()
+
+	entries, getErr := cb.Get(ctx, []string{"k1", "k2"})
+	assert.Nil(t, entries)
+	assert.Equal(t, ErrCircuitBreakerOpen, getErr)
+	assert.True(t, errors.Is(getErr, ErrCircuitBreakerOpen))
+
+	setErr := cb.Set(ctx, []*CacheEntry{{Key: "k1"}}, time.Minute)
+	assert.Equal(t, ErrCircuitBreakerOpen, setErr)
+	assert.True(t, errors.Is(setErr, ErrCircuitBreakerOpen))
+
+	delErr := cb.Delete(ctx, []string{"k1"})
+	assert.Equal(t, ErrCircuitBreakerOpen, delErr)
+	assert.True(t, errors.Is(delErr, ErrCircuitBreakerOpen))
+
+	// Inner cache was never called.
+	assert.Equal(t, int64(0), inner.getCalls.Load())
+	assert.Equal(t, int64(0), inner.setCalls.Load())
+	assert.Equal(t, int64(0), inner.delCalls.Load())
 }

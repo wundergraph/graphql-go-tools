@@ -378,41 +378,7 @@ type GraphQLResolveInfo struct {
 	ResolveDeduplicated bool
 }
 
-func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (*GraphQLResolveInfo, error) {
-	resp := &GraphQLResolveInfo{}
-
-	start := time.Now()
-	<-r.maxConcurrency
-	resp.ResolveAcquireWaitTime = time.Since(start)
-	defer func() {
-		r.maxConcurrency <- struct{}{}
-	}()
-
-	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, nil)
-
-	err := t.resolvable.Init(ctx, data, response.Info.OperationType)
-	if err != nil {
-		return nil, err
-	}
-
-	if !ctx.ExecutionOptions.SkipLoader {
-		err = t.loader.LoadGraphQLResponseData(ctx, response, t.resolvable)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	err = t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, writer)
-	if err != nil {
-		return nil, err
-	}
-
-	ctx.ActualListSizes = t.resolvable.actualListSizes
-
-	return resp, err
-}
-
-func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, writer io.Writer) (*GraphQLResolveInfo, error) {
+func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, writer io.Writer) (*GraphQLResolveInfo, error) {
 	resp := &GraphQLResolveInfo{}
 
 	inflight, err := r.inboundRequestSingleFlight.GetOrCreate(ctx, response)
@@ -474,7 +440,12 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 		r.responseBufferPool.Release(responseArena)
 		return nil, err
 	}
+	// Transfer ownership of the actualListSizes map to the caller before
+	// releaseResolveArena() invokes Resolvable.Reset(), which deletes every
+	// entry from the map in place — it would otherwise empty the same map
+	// the caller now holds (Go maps are reference types).
 	ctx.ActualListSizes = t.resolvable.actualListSizes
+	t.resolvable.actualListSizes = nil
 
 	// first release resolverArena
 	// all data is resolved and written into the response arena
@@ -497,6 +468,12 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 	// we're safe to release our buffer
 	r.responseBufferPool.Release(responseArena)
 	return resp, err
+}
+
+// Deprecated: use ResolveGraphQLResponse instead. This wrapper is kept for
+// backwards compatibility and will be removed in a future release.
+func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, writer io.Writer) (*GraphQLResolveInfo, error) {
+	return r.ResolveGraphQLResponse(ctx, response, writer)
 }
 
 type trigger struct {

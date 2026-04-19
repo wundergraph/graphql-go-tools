@@ -65,8 +65,12 @@ func HandlerWithCachingAndOpts(
 
 	datasourceWatcher := datasourcePoller
 
+	// remapVariables is captured by the handler factory closure.
+	// The extraction opt (appended last) copies the value set by extraOpts.
+	var remapVariables map[string]string
+
 	var gqlHandlerFactory HandlerFactoryFn = func(schema *graphql.Schema, engine *engine.ExecutionEngine) http.Handler {
-		return http2.NewGraphqlHTTPHandler(schema, engine, upgrader, logger, enableART, subgraphHeadersBuilder, cachingOptions, debugMode)
+		return http2.NewGraphqlHTTPHandler(schema, engine, upgrader, logger, enableART, subgraphHeadersBuilder, cachingOptions, debugMode, remapVariables)
 	}
 
 	var gatewayOpts []GatewayOption
@@ -74,6 +78,9 @@ func HandlerWithCachingAndOpts(
 		gatewayOpts = append(gatewayOpts, WithSubgraphEntityCachingConfigs(subgraphEntityCachingConfigs))
 	}
 	gatewayOpts = append(gatewayOpts, extraOpts...)
+	gatewayOpts = append(gatewayOpts, func(g *Gateway) {
+		remapVariables = g.remapVariables
+	})
 
 	gateway := NewGateway(gqlHandlerFactory, httpClient, logger, loaderCaches, gatewayOpts...)
 

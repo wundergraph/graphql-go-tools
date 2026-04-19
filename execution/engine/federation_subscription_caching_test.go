@@ -42,7 +42,7 @@ func collectSubscriptionMessages(ctx context.Context, gqlClient *GraphqlClient, 
 	require.NoError(t, err)
 
 	var result []string
-	for i := 0; i < count; i++ {
+	for i := range count {
 		trigger.Emit()
 
 		select {
@@ -60,6 +60,8 @@ func collectSubscriptionMessages(ctx context.Context, gqlClient *GraphqlClient, 
 }
 
 //nolint:tparallel // Timing-sensitive subscription cache tests need a few subtests to run before parallel siblings.
+// TestFederationSubscriptionCaching verifies subscription-driven entity cache population:
+// subscription events write entity data to L2, which subsequent queries can hit.
 func TestFederationSubscriptionCaching(t *testing.T) {
 	// =====================================================================
 	// Category 1: Child fetch L2 read/write within subscription events
@@ -290,7 +292,12 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		second := <-messages
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":2,"reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, string(second))
 
-		time.Sleep(200 * time.Millisecond)
+		// Wait for 150ms TTL to expire on the cached user entities (deterministic via Peek)
+		assert.Eventually(t, func() bool {
+			_, ok1 := defaultCache.Peek(`{"__typename":"User","key":{"id":"5678"}}`)
+			_, ok2 := defaultCache.Peek(`{"__typename":"User","key":{"id":"8888"}}`)
+			return !ok1 && !ok2
+		}, 2*time.Second, 10*time.Millisecond, "user L2 entries should expire after TTL")
 		trigger.Emit()
 		third := <-messages
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":3,"reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, string(third))
@@ -1569,7 +1576,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 				Keys:      []string{`{"__typename":"Product","key":{"upc":"top-4"}}`},
 				Hits:      nil,
 				TTL:       30 * time.Second,
-				Caller:    "",
 			}, entry)
 		case <-time.After(5 * time.Second):
 			t.Fatal("timeout waiting for Product cache population")
@@ -1694,7 +1700,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 				Keys:      []string{entityKey},
 				Hits:      nil,
 				TTL:       0,
-				Caller:    "",
 			}, entry)
 		case <-time.After(5 * time.Second):
 			t.Fatal("timeout waiting for Product cache invalidation")
@@ -1876,7 +1881,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 				Keys:      []string{`{"__typename":"Product","key":{"upc":"top-4"}}`},
 				Hits:      nil,
 				TTL:       30 * time.Second,
-				Caller:    "",
 			}, entry)
 		case <-time.After(5 * time.Second):
 			t.Fatal("timeout waiting for Product cache population")

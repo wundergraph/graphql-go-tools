@@ -77,6 +77,9 @@ func newProductResponseData() *Object {
 	}
 }
 
+// TestL2CacheKeyInterceptor verifies that L2CacheKeyInterceptor and GlobalCacheKeyPrefix
+// transform L2 cache keys correctly without affecting L1 keys.
+// Without this, tenant isolation or schema-versioned cache keys would silently break.
 func TestL2CacheKeyInterceptor(t *testing.T) {
 	t.Run("interceptor transforms L2 keys for entity fetch", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -176,7 +179,8 @@ func TestL2CacheKeyInterceptor(t *testing.T) {
 				setKeys = append(setKeys, entry.Keys...)
 			}
 		}
-		require.Equal(t, 1, len(setKeys), "expected exactly 1 cache set key")
+		// Verify L2 set key has interceptor prefix
+		require.Equal(t, 1, len(setKeys))
 		assert.Equal(t, `tenant-abc:{"__typename":"Product","key":{"id":"prod-1"}}`, setKeys[0])
 
 		// Now do a second request against the same cache — should get a cache hit
@@ -270,9 +274,10 @@ func TestL2CacheKeyInterceptor(t *testing.T) {
 				getHits = append(getHits, entry.Hits...)
 			}
 		}
-		require.Equal(t, 1, len(getKeys), "expected exactly 1 cache get key")
+		// Verify L2 get key has interceptor prefix and is a hit
+		require.Equal(t, 1, len(getKeys))
 		assert.Equal(t, `tenant-abc:{"__typename":"Product","key":{"id":"prod-1"}}`, getKeys[0])
-		assert.Equal(t, true, getHits[0], "second request should be a cache hit")
+		assert.Equal(t, true, getHits[0])
 	})
 
 	t.Run("interceptor does NOT affect L1 keys", func(t *testing.T) {
@@ -404,7 +409,8 @@ func TestL2CacheKeyInterceptor(t *testing.T) {
 				setKeys = append(setKeys, entry.Keys...)
 			}
 		}
-		require.Equal(t, 1, len(setKeys), "expected exactly 1 L2 cache set key")
+		// L2 keys have the interceptor prefix; L1 was unaffected (entityDS2 not called)
+		require.Equal(t, 1, len(setKeys))
 		assert.Equal(t, `tenant-xyz:{"__typename":"Product","key":{"id":"prod-1"}}`, setKeys[0])
 	})
 
@@ -494,7 +500,8 @@ func TestL2CacheKeyInterceptor(t *testing.T) {
 		err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
 		require.NoError(t, err)
 
-		require.Equal(t, 1, len(capturedInfos), "interceptor should be called exactly once")
+		// Verify interceptor received correct metadata
+		require.Equal(t, 1, len(capturedInfos))
 		assert.Equal(t, L2CacheKeyInterceptorInfo{
 			SubgraphName: "products",
 			CacheName:    "product-cache",
@@ -590,8 +597,8 @@ func TestL2CacheKeyInterceptor(t *testing.T) {
 			}
 		}
 		require.Equal(t, 1, len(setKeys))
-		assert.Equal(t, `schema-v42:{"__typename":"Product","key":{"id":"prod-1"}}`, setKeys[0],
-			"L2 key should have global prefix prepended")
+		// L2 key should have global prefix prepended
+		assert.Equal(t, `schema-v42:{"__typename":"Product","key":{"id":"prod-1"}}`, setKeys[0])
 	})
 
 	t.Run("global prefix combined with interceptor", func(t *testing.T) {
@@ -686,9 +693,8 @@ func TestL2CacheKeyInterceptor(t *testing.T) {
 			}
 		}
 		require.Equal(t, 1, len(setKeys))
-		// Order: interceptor wraps (global_prefix:entity_key)
-		assert.Equal(t, `tenant-abc:schema-v42:{"__typename":"Product","key":{"id":"prod-1"}}`, setKeys[0],
-			"L2 key should have global prefix then interceptor applied")
+		// Interceptor wraps the already-prefixed key: interceptor(global_prefix:entity_key)
+		assert.Equal(t, `tenant-abc:schema-v42:{"__typename":"Product","key":{"id":"prod-1"}}`, setKeys[0])
 	})
 
 	t.Run("nil interceptor has no effect", func(t *testing.T) {
@@ -783,7 +789,8 @@ func TestL2CacheKeyInterceptor(t *testing.T) {
 				setKeys = append(setKeys, entry.Keys...)
 			}
 		}
-		require.Equal(t, 1, len(setKeys), "expected exactly 1 cache set key")
+		// No transformation applied — key is in standard format
+		require.Equal(t, 1, len(setKeys))
 		assert.Equal(t, `{"__typename":"Product","key":{"id":"prod-1"}}`, setKeys[0])
 	})
 }

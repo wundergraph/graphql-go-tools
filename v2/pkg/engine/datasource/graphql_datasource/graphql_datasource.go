@@ -90,7 +90,8 @@ type Planner[T Configuration] struct {
 	// rootFieldEntityCacheKeyTemplates tracks root field types (plural in case of interfaces/unions)
 	// and their correlating cache keys (excluding @requires) to allow L1 cache population
 	// for root fields that return an entity
-	rootFieldEntityCacheKeyTemplates map[string]resolve.CacheKeyTemplate
+	rootFieldEntityCacheKeyTemplates   map[string]resolve.CacheKeyTemplate
+	requestScopedResponseKeys          map[string]string // schema field name → response key (alias or name) for @requestScoped entity fields
 
 	// federation
 
@@ -421,6 +422,76 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		}
 	}
 
+	// Build requestScoped fields from federation metadata.
+	//
+	// Symmetric model: every field annotated with @requestScoped in the subgraph
+	// participates in per-request L1 caching as both reader (inject from L1 and
+	// skip the fetch) and writer (populate L1 after the fetch). Fields that share
+	// the same L1Key (i.e., same `key` within the same subgraph) share the same
+	// L1 entry.
+	var requestScopedFields []resolve.RequestScopedField
+
+	fedMeta := p.dataSourceConfig.FederationConfiguration()
+
+	addRequestScoped := func(fieldName, responsePath, l1Key string) {
+		requestScopedFields = append(requestScopedFields, resolve.RequestScopedField{
+			FieldName: responsePath,
+			FieldPath: []string{responsePath},
+			L1Key:     l1Key,
+		})
+	}
+
+	if !requiresEntityFetch && !requiresEntityBatchFetch {
+		// Root field fetches: iterate the query's root fields.
+		for _, rf := range p.rootFields {
+			l1Keys := fedMeta.RequestScopedExportsForField(rf.Coordinate.TypeName, rf.Coordinate.FieldName)
+			if len(l1Keys) == 0 {
+				continue
+			}
+			responsePath := rf.ResponseKey
+			for _, l1Key := range l1Keys {
+				addRequestScoped(rf.Coordinate.FieldName, responsePath, l1Key)
+			}
+		}
+	} else {
+		// Entity fetches: iterate fields on the entity type (and any interfaceObject
+		// types the entity implements — @requestScoped may be declared on the
+		// interface e.g. Personalized, while the concrete entity is Article).
+		var entityTypeName string
+		if len(p.dataSourcePlannerConfig.RequiredFields) > 0 {
+			entityTypeName = p.dataSourcePlannerConfig.RequiredFields[0].TypeName
+		}
+		if entityTypeName != "" {
+			typesToCheck := []string{entityTypeName}
+			for _, io := range fedMeta.InterfaceObjects {
+				for _, concrete := range io.ConcreteTypeNames {
+					if concrete == entityTypeName {
+						typesToCheck = append(typesToCheck, io.InterfaceTypeName)
+					}
+				}
+			}
+			seen := make(map[string]struct{})
+			for _, t := range typesToCheck {
+				for _, rsf := range fedMeta.RequestScopedFieldsForType(t) {
+					// Dedup by (FieldName, L1Key) in case a field appears on both
+					// the concrete and interface type lists.
+					// e.g. FieldName="viewer", L1Key="accounts.userId"
+					//      → dedupKey = "viewer\x00accounts.userId"
+					dedupKey := rsf.FieldName + "\x00" + rsf.L1Key
+					if _, dup := seen[dedupKey]; dup {
+						continue
+					}
+					seen[dedupKey] = struct{}{}
+					responsePath := rsf.FieldName
+					if rk, ok := p.requestScopedResponseKeys[rsf.FieldName]; ok {
+						responsePath = rk
+					}
+					addRequestScoped(rsf.FieldName, responsePath, rsf.L1Key)
+				}
+			}
+		}
+	}
+
 	return resolve.FetchConfiguration{
 		Input:                                 string(input),
 		DataSource:                            dataSource,
@@ -434,6 +505,7 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		Caching: resolve.FetchCacheConfiguration{
 			CacheKeyTemplate:                   p.entityCacheKeyTemplate,
 			RootFieldL1EntityCacheKeyTemplates: p.rootFieldEntityCacheKeyTemplates,
+			RequestScopedFields:                requestScopedFields,
 		},
 	}
 }
@@ -772,8 +844,22 @@ func (p *Planner[T]) EnterField(ref int) {
 			TypeName:  p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition),
 			FieldName: fieldName,
 		}
-		p.trackCacheKeyCoordinate(coordinate)
+		responseKey := p.visitor.Operation.FieldAliasOrNameString(ref)
+		p.trackCacheKeyCoordinate(coordinate, responseKey)
 		p.handlePotentialEntityRootField(ref)
+	}
+
+	// Track response keys for @requestScoped entity fields so ConfigureFetch
+	// can emit correct aliases without needing a downstream rewrite.
+	if !p.isRootField() {
+		fedMeta := p.dataSourceConfig.FederationConfiguration()
+		if l1Keys := fedMeta.RequestScopedExportsForField(typeName, fieldName); len(l1Keys) > 0 {
+			responseKey := p.visitor.Operation.FieldAliasOrNameString(ref)
+			if p.requestScopedResponseKeys == nil {
+				p.requestScopedResponseKeys = make(map[string]string)
+			}
+			p.requestScopedResponseKeys[fieldName] = responseKey
+		}
 	}
 
 	// store root field name and ref
@@ -929,15 +1015,24 @@ func (p *Planner[T]) addFieldArguments(upstreamFieldRef int, fieldRef int, field
 // is returned unchanged. This is intentional: some EntityKeyMappings reference entity
 // fields that aren't root field arguments (e.g., "username" on a root field that only
 // takes "id"). These "derived keys" are populated from entity response data on the
-// write path via RenderEntityKeysFromValue — the read path will naturally skip them.
+// write path via renderDerivedEntityKeyFromValue — the read path will naturally skip them.
 func resolveArgumentPath(argumentPath []string, args []resolve.FieldArgument) []string {
-	if len(argumentPath) != 1 {
+	if len(argumentPath) == 0 {
 		return argumentPath
 	}
 	for _, arg := range args {
 		if arg.Name == argumentPath[0] {
 			if cv, ok := arg.Variable.(*resolve.ContextVariable); ok {
-				return cv.Path
+				if len(argumentPath) == 1 {
+					return cv.Path
+				}
+				// For nested argument paths (e.g., ["key", "sellerId"]),
+				// resolve the root argument to its variable path and append
+				// the remaining nested field path.
+				resolved := make([]string, len(cv.Path)+len(argumentPath)-1)
+				copy(resolved, cv.Path)
+				copy(resolved[len(cv.Path):], argumentPath[1:])
+				return resolved
 			}
 			return argumentPath
 		}
@@ -946,10 +1041,13 @@ func resolveArgumentPath(argumentPath []string, args []resolve.FieldArgument) []
 }
 
 // trackCacheKeyCoordinate ensures a root field is tracked for cache key generation,
-// initializing an empty args slice if it doesn't exist yet
-func (p *Planner[T]) trackCacheKeyCoordinate(coordinate resolve.GraphCoordinate) {
+// initializing an empty args slice if it doesn't exist yet.
+// responseKey is the alias if present, else the field name — used by requestScoped
+// export to read the field value from the response JSON.
+func (p *Planner[T]) trackCacheKeyCoordinate(coordinate resolve.GraphCoordinate, responseKey string) {
 	p.rootFields = append(p.rootFields, resolve.QueryField{
-		Coordinate: coordinate,
+		Coordinate:  coordinate,
+		ResponseKey: responseKey,
 	})
 }
 
@@ -1064,6 +1162,7 @@ func (p *Planner[T]) EnterDocument(_, _ *ast.Document) {
 		p.rootFields[i].Args = nil
 	}
 	p.rootFields = p.rootFields[:0]
+	clear(p.requestScopedResponseKeys)
 }
 
 func (p *Planner[T]) LeaveDocument(_, _ *ast.Document) {

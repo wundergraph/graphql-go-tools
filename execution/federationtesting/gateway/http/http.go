@@ -59,6 +59,10 @@ func (g *GraphQLHTTPRequestHandler) handleHTTP(w http.ResponseWriter, r *http.Re
 		opts = append(opts, engine.WithDebugMode())
 	}
 
+	if len(g.remapVariables) > 0 {
+		opts = append(opts, engine.WithRemapVariables(g.remapVariables))
+	}
+
 	// Capture cache stats for debugging/testing
 	var cacheStats resolve.CacheAnalyticsSnapshot
 	opts = append(opts, engine.WithCacheStatsOutput(&cacheStats))

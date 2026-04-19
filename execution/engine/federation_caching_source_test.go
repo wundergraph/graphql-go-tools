@@ -17,6 +17,8 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
+// TestCacheWriteEventSource_MutationL2Write verifies that L2 writes triggered by mutations
+// have Source=CacheSourceMutation in analytics, distinguishing them from query-driven writes.
 func TestCacheWriteEventSource_MutationL2Write(t *testing.T) {
 	t.Parallel()
 	// Verify that L2 writes triggered by a mutation have Source=CacheSourceMutation in the analytics snapshot.
@@ -82,6 +84,8 @@ func TestCacheWriteEventSource_MutationL2Write(t *testing.T) {
 	}), normalizeSnapshot(parseCacheAnalytics(t, headers)))
 }
 
+// TestMutationCacheTTLOverride_E2E verifies end-to-end that MutationFieldCacheConfiguration.TTL
+// overrides the entity's default TTL for mutation-driven L2 writes.
 func TestMutationCacheTTLOverride_E2E(t *testing.T) {
 	t.Parallel()
 	// Verify that MutationFieldCacheConfiguration.TTL overrides the entity's default TTL.
@@ -133,6 +137,8 @@ func TestMutationCacheTTLOverride_E2E(t *testing.T) {
 	}, defaultCache.GetLog())
 }
 
+// TestOnSubscriptionCacheCallbacks verifies that subscription cache lifecycle callbacks
+// (OnSubscriptionCacheHit, OnSubscriptionCacheSet) are invoked at the correct times.
 func TestOnSubscriptionCacheCallbacks(t *testing.T) {
 	t.Parallel()
 	t.Run("OnSubscriptionCacheWrite fires on subscription entity population", func(t *testing.T) {
@@ -179,18 +185,17 @@ func TestOnSubscriptionCacheCallbacks(t *testing.T) {
 		// Assert entire callback events slice — exactly 1 event with all fields matching
 		mu.Lock()
 		defer mu.Unlock()
-		require.Equal(t, 1, len(writeEvents), "OnSubscriptionCacheWrite should be called exactly once for 1 subscription event")
-		// ByteSize depends on serialized entity; use the actual value from the event
-		assert.Equal(t, resolve.CacheWriteEvent{
-			CacheKey:   `{"__typename":"Product","key":{"upc":"top-4"}}`,
-			EntityType: "Product",
-			ByteSize:   writeEvents[0].ByteSize, // Varies with serialization; verified non-zero below
-			DataSource: "products",
-			CacheLevel: resolve.CacheLevelL2,
-			TTL:        30 * time.Second,
-			Source:     resolve.CacheSourceSubscription, // Subscription cache write carries Source=subscription
-		}, writeEvents[0])
-		assert.Greater(t, writeEvents[0].ByteSize, 0, "subscription cache write should have non-zero byte size")
+		assert.Equal(t, []resolve.CacheWriteEvent{
+			{
+				CacheKey:   `{"__typename":"Product","key":{"upc":"top-4"}}`,
+				EntityType: "Product",
+				ByteSize:   64, // Serialized Product entity size for upc=top-4 Bowler/price=1
+				DataSource: "products",
+				CacheLevel: resolve.CacheLevelL2,
+				TTL:        30 * time.Second,
+				Source:     resolve.CacheSourceSubscription, // Subscription cache write carries Source=subscription
+			},
+		}, writeEvents)
 	})
 
 	t.Run("OnSubscriptionCacheInvalidate fires on invalidation-only subscription", func(t *testing.T) {

@@ -3,6 +3,7 @@ package resolve
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,6 +11,20 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
 
+func compactJSONForAssert(t testing.TB, input string) string {
+	t.Helper()
+
+	var value any
+	err := json.Unmarshal([]byte(input), &value)
+	assert.NoError(t, err)
+
+	normalized, err := json.Marshal(value)
+	assert.NoError(t, err)
+	return string(normalized)
+}
+
+// TestParseErrorBehavior verifies case-insensitive parsing of error behavior
+// strings, including whitespace trimming and unknown value rejection.
 func TestParseErrorBehavior(t *testing.T) {
 	tests := []struct {
 		input    string
@@ -40,6 +55,8 @@ func TestParseErrorBehavior(t *testing.T) {
 	}
 }
 
+// TestErrorBehaviorString verifies String() output for all error behavior
+// values, including the default for unknown values.
 func TestErrorBehaviorString(t *testing.T) {
 	assert.Equal(t, "PROPAGATE", ErrorBehaviorPropagate.String())
 	assert.Equal(t, "NULL", ErrorBehaviorNull.String())
@@ -47,9 +64,9 @@ func TestErrorBehaviorString(t *testing.T) {
 	assert.Equal(t, "PROPAGATE", ErrorBehavior(99).String()) // unknown defaults to PROPAGATE
 }
 
+// TestErrorBehaviorPropagate verifies PROPAGATE mode (default): a null
+// non-nullable field bubbles up to the nearest nullable parent.
 func TestErrorBehaviorPropagate(t *testing.T) {
-	// Test that PROPAGATE mode (default) bubbles up nulls for non-nullable fields
-	// When a non-nullable field is null, the null bubbles up to the nearest nullable parent
 	data := `{"user":{"name":null}}`
 	res := NewResolvable(nil, ResolvableOptions{})
 	ctx := NewContext(context.Background())
@@ -88,12 +105,12 @@ func TestErrorBehaviorPropagate(t *testing.T) {
 
 	// In PROPAGATE mode, the null bubbles up to user
 	expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.name'.","path":["user","name"]}],"data":{"user":null}}`
-	assert.JSONEq(t, expected, out.String())
+	assert.Equal(t, compactJSONForAssert(t, expected), compactJSONForAssert(t, out.String()))
 }
 
+// TestErrorBehaviorNull verifies NULL mode: non-nullable fields return null
+// at the error site without bubbling up to the parent.
 func TestErrorBehaviorNull(t *testing.T) {
-	// Test that NULL mode stops null propagation at the error site
-	// Even non-nullable fields return null without bubbling up
 	data := `{"user":{"name":null}}`
 	res := NewResolvable(nil, ResolvableOptions{})
 	ctx := NewContext(context.Background())
@@ -132,12 +149,12 @@ func TestErrorBehaviorNull(t *testing.T) {
 
 	// In NULL mode, the null does NOT bubble up - user has a name field with null
 	expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.name'.","path":["user","name"]}],"data":{"user":{"name":null}}}`
-	assert.JSONEq(t, expected, out.String())
+	assert.Equal(t, compactJSONForAssert(t, expected), compactJSONForAssert(t, out.String()))
 }
 
+// TestErrorBehaviorHalt verifies HALT mode: the first null non-nullable
+// field makes the entire data field null.
 func TestErrorBehaviorHalt(t *testing.T) {
-	// Test that HALT mode stops execution entirely on first error
-	// The entire data field becomes null
 	data := `{"user":{"name":null}}`
 	res := NewResolvable(nil, ResolvableOptions{})
 	ctx := NewContext(context.Background())
@@ -176,12 +193,13 @@ func TestErrorBehaviorHalt(t *testing.T) {
 
 	// In HALT mode, data becomes null
 	expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.name'.","path":["user","name"]}],"data":null}`
-	assert.JSONEq(t, expected, out.String())
+	assert.Equal(t, compactJSONForAssert(t, expected), compactJSONForAssert(t, out.String()))
 }
 
+// TestErrorBehaviorNullWithMultipleFields verifies NULL mode collects
+// multiple errors from different non-nullable fields without propagating
+// any of them to the parent object.
 func TestErrorBehaviorNullWithMultipleFields(t *testing.T) {
-	// Test NULL mode with multiple fields, some nullable, some not
-	// Errors should not propagate but multiple errors can be collected
 	data := `{"user":{"name":null,"email":"test@example.com","age":null}}`
 	res := NewResolvable(nil, ResolvableOptions{})
 	ctx := NewContext(context.Background())
@@ -232,11 +250,13 @@ func TestErrorBehaviorNullWithMultipleFields(t *testing.T) {
 
 	// In NULL mode, the user object should still exist with both errors collected
 	expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.name'.","path":["user","name"]},{"message":"Cannot return null for non-nullable field 'Query.user.age'.","path":["user","age"]}],"data":{"user":{"name":null,"email":"test@example.com","age":null}}}`
-	assert.JSONEq(t, expected, out.String())
+	assert.Equal(t, compactJSONForAssert(t, expected), compactJSONForAssert(t, out.String()))
 }
 
+// TestErrorBehaviorWithNestedObjects verifies NULL mode with deeply nested
+// objects: the null stays at the leaf and does not bubble through
+// intermediate nullable parents.
 func TestErrorBehaviorWithNestedObjects(t *testing.T) {
-	// Test error behavior with deeply nested objects
 	data := `{"user":{"profile":{"address":{"city":null}}}}`
 	res := NewResolvable(nil, ResolvableOptions{})
 	ctx := NewContext(context.Background())
@@ -293,11 +313,12 @@ func TestErrorBehaviorWithNestedObjects(t *testing.T) {
 
 	// In NULL mode, the null doesn't bubble up through address, profile, or user
 	expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.profile.address.city'.","path":["user","profile","address","city"]}],"data":{"user":{"profile":{"address":{"city":null}}}}}`
-	assert.JSONEq(t, expected, out.String())
+	assert.Equal(t, compactJSONForAssert(t, expected), compactJSONForAssert(t, out.String()))
 }
 
+// TestErrorBehaviorWithArrays verifies NULL mode with arrays: a null
+// non-nullable field in one array item does not affect other items.
 func TestErrorBehaviorWithArrays(t *testing.T) {
-	// Test error behavior with arrays containing errors
 	data := `{"users":[{"name":"Alice"},{"name":null},{"name":"Charlie"}]}`
 	res := NewResolvable(nil, ResolvableOptions{})
 	ctx := NewContext(context.Background())
@@ -338,9 +359,11 @@ func TestErrorBehaviorWithArrays(t *testing.T) {
 	// In NULL mode, the array should still contain all items
 	// The second item's name will be null (error) but the item itself should remain
 	expected := `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.users.name'.","path":["users",1,"name"]}],"data":{"users":[{"name":"Alice"},{"name":null},{"name":"Charlie"}]}}`
-	assert.JSONEq(t, expected, out.String())
+	assert.Equal(t, compactJSONForAssert(t, expected), compactJSONForAssert(t, out.String()))
 }
 
+// TestHaltExecution verifies the HaltExecution flag on Resolvable: set by
+// HALT mode on first error, cleared by Reset().
 func TestHaltExecution(t *testing.T) {
 	res := NewResolvable(nil, ResolvableOptions{})
 	assert.False(t, res.HaltExecution())

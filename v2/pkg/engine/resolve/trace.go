@@ -88,11 +88,20 @@ type TraceData struct {
 // CacheTrace captures per-fetch caching behavior for trace output.
 // Built AFTER mergeResult + populateCachesAfterFetch, when final cache state is known.
 type CacheTrace struct {
+	// Overall cache timing (aligned with DataSourceLoadTrace)
+	DurationSinceStartNano   int64  `json:"duration_since_start_nanoseconds,omitempty"`
+	DurationSinceStartPretty string `json:"duration_since_start_pretty,omitempty"`
+	DurationNano             int64  `json:"duration_nanoseconds,omitempty"`
+	DurationPretty           string `json:"duration_pretty,omitempty"`
+
 	// Runtime state (global switches AND per-fetch config combined)
 	L1Enabled  bool   `json:"l1_enabled"`
 	L2Enabled  bool   `json:"l2_enabled"`
 	CacheName  string `json:"cache_name,omitempty"`
 	TTLSeconds int64  `json:"ttl_seconds,omitempty"`
+
+	// Entity count — total number of entities involved in this fetch
+	EntityCount int `json:"entity_count"`
 
 	// L1 cache results
 	L1Hit  int `json:"l1_hit"`
@@ -137,9 +146,10 @@ type CacheTrace struct {
 
 // CacheTraceEntity records cache outcome for a single entity in batch fetches.
 type CacheTraceEntity struct {
-	Key      string `json:"key"`                 // Cache key (or hash)
-	Source   string `json:"source"`              // "l1", "l2", "subgraph", "negative_cache"
-	ByteSize int    `json:"byte_size,omitempty"` // Size of cached/fetched data
+	Key                string  `json:"key"`                            // Cache key (or hash)
+	Source             string  `json:"source"`                         // "l1", "l2", "subgraph", "negative_cache"
+	ByteSize           int     `json:"byte_size,omitempty"`            // Size of cached/fetched data
+	RemainingTTLSeconds float64 `json:"remaining_ttl_seconds,omitempty"` // Remaining TTL in seconds (L2 hits only, 0 = unknown)
 }
 
 func GetTrace(ctx context.Context, fetchTree *FetchTreeNode) TraceData {

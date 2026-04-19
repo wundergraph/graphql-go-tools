@@ -65,6 +65,7 @@ type Gateway struct {
 	loaderCaches                 map[string]resolve.LoaderCache
 	subgraphEntityCachingConfigs engine.SubgraphCachingConfigs
 	resolverOptionsFns           []func(*resolve.ResolverOptions) // Applied to ResolverOptions before creating the engine
+	remapVariables               map[string]string
 
 	gqlHandler http.Handler
 	mu         *sync.Mutex
@@ -77,6 +78,12 @@ type Gateway struct {
 func WithSubgraphEntityCachingConfigs(configs engine.SubgraphCachingConfigs) GatewayOption {
 	return func(g *Gateway) {
 		g.subgraphEntityCachingConfigs = configs
+	}
+}
+
+func WithRemapVariables(remap map[string]string) GatewayOption {
+	return func(g *Gateway) {
+		g.remapVariables = remap
 	}
 }
 

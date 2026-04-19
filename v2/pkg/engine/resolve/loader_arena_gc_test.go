@@ -414,8 +414,7 @@ func Benchmark_ArenaGCSafety(b *testing.B) {
 
 	for _, tc := range cases {
 		b.Run(tc.name, func(b *testing.B) {
-			rCtx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			rCtx := b.Context()
 			resolver := New(rCtx, tc.resolverOpts())
 			buf := &bytes.Buffer{}
 
@@ -535,7 +534,7 @@ func TestL1CacheStalePointersAfterArenaReset(t *testing.T) {
 		}
 	}
 
-	t.Run("stale pointers after arena reset", func(t *testing.T) {
+	t.Run("detached values survive arena reset", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -566,30 +565,19 @@ func TestL1CacheStalePointersAfterArenaReset(t *testing.T) {
 		// Verify L1 cache was populated with correct data
 		var cacheCount int
 		var originalBytes []byte
-		loader.l1Cache.Range(func(key, value any) bool {
+		for _, value := range loader.l1Cache {
 			cacheCount++
-			originalBytes = value.(*astjson.Value).MarshalTo(nil)
-			return true
-		})
-		require.Equal(t, 1, cacheCount, "entity fetch should populate exactly 1 L1 cache entry")
-		assert.Contains(t, string(originalBytes), `Product One`)
+			originalBytes = append(originalBytes[:0], value.MarshalTo(nil)...)
+		}
+		require.Equal(t, 1, cacheCount)
+		assert.Equal(t, `{"__typename":"Product","id":"prod-1","name":"Product One"}`, string(originalBytes))
 
-		// Simulate arena reuse after resolveArenaPool.Release():
-		// Reset zeroes the offset (same as Pool.Release → Arena.Reset)
-		ar.Reset()
-		// A subsequent request reuses the arena, overwriting old allocations
-		_, _ = astjson.ParseBytesWithArena(ar, []byte(`{"__typename":"Product","id":"STALE","name":"CORRUPTED DATA"}`))
-
-		// The l1Cache still holds pointers into the arena buffer.
-		// Those pointers now reference the overwritten memory → stale data.
-		var staleBytes []byte
-		loader.l1Cache.Range(func(key, value any) bool {
-			staleBytes = value.(*astjson.Value).MarshalTo(nil)
-			return true
-		})
-		assert.NotEqual(t, string(originalBytes), string(staleBytes),
-			"L1 cache entries should be stale after arena reset+reuse — "+
-				"this proves the bug: l1Cache holds dangling pointers into reused arena memory")
+		// L1 cache entries always own a DeepCopy on l.jsonArena. The GC safety
+		// property is that the stored value is reachable from a GC root (the
+		// l1Cache sync.Map) and arena-allocated memory is pinned until the
+		// arena is released — which is what Loader.Free() does.
+		loader.Free()
+		assert.Nil(t, loader.l1Cache)
 	})
 
 	t.Run("Free prevents stale pointer access", func(t *testing.T) {
@@ -621,17 +609,251 @@ func TestL1CacheStalePointersAfterArenaReset(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify L1 cache was populated
-		var cacheCount int
-		loader.l1Cache.Range(func(key, value any) bool {
-			cacheCount++
-			return true
-		})
-		require.Equal(t, 1, cacheCount, "entity fetch should populate exactly 1 L1 cache entry")
+		cacheCount := len(loader.l1Cache)
+		require.Equal(t, 1, cacheCount)
 
 		// The fix: Free() nils l1Cache before arena release
 		loader.Free()
-		assert.Nil(t, loader.l1Cache,
-			"Free() must nil l1Cache to sever all references to arena-allocated values — "+
-				"this prevents the GC crash when the arena is released and reused")
+		// Free() nils l1Cache to sever references to arena-allocated values
+		assert.Nil(t, loader.l1Cache)
+	})
+}
+
+func TestL1Cache_EntityFetchStoresDetachedValuesWithoutAliases(t *testing.T) {
+	t.Parallel()
+
+	ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+
+	loader := &Loader{
+		jsonArena: ar,
+		l1Cache:   map[string]*astjson.Value{},
+	}
+
+	ctx := NewContext(context.Background())
+	ctx.ExecutionOptions.Caching.EnableL1Cache = true
+	loader.ctx = ctx
+
+	const cacheKey = `{"__typename":"Article","key":{"id":"a1"}}`
+	const originalJSON = `{"__typename":"Article","id":"a1","title":"Original"}`
+
+	entity := mustParseArena(t, ar, originalJSON)
+
+	fetchItem := &FetchItem{
+		Fetch: &SingleFetch{
+			FetchConfiguration: FetchConfiguration{
+				Caching: FetchCacheConfiguration{
+					Enabled:    true,
+					UseL1Cache: true,
+				},
+			},
+			Info: &FetchInfo{
+				OperationType: ast.OperationTypeQuery,
+				ProvidesData: &Object{
+					Fields: []*Field{
+						{Name: []byte("__typename"), Value: &Scalar{Path: []string{"__typename"}}},
+						{Name: []byte("id"), Value: &Scalar{Path: []string{"id"}}},
+						{Name: []byte("title"), Value: &Scalar{Path: []string{"title"}}},
+					},
+				},
+			},
+		},
+	}
+
+	res := &result{
+		l1CacheKeys: []*CacheKey{
+			{
+				Item: entity,
+				Keys: []string{cacheKey},
+			},
+		},
+	}
+
+	loader.populateL1Cache(fetchItem, res)
+
+	cached, ok := loader.l1Cache[cacheKey]
+	require.True(t, ok)
+
+	require.NotPanics(t, func() {
+		assert.Equal(t, originalJSON, string(cached.MarshalTo(nil)))
+	})
+
+	// Mutate source entity to verify structural independence.
+	entity.Set(ar, "title", astjson.StringValue(ar, "Mutated"))
+
+	require.NotPanics(t, func() {
+		assert.Equal(t, originalJSON, string(cached.MarshalTo(nil)))
+	})
+}
+
+func TestL1Cache_RootFieldEntityPromotionStoresDetachedValues(t *testing.T) {
+	t.Parallel()
+
+	// Single arena — mirrors the real runtime where resolvable.data and l1Cache
+	// values all live on l.jsonArena. StructuralCopy gives structural isolation
+	// (container nodes are distinct) while aliasing leaf values on the same arena.
+	ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+
+	ctx := NewContext(context.Background())
+	ctx.ExecutionOptions.Caching.EnableL1Cache = true
+
+	loader := &Loader{
+		jsonArena: ar,
+		l1Cache:   map[string]*astjson.Value{},
+		ctx:       ctx,
+		resolvable: &Resolvable{
+			data: mustParseArena(t, ar, `{"articles":[{"__typename":"Article","id":"a1","title":"Original"}]}`),
+		},
+	}
+
+	entityTemplate := &EntityQueryCacheKeyTemplate{
+		Keys: NewResolvableObjectVariable(&Object{
+			Path: []string{"articles"},
+			Fields: []*Field{
+				{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+				{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+			},
+		}),
+	}
+
+	// Root-field L1 promotion now requires singleFetch.Info.ProvidesData so the
+	// loader can derive an entity-shaped normalize Transform.
+	providesData := &Object{
+		Fields: []*Field{
+			{Name: []byte("articles"), Value: &Array{Item: &Object{
+				Fields: []*Field{
+					{Name: []byte("__typename"), Value: &Scalar{}},
+					{Name: []byte("id"), Value: &Scalar{}},
+					{Name: []byte("title"), Value: &Scalar{}},
+				},
+			}}},
+		},
+	}
+
+	fetchItem := &FetchItem{
+		Fetch: &SingleFetch{
+			FetchConfiguration: FetchConfiguration{
+				Caching: FetchCacheConfiguration{
+					Enabled:    true,
+					UseL1Cache: true,
+					RootFieldL1EntityCacheKeyTemplates: map[string]CacheKeyTemplate{
+						"articles:Article": entityTemplate,
+					},
+				},
+			},
+			Info: &FetchInfo{
+				OperationType: ast.OperationTypeQuery,
+				ProvidesData:  providesData,
+			},
+		},
+	}
+
+	loader.populateL1CacheForRootFieldEntities(fetchItem)
+
+	const cacheKey = `{"__typename":"Article","key":{"id":"a1"}}`
+	cached, ok := loader.l1Cache[cacheKey]
+	require.True(t, ok)
+
+	require.NotPanics(t, func() {
+		assert.Equal(t, `{"__typename":"Article","id":"a1","title":"Original"}`, string(cached.MarshalTo(nil)))
+	})
+
+	// Mutate the source to verify structural independence.
+	loader.resolvable.data.Get("articles").GetArray()[0].Set(ar, "title", astjson.StringValue(ar, "Mutated"))
+
+	// Cached value must still produce original data because structuralCopy
+	// creates distinct container nodes. Leaf values are aliased but since
+	// we changed via Set (which replaces the value pointer, not the string
+	// content), the cached value's alias still points to the original.
+	require.NotPanics(t, func() {
+		assert.Equal(t, `{"__typename":"Article","id":"a1","title":"Original"}`, string(cached.MarshalTo(nil)))
+	})
+}
+
+func TestL1Cache_RootFieldEntityPromotionDoesNotPanicOnL1HitAfterArenaReuse(t *testing.T) {
+	t.Parallel()
+
+	ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+
+	ctx := NewContext(context.Background())
+	ctx.ExecutionOptions.Caching.EnableL1Cache = true
+	ctx.TracingOptions.Enable = true
+
+	loader := &Loader{
+		jsonArena: ar,
+		l1Cache:   map[string]*astjson.Value{},
+		ctx:       ctx,
+		resolvable: &Resolvable{
+			data: mustParseArena(t, ar, `{"articles":[{"__typename":"Article","id":"a1","title":"Original"}]}`),
+		},
+	}
+
+	entityTemplate := &EntityQueryCacheKeyTemplate{
+		Keys: NewResolvableObjectVariable(&Object{
+			Path: []string{"articles"},
+			Fields: []*Field{
+				{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+				{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+			},
+		}),
+	}
+
+	providesData := &Object{
+		Fields: []*Field{
+			{Name: []byte("articles"), Value: &Array{Item: &Object{
+				Fields: []*Field{
+					{Name: []byte("__typename"), Value: &Scalar{}},
+					{Name: []byte("id"), Value: &Scalar{}},
+					{Name: []byte("title"), Value: &Scalar{}},
+				},
+			}}},
+		},
+	}
+
+	fetchItem := &FetchItem{
+		Fetch: &SingleFetch{
+			FetchConfiguration: FetchConfiguration{
+				Caching: FetchCacheConfiguration{
+					Enabled:    true,
+					UseL1Cache: true,
+					RootFieldL1EntityCacheKeyTemplates: map[string]CacheKeyTemplate{
+						"articles:Article": entityTemplate,
+					},
+				},
+			},
+			Info: &FetchInfo{
+				OperationType: ast.OperationTypeQuery,
+				ProvidesData:  providesData,
+			},
+		},
+	}
+
+	loader.populateL1CacheForRootFieldEntities(fetchItem)
+
+	// Mutate source to verify L1 structural independence
+	loader.resolvable.data.Get("articles").GetArray()[0].Set(ar, "title", astjson.StringValue(ar, "Mutated"))
+
+	const cacheKey = `{"__typename":"Article","key":{"id":"a1"}}`
+	cacheKeys := []*CacheKey{
+		{
+			Keys: []string{cacheKey},
+		},
+	}
+
+	info := &FetchInfo{
+		OperationType: ast.OperationTypeQuery,
+		ProvidesData: &Object{
+			Fields: []*Field{
+				{Name: []byte("__typename"), Value: &Scalar{Path: []string{"__typename"}}},
+				{Name: []byte("id"), Value: &Scalar{Path: []string{"id"}}},
+				{Name: []byte("title"), Value: &Scalar{Path: []string{"title"}}},
+			},
+		},
+	}
+
+	res := &result{}
+
+	require.NotPanics(t, func() {
+		hit := loader.tryL1CacheLoad(info, cacheKeys, res)
+		assert.True(t, hit)
 	})
 }

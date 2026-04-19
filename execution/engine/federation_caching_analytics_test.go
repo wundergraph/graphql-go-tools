@@ -16,7 +16,9 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
-func TestCacheAnalyticsE2E(t *testing.T) {
+// TestFederationCaching_Analytics verifies that cache analytics snapshots (L1/L2 reads, writes,
+// field hashes, entity types) are correctly recorded and returned in response headers.
+func TestFederationCaching_Analytics(t *testing.T) {
 	t.Parallel()
 	// Common cache key constants used across subtests
 	const (
@@ -51,7 +53,7 @@ func TestCacheAnalyticsE2E(t *testing.T) {
 		byteSizeProductTop2  = 233 // Product top-2 entity (reviews subgraph response)
 		byteSizeTopProducts  = 127 // Query.topProducts root field (products subgraph response)
 		byteSizeUser1234     = 49  // User 1234 entity (accounts subgraph response)
-		byteSizeUser1234Full = 105 // User 1234 entity from L1 (includes sameUserReviewers data)
+		byteSizeUser1234Full = 105 // User 1234 entity from L1 (full accumulated entity with passthrough)
 		byteSizeQueryMe      = 56  // Query.me root field (accounts subgraph response)
 	)
 
@@ -209,21 +211,23 @@ func TestCacheAnalyticsE2E(t *testing.T) {
 
 		expected := normalizeSnapshot(resolve.CacheAnalyticsSnapshot{
 			L1Reads: []resolve.CacheKeyEvent{
-				// L1 hit: User 1234 was populated by Query.me root fetch, reused for sameUserReviewers
+				// L1 hit: User 1234 populated by accounts fetch, reused for sameUserReviewers entity resolution
 				{CacheKey: keyUser1234, EntityType: "User", Kind: resolve.CacheKeyHit, DataSource: dsAccounts, ByteSize: byteSizeUser1234Full},
+				// L1 miss: reviews subgraph also checks L1 for User (union optimization enables L1 for reviews)
+				{CacheKey: keyUser1234, EntityType: "User", Kind: resolve.CacheKeyMiss, DataSource: dsReviews},
 			},
 			L1Writes: []resolve.CacheWriteEvent{
 				// Query.me root field written to L1 after accounts subgraph fetch
 				{CacheKey: keyMe, EntityType: "Query", ByteSize: byteSizeQueryMe, DataSource: dsAccounts, CacheLevel: resolve.CacheLevelL1, Source: resolve.CacheSourceQuery},
+				// Reviews entity fetch for User 1234 also writes to L1 (union optimization enables it)
+				{CacheKey: keyUser1234, EntityType: "User", ByteSize: byteSizeUser1234Full, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL1, Source: resolve.CacheSourceQuery},
 			},
 			FieldHashes: []resolve.EntityFieldHash{
-				// Both username entries show L1 source because the entity key resolves to
-				// the L1 source recorded during the entity fetch L1 HIT
-				{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceL1}, // me.username: entity came from L1
-				{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceL1}, // sameUserReviewers[0].username: same L1 entity
+				{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceL1},
+				{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceL1},
 			},
 			EntityTypes: []resolve.EntityTypeInfo{
-				{TypeName: "User", Count: 2, UniqueKeys: 1}, // 2 User instances, but only 1 unique key (1234)
+				{TypeName: "User", Count: 2, UniqueKeys: 1},
 			},
 		})
 		assert.Equal(t, expected, normalizeSnapshot(parseCacheAnalytics(t, headers)))
@@ -586,7 +590,9 @@ func TestCacheAnalyticsE2E(t *testing.T) {
 	})
 }
 
-func TestShadowCacheE2E(t *testing.T) {
+// TestFederationCaching_ShadowMode verifies shadow mode: L2 reads/writes happen normally but
+// cached data is never served. Fresh data is always fetched and compared for staleness detection.
+func TestFederationCaching_ShadowMode(t *testing.T) {
 	t.Parallel()
 	// Cache key constants (same as TestCacheAnalyticsE2E — same federation setup)
 	const (
@@ -1078,7 +1084,9 @@ func TestShadowCacheE2E(t *testing.T) {
 	})
 }
 
-func TestMutationImpactE2E(t *testing.T) {
+// TestFederationCaching_MutationImpact verifies that mutation impact analytics correctly record
+// entity cache key, freshness hash, and staleness detection for mutated entities.
+func TestFederationCaching_MutationImpact(t *testing.T) {
 	t.Parallel()
 
 	// Configure entity caching for User on accounts subgraph
@@ -1091,15 +1099,11 @@ func TestMutationImpactE2E(t *testing.T) {
 		},
 	}
 
-	mutationQuery := `mutation { updateUsername(id: "1234", newUsername: "UpdatedMe") { id username } }`
-
-	// Uses a simple query that causes an entity fetch for User 1234
-	// me { id username } triggers: accounts root fetch for Query.me, no entity fetch
-	// We need a query that triggers entity caching for User - topProducts with reviews + authorWithoutProvides
-	entityQuery := `query { topProducts { name reviews { body authorWithoutProvides { username } } } }`
-
 	t.Run("mutation with prior cache shows stale entity", func(t *testing.T) {
 		t.Parallel()
+		mutationQuery := `mutation { updateUsername(id: "1234", newUsername: "UpdatedMe") { id username } }`
+		// Uses a query that triggers entity caching for User through authorWithoutProvides.
+		entityQuery := `query { topProducts { name reviews { body authorWithoutProvides { username } } } }`
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{"default": defaultCache}
 
@@ -1122,27 +1126,19 @@ func TestMutationImpactE2E(t *testing.T) {
 		// Request 1: Query to populate L2 cache with User entity
 		tracker.Reset()
 		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, entityQuery, nil, t)
-		assert.Contains(t, string(resp), `"username":"Me"`)
+		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
 
 		// Request 2: Mutation — analytics must identify the mutation entity,
 		// but mutations are not allowed to read L2 for stale-value inspection.
 		tracker.Reset()
 		respMut, headersMut := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, mutationQuery, nil, t)
-		assert.Contains(t, string(respMut), `"UpdatedMe"`)
+		assert.Equal(t, `{"data":{"updateUsername":{"id":"1234","username":"UpdatedMe"}}}`, string(respMut))
 
 		snap := normalizeSnapshot(parseCacheAnalytics(t, headersMut))
 		require.NotNil(t, snap.MutationEvents, "should have mutation impact events")
 		require.Equal(t, 1, len(snap.MutationEvents), "should have exactly 1 mutation impact event")
 
 		event := snap.MutationEvents[0]
-		assert.Equal(t, "updateUsername", event.MutationRootField)
-		assert.Equal(t, "User", event.EntityType)
-		assert.Equal(t, `{"__typename":"User","key":{"id":"1234"}}`, event.EntityCacheKey)
-		assert.Equal(t, false, event.HadCachedValue, "mutations must not read cache, even for analytics")
-		assert.Equal(t, false, event.IsStale, "without a cache read there is no stale-value comparison")
-
-		// Record discovered values for exact assertion
-		t.Logf("MutationImpact event: %+v", event)
 
 		assert.Equal(t, normalizeSnapshot(resolve.CacheAnalyticsSnapshot{
 			FieldHashes: []resolve.EntityFieldHash{
@@ -1170,6 +1166,7 @@ func TestMutationImpactE2E(t *testing.T) {
 
 	t.Run("mutation without prior cache shows no-cache event", func(t *testing.T) {
 		t.Parallel()
+		mutationQuery := `mutation { updateUsername(id: "1234", newUsername: "UpdatedMe") { id username } }`
 		defaultCache := NewFakeLoaderCache()
 		caches := map[string]resolve.LoaderCache{"default": defaultCache}
 
@@ -1193,20 +1190,13 @@ func TestMutationImpactE2E(t *testing.T) {
 		// Send mutation directly
 		tracker.Reset()
 		respMut, headersMut := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, mutationQuery, nil, t)
-		assert.Contains(t, string(respMut), `"UpdatedMe"`)
+		assert.Equal(t, `{"data":{"updateUsername":{"id":"1234","username":"UpdatedMe"}}}`, string(respMut))
 
 		snap := normalizeSnapshot(parseCacheAnalytics(t, headersMut))
 		require.NotNil(t, snap.MutationEvents, "should have mutation impact events")
 		require.Equal(t, 1, len(snap.MutationEvents), "should have exactly 1 mutation impact event")
 
 		event := snap.MutationEvents[0]
-		assert.Equal(t, "updateUsername", event.MutationRootField)
-		assert.Equal(t, "User", event.EntityType)
-		assert.Equal(t, `{"__typename":"User","key":{"id":"1234"}}`, event.EntityCacheKey)
-		assert.Equal(t, false, event.HadCachedValue, "should NOT have found cached value")
-		assert.Equal(t, false, event.IsStale, "cannot be stale without cached value")
-		assert.Equal(t, uint64(0), event.CachedHash, "no cached value = no hash")
-		assert.Equal(t, 0, event.CachedBytes, "no cached value = no bytes")
 
 		assert.Equal(t, normalizeSnapshot(resolve.CacheAnalyticsSnapshot{
 			FieldHashes: []resolve.EntityFieldHash{
@@ -1231,6 +1221,8 @@ func TestMutationImpactE2E(t *testing.T) {
 	})
 }
 
+// TestFederationCachingAliases verifies that aliased fields produce correct cache analytics,
+// ensuring field hashes and entity tracking work with GraphQL aliases.
 func TestFederationCachingAliases(t *testing.T) {
 	t.Parallel()
 	// Helper to create a standard setup for alias caching tests
@@ -1811,7 +1803,9 @@ func TestFederationCachingAliases(t *testing.T) {
 	})
 }
 
-func TestHeaderImpactAnalyticsE2E(t *testing.T) {
+// TestFederationCaching_HeaderImpactAnalytics verifies that subgraph header prefix hashes
+// are correctly applied to L2 cache keys and reflected in analytics events.
+func TestFederationCaching_HeaderImpactAnalytics(t *testing.T) {
 	t.Parallel()
 	t.Run("shadow mode with header prefix - same response different headers", func(t *testing.T) {
 		t.Parallel()

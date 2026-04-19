@@ -188,7 +188,8 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			TTL:       30 * time.Second,
 			CacheKeyTemplate: newExpectedRootQueryCacheKeyTemplate([]resolve.QueryField{
 				{
-					Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					Coordinate:  resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					ResponseKey: "user",
 					Args: []resolve.FieldArgument{
 						{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
 					},
@@ -256,7 +257,8 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			TTL:       30 * time.Second,
 			CacheKeyTemplate: newExpectedRootQueryCacheKeyTemplate([]resolve.QueryField{
 				{
-					Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "userByIdAndName"},
+					Coordinate:  resolve.GraphCoordinate{TypeName: "Query", FieldName: "userByIdAndName"},
+					ResponseKey: "userByIdAndName",
 					Args: []resolve.FieldArgument{
 						{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
 						{Name: "username", Variable: &resolve.ContextVariable{Path: []string{"username"}, Renderer: resolve.NewJSONVariableRenderer()}},
@@ -328,7 +330,8 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			TTL:       30 * time.Second,
 			CacheKeyTemplate: newExpectedRootQueryCacheKeyTemplate([]resolve.QueryField{
 				{
-					Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					Coordinate:  resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					ResponseKey: "user",
 					Args: []resolve.FieldArgument{
 						{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
 					},
@@ -396,7 +399,8 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			IncludeSubgraphHeaderPrefix: true,
 			CacheKeyTemplate: newExpectedRootQueryCacheKeyTemplate([]resolve.QueryField{
 				{
-					Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					Coordinate:  resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					ResponseKey: "user",
 					Args: []resolve.FieldArgument{
 						{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
 					},
@@ -455,7 +459,8 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			TTL:       30 * time.Second,
 			CacheKeyTemplate: newExpectedRootQueryCacheKeyTemplate([]resolve.QueryField{
 				{
-					Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					Coordinate:  resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					ResponseKey: "user",
 					Args: []resolve.FieldArgument{
 						{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
 					},
@@ -514,7 +519,8 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			// is preserved for L1 cache (which is controlled separately)
 			CacheKeyTemplate: newExpectedRootQueryCacheKeyTemplate([]resolve.QueryField{
 				{
-					Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					Coordinate:  resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					ResponseKey: "user",
 					Args: []resolve.FieldArgument{
 						{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
 					},
@@ -596,7 +602,8 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			TTL:       30 * time.Second,
 			CacheKeyTemplate: newExpectedRootQueryCacheKeyTemplate([]resolve.QueryField{
 				{
-					Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					Coordinate:  resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					ResponseKey: "user",
 					Args: []resolve.FieldArgument{
 						{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
 					},
@@ -690,7 +697,8 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			TTL:       30 * time.Second,
 			CacheKeyTemplate: newExpectedRootQueryCacheKeyTemplate([]resolve.QueryField{
 				{
-					Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "userByIdAndName"},
+					Coordinate:  resolve.GraphCoordinate{TypeName: "Query", FieldName: "userByIdAndName"},
+					ResponseKey: "userByIdAndName",
 					Args: []resolve.FieldArgument{
 						{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
 						{Name: "username", Variable: &resolve.ContextVariable{Path: []string{"username"}, Renderer: resolve.NewJSONVariableRenderer()}},
@@ -774,7 +782,8 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			TTL:       30 * time.Second,
 			CacheKeyTemplate: newExpectedRootQueryCacheKeyTemplate([]resolve.QueryField{
 				{
-					Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					Coordinate:  resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					ResponseKey: "a", // aliased as `a: user(...)`
 					Args: []resolve.FieldArgument{
 						{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id1"}, Renderer: resolve.NewJSONVariableRenderer()}},
 					},
@@ -816,7 +825,8 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			TTL:       30 * time.Second,
 			CacheKeyTemplate: newExpectedRootQueryCacheKeyTemplate([]resolve.QueryField{
 				{
-					Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					Coordinate:  resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					ResponseKey: "b", // aliased as `b: user(...)`
 					Args: []resolve.FieldArgument{
 						{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id2"}, Renderer: resolve.NewJSONVariableRenderer()}},
 					},
@@ -888,7 +898,8 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			TTL:       30 * time.Second,
 			CacheKeyTemplate: newExpectedRootQueryCacheKeyTemplate([]resolve.QueryField{
 				{
-					Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					Coordinate:  resolve.GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					ResponseKey: "myUser", // aliased as `myUser: user(...)`
 					Args: []resolve.FieldArgument{
 						{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
 					},
@@ -964,7 +975,8 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			TTL:       30 * time.Second,
 			CacheKeyTemplate: newExpectedRootQueryCacheKeyTemplate([]resolve.QueryField{
 				{
-					Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "userByIdAndName"},
+					Coordinate:  resolve.GraphCoordinate{TypeName: "Query", FieldName: "userByIdAndName"},
+					ResponseKey: "userByIdAndName",
 					Args: []resolve.FieldArgument{
 						{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
 						{Name: "username", Variable: &resolve.ContextVariable{Path: []string{"username"}, Renderer: resolve.NewJSONVariableRenderer()}},
@@ -1107,7 +1119,8 @@ func TestEntityKeyMappingPlanning(t *testing.T) {
 			TTL:       30 * time.Second,
 			CacheKeyTemplate: newExpectedRootQueryCacheKeyTemplate([]resolve.QueryField{
 				{
-					Coordinate: resolve.GraphCoordinate{TypeName: "Query", FieldName: "account"},
+					Coordinate:  resolve.GraphCoordinate{TypeName: "Query", FieldName: "account"},
+					ResponseKey: "account",
 					Args: []resolve.FieldArgument{
 						{Name: "id", Variable: &resolve.ContextVariable{Path: []string{"id"}, Renderer: resolve.NewJSONVariableRenderer()}},
 						{Name: "a", Variable: &resolve.ContextVariable{Path: []string{"a"}, Renderer: resolve.NewJSONVariableRenderer()}},

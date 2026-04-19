@@ -1,6 +1,7 @@
 package resolve
 
 import (
+	"bytes"
 	"context"
 	"testing"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/go-arena"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -56,7 +58,10 @@ func newNegativeCacheEntitySegments() []TemplateSegment {
 	}
 }
 
-func TestNegativeCaching(t *testing.T) {
+// TestNegativeCache_NullEntityBehavior verifies the negative cache lifecycle: storing
+// null entity results as sentinels, serving them on subsequent requests, TTL behavior,
+// mutation interaction, and overwriting sentinels with real data after TTL expiry.
+func TestNegativeCache_NullEntityBehavior(t *testing.T) {
 	t.Run("null entity stored as negative sentinel and served on second request", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -193,13 +198,13 @@ func TestNegativeCaching(t *testing.T) {
 				setFound = true
 			}
 		}
-		assert.True(t, setFound, "Expected a cache set operation for the negative sentinel")
+		assert.True(t, setFound)
 
 		// Find the last set operation's first key and verify stored value is "null"
 		for i := len(cacheLog) - 1; i >= 0; i-- {
 			if cacheLog[i].Operation == "set" && len(cacheLog[i].Keys) > 0 {
 				storedValue := cache.GetValue(cacheLog[i].Keys[0])
-				assert.Equal(t, "null", string(storedValue), "Negative cache sentinel should be 'null' bytes")
+				assert.Equal(t, "null", string(storedValue))
 				break
 			}
 		}
@@ -223,7 +228,7 @@ func TestNegativeCaching(t *testing.T) {
 				}
 			}
 		}
-		assert.True(t, getFound, "Expected L2 cache hit for negative sentinel on second call")
+		assert.True(t, getFound)
 	})
 
 	t.Run("negative caching disabled when NegativeCacheTTL is 0", func(t *testing.T) {
@@ -470,7 +475,8 @@ func TestNegativeCaching(t *testing.T) {
 			if entry.Operation == "set" {
 				t.Logf("Set: keys=%v ttl=%v", entry.Keys, entry.TTL)
 				// The negative sentinel should use NegativeCacheTTL (5s), not regular TTL (60s)
-				assert.Equal(t, 5*time.Second, entry.TTL, "Negative cache sentinel should use NegativeCacheTTL")
+				// Negative sentinel should use NegativeCacheTTL (5s), not regular TTL (60s)
+				assert.Equal(t, 5*time.Second, entry.TTL)
 			}
 		}
 	})
@@ -606,7 +612,7 @@ func TestNegativeCaching(t *testing.T) {
 
 		// Verify the stored value is the null sentinel
 		storedValue := cache.GetValue(`{"__typename":"Product","key":{"id":"prod-new"}}`)
-		assert.Equal(t, "null", string(storedValue), "Negative cache sentinel should be 'null' bytes")
+		assert.Equal(t, "null", string(storedValue))
 	})
 
 	t.Run("negative cache entry overwritten by real data on subsequent fetch", func(t *testing.T) {
@@ -735,7 +741,8 @@ func TestNegativeCaching(t *testing.T) {
 
 		// Request 1: returns null for the entity fetch → product has __typename/id from root but no "name"
 		out1 := execute()
-		assert.Equal(t, `{"data":{"product":{"__typename":"Product","id":"prod-1"}}}`, out1, "First request should only have root fields, no entity data")
+		// First request: only root fields, no entity data (null entity)
+		assert.Equal(t, `{"data":{"product":{"__typename":"Product","id":"prod-1"}}}`, out1)
 
 		productKey := `{"__typename":"Product","key":{"id":"prod-1"}}`
 
@@ -752,7 +759,8 @@ func TestNegativeCaching(t *testing.T) {
 
 		// Request 2: negative sentinel evicted, subgraph called again, returns real data
 		out2 := execute()
-		assert.Equal(t, `{"data":{"product":{"__typename":"Product","id":"prod-1","name":"Widget"}}}`, out2, "Second request should return real product data after negative cache eviction")
+		// Second request: real product data after negative cache eviction
+		assert.Equal(t, `{"data":{"product":{"__typename":"Product","id":"prod-1","name":"Widget"}}}`, out2)
 
 		// Verify request 2 cache log: L2 miss (sentinel evicted) → real data stored with entity TTL
 		cacheLog2 := cache.GetLog()
@@ -762,7 +770,184 @@ func TestNegativeCaching(t *testing.T) {
 		}, cacheLog2)
 
 		// Verify the cache now holds real data, not the null sentinel
+		// Cache now holds real data, not the null sentinel
 		storedValue := cache.GetValue(productKey)
-		assert.Equal(t, `{"__typename":"Product","id":"prod-1","name":"Widget"}`, string(storedValue), "Cache should contain real entity data after sentinel eviction and re-fetch")
+		assert.Equal(t, `{"__typename":"Product","id":"prod-1","name":"Widget"}`, string(storedValue))
 	})
+}
+
+// TestNegativeCachingResolveRegression_PreservesParentObjectForNullableField guards
+// against a regression where a null entity fetch would drop the parent object entirely.
+// The parent object with its already-known fields (e.g., id) must survive the null merge.
+func TestNegativeCachingResolveRegression_PreservesParentObjectForNullableField(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cache := NewFakeLoaderCache()
+
+	// The root fetch discovers the Product identity and creates the parent object that the
+	// entity fetch will later extend. It does not provide `name`.
+	rootDS := NewMockDataSource(ctrl)
+	rootDS.EXPECT().
+		Load(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+			return []byte(`{"data":{"product":{"__typename":"Product","id":"prod-1"}}}`), nil
+		}).Times(1)
+
+	// The entity fetch comes back as `null`, which triggers negative caching for this Product key.
+	// The regression here was that resolve could lose the already-built parent object and return
+	// `product: null` instead of preserving `product.id` and filling the nullable child as `null`.
+	entityDS := NewMockDataSource(ctrl)
+	entityDS.EXPECT().
+		Load(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+			return []byte(`{"data":{"_entities":[null]}}`), nil
+		}).Times(1)
+
+	response := &GraphQLResponse{
+		Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
+		Fetches: Sequence(
+			SingleWithPath(&SingleFetch{
+				FetchConfiguration: FetchConfiguration{
+					DataSource: rootDS,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data"},
+					},
+				},
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{{
+						Data:        []byte(`{"method":"POST","url":"http://root.service","body":{"query":"{product {__typename id}}"}}`),
+						SegmentType: StaticSegmentType,
+					}},
+				},
+				DataSourceIdentifier: []byte("graphql_datasource.Source"),
+			}, "query"),
+			SingleWithPath(&SingleFetch{
+				// This entity fetch asks only for the nullable `name` field. Negative caching is enabled
+				// so the resolver has to merge a negative-cache result back into the existing `product` object.
+				FetchConfiguration: FetchConfiguration{
+					DataSource: entityDS,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data", "_entities", "0"},
+					},
+					Caching: FetchCacheConfiguration{
+						Enabled:          true,
+						CacheName:        "default",
+						TTL:              30 * time.Second,
+						CacheKeyTemplate: newProductCacheKeyTemplate(),
+						NegativeCacheTTL: 10 * time.Second,
+					},
+				},
+				InputTemplate: InputTemplate{Segments: newNegativeCacheEntitySegments()},
+				Info: &FetchInfo{
+					DataSourceID:   "products",
+					DataSourceName: "products",
+					OperationType:  ast.OperationTypeQuery,
+					ProvidesData: &Object{Fields: []*Field{{
+						Name:  []byte("name"),
+						Value: &String{Path: []string{"name"}, Nullable: true},
+					}}},
+				},
+				DataSourceIdentifier: []byte("graphql_datasource.Source"),
+			}, "query.product", ObjectPath("product")),
+		),
+		Data: &Object{Fields: []*Field{{
+			Name: []byte("product"),
+			Value: &Object{
+				Path:     []string{"product"},
+				Nullable: true,
+				Fields: []*Field{
+					{Name: []byte("id"), Value: &String{Path: []string{"id"}, Nullable: false}},
+					// `name` is nullable, so a negative-cache hit should materialize it as `null`
+					// while still preserving the parent object and its non-null `id`.
+					{Name: []byte("name"), Value: &String{Path: []string{"name"}, Nullable: true}},
+				},
+			},
+		}}},
+	}
+
+	loader := &Loader{caches: map[string]LoaderCache{"default": cache}}
+	ctx := NewContext(context.Background())
+	ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+	ctx.ExecutionOptions.Caching.EnableL2Cache = true
+
+	ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+	resolvable := NewResolvable(ar, ResolvableOptions{})
+	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+	require.NoError(t, err)
+
+	err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+	require.NoError(t, err)
+
+	buf := &bytes.Buffer{}
+	err = resolvable.Resolve(context.Background(), response.Data, response.Fetches, buf)
+	require.NoError(t, err)
+	// The parent object must survive the negative entity result. The regression would have
+	// dropped the object entirely instead of returning the already-known `id` plus `name: null`.
+	assert.Equal(t, `{"data":{"product":{"id":"prod-1","name":null}}}`, buf.String())
+}
+
+// TestLoader_cacheKeysToNegativeEntries_PreservesPositiveEntityDataWithNullableFields
+// verifies that when an entity already has non-key fields from a prior fetch, the
+// negative cache entry preserves them and adds the newly requested nullable field as null.
+func TestLoader_cacheKeysToNegativeEntries_PreservesPositiveEntityDataWithNullableFields(t *testing.T) {
+	t.Parallel()
+
+	a := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+
+	loader := &Loader{}
+	// Start from an existing cached entity that already has non-key fields. This is the
+	// branch where negative caching keeps an object-shaped payload instead of plain `null`.
+	fromCache, err := astjson.ParseBytesWithArena(a, []byte(`{"__typename":"Item","id":"1","name":"Widget"}`))
+	require.NoError(t, err)
+
+	res := &result{
+		providesData: &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("summary"),
+					Value: &String{
+						Path:     []string{"summary"},
+						Nullable: true,
+					},
+				},
+			},
+		},
+	}
+
+	// Simulate a negative-cache write for the same entity key. The helper should preserve
+	// the existing object shape and materialize the requested nullable field as explicit null.
+	entries := loader.cacheKeysToNegativeEntries(a, res, []*CacheKey{{
+		FromCache:        fromCache,
+		Keys:             []string{`{"__typename":"Item","key":{"id":"1"}}`},
+		NegativeCacheHit: true,
+	}})
+
+	require.Len(t, entries, 1)
+	// `summary` was not present in the old payload, but because it is nullable in ProvidesData
+	// the negative-cache value must include `"summary": null` so the same selection can validate from cache.
+	require.Equal(t,
+		compactJSONForAssert(t, `{"__typename":"Item","id":"1","name":"Widget","summary":null}`),
+		compactJSONForAssert(t, string(entries[0].Value)),
+	)
+}
+
+// TestLoader_cacheKeysToNegativeEntries_UsesNullSentinelWithoutPositiveEntityData
+// verifies that with no prior entity data, the negative cache entry collapses to
+// the literal "null" sentinel instead of storing key-only scaffolding.
+func TestLoader_cacheKeysToNegativeEntries_UsesNullSentinelWithoutPositiveEntityData(t *testing.T) {
+	t.Parallel()
+
+	a := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+
+	loader := &Loader{}
+	// With no existing non-key entity data, negative caching must collapse to the literal
+	// `null` sentinel rather than storing key-only scaffolding as if it were a real entity.
+	entries := loader.cacheKeysToNegativeEntries(a, &result{}, []*CacheKey{{
+		Keys:             []string{`{"__typename":"Item","key":{"id":"1"}}`},
+		NegativeCacheHit: true,
+	}})
+
+	require.Len(t, entries, 1)
+	require.Equal(t, "null", string(entries[0].Value))
 }

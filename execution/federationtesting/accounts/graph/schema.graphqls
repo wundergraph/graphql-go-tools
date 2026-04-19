@@ -8,6 +8,9 @@ type Query {
     histories: [History]
     cat: Cat
 
+    # L1 cache union optimization testing
+    cacheEntity(id: ID!): CacheEntity!
+
     # merge data test cases
     interfaceUnion(which: Which! = A): AB
     abstractList: [AbstractListItem]
@@ -214,6 +217,21 @@ type CDerObj {
     first: String!
     middle: String!
     last: String!
+}
+
+# CacheEntity is a self-referential entity designed for L1 cache testing.
+# It has many scalar fields (a-f) so tests can select different field subsets
+# at each tree level, creating entity fetches with different ProvidesData.
+# The `nested` field (defined in reviews subgraph) returns the same entity,
+# enabling arbitrary-depth sequential entity fetch chains for the same key.
+type CacheEntity @key(fields: "id") {
+    id: ID!
+    a: String!
+    b: String!
+    c: String!
+    d: String!
+    e: String!
+    f: String!
 }
 
 # Admin is another entity that implements Identifiable for testing interface/union caching

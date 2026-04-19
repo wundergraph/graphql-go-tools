@@ -98,6 +98,19 @@ func (r *queryResolver) Cat(ctx context.Context) (*model.Cat, error) {
 	}, nil
 }
 
+// CacheEntity is the resolver for the cacheEntity field.
+func (r *queryResolver) CacheEntity(ctx context.Context, id string) (*model.CacheEntity, error) {
+	return &model.CacheEntity{
+		ID: id,
+		A:  "a-" + id,
+		B:  "b-" + id,
+		C:  "c-" + id,
+		D:  "d-" + id,
+		E:  "e-" + id,
+		F:  "f-" + id,
+	}, nil
+}
+
 // InterfaceUnion is the resolver for the interfaceUnion field.
 func (r *queryResolver) InterfaceUnion(ctx context.Context, which model.Which) (model.Ab, error) {
 	switch which {

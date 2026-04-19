@@ -43,10 +43,22 @@ type CacheKey struct {
 	// NegativeCacheHit is set during mergeResult when the subgraph returned null for this entity.
 	// Used by updateL2Cache to store a null sentinel with NegativeCacheTTL instead of regular TTL.
 	NegativeCacheHit bool
-	// fromCacheRemainingTTL tracks the selected candidate freshness for multi-key cache hits.
-	fromCacheRemainingTTL time.Duration
+	// cachedData groups the non-FromCache cache-read state (candidates, freshness,
+	// writeback flag). Embedded so promoted field access keeps call sites unchanged;
+	// FromCache stays at the top level for struct-literal compatibility across tests.
+	// Set together by populateCacheKeysFromIndex / candidate-resolution helpers and
+	// propagated together when mirroring between L1 and L2 cache keys.
+	cachedData
+}
+
+// cachedData bundles the auxiliary cache-read state for a CacheKey.
+// FromCache is intentionally NOT here — it remains a top-level field on
+// CacheKey to preserve the many struct-literal initializations in tests.
+type cachedData struct {
 	// fromCacheCandidates stores all matching L2 candidates for this cache key, sorted freshest first.
 	fromCacheCandidates []fromCacheCandidate
+	// fromCacheRemainingTTL tracks the selected candidate freshness for multi-key cache hits.
+	fromCacheRemainingTTL time.Duration
 	// fromCacheNeedsWriteback marks cache-hit resolution paths that should rewrite canonical data to L2.
 	fromCacheNeedsWriteback bool
 }
@@ -95,6 +107,9 @@ type EntityFieldMappingConfig struct {
 type QueryField struct {
 	Coordinate GraphCoordinate
 	Args       []FieldArgument
+	// ResponseKey is the alias (if present) or field name — used for looking up
+	// the field value in the response JSON.
+	ResponseKey string
 }
 
 // HasBatchEntityKey returns true if any entity key mapping uses ArgumentIsEntityKey,
@@ -242,10 +257,12 @@ func resolveArgumentValue(ctx *Context, argumentPath []string) *astjson.Value {
 	return ctx.Variables.Get(path...)
 }
 
-// resolveArgumentVariablePath resolves the variables path for an argument, honoring
-// both the original argument name from composition and any planner remapping in ctx.
+// resolveArgumentVariablePath resolves the variables path for an argument,
+// applying the forward RemapVariables lookup. In production, resolveArgumentPath
+// resolves ArgumentPath to the remapped variable name (e.g., ["a"]), while
+// ctx.Variables keeps the original names. Forward lookup maps the remapped name
+// back to the original for variable access.
 func resolveArgumentVariablePath(ctx *Context, argumentPath []string) []string {
-	// Forward lookup: argumentPath might already be the remapped name
 	path := argumentPath
 	if ctx == nil || ctx.RemapVariables == nil {
 		return path
@@ -253,15 +270,6 @@ func resolveArgumentVariablePath(ctx *Context, argumentPath []string) []string {
 	if len(path) == 1 {
 		if nameToUse, hasMapping := ctx.RemapVariables[path[0]]; hasMapping && nameToUse != path[0] {
 			path = []string{nameToUse}
-		}
-	}
-	// Reverse lookup: argumentPath is the original name, find remapped name
-	if ctx.Variables != nil && ctx.Variables.Get(path...) == nil && len(argumentPath) == 1 {
-		for newName, oldName := range ctx.RemapVariables {
-			if oldName == argumentPath[0] {
-				path = []string{newName}
-				break
-			}
 		}
 	}
 	return path
@@ -380,27 +388,20 @@ func (r *RootQueryCacheKeyTemplate) renderDerivedEntityKey(a arena.Arena, ctx *C
 	keysObj := astjson.ObjectValue(a)
 	for _, fm := range mapping.FieldMappings {
 		argumentPath := fm.ArgumentPath
-		// Apply variable remapping. RemapVariables maps newName → oldName.
-		// ArgumentPath contains the original argument name (from composition).
-		// ctx.Variables may be keyed by the new sequential name.
-		if len(argumentPath) == 1 && ctx.RemapVariables != nil {
-			// Forward lookup: argumentPath might already be the new name
+		// Apply variable remapping via forward lookup. RemapVariables maps newName → oldName.
+		// In production, resolveArgumentPath resolves ArgumentPath to the remapped variable
+		// name (e.g., ["a"]), while ctx.Variables keeps the original names (e.g., {"id": ...}).
+		// Forward lookup maps argumentPath[0] back to the original name for variable access.
+		if len(argumentPath) > 0 && ctx.RemapVariables != nil {
 			if nameToUse, hasMapping := ctx.RemapVariables[argumentPath[0]]; hasMapping && nameToUse != argumentPath[0] {
-				argumentPath = []string{nameToUse}
+				remapped := make([]string, len(argumentPath))
+				copy(remapped, argumentPath)
+				remapped[0] = nameToUse
+				argumentPath = remapped
 			}
 		}
 
 		argValue := ctx.Variables.Get(argumentPath...)
-		// Reverse lookup: argumentPath is the original name (e.g. "id"),
-		// find which new name (e.g. "a") maps to it in RemapVariables.
-		if argValue == nil && ctx.RemapVariables != nil && len(fm.ArgumentPath) == 1 {
-			for newName, oldName := range ctx.RemapVariables {
-				if oldName == fm.ArgumentPath[0] {
-					argValue = ctx.Variables.Get(newName)
-					break
-				}
-			}
-		}
 		if argValue == nil || argValue.Type() == astjson.TypeNull {
 			// Missing or null argument → skip caching
 			return "", jsonBytes
@@ -423,25 +424,6 @@ func (r *RootQueryCacheKeyTemplate) renderDerivedEntityKey(a arena.Arena, ctx *C
 	}
 	slice = arena.SliceAppend(a, slice, jsonBytes...)
 	return string(slice), jsonBytes
-}
-
-// RenderEntityKeysFromValue renders derived entity cache keys from entity data instead of request arguments.
-// Missing/null key fields skip that mapping.
-func (r *RootQueryCacheKeyTemplate) RenderEntityKeysFromValue(a arena.Arena, entity *astjson.Value, prefix string) []string {
-	if entity == nil || entity.Type() != astjson.TypeObject || len(r.EntityKeyMappings) == 0 {
-		return nil
-	}
-
-	keys := make([]string, 0, len(r.EntityKeyMappings))
-	jsonBytes := arena.AllocateSlice[byte](a, 0, 64)
-	for _, mapping := range r.EntityKeyMappings {
-		key, jsonBytesOut := r.renderDerivedEntityKeyFromValue(a, entity, jsonBytes, mapping, prefix)
-		jsonBytes = jsonBytesOut
-		if key != "" {
-			keys = append(keys, key)
-		}
-	}
-	return keys
 }
 
 func (r *RootQueryCacheKeyTemplate) renderDerivedEntityKeyFromValue(a arena.Arena, entity *astjson.Value, jsonBytes []byte, mapping EntityKeyMappingConfig, prefix string) (string, []byte) {
@@ -476,6 +458,13 @@ func (r *RootQueryCacheKeyTemplate) renderDerivedEntityKeyFromValue(a arena.Aren
 // For "store.id" with value "123", it produces {"store":{"id":"123"}}.
 // For flat keys (no dot), it behaves like obj.Set(a, key, value).
 func setNestedKey(a arena.Arena, obj *astjson.Value, key string, value *astjson.Value) {
+	// Coerce numbers to strings for consistent cache keys.
+	// Entity @key fields are identifiers (ID, String) — the GraphQL response always
+	// serializes ID as a string, but clients may send integer literals (id: 1 vs id: "1").
+	// Without coercion, the read-path key {"id":1} won't match the write-path key {"id":"1"}.
+	if value != nil && value.Type() == astjson.TypeNumber {
+		value = value.CoerceToString(a)
+	}
 	parts := strings.Split(key, ".")
 	if len(parts) == 1 {
 		obj.Set(a, key, value)
@@ -658,6 +647,13 @@ func (e *EntityQueryCacheKeyTemplate) renderCacheKeys(a arena.Arena, items []*as
 					// Resolve field value based on its template definition
 					fieldValue := e.resolveFieldValue(a, field.Value, item)
 					if fieldValue != nil && fieldValue.Type() != astjson.TypeNull {
+						// Coerce numbers to strings for consistent cache keys with the
+						// sibling derived-key paths (renderDerivedEntityKey /
+						// renderDerivedEntityKeyFromValue) that go through setNestedKey.
+						// See caching.go:468-471 for the reasoning.
+						if fieldValue.Type() == astjson.TypeNumber {
+							fieldValue = fieldValue.CoerceToString(a)
+						}
 						keysObj.Set(a, fieldName, fieldValue)
 					}
 				}
@@ -720,6 +716,13 @@ func (e *EntityQueryCacheKeyTemplate) resolveFieldValue(a arena.Arena, valueNode
 			}
 			fieldValue := e.resolveFieldValue(a, field.Value, baseData)
 			if fieldValue != nil && fieldValue.Type() != astjson.TypeNull {
+				// Coerce numbers to strings for consistent cache keys (see
+				// caching.go:468-471). Applies inside composite @key Objects
+				// too — nested scalars must follow the same contract as
+				// flat scalars.
+				if fieldValue.Type() == astjson.TypeNumber {
+					fieldValue = fieldValue.CoerceToString(a)
+				}
 				nestedObj.Set(a, fieldName, fieldValue)
 			}
 		}

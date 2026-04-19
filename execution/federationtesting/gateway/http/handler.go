@@ -24,6 +24,7 @@ func NewGraphqlHTTPHandler(
 	subgraphHeadersBuilder resolve.SubgraphHeadersBuilder,
 	cachingOptions resolve.CachingOptions,
 	debugMode bool,
+	remapVariables map[string]string,
 ) http.Handler {
 	return &GraphQLHTTPRequestHandler{
 		schema:                 schema,
@@ -34,6 +35,7 @@ func NewGraphqlHTTPHandler(
 		subgraphHeadersBuilder: subgraphHeadersBuilder,
 		cachingOptions:         cachingOptions,
 		debugMode:              debugMode,
+		remapVariables:         remapVariables,
 	}
 }
 
@@ -46,6 +48,7 @@ type GraphQLHTTPRequestHandler struct {
 	subgraphHeadersBuilder resolve.SubgraphHeadersBuilder
 	cachingOptions         resolve.CachingOptions
 	debugMode              bool
+	remapVariables         map[string]string
 }
 
 func (g *GraphQLHTTPRequestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

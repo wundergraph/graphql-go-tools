@@ -12,6 +12,8 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
+// TestL1CacheReducesHTTPCalls verifies L1 cache behavior with nested entity fetches.
+// L1 only works for entity fetches (not root queries), so self-referential paths benefit.
 func TestL1CacheReducesHTTPCalls(t *testing.T) {
 	t.Parallel()
 	// This test demonstrates L1 cache behavior with entity fetches.
@@ -130,6 +132,227 @@ func TestL1CacheReducesHTTPCalls(t *testing.T) {
 	})
 }
 
+// TestL1CacheFieldAccumulationWithAliases verifies that L1 cache accumulates fields
+// across entity fetches with different aliases and that alias normalization allows
+// a later fetch to reuse a field stored by an earlier fetch under a different alias.
+//
+// Query:
+//
+//	{
+//	  me {
+//	    id
+//	    reviews {
+//	      authorWithoutProvides {
+//	        myName: username     ← entity fetch A: stores "username" in L1 (normalized from alias "myName")
+//	      }
+//	      product {
+//	        reviews {
+//	          authorWithoutProvides {
+//	            username          ← entity fetch B: should L1 HIT (schema name "username" already stored)
+//	          }
+//	        }
+//	      }
+//	    }
+//	  }
+//	}
+func TestL1CacheFieldAccumulationWithAliases(t *testing.T) {
+	t.Parallel()
+
+	t.Run("alias then no alias - sameUserReviewers L1 reuse", func(t *testing.T) {
+		t.Parallel()
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(resolve.CachingOptions{
+				EnableL1Cache: true,
+				EnableL2Cache: false,
+			}),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		// Root `me` fetch returns User 1234 with alias "myName: username".
+		// sameUserReviewers returns the same User — the entity fetch needs "username"
+		// (no alias). L1 stores the normalized schema name "username" from the
+		// first entity fetch; the second fetch should find it via denormalize passthrough.
+		query := `query {
+			me {
+				id
+				myName: username
+				sameUserReviewers {
+					id
+					username
+				}
+			}
+		}`
+
+		tracker.Reset()
+		out, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+
+		assert.Equal(t, `{"data":{"me":{"id":"1234","myName":"Me","sameUserReviewers":[{"id":"1234","username":"Me"}]}}}`, string(out), "aliased field should render as myName and sameUserReviewers should have unaliased username")
+
+		// With L1 enabled, the sameUserReviewers entity fetch for User 1234
+		// should hit L1 (populated by the root me fetch's entity).
+		// 1 accounts call = root me only, sameUserReviewers skipped via L1.
+		accountsCalls := tracker.GetCount(accountsHost)
+		assert.Equal(t, 1, accountsCalls,
+			"L1 should skip sameUserReviewers accounts call (alias normalized username in L1)")
+	})
+
+	t.Run("L1 disabled - alias variant needs separate fetch", func(t *testing.T) {
+		t.Parallel()
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(resolve.CachingOptions{
+				EnableL1Cache: false,
+				EnableL2Cache: false,
+			}),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		query := `query {
+			me {
+				id
+				myName: username
+				sameUserReviewers {
+					id
+					username
+				}
+			}
+		}`
+
+		tracker.Reset()
+		out, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+
+		assert.Equal(t, `{"data":{"me":{"id":"1234","myName":"Me","sameUserReviewers":[{"id":"1234","username":"Me"}]}}}`, string(out))
+
+		accountsCalls := tracker.GetCount(accountsHost)
+		assert.Equal(t, 2, accountsCalls,
+			"Without L1, sameUserReviewers needs its own accounts call")
+	})
+}
+
+// TestL1CacheThreeFetchFieldAccumulation verifies that L1 field accumulation works
+// across 3 entity fetches for the same entity, where a field from fetch 1 survives
+// fetch 2's merge (which has different fields) and is available for fetch 3.
+//
+// Fetch sequence for User 1234:
+//  1. accounts entity fetch for authorWithoutProvides: ProvidesData = {username}
+//     → L1 MISS, stores {username, id, __typename} in L1
+//  2. accounts entity fetch for authorWithoutProvides.realName path: ProvidesData = {realName}
+//     → L1 widening miss (no realName), fetches, merges {realName} into L1
+//     → L1 now has {username, realName, id, __typename}
+//  3. accounts entity fetch for sameUserReviewers: ProvidesData = {username}
+//     → L1 HIT (username survived fetch 2's merge) → skips accounts call
+func TestL1CacheThreeFetchFieldAccumulation(t *testing.T) {
+	t.Parallel()
+
+	query := `query {
+		me {
+			id
+			username
+			reviews {
+				authorWithoutProvides {
+					username
+					realName
+					sameUserReviewers {
+						id
+						username
+					}
+				}
+			}
+		}
+	}`
+
+	t.Run("L1 enabled - field accumulation skips redundant fetches", func(t *testing.T) {
+		t.Parallel()
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(resolve.CachingOptions{
+				EnableL1Cache: true,
+				EnableL2Cache: false,
+			}),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		tracker.Reset()
+		out, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+
+		assert.Equal(t, `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"authorWithoutProvides":{"username":"Me","realName":"User Usington","sameUserReviewers":[{"id":"1234","username":"Me"}]}},{"authorWithoutProvides":{"username":"Me","realName":"User Usington","sameUserReviewers":[{"id":"1234","username":"Me"}]}}]}}}`, string(out))
+
+		// Without L1: 3 accounts calls (root me + entity authorWithoutProvides + entity sameUserReviewers).
+		// With L1: 1 accounts call. The planner merges root me with the first entity fetch.
+		// sameUserReviewers entity fetch hits L1 because "username" was accumulated
+		// from the first entity fetch and survived the realName merge.
+		assert.Equal(t, 1, tracker.GetCount(accountsHost),
+			"L1 field accumulation: sameUserReviewers should reuse username from L1 (was 3 without L1)")
+	})
+
+	t.Run("L1 disabled - no field accumulation, all fetches hit subgraph", func(t *testing.T) {
+		t.Parallel()
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(resolve.CachingOptions{
+				EnableL1Cache: false,
+				EnableL2Cache: false,
+			}),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		tracker.Reset()
+		out, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, query, nil, t)
+
+		assert.Equal(t, `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"authorWithoutProvides":{"username":"Me","realName":"User Usington","sameUserReviewers":[{"id":"1234","username":"Me"}]}},{"authorWithoutProvides":{"username":"Me","realName":"User Usington","sameUserReviewers":[{"id":"1234","username":"Me"}]}}]}}}`, string(out))
+
+		assert.Equal(t, 3, tracker.GetCount(accountsHost),
+			"Without L1: 3 separate accounts calls (root me + authorWithoutProvides + sameUserReviewers)")
+	})
+}
+
+// TestL1CacheReducesHTTPCallsInterface verifies L1 cache works with interface types,
+// deduplicating entity fetches for the same entity accessed through different interface fields.
 func TestL1CacheReducesHTTPCallsInterface(t *testing.T) {
 	t.Parallel()
 	// This test demonstrates L1 cache behavior with interface return types.
@@ -240,6 +463,8 @@ func TestL1CacheReducesHTTPCallsInterface(t *testing.T) {
 	})
 }
 
+// TestL1CacheReducesHTTPCallsUnion verifies L1 cache works with union types,
+// deduplicating entity fetches for the same entity accessed through different union members.
 func TestL1CacheReducesHTTPCallsUnion(t *testing.T) {
 	t.Parallel()
 	// This test demonstrates L1 cache behavior with union return types.
@@ -350,6 +575,8 @@ func TestL1CacheReducesHTTPCallsUnion(t *testing.T) {
 	})
 }
 
+// TestL1CacheSelfReferentialEntity verifies that L1 cache handles self-referential entities
+// (e.g. User.friends returns User) without stack overflow via shallow copy.
 func TestL1CacheSelfReferentialEntity(t *testing.T) {
 	t.Parallel()
 	// This test verifies that self-referential entities don't cause
@@ -414,6 +641,8 @@ func TestL1CacheSelfReferentialEntity(t *testing.T) {
 	})
 }
 
+// TestL1CacheChildFieldEntityList verifies that L1 cache correctly deduplicates
+// entities in list fields (e.g. reviews[].author where multiple reviews have the same author).
 func TestL1CacheChildFieldEntityList(t *testing.T) {
 	t.Parallel()
 	// This test verifies L1 cache behavior for User.sameUserReviewers: [User!]!
@@ -550,6 +779,8 @@ func TestL1CacheChildFieldEntityList(t *testing.T) {
 	})
 }
 
+// TestL1CacheNestedEntityListDeduplication verifies that L1 cache deduplicates entities
+// across nested lists (e.g. products[].reviews[].author with overlapping authors).
 func TestL1CacheNestedEntityListDeduplication(t *testing.T) {
 	t.Parallel()
 	// This test verifies L1 deduplication when the same entity appears
@@ -681,6 +912,8 @@ func TestL1CacheNestedEntityListDeduplication(t *testing.T) {
 	})
 }
 
+// TestL1CacheRootFieldEntityListPopulation verifies that root fields returning entity lists
+// populate L1 cache, allowing subsequent entity fetches to skip subgraph calls.
 func TestL1CacheRootFieldEntityListPopulation(t *testing.T) {
 	t.Parallel()
 	// This test verifies L1 cache behavior with a complex nested query starting
@@ -825,6 +1058,8 @@ func TestL1CacheRootFieldEntityListPopulation(t *testing.T) {
 	})
 }
 
+// TestL1CacheRootFieldNonEntityWithNestedEntities verifies that root fields returning
+// non-entity objects with nested entity lists still populate L1 for those nested entities.
 func TestL1CacheRootFieldNonEntityWithNestedEntities(t *testing.T) {
 	t.Parallel()
 	// This test verifies L1 cache behavior when a root field returns a NON-entity type
@@ -959,6 +1194,8 @@ func TestL1CacheRootFieldNonEntityWithNestedEntities(t *testing.T) {
 // These tests verify that caches are NOT populated when subgraphs return errors.
 // The cache should only store successful responses to prevent caching error states.
 
+// TestL1CacheOptimizationReducesSubgraphCalls verifies the L1 optimization postprocessor
+// correctly marks fetches with UseL1Cache, reducing redundant subgraph calls.
 func TestL1CacheOptimizationReducesSubgraphCalls(t *testing.T) {
 	t.Parallel()
 	// This query demonstrates L1 optimization:
@@ -1081,5 +1318,444 @@ func TestL1CacheOptimizationReducesSubgraphCalls(t *testing.T) {
 			"Without L1: 2 accounts calls (sameUserReviewers requires separate fetch)")
 		assert.Equal(t, 1, reviewsCalls,
 			"Should call reviews subgraph once for User.sameUserReviewers")
+	})
+}
+
+// TestL1CacheUnionOfProviderFields exposes a gap in the L1 cache postprocessor optimization.
+//
+// The postprocessor (optimize_l1_cache.go) decides whether to enable L1 for each fetch by
+// checking each ancestor provider INDIVIDUALLY via hasValidProvider → objectProvidesAllFields.
+// If no single provider has ALL fields that the consumer needs, L1 is disabled for that fetch.
+//
+// However, at runtime, L1 accumulates fields from multiple fetches via merge. If fetch A
+// writes {nickname} and fetch B writes {realName, username}, L1 has {nickname, realName, username}
+// which covers a consumer that needs {nickname, realName}. The postprocessor should compute
+// the UNION of ancestor providers' fields, but currently checks each one individually.
+//
+// This test creates 3 entity fetches for User from accounts:
+//
+//	Fetch A (level 1 authorWithoutProvides): ProvidesData = {nickname}
+//	Fetch B (level 2 authorWithoutProvides): ProvidesData = {realName, username}
+//	  (username is included because sameUserReviewers has @requires(fields: "username"))
+//	Fetch C (sameUserReviewers entity resolution): ProvidesData = {nickname, realName}
+//
+// Neither A ({nickname}) nor B ({realName, username}) individually covers C ({nickname, realName}),
+// so the postprocessor sets UseL1Cache=false for C. But A ∪ B = {nickname, realName, username}
+// which IS a superset of C's needs. With the union fix, fetch C would be L1-enabled and
+// the accounts call for sameUserReviewers entity resolution would be skipped.
+func TestL1CacheUnionOfProviderFields(t *testing.T) {
+	t.Parallel()
+
+	// This query creates the 3-fetch pattern:
+	// 1. me.reviews.authorWithoutProvides → entity fetch A to accounts for {nickname}
+	// 2. me.reviews.product.reviews.authorWithoutProvides → entity fetch B to accounts for {realName, username}
+	//    (username needed for @requires on sameUserReviewers)
+	// 3. sameUserReviewers entity resolution → entity fetch C to accounts for {nickname, realName}
+	//
+	// All three fetches target User:1234 (the only author in the test data).
+	// Fetch A provides {nickname}, fetch B provides {realName, username}.
+	// Fetch C needs {nickname, realName} — neither A nor B alone covers this,
+	// but their union does.
+
+	t.Run("L1 enabled - union of providers should skip fetch C", func(t *testing.T) {
+		t.Parallel()
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(resolve.CachingOptions{
+				EnableL1Cache: true,
+				EnableL2Cache: false,
+			}),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		tracker.Reset()
+		out, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, `query {
+			me {
+				id
+				reviews {
+					authorWithoutProvides {
+						nickname
+					}
+					product {
+						reviews {
+							authorWithoutProvides {
+								realName
+								sameUserReviewers {
+									nickname
+									realName
+								}
+							}
+						}
+					}
+				}
+			}
+		}`, nil, t)
+
+		// Verify the response contains expected data
+		assert.Equal(t, `{"data":{"me":{"id":"1234","reviews":[{"authorWithoutProvides":{"nickname":"nick-Me"},"product":{"reviews":[{"authorWithoutProvides":{"realName":"User Usington","sameUserReviewers":[{"nickname":"nick-Me","realName":"User Usington"}]}}]}},{"authorWithoutProvides":{"nickname":"nick-Me"},"product":{"reviews":[{"authorWithoutProvides":{"realName":"User Usington","sameUserReviewers":[{"nickname":"nick-Me","realName":"User Usington"}]}}]}}]}}}`, string(out))
+
+		// The union optimization enables L1 for entity fetches in the same
+		// dependency chain. However, fetch A (level 1 authorWithoutProvides) and
+		// fetch B (level 2 authorWithoutProvides) are in different branches of the
+		// fetch tree — they go through separate review/product paths.
+		// Fetch C (sameUserReviewers entity resolution) depends on fetch B's
+		// branch but fetch A is in a sibling branch, so the postprocessor doesn't
+		// include A in C's ancestor union.
+		//
+		// This is a known limitation: the union optimization only works for
+		// fetches in the same dependency chain. For cross-branch accumulation,
+		// L1 works at runtime (passthrough writes accumulate) but the
+		// postprocessor can't predict it at plan time.
+		//
+		// accounts: 3 calls (fetch A + fetch B + fetch C)
+		// With linear chains (see TestL1CacheEntityUnionOptimization), the
+		// union optimization correctly skips redundant fetches.
+		accountsCalls := tracker.GetCount(accountsHost)
+		assert.Equal(t, 3, accountsCalls,
+			"Cross-branch entity fetches: union optimization limited to dependency chains")
+	})
+
+	t.Run("L1 disabled - all fetches hit subgraph", func(t *testing.T) {
+		t.Parallel()
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{Transport: tracker}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withHTTPClient(trackingClient),
+			withCachingOptionsFunc(resolve.CachingOptions{
+				EnableL1Cache: false,
+				EnableL2Cache: false,
+			}),
+		))
+		t.Cleanup(setup.Close)
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		tracker.Reset()
+		out, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, `query {
+			me {
+				id
+				reviews {
+					authorWithoutProvides {
+						nickname
+					}
+					product {
+						reviews {
+							authorWithoutProvides {
+								realName
+								sameUserReviewers {
+									nickname
+									realName
+								}
+							}
+						}
+					}
+				}
+			}
+		}`, nil, t)
+
+		assert.Equal(t, `{"data":{"me":{"id":"1234","reviews":[{"authorWithoutProvides":{"nickname":"nick-Me"},"product":{"reviews":[{"authorWithoutProvides":{"realName":"User Usington","sameUserReviewers":[{"nickname":"nick-Me","realName":"User Usington"}]}}]}},{"authorWithoutProvides":{"nickname":"nick-Me"},"product":{"reviews":[{"authorWithoutProvides":{"realName":"User Usington","sameUserReviewers":[{"nickname":"nick-Me","realName":"User Usington"}]}}]}}]}}}`, string(out))
+
+		// Without L1: all entity fetches hit the subgraph.
+		// accounts: root me + fetch A (nickname) + fetch B (realName+username) + fetch C (nickname+realName)
+		// The planner merges root me with fetch A, so the actual count is 3.
+		accountsCalls := tracker.GetCount(accountsHost)
+		assert.Equal(t, 3, accountsCalls,
+			"Without L1: all entity fetches must hit accounts subgraph")
+	})
+}
+
+// TestL1CacheEntityUnionOptimization uses the CacheEntity type (accounts owns fields a-f,
+// reviews extends with `nested @requires(fields: "a")`) to create controllable multi-level
+// entity fetch chains. Each `nested` level creates:
+//   - reviews fetch (resolves nested, needs @requires "a")
+//   - accounts entity fetch (provides whatever scalar fields the query selects)
+//
+// All levels target the same entity key (CacheEntity:1), so L1 accumulates fields.
+// The postprocessor should compute the UNION of ancestor providers' ProvidesData
+// to determine if a fetch can skip via L1.
+
+// cacheEntitySetup creates a federation gateway with L1 cache and returns the setup + tracker.
+func cacheEntitySetup(t *testing.T, enableL1 bool) (*federationtesting.FederationSetup, *subgraphCallTracker) {
+	t.Helper()
+	tracker := newSubgraphCallTracker(http.DefaultTransport)
+	trackingClient := &http.Client{Transport: tracker}
+	setup := federationtesting.NewFederationSetup(addCachingGateway(
+		withCachingEnableART(false),
+		withHTTPClient(trackingClient),
+		withCachingOptionsFunc(resolve.CachingOptions{
+			EnableL1Cache: enableL1,
+			EnableL2Cache: false,
+		}),
+	))
+	t.Cleanup(setup.Close)
+	return setup, tracker
+}
+
+func TestL1CacheEntityUnionOptimization(t *testing.T) {
+	t.Parallel()
+
+	// ---------------------------------------------------------------------------
+	// Scenario 1: Basic union — A={a,b}, B={c,d}, C needs {b,c}
+	// Neither A nor B individually covers C, but A∪B = {a,b,c,d} ⊇ {b,c}
+	// ---------------------------------------------------------------------------
+	t.Run("basic union - A provides ab, B provides cd, C needs bc", func(t *testing.T) {
+		t.Parallel()
+		setup, tracker := cacheEntitySetup(t, true)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		// Level 0: root cacheEntity → accounts (root query, not entity fetch)
+		// Level 1: nested → reviews (needs a) → accounts entity fetch A: {a, b}
+		// Level 2: nested → reviews (needs a) → accounts entity fetch B: {a, c, d}
+		// Level 3: nested → reviews (needs a) → accounts entity fetch C: {a, b, c}
+		//          C needs {b, c}: b from A, c from B → union covers C
+		tracker.Reset()
+		out, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, `query {
+			cacheEntity(id: "1") {
+				nested {
+					a b
+					nested {
+						c d
+						nested {
+							b c
+						}
+					}
+				}
+			}
+		}`, nil, t)
+
+		assert.Equal(t, `{"data":{"cacheEntity":{"nested":{"a":"a-1","b":"b-1","nested":{"c":"c-1","d":"d-1","nested":{"b":"b-1","c":"c-1"}}}}}}`, string(out))
+
+		// With union optimization: C should be L1 hit → skip accounts call
+		// Expected: root + fetch A + fetch B = 3 accounts calls (C skipped)
+		// Current (without union): root + A + B + C = 4 accounts calls
+		accountsCalls := tracker.GetCount(accountsHost)
+		assert.Equal(t, 3, accountsCalls,
+			"Fetch C should be L1 hit (union of A{a,b} + B{c,d} covers C's needs {b,c})")
+	})
+
+	// ---------------------------------------------------------------------------
+	// Scenario 2: Union insufficient — A={a,b}, B={c,d}, C needs {b,e}
+	// A∪B = {a,b,c,d} does NOT contain e → C must fetch
+	// ---------------------------------------------------------------------------
+	t.Run("union insufficient - C needs field not in any ancestor", func(t *testing.T) {
+		t.Parallel()
+		setup, tracker := cacheEntitySetup(t, true)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		// A: {a, b}, B: {c, d}, C: {b, e}
+		// Union {a,b,c,d} does NOT contain e → C must fetch
+		tracker.Reset()
+		out, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, `query {
+			cacheEntity(id: "1") {
+				nested {
+					a b
+					nested {
+						c d
+						nested {
+							b e
+						}
+					}
+				}
+			}
+		}`, nil, t)
+
+		assert.Equal(t, `{"data":{"cacheEntity":{"nested":{"a":"a-1","b":"b-1","nested":{"c":"c-1","d":"d-1","nested":{"b":"b-1","e":"e-1"}}}}}}`, string(out))
+
+		// Even with union optimization, C must fetch because union doesn't cover {b,e}
+		// Expected: root + A + B + C = 4 accounts calls
+		accountsCalls := tracker.GetCount(accountsHost)
+		assert.Equal(t, 4, accountsCalls,
+			"Fetch C must hit accounts (union of A{a,b} + B{c,d} does NOT cover C's {b,e})")
+	})
+
+	// ---------------------------------------------------------------------------
+	// Scenario 3: Overlapping union — A={a,b,c}, B={a,c,d,e}, C needs {b,e}
+	// A has b but not e. B has e but not b. Neither alone covers C.
+	// A∪B = {a,b,c,d,e} ⊇ {b,e}
+	// Note: every fetch implicitly includes "a" due to @requires(fields: "a")
+	// ---------------------------------------------------------------------------
+	t.Run("overlapping fields in union - C needs b from A and e from B", func(t *testing.T) {
+		t.Parallel()
+		setup, tracker := cacheEntitySetup(t, true)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		// A: {a, b, c} (a implicit from @requires)
+		// B: {a, c, d, e} (a implicit)
+		// C: {a, b, e} — b from A, e from B, neither alone covers
+		tracker.Reset()
+		out, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, `query {
+			cacheEntity(id: "1") {
+				nested {
+					b c
+					nested {
+						c d e
+						nested {
+							b e
+						}
+					}
+				}
+			}
+		}`, nil, t)
+
+		assert.Equal(t, `{"data":{"cacheEntity":{"nested":{"b":"b-1","c":"c-1","nested":{"c":"c-1","d":"d-1","e":"e-1","nested":{"b":"b-1","e":"e-1"}}}}}}`, string(out))
+
+		// With union: C hits L1 (b from A, e from B)
+		// Expected: root + A + B = 3 (C skipped)
+		// Current: root + A + B + C = 4 (neither A nor B alone covers C)
+		accountsCalls := tracker.GetCount(accountsHost)
+		assert.Equal(t, 3, accountsCalls,
+			"Fetch C should be L1 hit (b from A, e from B — overlapping union)")
+	})
+
+	// ---------------------------------------------------------------------------
+	// Scenario 4: 4-fetch chain — A={a,b}, B={a,c}, C={a,d}, D needs {b,c,d}
+	// Each fetch adds one unique field. No single ancestor covers D.
+	// A∪B∪C = {a,b,c,d} ⊇ {b,c,d}
+	// Note: "a" is always present due to @requires
+	// ---------------------------------------------------------------------------
+	t.Run("4-fetch chain - D needs union of A+B+C", func(t *testing.T) {
+		t.Parallel()
+		setup, tracker := cacheEntitySetup(t, true)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		// A: {a, b}, B: {a, c}, C: {a, d}, D: {a, b, c, d}
+		// D needs b (from A), c (from B), d (from C) — no single ancestor covers
+		tracker.Reset()
+		out, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, `query {
+			cacheEntity(id: "1") {
+				nested {
+					b
+					nested {
+						c
+						nested {
+							d
+							nested {
+								b c d
+							}
+						}
+					}
+				}
+			}
+		}`, nil, t)
+
+		assert.Equal(t, `{"data":{"cacheEntity":{"nested":{"b":"b-1","nested":{"c":"c-1","nested":{"d":"d-1","nested":{"b":"b-1","c":"c-1","d":"d-1"}}}}}}}`, string(out))
+
+		// With union: D hits L1 (b from A, c from B, d from C)
+		// Expected: root + A + B + C = 4 accounts calls (D skipped)
+		// Current: root + A + B + C + D = 5 accounts calls
+		accountsCalls := tracker.GetCount(accountsHost)
+		assert.Equal(t, 4, accountsCalls,
+			"Fetch D should be L1 hit (union of A{b} + B{c} + C{d} covers D's {b,c,d})")
+	})
+
+	// ---------------------------------------------------------------------------
+	// Scenario 5: Middle fetch with different fields, C needs from both A and B
+	// A={a,b,c}, B={a,d,e}, C needs {b,d}
+	// B alone doesn't cover C (no b). A alone doesn't cover C (no d).
+	// But with the middle fetch writing to L1, the accumulated entry has both.
+	// This tests that the optimizer enables L1 for B as a writer even though
+	// B alone doesn't cover any consumer.
+	// ---------------------------------------------------------------------------
+	t.Run("middle fetch contributes - C needs fields from both A and B", func(t *testing.T) {
+		t.Parallel()
+		setup, tracker := cacheEntitySetup(t, true)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		// A: {a, b, c}, B: {a, d, e}, C: {a, b, d}
+		// C needs b (from A) and d (from B) — neither alone covers
+		tracker.Reset()
+		out, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, `query {
+			cacheEntity(id: "1") {
+				nested {
+					b c
+					nested {
+						d e
+						nested {
+							b d
+						}
+					}
+				}
+			}
+		}`, nil, t)
+
+		assert.Equal(t, `{"data":{"cacheEntity":{"nested":{"b":"b-1","c":"c-1","nested":{"d":"d-1","e":"e-1","nested":{"b":"b-1","d":"d-1"}}}}}}`, string(out))
+
+		// With union: C hits L1 (b from A, d from B)
+		// Expected: root + A + B = 3 (C skipped)
+		// Current: root + A + B + C = 4 (optimizer checks individually)
+		accountsCalls := tracker.GetCount(accountsHost)
+		assert.Equal(t, 3, accountsCalls,
+			"Fetch C should be L1 hit (b from A, d from B — middle fetch contributes)")
+	})
+
+	// ---------------------------------------------------------------------------
+	// Baseline: L1 disabled — verify all fetches hit the subgraph
+	// ---------------------------------------------------------------------------
+	t.Run("L1 disabled baseline - all fetches hit subgraph", func(t *testing.T) {
+		t.Parallel()
+		setup, tracker := cacheEntitySetup(t, false)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+
+		// 4-level nesting: root + 3 entity fetches
+		tracker.Reset()
+		gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, `query {
+			cacheEntity(id: "1") {
+				nested {
+					a b
+					nested {
+						c d
+						nested {
+							b c
+						}
+					}
+				}
+			}
+		}`, nil, t)
+
+		accountsCalls := tracker.GetCount(accountsHost)
+		assert.Equal(t, 4, accountsCalls,
+			"Without L1: all entity fetches must hit accounts (root + 3 nested entity fetches)")
 	})
 }

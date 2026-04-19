@@ -192,8 +192,8 @@ type CacheAnalyticsCollector struct {
 	errorEvents        []SubgraphErrorEvent    // main thread errors
 	shadowComparisons  []ShadowComparisonEvent // shadow mode staleness comparison events
 	mutationEvents     []MutationEvent         // mutation entity impact events
-	headerImpactEvents []HeaderImpactEvent     // header impact events for L2 writes with header prefix
-	cacheOpErrors      []CacheOperationError   // cache operation errors (main thread)
+	headerImpactEvents []HeaderImpactEvent   // header impact events for L2 writes with header prefix
+	cacheOpErrors      []CacheOperationError // cache operation errors (main thread)
 	xxh                *xxhash.Digest
 }
 
@@ -367,11 +367,11 @@ func (c *CacheAnalyticsCollector) EntitySource(entityType, keyJSON string) Field
 // one per CacheKey for writes, and one per CacheKey for shadow comparisons.
 func (c *CacheAnalyticsCollector) Snapshot() CacheAnalyticsSnapshot {
 	snap := CacheAnalyticsSnapshot{
-		L1Reads:            deduplicateKeyEvents(c.l1KeyEvents),
-		L2Reads:            deduplicateKeyEvents(c.l2KeyEvents),
-		FieldHashes:        c.fieldHashes,
-		FetchTimings:       c.fetchTimings,
-		ErrorEvents:        c.errorEvents,
+		L1Reads:                  deduplicateKeyEvents(c.l1KeyEvents),
+		L2Reads:                  deduplicateKeyEvents(c.l2KeyEvents),
+		FieldHashes:              c.fieldHashes,
+		FetchTimings:             c.fetchTimings,
+		ErrorEvents:              c.errorEvents,
 		ShadowComparisons:  deduplicateShadowComparisons(c.shadowComparisons),
 		MutationEvents:     c.mutationEvents,
 		HeaderImpactEvents: deduplicateHeaderImpactEvents(c.headerImpactEvents),

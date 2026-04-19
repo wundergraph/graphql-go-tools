@@ -11,16 +11,18 @@ import (
 	"github.com/wundergraph/go-arena"
 )
 
+// TestCachingRenderRootQueryCacheKeyTemplate verifies root field cache key
+// rendering with various argument types (none, single, multiple, boolean,
+// string, prefix). Incorrect keys would cause cache misses or cross-query
+// collisions.
 func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 	t.Run("single field no arguments", func(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
 				{
-					Coordinate: GraphCoordinate{
-						TypeName:  "Query",
-						FieldName: "users",
-					},
-					Args: []FieldArgument{},
+					Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "users"},
+					ResponseKey: "users",
+					Args:        []FieldArgument{},
 				},
 			},
 		}
@@ -45,10 +47,8 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
 				{
-					Coordinate: GraphCoordinate{
-						TypeName:  "Query",
-						FieldName: "droid",
-					},
+					Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "droid"},
+					ResponseKey: "droid",
 					Args: []FieldArgument{
 						{
 							Name: "id",
@@ -82,10 +82,8 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
 				{
-					Coordinate: GraphCoordinate{
-						TypeName:  "Query",
-						FieldName: "user",
-					},
+					Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					ResponseKey: "user",
 					Args: []FieldArgument{
 						{
 							Name: "name",
@@ -119,10 +117,8 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
 				{
-					Coordinate: GraphCoordinate{
-						TypeName:  "Query",
-						FieldName: "search",
-					},
+					Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "search"},
+					ResponseKey: "search",
 					Args: []FieldArgument{
 						{
 							Name: "term",
@@ -163,10 +159,8 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
 				{
-					Coordinate: GraphCoordinate{
-						TypeName:  "Query",
-						FieldName: "products",
-					},
+					Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "products"},
+					ResponseKey: "products",
 					Args: []FieldArgument{
 						{
 							Name: "includeDeleted",
@@ -207,10 +201,8 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
 				{
-					Coordinate: GraphCoordinate{
-						TypeName:  "Query",
-						FieldName: "droid",
-					},
+					Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "droid"},
+					ResponseKey: "droid",
 					Args: []FieldArgument{
 						{
 							Name: "id",
@@ -222,10 +214,8 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 					},
 				},
 				{
-					Coordinate: GraphCoordinate{
-						TypeName:  "Query",
-						FieldName: "user",
-					},
+					Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					ResponseKey: "user",
 					Args: []FieldArgument{
 						{
 							Name: "name",
@@ -263,10 +253,8 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
 				{
-					Coordinate: GraphCoordinate{
-						TypeName:  "Query",
-						FieldName: "product",
-					},
+					Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "product"},
+					ResponseKey: "product",
 					Args: []FieldArgument{
 						{
 							Name: "id",
@@ -285,11 +273,9 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 					},
 				},
 				{
-					Coordinate: GraphCoordinate{
-						TypeName:  "Query",
-						FieldName: "hero",
-					},
-					Args: []FieldArgument{},
+					Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "hero"},
+					ResponseKey: "hero",
+					Args:        []FieldArgument{},
 				},
 			},
 		}
@@ -318,10 +304,8 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
 				{
-					Coordinate: GraphCoordinate{
-						TypeName:  "Query",
-						FieldName: "search",
-					},
+					Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "search"},
+					ResponseKey: "search",
 					Args: []FieldArgument{
 						{
 							Name: "filter",
@@ -355,10 +339,8 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
 				{
-					Coordinate: GraphCoordinate{
-						TypeName:  "Query",
-						FieldName: "user",
-					},
+					Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					ResponseKey: "user",
 					Args: []FieldArgument{
 						{
 							Name: "id",
@@ -392,10 +374,8 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
 				{
-					Coordinate: GraphCoordinate{
-						TypeName:  "Query",
-						FieldName: "user",
-					},
+					Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					ResponseKey: "user",
 					Args: []FieldArgument{
 						{
 							Name: "id",
@@ -429,10 +409,8 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
 				{
-					Coordinate: GraphCoordinate{
-						TypeName:  "Query",
-						FieldName: "products",
-					},
+					Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "products"},
+					ResponseKey: "products",
 					Args: []FieldArgument{
 						{
 							Name: "ids",
@@ -466,10 +444,8 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
 				{
-					Coordinate: GraphCoordinate{
-						TypeName:  "Subscription",
-						FieldName: "messageAdded",
-					},
+					Coordinate:  GraphCoordinate{TypeName: "Subscription", FieldName: "messageAdded"},
+					ResponseKey: "messageAdded",
 					Args: []FieldArgument{
 						{
 							Name: "roomId",
@@ -503,10 +479,8 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
 				{
-					Coordinate: GraphCoordinate{
-						TypeName:  "Query",
-						FieldName: "user",
-					},
+					Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					ResponseKey: "user",
 					Args: []FieldArgument{
 						{
 							Name: "name",
@@ -541,10 +515,8 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
 				{
-					Coordinate: GraphCoordinate{
-						TypeName:  "Query",
-						FieldName: "user",
-					},
+					Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					ResponseKey: "user",
 					Args: []FieldArgument{
 						{
 							Name: "id",
@@ -578,10 +550,8 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
 				{
-					Coordinate: GraphCoordinate{
-						TypeName:  "Query",
-						FieldName: "droid",
-					},
+					Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "droid"},
+					ResponseKey: "droid",
 					Args: []FieldArgument{
 						{
 							Name: "id",
@@ -593,10 +563,8 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 					},
 				},
 				{
-					Coordinate: GraphCoordinate{
-						TypeName:  "Query",
-						FieldName: "user",
-					},
+					Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					ResponseKey: "user",
 					Args: []FieldArgument{
 						{
 							Name: "name",
@@ -630,6 +598,9 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 	})
 }
 
+// TestCachingRenderEntityQueryCacheKeyTemplate verifies entity cache key
+// rendering from __typename + @key fields. Covers single entities, batches,
+// composite keys, and nested key fields.
 func TestCachingRenderEntityQueryCacheKeyTemplate(t *testing.T) {
 	t.Run("single entity with typename and id", func(t *testing.T) {
 		tmpl := &EntityQueryCacheKeyTemplate{
@@ -816,18 +787,26 @@ func TestCachingRenderEntityQueryCacheKeyTemplate(t *testing.T) {
 		data := astjson.MustParse(`{"__typename":"Product","tags":["electronics","sale"]}`)
 		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
 		assert.NoError(t, err)
-		assert.Len(t, cacheKeys, 1)
-		// Verify the cache key includes the array
-		assert.Contains(t, cacheKeys[0].Keys[0], `"tags":["electronics","sale"]`)
+		expected := []*CacheKey{
+			{
+				Item: data,
+				Keys: []string{`{"__typename":"Product","key":{"tags":["electronics","sale"]}}`},
+			},
+		}
+		assert.Equal(t, expected, cacheKeys)
 	})
 }
 
+// TestDerivedEntityCacheKey verifies EntityKeyMappings-based cache key
+// derivation for root field queries. These keys allow L2 cache lookups
+// by entity identity (e.g., User by id) for root field responses.
 func TestDerivedEntityCacheKey(t *testing.T) {
 	t.Run("simple string ID", func(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
 				{
-					Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					ResponseKey: "user",
 					Args: []FieldArgument{
 						{Name: "id", Variable: &ContextVariable{Path: []string{"id"}, Renderer: NewCacheKeyVariableRenderer()}},
 					},
@@ -855,7 +834,8 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
 				{
-					Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					ResponseKey: "user",
 					Args: []FieldArgument{
 						{Name: "id", Variable: &ContextVariable{Path: []string{"id"}, Renderer: NewCacheKeyVariableRenderer()}},
 					},
@@ -876,14 +856,104 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(cacheKeys))
-		assert.Equal(t, []string{`{"__typename":"User","key":{"id":42}}`}, cacheKeys[0].Keys)
+		// Numbers are coerced to strings in entity cache keys for consistent matching
+		// between read path (request args) and write path (response entity data)
+		assert.Equal(t, []string{`{"__typename":"User","key":{"id":"42"}}`}, cacheKeys[0].Keys)
+	})
+
+	t.Run("number to string coercion in entity cache keys", func(t *testing.T) {
+		makeTmpl := func() *RootQueryCacheKeyTemplate {
+			return &RootQueryCacheKeyTemplate{
+				RootFields: []QueryField{
+					{
+						Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "user"},
+						ResponseKey: "user",
+						Args: []FieldArgument{
+							{Name: "id", Variable: &ContextVariable{Path: []string{"id"}, Renderer: NewCacheKeyVariableRenderer()}},
+						},
+					},
+				},
+				EntityKeyMappings: []EntityKeyMappingConfig{
+					{
+						EntityTypeName: "User",
+						FieldMappings: []EntityFieldMappingConfig{
+							{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+						},
+					},
+				},
+			}
+		}
+
+		tests := []struct {
+			name      string
+			variables string
+			wantKey   string
+		}{
+			{
+				name:      "integer coerced to string",
+				variables: `{"id":1}`,
+				wantKey:   `{"__typename":"User","key":{"id":"1"}}`,
+			},
+			{
+				name:      "float with decimal coerced to string",
+				variables: `{"id":1.5}`,
+				wantKey:   `{"__typename":"User","key":{"id":"1.5"}}`,
+			},
+			{
+				name:      "float whole number coerced to string",
+				variables: `{"id":1.0}`,
+				wantKey:   `{"__typename":"User","key":{"id":"1.0"}}`,
+			},
+			{
+				name:      "large integer coerced to string",
+				variables: `{"id":9999999}`,
+				wantKey:   `{"__typename":"User","key":{"id":"9999999"}}`,
+			},
+			{
+				name:      "string stays string",
+				variables: `{"id":"1"}`,
+				wantKey:   `{"__typename":"User","key":{"id":"1"}}`,
+			},
+			{
+				name:      "integer and string produce same key",
+				variables: `{"id":42}`,
+				wantKey:   `{"__typename":"User","key":{"id":"42"}}`,
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				tmpl := makeTmpl()
+				ctx := &Context{Variables: astjson.MustParse(tt.variables), ctx: context.Background()}
+				data := astjson.MustParse(`{}`)
+				cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
+				assert.NoError(t, err)
+				assert.Equal(t, 1, len(cacheKeys))
+				assert.Equal(t, []string{tt.wantKey}, cacheKeys[0].Keys)
+			})
+		}
+
+		// Verify integer and string inputs produce identical cache keys
+		t.Run("integer and string inputs match", func(t *testing.T) {
+			tmpl1 := makeTmpl()
+			ctx1 := &Context{Variables: astjson.MustParse(`{"id":1}`), ctx: context.Background()}
+			keys1, err := tmpl1.RenderCacheKeys(nil, ctx1, []*astjson.Value{astjson.MustParse(`{}`)}, "")
+			assert.NoError(t, err)
+
+			tmpl2 := makeTmpl()
+			ctx2 := &Context{Variables: astjson.MustParse(`{"id":"1"}`), ctx: context.Background()}
+			keys2, err := tmpl2.RenderCacheKeys(nil, ctx2, []*astjson.Value{astjson.MustParse(`{}`)}, "")
+			assert.NoError(t, err)
+
+			assert.Equal(t, keys1[0].Keys, keys2[0].Keys)
+		})
 	})
 
 	t.Run("nested object path", func(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
 				{
-					Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "user"},
+					ResponseKey: "user",
 					Args: []FieldArgument{
 						{Name: "input", Variable: &ContextVariable{Path: []string{"input"}, Renderer: NewCacheKeyVariableRenderer()}},
 					},
@@ -910,7 +980,7 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 	t.Run("deep nested path", func(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
-				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "thing"}},
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "thing"}, ResponseKey: "thing"},
 			},
 			EntityKeyMappings: []EntityKeyMappingConfig{
 				{
@@ -933,7 +1003,7 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 	t.Run("array index path", func(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
-				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"}},
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"}, ResponseKey: "user"},
 			},
 			EntityKeyMappings: []EntityKeyMappingConfig{
 				{
@@ -956,7 +1026,7 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 	t.Run("array index path - empty array", func(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
-				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"}},
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"}, ResponseKey: "user"},
 			},
 			EntityKeyMappings: []EntityKeyMappingConfig{
 				{
@@ -980,7 +1050,7 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 	t.Run("array index path - null variable", func(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
-				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"}},
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"}, ResponseKey: "user"},
 			},
 			EntityKeyMappings: []EntityKeyMappingConfig{
 				{
@@ -1004,7 +1074,7 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 	t.Run("multiple key fields", func(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
-				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "orgUser"}},
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "orgUser"}, ResponseKey: "orgUser"},
 			},
 			EntityKeyMappings: []EntityKeyMappingConfig{
 				{
@@ -1028,7 +1098,7 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 	t.Run("with prefix", func(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
-				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"}},
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"}, ResponseKey: "user"},
 			},
 			EntityKeyMappings: []EntityKeyMappingConfig{
 				{
@@ -1051,7 +1121,7 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 	t.Run("missing variable - skip caching", func(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
-				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"}},
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"}, ResponseKey: "user"},
 			},
 			EntityKeyMappings: []EntityKeyMappingConfig{
 				{
@@ -1075,7 +1145,7 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 	t.Run("null variable - skip caching", func(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
-				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"}},
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"}, ResponseKey: "user"},
 			},
 			EntityKeyMappings: []EntityKeyMappingConfig{
 				{
@@ -1099,7 +1169,7 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 	t.Run("variable remapping", func(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
-				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"}},
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"}, ResponseKey: "user"},
 			},
 			EntityKeyMappings: []EntityKeyMappingConfig{
 				{
@@ -1126,7 +1196,7 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 	t.Run("dot-notation entity key field", func(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
-				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "productByStore"}},
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "productByStore"}, ResponseKey: "productByStore"},
 			},
 			EntityKeyMappings: []EntityKeyMappingConfig{
 				{
@@ -1149,7 +1219,7 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 	t.Run("deeply nested dot-notation entity key field", func(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
-				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "thing"}},
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "thing"}, ResponseKey: "thing"},
 			},
 			EntityKeyMappings: []EntityKeyMappingConfig{
 				{
@@ -1172,7 +1242,7 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 	t.Run("dot-notation shared prefix merges into same object", func(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
-				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "product"}},
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "product"}, ResponseKey: "product"},
 			},
 			EntityKeyMappings: []EntityKeyMappingConfig{
 				{
@@ -1197,7 +1267,7 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 	t.Run("multiple entity key mappings - multi-key lookup", func(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
-				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "product"}},
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "product"}, ResponseKey: "product"},
 			},
 			EntityKeyMappings: []EntityKeyMappingConfig{
 				{
@@ -1230,7 +1300,7 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 	t.Run("multiple entity key mappings - partial missing skips that key only", func(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
-				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "product"}},
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "product"}, ResponseKey: "product"},
 			},
 			EntityKeyMappings: []EntityKeyMappingConfig{
 				{
@@ -1265,7 +1335,7 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 		// All arguments provided → both mappings resolve → two cache keys.
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
-				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "productByAll"}},
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "productByAll"}, ResponseKey: "productByAll"},
 			},
 			EntityKeyMappings: []EntityKeyMappingConfig{
 				{
@@ -1300,7 +1370,7 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 		// Only sku and region provided, id missing → flat mapping skipped → one cache key.
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
-				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "productBySku"}},
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "productBySku"}, ResponseKey: "productBySku"},
 			},
 			EntityKeyMappings: []EntityKeyMappingConfig{
 				{
@@ -1335,7 +1405,7 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 		// the second with nested JSON structure from dot-notation.
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
-				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "productByAll"}},
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "productByAll"}, ResponseKey: "productByAll"},
 			},
 			EntityKeyMappings: []EntityKeyMappingConfig{
 				{
@@ -1370,7 +1440,7 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 		// Only storeId and storeRegion provided, id missing → flat mapping skipped.
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
-				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "productByStore"}},
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "productByStore"}, ResponseKey: "productByStore"},
 			},
 			EntityKeyMappings: []EntityKeyMappingConfig{
 				{
@@ -1435,7 +1505,7 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 		// Only "store" provided → flat mapping skipped → one nested cache key.
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
-				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "productByStore"}},
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "productByStore"}, ResponseKey: "productByStore"},
 			},
 			EntityKeyMappings: []EntityKeyMappingConfig{
 				{
@@ -1471,7 +1541,7 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 		// Both resolve → two nested cache keys.
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
-				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "warehouse"}},
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "warehouse"}, ResponseKey: "warehouse"},
 			},
 			EntityKeyMappings: []EntityKeyMappingConfig{
 				{
@@ -1507,7 +1577,7 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 		// Only store resolves → location mapping skipped → one cache key.
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
-				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "warehouse"}},
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "warehouse"}, ResponseKey: "warehouse"},
 			},
 			EntityKeyMappings: []EntityKeyMappingConfig{
 				{
@@ -1537,28 +1607,28 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 		}, cacheKeys[0].Keys)
 	})
 
-	t.Run("remap variables - flat key remapped", func(t *testing.T) {
-		// Production scenario: normalizer renames $id → $a.
+	t.Run("remap variables - flat key forward lookup", func(t *testing.T) {
+		// Production scenario: VariablesMapper renames $id → $a in the AST.
+		// resolveArgumentPath resolves "id" → ContextVariable.Path ["a"].
 		// RemapVariables maps newName → oldName: {"a": "id"}.
-		// ctx.Variables is keyed by the new name: {"a": "user-123"}.
-		// ArgumentPath ["id"] is the original argument name from composition.
-		// Reverse lookup resolves "id" → find "a" via RemapVariables → Variables["a"].
+		// Variables JSON keeps the original name: {"id": "user-123"}.
+		// Forward lookup: RemapVariables["a"] = "id" → Variables.Get("id") = "user-123".
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
-				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"}},
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"}, ResponseKey: "user"},
 			},
 			EntityKeyMappings: []EntityKeyMappingConfig{
 				{
 					EntityTypeName: "User",
 					FieldMappings: []EntityFieldMappingConfig{
-						{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+						{EntityKeyField: "id", ArgumentPath: []string{"a"}},
 					},
 				},
 			},
 		}
 
 		ctx := &Context{
-			Variables:      astjson.MustParse(`{"a":"user-123"}`),
+			Variables:      astjson.MustParse(`{"id":"user-123"}`),
 			RemapVariables: map[string]string{"a": "id"},
 			ctx:            context.Background(),
 		}
@@ -1571,33 +1641,34 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 		}, cacheKeys[0].Keys)
 	})
 
-	t.Run("remap variables - multiple mappings only flat keys remapped", func(t *testing.T) {
+	t.Run("remap variables - multiple mappings forward lookup", func(t *testing.T) {
 		// Two mappings: flat @key(fields: "id") + composite @key(fields: "sku region").
-		// RemapVariables maps newName → oldName: "a" → "id", "b" → "sku", "c" → "region".
-		// All three are single-element paths, so all get resolved via reverse lookup.
+		// VariablesMapper renamed $id→$a, $sku→$b, $region→$c.
+		// resolveArgumentPath resolved each to ["a"], ["b"], ["c"].
+		// Variables JSON keeps original names: {"id", "sku", "region"}.
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
-				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "productByAll"}},
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "productByAll"}, ResponseKey: "productByAll"},
 			},
 			EntityKeyMappings: []EntityKeyMappingConfig{
 				{
 					EntityTypeName: "Product",
 					FieldMappings: []EntityFieldMappingConfig{
-						{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+						{EntityKeyField: "id", ArgumentPath: []string{"a"}},
 					},
 				},
 				{
 					EntityTypeName: "Product",
 					FieldMappings: []EntityFieldMappingConfig{
-						{EntityKeyField: "sku", ArgumentPath: []string{"sku"}},
-						{EntityKeyField: "region", ArgumentPath: []string{"region"}},
+						{EntityKeyField: "sku", ArgumentPath: []string{"b"}},
+						{EntityKeyField: "region", ArgumentPath: []string{"c"}},
 					},
 				},
 			},
 		}
 
 		ctx := &Context{
-			Variables:      astjson.MustParse(`{"a":"p1","b":"ABC","c":"us-east"}`),
+			Variables:      astjson.MustParse(`{"id":"p1","sku":"ABC","region":"us-east"}`),
 			RemapVariables: map[string]string{"a": "id", "b": "sku", "c": "region"},
 			ctx:            context.Background(),
 		}
@@ -1611,53 +1682,19 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 		}, cacheKeys[0].Keys)
 	})
 
-	t.Run("remap variables - structured arg path not remapped", func(t *testing.T) {
-		// Multi-element ArgumentPath ["store", "id"] is NOT remapped even if
-		// RemapVariables has a mapping whose value is "store". Remap only applies to
-		// single-element paths (len(argumentPath) == 1).
-		tmpl := &RootQueryCacheKeyTemplate{
-			RootFields: []QueryField{
-				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "productByStore"}},
-			},
-			EntityKeyMappings: []EntityKeyMappingConfig{
-				{
-					EntityTypeName: "Product",
-					FieldMappings: []EntityFieldMappingConfig{
-						{EntityKeyField: "store.id", ArgumentPath: []string{"store", "id"}},
-						{EntityKeyField: "store.region", ArgumentPath: []string{"store", "region"}},
-					},
-				},
-			},
-		}
-
-		ctx := &Context{
-			Variables:      astjson.MustParse(`{"store":{"id":"s1","region":"us"}}`),
-			RemapVariables: map[string]string{"remapped_store": "store"},
-			ctx:            context.Background(),
-		}
-		data := astjson.MustParse(`{}`)
-		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
-		require.NoError(t, err)
-		require.Equal(t, 1, len(cacheKeys))
-		// Multi-element path ["store", "id"] is NOT remapped -- still reads from "store"
-		assert.Equal(t, []string{
-			`{"__typename":"Product","key":{"store":{"id":"s1","region":"us"}}}`,
-		}, cacheKeys[0].Keys)
-	})
-
 	t.Run("remap variables - partial remap with multi-key", func(t *testing.T) {
-		// Two mappings: flat "id" (remapped) + flat "username" (not remapped).
-		// RemapVariables maps newName → oldName: {"a": "id"}.
-		// "username" has no remap entry — resolved directly from Variables.
+		// Two entity key mappings: flat "id" (remapped $id→$a) + flat "username" (derived key, no argument).
+		// ArgumentPath ["a"] resolved by planner; ArgumentPath ["username"] unresolved (derived key).
+		// Only the "id" mapping resolves; "username" has no variable → skip that mapping.
 		tmpl := &RootQueryCacheKeyTemplate{
 			RootFields: []QueryField{
-				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"}},
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "user"}, ResponseKey: "user"},
 			},
 			EntityKeyMappings: []EntityKeyMappingConfig{
 				{
 					EntityTypeName: "User",
 					FieldMappings: []EntityFieldMappingConfig{
-						{EntityKeyField: "id", ArgumentPath: []string{"id"}},
+						{EntityKeyField: "id", ArgumentPath: []string{"a"}},
 					},
 				},
 				{
@@ -1670,7 +1707,7 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 		}
 
 		ctx := &Context{
-			Variables:      astjson.MustParse(`{"a":"user-123","username":"Me"}`),
+			Variables:      astjson.MustParse(`{"id":"user-123"}`),
 			RemapVariables: map[string]string{"a": "id"},
 			ctx:            context.Background(),
 		}
@@ -1678,9 +1715,72 @@ func TestDerivedEntityCacheKey(t *testing.T) {
 		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
 		require.NoError(t, err)
 		require.Equal(t, 1, len(cacheKeys))
+		// Only the "id" mapping resolves; "username" is a derived key with no variable
 		assert.Equal(t, []string{
 			`{"__typename":"User","key":{"id":"user-123"}}`,
-			`{"__typename":"User","key":{"username":"Me"}}`,
+		}, cacheKeys[0].Keys)
+	})
+
+	t.Run("remap variables - nested input object argument path", func(t *testing.T) {
+		// Multi-element ArgumentPath ["a", "sellerId"] with RemapVariables {"a": "k"}
+		// should remap the first element "a" → "k" and resolve from {"k": {"sellerId": "s1", "sku": "WIDGET-01"}}.
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "productBySeller"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "Product",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "sellerId", ArgumentPath: []string{"a", "sellerId"}},
+						{EntityKeyField: "sku", ArgumentPath: []string{"a", "sku"}},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{
+			Variables:      astjson.MustParse(`{"k":{"sellerId":"s1","sku":"WIDGET-01"}}`),
+			RemapVariables: map[string]string{"a": "k"},
+			ctx:            context.Background(),
+		}
+		data := astjson.MustParse(`{}`)
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
+		require.NoError(t, err)
+		require.Equal(t, 1, len(cacheKeys))
+		assert.Equal(t, []string{
+			`{"__typename":"Product","key":{"sellerId":"s1","sku":"WIDGET-01"}}`,
+		}, cacheKeys[0].Keys)
+	})
+
+	t.Run("remap variables - deeply nested input object argument path", func(t *testing.T) {
+		// 3-element ArgumentPath ["a", "address", "id"] with RemapVariables {"a": "v"}
+		// should remap first element "a" → "v" and resolve from {"v": {"address": {"id": "v1"}}}.
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "venue"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "Venue",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "address.id", ArgumentPath: []string{"a", "address", "id"}},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{
+			Variables:      astjson.MustParse(`{"v":{"address":{"id":"v1"}}}`),
+			RemapVariables: map[string]string{"a": "v"},
+			ctx:            context.Background(),
+		}
+		data := astjson.MustParse(`{}`)
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data}, "")
+		require.NoError(t, err)
+		require.Equal(t, 1, len(cacheKeys))
+		assert.Equal(t, []string{
+			`{"__typename":"Venue","key":{"address":{"id":"v1"}}}`,
 		}, cacheKeys[0].Keys)
 	})
 
@@ -2006,6 +2106,9 @@ func BenchmarkRenderCacheKeys(b *testing.B) {
 	})
 }
 
+// TestRenderCacheKeys_EntityKeyMappings_NotDuplicatedByRootFields verifies
+// that EntityKeyMappings produce exactly one key per entity, not duplicated
+// per root field in multi-field queries.
 func TestRenderCacheKeys_EntityKeyMappings_NotDuplicatedByRootFields(t *testing.T) {
 	a := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
 
@@ -2037,6 +2140,8 @@ func TestRenderCacheKeys_EntityKeyMappings_NotDuplicatedByRootFields(t *testing.
 	}, keys[0].Keys, "EntityKeyMappings should produce one key, not duplicated per root field")
 }
 
+// TestResolveFieldValue verifies that resolveFieldValue extracts arena-allocated
+// values from JSON data for each node type (String, Scalar, Integer, etc.).
 func TestResolveFieldValue(t *testing.T) {
 	a := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
 	template := &EntityQueryCacheKeyTemplate{}
@@ -2172,6 +2277,9 @@ func TestResolveFieldValue(t *testing.T) {
 	})
 }
 
+// TestRenderCacheKeys_BatchEntityKey verifies that list arguments in
+// EntityKeyMappings expand into multiple cache keys (one per list item),
+// enabling per-entity L2 lookups for batch root field queries.
 func TestRenderCacheKeys_BatchEntityKey(t *testing.T) {
 	t.Run("list argument produces multiple cache keys", func(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
@@ -2372,15 +2480,16 @@ func TestRenderCacheKeys_BatchEntityKey(t *testing.T) {
 				{
 					EntityTypeName: "Product",
 					FieldMappings: []EntityFieldMappingConfig{
-						{EntityKeyField: "upc", ArgumentPath: []string{"upcs"}, ArgumentIsEntityKey: true},
+						// ArgumentPath uses the remapped variable name "a"
+						{EntityKeyField: "upc", ArgumentPath: []string{"a"}, ArgumentIsEntityKey: true},
 					},
 				},
 			},
 		}
 
-		// Variables use remapped name "a", original is "upcs"
+		// Variables use original name "upcs", RemapVariables maps "a" → "upcs"
 		ctx := &Context{
-			Variables:      astjson.MustParse(`{"a":["p1","p2"]}`),
+			Variables:      astjson.MustParse(`{"upcs":["p1","p2"]}`),
 			RemapVariables: map[string]string{"a": "upcs"},
 			ctx:            context.Background(),
 		}
@@ -2413,4 +2522,198 @@ func TestRenderCacheKeys_BatchEntityKey(t *testing.T) {
 		assert.True(t, tmpl.HasBatchEntityKey())
 		assert.Equal(t, []string{"upcs"}, tmpl.BatchEntityKeyArgumentPath())
 	})
+
+	t.Run("batch entity key with RemapVariables produces per-element keys", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "articles"}},
+			},
+			EntityKeyMappings: []EntityKeyMappingConfig{
+				{
+					EntityTypeName: "Article",
+					FieldMappings: []EntityFieldMappingConfig{
+						{EntityKeyField: "id", ArgumentPath: []string{"a"}, ArgumentIsEntityKey: true},
+					},
+				},
+			},
+		}
+
+		// Variables use remapped name "a", original argument name is "ids"
+		ctx := &Context{
+			Variables:      astjson.MustParse(`{"ids":["1","2","3"]}`),
+			RemapVariables: map[string]string{"a": "ids"},
+			ctx:            context.Background(),
+		}
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{nil}, "")
+		assert.NoError(t, err)
+		assert.Equal(t, 3, len(cacheKeys))
+		assert.Equal(t, []*CacheKey{
+			{Keys: []string{`{"__typename":"Article","key":{"id":"1"}}`}, BatchIndex: 0},
+			{Keys: []string{`{"__typename":"Article","key":{"id":"2"}}`}, BatchIndex: 1},
+			{Keys: []string{`{"__typename":"Article","key":{"id":"3"}}`}, BatchIndex: 2},
+		}, cacheKeys)
+	})
+}
+
+// TestEntityQueryCacheKeyTemplate_NumericKeyCoercion pins down the number→string
+// coercion contract on the entity-data rendering path. The sibling paths
+// (RootQueryCacheKeyTemplate.renderDerivedEntityKey /
+// renderDerivedEntityKeyFromValue) coerce numeric @key values to strings via
+// setNestedKey so that `{"id":1}` and `{"id":"1"}` share one cache entry.
+// The entity-data path at caching.go:657 (EntityQueryCacheKeyTemplate.
+// renderCacheKeys) must produce a byte-identical key for the same entity,
+// otherwise the read path (derived key from args) and the write path
+// (direct key from entity data) silently miss the cache.
+func TestEntityQueryCacheKeyTemplate_NumericKeyCoercion(t *testing.T) {
+	t.Parallel()
+
+	t.Run("flat numeric @key field is coerced to string", func(t *testing.T) {
+		tmpl := &EntityQueryCacheKeyTemplate{
+			Keys: NewResolvableObjectVariable(&Object{
+				Fields: []*Field{
+					{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+					{Name: []byte("upc"), Value: &Scalar{Path: []string{"upc"}}},
+				},
+			}),
+		}
+		entity := astjson.MustParse(`{"__typename":"Product","upc":42,"name":"Widget"}`)
+
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		cacheKeys, err := tmpl.RenderCacheKeys(ar, nil, []*astjson.Value{entity}, "")
+		require.NoError(t, err)
+		require.Equal(t, 1, len(cacheKeys))
+		assert.Equal(t,
+			`{"__typename":"Product","key":{"upc":"42"}}`,
+			cacheKeys[0].Keys[0],
+			"numeric @key values read from entity data must be coerced to strings, matching the derived-key path")
+	})
+
+	t.Run("float @key field is coerced to string", func(t *testing.T) {
+		tmpl := &EntityQueryCacheKeyTemplate{
+			Keys: NewResolvableObjectVariable(&Object{
+				Fields: []*Field{
+					{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+					{Name: []byte("price"), Value: &Scalar{Path: []string{"price"}}},
+				},
+			}),
+		}
+		entity := astjson.MustParse(`{"__typename":"Product","price":9.99}`)
+
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		cacheKeys, err := tmpl.RenderCacheKeys(ar, nil, []*astjson.Value{entity}, "")
+		require.NoError(t, err)
+		require.Equal(t, 1, len(cacheKeys))
+		assert.Equal(t,
+			`{"__typename":"Product","key":{"price":"9.99"}}`,
+			cacheKeys[0].Keys[0])
+	})
+
+	t.Run("nested composite numeric @key is coerced at all levels", func(t *testing.T) {
+		// Composite @key: Store is keyed by location.id where location is a
+		// nested Object node in the template and id is numeric in the response.
+		tmpl := &EntityQueryCacheKeyTemplate{
+			Keys: NewResolvableObjectVariable(&Object{
+				Fields: []*Field{
+					{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+					{
+						Name: []byte("location"),
+						Value: &Object{
+							Path: []string{"location"},
+							Fields: []*Field{
+								{Name: []byte("id"), Value: &Scalar{Path: []string{"id"}}},
+							},
+						},
+					},
+				},
+			}),
+		}
+		entity := astjson.MustParse(`{"__typename":"Store","location":{"id":7}}`)
+
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		cacheKeys, err := tmpl.RenderCacheKeys(ar, nil, []*astjson.Value{entity}, "")
+		require.NoError(t, err)
+		require.Equal(t, 1, len(cacheKeys))
+		assert.Equal(t,
+			`{"__typename":"Store","key":{"location":{"id":"7"}}}`,
+			cacheKeys[0].Keys[0],
+			"numeric scalars inside nested composite @key Objects must also be coerced")
+	})
+
+	t.Run("string @key field is unchanged", func(t *testing.T) {
+		// Regression guard: coercion must be a no-op for strings.
+		tmpl := &EntityQueryCacheKeyTemplate{
+			Keys: NewResolvableObjectVariable(&Object{
+				Fields: []*Field{
+					{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+					{Name: []byte("upc"), Value: &String{Path: []string{"upc"}}},
+				},
+			}),
+		}
+		entity := astjson.MustParse(`{"__typename":"Product","upc":"42"}`)
+
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		cacheKeys, err := tmpl.RenderCacheKeys(ar, nil, []*astjson.Value{entity}, "")
+		require.NoError(t, err)
+		require.Equal(t, 1, len(cacheKeys))
+		assert.Equal(t,
+			`{"__typename":"Product","key":{"upc":"42"}}`,
+			cacheKeys[0].Keys[0])
+	})
+}
+
+// TestCacheKeyPathSymmetry_NumericKeys verifies that the read-path key (derived
+// from request args via RootQueryCacheKeyTemplate) and the write-path key
+// (derived from entity data via EntityQueryCacheKeyTemplate) are byte-identical
+// when the @key values are numeric. Without coercion on both sides, these
+// paths silently produce different keys for the same logical entity, causing
+// every write to miss every subsequent read.
+func TestCacheKeyPathSymmetry_NumericKeys(t *testing.T) {
+	t.Parallel()
+
+	// Read path: RootQueryCacheKeyTemplate reading args → derived entity key.
+	readTmpl := &RootQueryCacheKeyTemplate{
+		RootFields: []QueryField{
+			{
+				Coordinate:  GraphCoordinate{TypeName: "Query", FieldName: "product"},
+				ResponseKey: "product",
+				Args: []FieldArgument{
+					{Name: "upc", Variable: &ContextVariable{Path: []string{"upc"}, Renderer: NewCacheKeyVariableRenderer()}},
+				},
+			},
+		},
+		EntityKeyMappings: []EntityKeyMappingConfig{
+			{
+				EntityTypeName: "Product",
+				FieldMappings: []EntityFieldMappingConfig{
+					{EntityKeyField: "upc", ArgumentPath: []string{"upc"}},
+				},
+			},
+		},
+	}
+
+	// Write path: EntityQueryCacheKeyTemplate reading entity data → entity key.
+	writeTmpl := &EntityQueryCacheKeyTemplate{
+		Keys: NewResolvableObjectVariable(&Object{
+			Fields: []*Field{
+				{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+				{Name: []byte("upc"), Value: &Scalar{Path: []string{"upc"}}},
+			},
+		}),
+	}
+
+	ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+
+	// Same logical entity: upc = 42 (number).
+	ctx := &Context{Variables: astjson.MustParse(`{"upc":42}`), ctx: context.Background()}
+	readKeys, err := readTmpl.RenderCacheKeys(ar, ctx, []*astjson.Value{astjson.MustParse(`{}`)}, "")
+	require.NoError(t, err)
+	require.Equal(t, 1, len(readKeys))
+
+	entity := astjson.MustParse(`{"__typename":"Product","upc":42}`)
+	writeKeys, err := writeTmpl.RenderCacheKeys(ar, nil, []*astjson.Value{entity}, "")
+	require.NoError(t, err)
+	require.Equal(t, 1, len(writeKeys))
+
+	assert.Equal(t, readKeys[0].Keys[0], writeKeys[0].Keys[0],
+		"read path (from args) and write path (from entity data) must produce identical keys for the same entity; otherwise reads silently miss writes")
 }

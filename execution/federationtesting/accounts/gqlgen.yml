@@ -61,3 +61,17 @@ models:
         resolver: true
       customGreeting:
         resolver: true
+  CacheEntity:
+    fields:
+      a:
+        resolver: false
+      b:
+        resolver: false
+      c:
+        resolver: false
+      d:
+        resolver: false
+      e:
+        resolver: false
+      f:
+        resolver: false

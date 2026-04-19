@@ -175,8 +175,8 @@ func TestSubgraphRequestSingleFlight_SizeHintRollingWindow(t *testing.T) {
 	fetchItem := newFetchItem(fetchInfo)
 
 	var fetchKey uint64
-	for i := 0; i < 50; i++ {
-		item, shared := flight.GetOrCreateItem(fetchItem, []byte(fmt.Sprintf("body-%d", i)), 0)
+	for i := range 50 {
+		item, shared := flight.GetOrCreateItem(fetchItem, fmt.Appendf(nil, "body-%d", i), 0)
 		if shared {
 			t.Fatalf("expected leader for iteration %d", i)
 		}

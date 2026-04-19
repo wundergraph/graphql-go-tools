@@ -2,9 +2,10 @@ package resolve
 
 import (
 	"context"
-	"sync"
 	"testing"
+	"time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -12,12 +13,15 @@ import (
 	"github.com/wundergraph/go-arena"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastjsonext"
 )
 
 // ---------------------------------------------------------------------------
 // navigateProvidesDataToField
 // ---------------------------------------------------------------------------
 
+// TestNavigateProvidesDataToField verifies the ProvidesData tree navigation used
+// by mutation cache impact detection to find the entity object under a root field.
 func TestNavigateProvidesDataToField(t *testing.T) {
 	t.Run("valid field name returns inner Object", func(t *testing.T) {
 		inner := &Object{
@@ -75,6 +79,8 @@ func testBuildEntityKeyValue(ar arena.Arena, data *astjson.Value, keyFields []Ke
 	return l.buildEntityKeyValue(data, keyFields)
 }
 
+// TestBuildEntityKeyValue verifies that entity key construction from response data
+// handles simple, composite, and nested @key fields correctly.
 func TestBuildEntityKeyValue(t *testing.T) {
 	t.Run("simple key", func(t *testing.T) {
 		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
@@ -128,6 +134,8 @@ func TestBuildEntityKeyValue(t *testing.T) {
 // buildMutationEntityCacheKey
 // ---------------------------------------------------------------------------
 
+// TestBuildMutationEntityCacheKey verifies that mutation cache key construction
+// applies header prefix, global prefix, and L2 interceptor transformations correctly.
 func TestBuildMutationEntityCacheKey(t *testing.T) {
 	t.Run("basic key without prefix", func(t *testing.T) {
 		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
@@ -216,6 +224,9 @@ func TestBuildMutationEntityCacheKey(t *testing.T) {
 // detectMutationEntityImpact
 // ---------------------------------------------------------------------------
 
+// TestDetectMutationEntityImpact verifies that after a mutation completes, the resolver
+// correctly detects impacted entities and invalidates/records analytics for them.
+// Without this, stale cached entities would persist after mutations.
 func TestDetectMutationEntityImpact(t *testing.T) {
 	// Helper: builds a Loader with minimal fields for detectMutationEntityImpact.
 	makeLoader := func(ctx *Context, cache LoaderCache, cacheName string) *Loader {
@@ -224,7 +235,7 @@ func TestDetectMutationEntityImpact(t *testing.T) {
 			jsonArena: ar,
 			ctx:       ctx,
 			caches:    map[string]LoaderCache{cacheName: cache},
-			l1Cache:   &sync.Map{},
+			l1Cache:   map[string]*astjson.Value{},
 		}
 	}
 
@@ -344,6 +355,68 @@ func TestDetectMutationEntityImpact(t *testing.T) {
 		// Verify cache entry was actually deleted
 		entries, _ := cache.Get(context.Background(), []string{cacheKey})
 		assert.Nil(t, entries[0], "cache entry should be deleted")
+	})
+
+	t.Run("PopulateCache true writes mutation response payload to L2", func(t *testing.T) {
+		// Single-subgraph mutations annotated with @cachePopulate have no follow-up
+		// entity fetch to inherit EnableMutationL2CachePopulation. The populate path
+		// inside detectSingleMutationEntityImpact must write the entity payload to L2
+		// directly so a subsequent read by the same key hits cache.
+		cache := NewFakeLoaderCache()
+		cacheKey := `{"__typename":"User","key":{"id":"u-pop"}}`
+
+		ctx := NewContext(context.Background())
+		l := makeLoader(ctx, cache, "default")
+
+		cfg := &MutationEntityImpactConfig{
+			EntityTypeName: "User",
+			KeyFields:      []KeyField{{Name: "id"}},
+			CacheName:      "default",
+			PopulateCache:  true,
+			PopulateTTL:    60 * time.Second,
+		}
+		info := makeMutationInfo("updateUsername", mutationProvidesData)
+		res := makeResult(cfg)
+
+		responseData, err := astjson.ParseWithArena(l.jsonArena,
+			`{"updateUsername":{"id":"u-pop","username":"PopMe"}}`)
+		require.NoError(t, err)
+
+		_ = l.detectMutationEntityImpact(res, info, responseData)
+
+		// Verify the entity payload was written to L2 under the entity cache key.
+		entries, err := cache.Get(context.Background(), []string{cacheKey})
+		require.NoError(t, err)
+		require.NotNil(t, entries[0], "PopulateCache should write the entity to L2")
+		assert.Equal(t, `{"id":"u-pop","username":"PopMe"}`, string(entries[0].Value),
+			"cached payload must equal the entity projection through ProvidesData")
+	})
+
+	t.Run("PopulateCache false does not write to L2", func(t *testing.T) {
+		// Defensive: when neither PopulateCache nor InvalidateCache is set and
+		// analytics is off, detectMutationEntityImpact must not touch the cache.
+		cache := NewFakeLoaderCache()
+
+		ctx := NewContext(context.Background())
+		l := makeLoader(ctx, cache, "default")
+
+		cfg := &MutationEntityImpactConfig{
+			EntityTypeName: "User",
+			KeyFields:      []KeyField{{Name: "id"}},
+			CacheName:      "default",
+			// PopulateCache: false, InvalidateCache: false, no analytics
+		}
+		info := makeMutationInfo("updateUsername", mutationProvidesData)
+		res := makeResult(cfg)
+
+		responseData, err := astjson.ParseWithArena(l.jsonArena,
+			`{"updateUsername":{"id":"u1","username":"NoPop"}}`)
+		require.NoError(t, err)
+
+		_ = l.detectMutationEntityImpact(res, info, responseData)
+
+		// Cache must be untouched.
+		assert.Empty(t, cache.GetLog(), "with no impact config flags set, cache must not be touched")
 	})
 
 	t.Run("analytics enabled, no cached value records MutationEvent with HadCachedValue=false", func(t *testing.T) {
@@ -694,4 +767,274 @@ func TestDetectMutationEntityImpact(t *testing.T) {
 		// Only the valid object entity should be invalidated
 		assert.Equal(t, map[string]struct{}{cacheKey: {}}, deletedKeys)
 	})
+}
+
+// ---------------------------------------------------------------------------
+// MutationCacheTTLOverride
+// ---------------------------------------------------------------------------
+
+// TestMutationCacheTTLOverride verifies that MutationCacheTTLOverride takes precedence
+// over the entity's default TTL when mutations populate L2 cache.
+// Without this, mutation-written cache entries could have inappropriately long TTLs.
+func TestMutationCacheTTLOverride(t *testing.T) {
+	t.Run("mutation with TTL override uses override value", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		cache := NewFakeLoaderCache()
+
+		rootDS := NewMockDataSource(ctrl)
+		rootDS.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"updateUser":{"__typename":"User","id":"u1"}}}`), nil
+			}).Times(1)
+
+		entityDS := NewMockDataSource(ctrl)
+		entityDS.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"_entities":[{"name":"Alice"}]}}`), nil
+			}).Times(1)
+
+		response := buildMutationTTLResponse(
+			rootDS, entityDS,
+			newMutationUserCacheKeyTemplate(), newMutationUserProvidesData(),
+			true,            // enableL2Population
+			60*time.Second,  // mutationTTLOverride
+			300*time.Second, // entityTTL (entity default)
+		)
+
+		loader := &Loader{caches: map[string]LoaderCache{"default": cache}}
+		ctx := NewContext(context.Background())
+		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+		ctx.ExecutionOptions.Caching.EnableL2Cache = true
+
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		resolvable := NewResolvable(ar, ResolvableOptions{})
+		err := resolvable.Init(ctx, nil, ast.OperationTypeMutation)
+		require.NoError(t, err)
+
+		err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+		require.NoError(t, err)
+
+		out := string(fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors))
+		assert.Equal(t, `{"data":{"updateUser":{"__typename":"User","id":"u1","name":"Alice"}}}`, out)
+
+		// No L2 "get" because mutations skip L2 reads (AC-MUT-01).
+		// L2 Set uses override TTL (60s), not entity default (300s),
+		// because EnableMutationL2CachePopulation=true and MutationCacheTTLOverride=60s.
+		cacheLog := cache.GetLog()
+		assert.Equal(t, []CacheLogEntry{
+			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"u1"}}`}, TTL: 60 * time.Second}, // L2 write uses mutation TTL override (60s), not entity default (300s); no prior "get" because mutations skip L2 reads
+		}, cacheLog)
+	})
+
+	t.Run("mutation without TTL override uses entity default", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		cache := NewFakeLoaderCache()
+
+		rootDS := NewMockDataSource(ctrl)
+		rootDS.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"updateUser":{"__typename":"User","id":"u1"}}}`), nil
+			}).Times(1)
+
+		entityDS := NewMockDataSource(ctrl)
+		entityDS.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"_entities":[{"name":"Bob"}]}}`), nil
+			}).Times(1)
+
+		response := buildMutationTTLResponse(
+			rootDS, entityDS,
+			newMutationUserCacheKeyTemplate(), newMutationUserProvidesData(),
+			true,            // enableL2Population
+			0,               // mutationTTLOverride=0 means no override
+			300*time.Second, // entityTTL (entity default)
+		)
+
+		loader := &Loader{caches: map[string]LoaderCache{"default": cache}}
+		ctx := NewContext(context.Background())
+		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+		ctx.ExecutionOptions.Caching.EnableL2Cache = true
+
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		resolvable := NewResolvable(ar, ResolvableOptions{})
+		err := resolvable.Init(ctx, nil, ast.OperationTypeMutation)
+		require.NoError(t, err)
+
+		err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+		require.NoError(t, err)
+
+		out := string(fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors))
+		assert.Equal(t, `{"data":{"updateUser":{"__typename":"User","id":"u1","name":"Bob"}}}`, out)
+
+		// No L2 "get" because mutations skip L2 reads (AC-MUT-01).
+		// L2 Set uses entity default TTL (300s) because MutationCacheTTLOverride=0.
+		cacheLog := cache.GetLog()
+		assert.Equal(t, []CacheLogEntry{
+			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"u1"}}`}, TTL: 300 * time.Second}, // L2 write uses entity default TTL (300s); no mutation override (MutationCacheTTLOverride=0)
+		}, cacheLog)
+	})
+
+	t.Run("TTL override not applied when mutation L2 population disabled", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		cache := NewFakeLoaderCache()
+
+		rootDS := NewMockDataSource(ctrl)
+		rootDS.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"updateUser":{"__typename":"User","id":"u1"}}}`), nil
+			}).Times(1)
+
+		entityDS := NewMockDataSource(ctrl)
+		entityDS.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers any, input []byte) ([]byte, error) {
+				return []byte(`{"data":{"_entities":[{"name":"Carol"}]}}`), nil
+			}).Times(1)
+
+		response := buildMutationTTLResponse(
+			rootDS, entityDS,
+			newMutationUserCacheKeyTemplate(), newMutationUserProvidesData(),
+			false,           // enableL2Population=false — mutations do NOT write to L2
+			60*time.Second,  // mutationTTLOverride is set but irrelevant since L2 writes are disabled
+			300*time.Second, // entityTTL
+		)
+
+		loader := &Loader{caches: map[string]LoaderCache{"default": cache}}
+		ctx := NewContext(context.Background())
+		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+		ctx.ExecutionOptions.Caching.EnableL2Cache = true
+
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		resolvable := NewResolvable(ar, ResolvableOptions{})
+		err := resolvable.Init(ctx, nil, ast.OperationTypeMutation)
+		require.NoError(t, err)
+
+		err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+		require.NoError(t, err)
+
+		out := string(fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors))
+		assert.Equal(t, `{"data":{"updateUser":{"__typename":"User","id":"u1","name":"Carol"}}}`, out)
+
+		// No L2 operations at all — mutations skip L2 entirely when EnableMutationL2CachePopulation=false
+		cacheLog := cache.GetLog()
+		assert.Equal(t, []CacheLogEntry{}, cacheLog)
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Helpers for mutation cache tests
+// ---------------------------------------------------------------------------
+
+// buildMutationTTLResponse creates a GraphQLResponse for testing mutation TTL override.
+// The root fetch is a mutation that sets EnableMutationL2CachePopulation and MutationCacheTTLOverride
+// on the Loader. The entity fetch that follows inherits these flags via resolveSingle propagation.
+func buildMutationTTLResponse(
+	rootDS, entityDS DataSource,
+	cacheKeyTemplate CacheKeyTemplate,
+	providesData *Object,
+	enableL2Population bool,
+	mutationTTLOverride time.Duration,
+	entityTTL time.Duration,
+) *GraphQLResponse {
+	return &GraphQLResponse{
+		Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeMutation},
+		Fetches: Sequence(
+			// Root mutation fetch — propagates EnableMutationL2CachePopulation and MutationCacheTTLOverride to Loader
+			SingleWithPath(&SingleFetch{
+				FetchConfiguration: FetchConfiguration{
+					DataSource:     rootDS,
+					PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data"}},
+					Caching: FetchCacheConfiguration{
+						EnableMutationL2CachePopulation: enableL2Population,
+						MutationCacheTTLOverride:        mutationTTLOverride,
+					},
+				},
+				InputTemplate: InputTemplate{Segments: []TemplateSegment{
+					{Data: []byte(`{"method":"POST","url":"http://accounts.service","body":{"query":"mutation{updateUser(id:\"u1\",name:\"Alice\"){__typename id}}"}}`), SegmentType: StaticSegmentType},
+				}},
+				DataSourceIdentifier: []byte("graphql_datasource.Source"),
+				Info: &FetchInfo{
+					DataSourceID: "accounts", DataSourceName: "accounts",
+					RootFields:    []GraphCoordinate{{TypeName: "Mutation", FieldName: "updateUser"}},
+					OperationType: ast.OperationTypeMutation,
+				},
+			}, "mutation"),
+
+			// Entity fetch — inherits mutation L2 flags, uses caching config with entity TTL
+			SingleWithPath(&SingleFetch{
+				FetchConfiguration: FetchConfiguration{
+					DataSource:     entityDS,
+					PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data", "_entities", "0"}},
+					Caching: FetchCacheConfiguration{
+						Enabled:          true,
+						CacheName:        "default",
+						TTL:              entityTTL,
+						CacheKeyTemplate: cacheKeyTemplate,
+						UseL1Cache:       true,
+					},
+				},
+				InputTemplate: InputTemplate{Segments: []TemplateSegment{
+					{Data: []byte(`{"method":"POST","url":"http://accounts.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {name}}}","variables":{"representations":[`), SegmentType: StaticSegmentType},
+					{SegmentType: VariableSegmentType, VariableKind: ResolvableObjectVariableKind, Renderer: NewGraphQLVariableResolveRenderer(&Object{
+						Fields: []*Field{
+							{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+							{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+						},
+					})},
+					{Data: []byte(`]}}}`), SegmentType: StaticSegmentType},
+				}},
+				DataSourceIdentifier: []byte("graphql_datasource.Source"),
+				Info: &FetchInfo{
+					DataSourceID: "accounts", DataSourceName: "accounts",
+					RootFields:    []GraphCoordinate{{TypeName: "User", FieldName: "name"}},
+					OperationType: ast.OperationTypeQuery, // Entity fetches resolve from non-root types, so planner sets Query
+					ProvidesData:  providesData,
+				},
+			}, "mutation.updateUser", ObjectPath("updateUser")),
+		),
+		Data: &Object{
+			Fields: []*Field{{
+				Name: []byte("updateUser"),
+				Value: &Object{
+					Path: []string{"updateUser"},
+					Fields: []*Field{
+						{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+						{Name: []byte("name"), Value: &String{Path: []string{"name"}}},
+					},
+				},
+			}},
+		},
+	}
+}
+
+// newMutationUserCacheKeyTemplate returns a cache key template for User entities in mutation tests.
+func newMutationUserCacheKeyTemplate() CacheKeyTemplate {
+	return &EntityQueryCacheKeyTemplate{
+		Keys: NewResolvableObjectVariable(&Object{
+			Fields: []*Field{
+				{Name: []byte("__typename"), Value: &String{Path: []string{"__typename"}}},
+				{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+			},
+		}),
+	}
+}
+
+// newMutationUserProvidesData returns a ProvidesData for User entities in mutation tests.
+func newMutationUserProvidesData() *Object {
+	return &Object{
+		Fields: []*Field{
+			{Name: []byte("name"), Value: &Scalar{Path: []string{"name"}, Nullable: false}},
+		},
+	}
 }

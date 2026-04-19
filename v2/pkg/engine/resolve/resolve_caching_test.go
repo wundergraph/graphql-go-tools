@@ -7,7 +7,9 @@ import (
 	"github.com/golang/mock/gomock"
 )
 
-func TestResolveCaching(t *testing.T) {
+// TestResolver_CachingRoundTrip verifies end-to-end resolution of a nested query with
+// batch entity fetches, ensuring the full fetch tree (root + entity) produces correct JSON.
+func TestResolver_CachingRoundTrip(t *testing.T) {
 	t.Run("nested batching single root result", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 
 		listingRoot := mockedDS(t, ctrl,

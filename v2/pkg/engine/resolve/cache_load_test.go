@@ -19,7 +19,9 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastjsonext"
 )
 
-func TestCacheLoad(t *testing.T) {
+// Verifies L2 cache loading for a nested entity graph (products -> reviews -> users).
+// Tests that cached entity values are correctly merged into the response at the right paths.
+func TestCacheLoad_NestedProductsFromL2(t *testing.T) {
 	t.Run("products with reviews - nested products from cache", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -383,7 +385,8 @@ func TestCacheLoad(t *testing.T) {
 	})
 }
 
-func TestCacheLoadSimple(t *testing.T) {
+// Verifies L2 cache hit for a single entity fetch - the simplest cache load path.
+func TestCacheLoad_SingleEntityHit(t *testing.T) {
 	t.Run("single entity fetch with cache hit", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -824,7 +827,8 @@ func TestCacheLoadSimple(t *testing.T) {
 	})
 }
 
-func TestCacheLoadSequential(t *testing.T) {
+// Verifies the L2 miss-then-hit lifecycle: first call populates cache, second call reads from it.
+func TestCacheLoad_SequentialMissThenHit(t *testing.T) {
 	t.Run("two sequential calls - miss then hit", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -1175,6 +1179,8 @@ func (f *FakeLoaderCache) Get(ctx context.Context, keys []string) ([]*CacheEntry
 	return result, nil
 }
 
+
+
 func (f *FakeLoaderCache) Set(ctx context.Context, entries []*CacheEntry, ttl time.Duration) error {
 	if len(entries) == 0 {
 		return nil
@@ -1335,6 +1341,8 @@ const (
 	shadowTestKeyUser    = `{"__typename":"User","key":{"id":"u1"}}`
 )
 
+// Verifies that shadow mode always fetches from the subgraph even when L2 has data.
+// Shadow mode exists for staleness detection without serving potentially stale cached data.
 func TestShadowMode_L2_AlwaysFetches(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -1515,6 +1523,8 @@ func TestShadowMode_L2_AlwaysFetches(t *testing.T) {
 	})
 }
 
+// Verifies that shadow mode records staleness comparison events when cached data
+// differs from fresh subgraph data.
 func TestShadowMode_StalenessDetection(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -1698,6 +1708,8 @@ func TestShadowMode_StalenessDetection(t *testing.T) {
 	})
 }
 
+// Verifies that L1 cache operates normally even when shadow mode is enabled for L2.
+// Shadow mode should only affect L2 behavior.
 func TestShadowMode_L1_WorksNormally(t *testing.T) {
 	t.Run("L1 cache serves data normally even with shadow mode entity", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -1852,6 +1864,7 @@ func TestShadowMode_L1_WorksNormally(t *testing.T) {
 	})
 }
 
+// Verifies that shadow mode works safely when analytics are disabled.
 func TestShadowMode_WithoutAnalytics(t *testing.T) {
 	t.Run("shadow mode works without analytics - safety only", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -2088,6 +2101,8 @@ func buildProductEntityResponse(rootDS, entityDS DataSource, cacheKeyTemplate Ca
 	}
 }
 
+// Verifies graceful degradation when the L2 cache returns errors.
+// Cache failures should fall through to subgraph fetch, not fail the request.
 func TestL2CacheErrorResilience(t *testing.T) {
 	productCacheKeyTemplate := &EntityQueryCacheKeyTemplate{
 		Keys: NewResolvableObjectVariable(&Object{
@@ -2236,6 +2251,8 @@ func TestL2CacheErrorResilience(t *testing.T) {
 	})
 }
 
+// Verifies that mutation operations bypass L2 cache reads and always fetch fresh data.
+// Mutations must not serve stale cached entities.
 func TestMutationSkipsL2Read(t *testing.T) {
 	t.Run("mutation operation type skips L2 read and always fetches", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -2393,6 +2410,8 @@ func newUserRootQueryResponse(rootDS DataSource, cacheKeyTemplate CacheKeyTempla
 	}
 }
 
+// Verifies that when all EntityKeyMappings produce cache hits, the fetch is skipped
+// and missing derived keys are backfilled from the cached data.
 func TestCacheBackfill_SkipFetch_HappyPath(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -2485,6 +2504,95 @@ func TestCacheBackfill_SkipFetch_HappyPath(t *testing.T) {
 	}), snap)
 }
 
+// REGRESSION: a root-field SingleFetch whose L2 lookup is a complete cache hit
+// must record `LoadSkipped = true` on the fetch's DataSourceLoadTrace, mirroring
+// how the entity-fetch and bulk-parallel paths already do. Otherwise downstream
+// observability (Cosmo Router cache_trace, ART) reports `load_skipped=false` on
+// fetches that demonstrably never called the subgraph — making it impossible to
+// distinguish "served from cache" from "fetched fresh".
+func TestSingleFetch_CacheHit_SetsLoadSkippedOnTrace_RED(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cache := NewFakeLoaderCache()
+	idKey := `{"__typename":"User","key":{"id":"u1"}}`
+	emailKey := `{"__typename":"User","key":{"email":"a@example.com"}}`
+
+	// Pre-warm L2 with a fully-derivable cached entity so tryCacheLoad returns skip=true.
+	err := cache.Set(t.Context(), []*CacheEntry{
+		{Key: idKey, Value: []byte(`{"__typename":"User","id":"u1","email":"a@example.com","username":"Alice"}`)},
+	}, 30*time.Second)
+	require.NoError(t, err)
+	cache.ClearLog()
+
+	// Subgraph must NOT be called.
+	rootDS := NewMockDataSource(ctrl)
+	rootDS.EXPECT().Load(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
+	response := newUserRootQueryResponse(
+		rootDS,
+		newUserRootQueryTemplate([]string{"id", "email"}, []string{"id", "email"}),
+		&Object{
+			Fields: []*Field{
+				{Name: []byte("id"), Value: &Scalar{Path: []string{"id"}, Nullable: false}},
+				{Name: []byte("username"), Value: &Scalar{Path: []string{"username"}, Nullable: false}},
+			},
+		},
+	)
+
+	loader := &Loader{caches: map[string]LoaderCache{"default": cache}}
+	ctx := NewContext(t.Context())
+	ctx.Variables = astjson.MustParseBytes([]byte(`{"id":"u1","email":"a@example.com"}`))
+	ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+	ctx.ExecutionOptions.Caching.EnableL1Cache = true
+	ctx.ExecutionOptions.Caching.EnableL2Cache = true
+	// Enable tracing — that's how the loader populates fetch.Trace.LoadSkipped.
+	ctx.TracingOptions.Enable = true
+
+	ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+	resolvable := NewResolvable(ar, ResolvableOptions{})
+	err = resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+	require.NoError(t, err)
+
+	err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+	require.NoError(t, err)
+
+	// Walk the fetch tree to find the SingleFetch and verify its trace.
+	var checked int
+	walkFetchTreeForTest(response.Fetches, func(f Fetch) {
+		single, ok := f.(*SingleFetch)
+		if !ok {
+			return
+		}
+		require.NotNil(t, single.Trace, "SingleFetch.Trace must be populated when tracing is enabled")
+		assert.True(t, single.Trace.LoadSkipped,
+			"SingleFetch.Trace.LoadSkipped must be true when tryCacheLoad returned skip=true (cache hit, no subgraph call)")
+		checked++
+	})
+	assert.Equal(t, 1, checked, "expected exactly one SingleFetch to inspect")
+
+	// Sanity: the cache get happened, no set, no subgraph call.
+	assert.Equal(t, []CacheLogEntry{
+		{Operation: "get", Keys: []string{idKey, emailKey}, Hits: []bool{true, false}},
+		{Operation: "set", Keys: []string{emailKey}, Hits: nil, TTL: 30 * time.Second},
+	}, cache.GetLog())
+}
+
+// walkFetchTreeForTest visits every Fetch in the tree.
+func walkFetchTreeForTest(node *FetchTreeNode, visit func(Fetch)) {
+	if node == nil {
+		return
+	}
+	if node.Kind == FetchTreeNodeKindSingle && node.Item != nil && node.Item.Fetch != nil {
+		visit(node.Item.Fetch)
+	}
+	for _, c := range node.ChildNodes {
+		walkFetchTreeForTest(c, visit)
+	}
+}
+
+// Verifies that backfill is skipped when the cached entity data doesn't contain
+// the fields needed to derive the missing key.
 func TestCacheBackfill_SkipFetch_Counterexample_NotDerivable(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -2562,6 +2670,8 @@ func TestCacheBackfill_SkipFetch_Counterexample_NotDerivable(t *testing.T) {
 	}), snap)
 }
 
+// Verifies that after a subgraph fetch, both the requested key and the derived key
+// are written to L2 cache.
 func TestCacheBackfill_FetchPath_HappyPath(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -2665,6 +2775,8 @@ func TestCacheBackfill_FetchPath_HappyPath(t *testing.T) {
 	}), snap)
 }
 
+// Verifies that when the subgraph response is missing a field needed for key derivation,
+// only the requested key is written (derived key is skipped).
 func TestCacheBackfill_FetchPath_MissingField(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -2720,14 +2832,18 @@ func TestCacheBackfill_FetchPath_MissingField(t *testing.T) {
 
 	// Assert the exact cache story:
 	// 1. L2 reads both requested keys and finds only the id key.
-	// 2. The fetch refreshes id only.
-	// 3. The missing email key remains absent because the fetched entity never proved it.
+	// 2. The fetch refreshes id with the new data.
+	// 3. The email key is backfilled with the response payload, even though the response
+	//    didn't carry the email field. The cache key was derived from the request arguments,
+	//    and a non-null response from the subgraph confirms this entity matches that key.
+	//    A future query selecting `email` would trigger a widening refetch since the cached
+	//    payload doesn't contain it; a query selecting only id+username gets a cache hit.
 	assert.Equal(t, []CacheLogEntry{
 		{Operation: "get", Keys: []string{idKey, emailKey}, Hits: []bool{true, false}},
-		{Operation: "set", Keys: []string{idKey}, Hits: nil, TTL: 30 * time.Second},
+		{Operation: "set", Keys: []string{idKey, emailKey}, Hits: nil, TTL: 30 * time.Second},
 	}, cache.GetLog())
 	assert.Equal(t, `{"__typename":"User","id":"u1","username":"Alice"}`, string(cache.GetValue(idKey)))
-	assert.Nil(t, cache.GetValue(emailKey))
+	assert.Equal(t, `{"__typename":"User","id":"u1","username":"Alice"}`, string(cache.GetValue(emailKey)))
 
 	snap := normalizeCacheAnalyticsSnapshot(ctx.GetCacheStats())
 	assert.Equal(t, normalizeCacheAnalyticsSnapshot(CacheAnalyticsSnapshot{
@@ -2741,7 +2857,7 @@ func TestCacheBackfill_FetchPath_MissingField(t *testing.T) {
 			},
 		},
 		L2Writes: []CacheWriteEvent{
-			// refresh: existing key rewritten with fresh data (no email)
+			// refresh: existing key rewritten with fresh data
 			{
 				CacheKey:    idKey,
 				EntityType:  "Query",
@@ -2752,11 +2868,24 @@ func TestCacheBackfill_FetchPath_MissingField(t *testing.T) {
 				Source:      CacheSourceQuery,
 				WriteReason: CacheWriteReasonRefresh,
 			},
+			// backfill: email key was missing on read; written with the response payload
+			// because the entity is the canonical match for the request args.
+			{
+				CacheKey:    emailKey,
+				EntityType:  "Query",
+				ByteSize:    50,
+				DataSource:  "accounts",
+				CacheLevel:  CacheLevelL2,
+				TTL:         30 * time.Second,
+				Source:      CacheSourceQuery,
+				WriteReason: CacheWriteReasonBackfill,
+			},
 		},
-		// no backfill for emailKey: subgraph didn't return email field
 	}), snap)
 }
 
+// Verifies that when the entity's field value doesn't match the requested argument,
+// the derived key is written but the unproven requested key is skipped.
 func TestCacheBackfill_FetchPath_ValueMismatch(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -2864,6 +2993,8 @@ func TestCacheBackfill_FetchPath_ValueMismatch(t *testing.T) {
 	}), snap)
 }
 
+// Verifies that derived key expansion writes cache entries for entity key mappings
+// that weren't part of the original request.
 func TestCacheBackfill_DerivedKeyExpansion(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -2980,6 +3111,8 @@ func TestCacheBackfill_DerivedKeyExpansion(t *testing.T) {
 	}), snap)
 }
 
+// Verifies that writeCanonicalJSON produces deterministic output regardless of
+// key ordering in the input, ensuring stable cache keys.
 func TestWriteCanonicalJSON(t *testing.T) {
 	canonicalize := func(input string) string {
 		v, err := astjson.Parse(input)

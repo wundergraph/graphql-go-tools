@@ -87,6 +87,18 @@ type Product @key(fields: "upc") {
     reviews: [Review]
 }
 
+# CacheEntity extension: adds a `nested` field that always returns the same entity.
+# @requires(fields: "a") forces sequential execution — the gateway must resolve
+# field "a" from accounts before calling this resolver.
+# The resolver always returns {id: obj.ID}, creating a new entity fetch to accounts
+# for whatever fields the query selects at the next nesting level.
+# This enables arbitrary-depth sequential entity fetch chains for L1 cache testing.
+type CacheEntity @key(fields: "id") {
+    id: ID! @external
+    a: String! @external
+    nested: CacheEntity! @requires(fields: "a")
+}
+
 type Mutation {
     addReview(authorID: String! upc: String!, review: String!): Review!
 }

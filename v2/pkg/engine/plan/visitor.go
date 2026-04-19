@@ -2291,6 +2291,13 @@ func (v *Visitor) getPropagatedReasons(fetchID int, fetchReasons []resolve.Fetch
 // For entity fetches, it looks up per-entity configuration from FederationMetaData.
 // Returns disabled caching if no configuration exists or if caching is globally disabled.
 func (v *Visitor) configureFetchCaching(internal *objectFetchConfiguration, external resolve.FetchConfiguration) resolve.FetchCacheConfiguration {
+	// Populate ProvidesData on requestScoped fields using the planner's response
+	// Object tree. This enables alias-aware normalization/denormalization (same
+	// pipeline as entity L1 / L2 caches). Fields without aliases or args get a
+	// fast path via Object.HasAliases.
+	plannerObj := v.plannerObjects[internal.fetchID]
+	requestScopedFields := populateRequestScopedFieldsProvidesData(external.Caching.RequestScopedFields, plannerObj)
+
 	// Always preserve CacheKeyTemplate for L1 cache - L1 cache works independently of L2 cache.
 	// The Enabled flag controls L2 cache only, not L1 cache.
 	// L1 cache uses CacheKeyTemplate.Keys and is controlled by ctx.ExecutionOptions.Caching.EnableL1Cache.
@@ -2298,6 +2305,7 @@ func (v *Visitor) configureFetchCaching(internal *objectFetchConfiguration, exte
 	result := resolve.FetchCacheConfiguration{
 		CacheKeyTemplate:                   external.Caching.CacheKeyTemplate,
 		RootFieldL1EntityCacheKeyTemplates: external.Caching.RootFieldL1EntityCacheKeyTemplates,
+		RequestScopedFields:                requestScopedFields,
 	}
 	if rootTemplate, ok := external.Caching.CacheKeyTemplate.(*resolve.RootQueryCacheKeyTemplate); ok {
 		result.BatchEntityKeyArgumentPathHint = rootTemplate.BatchEntityKeyArgumentPath()
@@ -2379,6 +2387,8 @@ func (v *Visitor) configureFetchCaching(internal *objectFetchConfiguration, exte
 			ShadowMode:                     cacheConfig.ShadowMode,
 			NegativeCacheTTL:               cacheConfig.NegativeCacheTTL,
 			BatchEntityKeyArgumentPathHint: result.BatchEntityKeyArgumentPathHint,
+			// Preserve requestScoped hints/exports through the entity-cache-enabled path.
+			RequestScopedFields:  requestScopedFields,
 		}
 	}
 
@@ -2428,8 +2438,51 @@ func (v *Visitor) configureFetchCaching(internal *objectFetchConfiguration, exte
 		ShadowMode:                         commonConfig.ShadowMode,
 		PartialBatchLoad:                   commonConfig.PartialBatchLoad,
 		BatchEntityKeyArgumentPathHint:     result.BatchEntityKeyArgumentPathHint,
+		// Preserve requestScoped fields through the L2-enabled root field path.
+		RequestScopedFields:  requestScopedFields,
 	}
 }
+
+// populateRequestScopedFieldsProvidesData fills in ProvidesData by locating the
+// matching sub-Object in the planner's response tree. The match is by response
+// key (field.Name), since the datasource planner already resolves aliases.
+//
+// If plannerObj is nil or no matching field is found, ProvidesData is left nil
+// (resolver falls back to raw byte storage, loses alias awareness).
+func populateRequestScopedFieldsProvidesData(fields []resolve.RequestScopedField, plannerObj *resolve.Object) []resolve.RequestScopedField {
+	if len(fields) == 0 || plannerObj == nil {
+		return fields
+	}
+	out := make([]resolve.RequestScopedField, len(fields))
+	for i, f := range fields {
+		out[i] = f
+		sub := findObjectFieldByResponseKey(plannerObj, f.FieldName)
+		if sub != nil {
+			resolve.ComputeHasAliases(sub)
+			out[i].ProvidesData = sub
+		}
+	}
+	return out
+}
+
+// findObjectFieldByResponseKey walks the Object's top-level fields looking for one
+// whose response key (field.Name) matches, and returns its value Object (if the
+// value is an Object). Returns nil if not found or if the value is not an Object.
+func findObjectFieldByResponseKey(obj *resolve.Object, responseKey string) *resolve.Object {
+	if obj == nil {
+		return nil
+	}
+	for _, field := range obj.Fields {
+		if string(field.Name) == responseKey {
+			if sub, ok := field.Value.(*resolve.Object); ok {
+				return sub
+			}
+			return nil
+		}
+	}
+	return nil
+}
+
 
 // findDataSourceByID finds the datasource configuration for a given source ID
 func (v *Visitor) findDataSourceByID(sourceID string) DataSource {
@@ -2475,9 +2528,19 @@ func (v *Visitor) configureMutationEntityImpact(internal *objectFetchConfigurati
 	}
 
 	// Check if this specific mutation field is configured for cache invalidation
+	// or populate. A field is annotated with one or the other in composition.
 	if len(internal.rootFields) > 0 {
-		if fedConfig.MutationCacheInvalidationConfig(internal.rootFields[0].FieldName) != nil {
+		mutationFieldName := internal.rootFields[0].FieldName
+		if fedConfig.MutationCacheInvalidationConfig(mutationFieldName) != nil {
 			result.MutationEntityImpactConfig.InvalidateCache = true
+		}
+		// `@cachePopulate` arrives via MutationFieldCacheConfig with EnableEntityL2CachePopulation.
+		// The flag was originally added to thread the populate intent through to follow-up entity
+		// fetches in federated mutations; here we extend it to single-subgraph mutations where the
+		// entity is returned directly and there is no follow-up fetch to inherit it.
+		if mutCfg := fedConfig.MutationFieldCacheConfig(mutationFieldName); mutCfg != nil && mutCfg.EnableEntityL2CachePopulation {
+			result.MutationEntityImpactConfig.PopulateCache = true
+			result.MutationEntityImpactConfig.PopulateTTL = mutCfg.TTL
 		}
 	}
 }

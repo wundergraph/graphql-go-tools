@@ -939,3 +939,114 @@ func TestBatchEntityCacheLookup_PartialFetch_OrderPreservation(t *testing.T) {
 	}, defaultCache.GetLog())
 	assertFakeLoaderCacheContents(t, defaultCache, expectedBatchProductCache("top-1", "top-3"))
 }
+
+// TestBatchEntityKeyCachingWithArgumentIsEntityKey tests that ArgumentIsEntityKey=true
+// produces per-element cache keys (not a single batch key), enabling individual entity
+// cache hits on a second identical request with zero subgraph calls.
+func TestBatchEntityKeyCachingWithArgumentIsEntityKey(t *testing.T) {
+	t.Parallel()
+	productKeyTop1 := `{"__typename":"Product","key":{"upc":"top-1"}}`
+	productKeyTop2 := `{"__typename":"Product","key":{"upc":"top-2"}}`
+	productKeyTop3 := `{"__typename":"Product","key":{"upc":"top-3"}}`
+
+	defaultCache := NewFakeLoaderCache()
+	tracker := newSubgraphCallTracker(http.DefaultTransport)
+
+	setup := federationtesting.NewFederationSetup(addCachingGateway(
+		withCachingEnableART(false),
+		withCachingLoaderCache(map[string]resolve.LoaderCache{"default": defaultCache}),
+		withHTTPClient(&http.Client{Transport: tracker}),
+		withCachingOptionsFunc(resolve.CachingOptions{
+			EnableL1Cache: false,
+			EnableL2Cache: true,
+		}),
+		withSubgraphEntityCachingConfigs(engine.SubgraphCachingConfigs{
+			{
+				SubgraphName: "products",
+				RootFieldCaching: plan.RootFieldCacheConfigurations{
+					{
+						TypeName:  "Query",
+						FieldName: "products",
+						CacheName: "default",
+						TTL:       30 * time.Second,
+						EntityKeyMappings: []plan.EntityKeyMapping{
+							{
+								EntityTypeName: "Product",
+								FieldMappings: []plan.FieldMapping{
+									{EntityKeyField: "upc", ArgumentPath: []string{"upcs"}, ArgumentIsEntityKey: true},
+								},
+							},
+						},
+					},
+				},
+			},
+		}),
+	))
+	t.Cleanup(setup.Close)
+
+	gqlClient := NewGraphqlClient(http.DefaultClient)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	productsURLParsed, _ := url.Parse(setup.ProductsUpstreamServer.URL)
+	productsHost := productsURLParsed.Host
+
+	// Request 1: all cache misses — subgraph called, 3 per-element keys written
+	tracker.Reset()
+	resp1, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL,
+		`query { products(upcs: ["top-1", "top-2", "top-3"]) { upc name price } }`, nil, t)
+
+	assert.Equal(t, `{"data":{"products":[{"upc":"top-1","name":"Trilby","price":11},{"upc":"top-2","name":"Fedora","price":22},{"upc":"top-3","name":"Boater","price":33}]}}`, string(resp1))
+	assert.Equal(t, 1, tracker.GetCount(productsHost), "first request should call products subgraph once")
+
+	// Verify per-element cache contents were written
+	assertFakeLoaderCacheContents(t, defaultCache, map[string]string{
+		productKeyTop1: `{"upc":"top-1","name":"Trilby","price":11}`,
+		productKeyTop2: `{"upc":"top-2","name":"Fedora","price":22}`,
+		productKeyTop3: `{"upc":"top-3","name":"Boater","price":33}`,
+	})
+
+	// Verify cache log: 1 get (batch miss) + 1 set (batch write)
+	assert.Equal(t, []CacheLogEntry{
+		{
+			Operation: CacheOperationGet,
+			Keys: []string{
+				`{"__typename":"Product","key":{"upc":"top-1"}}`,
+				`{"__typename":"Product","key":{"upc":"top-2"}}`,
+				`{"__typename":"Product","key":{"upc":"top-3"}}`,
+			},
+			Hits: []bool{false, false, false}, // all misses — cache empty
+		},
+		{
+			Operation: CacheOperationSet,
+			Keys: []string{
+				`{"__typename":"Product","key":{"upc":"top-1"}}`,
+				`{"__typename":"Product","key":{"upc":"top-2"}}`,
+				`{"__typename":"Product","key":{"upc":"top-3"}}`,
+			},
+			TTL: 30 * time.Second, // per-element keys written after batch fetch
+		},
+	}, defaultCache.GetLog())
+
+	// Request 2: all cache hits — zero subgraph calls
+	defaultCache.ClearLog()
+	tracker.Reset()
+	resp2, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL,
+		`query { products(upcs: ["top-1", "top-2", "top-3"]) { upc name price } }`, nil, t)
+
+	assert.Equal(t, string(resp1), string(resp2), "both requests should return identical responses")
+	assert.Equal(t, 0, tracker.GetCount(productsHost), "second request should NOT call products subgraph (all cache hits)")
+
+	// Verify cache log: 1 get (all hits) — no SET needed
+	assert.Equal(t, []CacheLogEntry{
+		{
+			Operation: CacheOperationGet,
+			Keys: []string{
+				`{"__typename":"Product","key":{"upc":"top-1"}}`,
+				`{"__typename":"Product","key":{"upc":"top-2"}}`,
+				`{"__typename":"Product","key":{"upc":"top-3"}}`,
+			},
+			Hits: []bool{true, true, true}, // all hits — cached from request 1
+		},
+	}, defaultCache.GetLog())
+}

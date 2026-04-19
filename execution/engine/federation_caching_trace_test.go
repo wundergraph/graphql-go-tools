@@ -16,6 +16,38 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
+// verifyAndClearRemainingTTL checks that each entity in the trace has a RemainingTTLSeconds
+// within the expected range (0, maxTTL], then zeros it for deterministic struct comparison.
+//
+// Fuzzy bounds are intentional here: RemainingTTLSeconds is wall-clock-dependent
+// (decays between L2 write and the moment the trace is serialized), so an exact
+// equality assertion is not possible. The normalizer then zeros the field so the
+// surrounding struct-level assertion can use assert.Equal.
+func verifyAndClearRemainingTTL(t *testing.T, ct *resolve.CacheTrace, maxTTL float64, msg string) {
+	t.Helper()
+	for i := range ct.Entities {
+		if ct.Entities[i].Source == "l2" {
+			if ct.Entities[i].RemainingTTLSeconds <= 0.0 || ct.Entities[i].RemainingTTLSeconds > maxTTL {
+				t.Fatalf("%s: entity %d remaining TTL %v outside expected range (0,%v]", msg, i, ct.Entities[i].RemainingTTLSeconds, maxTTL)
+			}
+			ct.Entities[i].RemainingTTLSeconds = 0 // zero for deterministic comparison
+		}
+	}
+}
+
+// extractResponseData parses a GraphQL response and returns the serialized `data`
+// field as a deterministic JSON string. The surrounding `extensions.trace` contains
+// non-deterministic values (timestamps, durations, byte sizes, ephemeral ports) and
+// is asserted separately via collectCacheTraces / CacheTrace struct comparisons.
+func extractResponseData(t *testing.T, resp []byte) string {
+	t.Helper()
+	var response map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(resp, &response))
+	data, ok := response["data"]
+	require.True(t, ok, "response should contain a data field")
+	return string(data)
+}
+
 func parseTraceFromResponse(t *testing.T, resp []byte) map[string]any {
 	t.Helper()
 	var response map[string]any
@@ -78,6 +110,8 @@ func walkFetchNode(t *testing.T, node map[string]any, results *[]resolve.CacheTr
 	}
 }
 
+// TestFederationCaching_CacheTraceInExtensions verifies that cache trace data (hit/miss/TTL)
+// is correctly embedded in response extensions when tracing is enabled.
 func TestFederationCaching_CacheTraceInExtensions(t *testing.T) {
 	t.Parallel()
 	t.Run("L2 miss then hit shows cache_trace in extensions.trace", func(t *testing.T) {
@@ -111,7 +145,7 @@ func TestFederationCaching_CacheTraceInExtensions(t *testing.T) {
 		tracker.Reset()
 		resp1, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL,
 			`query { topProducts { name reviews { body author: authorWithoutProvides { username } } } }`, nil, t)
-		assert.Contains(t, string(resp1), `"topProducts"`)
+		assert.Equal(t, `{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","author":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","author":{"username":"Me"}}]}]}`, extractResponseData(t, resp1))
 
 		trace1 := parseTraceFromResponse(t, resp1)
 		require.NotNil(t, trace1, "Response should contain extensions.trace")
@@ -120,26 +154,36 @@ func TestFederationCaching_CacheTraceInExtensions(t *testing.T) {
 		require.Equal(t, 3, len(cacheTraces1), "Should have 3 cache traces: products root field, reviews entities, accounts entities")
 
 		assert.Equal(t, resolve.CacheTrace{
-			L2Enabled:           true,
-			CacheName:           "default",
-			TTLSeconds:          30,
-			L2Miss:              1, // 1 root field miss: Query.topProducts
-			L2GetDurationNano:   1, // predictable timing
-			L2GetDurationPretty: "1ns",
-			L2SetDurationNano:   1, // L2 Set happened after fetch
-			L2SetDurationPretty: "1ns",
-			Keys:                []string{`{"__typename":"Query","field":"topProducts"}`},
+			DurationSinceStartNano:   1, // predictable timing
+			DurationSinceStartPretty: "1ns",
+			DurationNano:             1,
+			DurationPretty:           "1ns",
+			L2Enabled:                true,
+			CacheName:                "default",
+			TTLSeconds:               30,
+			EntityCount:              1, // 1 root field key
+			L2Miss:                   1, // 1 root field miss: Query.topProducts
+			L2GetDurationNano:        1,
+			L2GetDurationPretty:      "1ns",
+			L2SetDurationNano:        1, // L2 Set happened after fetch
+			L2SetDurationPretty:      "1ns",
+			Keys:                     []string{`{"__typename":"Query","field":"topProducts"}`},
 		}, cacheTraces1[0], "products root field: L2 miss, populated after fetch")
 
 		assert.Equal(t, resolve.CacheTrace{
-			L2Enabled:           true,
-			CacheName:           "default",
-			TTLSeconds:          30,
-			L2Miss:              2, // 2 Product entities missed
-			L2GetDurationNano:   1,
-			L2GetDurationPretty: "1ns",
-			L2SetDurationNano:   1,
-			L2SetDurationPretty: "1ns",
+			DurationSinceStartNano:   1,
+			DurationSinceStartPretty: "1ns",
+			DurationNano:             1,
+			DurationPretty:           "1ns",
+			L2Enabled:                true,
+			CacheName:                "default",
+			TTLSeconds:               30,
+			EntityCount:              2, // 2 Product entity keys
+			L2Miss:                   2, // 2 Product entities missed
+			L2GetDurationNano:        1,
+			L2GetDurationPretty:      "1ns",
+			L2SetDurationNano:        1,
+			L2SetDurationPretty:      "1ns",
 			Keys: []string{
 				`{"__typename":"Product","key":{"upc":"top-1"}}`,
 				`{"__typename":"Product","key":{"upc":"top-2"}}`,
@@ -147,14 +191,19 @@ func TestFederationCaching_CacheTraceInExtensions(t *testing.T) {
 		}, cacheTraces1[1], "reviews entities: 2 Product entities missed")
 
 		assert.Equal(t, resolve.CacheTrace{
-			L2Enabled:           true,
-			CacheName:           "default",
-			TTLSeconds:          30,
-			L2Miss:              2, // 2 User entity lookups missed (same user for 2 reviews, deduplicated in batch but 2 cache keys)
-			L2GetDurationNano:   1,
-			L2GetDurationPretty: "1ns",
-			L2SetDurationNano:   1,
-			L2SetDurationPretty: "1ns",
+			DurationSinceStartNano:   1,
+			DurationSinceStartPretty: "1ns",
+			DurationNano:             1,
+			DurationPretty:           "1ns",
+			L2Enabled:                true,
+			CacheName:                "default",
+			TTLSeconds:               30,
+			EntityCount:              2, // 2 User entity keys (same user for 2 reviews)
+			L2Miss:                   2, // 2 User entity lookups missed (same user for 2 reviews, deduplicated in batch but 2 cache keys)
+			L2GetDurationNano:        1,
+			L2GetDurationPretty:      "1ns",
+			L2SetDurationNano:        1,
+			L2SetDurationPretty:      "1ns",
 			Keys: []string{
 				`{"__typename":"User","key":{"id":"1234"}}`,
 				`{"__typename":"User","key":{"id":"1234"}}`,
@@ -165,7 +214,7 @@ func TestFederationCaching_CacheTraceInExtensions(t *testing.T) {
 		tracker.Reset()
 		resp2, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL,
 			`query { topProducts { name reviews { body author: authorWithoutProvides { username } } } }`, nil, t)
-		assert.Contains(t, string(resp2), `"topProducts"`)
+		assert.Equal(t, `{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","author":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","author":{"username":"Me"}}]}]}`, extractResponseData(t, resp2))
 
 		trace2 := parseTraceFromResponse(t, resp2)
 		require.NotNil(t, trace2, "Response should contain extensions.trace on second request")
@@ -173,13 +222,23 @@ func TestFederationCaching_CacheTraceInExtensions(t *testing.T) {
 		cacheTraces2 := collectCacheTraces(t, trace2)
 		require.Equal(t, 3, len(cacheTraces2), "Should have 3 cache traces on second request")
 
+		// Verify remaining TTL is present for L2 hits, then zero for deterministic comparison
+		verifyAndClearRemainingTTL(t, &cacheTraces2[0], 30, "products root field")
+		verifyAndClearRemainingTTL(t, &cacheTraces2[1], 30, "reviews entities")
+		verifyAndClearRemainingTTL(t, &cacheTraces2[2], 30, "accounts entities")
+
 		assert.Equal(t, resolve.CacheTrace{
-			L2Enabled:           true,
-			CacheName:           "default",
-			TTLSeconds:          30,
-			L2Hit:               1, // root field hit from L2
-			L2GetDurationNano:   1,
-			L2GetDurationPretty: "1ns",
+			DurationSinceStartNano:   1,
+			DurationSinceStartPretty: "1ns",
+			DurationNano:             1,
+			DurationPretty:           "1ns",
+			L2Enabled:                true,
+			CacheName:                "default",
+			TTLSeconds:               30,
+			EntityCount:              1, // 1 root field key
+			L2Hit:                    1, // root field hit from L2
+			L2GetDurationNano:        1,
+			L2GetDurationPretty:      "1ns",
 			Entities: []resolve.CacheTraceEntity{
 				{Key: `{"__typename":"Query","field":"topProducts"}`, Source: "l2", ByteSize: 127},
 			},
@@ -187,12 +246,17 @@ func TestFederationCaching_CacheTraceInExtensions(t *testing.T) {
 		}, cacheTraces2[0], "products root field: L2 hit, no Set")
 
 		assert.Equal(t, resolve.CacheTrace{
-			L2Enabled:           true,
-			CacheName:           "default",
-			TTLSeconds:          30,
-			L2Hit:               2, // both Product entities hit
-			L2GetDurationNano:   1,
-			L2GetDurationPretty: "1ns",
+			DurationSinceStartNano:   1,
+			DurationSinceStartPretty: "1ns",
+			DurationNano:             1,
+			DurationPretty:           "1ns",
+			L2Enabled:                true,
+			CacheName:                "default",
+			TTLSeconds:               30,
+			EntityCount:              2, // 2 Product entity keys
+			L2Hit:                    2, // both Product entities hit
+			L2GetDurationNano:        1,
+			L2GetDurationPretty:      "1ns",
 			Entities: []resolve.CacheTraceEntity{
 				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Source: "l2", ByteSize: 132},
 				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Source: "l2", ByteSize: 188},
@@ -204,12 +268,17 @@ func TestFederationCaching_CacheTraceInExtensions(t *testing.T) {
 		}, cacheTraces2[1], "reviews entities: both Products from L2")
 
 		assert.Equal(t, resolve.CacheTrace{
-			L2Enabled:           true,
-			CacheName:           "default",
-			TTLSeconds:          30,
-			L2Hit:               2, // both User lookups hit (same user, 2 cache key lookups)
-			L2GetDurationNano:   1,
-			L2GetDurationPretty: "1ns",
+			DurationSinceStartNano:   1,
+			DurationSinceStartPretty: "1ns",
+			DurationNano:             1,
+			DurationPretty:           "1ns",
+			L2Enabled:                true,
+			CacheName:                "default",
+			TTLSeconds:               30,
+			EntityCount:              2, // 2 User entity keys (same user for 2 reviews)
+			L2Hit:                    2, // both User lookups hit (same user, 2 cache key lookups)
+			L2GetDurationNano:        1,
+			L2GetDurationPretty:      "1ns",
 			Entities: []resolve.CacheTraceEntity{
 				{Key: `{"__typename":"User","key":{"id":"1234"}}`, Source: "l2", ByteSize: 49},
 				{Key: `{"__typename":"User","key":{"id":"1234"}}`, Source: "l2", ByteSize: 49},

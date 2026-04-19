@@ -76,8 +76,8 @@
           "duration_since_start_pretty": ""
         },
         "planner_stats": {
-          "duration_nanoseconds": 5,
-          "duration_pretty": "5ns",
+          "duration_nanoseconds": 0,
+          "duration_pretty": "",
           "duration_since_start_nanoseconds": 0,
           "duration_since_start_pretty": ""
         }
@@ -168,8 +168,8 @@
                 },
                 "duration_since_start_nanoseconds": 0,
                 "duration_since_start_pretty": "",
-                "duration_load_nanoseconds": 1,
-                "duration_load_pretty": "1ns",
+                "duration_load_nanoseconds": 0,
+                "duration_load_pretty": "",
                 "single_flight_used": true,
                 "single_flight_shared_response": false,
                 "load_skipped": false,
@@ -230,8 +230,13 @@
                   }
                 },
                 "cache_trace": {
+                  "duration_since_start_nanoseconds": 0,
+                  "duration_since_start_pretty": "",
+                  "duration_nanoseconds": 0,
+                  "duration_pretty": "",
                   "l1_enabled": false,
                   "l2_enabled": false,
+                  "entity_count": 0,
                   "l1_hit": 0,
                   "l1_miss": 0,
                   "l2_hit": 0,
@@ -316,8 +321,8 @@
                     },
                     "duration_since_start_nanoseconds": 0,
                     "duration_since_start_pretty": "",
-                    "duration_load_nanoseconds": 1,
-                    "duration_load_pretty": "1ns",
+                    "duration_load_nanoseconds": 0,
+                    "duration_load_pretty": "",
                     "single_flight_used": true,
                     "single_flight_shared_response": false,
                     "load_skipped": false,
@@ -378,8 +383,13 @@
                       }
                     },
                     "cache_trace": {
+                      "duration_since_start_nanoseconds": 0,
+                      "duration_since_start_pretty": "",
+                      "duration_nanoseconds": 0,
+                      "duration_pretty": "",
                       "l1_enabled": false,
                       "l2_enabled": false,
+                      "entity_count": 0,
                       "l1_hit": 0,
                       "l1_miss": 0,
                       "l2_hit": 0,
@@ -510,8 +520,8 @@
                     },
                     "duration_since_start_nanoseconds": 0,
                     "duration_since_start_pretty": "",
-                    "duration_load_nanoseconds": 1,
-                    "duration_load_pretty": "1ns",
+                    "duration_load_nanoseconds": 0,
+                    "duration_load_pretty": "",
                     "single_flight_used": true,
                     "single_flight_shared_response": false,
                     "load_skipped": false,
@@ -572,8 +582,13 @@
                       }
                     },
                     "cache_trace": {
+                      "duration_since_start_nanoseconds": 0,
+                      "duration_since_start_pretty": "",
+                      "duration_nanoseconds": 0,
+                      "duration_pretty": "",
                       "l1_enabled": false,
                       "l2_enabled": false,
+                      "entity_count": 0,
                       "l1_hit": 0,
                       "l1_miss": 0,
                       "l2_hit": 0,

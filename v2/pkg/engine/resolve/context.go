@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"maps"
 	"net/http"
 	"sort"
 	"time"
@@ -384,26 +385,22 @@ func (c *Context) WithContext(ctx context.Context) *Context {
 func (c *Context) clone(ctx context.Context) *Context {
 	cpy := *c
 	cpy.ctx = ctx
-	if c.Variables != nil {
-		variablesData := c.Variables.MarshalTo(nil)
-		cpy.Variables = astjson.MustParseBytes(variablesData)
-	}
+	// DeepCopy with a nil arena returns a heap-allocated deep copy, isolating
+	// the clone from the source arena's *astjson.Value. Returns nil when input
+	// is nil, so no separate guard is needed.
+	cpy.Variables = astjson.DeepCopy(nil, c.Variables)
 	cpy.Files = append([]*httpclient.FileUpload(nil), c.Files...)
 	cpy.Request.Header = c.Request.Header.Clone()
 	cpy.RenameTypeNames = append([]RenameTypeName(nil), c.RenameTypeNames...)
 
 	if c.RemapVariables != nil {
 		cpy.RemapVariables = make(map[string]string, len(c.RemapVariables))
-		for k, v := range c.RemapVariables {
-			cpy.RemapVariables[k] = v
-		}
+		maps.Copy(cpy.RemapVariables, c.RemapVariables)
 	}
 
 	if c.subgraphErrors != nil {
 		cpy.subgraphErrors = make(map[string]error, len(c.subgraphErrors))
-		for k, v := range c.subgraphErrors {
-			cpy.subgraphErrors[k] = v
-		}
+		maps.Copy(cpy.subgraphErrors, c.subgraphErrors)
 	}
 
 	return &cpy

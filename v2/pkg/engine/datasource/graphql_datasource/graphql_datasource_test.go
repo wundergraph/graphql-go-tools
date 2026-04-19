@@ -411,24 +411,28 @@ func TestGraphQLDataSource(t *testing.T) {
 												},
 											},
 										},
+										ResponseKey: "droid",
 									},
 									{
 										Coordinate: resolve.GraphCoordinate{
 											TypeName:  "Query",
 											FieldName: "hero",
 										},
+										ResponseKey: "hero",
 									},
 									{
 										Coordinate: resolve.GraphCoordinate{
 											TypeName:  "Query",
 											FieldName: "stringList",
 										},
+										ResponseKey: "stringList",
 									},
 									{
 										Coordinate: resolve.GraphCoordinate{
 											TypeName:  "Query",
 											FieldName: "nestedStringList",
 										},
+										ResponseKey: "nestedStringList",
 									},
 								},
 							},

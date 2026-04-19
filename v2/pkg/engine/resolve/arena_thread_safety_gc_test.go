@@ -34,13 +34,12 @@ func TestCrossArenaMergeValuesCreatesShallowReferences(t *testing.T) {
 	require.NoError(t, err)
 
 	// Merge: this splices FromCache nodes into item's object tree
-	merged, _, err := astjson.MergeValues(mainArena, item, fromCache)
+	merged, err := astjson.MergeValues(mainArena, item, fromCache)
 	require.NoError(t, err)
 
 	// Verify merged result contains data from both arenas
 	mergedJSON := string(merged.MarshalTo(nil))
-	assert.Contains(t, mergedJSON, `"name":"Widget"`)
-	assert.Contains(t, mergedJSON, `"id":"prod-1"`)
+	assert.Equal(t, `{"id":"prod-1","name":"Widget"}`, mergedJSON)
 
 	// Force GC to stress-test pointer validity — goroutine arena is still alive
 	runtime.GC()
@@ -105,7 +104,7 @@ func TestGoroutineArenaLifetimeWithDeferredRelease(t *testing.T) {
 	items := make([]*astjson.Value, numGoroutines)
 	for i := range numGoroutines {
 		items[i], _ = astjson.ParseBytesWithArena(mainArena, []byte(`{"id":"prod-`+stringFromInt(i+1)+`"}`))
-		merged, _, err := astjson.MergeValues(mainArena, items[i], fromCacheValues[i])
+		merged, err := astjson.MergeValues(mainArena, items[i], fromCacheValues[i])
 		require.NoError(t, err)
 		items[i] = merged
 	}
@@ -117,7 +116,8 @@ func TestGoroutineArenaLifetimeWithDeferredRelease(t *testing.T) {
 	// Verify all merged values are still valid (simulates response rendering)
 	for i := range numGoroutines {
 		json := string(items[i].MarshalTo(nil))
-		assert.Contains(t, json, `"name":"Product `+stringFromInt(i+1)+`"`,
+		expected := `{"id":"prod-` + stringFromInt(i+1) + `","name":"Product ` + stringFromInt(i+1) + `"}`
+		assert.Equal(t, expected, json,
 			"merged value %d should be readable with goroutine arenas alive", i)
 	}
 
@@ -157,7 +157,7 @@ func Benchmark_CrossArenaGCSafety(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		merged, _, err := astjson.MergeValues(mainArena, item, fromCache)
+		merged, err := astjson.MergeValues(mainArena, item, fromCache)
 		if err != nil {
 			b.Fatal(err)
 		}

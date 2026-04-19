@@ -9,6 +9,22 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
 
+// RequestScopedField declares a field whose value resolves to the same value for
+// all other fields in the same subgraph that share the same L1Key (all fields with
+// @requestScoped(key: "X") have L1Key = "{subgraphName}.X"). The directive is
+// purely symmetric — there is no receiver/provider distinction. Every field that
+// participates is both:
+//   - A reader (the planner emits a hint so the resolver can inject from L1)
+//   - A writer (the planner emits an export so the resolver stores the value after fetch)
+//
+// The first field to resolve populates L1; subsequent fields inject from L1 and can
+// skip their fetch when all required sub-fields are present.
+type RequestScopedField struct {
+	FieldName string // field name, e.g. "currentViewer"
+	TypeName  string // enclosing type name, e.g. "Personalized" or "Query"
+	L1Key     string // L1 cache key, format "{subgraphName}.{key}"
+}
+
 type FederationMetaData struct {
 	Keys                         FederationFieldConfigurations
 	Requires                     FederationFieldConfigurations
@@ -20,6 +36,7 @@ type FederationMetaData struct {
 	MutationFieldCaching         MutationFieldCacheConfigurations
 	SubscriptionEntityPopulation SubscriptionEntityPopulationConfigurations
 	MutationCacheInvalidation    MutationCacheInvalidationConfigurations
+	RequestScopedFields          []RequestScopedField
 
 	entityTypeNames map[string]struct{}
 }
@@ -342,6 +359,32 @@ func (d *FederationMetaData) MutationCacheInvalidationConfig(fieldName string) *
 // Returns nil if no configuration exists.
 func (d *FederationMetaData) MutationFieldCacheConfig(fieldName string) *MutationFieldCacheConfiguration {
 	return d.MutationFieldCaching.FindByFieldName(fieldName)
+}
+
+// RequestScopedFieldsForType returns all @requestScoped fields for the given type.
+// These are fields that can be read from (and written to) the coordinate L1 cache.
+func (d *FederationMetaData) RequestScopedFieldsForType(typeName string) []RequestScopedField {
+	var result []RequestScopedField
+	for _, f := range d.RequestScopedFields {
+		if f.TypeName == typeName {
+			result = append(result, f)
+		}
+	}
+	return result
+}
+
+// RequestScopedExportsForField returns the L1 keys that should be exported when
+// a given field is fetched. Under the symmetric model, every field annotated with
+// @requestScoped exports its value to L1 (so another field with the same key can
+// later inject from it). The lookup matches by TypeName + FieldName.
+func (d *FederationMetaData) RequestScopedExportsForField(typeName, fieldName string) []string {
+	var keys []string
+	for _, f := range d.RequestScopedFields {
+		if f.TypeName == typeName && f.FieldName == fieldName {
+			keys = append(keys, f.L1Key)
+		}
+	}
+	return keys
 }
 
 type FederationFieldConfiguration struct {

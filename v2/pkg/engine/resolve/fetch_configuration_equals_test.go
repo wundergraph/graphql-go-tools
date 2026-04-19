@@ -101,10 +101,11 @@ func TestFetchConfigurationEquals_CachingDifference(t *testing.T) {
 
 	// Fields intentionally not compared by Equals (not relevant for fetch deduplication):
 	// CacheKeyTemplate, RootFieldL1EntityCacheKeyTemplates, UseL1Cache,
-	// HashAnalyticsKeys, KeyFields, MutationEntityImpactConfig
-	skippedFields := 6
+	// HashAnalyticsKeys, KeyFields, MutationEntityImpactConfig,
+	// RequestScopedFields
+	skippedFields := 7
 
-	totalFields := reflect.TypeOf(FetchCacheConfiguration{}).NumField()
+	totalFields := reflect.TypeFor[FetchCacheConfiguration]().NumField()
 	assert.Equal(t, totalFields, len(tests)+skippedFields,
 		"FetchCacheConfiguration has %d fields but test covers %d and skips %d — update this test and Equals() for new fields",
 		totalFields, len(tests), skippedFields)

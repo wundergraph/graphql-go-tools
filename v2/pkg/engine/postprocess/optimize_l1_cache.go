@@ -59,7 +59,7 @@ func (o *optimizeL1Cache) ProcessFetchTree(root *resolve.FetchTreeNode) {
 	// Phase 2: Determine L1 usefulness for each entity fetch
 	for _, ef := range entityFetches {
 		canRead := o.hasValidProvider(ef, entityFetches, rootFieldProviderInfos)
-		canWrite := o.hasValidConsumer(ef, entityFetches)
+		canWrite := o.hasValidConsumer(ef, entityFetches, rootFieldProviderInfos)
 		useL1Cache := canRead || canWrite
 		o.setUseL1Cache(ef.fetch, useL1Cache)
 	}
@@ -193,42 +193,45 @@ func (o *optimizeL1Cache) collectRootFieldProvidersRecursive(node *resolve.Fetch
 	}
 }
 
-// rootFieldHasValidConsumer checks if there's a later entity fetch that can benefit from this root field's L1 data
+// rootFieldHasValidConsumer checks if there's a later entity fetch that can benefit
+// from this root field's L1 data, either individually or as part of a union.
 func (o *optimizeL1Cache) rootFieldHasValidConsumer(provider *rootFieldProviderInfo, allEntityFetches []*entityFetchInfo) bool {
 	for _, consumer := range allEntityFetches {
-		// Check if consumer's entity type matches any type this root field provides
 		for _, entityType := range provider.entityTypes {
-			if consumer.entityType == entityType {
-				// Consumer must execute after provider (fetchID ordering or dependency)
-				if provider.fetchID < consumer.fetchID || slices.Contains(consumer.dependsOn, provider.fetchID) {
-					// Provider must have all fields that consumer needs (recursive tree search)
-					// If providesData is nil, assume provider can provide all fields (runtime validation will reject incomplete data)
-					if provider.providesData == nil || o.treeContainsAllFields(provider.providesData, consumer.providesData) {
-						return true
-					}
-				}
+			if consumer.entityType != entityType {
+				continue
+			}
+			if provider.fetchID >= consumer.fetchID && !slices.Contains(consumer.dependsOn, provider.fetchID) {
+				continue
+			}
+
+			// Fast path: this root field alone covers consumer
+			if provider.providesData == nil || o.treeContainsAllFields(provider.providesData, consumer.providesData) {
+				return true
+			}
+
+			// Slow path: check if union of all providers (including this root field) covers consumer
+			rootFieldProviders := []*rootFieldProviderInfo{provider}
+			union := o.collectAncestorUnion(consumer, allEntityFetches, rootFieldProviders)
+			if union != nil && objectProvidesAllFields(union, consumer.providesData) {
+				return true
 			}
 		}
 	}
 	return false
 }
 
-// hasValidProvider checks if there's a prior fetch that can provide data for this fetch
-// A prior fetch is valid if:
-// 1. It provides the same entity type
-// 2. It provides a superset of fields (provider has all fields that consumer needs)
-// 3. It executes before this fetch (has lower fetchID or is in dependsOn chain)
+// hasValidProvider checks if there's a prior fetch (or union of prior fetches)
+// that can provide all fields this fetch needs.
+//
+// Fast path: check if any single provider covers the consumer (cheap).
+// Slow path: compute the union of all ancestor providers' fields and check.
 func (o *optimizeL1Cache) hasValidProvider(consumer *entityFetchInfo, allFetches []*entityFetchInfo, rootFieldProviders []*rootFieldProviderInfo) bool {
-	// Check root field providers first
+	// Fast path: check individual providers
 	for _, provider := range rootFieldProviders {
-		// Check if provider's entity types include consumer's type
 		for _, entityType := range provider.entityTypes {
 			if entityType == consumer.entityType {
-				// Root field providers always execute before entity fetches that depend on their data
-				// Check if this consumer depends (directly or transitively) on the root field
 				if provider.fetchID < consumer.fetchID || o.isInDependencyChain(consumer, provider.fetchID, allFetches) {
-					// Provider must have all fields that consumer needs (recursive tree search)
-					// If providesData is nil, assume provider can provide all fields (runtime validation will reject incomplete data)
 					if provider.providesData == nil || o.treeContainsAllFields(provider.providesData, consumer.providesData) {
 						return true
 					}
@@ -237,54 +240,55 @@ func (o *optimizeL1Cache) hasValidProvider(consumer *entityFetchInfo, allFetches
 		}
 	}
 
-	// Check entity fetches
 	for _, provider := range allFetches {
 		if provider.fetchID == consumer.fetchID {
-			continue // Skip self
+			continue
 		}
-
-		// Must be same entity type
 		if provider.entityType != consumer.entityType {
 			continue
 		}
-
-		// Provider must execute before consumer
 		if !o.executesBefore(provider, consumer, allFetches) {
 			continue
 		}
-
-		// Provider must have all fields that consumer needs (recursively)
 		if objectProvidesAllFields(provider.providesData, consumer.providesData) {
 			return true
 		}
 	}
 
+	// Slow path: compute union of all ancestor providers and check
+	union := o.collectAncestorUnion(consumer, allFetches, rootFieldProviders)
+	if union != nil && objectProvidesAllFields(union, consumer.providesData) {
+		return true
+	}
+
 	return false
 }
 
-// hasValidConsumer checks if there's a later fetch that can benefit from this fetch's L1 data
-// A later fetch is a valid consumer if:
-// 1. It needs the same entity type
-// 2. It needs a subset of fields (consumer needs only fields that provider has)
-// 3. It executes after this fetch
-func (o *optimizeL1Cache) hasValidConsumer(provider *entityFetchInfo, allFetches []*entityFetchInfo) bool {
+// hasValidConsumer checks if there's a later fetch that can benefit from this fetch's L1 data.
+// A fetch is a valid writer if:
+// 1. It individually covers a later consumer's fields, OR
+// 2. It contributes to a union of providers that covers a later consumer's fields.
+func (o *optimizeL1Cache) hasValidConsumer(provider *entityFetchInfo, allFetches []*entityFetchInfo, rootFieldProviders []*rootFieldProviderInfo) bool {
 	for _, consumer := range allFetches {
 		if consumer.fetchID == provider.fetchID {
-			continue // Skip self
+			continue
 		}
-
-		// Must be same entity type
 		if consumer.entityType != provider.entityType {
 			continue
 		}
-
-		// Consumer must execute after provider
 		if !o.executesBefore(provider, consumer, allFetches) {
 			continue
 		}
 
-		// Provider must have all fields that consumer needs (recursively)
+		// Fast path: this provider alone covers consumer
 		if objectProvidesAllFields(provider.providesData, consumer.providesData) {
+			return true
+		}
+
+		// Slow path: check if the union of all providers before consumer
+		// (including this provider and root field providers) covers consumer.
+		union := o.collectAncestorUnion(consumer, allFetches, rootFieldProviders)
+		if union != nil && objectProvidesAllFields(union, consumer.providesData) {
 			return true
 		}
 	}
@@ -449,4 +453,120 @@ func (o *optimizeL1Cache) nodeContainsAllFields(node resolve.Node, target *resol
 		return o.nodeContainsAllFields(n.Item, target)
 	}
 	return false
+}
+
+// unionObjects merges the fields of two Objects into a new Object containing
+// all fields from both. For fields present in both, nested Objects are merged
+// recursively; other types take the first value.
+func unionObjects(a, b *resolve.Object) *resolve.Object {
+	if a == nil {
+		return b
+	}
+	if b == nil {
+		return a
+	}
+
+	// Start with a copy of a's fields
+	merged := make([]*resolve.Field, 0, len(a.Fields)+len(b.Fields))
+	merged = append(merged, a.Fields...)
+
+	// Add fields from b that aren't in a (or merge nested objects)
+	for _, bf := range b.Fields {
+		existing := findFieldByName(merged, bf.Name)
+		if existing == nil {
+			merged = append(merged, bf)
+		} else {
+			// Field exists in both — merge nested objects recursively
+			existingObj, existingIsObj := existing.Value.(*resolve.Object)
+			bObj, bIsObj := bf.Value.(*resolve.Object)
+			if existingIsObj && bIsObj {
+				existing.Value = unionObjects(existingObj, bObj)
+			}
+			// For non-object values (scalars, arrays), keep existing
+		}
+	}
+
+	return &resolve.Object{Fields: merged}
+}
+
+// collectAncestorUnion computes the union of ProvidesData fields from all
+// ancestor providers of the same entity type that execute before the consumer.
+// Includes both entity fetches and root field providers.
+func (o *optimizeL1Cache) collectAncestorUnion(
+	consumer *entityFetchInfo,
+	allFetches []*entityFetchInfo,
+	rootFieldProviders []*rootFieldProviderInfo,
+) *resolve.Object {
+	var union *resolve.Object
+
+	// Collect from root field providers
+	for _, provider := range rootFieldProviders {
+		for _, entityType := range provider.entityTypes {
+			if entityType != consumer.entityType {
+				continue
+			}
+			if provider.fetchID < consumer.fetchID || o.isInDependencyChain(consumer, provider.fetchID, allFetches) {
+				if provider.providesData != nil {
+					// For root fields, find the nested entity object in the tree
+					entityObj := o.findEntityObjectInTree(provider.providesData, consumer.providesData)
+					if entityObj != nil {
+						union = unionObjects(union, entityObj)
+					}
+				}
+			}
+		}
+	}
+
+	// Collect from entity fetches
+	for _, provider := range allFetches {
+		if provider.fetchID == consumer.fetchID {
+			continue
+		}
+		if provider.entityType != consumer.entityType {
+			continue
+		}
+		if !o.executesBefore(provider, consumer, allFetches) {
+			continue
+		}
+		if provider.providesData != nil {
+			union = unionObjects(union, provider.providesData)
+		}
+	}
+
+	return union
+}
+
+// findEntityObjectInTree searches a root field's ProvidesData tree for an
+// Object that could provide entity fields. Returns the first Object whose
+// fields overlap with the target entity's fields.
+func (o *optimizeL1Cache) findEntityObjectInTree(tree, target *resolve.Object) *resolve.Object {
+	if tree == nil || target == nil {
+		return nil
+	}
+	// Check if this object has any of the target fields
+	if objectProvidesAllFields(tree, target) {
+		return tree
+	}
+	// Check if this object has at least one target field (partial match for union)
+	for _, tf := range target.Fields {
+		if findFieldByName(tree.Fields, tf.Name) != nil {
+			return tree
+		}
+	}
+	// Search nested objects
+	for _, field := range tree.Fields {
+		switch n := field.Value.(type) {
+		case *resolve.Object:
+			if found := o.findEntityObjectInTree(n, target); found != nil {
+				return found
+			}
+		case *resolve.Array:
+			if item, ok := n.Item.(*resolve.Object); ok {
+				if found := o.findEntityObjectInTree(item, target); found != nil {
+					return found
+				}
+			}
+		}
+	}
+	return nil
 }
