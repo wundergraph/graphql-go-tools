@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -12,6 +13,22 @@ import (
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/flags"
 )
+
+// mustRecvMessage receives a single subscription message from ch with a timeout.
+// Fails the test if the channel is closed unexpectedly or the timeout elapses.
+func mustRecvMessage(t *testing.T, ch <-chan string, timeout time.Duration) string {
+	t.Helper()
+	select {
+	case m, ok := <-ch:
+		if !ok {
+			t.Fatalf("message channel closed unexpectedly")
+		}
+		return m
+	case <-time.After(timeout):
+		t.Fatalf("timed out after %s waiting for subscription message", timeout)
+		return ""
+	}
+}
 
 func TestExecutionEngine_FederationAndSubscription_IntegrationTest(t *testing.T) {
 	t.Parallel()
@@ -118,10 +135,10 @@ subscription UpdatedPrice {
 
 			msg := `{"data":{"updatedPrice":{"name":"Boater","price":%d,"reviews":[{"body":"This is the last straw. Hat you will wear. 11/10","author":{"id":"7777","username":"User 7777"}}]}}}`
 
-			firstMessage := <-message
+			firstMessage := mustRecvMessage(t, message, 5*time.Second)
 			assert.Equal(t, fmt.Sprintf(msg, 10), firstMessage)
 
-			secondMessage := <-message
+			secondMessage := mustRecvMessage(t, message, 5*time.Second)
 			assert.Equal(t, fmt.Sprintf(msg, 11), secondMessage)
 		})
 	})

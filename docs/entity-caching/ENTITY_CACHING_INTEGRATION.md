@@ -39,7 +39,7 @@ type LoaderCache interface {
 
 type CacheEntry struct {
     Key          string           // Cache key string (JSON format)
-    Value        []byte           // JSON-encoded entity data
+    Value        []byte           // Opaque cached payload bytes (e.g., entity JSON or root-field response bytes); callers interpret
     RemainingTTL time.Duration    // Remaining TTL from cache (0 = unknown/not supported)
     WriteReason  CacheWriteReason // Why this entry was written (set by the engine, not by backends)
 }
@@ -325,14 +325,19 @@ Arguments are sorted alphabetically for stable key generation.
 
 ### Key Transformations (applied in order)
 
-1. **Subgraph header hash prefix** (when `IncludeSubgraphHeaderPrefix = true`):
+1. **Global cache key prefix** (when `GlobalCacheKeyPrefix` is set on the request's `CachingOptions`):
    ```text
-   {headerHash}:{"__typename":"User","key":{"id":"123"}}
+   v42:{"__typename":"User","key":{"id":"123"}}
    ```
 
-2. **L2CacheKeyInterceptor** (when set):
+2. **Subgraph header hash prefix** (when `IncludeSubgraphHeaderPrefix = true`):
    ```text
-   tenant-X:{headerHash}:{"__typename":"User","key":{"id":"123"}}
+   v42:{headerHash}:{"__typename":"User","key":{"id":"123"}}
+   ```
+
+3. **L2CacheKeyInterceptor** (when set):
+   ```text
+   tenant-X:v42:{headerHash}:{"__typename":"User","key":{"id":"123"}}
    ```
 
 ### Entity Field Argument-Aware Keys
@@ -553,7 +558,7 @@ Subgraphs can signal cache invalidation through GraphQL response extensions:
 The engine automatically:
 1. Parses `extensions.cacheInvalidation.keys` from each subgraph response
 2. Builds L2 cache keys matching entity type and key fields
-3. Applies subgraph header prefix and `L2CacheKeyInterceptor` transformations
+3. Applies the full L2 key-transformation pipeline in order: `GlobalCacheKeyPrefix` → subgraph header prefix → `L2CacheKeyInterceptor` (same ordering as cache writes)
 4. Calls `LoaderCache.Delete()` for each key
 5. **Optimization**: skips delete if the same key is being written in the same fetch (no unnecessary round-trip)
 

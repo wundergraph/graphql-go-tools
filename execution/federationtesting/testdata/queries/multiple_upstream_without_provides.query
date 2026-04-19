@@ -1,11 +1,11 @@
 query MultipleServersWithoutProvides {
-	topProducts {
+    topProducts {
         name
         reviews {
-          body
-          authorWithoutProvides {
-            username
-          }
+            body
+            authorWithoutProvides {
+                username
+            }
         }
     }
 }

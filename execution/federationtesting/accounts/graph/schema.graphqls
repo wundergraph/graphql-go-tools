@@ -54,12 +54,6 @@ type User implements Identifiable @key(fields: "id")  {
     nickname: String!
     history: [History!]!
     realName: String!
-    # Returns users who have interacted with this user's purchased products.
-    # This field creates a dependency chain for L1 cache testing:
-    # 1. First, this User must be resolved (entity fetch)
-    # 2. Then, relatedUsers returns other User IDs
-    # 3. Those Users need entity resolution (second entity fetch) -> L1 HIT if same user!
-    relatedUsers: [User!]!
     greeting(style: String!): String!
     customGreeting(input: GreetingInput!): String!
 }

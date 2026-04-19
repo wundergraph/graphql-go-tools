@@ -6,5 +6,4 @@
 pkg/parser/testdata/lotto.graphql
 *node_modules*
 *vendor*
-.serena
 docs/superpowers/

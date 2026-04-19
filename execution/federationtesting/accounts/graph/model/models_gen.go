@@ -327,7 +327,6 @@ type User struct {
 	Nickname       string    `json:"nickname"`
 	History        []History `json:"history"`
 	RealName       string    `json:"realName"`
-	RelatedUsers   []*User   `json:"relatedUsers"`
 	Greeting       string    `json:"greeting"`
 	CustomGreeting string    `json:"customGreeting"`
 }

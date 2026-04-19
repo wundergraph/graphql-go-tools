@@ -23,8 +23,8 @@ import (
 )
 
 type gatewayOptions struct {
-	enableART       bool
-	withLoaderCache map[string]resolve.LoaderCache
+	enableART   bool
+	loaderCache map[string]resolve.LoaderCache
 }
 
 func withEnableART(enableART bool) func(*gatewayOptions) {
@@ -35,7 +35,7 @@ func withEnableART(enableART bool) func(*gatewayOptions) {
 
 func withLoaderCache(loaderCache map[string]resolve.LoaderCache) func(*gatewayOptions) {
 	return func(opts *gatewayOptions) {
-		opts.withLoaderCache = loaderCache
+		opts.loaderCache = loaderCache
 	}
 }
 
@@ -55,7 +55,7 @@ func addGateway(options ...gatewayOptionsToFunc) func(setup *federationtesting.F
 			{Name: "reviews", URL: setup.ReviewsUpstreamServer.URL},
 		}, httpClient)
 
-		gtw := gateway.Handler(abstractlogger.NoopLogger, poller, httpClient, opts.enableART, opts.withLoaderCache, nil)
+		gtw := gateway.Handler(abstractlogger.NoopLogger, poller, httpClient, opts.enableART, opts.loaderCache, nil)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()

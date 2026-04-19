@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/execution/engine"
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting"
@@ -81,8 +82,10 @@ func TestRootFieldEntityKeyMappingCacheSharing(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 
-		productsURLParsed, _ := url.Parse(setup.ProductsUpstreamServer.URL)
-		reviewsURLParsed, _ := url.Parse(setup.ReviewsUpstreamServer.URL)
+		productsURLParsed, err := url.Parse(setup.ProductsUpstreamServer.URL)
+		require.NoError(t, err)
+		reviewsURLParsed, err := url.Parse(setup.ReviewsUpstreamServer.URL)
+		require.NoError(t, err)
 		productsHost := productsURLParsed.Host
 		reviewsHost := reviewsURLParsed.Host
 
@@ -156,7 +159,8 @@ func TestRootFieldEntityKeyMappingCacheSharing(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 
-		productsURLParsed, _ := url.Parse(setup.ProductsUpstreamServer.URL)
+		productsURLParsed, err := url.Parse(setup.ProductsUpstreamServer.URL)
+		require.NoError(t, err)
 		productsHost := productsURLParsed.Host
 
 		// Request 1: cache miss → subgraph called
@@ -233,8 +237,10 @@ func TestRootFieldEntityKeyMappingCacheSharing(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 
-		productsURLParsed, _ := url.Parse(setup.ProductsUpstreamServer.URL)
-		reviewsURLParsed, _ := url.Parse(setup.ReviewsUpstreamServer.URL)
+		productsURLParsed, err := url.Parse(setup.ProductsUpstreamServer.URL)
+		require.NoError(t, err)
+		reviewsURLParsed, err := url.Parse(setup.ReviewsUpstreamServer.URL)
+		require.NoError(t, err)
 		productsHost := productsURLParsed.Host
 		reviewsHost := reviewsURLParsed.Host
 		query := `query { product(upc: "top-1") { upc name reviews { body } } }`
@@ -333,8 +339,10 @@ func TestRootFieldEntityKeyMappingCacheSharing(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 
-		productsURLParsed, _ := url.Parse(setup.ProductsUpstreamServer.URL)
-		reviewsURLParsed, _ := url.Parse(setup.ReviewsUpstreamServer.URL)
+		productsURLParsed, err := url.Parse(setup.ProductsUpstreamServer.URL)
+		require.NoError(t, err)
+		reviewsURLParsed, err := url.Parse(setup.ReviewsUpstreamServer.URL)
+		require.NoError(t, err)
 		productsHost := productsURLParsed.Host
 		reviewsHost := reviewsURLParsed.Host
 		seedQuery := `query { product(upc: "top-1") { upc name reviews { body } } }`
@@ -453,8 +461,10 @@ func TestRootFieldEntityKeyMappingCacheSharing(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 
-		productsURLParsed, _ := url.Parse(setup.ProductsUpstreamServer.URL)
-		reviewsURLParsed, _ := url.Parse(setup.ReviewsUpstreamServer.URL)
+		productsURLParsed, err := url.Parse(setup.ProductsUpstreamServer.URL)
+		require.NoError(t, err)
+		reviewsURLParsed, err := url.Parse(setup.ReviewsUpstreamServer.URL)
+		require.NoError(t, err)
 		productsHost := productsURLParsed.Host
 		reviewsHost := reviewsURLParsed.Host
 		query := `query { product(upc: "top-1") { upc name reviews { body } } }`

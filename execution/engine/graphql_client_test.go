@@ -59,8 +59,9 @@ type GraphqlClient struct {
 	httpClient *http.Client
 }
 
-func (g *GraphqlClient) Query(ctx context.Context, addr, queryFilePath string, variables queryVariables, t *testing.T) []byte {
-	reqBody := loadQuery(t, queryFilePath, variables)
+// executeQuery performs the shared POST/read/assert flow used by Query,
+// QueryWithHeaders, QueryString, and QueryStringWithHeaders.
+func (g *GraphqlClient) executeQuery(ctx context.Context, addr string, reqBody []byte, t *testing.T) ([]byte, http.Header) {
 	req, err := http.NewRequest(http.MethodPost, addr, bytes.NewBuffer(reqBody))
 	require.NoError(t, err)
 	req = req.WithContext(ctx)
@@ -71,59 +72,28 @@ func (g *GraphqlClient) Query(ctx context.Context, addr, queryFilePath string, v
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+	return responseBodyBytes, resp.Header
+}
 
-	return responseBodyBytes
+func (g *GraphqlClient) Query(ctx context.Context, addr, queryFilePath string, variables queryVariables, t *testing.T) []byte {
+	body, _ := g.executeQuery(ctx, addr, loadQuery(t, queryFilePath, variables), t)
+	return body
 }
 
 // QueryWithHeaders returns both the response body and headers for a file-based query.
 func (g *GraphqlClient) QueryWithHeaders(ctx context.Context, addr, queryFilePath string, variables queryVariables, t *testing.T) ([]byte, http.Header) {
-	reqBody := loadQuery(t, queryFilePath, variables)
-	req, err := http.NewRequest(http.MethodPost, addr, bytes.NewBuffer(reqBody))
-	require.NoError(t, err)
-	req = req.WithContext(ctx)
-	resp, err := g.httpClient.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	responseBodyBytes, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
-
-	return responseBodyBytes, resp.Header
+	return g.executeQuery(ctx, addr, loadQuery(t, queryFilePath, variables), t)
 }
 
 func (g *GraphqlClient) QueryString(ctx context.Context, addr, query string, variables queryVariables, t *testing.T) []byte {
-	reqBody := requestBody(t, query, variables)
-	req, err := http.NewRequest(http.MethodPost, addr, bytes.NewBuffer(reqBody))
-	require.NoError(t, err)
-	req = req.WithContext(ctx)
-	resp, err := g.httpClient.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	responseBodyBytes, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
-
-	return responseBodyBytes
+	body, _ := g.executeQuery(ctx, addr, requestBody(t, query, variables), t)
+	return body
 }
 
 // QueryStringWithHeaders returns both the response body and headers.
 // Useful for testing cache stats exposed via headers.
 func (g *GraphqlClient) QueryStringWithHeaders(ctx context.Context, addr, query string, variables queryVariables, t *testing.T) ([]byte, http.Header) {
-	reqBody := requestBody(t, query, variables)
-	req, err := http.NewRequest(http.MethodPost, addr, bytes.NewBuffer(reqBody))
-	require.NoError(t, err)
-	req = req.WithContext(ctx)
-	resp, err := g.httpClient.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	responseBodyBytes, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
-
-	return responseBodyBytes, resp.Header
+	return g.executeQuery(ctx, addr, requestBody(t, query, variables), t)
 }
 
 func (g *GraphqlClient) QueryStatusCode(ctx context.Context, addr, queryFilePath string, variables queryVariables, expectedStatusCode int, t *testing.T) []byte {

@@ -2,6 +2,7 @@ package resolve
 
 import (
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -209,6 +210,54 @@ func NewCacheAnalyticsCollector() *CacheAnalyticsCollector {
 		fetchTimings:  make([]FetchTimingEvent, 0, 8),
 		errorEvents:   make([]SubgraphErrorEvent, 0, 4),
 		xxh:           xxhash.New(),
+	}
+}
+
+// cacheAnalyticsPool recycles collectors across requests. The allocator profile
+// on the cache demo showed ~5 GB / 8% of all allocations originating from
+// `NewCacheAnalyticsCollector` alone (fresh collector per request × 13K rps),
+// driving GC pressure that shows up in the p99 tail. Pooling retains the
+// pre-allocated slice capacities across requests; `ResetForReuse` truncates
+// them without releasing the backing arrays.
+var cacheAnalyticsPool = sync.Pool{
+	New: func() any { return NewCacheAnalyticsCollector() },
+}
+
+// AcquireCacheAnalyticsCollector returns a collector ready for reuse. The
+// returned collector must be released via ReleaseCacheAnalyticsCollector once
+// the caller is done (typically via Context.Free()).
+func AcquireCacheAnalyticsCollector() *CacheAnalyticsCollector {
+	c := cacheAnalyticsPool.Get().(*CacheAnalyticsCollector)
+	c.ResetForReuse()
+	return c
+}
+
+// ReleaseCacheAnalyticsCollector returns the collector to the pool. Safe to
+// call with nil.
+func ReleaseCacheAnalyticsCollector(c *CacheAnalyticsCollector) {
+	if c == nil {
+		return
+	}
+	cacheAnalyticsPool.Put(c)
+}
+
+// ResetForReuse clears the collector's accumulated events while retaining the
+// backing array capacities. Safe to call on a collector that was never used.
+func (c *CacheAnalyticsCollector) ResetForReuse() {
+	c.l1KeyEvents = c.l1KeyEvents[:0]
+	c.l2KeyEvents = c.l2KeyEvents[:0]
+	c.writeEvents = c.writeEvents[:0]
+	c.fieldHashes = c.fieldHashes[:0]
+	c.entityCounts = c.entityCounts[:0]
+	c.entitySources = c.entitySources[:0]
+	c.fetchTimings = c.fetchTimings[:0]
+	c.errorEvents = c.errorEvents[:0]
+	c.shadowComparisons = c.shadowComparisons[:0]
+	c.mutationEvents = c.mutationEvents[:0]
+	c.headerImpactEvents = c.headerImpactEvents[:0]
+	c.cacheOpErrors = c.cacheOpErrors[:0]
+	if c.xxh != nil {
+		c.xxh.Reset()
 	}
 }
 

@@ -331,12 +331,17 @@ func (c *Context) appendSubgraphErrors(ds DataSourceInfo, errs ...error) {
 	c.subgraphErrors[ds.Name] = errors.Join(c.subgraphErrors[ds.Name], errors.Join(errs...))
 }
 
-// GetCacheStats returns a snapshot of the cache statistics for the current request.
-// When EnableCacheAnalytics is true, returns the full analytics snapshot.
-// When false, returns an empty snapshot.
+// GetCacheStats returns a snapshot of the cache statistics for the current request
+// and releases the collector back to the pool. After this call, cacheAnalyticsEnabled()
+// returns false and further Record* calls are no-ops. Callers must take the snapshot
+// exactly once per request; all downstream analytics consumers operate on the returned
+// CacheAnalyticsSnapshot (a plain value that holds its own copies).
 func (c *Context) GetCacheStats() CacheAnalyticsSnapshot {
 	if c.cacheAnalytics != nil {
-		return c.cacheAnalytics.Snapshot()
+		snap := c.cacheAnalytics.Snapshot()
+		ReleaseCacheAnalyticsCollector(c.cacheAnalytics)
+		c.cacheAnalytics = nil
+		return snap
 	}
 	return CacheAnalyticsSnapshot{}
 }
@@ -347,11 +352,12 @@ func (c *Context) cacheAnalyticsEnabled() bool {
 	return c.cacheAnalytics != nil
 }
 
-// initCacheAnalytics creates the analytics collector if EnableCacheAnalytics is set.
+// initCacheAnalytics obtains a pooled analytics collector if EnableCacheAnalytics is set.
+// The collector is returned to the pool by Context.Free().
 // Called once at the start of LoadGraphQLResponseData.
 func (c *Context) initCacheAnalytics() {
 	if c.ExecutionOptions.Caching.EnableCacheAnalytics {
-		c.cacheAnalytics = NewCacheAnalyticsCollector()
+		c.cacheAnalytics = AcquireCacheAnalyticsCollector()
 	}
 }
 
@@ -418,7 +424,10 @@ func (c *Context) Free() {
 	c.subgraphErrors = nil
 	c.authorizer = nil
 	c.LoaderHooks = nil
-	c.cacheAnalytics = nil
+	if c.cacheAnalytics != nil {
+		ReleaseCacheAnalyticsCollector(c.cacheAnalytics)
+		c.cacheAnalytics = nil
+	}
 	c.GetDeduplicationData = nil
 	c.SetDeduplicationData = nil
 	c.ActualListSizes = nil

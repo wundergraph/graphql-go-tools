@@ -72,10 +72,14 @@ type Visitor struct {
 	// plannerCurrentFields stores the current field stack for each planner
 	// map plannerID -> field stack
 	plannerCurrentFields map[int][]objectFields
-	// plannerResponsePaths stores the response paths relative to each planner's root
+	// plannerResponsePaths stores the response paths relative to each planner's root.
+	// Paths are normalized: inline-fragment markers like ".$0User" are stripped so
+	// prefix comparisons against plannerEntityBoundaryPaths match regardless of fragments.
 	// map plannerID -> response path stack
 	plannerResponsePaths map[int][]string
-	// plannerEntityBoundaryPaths stores the entity boundary paths for each planner
+	// plannerEntityBoundaryPaths stores the entity boundary paths for each planner.
+	// Stored in normalized form (no inline-fragment markers) so that isEntityRootField
+	// can match regardless of how the query wraps the boundary in a fragment.
 	// map plannerID -> entity boundary path
 	plannerEntityBoundaryPaths map[int]string
 
@@ -380,7 +384,13 @@ func (v *Visitor) EnterField(ref int) {
 		v.fieldEnclosingTypeNames[ref] = strings.Clone(v.Walker.EnclosingTypeDefinition.NameString(v.Definition))
 	}
 
-	// Track field for each planner that should handle it
+	// Track field for each planner that should handle it.
+	// trackFieldForPlanner delegates the ownership check to shouldPlannerHandleField
+	// and returns early for planners that don't own this path. A reverse index
+	// (fieldRef → owning plannerIDs) is not usable here because the walker
+	// invokes planningVisitor.EnterField before AllowVisitor has fired for the
+	// individual planner visitors — so the fieldPlanners map is not yet
+	// populated at this point.
 	for plannerID := range v.planners {
 		v.trackFieldForPlanner(plannerID, ref)
 	}
@@ -517,8 +527,8 @@ func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *reso
 		}
 	}
 
-	// Mark non-key fields on CONCRETE entity types for cache analytics hashing.
-	// For interface/union parents, leave false — runtime fallback handles it.
+	// Mark non-key fields on concrete entity types for cache analytics hashing;
+	// polymorphic parents fall through to the runtime fallback.
 	if v.Walker.EnclosingTypeDefinition.Kind == ast.NodeKindObjectTypeDefinition {
 		if analytics := v.entityCacheAnalytics(enclosingTypeName); analytics != nil {
 			fieldInfo.CacheAnalyticsHash = !analytics.IsKeyField(fieldName)
@@ -915,27 +925,12 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 				}
 			}
 
-			// Annotate entity types with cache analytics config (plan-time)
+			// Annotate entity types with cache analytics config (plan-time).
 			switch typeDefinitionNode.Kind {
 			case ast.NodeKindObjectTypeDefinition:
-				// Concrete type: direct lookup
-				if typeName != "" {
-					object.CacheAnalytics = v.entityCacheAnalytics(typeName)
-				}
+				object.CacheAnalytics = v.entityCacheAnalytics(typeName)
 			case ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
-				// Polymorphic type: check if any PossibleType is an entity
-				byTypeName := make(map[string]*resolve.ObjectCacheAnalytics)
-				hasEntity := false
-				for possibleType := range object.PossibleTypes {
-					analytics := v.entityCacheAnalytics(possibleType)
-					if analytics != nil {
-						byTypeName[possibleType] = analytics
-						hasEntity = true
-					}
-				}
-				if hasEntity {
-					object.CacheAnalytics = &resolve.ObjectCacheAnalytics{ByTypeName: byTypeName}
-				}
+				object.CacheAnalytics = v.polymorphicEntityCacheAnalytics(object.PossibleTypes)
 			}
 
 			v.objects = append(v.objects, object)
@@ -1082,7 +1077,8 @@ func (v *Visitor) EnterOperationDefinition(opRef int) {
 		}
 	}
 
-	// Initialize per-planner structures for ProvidesData tracking
+	// Initialize per-planner object and field tracking structures used to build
+	// the ProvidesData tree that each subgraph fetch will populate at runtime.
 	v.initializePlannerStructures()
 
 	if operationKind == ast.OperationTypeSubscription {
@@ -1143,14 +1139,16 @@ func (v *Visitor) resolveFieldPath(ref int) []string {
 
 func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.Operation, v.Definition = operation, definition
+	// Per-walk state is reset here rather than in NewVisitor so the same *Visitor
+	// can be reused across operations (common in tests and in the planner cache).
+	// The `fieldPlanners` map is intentionally NOT reset — the cost visitor
+	// captures a reference to it before the walk starts.
 	v.fieldConfigs = map[int]*FieldConfiguration{}
 	v.exportedVariables = map[string]struct{}{}
 	v.skipIncludeOnFragments = map[int]skipIncludeInfo{}
 	v.indirectInterfaceFields = map[int]indirectInterfaceField{}
 	v.pathCache = map[astvisitor.VisitorKind]map[int]string{}
 	v.plannerFields = map[int][]int{}
-	// NOTE: Do NOT reset fieldPlanners here — the cost visitor captures a reference
-	// to this map before the walk starts and would lose the shared reference.
 	v.fieldEnclosingTypeNames = map[int]string{}
 	v.plannerObjects = map[int]*resolve.Object{}
 	v.plannerCurrentFields = map[int][]objectFields{}
@@ -1209,13 +1207,10 @@ func (v *Visitor) pathDeepness(path string) int {
 	return strings.Count(path, ".")
 }
 
+// initializePlannerStructures seeds per-planner ProvidesData state so field tracking
+// during the walk can push/pop onto a stable root. Safe to call when no planners
+// are configured: the range over a nil slice is a no-op.
 func (v *Visitor) initializePlannerStructures() {
-	// Initialize root objects and field stacks for each potential planner
-	// We'll populate these as we traverse fields
-	if v.planners == nil {
-		return
-	}
-
 	for i := range v.planners {
 		v.plannerObjects[i] = &resolve.Object{
 			Fields: []*resolve.Field{},
@@ -1232,11 +1227,9 @@ func (v *Visitor) initializePlannerStructures() {
 // trackFieldForPlanner adds field information to the planner's tracked object structure.
 // It handles entity boundary detection, __typename field deduplication, and creates
 // the appropriate field value nodes for the planner's representation of the query.
+// The caller may pass any plannerID; shouldPlannerHandleField validates bounds and
+// ownership in one place.
 func (v *Visitor) trackFieldForPlanner(plannerID int, fieldRef int) {
-	if v.planners == nil || plannerID >= len(v.planners) {
-		return
-	}
-
 	if !v.shouldPlannerHandleField(plannerID, fieldRef) {
 		return
 	}
@@ -1290,7 +1283,7 @@ func (v *Visitor) trackFieldForPlanner(plannerID int, fieldRef int) {
 	}
 	fieldType := v.Definition.FieldDefinitionType(fieldDefinition)
 
-	fieldValue := v.createFieldValueForPlanner(fieldRef, fieldType, []string{fieldAliasOrName})
+	fieldValue := v.createFieldValueForPlanner(fieldType, []string{fieldAliasOrName})
 
 	onTypeNames := v.resolveEntityOnTypeNames(plannerID, fieldRef, fieldName)
 
@@ -1383,14 +1376,16 @@ func (v *Visitor) resolveEntityOnTypeNames(plannerID, fieldRef int, fieldName as
 	return onTypeNames
 }
 
-// createFieldValueForPlanner creates a simplified field value for planner tracking
-// without relying on the full visitor state like resolveFieldValue does
-func (v *Visitor) createFieldValueForPlanner(fieldRef, typeRef int, path []string) resolve.Node {
+// createFieldValueForPlanner builds the resolve.Node shape used for ProvidesData
+// tracking on a given planner. Unlike resolveFieldValue it does not mutate walker
+// state (objects list, currentFields stack, etc.), so it can be invoked from
+// trackFieldForPlanner during EnterField without side-effects on the main walk.
+func (v *Visitor) createFieldValueForPlanner(typeRef int, path []string) resolve.Node {
 	ofType := v.Definition.Types[typeRef].OfType
 
 	switch v.Definition.Types[typeRef].TypeKind {
 	case ast.TypeKindNonNull:
-		node := v.createFieldValueForPlanner(fieldRef, ofType, path)
+		node := v.createFieldValueForPlanner(ofType, path)
 		// Set nullable to false for the returned node
 		switch n := node.(type) {
 		case *resolve.Scalar:
@@ -1402,7 +1397,7 @@ func (v *Visitor) createFieldValueForPlanner(fieldRef, typeRef int, path []strin
 		}
 		return node
 	case ast.TypeKindList:
-		listItem := v.createFieldValueForPlanner(fieldRef, ofType, nil)
+		listItem := v.createFieldValueForPlanner(ofType, nil)
 		return &resolve.Array{
 			Nullable: true,
 			Path:     path,
@@ -1490,30 +1485,34 @@ func (v *Visitor) normalizePathRemovingFragments(path string) string {
 	return fragmentMarkerRegex.ReplaceAllString(path, "")
 }
 
-// isEntityRootField checks if this field is at the root of an entity
-// This means it has one additional path element compared to the stored entity boundary path
+// isEntityRootField checks if this field is at the root of an entity.
+// It returns true when the field path is a direct child of the stored entity
+// boundary path. The current walker path is normalized (inline-fragment markers
+// stripped) before the prefix check — boundary paths are stored normalized by
+// isEntityBoundaryField, so comparing a raw path here would miss queries that
+// wrap the boundary in an inline fragment such as `... on User { reviews }`.
 func (v *Visitor) isEntityRootField(plannerID int, fieldRef int) bool {
-	// Check if we have a stored entity boundary path for this planner
 	boundaryPath, hasBoundary := v.plannerEntityBoundaryPaths[plannerID]
 	if !hasBoundary {
 		return false
 	}
 
-	// Get the current field path
 	currentPath := v.Walker.Path.DotDelimitedString()
 	fieldName := v.Operation.FieldAliasOrNameString(fieldRef)
-	fullFieldPath := currentPath + "." + fieldName
+	return v.isEntityRootPath(boundaryPath, currentPath+"."+fieldName)
+}
 
-	// Check if this field is a direct child of the entity boundary
-	// It should start with the boundary path and have exactly one more segment
-	if !strings.HasPrefix(fullFieldPath, boundaryPath+".") {
+// isEntityRootPath is the pure, walker-free core of isEntityRootField. It
+// normalizes the candidate field path (stripping inline-fragment markers) and
+// returns true when that path is a direct child of boundaryPath. Extracted so
+// the inline-fragment / fragment-wrapping invariant from A42 can be unit-tested
+// without staging a real walker.
+func (v *Visitor) isEntityRootPath(boundaryPath, fullFieldPath string) bool {
+	normalized := v.normalizePathRemovingFragments(fullFieldPath)
+	if !strings.HasPrefix(normalized, boundaryPath+".") {
 		return false
 	}
-
-	// Remove the boundary path prefix and check if there's exactly one segment left
-	remainingPath := strings.TrimPrefix(fullFieldPath, boundaryPath+".")
-	// If there are no more dots, this is a root field of the entity
-	return !strings.Contains(remainingPath, ".")
+	return !strings.Contains(strings.TrimPrefix(normalized, boundaryPath+"."), ".")
 }
 
 func (v *Visitor) shouldPlannerHandleField(plannerID int, fieldRef int) bool {
@@ -1833,49 +1832,36 @@ func (v *Visitor) resolveSubscriptionEntityPopulationConfig(entityTypeName, fiel
 	if config := fedConfig.SubscriptionEntityPopulation.FindByTypeAndFieldName(entityTypeName, fieldName); config != nil {
 		return entityTypeName, config
 	}
-	// Tier 2: abstract type resolution — check union members, then interface implementors
-	if resolvedName, config := v.resolveUnionEntityPopulation(entityTypeName, fieldName, fedConfig); config != nil {
-		return resolvedName, config
-	}
-	if resolvedName, config := v.resolveInterfaceEntityPopulation(entityTypeName, fieldName, fedConfig); config != nil {
+	// Tier 2: abstract type resolution — check union members and interface implementors.
+	if resolvedName, config := v.resolveAbstractEntityPopulation(entityTypeName, fieldName, fedConfig); config != nil {
 		return resolvedName, config
 	}
 	return "", nil
 }
 
-// resolveUnionEntityPopulation checks if typeName is a union type and returns the first
-// union member that has a SubscriptionEntityPopulation config.
-func (v *Visitor) resolveUnionEntityPopulation(typeName, fieldName string, fedConfig *FederationMetaData) (string, *SubscriptionEntityPopulationConfiguration) {
+// resolveAbstractEntityPopulation checks if typeName is a union or interface type and
+// returns the first member/implementor that has a SubscriptionEntityPopulation config.
+func (v *Visitor) resolveAbstractEntityPopulation(typeName, fieldName string, fedConfig *FederationMetaData) (string, *SubscriptionEntityPopulationConfiguration) {
 	node, exists := v.Definition.Index.FirstNodeByNameStr(typeName)
-	if !exists || node.Kind != ast.NodeKindUnionTypeDefinition {
+	if !exists {
 		return "", nil
 	}
-	memberNames, ok := v.Definition.UnionTypeDefinitionMemberTypeNames(node.Ref)
+	var candidates []string
+	var ok bool
+	switch node.Kind {
+	case ast.NodeKindUnionTypeDefinition:
+		candidates, ok = v.Definition.UnionTypeDefinitionMemberTypeNames(node.Ref)
+	case ast.NodeKindInterfaceTypeDefinition:
+		candidates, ok = v.Definition.InterfaceTypeDefinitionImplementedByObjectWithNames(node.Ref)
+	default:
+		return "", nil
+	}
 	if !ok {
 		return "", nil
 	}
-	for _, memberName := range memberNames {
-		if cfg := fedConfig.SubscriptionEntityPopulation.FindByTypeAndFieldName(memberName, fieldName); cfg != nil {
-			return memberName, cfg
-		}
-	}
-	return "", nil
-}
-
-// resolveInterfaceEntityPopulation checks if typeName is an interface type and returns the first
-// implementor that has a SubscriptionEntityPopulation config.
-func (v *Visitor) resolveInterfaceEntityPopulation(typeName, fieldName string, fedConfig *FederationMetaData) (string, *SubscriptionEntityPopulationConfiguration) {
-	node, exists := v.Definition.Index.FirstNodeByNameStr(typeName)
-	if !exists || node.Kind != ast.NodeKindInterfaceTypeDefinition {
-		return "", nil
-	}
-	implementorNames, ok := v.Definition.InterfaceTypeDefinitionImplementedByObjectWithNames(node.Ref)
-	if !ok {
-		return "", nil
-	}
-	for _, implementorName := range implementorNames {
-		if cfg := fedConfig.SubscriptionEntityPopulation.FindByTypeAndFieldName(implementorName, fieldName); cfg != nil {
-			return implementorName, cfg
+	for _, name := range candidates {
+		if cfg := fedConfig.SubscriptionEntityPopulation.FindByTypeAndFieldName(name, fieldName); cfg != nil {
+			return name, cfg
 		}
 	}
 	return "", nil
@@ -1899,22 +1885,26 @@ func (v *Visitor) subscriptionFieldReturnTypeName(typeName, fieldName string) st
 }
 
 // entityKeyFieldNames extracts top-level field names from @key configurations.
-// LIMITATION: Uses naive whitespace splitting — only works for flat keys like
-// "id" or "id name". Compound keys with nested fields (e.g., "org { id }")
-// will produce incorrect results. This is acceptable because false positives
-// make it harder to trigger invalidate mode, which is the safe default.
+// It walks the parsed field-set AST so nested keys like "org { id }" correctly
+// yield only "org" rather than the previous superset {"org", "id"}.
 func (v *Visitor) entityKeyFieldNames(keys []FederationFieldConfiguration) map[string]struct{} {
 	result := make(map[string]struct{})
-	for _, key := range keys {
-		fields := strings.Fields(key.SelectionSet)
-		for _, f := range fields {
-			// Strip braces for nested fields
-			f = strings.TrimLeft(f, "{")
-			f = strings.TrimRight(f, "}")
-			f = strings.TrimSpace(f)
-			if f != "" {
-				result[f] = struct{}{}
+	for i := range keys {
+		if err := keys[i].parseSelectionSet(); err != nil {
+			continue
+		}
+		doc := keys[i].parsedSelectionSet
+		if doc == nil || len(doc.FragmentDefinitions) == 0 {
+			continue
+		}
+
+		selectionSetRef := doc.FragmentDefinitions[0].SelectionSet
+		for _, fieldRef := range doc.SelectionSetFieldRefs(selectionSetRef) {
+			fieldName := doc.FieldNameString(fieldRef)
+			if fieldName == "" {
+				continue
 			}
+			result[fieldName] = struct{}{}
 		}
 	}
 	return result
@@ -1922,24 +1912,22 @@ func (v *Visitor) entityKeyFieldNames(keys []FederationFieldConfiguration) map[s
 
 // subscriptionSelectsNonKeyFields checks if the operation selects any fields
 // from the given datasource for the entity type that are NOT @key fields.
-// It uses HasChildNode to check if each selected field belongs to this datasource.
+// It iterates the fieldEnclosingTypeNames map (already narrowed to fields we
+// have type info for) rather than every operation field ref.
 func (v *Visitor) subscriptionSelectsNonKeyFields(ds DataSource, entityTypeName string, keyFieldNames map[string]struct{}) bool {
-	// Iterate all fields in the operation and find those on the entity type
-	// owned by this datasource that are not @key fields
-	for i := range v.Operation.Fields {
-		opFieldName := v.Operation.FieldNameString(i)
+	for fieldRef, enclosingType := range v.fieldEnclosingTypeNames {
+		if enclosingType != entityTypeName {
+			continue
+		}
+		opFieldName := v.Operation.FieldNameString(fieldRef)
 		if opFieldName == "__typename" {
 			continue
 		}
 		if _, isKey := keyFieldNames[opFieldName]; isKey {
 			continue
 		}
-		// Check if this field is on the entity type
-		if et, ok := v.fieldEnclosingTypeNames[i]; ok && et == entityTypeName {
-			// Check if this field belongs to the subscription's datasource
-			if ds.HasChildNode(entityTypeName, opFieldName) || ds.HasRootNode(entityTypeName, opFieldName) {
-				return true
-			}
+		if ds.HasChildNode(entityTypeName, opFieldName) || ds.HasRootNode(entityTypeName, opFieldName) {
+			return true
 		}
 	}
 	return false
@@ -2388,7 +2376,7 @@ func (v *Visitor) configureFetchCaching(internal *objectFetchConfiguration, exte
 			NegativeCacheTTL:               cacheConfig.NegativeCacheTTL,
 			BatchEntityKeyArgumentPathHint: result.BatchEntityKeyArgumentPathHint,
 			// Preserve requestScoped hints/exports through the entity-cache-enabled path.
-			RequestScopedFields:  requestScopedFields,
+			RequestScopedFields: requestScopedFields,
 		}
 	}
 
@@ -2439,7 +2427,7 @@ func (v *Visitor) configureFetchCaching(internal *objectFetchConfiguration, exte
 		PartialBatchLoad:                   commonConfig.PartialBatchLoad,
 		BatchEntityKeyArgumentPathHint:     result.BatchEntityKeyArgumentPathHint,
 		// Preserve requestScoped fields through the L2-enabled root field path.
-		RequestScopedFields:  requestScopedFields,
+		RequestScopedFields: requestScopedFields,
 	}
 }
 
@@ -2483,7 +2471,6 @@ func findObjectFieldByResponseKey(obj *resolve.Object, responseKey string) *reso
 	return nil
 }
 
-
 // findDataSourceByID finds the datasource configuration for a given source ID
 func (v *Visitor) findDataSourceByID(sourceID string) DataSource {
 	for i := range v.Config.DataSources {
@@ -2513,12 +2500,10 @@ func (v *Visitor) configureMutationEntityImpact(internal *objectFetchConfigurati
 		return
 	}
 
-	// Extract key fields from federation metadata
+	// Merge key fields from ALL @key configurations so entities with multiple keys
+	// keep every invalidation-relevant field (top-level fields deduped by name).
 	keyConfigs := fedConfig.RequiredFieldsByKey(returnTypeName)
-	var keyFields []resolve.KeyField
-	if len(keyConfigs) > 0 {
-		keyFields = resolve.ParseKeyFields(keyConfigs[0].SelectionSet)
-	}
+	keyFields := extractKeyFields(keyConfigs, returnTypeName)
 
 	result.MutationEntityImpactConfig = &resolve.MutationEntityImpactConfig{
 		EntityTypeName:              returnTypeName,
@@ -2594,6 +2579,22 @@ func (v *Visitor) entityCacheAnalytics(typeName string) *resolve.ObjectCacheAnal
 
 	v.entityAnalyticsCache[typeName] = nil // not an entity
 	return nil
+}
+
+// polymorphicEntityCacheAnalytics returns per-concrete-type cache analytics for an
+// interface/union object. Returns nil when none of the possible types is an entity
+// (so the caller can assign unconditionally).
+func (v *Visitor) polymorphicEntityCacheAnalytics(possibleTypes map[string]struct{}) *resolve.ObjectCacheAnalytics {
+	byTypeName := make(map[string]*resolve.ObjectCacheAnalytics, len(possibleTypes))
+	for possibleType := range possibleTypes {
+		if analytics := v.entityCacheAnalytics(possibleType); analytics != nil {
+			byTypeName[possibleType] = analytics
+		}
+	}
+	if len(byTypeName) == 0 {
+		return nil
+	}
+	return &resolve.ObjectCacheAnalytics{ByTypeName: byTypeName}
 }
 
 // extractKeyFields extracts the full structured key from @key SelectionSets.

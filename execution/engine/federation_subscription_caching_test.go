@@ -23,6 +23,22 @@ func toWSAddr(httpURL string) string {
 	return strings.ReplaceAll(httpURL, "http://", "ws://")
 }
 
+// mustRecvMessage receives a single subscription message from ch with a timeout.
+// Fails the test if the channel is closed unexpectedly or the timeout elapses.
+func mustRecvMessage(t *testing.T, ch <-chan []byte, timeout time.Duration) []byte {
+	t.Helper()
+	select {
+	case m, ok := <-ch:
+		if !ok {
+			t.Fatalf("message channel closed unexpectedly")
+		}
+		return m
+	case <-time.After(timeout):
+		t.Fatalf("timed out after %s waiting for subscription message", timeout)
+		return nil
+	}
+}
+
 func boolToInt(v bool) int {
 	if v {
 		return 1
@@ -59,9 +75,10 @@ func collectSubscriptionMessages(ctx context.Context, gqlClient *GraphqlClient, 
 	return result
 }
 
-//nolint:tparallel // Timing-sensitive subscription cache tests need a few subtests to run before parallel siblings.
 // TestFederationSubscriptionCaching verifies subscription-driven entity cache population:
 // subscription events write entity data to L2, which subsequent queries can hit.
+//
+//nolint:tparallel // Timing-sensitive subscription cache tests need a few subtests to run before parallel siblings.
 func TestFederationSubscriptionCaching(t *testing.T) {
 	// =====================================================================
 	// Category 1: Child fetch L2 read/write within subscription events
@@ -285,11 +302,11 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		require.NoError(t, err)
 
 		trigger.Emit()
-		first := <-messages
+		first := mustRecvMessage(t, messages, 5*time.Second)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":1,"reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, string(first))
 
 		trigger.Emit()
-		second := <-messages
+		second := mustRecvMessage(t, messages, 5*time.Second)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":2,"reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, string(second))
 
 		// Wait for 150ms TTL to expire on the cached user entities (deterministic via Peek)
@@ -299,7 +316,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			return !ok1 && !ok2
 		}, 2*time.Second, 10*time.Millisecond, "user L2 entries should expire after TTL")
 		trigger.Emit()
-		third := <-messages
+		third := mustRecvMessage(t, messages, 5*time.Second)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":3,"reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, string(third))
 
 		// Accounts should be called exactly 2 times (event 1 and event 3)
@@ -967,11 +984,11 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		require.NoError(t, err)
 
 		handle.Emit()
-		firstMessage := <-messages
+		firstMessage := mustRecvMessage(t, messages, 5*time.Second)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, string(firstMessage))
 
 		handle.Emit()
-		secondMessage := <-messages
+		secondMessage := mustRecvMessage(t, messages, 5*time.Second)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, string(secondMessage))
 
 		// Verify 2 delete operations (one per event) + User entity resolution
@@ -1024,6 +1041,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 				SubgraphName: "products",
 				RootFieldCaching: plan.RootFieldCacheConfigurations{
 					{TypeName: "Query", FieldName: "topProducts", CacheName: "default", TTL: 30 * time.Second},
+					{TypeName: "Subscription", FieldName: "updateProductPrice", CacheName: "default", TTL: 30 * time.Second},
 				},
 			},
 			{
@@ -1056,9 +1074,15 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			queryVariables{"upc": "top-4"}, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":1,"reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, messages[0])
 
-		// Verify no root field cache operations for subscription trigger
-		// No root field cache operations, only User entity caching
+		// Verify no root field cache operations for subscription trigger.
+		// Even with a Subscription.updateProductPrice root-field cache configured,
+		// it must NOT apply — subscriptions are never cached as root fields.
 		cacheLog := defaultCache.GetLog()
+		for _, entry := range cacheLog {
+			for _, key := range entry.Keys {
+				assert.NotContains(t, key, `"fieldName":"updateProductPrice"`, "subscription root field must not be cached")
+			}
+		}
 		wantLog := []CacheLogEntry{
 			{Operation: CacheOperationGet, Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}, Hits: []bool{false, false}},
 			{Operation: CacheOperationSet, Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}},
@@ -1526,22 +1550,84 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		handle, err := setup.NextProductSubscription(ctx)
 		require.NoError(t, err)
 
-		handle.Emit()
+		// Shared-trigger subscriptions are attached asynchronously after the upstream
+		// handle is created. Warm up until both clients have observed at least one event.
+		firstSeen := [2]bool{}
+		warmupEmits := 0
+		warmupCtx, warmupCancel := context.WithTimeout(ctx, 5*time.Second)
+		defer warmupCancel()
+		for !firstSeen[0] || !firstSeen[1] {
+			handle.Emit()
+			warmupEmits++
 
-		var msg1, msg2 string
-		for msg1 == "" || msg2 == "" {
-			select {
-			case m := <-messages1:
-				msg1 = string(m)
-			case m := <-messages2:
-				msg2 = string(m)
-			case <-time.After(5 * time.Second):
-				t.Fatal("timeout waiting for first messages")
+			settleTimer := time.NewTimer(200 * time.Millisecond)
+		collectWarmup:
+			for {
+				select {
+				case _, ok := <-messages1:
+					if !ok {
+						t.Fatalf("messages1 channel closed unexpectedly during warm-up")
+					}
+					firstSeen[0] = true
+					if !settleTimer.Stop() {
+						select {
+						case <-settleTimer.C:
+						default:
+						}
+					}
+					settleTimer.Reset(200 * time.Millisecond)
+				case _, ok := <-messages2:
+					if !ok {
+						t.Fatalf("messages2 channel closed unexpectedly during warm-up")
+					}
+					firstSeen[1] = true
+					if !settleTimer.Stop() {
+						select {
+						case <-settleTimer.C:
+						default:
+						}
+					}
+					settleTimer.Reset(200 * time.Millisecond)
+				case <-settleTimer.C:
+					break collectWarmup
+				case <-warmupCtx.Done():
+					t.Fatalf("timeout waiting for first messages, received %d of 2", boolToInt(firstSeen[0])+boolToInt(firstSeen[1]))
+				}
 			}
 		}
 
-		assert.Equal(t, msg1, msg2, "both clients should receive the same event")
-		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":1}}}}`, msg1)
+		// Drain any extra warm-up messages from already-attached clients so the next
+		// emit is the only source of messages in the measured phase.
+		drainTimer := time.NewTimer(200 * time.Millisecond)
+	drainWarmup:
+		for {
+			select {
+			case _, ok := <-messages1:
+				if !ok {
+					t.Fatalf("messages1 channel closed unexpectedly during drain")
+				}
+				if !drainTimer.Stop() {
+					select {
+					case <-drainTimer.C:
+					default:
+					}
+				}
+				drainTimer.Reset(200 * time.Millisecond)
+			case _, ok := <-messages2:
+				if !ok {
+					t.Fatalf("messages2 channel closed unexpectedly during drain")
+				}
+				if !drainTimer.Stop() {
+					select {
+					case <-drainTimer.C:
+					default:
+					}
+				}
+				drainTimer.Reset(200 * time.Millisecond)
+			case <-drainTimer.C:
+				break drainWarmup
+			}
+		}
 
 		// ClearLog and collect second event to measure deduplication
 		defaultCache.ClearLog()
@@ -1552,9 +1638,15 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		var msg1b, msg2b string
 		for msg1b == "" || msg2b == "" {
 			select {
-			case m := <-messages1:
+			case m, ok := <-messages1:
+				if !ok {
+					t.Fatalf("messages1 channel closed unexpectedly")
+				}
 				msg1b = string(m)
-			case m := <-messages2:
+			case m, ok := <-messages2:
+				if !ok {
+					t.Fatalf("messages2 channel closed unexpectedly")
+				}
 				msg2b = string(m)
 			case <-time.After(5 * time.Second):
 				t.Fatal("timeout waiting for second messages")
@@ -1562,7 +1654,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		}
 
 		assert.Equal(t, msg1b, msg2b, "both clients should receive the same event")
-		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":2}}}}`, msg1b)
+		assert.Equal(t, fmt.Sprintf(`{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":%d}}}}`, warmupEmits+1), msg1b)
 
 		// Close subscriptions before cache log assertions
 		close1()
@@ -1593,7 +1685,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 1, len(entries))
 		require.NotNil(t, entries[0])
-		assert.Equal(t, `{"upc":"top-4","name":"Bowler","price":2,"__typename":"Product"}`, string(entries[0].Value))
+		assert.Equal(t, fmt.Sprintf(`{"upc":"top-4","name":"Bowler","price":%d,"__typename":"Product"}`, warmupEmits+1), string(entries[0].Value))
 	})
 
 	t.Run("entity invalidation happens once per trigger event with multiple subscriptions", func(t *testing.T) {
@@ -1650,22 +1742,82 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		handle, err := setup.NextProductSubscription(ctx)
 		require.NoError(t, err)
 
-		handle.Emit()
+		// Shared-trigger subscriptions are attached asynchronously after the upstream
+		// handle is created. Warm up until both clients have observed at least one event.
+		firstSeen := [2]bool{}
+		warmupCtx, warmupCancel := context.WithTimeout(ctx, 5*time.Second)
+		defer warmupCancel()
+		for !firstSeen[0] || !firstSeen[1] {
+			handle.Emit()
 
-		var msg1, msg2 string
-		for msg1 == "" || msg2 == "" {
-			select {
-			case m := <-messages1:
-				msg1 = string(m)
-			case m := <-messages2:
-				msg2 = string(m)
-			case <-time.After(5 * time.Second):
-				t.Fatal("timeout waiting for first messages")
+			settleTimer := time.NewTimer(200 * time.Millisecond)
+		collectWarmup:
+			for {
+				select {
+				case _, ok := <-messages1:
+					if !ok {
+						t.Fatalf("messages1 channel closed unexpectedly during warm-up")
+					}
+					firstSeen[0] = true
+					if !settleTimer.Stop() {
+						select {
+						case <-settleTimer.C:
+						default:
+						}
+					}
+					settleTimer.Reset(200 * time.Millisecond)
+				case _, ok := <-messages2:
+					if !ok {
+						t.Fatalf("messages2 channel closed unexpectedly during warm-up")
+					}
+					firstSeen[1] = true
+					if !settleTimer.Stop() {
+						select {
+						case <-settleTimer.C:
+						default:
+						}
+					}
+					settleTimer.Reset(200 * time.Millisecond)
+				case <-settleTimer.C:
+					break collectWarmup
+				case <-warmupCtx.Done():
+					t.Fatalf("timeout waiting for first messages, received %d of 2", boolToInt(firstSeen[0])+boolToInt(firstSeen[1]))
+				}
 			}
 		}
 
-		assert.Equal(t, msg1, msg2, "both clients should receive the same event")
-		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, msg1)
+		// Drain any extra warm-up messages from already-attached clients so the next
+		// emit is the only source of messages in the measured phase.
+		drainTimer := time.NewTimer(200 * time.Millisecond)
+	drainWarmup:
+		for {
+			select {
+			case _, ok := <-messages1:
+				if !ok {
+					t.Fatalf("messages1 channel closed unexpectedly during drain")
+				}
+				if !drainTimer.Stop() {
+					select {
+					case <-drainTimer.C:
+					default:
+					}
+				}
+				drainTimer.Reset(200 * time.Millisecond)
+			case _, ok := <-messages2:
+				if !ok {
+					t.Fatalf("messages2 channel closed unexpectedly during drain")
+				}
+				if !drainTimer.Stop() {
+					select {
+					case <-drainTimer.C:
+					default:
+					}
+				}
+				drainTimer.Reset(200 * time.Millisecond)
+			case <-drainTimer.C:
+				break drainWarmup
+			}
+		}
 
 		// ClearLog and collect second event to measure deduplication
 		defaultCache.ClearLog()
@@ -1676,9 +1828,15 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		var msg1b, msg2b string
 		for msg1b == "" || msg2b == "" {
 			select {
-			case m := <-messages1:
+			case m, ok := <-messages1:
+				if !ok {
+					t.Fatalf("messages1 channel closed unexpectedly")
+				}
 				msg1b = string(m)
-			case m := <-messages2:
+			case m, ok := <-messages2:
+				if !ok {
+					t.Fatalf("messages2 channel closed unexpectedly")
+				}
 				msg2b = string(m)
 			case <-time.After(5 * time.Second):
 				t.Fatal("timeout waiting for second messages")
@@ -1778,7 +1936,10 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		collectWarmup:
 			for {
 				select {
-				case <-messages1:
+				case _, ok := <-messages1:
+					if !ok {
+						t.Fatalf("messages1 channel closed unexpectedly during warm-up")
+					}
 					firstSeen[0] = true
 					if !settleTimer.Stop() {
 						select {
@@ -1787,7 +1948,10 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 						}
 					}
 					settleTimer.Reset(200 * time.Millisecond)
-				case <-messages2:
+				case _, ok := <-messages2:
+					if !ok {
+						t.Fatalf("messages2 channel closed unexpectedly during warm-up")
+					}
 					firstSeen[1] = true
 					if !settleTimer.Stop() {
 						select {
@@ -1796,7 +1960,10 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 						}
 					}
 					settleTimer.Reset(200 * time.Millisecond)
-				case <-messages3:
+				case _, ok := <-messages3:
+					if !ok {
+						t.Fatalf("messages3 channel closed unexpectedly during warm-up")
+					}
 					firstSeen[2] = true
 					if !settleTimer.Stop() {
 						select {
@@ -1819,7 +1986,10 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 	drainWarmup:
 		for {
 			select {
-			case <-messages1:
+			case _, ok := <-messages1:
+				if !ok {
+					t.Fatalf("messages1 channel closed unexpectedly during drain")
+				}
 				if !drainTimer.Stop() {
 					select {
 					case <-drainTimer.C:
@@ -1827,7 +1997,10 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 					}
 				}
 				drainTimer.Reset(200 * time.Millisecond)
-			case <-messages2:
+			case _, ok := <-messages2:
+				if !ok {
+					t.Fatalf("messages2 channel closed unexpectedly during drain")
+				}
 				if !drainTimer.Stop() {
 					select {
 					case <-drainTimer.C:
@@ -1835,7 +2008,10 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 					}
 				}
 				drainTimer.Reset(200 * time.Millisecond)
-			case <-messages3:
+			case _, ok := <-messages3:
+				if !ok {
+					t.Fatalf("messages3 channel closed unexpectedly during drain")
+				}
 				if !drainTimer.Stop() {
 					select {
 					case <-drainTimer.C:
@@ -1857,11 +2033,20 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		received := 0
 		for received < 3 {
 			select {
-			case <-messages1:
+			case _, ok := <-messages1:
+				if !ok {
+					t.Fatalf("messages1 channel closed unexpectedly")
+				}
 				received++
-			case <-messages2:
+			case _, ok := <-messages2:
+				if !ok {
+					t.Fatalf("messages2 channel closed unexpectedly")
+				}
 				received++
-			case <-messages3:
+			case _, ok := <-messages3:
+				if !ok {
+					t.Fatalf("messages3 channel closed unexpectedly")
+				}
 				received++
 			case <-time.After(5 * time.Second):
 				t.Fatalf("timeout waiting for second messages, received %d of 3", received)

@@ -192,7 +192,7 @@ func (r *subscriptionResolver) UpdateProductPrice(ctx context.Context, upc strin
 // UpdatedPrices is the resolver for the updatedPrices field.
 func (r *subscriptionResolver) UpdatedPrices(ctx context.Context, first *int) (<-chan []*model.Product, error) {
 	limit := 3
-	if first != nil && *first > 0 {
+	if first != nil && *first >= 0 {
 		limit = *first
 	}
 	if limit > len(r.products) {

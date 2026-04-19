@@ -19,6 +19,8 @@ func (r *mutationResolver) UpdateUsername(ctx context.Context, id string, newUse
 	return &model.User{
 		ID:       id,
 		Username: newUsername,
+		Nickname: "nick-" + newUsername,
+		RealName: "Real " + newUsername,
 	}, nil
 }
 
@@ -55,34 +57,37 @@ func (r *queryResolver) UserByIDAndName(ctx context.Context, id string, username
 
 // MeInterface is the resolver for the meInterface field.
 func (r *queryResolver) MeInterface(ctx context.Context) (model.Identifiable, error) {
+	username := r.GetUsername("1234")
 	return &model.User{
 		ID:       "1234",
-		Username: "Me",
-		Nickname: "nick-Me",
+		Username: username,
+		Nickname: "nick-" + username,
 		History:  histories,
-		RealName: "User Usington",
+		RealName: "Real " + username,
 	}, nil
 }
 
 // MeUnion is the resolver for the meUnion field.
 func (r *queryResolver) MeUnion(ctx context.Context) (model.MeUnion, error) {
+	username := r.GetUsername("1234")
 	return &model.User{
 		ID:       "1234",
-		Username: "Me",
-		Nickname: "nick-Me",
+		Username: username,
+		Nickname: "nick-" + username,
 		History:  histories,
-		RealName: "User Usington",
+		RealName: "Real " + username,
 	}, nil
 }
 
 // Identifiable is the resolver for the identifiable field.
 func (r *queryResolver) Identifiable(ctx context.Context) (model.Identifiable, error) {
+	username := r.GetUsername("1234")
 	return &model.User{
 		ID:       "1234",
-		Username: "Me",
-		Nickname: "nick-Me",
+		Username: username,
+		Nickname: "nick-" + username,
 		History:  histories,
-		RealName: "User Usington",
+		RealName: "Real " + username,
 	}, nil
 }
 

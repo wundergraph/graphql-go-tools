@@ -28,17 +28,16 @@ import (
 )
 
 type testOptions struct {
-	postProcessors                       []*postprocess.Processor
-	skipReason                           string
-	withFieldInfo                        bool
-	withPrintPlan                        bool
-	withFieldDependencies                bool
-	withFetchReasons                     bool
-	withEntityCaching                    bool
-	withFetchProvidesData                bool
-	withCacheKeyTemplates                bool
-	withRootFieldEntityCacheKeyTemplates bool
-	validationOptions                    []astvalidation.Option
+	postProcessors        []*postprocess.Processor
+	skipReason            string
+	withFieldInfo         bool
+	withPrintPlan         bool
+	withFieldDependencies bool
+	withFetchReasons      bool
+	withEntityCaching     bool
+	withFetchProvidesData bool
+	withCacheKeyTemplates bool
+	validationOptions     []astvalidation.Option
 }
 
 func WithPostProcessors(postProcessors ...*postprocess.Processor) func(*testOptions) {
@@ -108,15 +107,6 @@ func WithFetchProvidesData() func(*testOptions) {
 func WithCacheKeyTemplates() func(*testOptions) {
 	return func(o *testOptions) {
 		o.withCacheKeyTemplates = true
-	}
-}
-
-// WithRootFieldEntityCacheKeyTemplates preserves RootFieldL1EntityCacheKeyTemplates
-// in the plan output. By default these are cleared even with WithCacheKeyTemplates()
-// because planner path assignment can make them non-deterministic.
-func WithRootFieldEntityCacheKeyTemplates() func(*testOptions) {
-	return func(o *testOptions) {
-		o.withRootFieldEntityCacheKeyTemplates = true
 	}
 }
 
@@ -268,11 +258,9 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 		// caching behavior should use WithCacheKeyTemplates() to opt in.
 		if !opts.withCacheKeyTemplates {
 			clearCacheKeyTemplates(actualPlan)
-		} else if !opts.withRootFieldEntityCacheKeyTemplates {
-			// Clear RootFieldL1EntityCacheKeyTemplates even when WithCacheKeyTemplates()
+		} else {
+			// Always clear RootFieldL1EntityCacheKeyTemplates even when WithCacheKeyTemplates()
 			// is set, because planner path assignment can make these non-deterministic.
-			// Use WithRootFieldEntityCacheKeyTemplates() to opt in (for single-datasource
-			// configs where behavior is deterministic).
 			clearRootFieldEntityCacheKeyTemplates(actualPlan)
 		}
 

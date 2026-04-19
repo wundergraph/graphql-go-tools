@@ -515,8 +515,6 @@ func (f *FakeLoaderCache) Get(ctx context.Context, keys []string) ([]*resolve.Ca
 	return result, nil
 }
 
-
-
 func (f *FakeLoaderCache) Set(ctx context.Context, entries []*resolve.CacheEntry, ttl time.Duration) error {
 	if len(entries) == 0 {
 		return nil
@@ -646,10 +644,10 @@ func (f *FakeLoaderCache) Peek(key string) ([]byte, bool) {
 func TestFakeLoaderCache(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	cache := NewFakeLoaderCache()
 
 	t.Run("SetAndGet", func(t *testing.T) {
 		t.Parallel()
+		cache := NewFakeLoaderCache()
 		// Test basic set and get
 		keys := []string{"key1", "key2", "key3"}
 		entries := []*resolve.CacheEntry{
@@ -685,6 +683,7 @@ func TestFakeLoaderCache(t *testing.T) {
 
 	t.Run("Delete", func(t *testing.T) {
 		t.Parallel()
+		cache := NewFakeLoaderCache()
 		// Set some keys
 		entries := []*resolve.CacheEntry{
 			{Key: "del1", Value: []byte("v1")},
@@ -709,6 +708,7 @@ func TestFakeLoaderCache(t *testing.T) {
 
 	t.Run("TTL", func(t *testing.T) {
 		t.Parallel()
+		cache := NewFakeLoaderCache()
 		// Set with 50ms TTL
 		entries := []*resolve.CacheEntry{
 			{Key: "ttl1", Value: []byte("expire1")},
@@ -741,6 +741,7 @@ func TestFakeLoaderCache(t *testing.T) {
 
 	t.Run("MixedTTL", func(t *testing.T) {
 		t.Parallel()
+		cache := NewFakeLoaderCache()
 		// Set some with TTL, some without
 		err := cache.Set(ctx, []*resolve.CacheEntry{{Key: "perm1", Value: []byte("permanent")}}, 0)
 		require.NoError(t, err)
@@ -764,6 +765,7 @@ func TestFakeLoaderCache(t *testing.T) {
 
 	t.Run("ThreadSafety", func(t *testing.T) {
 		t.Parallel()
+		cache := NewFakeLoaderCache()
 		// Test concurrent access
 		done := make(chan bool)
 
@@ -806,6 +808,7 @@ func TestFakeLoaderCache(t *testing.T) {
 
 	t.Run("WaitForOperation", func(t *testing.T) {
 		t.Parallel()
+		cache := NewFakeLoaderCache()
 
 		waitForDelete := cache.WaitForOperation(CacheOperationDelete, []string{"watched-key"})
 
@@ -833,6 +836,7 @@ func TestFakeLoaderCache(t *testing.T) {
 
 	t.Run("ResultLengthMatchesKeysLength", func(t *testing.T) {
 		t.Parallel()
+		cache := NewFakeLoaderCache()
 		// Test that result length always matches input keys length
 
 		// Set some data

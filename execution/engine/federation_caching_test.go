@@ -39,19 +39,19 @@ func TestFederationCaching_BasicMissThenHit(t *testing.T) {
 			{
 				SubgraphName: "products",
 				RootFieldCaching: plan.RootFieldCacheConfigurations{
-					{TypeName: "Query", FieldName: "topProducts", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: false},
+					{TypeName: "Query", FieldName: "topProducts", CacheName: "default", TTL: 30 * time.Second},
 				},
 			},
 			{
 				SubgraphName: "reviews",
 				EntityCaching: plan.EntityCacheConfigurations{
-					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: false},
+					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second},
 				},
 			},
 			{
 				SubgraphName: "accounts",
 				EntityCaching: plan.EntityCacheConfigurations{
-					{TypeName: "User", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: false},
+					{TypeName: "User", CacheName: "default", TTL: 30 * time.Second},
 				},
 			},
 		}
@@ -202,19 +202,19 @@ func TestFederationCaching_BasicMissThenHit(t *testing.T) {
 			{
 				SubgraphName: "products",
 				RootFieldCaching: plan.RootFieldCacheConfigurations{
-					{TypeName: "Query", FieldName: "topProducts", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: false},
+					{TypeName: "Query", FieldName: "topProducts", CacheName: "default", TTL: 30 * time.Second},
 				},
 			},
 			{
 				SubgraphName: "reviews",
 				EntityCaching: plan.EntityCacheConfigurations{
-					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: false},
+					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second},
 				},
 			},
 			{
 				SubgraphName: "accounts",
 				EntityCaching: plan.EntityCacheConfigurations{
-					{TypeName: "User", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: false},
+					{TypeName: "User", CacheName: "default", TTL: 30 * time.Second},
 				},
 			},
 		}
@@ -1051,8 +1051,8 @@ func TestRootFieldSplitByDatasource(t *testing.T) {
 
 		wantLogFirst := []CacheLogEntry{
 			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"cat"}`, `{"__typename":"Query","field":"me"}`}, Hits: []bool{false, false}}, // bulk get for both root fields
-			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"me"}`}},                                                                    // set for me after fetch
-			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"cat"}`}},                                                                   // set for cat after fetch
+			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"me"}`}},                                                                     // set for me after fetch
+			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"cat"}`}},                                                                    // set for cat after fetch
 		}
 		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst))
 
@@ -1369,7 +1369,7 @@ func TestFederationCaching_PlanTimeTypeName(t *testing.T) {
 			{
 				SubgraphName: "reviews",
 				EntityCaching: plan.EntityCacheConfigurations{
-					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: false},
+					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second},
 				},
 			},
 		}),
