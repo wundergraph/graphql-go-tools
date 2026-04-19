@@ -1,5 +1,6 @@
 .idea/*
 .vscode/*
+.serena
 *.out
 *.test
 .DS_Store
