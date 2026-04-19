@@ -48,19 +48,58 @@ goes through the normal L2/subgraph path.
 Tests:
 - `execution/engine/federation_caching_l1_test.go:93` — `TestL1CacheReducesHTTPCalls / "L1 disabled - more accounts calls without cache"`
 
-### AC-L1-07: Shallow copy on L1 read
-Every L1 cache read returns a shallow copy of the cached value (via `shallowCopyProvidedFields`),
-not a direct pointer. This prevents pointer aliasing that would cause stack overflow during
-JSON merge when an entity type references itself (e.g., `User.friends` returns `[User]`).
-The copy is unconditional — it always happens, even for non-self-referential entities —
-because the overhead is minimal and the safety guarantee is universal. The copy includes
-only the fields specified in `ProvidesData`, not the entire entity.
+### AC-L1-07: StructuralCopy on L1 read and write
+Every L1 cache write StructuralCopies the value onto `l.jsonArena`.
+Entity L1 uses `structuralCopyNormalizedPassthrough` — renames aliases
+to schema names via an ephemeral `astjson.Transform` while keeping ALL
+source fields (including @key fields not in ProvidesData) via
+`Transform.Passthrough`.
+This preserves field accumulation across fetches: fetch 1 stores `{name}`,
+fetch 2 merges `{email}`, L1 has `{name, email}` for fetch 3.
 
-_Future optimization_: for entities known to never self-reference, the copy could be skipped.
+Every L1 cache read uses `structuralCopyDenormalizedPassthrough` —
+restores aliases while preserving all accumulated fields.
+StructuralCopy clones container nodes on the arena while aliasing leaf
+nodes from the source.
+This gives the consumer a structurally independent value and prevents
+pointer aliasing during JSON merge for self-referential entities.
+Strings are always eagerly decoded (no lazy mutation), making aliased
+leaf values safe for concurrent reads.
+
+L2 writes use non-passthrough `structuralCopyNormalized` which projects
+to ProvidesData fields only (rename + drop unlisted fields).
+
+Merges into an existing L1 entry use the working-copy-and-swap pattern:
+StructuralCopy the existing entry into a working copy,
+run `astjson.MergeValues` against the working copy,
+and store either the working copy (on success) or the fresh incoming
+value (on merge failure).
+The live cache entry pointer is never mutated in place,
+so a partial `MergeValues` failure cannot corrupt sibling L1 keys
+pointing at the same entry.
 
 Tests:
 - `execution/engine/federation_caching_l1_test.go:344` — `TestL1CacheSelfReferentialEntity`
-- `v2/pkg/engine/resolve/l1_cache_test.go:1993` — `TestShallowCopyWithAliases` (reads original name, writes alias)
+- `v2/pkg/engine/resolve/loader_cache_phase2_test.go:21` — `TestL1Cache_RootFieldPromotionWithAliases` (alias-aware StructuralCopy on root-field promotion)
+- `v2/pkg/engine/resolve/loader_cache_phase2_test.go:147` — `TestExportRequestScopedFields_MergeWorkingCopyOnFailure` (working-copy-and-swap on merge failure)
+- `v2/pkg/engine/resolve/loader_cache_transform_test.go` — `TestStructuralCopyNormalized_*` (alias/arg-suffix normalize + denormalize)
+- `v2/pkg/engine/resolve/l1_l2_cache_e2e_test.go` — `TestL1CacheFieldAccumulation` (3-fetch field accumulation with passthrough)
+
+### AC-L1-09: Union-based L1 optimization
+The postprocessor (`optimize_l1_cache.go`) computes the **union** of all
+ancestor providers' ProvidesData fields when deciding whether to enable
+L1 for a fetch.
+If no single provider covers the consumer's field needs,
+the union of all prior providers (same entity type, in dependency chain)
+is checked.
+This enables L1 for fetches whose required fields are spread across
+multiple prior fetches.
+A fetch is enabled as a writer if it contributes to a union that covers
+any descendant consumer.
+
+Tests:
+- `v2/pkg/engine/postprocess/optimize_l1_cache_test.go` — `TestOptimizeL1Cache_Union_*` (9 tests: basic, insufficient, overlapping, 4-fetch chain, etc.)
+- `execution/engine/federation_caching_l1_test.go` — `TestL1CacheEntityUnionOptimization` (6 E2E subtests using CacheEntity type)
 
 ### AC-L1-08: Root field entity population
 When a root field query (e.g., `topProducts`) returns entities, those entities are
@@ -126,10 +165,23 @@ are supported (e.g., different Redis clusters for different entity types).
 Tests:
 - `execution/engine/federation_caching_l2_test.go:20` — `TestL2CacheOnly / "L2 enabled - miss then hit across requests"`
 
-### AC-L2-02: L2 operations run in goroutines
-L2 `Get` (cache read) and the fallback subgraph HTTP call happen in parallel goroutines
-during Phase 2. This means `LoaderCache` implementations must be safe for concurrent
-access from multiple goroutines.
+### AC-L2-02: L2 reads use main-thread bulk Get; HTTP runs in goroutines
+Within `resolveParallel`, L2 cache reads are issued by `bulkL2Lookup` on the main
+thread: one bulk `cache.Get` per cache instance, covering every fetch in the batch
+that routes to that instance. Parsed values are materialized on `l.parser` /
+`l.jsonArena` and distributed back to each fetch's `l2CacheKeys[].FromCache`.
+Only the fallback subgraph HTTP calls run in parallel goroutines (Phase 2HTTP);
+those goroutines do HTTP only and do not touch the arena or cache.
+
+Because a single bulk Get now covers the whole batch, **a bulk Get failure causes
+every fetch in the batch to fall back to the subgraph** (documented behavior change
+from the old per-fetch isolation). Each affected fetch is marked
+`cacheMustBeUpdated`, its `cacheTraceL2GetError` is set, and a
+`CacheOperationError` is recorded per fetch in `l2CacheOpErrors`.
+
+`LoaderCache` implementations still must be safe for concurrent access because
+`Set` / `Delete` operations (write-side) continue to run from Phase 4 and may
+overlap across concurrent router requests.
 
 Tests:
 - `v2/pkg/engine/resolve/cache_load_test.go:828` — `TestCacheLoadSequential / "two sequential calls - miss then hit"`
@@ -161,14 +213,29 @@ Tests:
 
 ### AC-L2-06: Normalization before storage
 Before writing to L2, field names are normalized: aliases are replaced with original
-schema field names, and fields with arguments get an xxhash suffix appended. This
-ensures cached data is query-independent and can be reused across different GraphQL
-operations that request the same entity.
+schema field names, and fields with arguments get an xxhash suffix appended.
+This ensures cached data is query-independent and can be reused across different
+GraphQL operations that request the same entity.
+
+Normalization uses ephemeral `astjson.Transform` descriptors built inline via
+`structuralCopyNormalized(value, providesData)`.
+The Transform walks `FetchInfo.ProvidesData` and emits one `TransformEntry` per
+aliased or arg-suffixed field.
+Transforms are built into reusable `l.transformEntries` / `l.transforms` slabs
+(resliced to [:0] before each use) and consumed by
+`l.parser.StructuralCopyWithTransform` — no stored transforms on `result`.
+
+L2 writes use non-passthrough normalization (projects to ProvidesData fields only).
+L1 writes use passthrough normalization (renames aliases but keeps all fields).
+L2 reads stay verbatim at parse time; denormalization is applied at the
+materialization site via `structuralCopyDenormalized` so the writeback merge
+in `updateL2Cache` can preserve fields outside the current selection (see AC-L2-08).
 
 Tests:
-- `v2/pkg/engine/resolve/l1_cache_test.go:1535` — `TestNormalizeForCache` (7 subtests: fast path, aliases, mixed, nested, __typename, CacheArgs suffix, alias+CacheArgs)
-- `v2/pkg/engine/resolve/l1_cache_test.go:1693` — `TestNormalizeDenormalizeRoundTrip` (7 subtests: round-trip with CacheArgs, alias+CacheArgs, nested, arrays, __typename preservation)
-- `v2/pkg/engine/resolve/l1_cache_test.go:1858` — `TestDenormalizeFromCache` (4 subtests: fast path, aliases, CacheArgs suffixed lookup, alias+CacheArgs)
+- `v2/pkg/engine/resolve/loader_cache_transform_test.go` — `TestStructuralCopyNormalized_*` (7 tests: nil, alias, nested, array, arg-suffix, request-scoped invariant, mixed)
+- `execution/engine/federation_caching_entity_field_args_test.go` — `TestEntityFieldArgsCaching` (E2E arg-hash normalization)
+- `v2/pkg/engine/resolve/loader_cache_transform_test.go:174` — `TestBuildNormalizeTransform_MixedAliases`
+- `v2/pkg/engine/resolve/loader_cache_phase2_test.go:125` — `TestL2WritePreservesFieldsOutsideSelection` (verbatim parse preserves fields outside selection for writeback merge)
 
 ### AC-L2-07: Validation before serving cached data
 When reading from L2, the cached entity is validated against the `ProvidesData` schema
@@ -187,8 +254,16 @@ old cached entity is preserved in `FromCache`. After the subgraph returns fresh 
 old and new entities are merged so that previously-cached fields from other arg variants
 are not lost. The merged result is then written back to L2.
 
+Enforced by the verbatim-parse rule in `bulkL2Lookup`: cached entries are parsed without
+applying the denormalize Transform at parse time, so `l2CacheKeys[i].FromCache` retains
+every field that was in the cached value even if the current query selects a narrower
+set. The denormalize Transform is applied only at the L2-to-response materialization
+site for `l1CacheKeys[i].FromCache`, leaving `l2CacheKeys[i].FromCache` in cache-shape
+for the writeback merge in `updateL2Cache`.
+
 Tests:
 - `v2/pkg/engine/resolve/cache_load_test.go:605` — `TestCacheLoadSequential / "single entity fetch with cache miss"`
+- `v2/pkg/engine/resolve/loader_cache_phase2_test.go:125` — `TestL2WritePreservesFieldsOutsideSelection` (writeback merge preserves fields outside current selection)
 
 ## Negative Caching
 
@@ -394,10 +469,10 @@ and list responses (array) — each entity in the array is individually invalida
 
 Tests:
 - `execution/engine/federation_caching_l2_test.go:1115` — `TestMutationCacheInvalidationE2E`
-- `v2/pkg/engine/resolve/mutation_cache_impact_test.go:21` — `TestNavigateProvidesDataToField` (4 subtests: valid field, missing field, nil providesData, non-Object field)
-- `v2/pkg/engine/resolve/mutation_cache_impact_test.go:71` — `TestBuildEntityKeyValue` (4 subtests: simple key, composite key, nested key, missing field)
-- `v2/pkg/engine/resolve/mutation_cache_impact_test.go:128` — `TestBuildMutationEntityCacheKey` (3 subtests: basic key, with header prefix, with interceptor)
-- `v2/pkg/engine/resolve/mutation_cache_impact_test.go:249` — `TestDetectMutationEntityImpact` (includes array response invalidation and non-object item skipping)
+- `v2/pkg/engine/resolve/mutation_cache_test.go:25` — `TestNavigateProvidesDataToField` (4 subtests: valid field, missing field, nil providesData, non-Object field)
+- `v2/pkg/engine/resolve/mutation_cache_test.go:84` — `TestBuildEntityKeyValue` (4 subtests: simple key, composite key, nested key, missing field)
+- `v2/pkg/engine/resolve/mutation_cache_test.go:139` — `TestBuildMutationEntityCacheKey` (3 subtests: basic key, with header prefix, with interceptor)
+- `v2/pkg/engine/resolve/mutation_cache_test.go:230` — `TestDetectMutationEntityImpact` (includes array response invalidation and non-object item skipping)
 
 ### AC-MUT-05: Pre-delete cache read for analytics
 When both cache invalidation and analytics are enabled, the cached value is read BEFORE
@@ -409,7 +484,7 @@ indicator. The analytics system cannot distinguish "key did not exist" from "key
 successfully deleted". This would require extending the `LoaderCache` interface.
 
 Tests:
-- `v2/pkg/engine/resolve/mutation_cache_impact_test.go:378` — `TestDetectMutationEntityImpact / "analytics enabled, no cached value records MutationEvent with HadCachedValue=false"`
+- `v2/pkg/engine/resolve/mutation_cache_test.go` — `TestDetectMutationEntityImpact / "analytics enabled, no cached value records MutationEvent with HadCachedValue=false"`
 
 ### AC-MUT-06: Staleness detection via hash comparison
 Mutation impact analytics computes xxhash of both the cached entity (pre-delete) and the
@@ -422,7 +497,7 @@ shadow mode staleness detection (AC-SHADOW-03). The trigger differs (mutation re
 vs shadow mode) but the comparison logic is identical.
 
 Tests:
-- `v2/pkg/engine/resolve/mutation_cache_impact_test.go:416` — `TestDetectMutationEntityImpact / "analytics enabled, stale cached value records MutationEvent with IsStale=true"`
+- `v2/pkg/engine/resolve/mutation_cache_test.go` — `TestDetectMutationEntityImpact / "analytics enabled, stale cached value records MutationEvent with IsStale=true"`
 
 ### AC-MUT-07: Mutation TTL override
 When `MutationFieldCacheConfiguration.TTL` is non-zero, mutation-triggered L2 cache writes
@@ -431,9 +506,9 @@ zero, the entity's default TTL is used. This allows `@cachePopulate(maxAge: 60)`
 fields to override the entity's default cache duration.
 
 Tests:
-- `v2/pkg/engine/resolve/mutation_cache_ttl_test.go` — `TestMutationCacheTTLOverride / "mutation with TTL override uses override value"`
-- `v2/pkg/engine/resolve/mutation_cache_ttl_test.go` — `TestMutationCacheTTLOverride / "mutation without TTL override uses entity default"`
-- `v2/pkg/engine/resolve/mutation_cache_ttl_test.go` — `TestMutationCacheTTLOverride / "TTL override not applied when mutation L2 population disabled"`
+- `v2/pkg/engine/resolve/mutation_cache_test.go:717` — `TestMutationCacheTTLOverride / "mutation with TTL override uses override value"`
+- `v2/pkg/engine/resolve/mutation_cache_test.go:717` — `TestMutationCacheTTLOverride / "mutation without TTL override uses entity default"`
+- `v2/pkg/engine/resolve/mutation_cache_test.go:717` — `TestMutationCacheTTLOverride / "TTL override not applied when mutation L2 population disabled"`
 
 ## Extension-Based Invalidation
 
@@ -588,42 +663,53 @@ Tests:
 - `v2/pkg/engine/resolve/l1_cache_test.go:24` — `TestL1Cache / "L1 hit - same entity fetched twice in same request"`
 
 ### AC-THREAD-02: L2 implementations must be goroutine-safe
-L2 `LoaderCache.Get()`, `Set()`, and `Delete()` are called from goroutines during Phase 2
-parallel execution. Implementers must ensure thread-safe access (e.g., connection pooling
-for Redis).
+L2 `LoaderCache.Set()` and `Delete()` (write-side operations) are called from the main
+thread during Phase 4 of `resolveParallel` and may overlap across concurrent router
+requests. L2 `LoaderCache.Get()` is issued once per cache instance on the main thread
+from `bulkL2Lookup` (Phase 2L2), so a single router request never concurrently reads
+from the same cache instance — but concurrent router requests can, so `Get` still must
+be goroutine-safe. Net requirement: implementers must ensure thread-safe access (e.g.,
+connection pooling for Redis).
 
 Tests:
 - `execution/engine/federation_caching_test.go:1435` — `TestFederationCaching / "concurrency with different IDs"`
 
-### AC-THREAD-03: Per-result analytics accumulation
-During Phase 2, each goroutine accumulates analytics events (L2 key events, fetch timings,
-errors) on its own per-result slice. After all goroutines complete (`g.Wait()`), the main
-thread merges all per-result events into the single analytics collector via
-`MergeL2Events`/`MergeL2FetchTimings`/`MergeL2Errors`.
+### AC-THREAD-03: Per-result analytics accumulation for write-side events
+L2 read events (L2 key events, `L2 Get` fetch timings, cache Get errors) are accumulated
+by `bulkL2Lookup` on the main thread in Phase 2L2 and folded directly into the collector.
+Write-side and HTTP events — per-fetch `l2AnalyticsEvents`, `l2FetchTimings` for the HTTP
+round trip, `l2ErrorEvents`, `l2CacheOpErrors`, and `l2EntitySources` — are accumulated
+on the per-result slice either inside the Phase 2HTTP goroutine or during Phase 4 merge.
+After `g.Wait()`, the main thread merges the per-result slices into the single analytics
+collector via `MergeL2Events` / `MergeL2FetchTimings` / `MergeL2Errors` /
+`MergeL2CacheOpErrors` / `MergeEntitySources`.
 
 Tests:
 - `v2/pkg/engine/resolve/cache_analytics_test.go:65` — `TestCacheAnalyticsCollector_MergeL2Events`
 
-### AC-THREAD-04: Per-goroutine arenas for thread-safe allocation
-The JSON arena (`jsonArena`) uses a `MonotonicArena` which is NOT thread-safe. Phase 2
-goroutines that run `tryL2CacheLoad` allocate JSON values (in `extractCacheKeysStrings`,
-`populateFromCache`, `EntityMergePath` wrapping, and `denormalizeFromCache`).
+### AC-THREAD-04: Main-thread parsing on `l.jsonArena` via reusable `l.parser`
+The JSON arena (`jsonArena`) uses a `MonotonicArena` which is NOT thread-safe, so all
+astjson allocation happens on the main thread. `bulkL2Lookup` parses every L2 cache
+entry onto `l.jsonArena` via the Loader-owned `l.parser` (an `astjson.Parser` whose
+scratch slabs amortize across requests), and Phase 4 parses every subgraph HTTP response
+onto the same arena. Phase 2HTTP goroutines only return a `[]byte` body and never touch
+the arena, so there is no goroutine-arena pool, no cross-arena references in the
+response tree, and no lifetime coupling between goroutines and response rendering.
 
-To avoid data races, each Phase 2 goroutine receives its own arena from `l2ArenaPool`
-(a `sync.Pool` of `MonotonicArena` instances). The per-goroutine arenas are stored in
-`Loader.goroutineArenas` and released in `Loader.Free()` — NOT inside the goroutine —
-because `astjson.MergeValues` is shallow (it links `*Value` pointers from the source into
-the target tree without deep-copying). After merge, the response tree holds cross-arena
-references into the goroutine arenas, which must remain valid until response rendering
-completes.
+The root-field L1 promotion path and entity L1 writes both DeepCopy onto `l.jsonArena`
+before storing in `l1Cache`, so the stored `*astjson.Value` is always owned by the
+Loader's own arena regardless of what arena the source value came from. This closes
+the previous "cross-arena reference" hazard at the storage site rather than at the
+goroutine boundary.
 
 Tests:
-- `v2/pkg/engine/resolve/arena_thread_safety_gc_test.go:21` — `TestCrossArenaMergeValuesCreatesShallowReferences`
+- `v2/pkg/engine/resolve/arena_thread_safety_gc_test.go:21` — `TestCrossArenaMergeValuesCreatesShallowReferences` (documents the shallow merge semantics that motivate the always-DeepCopy rule)
 - `v2/pkg/engine/resolve/arena_thread_safety_gc_test.go:83` — `TestGoroutineArenaLifetimeWithDeferredRelease`
 - `v2/pkg/engine/resolve/arena_thread_safety_gc_test.go:137` — `Benchmark_CrossArenaGCSafety`
 - `v2/pkg/engine/resolve/arena_thread_safety_bench_test.go:40` — `BenchmarkConcurrentArena`
 - `v2/pkg/engine/resolve/arena_thread_safety_bench_test.go:61` — `BenchmarkPerGoroutineArena`
 - `v2/pkg/engine/resolve/loader_arena_gc_test.go:102` — `Benchmark_ArenaGCSafety`
+- `v2/pkg/engine/resolve/loader_arena_gc_test.go` — `TestLoaderArenaGC` family (verifies main-thread parsing on `l.jsonArena` preserves arena invariants)
 
 ## Error Handling
 
@@ -723,7 +809,7 @@ adds cache fragmentation without benefit.
 
 Tests:
 - `execution/engine/federation_caching_analytics_test.go:1791` — `TestCacheAnalyticsE2E / "shadow mode with header prefix - same response different headers"`
-- `v2/pkg/engine/resolve/mutation_cache_impact_test.go:216` — `TestBuildMutationEntityDisplayKey` (display key always without prefix)
+- `v2/pkg/engine/resolve/mutation_cache_test.go` — `TestBuildMutationEntityDisplayKey` (display key always without prefix)
 
 ### AC-ANA-06: Cache operation error tracking
 When analytics is enabled, L2 cache operation errors (`Get`, `Set`, `Delete`) are recorded
@@ -733,7 +819,7 @@ the number of keys involved. This allows operators to detect cache infrastructur
 (e.g., Redis timeouts, connection failures) without requiring a logger on the Loader.
 
 Tests:
-- `v2/pkg/engine/resolve/mutation_cache_impact_test.go:625` — `TestDetectMutationEntityImpact / "array response invalidates all entities in the list"`
+- `v2/pkg/engine/resolve/mutation_cache_test.go` — `TestDetectMutationEntityImpact / "array response invalidates all entities in the list"`
 
 ### AC-ANA-07: Cache write event source tracking
 Each `CacheWriteEvent` carries a `Source` field (`CacheOperationSource`) indicating what
@@ -854,7 +940,7 @@ or the cache.
 This avoids unnecessary subgraph calls and cache operations for trivially empty queries.
 
 Tests:
-- `v2/pkg/engine/resolve/loader_batch_short_circuit_test.go:16` — `TestLoader_BatchEntityKeyEmptyListShortCircuit`
+- `v2/pkg/engine/resolve/loader_skip_fetch_test.go:889` — `TestLoader_BatchEntityKeyEmptyListShortCircuit`
 - `execution/engine/federation_caching_batch_test.go:330` — `TestBatchEntityCacheLookup_FullFetch_EmptyList`
 
 ### AC-BATCH-04: Full fetch mode (all-or-nothing)
@@ -977,7 +1063,7 @@ Tests:
 
 ### AC-L2-BACKFILL-07: Reproducibility checked by rendering, not by guessing
 Write eligibility is determined by rendering keys from final entity data using
-`RenderEntityKeysFromValue` (the same renderer used by `renderDerivedEntityKey` for
+`renderDerivedEntityKeyFromValue` (the same renderer used by `renderDerivedEntityKey` for
 request-arg-based keys).
 This uses the same L2 prefix and interceptor logic as normal cache-key generation.
 When a rendered key matches a requested missing key, it is a backfill.
@@ -986,6 +1072,131 @@ In both cases, the rendered key string is the cache key — never the requested 
 
 Tests:
 - `v2/pkg/engine/resolve/cache_load_test.go:2608` — `TestCacheBackfill_FetchPath_ValueMismatch` (rendered key `b@` differs from requested `a@` → `b@` written as derived, `a@` not written)
+
+## @requestScoped Coordinate L1 Cache
+
+The coordinate L1 cache is a per-request `sync.Map` on the Loader (`requestScopedL1`),
+separate from the entity L1 cache.
+It stores field values keyed by subgraph-qualified strings (e.g., `"viewer.currentViewer"`).
+
+### Directive
+
+```graphql
+directive @requestScoped(key: String!) on FIELD_DEFINITION
+```
+
+**Symmetric semantics**: every field annotated with `@requestScoped(key: "X")` in the
+same subgraph shares the same L1 entry `{subgraphName}.X`. There is no
+receiver/provider distinction. Every participating field is simultaneously:
+
+- A **reader** — the planner emits a hint so the resolver can inject from L1 and
+  potentially skip the subgraph fetch
+- A **writer** — the planner emits an export so the resolver stores the value in L1
+  after the fetch
+
+The first field to resolve populates L1; subsequent fields with the same key inject
+from L1 (subject to widening checks and alias-aware normalization).
+
+**Composition validation**:
+- `key` is mandatory
+- When a key is declared on only one field in the subgraph, a warning is emitted —
+  `@requestScoped` is meaningless unless ≥ 2 fields share the same key
+
+### AC-RS-01: L1 storage uses schema-normalized values via the `ProvidesData` pipeline
+
+The coordinate L1 cache uses the same `astjson.Transform` pipeline as entity L1 and L2
+caches. Per-field `normalizeXform` / `denormalizeXform` Transforms are built from the
+`RequestScopedField.ProvidesData` `*Object` tree. Writes DeepCopy onto `l.jsonArena`
+via `astjson.DeepCopyWithTransform` (applying the normalize Transform). Reads DeepCopy
+back onto `l.jsonArena` via `astjson.DeepCopyWithTransform` with the denormalize
+Transform, re-applying aliases for the current query's selection set. The planner
+populates `ProvidesData` in `populateRequestScopedFieldsProvidesData` in `visitor.go`.
+
+Values in L1 are stored under schema field names (aliases normalized away on write),
+and re-aliased on read per the current query's selection set.
+
+Tests:
+- `v2/pkg/engine/plan/request_scoped_provides_data_test.go` — `TestPopulateRequestScopedFieldsProvidesData`
+- `v2/pkg/engine/resolve/request_scoped_test.go` — `TestRequestScopedProvidesDataShapes` (nested aliases, array of aliased items, arg-variant sub-fields, mixed depths, __typename, nullable)
+
+### AC-RS-02: Export on fetch completion, inject before fetch
+
+Every `@requestScoped` field participates in both:
+- **Export** (after fetch): the field's value is read from the response, normalized
+  via `ProvidesData`, and stored in L1 under its `L1Key`
+- **Inject** (before fetch): the resolver checks L1 under the `L1Key`; if found and
+  the cached value satisfies the widening check, the value is denormalized (aliases
+  re-applied), injected onto items, and the fetch is skipped
+
+Tests:
+- `v2/pkg/engine/resolve/request_scoped_test.go` — `TestExportRequestScopedFields`, `TestTryRequestScopedInjection`, `TestRequestScopedRoundTrip`
+
+### AC-RS-03: Field widening check prevents partial injection
+
+When the coordinate L1 has a cached value but it lacks fields required by the current
+query's selection set (e.g., L1 has `{id, name}` but the current fetch needs
+`{id, name, email}`), injection is blocked and the fetch proceeds normally.
+
+The check uses `validateItemHasRequiredData` against `hint.ProvidesData` — the same
+validator used by entity L1 and L2.
+
+Tests:
+- `v2/pkg/engine/resolve/request_scoped_test.go` — `TestTryRequestScopedInjection / "field widening blocks injection when cached value missing required fields"`
+
+### AC-RS-04: @interfaceObject type mapping
+
+When `@requestScoped` is declared on a field of an `@interfaceObject` type (e.g.,
+`Personalized.currentViewer`), the planner resolves the concrete entity type
+(e.g., `Article`) to the interface type via `InterfaceObjects` and finds the
+`@requestScoped` fields on the interface. This enables injection on entity batches
+for concrete types even when the directive is declared on the interface.
+
+### AC-RS-05: Collect-then-inject atomicity
+
+When multiple hints exist on the same fetch, the injection is atomic: either ALL hints
+are satisfied (and items are mutated with all injected values) or NONE are (items are
+left untouched). The collect-then-inject pattern prevents partial mutations from
+corrupting items when a later hint fails.
+
+Tests:
+- `v2/pkg/engine/resolve/request_scoped_test.go` — `TestTryRequestScopedInjection / "partial hints returns false but does not mutate items"`, `TestRequestScopedRoundTrip / "multiple hints one blocked by field widening other cached"`
+
+### AC-RS-06: Trace reporting — L1 hit counters and LoadSkipped
+
+When `tryRequestScopedInjection` returns true and the fetch is skipped:
+- `ensureFetchTrace(f).LoadSkipped = true` is set so the ART trace reports the fetch as skipped
+- `res.cacheTraceRequestScopedHits = res.cacheTraceEntityCount` is set so `buildCacheTrace`
+  folds these into the `L1Hit` counter (subtracting from `L1Miss`). The playground renders
+  the red L1 hit badge accordingly.
+
+### AC-RS-07: Arena detach on export via StructuralCopy onto `l.jsonArena`
+
+`exportRequestScopedFields` must store a value that is independent of any source
+arena. It does this by StructuralCopying onto `l.jsonArena` before storing:
+- With `ProvidesData.HasAliases == true`, `StructuralCopyWithTransform` copies
+  via the per-field normalize Transform, stripping aliases and arg suffixes while
+  producing a fresh value owned by `l.jsonArena`.
+- With `HasAliases == false`, `StructuralCopy` copies verbatim onto `l.jsonArena`.
+
+Merging an incoming export into an existing `requestScopedL1` entry uses the
+working-copy-and-swap pattern: StructuralCopy the existing entry into a working
+copy, run `astjson.MergeValues` against the working copy, and store the working
+copy only on success. On merge failure the existing live entry is preserved
+unchanged, so a partial `MergeValues` failure cannot corrupt sibling L1 keys.
+
+Without this, if the source value pointed into a goroutine arena or response tree
+that gets freed or mutated, subsequent reads would panic or resurrect stale data.
+
+Tests:
+- `v2/pkg/engine/resolve/request_scoped_test.go` — `TestExportedValuesAreIndependentCopies`
+- `v2/pkg/engine/resolve/loader_cache_phase2_test.go:147` — `TestExportRequestScopedFields_MergeWorkingCopyOnFailure` (working-copy-and-swap isolates merge failure from live cache entry)
+
+### AC-RS-08: L1 gating
+
+`tryRequestScopedInjection` and `exportRequestScopedFields` must check
+`l.ctx.ExecutionOptions.Caching.EnableL1Cache`. Per-request headers like
+`X-WG-Disable-Entity-Cache-L1` disable L1 for the request and must also disable
+the coordinate L1 since it's part of the L1 layer.
 
 ## Future Improvements
 

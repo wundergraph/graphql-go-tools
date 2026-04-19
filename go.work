@@ -7,5 +7,3 @@ use (
 )
 
 replace github.com/tidwall/sjson => github.com/tidwall/sjson v1.0.4
-
-//replace github.com/wundergraph/astjson => ../wundergraph-projects/astjson
