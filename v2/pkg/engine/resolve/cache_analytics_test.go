@@ -3,6 +3,8 @@ package resolve
 import (
 	"bytes"
 	"context"
+	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -1983,4 +1985,102 @@ func TestCacheAnalyticsCollector_WriteEventSource(t *testing.T) {
 			{CacheKey: "mutation-key-2", EntityType: "User", ByteSize: 256, DataSource: "accounts", CacheLevel: CacheLevelL2, TTL: 30 * time.Second, Source: CacheSourceMutation}, // Mutation-triggered write
 		}, snap.L2Writes)
 	})
+}
+
+// TestSnapshotIndependentOfPooledCollector verifies that a snapshot returned
+// from Snapshot() does not share backing arrays with the collector's internal
+// slices. GetCacheStats returns the collector to the pool immediately after
+// snapshotting; a subsequent request may acquire the same collector and mutate
+// its slices while the caller is still iterating the snapshot. Under -race
+// this exposes a data race on the shared backing array. Uses single-event
+// writes so that pool-recycled collectors hit position 0 of the pre-allocated
+// backing array (cap 8) repeatedly, which is exactly the position the reader
+// is iterating.
+func TestSnapshotIndependentOfPooledCollector(t *testing.T) {
+	// Populate a collector, snapshot it, release it to the pool.
+	c := AcquireCacheAnalyticsCollector()
+	c.RecordFetchTiming(FetchTimingEvent{DataSource: "ds", DurationMs: 42})
+	snap := c.Snapshot()
+	ReleaseCacheAnalyticsCollector(c)
+
+	require.Len(t, snap.FetchTimings, 1)
+
+	// Reader: iterate snap.FetchTimings repeatedly (simulates
+	// recordEntityCacheMetrics iterating the snapshot).
+	// Writer: re-acquire a collector (pool returns the same one whose
+	// backing array is aliased by snap.FetchTimings) and record a fetch
+	// timing, which overwrites position 0 of the shared backing array.
+	var wg sync.WaitGroup
+	done := make(chan struct{})
+	wg.Go(func() {
+		for {
+			select {
+			case <-done:
+				return
+			default:
+				sum := int64(0)
+				for _, ev := range snap.FetchTimings {
+					sum += ev.DurationMs
+				}
+				_ = sum
+			}
+		}
+	})
+
+	wg.Go(func() {
+		for range 10_000 {
+			c2 := AcquireCacheAnalyticsCollector()
+			c2.RecordFetchTiming(FetchTimingEvent{DataSource: "ds", DurationMs: 99})
+			ReleaseCacheAnalyticsCollector(c2)
+		}
+		close(done)
+	})
+	wg.Wait()
+}
+
+// TestSnapshotSlicesAreIndependent verifies that mutating the collector's
+// internal slices after Snapshot() — as happens when the pool recycles the
+// collector via ResetForReuse + new Record* calls — does not alter the values
+// observed through the snapshot. Without Snapshot() cloning each shared slice,
+// the snapshot aliases the collector's backing arrays and the next request
+// overwrites positions the caller is still reading.
+func TestSnapshotSlicesAreIndependent(t *testing.T) {
+	c := AcquireCacheAnalyticsCollector()
+	t.Cleanup(func() { ReleaseCacheAnalyticsCollector(c) })
+
+	c.RecordFetchTiming(FetchTimingEvent{DataSource: "ds-orig", DurationMs: 111})
+	c.RecordError(SubgraphErrorEvent{DataSource: "ds-orig"})
+	c.RecordMutationEvent(MutationEvent{EntityType: "User-orig"})
+	c.RecordCacheOperationError(CacheOperationError{DataSource: "ds-orig"})
+	c.HashFieldValue("User-orig", "name", []byte(`"a"`), "k-orig", 1, FieldSourceL1)
+
+	snap := c.Snapshot()
+
+	// Deep-copy the snapshot's slices BEFORE the collector is recycled.
+	// These canonical values must still match snap.* after the collector
+	// is reset and refilled with different events.
+	origFetch := slices.Clone(snap.FetchTimings)
+	origErrors := slices.Clone(snap.ErrorEvents)
+	origMutations := slices.Clone(snap.MutationEvents)
+	origCacheOpErrors := slices.Clone(snap.CacheOpErrors)
+	origFieldHashes := slices.Clone(snap.FieldHashes)
+
+	// Simulate the next request: pool returns c, ResetForReuse truncates
+	// the slices to len=0 while retaining backing arrays, and subsequent
+	// Record* calls overwrite position 0 of every shared backing array.
+	c.ResetForReuse()
+	for range 100 {
+		c.RecordFetchTiming(FetchTimingEvent{DataSource: "ds-new", DurationMs: 999})
+		c.RecordError(SubgraphErrorEvent{DataSource: "ds-new"})
+		c.RecordMutationEvent(MutationEvent{EntityType: "User-new"})
+		c.RecordCacheOperationError(CacheOperationError{DataSource: "ds-new"})
+		c.HashFieldValue("User-new", "name", []byte(`"z"`), "k-new", 2, FieldSourceL2)
+	}
+
+	// Full-slice assertions — snapshot must still show the original events.
+	assert.Equal(t, origFetch, snap.FetchTimings)
+	assert.Equal(t, origErrors, snap.ErrorEvents)
+	assert.Equal(t, origMutations, snap.MutationEvents)
+	assert.Equal(t, origCacheOpErrors, snap.CacheOpErrors)
+	assert.Equal(t, origFieldHashes, snap.FieldHashes)
 }

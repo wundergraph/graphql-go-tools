@@ -1,6 +1,7 @@
 package resolve
 
 import (
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -415,16 +416,20 @@ func (c *CacheAnalyticsCollector) EntitySource(entityType, keyJSON string) Field
 // are consolidated: consumers see one event per unique (CacheKey, Kind) for reads,
 // one per CacheKey for writes, and one per CacheKey for shadow comparisons.
 func (c *CacheAnalyticsCollector) Snapshot() CacheAnalyticsSnapshot {
+	// Clone slices whose backing arrays are otherwise shared with the pooled
+	// collector. Snapshot() is called right before ReleaseCacheAnalyticsCollector,
+	// and the next request's ResetForReuse + Record* calls would overwrite the
+	// caller's view of these slices. The deduplicate* helpers already allocate.
 	snap := CacheAnalyticsSnapshot{
 		L1Reads:            deduplicateKeyEvents(c.l1KeyEvents),
 		L2Reads:            deduplicateKeyEvents(c.l2KeyEvents),
-		FieldHashes:        c.fieldHashes,
-		FetchTimings:       c.fetchTimings,
-		ErrorEvents:        c.errorEvents,
+		FieldHashes:        slices.Clone(c.fieldHashes),
+		FetchTimings:       slices.Clone(c.fetchTimings),
+		ErrorEvents:        slices.Clone(c.errorEvents),
 		ShadowComparisons:  deduplicateShadowComparisons(c.shadowComparisons),
-		MutationEvents:     c.mutationEvents,
+		MutationEvents:     slices.Clone(c.mutationEvents),
 		HeaderImpactEvents: deduplicateHeaderImpactEvents(c.headerImpactEvents),
-		CacheOpErrors:      c.cacheOpErrors,
+		CacheOpErrors:      slices.Clone(c.cacheOpErrors),
 	}
 
 	// Split write events into L1 and L2, then deduplicate each
