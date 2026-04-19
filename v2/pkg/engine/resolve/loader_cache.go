@@ -2621,7 +2621,7 @@ func (l *Loader) detectSingleMutationEntityImpact(
 	// to inherit EnableMutationL2CachePopulation, so the standard updateL2Cache write
 	// path never fires. Write the entity payload here using the same cache key the
 	// read path will construct.
-	if cfg.PopulateCache {
+	if cfg.PopulateCache && l.ctx.ExecutionOptions.Caching.EnableL2Cache {
 		// Project the entity through the entity-level ProvidesData (already navigated
 		// by the caller) so the cached payload exactly matches what an entity fetch
 		// would have returned — no extra mutation-side fields like __typename wrappers

@@ -366,6 +366,7 @@ func TestDetectMutationEntityImpact(t *testing.T) {
 		cacheKey := `{"__typename":"User","key":{"id":"u-pop"}}`
 
 		ctx := NewContext(context.Background())
+		ctx.ExecutionOptions.Caching.EnableL2Cache = true
 		l := makeLoader(ctx, cache, "default")
 
 		cfg := &MutationEntityImpactConfig{
@@ -390,6 +391,35 @@ func TestDetectMutationEntityImpact(t *testing.T) {
 		require.NotNil(t, entries[0], "PopulateCache should write the entity to L2")
 		assert.Equal(t, `{"id":"u-pop","username":"PopMe"}`, string(entries[0].Value),
 			"cached payload must equal the entity projection through ProvidesData")
+	})
+
+	t.Run("PopulateCache true does not write to L2 when L2 is disabled", func(t *testing.T) {
+		cache := NewFakeLoaderCache()
+		cacheKey := `{"__typename":"User","key":{"id":"u-pop-disabled"}}`
+
+		ctx := NewContext(context.Background())
+		ctx.ExecutionOptions.Caching.EnableL2Cache = false
+		l := makeLoader(ctx, cache, "default")
+
+		cfg := &MutationEntityImpactConfig{
+			EntityTypeName: "User",
+			KeyFields:      []KeyField{{Name: "id"}},
+			CacheName:      "default",
+			PopulateCache:  true,
+			PopulateTTL:    60 * time.Second,
+		}
+		info := makeMutationInfo("updateUsername", mutationProvidesData)
+		res := makeResult(cfg)
+
+		responseData, err := astjson.ParseWithArena(l.jsonArena,
+			`{"updateUsername":{"id":"u-pop-disabled","username":"PopMe"}}`)
+		require.NoError(t, err)
+
+		_ = l.detectMutationEntityImpact(res, info, responseData)
+
+		entries, err := cache.Get(context.Background(), []string{cacheKey})
+		require.NoError(t, err)
+		assert.Nil(t, entries[0], "PopulateCache must respect EnableL2Cache=false")
 	})
 
 	t.Run("PopulateCache false does not write to L2", func(t *testing.T) {
