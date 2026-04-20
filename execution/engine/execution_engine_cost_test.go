@@ -714,7 +714,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 		))
 
 		t.Run("cost on argument of directive", func(t *testing.T) {
-			t.Run("directive with non-null argument on a field (search) adds to cost", runWithoutError(
+			t.Run("directive with default non-null argument on a field adds to cost", runWithoutError(
 				// search(name: String!): SearchResult @approx
 				ExecutionEngineTestCase{
 					schema: graphql.StarwarsSchema(t),
