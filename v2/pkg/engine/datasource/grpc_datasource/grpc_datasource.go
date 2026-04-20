@@ -48,7 +48,6 @@ type DataSource struct {
 	rc                *RPCCompiler
 	mapping           *GRPCMapping
 	federationConfigs plan.FederationFieldConfigurations
-	definition        *ast.Document
 	disabled          bool
 
 	pool *arena.Pool
@@ -84,7 +83,6 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 		cc:                client,
 		rc:                config.Compiler,
 		mapping:           config.Mapping,
-		definition:        config.Definition,
 		federationConfigs: config.FederationConfigs,
 		disabled:          config.Disabled,
 		pool:              arena.NewArenaPool(),
