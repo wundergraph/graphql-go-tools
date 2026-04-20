@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -81,10 +82,14 @@ func (c *Client) Subscribe(ctx context.Context, req *common.Request, opts common
 		return nil, ErrClientClosed
 	}
 
-	if opts.Transport == common.TransportSSE {
+	switch opts.Transport {
+	case common.TransportSSE:
 		return c.sse.Subscribe(ctx, req, opts, handler)
+	case common.TransportWS:
+		return c.ws.Subscribe(ctx, req, opts, handler)
+	default:
+		return nil, fmt.Errorf("unsupported transport: %q", opts.Transport)
 	}
-	return c.ws.Subscribe(ctx, req, opts, handler)
 }
 
 // Stats returns client statistics.
