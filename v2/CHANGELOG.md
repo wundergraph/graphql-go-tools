@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.270](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.269...v2.0.0-rc.270) (2026-04-09)
+
+
+### Bug Fixes
+
+* entity null fetch produces resolver error ([#1379](https://github.com/wundergraph/graphql-go-tools/issues/1379)) ([a753eb3](https://github.com/wundergraph/graphql-go-tools/commit/a753eb3320b4e969bb9d80308188751c3c15db73))
+
 ## [2.0.0-rc.269](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.268...v2.0.0-rc.269) (2026-04-08)
 
 
