@@ -24,80 +24,6 @@ const (
 	resolveResponsePath = "result"    // Path for resolve response
 )
 
-// entityIndex represents the mapping between representation order and result order
-// for GraphQL federation entities. This is crucial for maintaining correct entity
-// order when multiple subgraphs return entities in different orders.
-type entityIndex struct {
-	representationIndex int // Index in the original representation array
-	resultIndex         int // Index where this entity should appear in the final result
-}
-
-// indexMap maps GraphQL type names to their corresponding entity indices
-// This allows proper ordering of federated entities by type
-type indexMap map[string][]entityIndex
-
-// getResultIndex returns the correct result index for an entity based on its type
-// and representation index. This ensures federated entities maintain proper ordering
-// across multiple subgraph responses.
-func (i indexMap) getResultIndex(val *astjson.Value, representationIndex int) int {
-	if i == nil {
-		return representationIndex
-	}
-
-	if val == nil {
-		return representationIndex
-	}
-
-	// Extract the __typename field to determine entity type
-	typeName := val.Get("__typename").GetStringBytes()
-
-	// Find the correct result index for this type and representation index
-	for _, entityIndex := range i[string(typeName)] {
-		if entityIndex.representationIndex == representationIndex {
-			return entityIndex.resultIndex
-		}
-	}
-
-	// Fallback to representation index if no mapping found
-	return representationIndex
-}
-
-// createRepresentationIndexMap builds an index mapping for GraphQL federation entities
-// from the variables containing entity representations. This map is used to ensure
-// that entities are returned in the correct order when merging responses from multiple
-// subgraphs, which is critical for GraphQL federation correctness.
-func createRepresentationIndexMap(variables gjson.Result) indexMap {
-	var representations []gjson.Result
-	r := variables.Get("representations")
-	if !r.Exists() {
-		return nil
-	}
-
-	representations = r.Array()
-	im := make(indexMap)
-	indexSet := make(map[string]int) // Track count per type name
-
-	// Build mapping for each representation
-	for i, representation := range representations {
-		typeName := representation.Get("__typename").String()
-
-		// Initialize counter for new type names
-		if _, ok := indexSet[typeName]; !ok {
-			indexSet[typeName] = -1
-		}
-
-		// Increment index for this type
-		indexSet[typeName]++
-
-		// Create mapping entry for this entity
-		im[typeName] = append(im[typeName], entityIndex{
-			representationIndex: indexSet[typeName], // Position within entities of this type
-			resultIndex:         i,                  // Position in the overall result array
-		})
-	}
-	return im
-}
-
 // jsonBuilder is the core component responsible for converting gRPC protobuf responses
 // into GraphQL-compatible JSON format. It handles complex scenarios including:
 // - GraphQL federation entity merging and ordering
@@ -107,81 +33,32 @@ func createRepresentationIndexMap(variables gjson.Result) indexMap {
 type jsonBuilder struct {
 	mapping   *GRPCMapping // Mapping configuration for GraphQL to gRPC translation
 	variables gjson.Result // GraphQL variables containing entity representations
-	indexMap  indexMap     // Entity index mapping for federation ordering
 	jsonArena arena.Arena
 }
 
 // newJSONBuilder creates a new JSON builder instance with the provided mapping
 // and variables. The builder automatically creates an index map for proper
 // federation entity ordering if representations are present in the variables.
-func newJSONBuilder(a arena.Arena, mapping *GRPCMapping, variables gjson.Result) *jsonBuilder {
+func newJSONBuilder(a arena.Arena, mapping *GRPCMapping, variables gjson.Result) (*jsonBuilder, error) {
 	return &jsonBuilder{
 		mapping:   mapping,
 		variables: variables,
-		indexMap:  createRepresentationIndexMap(variables),
 		jsonArena: a,
-	}
-}
-
-// validateFederatedResponse validates that the federated response is valid
-// by checking that the number of entities per type is correct.
-// For non-federated responses, this function is a no-op.
-func (j *jsonBuilder) validateFederatedResponse(response *astjson.Value) error {
-	if j.indexMap == nil {
-		return nil
-	}
-
-	// Get the entities array from the response
-	// If we have an index map, we expect it to be a federated response
-	entities, err := response.Get(entityPath).Array()
-	if err != nil {
-		return err
-	}
-
-	// Count the number of entities per type
-	entitiyCountPerType := make(map[string]int)
-	for _, entity := range entities {
-		entityType := entity.Get("__typename").GetStringBytes()
-		entitiyCountPerType[string(entityType)]++
-	}
-
-	// Check that the number of entities per type is correct and exists in the index map.
-	for typeName, count := range entitiyCountPerType {
-		em, found := j.indexMap[typeName]
-		if !found {
-			return fmt.Errorf("entity type %s received in the subgraph response, but was not expected", typeName)
-		}
-
-		if len(em) != count {
-			return fmt.Errorf("entity type %s received %d entities in the subgraph response, but %d are expected", typeName, count, len(em))
-		}
-	}
-	return nil
+	}, nil
 }
 
 // mergeValues combines two JSON values while preserving proper federation entity ordering.
 // This is a critical function for GraphQL federation where multiple subgraphs may
 // return entities that need to be merged in the correct order.
-func (j *jsonBuilder) mergeValues(left *astjson.Value, right *astjson.Value) (*astjson.Value, error) {
-	if len(j.indexMap) == 0 {
+func (j *jsonBuilder) mergeValues(left *astjson.Value, right resultData) (*astjson.Value, error) {
+	if right.kind != CallKindEntity {
 		// No federation index map available - use simple merge
 		// This path is taken for non-federated queries
-		root, _, err := astjson.MergeValues(j.jsonArena, left, right)
+		root, _, err := astjson.MergeValues(j.jsonArena, left, right.response)
 		if err != nil {
 			return nil, err
 		}
 		return root, nil
-	}
-
-	// Federation entities present - must preserve representation order
-	leftObject, err := left.Object()
-	if err != nil {
-		return nil, err
-	}
-
-	// If left side is empty, just return right side
-	if leftObject.Len() == 0 {
-		return right, nil
 	}
 
 	// Perform federation-aware entity merging
@@ -191,35 +68,34 @@ func (j *jsonBuilder) mergeValues(left *astjson.Value, right *astjson.Value) (*a
 // mergeEntities performs federation-aware merging of entity arrays from multiple subgraph responses.
 // This function ensures that entities are placed in the correct positions in the final response
 // array based on their original representation order, which is critical for GraphQL federation.
-func (j *jsonBuilder) mergeEntities(left *astjson.Value, right *astjson.Value) (*astjson.Value, error) {
+//
+// entityIndexMap is indexed directly without bounds checks: if the lengths
+// did not match we would have already aborted in validateEntityResponse.
+//
+// On the first call, left is the empty root object and we allocate a fresh
+// _entities array. On subsequent calls, left is the result of a previous
+// mergeEntities call and already holds the _entities array, so we mutate it
+// in place rather than copying every accumulated entity into a new array.
+func (j *jsonBuilder) mergeEntities(left *astjson.Value, rightResult resultData) (*astjson.Value, error) {
+	right := rightResult.response
+	rightEntities := right.Get(entityPath).GetArray()
 
-	// Create the response structure with _entities array
-	entities := astjson.ObjectValue(j.jsonArena)
-	entities.Set(j.jsonArena, entityPath, astjson.ArrayValue(j.jsonArena))
-	arr := entities.Get(entityPath)
-
-	// Extract entity arrays from both responses
-	leftRepresentations, err := left.Get(entityPath).Array()
-	if err != nil {
-		return nil, err
+	if left == nil {
+		left = astjson.ObjectValue(j.jsonArena)
 	}
 
-	rightRepresentations, err := right.Get(entityPath).Array()
-	if err != nil {
-		return nil, err
+	arr := left.Get(entityPath)
+	if arr == nil || arr.Type() != astjson.TypeArray {
+		left.Set(j.jsonArena, entityPath, astjson.ArrayValue(j.jsonArena))
+		arr = left.Get(entityPath)
 	}
 
-	// Merge left entities using index mapping to preserve order
-	for index, lr := range leftRepresentations {
-		arr.SetArrayItem(j.jsonArena, j.indexMap.getResultIndex(lr, index), lr)
+	// Place right's entities at their global positions in the merged array.
+	for index, rr := range rightEntities {
+		arr.SetArrayItem(j.jsonArena, rightResult.entityIndexMap[index], rr)
 	}
 
-	// Merge right entities using index mapping to preserve order
-	for index, rr := range rightRepresentations {
-		arr.SetArrayItem(j.jsonArena, j.indexMap.getResultIndex(rr, index), rr)
-	}
-
-	return entities, nil
+	return left, nil
 }
 
 // mergeWithPath merges a JSON value with a resolved value by its path.
@@ -368,9 +244,9 @@ func (j *jsonBuilder) marshalResponseJSON(message *RPCMessage, data protoref.Mes
 			}
 
 			// Type-specific static value - match against member types
-			for _, memberTypes := range message.MemberTypes {
-				if memberTypes == string(data.Type().Descriptor().Name()) {
-					root.Set(j.jsonArena, field.AliasOrPath(), astjson.StringValue(j.jsonArena, memberTypes))
+			for _, memberType := range message.MemberTypes {
+				if memberType == string(data.Type().Descriptor().Name()) {
+					root.Set(j.jsonArena, field.AliasOrPath(), astjson.StringValue(j.jsonArena, memberType))
 					break
 				}
 			}
