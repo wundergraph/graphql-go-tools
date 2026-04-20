@@ -43,6 +43,7 @@ service ProductService {
   rpc QueryCategoriesByKinds(QueryCategoriesByKindsRequest) returns (QueryCategoriesByKindsResponse) {}
   rpc QueryCategory(QueryCategoryRequest) returns (QueryCategoryResponse) {}
   rpc QueryComplexFilterType(QueryComplexFilterTypeRequest) returns (QueryComplexFilterTypeResponse) {}
+  rpc QueryConditionalSearch(QueryConditionalSearchRequest) returns (QueryConditionalSearchResponse) {}
   rpc QueryFilterCategories(QueryFilterCategoriesRequest) returns (QueryFilterCategoriesResponse) {}
   rpc QueryNestedType(QueryNestedTypeRequest) returns (QueryNestedTypeResponse) {}
   rpc QueryNullableFieldsType(QueryNullableFieldsTypeRequest) returns (QueryNullableFieldsTypeResponse) {}
@@ -159,6 +160,13 @@ message ListOfCategory {
 message ListOfCategoryInput {
   message List {
     repeated CategoryInput items = 1;
+  }
+  List list = 1;
+}
+// Wrapper message for a list of ConditionsInput.
+message ListOfConditionsInput {
+  message List {
+    repeated ConditionsInput items = 1;
   }
   List list = 1;
 }
@@ -605,6 +613,14 @@ message QueryTestContainersRequest {
 // Response message for testContainers operation.
 message QueryTestContainersResponse {
   repeated TestContainer test_containers = 1;
+}
+// Request message for conditionalSearch operation.
+message QueryConditionalSearchRequest {
+  ConditionsInput conditions = 1;
+}
+// Response message for conditionalSearch operation.
+message QueryConditionalSearchResponse {
+  repeated ConditionalSearchResult conditional_search = 1;
 }
 // Request message for createUser operation.
 message MutationCreateUserRequest {
@@ -2134,6 +2150,19 @@ message TestContainer {
   string id = 1;
   string name = 2;
   google.protobuf.StringValue description = 3;
+}
+
+message ConditionsInput {
+  ListOfConditionsInput and = 1;
+  ListOfConditionsInput or = 2;
+  google.protobuf.StringValue key = 3;
+  google.protobuf.StringValue value = 4;
+}
+
+message ConditionalSearchResult {
+  string id = 1;
+  string name = 2;
+  int32 matched_conditions = 3;
 }
 
 message UserInput {

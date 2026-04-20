@@ -52,6 +52,7 @@ const (
 	ProductService_QueryCategoriesByKinds_FullMethodName                       = "/productv1.ProductService/QueryCategoriesByKinds"
 	ProductService_QueryCategory_FullMethodName                                = "/productv1.ProductService/QueryCategory"
 	ProductService_QueryComplexFilterType_FullMethodName                       = "/productv1.ProductService/QueryComplexFilterType"
+	ProductService_QueryConditionalSearch_FullMethodName                       = "/productv1.ProductService/QueryConditionalSearch"
 	ProductService_QueryFilterCategories_FullMethodName                        = "/productv1.ProductService/QueryFilterCategories"
 	ProductService_QueryNestedType_FullMethodName                              = "/productv1.ProductService/QueryNestedType"
 	ProductService_QueryNullableFieldsType_FullMethodName                      = "/productv1.ProductService/QueryNullableFieldsType"
@@ -157,6 +158,7 @@ type ProductServiceClient interface {
 	QueryCategoriesByKinds(ctx context.Context, in *QueryCategoriesByKindsRequest, opts ...grpc.CallOption) (*QueryCategoriesByKindsResponse, error)
 	QueryCategory(ctx context.Context, in *QueryCategoryRequest, opts ...grpc.CallOption) (*QueryCategoryResponse, error)
 	QueryComplexFilterType(ctx context.Context, in *QueryComplexFilterTypeRequest, opts ...grpc.CallOption) (*QueryComplexFilterTypeResponse, error)
+	QueryConditionalSearch(ctx context.Context, in *QueryConditionalSearchRequest, opts ...grpc.CallOption) (*QueryConditionalSearchResponse, error)
 	QueryFilterCategories(ctx context.Context, in *QueryFilterCategoriesRequest, opts ...grpc.CallOption) (*QueryFilterCategoriesResponse, error)
 	QueryNestedType(ctx context.Context, in *QueryNestedTypeRequest, opts ...grpc.CallOption) (*QueryNestedTypeResponse, error)
 	QueryNullableFieldsType(ctx context.Context, in *QueryNullableFieldsTypeRequest, opts ...grpc.CallOption) (*QueryNullableFieldsTypeResponse, error)
@@ -552,6 +554,16 @@ func (c *productServiceClient) QueryComplexFilterType(ctx context.Context, in *Q
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(QueryComplexFilterTypeResponse)
 	err := c.cc.Invoke(ctx, ProductService_QueryComplexFilterType_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) QueryConditionalSearch(ctx context.Context, in *QueryConditionalSearchRequest, opts ...grpc.CallOption) (*QueryConditionalSearchResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryConditionalSearchResponse)
+	err := c.cc.Invoke(ctx, ProductService_QueryConditionalSearch_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1210,6 +1222,7 @@ type ProductServiceServer interface {
 	QueryCategoriesByKinds(context.Context, *QueryCategoriesByKindsRequest) (*QueryCategoriesByKindsResponse, error)
 	QueryCategory(context.Context, *QueryCategoryRequest) (*QueryCategoryResponse, error)
 	QueryComplexFilterType(context.Context, *QueryComplexFilterTypeRequest) (*QueryComplexFilterTypeResponse, error)
+	QueryConditionalSearch(context.Context, *QueryConditionalSearchRequest) (*QueryConditionalSearchResponse, error)
 	QueryFilterCategories(context.Context, *QueryFilterCategoriesRequest) (*QueryFilterCategoriesResponse, error)
 	QueryNestedType(context.Context, *QueryNestedTypeRequest) (*QueryNestedTypeResponse, error)
 	QueryNullableFieldsType(context.Context, *QueryNullableFieldsTypeRequest) (*QueryNullableFieldsTypeResponse, error)
@@ -1379,6 +1392,9 @@ func (UnimplementedProductServiceServer) QueryCategory(context.Context, *QueryCa
 }
 func (UnimplementedProductServiceServer) QueryComplexFilterType(context.Context, *QueryComplexFilterTypeRequest) (*QueryComplexFilterTypeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method QueryComplexFilterType not implemented")
+}
+func (UnimplementedProductServiceServer) QueryConditionalSearch(context.Context, *QueryConditionalSearchRequest) (*QueryConditionalSearchResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method QueryConditionalSearch not implemented")
 }
 func (UnimplementedProductServiceServer) QueryFilterCategories(context.Context, *QueryFilterCategoriesRequest) (*QueryFilterCategoriesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method QueryFilterCategories not implemented")
@@ -2174,6 +2190,24 @@ func _ProductService_QueryComplexFilterType_Handler(srv interface{}, ctx context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProductServiceServer).QueryComplexFilterType(ctx, req.(*QueryComplexFilterTypeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_QueryConditionalSearch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryConditionalSearchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).QueryConditionalSearch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_QueryConditionalSearch_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).QueryConditionalSearch(ctx, req.(*QueryConditionalSearchRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -3414,6 +3448,10 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "QueryComplexFilterType",
 			Handler:    _ProductService_QueryComplexFilterType_Handler,
+		},
+		{
+			MethodName: "QueryConditionalSearch",
+			Handler:    _ProductService_QueryConditionalSearch_Handler,
 		},
 		{
 			MethodName: "QueryFilterCategories",
