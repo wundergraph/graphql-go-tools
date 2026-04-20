@@ -18,8 +18,8 @@ It builds on top of IBM spec for @cost and @listSize directive with a few change
 * When weight is specified for the type and a field returns the list of that type,
 this weight (along with children's costs) is multiplied too.
 
-Weights on arguments of directives are supported, but should be used only if specifying the
-weight on the fields is not possible for some reason.
+Weights on arguments of directives are supported. If an argument is of InputObject's type,
+then the weight from its fields is not counted.
 
 */
 
