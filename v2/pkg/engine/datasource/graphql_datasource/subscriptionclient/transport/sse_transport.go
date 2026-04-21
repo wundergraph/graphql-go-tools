@@ -57,29 +57,24 @@ func NewSSETransport(ctx context.Context, client *http.Client, log abstractlogge
 // Each call creates a new HTTP request (no multiplexing).
 //
 // The HTTP method is determined by opts.SSEMethod:
-//   - SSEMethodAuto or SSEMethodPOST: POST with JSON body (graphql-sse spec)
+//   - SSEMethodPOST: POST with JSON body (graphql-sse spec)
 //   - SSEMethodGET: GET with query parameters (traditional SSE)
 func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts common.Options, handler common.Handler) (func(), error) {
 	var httpReq *http.Request
 	var err error
 
-	method := opts.SSEMethod
-	if method == common.SSEMethodAuto {
-		method = common.SSEMethodPOST // Default to POST (graphql-sse spec)
-	}
-
 	t.log.Debug("sseTransport.Subscribe",
 		abstractlogger.String("endpoint", opts.Endpoint),
-		abstractlogger.String("method", string(method)),
+		abstractlogger.String("method", string(opts.SSEMethod)),
 	)
 
-	switch method {
+	switch opts.SSEMethod {
 	case common.SSEMethodPOST:
 		httpReq, err = buildPOSTRequest(req, opts)
 	case common.SSEMethodGET:
 		httpReq, err = buildGETRequest(req, opts)
 	default:
-		return nil, fmt.Errorf("unsupported SSE method: %s", method)
+		return nil, fmt.Errorf("unsupported SSE method: %s", opts.SSEMethod)
 	}
 
 	if err != nil {

@@ -62,6 +62,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 		}, common.Options{
 			Endpoint:  server.URL,
 			Transport: common.TransportSSE,
+			SSEMethod: common.SSEMethodPOST,
 		}, handler)
 		require.NoError(t, err)
 		defer cancel()
@@ -106,8 +107,9 @@ func TestSSETransport_Subscribe(t *testing.T) {
 		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
 		}, common.Options{
-			Endpoint: server.URL,
-			Headers:  headers,
+			Endpoint:  server.URL,
+			Headers:   headers,
+			SSEMethod: common.SSEMethodPOST,
 		}, handler)
 		require.NoError(t, err)
 		defer cancel()
@@ -138,7 +140,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 		handler, receive := collectingHandler()
 		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { user { name } }",
-		}, common.Options{Endpoint: server.URL}, handler)
+		}, common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodPOST}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
@@ -163,7 +165,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 		handler, receive := collectingHandler()
 		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
-		}, common.Options{Endpoint: server.URL}, handler)
+		}, common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodPOST}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
@@ -188,7 +190,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 		handler, receive := collectingHandler()
 		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
-		}, common.Options{Endpoint: server.URL}, handler)
+		}, common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodPOST}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
@@ -223,7 +225,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 		handler, receive := collectingHandler()
 		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
-		}, common.Options{Endpoint: server.URL}, handler)
+		}, common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodPOST}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
@@ -263,7 +265,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 		wrappedHandler, collect := waitForMessages(handler)
 		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
-		}, common.Options{Endpoint: server.URL}, wrappedHandler)
+		}, common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodPOST}, wrappedHandler)
 		require.NoError(t, err)
 		defer cancel()
 
@@ -295,7 +297,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 		handler, receive := collectingHandler()
 		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
-		}, common.Options{Endpoint: server.URL}, handler)
+		}, common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodPOST}, handler)
 		require.NoError(t, err)
 
 		// Receive first message
@@ -341,7 +343,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 		handler, receive := collectingHandler()
 		cancel, err := tr.Subscribe(transportCtx, &common.Request{
 			Query: "subscription { test }",
-		}, common.Options{Endpoint: server.URL}, handler)
+		}, common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodPOST}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
@@ -368,7 +370,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 
 		_, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
-		}, common.Options{Endpoint: server.URL}, func(_ *common.Message) {})
+		}, common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodPOST}, func(_ *common.Message) {})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "401")
@@ -386,7 +388,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 
 		_, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
-		}, common.Options{Endpoint: server.URL}, func(_ *common.Message) {})
+		}, common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodPOST}, func(_ *common.Message) {})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "500")
@@ -412,7 +414,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 
 		tr := NewSSETransport(t.Context(), http.DefaultClient, nil)
 
-		opts := common.Options{Endpoint: server.URL}
+		opts := common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodPOST}
 
 		handler1, receive1 := collectingHandler()
 		cancel1, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, opts, handler1)
@@ -452,7 +454,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 		handler, receive := collectingHandler()
 		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
-		}, common.Options{Endpoint: server.URL}, handler)
+		}, common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodPOST}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
@@ -487,7 +489,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 		handler, receive := collectingHandler()
 		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
-		}, common.Options{Endpoint: server.URL}, handler)
+		}, common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodPOST}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
@@ -519,7 +521,7 @@ func TestSSETransport_ContextCancellation(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		tr := NewSSETransport(ctx, http.DefaultClient, nil)
 
-		opts := common.Options{Endpoint: server.URL}
+		opts := common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodPOST}
 
 		handler1, receive1 := collectingHandler()
 		_, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, opts, handler1)
@@ -576,7 +578,7 @@ func TestSSETransport_CustomClient(t *testing.T) {
 		handler, receive := collectingHandler()
 		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
-		}, common.Options{Endpoint: server.URL}, handler)
+		}, common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodPOST}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
@@ -625,7 +627,7 @@ func TestSSETransport_ContentTypeValidation(t *testing.T) {
 		handler, receive := collectingHandler()
 		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
-		}, common.Options{Endpoint: server.URL}, handler)
+		}, common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodPOST}, handler)
 		require.NoError(t, err)
 		defer cancel()
 
@@ -646,7 +648,7 @@ func TestSSETransport_ContentTypeValidation(t *testing.T) {
 
 		_, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
-		}, common.Options{Endpoint: server.URL}, func(_ *common.Message) {})
+		}, common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodPOST}, func(_ *common.Message) {})
 
 		require.Error(t, err)
 		assert.True(t, strings.Contains(err.Error(), "content-type") || strings.Contains(err.Error(), "Content-Type"))
@@ -819,64 +821,37 @@ func TestSSETransport_GETMethod(t *testing.T) {
 	})
 }
 
-func TestSSETransport_MethodDefault(t *testing.T) {
+func TestSSETransport_Subscribe_UnrecognizedMethod(t *testing.T) {
 	t.Parallel()
 
-	t.Run("defaults to POST when SSEMethod is auto", func(t *testing.T) {
+	t.Run("returns error for unrecognized SSE method", func(t *testing.T) {
 		t.Parallel()
-
-		var receivedMethod string
-		server := newSSEServer(t, func(w http.ResponseWriter, r *http.Request) {
-			receivedMethod = r.Method
-
-			w.Header().Set("Content-Type", "text/event-stream")
-			w.WriteHeader(http.StatusOK)
-			fmt.Fprintf(w, "event: complete\ndata:\n\n")
-		})
 
 		tr := NewSSETransport(t.Context(), http.DefaultClient, nil)
 
-		handler, receive := collectingHandler()
-		cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		_, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
 		}, common.Options{
-			Endpoint:  server.URL,
-			SSEMethod: common.SSEMethodAuto, // or just omit it
-		}, handler)
-		require.NoError(t, err)
-		defer cancel()
+			Endpoint:  "http://example.invalid",
+			SSEMethod: common.SSEMethod("PATCH"),
+		}, func(_ *common.Message) {})
 
-		receive(t, time.Second)
-
-		assert.Equal(t, http.MethodPost, receivedMethod)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unsupported SSE method")
 	})
 
-	t.Run("explicit POST method works", func(t *testing.T) {
+	t.Run("returns error when SSE method is empty", func(t *testing.T) {
 		t.Parallel()
-
-		var receivedMethod string
-		server := newSSEServer(t, func(w http.ResponseWriter, r *http.Request) {
-			receivedMethod = r.Method
-
-			w.Header().Set("Content-Type", "text/event-stream")
-			w.WriteHeader(http.StatusOK)
-			fmt.Fprintf(w, "event: complete\ndata:\n\n")
-		})
 
 		tr := NewSSETransport(t.Context(), http.DefaultClient, nil)
 
-		handler, receive := collectingHandler()
-		cancel, err := tr.Subscribe(context.Background(), &common.Request{
+		_, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
 		}, common.Options{
-			Endpoint:  server.URL,
-			SSEMethod: common.SSEMethodPOST,
-		}, handler)
-		require.NoError(t, err)
-		defer cancel()
+			Endpoint: "http://example.invalid",
+		}, func(_ *common.Message) {})
 
-		receive(t, time.Second)
-
-		assert.Equal(t, http.MethodPost, receivedMethod)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unsupported SSE method")
 	})
 }

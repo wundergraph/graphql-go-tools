@@ -38,7 +38,6 @@ func (s WSSubprotocol) Subprotocols() []string {
 type SSEMethod string
 
 const (
-	SSEMethodAuto SSEMethod = ""     // Auto: POST for graphql-sse (default)
 	SSEMethodPOST SSEMethod = "POST" // POST with JSON body (graphql-sse spec)
 	SSEMethodGET  SSEMethod = "GET"  // GET with query parameters (traditional SSE)
 )
@@ -54,6 +53,5 @@ type Options struct {
 	WSSubprotocol WSSubprotocol
 
 	// Only affects the SSE transport.
-	// Defaults to POST (graphql-sse spec).
 	SSEMethod SSEMethod
 }

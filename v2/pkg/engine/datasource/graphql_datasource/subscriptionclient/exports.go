@@ -37,7 +37,6 @@ const (
 	SubprotocolGraphQLTransportWS = common.SubprotocolGraphQLTransportWS
 	SubprotocolGraphQLWS          = common.SubprotocolGraphQLWS
 
-	SSEMethodAuto = common.SSEMethodAuto
 	SSEMethodPOST = common.SSEMethodPOST
 	SSEMethodGET  = common.SSEMethodGET
 )
