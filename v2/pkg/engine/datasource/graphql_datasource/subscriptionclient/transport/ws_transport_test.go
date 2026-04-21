@@ -43,7 +43,7 @@ func TestWSTransport_Subscribe(t *testing.T) {
 			})
 		})
 
-		tr := NewWSTransport(t.Context(), WSTransportOptions{})
+		tr := newTestWSTransport(t, WSTransportOptions{})
 
 		handler, receive := collectingHandler()
 		cancel, err := tr.Subscribe(context.Background(), &common.Request{
@@ -85,7 +85,7 @@ func TestWSTransport_Subscribe(t *testing.T) {
 			}
 		})
 
-		tr := NewWSTransport(t.Context(), WSTransportOptions{})
+		tr := newTestWSTransport(t, WSTransportOptions{})
 
 		opts := common.Options{
 			Endpoint:  server.URL,
@@ -134,7 +134,7 @@ func TestWSTransport_Subscribe(t *testing.T) {
 			}
 		})
 
-		tr := NewWSTransport(t.Context(), WSTransportOptions{})
+		tr := newTestWSTransport(t, WSTransportOptions{})
 
 		headers1 := http.Header{"Authorization": []string{"Bearer token1"}}
 		headers2 := http.Header{"Authorization": []string{"Bearer token2"}}
@@ -188,7 +188,7 @@ func TestWSTransport_Subscribe(t *testing.T) {
 			}
 		})
 
-		tr := NewWSTransport(t.Context(), WSTransportOptions{})
+		tr := newTestWSTransport(t, WSTransportOptions{})
 
 		handler1, receive1 := collectingHandler()
 		cancel1, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, common.Options{
@@ -228,7 +228,7 @@ func TestWSTransport_Subscribe(t *testing.T) {
 			}
 		})
 
-		tr := NewWSTransport(t.Context(), WSTransportOptions{})
+		tr := newTestWSTransport(t, WSTransportOptions{})
 
 		opts := common.Options{
 			Endpoint:  server.URL,
@@ -277,7 +277,7 @@ func TestWSTransport_Subscribe(t *testing.T) {
 			}
 		})
 
-		tr := NewWSTransport(t.Context(), WSTransportOptions{})
+		tr := newTestWSTransport(t, WSTransportOptions{})
 
 		opts := common.Options{
 			Endpoint:  server.URL,
@@ -322,7 +322,7 @@ func TestWSTransport_SubscriberDrain(t *testing.T) {
 			}
 		})
 
-		tr := NewWSTransport(t.Context(), WSTransportOptions{})
+		tr := newTestWSTransport(t, WSTransportOptions{})
 
 		cancel, err := tr.Subscribe(context.Background(), &common.Request{Query: "subscription { a }"}, common.Options{
 			Endpoint:  server.URL,
@@ -351,7 +351,7 @@ func TestWSTransport_SubscriberDrain(t *testing.T) {
 			}
 		})
 
-		tr := NewWSTransport(t.Context(), WSTransportOptions{})
+		tr := newTestWSTransport(t, WSTransportOptions{})
 
 		opts := common.Options{Endpoint: server.URL, Transport: common.TransportWS}
 
@@ -401,7 +401,7 @@ func TestWSTransport_ConcurrentSubscribe(t *testing.T) {
 			}
 		})
 
-		tr := NewWSTransport(t.Context(), WSTransportOptions{
+		tr := newTestWSTransport(t, WSTransportOptions{
 			IdleTimeout: 30 * time.Second,
 		})
 
@@ -479,7 +479,7 @@ func TestWSTransport_InitPayloadForwarding(t *testing.T) {
 		}))
 		t.Cleanup(server.Close)
 
-		tr := NewWSTransport(t.Context(), WSTransportOptions{})
+		tr := newTestWSTransport(t, WSTransportOptions{})
 
 		initPayload := map[string]any{
 			"Authorization": "Bearer secret-token",
@@ -564,7 +564,7 @@ func TestWSTransport_InitPayloadForwarding(t *testing.T) {
 		}))
 		t.Cleanup(server.Close)
 
-		tr := NewWSTransport(t.Context(), WSTransportOptions{})
+		tr := newTestWSTransport(t, WSTransportOptions{})
 
 		initPayload := map[string]any{
 			"token":   "legacy-auth-token",
@@ -643,7 +643,7 @@ func TestWSTransport_InitPayloadForwarding(t *testing.T) {
 		}))
 		t.Cleanup(server.Close)
 
-		tr := NewWSTransport(t.Context(), WSTransportOptions{})
+		tr := newTestWSTransport(t, WSTransportOptions{})
 
 		handler, receive := collectingHandler()
 		cancel, err := tr.Subscribe(context.Background(), &common.Request{
@@ -722,7 +722,7 @@ func TestWSTransport_InitPayloadForwarding(t *testing.T) {
 		}))
 		t.Cleanup(server.Close)
 
-		tr := NewWSTransport(t.Context(), WSTransportOptions{})
+		tr := newTestWSTransport(t, WSTransportOptions{})
 
 		// First subscription with user1 token
 		handler1, receive1 := collectingHandler()
@@ -797,7 +797,7 @@ func TestWSTransport_LegacyProtocol(t *testing.T) {
 			})
 		})
 
-		tr := NewWSTransport(t.Context(), WSTransportOptions{})
+		tr := newTestWSTransport(t, WSTransportOptions{})
 
 		handler, receive := collectingHandler()
 		cancel, err := tr.Subscribe(context.Background(), &common.Request{
@@ -842,7 +842,7 @@ func TestWSTransport_LegacyProtocol(t *testing.T) {
 			})
 		})
 
-		tr := NewWSTransport(t.Context(), WSTransportOptions{})
+		tr := newTestWSTransport(t, WSTransportOptions{})
 
 		handler, receive := collectingHandler()
 		cancel, err := tr.Subscribe(context.Background(), &common.Request{
@@ -883,7 +883,7 @@ func TestWSTransport_LegacyProtocol(t *testing.T) {
 			})
 		})
 
-		tr := NewWSTransport(t.Context(), WSTransportOptions{})
+		tr := newTestWSTransport(t, WSTransportOptions{})
 
 		handler, receive := collectingHandler()
 		cancel, err := tr.Subscribe(context.Background(), &common.Request{
@@ -926,7 +926,7 @@ func TestWSTransport_Heartbeat(t *testing.T) {
 			}
 		})
 
-		tr := NewWSTransport(t.Context(), WSTransportOptions{PingInterval: 50 * time.Millisecond})
+		tr := newTestWSTransport(t, WSTransportOptions{PingInterval: 50 * time.Millisecond})
 
 		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
@@ -960,7 +960,7 @@ func TestWSTransport_Heartbeat(t *testing.T) {
 			}
 		})
 
-		tr := NewWSTransport(t.Context(), WSTransportOptions{PingInterval: 100 * time.Millisecond, PingTimeout: 50 * time.Millisecond})
+		tr := newTestWSTransport(t, WSTransportOptions{PingInterval: 100 * time.Millisecond, PingTimeout: 50 * time.Millisecond})
 
 		handler, receive := collectingHandler()
 		_, err := tr.Subscribe(context.Background(), &common.Request{
@@ -1003,7 +1003,7 @@ func TestWSTransport_Heartbeat(t *testing.T) {
 		})
 
 		// PingInterval set, PingTimeout left at zero (disabled)
-		tr := NewWSTransport(t.Context(), WSTransportOptions{PingInterval: 50 * time.Millisecond})
+		tr := newTestWSTransport(t, WSTransportOptions{PingInterval: 50 * time.Millisecond})
 
 		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
@@ -1043,7 +1043,7 @@ func TestWSTransport_Heartbeat(t *testing.T) {
 			}
 		})
 
-		tr := NewWSTransport(t.Context(), WSTransportOptions{PingInterval: 50 * time.Millisecond, PingTimeout: 200 * time.Millisecond})
+		tr := newTestWSTransport(t, WSTransportOptions{PingInterval: 50 * time.Millisecond, PingTimeout: 200 * time.Millisecond})
 
 		cancel, err := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { test }",
@@ -1092,7 +1092,7 @@ func TestWSTransport_Heartbeat(t *testing.T) {
 		// Enable ping loop with a tight timeout. Legacy connections are
 		// unaffected because sendPing is a no-op for non-Pinger protocols,
 		// so lastPingSentAt stays zero and pongOverdue never triggers.
-		tr := NewWSTransport(t.Context(), WSTransportOptions{
+		tr := newTestWSTransport(t, WSTransportOptions{
 			PingInterval: 50 * time.Millisecond,
 			PingTimeout:  150 * time.Millisecond,
 			WriteTimeout: 100 * time.Millisecond,
@@ -1134,7 +1134,7 @@ func TestWSTransport_Heartbeat(t *testing.T) {
 			}
 		})
 
-		tr := NewWSTransport(t.Context(), WSTransportOptions{
+		tr := newTestWSTransport(t, WSTransportOptions{
 			PingInterval: 50 * time.Millisecond,
 		})
 
@@ -1154,43 +1154,6 @@ func TestWSTransport_Heartbeat(t *testing.T) {
 		// Server should not have received any messages (no pings sent).
 		assert.Equal(t, int32(0), extraMessages.Load())
 	})
-}
-
-func TestWSTransport_Defaults(t *testing.T) {
-	t.Parallel()
-
-	t.Run("applies default read limit when omitted", func(t *testing.T) {
-		t.Parallel()
-
-		tr := NewWSTransport(t.Context(), WSTransportOptions{})
-
-		assert.Equal(t, defaultReadLimit, tr.opts.ReadLimit)
-	})
-
-	t.Run("applies default read limit for zero value", func(t *testing.T) {
-		t.Parallel()
-
-		tr := NewWSTransport(t.Context(), WSTransportOptions{ReadLimit: 0})
-
-		assert.Equal(t, defaultReadLimit, tr.opts.ReadLimit)
-	})
-
-	t.Run("overrides read limit when provided", func(t *testing.T) {
-		t.Parallel()
-
-		tr := NewWSTransport(t.Context(), WSTransportOptions{ReadLimit: 2 * 1024 * 1024})
-
-		assert.Equal(t, int64(2*1024*1024), tr.opts.ReadLimit)
-	})
-
-	t.Run("ignores negative read limit", func(t *testing.T) {
-		t.Parallel()
-
-		tr := NewWSTransport(t.Context(), WSTransportOptions{ReadLimit: -1})
-
-		assert.Equal(t, defaultReadLimit, tr.opts.ReadLimit)
-	})
-
 }
 
 // Test helpers

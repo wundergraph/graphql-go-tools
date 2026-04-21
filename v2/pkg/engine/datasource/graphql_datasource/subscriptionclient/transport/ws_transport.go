@@ -20,12 +20,7 @@ import (
 
 // ErrDialFailed indicates that the WebSocket dial (TCP + HTTP upgrade) failed.
 // The underlying cause is available via errors.Unwrap.
-var (
-	ErrDialFailed = errors.New("websocket dial failed")
-
-	defaultReadLimit  = int64(1024 * 1024) // 1MB
-	defaultAckTimeout = 30 * time.Second
-)
+var ErrDialFailed = errors.New("websocket dial failed")
 
 // ErrInitFailed indicates that the GraphQL protocol init (connection_init /
 // connection_ack handshake) failed after a successful WebSocket dial. The
@@ -56,7 +51,7 @@ type WSTransportOptions struct {
 	Logger abstractlogger.Logger
 
 	// ReadLimit is the maximum message size in bytes the WebSocket connection
-	// will accept. Default: 1MB.
+	// will accept.
 	ReadLimit int64
 
 	// PingInterval is how often the transport sends a ping to each connection.
@@ -69,11 +64,10 @@ type WSTransportOptions struct {
 
 	// AckTimeout is the maximum time to wait for a connection_ack during the
 	// protocol init handshake. Passed to the protocol at construction.
-	// Default: 30s.
 	AckTimeout time.Duration
 
 	// WriteTimeout is the deadline applied to each WebSocket write (subscribe,
-	// unsubscribe, ping, pong). Passed to each connection. Default: 5s.
+	// unsubscribe, ping, pong). Passed to each connection.
 	WriteTimeout time.Duration
 
 	// IdleTimeout is the duration a connection stays open after its last
@@ -111,14 +105,6 @@ func NewWSTransport(ctx context.Context, opts WSTransportOptions) *WSTransport {
 
 	if opts.Logger == nil {
 		opts.Logger = abstractlogger.NoopLogger
-	}
-
-	if opts.ReadLimit <= 0 {
-		opts.ReadLimit = defaultReadLimit
-	}
-
-	if opts.AckTimeout <= 0 {
-		opts.AckTimeout = defaultAckTimeout
 	}
 
 	t := &WSTransport{

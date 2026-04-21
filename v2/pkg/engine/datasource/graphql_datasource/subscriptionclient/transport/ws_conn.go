@@ -15,11 +15,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/protocol"
 )
 
-var (
-	ErrSubscriptionExists = errors.New("subscription ID already exists")
-
-	defaultWriteTimeout = 5 * time.Second
-)
+var ErrSubscriptionExists = errors.New("subscription ID already exists")
 
 type wsConnectionOptions struct {
 	logger       abstractlogger.Logger
@@ -57,9 +53,6 @@ type wsConnection struct {
 func newWSConnection(conn *websocket.Conn, proto protocol.Protocol, opts wsConnectionOptions) *wsConnection {
 	if opts.logger == nil {
 		opts.logger = abstractlogger.NoopLogger
-	}
-	if opts.writeTimeout <= 0 {
-		opts.writeTimeout = defaultWriteTimeout
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

@@ -88,7 +88,7 @@ func WithPingInterval(d time.Duration) SubscriptionClientOption {
 
 // WithPingTimeout sets the maximum time to wait for a pong response.
 // If no pong is received within this duration, the connection is considered dead.
-// Default: 10s.
+// Default: 10s. Set to 0 to disable the pong-timeout check.
 func WithPingTimeout(d time.Duration) SubscriptionClientOption {
 	return func(cfg *SubscriptionClientConfig) {
 		cfg.PingTimeout = d
@@ -96,7 +96,6 @@ func WithPingTimeout(d time.Duration) SubscriptionClientOption {
 }
 
 // WithAckTimeout sets the maximum time to wait for connection_ack after connection_init.
-// Default: 30s.
 func WithAckTimeout(d time.Duration) SubscriptionClientOption {
 	return func(cfg *SubscriptionClientConfig) {
 		cfg.AckTimeout = d
@@ -104,7 +103,6 @@ func WithAckTimeout(d time.Duration) SubscriptionClientOption {
 }
 
 // WithWriteTimeout sets the timeout for WebSocket write operations (subscribe, unsubscribe, ping, pong).
-// Default: 5s.
 func WithWriteTimeout(d time.Duration) SubscriptionClientOption {
 	return func(cfg *SubscriptionClientConfig) {
 		cfg.WriteTimeout = d
@@ -120,7 +118,6 @@ func WithDefaultErrorExtensionCode(code string) SubscriptionClientOption {
 }
 
 // WithReadLimit sets the maximum size in bytes for incoming WebSocket messages.
-// Default: 1MB.
 func WithReadLimit(n int64) SubscriptionClientOption {
 	return func(cfg *SubscriptionClientConfig) {
 		cfg.ReadLimit = n

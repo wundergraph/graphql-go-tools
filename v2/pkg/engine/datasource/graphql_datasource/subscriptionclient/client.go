@@ -15,6 +15,12 @@ import (
 
 var ErrClientClosed = errors.New("client closed")
 
+const (
+	defaultReadLimit    = 1 << 20 // 1MiB
+	defaultAckTimeout   = 30 * time.Second
+	defaultWriteTimeout = 5 * time.Second
+)
+
 type Client struct {
 	ctx context.Context
 	log abstractlogger.Logger
@@ -52,6 +58,15 @@ func New(ctx context.Context, cfg Config) *Client {
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = abstractlogger.NoopLogger
+	}
+	if cfg.ReadLimit <= 0 {
+		cfg.ReadLimit = defaultReadLimit
+	}
+	if cfg.AckTimeout <= 0 {
+		cfg.AckTimeout = defaultAckTimeout
+	}
+	if cfg.WriteTimeout <= 0 {
+		cfg.WriteTimeout = defaultWriteTimeout
 	}
 
 	c := &Client{
