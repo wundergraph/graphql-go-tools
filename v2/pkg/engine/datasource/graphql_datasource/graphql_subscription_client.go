@@ -15,8 +15,8 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
-// SubscriptionClientConfig holds the subscription client configuration.
-type SubscriptionClientConfig struct {
+// subscriptionClientConfig holds the subscription client configuration.
+type subscriptionClientConfig struct {
 	UpgradeClient   *http.Client
 	StreamingClient *http.Client
 	Logger          abstractlogger.Logger
@@ -34,8 +34,8 @@ type SubscriptionClientConfig struct {
 	DefaultErrorExtensionCode string
 }
 
-func defaultSubscriptionClientConfig() *SubscriptionClientConfig {
-	return &SubscriptionClientConfig{
+func defaultsubscriptionClientConfig() *subscriptionClientConfig {
+	return &subscriptionClientConfig{
 		UpgradeClient:   http.DefaultClient,
 		StreamingClient: http.DefaultClient,
 		Logger:          abstractlogger.NoopLogger,
@@ -46,11 +46,11 @@ func defaultSubscriptionClientConfig() *SubscriptionClientConfig {
 }
 
 // SubscriptionClientOption configures the subscription client.
-type SubscriptionClientOption func(*SubscriptionClientConfig)
+type SubscriptionClientOption func(*subscriptionClientConfig)
 
 // WithUpgradeClient sets the HTTP client used for WebSocket upgrade requests.
 func WithUpgradeClient(c *http.Client) SubscriptionClientOption {
-	return func(cfg *SubscriptionClientConfig) {
+	return func(cfg *subscriptionClientConfig) {
 		if c != nil {
 			cfg.UpgradeClient = c
 		}
@@ -60,7 +60,7 @@ func WithUpgradeClient(c *http.Client) SubscriptionClientOption {
 // WithStreamingClient sets the HTTP client used for SSE requests.
 // This client should have appropriate timeouts for long-lived connections.
 func WithStreamingClient(c *http.Client) SubscriptionClientOption {
-	return func(cfg *SubscriptionClientConfig) {
+	return func(cfg *subscriptionClientConfig) {
 		if c != nil {
 			cfg.StreamingClient = c
 		}
@@ -70,7 +70,7 @@ func WithStreamingClient(c *http.Client) SubscriptionClientOption {
 // WithLogger sets the logger for the client and its transports.
 // If not set, logging is disabled (silent operation).
 func WithLogger(log abstractlogger.Logger) SubscriptionClientOption {
-	return func(cfg *SubscriptionClientConfig) {
+	return func(cfg *subscriptionClientConfig) {
 		if log != nil {
 			cfg.Logger = log
 		}
@@ -81,7 +81,7 @@ func WithLogger(log abstractlogger.Logger) SubscriptionClientOption {
 // Only applies to graphql-transport-ws protocol (legacy graphql-ws uses server-initiated keepalive).
 // Default: 30s. Set to 0 to disable client-initiated pings.
 func WithPingInterval(d time.Duration) SubscriptionClientOption {
-	return func(cfg *SubscriptionClientConfig) {
+	return func(cfg *subscriptionClientConfig) {
 		cfg.PingInterval = d
 	}
 }
@@ -90,21 +90,21 @@ func WithPingInterval(d time.Duration) SubscriptionClientOption {
 // If no pong is received within this duration, the connection is considered dead.
 // Default: 10s. Set to 0 to disable the pong-timeout check.
 func WithPingTimeout(d time.Duration) SubscriptionClientOption {
-	return func(cfg *SubscriptionClientConfig) {
+	return func(cfg *subscriptionClientConfig) {
 		cfg.PingTimeout = d
 	}
 }
 
 // WithAckTimeout sets the maximum time to wait for connection_ack after connection_init.
 func WithAckTimeout(d time.Duration) SubscriptionClientOption {
-	return func(cfg *SubscriptionClientConfig) {
+	return func(cfg *subscriptionClientConfig) {
 		cfg.AckTimeout = d
 	}
 }
 
 // WithWriteTimeout sets the timeout for WebSocket write operations (subscribe, unsubscribe, ping, pong).
 func WithWriteTimeout(d time.Duration) SubscriptionClientOption {
-	return func(cfg *SubscriptionClientConfig) {
+	return func(cfg *subscriptionClientConfig) {
 		cfg.WriteTimeout = d
 	}
 }
@@ -112,14 +112,14 @@ func WithWriteTimeout(d time.Duration) SubscriptionClientOption {
 // WithDefaultErrorExtensionCode sets the extension code attached to GraphQL
 // errors produced by upstream connection failures.
 func WithDefaultErrorExtensionCode(code string) SubscriptionClientOption {
-	return func(cfg *SubscriptionClientConfig) {
+	return func(cfg *subscriptionClientConfig) {
 		cfg.DefaultErrorExtensionCode = code
 	}
 }
 
 // WithReadLimit sets the maximum size in bytes for incoming WebSocket messages.
 func WithReadLimit(n int64) SubscriptionClientOption {
-	return func(cfg *SubscriptionClientConfig) {
+	return func(cfg *subscriptionClientConfig) {
 		cfg.ReadLimit = n
 	}
 }
@@ -133,7 +133,7 @@ type subscriptionClientV2 struct {
 
 // NewGraphQLSubscriptionClient creates a new subscription client.
 func NewGraphQLSubscriptionClient(ctx context.Context, opts ...SubscriptionClientOption) GraphQLSubscriptionClient {
-	cfg := defaultSubscriptionClientConfig()
+	cfg := defaultsubscriptionClientConfig()
 	for _, opt := range opts {
 		opt(cfg)
 	}
