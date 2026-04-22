@@ -168,13 +168,12 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 		for _, fetch := range stage.fetches {
 			responseMessage := dynamicpb.NewMessage(fetch.response.responseType.desc)
 
-			d.wireBuf.Reset()
-			if err = fetch.request.wire.appendProtoWire(&d.wireBuf, astJsonVariables); err != nil {
+			buffer, err := fetch.request.wire.createProtoWire(astJsonVariables)
+			if err != nil {
 				return nil, err
 			}
 
-			pm := NewPreWiredInputMessage(d.wireBuf.Bytes())
-			err = d.cc.Invoke(ctx, fetch.methodFullName, pm, responseMessage, d.codecOpt)
+			err = d.cc.Invoke(ctx, fetch.methodFullName, NewPreWiredInputMessage(buffer), responseMessage)
 			if err != nil {
 				return nil, err
 			}
