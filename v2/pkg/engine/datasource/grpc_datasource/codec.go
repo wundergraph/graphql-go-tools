@@ -1,6 +1,8 @@
 package grpcdatasource
 
 import (
+	"fmt"
+
 	"google.golang.org/grpc/encoding"
 	"google.golang.org/grpc/encoding/proto"
 	_ "google.golang.org/grpc/encoding/proto"
@@ -39,6 +41,11 @@ func (c *connectCodec) Marshal(v any) (out mem.BufferSlice, err error) {
 			out = append(out, mem.NewBuffer(buf, pool))
 			return out, nil
 		}
+	}
+
+	// TODO: This should never happen
+	if defaultCodec == nil {
+		return nil, fmt.Errorf("default codec is nil")
 	}
 
 	return defaultCodec.Marshal(v)

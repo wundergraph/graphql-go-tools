@@ -211,8 +211,8 @@ type EnumValue struct {
 // RPCCompiler compiles protobuf schema strings into a Document and can
 // build protobuf messages from JSON data based on the schema.
 type RPCCompiler struct {
-	doc      *Document // The compiled Document
-	Ancestor []Message
+	doc     *Document      // The compiled Document
+	runtime *runtimeSchema // The compiled runtime schema
 }
 
 // ServiceByName returns a Service by its name.
@@ -310,6 +310,13 @@ func NewProtoCompiler(schema string, mapping *GRPCMapping) (*RPCCompiler, error)
 
 	// Process the schema file
 	pc.processFile(schemaFile, mapping)
+
+	runtime, err := newSchemaRuntime(pc.doc)
+	if err != nil {
+		return nil, err
+	}
+
+	pc.runtime = runtime
 
 	return pc, nil
 }

@@ -10,6 +10,7 @@ import (
 type runtimeSchema struct {
 	messageByName        map[string]*runtimeMessage
 	messageByFullname    map[string]*runtimeMessage
+	enumByName           map[string]*runtimeEnum
 	serviceNamesByMethod map[string]string
 }
 
@@ -18,6 +19,16 @@ type runtimeMessage struct {
 	desc         protoref.MessageDescriptor
 	dynamicType  protoref.MessageType
 	fieldsByName map[string]*runtimeField
+}
+
+type runtimeEnum struct {
+	name         string
+	valuesByName map[string]*runtimeEnumValue
+}
+
+type runtimeEnumValue struct {
+	name  string
+	value int32
 }
 
 type runtimeField struct {
@@ -31,15 +42,16 @@ type runtimeField struct {
 	optional bool
 }
 
-func newSchemaRuntime(compiler *RPCCompiler) (*runtimeSchema, error) {
+func newSchemaRuntime(doc *Document) (*runtimeSchema, error) {
 	runtime := &runtimeSchema{
-		messageByName:        make(map[string]*runtimeMessage, len(compiler.doc.Messages)),
-		messageByFullname:    make(map[string]*runtimeMessage, len(compiler.doc.Messages)),
-		serviceNamesByMethod: make(map[string]string, len(compiler.doc.Methods)),
+		messageByName:        make(map[string]*runtimeMessage, len(doc.Messages)),
+		messageByFullname:    make(map[string]*runtimeMessage, len(doc.Messages)),
+		serviceNamesByMethod: make(map[string]string, len(doc.Methods)),
+		enumByName:           make(map[string]*runtimeEnum, len(doc.Enums)),
 	}
 
-	for i := range compiler.doc.Messages {
-		message := &compiler.doc.Messages[i]
+	for i := range doc.Messages {
+		message := &doc.Messages[i]
 
 		rtMessage := &runtimeMessage{
 			name:         message.Name,
@@ -58,10 +70,26 @@ func newSchemaRuntime(compiler *RPCCompiler) (*runtimeSchema, error) {
 		}
 	}
 
-	for _, service := range compiler.doc.Services {
+	for _, service := range doc.Services {
 		for i := range service.MethodsRefs {
-			runtime.serviceNamesByMethod[compiler.doc.Methods[i].Name] = service.FullName
+			runtime.serviceNamesByMethod[doc.Methods[i].Name] = service.FullName
 		}
+	}
+
+	for _, enum := range doc.Enums {
+		rtEnum := &runtimeEnum{
+			name:         enum.Name,
+			valuesByName: make(map[string]*runtimeEnumValue, len(enum.Values)),
+		}
+
+		for _, value := range enum.Values {
+			rtEnum.valuesByName[value.GraphqlValue] = &runtimeEnumValue{
+				name:  value.Name,
+				value: value.Number,
+			}
+		}
+
+		runtime.enumByName[enum.Name] = rtEnum
 	}
 
 	return runtime, nil

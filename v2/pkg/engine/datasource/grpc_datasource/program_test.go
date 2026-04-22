@@ -51,7 +51,7 @@ func TestCompileProgram(t *testing.T) {
 			compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
 			require.NoError(t, err)
 
-			runtime, err := newSchemaRuntime(compiler)
+			runtime, err := newSchemaRuntime(compiler.doc)
 			require.NoError(t, err)
 
 			program, err := compileProgram(plan, runtime)

@@ -41,6 +41,7 @@ type wireField struct {
 	dataType       DataType
 	wireType       protowire.Type
 	runtimeMessage *runtimeMessage
+	runtimeEnum    *runtimeEnum
 	staticValue    string
 	jsonPath       string
 	optional       bool
@@ -50,7 +51,7 @@ type wireField struct {
 }
 
 const (
-	minBufferSize = 1 << 10 // 1KiB
+	minBufferSize = 1 << 9  // 512 bytes
 	maxBufferSize = 1 << 20 // 1MiB
 
 	defaultBufferCount = 10
@@ -110,7 +111,7 @@ func (w *wireBuilder) Reset() {
 	w.buffers = w.buffers[:0]
 }
 
-func compileWireMessage(rpcMessage *RPCMessage, message *runtimeMessage) (*wireMessage, error) {
+func compileWireMessage(runtime *runtimeSchema, rpcMessage *RPCMessage, message *runtimeMessage) (*wireMessage, error) {
 	if message == nil {
 		return nil, fmt.Errorf("message not found for fetch request")
 	}
@@ -143,8 +144,27 @@ func compileWireMessage(rpcMessage *RPCMessage, message *runtimeMessage) (*wireM
 			listMetadata:   rpcField.ListMetadata,
 		}
 
+		if rpcField.EnumName != "" {
+			rtEnum, ok := runtime.enumByName[rpcField.EnumName]
+			if !ok {
+				return nil, fmt.Errorf("enum not found for name %s", rpcField.EnumName)
+			}
+
+			wf.runtimeEnum = rtEnum
+		}
+
 		if rpcField.Message != nil {
-			child, err := compileWireMessage(rpcField.Message, field.message)
+			fieldMessage := field.message
+			// we we are using wrapper messages, they are compiled from the protobuf schema but doesn't match with the RPC planner schema.
+			// We need to resolve the correct message from the runtime schema.
+			if rpcField.Message.Name != fieldMessage.name {
+				fieldMessage = runtime.getMessageByName(rpcField.Message.Name)
+				if fieldMessage == nil {
+					return nil, fmt.Errorf("message not found for name %s", rpcField.Message.Name)
+				}
+			}
+
+			child, err := compileWireMessage(runtime, rpcField.Message, fieldMessage)
 			if err != nil {
 				return nil, err
 			}
@@ -202,7 +222,7 @@ func (f *wireField) appendFieldWire(builder *wireBuilder, buf *bytes.Buffer, dat
 		return nil
 	}
 
-	if f.isListWrapper() {
+	if f.listMetadata != nil {
 		// TODO: build a wireMessage for the list wrapper and just create the proto wire for it
 		//wm := &wireMessage{fields: make([]wireField, 0, 1)}
 		return f.appendListFieldValue(builder, buf, fieldData, 0)
@@ -235,7 +255,6 @@ func (f *wireField) appendListFieldValue(builder *wireBuilder, buf *bytes.Buffer
 		return f.appendFieldWire(builder, buf, data)
 	}
 
-	// TODO: Check for optional
 	md := f.listMetadata.LevelInfo[level]
 	level++
 
@@ -280,6 +299,7 @@ func (f *wireField) appendListFieldValue(builder *wireBuilder, buf *bytes.Buffer
 			wireType:       getWireType(itemsField.dataType),
 			runtimeMessage: itemsField.message,
 			listMetadata:   f.listMetadata,
+			child:          f.child,
 		}
 
 		iwf.tag = protowire.AppendTag(nil, iwf.number, iwf.wireType)
@@ -328,10 +348,6 @@ func (f *wireField) appendOptionalScalarFieldValue(builder *wireBuilder, buf *by
 	return nil
 }
 
-func (f *wireField) isListWrapper() bool {
-	return f.listMetadata != nil
-}
-
 func (f *wireField) isOptionalScalar() bool {
 	return f.optional && f.dataType != DataTypeMessage
 }
@@ -341,7 +357,6 @@ func (f *wireField) appendFieldValue(builder *wireBuilder, buf *bytes.Buffer, da
 		childWire, err := f.child.createProtoWire(builder, data)
 		if err != nil {
 			return err
-
 		}
 
 		buf.Write(f.tag)
@@ -351,13 +366,19 @@ func (f *wireField) appendFieldValue(builder *wireBuilder, buf *bytes.Buffer, da
 
 	switch f.wireType {
 	case protowire.BytesType:
-		value := data.GetStringBytes()
 		buf.Write(f.tag)
-		buf.Write(protowire.AppendBytes(nil, value))
+		buf.Write(protowire.AppendBytes(nil, data.GetStringBytes()))
 	case protowire.VarintType:
-		uintValue := data.GetUint64()
+		value := data.GetUint64()
+		if f.runtimeEnum != nil {
+			var err error
+			if value, err = f.getEnumValue(data); err != nil {
+				return err
+			}
+		}
+
 		buf.Write(f.tag)
-		buf.Write(protowire.AppendVarint(nil, uintValue))
+		buf.Write(protowire.AppendVarint(nil, value))
 	case protowire.Fixed64Type:
 		buf.Write(f.tag)
 		buf.Write(protowire.AppendFixed64(nil, math.Float64bits(data.GetFloat64())))
@@ -366,6 +387,24 @@ func (f *wireField) appendFieldValue(builder *wireBuilder, buf *bytes.Buffer, da
 	}
 
 	return nil
+}
+
+func (f *wireField) getEnumValue(data *astjson.Value) (uint64, error) {
+	enumValueName := data.GetStringBytes()
+	if len(enumValueName) == 0 {
+		return 0, fmt.Errorf("enum value name is required for enum field %s", f.jsonPath)
+	}
+
+	ev, found := f.runtimeEnum.valuesByName[string(enumValueName)]
+	if !found {
+		return 0, fmt.Errorf("enum value not found for name %s", string(enumValueName))
+	}
+
+	if ev.value < 0 {
+		return 0, fmt.Errorf("enum value %s is negative for enum field %s", string(enumValueName), f.jsonPath)
+	}
+
+	return uint64(ev.value), nil
 }
 
 func getWireType(dataType DataType) protowire.Type {

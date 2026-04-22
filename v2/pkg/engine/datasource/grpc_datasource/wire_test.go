@@ -120,13 +120,24 @@ service TestService {
 }
 `
 
+func testWireMapping() *GRPCMapping {
+	return &GRPCMapping{
+		Service: "TestService",
+		EnumValues: map[string][]EnumValueMapping{
+			"Status": {
+				{Value: "UNSPECIFIED", TargetValue: "STATUS_UNSPECIFIED"},
+				{Value: "ACTIVE", TargetValue: "STATUS_ACTIVE"},
+				{Value: "INACTIVE", TargetValue: "STATUS_INACTIVE"},
+			},
+		},
+	}
+}
+
 func newWireTestRuntime(t *testing.T) *runtimeSchema {
 	t.Helper()
-	compiler, err := NewProtoCompiler(testWireSchema, &GRPCMapping{
-		Service: "TestService",
-	})
+	compiler, err := NewProtoCompiler(testWireSchema, testWireMapping())
 	require.NoError(t, err)
-	runtime, err := newSchemaRuntime(compiler)
+	runtime, err := newSchemaRuntime(compiler.doc)
 	require.NoError(t, err)
 	return runtime
 }
@@ -135,7 +146,7 @@ func compileTestWireMessage(t *testing.T, runtime *runtimeSchema, messageName st
 	t.Helper()
 	msg := runtime.getMessageByName(messageName)
 	require.NotNilf(t, msg, "message %q not found in runtime", messageName)
-	wm, err := compileWireMessage(rpcMessage, msg)
+	wm, err := compileWireMessage(runtime, rpcMessage, msg)
 	require.NoError(t, err)
 	return wm
 }
@@ -155,20 +166,20 @@ func marshalDynamic(t *testing.T, runtime *runtimeSchema, messageName string, bu
 
 // assertProtoEqual unmarshals both byte slices into the same message type and compares the resulting messages.
 // This allows valid encoding differences (e.g. packed vs unpacked repeated scalars) to pass.
-func assertProtoEqual(t *testing.T, runtime *runtimeSchema, messageName string, expected, got []byte) {
+func assertProtoEqual(t *testing.T, runtime *runtimeSchema, messageName string, expectedMessageBytes, gotMessageBytes []byte) {
 	t.Helper()
 	rtMsg := runtime.getMessageByName(messageName)
 	require.NotNilf(t, rtMsg, "message %q not found in runtime", messageName)
 
 	expectedMsg := dynamicpb.NewMessage(rtMsg.desc)
-	require.NoError(t, proto.Unmarshal(expected, expectedMsg), "failed to unmarshal expected bytes")
+	require.NoError(t, proto.Unmarshal(expectedMessageBytes, expectedMsg), "failed to unmarshal expected bytes")
 
 	gotMsg := dynamicpb.NewMessage(rtMsg.desc)
-	require.NoError(t, proto.Unmarshal(got, gotMsg), "failed to unmarshal got bytes")
+	require.NoError(t, proto.Unmarshal(gotMessageBytes, gotMsg), "failed to unmarshal got bytes %x", gotMessageBytes)
 
 	assert.True(t, proto.Equal(expectedMsg, gotMsg),
 		"messages not equal\nexpected: %v\ngot:      %v\nexpected bytes: %x\ngot bytes:      %x",
-		expectedMsg, gotMsg, expected, got)
+		expectedMsg, gotMsg, expectedMessageBytes, gotMessageBytes)
 }
 
 // setWrapperValue sets a google.protobuf wrapper field (e.g. StringValue, Int32Value) on a dynamic message.
@@ -242,7 +253,7 @@ func TestCompileWireMessage(t *testing.T) {
 		require.NotNil(t, msg)
 		// Optional + IsListType: compileWireMessage must not treat this as a wrapper scalar.
 		// Currently this errors because it tries to wrap in google.protobuf.*Value and looks for "value" in ListOfString.
-		wm, err := compileWireMessage(&RPCMessage{
+		wm, err := compileWireMessage(runtime, &RPCMessage{
 			Name: "ListWrapperRequest",
 			Fields: RPCFields{
 				{
@@ -557,10 +568,11 @@ func TestCreateProtoWire(t *testing.T) {
 			},
 		})
 
-		// STATUS_ACTIVE = 1
+		// GraphQL sends enum values as strings (e.g. "ACTIVE"), not proto-prefixed names or integers.
+		// The wire builder must resolve "ACTIVE" -> STATUS_ACTIVE = 1 via the runtime enum map.
 		builder := newWireBuilder(minBufferSize)
 
-		got, err := wm.createProtoWire(builder, astjson.MustParse(`{"status":1}`))
+		got, err := wm.createProtoWire(builder, astjson.MustParse(`{"status":"ACTIVE"}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "EnumRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
@@ -580,7 +592,7 @@ func TestCreateProtoWire(t *testing.T) {
 
 		builder := newWireBuilder(minBufferSize)
 
-		got, err := wm.createProtoWire(builder, astjson.MustParse(`{"statuses":[0,1,2]}`))
+		got, err := wm.createProtoWire(builder, astjson.MustParse(`{"statuses":["UNSPECIFIED","ACTIVE","INACTIVE"]}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "EnumRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
@@ -598,7 +610,7 @@ func TestCreateProtoWire(t *testing.T) {
 		// createProtoWire must produce: ListWrapperRequest { optional_tags: ListOfString { list: List { items: [...] } } }
 		msg := runtime.getMessageByName("ListWrapperRequest")
 		require.NotNil(t, msg)
-		wm, compileErr := compileWireMessage(&RPCMessage{
+		wm, compileErr := compileWireMessage(runtime, &RPCMessage{
 			Name: "ListWrapperRequest",
 			Fields: RPCFields{
 				{
@@ -649,7 +661,7 @@ func TestCreateProtoWire(t *testing.T) {
 		// createProtoWire must produce: NestedListRequest { tag_groups: ListOfListOfString { list: { items: [ ListOfString{...}, ... ] } } }
 		msg := runtime.getMessageByName("NestedListRequest")
 		require.NotNil(t, msg)
-		wm, compileErr := compileWireMessage(&RPCMessage{
+		wm, compileErr := compileWireMessage(runtime, &RPCMessage{
 			Name: "NestedListRequest",
 			Fields: RPCFields{
 				{
@@ -709,6 +721,88 @@ func TestCreateProtoWire(t *testing.T) {
 		assertProtoEqual(t, runtime, "NestedListRequest", expected, got)
 	})
 
+	t.Run("nested list wrapper two levels with messages", func(t *testing.T) {
+		// NestedListRequest { item_groups: ListOfListOfNestedItem { list: { items: [ ListOfNestedItem{...}, ... ] } } }
+		// The inner ListOfNestedItem contains NestedItem messages with id + value fields.
+		msg := runtime.getMessageByName("NestedListRequest")
+		require.NotNil(t, msg)
+		wm, compileErr := compileWireMessage(runtime, &RPCMessage{
+			Name: "NestedListRequest",
+			Fields: RPCFields{
+				{
+					Name:          "item_groups",
+					ProtoTypeName: DataTypeMessage,
+					JSONPath:      "itemGroups",
+					IsListType:    true,
+					ListMetadata: &ListMetadata{
+						NestingLevel: 2,
+						LevelInfo:    []LevelInfo{{Optional: false}, {Optional: false}},
+					},
+					Message: &RPCMessage{
+						Name: "NestedItem",
+						Fields: RPCFields{
+							{Name: "id", ProtoTypeName: DataTypeString, JSONPath: "id"},
+							{Name: "value", ProtoTypeName: DataTypeString, JSONPath: "value"},
+						},
+					},
+				},
+			},
+		}, msg)
+
+		require.NoError(t, compileErr)
+
+		builder := newWireBuilder(minBufferSize)
+
+		got, err := wm.createProtoWire(builder, astjson.MustParse(`{"itemGroups":[[{"id":"1","value":"a"},{"id":"2","value":"b"}],[{"id":"3","value":"c"}]]}`))
+		require.NoError(t, err)
+
+		expected := marshalDynamic(t, runtime, "NestedListRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			itemGroupsField := desc.Fields().ByName("item_groups")
+			loloniDesc := itemGroupsField.Message() // ListOfListOfNestedItem
+
+			outerListField := loloniDesc.Fields().ByName("list")
+			outerListDesc := outerListField.Message() // ListOfListOfNestedItem.List
+			outerItemsField := outerListDesc.Fields().ByName("items")
+			loniDesc := outerItemsField.Message() // ListOfNestedItem
+
+			// Helper: build a ListOfNestedItem from NestedItem values
+			buildListOfNestedItem := func(items ...struct{ id, value string }) *dynamicpb.Message {
+				innerListField := loniDesc.Fields().ByName("list")
+				innerListDesc := innerListField.Message()                          // ListOfNestedItem.List
+				nestedItemDesc := innerListDesc.Fields().ByName("items").Message() // NestedItem
+
+				innerList := dynamicpb.NewMessage(innerListDesc)
+				itemsList := innerList.Mutable(innerListDesc.Fields().ByName("items")).List()
+				for _, item := range items {
+					ni := dynamicpb.NewMessage(nestedItemDesc)
+					ni.Set(nestedItemDesc.Fields().ByName("id"), protoref.ValueOfString(item.id))
+					ni.Set(nestedItemDesc.Fields().ByName("value"), protoref.ValueOfString(item.value))
+					itemsList.Append(protoref.ValueOfMessage(ni))
+				}
+				loni := dynamicpb.NewMessage(loniDesc)
+				loni.Set(innerListField, protoref.ValueOfMessage(innerList))
+				return loni
+			}
+
+			outerList := dynamicpb.NewMessage(outerListDesc)
+			outerItems := outerList.Mutable(outerItemsField).List()
+			outerItems.Append(protoref.ValueOfMessage(buildListOfNestedItem(
+				struct{ id, value string }{"1", "a"},
+				struct{ id, value string }{"2", "b"},
+			)))
+			outerItems.Append(protoref.ValueOfMessage(buildListOfNestedItem(
+				struct{ id, value string }{"3", "c"},
+			)))
+
+			lolosni := dynamicpb.NewMessage(loloniDesc)
+			lolosni.Set(outerListField, protoref.ValueOfMessage(outerList))
+
+			msg.Set(itemGroupsField, protoref.ValueOfMessage(lolosni))
+		})
+
+		assertProtoEqual(t, runtime, "NestedListRequest", expected, got)
+	})
+
 	t.Run("mixed request with multiple field types", func(t *testing.T) {
 		wm := compileTestWireMessage(t, runtime, "MixedRequest", &RPCMessage{
 			Name: "MixedRequest",
@@ -723,7 +817,7 @@ func TestCreateProtoWire(t *testing.T) {
 
 		builder := newWireBuilder(minBufferSize)
 
-		got, err := wm.createProtoWire(builder, astjson.MustParse(`{"id":"p1","description":"a product","tags":["sale","new"],"price":29.99,"status":1}`))
+		got, err := wm.createProtoWire(builder, astjson.MustParse(`{"id":"p1","description":"a product","tags":["sale","new"],"price":29.99,"status":"ACTIVE"}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "MixedRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {

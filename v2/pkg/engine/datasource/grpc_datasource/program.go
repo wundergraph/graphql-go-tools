@@ -118,7 +118,7 @@ func compileFetch(call *RPCCall, runtime *runtimeSchema, dependentCall *RPCCall)
 		responseType: responseMessage,
 	}
 
-	wireMessage, err := compileWireMessage(&f.request.rpcMessage, requestMessage)
+	wireMessage, err := compileWireMessage(runtime, &f.request.rpcMessage, requestMessage)
 	if err != nil {
 		return fetch{}, err
 	}
