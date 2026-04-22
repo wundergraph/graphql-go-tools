@@ -170,6 +170,11 @@ func testMapping() *GRPCMapping {
 				Request:  "QueryTestContainersRequest",
 				Response: "QueryTestContainersResponse",
 			},
+			"conditionalSearch": {
+				RPC:      "QueryConditionalSearch",
+				Request:  "QueryConditionalSearchRequest",
+				Response: "QueryConditionalSearchResponse",
+			},
 		},
 		MutationRPCs: RPCConfigMap[RPCConfig]{
 			"createUser": {
@@ -888,6 +893,12 @@ func testMapping() *GRPCMapping {
 				},
 				"testContainers": {
 					TargetName: "test_containers",
+				},
+				"conditionalSearch": {
+					TargetName: "conditional_search",
+					ArgumentMappings: FieldArgumentMap{
+						"conditions": "conditions",
+					},
 				},
 			},
 			"Mutation": {
@@ -2103,6 +2114,31 @@ func testMapping() *GRPCMapping {
 			"UserInput": {
 				"name": {
 					TargetName: "name",
+				},
+			},
+			"ConditionsInput": {
+				"and": {
+					TargetName: "and",
+				},
+				"or": {
+					TargetName: "or",
+				},
+				"key": {
+					TargetName: "key",
+				},
+				"value": {
+					TargetName: "value",
+				},
+			},
+			"ConditionalSearchResult": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"matchedConditions": {
+					TargetName: "matched_conditions",
 				},
 			},
 		},
