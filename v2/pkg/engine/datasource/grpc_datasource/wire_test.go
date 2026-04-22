@@ -107,6 +107,14 @@ message MixedRequest {
   Status status = 7;
 }
 
+message LookupProductByIdRequestKey {
+  string id = 1;
+}
+
+message LookupProductByIdRequest {
+  repeated LookupProductByIdRequestKey keys = 1;
+}
+
 service TestService {
   rpc Empty(EmptyRequest) returns (EmptyRequest) {}
   rpc Scalar(ScalarRequest) returns (ScalarRequest) {}
@@ -117,6 +125,7 @@ service TestService {
   rpc NestedList(NestedListRequest) returns (NestedListRequest) {}
   rpc Enum(EnumRequest) returns (EnumRequest) {}
   rpc Mixed(MixedRequest) returns (MixedRequest) {}
+  rpc LookupProductById(LookupProductByIdRequest) returns (LookupProductByIdRequest) {}
 }
 `
 
@@ -310,6 +319,32 @@ func TestCompileWireMessage(t *testing.T) {
 		assert.Equal(t, DataTypeEnum, wm.fields[0].dataType)
 		assert.Equal(t, DataTypeEnum, wm.fields[1].dataType)
 		assert.True(t, wm.fields[1].repeated)
+	})
+
+	t.Run("entity lookup request", func(t *testing.T) {
+		wm := compileTestWireMessage(t, runtime, "LookupProductByIdRequest", &RPCMessage{
+			Name: "LookupProductByIdRequest",
+			Fields: RPCFields{
+				{
+					Name:          "keys",
+					ProtoTypeName: DataTypeMessage,
+					Repeated:      true,
+					JSONPath:      "representations",
+					Message: &RPCMessage{
+						Name:        "LookupProductByIdRequestKey",
+						MemberTypes: []string{"Product"},
+						Fields: RPCFields{
+							{Name: "id", ProtoTypeName: DataTypeString, JSONPath: "id"},
+						},
+					},
+				},
+			},
+		})
+		assert.Len(t, wm.fields, 1)
+		assert.True(t, wm.fields[0].repeated)
+		assert.Equal(t, DataTypeMessage, wm.fields[0].dataType)
+		assert.NotNil(t, wm.fields[0].child)
+		assert.Len(t, wm.fields[0].child.fields, 1)
 	})
 }
 
@@ -831,5 +866,83 @@ func TestCreateProtoWire(t *testing.T) {
 		})
 
 		assertProtoEqual(t, runtime, "MixedRequest", expected, got)
+	})
+
+	t.Run("entity lookup single key", func(t *testing.T) {
+		wm := compileTestWireMessage(t, runtime, "LookupProductByIdRequest", &RPCMessage{
+			Name: "LookupProductByIdRequest",
+			Fields: RPCFields{
+				{
+					Name:          "keys",
+					ProtoTypeName: DataTypeMessage,
+					Repeated:      true,
+					JSONPath:      "representations",
+					Message: &RPCMessage{
+						Name:        "LookupProductByIdRequestKey",
+						MemberTypes: []string{"Product"},
+						Fields: RPCFields{
+							{Name: "id", ProtoTypeName: DataTypeString, JSONPath: "id"},
+						},
+					},
+				},
+			},
+		})
+
+		builder := newWireBuilder(minBufferSize)
+
+		got, err := wm.createProtoWire(builder, astjson.MustParse(`{"representations":[{"__typename":"Product","id":"1"}]}`))
+		require.NoError(t, err)
+
+		expected := marshalDynamic(t, runtime, "LookupProductByIdRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			keysField := desc.Fields().ByName("keys")
+			keyDesc := keysField.Message()
+			list := msg.Mutable(keysField).List()
+
+			key1 := dynamicpb.NewMessage(keyDesc)
+			key1.Set(keyDesc.Fields().ByName("id"), protoref.ValueOfString("1"))
+			list.Append(protoref.ValueOfMessage(key1))
+		})
+
+		assertProtoEqual(t, runtime, "LookupProductByIdRequest", expected, got)
+	})
+
+	t.Run("entity lookup multiple keys", func(t *testing.T) {
+		wm := compileTestWireMessage(t, runtime, "LookupProductByIdRequest", &RPCMessage{
+			Name: "LookupProductByIdRequest",
+			Fields: RPCFields{
+				{
+					Name:          "keys",
+					ProtoTypeName: DataTypeMessage,
+					Repeated:      true,
+					JSONPath:      "representations",
+					Message: &RPCMessage{
+						Name:        "LookupProductByIdRequestKey",
+						MemberTypes: []string{"Product"},
+						Fields: RPCFields{
+							{Name: "id", ProtoTypeName: DataTypeString, JSONPath: "id"},
+						},
+					},
+				},
+			},
+		})
+
+		builder := newWireBuilder(minBufferSize)
+
+		got, err := wm.createProtoWire(builder, astjson.MustParse(`{"representations":[{"__typename":"Product","id":"1"},{"__typename":"Product","id":"2"},{"__typename":"Product","id":"3"}]}`))
+		require.NoError(t, err)
+
+		expected := marshalDynamic(t, runtime, "LookupProductByIdRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			keysField := desc.Fields().ByName("keys")
+			keyDesc := keysField.Message()
+			list := msg.Mutable(keysField).List()
+
+			for _, id := range []string{"1", "2", "3"} {
+				key := dynamicpb.NewMessage(keyDesc)
+				key.Set(keyDesc.Fields().ByName("id"), protoref.ValueOfString(id))
+				list.Append(protoref.ValueOfMessage(key))
+			}
+		})
+
+		assertProtoEqual(t, runtime, "LookupProductByIdRequest", expected, got)
 	})
 }

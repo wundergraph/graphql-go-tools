@@ -18,6 +18,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/types/dynamicpb"
 
 	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/go-arena"
@@ -100,6 +101,132 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 // The input is expected to contain the necessary information to make
 // a gRPC call, including service name, method name, and request data.
 func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
+	// get variables from input
+	value, err := astjson.ParseBytes(input)
+	if err != nil {
+		return nil, err
+	}
+
+	if value.Exists("body") {
+		value = value.Get("body")
+	}
+
+	astJsonVariables := value.Get("variables")
+	if !value.Exists() {
+		return nil, fmt.Errorf("variables are required")
+	}
+
+	variables := gjson.ParseBytes(input).Get("body.variables")
+
+	_ = astJsonVariables
+
+	var poolItems []*arena.PoolItem
+	defer func() {
+		d.pool.ReleaseMany(poolItems)
+	}()
+
+	item := d.acquirePoolItem(input, 0)
+	poolItems = append(poolItems, item)
+	builder := newJSONBuilder(item.Arena, d.mapping, variables)
+
+	if d.disabled {
+		return builder.writeErrorBytes(fmt.Errorf("gRPC datasource needs to be enabled to be used")), nil
+	}
+
+	// convert headers to grpc metadata and attach to ctx
+	if len(headers) > 0 {
+		// assume that each header has exactly one value for default pairs size
+		pairs := make([]string, 0, len(headers)*2)
+		for headerName, headerValues := range headers {
+			headerName = strings.ToLower(headerName)
+			for _, v := range headerValues {
+				pairs = append(pairs, headerName, v)
+			}
+		}
+		ctx = metadata.AppendToOutgoingContext(ctx, pairs...)
+	}
+
+	program, err := compileProgram(d.plan, d.rc.runtime)
+	if err != nil {
+		return nil, err
+	}
+
+	root := astjson.ObjectValue(nil)
+
+	for _, stage := range program.stages {
+		results := make([]resultData, len(stage.fetches))
+
+		for index, fetch := range stage.fetches {
+			responseMessage := dynamicpb.NewMessage(fetch.response.responseType.desc)
+
+			wireMessage, err := compileWireMessage(d.rc.runtime, &fetch.request.rpcMessage, fetch.request.message)
+			if err != nil {
+				return nil, err
+			}
+
+			wm, err := wireMessage.createProtoWire(newWireBuilder(minBufferSize), astJsonVariables)
+			if err != nil {
+				return nil, err
+			}
+
+			pm := NewPreWiredInputMessage(wm)
+			err = d.cc.Invoke(ctx, fetch.methodFullName(), pm, responseMessage, grpc.ForceCodecV2(&connectCodec{}))
+			if err != nil {
+				return nil, err
+			}
+
+			responseJson, err := builder.marshalResponseJSON(&fetch.response.rpcMessage, responseMessage)
+			if err != nil {
+				return nil, err
+			}
+
+			results[index] = resultData{
+				kind:         fetch.kind,
+				response:     responseJson,
+				responsePath: fetch.responsePath,
+			}
+		}
+
+		for _, result := range results {
+			switch result.kind {
+			case CallKindResolve, CallKindRequired:
+				err = builder.mergeWithPath(root, result.response, result.responsePath)
+			default:
+				root, err = builder.mergeValues(root, result.response)
+			}
+			if err != nil {
+				return builder.writeErrorBytes(err), nil
+			}
+		}
+	}
+
+	resultValue := builder.toDataObject(root)
+	return resultValue.MarshalTo(nil), err
+}
+
+func (d *DataSource) acquirePoolItem(input []byte, index int) *arena.PoolItem {
+	keyGen := xxhash.New()
+	_, _ = keyGen.Write(input)
+	var b [8]byte
+	binary.LittleEndian.PutUint64(b[:], uint64(index))
+	_, _ = keyGen.Write(b[:])
+	key := keyGen.Sum64()
+	item := d.pool.Acquire(key)
+	return item
+}
+
+// LoadWithFiles implements resolve.DataSource interface.
+// Similar to Load, but handles file uploads if needed.
+//
+// Note: File uploads are typically not part of gRPC, so this method
+// might not be applicable for most gRPC use cases.
+//
+// Currently unimplemented.
+func (d *DataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
+	panic("unimplemented")
+}
+
+func (d *DataSource) LoadOld(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
 	// get variables from input
 	variables := gjson.Parse(unsafebytes.BytesToString(input)).Get("body.variables")
 
@@ -210,26 +337,4 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 
 	value := builder.toDataObject(root)
 	return value.MarshalTo(nil), err
-}
-
-func (d *DataSource) acquirePoolItem(input []byte, index int) *arena.PoolItem {
-	keyGen := xxhash.New()
-	_, _ = keyGen.Write(input)
-	var b [8]byte
-	binary.LittleEndian.PutUint64(b[:], uint64(index))
-	_, _ = keyGen.Write(b[:])
-	key := keyGen.Sum64()
-	item := d.pool.Acquire(key)
-	return item
-}
-
-// LoadWithFiles implements resolve.DataSource interface.
-// Similar to Load, but handles file uploads if needed.
-//
-// Note: File uploads are typically not part of gRPC, so this method
-// might not be applicable for most gRPC use cases.
-//
-// Currently unimplemented.
-func (d *DataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
-	panic("unimplemented")
 }

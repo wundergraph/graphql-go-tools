@@ -2,6 +2,7 @@ package grpcdatasource
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
@@ -36,6 +37,20 @@ type fetchRequest struct {
 type fetchResponse struct {
 	// reponse type is the type of the response message.
 	responseType *runtimeMessage
+	rpcMessage   RPCMessage
+}
+
+func (f *fetch) methodFullName() string {
+	var builder strings.Builder
+
+	builder.Grow(len(f.serviceName) + len(f.methodName) + 2)
+	builder.WriteRune('/')
+	builder.WriteString(f.serviceName)
+	builder.WriteRune('/')
+	builder.WriteString(f.methodName)
+
+	return builder.String()
+
 }
 
 func compileProgram(plan *RPCExecutionPlan, runtime *runtimeSchema) (*program, error) {
@@ -116,6 +131,7 @@ func compileFetch(call *RPCCall, runtime *runtimeSchema, dependentCall *RPCCall)
 
 	f.response = &fetchResponse{
 		responseType: responseMessage,
+		rpcMessage:   call.Response,
 	}
 
 	wireMessage, err := compileWireMessage(runtime, &f.request.rpcMessage, requestMessage)

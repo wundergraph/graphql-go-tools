@@ -33,7 +33,7 @@ func Benchmark_DataSource_Load(b *testing.B) {
 	schemaDoc := grpctest.MustGraphQLSchema(b)
 
 	query := `query ComplexFilterTypeQuery($filter: ComplexFilterTypeInput!) { complexFilterType(filter: $filter) { id name } }`
-	variables := `{"variables":{"filter":{"name":"test","filterField1":"test","filterField2":"test"}}}`
+	variables := `{"variables":{"filter":{"filter":{"name":"test","filterField1":"test","filterField2":"test"}}}}`
 
 	// Parse the GraphQL query
 	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
@@ -175,7 +175,7 @@ func setupTestGRPCServer(t testing.TB) (conn *grpc.ClientConn, cleanup func()) {
 // Test_DataSource_Load tests the datasource.Load method with a mock gRPC interface
 func Test_DataSource_Load(t *testing.T) {
 	query := `query ComplexFilterTypeQuery($filter: ComplexFilterTypeInput!) { complexFilterType(filter: $filter) { id name } }`
-	variables := `{"variables":{"filter":{"name":"test","filterField1":"test","filterField2":"test"}}}`
+	variables := `{"variables":{"filter":{"filter":{"name":"test","filterField1":"test","filterField2":"test"}}}}`
 
 	// Parse the GraphQL schema
 	schemaDoc := grpctest.MustGraphQLSchema(t)
@@ -197,28 +197,12 @@ func Test_DataSource_Load(t *testing.T) {
 		Definition:   &schemaDoc,
 		SubgraphName: "Products",
 		Compiler:     compiler,
-		Mapping: &GRPCMapping{
-			Service: "Products",
-			QueryRPCs: RPCConfigMap[RPCConfig]{
-				"complexFilterType": {
-					RPC:      "QueryComplexFilterType",
-					Request:  "QueryComplexFilterTypeRequest",
-					Response: "QueryComplexFilterTypeResponse",
-				},
-			},
-			Fields: map[string]FieldMap{
-				"Query": {
-					"complexFilterType": {
-						TargetName: "complex_filter_type",
-					},
-				},
-			},
-		},
+		Mapping:      testMapping(),
 	})
 
 	require.NoError(t, err)
 
-	_, err = ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","variables":`+variables+`}`))
+	_, err = ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","body":`+variables+`}`))
 	require.NoError(t, err)
 }
 
