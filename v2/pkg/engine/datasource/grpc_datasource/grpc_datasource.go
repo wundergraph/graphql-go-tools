@@ -134,7 +134,7 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 
 	root := astjson.ObjectValue(nil)
 
-	representations := getRepesentations(variables)
+	representations := getRepresentations(variables)
 	if err := graph.TopologicalSortResolve(func(nodes []FetchItem) error {
 		serviceCalls, err := d.rc.CompileFetches(graph, nodes, variables)
 		if err != nil {

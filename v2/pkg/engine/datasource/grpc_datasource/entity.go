@@ -29,9 +29,9 @@ func newEntityIndexMap(requestedEntityType string, representations []gjson.Resul
 	return indexMap
 }
 
-// getRepesentations gets the representations from the variables.
+// getRepresentations gets the representations from the variables.
 // If no representations are found, it returns nil.
-func getRepesentations(variables gjson.Result) []gjson.Result {
+func getRepresentations(variables gjson.Result) []gjson.Result {
 	r := variables.Get("representations")
 	if !r.Exists() {
 		return nil
