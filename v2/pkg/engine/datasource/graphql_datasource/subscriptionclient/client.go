@@ -13,6 +13,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/transport"
 )
 
+// ErrClientClosed is returned when Subscribe is called after the client's context has been canceled.
 var ErrClientClosed = errors.New("client closed")
 
 const (
