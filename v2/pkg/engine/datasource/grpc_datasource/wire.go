@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"math"
-	"sync"
 
 	"github.com/wundergraph/astjson"
 	"google.golang.org/protobuf/encoding/protowire"
@@ -51,65 +50,35 @@ type wireField struct {
 }
 
 const (
-	minBufferSize = 1 << 9  // 512 bytes
-	maxBufferSize = 1 << 20 // 1MiB
-
-	defaultBufferCount = 10
+	minBufferSize = 1 << 8 // 256 bytes
 )
 
-// TODO: This should use an area instead
-type bufferPool struct {
-	pool        sync.Pool
-	defaultSize int
+// writeVarint writes a varint to buf using a stack-allocated scratch buffer to avoid heap allocation.
+func writeVarint(buf *bytes.Buffer, v uint64) {
+	var scratch [10]byte
+	buf.Write(protowire.AppendVarint(scratch[:0], v))
 }
 
-func newMempool(size int) *bufferPool {
-	if size <= 0 || size < minBufferSize || size > maxBufferSize {
-		size = minBufferSize
-	}
-
-	return &bufferPool{
-		pool: sync.Pool{
-			New: func() any {
-				return bytes.NewBuffer(make([]byte, 0, size))
-			},
-		},
-		defaultSize: size,
-	}
+// writeFixed64 writes a fixed64 to buf using a stack-allocated scratch buffer to avoid heap allocation.
+func writeFixed64(buf *bytes.Buffer, v uint64) {
+	var scratch [8]byte
+	buf.Write(protowire.AppendFixed64(scratch[:0], v))
 }
 
-func (b *bufferPool) Get() *bytes.Buffer {
-	buf := b.pool.Get().(*bytes.Buffer)
-	buf.Reset()
-	if buf.Cap() < b.defaultSize {
-		buf.Grow(b.defaultSize - buf.Cap())
-	}
-
-	return buf
+// writeLengthPrefixed writes a length-delimited field value (length varint + raw bytes) to buf
+// without allocating, unlike protowire.AppendBytes(nil, data).
+func writeLengthPrefixed(buf *bytes.Buffer, data []byte) {
+	var scratch [10]byte
+	buf.Write(protowire.AppendVarint(scratch[:0], uint64(len(data))))
+	buf.Write(data)
 }
 
-func (b *bufferPool) Put(buf *bytes.Buffer) {
-	b.pool.Put(buf)
+// writeTag writes a protobuf tag to buf using a stack-allocated scratch buffer.
+func writeTag(buf *bytes.Buffer, num protowire.Number, typ protowire.Type) {
+	var scratch [10]byte
+	buf.Write(protowire.AppendTag(scratch[:0], num, typ))
 }
 
-type wireBuilder struct {
-	pool    *bufferPool
-	buffers []*bytes.Buffer
-}
-
-func newWireBuilder(size int) *wireBuilder {
-	return &wireBuilder{
-		pool:    newMempool(size),
-		buffers: make([]*bytes.Buffer, 0, defaultBufferCount),
-	}
-}
-
-func (w *wireBuilder) Reset() {
-	for _, buf := range w.buffers {
-		w.pool.Put(buf)
-	}
-	w.buffers = w.buffers[:0]
-}
 
 func compileWireMessage(runtime *runtimeSchema, rpcMessage *RPCMessage, message *runtimeMessage) (*wireMessage, error) {
 	if message == nil {
@@ -180,21 +149,25 @@ func compileWireMessage(runtime *runtimeSchema, rpcMessage *RPCMessage, message 
 }
 
 // createProtoWire creates a proto wire from the wire plan.
-func (w *wireMessage) createProtoWire(builder *wireBuilder, data *astjson.Value) ([]byte, error) {
-	// TODO: Use arena or a global buffer pool
-	buf := builder.pool.Get()
-
-	for _, field := range w.fields {
-		err := field.appendFieldWire(builder, buf, data)
-		if err != nil {
-			return nil, err
-		}
+func (w *wireMessage) createProtoWire(data *astjson.Value) ([]byte, error) {
+	buf := bytes.NewBuffer(make([]byte, 0, minBufferSize))
+	if err := w.appendProtoWire(buf, data); err != nil {
+		return nil, err
 	}
-
 	return buf.Bytes(), nil
 }
 
-func (f *wireField) appendFieldWire(builder *wireBuilder, buf *bytes.Buffer, data *astjson.Value) error {
+// appendProtoWire encodes the message fields into the given buffer.
+func (w *wireMessage) appendProtoWire(buf *bytes.Buffer, data *astjson.Value) error {
+	for _, field := range w.fields {
+		if err := field.appendFieldWire(buf, data); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (f *wireField) appendFieldWire(buf *bytes.Buffer, data *astjson.Value) error {
 	var fieldData *astjson.Value
 
 	if f.jsonPath == "" {
@@ -213,7 +186,7 @@ func (f *wireField) appendFieldWire(builder *wireBuilder, buf *bytes.Buffer, dat
 
 	if f.repeated {
 		for _, element := range fieldData.GetArray() {
-			err := f.appendFieldValue(builder, buf, element)
+			err := f.appendFieldValue(buf, element)
 			if err != nil {
 				return err
 			}
@@ -225,14 +198,14 @@ func (f *wireField) appendFieldWire(builder *wireBuilder, buf *bytes.Buffer, dat
 	if f.listMetadata != nil {
 		// TODO: build a wireMessage for the list wrapper and just create the proto wire for it
 		//wm := &wireMessage{fields: make([]wireField, 0, 1)}
-		return f.appendListFieldValue(builder, buf, fieldData, 0)
+		return f.appendListFieldValue(buf, fieldData, 0)
 	}
 
 	if f.isOptionalScalar() {
-		return f.appendOptionalScalarFieldValue(builder, buf, fieldData)
+		return f.appendOptionalScalarFieldValue(buf, fieldData)
 	}
 
-	return f.appendFieldValue(builder, buf, fieldData)
+	return f.appendFieldValue(buf, fieldData)
 }
 
 // appendListFieldValue appends the list value to the buffer.
@@ -249,10 +222,10 @@ func (f *wireField) appendFieldWire(builder *wireBuilder, buf *bytes.Buffer, dat
 //	}
 //
 // ```
-func (f *wireField) appendListFieldValue(builder *wireBuilder, buf *bytes.Buffer, data *astjson.Value, level int) error {
+func (f *wireField) appendListFieldValue(buf *bytes.Buffer, data *astjson.Value, level int) error {
 	if level >= f.listMetadata.NestingLevel {
 		f.listMetadata = nil // reset the list metadata to avoid infinite recursion
-		return f.appendFieldWire(builder, buf, data)
+		return f.appendFieldWire(buf, data)
 	}
 
 	md := f.listMetadata.LevelInfo[level]
@@ -263,16 +236,10 @@ func (f *wireField) appendListFieldValue(builder *wireBuilder, buf *bytes.Buffer
 		return fmt.Errorf("runtime message not found for field %s", f.jsonPath)
 	}
 
-	listBuffer := builder.pool.Get()
-	defer builder.pool.Put(listBuffer)
-
 	field, ok := runtimeMsg.fieldsByName["list"]
 	if !ok {
 		return fmt.Errorf("list field not found for message %s but was expected", runtimeMsg.name)
 	}
-
-	// We will always have a message type here, therefore we must use the bytes type.
-	listBuffer.Write(protowire.AppendTag(nil, field.desc.Number(), protowire.BytesType))
 
 	listMessage := field.message
 	if listMessage == nil {
@@ -289,8 +256,12 @@ func (f *wireField) appendListFieldValue(builder *wireBuilder, buf *bytes.Buffer
 		return fmt.Errorf("list is required but has no elements")
 	}
 
-	itemsBuffer := builder.pool.Get()
-	defer builder.pool.Put(itemsBuffer)
+	listBuffer := bytes.NewBuffer(make([]byte, 0, minBufferSize))
+
+	// We will always have a message type here, therefore we must use the bytes type.
+	writeTag(listBuffer, field.desc.Number(), protowire.BytesType)
+
+	itemsBuffer := bytes.NewBuffer(make([]byte, 0, minBufferSize))
 
 	for i := range elements {
 		iwf := wireField{
@@ -303,20 +274,20 @@ func (f *wireField) appendListFieldValue(builder *wireBuilder, buf *bytes.Buffer
 		}
 
 		iwf.tag = protowire.AppendTag(nil, iwf.number, iwf.wireType)
-		if err := iwf.appendListFieldValue(builder, itemsBuffer, elements[i], level); err != nil {
+		if err := iwf.appendListFieldValue(itemsBuffer, elements[i], level); err != nil {
 			return err
 		}
 	}
 
-	listBuffer.Write(protowire.AppendBytes(nil, itemsBuffer.Bytes()))
+	writeLengthPrefixed(listBuffer, itemsBuffer.Bytes())
 
 	buf.Write(f.tag)
-	buf.Write(protowire.AppendBytes(nil, listBuffer.Bytes()))
+	writeLengthPrefixed(buf, listBuffer.Bytes())
 
 	return nil
 }
 
-func (f *wireField) appendOptionalScalarFieldValue(builder *wireBuilder, buf *bytes.Buffer, data *astjson.Value) error {
+func (f *wireField) appendOptionalScalarFieldValue(buf *bytes.Buffer, data *astjson.Value) error {
 	if f.runtimeMessage == nil {
 		return fmt.Errorf("runtime message not found for optional scalar field %s but was expected", f.jsonPath)
 	}
@@ -325,9 +296,6 @@ func (f *wireField) appendOptionalScalarFieldValue(builder *wireBuilder, buf *by
 	if !ok {
 		return fmt.Errorf("wrapper field not found for message %s but was expected", f.runtimeMessage.name)
 	}
-
-	fieldBuf := builder.pool.Get()
-	defer builder.pool.Put(fieldBuf)
 
 	wf := wireField{
 		number:         wrapperField.desc.Number(),
@@ -338,13 +306,14 @@ func (f *wireField) appendOptionalScalarFieldValue(builder *wireBuilder, buf *by
 	}
 
 	wf.tag = protowire.AppendTag(nil, wf.number, wf.wireType)
-	err := wf.appendFieldValue(builder, fieldBuf, data)
-	if err != nil {
+
+	fieldBuf := bytes.NewBuffer(make([]byte, 0, minBufferSize))
+	if err := wf.appendFieldValue(fieldBuf, data); err != nil {
 		return err
 	}
 
 	buf.Write(f.tag)
-	buf.Write(protowire.AppendBytes(nil, fieldBuf.Bytes()))
+	writeLengthPrefixed(buf, fieldBuf.Bytes())
 	return nil
 }
 
@@ -352,22 +321,21 @@ func (f *wireField) isOptionalScalar() bool {
 	return f.optional && f.dataType != DataTypeMessage
 }
 
-func (f *wireField) appendFieldValue(builder *wireBuilder, buf *bytes.Buffer, data *astjson.Value) error {
+func (f *wireField) appendFieldValue(buf *bytes.Buffer, data *astjson.Value) error {
 	if f.child != nil {
-		childWire, err := f.child.createProtoWire(builder, data)
-		if err != nil {
+		childBuf := bytes.NewBuffer(make([]byte, 0, minBufferSize))
+		if err := f.child.appendProtoWire(childBuf, data); err != nil {
 			return err
 		}
-
 		buf.Write(f.tag)
-		buf.Write(protowire.AppendBytes(nil, childWire))
+		writeLengthPrefixed(buf, childBuf.Bytes())
 		return nil
 	}
 
 	switch f.wireType {
 	case protowire.BytesType:
 		buf.Write(f.tag)
-		buf.Write(protowire.AppendBytes(nil, data.GetStringBytes()))
+		writeLengthPrefixed(buf, data.GetStringBytes())
 	case protowire.VarintType:
 		value := data.GetUint64()
 		if f.runtimeEnum != nil {
@@ -378,10 +346,10 @@ func (f *wireField) appendFieldValue(builder *wireBuilder, buf *bytes.Buffer, da
 		}
 
 		buf.Write(f.tag)
-		buf.Write(protowire.AppendVarint(nil, value))
+		writeVarint(buf, value)
 	case protowire.Fixed64Type:
 		buf.Write(f.tag)
-		buf.Write(protowire.AppendFixed64(nil, math.Float64bits(data.GetFloat64())))
+		writeFixed64(buf, math.Float64bits(data.GetFloat64()))
 	default:
 		return fmt.Errorf("unsupported wire type %d", f.wireType)
 	}

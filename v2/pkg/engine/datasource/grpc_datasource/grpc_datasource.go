@@ -7,6 +7,7 @@
 package grpcdatasource
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -52,7 +53,11 @@ type DataSource struct {
 	definition        *ast.Document
 	disabled          bool
 
-	pool *arena.Pool
+	pool       *arena.Pool
+	program    *program
+	codecOpt   grpc.CallOption
+	wireBuf    bytes.Buffer
+	resultsBuf []resultData
 }
 
 type ProtoConfig struct {
@@ -79,6 +84,10 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 	if err != nil {
 		return nil, err
 	}
+	program, err := compileProgram(plan, config.Compiler.runtime)
+	if err != nil {
+		return nil, err
+	}
 
 	return &DataSource{
 		plan:              plan,
@@ -89,6 +98,8 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 		federationConfigs: config.FederationConfigs,
 		disabled:          config.Disabled,
 		pool:              arena.NewArenaPool(),
+		program:           program,
+		codecOpt:          grpc.ForceCodecV2(&connectCodec{}),
 	}, nil
 }
 
@@ -101,8 +112,15 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 // The input is expected to contain the necessary information to make
 // a gRPC call, including service name, method name, and request data.
 func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
+	var poolItems []*arena.PoolItem
+	defer func() {
+		d.pool.ReleaseMany(poolItems)
+	}()
+
+	item := d.acquirePoolItem(input, 0)
+	poolItems = append(poolItems, item)
 	// get variables from input
-	value, err := astjson.ParseBytes(input)
+	value, err := astjson.ParseBytesWithArena(item.Arena, input)
 	if err != nil {
 		return nil, err
 	}
@@ -120,13 +138,6 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 
 	_ = astJsonVariables
 
-	var poolItems []*arena.PoolItem
-	defer func() {
-		d.pool.ReleaseMany(poolItems)
-	}()
-
-	item := d.acquirePoolItem(input, 0)
-	poolItems = append(poolItems, item)
 	builder := newJSONBuilder(item.Arena, d.mapping, variables)
 
 	if d.disabled {
@@ -146,31 +157,24 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 		ctx = metadata.AppendToOutgoingContext(ctx, pairs...)
 	}
 
-	program, err := compileProgram(d.plan, d.rc.runtime)
-	if err != nil {
-		return nil, err
-	}
-
 	root := astjson.ObjectValue(nil)
 
-	for _, stage := range program.stages {
-		results := make([]resultData, len(stage.fetches))
+	for _, stage := range d.program.stages {
+		results := d.resultsBuf[:0]
+		if cap(results) < len(stage.fetches) {
+			results = make([]resultData, 0, len(stage.fetches))
+		}
 
-		for index, fetch := range stage.fetches {
+		for _, fetch := range stage.fetches {
 			responseMessage := dynamicpb.NewMessage(fetch.response.responseType.desc)
 
-			wireMessage, err := compileWireMessage(d.rc.runtime, &fetch.request.rpcMessage, fetch.request.message)
-			if err != nil {
+			d.wireBuf.Reset()
+			if err = fetch.request.wire.appendProtoWire(&d.wireBuf, astJsonVariables); err != nil {
 				return nil, err
 			}
 
-			wm, err := wireMessage.createProtoWire(newWireBuilder(minBufferSize), astJsonVariables)
-			if err != nil {
-				return nil, err
-			}
-
-			pm := NewPreWiredInputMessage(wm)
-			err = d.cc.Invoke(ctx, fetch.methodFullName(), pm, responseMessage, grpc.ForceCodecV2(&connectCodec{}))
+			pm := NewPreWiredInputMessage(d.wireBuf.Bytes())
+			err = d.cc.Invoke(ctx, fetch.methodFullName, pm, responseMessage, d.codecOpt)
 			if err != nil {
 				return nil, err
 			}
@@ -180,12 +184,14 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 				return nil, err
 			}
 
-			results[index] = resultData{
+			results = append(results, resultData{
 				kind:         fetch.kind,
 				response:     responseJson,
 				responsePath: fetch.responsePath,
-			}
+			})
 		}
+
+		d.resultsBuf = results
 
 		for _, result := range results {
 			switch result.kind {

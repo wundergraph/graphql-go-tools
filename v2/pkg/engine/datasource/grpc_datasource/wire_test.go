@@ -357,9 +357,7 @@ func TestCreateProtoWire(t *testing.T) {
 			Fields: nil,
 		})
 
-		builder := newWireBuilder(minBufferSize)
-
-		got, err := wm.createProtoWire(builder, astjson.MustParse(`{}`))
+		got, err := wm.createProtoWire(astjson.MustParse(`{}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "EmptyRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {})
@@ -375,9 +373,7 @@ func TestCreateProtoWire(t *testing.T) {
 			},
 		})
 
-		builder := newWireBuilder(minBufferSize)
-
-		got, err := wm.createProtoWire(builder, astjson.MustParse(`{"name":"hello"}`))
+		got, err := wm.createProtoWire(astjson.MustParse(`{"name":"hello"}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "ScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
@@ -397,9 +393,7 @@ func TestCreateProtoWire(t *testing.T) {
 			},
 		})
 
-		builder := newWireBuilder(minBufferSize)
-
-		got, err := wm.createProtoWire(builder, astjson.MustParse(`{"name":"alice","age":30,"score":99.5}`))
+		got, err := wm.createProtoWire(astjson.MustParse(`{"name":"alice","age":30,"score":99.5}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "ScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
@@ -421,9 +415,7 @@ func TestCreateProtoWire(t *testing.T) {
 			},
 		})
 
-		builder := newWireBuilder(minBufferSize)
-
-		got, err := wm.createProtoWire(builder, astjson.MustParse(`{"name":"hello"}`))
+		got, err := wm.createProtoWire(astjson.MustParse(`{"name":"hello"}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "WrapperScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
@@ -441,9 +433,7 @@ func TestCreateProtoWire(t *testing.T) {
 			},
 		})
 
-		builder := newWireBuilder(minBufferSize)
-
-		got, err := wm.createProtoWire(builder, astjson.MustParse(`{}`))
+		got, err := wm.createProtoWire(astjson.MustParse(`{}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "WrapperScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
@@ -462,9 +452,7 @@ func TestCreateProtoWire(t *testing.T) {
 			},
 		})
 
-		builder := newWireBuilder(minBufferSize)
-
-		got, err := wm.createProtoWire(builder, astjson.MustParse(`{"age":25,"score":3.14}`))
+		got, err := wm.createProtoWire(astjson.MustParse(`{"age":25,"score":3.14}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "WrapperScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
@@ -483,9 +471,7 @@ func TestCreateProtoWire(t *testing.T) {
 			},
 		})
 
-		builder := newWireBuilder(minBufferSize)
-
-		got, err := wm.createProtoWire(builder, astjson.MustParse(`{"tags":["foo","bar","baz"]}`))
+		got, err := wm.createProtoWire(astjson.MustParse(`{"tags":["foo","bar","baz"]}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "RepeatedScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
@@ -506,9 +492,7 @@ func TestCreateProtoWire(t *testing.T) {
 			},
 		})
 
-		builder := newWireBuilder(minBufferSize)
-
-		got, err := wm.createProtoWire(builder, astjson.MustParse(`{"scores":[1,2,3]}`))
+		got, err := wm.createProtoWire(astjson.MustParse(`{"scores":[1,2,3]}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "RepeatedScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
@@ -538,9 +522,7 @@ func TestCreateProtoWire(t *testing.T) {
 			},
 		})
 
-		builder := newWireBuilder(minBufferSize)
-
-		got, err := wm.createProtoWire(builder, astjson.MustParse(`{"item":{"id":"1","value":"a"}}`))
+		got, err := wm.createProtoWire(astjson.MustParse(`{"item":{"id":"1","value":"a"}}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "NestedMessageRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
@@ -571,9 +553,7 @@ func TestCreateProtoWire(t *testing.T) {
 			},
 		})
 
-		builder := newWireBuilder(minBufferSize)
-
-		got, err := wm.createProtoWire(builder, astjson.MustParse(`{"items":[{"id":"1","value":"a"},{"id":"2","value":"b"}]}`))
+		got, err := wm.createProtoWire(astjson.MustParse(`{"items":[{"id":"1","value":"a"},{"id":"2","value":"b"}]}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "NestedMessageRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
@@ -605,9 +585,7 @@ func TestCreateProtoWire(t *testing.T) {
 
 		// GraphQL sends enum values as strings (e.g. "ACTIVE"), not proto-prefixed names or integers.
 		// The wire builder must resolve "ACTIVE" -> STATUS_ACTIVE = 1 via the runtime enum map.
-		builder := newWireBuilder(minBufferSize)
-
-		got, err := wm.createProtoWire(builder, astjson.MustParse(`{"status":"ACTIVE"}`))
+		got, err := wm.createProtoWire(astjson.MustParse(`{"status":"ACTIVE"}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "EnumRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
@@ -625,9 +603,7 @@ func TestCreateProtoWire(t *testing.T) {
 			},
 		})
 
-		builder := newWireBuilder(minBufferSize)
-
-		got, err := wm.createProtoWire(builder, astjson.MustParse(`{"statuses":["UNSPECIFIED","ACTIVE","INACTIVE"]}`))
+		got, err := wm.createProtoWire(astjson.MustParse(`{"statuses":["UNSPECIFIED","ACTIVE","INACTIVE"]}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "EnumRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
@@ -664,9 +640,7 @@ func TestCreateProtoWire(t *testing.T) {
 
 		require.NoError(t, compileErr)
 
-		builder := newWireBuilder(minBufferSize)
-
-		got, err := wm.createProtoWire(builder, astjson.MustParse(`{"optionalTags":["a","b"]}`))
+		got, err := wm.createProtoWire(astjson.MustParse(`{"optionalTags":["a","b"]}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "ListWrapperRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
@@ -714,9 +688,7 @@ func TestCreateProtoWire(t *testing.T) {
 
 		require.NoError(t, compileErr)
 
-		builder := newWireBuilder(minBufferSize)
-
-		got, err := wm.createProtoWire(builder, astjson.MustParse(`{"tagGroups":[["a","b"],["c"]]}`))
+		got, err := wm.createProtoWire(astjson.MustParse(`{"tagGroups":[["a","b"],["c"]]}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "NestedListRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
@@ -786,9 +758,7 @@ func TestCreateProtoWire(t *testing.T) {
 
 		require.NoError(t, compileErr)
 
-		builder := newWireBuilder(minBufferSize)
-
-		got, err := wm.createProtoWire(builder, astjson.MustParse(`{"itemGroups":[[{"id":"1","value":"a"},{"id":"2","value":"b"}],[{"id":"3","value":"c"}]]}`))
+		got, err := wm.createProtoWire(astjson.MustParse(`{"itemGroups":[[{"id":"1","value":"a"},{"id":"2","value":"b"}],[{"id":"3","value":"c"}]]}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "NestedListRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
@@ -850,9 +820,7 @@ func TestCreateProtoWire(t *testing.T) {
 			},
 		})
 
-		builder := newWireBuilder(minBufferSize)
-
-		got, err := wm.createProtoWire(builder, astjson.MustParse(`{"id":"p1","description":"a product","tags":["sale","new"],"price":29.99,"status":"ACTIVE"}`))
+		got, err := wm.createProtoWire(astjson.MustParse(`{"id":"p1","description":"a product","tags":["sale","new"],"price":29.99,"status":"ACTIVE"}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "MixedRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
@@ -888,9 +856,7 @@ func TestCreateProtoWire(t *testing.T) {
 			},
 		})
 
-		builder := newWireBuilder(minBufferSize)
-
-		got, err := wm.createProtoWire(builder, astjson.MustParse(`{"representations":[{"__typename":"Product","id":"1"}]}`))
+		got, err := wm.createProtoWire(astjson.MustParse(`{"representations":[{"__typename":"Product","id":"1"}]}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "LookupProductByIdRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
@@ -926,9 +892,7 @@ func TestCreateProtoWire(t *testing.T) {
 			},
 		})
 
-		builder := newWireBuilder(minBufferSize)
-
-		got, err := wm.createProtoWire(builder, astjson.MustParse(`{"representations":[{"__typename":"Product","id":"1"},{"__typename":"Product","id":"2"},{"__typename":"Product","id":"3"}]}`))
+		got, err := wm.createProtoWire(astjson.MustParse(`{"representations":[{"__typename":"Product","id":"1"},{"__typename":"Product","id":"2"},{"__typename":"Product","id":"3"}]}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "LookupProductByIdRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {

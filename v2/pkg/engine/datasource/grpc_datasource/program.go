@@ -2,7 +2,6 @@ package grpcdatasource
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
@@ -16,14 +15,15 @@ type stage struct {
 }
 
 type fetch struct {
-	id            int
-	kind          CallKind
-	dependentCall *RPCCall
-	serviceName   string
-	methodName    string
-	responsePath  ast.Path
-	request       *fetchRequest
-	response      *fetchResponse
+	id             int
+	kind           CallKind
+	dependentCall  *RPCCall
+	serviceName    string
+	methodName     string
+	methodFullName string
+	responsePath   ast.Path
+	request        *fetchRequest
+	response       *fetchResponse
 }
 
 type fetchRequest struct {
@@ -35,22 +35,9 @@ type fetchRequest struct {
 }
 
 type fetchResponse struct {
-	// reponse type is the type of the response message.
+	// response type is the type of the response message.
 	responseType *runtimeMessage
 	rpcMessage   RPCMessage
-}
-
-func (f *fetch) methodFullName() string {
-	var builder strings.Builder
-
-	builder.Grow(len(f.serviceName) + len(f.methodName) + 2)
-	builder.WriteRune('/')
-	builder.WriteString(f.serviceName)
-	builder.WriteRune('/')
-	builder.WriteString(f.methodName)
-
-	return builder.String()
-
 }
 
 func compileProgram(plan *RPCExecutionPlan, runtime *runtimeSchema) (*program, error) {
@@ -106,12 +93,13 @@ func compileFetch(call *RPCCall, runtime *runtimeSchema, dependentCall *RPCCall)
 	}
 
 	f := fetch{
-		id:            call.ID,
-		kind:          call.Kind,
-		dependentCall: dependentCall,
-		serviceName:   serviceName,
-		methodName:    call.MethodName,
-		responsePath:  call.ResponsePath,
+		id:             call.ID,
+		kind:           call.Kind,
+		dependentCall:  dependentCall,
+		serviceName:    serviceName,
+		methodName:     call.MethodName,
+		methodFullName: "/" + serviceName + "/" + call.MethodName,
+		responsePath:   call.ResponsePath,
 	}
 
 	requestMessage := runtime.getMessageByName(call.Request.Name)
