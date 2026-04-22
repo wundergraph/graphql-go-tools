@@ -80,6 +80,14 @@ type WSTransport struct {
 	ctx  context.Context
 	opts WSTransportOptions
 
+	// mu guards both dialing and conns.
+	//
+	// dialing coalesces concurrent dial attempts: waiters block on
+	// dialResult.done rather than each dialing independently.
+	//
+	// conns holds only fully established connections (dial + protocol init
+	// complete) so every entry is always fully usable, never in a partial
+	// ready state.
 	mu      sync.Mutex
 	dialing map[uint64]*dialResult
 	conns   map[uint64]*wsConnection
