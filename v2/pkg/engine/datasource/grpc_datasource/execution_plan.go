@@ -110,6 +110,9 @@ type RPCCall struct {
 	Response RPCMessage
 	// ResponsePath is the path to the response in the JSON response
 	ResponsePath ast.Path
+	// RequestedEntityType is the type of the entity that is being requested
+	// Empty if the call is not an entity lookup.
+	RequestedEntityType string
 }
 
 // RPCMessage represents a gRPC message structure for requests and responses.

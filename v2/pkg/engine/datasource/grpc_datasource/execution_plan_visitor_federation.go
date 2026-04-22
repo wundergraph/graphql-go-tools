@@ -132,9 +132,10 @@ func (r *rpcPlanVisitorFederation) EnterInlineFragment(ref int) {
 	}
 
 	r.currentCall = &RPCCall{
-		ID:          r.callIndex,
-		ServiceName: r.planCtx.resolveServiceName(r.subgraphName),
-		Kind:        CallKindEntity,
+		ID:                  r.callIndex,
+		ServiceName:         r.planCtx.resolveServiceName(r.subgraphName),
+		Kind:                CallKindEntity,
+		RequestedEntityType: fragmentName,
 	}
 
 	r.callIndex++
@@ -508,9 +509,8 @@ func (r *rpcPlanVisitorFederation) resolveEntityInformation(inlineFragmentRef in
 		return errors.New("definition node not found for inline fragment: " + fragmentName)
 	}
 
-	// Only process object type definitions
-	// TODO: handle interfaces
-	if node.Kind != ast.NodeKindObjectTypeDefinition {
+	// Only process object type definitions and interface type definitions
+	if node.Kind != ast.NodeKindObjectTypeDefinition && node.Kind != ast.NodeKindInterfaceTypeDefinition {
 		return nil
 	}
 
@@ -566,6 +566,16 @@ func (r *rpcPlanVisitorFederation) scaffoldEntityLookup(typeName string, ecd ent
 				StaticValue:   typeName,
 			},
 		},
+	}
+
+	// Check if the entity type is an interface and set oneof type and member types.
+	if node, found := r.definition.NodeByNameStr(typeName); found {
+		if node.Kind == ast.NodeKindInterfaceTypeDefinition {
+			entityMessage.OneOfType = OneOfTypeInterface
+			if memberTypes, ok := r.definition.InterfaceTypeDefinitionImplementedByObjectWithNames(node.Ref); ok {
+				entityMessage.MemberTypes = memberTypes
+			}
+		}
 	}
 
 	// The proto response message has a field `result` which is a list of entities.
