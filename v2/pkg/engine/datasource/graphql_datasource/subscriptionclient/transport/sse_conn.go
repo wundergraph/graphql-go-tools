@@ -80,8 +80,8 @@ func (c *sseConnection) parseEventBytes(msg []byte) (eventType string, data []by
 		return "", nil
 	}
 
-	// Split by newlines (normalize CR/LF)
-	for _, line := range bytes.FieldsFunc(msg, func(r rune) bool { return r == '\n' || r == '\r' }) {
+	for line := range bytes.Lines(msg) {
+		line = bytes.TrimRight(line, "\r\n")
 		switch {
 		case bytes.HasPrefix(line, headerEvent):
 			eventType = string(trimHeader(len(headerEvent), line))
