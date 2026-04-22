@@ -39,12 +39,12 @@ type jsonBuilder struct {
 // newJSONBuilder creates a new JSON builder instance with the provided mapping
 // and variables. The builder automatically creates an index map for proper
 // federation entity ordering if representations are present in the variables.
-func newJSONBuilder(a arena.Arena, mapping *GRPCMapping, variables gjson.Result) (*jsonBuilder, error) {
+func newJSONBuilder(a arena.Arena, mapping *GRPCMapping, variables gjson.Result) *jsonBuilder {
 	return &jsonBuilder{
 		mapping:   mapping,
 		variables: variables,
 		jsonArena: a,
-	}, nil
+	}
 }
 
 // mergeValues combines two JSON values while preserving proper federation entity ordering.

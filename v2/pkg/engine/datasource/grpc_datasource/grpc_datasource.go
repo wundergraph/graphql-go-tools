@@ -111,10 +111,7 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 	item := d.acquirePoolItem(input, 0)
 	poolItems = append(poolItems, item)
 
-	builder, err := newJSONBuilder(item.Arena, d.mapping, variables)
-	if err != nil {
-		return nil, err
-	}
+	builder := newJSONBuilder(item.Arena, d.mapping, variables)
 
 	if d.disabled {
 		return builder.writeErrorBytes(fmt.Errorf("gRPC datasource needs to be enabled to be used")), nil
@@ -152,11 +149,7 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 			item := d.acquirePoolItem(input, index)
 			poolItems = append(poolItems, item)
 
-			builder, err := newJSONBuilder(item.Arena, d.mapping, variables)
-			if err != nil {
-				return err
-			}
-
+			builder := newJSONBuilder(item.Arena, d.mapping, variables)
 			errGrp.Go(func() error {
 				// Invoke the gRPC method - this will populate serviceCall.Output
 				err := d.cc.Invoke(errGrpCtx, serviceCall.MethodFullName(), serviceCall.Input, serviceCall.Output)

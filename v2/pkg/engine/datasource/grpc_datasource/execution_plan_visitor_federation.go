@@ -576,7 +576,6 @@ func (r *rpcPlanVisitorFederation) scaffoldEntityLookup(typeName string, ecd ent
 				entityMessage.MemberTypes = memberTypes
 			}
 		}
-
 	}
 
 	// The proto response message has a field `result` which is a list of entities.
