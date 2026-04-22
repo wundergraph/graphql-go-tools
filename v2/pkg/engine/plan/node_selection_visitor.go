@@ -43,6 +43,9 @@ type nodeSelectionVisitor struct {
 	secondaryRun bool // secondaryRun is a flag to indicate that we're running the nodeSelectionVisitor not the first time
 	hasNewFields bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
 
+	requestScopedVisibleResponseKeys map[int]string // original response keys for field refs rewritten to synthetic requestScoped aliases
+	requestScopedFetchAliases        map[int]string // synthetic fetch aliases for existing conflicting requestScoped field refs
+
 	rewrittenFieldRefs          []int            // rewrittenFieldRefs holds field refs which had their selection sets rewritten during the current walk
 	persistedRewrittenFieldRefs map[int]struct{} // persistedRewrittenFieldRefs holds field refs which had their selection sets rewritten during any of the walks
 
@@ -93,6 +96,7 @@ type keyRequirements struct {
 
 type fieldRequirements struct {
 	dsHash                       DSHash
+	typeName                     string
 	path                         string
 	selectionSet                 string
 	requestedByFieldRefs         []int
@@ -160,10 +164,12 @@ func (c *nodeSelectionVisitor) EnterDocument(operation, definition *ast.Document
 	c.fieldRefDependsOn = make(map[int][]int)
 	c.fieldRequirementsConfigs = make(map[fieldIndexKey][]FederationFieldConfiguration)
 	c.fieldLandedTo = make(map[int]DSHash)
+	c.requestScopedVisibleResponseKeys = make(map[int]string)
+	c.requestScopedFetchAliases = make(map[int]string)
 }
 
 func (c *nodeSelectionVisitor) LeaveDocument(operation, definition *ast.Document) {
-
+	c.propagateRequestScopedWidening()
 }
 
 func (c *nodeSelectionVisitor) EnterOperationDefinition(ref int) {
@@ -269,21 +275,7 @@ func (c *nodeSelectionVisitor) handleFieldRequiredByRequires(fieldRef int, paren
 		return
 	}
 
-	requiresConfiguration, exists := dsConfig.RequiredFieldsByRequires(typeName, fieldName)
-
-	if !exists {
-		for _, io := range dsConfig.FederationConfiguration().InterfaceObjects {
-			if slices.Contains(io.ConcreteTypeNames, typeName) {
-				// we should check if we have a @requires configuration for the interface object
-				requiresConfiguration, exists = dsConfig.RequiredFieldsByRequires(io.InterfaceTypeName, fieldName)
-				if exists {
-					requiresConfiguration.TypeName = typeName
-					break
-				}
-			}
-		}
-	}
-
+	requiresConfiguration, exists := c.requiresConfigurationForField(dsConfig, typeName, fieldName)
 	if !exists {
 		// we do not have a @requires configuration for the field
 		return
@@ -315,6 +307,25 @@ func (c *nodeSelectionVisitor) handleFieldRequiredByRequires(fieldRef int, paren
 	// and the current field ref will be added to the fieldDependsOn map
 	c.addPendingFieldRequirements(fieldRef, dsConfig.Hash(), requiresConfiguration, currentPath, false)
 	c.handleKeyRequirementsForBackJumpOnSameDataSource(fieldRef, dsConfig, typeName, parentPath)
+}
+
+func (c *nodeSelectionVisitor) requiresConfigurationForField(dsConfig DataSource, typeName, fieldName string) (FederationFieldConfiguration, bool) {
+	requiresConfiguration, exists := dsConfig.RequiredFieldsByRequires(typeName, fieldName)
+	if exists {
+		return requiresConfiguration, true
+	}
+
+	for _, io := range dsConfig.FederationConfiguration().InterfaceObjects {
+		if slices.Contains(io.ConcreteTypeNames, typeName) {
+			requiresConfiguration, exists = dsConfig.RequiredFieldsByRequires(io.InterfaceTypeName, fieldName)
+			if exists {
+				requiresConfiguration.TypeName = typeName
+				return requiresConfiguration, true
+			}
+		}
+	}
+
+	return FederationFieldConfiguration{}, false
 }
 
 func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldRef int, parentPath, typeName, fieldName, currentPath string, dsConfig DataSource, sc SourceConnection) {
@@ -444,6 +455,7 @@ func (c *nodeSelectionVisitor) addPendingFieldRequirements(requestedByFieldRef i
 	if _, exists := requirements.existsTracker[existsKey]; !exists {
 		config := fieldRequirements{
 			dsHash:                       dsHash,
+			typeName:                     fieldConfiguration.TypeName,
 			path:                         currentPath,
 			selectionSet:                 fieldConfiguration.SelectionSet,
 			requestedByFieldRefs:         []int{requestedByFieldRef},
@@ -519,7 +531,10 @@ func (c *nodeSelectionVisitor) processPendingFieldRequirements(selectionSetRef i
 }
 
 func (c *nodeSelectionVisitor) addFieldRequirementsToOperation(selectionSetRef int, requirements fieldRequirements) {
-	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
+	typeName := requirements.typeName
+	if typeName == "" {
+		typeName = c.walker.EnclosingTypeDefinition.NameString(c.definition)
+	}
 
 	input := &addRequiredFieldsConfiguration{
 		operation:                     c.operation,

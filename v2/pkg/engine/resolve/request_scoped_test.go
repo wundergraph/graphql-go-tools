@@ -1345,3 +1345,313 @@ func TestRequestScopedProvidesDataShapes(t *testing.T) {
 		assert.Equal(t, `{"id":"a1","currentViewer":{"profile":null}}`, string(items[0].MarshalTo(nil)))
 	})
 }
+
+func TestRequestScopedSyntheticAliasRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	const l1Key = "viewer.Personalized.currentViewer"
+
+	t.Run("field conflict round-trip keeps synthetic alias mapping stable across export and injection", func(t *testing.T) {
+		t.Parallel()
+
+		// Export under one alias layout, then inject under a conflicting layout.
+		// The cache entry must normalize to schema names and denormalize back into the
+		// consumer's alias layout without swapping the values.
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		l := &Loader{
+			jsonArena:       ar,
+			requestScopedL1: map[string]*astjson.Value{},
+		}
+
+		exportProvides := &Object{
+			Nullable: true,
+			Fields: []*Field{
+				{Name: []byte("id"), Value: &Scalar{}},
+				{Name: []byte("name"), Value: &Scalar{}},
+				{Name: []byte("__request_scoped__name_0"), OriginalName: []byte("email"), Value: &Scalar{}},
+			},
+		}
+		ComputeHasAliases(exportProvides)
+		require.True(t, exportProvides.HasAliases)
+
+		// Export writes schema-name-normalized data into requestScoped L1.
+		rootData := mustParseArena(t, ar, `{"currentViewer":{"id":"v1","name":"Alice","__request_scoped__name_0":"alice@example.com"}}`)
+		l.exportRequestScopedFields(&result{}, FetchCacheConfiguration{
+			RequestScopedFields: []RequestScopedField{
+				{
+					FieldPath:    []string{"currentViewer"},
+					L1Key:        l1Key,
+					ProvidesData: exportProvides,
+				},
+			},
+		}, []*astjson.Value{rootData})
+
+		cached, ok := l.requestScopedL1[l1Key]
+		require.True(t, ok)
+		assert.Equal(t, `{"id":"v1","name":"Alice","email":"alice@example.com"}`, string(cached.MarshalTo(nil)))
+
+		injectProvides := &Object{
+			Nullable: true,
+			Fields: []*Field{
+				{Name: []byte("id"), Value: &Scalar{}},
+				{Name: []byte("name"), OriginalName: []byte("email"), Value: &Scalar{}},
+				{Name: []byte("__request_scoped__name_1"), OriginalName: []byte("name"), Value: &Scalar{}},
+			},
+		}
+		ComputeHasAliases(injectProvides)
+		require.True(t, injectProvides.HasAliases)
+
+		// Injection must remap the schema-name entry into the consumer's synthetic aliases.
+		items := []*astjson.Value{mustParseArena(t, ar, `{"id":"a1"}`)}
+		ok = l.tryRequestScopedInjection(&result{}, FetchCacheConfiguration{
+			RequestScopedFields: []RequestScopedField{
+				{
+					FieldName:    "currentViewer",
+					FieldPath:    []string{"currentViewer"},
+					L1Key:        l1Key,
+					ProvidesData: injectProvides,
+				},
+			},
+		}, items)
+		assert.True(t, ok)
+		assert.Equal(t, `{"id":"a1","currentViewer":{"id":"v1","name":"alice@example.com","__request_scoped__name_1":"Alice"}}`, string(items[0].MarshalTo(nil)))
+	})
+
+	t.Run("argument conflict round-trip keeps synthetic alias mapping and arg-hash normalization aligned", func(t *testing.T) {
+		t.Parallel()
+
+		// Export and inject the same field under two argument variants. The L1 entry must
+		// normalize to schema-name-plus-arg-suffix keys so each variant survives widening.
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		ctx := NewContext(t.Context())
+		ctx.ExecutionOptions.Caching.EnableL1Cache = true
+		ctx.Variables = astjson.MustParseBytes([]byte(`{"a":"1","b":"2"}`))
+
+		l := &Loader{
+			jsonArena:       ar,
+			ctx:             ctx,
+			requestScopedL1: map[string]*astjson.Value{},
+		}
+
+		exportNaturalPosts := &Field{
+			Name:      []byte("posts"),
+			Value:     &Array{Item: &Object{Nullable: true, Fields: []*Field{{Name: []byte("id"), Value: &Scalar{}}}}},
+			CacheArgs: []CacheFieldArg{{ArgName: "first", VariableName: "a"}},
+		}
+		exportSyntheticPosts := &Field{
+			Name:         []byte("__request_scoped__posts_1"),
+			OriginalName: []byte("posts"),
+			Value: &Array{Item: &Object{Nullable: true, Fields: []*Field{
+				{Name: []byte("id"), Value: &Scalar{}},
+				{Name: []byte("title"), Value: &Scalar{}},
+			}}},
+			CacheArgs: []CacheFieldArg{{ArgName: "first", VariableName: "b"}},
+		}
+		exportProvides := &Object{
+			Nullable: true,
+			Fields: []*Field{
+				{Name: []byte("id"), Value: &Scalar{}},
+				exportNaturalPosts,
+				exportSyntheticPosts,
+			},
+		}
+		ComputeHasAliases(exportProvides)
+		require.True(t, exportProvides.HasAliases)
+
+		// Export writes both argument variants into requestScoped L1 under their normalized keys.
+		rootData := mustParseArena(t, ar, `{"currentViewer":{"id":"v1","posts":[{"id":"p1"}],"__request_scoped__posts_1":[{"id":"p2","title":"Second"}]}}`)
+		l.exportRequestScopedFields(&result{}, FetchCacheConfiguration{
+			RequestScopedFields: []RequestScopedField{
+				{
+					FieldPath:    []string{"currentViewer"},
+					L1Key:        l1Key,
+					ProvidesData: exportProvides,
+				},
+			},
+		}, []*astjson.Value{rootData})
+
+		cached, ok := l.requestScopedL1[l1Key]
+		require.True(t, ok)
+		assert.Equal(t,
+			`{"id":"v1","posts`+l.computeArgSuffix(exportNaturalPosts.CacheArgs)+`":[{"id":"p1"}],"posts`+l.computeArgSuffix(exportSyntheticPosts.CacheArgs)+`":[{"id":"p2","title":"Second"}]}`,
+			string(cached.MarshalTo(nil)),
+		)
+
+		injectNaturalPosts := &Field{
+			Name:         []byte("posts"),
+			OriginalName: nil,
+			Value: &Array{Item: &Object{Nullable: true, Fields: []*Field{
+				{Name: []byte("id"), Value: &Scalar{}},
+				{Name: []byte("title"), Value: &Scalar{}},
+			}}},
+			CacheArgs: []CacheFieldArg{{ArgName: "first", VariableName: "b"}},
+		}
+		injectSyntheticPosts := &Field{
+			Name:         []byte("__request_scoped__posts_0"),
+			OriginalName: []byte("posts"),
+			Value:        &Array{Item: &Object{Nullable: true, Fields: []*Field{{Name: []byte("id"), Value: &Scalar{}}}}},
+			CacheArgs:    []CacheFieldArg{{ArgName: "first", VariableName: "a"}},
+		}
+		injectProvides := &Object{
+			Nullable: true,
+			Fields: []*Field{
+				{Name: []byte("id"), Value: &Scalar{}},
+				injectNaturalPosts,
+				injectSyntheticPosts,
+			},
+		}
+		ComputeHasAliases(injectProvides)
+		require.True(t, injectProvides.HasAliases)
+
+		// Injection must reconstruct the caller's argument layout from the normalized cache entry.
+		items := []*astjson.Value{mustParseArena(t, ar, `{"id":"a1"}`)}
+		ok = l.tryRequestScopedInjection(&result{}, FetchCacheConfiguration{
+			RequestScopedFields: []RequestScopedField{
+				{
+					FieldName:    "currentViewer",
+					FieldPath:    []string{"currentViewer"},
+					L1Key:        l1Key,
+					ProvidesData: injectProvides,
+				},
+			},
+		}, items)
+		assert.True(t, ok)
+		assert.Equal(t, `{"id":"a1","currentViewer":{"id":"v1","posts":[{"id":"p2","title":"Second"}],"__request_scoped__posts_0":[{"id":"p1"}]}}`, string(items[0].MarshalTo(nil)))
+	})
+
+	t.Run("three conflicting field variants round-trip through schema-name storage and synthetic alias remapping", func(t *testing.T) {
+		t.Parallel()
+
+		// Three participants map different schema fields into the same response position.
+		// Export must keep the schema fields distinct, and injection must rebuild the
+		// consumer-specific alias layout from that shared cache entry.
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		l := &Loader{
+			jsonArena:       ar,
+			requestScopedL1: map[string]*astjson.Value{},
+		}
+
+		exportProvides := &Object{
+			Nullable: true,
+			Fields: []*Field{
+				{Name: []byte("id"), Value: &Scalar{}},
+				{Name: []byte("name"), Value: &Scalar{}},
+				{Name: []byte("__request_scoped__name_0"), OriginalName: []byte("email"), Value: &Scalar{}},
+				{Name: []byte("__request_scoped__name_1"), OriginalName: []byte("handle"), Value: &Scalar{}},
+			},
+		}
+		ComputeHasAliases(exportProvides)
+		require.True(t, exportProvides.HasAliases)
+
+		// Export writes the shared schema-name view into requestScoped L1.
+		rootData := mustParseArena(t, ar, `{"currentViewer":{"id":"v1","name":"Alice","__request_scoped__name_0":"alice@example.com","__request_scoped__name_1":"alice-handle"}}`)
+		l.exportRequestScopedFields(&result{}, FetchCacheConfiguration{
+			RequestScopedFields: []RequestScopedField{
+				{
+					FieldPath:    []string{"currentViewer"},
+					L1Key:        l1Key,
+					ProvidesData: exportProvides,
+				},
+			},
+		}, []*astjson.Value{rootData})
+
+		cached, ok := l.requestScopedL1[l1Key]
+		require.True(t, ok)
+		assert.Equal(t, `{"id":"v1","name":"Alice","email":"alice@example.com","handle":"alice-handle"}`, string(cached.MarshalTo(nil)))
+
+		injectProvides := &Object{
+			Nullable: true,
+			Fields: []*Field{
+				{Name: []byte("id"), Value: &Scalar{}},
+				{Name: []byte("name"), OriginalName: []byte("handle"), Value: &Scalar{}},
+				{Name: []byte("__request_scoped__name_0"), OriginalName: []byte("email"), Value: &Scalar{}},
+				{Name: []byte("__request_scoped__name_2"), OriginalName: []byte("name"), Value: &Scalar{}},
+			},
+		}
+		ComputeHasAliases(injectProvides)
+		require.True(t, injectProvides.HasAliases)
+
+		// Injection remaps that shared entry into a different alias layout for the consumer.
+		items := []*astjson.Value{mustParseArena(t, ar, `{"id":"r1"}`)}
+		ok = l.tryRequestScopedInjection(&result{}, FetchCacheConfiguration{
+			RequestScopedFields: []RequestScopedField{
+				{
+					FieldName:    "currentViewer",
+					FieldPath:    []string{"currentViewer"},
+					L1Key:        l1Key,
+					ProvidesData: injectProvides,
+				},
+			},
+		}, items)
+		assert.True(t, ok)
+		assert.Equal(t, `{"id":"r1","currentViewer":{"id":"v1","name":"alice-handle","__request_scoped__name_0":"alice@example.com","__request_scoped__name_2":"Alice"}}`, string(items[0].MarshalTo(nil)))
+	})
+
+	t.Run("hidden requires dependency round-trips from an aliased root participant into the entity participant", func(t *testing.T) {
+		t.Parallel()
+
+		const l1Key = "viewer.currentViewer"
+
+		// The root participant exports name under a user alias, while the entity participant
+		// later needs the schema field name for a hidden @requires dependency.
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		l := &Loader{
+			jsonArena:       ar,
+			requestScopedL1: map[string]*astjson.Value{},
+		}
+
+		exportProvides := &Object{
+			Nullable: true,
+			Fields: []*Field{
+				{Name: []byte("viewerName"), OriginalName: []byte("name"), Value: &Scalar{}},
+				{Name: []byte("__typename"), Value: &Scalar{}},
+				{Name: []byte("id"), Value: &Scalar{}},
+			},
+		}
+		ComputeHasAliases(exportProvides)
+		require.True(t, exportProvides.HasAliases)
+
+		// Export must normalize the aliased root field back to the schema field name.
+		rootData := mustParseArena(t, ar, `{"currentViewer":{"viewerName":"Alice","__typename":"Viewer","id":"v1"}}`)
+		l.exportRequestScopedFields(&result{}, FetchCacheConfiguration{
+			RequestScopedFields: []RequestScopedField{
+				{
+					FieldPath:    []string{"currentViewer"},
+					L1Key:        l1Key,
+					ProvidesData: exportProvides,
+				},
+			},
+		}, []*astjson.Value{rootData})
+
+		cached, ok := l.requestScopedL1[l1Key]
+		require.True(t, ok)
+		assert.Equal(t, `{"name":"Alice","__typename":"Viewer","id":"v1"}`, string(cached.MarshalTo(nil)))
+
+		injectProvides := &Object{
+			Nullable: true,
+			Fields: []*Field{
+				{Name: []byte("name"), Value: &Scalar{}},
+				{Name: []byte("__typename"), Value: &Scalar{}},
+				{Name: []byte("id"), Value: &Scalar{}},
+			},
+		}
+		ComputeHasAliases(injectProvides)
+		require.False(t, injectProvides.HasAliases)
+
+		// Injection into the entity participant must supply the hidden dependency fields
+		// exactly as the downstream subgraph expects them.
+		items := []*astjson.Value{mustParseArena(t, ar, `{"id":"a1"}`)}
+		ok = l.tryRequestScopedInjection(&result{}, FetchCacheConfiguration{
+			RequestScopedFields: []RequestScopedField{
+				{
+					FieldName:    "currentViewer",
+					FieldPath:    []string{"currentViewer"},
+					L1Key:        l1Key,
+					ProvidesData: injectProvides,
+				},
+			},
+		}, items)
+		assert.True(t, ok)
+		assert.Equal(t, `{"id":"a1","currentViewer":{"name":"Alice","__typename":"Viewer","id":"v1"}}`, string(items[0].MarshalTo(nil)))
+	})
+}

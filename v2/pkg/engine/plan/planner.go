@@ -146,6 +146,8 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	p.planningVisitor.fieldRefDependsOnFieldRefs = selectionsConfig.fieldRefDependsOn
 	p.planningVisitor.fieldDependencyKind = selectionsConfig.fieldDependencyKind
 	p.planningVisitor.fieldRefDependants = inverseMap(selectionsConfig.fieldRefDependsOn)
+	p.planningVisitor.requestScopedVisibleResponseKeys = selectionsConfig.requestScopedVisibleResponseKeys
+	p.planningVisitor.requestScopedFetchAliases = selectionsConfig.requestScopedFetchAliases
 
 	p.planningWalker.ResetVisitors()
 	p.planningWalker.SetVisitorFilter(p.planningVisitor)

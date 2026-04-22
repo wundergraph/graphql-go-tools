@@ -2070,6 +2070,11 @@ func (p *Planner[T]) handleFieldAlias(ref int) (newFieldName string, alias ast.A
 			break
 		}
 	}
+
+	if syntheticAlias, ok := p.visitor.RequestScopedFetchAlias(ref); ok {
+		alias.IsDefined = true
+		alias.Name = p.upstreamOperation.Input.AppendInputString(syntheticAlias)
+	}
 	return fieldName, alias
 }
 

@@ -86,6 +86,9 @@ type Visitor struct {
 	// entityAnalyticsCache is a lazy cache for entity analytics config lookup across all datasources.
 	// typeName → config (nil = not entity)
 	entityAnalyticsCache map[string]*resolve.ObjectCacheAnalytics
+
+	requestScopedVisibleResponseKeys map[int]string
+	requestScopedFetchAliases        map[int]string
 }
 
 func NewVisitor(w *astvisitor.Walker) *Visitor {
@@ -100,6 +103,14 @@ func NewVisitor(w *astvisitor.Walker) *Visitor {
 		fieldPlanners:           map[int][]int{},
 		fieldEnclosingTypeNames: map[int]string{},
 	}
+}
+
+func (v *Visitor) RequestScopedFetchAlias(fieldRef int) (string, bool) {
+	if v == nil {
+		return "", false
+	}
+	alias, ok := v.requestScopedFetchAliases[fieldRef]
+	return alias, ok
 }
 
 type indirectInterfaceField struct {
@@ -403,8 +414,16 @@ func (v *Visitor) EnterField(ref int) {
 
 	fieldName := v.Operation.FieldNameBytes(ref)
 	fieldAliasOrName := v.Operation.FieldAliasOrNameBytes(ref)
+	responseFieldName := fieldAliasOrName
+	if visible, ok := v.requestScopedVisibleResponseKeys[ref]; ok {
+		responseFieldName = []byte(visible)
+	}
+	fetchResponseKey := v.Operation.FieldAliasOrNameString(ref)
+	if fetchAlias, ok := v.requestScopedFetchAliases[ref]; ok {
+		fetchResponseKey = fetchAlias
+	}
 
-	if bytes.Equal(fieldAliasOrName, []byte("__internal__typename_placeholder")) {
+	if bytes.Equal(responseFieldName, []byte("__internal__typename_placeholder")) {
 		// we should skip such typename as it was added as a placeholder to keep query valid
 		return
 	}
@@ -418,10 +437,13 @@ func (v *Visitor) EnterField(ref int) {
 	onTypeNames := v.resolveOnTypeNames(ref, fieldName)
 
 	v.currentField = &resolve.Field{
-		Name:        fieldAliasOrName,
+		Name:        responseFieldName,
 		OnTypeNames: onTypeNames,
 		Position:    v.resolveFieldPosition(ref),
 		Info:        v.resolveFieldInfo(ref, fieldDefinitionTypeRef, onTypeNames),
+	}
+	if _, ok := v.requestScopedVisibleResponseKeys[ref]; ok && !bytes.Equal(responseFieldName, fieldName) {
+		v.currentField.OriginalName = fieldName
 	}
 
 	if bytes.Equal(fieldName, literal.TYPENAME) {
@@ -430,20 +452,20 @@ func (v *Visitor) EnterField(ref int) {
 
 		if isRootQueryType {
 			str := &resolve.StaticString{
-				Path:  []string{v.Operation.FieldAliasOrNameString(ref)},
+				Path:  []string{fetchResponseKey},
 				Value: string(typeName),
 			}
 			v.currentField.Value = str
 		} else {
 			str := &resolve.String{
 				Nullable:   false,
-				Path:       []string{v.Operation.FieldAliasOrNameString(ref)},
+				Path:       []string{fetchResponseKey},
 				IsTypeName: true,
 			}
 			v.currentField.Value = str
 		}
 	} else {
-		path := []string{v.Operation.FieldAliasOrNameString(ref)}
+		path := []string{fetchResponseKey}
 		v.currentField.Value = v.resolveFieldValue(ref, fieldDefinitionTypeRef, true, path)
 	}
 
@@ -1236,6 +1258,10 @@ func (v *Visitor) trackFieldForPlanner(plannerID int, fieldRef int) {
 
 	fieldName := v.Operation.FieldNameBytes(fieldRef)
 	fieldAliasOrName := v.Operation.FieldAliasOrNameString(fieldRef)
+	fetchResponseKey := fieldAliasOrName
+	if fetchAlias, ok := v.requestScopedFetchAliases[fieldRef]; ok {
+		fetchResponseKey = fetchAlias
+	}
 
 	// For nested entity fetches, check if this field represents the entity boundary
 	// If so, we should skip adding this field to ProvidesData and instead add its children
@@ -1264,11 +1290,11 @@ func (v *Visitor) trackFieldForPlanner(plannerID int, fieldRef int) {
 
 		// Check if we already have a __typename field with the same name and path
 		for _, existingField := range *currentFields.fields {
-			if bytes.Equal(existingField.Name, []byte(fieldAliasOrName)) {
+			if bytes.Equal(existingField.Name, []byte(fetchResponseKey)) {
 				// For __typename fields, the path is [fieldAliasOrName]
 				// Check if the existing field has the same path
 				if existingValue, ok := existingField.Value.(*resolve.Scalar); ok {
-					if len(existingValue.Path) > 0 && existingValue.Path[0] == fieldAliasOrName {
+					if len(existingValue.Path) > 0 && existingValue.Path[0] == fetchResponseKey {
 						// We already have this __typename field with the same name and path, skip it
 						return
 					}
@@ -1283,16 +1309,16 @@ func (v *Visitor) trackFieldForPlanner(plannerID int, fieldRef int) {
 	}
 	fieldType := v.Definition.FieldDefinitionType(fieldDefinition)
 
-	fieldValue := v.createFieldValueForPlanner(fieldType, []string{fieldAliasOrName})
+	fieldValue := v.createFieldValueForPlanner(fieldType, []string{fetchResponseKey})
 
 	onTypeNames := v.resolveEntityOnTypeNames(plannerID, fieldRef, fieldName)
 
 	field := &resolve.Field{
-		Name:        []byte(fieldAliasOrName),
+		Name:        []byte(fetchResponseKey),
 		Value:       fieldValue,
 		OnTypeNames: onTypeNames,
 	}
-	if v.Operation.FieldAliasIsDefined(fieldRef) {
+	if fetchResponseKey != string(fieldName) {
 		field.OriginalName = v.Operation.FieldNameBytes(fieldRef)
 	}
 	// Capture field arguments for cache suffix computation at resolve time.
