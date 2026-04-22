@@ -136,6 +136,9 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 
 	representations := getRepresentations(variables)
 	if err := graph.TopologicalSortResolve(func(nodes []FetchItem) error {
+		// TODO: Compile fetches should be converted to a program.
+		// The program defines all the fetches that need to be executed in parallel for a given query.
+
 		serviceCalls, err := d.rc.CompileFetches(graph, nodes, variables)
 		if err != nil {
 			return err
