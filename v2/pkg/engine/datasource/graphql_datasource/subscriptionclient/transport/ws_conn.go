@@ -75,6 +75,9 @@ func newWSConnection(conn *websocket.Conn, proto protocol.Protocol, opts wsConne
 	return c
 }
 
+// subscribe registers handler for a new subscription on this connection and
+// sends the protocol-level subscribe message. The returned function unsubscribes
+// and, if this was the last subscription, triggers the idle-close flow.
 func (c *wsConnection) subscribe(ctx context.Context, id string, req *common.Request, handler common.Handler) (func(), error) {
 	c.subsMu.Lock()
 

@@ -121,6 +121,9 @@ func NewWSTransport(ctx context.Context, opts WSTransportOptions) *WSTransport {
 	return t
 }
 
+// Subscribe initiates a GraphQL subscription over WebSocket. It reuses an
+// existing connection when one is available for the same endpoint, subprotocol,
+// headers, and init payload, dialing a new one otherwise.
 func (t *WSTransport) Subscribe(ctx context.Context, req *common.Request, opts common.Options, handler common.Handler) (func(), error) {
 	conn, err := t.getOrDial(ctx, opts)
 	if err != nil {
@@ -262,7 +265,7 @@ func (t *WSTransport) dial(ctx context.Context, key uint64, opts common.Options)
 			abstractlogger.String("error", "subprotocol negotiation failed"),
 			abstractlogger.Error(err),
 		)
-		wsConn.Close(websocket.StatusProtocolError, err.Error())
+		_ = wsConn.Close(websocket.StatusProtocolError, err.Error())
 		return nil, err
 	}
 
@@ -275,7 +278,7 @@ func (t *WSTransport) dial(ctx context.Context, key uint64, opts common.Options)
 			abstractlogger.String("error", "protocol init failed"),
 			abstractlogger.Error(err),
 		)
-		wsConn.Close(websocket.StatusProtocolError, "init failed")
+		_ = wsConn.Close(websocket.StatusProtocolError, "init failed")
 		return nil, fmt.Errorf("%w: %w", ErrInitFailed, err)
 	}
 
