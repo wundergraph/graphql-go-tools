@@ -602,3 +602,39 @@ func (s *MockService) QueryCalculateTotals(ctx context.Context, in *productv1.Qu
 		CalculateTotals: calculatedOrders,
 	}, nil
 }
+
+// QueryConditionalSearch implements productv1.ProductServiceServer.
+// It counts leaf conditions (those with both key and value set) recursively and returns a single result.
+func (s *MockService) QueryConditionalSearch(_ context.Context, req *productv1.QueryConditionalSearchRequest) (*productv1.QueryConditionalSearchResponse, error) {
+	count := countLeafConditions(req.GetConditions())
+	return &productv1.QueryConditionalSearchResponse{
+		ConditionalSearch: []*productv1.ConditionalSearchResult{
+			{
+				Id:                "conditional-search-1",
+				Name:              "Conditional Search Result",
+				MatchedConditions: int32(count),
+			},
+		},
+	}, nil
+}
+
+func countLeafConditions(c *productv1.ConditionsInput) int {
+	if c == nil {
+		return 0
+	}
+	var count int
+	if c.GetKey() != nil && c.GetValue() != nil {
+		count++
+	}
+	if c.GetAnd() != nil {
+		for _, item := range c.GetAnd().GetList().GetItems() {
+			count += countLeafConditions(item)
+		}
+	}
+	if c.GetOr() != nil {
+		for _, item := range c.GetOr().GetList().GetItems() {
+			count += countLeafConditions(item)
+		}
+	}
+	return count
+}
