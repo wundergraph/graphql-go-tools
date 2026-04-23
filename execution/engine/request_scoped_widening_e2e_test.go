@@ -40,14 +40,19 @@ func newRequestScopedE2EServer(t *testing.T, responder func(request requestScope
 		t.Helper()
 
 		body, err := io.ReadAll(r.Body)
-		require.NoError(t, err)
+		if !assert.NoError(t, err) {
+			http.Error(w, `{"errors":[{"message":"invalid request body"}]}`, http.StatusBadRequest)
+			return
+		}
 
 		var payload struct {
 			Query     string          `json:"query"`
 			Variables json.RawMessage `json:"variables"`
 		}
-		err = json.Unmarshal(body, &payload)
-		require.NoError(t, err)
+		if !assert.NoError(t, json.Unmarshal(body, &payload)) {
+			http.Error(w, `{"errors":[{"message":"invalid graphql payload"}]}`, http.StatusBadRequest)
+			return
+		}
 
 		request := requestScopedE2ERequest{
 			Query:     payload.Query,
@@ -68,13 +73,18 @@ func newRequestScopedE2EServer(t *testing.T, responder func(request requestScope
 
 		w.Header().Set("Content-Type", "application/json")
 		_, err = w.Write([]byte(response))
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}))
 
 	t.Cleanup(s.server.Close)
 	return s
 }
 
+// normalizeRequestScopedVariables runs on the httptest handler goroutine, so it
+// must not use require/FailNow-family assertions. It inlines the compact-JSON
+// logic with non-fatal assert.NoError; on marshal failure it falls through with
+// the raw bytes so any test assertion can still diff against a recognizable
+// value.
 func normalizeRequestScopedVariables(t *testing.T, raw json.RawMessage) string {
 	t.Helper()
 
@@ -82,7 +92,15 @@ func normalizeRequestScopedVariables(t *testing.T, raw json.RawMessage) string {
 		return ""
 	}
 
-	return compactJSONForAssert(t, string(raw))
+	var value any
+	if !assert.NoError(t, json.Unmarshal(raw, &value)) {
+		return string(raw)
+	}
+	normalized, err := json.Marshal(value)
+	if !assert.NoError(t, err) {
+		return string(raw)
+	}
+	return string(normalized)
 }
 
 func (s *requestScopedE2EServer) URL() string {
@@ -417,10 +435,11 @@ type Article @key(fields: "id") { id: ID! title: String! }`,
 			return "", false
 		})
 
+		handlesExpectedVariables := compactJSONForAssert(t, `{"representations":[{"__typename":"Viewer","id":"v1","name":"Alice"}]}`)
 		handles := newRequestScopedE2EServer(t, func(request requestScopedE2ERequest) (string, bool) {
 			if request == (requestScopedE2ERequest{
 				Query:     `query($representations: [_Any!]!){_entities(representations: $representations){... on Viewer {__typename handle}}}`,
-				Variables: compactJSONForAssert(t, `{"representations":[{"__typename":"Viewer","id":"v1","name":"Alice"}]}`),
+				Variables: handlesExpectedVariables,
 			}) {
 				return `{"data":{"_entities":[{"__typename":"Viewer","handle":"alice-handle"}]}}`, true
 			}
@@ -483,10 +502,11 @@ type Article @key(fields: "id") { id: ID! title: String! }`,
 		//  1. Root fetch to viewer requests both posts(first: 1) and posts(first: 2).
 		//  2. The synthetic aliases keep the two cache entries separate inside requestScoped L1.
 		//  3. The nested article.currentViewer branch is injected from the widened root value.
+		viewerExpectedVariables := compactJSONForAssert(t, `{"a":1,"b":2}`)
 		viewer := newRequestScopedE2EServer(t, func(request requestScopedE2ERequest) (string, bool) {
 			if request == (requestScopedE2ERequest{
 				Query:     `query($a: Int!, $b: Int!){currentViewer {id __request_scoped__posts_0: posts(first: $a){id} __request_scoped__posts_1: posts(first: $b){id title}}}`,
-				Variables: compactJSONForAssert(t, `{"a":1,"b":2}`),
+				Variables: viewerExpectedVariables,
 			}) {
 				return `{"data":{"currentViewer":{"id":"v1","__request_scoped__posts_0":[{"id":"p1"}],"__request_scoped__posts_1":[{"id":"p2","title":"Second"}]}}}`, true
 			}
