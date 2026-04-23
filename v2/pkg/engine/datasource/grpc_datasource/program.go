@@ -5,6 +5,7 @@ import (
 
 	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	protoref "google.golang.org/protobuf/reflect/protoreflect"
 )
 
 type program struct {
@@ -30,6 +31,7 @@ type fetchProgram struct {
 
 type request struct {
 	message *programMessage
+	fields  []programField
 	context *fetchRequestContext
 	// The wire message will be created fromt the
 	// request structure.
@@ -79,6 +81,11 @@ func (f *request) createProtoWire(requestVariables *astjson.Value) ([]byte, erro
 	}
 
 	return wire, nil
+}
+
+// TODO: Implement this
+func (f *request) createProtoWireWithContext(requestVariables *astjson.Value, contextMessage protoref.Message) ([]byte, error) {
+	return nil, nil
 }
 
 func compileProgram(plan *RPCExecutionPlan, runtime *runtimeSchema) (*program, error) {
@@ -173,7 +180,7 @@ func compileFetch(call *RPCCall, runtime *runtimeSchema, dependentCall *RPCCall)
 			return fetchProgram{}, fmt.Errorf("dependent message not found for method %s", dependentCall.MethodName)
 		}
 
-		fetchRequest, err := compileFetchRequestWithContext(requestMessage, dependentMessage, call.Request)
+		fetchRequest, err := compileFetchRequestWithContext(runtime, requestMessage, dependentMessage, &call.Request)
 		if err != nil {
 			return fetchProgram{}, err
 		}
@@ -191,22 +198,29 @@ func compileFetch(call *RPCCall, runtime *runtimeSchema, dependentCall *RPCCall)
 }
 
 func compileFetchRequest(runtime *runtimeSchema, rpcMessage *RPCMessage, message *runtimeMessage) (*request, error) {
-	requestMessage, err := compileMessage(runtime, rpcMessage, message)
+	requestMessage, err := compileMessage(runtime, rpcMessage, message, make(map[string]*programMessage))
 	if err != nil {
 		return nil, err
 	}
 
 	return &request{
 		message: requestMessage,
+		fields:  requestMessage.fields,
 	}, nil
 }
 
-func compileMessage(runtime *runtimeSchema, rpcMessage *RPCMessage, rtMessage *runtimeMessage) (*programMessage, error) {
+func compileMessage(runtime *runtimeSchema, rpcMessage *RPCMessage, rtMessage *runtimeMessage, cycleMap map[string]*programMessage) (*programMessage, error) {
+	if seen, ok := cycleMap[rpcMessage.Name]; ok {
+		return seen, nil
+	}
+
 	msg := &programMessage{
 		name:    rpcMessage.Name,
 		runtime: rtMessage,
 		fields:  make([]programField, 0, len(rpcMessage.Fields)),
 	}
+
+	cycleMap[rpcMessage.Name] = msg
 
 	for _, f := range rpcMessage.Fields {
 		rtFieldMessage := runtime.getMessageByName(rpcMessage.Name)
@@ -219,7 +233,7 @@ func compileMessage(runtime *runtimeSchema, rpcMessage *RPCMessage, rtMessage *r
 			return nil, fmt.Errorf("field not found for name %s", f.Name)
 		}
 
-		requestField, err := compileField(runtime, f, runtimeField)
+		requestField, err := compileField(runtime, f, runtimeField, cycleMap)
 		if err != nil {
 			return nil, err
 		}
@@ -229,7 +243,7 @@ func compileMessage(runtime *runtimeSchema, rpcMessage *RPCMessage, rtMessage *r
 	return msg, nil
 }
 
-func compileField(runtime *runtimeSchema, rpcField RPCField, rtField *runtimeField) (programField, error) {
+func compileField(runtime *runtimeSchema, rpcField RPCField, rtField *runtimeField, cycleMap map[string]*programMessage) (programField, error) {
 	f := programField{
 		runtime:      rtField,
 		dataType:     rpcField.ProtoTypeName,
@@ -247,7 +261,7 @@ func compileField(runtime *runtimeSchema, rpcField RPCField, rtField *runtimeFie
 			return programField{}, fmt.Errorf("child message not found for name %s", rpcField.Message.Name)
 		}
 
-		childMessage, err := compileMessage(runtime, rpcField.Message, rtField.message)
+		childMessage, err := compileMessage(runtime, rpcField.Message, rtField.message, cycleMap)
 		if err != nil {
 			return programField{}, err
 		}
@@ -258,8 +272,16 @@ func compileField(runtime *runtimeSchema, rpcField RPCField, rtField *runtimeFie
 	return f, nil
 }
 
-func compileFetchRequestWithContext(message *runtimeMessage, dependentMessage *runtimeMessage, rpcMessage RPCMessage) (*request, error) {
+func compileFetchRequestWithContext(runtime *runtimeSchema, message *runtimeMessage, dependentMessage *runtimeMessage, rpcMessage *RPCMessage) (*request, error) {
 	request := &request{}
+
+	requestMessage, err := compileMessage(runtime, rpcMessage, message, make(map[string]*programMessage))
+	if err != nil {
+		return nil, err
+	}
+
+	request.message = requestMessage
+	request.fields = requestMessage.fields
 
 	// context and field_args
 	for _, field := range rpcMessage.Fields {

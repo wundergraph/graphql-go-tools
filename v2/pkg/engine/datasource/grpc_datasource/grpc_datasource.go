@@ -30,10 +30,11 @@ import (
 )
 
 type fetchData struct {
-	kind           CallKind
-	response       *astjson.Value
-	responsePath   ast.Path
-	entityIndexMap entityIndexMap
+	kind            CallKind
+	responseMessage *dynamicpb.Message
+	response        *astjson.Value
+	responsePath    ast.Path
+	entityIndexMap  entityIndexMap
 }
 
 // Verify DataSource implements the resolve.DataSource interface
@@ -116,6 +117,8 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 
 	item := d.acquirePoolItem(input, 0)
 	poolItems = append(poolItems, item)
+
+	fmt.Println("input", string(input))
 	// get variables from input
 	value, err := astjson.ParseBytesWithArena(item.Arena, input)
 	if err != nil {
@@ -169,44 +172,6 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 				requestVariables = filterRepresentations(item.Arena, requestVariables, fetch.requestedEntityType)
 			}
 
-			// if fetch.dependentCall != nil {
-			// 	requestVariables = astjson.DeepCopy(item.Arena, astJsonVariables)
-
-			// 	call, found := callMap[fetch.dependentCall.ID]
-			// 	if !found {
-			// 		return nil, fmt.Errorf("dependent call %d not found", fetch.dependentCall.ID)
-			// 	}
-
-			// 	contextField := fetch.request.rpcMessage.Fields.ByName(contextFieldName)
-			// 	if contextField == nil {
-			// 		return nil, fmt.Errorf("context field not found in dependent call %d", fetch.dependentCall.ID)
-			// 	}
-
-			// 	contextValue := call.response.Get(contextField.JSONPath)
-			// 	if !contextValue.Exists() {
-			// 		return nil, fmt.Errorf("context value not found in dependent call %d", fetch.dependentCall.ID)
-			// 	}
-
-			// 	var contextData []*astjson.Value
-			// 	if contextValue.Type() == astjson.TypeArray {
-			// 		contextData = contextValue.GetArray()
-			// 	} else {
-			// 		contextData = []*astjson.Value{contextValue}
-			// 	}
-
-			// 	ov := astjson.ObjectValue(item.Arena)
-			// 	contextArr := astjson.ArrayValue(item.Arena)
-			// 	for i, data := range contextData {
-			// 		contextArr.SetArrayItem(item.Arena, i, data)
-			// 	}
-			// 	ov.Set(item.Arena, contextField.JSONPath, contextArr)
-
-			// 	requestVariables, _, err = astjson.MergeValues(item.Arena, requestVariables, ov)
-			// 	if err != nil {
-			// 		return nil, err
-			// 	}
-			// }
-
 			buffer, err := fetch.request.createProtoWire(requestVariables)
 			if err != nil {
 				return nil, err
@@ -223,9 +188,10 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 			}
 
 			fetchResult := fetchData{
-				kind:         fetch.kind,
-				response:     responseJson,
-				responsePath: fetch.responsePath,
+				kind:            fetch.kind,
+				response:        responseJson,
+				responseMessage: responseMessage,
+				responsePath:    fetch.responsePath,
 			}
 
 			// In case of a federated response, we need to ensure that the response is valid.

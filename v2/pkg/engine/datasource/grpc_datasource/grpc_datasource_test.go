@@ -236,37 +236,7 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 		Definition:   &schemaDoc,
 		SubgraphName: "Products",
 		Compiler:     compiler,
-		Mapping: &GRPCMapping{
-			Service: "Products",
-			QueryRPCs: RPCConfigMap[RPCConfig]{
-				"complexFilterType": {
-					RPC:      "QueryComplexFilterType",
-					Request:  "QueryComplexFilterTypeRequest",
-					Response: "QueryComplexFilterTypeResponse",
-				},
-			},
-			Fields: map[string]FieldMap{
-				"Query": {
-					"complexFilterType": {
-						TargetName: "complex_filter_type",
-						ArgumentMappings: map[string]string{
-							"filter": "filter",
-						},
-					},
-				},
-				"FilterType": {
-					"name": {
-						TargetName: "name",
-					},
-					"filterField1": {
-						TargetName: "filter_field_1",
-					},
-					"filterField2": {
-						TargetName: "filter_field_2",
-					},
-				},
-			},
-		},
+		Mapping:      testMapping(),
 	})
 	require.NoError(t, err)
 
@@ -2630,7 +2600,7 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 					collaborations
 				}
 			}`,
-			vars: `{"variables":{"input":{"name":"New Author","email":"author@example.com","skills":["Go","GraphQL","gRPC"],"languages":["English","Spanish"],"socialLinks":["twitter.com/author","github.com/author"],"teamsByProject":[["Alice","Bob"],["Charlie","David","Eve"]],"collaborations":[["Project1","Project2"],["Project3"]]}}}`,
+			vars: `{"variables":{"input":{"name":"New Author","email":"author@example.com","skills":["Go","GraphQL","gRPC"],"languages":["English","Spanish"],"socialLinks":["twitter.com/author","github.com/author"],"teamsByProject":[["Alice","Bob"],["Charlie","David","Eve"]],"collaborations":[["Project1","Project2"],["Project3"]],"favoriteCategories":[]}}}`,
 			validate: func(t *testing.T, data map[string]interface{}) {
 				createAuthor, ok := data["createAuthor"].(map[string]interface{})
 				require.True(t, ok, "createAuthor should be an object")
@@ -3441,7 +3411,7 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 					"viewCounts":[300,400,500],
 					"tagGroups":[["updated","tags"],["bulk","update"]],
 					"commentThreads":[["Updated comment"]],
-					"relatedTopics":[["updated","topics"]],
+					"relatedTopics":[["updated","topics"]]
 				}
 			]}}`,
 			validate: func(t *testing.T, data map[string]interface{}) {

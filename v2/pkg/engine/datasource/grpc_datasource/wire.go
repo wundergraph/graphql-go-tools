@@ -58,10 +58,14 @@ func compileWireMessageFromRequest(schema *runtimeSchema, request *request) (*wi
 		return nil, fmt.Errorf("unable to compile wire message from request: request is nil")
 	}
 
-	return compileWireMessage(schema, request.message)
+	return compileWireMessage(schema, request.message, make(map[string]*wireMessage))
 }
 
-func compileWireMessage(schema *runtimeSchema, msg *programMessage) (*wireMessage, error) {
+func compileWireMessage(schema *runtimeSchema, msg *programMessage, cycleMap map[string]*wireMessage) (*wireMessage, error) {
+	if seen, ok := cycleMap[msg.name]; ok {
+		return seen, nil
+	}
+
 	if msg == nil {
 		return nil, fmt.Errorf("message not found for fetch request")
 	}
@@ -71,6 +75,8 @@ func compileWireMessage(schema *runtimeSchema, msg *programMessage) (*wireMessag
 	wm := &wireMessage{
 		fields: make([]wireField, len(messageFields)),
 	}
+
+	cycleMap[msg.name] = wm
 
 	for i := range messageFields {
 		messageField := messageFields[i]
@@ -108,7 +114,7 @@ func compileWireMessage(schema *runtimeSchema, msg *programMessage) (*wireMessag
 				}
 			}
 
-			child, err := compileWireMessage(schema, messageField.child)
+			child, err := compileWireMessage(schema, messageField.child, cycleMap)
 			if err != nil {
 				return nil, err
 			}
@@ -121,77 +127,7 @@ func compileWireMessage(schema *runtimeSchema, msg *programMessage) (*wireMessag
 	}
 
 	return wm, nil
-
 }
-
-// func compileWireMessage(runtime *runtimeSchema, rpcMessage *RPCMessage, message *runtimeMessage) (*wireMessage, error) {
-// 	if message == nil {
-// 		return nil, fmt.Errorf("message not found for fetch request")
-// 	}
-// 	msg := &wireMessage{
-// 		fields: make([]wireField, len(rpcMessage.Fields)),
-// 	}
-
-// 	// TODO: This is possible for `@requires` fields, but not yet supported.
-// 	if rpcMessage.OneOfType != OneOfTypeNone {
-// 		return nil, fmt.Errorf("oneof type not supported yet")
-// 	}
-
-// 	for i := range rpcMessage.Fields {
-// 		rpcField := &rpcMessage.Fields[i]
-
-// 		field, ok := message.fieldsByName[rpcField.Name]
-// 		if !ok {
-// 			return nil, fmt.Errorf("field not found for name %s", rpcField.Name)
-// 		}
-
-// 		wf := wireField{
-// 			number:         field.desc.Number(),
-// 			runtimeMessage: field.message,
-// 			dataType:       rpcField.ProtoTypeName,
-// 			wireType:       getWireType(field.dataType),
-// 			jsonPath:       rpcField.JSONPath,
-// 			resolvePath:    rpcField.ResolvePath,
-// 			staticValue:    rpcField.StaticValue,
-// 			optional:       rpcField.Optional,
-// 			repeated:       rpcField.Repeated,
-// 			listMetadata:   rpcField.ListMetadata,
-// 		}
-
-// 		if rpcField.EnumName != "" {
-// 			rtEnum, ok := runtime.enumByName[rpcField.EnumName]
-// 			if !ok {
-// 				return nil, fmt.Errorf("enum not found for name %s", rpcField.EnumName)
-// 			}
-
-// 			wf.runtimeEnum = rtEnum
-// 		}
-
-// 		if rpcField.Message != nil {
-// 			fieldMessage := field.message
-// 			// we we are using wrapper messages, they are compiled from the protobuf schema but doesn't match with the RPC planner schema.
-// 			// We need to resolve the correct message from the runtime schema.
-// 			if rpcField.Message.Name != fieldMessage.name {
-// 				fieldMessage = runtime.getMessageByName(rpcField.Message.Name)
-// 				if fieldMessage == nil {
-// 					return nil, fmt.Errorf("message not found for name %s", rpcField.Message.Name)
-// 				}
-// 			}
-
-// 			child, err := compileWireMessage(runtime, rpcField.Message, fieldMessage)
-// 			if err != nil {
-// 				return nil, err
-// 			}
-
-// 			wf.child = child
-// 		}
-
-// 		wf.tag = protowire.AppendTag(nil, wf.number, wf.wireType)
-// 		msg.fields[i] = wf
-// 	}
-
-// 	return msg, nil
-// }
 
 // createProtoWire creates a proto wire from the wire plan.
 func (w *wireMessage) createProtoWire(data *astjson.Value) ([]byte, error) {

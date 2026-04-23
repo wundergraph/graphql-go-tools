@@ -153,7 +153,7 @@ func newWireTestRuntime(t *testing.T) *runtimeSchema {
 
 func compileTestWireMessage(t *testing.T, runtime *runtimeSchema, message *programMessage) *wireMessage {
 	t.Helper()
-	wm, err := compileWireMessage(runtime, message)
+	wm, err := compileWireMessage(runtime, message, make(map[string]*wireMessage))
 	require.NoError(t, err)
 	return wm
 }
@@ -161,7 +161,7 @@ func compileTestWireMessage(t *testing.T, runtime *runtimeSchema, message *progr
 func compileTestProgramMessage(t *testing.T, runtime *runtimeSchema, rpcMessage *RPCMessage, rtMessage *runtimeMessage) *programMessage {
 	t.Helper()
 
-	message, err := compileMessage(runtime, rpcMessage, rtMessage)
+	message, err := compileMessage(runtime, rpcMessage, rtMessage, make(map[string]*programMessage))
 	require.NoError(t, err)
 
 	return message
@@ -292,7 +292,7 @@ func TestCompileWireMessage(t *testing.T) {
 
 		// Optional + IsListType: compileWireMessage must not treat this as a wrapper scalar.
 		// Currently this errors because it tries to wrap in google.protobuf.*Value and looks for "value" in ListOfString.
-		wm, err := compileWireMessage(runtime, message)
+		wm, err := compileWireMessage(runtime, message, make(map[string]*wireMessage))
 
 		require.NoError(t, err)
 

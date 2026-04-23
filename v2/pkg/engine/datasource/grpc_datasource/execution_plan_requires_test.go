@@ -3,8 +3,6 @@ package grpcdatasource
 import (
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
@@ -2223,10 +2221,7 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 				t.Fatalf("failed to plan operation: %s", err)
 			}
 
-			diff := cmp.Diff(tt.expectedPlan, plan)
-			if diff != "" {
-				t.Fatalf("execution plan mismatch: %s", diff)
-			}
+			assertExecutionPlanEqual(t, tt.expectedPlan, plan)
 		})
 	}
 }
@@ -3143,10 +3138,7 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 				t.Fatalf("failed to plan operation: %s", err)
 			}
 
-			diff := cmp.Diff(tt.expectedPlan, plan)
-			if diff != "" {
-				t.Fatalf("execution plan mismatch: %s", diff)
-			}
+			assertExecutionPlanEqual(t, tt.expectedPlan, plan)
 		})
 	}
 }
@@ -3246,7 +3238,6 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveStorageStorageStatusContext",
@@ -3481,7 +3472,6 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveStorageLinkedStoragesContext",
@@ -3738,7 +3728,6 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveStorageNearbyStoragesContext",
@@ -3992,7 +3981,6 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveStorageStorageStatusContext",
@@ -4315,7 +4303,6 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveStorageLinkedStoragesContext",
@@ -4535,10 +4522,7 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 				t.Fatalf("failed to plan operation: %s", err)
 			}
 
-			diff := cmp.Diff(tt.expectedPlan, plan)
-			if diff != "" {
-				t.Fatalf("execution plan mismatch: %s", diff)
-			}
+			assertExecutionPlanEqual(t, tt.expectedPlan, plan)
 		})
 	}
 }
