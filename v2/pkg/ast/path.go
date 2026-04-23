@@ -128,6 +128,14 @@ func (p Path) String() string {
 	return out
 }
 
+func (p Path) ToPathItemStrings() []string {
+	out := make([]string, len(p))
+	for i := range p {
+		out[i] = unsafebytes.BytesToString(p[i].FieldName)
+	}
+	return out
+}
+
 func (p Path) DotDelimitedString() string {
 	builder := strings.Builder{}
 

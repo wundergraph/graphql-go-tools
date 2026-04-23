@@ -3,6 +3,7 @@ package grpcdatasource
 import (
 	"fmt"
 
+	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
 
@@ -11,33 +12,73 @@ type program struct {
 }
 
 type stage struct {
-	fetches []fetch
+	fetches []fetchProgram
 }
 
-type fetch struct {
-	id             int
-	kind           CallKind
-	dependentCall  *RPCCall
-	serviceName    string
-	methodName     string
-	methodFullName string
-	responsePath   ast.Path
-	request        *fetchRequest
-	response       *fetchResponse
+type fetchProgram struct {
+	id                  int
+	kind                CallKind
+	dependentCall       *RPCCall
+	serviceName         string
+	methodName          string
+	methodFullName      string
+	responsePath        ast.Path
+	request             *request
+	response            *response
+	requestedEntityType string
 }
 
-type fetchRequest struct {
-	message    *runtimeMessage
-	rpcMessage RPCMessage
+type request struct {
+	message *programMessage
+	context *fetchRequestContext
 	// The wire message will be created fromt the
 	// request structure.
 	wire *wireMessage
 }
 
-type fetchResponse struct {
+type programMessage struct {
+	name    string
+	runtime *runtimeMessage
+	fields  []programField
+}
+
+type programField struct {
+	runtime      *runtimeField
+	dataType     DataType
+	jsonPath     string
+	enumName     string
+	staticValue  string
+	optional     bool
+	repeated     bool
+	listMetadata *ListMetadata
+	child        *programMessage
+}
+
+type fetchRequestContext struct {
+	message *runtimeMessage
+	fields  []fetchRequestContextField
+}
+
+type fetchRequestContextField struct {
+	runtime     *runtimeField
+	resolvePath resolvePath
+}
+
+type resolvePath []*runtimeField
+
+type response struct {
 	// response type is the type of the response message.
 	responseType *runtimeMessage
 	rpcMessage   RPCMessage
+}
+
+func (f *request) createProtoWire(requestVariables *astjson.Value) ([]byte, error) {
+	wire, err := f.wire.createProtoWire(requestVariables)
+	if err != nil {
+		return nil, err
+	}
+
+	return wire, nil
 }
 
 func compileProgram(plan *RPCExecutionPlan, runtime *runtimeSchema) (*program, error) {
@@ -58,7 +99,7 @@ func compileProgram(plan *RPCExecutionPlan, runtime *runtimeSchema) (*program, e
 		stages: make([]stage, stageCount),
 	}
 
-	stageMap := make(map[int][]fetch, stageCount)
+	stageMap := make(map[int][]fetchProgram, stageCount)
 
 	for i := range plan.Calls {
 		call := &plan.Calls[i]
@@ -86,50 +127,183 @@ func compileProgram(plan *RPCExecutionPlan, runtime *runtimeSchema) (*program, e
 	return program, nil
 }
 
-func compileFetch(call *RPCCall, runtime *runtimeSchema, dependentCall *RPCCall) (fetch, error) {
+func compileFetch(call *RPCCall, runtime *runtimeSchema, dependentCall *RPCCall) (fetchProgram, error) {
 	serviceName, ok := runtime.serviceNamesByMethod[call.MethodName]
 	if !ok {
-		return fetch{}, fmt.Errorf("service name not found for method %s", call.MethodName)
+		return fetchProgram{}, fmt.Errorf("service name not found for method %s", call.MethodName)
 	}
 
-	f := fetch{
-		id:             call.ID,
-		kind:           call.Kind,
-		dependentCall:  dependentCall,
-		serviceName:    serviceName,
-		methodName:     call.MethodName,
-		methodFullName: "/" + serviceName + "/" + call.MethodName,
-		responsePath:   call.ResponsePath,
+	f := fetchProgram{
+		id:                  call.ID,
+		kind:                call.Kind,
+		dependentCall:       dependentCall,
+		serviceName:         serviceName,
+		methodName:          call.MethodName,
+		methodFullName:      "/" + serviceName + "/" + call.MethodName,
+		responsePath:        call.ResponsePath,
+		requestedEntityType: call.RequestedEntityType,
 	}
 
 	requestMessage := runtime.getMessageByName(call.Request.Name)
 	if requestMessage == nil {
-		return fetch{}, fmt.Errorf("request message not found for method %s", call.MethodName)
+		return fetchProgram{}, fmt.Errorf("request message not found for method %s", call.MethodName)
 	}
 
 	responseMessage := runtime.getMessageByName(call.Response.Name)
 	if responseMessage == nil {
-		return fetch{}, fmt.Errorf("response message not found for method %s", call.MethodName)
+		return fetchProgram{}, fmt.Errorf("response message not found for method %s", call.MethodName)
 	}
 
-	f.request = &fetchRequest{
-		message:    requestMessage,
-		rpcMessage: call.Request,
-	}
-
-	f.response = &fetchResponse{
+	f.response = &response{
 		responseType: responseMessage,
 		rpcMessage:   call.Response,
 	}
 
-	wireMessage, err := compileWireMessage(runtime, &f.request.rpcMessage, requestMessage)
+	switch f.kind {
+	case CallKindStandard, CallKindEntity:
+		fetchRequest, err := compileFetchRequest(runtime, &call.Request, requestMessage)
+		if err != nil {
+			return fetchProgram{}, err
+		}
+		f.request = fetchRequest
+
+	case CallKindResolve:
+		dependentMessage := runtime.getMessageByName(dependentCall.Response.Name)
+		if dependentMessage == nil {
+			return fetchProgram{}, fmt.Errorf("dependent message not found for method %s", dependentCall.MethodName)
+		}
+
+		fetchRequest, err := compileFetchRequestWithContext(requestMessage, dependentMessage, call.Request)
+		if err != nil {
+			return fetchProgram{}, err
+		}
+		f.request = fetchRequest
+	}
+
+	wireMessage, err := compileWireMessageFromRequest(runtime, f.request)
 	if err != nil {
-		return fetch{}, err
+		return fetchProgram{}, err
 	}
 
 	f.request.wire = wireMessage
 
 	return f, nil
+}
+
+func compileFetchRequest(runtime *runtimeSchema, rpcMessage *RPCMessage, message *runtimeMessage) (*request, error) {
+	requestMessage, err := compileMessage(runtime, rpcMessage, message)
+	if err != nil {
+		return nil, err
+	}
+
+	return &request{
+		message: requestMessage,
+	}, nil
+}
+
+func compileMessage(runtime *runtimeSchema, rpcMessage *RPCMessage, rtMessage *runtimeMessage) (*programMessage, error) {
+	msg := &programMessage{
+		name:    rpcMessage.Name,
+		runtime: rtMessage,
+		fields:  make([]programField, 0, len(rpcMessage.Fields)),
+	}
+
+	for _, f := range rpcMessage.Fields {
+		rtFieldMessage := runtime.getMessageByName(rpcMessage.Name)
+		if rtFieldMessage == nil {
+			return nil, fmt.Errorf("message not found for name %s", f.Message.Name)
+		}
+
+		runtimeField := rtFieldMessage.fieldsByName[f.Name]
+		if runtimeField == nil {
+			return nil, fmt.Errorf("field not found for name %s", f.Name)
+		}
+
+		requestField, err := compileField(runtime, f, runtimeField)
+		if err != nil {
+			return nil, err
+		}
+		msg.fields = append(msg.fields, requestField)
+	}
+
+	return msg, nil
+}
+
+func compileField(runtime *runtimeSchema, rpcField RPCField, rtField *runtimeField) (programField, error) {
+	f := programField{
+		runtime:      rtField,
+		dataType:     rpcField.ProtoTypeName,
+		jsonPath:     rpcField.JSONPath,
+		enumName:     rpcField.EnumName,
+		staticValue:  rpcField.StaticValue,
+		optional:     rpcField.Optional,
+		repeated:     rpcField.Repeated,
+		listMetadata: rpcField.ListMetadata,
+		child:        nil,
+	}
+
+	if rpcField.Message != nil {
+		if rtField.message == nil {
+			return programField{}, fmt.Errorf("child message not found for name %s", rpcField.Message.Name)
+		}
+
+		childMessage, err := compileMessage(runtime, rpcField.Message, rtField.message)
+		if err != nil {
+			return programField{}, err
+		}
+
+		f.child = childMessage
+	}
+
+	return f, nil
+}
+
+func compileFetchRequestWithContext(message *runtimeMessage, dependentMessage *runtimeMessage, rpcMessage RPCMessage) (*request, error) {
+	request := &request{}
+
+	// context and field_args
+	for _, field := range rpcMessage.Fields {
+		switch field.Name {
+		case "context":
+			contextField, found := message.fieldsByName[field.Name]
+			if !found {
+				return nil, fmt.Errorf("context message not found for method %s", rpcMessage.Name)
+			}
+
+			fetchRequestContext, err := compileFetchRequestContext(contextField.message, dependentMessage, field.Message)
+			if err != nil {
+				return nil, err
+			}
+
+			request.context = fetchRequestContext
+		case "field_args":
+			// wireMessage, err := compileWireMessage(field.Message, message)
+			// if err != nil {
+			// 	return nil, err
+			// }
+
+			// request.wire = wireMessage
+		}
+	}
+
+	return request, nil
+}
+
+func compileFetchRequestContext(message, dependentMessage *runtimeMessage, rpcMessage *RPCMessage) (*fetchRequestContext, error) {
+	if message == nil || dependentMessage == nil {
+		return nil, fmt.Errorf("unable to compile fetch request context: message or dependent message is nil")
+	}
+
+	if rpcMessage == nil {
+		return nil, fmt.Errorf("unable to compile fetch request context: rpc message is nil")
+	}
+
+	fetchRequestContext := &fetchRequestContext{
+		message: message,
+		fields:  make([]fetchRequestContextField, 0, len(rpcMessage.Fields)),
+	}
+
+	return fetchRequestContext, nil
 }
 
 func compileStageIndexes(plan *RPCExecutionPlan) ([]int, error) {

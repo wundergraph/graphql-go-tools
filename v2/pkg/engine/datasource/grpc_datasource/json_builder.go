@@ -50,7 +50,7 @@ func newJSONBuilder(a arena.Arena, mapping *GRPCMapping, variables gjson.Result)
 // mergeValues combines two JSON values while preserving proper federation entity ordering.
 // This is a critical function for GraphQL federation where multiple subgraphs may
 // return entities that need to be merged in the correct order.
-func (j *jsonBuilder) mergeValues(left *astjson.Value, right resultData) (*astjson.Value, error) {
+func (j *jsonBuilder) mergeValues(left *astjson.Value, right fetchData) (*astjson.Value, error) {
 	if right.kind != CallKindEntity {
 		// No federation index map available - use simple merge
 		// This path is taken for non-federated queries
@@ -76,7 +76,7 @@ func (j *jsonBuilder) mergeValues(left *astjson.Value, right resultData) (*astjs
 // _entities array. On subsequent calls, left is the result of a previous
 // mergeEntities call and already holds the _entities array, so we mutate it
 // in place rather than copying every accumulated entity into a new array.
-func (j *jsonBuilder) mergeEntities(left *astjson.Value, rightResult resultData) (*astjson.Value, error) {
+func (j *jsonBuilder) mergeEntities(left *astjson.Value, rightResult fetchData) (*astjson.Value, error) {
 	right := rightResult.response
 	rightEntities := right.Get(entityPath).GetArray()
 

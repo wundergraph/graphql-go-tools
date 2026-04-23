@@ -22,9 +22,13 @@ func TestCompileProgram(t *testing.T) {
 		expected  expected
 		err       error
 	}{
+		// {
+		// 	name:      "simple program",
+		// 	operation: `query UsersWithTypename { users { __typename id __typename name } }`,
+		// },
 		{
-			name:      "simple program",
-			operation: `query UsersWithTypename { users { __typename id __typename name } }`,
+			name:      "query with field resolver",
+			operation: `query CategoriesWithFieldResolvers($whoop: ProductCountFilter) { categories { id productCount(filters: $whoop) } }`,
 		},
 	}
 

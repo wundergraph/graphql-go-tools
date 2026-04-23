@@ -377,37 +377,7 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 		Definition:   &schemaDoc,
 		SubgraphName: "Products",
 		Compiler:     compiler,
-		Mapping: &GRPCMapping{
-			Service: "Products",
-			QueryRPCs: RPCConfigMap[RPCConfig]{
-				"complexFilterType": {
-					RPC:      "QueryComplexFilterType",
-					Request:  "QueryComplexFilterTypeRequest",
-					Response: "QueryComplexFilterTypeResponse",
-				},
-			},
-			Fields: map[string]FieldMap{
-				"Query": {
-					"complexFilterType": {
-						TargetName: "complex_filter_type",
-						ArgumentMappings: map[string]string{
-							"filter": "filter",
-						},
-					},
-				},
-				"FilterType": {
-					"name": {
-						TargetName: "name",
-					},
-					"filterField1": {
-						TargetName: "filter_field_1",
-					},
-					"filterField2": {
-						TargetName: "filter_field_2",
-					},
-				},
-			},
-		},
+		Mapping:      testMapping(),
 	})
 	require.NoError(t, err)
 

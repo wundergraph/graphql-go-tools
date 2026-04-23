@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewSchemaRuntime(t *testing.T) {
+func TestNewRuntimeSchema(t *testing.T) {
 	compiler, err := NewProtoCompiler(testSchemaWithLookup, testMapping())
 	require.NoError(t, err)
 
@@ -20,7 +20,7 @@ func TestNewSchemaRuntime(t *testing.T) {
 	require.Len(t, runtime.serviceNamesByMethod, 1)
 }
 
-func TestSchemaRuntimeMessages(t *testing.T) {
+func TestRuntimeSchemaMessages(t *testing.T) {
 	compiler, err := NewProtoCompiler(testSchemaWithLookup, testMapping())
 	require.NoError(t, err)
 
@@ -90,7 +90,7 @@ func TestSchemaRuntimeMessages(t *testing.T) {
 	})
 }
 
-func TestSchemaRuntimeEnums(t *testing.T) {
+func TestRuntimeSchemaEnums(t *testing.T) {
 	compiler, err := NewProtoCompiler(testSchemaWithLookup, testMapping())
 	require.NoError(t, err)
 
@@ -128,7 +128,7 @@ func TestSchemaRuntimeEnums(t *testing.T) {
 	})
 }
 
-func TestSchemaRuntimeServices(t *testing.T) {
+func TestRuntimeSchemaServices(t *testing.T) {
 	compiler, err := NewProtoCompiler(testSchemaWithLookup, testMapping())
 	require.NoError(t, err)
 

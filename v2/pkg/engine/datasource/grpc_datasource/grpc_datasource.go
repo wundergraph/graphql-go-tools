@@ -16,7 +16,6 @@ import (
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/tidwall/gjson"
-	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/dynamicpb"
@@ -28,10 +27,9 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 )
 
-type resultData struct {
+type fetchData struct {
 	kind           CallKind
 	response       *astjson.Value
 	responsePath   ast.Path
@@ -53,11 +51,10 @@ type DataSource struct {
 	definition        *ast.Document
 	disabled          bool
 
-	pool       *arena.Pool
-	program    *program
-	codecOpt   grpc.CallOption
-	wireBuf    bytes.Buffer
-	resultsBuf []resultData
+	pool     *arena.Pool
+	program  *program
+	codecOpt grpc.CallOption
+	wireBuf  bytes.Buffer
 }
 
 type ProtoConfig struct {
@@ -136,8 +133,6 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 
 	variables := gjson.ParseBytes(input).Get("body.variables")
 
-	_ = astJsonVariables
-
 	builder := newJSONBuilder(item.Arena, d.mapping, variables)
 
 	if d.disabled {
@@ -159,45 +154,102 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 
 	root := astjson.ObjectValue(nil)
 
+	callMap := make(map[int]fetchData)
+
+	representations := getRepresentations(astJsonVariables)
 	for _, stage := range d.program.stages {
-		results := d.resultsBuf[:0]
-		if cap(results) < len(stage.fetches) {
-			results = make([]resultData, 0, len(stage.fetches))
-		}
+		results := make([]fetchData, 0, len(stage.fetches))
 
 		for _, fetch := range stage.fetches {
+			// TODO: unmarshal with our own codec logic
 			responseMessage := dynamicpb.NewMessage(fetch.response.responseType.desc)
 
-			buffer, err := fetch.request.wire.createProtoWire(astJsonVariables)
+			requestVariables := astJsonVariables
+			if fetch.requestedEntityType != "" {
+				requestVariables = filterRepresentations(item.Arena, requestVariables, fetch.requestedEntityType)
+			}
+
+			// if fetch.dependentCall != nil {
+			// 	requestVariables = astjson.DeepCopy(item.Arena, astJsonVariables)
+
+			// 	call, found := callMap[fetch.dependentCall.ID]
+			// 	if !found {
+			// 		return nil, fmt.Errorf("dependent call %d not found", fetch.dependentCall.ID)
+			// 	}
+
+			// 	contextField := fetch.request.rpcMessage.Fields.ByName(contextFieldName)
+			// 	if contextField == nil {
+			// 		return nil, fmt.Errorf("context field not found in dependent call %d", fetch.dependentCall.ID)
+			// 	}
+
+			// 	contextValue := call.response.Get(contextField.JSONPath)
+			// 	if !contextValue.Exists() {
+			// 		return nil, fmt.Errorf("context value not found in dependent call %d", fetch.dependentCall.ID)
+			// 	}
+
+			// 	var contextData []*astjson.Value
+			// 	if contextValue.Type() == astjson.TypeArray {
+			// 		contextData = contextValue.GetArray()
+			// 	} else {
+			// 		contextData = []*astjson.Value{contextValue}
+			// 	}
+
+			// 	ov := astjson.ObjectValue(item.Arena)
+			// 	contextArr := astjson.ArrayValue(item.Arena)
+			// 	for i, data := range contextData {
+			// 		contextArr.SetArrayItem(item.Arena, i, data)
+			// 	}
+			// 	ov.Set(item.Arena, contextField.JSONPath, contextArr)
+
+			// 	requestVariables, _, err = astjson.MergeValues(item.Arena, requestVariables, ov)
+			// 	if err != nil {
+			// 		return nil, err
+			// 	}
+			// }
+
+			buffer, err := fetch.request.createProtoWire(requestVariables)
 			if err != nil {
 				return nil, err
 			}
 
 			err = d.cc.Invoke(ctx, fetch.methodFullName, NewPreWiredInputMessage(buffer), responseMessage)
 			if err != nil {
-				return nil, err
+				return builder.writeErrorBytes(err), nil
 			}
 
 			responseJson, err := builder.marshalResponseJSON(&fetch.response.rpcMessage, responseMessage)
 			if err != nil {
-				return nil, err
+				return builder.writeErrorBytes(err), nil
 			}
 
-			results = append(results, resultData{
+			fetchResult := fetchData{
 				kind:         fetch.kind,
 				response:     responseJson,
 				responsePath: fetch.responsePath,
-			})
-		}
+			}
 
-		d.resultsBuf = results
+			// In case of a federated response, we need to ensure that the response is valid.
+			// The number of entities per type must match the number of lookup keys in the variables.
+			// On success we build the index map used by mergeEntities to place each response
+			// entity at the correct position in the final _entities array.
+			if fetch.kind == CallKindEntity {
+				if err := validateEntityResponse(responseJson, fetch.requestedEntityType, representations); err != nil {
+					return builder.writeErrorBytes(err), nil
+				}
+
+				fetchResult.entityIndexMap = newEntityIndexMap(fetch.requestedEntityType, representations)
+			}
+
+			results = append(results, fetchResult)
+			callMap[fetch.id] = fetchResult
+		}
 
 		for _, result := range results {
 			switch result.kind {
 			case CallKindResolve, CallKindRequired:
 				err = builder.mergeWithPath(root, result.response, result.responsePath)
 			default:
-				root, err = builder.mergeValues(root, result.response)
+				root, err = builder.mergeValues(root, result)
 			}
 			if err != nil {
 				return builder.writeErrorBytes(err), nil
@@ -231,115 +283,115 @@ func (d *DataSource) LoadWithFiles(ctx context.Context, headers http.Header, inp
 	panic("unimplemented")
 }
 
-func (d *DataSource) LoadOld(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
-	// get variables from input
-	variables := gjson.Parse(unsafebytes.BytesToString(input)).Get("body.variables")
+// func (d *DataSource) LoadOld(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
+// 	// get variables from input
+// 	variables := gjson.Parse(unsafebytes.BytesToString(input)).Get("body.variables")
 
-	var poolItems []*arena.PoolItem
-	defer func() {
-		d.pool.ReleaseMany(poolItems)
-	}()
+// 	var poolItems []*arena.PoolItem
+// 	defer func() {
+// 		d.pool.ReleaseMany(poolItems)
+// 	}()
 
-	item := d.acquirePoolItem(input, 0)
-	poolItems = append(poolItems, item)
+// 	item := d.acquirePoolItem(input, 0)
+// 	poolItems = append(poolItems, item)
 
-	builder := newJSONBuilder(item.Arena, d.mapping, variables)
+// 	builder := newJSONBuilder(item.Arena, d.mapping, variables)
 
-	if d.disabled {
-		return builder.writeErrorBytes(fmt.Errorf("gRPC datasource needs to be enabled to be used")), nil
-	}
+// 	if d.disabled {
+// 		return builder.writeErrorBytes(fmt.Errorf("gRPC datasource needs to be enabled to be used")), nil
+// 	}
 
-	// convert headers to grpc metadata and attach to ctx
-	if len(headers) > 0 {
-		// assume that each header has exactly one value for default pairs size
-		pairs := make([]string, 0, len(headers)*2)
-		for headerName, headerValues := range headers {
-			headerName = strings.ToLower(headerName)
-			for _, v := range headerValues {
-				pairs = append(pairs, headerName, v)
-			}
-		}
-		ctx = metadata.AppendToOutgoingContext(ctx, pairs...)
-	}
+// 	// convert headers to grpc metadata and attach to ctx
+// 	if len(headers) > 0 {
+// 		// assume that each header has exactly one value for default pairs size
+// 		pairs := make([]string, 0, len(headers)*2)
+// 		for headerName, headerValues := range headers {
+// 			headerName = strings.ToLower(headerName)
+// 			for _, v := range headerValues {
+// 				pairs = append(pairs, headerName, v)
+// 			}
+// 		}
+// 		ctx = metadata.AppendToOutgoingContext(ctx, pairs...)
+// 	}
 
-	graph := NewDependencyGraph(d.plan)
+// 	graph := NewDependencyGraph(d.plan)
 
-	root := astjson.ObjectValue(nil)
+// 	root := astjson.ObjectValue(nil)
 
-	representations := getRepresentations(variables)
-	if err := graph.TopologicalSortResolve(func(nodes []FetchItem) error {
-		// TODO: Compile fetches should be converted to a program.
-		// The program defines all the fetches that need to be executed in parallel for a given query.
+// 	representations := getRepresentations(variables)
+// 	if err := graph.TopologicalSortResolve(func(nodes []FetchItem) error {
+// 		// TODO: Compile fetches should be converted to a program.
+// 		// The program defines all the fetches that need to be executed in parallel for a given query.
 
-		serviceCalls, err := d.rc.CompileFetches(graph, nodes, variables)
-		if err != nil {
-			return err
-		}
+// 		serviceCalls, err := d.rc.CompileFetches(graph, nodes, variables)
+// 		if err != nil {
+// 			return err
+// 		}
 
-		results := make([]resultData, len(serviceCalls))
-		errGrp, errGrpCtx := errgroup.WithContext(ctx)
+// 		results := make([]resultData, len(serviceCalls))
+// 		errGrp, errGrpCtx := errgroup.WithContext(ctx)
 
-		// make gRPC calls
-		for index, serviceCall := range serviceCalls {
-			item := d.acquirePoolItem(input, index)
-			poolItems = append(poolItems, item)
+// 		// make gRPC calls
+// 		for index, serviceCall := range serviceCalls {
+// 			item := d.acquirePoolItem(input, index)
+// 			poolItems = append(poolItems, item)
 
-			builder := newJSONBuilder(item.Arena, d.mapping, variables)
-			errGrp.Go(func() error {
-				// Invoke the gRPC method - this will populate serviceCall.Output
-				err := d.cc.Invoke(errGrpCtx, serviceCall.MethodFullName(), serviceCall.Input, serviceCall.Output)
-				if err != nil {
-					return err
-				}
+// 			builder := newJSONBuilder(item.Arena, d.mapping, variables)
+// 			errGrp.Go(func() error {
+// 				// Invoke the gRPC method - this will populate serviceCall.Output
+// 				err := d.cc.Invoke(errGrpCtx, serviceCall.MethodFullName(), serviceCall.Input, serviceCall.Output)
+// 				if err != nil {
+// 					return err
+// 				}
 
-				response, err := builder.marshalResponseJSON(&serviceCall.RPC.Response, serviceCall.Output)
-				if err != nil {
-					return err
-				}
+// 				response, err := builder.marshalResponseJSON(&serviceCall.RPC.Response, serviceCall.Output)
+// 				if err != nil {
+// 					return err
+// 				}
 
-				results[index] = resultData{
-					kind:         serviceCall.RPC.Kind,
-					response:     response,
-					responsePath: serviceCall.RPC.ResponsePath,
-				}
+// 				results[index] = resultData{
+// 					kind:         serviceCall.RPC.Kind,
+// 					response:     response,
+// 					responsePath: serviceCall.RPC.ResponsePath,
+// 				}
 
-				// In case of a federated response, we need to ensure that the response is valid.
-				// The number of entities per type must match the number of lookup keys in the variables.
-				// On success we build the index map used by mergeEntities to place each response
-				// entity at the correct position in the final _entities array.
-				if serviceCall.RPC.Kind == CallKindEntity {
-					if err := validateEntityResponse(response, serviceCall.RPC.RequestedEntityType, representations); err != nil {
-						return err
-					}
+// 				// In case of a federated response, we need to ensure that the response is valid.
+// 				// The number of entities per type must match the number of lookup keys in the variables.
+// 				// On success we build the index map used by mergeEntities to place each response
+// 				// entity at the correct position in the final _entities array.
+// 				if serviceCall.RPC.Kind == CallKindEntity {
+// 					if err := validateEntityResponse(response, serviceCall.RPC.RequestedEntityType, representations); err != nil {
+// 						return err
+// 					}
 
-					results[index].entityIndexMap = newEntityIndexMap(serviceCall.RPC.RequestedEntityType, representations)
-				}
+// 					results[index].entityIndexMap = newEntityIndexMap(serviceCall.RPC.RequestedEntityType, representations)
+// 				}
 
-				return nil
-			})
-		}
+// 				return nil
+// 			})
+// 		}
 
-		if err := errGrp.Wait(); err != nil {
-			return err
-		}
+// 		if err := errGrp.Wait(); err != nil {
+// 			return err
+// 		}
 
-		for _, result := range results {
-			switch result.kind {
-			case CallKindResolve, CallKindRequired:
-				err = builder.mergeWithPath(root, result.response, result.responsePath)
-			default:
-				root, err = builder.mergeValues(root, result)
-			}
-			if err != nil {
-				return err
-			}
-		}
+// 		for _, result := range results {
+// 			switch result.kind {
+// 			case CallKindResolve, CallKindRequired:
+// 				err = builder.mergeWithPath(root, result.response, result.responsePath)
+// 			default:
+// 				root, err = builder.mergeValues(root, result)
+// 			}
+// 			if err != nil {
+// 				return err
+// 			}
+// 		}
 
-		return nil
-	}); err != nil {
-		return builder.writeErrorBytes(err), nil
-	}
+// 		return nil
+// 	}); err != nil {
+// 		return builder.writeErrorBytes(err), nil
+// 	}
 
-	value := builder.toDataObject(root)
-	return value.MarshalTo(nil), err
-}
+// 	value := builder.toDataObject(root)
+// 	return value.MarshalTo(nil), err
+// }

@@ -907,6 +907,7 @@ type resolverField struct {
 	fieldsSelectionSetRef  int
 	responsePath           ast.Path
 	contextPath            ast.Path
+	contextJSONRoot        string
 
 	contextFields      []contextField
 	fieldArguments     []fieldArgument
@@ -1009,6 +1010,8 @@ func (r *rpcPlanningContext) setResolvedField(walker *astvisitor.Walker, fieldDe
 	if err != nil {
 		return err
 	}
+
+	resolvedField.contextJSONRoot = string(walker.Path[1].FieldName)
 
 	for _, contextFieldRef := range contextFields {
 		mapping := r.resolveFieldMapping(
@@ -1620,6 +1623,7 @@ func (r *rpcPlanningContext) newResolveRPCCall(config *resolveRPCCallConfig) (RP
 		{
 			Name:          contextFieldName,
 			ProtoTypeName: DataTypeMessage,
+			JSONPath:      resolvedField.contextJSONRoot,
 			Repeated:      true,
 			Message:       config.contextMessage,
 		},

@@ -3902,6 +3902,7 @@ func TestExecutionPlanFieldResolvers_CustomSchemas(t *testing.T) {
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
 									Repeated:      true,
+									JSONPath:      "foo",
 									Message: &RPCMessage{
 										Name: "ResolveFooFooResolverContext",
 										Fields: []RPCField{
@@ -4373,13 +4374,13 @@ func TestExecutionPlan_FederationFieldResolvers(t *testing.T) {
 												Name:          "id",
 												ProtoTypeName: DataTypeString,
 												JSONPath:      "id",
-												ResolvePath:   buildPath("result.id"),
+												ResolvePath:   buildPath("_entities.id"),
 											},
 											{
 												Name:          "price",
 												ProtoTypeName: DataTypeDouble,
 												JSONPath:      "price",
-												ResolvePath:   buildPath("result.price"),
+												ResolvePath:   buildPath("_entities.price"),
 											},
 										},
 									},

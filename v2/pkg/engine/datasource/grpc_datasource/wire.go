@@ -53,87 +53,62 @@ const (
 	minBufferSize = 1 << 8 // 256 bytes
 )
 
-// writeVarint writes a varint to buf using a stack-allocated scratch buffer to avoid heap allocation.
-func writeVarint(buf *bytes.Buffer, v uint64) {
-	var scratch [10]byte
-	buf.Write(protowire.AppendVarint(scratch[:0], v))
+func compileWireMessageFromRequest(schema *runtimeSchema, request *request) (*wireMessage, error) {
+	if request == nil {
+		return nil, fmt.Errorf("unable to compile wire message from request: request is nil")
+	}
+
+	return compileWireMessage(schema, request.message)
 }
 
-// writeFixed64 writes a fixed64 to buf using a stack-allocated scratch buffer to avoid heap allocation.
-func writeFixed64(buf *bytes.Buffer, v uint64) {
-	var scratch [8]byte
-	buf.Write(protowire.AppendFixed64(scratch[:0], v))
-}
-
-// writeLengthPrefixed writes a length-delimited field value (length varint + raw bytes) to buf
-// without allocating, unlike protowire.AppendBytes(nil, data).
-func writeLengthPrefixed(buf *bytes.Buffer, data []byte) {
-	var scratch [10]byte
-	buf.Write(protowire.AppendVarint(scratch[:0], uint64(len(data))))
-	buf.Write(data)
-}
-
-// writeTag writes a protobuf tag to buf using a stack-allocated scratch buffer.
-func writeTag(buf *bytes.Buffer, num protowire.Number, typ protowire.Type) {
-	var scratch [10]byte
-	buf.Write(protowire.AppendTag(scratch[:0], num, typ))
-}
-
-
-func compileWireMessage(runtime *runtimeSchema, rpcMessage *RPCMessage, message *runtimeMessage) (*wireMessage, error) {
-	if message == nil {
+func compileWireMessage(schema *runtimeSchema, msg *programMessage) (*wireMessage, error) {
+	if msg == nil {
 		return nil, fmt.Errorf("message not found for fetch request")
 	}
-	msg := &wireMessage{
-		fields: make([]wireField, len(rpcMessage.Fields)),
+
+	messageFields := msg.fields
+
+	wm := &wireMessage{
+		fields: make([]wireField, len(messageFields)),
 	}
 
-	// TODO: This is possible for `@requires` fields, but not yet supported.
-	if rpcMessage.OneOfType != OneOfTypeNone {
-		return nil, fmt.Errorf("oneof type not supported yet")
-	}
-
-	for i := range rpcMessage.Fields {
-		rpcField := &rpcMessage.Fields[i]
-
-		field, ok := message.fieldsByName[rpcField.Name]
-		if !ok {
-			return nil, fmt.Errorf("field not found for name %s", rpcField.Name)
-		}
+	for i := range messageFields {
+		messageField := messageFields[i]
 
 		wf := wireField{
-			number:         field.desc.Number(),
-			runtimeMessage: field.message,
-			dataType:       rpcField.ProtoTypeName,
-			wireType:       getWireType(field.dataType),
-			jsonPath:       rpcField.JSONPath,
-			staticValue:    rpcField.StaticValue,
-			optional:       rpcField.Optional,
-			repeated:       rpcField.Repeated,
-			listMetadata:   rpcField.ListMetadata,
+			number:         messageField.runtime.desc.Number(),
+			runtimeMessage: messageField.runtime.message,
+			dataType:       messageField.dataType,
+			wireType:       getWireType(messageField.runtime.dataType),
+			jsonPath:       messageField.jsonPath,
+			staticValue:    messageField.staticValue,
+			optional:       messageField.optional,
+			repeated:       messageField.repeated,
+			listMetadata:   messageField.listMetadata,
 		}
 
-		if rpcField.EnumName != "" {
-			rtEnum, ok := runtime.enumByName[rpcField.EnumName]
+		if messageField.enumName != "" {
+			rtEnum, ok := schema.enumByName[messageField.enumName]
 			if !ok {
-				return nil, fmt.Errorf("enum not found for name %s", rpcField.EnumName)
+				return nil, fmt.Errorf("enum not found for name %s", messageField.enumName)
 			}
 
 			wf.runtimeEnum = rtEnum
 		}
 
-		if rpcField.Message != nil {
-			fieldMessage := field.message
+		if messageField.child != nil {
+			fieldMessageRuntime := messageField.child.runtime
+
 			// we we are using wrapper messages, they are compiled from the protobuf schema but doesn't match with the RPC planner schema.
 			// We need to resolve the correct message from the runtime schema.
-			if rpcField.Message.Name != fieldMessage.name {
-				fieldMessage = runtime.getMessageByName(rpcField.Message.Name)
-				if fieldMessage == nil {
-					return nil, fmt.Errorf("message not found for name %s", rpcField.Message.Name)
+			if fieldMessageRuntime.name != messageField.child.name {
+				fieldMessageRuntime = schema.getMessageByName(messageField.child.runtime.name)
+				if fieldMessageRuntime == nil {
+					return nil, fmt.Errorf("message not found for name %s", messageField.child.runtime.name)
 				}
 			}
 
-			child, err := compileWireMessage(runtime, rpcField.Message, fieldMessage)
+			child, err := compileWireMessage(schema, messageField.child)
 			if err != nil {
 				return nil, err
 			}
@@ -142,11 +117,81 @@ func compileWireMessage(runtime *runtimeSchema, rpcMessage *RPCMessage, message 
 		}
 
 		wf.tag = protowire.AppendTag(nil, wf.number, wf.wireType)
-		msg.fields[i] = wf
+		wm.fields[i] = wf
 	}
 
-	return msg, nil
+	return wm, nil
+
 }
+
+// func compileWireMessage(runtime *runtimeSchema, rpcMessage *RPCMessage, message *runtimeMessage) (*wireMessage, error) {
+// 	if message == nil {
+// 		return nil, fmt.Errorf("message not found for fetch request")
+// 	}
+// 	msg := &wireMessage{
+// 		fields: make([]wireField, len(rpcMessage.Fields)),
+// 	}
+
+// 	// TODO: This is possible for `@requires` fields, but not yet supported.
+// 	if rpcMessage.OneOfType != OneOfTypeNone {
+// 		return nil, fmt.Errorf("oneof type not supported yet")
+// 	}
+
+// 	for i := range rpcMessage.Fields {
+// 		rpcField := &rpcMessage.Fields[i]
+
+// 		field, ok := message.fieldsByName[rpcField.Name]
+// 		if !ok {
+// 			return nil, fmt.Errorf("field not found for name %s", rpcField.Name)
+// 		}
+
+// 		wf := wireField{
+// 			number:         field.desc.Number(),
+// 			runtimeMessage: field.message,
+// 			dataType:       rpcField.ProtoTypeName,
+// 			wireType:       getWireType(field.dataType),
+// 			jsonPath:       rpcField.JSONPath,
+// 			resolvePath:    rpcField.ResolvePath,
+// 			staticValue:    rpcField.StaticValue,
+// 			optional:       rpcField.Optional,
+// 			repeated:       rpcField.Repeated,
+// 			listMetadata:   rpcField.ListMetadata,
+// 		}
+
+// 		if rpcField.EnumName != "" {
+// 			rtEnum, ok := runtime.enumByName[rpcField.EnumName]
+// 			if !ok {
+// 				return nil, fmt.Errorf("enum not found for name %s", rpcField.EnumName)
+// 			}
+
+// 			wf.runtimeEnum = rtEnum
+// 		}
+
+// 		if rpcField.Message != nil {
+// 			fieldMessage := field.message
+// 			// we we are using wrapper messages, they are compiled from the protobuf schema but doesn't match with the RPC planner schema.
+// 			// We need to resolve the correct message from the runtime schema.
+// 			if rpcField.Message.Name != fieldMessage.name {
+// 				fieldMessage = runtime.getMessageByName(rpcField.Message.Name)
+// 				if fieldMessage == nil {
+// 					return nil, fmt.Errorf("message not found for name %s", rpcField.Message.Name)
+// 				}
+// 			}
+
+// 			child, err := compileWireMessage(runtime, rpcField.Message, fieldMessage)
+// 			if err != nil {
+// 				return nil, err
+// 			}
+
+// 			wf.child = child
+// 		}
+
+// 		wf.tag = protowire.AppendTag(nil, wf.number, wf.wireType)
+// 		msg.fields[i] = wf
+// 	}
+
+// 	return msg, nil
+// }
 
 // createProtoWire creates a proto wire from the wire plan.
 func (w *wireMessage) createProtoWire(data *astjson.Value) ([]byte, error) {
@@ -170,10 +215,11 @@ func (w *wireMessage) appendProtoWire(buf *bytes.Buffer, data *astjson.Value) er
 func (f *wireField) appendFieldWire(buf *bytes.Buffer, data *astjson.Value) error {
 	var fieldData *astjson.Value
 
-	if f.jsonPath == "" {
-		fieldData = data
-	} else {
+	switch {
+	case f.jsonPath != "":
 		fieldData = data.Get(f.jsonPath)
+	default:
+		fieldData = data
 	}
 
 	if !fieldData.Exists() {
@@ -259,7 +305,7 @@ func (f *wireField) appendListFieldValue(buf *bytes.Buffer, data *astjson.Value,
 	listBuffer := bytes.NewBuffer(make([]byte, 0, minBufferSize))
 
 	// We will always have a message type here, therefore we must use the bytes type.
-	writeTag(listBuffer, field.desc.Number(), protowire.BytesType)
+	listBuffer.Write(protowire.AppendTag(listBuffer.AvailableBuffer(), field.desc.Number(), protowire.BytesType))
 
 	itemsBuffer := bytes.NewBuffer(make([]byte, 0, minBufferSize))
 
@@ -279,10 +325,12 @@ func (f *wireField) appendListFieldValue(buf *bytes.Buffer, data *astjson.Value,
 		}
 	}
 
-	writeLengthPrefixed(listBuffer, itemsBuffer.Bytes())
+	listBuffer.Write(protowire.AppendVarint(listBuffer.AvailableBuffer(), uint64(itemsBuffer.Len())))
+	listBuffer.Write(itemsBuffer.Bytes())
 
 	buf.Write(f.tag)
-	writeLengthPrefixed(buf, listBuffer.Bytes())
+	buf.Write(protowire.AppendVarint(buf.AvailableBuffer(), uint64(listBuffer.Len())))
+	buf.Write(listBuffer.Bytes())
 
 	return nil
 }
@@ -313,7 +361,8 @@ func (f *wireField) appendOptionalScalarFieldValue(buf *bytes.Buffer, data *astj
 	}
 
 	buf.Write(f.tag)
-	writeLengthPrefixed(buf, fieldBuf.Bytes())
+	buf.Write(protowire.AppendVarint(buf.AvailableBuffer(), uint64(fieldBuf.Len())))
+	buf.Write(fieldBuf.Bytes())
 	return nil
 }
 
@@ -328,16 +377,19 @@ func (f *wireField) appendFieldValue(buf *bytes.Buffer, data *astjson.Value) err
 			return err
 		}
 		buf.Write(f.tag)
-		writeLengthPrefixed(buf, childBuf.Bytes())
+		buf.Write(protowire.AppendVarint(buf.AvailableBuffer(), uint64(childBuf.Len())))
+		buf.Write(childBuf.Bytes())
 		return nil
 	}
 
 	switch f.wireType {
 	case protowire.BytesType:
 		buf.Write(f.tag)
-		writeLengthPrefixed(buf, data.GetStringBytes())
+		sb := data.GetStringBytes()
+		buf.Write(protowire.AppendVarint(buf.AvailableBuffer(), uint64(len(sb))))
+		buf.Write(sb)
 	case protowire.VarintType:
-		value := data.GetUint64()
+		value := getUint64Value(data)
 		if f.runtimeEnum != nil {
 			var err error
 			if value, err = f.getEnumValue(data); err != nil {
@@ -346,15 +398,26 @@ func (f *wireField) appendFieldValue(buf *bytes.Buffer, data *astjson.Value) err
 		}
 
 		buf.Write(f.tag)
-		writeVarint(buf, value)
+		buf.Write(protowire.AppendVarint(buf.AvailableBuffer(), value))
 	case protowire.Fixed64Type:
 		buf.Write(f.tag)
-		writeFixed64(buf, math.Float64bits(data.GetFloat64()))
+		buf.Write(protowire.AppendFixed64(buf.AvailableBuffer(), math.Float64bits(data.GetFloat64())))
 	default:
 		return fmt.Errorf("unsupported wire type %d", f.wireType)
 	}
 
 	return nil
+}
+
+func getUint64Value(data *astjson.Value) uint64 {
+	switch data.Type() {
+	case astjson.TypeNumber:
+		return data.GetUint64()
+	case astjson.TypeTrue:
+		return 1
+	default:
+		return 0
+	}
 }
 
 func (f *wireField) getEnumValue(data *astjson.Value) (uint64, error) {

@@ -151,13 +151,20 @@ func newWireTestRuntime(t *testing.T) *runtimeSchema {
 	return runtime
 }
 
-func compileTestWireMessage(t *testing.T, runtime *runtimeSchema, messageName string, rpcMessage *RPCMessage) *wireMessage {
+func compileTestWireMessage(t *testing.T, runtime *runtimeSchema, message *programMessage) *wireMessage {
 	t.Helper()
-	msg := runtime.getMessageByName(messageName)
-	require.NotNilf(t, msg, "message %q not found in runtime", messageName)
-	wm, err := compileWireMessage(runtime, rpcMessage, msg)
+	wm, err := compileWireMessage(runtime, message)
 	require.NoError(t, err)
 	return wm
+}
+
+func compileTestProgramMessage(t *testing.T, runtime *runtimeSchema, rpcMessage *RPCMessage, rtMessage *runtimeMessage) *programMessage {
+	t.Helper()
+
+	message, err := compileMessage(runtime, rpcMessage, rtMessage)
+	require.NoError(t, err)
+
+	return message
 }
 
 // marshalDynamic builds a dynamicpb message using the runtime's descriptor and marshals it via proto.Marshal.
@@ -203,15 +210,17 @@ func TestCompileWireMessage(t *testing.T) {
 	runtime := newWireTestRuntime(t)
 
 	t.Run("empty message with no fields", func(t *testing.T) {
-		wm := compileTestWireMessage(t, runtime, "EmptyRequest", &RPCMessage{
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name:   "EmptyRequest",
 			Fields: nil,
-		})
+		}, runtime.getMessageByName("EmptyRequest"))
+
+		wm := compileTestWireMessage(t, runtime, message)
 		assert.Len(t, wm.fields, 0)
 	})
 
 	t.Run("scalar fields", func(t *testing.T) {
-		wm := compileTestWireMessage(t, runtime, "ScalarRequest", &RPCMessage{
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "ScalarRequest",
 			Fields: RPCFields{
 				{Name: "name", ProtoTypeName: DataTypeString, JSONPath: "name"},
@@ -219,7 +228,8 @@ func TestCompileWireMessage(t *testing.T) {
 				{Name: "score", ProtoTypeName: DataTypeDouble, JSONPath: "score"},
 				{Name: "active", ProtoTypeName: DataTypeBool, JSONPath: "active"},
 			},
-		})
+		}, runtime.getMessageByName("ScalarRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
 		assert.Len(t, wm.fields, 4)
 		assert.Equal(t, DataTypeString, wm.fields[0].dataType)
 		assert.Equal(t, DataTypeInt32, wm.fields[1].dataType)
@@ -228,7 +238,7 @@ func TestCompileWireMessage(t *testing.T) {
 	})
 
 	t.Run("wrapper scalar fields as optional scalars", func(t *testing.T) {
-		wm := compileTestWireMessage(t, runtime, "WrapperScalarRequest", &RPCMessage{
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "WrapperScalarRequest",
 			Fields: RPCFields{
 				{Name: "name", ProtoTypeName: DataTypeString, JSONPath: "name", Optional: true},
@@ -236,7 +246,8 @@ func TestCompileWireMessage(t *testing.T) {
 				{Name: "score", ProtoTypeName: DataTypeDouble, JSONPath: "score", Optional: true},
 				{Name: "active", ProtoTypeName: DataTypeBool, JSONPath: "active", Optional: true},
 			},
-		})
+		}, runtime.getMessageByName("WrapperScalarRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
 		assert.Len(t, wm.fields, 4)
 		assert.True(t, wm.fields[0].optional)
 		assert.True(t, wm.fields[1].optional)
@@ -245,13 +256,14 @@ func TestCompileWireMessage(t *testing.T) {
 	})
 
 	t.Run("repeated scalar fields", func(t *testing.T) {
-		wm := compileTestWireMessage(t, runtime, "RepeatedScalarRequest", &RPCMessage{
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "RepeatedScalarRequest",
 			Fields: RPCFields{
 				{Name: "tags", ProtoTypeName: DataTypeString, JSONPath: "tags", Repeated: true},
 				{Name: "scores", ProtoTypeName: DataTypeInt32, JSONPath: "scores", Repeated: true},
 			},
-		})
+		}, runtime.getMessageByName("RepeatedScalarRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
 		assert.Len(t, wm.fields, 2)
 		assert.True(t, wm.fields[0].repeated)
 		assert.True(t, wm.fields[1].repeated)
@@ -260,9 +272,8 @@ func TestCompileWireMessage(t *testing.T) {
 	t.Run("list wrapper with list metadata", func(t *testing.T) {
 		msg := runtime.getMessageByName("ListWrapperRequest")
 		require.NotNil(t, msg)
-		// Optional + IsListType: compileWireMessage must not treat this as a wrapper scalar.
-		// Currently this errors because it tries to wrap in google.protobuf.*Value and looks for "value" in ListOfString.
-		wm, err := compileWireMessage(runtime, &RPCMessage{
+
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "ListWrapperRequest",
 			Fields: RPCFields{
 				{
@@ -279,6 +290,10 @@ func TestCompileWireMessage(t *testing.T) {
 			},
 		}, msg)
 
+		// Optional + IsListType: compileWireMessage must not treat this as a wrapper scalar.
+		// Currently this errors because it tries to wrap in google.protobuf.*Value and looks for "value" in ListOfString.
+		wm, err := compileWireMessage(runtime, message)
+
 		require.NoError(t, err)
 
 		assert.Len(t, wm.fields, 1)
@@ -287,7 +302,7 @@ func TestCompileWireMessage(t *testing.T) {
 	})
 
 	t.Run("nested list wrapper with list metadata", func(t *testing.T) {
-		wm := compileTestWireMessage(t, runtime, "NestedListRequest", &RPCMessage{
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "NestedListRequest",
 			Fields: RPCFields{
 				{
@@ -301,20 +316,22 @@ func TestCompileWireMessage(t *testing.T) {
 					},
 				},
 			},
-		})
+		}, runtime.getMessageByName("NestedListRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
 		assert.Len(t, wm.fields, 1)
 		assert.NotNil(t, wm.fields[0].listMetadata)
 		assert.Equal(t, 2, wm.fields[0].listMetadata.NestingLevel)
 	})
 
 	t.Run("enum field", func(t *testing.T) {
-		wm := compileTestWireMessage(t, runtime, "EnumRequest", &RPCMessage{
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "EnumRequest",
 			Fields: RPCFields{
 				{Name: "status", ProtoTypeName: DataTypeEnum, JSONPath: "status", EnumName: "Status"},
 				{Name: "statuses", ProtoTypeName: DataTypeEnum, JSONPath: "statuses", EnumName: "Status", Repeated: true},
 			},
-		})
+		}, runtime.getMessageByName("EnumRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
 		assert.Len(t, wm.fields, 2)
 		assert.Equal(t, DataTypeEnum, wm.fields[0].dataType)
 		assert.Equal(t, DataTypeEnum, wm.fields[1].dataType)
@@ -322,7 +339,7 @@ func TestCompileWireMessage(t *testing.T) {
 	})
 
 	t.Run("entity lookup request", func(t *testing.T) {
-		wm := compileTestWireMessage(t, runtime, "LookupProductByIdRequest", &RPCMessage{
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "LookupProductByIdRequest",
 			Fields: RPCFields{
 				{
@@ -339,7 +356,8 @@ func TestCompileWireMessage(t *testing.T) {
 					},
 				},
 			},
-		})
+		}, runtime.getMessageByName("LookupProductByIdRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
 		assert.Len(t, wm.fields, 1)
 		assert.True(t, wm.fields[0].repeated)
 		assert.Equal(t, DataTypeMessage, wm.fields[0].dataType)
@@ -352,10 +370,11 @@ func TestCreateProtoWire(t *testing.T) {
 	runtime := newWireTestRuntime(t)
 
 	t.Run("empty message", func(t *testing.T) {
-		wm := compileTestWireMessage(t, runtime, "EmptyRequest", &RPCMessage{
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name:   "EmptyRequest",
 			Fields: nil,
-		})
+		}, runtime.getMessageByName("EmptyRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
 
 		got, err := wm.createProtoWire(astjson.MustParse(`{}`))
 		require.NoError(t, err)
@@ -366,12 +385,13 @@ func TestCreateProtoWire(t *testing.T) {
 	})
 
 	t.Run("single string field", func(t *testing.T) {
-		wm := compileTestWireMessage(t, runtime, "ScalarRequest", &RPCMessage{
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "ScalarRequest",
 			Fields: RPCFields{
 				{Name: "name", ProtoTypeName: DataTypeString, JSONPath: "name"},
 			},
-		})
+		}, runtime.getMessageByName("ScalarRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
 
 		got, err := wm.createProtoWire(astjson.MustParse(`{"name":"hello"}`))
 		require.NoError(t, err)
@@ -384,14 +404,15 @@ func TestCreateProtoWire(t *testing.T) {
 	})
 
 	t.Run("string int32 and double fields", func(t *testing.T) {
-		wm := compileTestWireMessage(t, runtime, "ScalarRequest", &RPCMessage{
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "ScalarRequest",
 			Fields: RPCFields{
 				{Name: "name", ProtoTypeName: DataTypeString, JSONPath: "name"},
 				{Name: "age", ProtoTypeName: DataTypeInt32, JSONPath: "age"},
 				{Name: "score", ProtoTypeName: DataTypeDouble, JSONPath: "score"},
 			},
-		})
+		}, runtime.getMessageByName("ScalarRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
 
 		got, err := wm.createProtoWire(astjson.MustParse(`{"name":"alice","age":30,"score":99.5}`))
 		require.NoError(t, err)
@@ -406,14 +427,15 @@ func TestCreateProtoWire(t *testing.T) {
 	})
 
 	t.Run("wrapper string value present", func(t *testing.T) {
-		wm := compileTestWireMessage(t, runtime, "WrapperScalarRequest", &RPCMessage{
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "WrapperScalarRequest",
 			Fields: RPCFields{
 				{
 					Name: "name", ProtoTypeName: DataTypeString, JSONPath: "name", Optional: true,
 				},
 			},
-		})
+		}, runtime.getMessageByName("WrapperScalarRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
 
 		got, err := wm.createProtoWire(astjson.MustParse(`{"name":"hello"}`))
 		require.NoError(t, err)
@@ -426,12 +448,13 @@ func TestCreateProtoWire(t *testing.T) {
 	})
 
 	t.Run("wrapper string value absent", func(t *testing.T) {
-		wm := compileTestWireMessage(t, runtime, "WrapperScalarRequest", &RPCMessage{
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "WrapperScalarRequest",
 			Fields: RPCFields{
 				{Name: "name", ProtoTypeName: DataTypeString, JSONPath: "name", Optional: true},
 			},
-		})
+		}, runtime.getMessageByName("WrapperScalarRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
 
 		got, err := wm.createProtoWire(astjson.MustParse(`{}`))
 		require.NoError(t, err)
@@ -444,13 +467,14 @@ func TestCreateProtoWire(t *testing.T) {
 	})
 
 	t.Run("wrapper int32 and double values", func(t *testing.T) {
-		wm := compileTestWireMessage(t, runtime, "WrapperScalarRequest", &RPCMessage{
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "WrapperScalarRequest",
 			Fields: RPCFields{
 				{Name: "age", ProtoTypeName: DataTypeInt32, JSONPath: "age", Optional: true},
 				{Name: "score", ProtoTypeName: DataTypeDouble, JSONPath: "score", Optional: true},
 			},
-		})
+		}, runtime.getMessageByName("WrapperScalarRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
 
 		got, err := wm.createProtoWire(astjson.MustParse(`{"age":25,"score":3.14}`))
 		require.NoError(t, err)
@@ -464,12 +488,13 @@ func TestCreateProtoWire(t *testing.T) {
 	})
 
 	t.Run("repeated strings", func(t *testing.T) {
-		wm := compileTestWireMessage(t, runtime, "RepeatedScalarRequest", &RPCMessage{
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "RepeatedScalarRequest",
 			Fields: RPCFields{
 				{Name: "tags", ProtoTypeName: DataTypeString, JSONPath: "tags", Repeated: true},
 			},
-		})
+		}, runtime.getMessageByName("RepeatedScalarRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
 
 		got, err := wm.createProtoWire(astjson.MustParse(`{"tags":["foo","bar","baz"]}`))
 		require.NoError(t, err)
@@ -485,12 +510,13 @@ func TestCreateProtoWire(t *testing.T) {
 	})
 
 	t.Run("repeated int32s", func(t *testing.T) {
-		wm := compileTestWireMessage(t, runtime, "RepeatedScalarRequest", &RPCMessage{
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "RepeatedScalarRequest",
 			Fields: RPCFields{
 				{Name: "scores", ProtoTypeName: DataTypeInt32, JSONPath: "scores", Repeated: true},
 			},
-		})
+		}, runtime.getMessageByName("RepeatedScalarRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
 
 		got, err := wm.createProtoWire(astjson.MustParse(`{"scores":[1,2,3]}`))
 		require.NoError(t, err)
@@ -506,7 +532,7 @@ func TestCreateProtoWire(t *testing.T) {
 	})
 
 	t.Run("single nested message", func(t *testing.T) {
-		wm := compileTestWireMessage(t, runtime, "NestedMessageRequest", &RPCMessage{
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "NestedMessageRequest",
 			Fields: RPCFields{
 				{
@@ -520,7 +546,8 @@ func TestCreateProtoWire(t *testing.T) {
 					},
 				},
 			},
-		})
+		}, runtime.getMessageByName("NestedMessageRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
 
 		got, err := wm.createProtoWire(astjson.MustParse(`{"item":{"id":"1","value":"a"}}`))
 		require.NoError(t, err)
@@ -537,7 +564,7 @@ func TestCreateProtoWire(t *testing.T) {
 	})
 
 	t.Run("repeated nested messages", func(t *testing.T) {
-		wm := compileTestWireMessage(t, runtime, "NestedMessageRequest", &RPCMessage{
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "NestedMessageRequest",
 			Fields: RPCFields{
 				{
@@ -551,7 +578,8 @@ func TestCreateProtoWire(t *testing.T) {
 					},
 				},
 			},
-		})
+		}, runtime.getMessageByName("NestedMessageRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
 
 		got, err := wm.createProtoWire(astjson.MustParse(`{"items":[{"id":"1","value":"a"},{"id":"2","value":"b"}]}`))
 		require.NoError(t, err)
@@ -576,12 +604,13 @@ func TestCreateProtoWire(t *testing.T) {
 	})
 
 	t.Run("enum field", func(t *testing.T) {
-		wm := compileTestWireMessage(t, runtime, "EnumRequest", &RPCMessage{
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "EnumRequest",
 			Fields: RPCFields{
 				{Name: "status", ProtoTypeName: DataTypeEnum, JSONPath: "status", EnumName: "Status"},
 			},
-		})
+		}, runtime.getMessageByName("EnumRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
 
 		// GraphQL sends enum values as strings (e.g. "ACTIVE"), not proto-prefixed names or integers.
 		// The wire builder must resolve "ACTIVE" -> STATUS_ACTIVE = 1 via the runtime enum map.
@@ -596,12 +625,13 @@ func TestCreateProtoWire(t *testing.T) {
 	})
 
 	t.Run("repeated enums", func(t *testing.T) {
-		wm := compileTestWireMessage(t, runtime, "EnumRequest", &RPCMessage{
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "EnumRequest",
 			Fields: RPCFields{
 				{Name: "statuses", ProtoTypeName: DataTypeEnum, JSONPath: "statuses", EnumName: "Status", Repeated: true},
 			},
-		})
+		}, runtime.getMessageByName("EnumRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
 
 		got, err := wm.createProtoWire(astjson.MustParse(`{"statuses":["UNSPECIFIED","ACTIVE","INACTIVE"]}`))
 		require.NoError(t, err)
@@ -619,9 +649,7 @@ func TestCreateProtoWire(t *testing.T) {
 	t.Run("list wrapper with strings", func(t *testing.T) {
 		// RPC plan models ListOfString as a flat optional scalar with IsListType + ListMetadata.
 		// createProtoWire must produce: ListWrapperRequest { optional_tags: ListOfString { list: List { items: [...] } } }
-		msg := runtime.getMessageByName("ListWrapperRequest")
-		require.NotNil(t, msg)
-		wm, compileErr := compileWireMessage(runtime, &RPCMessage{
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "ListWrapperRequest",
 			Fields: RPCFields{
 				{
@@ -636,9 +664,8 @@ func TestCreateProtoWire(t *testing.T) {
 					},
 				},
 			},
-		}, msg)
-
-		require.NoError(t, compileErr)
+		}, runtime.getMessageByName("ListWrapperRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
 
 		got, err := wm.createProtoWire(astjson.MustParse(`{"optionalTags":["a","b"]}`))
 		require.NoError(t, err)
@@ -668,9 +695,7 @@ func TestCreateProtoWire(t *testing.T) {
 	t.Run("nested list wrapper two levels", func(t *testing.T) {
 		// RPC plan models ListOfListOfString as a flat scalar with IsListType + ListMetadata (NestingLevel=2).
 		// createProtoWire must produce: NestedListRequest { tag_groups: ListOfListOfString { list: { items: [ ListOfString{...}, ... ] } } }
-		msg := runtime.getMessageByName("NestedListRequest")
-		require.NotNil(t, msg)
-		wm, compileErr := compileWireMessage(runtime, &RPCMessage{
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "NestedListRequest",
 			Fields: RPCFields{
 				{
@@ -684,9 +709,8 @@ func TestCreateProtoWire(t *testing.T) {
 					},
 				},
 			},
-		}, msg)
-
-		require.NoError(t, compileErr)
+		}, runtime.getMessageByName("NestedListRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
 
 		got, err := wm.createProtoWire(astjson.MustParse(`{"tagGroups":[["a","b"],["c"]]}`))
 		require.NoError(t, err)
@@ -731,9 +755,7 @@ func TestCreateProtoWire(t *testing.T) {
 	t.Run("nested list wrapper two levels with messages", func(t *testing.T) {
 		// NestedListRequest { item_groups: ListOfListOfNestedItem { list: { items: [ ListOfNestedItem{...}, ... ] } } }
 		// The inner ListOfNestedItem contains NestedItem messages with id + value fields.
-		msg := runtime.getMessageByName("NestedListRequest")
-		require.NotNil(t, msg)
-		wm, compileErr := compileWireMessage(runtime, &RPCMessage{
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "NestedListRequest",
 			Fields: RPCFields{
 				{
@@ -754,9 +776,8 @@ func TestCreateProtoWire(t *testing.T) {
 					},
 				},
 			},
-		}, msg)
-
-		require.NoError(t, compileErr)
+		}, runtime.getMessageByName("NestedListRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
 
 		got, err := wm.createProtoWire(astjson.MustParse(`{"itemGroups":[[{"id":"1","value":"a"},{"id":"2","value":"b"}],[{"id":"3","value":"c"}]]}`))
 		require.NoError(t, err)
@@ -809,7 +830,7 @@ func TestCreateProtoWire(t *testing.T) {
 	})
 
 	t.Run("mixed request with multiple field types", func(t *testing.T) {
-		wm := compileTestWireMessage(t, runtime, "MixedRequest", &RPCMessage{
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "MixedRequest",
 			Fields: RPCFields{
 				{Name: "id", ProtoTypeName: DataTypeString, JSONPath: "id"},
@@ -818,7 +839,8 @@ func TestCreateProtoWire(t *testing.T) {
 				{Name: "price", ProtoTypeName: DataTypeDouble, JSONPath: "price"},
 				{Name: "status", ProtoTypeName: DataTypeEnum, JSONPath: "status", EnumName: "Status"},
 			},
-		})
+		}, runtime.getMessageByName("MixedRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
 
 		got, err := wm.createProtoWire(astjson.MustParse(`{"id":"p1","description":"a product","tags":["sale","new"],"price":29.99,"status":"ACTIVE"}`))
 		require.NoError(t, err)
@@ -837,7 +859,7 @@ func TestCreateProtoWire(t *testing.T) {
 	})
 
 	t.Run("entity lookup single key", func(t *testing.T) {
-		wm := compileTestWireMessage(t, runtime, "LookupProductByIdRequest", &RPCMessage{
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "LookupProductByIdRequest",
 			Fields: RPCFields{
 				{
@@ -854,7 +876,8 @@ func TestCreateProtoWire(t *testing.T) {
 					},
 				},
 			},
-		})
+		}, runtime.getMessageByName("LookupProductByIdRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
 
 		got, err := wm.createProtoWire(astjson.MustParse(`{"representations":[{"__typename":"Product","id":"1"}]}`))
 		require.NoError(t, err)
@@ -873,7 +896,7 @@ func TestCreateProtoWire(t *testing.T) {
 	})
 
 	t.Run("entity lookup multiple keys", func(t *testing.T) {
-		wm := compileTestWireMessage(t, runtime, "LookupProductByIdRequest", &RPCMessage{
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "LookupProductByIdRequest",
 			Fields: RPCFields{
 				{
@@ -890,7 +913,8 @@ func TestCreateProtoWire(t *testing.T) {
 					},
 				},
 			},
-		})
+		}, runtime.getMessageByName("LookupProductByIdRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
 
 		got, err := wm.createProtoWire(astjson.MustParse(`{"representations":[{"__typename":"Product","id":"1"},{"__typename":"Product","id":"2"},{"__typename":"Product","id":"3"}]}`))
 		require.NoError(t, err)
