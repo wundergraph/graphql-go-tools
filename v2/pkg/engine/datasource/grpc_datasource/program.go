@@ -3,10 +3,12 @@ package grpcdatasource
 import (
 	"fmt"
 
+	protoref "google.golang.org/protobuf/reflect/protoreflect"
+
 	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/go-arena"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	protoref "google.golang.org/protobuf/reflect/protoreflect"
 )
 
 type program struct {

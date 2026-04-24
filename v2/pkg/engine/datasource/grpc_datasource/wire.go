@@ -9,11 +9,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/wundergraph/astjson"
-	"github.com/wundergraph/go-arena"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"google.golang.org/protobuf/encoding/protowire"
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
+
+	"github.com/wundergraph/astjson"
+	"github.com/wundergraph/go-arena"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
 
 var errShouldSkip = errors.New("skip")
