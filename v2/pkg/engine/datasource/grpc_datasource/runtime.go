@@ -132,6 +132,15 @@ func (r *runtimeSchema) getMessageByName(name string) *runtimeMessage {
 	return message
 }
 
+func (r *runtimeSchema) getMessageByFullName(fullname string) *runtimeMessage {
+	message, found := r.messageByFullname[fullname]
+	if !found {
+		return nil
+	}
+
+	return message
+}
+
 func (m *runtimeMessage) newEmptyMessage() protoref.Message {
 	return m.dynamicType.New()
 }

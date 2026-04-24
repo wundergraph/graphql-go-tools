@@ -2,12 +2,21 @@ package grpcdatasource
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"math"
+	"reflect"
+	"strconv"
+	"strings"
 
 	"github.com/wundergraph/astjson"
+	"github.com/wundergraph/go-arena"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"google.golang.org/protobuf/encoding/protowire"
+	protoref "google.golang.org/protobuf/reflect/protoreflect"
 )
+
+var errShouldSkip = errors.New("skip")
 
 type PreWiredInputMessage struct {
 	size   int
@@ -30,23 +39,26 @@ func (c *PreWiredInputMessage) wire() ([]byte, error) {
 }
 
 type wireMessage struct {
-	fields    []wireField
-	oneOfType OneOfType
+	fields      []wireField
+	runtime     *runtimeMessage
+	oneOfType   OneOfType
+	oneOfFields map[string][]wireField
 }
 
 type wireField struct {
-	tag            []byte
-	number         protowire.Number
-	dataType       DataType
-	wireType       protowire.Type
-	runtimeMessage *runtimeMessage
-	runtimeEnum    *runtimeEnum
-	staticValue    string
-	jsonPath       string
-	optional       bool
-	repeated       bool
-	listMetadata   *ListMetadata
-	child          *wireMessage
+	tag          []byte
+	runtime      *runtimeField
+	number       protowire.Number
+	dataType     DataType
+	wireType     protowire.Type
+	runtimeEnum  *runtimeEnum
+	staticValue  string
+	jsonPath     string
+	optional     bool
+	repeated     bool
+	listMetadata *ListMetadata
+	fieldMessage *runtimeMessage
+	child        *wireMessage
 }
 
 const (
@@ -73,24 +85,57 @@ func compileWireMessage(schema *runtimeSchema, msg *programMessage, cycleMap map
 	messageFields := msg.fields
 
 	wm := &wireMessage{
-		fields: make([]wireField, len(messageFields)),
+		runtime:   msg.runtime,
+		fields:    make([]wireField, len(messageFields)),
+		oneOfType: msg.oneOfType,
 	}
 
 	cycleMap[msg.name] = wm
+
+	if wm.oneOfType != OneOfTypeNone {
+		wm.oneOfFields = make(map[string][]wireField, len(msg.memberTypes))
+
+		for _, memberType := range msg.memberTypes {
+
+			fields, err := compileMessageFields(schema, msg.oneOfFields[memberType], cycleMap)
+			if err != nil {
+				return nil, err
+			}
+
+			wm.oneOfFields[memberType] = fields
+		}
+	}
+
+	fields, err := compileMessageFields(schema, messageFields, cycleMap)
+	if err != nil {
+		return nil, err
+	}
+
+	wm.fields = fields
+	return wm, nil
+}
+
+func compileMessageFields(schema *runtimeSchema, messageFields []programField, cycleMap map[string]*wireMessage) ([]wireField, error) {
+	if len(messageFields) == 0 {
+		return nil, nil
+	}
+
+	fields := make([]wireField, len(messageFields))
 
 	for i := range messageFields {
 		messageField := messageFields[i]
 
 		wf := wireField{
-			number:         messageField.runtime.desc.Number(),
-			runtimeMessage: messageField.runtime.message,
-			dataType:       messageField.dataType,
-			wireType:       getWireType(messageField.runtime.dataType),
-			jsonPath:       messageField.jsonPath,
-			staticValue:    messageField.staticValue,
-			optional:       messageField.optional,
-			repeated:       messageField.repeated,
-			listMetadata:   messageField.listMetadata,
+			runtime:      messageField.runtime,
+			number:       messageField.runtime.desc.Number(),
+			fieldMessage: messageField.runtime.message,
+			dataType:     messageField.dataType,
+			wireType:     getWireType(messageField.runtime.dataType),
+			jsonPath:     messageField.jsonPath,
+			staticValue:  messageField.staticValue,
+			optional:     messageField.optional,
+			repeated:     messageField.repeated,
+			listMetadata: messageField.listMetadata,
 		}
 
 		if messageField.enumName != "" {
@@ -123,10 +168,59 @@ func compileWireMessage(schema *runtimeSchema, msg *programMessage, cycleMap map
 		}
 
 		wf.tag = protowire.AppendTag(nil, wf.number, wf.wireType)
-		wm.fields[i] = wf
+		fields[i] = wf
 	}
 
-	return wm, nil
+	return fields, nil
+}
+
+func (w *wireMessage) createProtoWireWithContext(a arena.Arena, data *astjson.Value, context *fetchRequestContext, contextMessage protoref.Message) ([]byte, error) {
+	buf := bytes.NewBuffer(make([]byte, 0, minBufferSize))
+
+	contextValues := make([]map[string]protoref.Value, 0)
+	for _, contextField := range context.fields {
+		values := resolveContextDataForPath(contextMessage, contextField.p)
+
+		for index, value := range values {
+			if index >= len(contextValues) {
+				contextValues = append(contextValues, make(map[string]protoref.Value))
+			}
+
+			contextValues[index][contextField.jsonName] = value
+		}
+	}
+
+	if len(contextValues) == 0 {
+		return nil, errShouldSkip
+	}
+
+	contextVariables := astjson.ArrayValue(a)
+	arrayIndex := 0
+	for _, contextValues := range contextValues {
+		contextVariable := astjson.ObjectValue(a)
+		for fieldName, contextValue := range contextValues {
+			contextVariable.Set(a, fieldName, convertProtoRefValue(a, contextValue))
+		}
+
+		contextVariables.SetArrayItem(a, arrayIndex, contextVariable)
+		arrayIndex++
+	}
+
+	for _, field := range w.fields {
+		if field.runtime.name == "context" {
+			if err := field.appendFieldWire(buf, contextVariables); err != nil {
+				return nil, err
+			}
+
+			continue
+		}
+
+		if err := field.appendFieldWire(buf, data); err != nil {
+			return nil, err
+		}
+	}
+
+	return buf.Bytes(), nil
 }
 
 // createProtoWire creates a proto wire from the wire plan.
@@ -140,12 +234,67 @@ func (w *wireMessage) createProtoWire(data *astjson.Value) ([]byte, error) {
 
 // appendProtoWire encodes the message fields into the given buffer.
 func (w *wireMessage) appendProtoWire(buf *bytes.Buffer, data *astjson.Value) error {
+	if w.oneOfType != OneOfTypeNone {
+		if !data.Exists("__typename") {
+			return fmt.Errorf("__typename is required for oneof fields")
+		}
+
+		typeName := string(data.Get("__typename").GetStringBytes())
+
+		oneOfDescriptor := w.oneOfTypeDecriptor()
+		if oneOfDescriptor == nil {
+			return fmt.Errorf("oneof descriptor not found for message %s", w.runtime.name)
+		}
+
+		fields := oneOfDescriptor.Fields()
+		for i := range fields.Len() {
+			field := fields.Get(i)
+			if field.Kind() != protoref.MessageKind {
+				continue
+			}
+
+			if field.Message().Name() == protoref.Name(typeName) {
+				fieldNumber := field.Number()
+				buf.Write(protowire.AppendTag(buf.AvailableBuffer(), fieldNumber, protowire.BytesType))
+				break
+			}
+		}
+
+		oneOfFields := w.oneOfFields[typeName]
+		fieldsBuffer := bytes.NewBuffer(make([]byte, 0, minBufferSize))
+		for _, field := range oneOfFields {
+			if err := field.appendFieldWire(fieldsBuffer, data); err != nil {
+				return err
+			}
+		}
+
+		buf.Write(protowire.AppendBytes(buf.AvailableBuffer(), fieldsBuffer.Bytes()))
+		fieldsBuffer.Reset()
+		return nil
+	}
+
 	for _, field := range w.fields {
 		if err := field.appendFieldWire(buf, data); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (w *wireMessage) oneOfTypeDecriptor() protoref.OneofDescriptor {
+	oneOfs := w.runtime.desc.Oneofs()
+	if oneOfs == nil || oneOfs.Len() == 0 {
+		return nil
+	}
+
+	switch w.oneOfType {
+	case OneOfTypeInterface:
+		return oneOfs.ByName(protoref.Name("instance"))
+	case OneOfTypeUnion:
+		return oneOfs.ByName(protoref.Name("value"))
+	default:
+		return nil
+	}
 }
 
 func (f *wireField) appendFieldWire(buf *bytes.Buffer, data *astjson.Value) error {
@@ -213,7 +362,7 @@ func (f *wireField) appendListFieldValue(buf *bytes.Buffer, data *astjson.Value,
 	md := f.listMetadata.LevelInfo[level]
 	level++
 
-	runtimeMsg := f.runtimeMessage
+	runtimeMsg := f.fieldMessage
 	if runtimeMsg == nil {
 		return fmt.Errorf("runtime message not found for field %s", f.jsonPath)
 	}
@@ -247,12 +396,12 @@ func (f *wireField) appendListFieldValue(buf *bytes.Buffer, data *astjson.Value,
 
 	for i := range elements {
 		iwf := wireField{
-			number:         itemsField.desc.Number(),
-			dataType:       f.dataType,
-			wireType:       getWireType(itemsField.dataType),
-			runtimeMessage: itemsField.message,
-			listMetadata:   f.listMetadata,
-			child:          f.child,
+			number:       itemsField.desc.Number(),
+			dataType:     f.dataType,
+			wireType:     getWireType(itemsField.dataType),
+			fieldMessage: itemsField.message,
+			listMetadata: f.listMetadata,
+			child:        f.child,
 		}
 
 		iwf.tag = protowire.AppendTag(nil, iwf.number, iwf.wireType)
@@ -272,21 +421,21 @@ func (f *wireField) appendListFieldValue(buf *bytes.Buffer, data *astjson.Value,
 }
 
 func (f *wireField) appendOptionalScalarFieldValue(buf *bytes.Buffer, data *astjson.Value) error {
-	if f.runtimeMessage == nil {
+	if f.fieldMessage == nil {
 		return fmt.Errorf("runtime message not found for optional scalar field %s but was expected", f.jsonPath)
 	}
 
-	wrapperField, ok := f.runtimeMessage.fieldsByName[knownTypeOptionalFieldValueName]
+	wrapperField, ok := f.fieldMessage.fieldsByName[knownTypeOptionalFieldValueName]
 	if !ok {
-		return fmt.Errorf("wrapper field not found for message %s but was expected", f.runtimeMessage.name)
+		return fmt.Errorf("wrapper field not found for message %s but was expected", f.fieldMessage.name)
 	}
 
 	wf := wireField{
-		number:         wrapperField.desc.Number(),
-		dataType:       wrapperField.dataType,
-		wireType:       getWireType(wrapperField.dataType),
-		jsonPath:       f.jsonPath,
-		runtimeMessage: wrapperField.message,
+		number:       wrapperField.desc.Number(),
+		dataType:     wrapperField.dataType,
+		wireType:     getWireType(wrapperField.dataType),
+		jsonPath:     f.jsonPath,
+		fieldMessage: wrapperField.message,
 	}
 
 	wf.tag = protowire.AppendTag(nil, wf.number, wf.wireType)
@@ -313,8 +462,8 @@ func (f *wireField) appendFieldValue(buf *bytes.Buffer, data *astjson.Value) err
 			return err
 		}
 		buf.Write(f.tag)
-		buf.Write(protowire.AppendVarint(buf.AvailableBuffer(), uint64(childBuf.Len())))
-		buf.Write(childBuf.Bytes())
+		buf.Write(protowire.AppendBytes(buf.AvailableBuffer(), childBuf.Bytes()))
+		childBuf.Reset()
 		return nil
 	}
 
@@ -357,21 +506,29 @@ func getUint64Value(data *astjson.Value) uint64 {
 }
 
 func (f *wireField) getEnumValue(data *astjson.Value) (uint64, error) {
-	enumValueName := data.GetStringBytes()
-	if len(enumValueName) == 0 {
-		return 0, fmt.Errorf("enum value name is required for enum field %s", f.jsonPath)
-	}
+	switch data.Type() {
+	case astjson.TypeNumber:
+		return data.GetUint64(), nil
+	case astjson.TypeString:
+		enumValueName := data.GetStringBytes()
+		if len(enumValueName) == 0 {
+			return 0, fmt.Errorf("enum value name is required for enum field %s", f.jsonPath)
+		}
 
-	ev, found := f.runtimeEnum.valuesByName[string(enumValueName)]
-	if !found {
-		return 0, fmt.Errorf("enum value not found for name %s", string(enumValueName))
-	}
+		ev, found := f.runtimeEnum.valuesByName[string(enumValueName)]
+		if !found {
+			return 0, fmt.Errorf("enum value not found for name %s", string(enumValueName))
+		}
 
-	if ev.value < 0 {
-		return 0, fmt.Errorf("enum value %s is negative for enum field %s", string(enumValueName), f.jsonPath)
-	}
+		if ev.value < 0 {
+			return 0, fmt.Errorf("enum value %s is negative for enum field %s", string(enumValueName), f.jsonPath)
+		}
 
-	return uint64(ev.value), nil
+		return uint64(ev.value), nil
+
+	default:
+		return 0, fmt.Errorf("unsupported enum type %s", data.Type())
+	}
 }
 
 func getWireType(dataType DataType) protowire.Type {
@@ -386,5 +543,238 @@ func getWireType(dataType DataType) protowire.Type {
 		return protowire.BytesType
 	default:
 		return protowire.VarintType
+	}
+}
+
+// resolveContextDataForPath resolves the data for a given path in the context message.
+func resolveContextDataForPath(message protoref.Message, path ast.Path) []protoref.Value {
+	if path.Len() == 0 {
+		return nil
+	}
+
+	segment := path[0]
+	path = path[1:]
+
+	msg, fd := getMessageField(message, segment.FieldName.String())
+	if !msg.IsValid() {
+		return nil
+	}
+
+	if fd.IsList() {
+		return resolveListDataForPath(msg.List(), fd, path)
+	}
+
+	return resolveDataForPath(msg.Message(), path)
+}
+
+// resolveListDataForPath resolves the data for a given path in a list message.
+func resolveListDataForPath(message protoref.List, fd protoref.FieldDescriptor, path ast.Path) []protoref.Value {
+	if !message.IsValid() {
+		return nil
+	}
+
+	if path.Len() == 0 {
+		return nil
+	}
+
+	result := make([]protoref.Value, 0, message.Len())
+
+	for i := range message.Len() {
+		item := message.Get(i)
+
+		switch fd.Kind() {
+		case protoref.MessageKind:
+			values := resolveDataForPath(item.Message(), path)
+
+			for _, val := range values {
+				if list, isList := val.Interface().(protoref.List); isList {
+					values := resolveListDataForPath(list, fd, path[1:])
+					result = append(result, values...)
+					continue
+				} else {
+					result = append(result, val)
+				}
+			}
+
+		default:
+			result = append(result, item)
+		}
+	}
+
+	return result
+}
+
+// resolveDataForPath resolves the data for a given path in a message.
+func resolveDataForPath(message protoref.Message, path ast.Path) []protoref.Value {
+	if !message.IsValid() {
+		return nil
+	}
+
+	if path.Len() == 0 {
+		return nil
+	}
+
+	segment := path[0]
+
+	if fn := segment.FieldName.String(); strings.HasPrefix(fn, "@") {
+		list := resolveUnderlyingList(message, fn)
+
+		result := make([]protoref.Value, 0, len(list))
+		for _, item := range list {
+			result = append(result, resolveDataForPath(item.Message(), path[1:])...)
+		}
+
+		return result
+	}
+
+	field, fd := getMessageField(message, segment.FieldName.String())
+	if !field.IsValid() {
+		return nil
+	}
+
+	switch fd.Kind() {
+	case protoref.MessageKind:
+		if fd.IsList() {
+			if !field.List().IsValid() {
+				return nil
+			}
+
+			return []protoref.Value{protoref.ValueOfList(field.List())}
+		}
+
+		if !field.Message().IsValid() {
+			return nil
+		}
+
+		return resolveDataForPath(field.Message(), path[1:])
+	default:
+		return []protoref.Value{field}
+	}
+}
+
+// getMessageField gets the field from the message by its name.
+func getMessageField(message protoref.Message, fieldName string) (protoref.Value, protoref.FieldDescriptor) {
+	fd := message.Descriptor().Fields().ByName(protoref.Name(fieldName))
+	if fd == nil {
+		return protoref.Value{}, nil
+	}
+
+	return message.Get(fd), fd
+}
+
+// resolveUnderlyingList resolves the underlying list message from a nested list message.
+//
+//	message ListOfFloat {
+//	  message List {
+//	    repeated double items = 1;
+//	  }
+//	  List list = 1;
+//	}
+func resolveUnderlyingList(msg protoref.Message, fieldName string) []protoref.Value {
+	nestingLevel := 0
+	for _, char := range fieldName {
+		if char != '@' {
+			break
+		}
+		nestingLevel++
+	}
+
+	listFieldValue := msg.Get(msg.Descriptor().Fields().ByName(protoref.Name(fieldName[nestingLevel:])))
+	if !listFieldValue.IsValid() {
+		return nil
+	}
+
+	return resolveUnderlyingListItems(listFieldValue, nestingLevel)
+
+}
+
+// resolveUnderlyingListItems resolves the items in a list message.
+//
+//	message ListOfFloat {
+//	  message List {
+//	    repeated double items = 1;
+//	  }
+//	  List list = 1;
+//	}
+func resolveUnderlyingListItems(value protoref.Value, nestingLevel int) []protoref.Value {
+	// The field number of the list and items field in the message
+	const listAndItemsFieldNumber = 1
+	msg := value.Message()
+	fd := msg.Descriptor().Fields().ByNumber(listAndItemsFieldNumber)
+	if fd == nil {
+		return nil
+	}
+
+	listMsg := msg.Get(fd)
+	if !listMsg.IsValid() {
+		return nil
+	}
+
+	itemsValue := listMsg.Message().Get(listMsg.Message().Descriptor().Fields().ByNumber(listAndItemsFieldNumber))
+	if !itemsValue.IsValid() {
+		return nil
+	}
+
+	itemsList := itemsValue.List()
+	itemsListLen := itemsList.Len()
+	if itemsListLen == 0 {
+		return nil
+	}
+
+	if nestingLevel > 1 {
+		items := make([]protoref.Value, 0, itemsListLen)
+		for i := 0; i < itemsListLen; i++ {
+			items = append(items, resolveUnderlyingListItems(itemsList.Get(i), nestingLevel-1)...)
+		}
+
+		return items
+	}
+
+	result := make([]protoref.Value, itemsListLen)
+	for i := 0; i < itemsListLen; i++ {
+		result[i] = itemsList.Get(i)
+	}
+
+	return result
+}
+
+func convertProtoRefValue(a arena.Arena, value protoref.Value) *astjson.Value {
+	switch t := value.Interface().(type) {
+	case nil:
+		return astjson.NullValue
+	case bool:
+		if t {
+			return astjson.TrueValue(a)
+		}
+		return astjson.FalseValue(a)
+	case int32:
+		return astjson.IntValue(a, int(t))
+	case int64:
+		return astjson.NumberValue(a, strconv.FormatInt(t, 10))
+	case uint32:
+		return astjson.NumberValue(a, strconv.FormatUint(uint64(t), 10))
+	case uint64:
+		return astjson.NumberValue(a, strconv.FormatUint(t, 10))
+	case float32:
+		return astjson.FloatValue(a, float64(t))
+	case float64:
+		return astjson.FloatValue(a, t)
+	case string:
+		return astjson.StringValue(a, t)
+	case []byte:
+		return astjson.StringValueBytes(a, t)
+	case protoref.EnumNumber:
+		return astjson.IntValue(a, int(t))
+	// case protoref.Message:
+	// 	ov := astjson.ObjectValue(a)
+	// 	// TODO: Extract the message fields and set them on the object value
+	// 	return ov
+	// case protoref.List:
+	// 	av := astjson.ArrayValue(a)
+	// 	// TODO: Extract the list items and set them on the array value
+	// 	return av
+	default:
+		fmt.Println("unsupported type", reflect.TypeOf(t).Name())
+		return astjson.NullValue
 	}
 }

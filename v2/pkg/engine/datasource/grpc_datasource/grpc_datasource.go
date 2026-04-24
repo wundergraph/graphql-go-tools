@@ -35,6 +35,7 @@ type fetchData struct {
 	response        *astjson.Value
 	responsePath    ast.Path
 	entityIndexMap  entityIndexMap
+	skipped         bool
 }
 
 // Verify DataSource implements the resolve.DataSource interface
@@ -118,7 +119,6 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 	item := d.acquirePoolItem(input, 0)
 	poolItems = append(poolItems, item)
 
-	fmt.Println("input", string(input))
 	// get variables from input
 	value, err := astjson.ParseBytesWithArena(item.Arena, input)
 	if err != nil {
@@ -164,19 +164,16 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 		results := make([]fetchData, 0, len(stage.fetches))
 
 		for _, fetch := range stage.fetches {
-			// TODO: unmarshal with our own codec logic
-			responseMessage := dynamicpb.NewMessage(fetch.response.responseType.desc)
-
-			requestVariables := astJsonVariables
-			if fetch.requestedEntityType != "" {
-				requestVariables = filterRepresentations(item.Arena, requestVariables, fetch.requestedEntityType)
-			}
-
-			buffer, err := fetch.request.createProtoWire(requestVariables)
+			buffer, skip, err := createProtoWire(item.Arena, &fetch, callMap, astJsonVariables)
 			if err != nil {
 				return nil, err
 			}
 
+			if skip {
+				continue
+			}
+
+			responseMessage := dynamicpb.NewMessage(fetch.response.responseType.desc)
 			err = d.cc.Invoke(ctx, fetch.methodFullName, NewPreWiredInputMessage(buffer), responseMessage)
 			if err != nil {
 				return builder.writeErrorBytes(err), nil
@@ -236,6 +233,61 @@ func (d *DataSource) acquirePoolItem(input []byte, index int) *arena.PoolItem {
 	key := keyGen.Sum64()
 	item := d.pool.Acquire(key)
 	return item
+}
+
+func createProtoWire(a arena.Arena, fetch *fetchProgram, callMap map[int]fetchData, requestVariables *astjson.Value) ([]byte, bool, error) {
+	var buffer []byte
+	var err error
+
+	switch fetch.kind {
+	case CallKindStandard:
+		buffer, err = fetch.request.createProtoWire(requestVariables)
+		if err != nil {
+			return nil, false, err
+		}
+	case CallKindEntity, CallKindRequired:
+		if fetch.requestedEntityType != "" {
+			requestVariables = filterRepresentations(a, requestVariables, fetch.requestedEntityType)
+		}
+
+		buffer, err = fetch.request.createProtoWire(requestVariables)
+		if err != nil {
+			return nil, false, err
+		}
+	case CallKindResolve:
+		contextFetch, found := callMap[fetch.dependentCall.ID]
+		if !found {
+			return nil, false, fmt.Errorf("context fetch not found for dependent call %d", fetch.dependentCall.ID)
+		}
+
+		if contextFetch.responseMessage == nil || contextFetch.skipped {
+			fetchResult := fetchData{
+				kind:         fetch.kind,
+				responsePath: fetch.responsePath,
+				skipped:      true,
+			}
+
+			callMap[fetch.id] = fetchResult
+		}
+
+		buffer, err = fetch.request.createProtoWireWithContext(a, requestVariables, contextFetch.responseMessage)
+		if err != nil {
+			if err == errShouldSkip {
+				fetchResult := fetchData{
+					kind:         fetch.kind,
+					responsePath: fetch.responsePath,
+					skipped:      true,
+				}
+
+				callMap[fetch.id] = fetchResult
+				return nil, true, nil
+			}
+
+			return nil, false, err
+		}
+	}
+
+	return buffer, false, nil
 }
 
 // LoadWithFiles implements resolve.DataSource interface.

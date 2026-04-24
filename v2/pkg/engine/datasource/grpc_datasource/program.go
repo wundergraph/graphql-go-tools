@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/wundergraph/astjson"
+	"github.com/wundergraph/go-arena"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -39,9 +40,12 @@ type request struct {
 }
 
 type programMessage struct {
-	name    string
-	runtime *runtimeMessage
-	fields  []programField
+	name        string
+	runtime     *runtimeMessage
+	oneOfType   OneOfType
+	oneOfFields map[string][]programField
+	memberTypes []string
+	fields      []programField
 }
 
 type programField struct {
@@ -58,11 +62,14 @@ type programField struct {
 
 type fetchRequestContext struct {
 	message *runtimeMessage
+	context *runtimeMessage
 	fields  []fetchRequestContextField
 }
 
 type fetchRequestContextField struct {
 	runtime     *runtimeField
+	jsonName    string
+	p           ast.Path
 	resolvePath resolvePath
 }
 
@@ -75,17 +82,12 @@ type response struct {
 }
 
 func (f *request) createProtoWire(requestVariables *astjson.Value) ([]byte, error) {
-	wire, err := f.wire.createProtoWire(requestVariables)
-	if err != nil {
-		return nil, err
-	}
-
-	return wire, nil
+	return f.wire.createProtoWire(requestVariables)
 }
 
 // TODO: Implement this
-func (f *request) createProtoWireWithContext(requestVariables *astjson.Value, contextMessage protoref.Message) ([]byte, error) {
-	return nil, nil
+func (f *request) createProtoWireWithContext(a arena.Arena, requestVariables *astjson.Value, contextMessage protoref.Message) ([]byte, error) {
+	return f.wire.createProtoWireWithContext(a, requestVariables, f.context, contextMessage)
 }
 
 func compileProgram(plan *RPCExecutionPlan, runtime *runtimeSchema) (*program, error) {
@@ -167,7 +169,7 @@ func compileFetch(call *RPCCall, runtime *runtimeSchema, dependentCall *RPCCall)
 	}
 
 	switch f.kind {
-	case CallKindStandard, CallKindEntity:
+	case CallKindStandard, CallKindEntity, CallKindRequired:
 		fetchRequest, err := compileFetchRequest(runtime, &call.Request, requestMessage)
 		if err != nil {
 			return fetchProgram{}, err
@@ -209,6 +211,17 @@ func compileFetchRequest(runtime *runtimeSchema, rpcMessage *RPCMessage, message
 	}, nil
 }
 
+func getOneOfDescriptor(rtMessage *runtimeMessage, oneOfType OneOfType) protoref.OneofDescriptor {
+	switch oneOfType {
+	case OneOfTypeInterface:
+		return rtMessage.desc.Oneofs().ByName(protoref.Name("instance"))
+	case OneOfTypeUnion:
+		return rtMessage.desc.Oneofs().ByName(protoref.Name("value"))
+	}
+
+	return nil
+}
+
 func compileMessage(runtime *runtimeSchema, rpcMessage *RPCMessage, rtMessage *runtimeMessage, cycleMap map[string]*programMessage) (*programMessage, error) {
 	if seen, ok := cycleMap[rpcMessage.Name]; ok {
 		return seen, nil
@@ -221,6 +234,59 @@ func compileMessage(runtime *runtimeSchema, rpcMessage *RPCMessage, rtMessage *r
 	}
 
 	cycleMap[rpcMessage.Name] = msg
+
+	if rpcMessage.IsOneOf() {
+		msg.oneOfType = rpcMessage.OneOfType
+		msg.memberTypes = rpcMessage.MemberTypes
+		msg.oneOfFields = make(map[string][]programField)
+
+		for _, memberType := range rpcMessage.MemberTypes {
+			fragmentFields, ok := rpcMessage.FragmentFields[memberType]
+			if !ok {
+				continue
+			}
+
+			oneOfDescriptor := getOneOfDescriptor(rtMessage, rpcMessage.OneOfType)
+			if oneOfDescriptor == nil {
+				return nil, fmt.Errorf("oneof descriptor not found for message %s", rpcMessage.Name)
+			}
+
+			fullName := ""
+			for i := range oneOfDescriptor.Fields().Len() {
+				field := oneOfDescriptor.Fields().Get(i)
+				if field.Kind() != protoref.MessageKind {
+					continue
+				}
+
+				if field.Message().Name() == protoref.Name(memberType) {
+					fullName = string(field.Message().FullName())
+					break
+				}
+			}
+
+			memberTypeMessage := runtime.getMessageByFullName(fullName)
+			if memberTypeMessage == nil {
+				return nil, fmt.Errorf("message not found for name %s", fullName)
+			}
+
+			oneOfFields := make([]programField, 0, len(fragmentFields))
+			for _, fragmentField := range fragmentFields {
+				runtimeField := memberTypeMessage.fieldsByName[fragmentField.Name]
+				if runtimeField == nil {
+					return nil, fmt.Errorf("field not found for name %s", fragmentField.Name)
+				}
+
+				requestField, err := compileField(runtime, fragmentField, runtimeField, cycleMap)
+				if err != nil {
+					return nil, err
+				}
+				oneOfFields = append(oneOfFields, requestField)
+				msg.oneOfFields[memberType] = oneOfFields
+			}
+		}
+
+		return msg, nil
+	}
 
 	for _, f := range rpcMessage.Fields {
 		rtFieldMessage := runtime.getMessageByName(rpcMessage.Name)
@@ -311,8 +377,8 @@ func compileFetchRequestWithContext(runtime *runtimeSchema, message *runtimeMess
 	return request, nil
 }
 
-func compileFetchRequestContext(message, dependentMessage *runtimeMessage, rpcMessage *RPCMessage) (*fetchRequestContext, error) {
-	if message == nil || dependentMessage == nil {
+func compileFetchRequestContext(message, contextMessage *runtimeMessage, rpcMessage *RPCMessage) (*fetchRequestContext, error) {
+	if message == nil || contextMessage == nil {
 		return nil, fmt.Errorf("unable to compile fetch request context: message or dependent message is nil")
 	}
 
@@ -322,7 +388,23 @@ func compileFetchRequestContext(message, dependentMessage *runtimeMessage, rpcMe
 
 	fetchRequestContext := &fetchRequestContext{
 		message: message,
+		context: contextMessage,
 		fields:  make([]fetchRequestContextField, 0, len(rpcMessage.Fields)),
+	}
+
+	for _, field := range rpcMessage.Fields {
+		rtField, found := message.fieldsByName[field.Name]
+		if !found {
+			return nil, fmt.Errorf("field not found for name %s", field.Name)
+		}
+
+		fetchRequestContextField := &fetchRequestContextField{
+			runtime:  rtField,
+			p:        field.ResolvePath,
+			jsonName: field.JSONPath,
+			// resolvePath: field.ResolvePath,
+		}
+		fetchRequestContext.fields = append(fetchRequestContext.fields, *fetchRequestContextField)
 	}
 
 	return fetchRequestContext, nil
