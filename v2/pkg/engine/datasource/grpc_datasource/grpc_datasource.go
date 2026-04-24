@@ -268,6 +268,7 @@ func createProtoWire(a arena.Arena, fetch *fetchProgram, callMap map[int]fetchDa
 			}
 
 			callMap[fetch.id] = fetchResult
+			return nil, true, nil
 		}
 
 		buffer, err = fetch.request.createProtoWireWithContext(a, requestVariables, contextFetch.responseMessage)
