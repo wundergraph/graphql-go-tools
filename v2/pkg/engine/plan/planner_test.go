@@ -817,6 +817,165 @@ func TestPlanner_Plan(t *testing.T) {
 		assert.Equal(t, plan2Expected, plan2)
 	})
 
+	t.Run("reused planner clears field planner metadata between operations", func(t *testing.T) {
+		type costNodeDataSourceHashes struct {
+			Field            FieldCoordinate
+			DataSourceHashes []DSHash
+			Children         []costNodeDataSourceHashes
+		}
+		var collectCostHashes func(node *CostTreeNode) costNodeDataSourceHashes
+		collectCostHashes = func(node *CostTreeNode) costNodeDataSourceHashes {
+			out := costNodeDataSourceHashes{
+				Field:            node.fieldCoords,
+				DataSourceHashes: node.dataSourceHashes,
+			}
+			for _, child := range node.children {
+				out.Children = append(out.Children, collectCostHashes(child))
+			}
+			return out
+		}
+		costHashes := func(plan Plan) []costNodeDataSourceHashes {
+			calc := plan.GetCostCalculator()
+			if calc == nil || calc.tree == nil {
+				return nil
+			}
+			out := make([]costNodeDataSourceHashes, 0, len(calc.tree.children))
+			for _, child := range calc.tree.children {
+				out = append(out, collectCostHashes(child))
+			}
+			return out
+		}
+		fieldTrackingDS := func(b *dsBuilder) DataSource {
+			b.ds.factory = &fieldTrackingFakeFactory[any]{
+				FakeFactory: b.ds.factory.(*FakeFactory[any]),
+			}
+			return b.DS()
+		}
+
+		definition := `
+				type Account {
+					id: ID!
+					name: String
+				}
+				type Query {
+					account: Account
+				}
+			`
+		accountDS := fieldTrackingDS(dsb().
+			WithBehavior(DataSourcePlanningBehavior{
+				MergeAliasedRootNodes: true,
+			}).
+			Schema(`type Account {
+					id: ID!
+				}
+				type Query {
+					account: Account
+				}`).
+			Id("accountDS").
+			Hash(1).
+			RootNode("Query", "account").
+			RootNode("Account", "id").
+			KeysMetadata(FederationFieldConfigurations{
+				{
+					TypeName:     "Account",
+					SelectionSet: "id",
+				},
+			}))
+		addressDS := fieldTrackingDS(dsb().
+			WithBehavior(DataSourcePlanningBehavior{
+				MergeAliasedRootNodes: true,
+			}).
+			Schema(`type Account {
+					id: ID!
+					name: String
+				}`).
+			KeysMetadata(FederationFieldConfigurations{
+				{
+					TypeName:     "Account",
+					SelectionSet: "id",
+				},
+			}).
+			Id("addressDS").
+			Hash(2).
+			RootNode("Account", "id", "name"))
+		planConfiguration := Configuration{
+			DataSources:       []DataSource{accountDS, addressDS},
+			BuildFetchReasons: true,
+			ComputeCosts:      true,
+		}
+		def := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(definition)
+		operationWithEntityFetch := `
+				query {
+					account {
+						name
+					}
+				}`
+		operationWithoutEntityFetch := `
+				query {
+					account {
+						id
+					}
+				}`
+
+		sharedPlanner, err := NewPlanner(planConfiguration)
+		require.NoError(t, err)
+
+		op1 := unsafeparser.ParseGraphqlDocumentString(operationWithEntityFetch)
+		report1 := &operationreport.Report{}
+		plan1 := sharedPlanner.Plan(&op1, &def, "", report1)
+		require.False(t, report1.HasErrors())
+		assert.Equal(t, []costNodeDataSourceHashes{
+			{
+				Field:            FieldCoordinate{TypeName: "Query", FieldName: "account"},
+				DataSourceHashes: []DSHash{2, 1},
+				Children: []costNodeDataSourceHashes{
+					{
+						Field:            FieldCoordinate{TypeName: "Account", FieldName: "name"},
+						DataSourceHashes: []DSHash{2},
+					},
+					{
+						Field:            FieldCoordinate{TypeName: "Account", FieldName: "__typename"},
+						DataSourceHashes: []DSHash{1},
+					},
+					{
+						Field:            FieldCoordinate{TypeName: "Account", FieldName: "id"},
+						DataSourceHashes: []DSHash{1},
+					},
+				},
+			},
+		}, costHashes(plan1))
+
+		op2Expected := unsafeparser.ParseGraphqlDocumentString(operationWithoutEntityFetch)
+		expectedPlanner, err := NewPlanner(planConfiguration)
+		require.NoError(t, err)
+		expectedReport := &operationreport.Report{}
+		expectedPlan2 := expectedPlanner.Plan(&op2Expected, &def, "", expectedReport)
+		require.False(t, expectedReport.HasErrors())
+
+		op2 := unsafeparser.ParseGraphqlDocumentString(operationWithoutEntityFetch)
+		report2 := &operationreport.Report{}
+		plan2 := sharedPlanner.Plan(&op2, &def, "", report2)
+		require.False(t, report2.HasErrors())
+
+		assert.Equal(t, expectedPlan2, plan2)
+		assert.Equal(t, []costNodeDataSourceHashes{
+			{
+				Field:            FieldCoordinate{TypeName: "Query", FieldName: "account"},
+				DataSourceHashes: []DSHash{1},
+				Children: []costNodeDataSourceHashes{
+					{
+						Field:            FieldCoordinate{TypeName: "Account", FieldName: "id"},
+						DataSourceHashes: []DSHash{1},
+					},
+				},
+			},
+		}, costHashes(plan2))
+		assert.Equal(t, map[int][]int{
+			0: []int{0},
+			1: []int{0},
+		}, sharedPlanner.planningVisitor.fieldPlanners)
+	})
+
 	// Root field caching isolation tests
 	// When a root field has caching configured, the planner must isolate it into its own
 	// planner/fetch so it gets an independent cache config (TTL, cache name, etc.).
@@ -1419,6 +1578,17 @@ func (f *FakeFactory[T]) Context() context.Context {
 	return context.TODO()
 }
 
+type fieldTrackingFakeFactory[T any] struct {
+	*FakeFactory[T]
+}
+
+func (f *fieldTrackingFakeFactory[T]) Planner(logger abstractlogger.Logger) DataSourcePlanner[T] {
+	planner := f.FakeFactory.Planner(logger).(*FakePlanner[T])
+	return &fieldTrackingFakePlanner[T]{
+		FakePlanner: planner,
+	}
+}
+
 type FakePlanner[T any] struct {
 	id               int
 	source           *StatefulSource
@@ -1442,6 +1612,23 @@ func (f *FakePlanner[T]) EnterDocument(operation, definition *ast.Document) {
 func (f *FakePlanner[T]) Register(visitor *Visitor, _ DataSourceConfiguration[T], _ DataSourcePlannerConfiguration) error {
 	visitor.Walker.RegisterEnterDocumentVisitor(f)
 	return nil
+}
+
+type fieldTrackingFakePlanner[T any] struct {
+	*FakePlanner[T]
+}
+
+func (f *fieldTrackingFakePlanner[T]) Register(visitor *Visitor, _ DataSourceConfiguration[T], _ DataSourcePlannerConfiguration) error {
+	visitor.Walker.RegisterEnterDocumentVisitor(f)
+	visitor.Walker.RegisterEnterFieldVisitor(f)
+	visitor.Walker.RegisterLeaveFieldVisitor(f)
+	return nil
+}
+
+func (f *fieldTrackingFakePlanner[T]) EnterField(ref int) {
+}
+
+func (f *fieldTrackingFakePlanner[T]) LeaveField(ref int) {
 }
 
 func (f *FakePlanner[T]) ConfigureFetch() resolve.FetchConfiguration {

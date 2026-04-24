@@ -1163,8 +1163,8 @@ func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.Operation, v.Definition = operation, definition
 	// Per-walk state is reset here rather than in NewVisitor so the same *Visitor
 	// can be reused across operations (common in tests and in the planner cache).
-	// The `fieldPlanners` map is intentionally NOT reset — the cost visitor
-	// captures a reference to it before the walk starts.
+	// Clear in place: the cost visitor captures this map before the walk starts.
+	clear(v.fieldPlanners)
 	v.fieldConfigs = map[int]*FieldConfiguration{}
 	v.exportedVariables = map[string]struct{}{}
 	v.skipIncludeOnFragments = map[int]skipIncludeInfo{}
