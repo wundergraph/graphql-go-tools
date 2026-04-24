@@ -213,6 +213,7 @@ global prefix (AC-KEY-07) prepended for cache isolation.
 Tests:
 - `v2/pkg/engine/resolve/cache_key_test.go:632` — `TestCachingRenderEntityQueryCacheKeyTemplate`
 - `v2/pkg/engine/resolve/cache_key_test.go:13` — `TestCachingRenderRootQueryCacheKeyTemplate`
+- `v2/pkg/engine/resolve/cache_key_parity_test.go:17` — `TestCacheKeyParityRegression_ReadWriteInvalidation` (combined entity-key read/write/delete parity with global + header prefix)
 
 ### AC-L2-05: Disabled by default
 L2 caching must be explicitly enabled per-request via
@@ -385,6 +386,7 @@ between tenants or users.
 
 Tests:
 - `execution/engine/federation_caching_test.go:418` — `TestFederationCaching / "two subgraphs - with subgraph header prefix"`
+- `v2/pkg/engine/resolve/cache_key_parity_test.go:17` — `TestCacheKeyParityRegression_ReadWriteInvalidation` (header prefix parity across args-derived read, entity writeback, and extension invalidation)
 
 ### AC-KEY-04: L2CacheKeyInterceptor transform
 After the header prefix is applied, the key passes through an optional user-provided
@@ -433,6 +435,7 @@ extension-based invalidation, mutation invalidation, and subscription populate/i
 Tests:
 - `v2/pkg/engine/resolve/l2_cache_key_interceptor_test.go:504` — `TestL2CacheKeyInterceptor / "global prefix is prepended to L2 keys"`
 - `v2/pkg/engine/resolve/l2_cache_key_interceptor_test.go:597` — `TestL2CacheKeyInterceptor / "global prefix combined with interceptor"`
+- `v2/pkg/engine/resolve/cache_key_parity_test.go:17` — `TestCacheKeyParityRegression_ReadWriteInvalidation` (partial: query read/write and extension invalidation only; mutation/subscription paths are not exercised)
 
 ## Partial Cache Loading
 
@@ -553,6 +556,7 @@ the correct entry is targeted for deletion.
 
 Tests:
 - `execution/engine/federation_caching_ext_invalidation_test.go:90` — `TestFederationCaching_ExtensionsInvalidation / "multiple entities invalidated in single response"`
+- `v2/pkg/engine/resolve/cache_key_parity_test.go:17` — `TestCacheKeyParityRegression_ReadWriteInvalidation` (extension delete key matches the entity storage key)
 
 ### AC-EXT-03: Full key construction pipeline for deletion
 The invalidation key goes through the same transformation pipeline as storage keys:
@@ -561,6 +565,7 @@ build JSON → apply header hash prefix → apply `L2CacheKeyInterceptor` → ca
 
 Tests:
 - `execution/engine/federation_caching_ext_invalidation_test.go:214` — `TestFederationCaching_ExtensionsInvalidation / "with subgraph header prefix"`
+- `v2/pkg/engine/resolve/cache_key_parity_test.go:17` — `TestCacheKeyParityRegression_ReadWriteInvalidation` (partial: covers JSON + global prefix + header prefix + delete; does not exercise `L2CacheKeyInterceptor`)
 
 ### AC-EXT-04: Works for queries and mutations
 Extension-based invalidation is not restricted to mutation responses. A query response can
