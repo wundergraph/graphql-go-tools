@@ -351,30 +351,22 @@ func compileFetchRequestWithContext(runtime *runtimeSchema, message *runtimeMess
 	request.message = requestMessage
 	request.fields = requestMessage.fields
 
-	// context and field_args
-	for _, field := range rpcMessage.Fields {
-		switch field.Name {
-		case "context":
-			contextField, found := message.fieldsByName[field.Name]
-			if !found {
-				return nil, fmt.Errorf("context message not found for method %s", rpcMessage.Name)
-			}
-
-			fetchRequestContext, err := compileFetchRequestContext(contextField.message, dependentMessage, field.Message)
-			if err != nil {
-				return nil, err
-			}
-
-			request.context = fetchRequestContext
-		case "field_args":
-			// wireMessage, err := compileWireMessage(field.Message, message)
-			// if err != nil {
-			// 	return nil, err
-			// }
-
-			// request.wire = wireMessage
-		}
+	contextField := rpcMessage.Fields.ByName(contextFieldName)
+	if contextField == nil {
+		return nil, fmt.Errorf("context field not found for method %s", rpcMessage.Name)
 	}
+
+	contextRuntimeField, found := message.fieldsByName[contextFieldName]
+	if !found {
+		return nil, fmt.Errorf("context field not found for method %s", rpcMessage.Name)
+	}
+
+	fetchRequestContext, err := compileFetchRequestContext(contextRuntimeField.message, dependentMessage, contextField.Message)
+	if err != nil {
+		return nil, err
+	}
+
+	request.context = fetchRequestContext
 
 	return request, nil
 }
