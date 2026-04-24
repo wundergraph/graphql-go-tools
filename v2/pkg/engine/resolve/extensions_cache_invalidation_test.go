@@ -206,6 +206,44 @@ func TestExtensionsCacheInvalidation(t *testing.T) {
 	})
 }
 
+func TestExtensionsCacheInvalidationAnalytics(t *testing.T) {
+	t.Run("records MutationEvent for extension-driven delete", func(t *testing.T) {
+		// newExtInvEnv fetches User:1; invalidating User:2 targets a different key,
+		// so the delete is not deduped as "about to be set" and analytics records it.
+		env := newExtInvEnv(t,
+			`{"data":{"_entities":[{"__typename":"User","id":"1","username":"Alice"}]},"extensions":{"cacheInvalidation":{"keys":[{"typename":"User","key":{"id":"2"}}]}}}`,
+		)
+		env.ctx.ExecutionOptions.Caching.EnableCacheAnalytics = true
+
+		env.run()
+		stats := env.ctx.GetCacheStats()
+
+		assert.Equal(t, []MutationEvent{
+			{
+				EntityType:     "User",                                   // Extension entry invalidates typename User
+				EntityCacheKey: `{"__typename":"User","key":{"id":"2"}}`, // User:2 is the key that survives dedupe and is deleted
+				HadCachedValue: false,                                    // Extension invalidation does not issue an L2 Get
+				IsStale:        false,                                    // No cached-vs-fresh comparison is performed
+				Source:         CacheSourceQuery,                         // Emitted from a query response, not a mutation
+			},
+		}, stats.MutationEvents)
+	})
+
+	t.Run("records no MutationEvent when extension delete is skipped", func(t *testing.T) {
+		// newExtInvEnv fetches User:1; invalidating User:1 is skipped before the
+		// analytics call because updateL2Cache is about to write the same key.
+		env := newExtInvEnv(t,
+			`{"data":{"_entities":[{"__typename":"User","id":"1","username":"Alice"}]},"extensions":{"cacheInvalidation":{"keys":[{"typename":"User","key":{"id":"1"}}]}}}`,
+		)
+		env.ctx.ExecutionOptions.Caching.EnableCacheAnalytics = true
+
+		env.run()
+		stats := env.ctx.GetCacheStats()
+
+		assert.Equal(t, []MutationEvent{}, stats.MutationEvents)
+	})
+}
+
 // ---------------------------------------------------------------------------
 // Schema building blocks for User entity tests
 // ---------------------------------------------------------------------------

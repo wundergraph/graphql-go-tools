@@ -2873,6 +2873,34 @@ func (l *Loader) processExtensionsCacheInvalidation(res *result, cacheInvalidati
 			continue
 		}
 
+		if l.ctx.cacheAnalyticsEnabled() {
+			source := CacheSourceQuery
+			mutationRootField := ""
+			operationType := ast.OperationTypeQuery
+			if res.fetchInfo != nil {
+				operationType = res.fetchInfo.OperationType
+			} else if l.info != nil {
+				operationType = l.info.OperationType
+			}
+			switch operationType {
+			case ast.OperationTypeMutation:
+				source = CacheSourceMutation
+				if res.fetchInfo != nil && len(res.fetchInfo.RootFields) > 0 {
+					mutationRootField = res.fetchInfo.RootFields[0].FieldName
+				}
+			case ast.OperationTypeSubscription:
+				source = CacheSourceSubscription
+			}
+			l.ctx.cacheAnalytics.RecordMutationEvent(MutationEvent{
+				MutationRootField: mutationRootField,
+				EntityType:        typename,
+				EntityCacheKey:    baseKey,
+				HadCachedValue:    false,
+				IsStale:           false,
+				Source:            source,
+			})
+		}
+
 		// Accumulate the key into the batch for this cache name.
 		batch, ok := batches[entityConfig.CacheName]
 		if !ok {
