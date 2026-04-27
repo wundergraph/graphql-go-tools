@@ -178,7 +178,13 @@ func TestOnSubscriptionCacheCallbacks(t *testing.T) {
 
 		// Subscribe to product updates — subscription entity population writes Product to L2
 		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
-			cachingTestQueryPath("subscriptions/subscription_product_only.query"),
+			`subscription UpdatePrice($upc: String!) {
+				updateProductPrice(upc: $upc) {
+					upc
+					name
+					price
+				}
+			}`,
 			queryVariables{"upc": "top-4"}, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":1}}}}`, messages[0])
 
@@ -248,7 +254,17 @@ func TestOnSubscriptionCacheCallbacks(t *testing.T) {
 		// Subscribe using key-only query — selects only @key field (upc), so invalidation mode triggers
 		defaultCache.ClearLog()
 		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
-			cachingTestQueryPath("subscriptions/subscription_product_key_only.query"),
+			`subscription UpdatePriceKeyOnly($upc: String!) {
+				updateProductPrice(upc: $upc) {
+					upc
+					reviews {
+						body
+						authorWithoutProvides {
+							username
+						}
+					}
+				}
+			}`,
 			queryVariables{"upc": "top-4"}, 1, t)
 		require.Equal(t, 1, len(messages))
 

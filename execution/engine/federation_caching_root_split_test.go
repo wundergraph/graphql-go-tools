@@ -292,11 +292,48 @@ func TestRootFieldSplitByDatasource(t *testing.T) {
 
 		// COLD path: every configured root/entity cache is empty, so all involved
 		// subgraphs must be called and then populated.
-		defaultCache.ClearLog()
 		tracker.Reset()
 		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, query, nil, t)
 		// Response proves root-field split and entity resolution compose.
 		assert.Equal(t, `{"data":{"me":{"id":"1234","username":"Me"},"cat":{"name":"Pepper"},"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
+
+		logAfterFirst := defaultCache.GetLog()
+		wantLogFirst := []CacheLogEntry{
+			{
+				Operation: "get",
+				Items: []CacheLogItem{
+					{Key: `{"__typename":"Query","field":"cat"}`, Hit: false},
+					{Key: `{"__typename":"Query","field":"me"}`, Hit: false},
+					{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: false},
+				},
+			},
+			{
+				Operation: "set",
+				Items: []CacheLogItem{
+					{Key: `{"__typename":"Query","field":"cat"}`, TTL: 30 * time.Second},
+					{Key: `{"__typename":"Query","field":"me"}`, TTL: 30 * time.Second},
+					{Key: `{"__typename":"Query","field":"topProducts"}`, TTL: 30 * time.Second},
+				},
+			},
+			{
+				Operation: "get",
+				Items: []CacheLogItem{
+					{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: false},
+					{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: false},
+				},
+			},
+			{
+				Operation: "set",
+				Items: []CacheLogItem{
+					{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, TTL: 30 * time.Second},
+					{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, TTL: 30 * time.Second},
+				},
+			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
+		}
+		// Cold path misses and writes all configured root/entity cache entries.
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst))
 
 		// accounts: me root, cat root, and User entity resolution all miss cold.
 		assert.Equal(t, 3, tracker.GetCount(accountsHost), "accounts: once for me, once for cat, once for User entity")
@@ -310,6 +347,28 @@ func TestRootFieldSplitByDatasource(t *testing.T) {
 		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, query, nil, t)
 		// Same response proves all pieces can be served from their cache entries.
 		assert.Equal(t, `{"data":{"me":{"id":"1234","username":"Me"},"cat":{"name":"Pepper"},"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
+
+		logAfterSecond := defaultCache.GetLog()
+		wantLogSecond := []CacheLogEntry{
+			{
+				Operation: "get",
+				Items: []CacheLogItem{
+					{Key: `{"__typename":"Query","field":"cat"}`, Hit: true},
+					{Key: `{"__typename":"Query","field":"me"}`, Hit: true},
+					{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: true},
+				},
+			},
+			{
+				Operation: "get",
+				Items: []CacheLogItem{
+					{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: true},
+					{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: true},
+				},
+			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
+		}
+		// Warm path hits every configured root/entity cache entry and writes nothing.
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond))
 
 		// Zero calls on every subgraph proves root-field and entity caches all hit.
 		assert.Equal(t, 0, tracker.GetCount(accountsHost), "accounts: all from cache")

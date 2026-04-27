@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -110,7 +111,7 @@ func (g *GraphqlClient) QueryStatusCode(ctx context.Context, addr, queryFilePath
 	return responseBodyBytes
 }
 
-func (g *GraphqlClient) Subscription(ctx context.Context, addr, queryFilePath string, variables queryVariables, t *testing.T) (chan []byte, func()) {
+func (g *GraphqlClient) Subscription(ctx context.Context, addr, queryOrFilePath string, variables queryVariables, t *testing.T) (chan []byte, func()) {
 	messageCh := make(chan []byte)
 
 	conn, _, _, err := ws.Dial(ctx, addr)
@@ -128,11 +129,21 @@ func (g *GraphqlClient) Subscription(ctx context.Context, addr, queryFilePath st
 	serverMessage := g.readMessageFromServer(t, conn)
 	assert.Equal(t, `{"id":"","type":"connection_ack","payload":null}`, string(serverMessage))
 	// 3. send `start` message with subscription operation
+	trimmedQuery := strings.TrimSpace(queryOrFilePath)
+	var payload []byte
+	if strings.HasPrefix(trimmedQuery, "subscription") ||
+		strings.HasPrefix(trimmedQuery, "query") ||
+		strings.HasPrefix(trimmedQuery, "mutation") ||
+		strings.HasPrefix(trimmedQuery, "{") {
+		payload = requestBody(t, queryOrFilePath, variables)
+	} else {
+		payload = loadQuery(t, queryOrFilePath, variables)
+	}
 	//nolint:staticcheck
 	startSubscriptionMessage := subscription.Message{
 		Id:      "1",
 		Type:    subscription.MessageTypeStart,
-		Payload: loadQuery(t, queryFilePath, variables),
+		Payload: payload,
 	}
 
 	err = g.sendMessageToServer(conn, startSubscriptionMessage)
