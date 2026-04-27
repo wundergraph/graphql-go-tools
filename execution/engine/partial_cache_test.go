@@ -149,6 +149,10 @@ func TestFederationCaching_PartialLoading(t *testing.T) {
 			{Key: `{"__typename":"User","key":{"id":"1234"}}`, Value: []byte(userData), TTL: 30 * time.Second},
 		})
 		require.NoError(t, err)
+		seedLog := defaultCache.GetLog()
+		assert.Equal(t, []CacheLogEntry{
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
+		}, seedLog)
 		defaultCache.ClearLog()
 
 		// First query - User is already cached, so accounts subgraph should NOT be called
@@ -221,6 +225,10 @@ func TestFederationCaching_PartialLoading(t *testing.T) {
 			{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Value: []byte(product1Data), TTL: 30 * time.Second},
 		})
 		require.NoError(t, err)
+		seedLog := defaultCache.GetLog()
+		assert.Equal(t, []CacheLogEntry{
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, TTL: 30 * time.Second}}},
+		}, seedLog)
 		defaultCache.ClearLog()
 
 		// Query - should only fetch top-2 from reviews subgraph (top-1 is cached)
@@ -300,6 +308,10 @@ func TestFederationCaching_PartialLoading(t *testing.T) {
 			{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Value: []byte(product1Data), TTL: 30 * time.Second},
 		})
 		require.NoError(t, err)
+		seedLog := defaultCache.GetLog()
+		assert.Equal(t, []CacheLogEntry{
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, TTL: 30 * time.Second}}},
+		}, seedLog)
 		defaultCache.ClearLog()
 
 		// Query - with partial loading DISABLED, should fetch ALL entities (top-1 AND top-2)

@@ -248,6 +248,10 @@ func TestOnSubscriptionCacheCallbacks(t *testing.T) {
 			{Key: `{"__typename":"Product","key":{"upc":"top-4"}}`, Value: []byte(`{"upc":"top-4","name":"Bowler","price":100,"__typename":"Product"}`), TTL: 30 * time.Second},
 		})
 		require.NoError(t, err)
+		seedLog := defaultCache.GetLog()
+		assert.Equal(t, []CacheLogEntry{
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"upc":"top-4"}}`, TTL: 30 * time.Second}}},
+		}, seedLog)
 
 		wsAddr := strings.ReplaceAll(setup.GatewayServer.URL, "http://", "ws://")
 

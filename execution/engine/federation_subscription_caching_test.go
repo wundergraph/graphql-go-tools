@@ -210,6 +210,16 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			{Key: `{"__typename":"User","key":{"id":"8888"}}`, Value: []byte(`{"id":"8888","username":"User 8888"}`), TTL: 30 * time.Second},
 		})
 		require.NoError(t, err)
+		seedLog := defaultCache.GetLog()
+		assert.Equal(t, []CacheLogEntry{
+			{
+				Operation: "set",
+				Items: []CacheLogItem{
+					{Key: `{"__typename":"User","key":{"id":"5678"}}`, TTL: 30 * time.Second},
+					{Key: `{"__typename":"User","key":{"id":"8888"}}`, TTL: 30 * time.Second},
+				},
+			},
+		}, seedLog)
 
 		// Subscribe - User entities should hit L2 from pre-populated cache
 		defaultCache.ClearLog()
@@ -791,6 +801,11 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		entries, err := defaultCache.Get(ctx, []string{entityKey})
 		require.NoError(t, err)
 		require.NotNil(t, entries[0], "Product should be in L2 cache before subscription")
+		seedLog := defaultCache.GetLog()
+		assert.Equal(t, []CacheLogEntry{
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"upc":"top-4"}}`, TTL: 30 * time.Second}}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"upc":"top-4"}}`, Hit: true}}},
+		}, seedLog)
 
 		// Subscribe with key-only query → invalidation mode
 		defaultCache.ClearLog()
@@ -875,6 +890,10 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			{Key: entityKey, Value: []byte(`{"upc":"top-4","name":"Bowler","price":64,"__typename":"Product"}`), TTL: 30 * time.Second},
 		})
 		require.NoError(t, err)
+		seedLog := defaultCache.GetLog()
+		assert.Equal(t, []CacheLogEntry{
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"upc":"top-4"}}`, TTL: 30 * time.Second}}},
+		}, seedLog)
 
 		// Subscribe with key-only query but invalidation disabled
 		defaultCache.ClearLog()
@@ -960,6 +979,10 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			{Key: entityKey, Value: entityValue, TTL: 30 * time.Second},
 		})
 		require.NoError(t, err)
+		seedLog := defaultCache.GetLog()
+		assert.Equal(t, []CacheLogEntry{
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"upc":"top-4"}}`, TTL: 30 * time.Second}}},
+		}, seedLog)
 
 		// Subscribe with key-only query → invalidation mode, collect 2 events
 		defaultCache.ClearLog()
@@ -1720,6 +1743,10 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			{Key: entityKey, Value: []byte(`{"upc":"top-4","name":"Bowler","price":64,"__typename":"Product"}`), TTL: 30 * time.Second},
 		})
 		require.NoError(t, err)
+		seedLog := defaultCache.GetLog()
+		assert.Equal(t, []CacheLogEntry{
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"upc":"top-4"}}`, TTL: 30 * time.Second}}},
+		}, seedLog)
 
 		wsAddr := toWSAddr(setup.GatewayServer.URL)
 		queryPath := cachingTestQueryPath("subscriptions/subscription_product_key_only.query")
