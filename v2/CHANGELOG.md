@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.0.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.270...v2.0.0) (2026-04-27)
+
+
+### Features
+
+* support costs on arguments of directives ([#1465](https://github.com/wundergraph/graphql-go-tools/issues/1465)) ([2eca1ab](https://github.com/wundergraph/graphql-go-tools/commit/2eca1ab9932395d9b3181d28e8e6c2c03818f68b))
+
+
+### Bug Fixes
+
+* grpc datasource stack overflows on recursive input ([#1466](https://github.com/wundergraph/graphql-go-tools/issues/1466)) ([eba0f58](https://github.com/wundergraph/graphql-go-tools/commit/eba0f58ff241520a8b66fc206c41ff73d8f33d03))
+
 ## [2.0.0-rc.270](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.269...v2.0.0-rc.270) (2026-04-09)
 
 
