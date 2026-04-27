@@ -8,10 +8,14 @@ schema {
 
 directive @testDeprecated(okArg: String deprecatedArg: String @deprecated(reason: "no such arg")) on FIELD_DEFINITION
 
+# Used to test costs on arguments of directives:
+# the tolerance argument has "@cost(weight: -5)" defined in tests.
+directive @approx(tolerance: Int = 1) on FIELD_DEFINITION
+
 type Query {
     hero: Character @deprecated
-    droid(id: ID!): Droid
-    search(name: String!): SearchResult
+    droid(id: ID!): Droid @approx(tolerance: null)
+    search(name: String!): SearchResult @approx
     searchResults: [SearchResult]
 }
 
@@ -52,7 +56,7 @@ type Human implements Character {
 }
 
 type Droid implements Character {
-    name: String!
+    name: String! @approx
     primaryFunction: String!
     friends: [Character]
 }
