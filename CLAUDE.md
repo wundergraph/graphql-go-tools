@@ -172,10 +172,88 @@ coordinate L1 (since it shares the `EnableL1Cache` flag).
 
 ## Testing Conventions
 
-- **Exact assertions only**: use `assert.Equal` with exact expected values, never `GreaterOrEqual`, `Contains`, or vague comparisons
-- **Assert entire structs**: always `assert.Equal` on the complete struct, never iterate over fields asserting individual values. This catches unexpected field changes and makes diffs readable. For large structs, construct the full expected value inline
-- **Inline test inputs and expectations**: define GraphQL inputs, cache keys, and expected responses inline in each test or subtest. Do not hide review-critical test data in file-level `const` blocks or shared vars that force reviewers to jump around the file
-- **Snapshot comments**: every event line in `CacheAnalyticsSnapshot` assertions must explain **why** that event occurred
-- **Cache log rule**: every `ClearLog()` must have `GetLog()` + assertions before the next `ClearLog()`
-- **Federation test services**: `accounts`, `products`, `reviews` in `execution/federationtesting/`
-- Run: `go test ./v2/pkg/engine/resolve/... -v` and `go test ./execution/engine/... -v`
+**Before writing or modifying any test, read the package's `CLAUDE.md` if one exists.**
+Package-level conventions are mandatory and stricter than the universal rules below.
+Known package conventions:
+- [v2/pkg/engine/resolve/CLAUDE.md](v2/pkg/engine/resolve/CLAUDE.md) — unit and integration tests for the resolve engine.
+- [execution/engine/CLAUDE.md](execution/engine/CLAUDE.md) — E2E tests against the federation gateway. **Stricter rules apply — see "E2E rules" below.**
+
+### Universal rules (every package)
+
+- **Exact assertions only**: use `assert.Equal` with exact expected values.
+  Never use `GreaterOrEqual`, `Contains`, `Greater`, or any vague comparison.
+  If you do not know the expected value, investigate until you do.
+- **Assert entire structs**: always `assert.Equal` on the complete struct.
+  Never iterate over fields with individual assertions.
+  For large structs, construct the full expected value inline anyway.
+- **Inline literal data**: GraphQL queries, cache keys, byte sizes, expected JSON responses must appear inline at the assertion or setup site that uses them.
+  Never hidden in file-level `const` blocks or shared vars that force reviewers to jump around.
+- **Snapshot comments**: every event line in a `CacheAnalyticsSnapshot` (or any other event-stream assertion) must have a brief trailing comment explaining **why** that event occurred.
+- **Cache log rule**: every `defaultCache.ClearLog()` must be followed by `GetLog()` + full assertions before the next `ClearLog()` or end of test.
+  Never clear a log without verifying its contents.
+- **Multi-key / multi-event struct literals must wrap one item per line**:
+  cache log entries, snapshot events, and any struct literal with two or more nested slices, maps, or long string fields are unreadable on a single line.
+  Format vertically.
+
+  ```go
+  // CORRECT — vertical, scannable
+  wantLog := []CacheLogEntry{
+      {
+          Operation: "get",
+          Keys: []string{
+              `{"__typename":"Query","field":"cat"}`,
+              `{"__typename":"Query","field":"me"}`,
+          },
+          Hits: []bool{false, false},
+      },
+      {
+          Operation: "set",
+          Keys:      []string{`{"__typename":"Query","field":"me"}`},
+      },
+  }
+
+  // WRONG — single 200-character line, eye has to parse comma-by-comma
+  wantLog := []CacheLogEntry{
+      {Operation: "get", Keys: []string{`{"__typename":"Query","field":"cat"}`, `{"__typename":"Query","field":"me"}`}, Hits: []bool{false, false}},
+  }
+  ```
+
+### E2E rules (under `execution/engine/`)
+
+In addition to the universal rules above, [execution/engine/CLAUDE.md](execution/engine/CLAUDE.md) requires:
+
+- **Self-contained subtests**: each `t.Run` must be independently readable top to bottom.
+  **Duplication across subtests is preferred over sharing.**
+  Do NOT extract setup into shared helpers like `newXxxFederationTestEnv(...)`.
+  Do NOT define config structs as named vars when they are used in only one subtest.
+- **Inline setup**: cache instances, tracker setup, gateway options, context, and URL parsing belong inside each subtest body.
+- **Inline GraphQL queries**: use `QueryStringWithHeaders` with the query string inline.
+  Do not load queries from external files.
+- **No new shared test helpers** in `execution/engine/` without explicit approval — they violate the self-contained-subtest rule.
+
+### LLM agent self-check (mandatory)
+
+Before writing or editing any test, ask yourself:
+
+| If you are about to... | STOP and instead... |
+|---|---|
+| Create a `newXxxEnv(...)` style helper used by multiple subtests in `execution/engine/` | Inline the setup into each subtest. |
+| Pull a config struct out of a `t.Run` body into a top-level var or helper used once | Inline it back into the subtest. |
+| Put two or more `Keys`/`Hits`/event-list entries on one line of a struct literal | Wrap to one item per line. |
+| Add a test under `execution/engine/` | Re-read [execution/engine/CLAUDE.md](execution/engine/CLAUDE.md) first. |
+| Add a test under `v2/pkg/engine/resolve/` | Re-read [v2/pkg/engine/resolve/CLAUDE.md](v2/pkg/engine/resolve/CLAUDE.md) first. |
+| Use `assert.Contains`, `assert.GreaterOrEqual`, or any partial assertion | Investigate the actual expected value and use `assert.Equal`. |
+
+If you find yourself extracting shared test scaffolding "to reduce duplication" in `execution/engine/`, that is the smell.
+Duplication is the convention.
+
+### Federation test services
+
+`accounts`, `products`, `reviews` live in `execution/federationtesting/`.
+
+### Run tests
+
+```sh
+go test ./v2/pkg/engine/resolve/... -v
+go test ./execution/engine/... -v
+```
