@@ -971,8 +971,8 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		}, costHashes(plan2))
 		assert.Equal(t, map[int][]int{
-			0: []int{0},
-			1: []int{0},
+			0: {0},
+			1: {0},
 		}, sharedPlanner.planningVisitor.fieldPlanners)
 	})
 

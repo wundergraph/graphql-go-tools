@@ -240,7 +240,10 @@ func TestExtensionsCacheInvalidationAnalytics(t *testing.T) {
 		env.run()
 		stats := env.ctx.GetCacheStats()
 
-		assert.Equal(t, []MutationEvent{}, stats.MutationEvents)
+		// Snapshot's slices.Clone returns nil when the underlying slice is nil
+		// (no events appended). Assert the count rather than DeepEqual against
+		// []MutationEvent{}, which would mismatch a nil slice.
+		assert.Equal(t, 0, len(stats.MutationEvents))
 	})
 }
 
