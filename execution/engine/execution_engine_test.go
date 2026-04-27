@@ -4694,7 +4694,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			var ds1CostConfig *plan.DataSourceCostConfig
 			if opts.includeCostConfig {
 				ds1CostConfig = &plan.DataSourceCostConfig{
-					Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+					Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 						{TypeName: "Query", FieldName: "accounts"}: {HasWeight: true, Weight: 5},
 						{TypeName: "User", FieldName: "some"}:      {HasWeight: true, Weight: 2},
 						{TypeName: "Admin", FieldName: "some"}:     {HasWeight: true, Weight: 3},
@@ -4709,7 +4709,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			var ds2CostConfig *plan.DataSourceCostConfig
 			if opts.includeCostConfig {
 				ds2CostConfig = &plan.DataSourceCostConfig{
-					Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+					Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 						{TypeName: "User", FieldName: "name"}:       {HasWeight: true, Weight: 2},
 						{TypeName: "User", FieldName: "title"}:      {HasWeight: true, Weight: 4},
 						{TypeName: "Admin", FieldName: "adminName"}: {HasWeight: true, Weight: 3},

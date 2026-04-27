@@ -17,9 +17,10 @@ func TestExecutionEngine_Cost(t *testing.T) {
 	t.Run("common on star wars scheme", func(t *testing.T) {
 		t.Parallel()
 		rootNodes := []plan.TypeField{
-			{TypeName: "Query", FieldNames: []string{"hero", "droid"}},
+			{TypeName: "Query", FieldNames: []string{"hero", "droid", "search"}},
 			{TypeName: "Human", FieldNames: []string{"name", "height", "friends"}},
 			{TypeName: "Droid", FieldNames: []string{"name", "primaryFunction", "friends"}},
+			{TypeName: "Starship", FieldNames: []string{"name", "length"}},
 		}
 		childNodes := []plan.TypeField{
 			{TypeName: "Character", FieldNames: []string{"name", "friends"}},
@@ -62,7 +63,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Droid", FieldName: "name"}: {HasWeight: true, Weight: 17},
 								},
 							}},
@@ -113,7 +114,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Query", FieldName: "droid"}: {
 										ArgumentWeights: map[string]int{"id": 3},
 										HasWeight:       false,
@@ -168,7 +169,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Query", FieldName: "droid"}: {
 										HasWeight:       true,
 										Weight:          -10,                      // Negative field weight
@@ -227,7 +228,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							}),
 						),
 						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: &plan.DataSourceCostConfig{
-							Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+							Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 								{TypeName: "Query", FieldName: "hero"}:   {HasWeight: true, Weight: 2},
 								{TypeName: "Human", FieldName: "height"}: {HasWeight: true, Weight: 3},
 								{TypeName: "Human", FieldName: "name"}:   {HasWeight: true, Weight: 7},
@@ -266,7 +267,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							}),
 						),
 						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: &plan.DataSourceCostConfig{
-							Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+							Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 								{TypeName: "Human", FieldName: "name"}: {HasWeight: true, Weight: 7},
 								{TypeName: "Droid", FieldName: "name"}: {HasWeight: true, Weight: 17},
 							},
@@ -315,7 +316,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Human", FieldName: "height"}: {HasWeight: true, Weight: 1},
 									{TypeName: "Human", FieldName: "name"}:   {HasWeight: true, Weight: 2},
 									{TypeName: "Droid", FieldName: "name"}:   {HasWeight: true, Weight: 2},
@@ -366,7 +367,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Human", FieldName: "height"}: {HasWeight: true, Weight: 1},
 									{TypeName: "Human", FieldName: "name"}:   {HasWeight: true, Weight: 2},
 									{TypeName: "Droid", FieldName: "name"}:   {HasWeight: true, Weight: 2},
@@ -426,7 +427,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Human", FieldName: "friends"}: {HasWeight: true, Weight: 3},
 									{TypeName: "Droid", FieldName: "friends"}: {HasWeight: true, Weight: 4},
 									{TypeName: "Human", FieldName: "height"}:  {HasWeight: true, Weight: 1},
@@ -528,7 +529,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Human", FieldName: "height"}: {HasWeight: true, Weight: 1},
 									{TypeName: "Human", FieldName: "name"}:   {HasWeight: true, Weight: 2},
 									{TypeName: "Droid", FieldName: "name"}:   {HasWeight: true, Weight: 2},
@@ -580,7 +581,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Human", FieldName: "name"}: {HasWeight: true, Weight: 2},
 									{TypeName: "Droid", FieldName: "name"}: {HasWeight: true, Weight: 2},
 								},
@@ -633,7 +634,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Query", FieldName: "hero"}: {HasWeight: true, Weight: 2},
 									{TypeName: "Human", FieldName: "name"}: {HasWeight: true, Weight: 3},
 									{TypeName: "Droid", FieldName: "name"}: {HasWeight: true, Weight: 5},
@@ -693,7 +694,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Query", FieldName: "hero"}:   {HasWeight: true, Weight: 2},
 									{TypeName: "Human", FieldName: "name"}:   {HasWeight: true, Weight: 3},
 									{TypeName: "Human", FieldName: "height"}: {HasWeight: true, Weight: 7},
@@ -714,6 +715,167 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			},
 			computeCosts(),
 		))
+
+		t.Run("cost on argument of directive", func(t *testing.T) {
+			t.Run("directive with default non-null argument on a field adds to cost", runWithoutError(
+				// search(name: String!): SearchResult @approx
+				ExecutionEngineTestCase{
+					schema: graphql.StarwarsSchema(t),
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{
+								search(name: "Luke") {
+									... on Human { name }
+								}
+							}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost:     "example.com",
+									expectedPath:     "/",
+									expectedBody:     "",
+									sendResponseBody: `{"data":{"search":{"__typename":"Human","name":"Luke"}}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+										{TypeName: "Query", FieldName: "search"}: {
+											HasWeight:                true,
+											Weight:                   3,
+											ArgumentWeights:          map[string]int{"name": 2},
+											DirectiveArgumentWeights: map[string]int{"approx.tolerance": -5},
+										},
+										{TypeName: "Human", FieldName: "name"}: {HasWeight: true, Weight: 5},
+									},
+								},
+							},
+							customConfig,
+						),
+					},
+					fields: []plan.FieldConfiguration{
+						{
+							TypeName: "Query", FieldName: "search",
+							Arguments: []plan.ArgumentConfiguration{
+								{
+									Name:         "name",
+									SourceType:   plan.FieldArgumentSource,
+									RenderConfig: plan.RenderArgumentAsGraphQLValue,
+								},
+							},
+						},
+					},
+					expectedResponse: `{"data":{"search":{"name":"Luke"}}}`,
+					// Query.search(3) + name arg(2) + Human.name(5) + @approx.tolerance(-5) = 5
+					expectedEstimatedCost: intPtr(5),
+					expectedActualCost:    intPtr(5),
+				},
+				computeCosts(),
+			))
+
+			t.Run("querying interface accounts for directive costs on implementations", runWithoutError(
+				// type Droid implements Character { name: String! @approx }
+				ExecutionEngineTestCase{
+					schema: graphql.StarwarsSchema(t),
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{
+								hero { name }
+							}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost:     "example.com",
+									expectedPath:     "/",
+									expectedBody:     "",
+									sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke Skywalker"}}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+										{TypeName: "Human", FieldName: "name"}: {HasWeight: true, Weight: 5},
+										{TypeName: "Droid", FieldName: "name"}: {DirectiveArgumentWeights: map[string]int{"approx.tolerance": -5}},
+									},
+								},
+							},
+							customConfig,
+						),
+					},
+					fields:           []plan.FieldConfiguration{},
+					expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+					// Query.hero(1) + Human.name(5) + @approx.tolerance(-5) = 1
+					expectedEstimatedCost: intPtr(1),
+					expectedActualCost:    intPtr(1),
+				},
+				computeCosts(),
+			))
+
+			t.Run("field with directive of null-value arg does not affect cost", runWithoutError(
+				// droid(id: ID!): Droid @approx(tolerance: null)
+				ExecutionEngineTestCase{
+					schema: graphql.StarwarsSchema(t),
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{
+								droid(id: "R2D2") {
+									primaryFunction
+								}
+							}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: `{"data":{"droid":{"primaryFunction":"no"}}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+										{TypeName: "Droid", FieldName: "primaryFunction"}: {HasWeight: true, Weight: 17},
+									},
+								}},
+							customConfig,
+						),
+					},
+					fields: []plan.FieldConfiguration{
+						{
+							TypeName: "Query", FieldName: "droid",
+							Arguments: []plan.ArgumentConfiguration{
+								{
+									Name:         "id",
+									SourceType:   plan.FieldArgumentSource,
+									RenderConfig: plan.RenderArgumentAsGraphQLValue,
+								},
+							},
+						},
+					},
+					expectedResponse: `{"data":{"droid":{"primaryFunction":"no"}}}`,
+					// Query.droid (1) + droid.primaryFunction (17); @approx.tolerance is null
+					expectedEstimatedCost: intPtr(18),
+					expectedActualCost:    intPtr(18),
+				},
+				computeCosts(),
+			))
+		})
 
 	})
 
@@ -794,7 +956,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 						&plan.DataSourceMetadata{
 							RootNodes: rootNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "User", FieldName: "name"}:    {HasWeight: true, Weight: 2},
 									{TypeName: "User", FieldName: "email"}:   {HasWeight: true, Weight: 3},
 									{TypeName: "Post", FieldName: "title"}:   {HasWeight: true, Weight: 4},
@@ -856,7 +1018,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 						&plan.DataSourceMetadata{
 							RootNodes: rootNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "User", FieldName: "name"}:  {HasWeight: true, Weight: 2},
 									{TypeName: "Post", FieldName: "title"}: {HasWeight: true, Weight: 5},
 								},
@@ -953,7 +1115,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -1000,7 +1162,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -1047,7 +1209,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -1093,7 +1255,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -1139,7 +1301,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -1251,7 +1413,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Comment", FieldName: "text"}: {HasWeight: true, Weight: 1},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -1323,7 +1485,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Comment", FieldName: "text"}: {HasWeight: true, Weight: 1},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -1395,7 +1557,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Comment", FieldName: "text"}: {HasWeight: true, Weight: 1},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -1470,7 +1632,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Comment", FieldName: "text"}: {HasWeight: true, Weight: 1},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -1541,7 +1703,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Comment", FieldName: "text"}: {HasWeight: true, Weight: 1},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -1605,7 +1767,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "User", FieldName: "id"}: {HasWeight: true, Weight: 1},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -1671,7 +1833,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Comment", FieldName: "text"}: {HasWeight: true, Weight: 1},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -1828,7 +1990,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							},
 							ChildNodes: []plan.TypeField{},
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Level5", FieldName: "value"}: {HasWeight: true, Weight: 1},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -2041,7 +2203,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "User", FieldName: "name"}: {HasWeight: true, Weight: 2},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -2091,7 +2253,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "User", FieldName: "name"}: {HasWeight: true, Weight: 2},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -2148,7 +2310,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "User", FieldName: "name"}:  {HasWeight: true, Weight: 2},
 									{TypeName: "Post", FieldName: "title"}: {HasWeight: true, Weight: 3},
 								},
@@ -2209,7 +2371,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "User", FieldName: "name"}: {HasWeight: true, Weight: 2},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -2262,7 +2424,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "User", FieldName: "name"}: {HasWeight: true, Weight: 2},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -2312,7 +2474,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "User", FieldName: "name"}: {HasWeight: true, Weight: 2},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -2362,7 +2524,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "User", FieldName: "name"}: {HasWeight: true, Weight: 2},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -2413,7 +2575,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "User", FieldName: "name"}: {HasWeight: true, Weight: 2},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -2520,7 +2682,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 								RootNodes:  rootNodes,
 								ChildNodes: childNodes,
 								CostConfig: &plan.DataSourceCostConfig{
-									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+									Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 										{TypeName: "User", FieldName: "name"}: {HasWeight: true, Weight: 2},
 									},
 									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -3013,7 +3175,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 		}
 
 		costConfigWithRequireOne := &plan.DataSourceCostConfig{
-			Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+			Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 				{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
 			},
 			ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -3033,7 +3195,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 		}
 
 		costConfigWithRequireOneDisabled := &plan.DataSourceCostConfig{
-			Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+			Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 				{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
 			},
 			ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -3614,7 +3776,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			SchemaConfiguration: mustSchemaConfig(t, nil, inputObjectSchema),
 		})
 		costConfig := &plan.DataSourceCostConfig{
-			Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+			Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 				{TypeName: "CreateInput", FieldName: "name"}:   {HasWeight: true, Weight: 5},
 				{TypeName: "CreateInput", FieldName: "email"}:  {HasWeight: true, Weight: 3},
 				{TypeName: "CreateInput", FieldName: "age"}:    {HasWeight: true, Weight: 2},
