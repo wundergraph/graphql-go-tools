@@ -170,6 +170,30 @@ request token) to prevent production abuse. The gate is in `GraphQLHandler.cachi
 `router/core/graphql_handler.go`. Disabling L1 via these headers also disables @requestScoped
 coordinate L1 (since it shares the `EnableL1Cache` flag).
 
+## Code Comment Conventions
+
+**Never reference pull requests, issue numbers, review threads, or reviewer names in code comments.**
+
+Comments live in the codebase forever and outlive the workflow context they were written in.
+A `PR #1259` reference is meaningful for two weeks and noise for the next ten years.
+Reviewer attribution (`as requested in ysmolski's review`, `addresses SkArchon's comment`) belongs in commit messages and PR descriptions, never in source files.
+
+If a comment exists to explain a non-obvious behavior, explain the **behavior**, not the historical reason it was added.
+
+```go
+// CORRECT — explains the invariant
+// isEntityRootField previously compared a non-normalized current path against a
+// normalized boundary path. Without normalizing here first, queries that wrap the
+// boundary in `... on User { ... }` cause the prefix check to silently fail.
+
+// WRONG — references the PR / review / ticket where the fix was discussed
+// Regression guard for the A42 bug in PR #1259 raised by ysmolski:
+// isEntityRootField previously compared a non-normalized current path...
+```
+
+This applies to all code comments — production, tests, doc comments, file headers.
+Commit messages may reference PRs and reviewers; code may not.
+
 ## Testing Conventions
 
 **Before writing or modifying any test, read the package's `CLAUDE.md` if one exists.**

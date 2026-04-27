@@ -27,7 +27,7 @@ func TestVisitorEntityKeyFieldNames(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		fieldNames := (&Visitor{}).entityKeyFieldNames(keys)
+		fieldNames := newCachingPlannerState(&Visitor{}).entityKeyFieldNames(keys)
 
 		assert.Equal(t, map[string]struct{}{
 			"id":      {},
@@ -48,7 +48,7 @@ func TestVisitorEntityKeyFieldNames(t *testing.T) {
 			SelectionSet: selectionSetRef,
 		})
 
-		fieldNames := (&Visitor{}).entityKeyFieldNames([]FederationFieldConfiguration{
+		fieldNames := newCachingPlannerState(&Visitor{}).entityKeyFieldNames([]FederationFieldConfiguration{
 			{
 				TypeName:     "User",
 				SelectionSet: "{",

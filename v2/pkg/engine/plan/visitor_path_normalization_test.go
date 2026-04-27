@@ -10,12 +10,12 @@ import (
 // isEntityBoundaryField / isEntityRootField strips inline-fragment type markers
 // from walker paths so that boundary comparisons are shape-independent.
 //
-// Regression guard for the A42 bug in PR #1259: isEntityRootField previously
-// compared a non-normalized current path against a normalized boundary path,
-// so a query that wraps the boundary in `... on User { ... }` caused the
-// prefix check to silently fail.
+// Regression guard: isEntityRootField previously compared a non-normalized
+// current path against a normalized boundary path, so a query that wraps the
+// boundary in `... on User { ... }` caused the prefix check to silently fail.
 func TestNormalizePathRemovingFragments(t *testing.T) {
 	v := &Visitor{}
+	v.caching = newCachingPlannerState(v)
 
 	cases := []struct {
 		name string
@@ -30,7 +30,7 @@ func TestNormalizePathRemovingFragments(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := v.normalizePathRemovingFragments(tc.in)
+			got := v.caching.normalizePathRemovingFragments(tc.in)
 			assert.Equal(t, tc.want, got)
 		})
 	}
@@ -48,6 +48,7 @@ func TestNormalizePathRemovingFragments(t *testing.T) {
 // returned false; after the fix it returns true.
 func TestIsEntityRootPath(t *testing.T) {
 	v := &Visitor{}
+	v.caching = newCachingPlannerState(v)
 
 	cases := []struct {
 		name         string
@@ -94,7 +95,7 @@ func TestIsEntityRootPath(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := v.isEntityRootPath(tc.boundaryPath, tc.fullPath)
+			got := v.caching.isEntityRootPath(tc.boundaryPath, tc.fullPath)
 			assert.Equal(t, tc.want, got)
 		})
 	}

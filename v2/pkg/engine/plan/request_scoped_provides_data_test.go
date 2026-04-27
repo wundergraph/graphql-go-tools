@@ -13,13 +13,14 @@ import (
 // response key (alias or schema name) and populates ProvidesData.
 func TestPopulateRequestScopedFieldsProvidesData(t *testing.T) {
 	t.Parallel()
+	caching := newCachingPlannerState(&Visitor{})
 
 	t.Run("no plannerObj leaves fields unchanged", func(t *testing.T) {
 		t.Parallel()
 		fields := []resolve.RequestScopedField{
 			{FieldName: "currentViewer", FieldPath: []string{"currentViewer"}, L1Key: "k"},
 		}
-		out := populateRequestScopedFieldsProvidesData(fields, nil)
+		out := caching.populateRequestScopedFieldsProvidesData(fields, nil)
 		assert.Equal(t, fields, out)
 	})
 
@@ -33,7 +34,7 @@ func TestPopulateRequestScopedFieldsProvidesData(t *testing.T) {
 		fields := []resolve.RequestScopedField{
 			{FieldName: "currentViewer", FieldPath: []string{"currentViewer"}, L1Key: "k"},
 		}
-		out := populateRequestScopedFieldsProvidesData(fields, plannerObj)
+		out := caching.populateRequestScopedFieldsProvidesData(fields, plannerObj)
 		assert.Len(t, out, 1)
 		assert.Equal(t, "currentViewer", out[0].FieldName)
 		assert.Nil(t, out[0].ProvidesData)
@@ -55,7 +56,7 @@ func TestPopulateRequestScopedFieldsProvidesData(t *testing.T) {
 		fields := []resolve.RequestScopedField{
 			{FieldName: "currentViewer", FieldPath: []string{"currentViewer"}, L1Key: "k"},
 		}
-		out := populateRequestScopedFieldsProvidesData(fields, plannerObj)
+		out := caching.populateRequestScopedFieldsProvidesData(fields, plannerObj)
 		assert.Len(t, out, 1)
 		assert.Equal(t, "currentViewer", out[0].FieldName)
 		assert.Equal(t, []string{"currentViewer"}, out[0].FieldPath)
@@ -85,7 +86,7 @@ func TestPopulateRequestScopedFieldsProvidesData(t *testing.T) {
 		fields := []resolve.RequestScopedField{
 			{FieldName: "viewer", FieldPath: []string{"viewer"}, L1Key: "k"},
 		}
-		out := populateRequestScopedFieldsProvidesData(fields, plannerObj)
+		out := caching.populateRequestScopedFieldsProvidesData(fields, plannerObj)
 		assert.Len(t, out, 1)
 		assert.Equal(t, "viewer", out[0].FieldName)
 		assert.Equal(t, []string{"viewer"}, out[0].FieldPath)
@@ -106,7 +107,7 @@ func TestPopulateRequestScopedFieldsProvidesData(t *testing.T) {
 			{FieldName: "viewer", FieldPath: []string{"viewer"}, L1Key: "k1"},
 			{FieldName: "tenantConfig", FieldPath: []string{"tenantConfig"}, L1Key: "k2"},
 		}
-		out := populateRequestScopedFieldsProvidesData(fields, plannerObj)
+		out := caching.populateRequestScopedFieldsProvidesData(fields, plannerObj)
 		assert.Len(t, out, 2)
 		assert.Same(t, viewerObj, out[0].ProvidesData)
 		assert.Same(t, tenantObj, out[1].ProvidesData)
@@ -122,7 +123,7 @@ func TestPopulateRequestScopedFieldsProvidesData(t *testing.T) {
 		fields := []resolve.RequestScopedField{
 			{FieldName: "locale", FieldPath: []string{"locale"}, L1Key: "k"},
 		}
-		out := populateRequestScopedFieldsProvidesData(fields, plannerObj)
+		out := caching.populateRequestScopedFieldsProvidesData(fields, plannerObj)
 		assert.Len(t, out, 1)
 		assert.Nil(t, out[0].ProvidesData) // Scalar, not Object
 	})
@@ -131,6 +132,7 @@ func TestPopulateRequestScopedFieldsProvidesData(t *testing.T) {
 // TestFindObjectFieldByResponseKey verifies the response-key lookup helper.
 func TestFindObjectFieldByResponseKey(t *testing.T) {
 	t.Parallel()
+	caching := newCachingPlannerState(&Visitor{})
 
 	obj := &resolve.Object{
 		Fields: []*resolve.Field{
@@ -141,31 +143,31 @@ func TestFindObjectFieldByResponseKey(t *testing.T) {
 
 	t.Run("matches by response key", func(t *testing.T) {
 		t.Parallel()
-		sub := findObjectFieldByResponseKey(obj, "cv")
+		sub := caching.findObjectFieldByResponseKey(obj, "cv")
 		assert.NotNil(t, sub)
 	})
 
 	t.Run("schema name does not match when aliased", func(t *testing.T) {
 		t.Parallel()
-		sub := findObjectFieldByResponseKey(obj, "currentViewer")
+		sub := caching.findObjectFieldByResponseKey(obj, "currentViewer")
 		assert.Nil(t, sub)
 	})
 
 	t.Run("scalar field returns nil", func(t *testing.T) {
 		t.Parallel()
-		sub := findObjectFieldByResponseKey(obj, "id")
+		sub := caching.findObjectFieldByResponseKey(obj, "id")
 		assert.Nil(t, sub)
 	})
 
 	t.Run("not found returns nil", func(t *testing.T) {
 		t.Parallel()
-		sub := findObjectFieldByResponseKey(obj, "unknown")
+		sub := caching.findObjectFieldByResponseKey(obj, "unknown")
 		assert.Nil(t, sub)
 	})
 
 	t.Run("nil obj returns nil", func(t *testing.T) {
 		t.Parallel()
-		sub := findObjectFieldByResponseKey(nil, "anything")
+		sub := caching.findObjectFieldByResponseKey(nil, "anything")
 		assert.Nil(t, sub)
 	})
 }
