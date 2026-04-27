@@ -63,6 +63,8 @@ func BuildRepresentationVariableNode(definition *ast.Document, cfg FederationFie
 }
 
 // MergeRepresentationVariableNodes merges multiple representation variable objects into one.
+// It is part of the public planner API consumed by external integrations
+// such as wundergraph/cosmo; breaking changes require coordinated downstream updates.
 func MergeRepresentationVariableNodes(objects []*resolve.Object) *resolve.Object {
 	fieldCount := 0
 	for _, object := range objects {

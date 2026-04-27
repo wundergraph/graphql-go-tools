@@ -274,6 +274,8 @@ func (c *CacheAnalyticsCollector) RecordL1KeyEvent(kind CacheKeyEventKind, entit
 }
 
 // RecordL2KeyEvent records an L2 cache key lookup event. Main thread only.
+// It is exported for external consumers such as cosmo router; this repository
+// has no production caller. If cosmo no longer uses it, internalize it in the next breaking window.
 // Use MergeL2Events to merge events collected on per-result slices from goroutines.
 func (c *CacheAnalyticsCollector) RecordL2KeyEvent(kind CacheKeyEventKind, entityType, cacheKey, dataSource string, byteSize int) {
 	c.l2KeyEvents = append(c.l2KeyEvents, CacheKeyEvent{
@@ -352,6 +354,8 @@ func (c *CacheAnalyticsCollector) MergeEntitySources(sources []entitySourceRecor
 }
 
 // RecordFetchTiming records a fetch timing event. Main thread only.
+// It is exported for external consumers such as cosmo router; this repository
+// has no production caller. If cosmo no longer uses it, internalize it in the next breaking window.
 func (c *CacheAnalyticsCollector) RecordFetchTiming(event FetchTimingEvent) {
 	c.fetchTimings = append(c.fetchTimings, event)
 }
