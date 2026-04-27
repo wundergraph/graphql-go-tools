@@ -482,9 +482,9 @@ func TestEntityMergePath_AllPathVariants(t *testing.T) {
 
 			// Pre-populate cache with entity-level data (as stored by cacheKeysToEntries with EntityMergePath)
 			cacheKey := `{"__typename":"User","key":{"id":"1234"}}`
-			err := cache.Set(context.Background(), []*CacheEntry{
+			err := cache.Set(context.Background(), withCacheEntryTTL([]*CacheEntry{
 				{Key: cacheKey, Value: []byte(`{"id":"1234","username":"Me"}`)},
-			}, 30*time.Second)
+			}, 30*time.Second))
 			require.NoError(t, err)
 
 			// Set up result with L2 cache keys that have EntityMergePath
@@ -552,9 +552,9 @@ func TestEntityMergePath_AllPathVariants(t *testing.T) {
 			}
 
 			cacheKey := `root:user:1234`
-			err := cache.Set(context.Background(), []*CacheEntry{
+			err := cache.Set(context.Background(), withCacheEntryTTL([]*CacheEntry{
 				{Key: cacheKey, Value: []byte(`{"user":{"id":"1234","username":"Me"}}`)},
-			}, 30*time.Second)
+			}, 30*time.Second))
 			require.NoError(t, err)
 
 			res := &result{
@@ -666,9 +666,9 @@ func TestEntityMergePath_AllPathVariants(t *testing.T) {
 			}
 
 			cacheKey := `key1`
-			err := cache.Set(context.Background(), []*CacheEntry{
+			err := cache.Set(context.Background(), withCacheEntryTTL([]*CacheEntry{
 				{Key: cacheKey, Value: []byte(`{"id":"1234"}`)},
-			}, 30*time.Second)
+			}, 30*time.Second))
 			require.NoError(t, err)
 
 			res := &result{
@@ -759,7 +759,7 @@ func TestEntityMergePath_AllPathVariants(t *testing.T) {
 			assert.Equal(t, `{"id":"1234","username":"Me"}`, string(entries[0].Value))
 
 			// Step 2: Store in L2 cache
-			err = cache.Set(context.Background(), entries, 30*time.Second)
+			err = cache.Set(context.Background(), withCacheEntryTTL(entries, 30*time.Second))
 			require.NoError(t, err)
 
 			// Step 3: Load from L2 cache with EntityMergePath wrapping
@@ -860,7 +860,7 @@ func TestEntityMergePath_AllPathVariants(t *testing.T) {
 			assert.Equal(t, `{"__typename":"User","id":"1234","username":"Me"}`, string(entries[0].Value))
 
 			// Store in L2
-			err = cache.Set(context.Background(), entries, 30*time.Second)
+			err = cache.Set(context.Background(), withCacheEntryTTL(entries, 30*time.Second))
 			require.NoError(t, err)
 
 			// Step 2: Entity fetch tries to load from cache using same key format

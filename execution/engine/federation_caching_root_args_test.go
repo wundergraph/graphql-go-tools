@@ -60,17 +60,10 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 		logAfterFirst := defaultCache.GetLog()
 		assert.Equal(t, 2, len(logAfterFirst), "First query should have 2 cache operations (get miss + set)")
 		wantLogFirst := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"Query","field":"user","args":{"id":"1234"}}`},
-				Hits:      []bool{false},
-			},
-			{
-				Operation: "set",
-				Keys:      []string{`{"__typename":"Query","field":"user","args":{"id":"1234"}}`},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"user","args":{"id":"1234"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"user","args":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "First query cache log should match")
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "First query cache log should match")
 		assert.Equal(t, 1, tracker.GetCount(accountsHost), "First query should call accounts subgraph once")
 
 		// Second query - cache hit
@@ -82,13 +75,9 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 		logAfterSecond := defaultCache.GetLog()
 		assert.Equal(t, 1, len(logAfterSecond), "Second query should have 1 cache get (hit)")
 		wantLogSecond := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"Query","field":"user","args":{"id":"1234"}}`},
-				Hits:      []bool{true},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"user","args":{"id":"1234"}}`, Hit: true}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Second query should hit cache")
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "Second query should hit cache")
 		assert.Equal(t, 0, tracker.GetCount(accountsHost), "Second query should skip accounts subgraph (cache hit)")
 	})
 
@@ -129,17 +118,10 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 
 		logAfterFirst := defaultCache.GetLog()
 		wantLogFirst := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"Query","field":"user","args":{"id":"1234"}}`},
-				Hits:      []bool{false},
-			},
-			{
-				Operation: "set",
-				Keys:      []string{`{"__typename":"Query","field":"user","args":{"id":"1234"}}`},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"user","args":{"id":"1234"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"user","args":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "First query should miss cache and set")
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "First query should miss cache and set")
 
 		// Second query with id=5678 - different cache key
 		defaultCache.ClearLog()
@@ -151,17 +133,10 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 		logAfterSecond := defaultCache.GetLog()
 		assert.Equal(t, 2, len(logAfterSecond), "Second query with different id should have get miss + set")
 		wantLog := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"Query","field":"user","args":{"id":"5678"}}`},
-				Hits:      []bool{false},
-			},
-			{
-				Operation: "set",
-				Keys:      []string{`{"__typename":"Query","field":"user","args":{"id":"5678"}}`},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"user","args":{"id":"5678"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"user","args":{"id":"5678"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLog), sortCacheLogKeys(logAfterSecond), "Different args should produce different cache keys")
+		assert.Equal(t, sortCacheLogEntries(wantLog), sortCacheLogEntries(logAfterSecond), "Different args should produce different cache keys")
 
 		// Third query with id=1234 - should hit cache from first query
 		defaultCache.ClearLog()
@@ -172,13 +147,9 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 
 		logAfterThird := defaultCache.GetLog()
 		wantLogThird := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"Query","field":"user","args":{"id":"1234"}}`},
-				Hits:      []bool{true},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"user","args":{"id":"1234"}}`, Hit: true}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogThird), sortCacheLogKeys(logAfterThird), "Third query should hit cache from first query")
+		assert.Equal(t, sortCacheLogEntries(wantLogThird), sortCacheLogEntries(logAfterThird), "Third query should hit cache from first query")
 	})
 
 	t.Run("entity key mapping - uses entity key format", func(t *testing.T) {
@@ -232,17 +203,10 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 		logAfterFirst := defaultCache.GetLog()
 		assert.Equal(t, 2, len(logAfterFirst), "Should have get miss + set")
 		wantLog := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-				Hits:      []bool{false},
-			},
-			{
-				Operation: "set",
-				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLog), sortCacheLogKeys(logAfterFirst), "Should use entity key format, not root field format")
+		assert.Equal(t, sortCacheLogEntries(wantLog), sortCacheLogEntries(logAfterFirst), "Should use entity key format, not root field format")
 		assert.Equal(t, 1, tracker.GetCount(accountsHost), "First query should call accounts once")
 
 		// Second query - should hit cache using entity key
@@ -254,13 +218,9 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 		logAfterSecond := defaultCache.GetLog()
 		assert.Equal(t, 1, len(logAfterSecond), "Second query should hit cache")
 		wantLogSecond := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-				Hits:      []bool{true},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Second query should hit entity cache key")
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "Second query should hit entity cache key")
 		assert.Equal(t, 0, tracker.GetCount(accountsHost), "Second query should skip accounts (cache hit)")
 	})
 
@@ -325,17 +285,10 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 
 		logAfterDelete := defaultCache.GetLog()
 		wantLogDelete := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-				Hits:      []bool{false},
-			},
-			{
-				Operation: "set",
-				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogDelete), sortCacheLogKeys(logAfterDelete), "After deletion: get miss + set")
+		assert.Equal(t, sortCacheLogEntries(wantLogDelete), sortCacheLogEntries(logAfterDelete), "After deletion: get miss + set")
 	})
 
 	t.Run("entity key mapping - cross-lookup from entity fetch", func(t *testing.T) {
@@ -407,17 +360,10 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 		// Verify root field used entity key format
 		logAfterFirst := defaultCache.GetLog()
 		wantLogFirst := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-				Hits:      []bool{false},
-			},
-			{
-				Operation: "set",
-				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "Root field query should use entity key format")
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "Root field query should use entity key format")
 
 		// Second: Query that triggers entity fetch for same User 1234
 		// Both root field and entity fetch use the same cache key format.
@@ -432,33 +378,19 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 
 		logAfterSecond := defaultCache.GetLog()
 		wantLogSecond := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"Query","field":"topProducts"}`},
-				Hits:      []bool{false},
-			},
-			{
-				Operation: "set",
-				Keys:      []string{`{"__typename":"Query","field":"topProducts"}`},
-			},
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`},
-				Hits:      []bool{false, false},
-			},
-			{
-				Operation: "set",
-				Keys:      []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`},
-			},
-			{
-				// Cross-lookup hit: root field stored entity-level data,
-				// entity fetch reads it and validation passes.
-				Operation: "get",
-				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-				Hits:      []bool{true},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, TTL: 30 * time.Second}}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: false},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: false},
+			}},
+			{Operation: "set", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, TTL: 30 * time.Second},
+			}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Entity fetch should use same key format as root field entity key mapping")
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "Entity fetch should use same key format as root field entity key mapping")
 	})
 
 	t.Run("entity key mapping - cross-lookup from root field", func(t *testing.T) {
@@ -529,41 +461,20 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 
 		logAfterFirst := defaultCache.GetLog()
 		wantLogFirst := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"Query","field":"topProducts"}`},
-				Hits:      []bool{false},
-			},
-			{
-				Operation: "set",
-				Keys:      []string{`{"__typename":"Query","field":"topProducts"}`},
-			},
-			{
-				Operation: "get",
-				Keys: []string{
-					`{"__typename":"Product","key":{"upc":"top-1"}}`,
-					`{"__typename":"Product","key":{"upc":"top-2"}}`,
-				},
-				Hits: []bool{false, false},
-			},
-			{
-				Operation: "set",
-				Keys: []string{
-					`{"__typename":"Product","key":{"upc":"top-1"}}`,
-					`{"__typename":"Product","key":{"upc":"top-2"}}`,
-				},
-			},
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-				Hits:      []bool{false},
-			},
-			{
-				Operation: "set",
-				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, TTL: 30 * time.Second}}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: false},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: false},
+			}},
+			{Operation: "set", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, TTL: 30 * time.Second},
+			}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "First query should miss all caches and set")
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "First query should miss all caches and set")
 
 		// Second: Root field query with entity key mapping for same User 1234
 		// Root field generates entity key {"__typename":"User","key":{"id":"1234"}} (same as entity fetch).
@@ -576,15 +487,9 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 
 		logAfterSecond := defaultCache.GetLog()
 		wantLogSecond := []CacheLogEntry{
-			{
-				// Cross-lookup hit: entity fetch stored entity-level data,
-				// root field wraps it at merge path and validation passes.
-				Operation: "get",
-				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-				Hits:      []bool{true},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Root field should hit cache from entity fetch data")
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "Root field should hit cache from entity fetch data")
 	})
 
 	t.Run("entity key mapping + header prefix", func(t *testing.T) {
@@ -642,17 +547,10 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 		logAfterFirst := defaultCache.GetLog()
 		assert.Equal(t, 2, len(logAfterFirst), "Should have get miss + set")
 		wantLog := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`33333:{"__typename":"User","key":{"id":"1234"}}`},
-				Hits:      []bool{false},
-			},
-			{
-				Operation: "set",
-				Keys:      []string{`33333:{"__typename":"User","key":{"id":"1234"}}`},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `33333:{"__typename":"User","key":{"id":"1234"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `33333:{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLog), sortCacheLogKeys(logAfterFirst), "Entity key should have header prefix")
+		assert.Equal(t, sortCacheLogEntries(wantLog), sortCacheLogEntries(logAfterFirst), "Entity key should have header prefix")
 	})
 
 	t.Run("root field without args - regression", func(t *testing.T) {
@@ -692,17 +590,10 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 
 		logAfterFirst := defaultCache.GetLog()
 		wantLogFirst := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"Query","field":"topProducts"}`},
-				Hits:      []bool{false},
-			},
-			{
-				Operation: "set",
-				Keys:      []string{`{"__typename":"Query","field":"topProducts"}`},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "Should use root field key format (no entity key mapping)")
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "Should use root field key format (no entity key mapping)")
 
 		// Second query - hit
 		defaultCache.ClearLog()
@@ -713,13 +604,9 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 
 		logAfterSecond := defaultCache.GetLog()
 		wantLogSecond := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"Query","field":"topProducts"}`},
-				Hits:      []bool{true},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: true}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Second query should hit cache")
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "Second query should hit cache")
 	})
 
 	t.Run("root field caching + entity caching nested", func(t *testing.T) {
@@ -776,26 +663,12 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 		// Should have root field get/set + entity get/set
 		assert.Equal(t, 4, len(logAfterFirst), "Should have 4 cache operations (root field get/set + entity get/set)")
 		wantLogFirst := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"Query","field":"product","args":{"upc":"top-1"}}`},
-				Hits:      []bool{false},
-			},
-			{
-				Operation: "set",
-				Keys:      []string{`{"__typename":"Query","field":"product","args":{"upc":"top-1"}}`},
-			},
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"Product","key":{"upc":"top-1"}}`},
-				Hits:      []bool{false},
-			},
-			{
-				Operation: "set",
-				Keys:      []string{`{"__typename":"Product","key":{"upc":"top-1"}}`},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"product","args":{"upc":"top-1"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"product","args":{"upc":"top-1"}}`, TTL: 30 * time.Second}}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "First query should miss both root field and entity cache")
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "First query should miss both root field and entity cache")
 
 		// Second identical query - all from cache
 		defaultCache.ClearLog()
@@ -807,18 +680,10 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 
 		logAfterSecond := defaultCache.GetLog()
 		wantLogSecond := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"Query","field":"product","args":{"upc":"top-1"}}`},
-				Hits:      []bool{true},
-			},
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"Product","key":{"upc":"top-1"}}`},
-				Hits:      []bool{true},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"product","args":{"upc":"top-1"}}`, Hit: true}}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: true}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Second query should hit both root field and entity cache")
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "Second query should hit both root field and entity cache")
 	})
 
 	t.Run("TTL expiry", func(t *testing.T) {
@@ -952,17 +817,10 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 
 		logAfterFirst := defaultCache.GetLog()
 		wantLogFirst := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"Query","field":"userByIdAndName","args":{"id":"1234","username":"Me"}}`},
-				Hits:      []bool{false},
-			},
-			{
-				Operation: "set",
-				Keys:      []string{`{"__typename":"Query","field":"userByIdAndName","args":{"id":"1234","username":"Me"}}`},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"userByIdAndName","args":{"id":"1234","username":"Me"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"userByIdAndName","args":{"id":"1234","username":"Me"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "First query cache log should match")
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "First query cache log should match")
 
 		// Second query: arguments in REVERSED order (username, id)
 		// The cache key should be identical because the planner always adds arguments
@@ -975,13 +833,9 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 
 		logAfterSecond := defaultCache.GetLog()
 		wantLogSecond := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"Query","field":"userByIdAndName","args":{"id":"1234","username":"Me"}}`},
-				Hits:      []bool{true},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"userByIdAndName","args":{"id":"1234","username":"Me"}}`, Hit: true}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Second query (reversed args) should hit cache with identical key")
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "Second query (reversed args) should hit cache with identical key")
 	})
 
 	t.Run("root field more fields then fewer fields - cache hit (superset)", func(t *testing.T) {
@@ -1021,17 +875,10 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 
 		logAfterFirst := defaultCache.GetLog()
 		wantLogFirst := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"Query","field":"user","args":{"id":"1234"}}`},
-				Hits:      []bool{false},
-			},
-			{
-				Operation: "set",
-				Keys:      []string{`{"__typename":"Query","field":"user","args":{"id":"1234"}}`},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"user","args":{"id":"1234"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"user","args":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "First query cache log should match")
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "First query cache log should match")
 
 		// Second query: fetch FEWER fields (username only) - should be cache HIT
 		// The cached data has {username, realName}, the query only needs {username} → superset → hit
@@ -1043,13 +890,9 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 
 		logAfterSecond := defaultCache.GetLog()
 		wantLogSecond := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"Query","field":"user","args":{"id":"1234"}}`},
-				Hits:      []bool{true},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"user","args":{"id":"1234"}}`, Hit: true}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Second query (fewer fields) should be a cache HIT because cached data is a superset")
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "Second query (fewer fields) should be a cache HIT because cached data is a superset")
 	})
 
 	t.Run("root field fewer fields then more fields - cache miss (subset)", func(t *testing.T) {
@@ -1089,17 +932,10 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 
 		logAfterFirst := defaultCache.GetLog()
 		wantLogFirst := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"Query","field":"user","args":{"id":"1234"}}`},
-				Hits:      []bool{false},
-			},
-			{
-				Operation: "set",
-				Keys:      []string{`{"__typename":"Query","field":"user","args":{"id":"1234"}}`},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"user","args":{"id":"1234"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"user","args":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "First query cache log should match")
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "First query cache log should match")
 
 		// Second query: fetch MORE fields (username + realName) - should be cache MISS
 		// The cached data only has {username}, the query needs {username, realName} → subset → miss
@@ -1113,17 +949,10 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 		// The cache GET returns a hit (key exists), but validateItemHasRequiredData fails
 		// because the cached data is missing realName. This causes a re-fetch (tracker=1) and cache update.
 		wantLogSecond := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"Query","field":"user","args":{"id":"1234"}}`},
-				Hits:      []bool{true},
-			},
-			{
-				Operation: "set",
-				Keys:      []string{`{"__typename":"Query","field":"user","args":{"id":"1234"}}`},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"user","args":{"id":"1234"}}`, Hit: true}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"user","args":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Second query should find stale cache entry but re-fetch because cached data is only a subset")
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "Second query should find stale cache entry but re-fetch because cached data is only a subset")
 
 		// Third query: same more-fields query - should now hit cache (re-fetch populated it)
 		defaultCache.ClearLog()
@@ -1134,13 +963,9 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 
 		logAfterThird := defaultCache.GetLog()
 		wantLogThird := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"Query","field":"user","args":{"id":"1234"}}`},
-				Hits:      []bool{true},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"user","args":{"id":"1234"}}`, Hit: true}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogThird), sortCacheLogKeys(logAfterThird), "Third query should hit cache with full data from re-fetch")
+		assert.Equal(t, sortCacheLogEntries(wantLogThird), sortCacheLogEntries(logAfterThird), "Third query should hit cache with full data from re-fetch")
 	})
 
 	t.Run("entity key mapping - multiple keys single mapping", func(t *testing.T) {
@@ -1198,17 +1023,10 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 		logAfterFirst := defaultCache.GetLog()
 		assert.Equal(t, 2, len(logAfterFirst), "Should have get miss + set")
 		wantLogFirst := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-				Hits:      []bool{false},
-			},
-			{
-				Operation: "set",
-				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "Single mapping: only id key, not combined id+username")
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "Single mapping: only id key, not combined id+username")
 
 		// Second query - hit via entity key
 		defaultCache.ClearLog()
@@ -1220,13 +1038,9 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 		logAfterSecond := defaultCache.GetLog()
 		assert.Equal(t, 1, len(logAfterSecond), "Second query should have single get hit")
 		wantLogSecond := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-				Hits:      []bool{true},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Should hit cache via entity key")
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "Should hit cache via entity key")
 	})
 
 	t.Run("entity key mapping - multiple keys multiple mappings", func(t *testing.T) {
@@ -1290,23 +1104,16 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 		logAfterFirst := defaultCache.GetLog()
 		assert.Equal(t, 2, len(logAfterFirst), "Should have get miss + set (both keys)")
 		wantLogFirst := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys: []string{
-					`{"__typename":"User","key":{"id":"1234"}}`,
-					`{"__typename":"User","key":{"username":"Me"}}`,
-				},
-				Hits: []bool{false, false},
-			},
-			{
-				Operation: "set",
-				Keys: []string{
-					`{"__typename":"User","key":{"id":"1234"}}`,
-					`{"__typename":"User","key":{"username":"Me"}}`,
-				},
-			},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false},
+				{Key: `{"__typename":"User","key":{"username":"Me"}}`, Hit: false},
+			}},
+			{Operation: "set", Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"User","key":{"username":"Me"}}`, TTL: 30 * time.Second},
+			}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "Multiple mappings: data stored under both id and username keys")
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "Multiple mappings: data stored under both id and username keys")
 
 		// Second query - hit (via either key)
 		defaultCache.ClearLog()
@@ -1318,16 +1125,12 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 		logAfterSecond := defaultCache.GetLog()
 		assert.Equal(t, 1, len(logAfterSecond), "Second query should have single get hit")
 		wantLogSecond := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys: []string{
-					`{"__typename":"User","key":{"id":"1234"}}`,
-					`{"__typename":"User","key":{"username":"Me"}}`,
-				},
-				Hits: []bool{true, true},
-			},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true},
+				{Key: `{"__typename":"User","key":{"username":"Me"}}`, Hit: true},
+			}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Both keys should hit cache")
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "Both keys should hit cache")
 	})
 
 	t.Run("entity key mapping - multiple mappings partial args", func(t *testing.T) {
@@ -1391,20 +1194,13 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 		logAfterFirst := defaultCache.GetLog()
 		assert.Equal(t, 2, len(logAfterFirst), "Should have get miss + set (id key plus response-derived username key)")
 		wantLogFirst := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-				Hits:      []bool{false},
-			},
-			{
-				Operation: "set",
-				Keys: []string{
-					`{"__typename":"User","key":{"id":"1234"}}`,
-					`{"__typename":"User","key":{"username":"Me"}}`,
-				},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"User","key":{"username":"Me"}}`, TTL: 30 * time.Second},
+			}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "The response supplies username, so both entity keys are written")
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "The response supplies username, so both entity keys are written")
 
 		// Second query - hit via id key
 		defaultCache.ClearLog()
@@ -1416,13 +1212,9 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 		logAfterSecond := defaultCache.GetLog()
 		assert.Equal(t, 1, len(logAfterSecond), "Second query should have single get hit")
 		wantLogSecond := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-				Hits:      []bool{true},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Single id key should hit cache")
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "Single id key should hit cache")
 	})
 
 	t.Run("entity key mapping - multiple mappings cross-lookup", func(t *testing.T) {
@@ -1499,23 +1291,16 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 
 		logAfterFirst := defaultCache.GetLog()
 		wantLogFirst := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys: []string{
-					`{"__typename":"User","key":{"id":"1234"}}`,
-					`{"__typename":"User","key":{"username":"Me"}}`,
-				},
-				Hits: []bool{false, false},
-			},
-			{
-				Operation: "set",
-				Keys: []string{
-					`{"__typename":"User","key":{"id":"1234"}}`,
-					`{"__typename":"User","key":{"username":"Me"}}`,
-				},
-			},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false},
+				{Key: `{"__typename":"User","key":{"username":"Me"}}`, Hit: false},
+			}},
+			{Operation: "set", Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"User","key":{"username":"Me"}}`, TTL: 30 * time.Second},
+			}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "Root field should store under both id and username entity keys")
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "Root field should store under both id and username entity keys")
 
 		// Second: Entity fetch for User 1234 via topProducts → reviews → authorWithoutProvides
 		// Entity fetch uses @key(fields: "id") → finds data stored under id key by root field
@@ -1527,39 +1312,19 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 
 		logAfterSecond := defaultCache.GetLog()
 		wantLogSecond := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"Query","field":"topProducts"}`},
-				Hits:      []bool{false},
-			},
-			{
-				Operation: "set",
-				Keys:      []string{`{"__typename":"Query","field":"topProducts"}`},
-			},
-			{
-				Operation: "get",
-				Keys: []string{
-					`{"__typename":"Product","key":{"upc":"top-1"}}`,
-					`{"__typename":"Product","key":{"upc":"top-2"}}`,
-				},
-				Hits: []bool{false, false},
-			},
-			{
-				Operation: "set",
-				Keys: []string{
-					`{"__typename":"Product","key":{"upc":"top-1"}}`,
-					`{"__typename":"Product","key":{"upc":"top-2"}}`,
-				},
-			},
-			{
-				// Cross-lookup hit: root field stored entity-level data under id key,
-				// entity fetch finds it via @key(fields: "id").
-				Operation: "get",
-				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-				Hits:      []bool{true},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, TTL: 30 * time.Second}}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: false},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: false},
+			}},
+			{Operation: "set", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, TTL: 30 * time.Second},
+			}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Entity fetch should cross-lookup User via id key stored by root field")
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "Entity fetch should cross-lookup User via id key stored by root field")
 	})
 
 	t.Run("root field not configured - still calls subgraph", func(t *testing.T) {
@@ -1684,23 +1449,16 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 
 		logAfterFirst := defaultCache.GetLog()
 		wantLogFirst := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys: []string{
-					`{"__typename":"User","key":{"id":"1234"}}`,
-					`{"__typename":"User","key":{"username":"Me"}}`,
-				},
-				Hits: []bool{false, false}, // L2 empty, both keys miss
-			},
-			{
-				Operation: "set",
-				Keys: []string{
-					`{"__typename":"User","key":{"id":"1234"}}`,
-					`{"__typename":"User","key":{"username":"Me"}}`,
-				},
-			},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false},
+				{Key: `{"__typename":"User","key":{"username":"Me"}}`, Hit: false},
+			}},
+			{Operation: "set", Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"User","key":{"username":"Me"}}`, TTL: 30 * time.Second},
+			}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "Both mappings resolved: data stored under id and username keys")
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "Both mappings resolved: data stored under id and username keys")
 
 		// Step 2: user(id) — only id mapping resolves → 1 read (hit via id key)
 		defaultCache.ClearLog()
@@ -1711,13 +1469,9 @@ func TestRootFieldCachingWithArgs(t *testing.T) {
 
 		logAfterSecond := defaultCache.GetLog()
 		wantLogSecond := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-				Hits:      []bool{true}, // Hit: id key was written by userByIdAndName in step 1
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "user(id) should hit cache via id key stored by userByIdAndName")
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "user(id) should hit cache via id key stored by userByIdAndName")
 	})
 }
 
@@ -1783,21 +1537,13 @@ func TestRootFieldCachingWithArgs_PartialKeyWrite(t *testing.T) {
 
 		logAfterFirst := defaultCache.GetLog()
 		wantLogFirst := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-				Hits:      []bool{false}, // L2 empty, id key miss
-			},
-			{
-				Operation: "set",
-				Keys: []string{
-					`{"__typename":"User","key":{"id":"1234"}}`,
-					`{"__typename":"User","key":{"username":"Me"}}`,
-				},
-				// Desired behavior writes both id and username keys once the response provides username.
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"User","key":{"username":"Me"}}`, TTL: 30 * time.Second},
+			}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "Fetched response should backfill the username key too")
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "Fetched response should backfill the username key too")
 
 		// Direct cache inspection: both keys present
 		_, idExists := defaultCache.Peek(`{"__typename":"User","key":{"id":"1234"}}`)
@@ -1877,23 +1623,16 @@ func TestRootFieldCachingWithArgs_PartialKeyWrite(t *testing.T) {
 
 		logAfterFirst := defaultCache.GetLog()
 		wantLogFirst := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys: []string{
-					`{"__typename":"User","key":{"id":"1234"}}`,
-					`{"__typename":"User","key":{"id":"1234","username":"Me"}}`,
-				},
-				Hits: []bool{false, false}, // L2 empty
-			},
-			{
-				Operation: "set",
-				Keys: []string{
-					`{"__typename":"User","key":{"id":"1234"}}`,
-					`{"__typename":"User","key":{"id":"1234","username":"Me"}}`,
-				},
-			},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false},
+				{Key: `{"__typename":"User","key":{"id":"1234","username":"Me"}}`, Hit: false},
+			}},
+			{Operation: "set", Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"User","key":{"id":"1234","username":"Me"}}`, TTL: 30 * time.Second},
+			}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "Both flat id and composite id+username keys written")
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "Both flat id and composite id+username keys written")
 
 		// Step 2: user(id) — flat id mapping only → hit via flat id key from step 1
 		defaultCache.ClearLog()
@@ -1904,13 +1643,9 @@ func TestRootFieldCachingWithArgs_PartialKeyWrite(t *testing.T) {
 
 		logAfterSecond := defaultCache.GetLog()
 		wantLogSecond := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-				Hits:      []bool{true}, // Hit via flat id key from composite write
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Flat id key cross-lookup succeeds from composite key write")
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "Flat id key cross-lookup succeeds from composite key write")
 	})
 }
 
@@ -1969,23 +1704,16 @@ func TestRootFieldCachingWithArgs_BothKeysHit(t *testing.T) {
 		assert.Equal(t, 1, tracker.GetCount(accountsHost), "First query should fetch from subgraph")
 
 		logAfterFirst := defaultCache.GetLog()
-		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
-			{
-				Operation: "get",
-				Keys: []string{
-					`{"__typename":"User","key":{"id":"1234"}}`,     // id mapping
-					`{"__typename":"User","key":{"username":"Me"}}`, // username mapping
-				},
-				Hits: []bool{false, false}, // L2 empty, both miss
-			},
-			{
-				Operation: "set",
-				Keys: []string{
-					`{"__typename":"User","key":{"id":"1234"}}`,     // store under id key
-					`{"__typename":"User","key":{"username":"Me"}}`, // store under username key
-				},
-			},
-		}), sortCacheLogKeys(logAfterFirst))
+		assert.Equal(t, sortCacheLogEntries([]CacheLogEntry{
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false},
+				{Key: `{"__typename":"User","key":{"username":"Me"}}`, Hit: false},
+			}},
+			{Operation: "set", Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"User","key":{"username":"Me"}}`, TTL: 30 * time.Second},
+			}},
+		}), sortCacheLogEntries(logAfterFirst))
 
 		defaultCache.ClearLog()
 		tracker.Reset()
@@ -1996,16 +1724,12 @@ func TestRootFieldCachingWithArgs_BothKeysHit(t *testing.T) {
 		assert.Equal(t, 0, tracker.GetCount(accountsHost), "Second query should skip subgraph (cache hit)")
 
 		logAfterSecond := defaultCache.GetLog()
-		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
-			{
-				Operation: "get",
-				Keys: []string{
-					`{"__typename":"User","key":{"id":"1234"}}`,     // id mapping
-					`{"__typename":"User","key":{"username":"Me"}}`, // username mapping
-				},
-				Hits: []bool{true, true}, // Both keys hit from request 1
-			},
-		}), sortCacheLogKeys(logAfterSecond))
+		assert.Equal(t, sortCacheLogEntries([]CacheLogEntry{
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true},
+				{Key: `{"__typename":"User","key":{"username":"Me"}}`, Hit: true},
+			}},
+		}), sortCacheLogEntries(logAfterSecond))
 	})
 }
 
@@ -2058,26 +1782,18 @@ func TestRootFieldCachingWithArgs_SeededDifferentData(t *testing.T) {
 		usernameKey := `{"__typename":"User","key":{"username":"Me"}}`
 
 		err := defaultCache.Set(ctx, []*resolve.CacheEntry{
-			{Key: idKey, Value: []byte(`{"id":"1234","username":"FreshName"}`)},
-		}, 30*time.Second)
+			{Key: idKey, Value: []byte(`{"id":"1234","username":"FreshName"}`), TTL: 30 * time.Second},
+		})
 		require.NoError(t, err)
 		err = defaultCache.Set(ctx, []*resolve.CacheEntry{
-			{Key: usernameKey, Value: []byte(`{"id":"1234","username":"StaleName"}`)},
-		}, 10*time.Second)
+			{Key: usernameKey, Value: []byte(`{"id":"1234","username":"StaleName"}`), TTL: 10 * time.Second},
+		})
 		require.NoError(t, err)
 
 		setupLog := defaultCache.GetLog()
 		assert.Equal(t, []CacheLogEntry{
-			{
-				Operation: "set",
-				Keys:      []string{idKey},
-				TTL:       30 * time.Second,
-			},
-			{
-				Operation: "set",
-				Keys:      []string{usernameKey},
-				TTL:       10 * time.Second,
-			},
+			{Operation: "set", Items: []CacheLogItem{{Key: idKey, TTL: 30 * time.Second}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: usernameKey, TTL: 10 * time.Second}}},
 		}, setupLog)
 
 		defaultCache.ClearLog()
@@ -2099,16 +1815,12 @@ func TestRootFieldCachingWithArgs_SeededDifferentData(t *testing.T) {
 		assert.Equal(t, `{"id":"1234","username":"StaleName"}`, string(usernameData))
 
 		logAfterQuery := defaultCache.GetLog()
-		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
-			{
-				Operation: "get",
-				Keys: []string{
-					`{"__typename":"User","key":{"id":"1234"}}`,
-					`{"__typename":"User","key":{"username":"Me"}}`,
-				},
-				Hits: []bool{true, true}, // Both seeded entries hit
-			},
-		}), sortCacheLogKeys(logAfterQuery))
+		assert.Equal(t, sortCacheLogEntries([]CacheLogEntry{
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true},
+				{Key: `{"__typename":"User","key":{"username":"Me"}}`, Hit: true},
+			}},
+		}), sortCacheLogEntries(logAfterQuery))
 	})
 }
 
@@ -2161,26 +1873,18 @@ func TestRootFieldCachingWithArgs_ComplementaryPartialData(t *testing.T) {
 		usernameKey := `{"__typename":"User","key":{"username":"Me"}}`
 
 		err := defaultCache.Set(ctx, []*resolve.CacheEntry{
-			{Key: idKey, Value: []byte(`{"id":"1234","username":"Me"}`)},
-		}, 20*time.Second)
+			{Key: idKey, Value: []byte(`{"id":"1234","username":"Me"}`), TTL: 20 * time.Second},
+		})
 		require.NoError(t, err)
 		err = defaultCache.Set(ctx, []*resolve.CacheEntry{
-			{Key: usernameKey, Value: []byte(`{"id":"1234","nickname":"nick-Me"}`)},
-		}, 30*time.Second)
+			{Key: usernameKey, Value: []byte(`{"id":"1234","nickname":"nick-Me"}`), TTL: 30 * time.Second},
+		})
 		require.NoError(t, err)
 
 		setupLog := defaultCache.GetLog()
 		assert.Equal(t, []CacheLogEntry{
-			{
-				Operation: "set",
-				Keys:      []string{idKey},
-				TTL:       20 * time.Second,
-			},
-			{
-				Operation: "set",
-				Keys:      []string{usernameKey},
-				TTL:       30 * time.Second,
-			},
+			{Operation: "set", Items: []CacheLogItem{{Key: idKey, TTL: 20 * time.Second}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: usernameKey, TTL: 30 * time.Second}}},
 		}, setupLog)
 
 		defaultCache.ClearLog()
@@ -2194,24 +1898,16 @@ func TestRootFieldCachingWithArgs_ComplementaryPartialData(t *testing.T) {
 			"desired behavior merges complementary cache hits and skips the subgraph fetch")
 
 		logAfterQuery := defaultCache.GetLog()
-		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
-			{
-				Operation: "get",
-				Keys: []string{
-					idKey,
-					usernameKey,
-				},
-				Hits: []bool{true, true}, // Both seeded entries hit, but selected entry is incomplete
-			},
-			{
-				Operation: "set",
-				Keys: []string{
-					idKey,
-					usernameKey,
-				},
-				TTL: 30 * time.Second,
-			},
-		}), sortCacheLogKeys(logAfterQuery))
+		assert.Equal(t, sortCacheLogEntries([]CacheLogEntry{
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: idKey, Hit: true},
+				{Key: usernameKey, Hit: true},
+			}},
+			{Operation: "set", Items: []CacheLogItem{
+				{Key: idKey, TTL: 30 * time.Second},
+				{Key: usernameKey, TTL: 30 * time.Second},
+			}},
+		}), sortCacheLogEntries(logAfterQuery))
 
 		idData, idExists := defaultCache.Peek(idKey)
 		assert.True(t, idExists)
@@ -2277,24 +1973,16 @@ func TestRootFieldCachingWithArgs_KeyPopulationAndBackfill(t *testing.T) {
 		assert.Equal(t, 1, tracker.GetCount(accountsHost), "Should fetch from subgraph")
 
 		logAfterQuery := defaultCache.GetLog()
-		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
-			{
-				Operation: "get",
-				Keys: []string{
-					`{"__typename":"User","key":{"id":"1234"}}`,
-					`{"__typename":"User","key":{"username":"Me"}}`,
-				},
-				Hits: []bool{false, false}, // L2 empty
-			},
-			{
-				Operation: "set",
-				Keys: []string{
-					`{"__typename":"User","key":{"id":"1234"}}`,
-					`{"__typename":"User","key":{"username":"Me"}}`,
-				},
-				TTL: 30 * time.Second,
-			},
-		}), sortCacheLogKeys(logAfterQuery))
+		assert.Equal(t, sortCacheLogEntries([]CacheLogEntry{
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false},
+				{Key: `{"__typename":"User","key":{"username":"Me"}}`, Hit: false},
+			}},
+			{Operation: "set", Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"User","key":{"username":"Me"}}`, TTL: 30 * time.Second},
+			}},
+		}), sortCacheLogEntries(logAfterQuery))
 
 		idData, idExists := defaultCache.Peek(`{"__typename":"User","key":{"id":"1234"}}`)
 		assert.True(t, idExists, "id key should exist after full-arg query")
@@ -2355,21 +2043,13 @@ func TestRootFieldCachingWithArgs_KeyPopulationAndBackfill(t *testing.T) {
 		assert.Equal(t, 1, tracker.GetCount(accountsHost), "Should fetch from subgraph")
 
 		logAfterQuery := defaultCache.GetLog()
-		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-				Hits:      []bool{false}, // Only id key generated because username arg is missing
-			},
-			{
-				Operation: "set",
-				Keys: []string{
-					`{"__typename":"User","key":{"id":"1234"}}`,
-					`{"__typename":"User","key":{"username":"Me"}}`,
-				},
-				TTL: 30 * time.Second,
-			},
-		}), sortCacheLogKeys(logAfterQuery))
+		assert.Equal(t, sortCacheLogEntries([]CacheLogEntry{
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"User","key":{"username":"Me"}}`, TTL: 30 * time.Second},
+			}},
+		}), sortCacheLogEntries(logAfterQuery))
 
 		idData, idExists := defaultCache.Peek(`{"__typename":"User","key":{"id":"1234"}}`)
 		assert.True(t, idExists, "id key should exist")
@@ -2431,17 +2111,13 @@ func TestRootFieldCachingWithArgs_BackfillAfterPartialHit(t *testing.T) {
 
 	// Seed only the id key with an entity that already proves username.
 	err := defaultCache.Set(ctx, []*resolve.CacheEntry{
-		{Key: idKey, Value: []byte(`{"id":"1234","username":"Me"}`)},
-	}, 20*time.Second)
+		{Key: idKey, Value: []byte(`{"id":"1234","username":"Me"}`), TTL: 20 * time.Second},
+	})
 	require.NoError(t, err)
 
 	setupLog := defaultCache.GetLog()
 	assert.Equal(t, []CacheLogEntry{
-		{
-			Operation: "set",
-			Keys:      []string{idKey},
-			TTL:       20 * time.Second,
-		},
+		{Operation: "set", Items: []CacheLogItem{{Key: idKey, TTL: 20 * time.Second}}},
 	}, setupLog)
 
 	defaultCache.ClearLog()
@@ -2458,18 +2134,13 @@ func TestRootFieldCachingWithArgs_BackfillAfterPartialHit(t *testing.T) {
 	// 1. L2 reads both requested keys and finds only id.
 	// 2. L2 writes only the missing username key.
 	logAfterQuery := defaultCache.GetLog()
-	assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
-		{
-			Operation: "get",
-			Keys:      []string{idKey, usernameKey},
-			Hits:      []bool{true, false},
-		},
-		{
-			Operation: "set",
-			Keys:      []string{usernameKey},
-			TTL:       30 * time.Second,
-		},
-	}), sortCacheLogKeys(logAfterQuery))
+	assert.Equal(t, sortCacheLogEntries([]CacheLogEntry{
+		{Operation: "get", Items: []CacheLogItem{
+			{Key: idKey, Hit: true},
+			{Key: usernameKey, Hit: false},
+		}},
+		{Operation: "set", Items: []CacheLogItem{{Key: usernameKey, TTL: 30 * time.Second}}},
+	}), sortCacheLogEntries(logAfterQuery))
 
 	// Assert the pre-existing id entry is unchanged and the username key now points
 	// at the same entity payload.
@@ -2532,17 +2203,13 @@ func TestRootFieldCachingWithArgs_BackfillRequiresFieldProof(t *testing.T) {
 
 	// Seed only the id key and deliberately omit username from the cached entity.
 	err := defaultCache.Set(ctx, []*resolve.CacheEntry{
-		{Key: idKey, Value: []byte(`{"id":"1234"}`)},
-	}, 20*time.Second)
+		{Key: idKey, Value: []byte(`{"id":"1234"}`), TTL: 20 * time.Second},
+	})
 	require.NoError(t, err)
 
 	setupLog := defaultCache.GetLog()
 	assert.Equal(t, []CacheLogEntry{
-		{
-			Operation: "set",
-			Keys:      []string{idKey},
-			TTL:       20 * time.Second,
-		},
+		{Operation: "set", Items: []CacheLogItem{{Key: idKey, TTL: 20 * time.Second}}},
 	}, setupLog)
 
 	defaultCache.ClearLog()
@@ -2559,13 +2226,12 @@ func TestRootFieldCachingWithArgs_BackfillRequiresFieldProof(t *testing.T) {
 	// 1. L2 reads both requested keys and finds only id.
 	// 2. No write happens because the cached entity never proves username.
 	logAfterQuery := defaultCache.GetLog()
-	assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
-		{
-			Operation: "get",
-			Keys:      []string{idKey, usernameKey},
-			Hits:      []bool{true, false},
-		},
-	}), sortCacheLogKeys(logAfterQuery))
+	assert.Equal(t, sortCacheLogEntries([]CacheLogEntry{
+		{Operation: "get", Items: []CacheLogItem{
+			{Key: idKey, Hit: true},
+			{Key: usernameKey, Hit: false},
+		}},
+	}), sortCacheLogEntries(logAfterQuery))
 
 	// Assert the id entry remains as seeded and the username key stays absent.
 	idData, idExists := defaultCache.Peek(idKey)
@@ -2630,17 +2296,13 @@ func TestRootFieldCachingWithArgs_DerivedKeyExpansionAfterFetch(t *testing.T) {
 
 	// Seed only the id key so the request has one cache hit and one requested miss.
 	err := defaultCache.Set(ctx, []*resolve.CacheEntry{
-		{Key: idKey, Value: []byte(`{"id":"1234"}`)},
-	}, 20*time.Second)
+		{Key: idKey, Value: []byte(`{"id":"1234"}`), TTL: 20 * time.Second},
+	})
 	require.NoError(t, err)
 
 	setupLog := defaultCache.GetLog()
 	assert.Equal(t, []CacheLogEntry{
-		{
-			Operation: "set",
-			Keys:      []string{idKey},
-			TTL:       20 * time.Second,
-		},
+		{Operation: "set", Items: []CacheLogItem{{Key: idKey, TTL: 20 * time.Second}}},
 	}, setupLog)
 
 	defaultCache.ClearLog()
@@ -2657,18 +2319,17 @@ func TestRootFieldCachingWithArgs_DerivedKeyExpansionAfterFetch(t *testing.T) {
 	// 1. L2 reads the requested id + username keys and finds only id.
 	// 2. The fetch writes id refresh + username backfill + nickname derived key.
 	logAfterQuery := defaultCache.GetLog()
-	assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
-		{
-			Operation: "get",
-			Keys:      []string{idKey, usernameKey},
-			Hits:      []bool{true, false},
-		},
-		{
-			Operation: "set",
-			Keys:      []string{idKey, usernameKey, nicknameKey},
-			TTL:       30 * time.Second,
-		},
-	}), sortCacheLogKeys(logAfterQuery))
+	assert.Equal(t, sortCacheLogEntries([]CacheLogEntry{
+		{Operation: "get", Items: []CacheLogItem{
+			{Key: idKey, Hit: true},
+			{Key: usernameKey, Hit: false},
+		}},
+		{Operation: "set", Items: []CacheLogItem{
+			{Key: idKey, TTL: 30 * time.Second},
+			{Key: usernameKey, TTL: 30 * time.Second},
+			{Key: nicknameKey, TTL: 30 * time.Second},
+		}},
+	}), sortCacheLogEntries(logAfterQuery))
 
 	// Assert all three keys now point at the same final entity payload.
 	idData, idExists := defaultCache.Peek(idKey)
@@ -2726,26 +2387,18 @@ func TestRootFieldCachingWithArgs_FallbackAfterPartialSelection(t *testing.T) {
 	accountsHost := accountsURLParsed.Host
 
 	err := defaultCache.Set(ctx, []*resolve.CacheEntry{
-		{Key: `{"__typename":"User","key":{"id":"1234"}}`, Value: []byte(`{"id":"1234","username":"Me","nickname":"nick-Me"}`)},
-	}, 10*time.Second)
+		{Key: `{"__typename":"User","key":{"id":"1234"}}`, Value: []byte(`{"id":"1234","username":"Me","nickname":"nick-Me"}`), TTL: 10 * time.Second},
+	})
 	require.NoError(t, err)
 	err = defaultCache.Set(ctx, []*resolve.CacheEntry{
-		{Key: `{"__typename":"User","key":{"username":"Me"}}`, Value: []byte(`{"id":"1234"}`)},
-	}, 30*time.Second)
+		{Key: `{"__typename":"User","key":{"username":"Me"}}`, Value: []byte(`{"id":"1234"}`), TTL: 30 * time.Second},
+	})
 	require.NoError(t, err)
 
 	setupLog := defaultCache.GetLog()
 	assert.Equal(t, []CacheLogEntry{
-		{
-			Operation: "set",
-			Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-			TTL:       10 * time.Second,
-		},
-		{
-			Operation: "set",
-			Keys:      []string{`{"__typename":"User","key":{"username":"Me"}}`},
-			TTL:       30 * time.Second,
-		},
+		{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 10 * time.Second}}},
+		{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"username":"Me"}}`, TTL: 30 * time.Second}}},
 	}, setupLog)
 
 	defaultCache.ClearLog()
@@ -2758,24 +2411,16 @@ func TestRootFieldCachingWithArgs_FallbackAfterPartialSelection(t *testing.T) {
 	assert.Equal(t, 0, tracker.GetCount(accountsHost), "desired behavior resolves fresh-incomplete vs stale-complete from cache without a fetch")
 
 	logAfterQuery := defaultCache.GetLog()
-	assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
-		{
-			Operation: "get",
-			Keys: []string{
-				`{"__typename":"User","key":{"id":"1234"}}`,
-				`{"__typename":"User","key":{"username":"Me"}}`,
-			},
-			Hits: []bool{true, true},
-		},
-		{
-			Operation: "set",
-			Keys: []string{
-				`{"__typename":"User","key":{"id":"1234"}}`,
-				`{"__typename":"User","key":{"username":"Me"}}`,
-			},
-			TTL: 30 * time.Second,
-		},
-	}), sortCacheLogKeys(logAfterQuery))
+	assert.Equal(t, sortCacheLogEntries([]CacheLogEntry{
+		{Operation: "get", Items: []CacheLogItem{
+			{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true},
+			{Key: `{"__typename":"User","key":{"username":"Me"}}`, Hit: true},
+		}},
+		{Operation: "set", Items: []CacheLogItem{
+			{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second},
+			{Key: `{"__typename":"User","key":{"username":"Me"}}`, TTL: 30 * time.Second},
+		}},
+	}), sortCacheLogEntries(logAfterQuery))
 
 	idData, idExists := defaultCache.Peek(`{"__typename":"User","key":{"id":"1234"}}`)
 	assert.True(t, idExists)
@@ -2831,26 +2476,18 @@ func TestRootFieldCachingWithArgs_MergeConflictWholeEntrySelection(t *testing.T)
 	usernameKey := `{"__typename":"User","key":{"username":"Me"}}`
 
 	err := defaultCache.Set(ctx, []*resolve.CacheEntry{
-		{Key: idKey, Value: []byte(`{"id":"1234","username":"OldName"}`)},
-	}, 20*time.Second)
+		{Key: idKey, Value: []byte(`{"id":"1234","username":"OldName"}`), TTL: 20 * time.Second},
+	})
 	require.NoError(t, err)
 	err = defaultCache.Set(ctx, []*resolve.CacheEntry{
-		{Key: usernameKey, Value: []byte(`{"id":"1234","username":"Me","nickname":"nick-Me"}`)},
-	}, 30*time.Second)
+		{Key: usernameKey, Value: []byte(`{"id":"1234","username":"Me","nickname":"nick-Me"}`), TTL: 30 * time.Second},
+	})
 	require.NoError(t, err)
 
 	setupLog := defaultCache.GetLog()
 	assert.Equal(t, []CacheLogEntry{
-		{
-			Operation: "set",
-			Keys:      []string{idKey},
-			TTL:       20 * time.Second,
-		},
-		{
-			Operation: "set",
-			Keys:      []string{usernameKey},
-			TTL:       30 * time.Second,
-		},
+		{Operation: "set", Items: []CacheLogItem{{Key: idKey, TTL: 20 * time.Second}}},
+		{Operation: "set", Items: []CacheLogItem{{Key: usernameKey, TTL: 30 * time.Second}}},
 	}, setupLog)
 
 	defaultCache.ClearLog()
@@ -2865,16 +2502,12 @@ func TestRootFieldCachingWithArgs_MergeConflictWholeEntrySelection(t *testing.T)
 	assert.Equal(t, 0, tracker.GetCount(accountsHost))
 
 	logAfterQuery := defaultCache.GetLog()
-	assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
-		{
-			Operation: "get",
-			Keys: []string{
-				idKey,
-				usernameKey,
-			},
-			Hits: []bool{true, true},
-		},
-	}), sortCacheLogKeys(logAfterQuery))
+	assert.Equal(t, sortCacheLogEntries([]CacheLogEntry{
+		{Operation: "get", Items: []CacheLogItem{
+			{Key: idKey, Hit: true},
+			{Key: usernameKey, Hit: true},
+		}},
+	}), sortCacheLogEntries(logAfterQuery))
 
 	idData, idExists := defaultCache.Peek(idKey)
 	assert.True(t, idExists)
@@ -2958,30 +2591,12 @@ func TestRootFieldEntityCacheMerge(t *testing.T) {
 
 	logAfterFirst := defaultCache.GetLog()
 	wantLogFirst := []CacheLogEntry{
-		{
-			// Root field with entity key mapping: miss
-			Operation: "get",
-			Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-			Hits:      []bool{false},
-		},
-		{
-			// Accounts subgraph: set entity data
-			Operation: "set",
-			Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-		},
-		{
-			// Entity resolution for reviews subgraph: get (hit from accounts write)
-			Operation: "get",
-			Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-			Hits:      []bool{true},
-		},
-		{
-			// Entity resolution merges reviews data and writes back
-			Operation: "set",
-			Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-		},
+		{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false}}},
+		{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
+		{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
+		{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 	}
-	assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "First request should miss root field cache, set it, then entity fetch should merge")
+	assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "First request should miss root field cache, set it, then entity fetch should merge")
 
 	// Second request: same query → cache HIT for both subgraphs (entity data merged, not clobbered)
 	defaultCache.ClearLog()
@@ -2994,20 +2609,10 @@ func TestRootFieldEntityCacheMerge(t *testing.T) {
 
 	logAfterSecond := defaultCache.GetLog()
 	wantLogSecond := []CacheLogEntry{
-		{
-			// Root field entity key: cache hit (merged data from both subgraphs)
-			Operation: "get",
-			Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-			Hits:      []bool{true},
-		},
-		{
-			// Entity resolution for reviews: cache hit (merged data)
-			Operation: "get",
-			Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-			Hits:      []bool{true},
-		},
+		{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
+		{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
 	}
-	assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Second request should hit cache for both root field and entity resolution")
+	assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "Second request should hit cache for both root field and entity resolution")
 }
 
 // TestRootFieldCachingCompositeKeyInputObject verifies that root field caching works
@@ -3067,19 +2672,10 @@ func TestRootFieldCachingCompositeKeyInputObject(t *testing.T) {
 
 	logAfterFirst := defaultCache.GetLog()
 	wantLogFirst := []CacheLogEntry{
-		{
-			// Root field entity key mapping: miss
-			Operation: "get",
-			Keys:      []string{`{"__typename":"User","key":{"id":"1234","username":"Me"}}`},
-			Hits:      []bool{false},
-		},
-		{
-			// Write entity data after subgraph fetch
-			Operation: "set",
-			Keys:      []string{`{"__typename":"User","key":{"id":"1234","username":"Me"}}`},
-		},
+		{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234","username":"Me"}}`, Hit: false}}},
+		{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234","username":"Me"}}`, TTL: 30 * time.Second}}},
 	}
-	assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "First request should miss cache and set entity key with composite key")
+	assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "First request should miss cache and set entity key with composite key")
 
 	// Second request: same args → cache hit → subgraph NOT called
 	defaultCache.ClearLog()
@@ -3091,13 +2687,9 @@ func TestRootFieldCachingCompositeKeyInputObject(t *testing.T) {
 
 	logAfterSecond := defaultCache.GetLog()
 	wantLogSecond := []CacheLogEntry{
-		{
-			Operation: "get",
-			Keys:      []string{`{"__typename":"User","key":{"id":"1234","username":"Me"}}`},
-			Hits:      []bool{true},
-		},
+		{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234","username":"Me"}}`, Hit: true}}},
 	}
-	assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Second request should hit cache for composite key")
+	assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "Second request should hit cache for composite key")
 
 	// Third request: different args → cache miss → subgraph called
 	defaultCache.ClearLog()
@@ -3109,17 +2701,8 @@ func TestRootFieldCachingCompositeKeyInputObject(t *testing.T) {
 
 	logAfterThird := defaultCache.GetLog()
 	wantLogThird := []CacheLogEntry{
-		{
-			// Root field entity key mapping: miss
-			Operation: "get",
-			Keys:      []string{`{"__typename":"User","key":{"id":"1234","username":"Other"}}`},
-			Hits:      []bool{false},
-		},
-		{
-			// Write entity data after subgraph fetch
-			Operation: "set",
-			Keys:      []string{`{"__typename":"User","key":{"id":"1234","username":"Other"}}`},
-		},
+		{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234","username":"Other"}}`, Hit: false}}},
+		{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234","username":"Other"}}`, TTL: 30 * time.Second}}},
 	}
-	assert.Equal(t, sortCacheLogKeys(wantLogThird), sortCacheLogKeys(logAfterThird), "Third request should miss cache due to different username in composite key")
+	assert.Equal(t, sortCacheLogEntries(wantLogThird), sortCacheLogEntries(logAfterThird), "Third request should miss cache due to different username in composite key")
 }

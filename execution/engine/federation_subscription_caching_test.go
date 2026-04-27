@@ -151,31 +151,20 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		assert.Equal(t, 3, len(cacheLog), "should have exactly 3 cache operations")
 
 		wantLog := []CacheLogEntry{
-			{
-				Operation: CacheOperationGet,
-				Keys: []string{
-					`{"__typename":"User","key":{"id":"5678"}}`,
-					`{"__typename":"User","key":{"id":"8888"}}`,
-				},
-				Hits: []bool{false, false},
-			},
-			{
-				Operation: CacheOperationSet,
-				Keys: []string{
-					`{"__typename":"User","key":{"id":"5678"}}`,
-					`{"__typename":"User","key":{"id":"8888"}}`,
-				},
-			},
-			{
-				Operation: CacheOperationGet,
-				Keys: []string{
-					`{"__typename":"User","key":{"id":"5678"}}`,
-					`{"__typename":"User","key":{"id":"8888"}}`,
-				},
-				Hits: []bool{true, true},
-			},
+			{Operation: CacheOperationGet, Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"5678"}}`, Hit: false},
+				{Key: `{"__typename":"User","key":{"id":"8888"}}`, Hit: false},
+			}},
+			{Operation: CacheOperationSet, Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"5678"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"User","key":{"id":"8888"}}`, TTL: 30 * time.Second},
+			}},
+			{Operation: CacheOperationGet, Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"5678"}}`, Hit: true},
+				{Key: `{"__typename":"User","key":{"id":"8888"}}`, Hit: true},
+			}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLog), sortCacheLogKeys(cacheLog), "cache log should show miss+set on event 1, hit on event 2")
+		assert.Equal(t, sortCacheLogEntries(wantLog), sortCacheLogEntries(cacheLog), "cache log should show miss+set on event 1, hit on event 2")
 	})
 
 	t.Run("L2 pre-populated - subscription child fetch hits L2", func(t *testing.T) {
@@ -217,9 +206,9 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		// Pre-populate L2 with User entities that match top-4's review authors
 		err := defaultCache.Set(ctx, []*resolve.CacheEntry{
-			{Key: `{"__typename":"User","key":{"id":"5678"}}`, Value: []byte(`{"id":"5678","username":"User 5678"}`)},
-			{Key: `{"__typename":"User","key":{"id":"8888"}}`, Value: []byte(`{"id":"8888","username":"User 8888"}`)},
-		}, 30*time.Second)
+			{Key: `{"__typename":"User","key":{"id":"5678"}}`, Value: []byte(`{"id":"5678","username":"User 5678"}`), TTL: 30 * time.Second},
+			{Key: `{"__typename":"User","key":{"id":"8888"}}`, Value: []byte(`{"id":"8888","username":"User 8888"}`), TTL: 30 * time.Second},
+		})
 		require.NoError(t, err)
 
 		// Subscribe - User entities should hit L2 from pre-populated cache
@@ -239,16 +228,12 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		// Cache log should show L2 get with hits
 		cacheLog := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
-			{
-				Operation: CacheOperationGet,
-				Keys: []string{
-					`{"__typename":"User","key":{"id":"5678"}}`,
-					`{"__typename":"User","key":{"id":"8888"}}`,
-				},
-				Hits: []bool{true, true},
-			},
+			{Operation: CacheOperationGet, Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"5678"}}`, Hit: true},
+				{Key: `{"__typename":"User","key":{"id":"8888"}}`, Hit: true},
+			}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLog), sortCacheLogKeys(cacheLog), "cache log should show L2 hits for pre-populated users")
+		assert.Equal(t, sortCacheLogEntries(wantLog), sortCacheLogEntries(cacheLog), "cache log should show L2 hits for pre-populated users")
 	})
 
 	t.Run("child entity fetch L2 TTL expiry across events", func(t *testing.T) {
@@ -420,12 +405,9 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		// Verify L2 was populated by subscription via cache log
 		subLog := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
-			{
-				Operation: CacheOperationSet,
-				Keys:      []string{`{"__typename":"Product","key":{"upc":"top-4"}}`},
-			},
+			{Operation: CacheOperationSet, Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"upc":"top-4"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLog), sortCacheLogKeys(subLog), "subscription should populate L2 with Product entity")
+		assert.Equal(t, sortCacheLogEntries(wantLog), sortCacheLogEntries(subLog), "subscription should populate L2 with Product entity")
 
 		// Verify the cached data directly
 		entries, err := defaultCache.Get(ctx, []string{`{"__typename":"Product","key":{"upc":"top-4"}}`})
@@ -477,12 +459,9 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		// Verify L2 was populated
 		subLog := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
-			{
-				Operation: CacheOperationSet,
-				Keys:      []string{`{"__typename":"Product","key":{"upc":"top-4"}}`},
-			},
+			{Operation: CacheOperationSet, Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"upc":"top-4"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLog), sortCacheLogKeys(subLog), "subscription should populate L2")
+		assert.Equal(t, sortCacheLogEntries(wantLog), sortCacheLogEntries(subLog), "subscription should populate L2")
 
 		// Verify the cached entity has upc, name, price but NOT inStock
 		entries, err := defaultCache.Get(ctx, []string{`{"__typename":"Product","key":{"upc":"top-4"}}`})
@@ -533,13 +512,13 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		// Verify L2 was populated with all 3 product entities
 		subLog := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
-			{Operation: CacheOperationSet, Keys: []string{
-				`{"__typename":"Product","key":{"upc":"top-1"}}`,
-				`{"__typename":"Product","key":{"upc":"top-2"}}`,
-				`{"__typename":"Product","key":{"upc":"top-3"}}`,
+			{Operation: CacheOperationSet, Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"Product","key":{"upc":"top-3"}}`, TTL: 30 * time.Second},
 			}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLog), sortCacheLogKeys(subLog), "subscription should populate L2 with Product entities")
+		assert.Equal(t, sortCacheLogEntries(wantLog), sortCacheLogEntries(subLog), "subscription should populate L2 with Product entities")
 
 		// Verify exact cached values for all 3 products
 		entityKeys := []string{
@@ -609,7 +588,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		// No cache operations from subscription (entity population not configured)
 		subLog := defaultCache.GetLog()
-		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry(nil)), sortCacheLogKeys(subLog), "no cache operations when entity population not configured")
+		assert.Equal(t, sortCacheLogEntries([]CacheLogEntry(nil)), sortCacheLogEntries(subLog), "no cache operations when entity population not configured")
 
 		// Query should miss L2 and call products subgraph
 		defaultCache.ClearLog()
@@ -750,12 +729,9 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		// Verify the L2 set used a prefixed key
 		subLog := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
-			{
-				Operation: CacheOperationSet,
-				Keys:      []string{`11111:{"__typename":"Product","key":{"upc":"top-4"}}`},
-			},
+			{Operation: CacheOperationSet, Items: []CacheLogItem{{Key: `11111:{"__typename":"Product","key":{"upc":"top-4"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLog), sortCacheLogKeys(subLog), "subscription should populate L2 with prefixed key")
+		assert.Equal(t, sortCacheLogEntries(wantLog), sortCacheLogEntries(subLog), "subscription should populate L2 with prefixed key")
 
 		// Verify the cached data directly using the prefixed key
 		entries, err := defaultCache.Get(ctx, []string{`11111:{"__typename":"Product","key":{"upc":"top-4"}}`})
@@ -807,8 +783,8 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		// Pre-populate L2 directly with entity cache key
 		err := defaultCache.Set(ctx, []*resolve.CacheEntry{
-			{Key: entityKey, Value: []byte(`{"upc":"top-4","name":"Bowler","price":64,"__typename":"Product"}`)},
-		}, 30*time.Second)
+			{Key: entityKey, Value: []byte(`{"upc":"top-4","name":"Bowler","price":64,"__typename":"Product"}`), TTL: 30 * time.Second},
+		})
 		require.NoError(t, err)
 
 		// Verify product is in cache
@@ -828,11 +804,17 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		// Verify cache delete + User entity resolution
 		subLog := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
-			{Operation: CacheOperationDelete, Keys: []string{`{"__typename":"Product","key":{"upc":"top-4"}}`}},
-			{Operation: CacheOperationGet, Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}, Hits: []bool{false, false}},
-			{Operation: CacheOperationSet, Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}},
+			{Operation: CacheOperationDelete, Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"upc":"top-4"}}`}}},
+			{Operation: CacheOperationGet, Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"5678"}}`, Hit: false},
+				{Key: `{"__typename":"User","key":{"id":"8888"}}`, Hit: false},
+			}},
+			{Operation: CacheOperationSet, Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"5678"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"User","key":{"id":"8888"}}`, TTL: 30 * time.Second},
+			}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLog), sortCacheLogKeys(subLog), "subscription should delete Product and resolve Users")
+		assert.Equal(t, sortCacheLogEntries(wantLog), sortCacheLogEntries(subLog), "subscription should delete Product and resolve Users")
 
 		// Verify Product is gone from cache
 		entries, err = defaultCache.Get(ctx, []string{entityKey})
@@ -890,8 +872,8 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		// Pre-populate L2 directly with entity cache key
 		err := defaultCache.Set(ctx, []*resolve.CacheEntry{
-			{Key: entityKey, Value: []byte(`{"upc":"top-4","name":"Bowler","price":64,"__typename":"Product"}`)},
-		}, 30*time.Second)
+			{Key: entityKey, Value: []byte(`{"upc":"top-4","name":"Bowler","price":64,"__typename":"Product"}`), TTL: 30 * time.Second},
+		})
 		require.NoError(t, err)
 
 		// Subscribe with key-only query but invalidation disabled
@@ -906,10 +888,16 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		// No delete for Product (invalidation disabled), only User entity resolution
 		subLog := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
-			{Operation: CacheOperationGet, Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}, Hits: []bool{false, false}},
-			{Operation: CacheOperationSet, Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}},
+			{Operation: CacheOperationGet, Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"5678"}}`, Hit: false},
+				{Key: `{"__typename":"User","key":{"id":"8888"}}`, Hit: false},
+			}},
+			{Operation: CacheOperationSet, Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"5678"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"User","key":{"id":"8888"}}`, TTL: 30 * time.Second},
+			}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLog), sortCacheLogKeys(subLog), "no delete for Product, only User entity resolution")
+		assert.Equal(t, sortCacheLogEntries(wantLog), sortCacheLogEntries(subLog), "no delete for Product, only User entity resolution")
 
 		// Verify Product is still in cache (not invalidated)
 		entries, err := defaultCache.Get(ctx, []string{entityKey})
@@ -969,8 +957,8 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		// Pre-populate L2
 		err := defaultCache.Set(ctx, []*resolve.CacheEntry{
-			{Key: entityKey, Value: entityValue},
-		}, 30*time.Second)
+			{Key: entityKey, Value: entityValue, TTL: 30 * time.Second},
+		})
 		require.NoError(t, err)
 
 		// Subscribe with key-only query → invalidation mode, collect 2 events
@@ -994,13 +982,22 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		// Verify 2 delete operations (one per event) + User entity resolution
 		subLog := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
-			{Operation: CacheOperationDelete, Keys: []string{`{"__typename":"Product","key":{"upc":"top-4"}}`}},
-			{Operation: CacheOperationGet, Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}, Hits: []bool{false, false}},
-			{Operation: CacheOperationSet, Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}},
-			{Operation: CacheOperationDelete, Keys: []string{`{"__typename":"Product","key":{"upc":"top-4"}}`}},
-			{Operation: CacheOperationGet, Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}, Hits: []bool{true, true}},
+			{Operation: CacheOperationDelete, Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"upc":"top-4"}}`}}},
+			{Operation: CacheOperationGet, Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"5678"}}`, Hit: false},
+				{Key: `{"__typename":"User","key":{"id":"8888"}}`, Hit: false},
+			}},
+			{Operation: CacheOperationSet, Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"5678"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"User","key":{"id":"8888"}}`, TTL: 30 * time.Second},
+			}},
+			{Operation: CacheOperationDelete, Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"upc":"top-4"}}`}}},
+			{Operation: CacheOperationGet, Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"5678"}}`, Hit: true},
+				{Key: `{"__typename":"User","key":{"id":"8888"}}`, Hit: true},
+			}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLog), sortCacheLogKeys(subLog), "should have 2 delete operations (one per event) + User entity resolution")
+		assert.Equal(t, sortCacheLogEntries(wantLog), sortCacheLogEntries(subLog), "should have 2 delete operations (one per event) + User entity resolution")
 
 		// Verify Product is gone after both events
 		entries, err := defaultCache.Get(ctx, []string{entityKey})
@@ -1079,15 +1076,21 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		// it must NOT apply — subscriptions are never cached as root fields.
 		cacheLog := defaultCache.GetLog()
 		for _, entry := range cacheLog {
-			for _, key := range entry.Keys {
-				assert.NotContains(t, key, `"fieldName":"updateProductPrice"`, "subscription root field must not be cached")
+			for _, item := range entry.Items {
+				assert.NotContains(t, item.Key, `"fieldName":"updateProductPrice"`, "subscription root field must not be cached")
 			}
 		}
 		wantLog := []CacheLogEntry{
-			{Operation: CacheOperationGet, Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}, Hits: []bool{false, false}},
-			{Operation: CacheOperationSet, Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}},
+			{Operation: CacheOperationGet, Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"5678"}}`, Hit: false},
+				{Key: `{"__typename":"User","key":{"id":"8888"}}`, Hit: false},
+			}},
+			{Operation: CacheOperationSet, Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"5678"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"User","key":{"id":"8888"}}`, TTL: 30 * time.Second},
+			}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLog), sortCacheLogKeys(cacheLog), "no root field cache, only User entity caching")
+		assert.Equal(t, sortCacheLogEntries(wantLog), sortCacheLogEntries(cacheLog), "no root field cache, only User entity caching")
 
 		// Verify User entities are cached with correct values
 		userEntries, err := defaultCache.Get(ctx, []string{
@@ -1216,7 +1219,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		// No cache operations at all (no entity resolution with @provides)
 		cacheLog := defaultCache.GetLog()
-		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry(nil)), sortCacheLogKeys(cacheLog), "no cache operations with @provides")
+		assert.Equal(t, sortCacheLogEntries([]CacheLogEntry(nil)), sortCacheLogEntries(cacheLog), "no cache operations with @provides")
 	})
 
 	// =====================================================================
@@ -1264,12 +1267,9 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		// Verify L2 was populated by subscription (alias doesn't break entity population)
 		subLog := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
-			{
-				Operation: CacheOperationSet,
-				Keys:      []string{`{"__typename":"Product","key":{"upc":"top-4"}}`},
-			},
+			{Operation: CacheOperationSet, Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"upc":"top-4"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLog), sortCacheLogKeys(subLog), "subscription with alias should populate L2 with Product entity")
+		assert.Equal(t, sortCacheLogEntries(wantLog), sortCacheLogEntries(subLog), "subscription with alias should populate L2 with Product entity")
 
 		// Verify cached data
 		entries, err := defaultCache.Get(ctx, []string{`{"__typename":"Product","key":{"upc":"top-4"}}`})
@@ -1321,12 +1321,9 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		// Verify L2 was populated (planner resolves union → Product member)
 		subLog := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
-			{
-				Operation: CacheOperationSet,
-				Keys:      []string{`{"__typename":"Product","key":{"upc":"top-4"}}`},
-			},
+			{Operation: CacheOperationSet, Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"upc":"top-4"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLog), sortCacheLogKeys(subLog), "subscription with union return type should populate L2 with Product entity")
+		assert.Equal(t, sortCacheLogEntries(wantLog), sortCacheLogEntries(subLog), "subscription with union return type should populate L2 with Product entity")
 
 		// Verify cached data
 		entries, err := defaultCache.Get(ctx, []string{`{"__typename":"Product","key":{"upc":"top-4"}}`})
@@ -1378,12 +1375,9 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		// Verify L2 was populated (planner resolves interface → Product implementor)
 		subLog := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
-			{
-				Operation: CacheOperationSet,
-				Keys:      []string{`{"__typename":"Product","key":{"upc":"top-4"}}`},
-			},
+			{Operation: CacheOperationSet, Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"upc":"top-4"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLog), sortCacheLogKeys(subLog), "subscription with interface return type should populate L2 with Product entity")
+		assert.Equal(t, sortCacheLogEntries(wantLog), sortCacheLogEntries(subLog), "subscription with interface return type should populate L2 with Product entity")
 
 		// Verify cached data
 		entries, err := defaultCache.Get(ctx, []string{`{"__typename":"Product","key":{"upc":"top-4"}}`})
@@ -1437,7 +1431,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		// No cache operations: DigitalProduct's __typename doesn't match configured "Product"
 		subLog := defaultCache.GetLog()
-		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry(nil)), sortCacheLogKeys(subLog), "no cache operations for unconfigured DigitalProduct type")
+		assert.Equal(t, sortCacheLogEntries([]CacheLogEntry(nil)), sortCacheLogEntries(subLog), "no cache operations for unconfigured DigitalProduct type")
 
 		// Verify neither Product nor DigitalProduct keys are in cache
 		productEntries, err := defaultCache.Get(ctx, []string{`{"__typename":"Product","key":{"upc":"digital-1"}}`})
@@ -1493,7 +1487,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		// No cache operations: DigitalProduct's __typename doesn't match configured "Product"
 		subLog := defaultCache.GetLog()
-		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry(nil)), sortCacheLogKeys(subLog), "no cache operations for unconfigured DigitalProduct type")
+		assert.Equal(t, sortCacheLogEntries([]CacheLogEntry(nil)), sortCacheLogEntries(subLog), "no cache operations for unconfigured DigitalProduct type")
 
 		// Verify neither Product nor DigitalProduct keys are in cache
 		productEntries, err := defaultCache.Get(ctx, []string{`{"__typename":"Product","key":{"upc":"digital-1"}}`})
@@ -1665,9 +1659,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			require.True(t, ok, "set notification channel should be closed after delivery")
 			assert.Equal(t, CacheLogEntry{
 				Operation: CacheOperationSet,
-				Keys:      []string{`{"__typename":"Product","key":{"upc":"top-4"}}`},
-				Hits:      nil,
-				TTL:       30 * time.Second,
+				Items:     []CacheLogItem{{Key: `{"__typename":"Product","key":{"upc":"top-4"}}`, TTL: 30 * time.Second}},
 			}, entry)
 		case <-time.After(5 * time.Second):
 			t.Fatal("timeout waiting for Product cache population")
@@ -1676,9 +1668,9 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		// Verify exactly 1 set operation (deduplicated, not 2)
 		subLog := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
-			{Operation: CacheOperationSet, Keys: []string{`{"__typename":"Product","key":{"upc":"top-4"}}`}},
+			{Operation: CacheOperationSet, Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"upc":"top-4"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLog), sortCacheLogKeys(subLog), "should have exactly 1 L2 set for Product (deduplicated, not 2)")
+		assert.Equal(t, sortCacheLogEntries(wantLog), sortCacheLogEntries(subLog), "should have exactly 1 L2 set for Product (deduplicated, not 2)")
 
 		// Verify cached Product value
 		entries, err := defaultCache.Get(ctx, []string{`{"__typename":"Product","key":{"upc":"top-4"}}`})
@@ -1725,8 +1717,8 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		// Pre-populate L2
 		err := defaultCache.Set(ctx, []*resolve.CacheEntry{
-			{Key: entityKey, Value: []byte(`{"upc":"top-4","name":"Bowler","price":64,"__typename":"Product"}`)},
-		}, 30*time.Second)
+			{Key: entityKey, Value: []byte(`{"upc":"top-4","name":"Bowler","price":64,"__typename":"Product"}`), TTL: 30 * time.Second},
+		})
 		require.NoError(t, err)
 
 		wsAddr := toWSAddr(setup.GatewayServer.URL)
@@ -1855,9 +1847,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			require.True(t, ok, "delete notification channel should be closed after delivery")
 			assert.Equal(t, CacheLogEntry{
 				Operation: CacheOperationDelete,
-				Keys:      []string{entityKey},
-				Hits:      nil,
-				TTL:       0,
+				Items:     []CacheLogItem{{Key: entityKey, TTL: 0}},
 			}, entry)
 		case <-time.After(5 * time.Second):
 			t.Fatal("timeout waiting for Product cache invalidation")
@@ -1865,12 +1855,18 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		// Verify exactly 1 delete (deduplicated) + User entity resolution with L2 hits
 		wantLog := []CacheLogEntry{
-			{Operation: CacheOperationDelete, Keys: []string{`{"__typename":"Product","key":{"upc":"top-4"}}`}},
-			{Operation: CacheOperationGet, Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}, Hits: []bool{true, true}},
-			{Operation: CacheOperationGet, Keys: []string{`{"__typename":"User","key":{"id":"5678"}}`, `{"__typename":"User","key":{"id":"8888"}}`}, Hits: []bool{true, true}},
+			{Operation: CacheOperationDelete, Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"upc":"top-4"}}`}}},
+			{Operation: CacheOperationGet, Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"5678"}}`, Hit: true},
+				{Key: `{"__typename":"User","key":{"id":"8888"}}`, Hit: true},
+			}},
+			{Operation: CacheOperationGet, Items: []CacheLogItem{
+				{Key: `{"__typename":"User","key":{"id":"5678"}}`, Hit: true},
+				{Key: `{"__typename":"User","key":{"id":"8888"}}`, Hit: true},
+			}},
 		}
 		subLog := defaultCache.GetLog()
-		assert.Equal(t, sortCacheLogKeys(wantLog), sortCacheLogKeys(subLog), "should have exactly 1 L2 delete for Product (deduplicated, not 2)")
+		assert.Equal(t, sortCacheLogEntries(wantLog), sortCacheLogEntries(subLog), "should have exactly 1 L2 delete for Product (deduplicated, not 2)")
 
 		// Verify entity is gone from cache
 		entries, err := defaultCache.Get(ctx, []string{entityKey})
@@ -2063,9 +2059,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 			require.True(t, ok, "set notification channel should be closed after delivery")
 			assert.Equal(t, CacheLogEntry{
 				Operation: CacheOperationSet,
-				Keys:      []string{`{"__typename":"Product","key":{"upc":"top-4"}}`},
-				Hits:      nil,
-				TTL:       30 * time.Second,
+				Items:     []CacheLogItem{{Key: `{"__typename":"Product","key":{"upc":"top-4"}}`, TTL: 30 * time.Second}},
 			}, entry)
 		case <-time.After(5 * time.Second):
 			t.Fatal("timeout waiting for Product cache population")
@@ -2074,9 +2068,9 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		// Verify exactly 1 set operation (deduplicated, not 3)
 		subLog := defaultCache.GetLog()
 		wantLog := []CacheLogEntry{
-			{Operation: CacheOperationSet, Keys: []string{`{"__typename":"Product","key":{"upc":"top-4"}}`}},
+			{Operation: CacheOperationSet, Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"upc":"top-4"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLog), sortCacheLogKeys(subLog), "should have exactly 1 L2 set for Product (deduplicated, not 3)")
+		assert.Equal(t, sortCacheLogEntries(wantLog), sortCacheLogEntries(subLog), "should have exactly 1 L2 set for Product (deduplicated, not 3)")
 
 		// Verify cached Product value
 		entries, err := defaultCache.Get(ctx, []string{`{"__typename":"Product","key":{"upc":"top-4"}}`})
@@ -2124,7 +2118,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		log := defaultCache.GetLog()
 		assert.Equal(t, []CacheLogEntry{
-			{Operation: CacheOperationSet, Keys: []string{`{"__typename":"Product","key":{"upc":"top-4"}}`}, TTL: 30 * time.Second}, // Tier 1 match: updateProductPrice config selected (30s), not updatedPrice (60s)
+			{Operation: CacheOperationSet, Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"upc":"top-4"}}`, TTL: 30 * time.Second}}}, // Tier 1 match: updateProductPrice config selected (30s), not updatedPrice (60s)
 		}, log)
 	})
 
@@ -2162,7 +2156,7 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		log := defaultCache.GetLog()
 		assert.Equal(t, []CacheLogEntry{
-			{Operation: CacheOperationSet, Keys: []string{`{"__typename":"Product","key":{"upc":"top-3"}}`}, TTL: 60 * time.Second}, // Tier 1 match: updatedPrice config selected (60s), not updateProductPrice (30s)
+			{Operation: CacheOperationSet, Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"upc":"top-3"}}`, TTL: 60 * time.Second}}}, // Tier 1 match: updatedPrice config selected (60s), not updateProductPrice (30s)
 		}, log)
 	})
 }

@@ -114,24 +114,16 @@ func TestBatchEntityCacheLookup_FullFetch_AllMiss(t *testing.T) {
 
 	// Verify cache log: 1 get (batch miss) + 1 set (batch write)
 	assert.Equal(t, []CacheLogEntry{
-		{
-			Operation: "get",
-			Keys: []string{
-				productKeyTop1,
-				productKeyTop2,
-				productKeyTop3,
-			},
-			Hits: []bool{false, false, false},
-		},
-		{
-			Operation: "set",
-			Keys: []string{
-				productKeyTop1,
-				productKeyTop2,
-				productKeyTop3,
-			},
-			TTL: 30 * time.Second,
-		},
+		{Operation: "get", Items: []CacheLogItem{
+			{Key: productKeyTop1, Hit: false},
+			{Key: productKeyTop2, Hit: false},
+			{Key: productKeyTop3, Hit: false},
+		}},
+		{Operation: "set", Items: []CacheLogItem{
+			{Key: productKeyTop1, TTL: 30 * time.Second},
+			{Key: productKeyTop2, TTL: 30 * time.Second},
+			{Key: productKeyTop3, TTL: 30 * time.Second},
+		}},
 	}, defaultCache.GetLog())
 	assertFakeLoaderCacheContents(t, defaultCache, expectedBatchProductCache("top-1", "top-2", "top-3"))
 }
@@ -187,24 +179,16 @@ func TestBatchEntityCacheLookup_FullFetch_AllHit(t *testing.T) {
 	resp1, _ := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL,
 		`query { products(upcs: ["top-1", "top-2", "top-3"]) { upc name price } }`, nil, t)
 	assert.Equal(t, []CacheLogEntry{
-		{
-			Operation: "get",
-			Keys: []string{
-				productKeyTop1,
-				productKeyTop2,
-				productKeyTop3,
-			},
-			Hits: []bool{false, false, false},
-		},
-		{
-			Operation: "set",
-			Keys: []string{
-				productKeyTop1,
-				productKeyTop2,
-				productKeyTop3,
-			},
-			TTL: 30 * time.Second,
-		},
+		{Operation: "get", Items: []CacheLogItem{
+			{Key: productKeyTop1, Hit: false},
+			{Key: productKeyTop2, Hit: false},
+			{Key: productKeyTop3, Hit: false},
+		}},
+		{Operation: "set", Items: []CacheLogItem{
+			{Key: productKeyTop1, TTL: 30 * time.Second},
+			{Key: productKeyTop2, TTL: 30 * time.Second},
+			{Key: productKeyTop3, TTL: 30 * time.Second},
+		}},
 	}, defaultCache.GetLog())
 	assertFakeLoaderCacheContents(t, defaultCache, expectedBatchProductCache("top-1", "top-2", "top-3"))
 	defaultCache.ClearLog()
@@ -219,15 +203,11 @@ func TestBatchEntityCacheLookup_FullFetch_AllHit(t *testing.T) {
 
 	// Exact cache log: single GET with all 3 hits, no SET (served from cache)
 	assert.Equal(t, []CacheLogEntry{
-		{
-			Operation: "get",
-			Keys: []string{
-				productKeyTop1,
-				productKeyTop2,
-				productKeyTop3,
-			},
-			Hits: []bool{true, true, true},
-		},
+		{Operation: "get", Items: []CacheLogItem{
+			{Key: productKeyTop1, Hit: true},
+			{Key: productKeyTop2, Hit: true},
+			{Key: productKeyTop3, Hit: true},
+		}},
 	}, defaultCache.GetLog())
 	assertFakeLoaderCacheContents(t, defaultCache, expectedBatchProductCache("top-1", "top-2", "top-3"))
 }
@@ -283,16 +263,8 @@ func TestBatchEntityCacheLookup_FullFetch_PartialMiss_FetchesAll(t *testing.T) {
 	gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL,
 		`query { products(upcs: ["top-1"]) { upc name price } }`, nil, t)
 	assert.Equal(t, []CacheLogEntry{
-		{
-			Operation: "get",
-			Keys:      []string{productKeyTop1},
-			Hits:      []bool{false},
-		},
-		{
-			Operation: "set",
-			Keys:      []string{productKeyTop1},
-			TTL:       30 * time.Second,
-		},
+		{Operation: "get", Items: []CacheLogItem{{Key: productKeyTop1, Hit: false}}},
+		{Operation: "set", Items: []CacheLogItem{{Key: productKeyTop1, TTL: 30 * time.Second}}},
 	}, defaultCache.GetLog())
 	assertFakeLoaderCacheContents(t, defaultCache, expectedBatchProductCache("top-1"))
 
@@ -305,22 +277,14 @@ func TestBatchEntityCacheLookup_FullFetch_PartialMiss_FetchesAll(t *testing.T) {
 	assert.Equal(t, `{"data":{"products":[{"upc":"top-1","name":"Trilby","price":11},{"upc":"top-2","name":"Fedora","price":22}]}}`, string(resp))
 	assert.Equal(t, 1, tracker.GetCount(productsHost), "full fetch mode should call products subgraph with the complete list")
 	assert.Equal(t, []CacheLogEntry{
-		{
-			Operation: "get",
-			Keys: []string{
-				productKeyTop1,
-				productKeyTop2,
-			},
-			Hits: []bool{true, false},
-		},
-		{
-			Operation: "set",
-			Keys: []string{
-				productKeyTop1,
-				productKeyTop2,
-			},
-			TTL: 30 * time.Second,
-		},
+		{Operation: "get", Items: []CacheLogItem{
+			{Key: productKeyTop1, Hit: true},
+			{Key: productKeyTop2, Hit: false},
+		}},
+		{Operation: "set", Items: []CacheLogItem{
+			{Key: productKeyTop1, TTL: 30 * time.Second},
+			{Key: productKeyTop2, TTL: 30 * time.Second},
+		}},
 	}, defaultCache.GetLog())
 	assertFakeLoaderCacheContents(t, defaultCache, expectedBatchProductCache("top-1", "top-2"))
 }
@@ -450,16 +414,8 @@ func TestBatchEntityCacheLookup_CacheKeySharing_ScalarAndBatch(t *testing.T) {
 	gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL,
 		`query { product(upc: "top-1") { upc name price } }`, nil, t)
 	assert.Equal(t, []CacheLogEntry{
-		{
-			Operation: "get",
-			Keys:      []string{productKeyTop1},
-			Hits:      []bool{false},
-		},
-		{
-			Operation: "set",
-			Keys:      []string{productKeyTop1},
-			TTL:       30 * time.Second,
-		},
+		{Operation: "get", Items: []CacheLogItem{{Key: productKeyTop1, Hit: false}}},
+		{Operation: "set", Items: []CacheLogItem{{Key: productKeyTop1, TTL: 30 * time.Second}}},
 	}, defaultCache.GetLog())
 	assertFakeLoaderCacheContents(t, defaultCache, expectedBatchProductCache("top-1"))
 
@@ -474,22 +430,14 @@ func TestBatchEntityCacheLookup_CacheKeySharing_ScalarAndBatch(t *testing.T) {
 	// In full fetch mode, partial miss means subgraph is called
 	assert.Equal(t, 1, tracker.GetCount(productsHost), "full fetch mode with partial miss should call products subgraph")
 	assert.Equal(t, []CacheLogEntry{
-		{
-			Operation: "get",
-			Keys: []string{
-				productKeyTop1,
-				productKeyTop2,
-			},
-			Hits: []bool{true, false},
-		},
-		{
-			Operation: "set",
-			Keys: []string{
-				productKeyTop1,
-				productKeyTop2,
-			},
-			TTL: 30 * time.Second,
-		},
+		{Operation: "get", Items: []CacheLogItem{
+			{Key: productKeyTop1, Hit: true},
+			{Key: productKeyTop2, Hit: false},
+		}},
+		{Operation: "set", Items: []CacheLogItem{
+			{Key: productKeyTop1, TTL: 30 * time.Second},
+			{Key: productKeyTop2, TTL: 30 * time.Second},
+		}},
 	}, defaultCache.GetLog())
 	assertFakeLoaderCacheContents(t, defaultCache, expectedBatchProductCache("top-1", "top-2"))
 }
@@ -546,16 +494,8 @@ func TestBatchEntityCacheLookup_FullFetch_SingleElement(t *testing.T) {
 		`query { products(upcs: ["top-1"]) { upc name price } }`, nil, t)
 	assert.Equal(t, `{"data":{"products":[{"upc":"top-1","name":"Trilby","price":11}]}}`, string(resp1))
 	assert.Equal(t, []CacheLogEntry{
-		{
-			Operation: "get",
-			Keys:      []string{productKeyTop1},
-			Hits:      []bool{false},
-		},
-		{
-			Operation: "set",
-			Keys:      []string{productKeyTop1},
-			TTL:       30 * time.Second,
-		},
+		{Operation: "get", Items: []CacheLogItem{{Key: productKeyTop1, Hit: false}}},
+		{Operation: "set", Items: []CacheLogItem{{Key: productKeyTop1, TTL: 30 * time.Second}}},
 	}, defaultCache.GetLog())
 	assertFakeLoaderCacheContents(t, defaultCache, expectedBatchProductCache("top-1"))
 
@@ -567,11 +507,7 @@ func TestBatchEntityCacheLookup_FullFetch_SingleElement(t *testing.T) {
 	assert.Equal(t, string(resp1), string(resp2))
 	assert.Equal(t, 0, tracker.GetCount(productsHost), "second request should hit cache")
 	assert.Equal(t, []CacheLogEntry{
-		{
-			Operation: "get",
-			Keys:      []string{productKeyTop1},
-			Hits:      []bool{true},
-		},
+		{Operation: "get", Items: []CacheLogItem{{Key: productKeyTop1, Hit: true}}},
 	}, defaultCache.GetLog())
 	assertFakeLoaderCacheContents(t, defaultCache, expectedBatchProductCache("top-1"))
 }
@@ -627,16 +563,8 @@ func TestBatchEntityCacheLookup_PartialFetch_SomeCached(t *testing.T) {
 
 	warmLog := defaultCache.GetLog()
 	assert.Equal(t, []CacheLogEntry{
-		{
-			Operation: "get",
-			Keys:      []string{productKeyTop1},
-			Hits:      []bool{false},
-		},
-		{
-			Operation: "set",
-			Keys:      []string{productKeyTop1},
-			TTL:       30 * time.Second,
-		},
+		{Operation: "get", Items: []CacheLogItem{{Key: productKeyTop1, Hit: false}}},
+		{Operation: "set", Items: []CacheLogItem{{Key: productKeyTop1, TTL: 30 * time.Second}}},
 	}, warmLog)
 	assertFakeLoaderCacheContents(t, defaultCache, expectedBatchProductCache("top-1"))
 	defaultCache.ClearLog()
@@ -652,23 +580,15 @@ func TestBatchEntityCacheLookup_PartialFetch_SomeCached(t *testing.T) {
 	assert.Equal(t, `{"query":"query($a: [String!]!){products(upcs: $a){upc name price}}","variables":{"a":["top-2","top-3"]}}`, productsRequests[0])
 
 	assert.Equal(t, []CacheLogEntry{
-		{
-			Operation: "get",
-			Keys: []string{
-				productKeyTop1,
-				productKeyTop2,
-				productKeyTop3,
-			},
-			Hits: []bool{true, false, false},
-		},
-		{
-			Operation: "set",
-			Keys: []string{
-				productKeyTop2,
-				productKeyTop3,
-			},
-			TTL: 30 * time.Second,
-		},
+		{Operation: "get", Items: []CacheLogItem{
+			{Key: productKeyTop1, Hit: true},
+			{Key: productKeyTop2, Hit: false},
+			{Key: productKeyTop3, Hit: false},
+		}},
+		{Operation: "set", Items: []CacheLogItem{
+			{Key: productKeyTop2, TTL: 30 * time.Second},
+			{Key: productKeyTop3, TTL: 30 * time.Second},
+		}},
 	}, defaultCache.GetLog())
 	assertFakeLoaderCacheContents(t, defaultCache, expectedBatchProductCache("top-1", "top-2", "top-3"))
 }
@@ -724,24 +644,16 @@ func TestBatchEntityCacheLookup_PartialFetch_AllHit(t *testing.T) {
 
 	warmLog := defaultCache.GetLog()
 	assert.Equal(t, []CacheLogEntry{
-		{
-			Operation: "get",
-			Keys: []string{
-				productKeyTop1,
-				productKeyTop2,
-				productKeyTop3,
-			},
-			Hits: []bool{false, false, false},
-		},
-		{
-			Operation: "set",
-			Keys: []string{
-				productKeyTop1,
-				productKeyTop2,
-				productKeyTop3,
-			},
-			TTL: 30 * time.Second,
-		},
+		{Operation: "get", Items: []CacheLogItem{
+			{Key: productKeyTop1, Hit: false},
+			{Key: productKeyTop2, Hit: false},
+			{Key: productKeyTop3, Hit: false},
+		}},
+		{Operation: "set", Items: []CacheLogItem{
+			{Key: productKeyTop1, TTL: 30 * time.Second},
+			{Key: productKeyTop2, TTL: 30 * time.Second},
+			{Key: productKeyTop3, TTL: 30 * time.Second},
+		}},
 	}, warmLog)
 	assertFakeLoaderCacheContents(t, defaultCache, expectedBatchProductCache("top-1", "top-2", "top-3"))
 	defaultCache.ClearLog()
@@ -753,15 +665,11 @@ func TestBatchEntityCacheLookup_PartialFetch_AllHit(t *testing.T) {
 	assert.Equal(t, `{"data":{"products":[{"upc":"top-1","name":"Trilby","price":11},{"upc":"top-2","name":"Fedora","price":22},{"upc":"top-3","name":"Boater","price":33}]}}`, string(resp))
 	assert.Equal(t, 0, tracker.GetCount(productsHost))
 	assert.Equal(t, []CacheLogEntry{
-		{
-			Operation: "get",
-			Keys: []string{
-				productKeyTop1,
-				productKeyTop2,
-				productKeyTop3,
-			},
-			Hits: []bool{true, true, true},
-		},
+		{Operation: "get", Items: []CacheLogItem{
+			{Key: productKeyTop1, Hit: true},
+			{Key: productKeyTop2, Hit: true},
+			{Key: productKeyTop3, Hit: true},
+		}},
 	}, defaultCache.GetLog())
 	assertFakeLoaderCacheContents(t, defaultCache, expectedBatchProductCache("top-1", "top-2", "top-3"))
 }
@@ -823,24 +731,16 @@ func TestBatchEntityCacheLookup_PartialFetch_AllMiss(t *testing.T) {
 	assert.Equal(t, 1, tracker.GetRequestCount(productsHost))
 
 	assert.Equal(t, []CacheLogEntry{
-		{
-			Operation: "get",
-			Keys: []string{
-				productKeyTop1,
-				productKeyTop2,
-				productKeyTop3,
-			},
-			Hits: []bool{false, false, false},
-		},
-		{
-			Operation: "set",
-			Keys: []string{
-				productKeyTop1,
-				productKeyTop2,
-				productKeyTop3,
-			},
-			TTL: 30 * time.Second,
-		},
+		{Operation: "get", Items: []CacheLogItem{
+			{Key: productKeyTop1, Hit: false},
+			{Key: productKeyTop2, Hit: false},
+			{Key: productKeyTop3, Hit: false},
+		}},
+		{Operation: "set", Items: []CacheLogItem{
+			{Key: productKeyTop1, TTL: 30 * time.Second},
+			{Key: productKeyTop2, TTL: 30 * time.Second},
+			{Key: productKeyTop3, TTL: 30 * time.Second},
+		}},
 	}, defaultCache.GetLog())
 	assertFakeLoaderCacheContents(t, defaultCache, expectedBatchProductCache("top-1", "top-2", "top-3"))
 }
@@ -896,16 +796,8 @@ func TestBatchEntityCacheLookup_PartialFetch_OrderPreservation(t *testing.T) {
 
 	warmLog := defaultCache.GetLog()
 	assert.Equal(t, []CacheLogEntry{
-		{
-			Operation: "get",
-			Keys:      []string{productKeyTop3},
-			Hits:      []bool{false},
-		},
-		{
-			Operation: "set",
-			Keys:      []string{productKeyTop3},
-			TTL:       30 * time.Second,
-		},
+		{Operation: "get", Items: []CacheLogItem{{Key: productKeyTop3, Hit: false}}},
+		{Operation: "set", Items: []CacheLogItem{{Key: productKeyTop3, TTL: 30 * time.Second}}},
 	}, warmLog)
 	assertFakeLoaderCacheContents(t, defaultCache, expectedBatchProductCache("top-3"))
 	defaultCache.ClearLog()
@@ -921,21 +813,11 @@ func TestBatchEntityCacheLookup_PartialFetch_OrderPreservation(t *testing.T) {
 	assert.Equal(t, `{"query":"query($a: [String!]!){products(upcs: $a){upc name price}}","variables":{"a":["top-1"]}}`, productsRequests[0])
 
 	assert.Equal(t, []CacheLogEntry{
-		{
-			Operation: "get",
-			Keys: []string{
-				productKeyTop3,
-				productKeyTop1,
-			},
-			Hits: []bool{true, false},
-		},
-		{
-			Operation: "set",
-			Keys: []string{
-				productKeyTop1,
-			},
-			TTL: 30 * time.Second,
-		},
+		{Operation: "get", Items: []CacheLogItem{
+			{Key: productKeyTop3, Hit: true},
+			{Key: productKeyTop1, Hit: false},
+		}},
+		{Operation: "set", Items: []CacheLogItem{{Key: productKeyTop1, TTL: 30 * time.Second}}},
 	}, defaultCache.GetLog())
 	assertFakeLoaderCacheContents(t, defaultCache, expectedBatchProductCache("top-1", "top-3"))
 }
@@ -1008,24 +890,16 @@ func TestBatchEntityKeyCachingWithArgumentIsEntityKey(t *testing.T) {
 
 	// Verify cache log: 1 get (batch miss) + 1 set (batch write)
 	assert.Equal(t, []CacheLogEntry{
-		{
-			Operation: CacheOperationGet,
-			Keys: []string{
-				`{"__typename":"Product","key":{"upc":"top-1"}}`,
-				`{"__typename":"Product","key":{"upc":"top-2"}}`,
-				`{"__typename":"Product","key":{"upc":"top-3"}}`,
-			},
-			Hits: []bool{false, false, false}, // all misses — cache empty
-		},
-		{
-			Operation: CacheOperationSet,
-			Keys: []string{
-				`{"__typename":"Product","key":{"upc":"top-1"}}`,
-				`{"__typename":"Product","key":{"upc":"top-2"}}`,
-				`{"__typename":"Product","key":{"upc":"top-3"}}`,
-			},
-			TTL: 30 * time.Second, // per-element keys written after batch fetch
-		},
+		{Operation: CacheOperationGet, Items: []CacheLogItem{
+			{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: false},
+			{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: false},
+			{Key: `{"__typename":"Product","key":{"upc":"top-3"}}`, Hit: false},
+		}},
+		{Operation: CacheOperationSet, Items: []CacheLogItem{
+			{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, TTL: 30 * time.Second},
+			{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, TTL: 30 * time.Second},
+			{Key: `{"__typename":"Product","key":{"upc":"top-3"}}`, TTL: 30 * time.Second},
+		}},
 	}, defaultCache.GetLog())
 
 	// Request 2: all cache hits — zero subgraph calls
@@ -1039,14 +913,10 @@ func TestBatchEntityKeyCachingWithArgumentIsEntityKey(t *testing.T) {
 
 	// Verify cache log: 1 get (all hits) — no SET needed
 	assert.Equal(t, []CacheLogEntry{
-		{
-			Operation: CacheOperationGet,
-			Keys: []string{
-				`{"__typename":"Product","key":{"upc":"top-1"}}`,
-				`{"__typename":"Product","key":{"upc":"top-2"}}`,
-				`{"__typename":"Product","key":{"upc":"top-3"}}`,
-			},
-			Hits: []bool{true, true, true}, // all hits — cached from request 1
-		},
+		{Operation: CacheOperationGet, Items: []CacheLogItem{
+			{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: true},
+			{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: true},
+			{Key: `{"__typename":"Product","key":{"upc":"top-3"}}`, Hit: true},
+		}},
 	}, defaultCache.GetLog())
 }

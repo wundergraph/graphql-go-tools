@@ -370,14 +370,12 @@ func TestL1L2CacheEndToEnd(t *testing.T) {
 		err = loader1.LoadGraphQLResponseData(ctx1, createResponse(rootDS1, entityDS1), resolvable1)
 		require.NoError(t, err)
 
-		productKey := []string{`{"__typename":"Product","key":{"id":"prod-1"}}`}
-
 		log := cache.GetLog()
 		wantFirstLog := []CacheLogEntry{
 			// _entities(Product) — L2 miss, product not yet cached
-			{Operation: "get", Keys: productKey, Hits: []bool{false}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"id":"prod-1"}}`, Hit: false}}},
 			// _entities(Product) — store fetched product data in L2
-			{Operation: "set", Keys: productKey, TTL: time.Minute},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"id":"prod-1"}}`, TTL: time.Minute}}},
 		}
 		assert.Equal(t, wantFirstLog, log, "First request: L2 miss then set")
 
@@ -401,7 +399,7 @@ func TestL1L2CacheEndToEnd(t *testing.T) {
 		log2 := cache.GetLog()
 		wantSecondLog := []CacheLogEntry{
 			// _entities(Product) — L2 hit, product cached from first request; no DS call needed
-			{Operation: "get", Keys: productKey, Hits: []bool{true}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"id":"prod-1"}}`, Hit: true}}},
 		}
 		assert.Equal(t, wantSecondLog, log2, "Second request: L2 hit only")
 	})
@@ -591,13 +589,12 @@ func TestL1L2CacheEndToEnd(t *testing.T) {
 		// 1st fetch: L1 miss -> L2 miss -> DS call -> populate L1 + L2
 		// 2nd fetch: L1 hit -> skip L2 and DS entirely
 		// So L2 only sees operations from the 1st fetch
-		productKey := []string{`{"__typename":"Product","key":{"id":"prod-1"}}`}
 		log := cache.GetLog()
 		wantLog := []CacheLogEntry{
 			// 1st _entities(Product) — L1 miss, L2 miss
-			{Operation: "get", Keys: productKey, Hits: []bool{false}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"id":"prod-1"}}`, Hit: false}}},
 			// 1st _entities(Product) — store fetched data in L2 (L1 also populated in-memory)
-			{Operation: "set", Keys: productKey, TTL: time.Minute},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"id":"prod-1"}}`, TTL: time.Minute}}},
 			// 2nd _entities(Product) — no L2 operations: L1 hit short-circuits
 		}
 		assert.Equal(t, wantLog, log, "L1 hit should prevent second L2 lookup")
@@ -611,9 +608,9 @@ func TestL1L2CacheEndToEnd(t *testing.T) {
 		cache := NewFakeLoaderCache()
 
 		// Pre-populate L2 cache with correct key format: {"__typename":"Product","key":{"id":"prod-1"}}
-		_ = cache.Set(context.Background(), []*CacheEntry{
+		_ = cache.Set(context.Background(), withCacheEntryTTL([]*CacheEntry{
 			{Key: `{"__typename":"Product","key":{"id":"prod-1"}}`, Value: []byte(`{"__typename":"Product","id":"prod-1","name":"L2 Cached Product"}`)},
-		}, time.Minute)
+		}, time.Minute))
 		cache.ClearLog() // Clear the set log
 
 		rootDS := NewMockDataSource(ctrl)
@@ -691,7 +688,7 @@ func TestL1L2CacheEndToEnd(t *testing.T) {
 		log := cache.GetLog()
 		wantLog := []CacheLogEntry{
 			// _entities(Product) — L1 miss (empty), L2 hit from pre-populated cache; no DS call needed
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"id":"prod-1"}}`}, Hits: []bool{true}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"id":"prod-1"}}`, Hit: true}}},
 		}
 		assert.Equal(t, wantLog, log, "L2 hit: single get operation with hit")
 	})
@@ -809,7 +806,7 @@ func TestL1L2CacheEndToEnd(t *testing.T) {
 		log := cache.GetLog()
 		wantLog := []CacheLogEntry{
 			// _entities(Product) — L1 miss (new request, empty L1), L2 hit from request 1; no DS call
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"id":"prod-1"}}`}, Hits: []bool{true}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"id":"prod-1"}}`, Hit: true}}},
 		}
 		assert.Equal(t, wantLog, log, "Request 2: L2 hit (L1 is fresh/empty)")
 	})

@@ -96,47 +96,22 @@ func TestFederationCaching_L2Only(t *testing.T) {
 		// Verify the exact cache access log (order may vary for keys within each operation)
 		wantLogFirst := []CacheLogEntry{
 			// Root field Query.topProducts
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"Query","field":"topProducts"}`},
-				Hits:      []bool{false},
-			},
-			{
-				Operation: "set",
-				Keys:      []string{`{"__typename":"Query","field":"topProducts"}`},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, TTL: 30 * time.Second}}},
 			// Product entity fetches (reviews data for each product)
-			{
-				Operation: "get",
-				Keys: []string{
-					`{"__typename":"Product","key":{"upc":"top-1"}}`,
-					`{"__typename":"Product","key":{"upc":"top-2"}}`,
-				},
-				Hits: []bool{false, false},
-			},
-			{
-				Operation: "set",
-				Keys: []string{
-					`{"__typename":"Product","key":{"upc":"top-1"}}`,
-					`{"__typename":"Product","key":{"upc":"top-2"}}`,
-				},
-			},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: false},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: false},
+			}},
+			{Operation: "set", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, TTL: 30 * time.Second},
+			}},
 			// User entity fetches (author data)
-			{
-				Operation: "get",
-				Keys: []string{
-					`{"__typename":"User","key":{"id":"1234"}}`,
-				},
-				Hits: []bool{false},
-			},
-			{
-				Operation: "set",
-				Keys: []string{
-					`{"__typename":"User","key":{"id":"1234"}}`,
-				},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst))
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst))
 
 		// Subgraph calls: each called once (cold cache)
 		productsCallsFirst := tracker.GetCount(productsHost)
@@ -161,30 +136,16 @@ func TestFederationCaching_L2Only(t *testing.T) {
 		// Verify the exact cache access log for second query (all hits)
 		wantLogSecond := []CacheLogEntry{
 			// Root field Query.topProducts - HIT
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"Query","field":"topProducts"}`},
-				Hits:      []bool{true},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: true}}},
 			// Product entity fetches - HITS
-			{
-				Operation: "get",
-				Keys: []string{
-					`{"__typename":"Product","key":{"upc":"top-1"}}`,
-					`{"__typename":"Product","key":{"upc":"top-2"}}`,
-				},
-				Hits: []bool{true, true},
-			},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: true},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: true},
+			}},
 			// User entity fetches - HITS
-			{
-				Operation: "get",
-				Keys: []string{
-					`{"__typename":"User","key":{"id":"1234"}}`,
-				},
-				Hits: []bool{true},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond))
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond))
 
 		// Subgraph calls: all skipped (warm cache)
 		productsCallsSecond := tracker.GetCount(productsHost)
@@ -304,24 +265,16 @@ func TestFederationCaching_L2Only(t *testing.T) {
 		assert.Equal(t, expected, string(resp))
 		assert.Equal(t, 1, tracker.GetCount(productsHost), "first request should call products subgraph")
 		assert.Equal(t, 1, tracker.GetCount(reviewsHost), "first request should call reviews subgraph")
-		assert.Equal(t, sortCacheLogKeysWithTTL([]CacheLogEntry{
-			{
-				Operation: "get",
-				Keys: []string{
-					productKeyTop1,
-					productKeyTop2,
-				},
-				Hits: []bool{false, false},
-			},
-			{
-				Operation: "set",
-				Keys: []string{
-					productKeyTop1,
-					productKeyTop2,
-				},
-				TTL: 10 * time.Second,
-			},
-		}), sortCacheLogKeysWithTTL(defaultCache.GetLog()))
+		assert.Equal(t, sortCacheLogEntries([]CacheLogEntry{
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: productKeyTop1, Hit: false},
+				{Key: productKeyTop2, Hit: false},
+			}},
+			{Operation: "set", Items: []CacheLogItem{
+				{Key: productKeyTop1, TTL: 10 * time.Second},
+				{Key: productKeyTop2, TTL: 10 * time.Second},
+			}},
+		}), sortCacheLogEntries(defaultCache.GetLog()))
 
 		top1Value, top1Exists := defaultCache.Peek(productKeyTop1)
 		assert.True(t, top1Exists)
@@ -336,16 +289,12 @@ func TestFederationCaching_L2Only(t *testing.T) {
 		assert.Equal(t, expected, string(resp))
 		assert.Equal(t, 1, tracker.GetCount(productsHost), "second request should still call products (root field not cached)")
 		assert.Equal(t, 0, tracker.GetCount(reviewsHost), "second request should skip reviews subgraph on negative cache hit")
-		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
-			{
-				Operation: "get",
-				Keys: []string{
-					productKeyTop1,
-					productKeyTop2,
-				},
-				Hits: []bool{true, true},
-			},
-		}), sortCacheLogKeys(defaultCache.GetLog()))
+		assert.Equal(t, sortCacheLogEntries([]CacheLogEntry{
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: productKeyTop1, Hit: true},
+				{Key: productKeyTop2, Hit: true},
+			}},
+		}), sortCacheLogEntries(defaultCache.GetLog()))
 	})
 
 	t.Run("L2 enabled - nullable null entity is not cached when NegativeCacheTTL is zero", func(t *testing.T) {
@@ -416,16 +365,12 @@ func TestFederationCaching_L2Only(t *testing.T) {
 		assert.Equal(t, expected, string(resp))
 		assert.Equal(t, 1, tracker.GetCount(productsHost), "first request should call products subgraph")
 		assert.Equal(t, 1, tracker.GetCount(reviewsHost), "first request should call reviews subgraph")
-		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
-			{
-				Operation: "get",
-				Keys: []string{
-					productKeyTop1,
-					productKeyTop2,
-				},
-				Hits: []bool{false, false},
-			},
-		}), sortCacheLogKeys(defaultCache.GetLog()))
+		assert.Equal(t, sortCacheLogEntries([]CacheLogEntry{
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: productKeyTop1, Hit: false},
+				{Key: productKeyTop2, Hit: false},
+			}},
+		}), sortCacheLogEntries(defaultCache.GetLog()))
 
 		_, top1Exists := defaultCache.Peek(productKeyTop1)
 		assert.False(t, top1Exists)
@@ -438,16 +383,12 @@ func TestFederationCaching_L2Only(t *testing.T) {
 		assert.Equal(t, expected, string(resp))
 		assert.Equal(t, 1, tracker.GetCount(productsHost), "second request should still call products (root field not cached)")
 		assert.Equal(t, 1, tracker.GetCount(reviewsHost), "second request should call reviews again when negative caching is disabled")
-		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
-			{
-				Operation: "get",
-				Keys: []string{
-					productKeyTop1,
-					productKeyTop2,
-				},
-				Hits: []bool{false, false},
-			},
-		}), sortCacheLogKeys(defaultCache.GetLog()))
+		assert.Equal(t, sortCacheLogEntries([]CacheLogEntry{
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: productKeyTop1, Hit: false},
+				{Key: productKeyTop2, Hit: false},
+			}},
+		}), sortCacheLogEntries(defaultCache.GetLog()))
 	})
 }
 
@@ -531,47 +472,22 @@ func TestFederationCaching_L1L2Combined(t *testing.T) {
 		// Verify the exact cache access log (order may vary for keys within each operation)
 		wantLogFirst := []CacheLogEntry{
 			// Root field Query.topProducts
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"Query","field":"topProducts"}`},
-				Hits:      []bool{false},
-			},
-			{
-				Operation: "set",
-				Keys:      []string{`{"__typename":"Query","field":"topProducts"}`},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, TTL: 30 * time.Second}}},
 			// Product entity fetches (reviews data for each product)
-			{
-				Operation: "get",
-				Keys: []string{
-					`{"__typename":"Product","key":{"upc":"top-1"}}`,
-					`{"__typename":"Product","key":{"upc":"top-2"}}`,
-				},
-				Hits: []bool{false, false},
-			},
-			{
-				Operation: "set",
-				Keys: []string{
-					`{"__typename":"Product","key":{"upc":"top-1"}}`,
-					`{"__typename":"Product","key":{"upc":"top-2"}}`,
-				},
-			},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: false},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: false},
+			}},
+			{Operation: "set", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, TTL: 30 * time.Second},
+			}},
 			// User entity fetches (author data)
-			{
-				Operation: "get",
-				Keys: []string{
-					`{"__typename":"User","key":{"id":"1234"}}`,
-				},
-				Hits: []bool{false},
-			},
-			{
-				Operation: "set",
-				Keys: []string{
-					`{"__typename":"User","key":{"id":"1234"}}`,
-				},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst))
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst))
 
 		// Subgraph calls: each called once (cold cache)
 		productsCallsFirst := tracker.GetCount(productsHost)
@@ -595,30 +511,16 @@ func TestFederationCaching_L1L2Combined(t *testing.T) {
 		// Verify the exact cache access log for second query (all hits)
 		wantLogSecond := []CacheLogEntry{
 			// Root field Query.topProducts - HIT
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"Query","field":"topProducts"}`},
-				Hits:      []bool{true},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: true}}},
 			// Product entity fetches - HITS
-			{
-				Operation: "get",
-				Keys: []string{
-					`{"__typename":"Product","key":{"upc":"top-1"}}`,
-					`{"__typename":"Product","key":{"upc":"top-2"}}`,
-				},
-				Hits: []bool{true, true},
-			},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: true},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: true},
+			}},
 			// User entity fetches - HITS
-			{
-				Operation: "get",
-				Keys: []string{
-					`{"__typename":"User","key":{"id":"1234"}}`,
-				},
-				Hits: []bool{true},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Second query cache log should match expected (all hits)")
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "Second query cache log should match expected (all hits)")
 
 		// Verify no subgraph calls for second query (L2 cache hits)
 		productsCallsSecond := tracker.GetCount(productsHost)
@@ -684,24 +586,29 @@ func TestFederationCaching_L1L2Combined(t *testing.T) {
 		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
 
 		logAfterFirst := defaultCache.GetLog()
-		productKeys := []string{
-			`{"__typename":"Product","key":{"upc":"top-1"}}`,
-			`{"__typename":"Product","key":{"upc":"top-2"}}`,
-		}
-		userKeys := []string{
-			`{"__typename":"User","key":{"id":"1234"}}`,
-		}
 		wantFirstLog := []CacheLogEntry{
 			// reviews subgraph _entities(Product) — L2 miss, first time seeing these products
-			{Operation: "get", Keys: productKeys, Hits: []bool{false, false}},
+			{
+				Operation: "get",
+				Items: []CacheLogItem{
+					{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: false},
+					{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: false},
+				},
+			},
 			// reviews subgraph _entities(Product) — store fetched product data in L2
-			{Operation: "set", Keys: productKeys},
+			{
+				Operation: "set",
+				Items: []CacheLogItem{
+					{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, TTL: 30 * time.Second},
+					{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, TTL: 30 * time.Second},
+				},
+			},
 			// accounts subgraph _entities(User) — L2 miss, first time seeing this user
-			{Operation: "get", Keys: userKeys, Hits: []bool{false}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false}}},
 			// accounts subgraph _entities(User) — store fetched user data in L2
-			{Operation: "set", Keys: userKeys},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantFirstLog), sortCacheLogKeys(logAfterFirst), "First request: L2 miss + set for Product and User")
+		assert.Equal(t, sortCacheLogEntries(wantFirstLog), sortCacheLogEntries(logAfterFirst), "First request: L2 miss + set for Product and User")
 
 		// Second request - L1 is fresh (new request), but L2 should provide data
 		defaultCache.ClearLog()
@@ -712,12 +619,18 @@ func TestFederationCaching_L1L2Combined(t *testing.T) {
 		logAfterSecond := defaultCache.GetLog()
 		wantSecondLog := []CacheLogEntry{
 			// reviews subgraph _entities(Product) — L2 hit, both products cached from first request
-			{Operation: "get", Keys: productKeys, Hits: []bool{true, true}},
+			{
+				Operation: "get",
+				Items: []CacheLogItem{
+					{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: true},
+					{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: true},
+				},
+			},
 			// accounts subgraph _entities(User) — L2 hit, user cached from first request (deduplicated: 1 unique user)
-			{Operation: "get", Keys: userKeys, Hits: []bool{true}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
 			// No set operations — all data served from cache
 		}
-		assert.Equal(t, sortCacheLogKeys(wantSecondLog), sortCacheLogKeys(logAfterSecond), "Second request: all L2 cache hits, no sets")
+		assert.Equal(t, sortCacheLogEntries(wantSecondLog), sortCacheLogEntries(logAfterSecond), "Second request: all L2 cache hits, no sets")
 
 		// No subgraph calls on second request — all entity data served from L2 cache
 		reviewsURLParsed, _ := url.Parse(setup.ReviewsUpstreamServer.URL)
@@ -791,19 +704,27 @@ func TestFederationCaching_PartialEntityFetch(t *testing.T) {
 
 		// Only Product has L2 caching configured (reviews subgraph); User (accounts) does NOT.
 		// So we expect cache operations for Product only — no User cache activity at all.
-		productKeys := []string{
-			`{"__typename":"Product","key":{"upc":"top-1"}}`,
-			`{"__typename":"Product","key":{"upc":"top-2"}}`,
-		}
 		logAfterFirst := defaultCache.GetLog()
 		wantFirstLog := []CacheLogEntry{
 			// reviews subgraph _entities(Product) — L2 miss, first time seeing these products
-			{Operation: "get", Keys: productKeys, Hits: []bool{false, false}},
+			{
+				Operation: "get",
+				Items: []CacheLogItem{
+					{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: false},
+					{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: false},
+				},
+			},
 			// reviews subgraph _entities(Product) — store fetched product data in L2
-			{Operation: "set", Keys: productKeys},
+			{
+				Operation: "set",
+				Items: []CacheLogItem{
+					{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, TTL: 30 * time.Second},
+					{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, TTL: 30 * time.Second},
+				},
+			},
 			// No User operations — accounts subgraph has no caching configured
 		}
-		assert.Equal(t, sortCacheLogKeys(wantFirstLog), sortCacheLogKeys(logAfterFirst), "First request: only Product entities have cache operations")
+		assert.Equal(t, sortCacheLogEntries(wantFirstLog), sortCacheLogEntries(logAfterFirst), "First request: only Product entities have cache operations")
 
 		// Both subgraphs called on first request (no cache to serve from)
 		assert.Equal(t, 1, tracker.GetCount(reviewsHost), "First query should call reviews subgraph")
@@ -818,11 +739,17 @@ func TestFederationCaching_PartialEntityFetch(t *testing.T) {
 		logAfterSecond := defaultCache.GetLog()
 		wantSecondLog := []CacheLogEntry{
 			// reviews subgraph _entities(Product) — L2 hit, both products cached from first request
-			{Operation: "get", Keys: productKeys, Hits: []bool{true, true}},
+			{
+				Operation: "get",
+				Items: []CacheLogItem{
+					{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: true},
+					{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: true},
+				},
+			},
 			// No User operations — accounts subgraph still has no caching configured
 			// No set operations — Product data served from cache
 		}
-		assert.Equal(t, sortCacheLogKeys(wantSecondLog), sortCacheLogKeys(logAfterSecond), "Second request: Product cache hits only")
+		assert.Equal(t, sortCacheLogEntries(wantSecondLog), sortCacheLogEntries(logAfterSecond), "Second request: Product cache hits only")
 
 		// Reviews subgraph skipped (Product served from cache), accounts still called (User not cached)
 		assert.Equal(t, 0, tracker.GetCount(reviewsHost), "Second query should skip reviews subgraph (Product cache hit)")
@@ -929,14 +856,17 @@ func TestFederationCaching_RootFieldCaching(t *testing.T) {
 		logAfterSecond := defaultCache.GetLog()
 		wantSecondLog := []CacheLogEntry{
 			// products subgraph Query.topProducts — root field L2 hit, cached from first request
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: true}}},
 			// reviews subgraph _entities(Product) — L2 hit, both products cached from first request
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: true},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: true},
+			}},
 			// accounts subgraph _entities(User) — L2 hit, user cached from first request (1 unique user)
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
 			// No set operations — all data served from cache
 		}
-		assert.Equal(t, sortCacheLogKeys(wantSecondLog), sortCacheLogKeys(logAfterSecond), "Second query: all cache hits, no sets")
+		assert.Equal(t, sortCacheLogEntries(wantSecondLog), sortCacheLogEntries(logAfterSecond), "Second query: all cache hits, no sets")
 
 		// All subgraphs skipped on second query (everything served from cache)
 		assert.Equal(t, 0, tracker.GetCount(productsHost), "Second query should skip products subgraph (root field cache hit)")
@@ -1153,11 +1083,7 @@ func TestFederationCaching_ErrorSkipsCache(t *testing.T) {
 		// Verify exact cache log: only "get" with miss, NO "set"
 		// Since the fetch had an error, cache population should be skipped entirely
 		wantCacheLog := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"User","key":{"id":"error-user"}}`},
-				Hits:      []bool{false},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"error-user"}}`, Hit: false}}},
 			// NO "set" entry - this is the key assertion
 		}
 		assert.Equal(t, wantCacheLog, defaultCache.GetLog(), "Cache log should only have 'get' miss, no 'set'")
@@ -1233,11 +1159,7 @@ func TestFederationCaching_ErrorSkipsCache(t *testing.T) {
 
 		// Verify exact cache log: only "get" with miss, NO "set"
 		wantCacheLog := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"User","key":{"id":"error-user"}}`},
-				Hits:      []bool{false},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"error-user"}}`, Hit: false}}},
 		}
 		assert.Equal(t, wantCacheLog, defaultCache.GetLog(), "Cache log should only have 'get' miss, no 'set'")
 
@@ -1313,11 +1235,7 @@ func TestFederationCaching_ErrorSkipsCache(t *testing.T) {
 
 		// Verify error-user was NOT cached (only get, no set)
 		wantErrorCacheLog := []CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"User","key":{"id":"error-user"}}`},
-				Hits:      []bool{false},
-			},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"error-user"}}`, Hit: false}}},
 		}
 		assert.Equal(t, wantErrorCacheLog, defaultCache.GetLog(), "Error query cache log should only have 'get' miss, no 'set'")
 
@@ -1428,8 +1346,7 @@ func TestFederationCaching_MutationInvalidation(t *testing.T) {
 		for _, entry := range mutationLog {
 			if entry.Operation == "delete" {
 				hasDelete = true
-				assert.Equal(t, 1, len(entry.Keys), "delete should have exactly 1 key")
-				assert.Equal(t, `{"__typename":"User","key":{"id":"1234"}}`, entry.Keys[0])
+				assert.Equal(t, []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`}}, entry.Items)
 			}
 		}
 		assert.True(t, hasDelete, "mutation should trigger a cache delete operation")

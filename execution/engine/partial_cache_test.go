@@ -146,8 +146,8 @@ func TestFederationCaching_PartialLoading(t *testing.T) {
 		// The query will need this user (same user for both reviews via authorWithoutProvides)
 		userData := `{"__typename":"User","id":"1234","username":"Me"}`
 		err := defaultCache.Set(context.Background(), []*resolve.CacheEntry{
-			{Key: `{"__typename":"User","key":{"id":"1234"}}`, Value: []byte(userData)},
-		}, 30*time.Second)
+			{Key: `{"__typename":"User","key":{"id":"1234"}}`, Value: []byte(userData), TTL: 30 * time.Second},
+		})
 		require.NoError(t, err)
 		defaultCache.ClearLog()
 
@@ -218,8 +218,8 @@ func TestFederationCaching_PartialLoading(t *testing.T) {
 		// IMPORTANT: Must use 'authorWithoutProvides' as that's what the query fetches (not 'author' which has @provides)
 		product1Data := `{"__typename":"Product","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"__typename":"User","id":"1234"}}]}`
 		err := defaultCache.Set(context.Background(), []*resolve.CacheEntry{
-			{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Value: []byte(product1Data)},
-		}, 30*time.Second)
+			{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Value: []byte(product1Data), TTL: 30 * time.Second},
+		})
 		require.NoError(t, err)
 		defaultCache.ClearLog()
 
@@ -297,8 +297,8 @@ func TestFederationCaching_PartialLoading(t *testing.T) {
 		// IMPORTANT: Must use 'authorWithoutProvides' as that's what the query fetches (not 'author' which has @provides)
 		product1Data := `{"__typename":"Product","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"__typename":"User","id":"1234"}}]}`
 		err := defaultCache.Set(context.Background(), []*resolve.CacheEntry{
-			{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Value: []byte(product1Data)},
-		}, 30*time.Second)
+			{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Value: []byte(product1Data), TTL: 30 * time.Second},
+		})
 		require.NoError(t, err)
 		defaultCache.ClearLog()
 

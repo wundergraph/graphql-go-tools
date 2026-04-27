@@ -83,9 +83,7 @@ func TestHandleTriggerEntityCache(t *testing.T) {
 		require.Equal(t, 1, len(log))
 		assert.Equal(t, CacheLogEntry{
 			Operation: "set",
-			Keys:      []string{`{"__typename":"Product","key":{"id":"prod-1"}}`},
-			Hits:      nil,
-			TTL:       30 * time.Second,
+			Items:     []CacheLogItem{{Key: `{"__typename":"Product","key":{"id":"prod-1"}}`, TTL: 30 * time.Second}},
 		}, log[0])
 
 		// Verify stored data includes injected __typename
@@ -126,10 +124,10 @@ func TestHandleTriggerEntityCache(t *testing.T) {
 		// Verify single set with both entity keys
 		require.Equal(t, 1, len(log))
 		assert.Equal(t, "set", log[0].Operation)
-		assert.Equal(t, []string{
-			`{"__typename":"Product","key":{"id":"prod-1"}}`,
-			`{"__typename":"Product","key":{"id":"prod-2"}}`,
-		}, log[0].Keys)
+		assert.Equal(t, []CacheLogItem{
+			{Key: `{"__typename":"Product","key":{"id":"prod-1"}}`, TTL: 30 * time.Second},
+			{Key: `{"__typename":"Product","key":{"id":"prod-2"}}`, TTL: 30 * time.Second},
+		}, log[0].Items)
 	})
 
 	t.Run("typename filtering skips non-matching entities", func(t *testing.T) {
@@ -166,10 +164,10 @@ func TestHandleTriggerEntityCache(t *testing.T) {
 		// Only Products cached, not the Review
 		require.Equal(t, 1, len(log))
 		assert.Equal(t, "set", log[0].Operation)
-		assert.Equal(t, []string{
-			`{"__typename":"Product","key":{"id":"prod-1"}}`,
-			`{"__typename":"Product","key":{"id":"prod-2"}}`,
-		}, log[0].Keys)
+		assert.Equal(t, []CacheLogItem{
+			{Key: `{"__typename":"Product","key":{"id":"prod-1"}}`, TTL: 30 * time.Second},
+			{Key: `{"__typename":"Product","key":{"id":"prod-2"}}`, TTL: 30 * time.Second},
+		}, log[0].Items)
 
 		// Verify stored data integrity (the items[:0] bug would corrupt values)
 		entries, err := cache.Get(context.Background(), []string{
@@ -215,7 +213,7 @@ func TestHandleTriggerEntityCache(t *testing.T) {
 		// Cache key should include injected "Product" typename
 		require.Equal(t, 1, len(log))
 		assert.Equal(t, "set", log[0].Operation)
-		assert.Equal(t, []string{`{"__typename":"Product","key":{"id":"prod-1"}}`}, log[0].Keys)
+		assert.Equal(t, []CacheLogItem{{Key: `{"__typename":"Product","key":{"id":"prod-1"}}`, TTL: 30 * time.Second}}, log[0].Items)
 
 		// Verify stored data includes injected __typename
 		entries, err := cache.Get(context.Background(), []string{`{"__typename":"Product","key":{"id":"prod-1"}}`})
@@ -230,9 +228,9 @@ func TestHandleTriggerEntityCache(t *testing.T) {
 		r := newTestResolverWithCaches(map[string]LoaderCache{"default": cache})
 
 		// Pre-populate cache with an entity
-		err := cache.Set(context.Background(), []*CacheEntry{
+		err := cache.Set(context.Background(), withCacheEntryTTL([]*CacheEntry{
 			{Key: `{"__typename":"Product","key":{"id":"prod-1"}}`, Value: []byte(`{"__typename":"Product","id":"prod-1","name":"Old"}`)},
-		}, 30*time.Second)
+		}, 30*time.Second))
 		require.NoError(t, err)
 		cache.ClearLog()
 
@@ -263,8 +261,7 @@ func TestHandleTriggerEntityCache(t *testing.T) {
 		require.Equal(t, 1, len(log))
 		assert.Equal(t, CacheLogEntry{
 			Operation: "delete",
-			Keys:      []string{`{"__typename":"Product","key":{"id":"prod-1"}}`},
-			Hits:      nil,
+			Items:     []CacheLogItem{{Key: `{"__typename":"Product","key":{"id":"prod-1"}}`}},
 		}, log[0])
 
 		// Verify the entry is gone

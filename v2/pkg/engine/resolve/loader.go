@@ -373,6 +373,11 @@ type Loader struct {
 	// Set per-mutation-field alongside enableMutationL2CachePopulation.
 	// When zero, the entity's default TTL is used.
 	mutationCacheTTLOverride time.Duration
+
+	// Parallel Phase 4 defers L2 Sets so all writes for the same cache instance
+	// can be sent in one bulk call after every fetch has merged.
+	deferL2CacheWrites  bool
+	deferredL2CacheSets []*l2CacheSetContributor
 }
 
 // cacheOperationSource returns the CacheOperationSource based on the current operation type.
@@ -393,6 +398,8 @@ func (l *Loader) Free() {
 	l.jsonArena = nil
 	l.enableMutationL2CachePopulation = false
 	l.mutationCacheTTLOverride = 0
+	l.deferL2CacheWrites = false
+	l.deferredL2CacheSets = nil
 	// l.parser is intentionally retained — it holds no arena references and its
 	// scratch slabs amortize across requests.
 }
@@ -406,6 +413,8 @@ func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse
 	l.taintedObjs = make(taintedObjects)
 	l.l1Cache = make(map[string]*astjson.Value)
 	l.requestScopedL1 = make(map[string]*astjson.Value)
+	l.deferL2CacheWrites = false
+	l.deferredL2CacheSets = l.deferredL2CacheSets[:0]
 	ctx.initCacheAnalytics()
 	return l.resolveFetchNode(response.Fetches)
 }
@@ -634,26 +643,37 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 	}
 
 	// Phase 4: Merge results (main thread)
+	l.deferL2CacheWrites = true
+	l.deferredL2CacheSets = l.deferredL2CacheSets[:0]
 	for i := range results {
 		if results[i].nestedMergeItems != nil {
 			for j := range results[i].nestedMergeItems {
 				err = l.mergeResult(nodes[i].Item, results[i].nestedMergeItems[j], itemsItems[i][j:j+1])
 				l.callOnFinished(results[i].nestedMergeItems[j])
 				if err != nil {
+					l.deferL2CacheWrites = false
+					l.deferredL2CacheSets = nil
 					return errors.WithStack(err)
 				}
 			}
-			l.attachCacheTrace(nodes[i].Item.Fetch, results[i], getFetchCaching(nodes[i].Item.Fetch))
 		} else {
 			err = l.mergeResult(nodes[i].Item, results[i], itemsItems[i])
 			l.callOnFinished(results[i])
-			l.attachCacheTrace(nodes[i].Item.Fetch, results[i], getFetchCaching(nodes[i].Item.Fetch))
 			if err != nil {
+				l.deferL2CacheWrites = false
+				l.deferredL2CacheSets = nil
 				return errors.WithStack(err)
 			}
 		}
 		// Export requestScoped fields after merge (main thread)
 		l.exportRequestScopedFields(results[i], getFetchCaching(nodes[i].Item.Fetch), itemsItems[i])
+	}
+	deferredL2CacheSets := l.deferredL2CacheSets
+	l.deferL2CacheWrites = false
+	l.deferredL2CacheSets = nil
+	l.writeL2CacheSetContributors(deferredL2CacheSets)
+	for i := range results {
+		l.attachCacheTrace(nodes[i].Item.Fetch, results[i], getFetchCaching(nodes[i].Item.Fetch))
 	}
 	return nil
 }

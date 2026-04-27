@@ -324,9 +324,9 @@ func TestDetectMutationEntityImpact(t *testing.T) {
 		cache := NewFakeLoaderCache()
 		// Pre-populate cache with the entity
 		cacheKey := `{"__typename":"User","key":{"id":"1234"}}`
-		_ = cache.Set(context.Background(), []*CacheEntry{
+		_ = cache.Set(context.Background(), withCacheEntryTTL([]*CacheEntry{
 			{Key: cacheKey, Value: []byte(`{"id":"1234","username":"OldMe"}`)},
-		}, 0)
+		}, 0))
 		cache.ClearLog()
 
 		ctx := NewContext(context.Background())
@@ -491,9 +491,9 @@ func TestDetectMutationEntityImpact(t *testing.T) {
 		cache := NewFakeLoaderCache()
 		cacheKey := `{"__typename":"User","key":{"id":"1234"}}`
 		// Cached value has username="OldMe" (differs from mutation response)
-		_ = cache.Set(context.Background(), []*CacheEntry{
+		_ = cache.Set(context.Background(), withCacheEntryTTL([]*CacheEntry{
 			{Key: cacheKey, Value: []byte(`{"id":"1234","username":"OldMe"}`)},
-		}, 0)
+		}, 0))
 		cache.ClearLog()
 
 		ctx := NewContext(context.Background())
@@ -528,16 +528,16 @@ func TestDetectMutationEntityImpact(t *testing.T) {
 		assert.NotEqual(t, uint64(0), event.FreshHash)
 		assert.Equal(t, 0, event.CachedBytes)
 		assert.NotEqual(t, 0, event.FreshBytes)
-		assert.Equal(t, []CacheLogEntry{{Operation: "delete", Keys: []string{cacheKey}}}, cache.GetLog())
+		assert.Equal(t, []CacheLogEntry{{Operation: "delete", Items: []CacheLogItem{{Key: cacheKey}}}}, cache.GetLog())
 	})
 
 	t.Run("analytics enabled still avoids mutation-time cache reads for fresh entries", func(t *testing.T) {
 		cache := NewFakeLoaderCache()
 		cacheKey := `{"__typename":"User","key":{"id":"1234"}}`
 		// Cached value matches the mutation response exactly
-		_ = cache.Set(context.Background(), []*CacheEntry{
+		_ = cache.Set(context.Background(), withCacheEntryTTL([]*CacheEntry{
 			{Key: cacheKey, Value: []byte(`{"id":"1234","username":"NewMe"}`)},
-		}, 0)
+		}, 0))
 		cache.ClearLog()
 
 		ctx := NewContext(context.Background())
@@ -571,15 +571,15 @@ func TestDetectMutationEntityImpact(t *testing.T) {
 		assert.Equal(t, uint64(0), event.CachedHash)
 		assert.Equal(t, 0, event.CachedBytes)
 		assert.NotEqual(t, 0, event.FreshBytes)
-		assert.Equal(t, []CacheLogEntry{{Operation: "delete", Keys: []string{cacheKey}}}, cache.GetLog())
+		assert.Equal(t, []CacheLogEntry{{Operation: "delete", Items: []CacheLogItem{{Key: cacheKey}}}}, cache.GetLog())
 	})
 
 	t.Run("InvalidateCache false with analytics records event but no Delete", func(t *testing.T) {
 		cache := NewFakeLoaderCache()
 		cacheKey := `{"__typename":"User","key":{"id":"1234"}}`
-		_ = cache.Set(context.Background(), []*CacheEntry{
+		_ = cache.Set(context.Background(), withCacheEntryTTL([]*CacheEntry{
 			{Key: cacheKey, Value: []byte(`{"id":"1234","username":"OldMe"}`)},
-		}, 0)
+		}, 0))
 		cache.ClearLog()
 
 		ctx := NewContext(context.Background())
@@ -701,10 +701,10 @@ func TestDetectMutationEntityImpact(t *testing.T) {
 		// Pre-populate cache with two entities
 		cacheKey1 := `{"__typename":"User","key":{"id":"1"}}`
 		cacheKey2 := `{"__typename":"User","key":{"id":"2"}}`
-		_ = cache.Set(context.Background(), []*CacheEntry{
+		_ = cache.Set(context.Background(), withCacheEntryTTL([]*CacheEntry{
 			{Key: cacheKey1, Value: []byte(`{"id":"1","username":"Alice"}`)},
 			{Key: cacheKey2, Value: []byte(`{"id":"2","username":"Bob"}`)},
-		}, 0)
+		}, 0))
 
 		ctx := NewContext(context.Background())
 		ctx.ExecutionOptions.Caching.EnableCacheAnalytics = true
@@ -760,9 +760,9 @@ func TestDetectMutationEntityImpact(t *testing.T) {
 	t.Run("array response with non-object items skips them", func(t *testing.T) {
 		cache := NewFakeLoaderCache()
 		cacheKey := `{"__typename":"User","key":{"id":"1"}}`
-		_ = cache.Set(context.Background(), []*CacheEntry{
+		_ = cache.Set(context.Background(), withCacheEntryTTL([]*CacheEntry{
 			{Key: cacheKey, Value: []byte(`{"id":"1","username":"Alice"}`)},
-		}, 0)
+		}, 0))
 
 		ctx := NewContext(context.Background())
 		l := makeLoader(ctx, cache, "default")
@@ -856,7 +856,7 @@ func TestMutationCacheTTLOverride(t *testing.T) {
 		// because EnableMutationL2CachePopulation=true and MutationCacheTTLOverride=60s.
 		cacheLog := cache.GetLog()
 		assert.Equal(t, []CacheLogEntry{
-			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"u1"}}`}, TTL: 60 * time.Second}, // L2 write uses mutation TTL override (60s), not entity default (300s); no prior "get" because mutations skip L2 reads
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"u1"}}`, TTL: 60 * time.Second}}}, // L2 write uses mutation TTL override (60s), not entity default (300s); no prior "get" because mutations skip L2 reads
 		}, cacheLog)
 	})
 
@@ -908,7 +908,7 @@ func TestMutationCacheTTLOverride(t *testing.T) {
 		// L2 Set uses entity default TTL (300s) because MutationCacheTTLOverride=0.
 		cacheLog := cache.GetLog()
 		assert.Equal(t, []CacheLogEntry{
-			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"u1"}}`}, TTL: 300 * time.Second}, // L2 write uses entity default TTL (300s); no mutation override (MutationCacheTTLOverride=0)
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"u1"}}`, TTL: 300 * time.Second}}}, // L2 write uses entity default TTL (300s); no mutation override (MutationCacheTTLOverride=0)
 		}, cacheLog)
 	})
 

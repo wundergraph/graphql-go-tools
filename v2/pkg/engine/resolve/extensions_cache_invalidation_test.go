@@ -483,7 +483,9 @@ func (e *extInvEnv) deleteKeys() []string {
 	var keys []string
 	for _, entry := range e.cache.GetLog() {
 		if entry.Operation == "delete" {
-			keys = append(keys, entry.Keys...)
+			for _, item := range entry.Items {
+				keys = append(keys, item.Key)
+			}
 		}
 	}
 	return keys

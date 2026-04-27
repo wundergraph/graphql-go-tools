@@ -32,8 +32,11 @@ const (
 )
 
 type CacheEntry struct {
-	Key          string
-	Value        []byte
+	Key   string
+	Value []byte
+	// TTL controls this entry's expiration on write. Zero uses the cache backend default;
+	// negative means no TTL / indefinite.
+	TTL          time.Duration
 	RemainingTTL time.Duration    // remaining TTL from cache (0 = unknown/not supported)
 	WriteReason  CacheWriteReason // why this entry was written (empty for reads)
 }
@@ -49,8 +52,21 @@ type EntityCacheInvalidationConfig struct {
 
 type LoaderCache interface {
 	Get(ctx context.Context, keys []string) ([]*CacheEntry, error)
-	Set(ctx context.Context, entries []*CacheEntry, ttl time.Duration) error
+	Set(ctx context.Context, entries []*CacheEntry) error
 	Delete(ctx context.Context, keys []string) error
+}
+
+type l2CacheSetContributor struct {
+	res             *result
+	entries         []*CacheEntry
+	regularEntries  []*CacheEntry
+	negativeEntries []*CacheEntry
+}
+
+type l2CacheSetGroup struct {
+	cache        LoaderCache
+	contributors []*l2CacheSetContributor
+	entries      []*CacheEntry
 }
 
 // l1AnalyticsSize returns the byte size of an L1 entry for analytics purposes.
@@ -1949,29 +1965,41 @@ func getFetchPostProcessing(fetch Fetch) PostProcessingConfiguration {
 // updateL2Cache writes entity data to the L2 (external) cache.
 // This enables cross-request caching via external stores like Redis.
 func (l *Loader) updateL2Cache(res *result) {
-	if !l.ctx.ExecutionOptions.Caching.EnableL2Cache {
+	contributor := l.prepareL2CacheSet(res)
+	if contributor == nil {
 		return
+	}
+	if l.deferL2CacheWrites {
+		l.deferredL2CacheSets = append(l.deferredL2CacheSets, contributor)
+		return
+	}
+	l.writeL2CacheSetContributors([]*l2CacheSetContributor{contributor})
+}
+
+func (l *Loader) prepareL2CacheSet(res *result) *l2CacheSetContributor {
+	if !l.ctx.ExecutionOptions.Caching.EnableL2Cache {
+		return nil
 	}
 	// Skip L2 cache writes for mutations unless explicitly opted in per-mutation-field.
 	// The flag is set in resolveSingle when processing the mutation root fetch.
 	if l.info != nil && l.info.OperationType == ast.OperationTypeMutation &&
 		!l.enableMutationL2CachePopulation {
-		return
+		return nil
 	}
 	if res.cache == nil || !res.cacheMustBeUpdated {
-		return
+		return nil
 	}
 
 	keysToStore := l.prepareL2WriteKeys(res)
 	if len(keysToStore) == 0 {
-		return
+		return nil
 	}
 
 	// Convert CacheKeys to CacheEntries
 	cacheEntries, err := l.cacheKeysToEntriesForUpdate(l.jsonArena, res, keysToStore)
 	if err != nil {
 		// Cache update errors are non-fatal - silently ignore
-		return
+		return nil
 	}
 
 	// Determine effective TTL: use mutation override if set, otherwise entity default
@@ -1979,13 +2007,35 @@ func (l *Loader) updateL2Cache(res *result) {
 	if l.enableMutationL2CachePopulation && l.mutationCacheTTLOverride > 0 {
 		ttl = l.mutationCacheTTLOverride
 	}
-
-	writtenEntries := l.writeL2CacheEntries(res, keysToStore, cacheEntries, ttl)
-	if len(writtenEntries) == 0 {
-		return
+	for _, entry := range cacheEntries {
+		if entry != nil {
+			entry.TTL = ttl
+		}
 	}
 
-	l.recordL2WriteAnalytics(res, writtenEntries, cacheEntries, ttl)
+	var negEntries []*CacheEntry
+	if res.cacheConfig.NegativeCacheTTL > 0 {
+		negEntries = l.cacheKeysToNegativeEntries(l.jsonArena, res, keysToStore)
+		for _, entry := range negEntries {
+			if entry != nil {
+				entry.TTL = res.cacheConfig.NegativeCacheTTL
+			}
+		}
+	}
+
+	if len(cacheEntries) == 0 && len(negEntries) == 0 {
+		return nil
+	}
+
+	entries := make([]*CacheEntry, 0, len(cacheEntries)+len(negEntries))
+	entries = append(entries, cacheEntries...)
+	entries = append(entries, negEntries...)
+	return &l2CacheSetContributor{
+		res:             res,
+		entries:         entries,
+		regularEntries:  cacheEntries,
+		negativeEntries: negEntries,
+	}
 }
 
 // prepareL2WriteKeys chooses the write-set of CacheKeys for updateL2Cache,
@@ -2065,28 +2115,62 @@ func (l *Loader) prepareL2WriteKeys(res *result) []*CacheKey {
 	return keysToStore
 }
 
-// writeL2CacheEntries issues the regular + negative Set calls against the
-// configured L2 cache, records tracing and per-set errors, and returns the
-// entries that the cache accepted so recordL2WriteAnalytics can emit write
-// events for exactly those.
-func (l *Loader) writeL2CacheEntries(res *result, keysToStore []*CacheKey, cacheEntries []*CacheEntry, ttl time.Duration) []*CacheEntry {
+func (l *Loader) writeL2CacheSetContributors(contributors []*l2CacheSetContributor) {
+	if len(contributors) == 0 {
+		return
+	}
+	groupsByCache := make(map[LoaderCache]*l2CacheSetGroup, len(contributors))
+	groups := make([]*l2CacheSetGroup, 0, len(contributors))
+	for _, contributor := range contributors {
+		if contributor == nil || contributor.res == nil || contributor.res.cache == nil || len(contributor.entries) == 0 {
+			continue
+		}
+		group := groupsByCache[contributor.res.cache]
+		if group == nil {
+			group = &l2CacheSetGroup{cache: contributor.res.cache}
+			groupsByCache[contributor.res.cache] = group
+			groups = append(groups, group)
+		}
+		group.contributors = append(group.contributors, contributor)
+		group.entries = append(group.entries, contributor.entries...)
+	}
+	for _, group := range groups {
+		l.writeL2CacheSetGroup(group)
+	}
+}
+
+func (l *Loader) writeL2CacheSetGroup(group *l2CacheSetGroup) {
+	if group == nil || group.cache == nil || len(group.entries) == 0 {
+		return
+	}
 	tracingCache := l.ctx.TracingOptions.Enable && !l.ctx.TracingOptions.ExcludeCacheStats
 	ctx := l.ctx.ctx
 
-	var writtenEntries []*CacheEntry
-
-	// Store regular (non-null) cache entries
-	if len(cacheEntries) > 0 {
-		var l2SetStart time.Time
-		if tracingCache {
-			l2SetStart = time.Now()
+	var l2SetStart time.Time
+	if tracingCache {
+		l2SetStart = time.Now()
+		for _, contributor := range group.contributors {
+			res := contributor.res
 			res.cacheTraceL2SetAttempted = true
+			if len(contributor.negativeEntries) > 0 {
+				res.cacheTraceL2SetNegAttempted = true
+			}
 		}
-		if setErr := res.cache.Set(ctx, cacheEntries, ttl); setErr != nil {
+	}
+	setErr := group.cache.Set(ctx, group.entries)
+	if setErr != nil {
+		for _, contributor := range group.contributors {
+			res := contributor.res
 			if tracingCache {
 				res.cacheTraceL2SetDuration = time.Since(l2SetStart)
+				if len(contributor.negativeEntries) > 0 {
+					res.cacheTraceL2SetNegDuration = res.cacheTraceL2SetDuration
+				}
 				if !errors.Is(setErr, ErrCircuitBreakerOpen) {
 					res.cacheTraceL2SetError = setErr.Error()
+					if len(contributor.negativeEntries) > 0 {
+						res.cacheTraceL2SetNegError = setErr.Error()
+					}
 				}
 			}
 			if l.ctx.cacheAnalyticsEnabled() && !errors.Is(setErr, ErrCircuitBreakerOpen) {
@@ -2096,60 +2180,30 @@ func (l *Loader) writeL2CacheEntries(res *result, keysToStore []*CacheKey, cache
 					EntityType: res.analyticsEntityType,
 					DataSource: res.ds.Name,
 					Message:    truncateErrorMessage(setErr.Error(), 256),
-					ItemCount:  len(cacheEntries),
+					ItemCount:  len(contributor.entries),
 				})
 			}
-		} else {
-			if tracingCache {
-				res.cacheTraceL2SetDuration = time.Since(l2SetStart)
-			}
-			writtenEntries = append(writtenEntries, cacheEntries...)
 		}
+		return
 	}
 
-	// Negative caching: store null sentinels with separate TTL for entities the subgraph returned null for
-	if res.cacheConfig.NegativeCacheTTL > 0 {
-		negEntries := l.cacheKeysToNegativeEntries(l.jsonArena, res, keysToStore)
-		if len(negEntries) > 0 {
-			var l2SetNegStart time.Time
-			if tracingCache {
-				l2SetNegStart = time.Now()
-				res.cacheTraceL2SetNegAttempted = true
-			}
-			if setErr := res.cache.Set(ctx, negEntries, res.cacheConfig.NegativeCacheTTL); setErr != nil {
-				if tracingCache {
-					res.cacheTraceL2SetNegDuration = time.Since(l2SetNegStart)
-					if !errors.Is(setErr, ErrCircuitBreakerOpen) {
-						res.cacheTraceL2SetNegError = setErr.Error()
-					}
-				}
-				if l.ctx.cacheAnalyticsEnabled() && !errors.Is(setErr, ErrCircuitBreakerOpen) {
-					l.ctx.cacheAnalytics.RecordCacheOperationError(CacheOperationError{
-						Operation:  "set_negative",
-						CacheName:  res.cacheConfig.CacheName,
-						EntityType: res.analyticsEntityType,
-						DataSource: res.ds.Name,
-						Message:    truncateErrorMessage(setErr.Error(), 256),
-						ItemCount:  len(negEntries),
-					})
-				}
-			} else {
-				if tracingCache {
-					res.cacheTraceL2SetNegDuration = time.Since(l2SetNegStart)
-				}
-				writtenEntries = append(writtenEntries, negEntries...)
+	for _, contributor := range group.contributors {
+		res := contributor.res
+		if tracingCache {
+			res.cacheTraceL2SetDuration = time.Since(l2SetStart)
+			if len(contributor.negativeEntries) > 0 {
+				res.cacheTraceL2SetNegDuration = res.cacheTraceL2SetDuration
 			}
 		}
+		l.recordL2WriteAnalytics(res, contributor.entries, contributor.regularEntries)
 	}
-
-	return writtenEntries
 }
 
 // recordL2WriteAnalytics emits the CacheWriteEvent per written entry and, when
 // subgraph-header isolation is active, the header-impact hashes that feed
 // cross-request analytics. Only the regular cacheEntries are hashed for header
 // impact — negative-cache sentinels are not meaningful there.
-func (l *Loader) recordL2WriteAnalytics(res *result, writtenEntries []*CacheEntry, cacheEntries []*CacheEntry, ttl time.Duration) {
+func (l *Loader) recordL2WriteAnalytics(res *result, writtenEntries []*CacheEntry, cacheEntries []*CacheEntry) {
 	// Record L2 write events for analytics
 	if l.ctx.cacheAnalyticsEnabled() {
 		for _, entry := range writtenEntries {
@@ -2158,7 +2212,7 @@ func (l *Loader) recordL2WriteAnalytics(res *result, writtenEntries []*CacheEntr
 			}
 			l.ctx.cacheAnalytics.RecordWrite(CacheWriteEvent{
 				CacheKey: entry.Key, EntityType: res.analyticsEntityType, ByteSize: len(entry.Value),
-				DataSource: res.ds.Name, CacheLevel: CacheLevelL2, TTL: ttl,
+				DataSource: res.ds.Name, CacheLevel: CacheLevelL2, TTL: entry.TTL,
 				Source: l.cacheOperationSource(), WriteReason: entry.WriteReason,
 			})
 		}
@@ -2637,7 +2691,8 @@ func (l *Loader) detectSingleMutationEntityImpact(
 		if setErr := cache.Set(l.ctx.ctx, []*CacheEntry{{
 			Key:   cacheKey,
 			Value: valueBytes,
-		}}, cfg.PopulateTTL); setErr != nil {
+			TTL:   cfg.PopulateTTL,
+		}}); setErr != nil {
 			if l.ctx.cacheAnalyticsEnabled() {
 				l.ctx.cacheAnalytics.RecordCacheOperationError(CacheOperationError{
 					Operation:  "set",

@@ -285,13 +285,22 @@ func cachingTestQueryPath(name string) string {
 }
 
 type CacheLogEntry struct {
-	Operation CacheOperation
-	Keys      []string      // Keys involved in the operation
-	Hits      []bool        // For Get: whether each key was a hit (true) or miss (false)
-	TTL       time.Duration // For Set: the TTL used
+	Operation string
+	Items     []CacheLogItem
 }
 
-type CacheOperation string
+// CacheLogItem is one key touched by a cache operation.
+// Field meaning depends on Operation:
+//   - "get": Key + Hit are populated; TTL is unused.
+//   - "set": Key + TTL are populated; Hit is unused.
+//   - "delete": only Key is populated.
+type CacheLogItem struct {
+	Key string
+	Hit bool
+	TTL time.Duration
+}
+
+type CacheOperation = string
 
 const (
 	CacheOperationGet    CacheOperation = "get"
@@ -299,138 +308,29 @@ const (
 	CacheOperationDelete CacheOperation = "delete"
 )
 
-// sortCacheLogKeys sorts the keys (and corresponding hits) in each cache log entry.
-// This makes comparisons order-independent when multiple keys are present.
-func sortCacheLogKeys(log []CacheLogEntry) []CacheLogEntry {
-	sorted := make([]CacheLogEntry, len(log))
-	for i, entry := range log {
-		// Only sort if there are multiple keys
-		if len(entry.Keys) <= 1 {
-			sorted[i] = CacheLogEntry{
-				Operation: entry.Operation,
-				Keys:      entry.Keys,
-				Hits:      entry.Hits,
-			}
-			continue
-		}
-
-		// Create pairs of (key, hit) to sort together
-		pairs := make([]struct {
-			key string
-			hit bool
-		}, len(entry.Keys))
-		for j := range entry.Keys {
-			pairs[j].key = entry.Keys[j]
-			if entry.Hits != nil && j < len(entry.Hits) {
-				pairs[j].hit = entry.Hits[j]
-			}
-		}
-
-		// Sort pairs by key
-		sort.Slice(pairs, func(a, b int) bool {
-			return pairs[a].key < pairs[b].key
-		})
-
-		// Extract sorted keys and hits
-		sorted[i] = CacheLogEntry{
-			Operation: entry.Operation,
-			Keys:      make([]string, len(pairs)),
-			Hits:      nil,
-		}
-		if len(entry.Hits) > 0 {
-			sorted[i].Hits = make([]bool, len(pairs))
-		}
-		for j := range pairs {
-			sorted[i].Keys[j] = pairs[j].key
-			if sorted[i].Hits != nil {
-				sorted[i].Hits[j] = pairs[j].hit
-			}
-		}
-	}
-	return sorted
-}
-
-// sortCacheLogEntries sorts both the entries (by operation+first key) and the keys within entries.
-// Use this when log entry order is non-deterministic (e.g., split datasources executing in parallel).
+// sortCacheLogEntries sorts both entries and items within entries.
+// Use this when log entry order is non-deterministic.
 func sortCacheLogEntries(log []CacheLogEntry) []CacheLogEntry {
-	sorted := sortCacheLogKeys(log)
-	sort.Slice(sorted, func(a, b int) bool {
-		if sorted[a].Operation != sorted[b].Operation {
-			return sorted[a].Operation < sorted[b].Operation
-		}
-		keyA, keyB := "", ""
-		if len(sorted[a].Keys) > 0 {
-			keyA = sorted[a].Keys[0]
-		}
-		if len(sorted[b].Keys) > 0 {
-			keyB = sorted[b].Keys[0]
-		}
-		return keyA < keyB
-	})
-	return sorted
-}
-
-// sortCacheLogKeysWithTTL is like sortCacheLogKeys but preserves the TTL field.
-// Use this when assertions need to verify TTL values on set operations.
-func sortCacheLogKeysWithTTL(log []CacheLogEntry) []CacheLogEntry {
 	sorted := make([]CacheLogEntry, len(log))
 	for i, entry := range log {
-		if len(entry.Keys) <= 1 {
-			sorted[i] = CacheLogEntry{
-				Operation: entry.Operation,
-				Keys:      entry.Keys,
-				Hits:      entry.Hits,
-				TTL:       entry.TTL,
-			}
-			continue
-		}
-
-		pairs := make([]struct {
-			key string
-			hit bool
-		}, len(entry.Keys))
-		for j := range entry.Keys {
-			pairs[j].key = entry.Keys[j]
-			if entry.Hits != nil && j < len(entry.Hits) {
-				pairs[j].hit = entry.Hits[j]
-			}
-		}
-		sort.Slice(pairs, func(a, b int) bool {
-			return pairs[a].key < pairs[b].key
-		})
 		sorted[i] = CacheLogEntry{
 			Operation: entry.Operation,
-			Keys:      make([]string, len(pairs)),
-			Hits:      nil,
-			TTL:       entry.TTL,
+			Items:     append([]CacheLogItem(nil), entry.Items...),
 		}
-		if len(entry.Hits) > 0 {
-			sorted[i].Hits = make([]bool, len(pairs))
-		}
-		for j := range pairs {
-			sorted[i].Keys[j] = pairs[j].key
-			if sorted[i].Hits != nil {
-				sorted[i].Hits[j] = pairs[j].hit
-			}
-		}
+		sort.Slice(sorted[i].Items, func(a, b int) bool {
+			return sorted[i].Items[a].Key < sorted[i].Items[b].Key
+		})
 	}
-	return sorted
-}
-
-// sortCacheLogEntriesWithTTL sorts both entries and keys while preserving TTL.
-// Use this when entry order is non-deterministic and TTL values need to be verified.
-func sortCacheLogEntriesWithTTL(log []CacheLogEntry) []CacheLogEntry {
-	sorted := sortCacheLogKeysWithTTL(log)
 	sort.Slice(sorted, func(a, b int) bool {
 		if sorted[a].Operation != sorted[b].Operation {
 			return sorted[a].Operation < sorted[b].Operation
 		}
 		keyA, keyB := "", ""
-		if len(sorted[a].Keys) > 0 {
-			keyA = sorted[a].Keys[0]
+		if len(sorted[a].Items) > 0 {
+			keyA = sorted[a].Items[0].Key
 		}
-		if len(sorted[b].Keys) > 0 {
-			keyB = sorted[b].Keys[0]
+		if len(sorted[b].Items) > 0 {
+			keyB = sorted[b].Items[0].Key
 		}
 		return keyA < keyB
 	})
@@ -478,9 +378,10 @@ func (f *FakeLoaderCache) Get(ctx context.Context, keys []string) ([]*resolve.Ca
 	// Clean up expired entries before executing command
 	f.cleanupExpired()
 
-	hits := make([]bool, len(keys))
+	items := make([]CacheLogItem, len(keys))
 	result := make([]*resolve.CacheEntry, len(keys))
 	for i, key := range keys {
+		items[i].Key = key
 		if entry, exists := f.storage[key]; exists {
 			// Make a copy of the data to prevent external modifications
 			dataCopy := make([]byte, len(entry.data))
@@ -497,25 +398,23 @@ func (f *FakeLoaderCache) Get(ctx context.Context, keys []string) ([]*resolve.Ca
 				}
 			}
 			result[i] = ce
-			hits[i] = true
+			items[i].Hit = true
 		} else {
 			result[i] = nil
-			hits[i] = false
 		}
 	}
 
 	// Log the operation
 	f.log = append(f.log, CacheLogEntry{
 		Operation: CacheOperationGet,
-		Keys:      keys,
-		Hits:      hits,
+		Items:     items,
 	})
 	f.notifyWaitersLocked(f.log[len(f.log)-1])
 
 	return result, nil
 }
 
-func (f *FakeLoaderCache) Set(ctx context.Context, entries []*resolve.CacheEntry, ttl time.Duration) error {
+func (f *FakeLoaderCache) Set(ctx context.Context, entries []*resolve.CacheEntry) error {
 	if len(entries) == 0 {
 		return nil
 	}
@@ -526,7 +425,7 @@ func (f *FakeLoaderCache) Set(ctx context.Context, entries []*resolve.CacheEntry
 	// Clean up expired entries before executing command
 	f.cleanupExpired()
 
-	keys := make([]string, 0, len(entries))
+	items := make([]CacheLogItem, 0, len(entries))
 	for _, entry := range entries {
 		if entry == nil {
 			continue
@@ -537,22 +436,20 @@ func (f *FakeLoaderCache) Set(ctx context.Context, entries []*resolve.CacheEntry
 		}
 		copy(cacheEntry.data, entry.Value)
 
-		// If ttl is 0, store without expiration
-		if ttl > 0 {
-			expiresAt := time.Now().Add(ttl)
+		// Non-positive TTLs use the fake cache's no-expiration default.
+		if entry.TTL > 0 {
+			expiresAt := time.Now().Add(entry.TTL)
 			cacheEntry.expiresAt = &expiresAt
 		}
 
 		f.storage[entry.Key] = cacheEntry
-		keys = append(keys, entry.Key)
+		items = append(items, CacheLogItem{Key: entry.Key, TTL: entry.TTL})
 	}
 
 	// Log the operation
 	f.log = append(f.log, CacheLogEntry{
 		Operation: CacheOperationSet,
-		Keys:      keys,
-		Hits:      nil, // Set operations don't have hits/misses
-		TTL:       ttl,
+		Items:     items,
 	})
 	f.notifyWaitersLocked(f.log[len(f.log)-1])
 
@@ -569,12 +466,15 @@ func (f *FakeLoaderCache) Delete(ctx context.Context, keys []string) error {
 	for _, key := range keys {
 		delete(f.storage, key)
 	}
+	items := make([]CacheLogItem, len(keys))
+	for i, key := range keys {
+		items[i] = CacheLogItem{Key: key}
+	}
 
 	// Log the operation
 	f.log = append(f.log, CacheLogEntry{
 		Operation: CacheOperationDelete,
-		Keys:      keys,
-		Hits:      nil, // Delete operations don't have hits/misses
+		Items:     items,
 	})
 	f.notifyWaitersLocked(f.log[len(f.log)-1])
 
@@ -597,7 +497,11 @@ func (f *FakeLoaderCache) WaitForOperation(operation CacheOperation, keys []stri
 func (f *FakeLoaderCache) notifyWaitersLocked(entry CacheLogEntry) {
 	remaining := f.waiters[:0]
 	for _, waiter := range f.waiters {
-		if waiter.operation == entry.Operation && slices.Equal(waiter.keys, entry.Keys) {
+		keys := make([]string, len(entry.Items))
+		for i, item := range entry.Items {
+			keys[i] = item.Key
+		}
+		if waiter.operation == entry.Operation && slices.Equal(waiter.keys, keys) {
 			waiter.ch <- entry
 			close(waiter.ch)
 			continue
@@ -653,7 +557,7 @@ func TestFakeLoaderCache(t *testing.T) {
 			{Key: "key1", Value: []byte("value1")},
 			{Key: "key2", Value: []byte("value2")},
 			{Key: "key3", Value: []byte("value3")},
-		}, 0) // No TTL → RemainingTTL stays 0 on Get
+		}) // No TTL → RemainingTTL stays 0 on Get
 		require.NoError(t, err)
 
 		// Get all keys in insertion order
@@ -684,7 +588,7 @@ func TestFakeLoaderCache(t *testing.T) {
 			{Key: "del2", Value: []byte("v2")},
 			{Key: "del3", Value: []byte("v3")},
 		}
-		err := cache.Set(ctx, entries, 0)
+		err := cache.Set(ctx, entries)
 		require.NoError(t, err)
 
 		// Delete some keys
@@ -705,10 +609,10 @@ func TestFakeLoaderCache(t *testing.T) {
 		cache := NewFakeLoaderCache()
 		// Set with 50ms TTL
 		entries := []*resolve.CacheEntry{
-			{Key: "ttl1", Value: []byte("expire1")},
-			{Key: "ttl2", Value: []byte("expire2")},
+			{Key: "ttl1", Value: []byte("expire1"), TTL: 50 * time.Millisecond},
+			{Key: "ttl2", Value: []byte("expire2"), TTL: 50 * time.Millisecond},
 		}
-		err := cache.Set(ctx, entries, 50*time.Millisecond)
+		err := cache.Set(ctx, entries)
 		require.NoError(t, err)
 
 		// Immediately get - should exist
@@ -737,10 +641,10 @@ func TestFakeLoaderCache(t *testing.T) {
 		t.Parallel()
 		cache := NewFakeLoaderCache()
 
-		err := cache.Set(ctx, []*resolve.CacheEntry{{Key: "perm1", Value: []byte("permanent")}}, 0)
+		err := cache.Set(ctx, []*resolve.CacheEntry{{Key: "perm1", Value: []byte("permanent")}})
 		require.NoError(t, err)
 
-		err = cache.Set(ctx, []*resolve.CacheEntry{{Key: "temp1", Value: []byte("temporary")}}, 50*time.Millisecond)
+		err = cache.Set(ctx, []*resolve.CacheEntry{{Key: "temp1", Value: []byte("temporary"), TTL: 50 * time.Millisecond}})
 		require.NoError(t, err)
 
 		// Wait for temporary to expire (TTL-driven, deterministic via Peek)
@@ -768,7 +672,7 @@ func TestFakeLoaderCache(t *testing.T) {
 			for i := range 100 {
 				key := fmt.Sprintf("concurrent_%d", i)
 				value := fmt.Sprintf("value_%d", i)
-				err := cache.Set(ctx, []*resolve.CacheEntry{{Key: key, Value: []byte(value)}}, 0)
+				err := cache.Set(ctx, []*resolve.CacheEntry{{Key: key, Value: []byte(value)}})
 				assert.NoError(t, err)
 			}
 			done <- true
@@ -808,7 +712,7 @@ func TestFakeLoaderCache(t *testing.T) {
 
 		err := cache.Set(ctx, []*resolve.CacheEntry{
 			{Key: "watched-key", Value: []byte("value")},
-		}, 0)
+		})
 		require.NoError(t, err)
 
 		err = cache.Delete(ctx, []string{"watched-key"})
@@ -819,9 +723,7 @@ func TestFakeLoaderCache(t *testing.T) {
 			require.True(t, ok)
 			assert.Equal(t, CacheLogEntry{
 				Operation: CacheOperationDelete,
-				Keys:      []string{"watched-key"},
-				Hits:      nil,
-				TTL:       0,
+				Items:     []CacheLogItem{{Key: "watched-key"}},
 			}, entry)
 		case <-time.After(time.Second):
 			t.Fatal("timeout waiting for delete notification")
@@ -835,7 +737,7 @@ func TestFakeLoaderCache(t *testing.T) {
 		err := cache.Set(ctx, []*resolve.CacheEntry{
 			{Key: "exist1", Value: []byte("data1")},
 			{Key: "exist3", Value: []byte("data3")},
-		}, 0) // No TTL → RemainingTTL stays 0 on Get
+		}) // No TTL → RemainingTTL stays 0 on Get
 		require.NoError(t, err)
 
 		// Mix of existing and missing keys: result slots align with keys, missing → nil.

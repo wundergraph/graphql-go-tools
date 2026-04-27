@@ -841,12 +841,13 @@ func (r *Resolver) handleTriggerEntityCache(config *triggerEntityCacheConfig, da
 			entries = append(entries, &CacheEntry{
 				Key:   strings.Clone(ck.Keys[0]),
 				Value: value,
+				TTL:   config.pop.TTL,
 			})
 		}
 		// Cache errors are intentionally ignored: subscription delivery must
 		// not be blocked by cache failures.
 		if len(entries) > 0 {
-			_ = cache.Set(ctx, entries, config.pop.TTL)
+			_ = cache.Set(ctx, entries)
 			if r.options.OnSubscriptionCacheWrite != nil {
 				for _, entry := range entries {
 					r.options.OnSubscriptionCacheWrite(CacheWriteEvent{

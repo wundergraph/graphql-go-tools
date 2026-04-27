@@ -327,10 +327,10 @@ func TestCacheLoad_NestedProductsFromL2(t *testing.T) {
 		prod1Data := `{"__typename":"Product","id":"prod-1","name":"Product One"}`
 		prod2Data := `{"__typename":"Product","id":"prod-2","name":"Product Two"}`
 
-		err := cache.Set(context.Background(), []*CacheEntry{
+		err := cache.Set(context.Background(), withCacheEntryTTL([]*CacheEntry{
 			{Key: `{"__typename":"Product","key":{"id":"prod-1"}}`, Value: []byte(prod1Data)},
 			{Key: `{"__typename":"Product","key":{"id":"prod-2"}}`, Value: []byte(prod2Data)},
-		}, 30*time.Second)
+		}, 30*time.Second))
 		require.NoError(t, err)
 
 		cache.ClearLog() // Clear log after pre-population
@@ -375,8 +375,8 @@ func TestCacheLoad_NestedProductsFromL2(t *testing.T) {
 			if entry.Operation == "get" {
 				foundCacheGet = true
 				// Check if we have cache hits
-				for i, hit := range entry.Hits {
-					t.Logf("Cache key %s: hit=%v", entry.Keys[i], hit)
+				for _, item := range entry.Items {
+					t.Logf("Cache key %s: hit=%v", item.Key, item.Hit)
 				}
 			}
 		}
@@ -395,9 +395,9 @@ func TestCacheLoad_SingleEntityHit(t *testing.T) {
 
 		// Pre-populate cache
 		productData := `{"__typename":"Product","id":"prod-1","name":"Cached Product"}`
-		err := cache.Set(context.Background(), []*CacheEntry{
+		err := cache.Set(context.Background(), withCacheEntryTTL([]*CacheEntry{
 			{Key: `{"__typename":"Product","key":{"id":"prod-1"}}`, Value: []byte(productData)},
-		}, 30*time.Second)
+		}, 30*time.Second))
 		require.NoError(t, err)
 		cache.ClearLog()
 
@@ -593,9 +593,9 @@ func TestCacheLoad_SingleEntityHit(t *testing.T) {
 		foundCacheHit := false
 		for _, entry := range cacheLog {
 			if entry.Operation == "get" {
-				for i, hit := range entry.Hits {
-					t.Logf("Cache key %s: hit=%v", entry.Keys[i], hit)
-					if hit {
+				for _, item := range entry.Items {
+					t.Logf("Cache key %s: hit=%v", item.Key, item.Hit)
+					if item.Hit {
 						foundCacheHit = true
 					}
 				}
@@ -811,14 +811,14 @@ func TestCacheLoad_SingleEntityHit(t *testing.T) {
 			if entry.Operation == "get" {
 				foundCacheGet = true
 				// Verify it's a miss
-				for i, hit := range entry.Hits {
-					t.Logf("Cache key %s: hit=%v", entry.Keys[i], hit)
-					assert.False(t, hit, "Expected cache miss")
+				for _, item := range entry.Items {
+					t.Logf("Cache key %s: hit=%v", item.Key, item.Hit)
+					assert.False(t, item.Hit, "Expected cache miss")
 				}
 			}
 			if entry.Operation == "set" {
 				foundCacheSet = true
-				t.Logf("Cache set keys: %v", entry.Keys)
+				t.Logf("Cache set items: %v", entry.Items)
 			}
 		}
 
@@ -1031,9 +1031,10 @@ func TestCacheLoad_SequentialMissThenHit(t *testing.T) {
 		for _, entry := range cacheLog1 {
 			if entry.Operation == "get" {
 				foundFirstGet = true
-				firstGetHits = entry.Hits
-				for i, hit := range entry.Hits {
-					t.Logf("First call - Cache key %s: hit=%v", entry.Keys[i], hit)
+				firstGetHits = make([]bool, 0, len(entry.Items))
+				for _, item := range entry.Items {
+					firstGetHits = append(firstGetHits, item.Hit)
+					t.Logf("First call - Cache key %s: hit=%v", item.Key, item.Hit)
 				}
 			}
 			if entry.Operation == "set" {
@@ -1078,9 +1079,10 @@ func TestCacheLoad_SequentialMissThenHit(t *testing.T) {
 		for _, entry := range cacheLog2 {
 			if entry.Operation == "get" {
 				foundSecondGet = true
-				secondGetHits = entry.Hits
-				for i, hit := range entry.Hits {
-					t.Logf("Second call - Cache key %s: hit=%v", entry.Keys[i], hit)
+				secondGetHits = make([]bool, 0, len(entry.Items))
+				for _, item := range entry.Items {
+					secondGetHits = append(secondGetHits, item.Hit)
+					t.Logf("Second call - Cache key %s: hit=%v", item.Key, item.Hit)
 				}
 			}
 			if entry.Operation == "set" {
@@ -1100,17 +1102,35 @@ func TestCacheLoad_SequentialMissThenHit(t *testing.T) {
 
 // Testing utilities
 
-// CacheLogEntry tracks a cache operation for testing
+// CacheLogItem is one key touched by a cache operation.
+// Field meaning depends on Operation:
+//   - "get": Key + Hit are populated; TTL is unused.
+//   - "set": Key + TTL are populated; Hit is unused.
+//   - "delete": only Key is populated.
+type CacheLogItem struct {
+	Key string
+	Hit bool
+	TTL time.Duration
+}
+
+// CacheLogEntry tracks a cache operation for testing.
 type CacheLogEntry struct {
-	Operation string        // "get", "set", "delete"
-	Keys      []string      // Keys involved in the operation
-	Hits      []bool        // For Get: whether each key was a hit (true) or miss (false)
-	TTL       time.Duration // For Set: the TTL passed to the operation
+	Operation string
+	Items     []CacheLogItem
 }
 
 type cacheEntry struct {
 	data      []byte
 	expiresAt *time.Time
+}
+
+func withCacheEntryTTL(entries []*CacheEntry, ttl time.Duration) []*CacheEntry {
+	for _, entry := range entries {
+		if entry != nil {
+			entry.TTL = ttl
+		}
+	}
+	return entries
 }
 
 // FakeLoaderCache is an in-memory cache implementation for testing
@@ -1143,9 +1163,10 @@ func (f *FakeLoaderCache) Get(ctx context.Context, keys []string) ([]*CacheEntry
 	// Clean up expired entries before executing command
 	f.cleanupExpired()
 
-	hits := make([]bool, len(keys))
+	items := make([]CacheLogItem, len(keys))
 	result := make([]*CacheEntry, len(keys))
 	for i, key := range keys {
+		items[i].Key = key
 		if entry, exists := f.storage[key]; exists {
 			// Make a copy of the data to prevent external modifications
 			dataCopy := make([]byte, len(entry.data))
@@ -1162,24 +1183,22 @@ func (f *FakeLoaderCache) Get(ctx context.Context, keys []string) ([]*CacheEntry
 				}
 			}
 			result[i] = ce
-			hits[i] = true
+			items[i].Hit = true
 		} else {
 			result[i] = nil
-			hits[i] = false
 		}
 	}
 
 	// Log the operation
 	f.log = append(f.log, CacheLogEntry{
 		Operation: "get",
-		Keys:      keys,
-		Hits:      hits,
+		Items:     items,
 	})
 
 	return result, nil
 }
 
-func (f *FakeLoaderCache) Set(ctx context.Context, entries []*CacheEntry, ttl time.Duration) error {
+func (f *FakeLoaderCache) Set(ctx context.Context, entries []*CacheEntry) error {
 	if len(entries) == 0 {
 		return nil
 	}
@@ -1190,7 +1209,7 @@ func (f *FakeLoaderCache) Set(ctx context.Context, entries []*CacheEntry, ttl ti
 	// Clean up expired entries before executing command
 	f.cleanupExpired()
 
-	keys := make([]string, 0, len(entries))
+	items := make([]CacheLogItem, 0, len(entries))
 	for _, entry := range entries {
 		if entry == nil {
 			continue
@@ -1201,22 +1220,20 @@ func (f *FakeLoaderCache) Set(ctx context.Context, entries []*CacheEntry, ttl ti
 		}
 		copy(ce.data, entry.Value)
 
-		// If ttl is 0, store without expiration
-		if ttl > 0 {
-			expiresAt := time.Now().Add(ttl)
+		// Non-positive TTLs use the fake cache's no-expiration default.
+		if entry.TTL > 0 {
+			expiresAt := time.Now().Add(entry.TTL)
 			ce.expiresAt = &expiresAt
 		}
 
 		f.storage[entry.Key] = ce
-		keys = append(keys, entry.Key)
+		items = append(items, CacheLogItem{Key: entry.Key, TTL: entry.TTL})
 	}
 
 	// Log the operation
 	f.log = append(f.log, CacheLogEntry{
 		Operation: "set",
-		Keys:      keys,
-		Hits:      nil, // Set operations don't have hits/misses
-		TTL:       ttl,
+		Items:     items,
 	})
 
 	return nil
@@ -1232,12 +1249,15 @@ func (f *FakeLoaderCache) Delete(ctx context.Context, keys []string) error {
 	for _, key := range keys {
 		delete(f.storage, key)
 	}
+	items := make([]CacheLogItem, len(keys))
+	for i, key := range keys {
+		items[i] = CacheLogItem{Key: key}
+	}
 
 	// Log the operation
 	f.log = append(f.log, CacheLogEntry{
 		Operation: "delete",
-		Keys:      keys,
-		Hits:      nil, // Delete operations don't have hits/misses
+		Items:     items,
 	})
 
 	return nil
@@ -2017,11 +2037,11 @@ func (e *ErrorLoaderCache) Get(ctx context.Context, keys []string) ([]*CacheEntr
 	return e.FakeLoaderCache.Get(ctx, keys)
 }
 
-func (e *ErrorLoaderCache) Set(ctx context.Context, entries []*CacheEntry, ttl time.Duration) error {
+func (e *ErrorLoaderCache) Set(ctx context.Context, entries []*CacheEntry) error {
 	if e.setErr != nil {
 		return e.setErr
 	}
-	return e.FakeLoaderCache.Set(ctx, entries, ttl)
+	return e.FakeLoaderCache.Set(ctx, entries)
 }
 
 // buildProductEntityResponse creates a GraphQLResponse for a single product entity fetch.
@@ -2204,9 +2224,9 @@ func TestL2CacheErrorResilience(t *testing.T) {
 
 		cache := NewFakeLoaderCache()
 		// Pre-populate cache with corrupted JSON using the real key format
-		_ = cache.Set(t.Context(), []*CacheEntry{
+		_ = cache.Set(t.Context(), withCacheEntryTTL([]*CacheEntry{
 			{Key: `{"__typename":"Product","key":{"id":"prod-1"}}`, Value: []byte(`{not valid json!!!}`)},
-		}, 30*time.Second)
+		}, 30*time.Second))
 
 		rootDS := NewMockDataSource(ctrl)
 		rootDS.EXPECT().Load(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -2244,7 +2264,7 @@ func TestL2CacheErrorResilience(t *testing.T) {
 		assert.Equal(t, 3, len(log), "should have set (seed) + get (corrupted hit) + set (fresh data)")
 		assert.Equal(t, "set", log[0].Operation)
 		assert.Equal(t, "get", log[1].Operation)
-		assert.Equal(t, true, log[1].Hits[0], "L2 Get should find the seeded corrupted entry")
+		assert.Equal(t, true, log[1].Items[0].Hit, "L2 Get should find the seeded corrupted entry")
 		assert.Equal(t, "set", log[2].Operation)
 	})
 }
@@ -2258,9 +2278,9 @@ func TestMutationSkipsL2Read(t *testing.T) {
 
 		cache := NewFakeLoaderCache()
 		// Pre-populate cache with stale data using the real key format
-		_ = cache.Set(t.Context(), []*CacheEntry{
+		_ = cache.Set(t.Context(), withCacheEntryTTL([]*CacheEntry{
 			{Key: `{"__typename":"Product","key":{"id":"prod-1"}}`, Value: []byte(`{"__typename":"Product","id":"prod-1","name":"Old Name"}`)},
-		}, 30*time.Second)
+		}, 30*time.Second))
 
 		userCacheKeyTemplate := &EntityQueryCacheKeyTemplate{
 			Keys: NewResolvableObjectVariable(&Object{
@@ -2424,9 +2444,9 @@ func TestCacheBackfill_SkipFetch_HappyPath(t *testing.T) {
 
 	// Seed L2 with only the id key. The stored entity is complete enough to serve
 	// the request and to prove that the email key belongs to the same entity.
-	err := cache.Set(t.Context(), []*CacheEntry{
+	err := cache.Set(t.Context(), withCacheEntryTTL([]*CacheEntry{
 		{Key: idKey, Value: []byte(`{"__typename":"User","id":"u1","email":"a@example.com","username":"Alice"}`)},
-	}, 30*time.Second)
+	}, 30*time.Second))
 	require.NoError(t, err)
 	cache.ClearLog()
 
@@ -2466,8 +2486,14 @@ func TestCacheBackfill_SkipFetch_HappyPath(t *testing.T) {
 	// 1. L2 reads both requested keys and finds only the id key.
 	// 2. L2 writes only the missing email key.
 	assert.Equal(t, []CacheLogEntry{
-		{Operation: "get", Keys: []string{idKey, emailKey}, Hits: []bool{true, false}},
-		{Operation: "set", Keys: []string{emailKey}, Hits: nil, TTL: 30 * time.Second},
+		{
+			Operation: "get",
+			Items: []CacheLogItem{
+				{Key: idKey, Hit: true},
+				{Key: emailKey, Hit: false},
+			},
+		},
+		{Operation: "set", Items: []CacheLogItem{{Key: emailKey, TTL: 30 * time.Second}}},
 	}, cache.GetLog())
 	// Assert the written value matches the final merged entity and that the
 	// existing id entry was preserved rather than rewritten.
@@ -2517,9 +2543,9 @@ func TestSingleFetch_CacheHit_SetsLoadSkippedOnTrace_RED(t *testing.T) {
 	emailKey := `{"__typename":"User","key":{"email":"a@example.com"}}`
 
 	// Pre-warm L2 with a fully-derivable cached entity so tryCacheLoad returns skip=true.
-	err := cache.Set(t.Context(), []*CacheEntry{
+	err := cache.Set(t.Context(), withCacheEntryTTL([]*CacheEntry{
 		{Key: idKey, Value: []byte(`{"__typename":"User","id":"u1","email":"a@example.com","username":"Alice"}`)},
-	}, 30*time.Second)
+	}, 30*time.Second))
 	require.NoError(t, err)
 	cache.ClearLog()
 
@@ -2571,8 +2597,14 @@ func TestSingleFetch_CacheHit_SetsLoadSkippedOnTrace_RED(t *testing.T) {
 
 	// Sanity: the cache get happened, no set, no subgraph call.
 	assert.Equal(t, []CacheLogEntry{
-		{Operation: "get", Keys: []string{idKey, emailKey}, Hits: []bool{true, false}},
-		{Operation: "set", Keys: []string{emailKey}, Hits: nil, TTL: 30 * time.Second},
+		{
+			Operation: "get",
+			Items: []CacheLogItem{
+				{Key: idKey, Hit: true},
+				{Key: emailKey, Hit: false},
+			},
+		},
+		{Operation: "set", Items: []CacheLogItem{{Key: emailKey, TTL: 30 * time.Second}}},
 	}, cache.GetLog())
 }
 
@@ -2605,9 +2637,9 @@ func TestCacheBackfill_SkipFetch_Counterexample_NotDerivable(t *testing.T) {
 
 	// Seed L2 with only the id key and omit email from the cached entity to make
 	// the missing email key impossible to prove from final entity data.
-	err := cache.Set(t.Context(), []*CacheEntry{
+	err := cache.Set(t.Context(), withCacheEntryTTL([]*CacheEntry{
 		{Key: idKey, Value: []byte(`{"__typename":"User","id":"u1","username":"Alice"}`)},
-	}, 30*time.Second)
+	}, 30*time.Second))
 	require.NoError(t, err)
 	cache.ClearLog()
 
@@ -2646,7 +2678,13 @@ func TestCacheBackfill_SkipFetch_Counterexample_NotDerivable(t *testing.T) {
 	// 1. L2 reads both requested keys and finds only the id key.
 	// 2. No write happens because email is still not provable from the final entity.
 	assert.Equal(t, []CacheLogEntry{
-		{Operation: "get", Keys: []string{idKey, emailKey}, Hits: []bool{true, false}},
+		{
+			Operation: "get",
+			Items: []CacheLogItem{
+				{Key: idKey, Hit: true},
+				{Key: emailKey, Hit: false},
+			},
+		},
 	}, cache.GetLog())
 	// Assert the missing email key stays absent and the original id entry is unchanged.
 	assert.Nil(t, cache.GetValue(emailKey))
@@ -2683,9 +2721,9 @@ func TestCacheBackfill_FetchPath_HappyPath(t *testing.T) {
 	emailKey := `{"__typename":"User","key":{"email":"a@example.com"}}`
 
 	// Seed L2 with a stale/incomplete id entry so the fetch path is required.
-	err := cache.Set(t.Context(), []*CacheEntry{
+	err := cache.Set(t.Context(), withCacheEntryTTL([]*CacheEntry{
 		{Key: idKey, Value: []byte(`{"__typename":"User","id":"u1"}`)},
-	}, 30*time.Second)
+	}, 30*time.Second))
 	require.NoError(t, err)
 	cache.ClearLog()
 
@@ -2728,8 +2766,20 @@ func TestCacheBackfill_FetchPath_HappyPath(t *testing.T) {
 	// 1. L2 reads both requested keys and finds only the stale id key.
 	// 2. The fetch runs and writes both the refreshed id key and the backfilled email key.
 	assert.Equal(t, []CacheLogEntry{
-		{Operation: "get", Keys: []string{idKey, emailKey}, Hits: []bool{true, false}},
-		{Operation: "set", Keys: []string{idKey, emailKey}, Hits: nil, TTL: 30 * time.Second},
+		{
+			Operation: "get",
+			Items: []CacheLogItem{
+				{Key: idKey, Hit: true},
+				{Key: emailKey, Hit: false},
+			},
+		},
+		{
+			Operation: "set",
+			Items: []CacheLogItem{
+				{Key: idKey, TTL: 30 * time.Second},
+				{Key: emailKey, TTL: 30 * time.Second},
+			},
+		},
 	}, cache.GetLog())
 	// Assert both keys now store the same fresh entity payload.
 	assert.Equal(t, `{"__typename":"User","id":"u1","email":"a@example.com","username":"Alice"}`, string(cache.GetValue(idKey)))
@@ -2787,9 +2837,9 @@ func TestCacheBackfill_FetchPath_MissingField(t *testing.T) {
 	emailKey := `{"__typename":"User","key":{"email":"a@example.com"}}`
 
 	// Seed L2 with an incomplete id entry to force the fetch path.
-	err := cache.Set(t.Context(), []*CacheEntry{
+	err := cache.Set(t.Context(), withCacheEntryTTL([]*CacheEntry{
 		{Key: idKey, Value: []byte(`{"__typename":"User","id":"u1"}`)},
-	}, 30*time.Second)
+	}, 30*time.Second))
 	require.NoError(t, err)
 	cache.ClearLog()
 
@@ -2837,8 +2887,20 @@ func TestCacheBackfill_FetchPath_MissingField(t *testing.T) {
 	//    A future query selecting `email` would trigger a widening refetch since the cached
 	//    payload doesn't contain it; a query selecting only id+username gets a cache hit.
 	assert.Equal(t, []CacheLogEntry{
-		{Operation: "get", Keys: []string{idKey, emailKey}, Hits: []bool{true, false}},
-		{Operation: "set", Keys: []string{idKey, emailKey}, Hits: nil, TTL: 30 * time.Second},
+		{
+			Operation: "get",
+			Items: []CacheLogItem{
+				{Key: idKey, Hit: true},
+				{Key: emailKey, Hit: false},
+			},
+		},
+		{
+			Operation: "set",
+			Items: []CacheLogItem{
+				{Key: idKey, TTL: 30 * time.Second},
+				{Key: emailKey, TTL: 30 * time.Second},
+			},
+		},
 	}, cache.GetLog())
 	assert.Equal(t, `{"__typename":"User","id":"u1","username":"Alice"}`, string(cache.GetValue(idKey)))
 	assert.Equal(t, `{"__typename":"User","id":"u1","username":"Alice"}`, string(cache.GetValue(emailKey)))
@@ -2898,9 +2960,9 @@ func TestCacheBackfill_FetchPath_ValueMismatch(t *testing.T) {
 	actualEmailKey := `{"__typename":"User","key":{"email":"b@example.com"}}`
 
 	// Seed L2 with an incomplete id entry to force the fetch path.
-	err := cache.Set(t.Context(), []*CacheEntry{
+	err := cache.Set(t.Context(), withCacheEntryTTL([]*CacheEntry{
 		{Key: idKey, Value: []byte(`{"__typename":"User","id":"u1"}`)},
-	}, 30*time.Second)
+	}, 30*time.Second))
 	require.NoError(t, err)
 	cache.ClearLog()
 
@@ -2946,8 +3008,20 @@ func TestCacheBackfill_FetchPath_ValueMismatch(t *testing.T) {
 	// 4. The actual email key (b@) IS written — the subgraph returned b@example.com
 	//    as backend-proven entity data, so we can build and store a key for it.
 	assert.Equal(t, []CacheLogEntry{
-		{Operation: "get", Keys: []string{idKey, requestedEmailKey}, Hits: []bool{true, false}},
-		{Operation: "set", Keys: []string{idKey, actualEmailKey}, Hits: nil, TTL: 30 * time.Second},
+		{
+			Operation: "get",
+			Items: []CacheLogItem{
+				{Key: idKey, Hit: true},
+				{Key: requestedEmailKey, Hit: false},
+			},
+		},
+		{
+			Operation: "set",
+			Items: []CacheLogItem{
+				{Key: idKey, TTL: 30 * time.Second},
+				{Key: actualEmailKey, TTL: 30 * time.Second},
+			},
+		},
 	}, cache.GetLog())
 	assert.Equal(t, `{"__typename":"User","id":"u1","email":"b@example.com","username":"Alice"}`, string(cache.GetValue(idKey)))
 	assert.Nil(t, cache.GetValue(requestedEmailKey))
@@ -3007,9 +3081,9 @@ func TestCacheBackfill_DerivedKeyExpansion(t *testing.T) {
 	usernameKey := `{"__typename":"User","key":{"username":"Alice"}}`
 
 	// Seed L2 with only the incomplete id entry so the fetch path is required.
-	err := cache.Set(t.Context(), []*CacheEntry{
+	err := cache.Set(t.Context(), withCacheEntryTTL([]*CacheEntry{
 		{Key: idKey, Value: []byte(`{"__typename":"User","id":"u1"}`)},
-	}, 30*time.Second)
+	}, 30*time.Second))
 	require.NoError(t, err)
 	cache.ClearLog()
 
@@ -3052,8 +3126,21 @@ func TestCacheBackfill_DerivedKeyExpansion(t *testing.T) {
 	// 1. L2 reads the requested id + email keys and finds only id.
 	// 2. The fetch refreshes id, backfills email, and adds the derived username key.
 	assert.Equal(t, []CacheLogEntry{
-		{Operation: "get", Keys: []string{idKey, emailKey}, Hits: []bool{true, false}},
-		{Operation: "set", Keys: []string{idKey, emailKey, usernameKey}, Hits: nil, TTL: 30 * time.Second},
+		{
+			Operation: "get",
+			Items: []CacheLogItem{
+				{Key: idKey, Hit: true},
+				{Key: emailKey, Hit: false},
+			},
+		},
+		{
+			Operation: "set",
+			Items: []CacheLogItem{
+				{Key: idKey, TTL: 30 * time.Second},
+				{Key: emailKey, TTL: 30 * time.Second},
+				{Key: usernameKey, TTL: 30 * time.Second},
+			},
+		},
 	}, cache.GetLog())
 	// Assert all three keys now point at the same final entity payload.
 	assert.Equal(t, `{"__typename":"User","id":"u1","email":"a@example.com","username":"Alice"}`, string(cache.GetValue(idKey)))

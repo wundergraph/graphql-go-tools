@@ -195,11 +195,11 @@ func (c *circuitBreakerCache) Get(ctx context.Context, keys []string) ([]*CacheE
 	return entries, nil
 }
 
-func (c *circuitBreakerCache) Set(ctx context.Context, entries []*CacheEntry, ttl time.Duration) error {
+func (c *circuitBreakerCache) Set(ctx context.Context, entries []*CacheEntry) error {
 	if !c.state.shouldAllow() {
 		return ErrCircuitBreakerOpen
 	}
-	err := c.inner.Set(ctx, entries, ttl)
+	err := c.inner.Set(ctx, entries)
 	if err != nil {
 		c.state.recordFailure()
 		return err

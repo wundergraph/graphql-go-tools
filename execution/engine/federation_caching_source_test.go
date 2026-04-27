@@ -133,7 +133,7 @@ func TestMutationCacheTTLOverride_E2E(t *testing.T) {
 
 	// Assert entire cache log — single Set with mutation TTL override (60s), no Get (mutations skip L2 reads)
 	assert.Equal(t, []CacheLogEntry{
-		{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, TTL: 60 * time.Second}, // L2 write uses mutation TTL override (60s), not entity default (300s)
+		{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 60 * time.Second}}}, // L2 write uses mutation TTL override (60s), not entity default (300s)
 	}, defaultCache.GetLog())
 }
 
@@ -239,8 +239,8 @@ func TestOnSubscriptionCacheCallbacks(t *testing.T) {
 
 		// Pre-populate L2 so there's something to invalidate
 		err := defaultCache.Set(ctx, []*resolve.CacheEntry{
-			{Key: `{"__typename":"Product","key":{"upc":"top-4"}}`, Value: []byte(`{"upc":"top-4","name":"Bowler","price":100,"__typename":"Product"}`)},
-		}, 30*time.Second)
+			{Key: `{"__typename":"Product","key":{"upc":"top-4"}}`, Value: []byte(`{"upc":"top-4","name":"Bowler","price":100,"__typename":"Product"}`), TTL: 30 * time.Second},
+		})
 		require.NoError(t, err)
 
 		wsAddr := strings.ReplaceAll(setup.GatewayServer.URL, "http://", "ws://")
@@ -255,7 +255,7 @@ func TestOnSubscriptionCacheCallbacks(t *testing.T) {
 		// Assert entire cache log — should contain a delete for the Product entity key
 		cacheLog := defaultCache.GetLog()
 		assert.Equal(t, []CacheLogEntry{
-			{Operation: "delete", Keys: []string{`{"__typename":"Product","key":{"upc":"top-4"}}`}}, // Subscription key-only event triggers L2 delete
+			{Operation: "delete", Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"upc":"top-4"}}`}}}, // Subscription key-only event triggers L2 delete
 		}, cacheLog)
 
 		// Assert entire callback data — exactly 1 invalidation call

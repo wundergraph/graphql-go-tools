@@ -40,9 +40,9 @@ func TestEntityFetchWritebackPreservesExistingCachedFields(t *testing.T) {
 	assert.Equal(t, `{"data":{"product":{"__typename":"Product","id":"prod-1","brand":"Acme Corp"}}}`, out2)
 	assert.Equal(t, []CacheLogEntry{
 		// L2 hit on the existing entity entry.
-		{Operation: "get", Keys: []string{productKey}, Hits: []bool{true}},
+		{Operation: "get", Items: []CacheLogItem{{Key: productKey, Hit: true}}},
 		// Writeback merges the new projection into the cached object under the same key.
-		{Operation: "set", Keys: []string{productKey}, TTL: 30 * time.Second},
+		{Operation: "set", Items: []CacheLogItem{{Key: productKey, TTL: 30 * time.Second}}},
 	}, cache.GetLog())
 	assert.Equal(t, `{"__typename":"Product","id":"prod-1","title":"Alpha Widget","brand":"Acme Corp"}`, string(cache.GetValue(productKey)))
 
@@ -57,7 +57,7 @@ func TestEntityFetchWritebackPreservesExistingCachedFields(t *testing.T) {
 	assert.Equal(t, `{"data":{"product":{"__typename":"Product","id":"prod-1","title":"Alpha Widget","brand":"Acme Corp"}}}`, out3)
 	assert.Equal(t, []CacheLogEntry{
 		// No writeback on the final request: the merged cache entry is already complete.
-		{Operation: "get", Keys: []string{productKey}, Hits: []bool{true}},
+		{Operation: "get", Items: []CacheLogItem{{Key: productKey, Hit: true}}},
 	}, cache.GetLog())
 }
 
@@ -82,9 +82,9 @@ func TestRootFieldEntityCacheEntrySurvivesLaterPartialEntityFetch(t *testing.T) 
 	assert.Equal(t, `{"data":{"productBySku":{"__typename":"Product","id":"prod-1","brand":"Acme Corp"}}}`, out2)
 	assert.Equal(t, []CacheLogEntry{
 		// Read the shared entity key created by the first root-field request.
-		{Operation: "get", Keys: []string{productKey}, Hits: []bool{true}},
+		{Operation: "get", Items: []CacheLogItem{{Key: productKey, Hit: true}}},
 		// Rewrite that same key with the merged view of old root-field data plus new entity data.
-		{Operation: "set", Keys: []string{productKey}, TTL: 30 * time.Second},
+		{Operation: "set", Items: []CacheLogItem{{Key: productKey, TTL: 30 * time.Second}}},
 	}, cache.GetLog())
 	assert.Equal(t, `{"__typename":"Product","id":"prod-1","sku":"ABC","title":"Alpha Widget","brand":"Acme Corp"}`, string(cache.GetValue(productKey)))
 }

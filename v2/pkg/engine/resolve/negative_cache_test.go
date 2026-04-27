@@ -192,8 +192,8 @@ func TestNegativeCache_NullEntityBehavior(t *testing.T) {
 		var setFound bool
 		for _, entry := range cacheLog {
 			if entry.Operation == "set" {
-				for _, key := range entry.Keys {
-					t.Logf("Stored cache key: %s", key)
+				for _, item := range entry.Items {
+					t.Logf("Stored cache key: %s", item.Key)
 				}
 				setFound = true
 			}
@@ -202,8 +202,8 @@ func TestNegativeCache_NullEntityBehavior(t *testing.T) {
 
 		// Find the last set operation's first key and verify stored value is "null"
 		for i := len(cacheLog) - 1; i >= 0; i-- {
-			if cacheLog[i].Operation == "set" && len(cacheLog[i].Keys) > 0 {
-				storedValue := cache.GetValue(cacheLog[i].Keys[0])
+			if cacheLog[i].Operation == "set" && len(cacheLog[i].Items) > 0 {
+				storedValue := cache.GetValue(cacheLog[i].Items[0].Key)
 				assert.Equal(t, "null", string(storedValue))
 				break
 			}
@@ -220,9 +220,9 @@ func TestNegativeCache_NullEntityBehavior(t *testing.T) {
 		var getFound bool
 		for _, entry := range cacheLog2 {
 			if entry.Operation == "get" {
-				for i, hit := range entry.Hits {
-					t.Logf("Cache key %s: hit=%v", entry.Keys[i], hit)
-					if hit {
+				for _, item := range entry.Items {
+					t.Logf("Cache key %s: hit=%v", item.Key, item.Hit)
+					if item.Hit {
 						getFound = true
 					}
 				}
@@ -473,10 +473,10 @@ func TestNegativeCache_NullEntityBehavior(t *testing.T) {
 		cacheLog := cache.GetLog()
 		for _, entry := range cacheLog {
 			if entry.Operation == "set" {
-				t.Logf("Set: keys=%v ttl=%v", entry.Keys, entry.TTL)
+				t.Logf("Set: items=%v", entry.Items)
 				// The negative sentinel should use NegativeCacheTTL (5s), not regular TTL (60s)
 				// Negative sentinel should use NegativeCacheTTL (5s), not regular TTL (60s)
-				assert.Equal(t, 5*time.Second, entry.TTL)
+				assert.Equal(t, 5*time.Second, entry.Items[0].TTL)
 			}
 		}
 	})
@@ -607,7 +607,7 @@ func TestNegativeCache_NullEntityBehavior(t *testing.T) {
 		// only the negative sentinel write with NegativeCacheTTL (10s)
 		cacheLog := cache.GetLog()
 		assert.Equal(t, []CacheLogEntry{
-			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"id":"prod-new"}}`}, TTL: 10 * time.Second}, // Negative sentinel stored with NegativeCacheTTL (10s), not entity TTL (60s); no prior "get" because mutations skip L2 reads
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"id":"prod-new"}}`, TTL: 10 * time.Second}}}, // Negative sentinel stored with NegativeCacheTTL (10s), not entity TTL (60s); no prior "get" because mutations skip L2 reads
 		}, cacheLog)
 
 		// Verify the stored value is the null sentinel
@@ -749,8 +749,8 @@ func TestNegativeCache_NullEntityBehavior(t *testing.T) {
 		// Verify request 1 cache log: L2 miss → negative sentinel stored
 		cacheLog := cache.GetLog()
 		assert.Equal(t, []CacheLogEntry{
-			{Operation: "get", Keys: []string{productKey}, Hits: []bool{false}},  // L2 miss: cache empty on first request
-			{Operation: "set", Keys: []string{productKey}, TTL: 5 * time.Second}, // Negative sentinel stored with NegativeCacheTTL (5s)
+			{Operation: "get", Items: []CacheLogItem{{Key: productKey, Hit: false}}},           // L2 miss: cache empty on first request
+			{Operation: "set", Items: []CacheLogItem{{Key: productKey, TTL: 5 * time.Second}}}, // Negative sentinel stored with NegativeCacheTTL (5s)
 		}, cacheLog)
 
 		// Evict the negative sentinel to simulate TTL expiry
@@ -765,8 +765,8 @@ func TestNegativeCache_NullEntityBehavior(t *testing.T) {
 		// Verify request 2 cache log: L2 miss (sentinel evicted) → real data stored with entity TTL
 		cacheLog2 := cache.GetLog()
 		assert.Equal(t, []CacheLogEntry{
-			{Operation: "get", Keys: []string{productKey}, Hits: []bool{false}},   // L2 miss: negative sentinel was evicted (TTL expiry simulated)
-			{Operation: "set", Keys: []string{productKey}, TTL: 30 * time.Second}, // Real entity data stored with regular TTL (30s), replacing the evicted sentinel
+			{Operation: "get", Items: []CacheLogItem{{Key: productKey, Hit: false}}},            // L2 miss: negative sentinel was evicted (TTL expiry simulated)
+			{Operation: "set", Items: []CacheLogItem{{Key: productKey, TTL: 30 * time.Second}}}, // Real entity data stored with regular TTL (30s), replacing the evicted sentinel
 		}, cacheLog2)
 
 		// Verify the cache now holds real data, not the null sentinel

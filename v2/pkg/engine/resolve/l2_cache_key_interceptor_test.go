@@ -176,7 +176,9 @@ func TestL2CacheKeyInterceptor(t *testing.T) {
 		var setKeys []string
 		for _, entry := range cacheLog {
 			if entry.Operation == "set" {
-				setKeys = append(setKeys, entry.Keys...)
+				for _, item := range entry.Items {
+					setKeys = append(setKeys, item.Key)
+				}
 			}
 		}
 		// Verify L2 set key has interceptor prefix
@@ -270,8 +272,10 @@ func TestL2CacheKeyInterceptor(t *testing.T) {
 		var getKeys []string
 		for _, entry := range cacheLog2 {
 			if entry.Operation == "get" {
-				getKeys = append(getKeys, entry.Keys...)
-				getHits = append(getHits, entry.Hits...)
+				for _, item := range entry.Items {
+					getKeys = append(getKeys, item.Key)
+					getHits = append(getHits, item.Hit)
+				}
 			}
 		}
 		// Verify L2 get key has interceptor prefix and is a hit
@@ -406,7 +410,9 @@ func TestL2CacheKeyInterceptor(t *testing.T) {
 		var setKeys []string
 		for _, entry := range cacheLog {
 			if entry.Operation == "set" {
-				setKeys = append(setKeys, entry.Keys...)
+				for _, item := range entry.Items {
+					setKeys = append(setKeys, item.Key)
+				}
 			}
 		}
 		// L2 keys have the interceptor prefix; L1 was unaffected (entityDS2 not called)
@@ -593,7 +599,9 @@ func TestL2CacheKeyInterceptor(t *testing.T) {
 		var setKeys []string
 		for _, entry := range cacheLog {
 			if entry.Operation == "set" {
-				setKeys = append(setKeys, entry.Keys...)
+				for _, item := range entry.Items {
+					setKeys = append(setKeys, item.Key)
+				}
 			}
 		}
 		require.Equal(t, 1, len(setKeys))
@@ -689,7 +697,9 @@ func TestL2CacheKeyInterceptor(t *testing.T) {
 		var setKeys []string
 		for _, entry := range cacheLog {
 			if entry.Operation == "set" {
-				setKeys = append(setKeys, entry.Keys...)
+				for _, item := range entry.Items {
+					setKeys = append(setKeys, item.Key)
+				}
 			}
 		}
 		require.Equal(t, 1, len(setKeys))
@@ -786,7 +796,9 @@ func TestL2CacheKeyInterceptor(t *testing.T) {
 		var setKeys []string
 		for _, entry := range cacheLog {
 			if entry.Operation == "set" {
-				setKeys = append(setKeys, entry.Keys...)
+				for _, item := range entry.Items {
+					setKeys = append(setKeys, item.Key)
+				}
 			}
 		}
 		// No transformation applied — key is in standard format

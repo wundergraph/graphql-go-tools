@@ -52,7 +52,7 @@ func (c *benchCache) Get(_ context.Context, keys []string) ([]*CacheEntry, error
 	return result, nil
 }
 
-func (c *benchCache) Set(_ context.Context, entries []*CacheEntry, _ time.Duration) error {
+func (c *benchCache) Set(_ context.Context, entries []*CacheEntry) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for _, e := range entries {

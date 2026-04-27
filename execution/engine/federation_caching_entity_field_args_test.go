@@ -185,16 +185,22 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 
 		wantLogFirst := []CacheLogEntry{
 			// Root field Query.topProducts - MISS
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{false}},
-			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, TTL: 30 * time.Second}}},
 			// Product entity fetches - MISS
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{false, false}},
-			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: false},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: false},
+			}},
+			{Operation: "set", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, TTL: 30 * time.Second},
+			}},
 			// User entity fetches - MISS (entity key unchanged by field args)
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{false}},
-			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "First request cache log should show all misses")
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "First request cache log should show all misses")
 
 		assert.Equal(t, 1, s.tracker.GetCount(s.productsHost), "First request should call products subgraph once")
 		assert.Equal(t, 1, s.tracker.GetCount(s.reviewsHost), "First request should call reviews subgraph once")
@@ -225,13 +231,16 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 
 		wantLogSecond := []CacheLogEntry{
 			// Root field Query.topProducts - HIT
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: true}}},
 			// Product entity fetches - HITS
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: true},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: true},
+			}},
 			// User entity fetches - HIT (greeting_<hash> found in cached entity)
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Second request should show all cache hits")
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "Second request should show all cache hits")
 
 		assert.Equal(t, 0, s.tracker.GetCount(s.productsHost), "Second request should skip products subgraph")
 		assert.Equal(t, 0, s.tracker.GetCount(s.reviewsHost), "Second request should skip reviews subgraph")
@@ -294,14 +303,20 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		assert.Equal(t, 6, len(logAfterFirst), "Should have 6 cache operations for first request")
 
 		wantLogFirst := []CacheLogEntry{
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{false}},
-			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}},
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{false, false}},
-			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}},
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{false}},
-			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, TTL: 30 * time.Second}}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: false},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: false},
+			}},
+			{Operation: "set", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, TTL: 30 * time.Second},
+			}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "First request cache log")
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "First request cache log")
 
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "First request should call accounts once")
 
@@ -336,14 +351,17 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		// accounts, and merges the new data with the old cached entity. So we expect: GET (hit at L2 layer) + SET.
 		wantLogSecond := []CacheLogEntry{
 			// topProducts root field - HIT
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: true}}},
 			// Product entities - HIT
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: true},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: true},
+			}},
 			// User entity - L2 returns data (HIT) but Loader rejects it (missing casual field) → re-fetch → SET
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
-			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Second request: User entity found in L2 but missing casual field → re-fetch + re-store")
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "Second request: User entity found in L2 but missing casual field → re-fetch + re-store")
 
 		// Accounts must be called because the cached entity lacked the casual greeting variant
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Accounts should be called again for different args")
@@ -395,16 +413,22 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		logAfterFirst := s.defaultCache.GetLog()
 		wantLogFirst := []CacheLogEntry{
 			// Root field Query.topProducts - MISS (first request, L2 empty)
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{false}},
-			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, TTL: 30 * time.Second}}},
 			// Product entity fetches - MISS (first request, L2 empty)
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{false, false}},
-			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: false},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: false},
+			}},
+			{Operation: "set", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, TTL: 30 * time.Second},
+			}},
 			// User entity fetches - MISS (first request, L2 empty; entity stored with both arg-suffixed fields)
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{false}},
-			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "First request should show all misses")
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "First request should show all misses")
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Accounts should be called once (single entity batch)")
 
 		// Request 2: same aliases query - should fully hit cache
@@ -431,11 +455,14 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		assert.Equal(t, 3, len(logAfterSecond), "Should have 3 cache get operations (all hits)")
 
 		wantLogSecond := []CacheLogEntry{
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: true}}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: true},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: true},
+			}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Second request should show all cache hits")
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "Second request should show all cache hits")
 
 		assert.Equal(t, 0, s.tracker.GetCount(s.accountsHost), "Accounts should not be called on cache hit")
 	})
@@ -496,16 +523,22 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		logAfterFirst := s.defaultCache.GetLog()
 		wantLogFirst := []CacheLogEntry{
 			// Root field Query.topProducts - MISS (first request, L2 empty)
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{false}},
-			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, TTL: 30 * time.Second}}},
 			// Product entity fetches - MISS (first request, L2 empty)
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{false, false}},
-			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: false},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: false},
+			}},
+			{Operation: "set", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, TTL: 30 * time.Second},
+			}},
 			// User entity fetches - MISS (first request, L2 empty)
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{false}},
-			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "First request should show all misses")
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "First request should show all misses")
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Accounts should be called once")
 
 		// Request 2: single field greeting(style: "formal") - should hit cache
@@ -535,12 +568,15 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		assert.Equal(t, 3, len(logAfterSecond), "Should have 3 cache get operations (all hits)")
 
 		wantLogSecond := []CacheLogEntry{
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: true}}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: true},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: true},
+			}},
 			// Cached entity has both suffixed fields; formal variant found -> HIT
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Single field request should hit cache with entity that has both variants")
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "Single field request should hit cache with entity that has both variants")
 
 		assert.Equal(t, 0, s.tracker.GetCount(s.accountsHost), "Accounts should not be called when formal variant exists in cache")
 	})
@@ -589,16 +625,22 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		logAfterFirst := s.defaultCache.GetLog()
 		wantLogFirst := []CacheLogEntry{
 			// Root field Query.topProducts - MISS (first request, L2 empty)
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{false}},
-			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, TTL: 30 * time.Second}}},
 			// Product entity fetches - MISS (first request, L2 empty)
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{false, false}},
-			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: false},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: false},
+			}},
+			{Operation: "set", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, TTL: 30 * time.Second},
+			}},
 			// User entity fetches - MISS (first request, L2 empty)
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{false}},
-			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "First request should show all misses")
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "First request should show all misses")
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Accounts should be called once")
 
 		// Request 2: same enum value - should hit cache
@@ -624,13 +666,16 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		logAfterSecond := s.defaultCache.GetLog()
 		wantLogSecond := []CacheLogEntry{
 			// Root field Query.topProducts - HIT (populated by Request 1)
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: true}}},
 			// Product entity fetches - HIT (populated by Request 1)
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: true},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: true},
+			}},
 			// User entity fetches - HIT (customGreeting_<formalHash> found in cached entity)
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Second request should show all cache hits")
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "Second request should show all cache hits")
 		assert.Equal(t, 0, s.tracker.GetCount(s.accountsHost), "Accounts should not be called on cache hit")
 	})
 
@@ -680,16 +725,22 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		logAfterFirst := s.defaultCache.GetLog()
 		wantLogFirst := []CacheLogEntry{
 			// Root field Query.topProducts - MISS (first request, L2 empty)
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{false}},
-			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, TTL: 30 * time.Second}}},
 			// Product entity fetches - MISS (first request, L2 empty)
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{false, false}},
-			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: false},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: false},
+			}},
+			{Operation: "set", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, TTL: 30 * time.Second},
+			}},
 			// User entity fetches - MISS (first request, L2 empty)
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{false}},
-			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "First request should show all misses")
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "First request should show all misses")
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Accounts should be called once for FORMAL")
 
 		// Request 2: CASUAL enum - different hash, should miss User cache
@@ -715,14 +766,17 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		logAfterSecond := s.defaultCache.GetLog()
 		wantLogSecond := []CacheLogEntry{
 			// Root field Query.topProducts - HIT (populated by Request 1)
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: true}}},
 			// Product entity fetches - HIT (populated by Request 1)
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: true},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: true},
+			}},
 			// User entity - L2 returns data (HIT) but Loader rejects it (missing casual enum hash) → re-fetch + merge → SET
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
-			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Second request: User entity found but missing casual enum variant → re-fetch + re-store")
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "Second request: User entity found but missing casual enum variant → re-fetch + re-store")
 
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Accounts should be called again for different enum value")
 		assert.Equal(t, 0, s.tracker.GetCount(s.productsHost), "Products should hit cache")
@@ -780,16 +834,22 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		logAfterFirst := s.defaultCache.GetLog()
 		wantLogFirst := []CacheLogEntry{
 			// Root field Query.topProducts - MISS (first request, L2 empty)
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{false}},
-			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, TTL: 30 * time.Second}}},
 			// Product entity fetches - MISS (first request, L2 empty)
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{false, false}},
-			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: false},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: false},
+			}},
+			{Operation: "set", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, TTL: 30 * time.Second},
+			}},
 			// User entity fetches - MISS (first request, L2 empty)
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{false}},
-			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "First request should show all misses")
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "First request should show all misses")
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Accounts should be called once")
 
 		// Request 2: uppercase=false - different nested field value, different hash
@@ -815,14 +875,17 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		logAfterSecond := s.defaultCache.GetLog()
 		wantLogSecond := []CacheLogEntry{
 			// Root field Query.topProducts - HIT (populated by Request 1)
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: true}}},
 			// Product entity fetches - HIT (populated by Request 1)
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: true},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: true},
+			}},
 			// User entity - L2 returns data (HIT) but Loader rejects it (different nested field hash) → re-fetch + merge → SET
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
-			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Second request: User entity found but missing uppercase=false variant → re-fetch + re-store")
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "Second request: User entity found but missing uppercase=false variant → re-fetch + re-store")
 
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Accounts should be called again for different nested field value")
 	})
@@ -879,16 +942,22 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		logAfterFirst := s.defaultCache.GetLog()
 		wantLogFirst := []CacheLogEntry{
 			// Root field Query.topProducts - MISS (first request, L2 empty)
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{false}},
-			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, TTL: 30 * time.Second}}},
 			// Product entity fetches - MISS (first request, L2 empty)
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{false, false}},
-			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: false},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: false},
+			}},
+			{Operation: "set", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, TTL: 30 * time.Second},
+			}},
 			// User entity fetches - MISS (first request, L2 empty)
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{false}},
-			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "First request should show all misses")
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "First request should show all misses")
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Accounts should be called once")
 
 		// Request 2: formatting with prefix - different fields present, different hash
@@ -914,14 +983,17 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		logAfterSecond := s.defaultCache.GetLog()
 		wantLogSecond := []CacheLogEntry{
 			// Root field Query.topProducts - HIT (populated by Request 1)
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: true}}},
 			// Product entity fetches - HIT (populated by Request 1)
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: true},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: true},
+			}},
 			// User entity - L2 returns data (HIT) but Loader rejects it (different nested fields hash) → re-fetch + merge → SET
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
-			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Second request: User entity found but missing prefix variant → re-fetch + re-store")
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "Second request: User entity found but missing prefix variant → re-fetch + re-store")
 
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Accounts should be called again for different nested fields")
 	})
@@ -970,16 +1042,22 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		logAfterFirst := s.defaultCache.GetLog()
 		wantLogFirst := []CacheLogEntry{
 			// Root field Query.topProducts - MISS (first request, L2 empty)
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{false}},
-			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, TTL: 30 * time.Second}}},
 			// Product entity fetches - MISS (first request, L2 empty)
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{false, false}},
-			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: false},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: false},
+			}},
+			{Operation: "set", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, TTL: 30 * time.Second},
+			}},
 			// User entity fetches - MISS (first request, L2 empty)
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{false}},
-			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "First request should show all misses")
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "First request should show all misses")
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Accounts should be called once for order 1")
 
 		// Request 2: formatting first, then style (same logical input, different JSON key order)
@@ -1008,13 +1086,16 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		logAfterSecond := s.defaultCache.GetLog()
 		wantLogSecond := []CacheLogEntry{
 			// Root field Query.topProducts - HIT (populated by Request 1)
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: true}}},
 			// Product entity fetches - HIT (populated by Request 1)
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: true},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: true},
+			}},
 			// User entity - HIT (canonical JSON hashing makes key order irrelevant)
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Second request should show all cache hits (key order canonicalized)")
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "Second request should show all cache hits (key order canonicalized)")
 
 		assert.Equal(t, 0, s.tracker.GetCount(s.accountsHost), "Accounts should NOT be called when same input is sent with different key order")
 	})
@@ -1074,14 +1155,20 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		logAfterFirst := s.defaultCache.GetLog()
 		wantLogFirst := []CacheLogEntry{
 			// All misses on first request - L2 empty
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{false}},
-			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}},
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{false, false}},
-			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}},
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{false}},
-			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, TTL: 30 * time.Second}}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: false},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: false},
+			}},
+			{Operation: "set", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, TTL: 30 * time.Second},
+			}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "Request 1: all misses, populate cache")
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "Request 1: all misses, populate cache")
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Request 1 should call accounts once")
 
 		// Request 2: greeting(style: "casual") → L2 validation fails → fetch → merge-store
@@ -1109,13 +1196,16 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		logAfterSecond := s.defaultCache.GetLog()
 		wantLogSecond := []CacheLogEntry{
 			// topProducts and Products - HIT (populated by Request 1)
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: true}}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: true},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: true},
+			}},
 			// User entity - L2 returns data (HIT) but Loader rejects it (missing casual field) → re-fetch + merge → SET
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
-			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Request 2: User entity found but missing casual field → re-fetch + merge")
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "Request 2: User entity found but missing casual field → re-fetch + merge")
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Request 2 should call accounts once (casual variant missing)")
 
 		// Request 3: greeting(style: "formal") again → L2 HIT (formal variant exists in merged entity)
@@ -1141,12 +1231,15 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		logAfterThird := s.defaultCache.GetLog()
 		wantLogThird := []CacheLogEntry{
 			// All GETs are hits - no SETs needed
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: true}}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: true},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: true},
+			}},
 			// User entity - HIT (formal variant exists in merged entity from Request 2)
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogThird), sortCacheLogKeys(logAfterThird), "Request 3: all cache hits, no fetches needed")
+		assert.Equal(t, sortCacheLogEntries(wantLogThird), sortCacheLogEntries(logAfterThird), "Request 3: all cache hits, no fetches needed")
 
 		assert.Equal(t, 0, s.tracker.GetCount(s.accountsHost), "Request 3 should NOT call accounts (formal variant in merged cache)")
 	})
@@ -1211,14 +1304,20 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		logAfterFirst := s.defaultCache.GetLog()
 		wantLogFirst := []CacheLogEntry{
 			// All misses on first request - L2 empty
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{false}},
-			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}},
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{false, false}},
-			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}},
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{false}},
-			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, TTL: 30 * time.Second}}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: false},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: false},
+			}},
+			{Operation: "set", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, TTL: 30 * time.Second},
+			}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "Request 1: all misses, populate cache")
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "Request 1: all misses, populate cache")
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Request 1 should call accounts once")
 
 		// Request 2: greeting(style: "casual") → L2 validation fails → fetch → merge-store
@@ -1237,13 +1336,16 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		logAfterSecond := s.defaultCache.GetLog()
 		wantLogSecond := []CacheLogEntry{
 			// topProducts and Products - HIT (populated by Request 1)
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: true}}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: true},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: true},
+			}},
 			// User entity - L2 returns data (HIT) but Loader rejects it (missing casual field) → re-fetch + merge → SET
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
-			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Request 2: User entity found but missing casual field → re-fetch + merge")
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "Request 2: User entity found but missing casual field → re-fetch + merge")
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Request 2 should call accounts once (casual variant missing)")
 
 		// Request 3: combined alias query with both variants → L2 HIT (both variants exist in merged entity)
@@ -1262,12 +1364,15 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		logAfterThird := s.defaultCache.GetLog()
 		wantLogThird := []CacheLogEntry{
 			// All GETs are hits - no SETs needed
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: true}}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: true},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: true},
+			}},
 			// User entity - HIT (both variants exist in merged entity)
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogThird), sortCacheLogKeys(logAfterThird), "Request 3: all cache hits, both variants served from merged entity")
+		assert.Equal(t, sortCacheLogEntries(wantLogThird), sortCacheLogEntries(logAfterThird), "Request 3: all cache hits, both variants served from merged entity")
 
 		assert.Equal(t, 0, s.tracker.GetCount(s.accountsHost), "Request 3 should NOT call accounts (both variants in merged cache)")
 	})
@@ -1338,14 +1443,20 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		logAfterFirst := s.defaultCache.GetLog()
 		wantLogFirst := []CacheLogEntry{
 			// All misses on first request - L2 empty
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{false}},
-			{Operation: "set", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}},
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{false, false}},
-			{Operation: "set", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}},
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{false}},
-			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, TTL: 30 * time.Second}}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: false},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: false},
+			}},
+			{Operation: "set", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, TTL: 30 * time.Second},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, TTL: 30 * time.Second},
+			}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogFirst), sortCacheLogKeys(logAfterFirst), "Request 1: all misses, populate cache")
+		assert.Equal(t, sortCacheLogEntries(wantLogFirst), sortCacheLogEntries(logAfterFirst), "Request 1: all misses, populate cache")
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Request 1 should call accounts once")
 
 		// Request 2: username + nickname → L2 validation fails (missing nickname) → fetch → merge-store
@@ -1373,14 +1484,17 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		logAfterSecond := s.defaultCache.GetLog()
 		wantLogSecond := []CacheLogEntry{
 			// Root field Query.topProducts - HIT (populated by Request 1)
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: true}}},
 			// Product entity fetches - HIT (populated by Request 1)
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: true},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: true},
+			}},
 			// User entity - L2 returns data (HIT) but Loader rejects it (missing nickname) → re-fetch + merge → SET
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
-			{Operation: "set", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond), "Request 2: User entity found but missing nickname → re-fetch + merge")
+		assert.Equal(t, sortCacheLogEntries(wantLogSecond), sortCacheLogEntries(logAfterSecond), "Request 2: User entity found but missing nickname → re-fetch + merge")
 
 		assert.Equal(t, 1, s.tracker.GetCount(s.accountsHost), "Request 2 should call accounts once (nickname missing)")
 
@@ -1409,12 +1523,15 @@ func TestEntityFieldArgsCaching(t *testing.T) {
 		logAfterThird := s.defaultCache.GetLog()
 		wantLogThird := []CacheLogEntry{
 			// All GETs are hits - no SETs needed
-			{Operation: "get", Keys: []string{`{"__typename":"Query","field":"topProducts"}`}, Hits: []bool{true}},
-			{Operation: "get", Keys: []string{`{"__typename":"Product","key":{"upc":"top-1"}}`, `{"__typename":"Product","key":{"upc":"top-2"}}`}, Hits: []bool{true, true}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"Query","field":"topProducts"}`, Hit: true}}},
+			{Operation: "get", Items: []CacheLogItem{
+				{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: true},
+				{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: true},
+			}},
 			// User entity - HIT (nickname exists in merged entity from Request 2)
-			{Operation: "get", Keys: []string{`{"__typename":"User","key":{"id":"1234"}}`}, Hits: []bool{true}},
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
 		}
-		assert.Equal(t, sortCacheLogKeys(wantLogThird), sortCacheLogKeys(logAfterThird), "Request 3: all cache hits, nickname served from merged entity")
+		assert.Equal(t, sortCacheLogEntries(wantLogThird), sortCacheLogEntries(logAfterThird), "Request 3: all cache hits, nickname served from merged entity")
 
 		assert.Equal(t, 0, s.tracker.GetCount(s.accountsHost), "Request 3 should NOT call accounts (nickname in merged cache)")
 	})

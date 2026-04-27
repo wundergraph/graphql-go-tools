@@ -31,7 +31,7 @@ func (c *failingCache) Get(_ context.Context, _ []string) ([]*CacheEntry, error)
 	return []*CacheEntry{{Key: "k", Value: []byte("v")}}, nil
 }
 
-func (c *failingCache) Set(_ context.Context, _ []*CacheEntry, _ time.Duration) error {
+func (c *failingCache) Set(_ context.Context, _ []*CacheEntry) error {
 	c.setCalls.Add(1)
 	return c.setErr
 }
@@ -64,7 +64,7 @@ func TestCircuitBreaker_OpenCloseTransitions(t *testing.T) {
 		assert.Len(t, entries, 1)
 		assert.Equal(t, int64(1), inner.getCalls.Load())
 
-		err = cb.Set(ctx, []*CacheEntry{{Key: "k1"}}, time.Minute)
+		err = cb.Set(ctx, []*CacheEntry{{Key: "k1", TTL: time.Minute}})
 		require.NoError(t, err)
 		assert.Equal(t, int64(1), inner.setCalls.Load())
 
@@ -137,7 +137,7 @@ func TestCircuitBreaker_OpenCloseTransitions(t *testing.T) {
 
 		ctx := t.Context()
 		// Open breaker: Set and Delete return ErrCircuitBreakerOpen and skip the inner cache
-		err := cb.Set(ctx, []*CacheEntry{{Key: "k1"}}, time.Minute)
+		err := cb.Set(ctx, []*CacheEntry{{Key: "k1", TTL: time.Minute}})
 		assert.Equal(t, ErrCircuitBreakerOpen, err)
 		assert.True(t, errors.Is(err, ErrCircuitBreakerOpen))
 		assert.Equal(t, int64(0), inner.setCalls.Load())
@@ -420,7 +420,7 @@ func TestCircuitBreaker_OpenReturnsSentinel(t *testing.T) {
 	assert.Equal(t, ErrCircuitBreakerOpen, getErr)
 	assert.True(t, errors.Is(getErr, ErrCircuitBreakerOpen))
 
-	setErr := cb.Set(ctx, []*CacheEntry{{Key: "k1"}}, time.Minute)
+	setErr := cb.Set(ctx, []*CacheEntry{{Key: "k1", TTL: time.Minute}})
 	assert.Equal(t, ErrCircuitBreakerOpen, setErr)
 	assert.True(t, errors.Is(setErr, ErrCircuitBreakerOpen))
 

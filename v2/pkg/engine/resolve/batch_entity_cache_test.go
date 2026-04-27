@@ -172,9 +172,17 @@ func TestBatchEntityCache_AllMissThenAllHit(t *testing.T) {
 	log := cache.GetLog()
 	require.Equal(t, 2, len(log))
 	assert.Equal(t, "get", log[0].Operation)
-	assert.Equal(t, []bool{false, false, false}, log[0].Hits)
+	assert.Equal(t, []CacheLogItem{
+		{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: false},
+		{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: false},
+		{Key: `{"__typename":"Product","key":{"upc":"top-3"}}`, Hit: false},
+	}, log[0].Items)
 	assert.Equal(t, "set", log[1].Operation)
-	assert.Equal(t, 3, len(log[1].Keys))
+	assert.Equal(t, []CacheLogItem{
+		{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, TTL: 30 * time.Second},
+		{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, TTL: 30 * time.Second},
+		{Key: `{"__typename":"Product","key":{"upc":"top-3"}}`, TTL: 30 * time.Second},
+	}, log[1].Items)
 	cache.ClearLog()
 
 	// Verify each entity was stored individually
@@ -204,7 +212,11 @@ func TestBatchEntityCache_AllMissThenAllHit(t *testing.T) {
 	log2 := cache.GetLog()
 	require.Equal(t, 1, len(log2))
 	assert.Equal(t, "get", log2[0].Operation)
-	assert.Equal(t, []bool{true, true, true}, log2[0].Hits)
+	assert.Equal(t, []CacheLogItem{
+		{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: true},
+		{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: true},
+		{Key: `{"__typename":"Product","key":{"upc":"top-3"}}`, Hit: true},
+	}, log2[0].Items)
 }
 
 // TestBatchEntityCache_PartialHitFetchesMissing mirrors
@@ -217,10 +229,10 @@ func TestBatchEntityCache_PartialHitFetchesMissing(t *testing.T) {
 	cache := NewFakeLoaderCache()
 
 	// Seed cache with 2 of 3 products
-	err := cache.Set(context.Background(), []*CacheEntry{
+	err := cache.Set(context.Background(), withCacheEntryTTL([]*CacheEntry{
 		{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Value: []byte(`{"upc":"top-1","name":"Trilby","price":11}`)},
 		{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Value: []byte(`{"upc":"top-2","name":"Fedora","price":22}`)},
-	}, 30*time.Second)
+	}, 30*time.Second))
 	require.NoError(t, err)
 	cache.ClearLog()
 
@@ -325,9 +337,15 @@ func TestBatchEntityCache_PartialHitFetchesMissing(t *testing.T) {
 	log := cache.GetLog()
 	require.Equal(t, 2, len(log))
 	assert.Equal(t, "get", log[0].Operation)
-	assert.Equal(t, []bool{true, true, false}, log[0].Hits)
+	assert.Equal(t, []CacheLogItem{
+		{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: true},
+		{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: true},
+		{Key: `{"__typename":"Product","key":{"upc":"top-3"}}`, Hit: false},
+	}, log[0].Items)
 	assert.Equal(t, "set", log[1].Operation)
-	assert.Equal(t, []string{`{"__typename":"Product","key":{"upc":"top-3"}}`}, log[1].Keys)
+	assert.Equal(t, []CacheLogItem{
+		{Key: `{"__typename":"Product","key":{"upc":"top-3"}}`, TTL: 30 * time.Second},
+	}, log[1].Items)
 }
 
 // TestMultiCandidateCacheValue_MergeCandidatesForWiderProjection exercises
@@ -341,10 +359,10 @@ func TestMultiCandidateCacheValue_MergeCandidatesForWiderProjection(t *testing.T
 	// Seed cache with two entries for same user via different key mappings
 	idKey := `{"__typename":"User","key":{"id":"u1"}}`
 	emailKey := `{"__typename":"User","key":{"email":"a@example.com"}}`
-	err := cache.Set(context.Background(), []*CacheEntry{
+	err := cache.Set(context.Background(), withCacheEntryTTL([]*CacheEntry{
 		{Key: idKey, Value: []byte(`{"id":"u1","name":"Alice"}`), RemainingTTL: 20 * time.Second},
 		{Key: emailKey, Value: []byte(`{"id":"u1","email":"a@example.com"}`), RemainingTTL: 10 * time.Second},
-	}, 30*time.Second)
+	}, 30*time.Second))
 	require.NoError(t, err)
 	cache.ClearLog()
 
@@ -391,7 +409,10 @@ func TestMultiCandidateCacheValue_MergeCandidatesForWiderProjection(t *testing.T
 	log := cache.GetLog()
 	require.GreaterOrEqual(t, len(log), 1)
 	assert.Equal(t, "get", log[0].Operation)
-	assert.Equal(t, []bool{true, true}, log[0].Hits)
+	assert.Equal(t, []CacheLogItem{
+		{Key: `{"__typename":"User","key":{"id":"u1"}}`, Hit: true},
+		{Key: `{"__typename":"User","key":{"email":"a@example.com"}}`, Hit: true},
+	}, log[0].Items)
 }
 
 // TestBatchEntityCache_NegativeCacheHit exercises the negative cache path in
@@ -404,11 +425,11 @@ func TestBatchEntityCache_NegativeCacheHit(t *testing.T) {
 	cache := NewFakeLoaderCache()
 
 	// Seed cache: top-1 → real data, top-2 → null sentinel, top-3 → real data
-	err := cache.Set(context.Background(), []*CacheEntry{
+	err := cache.Set(context.Background(), withCacheEntryTTL([]*CacheEntry{
 		{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Value: []byte(`{"upc":"top-1","name":"Trilby","price":11}`)},
 		{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Value: []byte(`null`)},
 		{Key: `{"__typename":"Product","key":{"upc":"top-3"}}`, Value: []byte(`{"upc":"top-3","name":"Boater","price":33}`)},
-	}, 30*time.Second)
+	}, 30*time.Second))
 	require.NoError(t, err)
 	cache.ClearLog()
 
@@ -491,7 +512,11 @@ func TestBatchEntityCache_NegativeCacheHit(t *testing.T) {
 	log := cache.GetLog()
 	require.Equal(t, 1, len(log))
 	assert.Equal(t, "get", log[0].Operation)
-	assert.Equal(t, []bool{true, true, true}, log[0].Hits) // All 3 are cache hits (including null sentinel)
+	assert.Equal(t, []CacheLogItem{
+		{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: true},
+		{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: true},
+		{Key: `{"__typename":"Product","key":{"upc":"top-3"}}`, Hit: true},
+	}, log[0].Items) // All 3 are cache hits (including null sentinel)
 }
 
 // TestBatchEntityCache_AnalyticsTracking exercises the analytics event recording
@@ -504,10 +529,10 @@ func TestBatchEntityCache_AnalyticsTracking(t *testing.T) {
 	cache := NewFakeLoaderCache()
 
 	// Seed cache with 2 of 3 products (top-1 and top-3 cached, top-2 missing)
-	err := cache.Set(context.Background(), []*CacheEntry{
+	err := cache.Set(context.Background(), withCacheEntryTTL([]*CacheEntry{
 		{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Value: []byte(`{"upc":"top-1","name":"Trilby","price":11}`)},
 		{Key: `{"__typename":"Product","key":{"upc":"top-3"}}`, Value: []byte(`{"upc":"top-3","name":"Boater","price":33}`)},
-	}, 30*time.Second)
+	}, 30*time.Second))
 	require.NoError(t, err)
 	cache.ClearLog()
 
@@ -727,7 +752,10 @@ func TestBatchEntityCache_TracingEnabled(t *testing.T) {
 	log := cache.GetLog()
 	require.Equal(t, 2, len(log))
 	assert.Equal(t, "get", log[0].Operation)
-	assert.Equal(t, []bool{false, false}, log[0].Hits)
+	assert.Equal(t, []CacheLogItem{
+		{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: false},
+		{Key: `{"__typename":"Product","key":{"upc":"top-2"}}`, Hit: false},
+	}, log[0].Items)
 	assert.Equal(t, "set", log[1].Operation)
 }
 
@@ -738,9 +766,9 @@ func TestBatchEntityCache_L2DisabledSkipsCache(t *testing.T) {
 
 	cache := NewFakeLoaderCache()
 	// Seed cache - but it should never be read since L2 is disabled
-	err := cache.Set(context.Background(), []*CacheEntry{
+	err := cache.Set(context.Background(), withCacheEntryTTL([]*CacheEntry{
 		{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, Value: []byte(`{"upc":"top-1","name":"Trilby","price":11}`)},
-	}, 30*time.Second)
+	}, 30*time.Second))
 	require.NoError(t, err)
 	cache.ClearLog()
 
@@ -824,5 +852,7 @@ func TestBatchEntityCache_KeyInterceptorApplied(t *testing.T) {
 	require.GreaterOrEqual(t, len(log), 1)
 	// The get operation should use the intercepted key
 	assert.Equal(t, "get", log[0].Operation)
-	assert.Equal(t, []string{`tenant42:{"__typename":"Product","key":{"upc":"top-1"}}`}, log[0].Keys)
+	assert.Equal(t, []CacheLogItem{
+		{Key: `tenant42:{"__typename":"Product","key":{"upc":"top-1"}}`, Hit: false},
+	}, log[0].Items)
 }

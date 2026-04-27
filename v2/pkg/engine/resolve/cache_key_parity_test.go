@@ -95,8 +95,7 @@ func TestCacheKeyParityRegression_ReadWriteInvalidation(t *testing.T) {
 	assert.Equal(t, []CacheLogEntry{
 		{
 			Operation: "get",
-			Keys:      []string{expectedKey},
-			Hits:      []bool{false},
+			Items:     []CacheLogItem{{Key: expectedKey, Hit: false}},
 		},
 	}, cache.GetLog())
 	cache.ClearLog()
@@ -192,13 +191,11 @@ func TestCacheKeyParityRegression_ReadWriteInvalidation(t *testing.T) {
 	assert.Equal(t, []CacheLogEntry{
 		{
 			Operation: "get",
-			Keys:      []string{expectedKey},
-			Hits:      []bool{false},
+			Items:     []CacheLogItem{{Key: expectedKey, Hit: false}},
 		},
 		{
 			Operation: "set",
-			Keys:      []string{expectedKey},
-			TTL:       30 * time.Second,
+			Items:     []CacheLogItem{{Key: expectedKey, TTL: 30 * time.Second}},
 		},
 	}, cache.GetLog())
 
@@ -218,7 +215,7 @@ func TestCacheKeyParityRegression_ReadWriteInvalidation(t *testing.T) {
 	assert.Equal(t, []string{expectedKey}, invalidationKeys)
 
 	// PARITY: read == write == invalidation is the cache-key contract.
-	writeKeys := cache.GetLog()[1].Keys
+	writeKeys := []string{cache.GetLog()[1].Items[0].Key}
 	assert.Equal(t, readKeys, writeKeys)
 	assert.Equal(t, readKeys, invalidationKeys)
 }

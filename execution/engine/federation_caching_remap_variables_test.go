@@ -103,17 +103,10 @@ func TestRemapVariablesEntityCacheKey(t *testing.T) {
 		assert.Equal(t, `{"data":{"user":{"id":"1234","username":"Me"}}}`, string(resp))
 
 		logAfterFirst := defaultCache.GetLog()
-		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-				Hits:      []bool{false}, // L2 empty on first request
-			},
-			{
-				Operation: "set",
-				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-			},
-		}), sortCacheLogKeys(logAfterFirst))
+		assert.Equal(t, sortCacheLogEntries([]CacheLogEntry{
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: false}}},
+			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
+		}), sortCacheLogEntries(logAfterFirst))
 		assert.Equal(t, 1, tracker.GetCount(accountsHost), "first query should fetch from accounts")
 
 		// Query 2: cache hit — same entity key, served from L2.
@@ -125,13 +118,9 @@ func TestRemapVariablesEntityCacheKey(t *testing.T) {
 		assert.Equal(t, `{"data":{"user":{"id":"1234","username":"Me"}}}`, string(resp))
 
 		logAfterSecond := defaultCache.GetLog()
-		assert.Equal(t, sortCacheLogKeys([]CacheLogEntry{
-			{
-				Operation: "get",
-				Keys:      []string{`{"__typename":"User","key":{"id":"1234"}}`},
-				Hits:      []bool{true}, // Populated by Query 1
-			},
-		}), sortCacheLogKeys(logAfterSecond))
+		assert.Equal(t, sortCacheLogEntries([]CacheLogEntry{
+			{Operation: "get", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, Hit: true}}},
+		}), sortCacheLogEntries(logAfterSecond))
 		assert.Equal(t, 0, tracker.GetCount(accountsHost), "second query should skip accounts (cache hit)")
 	})
 }

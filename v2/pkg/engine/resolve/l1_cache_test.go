@@ -561,9 +561,9 @@ func TestL1Cache_PartialLoading(t *testing.T) {
 
 		// Pre-populate cache with prod-1 only (prod-2 and prod-3 are NOT cached)
 		prod1Data := `{"__typename":"Product","id":"prod-1","name":"Cached Product One"}`
-		err := cache.Set(context.Background(), []*CacheEntry{
+		err := cache.Set(context.Background(), withCacheEntryTTL([]*CacheEntry{
 			{Key: `{"__typename":"Product","key":{"id":"prod-1"}}`, Value: []byte(prod1Data)},
-		}, 30*time.Second)
+		}, 30*time.Second))
 		require.NoError(t, err)
 		cache.ClearLog()
 
@@ -730,9 +730,9 @@ func TestL1Cache_PartialLoading(t *testing.T) {
 
 		// Pre-populate cache with prod-1 only
 		prod1Data := `{"__typename":"Product","id":"prod-1","name":"Cached Product One"}`
-		err := cache.Set(context.Background(), []*CacheEntry{
+		err := cache.Set(context.Background(), withCacheEntryTTL([]*CacheEntry{
 			{Key: `{"__typename":"Product","key":{"id":"prod-1"}}`, Value: []byte(prod1Data)},
-		}, 30*time.Second)
+		}, 30*time.Second))
 		require.NoError(t, err)
 		cache.ClearLog()
 
