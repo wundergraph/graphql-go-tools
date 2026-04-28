@@ -7,7 +7,7 @@
       "path": "v2",
       "release-type": "go",
       "include-component-in-tag": false,
-      "include-v-in-tag": true,
+      "include-v-in-tag": true
     },
     "execution": {
       "package-name": "execution",
