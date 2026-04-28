@@ -34,6 +34,7 @@ type requiredFieldsVisitor struct {
 
 	messageAncestors     []*RPCMessage
 	messageAncestorNames []string
+	messageNameMap       map[string]*RPCMessage
 
 	skipFieldResolvers      bool
 	referenceNestedMessages bool
@@ -48,10 +49,11 @@ func newRequiredFieldsVisitor(walker *astvisitor.Walker, message *RPCMessage, ma
 		mapping:              mapping,
 		messageAncestors:     []*RPCMessage{},
 		messageAncestorNames: []string{},
+		messageNameMap:       make(map[string]*RPCMessage),
 		fieldDefinitionRefs:  []int{},
 	}
 
-	walker.RegisterEnterDocumentVisitor(visitor)
+	walker.RegisterDocumentVisitor(visitor)
 	walker.RegisterSelectionSetVisitor(visitor)
 	walker.RegisterEnterFieldVisitor(visitor)
 
@@ -109,6 +111,13 @@ func (r *requiredFieldsVisitor) EnterDocument(operation *ast.Document, definitio
 	r.planCtx = newRPCPlanningContext(operation, definition, r.mapping)
 }
 
+// LeaveDocument implements [astvisitor.DocumentVisitor].
+func (r *requiredFieldsVisitor) LeaveDocument(operation *ast.Document, definition *ast.Document) {
+	for name, message := range r.messageNameMap {
+		message.Name = name
+	}
+}
+
 func (r *requiredFieldsVisitor) enterNestedField(ref int, inlineFragmentRef int) bool {
 	lastField := r.planCtx.lastResponseField(r.message, inlineFragmentRef)
 	if lastField == nil {
@@ -122,7 +131,7 @@ func (r *requiredFieldsVisitor) enterNestedField(ref int, inlineFragmentRef int)
 	r.messageAncestors = append(r.messageAncestors, r.message)
 	r.messageAncestorNames = append(r.messageAncestorNames, r.message.Name)
 	if r.referenceNestedMessages {
-		lastField.Message.Name = r.formatNestedMessageName(lastField.Message.Name, inlineFragmentRef)
+		r.messageNameMap[r.formatNestedMessageName(lastField.Message.Name, inlineFragmentRef)] = lastField.Message
 	}
 	r.message = lastField.Message
 	return true
@@ -154,6 +163,10 @@ func (r *requiredFieldsVisitor) EnterSelectionSet(ref int) {
 func (r *requiredFieldsVisitor) LeaveSelectionSet(ref int) {
 	if r.walker.Ancestor().Kind != ast.NodeKindField {
 		return
+	}
+
+	if len(r.messageAncestorNames) > 0 {
+		r.messageAncestorNames = r.messageAncestorNames[:len(r.messageAncestorNames)-1]
 	}
 
 	if len(r.messageAncestors) > 0 {

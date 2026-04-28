@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"google.golang.org/protobuf/encoding/protowire"
+	"google.golang.org/protobuf/proto"
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/wundergraph/astjson"
@@ -787,14 +788,12 @@ func convertProtoRefValue(a arena.Arena, value protoref.Value) *astjson.Value {
 		}
 		return av
 	case protoref.Message:
-		ov := astjson.ObjectValue(a)
-		desc := t.Descriptor()
-		for i := range desc.Fields().Len() {
-			fd := desc.Fields().Get(i)
-			value := t.Get(fd)
-			ov.Set(a, string(fd.Name()), convertProtoRefValue(a, value))
+		bytes, err := proto.Marshal(t.Interface())
+		if err != nil {
+			return astjson.NullValue
 		}
-		return ov
+
+		return astjson.StringValueBytes(a, bytes)
 	default:
 		fmt.Println("unsupported type", reflect.TypeOf(t).Name())
 		return astjson.NullValue
