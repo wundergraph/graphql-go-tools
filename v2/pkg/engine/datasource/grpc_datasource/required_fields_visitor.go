@@ -32,7 +32,8 @@ type requiredFieldsVisitor struct {
 	mapping *GRPCMapping
 	planCtx *rpcPlanningContext
 
-	messageAncestors []*RPCMessage
+	messageAncestors     []*RPCMessage
+	messageAncestorNames []string
 
 	skipFieldResolvers      bool
 	referenceNestedMessages bool
@@ -42,11 +43,12 @@ type requiredFieldsVisitor struct {
 // It registers the visitor with the walker and returns it.
 func newRequiredFieldsVisitor(walker *astvisitor.Walker, message *RPCMessage, mapping *GRPCMapping) *requiredFieldsVisitor {
 	visitor := &requiredFieldsVisitor{
-		walker:              walker,
-		message:             message,
-		mapping:             mapping,
-		messageAncestors:    []*RPCMessage{},
-		fieldDefinitionRefs: []int{},
+		walker:               walker,
+		message:              message,
+		mapping:              mapping,
+		messageAncestors:     []*RPCMessage{},
+		messageAncestorNames: []string{},
+		fieldDefinitionRefs:  []int{},
 	}
 
 	walker.RegisterEnterDocumentVisitor(visitor)
@@ -118,8 +120,9 @@ func (r *requiredFieldsVisitor) enterNestedField(ref int, inlineFragmentRef int)
 	}
 
 	r.messageAncestors = append(r.messageAncestors, r.message)
+	r.messageAncestorNames = append(r.messageAncestorNames, r.message.Name)
 	if r.referenceNestedMessages {
-		lastField.Message.Name = r.formatNestedMessageName(lastField.Message.Name)
+		lastField.Message.Name = r.formatNestedMessageName(lastField.Message.Name, inlineFragmentRef)
 	}
 	r.message = lastField.Message
 	return true
@@ -239,14 +242,19 @@ func (r *requiredFieldsVisitor) handleCompositeType(node ast.Node) error {
 
 // formatNestedMessageName formats the name of a nested message.
 // It returns the full qualified name of the nested message.
-func (r *requiredFieldsVisitor) formatNestedMessageName(name string) string {
-	if len(r.messageAncestors) == 0 {
-		return name
+func (r *requiredFieldsVisitor) formatNestedMessageName(name string, inlineFragmentRef int) string {
+	messagePath := r.messageAncestorNames
+	if inlineFragmentRef != ast.InvalidRef {
+		inlineFragmentName := r.operation.InlineFragmentTypeConditionNameString(inlineFragmentRef)
+		messagePath[len(messagePath)-1] = inlineFragmentName
 	}
 
 	builder := strings.Builder{}
-	builder.WriteString(r.messageAncestors[len(r.messageAncestors)-1].Name)
-	builder.WriteString(".")
+	for _, messageName := range messagePath {
+		builder.WriteString(messageName)
+		builder.WriteString(".")
+	}
+
 	builder.WriteString(name)
 
 	return builder.String()

@@ -273,6 +273,10 @@ func compileMessage(runtime *runtimeSchema, rpcMessage *RPCMessage, rtMessage *r
 
 			oneOfFields := make([]programField, 0, len(fragmentFields))
 			for _, fragmentField := range fragmentFields {
+				if fragmentField.Name == typenameFieldName {
+					continue
+				}
+
 				runtimeField := memberTypeMessage.fieldsByName[fragmentField.Name]
 				if runtimeField == nil {
 					return nil, fmt.Errorf("field not found for name %s", fragmentField.Name)
@@ -291,12 +295,17 @@ func compileMessage(runtime *runtimeSchema, rpcMessage *RPCMessage, rtMessage *r
 	}
 
 	for _, f := range rpcMessage.Fields {
-		rtFieldMessage := runtime.getMessageByName(rpcMessage.Name)
+		if f.Name == typenameFieldName {
+			continue
+		}
+
+		rtFieldMessage := runtime.getMessageByFullName(rpcMessage.Name)
 		if rtFieldMessage == nil {
-			return nil, fmt.Errorf("message not found for name %s", f.Message.Name)
+			rtFieldMessage = rtMessage
 		}
 
 		runtimeField := rtFieldMessage.fieldsByName[f.Name]
+
 		if runtimeField == nil {
 			return nil, fmt.Errorf("field not found for name %s", f.Name)
 		}

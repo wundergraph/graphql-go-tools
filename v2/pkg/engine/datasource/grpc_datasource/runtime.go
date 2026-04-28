@@ -2,12 +2,14 @@ package grpcdatasource
 
 import (
 	"fmt"
+	"strings"
 
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/dynamicpb"
 )
 
 type runtimeSchema struct {
+	packageName          string
 	messageByName        map[string]*runtimeMessage
 	messageByFullname    map[string]*runtimeMessage
 	enumByName           map[string]*runtimeEnum
@@ -44,6 +46,7 @@ type runtimeField struct {
 
 func newSchemaRuntime(doc *Document) (*runtimeSchema, error) {
 	runtime := &runtimeSchema{
+		packageName:          doc.Package,
 		messageByName:        make(map[string]*runtimeMessage, len(doc.Messages)),
 		messageByFullname:    make(map[string]*runtimeMessage, len(doc.Messages)),
 		serviceNamesByMethod: make(map[string]string, len(doc.Methods)),
@@ -133,6 +136,10 @@ func (r *runtimeSchema) getMessageByName(name string) *runtimeMessage {
 }
 
 func (r *runtimeSchema) getMessageByFullName(fullname string) *runtimeMessage {
+	if !strings.HasPrefix(fullname, r.packageName) {
+		fullname = r.packageName + "." + fullname
+	}
+
 	message, found := r.messageByFullname[fullname]
 	if !found {
 		return nil

@@ -472,9 +472,7 @@ func (f *wireField) appendFieldValue(buf *bytes.Buffer, data *astjson.Value) err
 	switch f.wireType {
 	case protowire.BytesType:
 		buf.Write(f.tag)
-		sb := data.GetStringBytes()
-		buf.Write(protowire.AppendVarint(buf.AvailableBuffer(), uint64(len(sb))))
-		buf.Write(sb)
+		buf.Write(protowire.AppendBytes(buf.AvailableBuffer(), getBytesValue(data)))
 	case protowire.VarintType:
 		value := getUint64Value(data)
 		if f.runtimeEnum != nil {
@@ -504,6 +502,22 @@ func getUint64Value(data *astjson.Value) uint64 {
 		return 1
 	default:
 		return 0
+	}
+}
+
+func getBytesValue(data *astjson.Value) []byte {
+	switch data.Type() {
+	case astjson.TypeString:
+		return data.GetStringBytes()
+	case astjson.TypeNumber:
+		num := data.GetUint64()
+		return []byte(strconv.FormatUint(num, 10))
+	case astjson.TypeTrue:
+		return []byte{1}
+	case astjson.TypeFalse:
+		return []byte{0}
+	default:
+		return nil
 	}
 }
 
@@ -637,10 +651,8 @@ func resolveDataForPath(message protoref.Message, path ast.Path) []protoref.Valu
 	switch fd.Kind() {
 	case protoref.MessageKind:
 		if fd.IsList() {
-			if !field.List().IsValid() {
-				return nil
-			}
-
+			// We always return a list value here even if the list is empty.
+			// Repeatable fields in protobuf are always at least an empty list.
 			return []protoref.Value{protoref.ValueOfList(field.List())}
 		}
 
@@ -767,14 +779,22 @@ func convertProtoRefValue(a arena.Arena, value protoref.Value) *astjson.Value {
 		return astjson.StringValueBytes(a, t)
 	case protoref.EnumNumber:
 		return astjson.IntValue(a, int(t))
-	// case protoref.Message:
-	// 	ov := astjson.ObjectValue(a)
-	// 	// TODO: Extract the message fields and set them on the object value
-	// 	return ov
-	// case protoref.List:
-	// 	av := astjson.ArrayValue(a)
-	// 	// TODO: Extract the list items and set them on the array value
-	// 	return av
+	case protoref.List:
+		av := astjson.ArrayValue(a)
+		for i := range t.Len() {
+			item := t.Get(i)
+			av.SetArrayItem(a, i, convertProtoRefValue(a, item))
+		}
+		return av
+	case protoref.Message:
+		ov := astjson.ObjectValue(a)
+		desc := t.Descriptor()
+		for i := range desc.Fields().Len() {
+			fd := desc.Fields().Get(i)
+			value := t.Get(fd)
+			ov.Set(a, string(fd.Name()), convertProtoRefValue(a, value))
+		}
+		return ov
 	default:
 		fmt.Println("unsupported type", reflect.TypeOf(t).Name())
 		return astjson.NullValue
