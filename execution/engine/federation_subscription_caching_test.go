@@ -129,7 +129,19 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		tracker.Reset()
 
 		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
-			cachingTestQueryPath("subscriptions/subscription_product_with_reviews.query"),
+			`subscription UpdatePriceWithReviews($upc: String!) {
+    updateProductPrice(upc: $upc) {
+        upc
+        name
+        price
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+            }
+        }
+    }
+}`,
 			queryVariables{"upc": "top-4"}, 2, t)
 
 		// Event 1: should resolve User entities (L2 miss → fetch → L2 set)
@@ -226,7 +238,19 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		tracker.Reset()
 
 		messages := collectSubscriptionMessages(ctx, gqlClient, setup, toWSAddr(setup.GatewayServer.URL),
-			cachingTestQueryPath("subscriptions/subscription_product_with_reviews.query"),
+			`subscription UpdatePriceWithReviews($upc: String!) {
+    updateProductPrice(upc: $upc) {
+        upc
+        name
+        price
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+            }
+        }
+    }
+}`,
 			queryVariables{"upc": "top-4"}, 1, t)
 
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":1,"reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, messages[0])
@@ -285,12 +309,26 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		wsAddr := toWSAddr(setup.GatewayServer.URL)
 
+		defaultCache.setCurrentTime(time.Unix(0, 0))
+
 		// Collect 3 events:
 		// Event 1 (~100ms): L2 miss → accounts called → L2 set
 		// Event 2 (~200ms): Within TTL → L2 hit → no call
 		// Event 3 (~300ms): After TTL expiry → L2 miss → accounts called again
 		tracker.Reset()
-		messages, closeSubscription := gqlClient.Subscription(ctx, wsAddr, cachingTestQueryPath("subscriptions/subscription_product_with_reviews.query"), queryVariables{"upc": "top-4"}, t)
+		messages, closeSubscription := gqlClient.Subscription(ctx, wsAddr, `subscription UpdatePriceWithReviews($upc: String!) {
+    updateProductPrice(upc: $upc) {
+        upc
+        name
+        price
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+            }
+        }
+    }
+}`, queryVariables{"upc": "top-4"}, t)
 		t.Cleanup(closeSubscription)
 
 		trigger, err := setup.NextProductSubscription(ctx)
@@ -304,12 +342,11 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		second := mustRecvMessage(t, messages, 5*time.Second)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":2,"reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, string(second))
 
-		// Wait for 150ms TTL to expire on the cached user entities (deterministic via Peek)
-		assert.Eventually(t, func() bool {
-			_, ok1 := defaultCache.Peek(`{"__typename":"User","key":{"id":"5678"}}`)
-			_, ok2 := defaultCache.Peek(`{"__typename":"User","key":{"id":"8888"}}`)
-			return !ok1 && !ok2
-		}, 2*time.Second, 10*time.Millisecond, "user L2 entries should expire after TTL")
+		defaultCache.setCurrentTime(time.Unix(0, 0).Add(151 * time.Millisecond))
+		_, ok1 := defaultCache.Peek(`{"__typename":"User","key":{"id":"5678"}}`)
+		_, ok2 := defaultCache.Peek(`{"__typename":"User","key":{"id":"8888"}}`)
+		assert.Equal(t, false, ok1, "user 5678 L2 entry should expire after TTL")
+		assert.Equal(t, false, ok2, "user 8888 L2 entry should expire after TTL")
 		trigger.Emit()
 		third := mustRecvMessage(t, messages, 5*time.Second)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":3,"reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, string(third))
@@ -356,7 +393,19 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		tracker.Reset()
 
 		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
-			cachingTestQueryPath("subscriptions/subscription_product_with_reviews.query"),
+			`subscription UpdatePriceWithReviews($upc: String!) {
+    updateProductPrice(upc: $upc) {
+        upc
+        name
+        price
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+            }
+        }
+    }
+}`,
 			queryVariables{"upc": "top-4"}, 2, t)
 
 		require.Equal(t, 2, len(messages))
@@ -408,7 +457,13 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		defaultCache.ClearLog()
 
 		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
-			cachingTestQueryPath("subscriptions/subscription_product_only.query"),
+			`subscription UpdatePrice($upc: String!) {
+    updateProductPrice(upc: $upc) {
+        upc
+        name
+        price
+    }
+}`,
 			queryVariables{"upc": "top-4"}, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":1}}}}`, messages[0])
 
@@ -462,7 +517,13 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		defaultCache.ClearLog()
 
 		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
-			cachingTestQueryPath("subscriptions/subscription_product_only.query"),
+			`subscription UpdatePrice($upc: String!) {
+    updateProductPrice(upc: $upc) {
+        upc
+        name
+        price
+    }
+}`,
 			queryVariables{"upc": "top-4"}, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":1}}}}`, messages[0])
 
@@ -515,7 +576,19 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		defaultCache.ClearLog()
 
 		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
-			cachingTestQueryPath("subscriptions/subscription_all_prices_with_reviews.query"),
+			`subscription AllPricesWithReviews {
+    updatedPrices {
+        upc
+        name
+        price
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+            }
+        }
+    }
+}`,
 			nil, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updatedPrices":[{"upc":"top-1","name":"Trilby","price":1,"reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"upc":"top-2","name":"Fedora","price":2,"reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]},{"upc":"top-3","name":"Boater","price":3,"reviews":[{"body":"This is the last straw. Hat you will wear. 11/10","authorWithoutProvides":{"username":"User 7777"}}]}]}}}`, messages[0])
 
@@ -592,7 +665,13 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		tracker.Reset()
 
 		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
-			cachingTestQueryPath("subscriptions/subscription_product_only.query"),
+			`subscription UpdatePrice($upc: String!) {
+    updateProductPrice(upc: $upc) {
+        upc
+        name
+        price
+    }
+}`,
 			queryVariables{"upc": "top-4"}, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":1}}}}`, messages[0])
 
@@ -601,7 +680,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		assert.Equal(t, sortCacheLogEntries([]CacheLogEntry(nil)), sortCacheLogEntries(subLog), "no cache operations when entity population not configured")
 
 		// Query should miss L2 and call products subgraph
-		defaultCache.ClearLog()
 		tracker.Reset()
 
 		productQuery := `query { product(upc: "top-4") { upc name price } }`
@@ -659,11 +737,22 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		// Subscribe with product entity population AND child entity caching for User
 		// Collect 2 events to verify both Product population and User L2 caching
-		defaultCache.ClearLog()
 		tracker.Reset()
 
 		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
-			cachingTestQueryPath("subscriptions/subscription_product_with_reviews.query"),
+			`subscription UpdatePriceWithReviews($upc: String!) {
+    updateProductPrice(upc: $upc) {
+        upc
+        name
+        price
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+            }
+        }
+    }
+}`,
 			queryVariables{"upc": "top-4"}, 2, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":1,"reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, messages[0])
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":2,"reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, messages[1])
@@ -732,7 +821,13 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		defaultCache.ClearLog()
 
 		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
-			cachingTestQueryPath("subscriptions/subscription_product_only.query"),
+			`subscription UpdatePrice($upc: String!) {
+    updateProductPrice(upc: $upc) {
+        upc
+        name
+        price
+    }
+}`,
 			queryVariables{"upc": "top-4"}, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":1}}}}`, messages[0])
 
@@ -812,7 +907,17 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		wsAddr := toWSAddr(setup.GatewayServer.URL)
 		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
-			cachingTestQueryPath("subscriptions/subscription_product_key_only.query"),
+			`subscription UpdatePriceKeyOnly($upc: String!) {
+    updateProductPrice(upc: $upc) {
+        upc
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+            }
+        }
+    }
+}`,
 			queryVariables{"upc": "top-4"}, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, messages[0])
 
@@ -900,7 +1005,17 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		wsAddr := toWSAddr(setup.GatewayServer.URL)
 		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
-			cachingTestQueryPath("subscriptions/subscription_product_key_only.query"),
+			`subscription UpdatePriceKeyOnly($upc: String!) {
+    updateProductPrice(upc: $upc) {
+        upc
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+            }
+        }
+    }
+}`,
 			queryVariables{"upc": "top-4"}, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, messages[0])
 
@@ -988,7 +1103,17 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		defaultCache.ClearLog()
 
 		wsAddr := toWSAddr(setup.GatewayServer.URL)
-		messages, closeSubscription := gqlClient.Subscription(ctx, wsAddr, cachingTestQueryPath("subscriptions/subscription_product_key_only.query"), queryVariables{"upc": "top-4"}, t)
+		messages, closeSubscription := gqlClient.Subscription(ctx, wsAddr, `subscription UpdatePriceKeyOnly($upc: String!) {
+    updateProductPrice(upc: $upc) {
+        upc
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+            }
+        }
+    }
+}`, queryVariables{"upc": "top-4"}, t)
 		t.Cleanup(closeSubscription)
 
 		handle, err := setup.NextProductSubscription(ctx)
@@ -1090,7 +1215,19 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		defaultCache.ClearLog()
 
 		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
-			cachingTestQueryPath("subscriptions/subscription_product_with_reviews.query"),
+			`subscription UpdatePriceWithReviews($upc: String!) {
+    updateProductPrice(upc: $upc) {
+        upc
+        name
+        price
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+            }
+        }
+    }
+}`,
 			queryVariables{"upc": "top-4"}, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":1,"reviews":[{"body":"Perfect summer hat.","authorWithoutProvides":{"username":"User 5678"}},{"body":"A bit too fancy for my taste.","authorWithoutProvides":{"username":"User 8888"}}]}}}}`, messages[0])
 
@@ -1098,11 +1235,6 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		// Even with a Subscription.updateProductPrice root-field cache configured,
 		// it must NOT apply — subscriptions are never cached as root fields.
 		cacheLog := defaultCache.GetLog()
-		for _, entry := range cacheLog {
-			for _, item := range entry.Items {
-				assert.NotContains(t, item.Key, `"fieldName":"updateProductPrice"`, "subscription root field must not be cached")
-			}
-		}
 		wantLog := []CacheLogEntry{
 			{Operation: CacheOperationGet, Items: []CacheLogItem{
 				{Key: `{"__typename":"User","key":{"id":"5678"}}`, Hit: false},
@@ -1171,11 +1303,22 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		wsAddr := toWSAddr(setup.GatewayServer.URL)
 
-		defaultCache.ClearLog()
 		tracker.Reset()
 
 		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
-			cachingTestQueryPath("subscriptions/subscription_product_with_reviews.query"),
+			`subscription UpdatePriceWithReviews($upc: String!) {
+    updateProductPrice(upc: $upc) {
+        upc
+        name
+        price
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+            }
+        }
+    }
+}`,
 			queryVariables{"upc": "top-4"}, 2, t)
 
 		require.Equal(t, 2, len(messages))
@@ -1231,7 +1374,19 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		// Uses author (with @provides) - no entity resolution for User
 		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
-			cachingTestQueryPath("subscriptions/subscription_product_with_provides.query"),
+			`subscription UpdatePriceWithProvides($upc: String!) {
+    updateProductPrice(upc: $upc) {
+        upc
+        name
+        price
+        reviews {
+            body
+            author {
+                username
+            }
+        }
+    }
+}`,
 			queryVariables{"upc": "top-4"}, 2, t)
 
 		require.Equal(t, 2, len(messages))
@@ -1283,7 +1438,13 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		// Uses alias: "priceUpdate: updateProductPrice(upc: $upc)"
 		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
-			cachingTestQueryPath("subscriptions/subscription_product_alias.query"),
+			`subscription UpdatePriceAlias($upc: String!) {
+    priceUpdate: updateProductPrice(upc: $upc) {
+        upc
+        name
+        price
+    }
+}`,
 			queryVariables{"upc": "top-4"}, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"priceUpdate":{"upc":"top-4","name":"Bowler","price":1}}}}`, messages[0])
 
@@ -1337,7 +1498,15 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		// Uses union return type: updateProductPriceUnion returns ProductUpdate union
 		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
-			cachingTestQueryPath("subscriptions/subscription_product_union.query"),
+			`subscription UpdatePriceUnion($upc: String!) {
+    updateProductPriceUnion(upc: $upc) {
+        ... on Product {
+            upc
+            name
+            price
+        }
+    }
+}`,
 			queryVariables{"upc": "top-4"}, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPriceUnion":{"upc":"top-4","name":"Bowler","price":1}}}}`, messages[0])
 
@@ -1391,7 +1560,15 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		// Uses interface return type: updateProductPriceInterface returns ProductInterface
 		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
-			cachingTestQueryPath("subscriptions/subscription_product_interface.query"),
+			`subscription UpdatePriceInterface($upc: String!) {
+    updateProductPriceInterface(upc: $upc) {
+        ... on Product {
+            upc
+            name
+            price
+        }
+    }
+}`,
 			queryVariables{"upc": "top-4"}, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPriceInterface":{"upc":"top-4","name":"Bowler","price":1}}}}`, messages[0])
 
@@ -1448,7 +1625,15 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		// Subscribe via union field that returns DigitalProduct (not Product)
 		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
-			cachingTestQueryPath("subscriptions/subscription_digital_product_union.query"),
+			`subscription UpdateDigitalProductPriceUnion($upc: String!) {
+    updateDigitalProductPriceUnion(upc: $upc) {
+        ... on DigitalProduct {
+            upc
+            name
+            price
+        }
+    }
+}`,
 			queryVariables{"upc": "digital-1"}, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateDigitalProductPriceUnion":{"upc":"digital-1","name":"eBook: GraphQL in Action","price":1}}}}`, messages[0])
 
@@ -1504,7 +1689,15 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 
 		// Subscribe via interface field that returns DigitalProduct (not Product)
 		messages := collectSubscriptionMessages(ctx, gqlClient, setup, wsAddr,
-			cachingTestQueryPath("subscriptions/subscription_digital_product_interface.query"),
+			`subscription UpdateDigitalProductPriceInterface($upc: String!) {
+    updateDigitalProductPriceInterface(upc: $upc) {
+        ... on DigitalProduct {
+            upc
+            name
+            price
+        }
+    }
+}`,
 			queryVariables{"upc": "digital-1"}, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateDigitalProductPriceInterface":{"upc":"digital-1","name":"eBook: GraphQL in Action","price":1}}}}`, messages[0])
 
@@ -1555,13 +1748,24 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		t.Cleanup(cancel)
 
 		wsAddr := toWSAddr(setup.GatewayServer.URL)
-		queryPath := cachingTestQueryPath("subscriptions/subscription_product_only.query")
 		vars := queryVariables{"upc": "top-4"}
 
 		// Start 2 subscriptions to the same query/variables (same trigger)
-		messages1, close1 := gqlClient.Subscription(ctx, wsAddr, queryPath, vars, t)
+		messages1, close1 := gqlClient.Subscription(ctx, wsAddr, `subscription UpdatePrice($upc: String!) {
+    updateProductPrice(upc: $upc) {
+        upc
+        name
+        price
+    }
+}`, vars, t)
 		t.Cleanup(close1)
-		messages2, close2 := gqlClient.Subscription(ctx, wsAddr, queryPath, vars, t)
+		messages2, close2 := gqlClient.Subscription(ctx, wsAddr, `subscription UpdatePrice($upc: String!) {
+    updateProductPrice(upc: $upc) {
+        upc
+        name
+        price
+    }
+}`, vars, t)
 		t.Cleanup(close2)
 
 		handle, err := setup.NextProductSubscription(ctx)
@@ -1749,13 +1953,32 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		}, seedLog)
 
 		wsAddr := toWSAddr(setup.GatewayServer.URL)
-		queryPath := cachingTestQueryPath("subscriptions/subscription_product_key_only.query")
 		vars := queryVariables{"upc": "top-4"}
 
 		// Start 2 subscriptions to the same key-only query (same trigger)
-		messages1, close1 := gqlClient.Subscription(ctx, wsAddr, queryPath, vars, t)
+		messages1, close1 := gqlClient.Subscription(ctx, wsAddr, `subscription UpdatePriceKeyOnly($upc: String!) {
+    updateProductPrice(upc: $upc) {
+        upc
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+            }
+        }
+    }
+}`, vars, t)
 		t.Cleanup(close1)
-		messages2, close2 := gqlClient.Subscription(ctx, wsAddr, queryPath, vars, t)
+		messages2, close2 := gqlClient.Subscription(ctx, wsAddr, `subscription UpdatePriceKeyOnly($upc: String!) {
+    updateProductPrice(upc: $upc) {
+        upc
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+            }
+        }
+    }
+}`, vars, t)
 		t.Cleanup(close2)
 
 		handle, err := setup.NextProductSubscription(ctx)
@@ -1930,15 +2153,32 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		t.Cleanup(cancel)
 
 		wsAddr := toWSAddr(setup.GatewayServer.URL)
-		queryPath := cachingTestQueryPath("subscriptions/subscription_product_only.query")
 		vars := queryVariables{"upc": "top-4"}
 
 		// Start 3 subscriptions to the same query/variables (same trigger)
-		messages1, close1 := gqlClient.Subscription(ctx, wsAddr, queryPath, vars, t)
+		messages1, close1 := gqlClient.Subscription(ctx, wsAddr, `subscription UpdatePrice($upc: String!) {
+    updateProductPrice(upc: $upc) {
+        upc
+        name
+        price
+    }
+}`, vars, t)
 		t.Cleanup(close1)
-		messages2, close2 := gqlClient.Subscription(ctx, wsAddr, queryPath, vars, t)
+		messages2, close2 := gqlClient.Subscription(ctx, wsAddr, `subscription UpdatePrice($upc: String!) {
+    updateProductPrice(upc: $upc) {
+        upc
+        name
+        price
+    }
+}`, vars, t)
 		t.Cleanup(close2)
-		messages3, close3 := gqlClient.Subscription(ctx, wsAddr, queryPath, vars, t)
+		messages3, close3 := gqlClient.Subscription(ctx, wsAddr, `subscription UpdatePrice($upc: String!) {
+    updateProductPrice(upc: $upc) {
+        upc
+        name
+        price
+    }
+}`, vars, t)
 		t.Cleanup(close3)
 
 		handle, err := setup.NextProductSubscription(ctx)
@@ -2139,7 +2379,13 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		defaultCache.ClearLog()
 
 		messages := collectSubscriptionMessages(ctx, gqlClient, setup, toWSAddr(setup.GatewayServer.URL),
-			cachingTestQueryPath("subscriptions/subscription_product_only.query"),
+			`subscription UpdatePrice($upc: String!) {
+    updateProductPrice(upc: $upc) {
+        upc
+        name
+        price
+    }
+}`,
 			queryVariables{"upc": "top-4"}, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-4","name":"Bowler","price":1}}}}`, messages[0])
 
@@ -2177,7 +2423,13 @@ func TestFederationSubscriptionCaching(t *testing.T) {
 		defaultCache.ClearLog()
 
 		messages := collectSubscriptionMessages(ctx, gqlClient, setup, toWSAddr(setup.GatewayServer.URL),
-			cachingTestQueryPath("subscriptions/subscription_updated_price.query"),
+			`subscription UpdatedPrice {
+    updatedPrice {
+        upc
+        name
+        price
+    }
+}`,
 			nil, 1, t)
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updatedPrice":{"upc":"top-3","name":"Boater","price":10}}}}`, messages[0])
 

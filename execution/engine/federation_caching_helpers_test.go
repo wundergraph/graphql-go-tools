@@ -347,6 +347,8 @@ type FakeLoaderCache struct {
 	storage map[string]cacheEntry
 	log     []CacheLogEntry
 	waiters []cacheLogWaiter
+	fakeNow time.Time
+	now     func() time.Time
 }
 
 func NewFakeLoaderCache() *FakeLoaderCache {
@@ -362,8 +364,24 @@ type cacheLogWaiter struct {
 	ch        chan CacheLogEntry
 }
 
+func (f *FakeLoaderCache) currentTime() time.Time {
+	if f.now != nil {
+		return f.now()
+	}
+	return time.Now()
+}
+
+func (f *FakeLoaderCache) setCurrentTime(now time.Time) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.fakeNow = now
+	f.now = func() time.Time {
+		return f.fakeNow
+	}
+}
+
 func (f *FakeLoaderCache) cleanupExpired() {
-	now := time.Now()
+	now := f.currentTime()
 	for key, entry := range f.storage {
 		if entry.expiresAt != nil && now.After(*entry.expiresAt) {
 			delete(f.storage, key)
@@ -392,7 +410,7 @@ func (f *FakeLoaderCache) Get(ctx context.Context, keys []string) ([]*resolve.Ca
 			}
 			// Populate RemainingTTL from expiresAt for cache age analytics
 			if entry.expiresAt != nil {
-				remaining := time.Until(*entry.expiresAt)
+				remaining := entry.expiresAt.Sub(f.currentTime())
 				if remaining > 0 {
 					ce.RemainingTTL = remaining
 				}
@@ -438,7 +456,7 @@ func (f *FakeLoaderCache) Set(ctx context.Context, entries []*resolve.CacheEntry
 
 		// Non-positive TTLs use the fake cache's no-expiration default.
 		if entry.TTL > 0 {
-			expiresAt := time.Now().Add(entry.TTL)
+			expiresAt := f.currentTime().Add(entry.TTL)
 			cacheEntry.expiresAt = &expiresAt
 		}
 
@@ -536,7 +554,7 @@ func (f *FakeLoaderCache) Peek(key string) ([]byte, bool) {
 	if !ok {
 		return nil, false
 	}
-	if entry.expiresAt != nil && time.Now().After(*entry.expiresAt) {
+	if entry.expiresAt != nil && f.currentTime().After(*entry.expiresAt) {
 		return nil, false
 	}
 	cp := make([]byte, len(entry.data))

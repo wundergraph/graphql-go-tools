@@ -281,8 +281,16 @@ func TestOnSubscriptionCacheCallbacks(t *testing.T) {
 		// Assert entire callback data — exactly 1 invalidation call
 		mu.Lock()
 		defer mu.Unlock()
-		require.Equal(t, 1, len(invalidateCalls), "OnSubscriptionCacheInvalidate should be called exactly once")
-		assert.Equal(t, "Product", invalidateCalls[0].entityType)
-		assert.Equal(t, []string{`{"__typename":"Product","key":{"upc":"top-4"}}`}, invalidateCalls[0].keys)
+		assert.Equal(t, []struct {
+			entityType string
+			keys       []string
+		}{
+			{
+				entityType: "Product",
+				keys: []string{
+					`{"__typename":"Product","key":{"upc":"top-4"}}`,
+				},
+			},
+		}, invalidateCalls)
 	})
 }

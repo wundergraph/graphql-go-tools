@@ -72,7 +72,17 @@ func TestFederationCaching_BasicMissThenHit(t *testing.T) {
 		// First query - should miss cache and then set
 		defaultCache.ClearLog()
 		tracker.Reset()
-		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, `query MultipleServersWithoutProvides {
+    topProducts {
+        name
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+            }
+        }
+    }
+}`, nil, t)
 		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
 
 		logAfterFirst := defaultCache.GetLog()
@@ -112,7 +122,17 @@ func TestFederationCaching_BasicMissThenHit(t *testing.T) {
 		// Second query - should hit cache and then set
 		defaultCache.ClearLog()
 		tracker.Reset()
-		resp = gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, `query MultipleServersWithoutProvides {
+    topProducts {
+        name
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+            }
+        }
+    }
+}`, nil, t)
 		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
 
 		logAfterSecond := defaultCache.GetLog()
@@ -196,12 +216,11 @@ func TestFederationCaching_BasicMissThenHit(t *testing.T) {
 		// First query - only ask for name field (products subgraph only)
 		defaultCache.ClearLog()
 		tracker.Reset()
-		firstQuery := `query {
-			topProducts {
-				name
-			}
-		}`
-		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, firstQuery, nil, t)
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, `query {
+				topProducts {
+					name
+				}
+			}`, nil, t)
 		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby"},{"name":"Fedora"}]}}`, string(resp))
 
 		logAfterFirst := defaultCache.GetLog()
@@ -400,7 +419,17 @@ func TestFederationCaching_BasicMissThenHit(t *testing.T) {
 		// First query - should miss cache and then set with prefixed keys
 		defaultCache.ClearLog()
 		tracker.Reset()
-		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, `query MultipleServersWithoutProvides {
+    topProducts {
+        name
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+            }
+        }
+    }
+}`, nil, t)
 		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
 
 		logAfterFirst := defaultCache.GetLog()
@@ -437,7 +466,17 @@ func TestFederationCaching_BasicMissThenHit(t *testing.T) {
 		// Second query - should hit cache with prefixed keys
 		defaultCache.ClearLog()
 		tracker.Reset()
-		resp = gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, `query MultipleServersWithoutProvides {
+    topProducts {
+        name
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+            }
+        }
+    }
+}`, nil, t)
 		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
 
 		logAfterSecond := defaultCache.GetLog()
@@ -473,29 +512,6 @@ func TestFederationCaching_BasicMissThenHit(t *testing.T) {
 // (always fetch fresh data) and optionally populate L2 when EnableEntityL2CachePopulation is set.
 func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 	t.Parallel()
-	// Shared caching config: entity caching for User on accounts + opt-in L2 population for addReview on reviews.
-	// Mutations do NOT populate L2 by default; subtests that expect L2 population need EnableEntityL2CachePopulation.
-	subgraphCachingConfigs := engine.SubgraphCachingConfigs{
-		{
-			SubgraphName: "accounts",
-			EntityCaching: plan.EntityCacheConfigurations{
-				{TypeName: "User", CacheName: "default", TTL: 30 * time.Second},
-			},
-		},
-		{
-			SubgraphName: "reviews",
-			MutationFieldCaching: plan.MutationFieldCacheConfigurations{
-				{FieldName: "addReview", EnableEntityL2CachePopulation: true},
-			},
-		},
-	}
-
-	mutationVars := queryVariables{
-		"authorID": "1234",
-		"upc":      "top-1",
-		"review":   "Great!",
-	}
-
 	t.Run("mutation skips L2 cache read and writes updated entity", func(t *testing.T) {
 		t.Parallel()
 		defaultCache := NewFakeLoaderCache()
@@ -508,7 +524,20 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 			withCachingLoaderCache(caches),
 			withHTTPClient(trackingClient),
 			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
-			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
+			withSubgraphEntityCachingConfigs(engine.SubgraphCachingConfigs{
+				{
+					SubgraphName: "accounts",
+					EntityCaching: plan.EntityCacheConfigurations{
+						{TypeName: "User", CacheName: "default", TTL: 30 * time.Second},
+					},
+				},
+				{
+					SubgraphName: "reviews",
+					MutationFieldCaching: plan.MutationFieldCacheConfigurations{
+						{FieldName: "addReview", EnableEntityL2CachePopulation: true},
+					},
+				},
+			}),
 		))
 		t.Cleanup(setup.Close)
 		gqlClient := NewGraphqlClient(http.DefaultClient)
@@ -523,7 +552,16 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 		// User entity resolution from accounts. L2 cache is empty → miss → fetch → set.
 		defaultCache.ClearLog()
 		tracker.Reset()
-		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/me_reviews_without_provides.query"), nil, t)
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, `query MeReviewsWithoutProvides {
+    me {
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+            }
+        }
+    }
+}`, nil, t)
 		assert.Equal(t, `{"data":{"me":{"reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}}}`, string(resp))
 
 		logAfterQuery1 := defaultCache.GetLog()
@@ -541,7 +579,18 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 		// writes fresh data (cacheMustBeUpdated=true).
 		defaultCache.ClearLog()
 		tracker.Reset()
-		resp = gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("mutations/add_review_without_provides.query"), mutationVars, t)
+		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, `mutation AddReviewWithoutProvides($authorID: String!, $upc: String!, $review: String!) {
+    addReview(authorID: $authorID, upc: $upc, review: $review) {
+        body
+        authorWithoutProvides {
+            username
+        }
+    }
+}`, queryVariables{
+			"authorID": "1234",
+			"upc":      "top-1",
+			"review":   "Great!",
+		}, t)
 		assert.Equal(t, `{"data":{"addReview":{"body":"Great!","authorWithoutProvides":{"username":"Me"}}}}`, string(resp))
 
 		logAfterMutation := defaultCache.GetLog()
@@ -557,7 +606,16 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 		// No accounts call needed (entity resolution fully served from L2).
 		defaultCache.ClearLog()
 		tracker.Reset()
-		resp = gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/me_reviews_without_provides.query"), nil, t)
+		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, `query MeReviewsWithoutProvides {
+    me {
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+            }
+        }
+    }
+}`, nil, t)
 		assert.Equal(t, `{"data":{"me":{"reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}},{"body":"Great!","authorWithoutProvides":{"username":"Me"}}]}}}`, string(resp))
 
 		logAfterQuery2 := defaultCache.GetLog()
@@ -581,7 +639,20 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 			withCachingLoaderCache(caches),
 			withHTTPClient(trackingClient),
 			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
-			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
+			withSubgraphEntityCachingConfigs(engine.SubgraphCachingConfigs{
+				{
+					SubgraphName: "accounts",
+					EntityCaching: plan.EntityCacheConfigurations{
+						{TypeName: "User", CacheName: "default", TTL: 30 * time.Second},
+					},
+				},
+				{
+					SubgraphName: "reviews",
+					MutationFieldCaching: plan.MutationFieldCacheConfigurations{
+						{FieldName: "addReview", EnableEntityL2CachePopulation: true},
+					},
+				},
+			}),
 		))
 		t.Cleanup(setup.Close)
 		gqlClient := NewGraphqlClient(http.DefaultClient)
@@ -594,7 +665,18 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 		// Step 1: Mutation first (no prior cache)
 		defaultCache.ClearLog()
 		tracker.Reset()
-		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("mutations/add_review_without_provides.query"), mutationVars, t)
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, `mutation AddReviewWithoutProvides($authorID: String!, $upc: String!, $review: String!) {
+    addReview(authorID: $authorID, upc: $upc, review: $review) {
+        body
+        authorWithoutProvides {
+            username
+        }
+    }
+}`, queryVariables{
+			"authorID": "1234",
+			"upc":      "top-1",
+			"review":   "Great!",
+		}, t)
 		assert.Equal(t, `{"data":{"addReview":{"body":"Great!","authorWithoutProvides":{"username":"Me"}}}}`, string(resp))
 
 		logAfterMutation := defaultCache.GetLog()
@@ -608,7 +690,16 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 		// Step 2: Query reads from L2 (hit from mutation's write)
 		defaultCache.ClearLog()
 		tracker.Reset()
-		resp = gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/me_reviews_without_provides.query"), nil, t)
+		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, `query MeReviewsWithoutProvides {
+    me {
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+            }
+        }
+    }
+}`, nil, t)
 		assert.Equal(t, `{"data":{"me":{"reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}},{"body":"Great!","authorWithoutProvides":{"username":"Me"}}]}}}`, string(resp))
 
 		logAfterQuery := defaultCache.GetLog()
@@ -632,7 +723,20 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 			withCachingLoaderCache(caches),
 			withHTTPClient(trackingClient),
 			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
-			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
+			withSubgraphEntityCachingConfigs(engine.SubgraphCachingConfigs{
+				{
+					SubgraphName: "accounts",
+					EntityCaching: plan.EntityCacheConfigurations{
+						{TypeName: "User", CacheName: "default", TTL: 30 * time.Second},
+					},
+				},
+				{
+					SubgraphName: "reviews",
+					MutationFieldCaching: plan.MutationFieldCacheConfigurations{
+						{FieldName: "addReview", EnableEntityL2CachePopulation: true},
+					},
+				},
+			}),
 		))
 		t.Cleanup(setup.Close)
 		gqlClient := NewGraphqlClient(http.DefaultClient)
@@ -645,7 +749,18 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 		// Step 1: First mutation
 		defaultCache.ClearLog()
 		tracker.Reset()
-		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("mutations/add_review_without_provides.query"), mutationVars, t)
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, `mutation AddReviewWithoutProvides($authorID: String!, $upc: String!, $review: String!) {
+    addReview(authorID: $authorID, upc: $upc, review: $review) {
+        body
+        authorWithoutProvides {
+            username
+        }
+    }
+}`, queryVariables{
+			"authorID": "1234",
+			"upc":      "top-1",
+			"review":   "Great!",
+		}, t)
 		assert.Equal(t, `{"data":{"addReview":{"body":"Great!","authorWithoutProvides":{"username":"Me"}}}}`, string(resp))
 
 		logAfterMutation1 := defaultCache.GetLog()
@@ -659,12 +774,18 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 		// Step 2: Second mutation (same author, different review)
 		defaultCache.ClearLog()
 		tracker.Reset()
-		mutation2Vars := queryVariables{
+		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, `mutation AddReviewWithoutProvides($authorID: String!, $upc: String!, $review: String!) {
+    addReview(authorID: $authorID, upc: $upc, review: $review) {
+        body
+        authorWithoutProvides {
+            username
+        }
+    }
+}`, queryVariables{
 			"authorID": "1234",
 			"upc":      "top-2",
 			"review":   "Also great!",
-		}
-		resp = gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("mutations/add_review_without_provides.query"), mutation2Vars, t)
+		}, t)
 		assert.Equal(t, `{"data":{"addReview":{"body":"Also great!","authorWithoutProvides":{"username":"Me"}}}}`, string(resp))
 
 		logAfterMutation2 := defaultCache.GetLog()
@@ -692,7 +813,20 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 			withCachingLoaderCache(caches),
 			withHTTPClient(trackingClient),
 			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true, EnableCacheAnalytics: true}),
-			withSubgraphEntityCachingConfigs(subgraphCachingConfigs),
+			withSubgraphEntityCachingConfigs(engine.SubgraphCachingConfigs{
+				{
+					SubgraphName: "accounts",
+					EntityCaching: plan.EntityCacheConfigurations{
+						{TypeName: "User", CacheName: "default", TTL: 30 * time.Second},
+					},
+				},
+				{
+					SubgraphName: "reviews",
+					MutationFieldCaching: plan.MutationFieldCacheConfigurations{
+						{FieldName: "addReview", EnableEntityL2CachePopulation: true},
+					},
+				},
+			}),
 		))
 		t.Cleanup(setup.Close)
 		gqlClient := NewGraphqlClient(http.DefaultClient)
@@ -707,7 +841,18 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 		// After entity resolution, updateL2Cache writes fresh User data to L2.
 		defaultCache.ClearLog()
 		tracker.Reset()
-		resp, headers := gqlClient.QueryWithHeaders(ctx, setup.GatewayServer.URL, cachingTestQueryPath("mutations/add_review_without_provides.query"), mutationVars, t)
+		resp, headers := gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, `mutation AddReviewWithoutProvides($authorID: String!, $upc: String!, $review: String!) {
+    addReview(authorID: $authorID, upc: $upc, review: $review) {
+        body
+        authorWithoutProvides {
+            username
+        }
+    }
+}`, queryVariables{
+			"authorID": "1234",
+			"upc":      "top-1",
+			"review":   "Great!",
+		}, t)
 		assert.Equal(t, `{"data":{"addReview":{"body":"Great!","authorWithoutProvides":{"username":"Me"}}}}`, string(resp))
 
 		logAfterMutation := defaultCache.GetLog()
@@ -748,7 +893,17 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 		// (called once) provides the full User data which `updateL2Cache` writes back.
 		defaultCache.ClearLog()
 		tracker.Reset()
-		resp, headers = gqlClient.QueryWithHeaders(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/me_reviews_without_provides_with_nickname.query"), nil, t)
+		resp, headers = gqlClient.QueryStringWithHeaders(ctx, setup.GatewayServer.URL, `query MeReviewsWithoutProvidesWithNickname {
+    me {
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+                nickname
+            }
+        }
+    }
+}`, nil, t)
 		assert.Equal(t, `{"data":{"me":{"reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me","nickname":"nick-Me"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me","nickname":"nick-Me"}},{"body":"Great!","authorWithoutProvides":{"username":"Me","nickname":"nick-Me"}}]}}}`, string(resp))
 
 		logAfterQuery := defaultCache.GetLog()
@@ -798,22 +953,19 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 		tracker := newSubgraphCallTracker(http.DefaultTransport)
 		trackingClient := &http.Client{Transport: tracker}
 
-		// Entity caching for accounts (User) only. No MutationFieldCaching config for reviews,
-		// so addReview does NOT populate L2 (default behavior).
-		noMutationPopulateConfigs := engine.SubgraphCachingConfigs{
-			{
-				SubgraphName: "accounts",
-				EntityCaching: plan.EntityCacheConfigurations{
-					{TypeName: "User", CacheName: "default", TTL: 30 * time.Second},
-				},
-			},
-		}
 		setup := federationtesting.NewFederationSetup(addCachingGateway(
 			withCachingEnableART(false),
 			withCachingLoaderCache(caches),
 			withHTTPClient(trackingClient),
 			withCachingOptionsFunc(resolve.CachingOptions{EnableL2Cache: true}),
-			withSubgraphEntityCachingConfigs(noMutationPopulateConfigs),
+			withSubgraphEntityCachingConfigs(engine.SubgraphCachingConfigs{
+				{
+					SubgraphName: "accounts",
+					EntityCaching: plan.EntityCacheConfigurations{
+						{TypeName: "User", CacheName: "default", TTL: 30 * time.Second},
+					},
+				},
+			}),
 		))
 		t.Cleanup(setup.Close)
 		gqlClient := NewGraphqlClient(http.DefaultClient)
@@ -826,7 +978,16 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 		// Step 1: Query populates L2 cache (flag does not affect queries).
 		defaultCache.ClearLog()
 		tracker.Reset()
-		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/me_reviews_without_provides.query"), nil, t)
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, `query MeReviewsWithoutProvides {
+    me {
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+            }
+        }
+    }
+}`, nil, t)
 		assert.Equal(t, `{"data":{"me":{"reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}}}`, string(resp))
 
 		logAfterQuery1 := defaultCache.GetLog()
@@ -841,7 +1002,18 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 		// Step 2: Mutation produces zero cache operations (read skipped because mutation, write skipped because flag).
 		defaultCache.ClearLog()
 		tracker.Reset()
-		resp = gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("mutations/add_review_without_provides.query"), mutationVars, t)
+		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, `mutation AddReviewWithoutProvides($authorID: String!, $upc: String!, $review: String!) {
+    addReview(authorID: $authorID, upc: $upc, review: $review) {
+        body
+        authorWithoutProvides {
+            username
+        }
+    }
+}`, queryVariables{
+			"authorID": "1234",
+			"upc":      "top-1",
+			"review":   "Great!",
+		}, t)
 		assert.Equal(t, `{"data":{"addReview":{"body":"Great!","authorWithoutProvides":{"username":"Me"}}}}`, string(resp))
 
 		logAfterMutation := defaultCache.GetLog()
@@ -851,7 +1023,16 @@ func TestFederationCaching_MutationSkipsL2Read(t *testing.T) {
 		// Step 3: Query still hits L2 from step 1's write (mutation didn't overwrite it).
 		defaultCache.ClearLog()
 		tracker.Reset()
-		resp = gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/me_reviews_without_provides.query"), nil, t)
+		resp = gqlClient.QueryString(ctx, setup.GatewayServer.URL, `query MeReviewsWithoutProvides {
+    me {
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+            }
+        }
+    }
+}`, nil, t)
 		assert.Equal(t, `{"data":{"me":{"reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}},{"body":"Great!","authorWithoutProvides":{"username":"Me"}}]}}}`, string(resp))
 
 		logAfterQuery2 := defaultCache.GetLog()

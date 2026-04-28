@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"path"
 	"strings"
 	"sync"
 	"testing"
@@ -80,10 +79,6 @@ func (t *subgraphRequestTracker) Reset() {
 	t.requests = make(map[string][]string)
 }
 
-func partialCacheTestQueryPath(name string) string {
-	return path.Join("..", "federationtesting", "testdata", name)
-}
-
 // TestPartialCacheLoading tests the EnablePartialCacheLoad feature for entity caching.
 // When enabled, only cache-missed entities are fetched from subgraphs.
 // When disabled (default), all entities are fetched if any are missing.
@@ -104,35 +99,38 @@ func TestFederationCaching_PartialLoading(t *testing.T) {
 			Transport: tracker,
 		}
 
-		// Enable entity caching with EnablePartialCacheLoad for accounts subgraph
-		subgraphCachingConfigs := engine.SubgraphCachingConfigs{
-			{
-				SubgraphName: "products",
-				RootFieldCaching: plan.RootFieldCacheConfigurations{
-					{TypeName: "Query", FieldName: "topProducts", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: false},
+		setup := federationtesting.NewFederationSetup(func(setup *federationtesting.FederationSetup) *httptest.Server {
+			poller := gateway.NewDatasource([]gateway.ServiceConfig{
+				{Name: "accounts", URL: setup.AccountsUpstreamServer.URL},
+				{Name: "products", URL: setup.ProductsUpstreamServer.URL, WS: strings.ReplaceAll(setup.ProductsUpstreamServer.URL, "http:", "ws:")},
+				{Name: "reviews", URL: setup.ReviewsUpstreamServer.URL},
+			}, trackingClient)
+			gtw := gateway.HandlerWithCaching(abstractlogger.NoopLogger, poller, trackingClient, false, caches, nil, resolve.CachingOptions{EnableL2Cache: true}, engine.SubgraphCachingConfigs{
+				{
+					SubgraphName: "products",
+					RootFieldCaching: plan.RootFieldCacheConfigurations{
+						{TypeName: "Query", FieldName: "topProducts", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: false},
+					},
 				},
-			},
-			{
-				SubgraphName: "reviews",
-				EntityCaching: plan.EntityCacheConfigurations{
-					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: false},
+				{
+					SubgraphName: "reviews",
+					EntityCaching: plan.EntityCacheConfigurations{
+						{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: false},
+					},
 				},
-			},
-			{
-				SubgraphName: "accounts",
-				EntityCaching: plan.EntityCacheConfigurations{
-					// KEY: EnablePartialCacheLoad is TRUE
-					{TypeName: "User", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: false, EnablePartialCacheLoad: true},
+				{
+					SubgraphName: "accounts",
+					EntityCaching: plan.EntityCacheConfigurations{
+						// KEY: EnablePartialCacheLoad is TRUE
+						{TypeName: "User", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: false, EnablePartialCacheLoad: true},
+					},
 				},
-			},
-		}
-
-		setup := federationtesting.NewFederationSetup(addPartialCacheGateway(
-			withPartialCacheLoaderCache(caches),
-			withPartialCacheHTTPClient(trackingClient),
-			withPartialCacheCachingOptions(resolve.CachingOptions{EnableL2Cache: true}),
-			withPartialCacheSubgraphCachingConfigs(subgraphCachingConfigs),
-		))
+			}, false)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			poller.Run(ctx)
+			return httptest.NewServer(gtw)
+		})
 		t.Cleanup(setup.Close)
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -153,13 +151,21 @@ func TestFederationCaching_PartialLoading(t *testing.T) {
 		assert.Equal(t, []CacheLogEntry{
 			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"User","key":{"id":"1234"}}`, TTL: 30 * time.Second}}},
 		}, seedLog)
-		defaultCache.ClearLog()
 
 		// First query - User is already cached, so accounts subgraph should NOT be called
 		tracker.Reset()
-		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, partialCacheTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
-		expectedResponse := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`
-		assert.Equal(t, expectedResponse, string(resp))
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, `query MultipleServersWithoutProvides {
+    topProducts {
+        name
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+            }
+        }
+    }
+}`, nil, t)
+		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
 
 		// Verify accounts subgraph was NOT called (all Users were cached)
 		accountsRequests := tracker.GetRequests(accountsHost)
@@ -179,35 +185,38 @@ func TestFederationCaching_PartialLoading(t *testing.T) {
 			Transport: tracker,
 		}
 
-		// Enable entity caching with EnablePartialCacheLoad for reviews subgraph (Product entities)
-		subgraphCachingConfigs := engine.SubgraphCachingConfigs{
-			{
-				SubgraphName: "products",
-				RootFieldCaching: plan.RootFieldCacheConfigurations{
-					{TypeName: "Query", FieldName: "topProducts", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: false},
+		setup := federationtesting.NewFederationSetup(func(setup *federationtesting.FederationSetup) *httptest.Server {
+			poller := gateway.NewDatasource([]gateway.ServiceConfig{
+				{Name: "accounts", URL: setup.AccountsUpstreamServer.URL},
+				{Name: "products", URL: setup.ProductsUpstreamServer.URL, WS: strings.ReplaceAll(setup.ProductsUpstreamServer.URL, "http:", "ws:")},
+				{Name: "reviews", URL: setup.ReviewsUpstreamServer.URL},
+			}, trackingClient)
+			gtw := gateway.HandlerWithCaching(abstractlogger.NoopLogger, poller, trackingClient, false, caches, nil, resolve.CachingOptions{EnableL2Cache: true}, engine.SubgraphCachingConfigs{
+				{
+					SubgraphName: "products",
+					RootFieldCaching: plan.RootFieldCacheConfigurations{
+						{TypeName: "Query", FieldName: "topProducts", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: false},
+					},
 				},
-			},
-			{
-				SubgraphName: "reviews",
-				EntityCaching: plan.EntityCacheConfigurations{
-					// KEY: EnablePartialCacheLoad is TRUE
-					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: false, EnablePartialCacheLoad: true},
+				{
+					SubgraphName: "reviews",
+					EntityCaching: plan.EntityCacheConfigurations{
+						// KEY: EnablePartialCacheLoad is TRUE
+						{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: false, EnablePartialCacheLoad: true},
+					},
 				},
-			},
-			{
-				SubgraphName: "accounts",
-				EntityCaching: plan.EntityCacheConfigurations{
-					{TypeName: "User", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: false},
+				{
+					SubgraphName: "accounts",
+					EntityCaching: plan.EntityCacheConfigurations{
+						{TypeName: "User", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: false},
+					},
 				},
-			},
-		}
-
-		setup := federationtesting.NewFederationSetup(addPartialCacheGateway(
-			withPartialCacheLoaderCache(caches),
-			withPartialCacheHTTPClient(trackingClient),
-			withPartialCacheCachingOptions(resolve.CachingOptions{EnableL2Cache: true}),
-			withPartialCacheSubgraphCachingConfigs(subgraphCachingConfigs),
-		))
+			}, false)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			poller.Run(ctx)
+			return httptest.NewServer(gtw)
+		})
 		t.Cleanup(setup.Close)
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -229,15 +238,23 @@ func TestFederationCaching_PartialLoading(t *testing.T) {
 		assert.Equal(t, []CacheLogEntry{
 			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, TTL: 30 * time.Second}}},
 		}, seedLog)
-		defaultCache.ClearLog()
 
 		// Query - should only fetch top-2 from reviews subgraph (top-1 is cached)
 		tracker.Reset()
-		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, partialCacheTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, `query MultipleServersWithoutProvides {
+    topProducts {
+        name
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+            }
+        }
+    }
+}`, nil, t)
 
 		// Response should still be complete
-		expectedResponse := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`
-		assert.Equal(t, expectedResponse, string(resp))
+		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
 
 		// Verify reviews subgraph was called with ONLY the missing entity (top-2)
 		reviewsRequests := tracker.GetRequests(reviewsHost)
@@ -245,8 +262,7 @@ func TestFederationCaching_PartialLoading(t *testing.T) {
 
 		// The request should only contain top-2, NOT top-1 (partial cache load = only fetch missing)
 		// Using exact assertion to verify the request body structure
-		expectedReviewsRequest := `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename reviews {body authorWithoutProvides {__typename id}}}}}","variables":{"representations":[{"__typename":"Product","upc":"top-2"}]}}`
-		assert.Equal(t, expectedReviewsRequest, reviewsRequests[0], "reviews request should fetch ONLY top-2 (top-1 is cached)")
+		assert.Equal(t, `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename reviews {body authorWithoutProvides {__typename id}}}}}","variables":{"representations":[{"__typename":"Product","upc":"top-2"}]}}`, reviewsRequests[0], "reviews request should fetch ONLY top-2 (top-1 is cached)")
 	})
 
 	t.Run("L2 partial cache loading disabled - all entities fetched even with partial cache hit", func(t *testing.T) {
@@ -262,35 +278,38 @@ func TestFederationCaching_PartialLoading(t *testing.T) {
 			Transport: tracker,
 		}
 
-		// Enable entity caching WITHOUT EnablePartialCacheLoad (default = false)
-		subgraphCachingConfigs := engine.SubgraphCachingConfigs{
-			{
-				SubgraphName: "products",
-				RootFieldCaching: plan.RootFieldCacheConfigurations{
-					{TypeName: "Query", FieldName: "topProducts", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: false},
+		setup := federationtesting.NewFederationSetup(func(setup *federationtesting.FederationSetup) *httptest.Server {
+			poller := gateway.NewDatasource([]gateway.ServiceConfig{
+				{Name: "accounts", URL: setup.AccountsUpstreamServer.URL},
+				{Name: "products", URL: setup.ProductsUpstreamServer.URL, WS: strings.ReplaceAll(setup.ProductsUpstreamServer.URL, "http:", "ws:")},
+				{Name: "reviews", URL: setup.ReviewsUpstreamServer.URL},
+			}, trackingClient)
+			gtw := gateway.HandlerWithCaching(abstractlogger.NoopLogger, poller, trackingClient, false, caches, nil, resolve.CachingOptions{EnableL2Cache: true}, engine.SubgraphCachingConfigs{
+				{
+					SubgraphName: "products",
+					RootFieldCaching: plan.RootFieldCacheConfigurations{
+						{TypeName: "Query", FieldName: "topProducts", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: false},
+					},
 				},
-			},
-			{
-				SubgraphName: "reviews",
-				EntityCaching: plan.EntityCacheConfigurations{
-					// KEY: EnablePartialCacheLoad is FALSE (default)
-					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: false, EnablePartialCacheLoad: false},
+				{
+					SubgraphName: "reviews",
+					EntityCaching: plan.EntityCacheConfigurations{
+						// KEY: EnablePartialCacheLoad is FALSE (default)
+						{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: false, EnablePartialCacheLoad: false},
+					},
 				},
-			},
-			{
-				SubgraphName: "accounts",
-				EntityCaching: plan.EntityCacheConfigurations{
-					{TypeName: "User", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: false},
+				{
+					SubgraphName: "accounts",
+					EntityCaching: plan.EntityCacheConfigurations{
+						{TypeName: "User", CacheName: "default", TTL: 30 * time.Second, IncludeSubgraphHeaderPrefix: false},
+					},
 				},
-			},
-		}
-
-		setup := federationtesting.NewFederationSetup(addPartialCacheGateway(
-			withPartialCacheLoaderCache(caches),
-			withPartialCacheHTTPClient(trackingClient),
-			withPartialCacheCachingOptions(resolve.CachingOptions{EnableL2Cache: true}),
-			withPartialCacheSubgraphCachingConfigs(subgraphCachingConfigs),
-		))
+			}, false)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			poller.Run(ctx)
+			return httptest.NewServer(gtw)
+		})
 		t.Cleanup(setup.Close)
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -312,15 +331,23 @@ func TestFederationCaching_PartialLoading(t *testing.T) {
 		assert.Equal(t, []CacheLogEntry{
 			{Operation: "set", Items: []CacheLogItem{{Key: `{"__typename":"Product","key":{"upc":"top-1"}}`, TTL: 30 * time.Second}}},
 		}, seedLog)
-		defaultCache.ClearLog()
 
 		// Query - with partial loading DISABLED, should fetch ALL entities (top-1 AND top-2)
 		tracker.Reset()
-		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, partialCacheTestQueryPath("queries/multiple_upstream_without_provides.query"), nil, t)
+		resp := gqlClient.QueryString(ctx, setup.GatewayServer.URL, `query MultipleServersWithoutProvides {
+    topProducts {
+        name
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+            }
+        }
+    }
+}`, nil, t)
 
 		// Response should still be complete
-		expectedResponse := `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`
-		assert.Equal(t, expectedResponse, string(resp))
+		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","authorWithoutProvides":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","authorWithoutProvides":{"username":"Me"}}]}]}}`, string(resp))
 
 		// Verify reviews subgraph was called with BOTH entities (all-or-nothing behavior)
 		reviewsRequests := tracker.GetRequests(reviewsHost)
@@ -328,68 +355,6 @@ func TestFederationCaching_PartialLoading(t *testing.T) {
 
 		// The request should contain BOTH top-1 AND top-2 (all-or-nothing mode, partial cache disabled)
 		// Using exact assertion to verify the request body structure
-		expectedReviewsRequest := `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename reviews {body authorWithoutProvides {__typename id}}}}}","variables":{"representations":[{"__typename":"Product","upc":"top-1"},{"__typename":"Product","upc":"top-2"}]}}`
-		assert.Equal(t, expectedReviewsRequest, reviewsRequests[0], "reviews request should fetch BOTH entities (partial cache disabled)")
+		assert.Equal(t, `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename reviews {body authorWithoutProvides {__typename id}}}}}","variables":{"representations":[{"__typename":"Product","upc":"top-1"},{"__typename":"Product","upc":"top-2"}]}}`, reviewsRequests[0], "reviews request should fetch BOTH entities (partial cache disabled)")
 	})
-}
-
-// Helper functions for gateway setup with partial cache testing support
-type partialCacheGatewayOptions struct {
-	withLoaderCache              map[string]resolve.LoaderCache
-	httpClient                   *http.Client
-	cachingOptions               resolve.CachingOptions
-	subgraphEntityCachingConfigs engine.SubgraphCachingConfigs
-}
-
-func withPartialCacheLoaderCache(loaderCache map[string]resolve.LoaderCache) func(*partialCacheGatewayOptions) {
-	return func(opts *partialCacheGatewayOptions) {
-		opts.withLoaderCache = loaderCache
-	}
-}
-
-func withPartialCacheHTTPClient(client *http.Client) func(*partialCacheGatewayOptions) {
-	return func(opts *partialCacheGatewayOptions) {
-		opts.httpClient = client
-	}
-}
-
-func withPartialCacheCachingOptions(cachingOpts resolve.CachingOptions) func(*partialCacheGatewayOptions) {
-	return func(opts *partialCacheGatewayOptions) {
-		opts.cachingOptions = cachingOpts
-	}
-}
-
-func withPartialCacheSubgraphCachingConfigs(configs engine.SubgraphCachingConfigs) func(*partialCacheGatewayOptions) {
-	return func(opts *partialCacheGatewayOptions) {
-		opts.subgraphEntityCachingConfigs = configs
-	}
-}
-
-type partialCacheGatewayOptionsToFunc func(opts *partialCacheGatewayOptions)
-
-func addPartialCacheGateway(options ...partialCacheGatewayOptionsToFunc) func(setup *federationtesting.FederationSetup) *httptest.Server {
-	opts := &partialCacheGatewayOptions{}
-	for _, option := range options {
-		option(opts)
-	}
-	return func(setup *federationtesting.FederationSetup) *httptest.Server {
-		httpClient := opts.httpClient
-		if httpClient == nil {
-			httpClient = http.DefaultClient
-		}
-
-		poller := gateway.NewDatasource([]gateway.ServiceConfig{
-			{Name: "accounts", URL: setup.AccountsUpstreamServer.URL},
-			{Name: "products", URL: setup.ProductsUpstreamServer.URL, WS: strings.ReplaceAll(setup.ProductsUpstreamServer.URL, "http:", "ws:")},
-			{Name: "reviews", URL: setup.ReviewsUpstreamServer.URL},
-		}, httpClient)
-
-		gtw := gateway.HandlerWithCaching(abstractlogger.NoopLogger, poller, httpClient, false, opts.withLoaderCache, nil, opts.cachingOptions, opts.subgraphEntityCachingConfigs, false)
-
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-		defer cancel()
-
-		poller.Run(ctx)
-		return httptest.NewServer(gtw)
-	}
 }
