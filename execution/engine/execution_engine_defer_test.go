@@ -395,8 +395,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					}
 				},
 				dataSources: tc.dataSources,
-				expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
-{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":false}
+				expectedResponse: `{"data":{"user":{"name":"Black"}},"pending":[{"id":"1","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat"},"id":"1"}],"completed":[{"id":"1"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -418,8 +418,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					}
 				},
 				dataSources: tc.dataSources,
-				expectedResponse: `{"data":{"user":{"title":"Sabbat","id":"1"}},"hasNext":true}
-{"incremental":[{"data":{"name":"Black"},"path":["user"]}],"hasNext":false}
+				expectedResponse: `{"data":{"user":{"title":"Sabbat","id":"1"}},"pending":[{"id":"1","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"name":"Black"},"id":"1"}],"completed":[{"id":"1"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -441,8 +441,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					}
 				},
 				dataSources: tc.dataSources,
-				expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
-{"incremental":[{"data":{"title":"Sabbat","id":"1"},"path":["user"]}],"hasNext":false}
+				expectedResponse: `{"data":{"user":{"name":"Black"}},"pending":[{"id":"1","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat","id":"1"},"id":"1"}],"completed":[{"id":"1"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -464,8 +464,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					}
 				},
 				dataSources: tc.dataSources,
-				expectedResponse: `{"data":{"user":{}},"hasNext":true}
-{"incremental":[{"data":{"name":"Black","title":"Sabbat","id":"1"},"path":["user"]}],"hasNext":false}
+				expectedResponse: `{"data":{"user":{}},"pending":[{"id":"1","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"name":"Black","title":"Sabbat","id":"1"},"id":"1"}],"completed":[{"id":"1"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -489,9 +489,101 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					}
 				},
 				dataSources: tc.dataSources,
-				expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
-{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"id":"1"},"path":["user"]}],"hasNext":false}
+				expectedResponse: `{"data":{"user":{"name":"Black"}},"pending":[{"id":"1","path":["user"]},{"id":"2","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat"},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"id":"1"},"id":"2"}],"completed":[{"id":"2"}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("single deffered field with label", runWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "DeferUserTitle",
+						Query: `
+						query DeferUserTitle {
+							user {
+								name
+								... @defer(label: "titleLabel") {
+									title
+								}
+							}
+						}`,
+					}
+				},
+				dataSources: tc.dataSources,
+				expectedResponse: `{"data":{"user":{"name":"Black"}},"pending":[{"id":"1","path":["user"],"label":"titleLabel"}],"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat"},"id":"1"}],"completed":[{"id":"1"}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("multiple deffered fields with label", runWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "DeferUserTitle",
+						Query: `
+						query DeferUserTitle {
+							user {
+								name
+								... @defer(label: "detailsLabel") {
+									title
+									id
+								}
+							}
+						}`,
+					}
+				},
+				dataSources: tc.dataSources,
+				expectedResponse: `{"data":{"user":{"name":"Black"}},"pending":[{"id":"1","path":["user"],"label":"detailsLabel"}],"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat","id":"1"},"id":"1"}],"completed":[{"id":"1"}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("nested defers with labels", runWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "DeferUserTitle",
+						Query: `
+						query DeferUserTitle {
+							user {
+								name
+								... @defer(label: "outer") {
+									title
+									... @defer(label: "inner") {
+										id
+									}
+								}
+							}
+						}`,
+					}
+				},
+				dataSources: tc.dataSources,
+				expectedResponse: `{"data":{"user":{"name":"Black"}},"pending":[{"id":"1","path":["user"],"label":"outer"},{"id":"2","path":["user"],"label":"inner"}],"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat"},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"id":"1"},"id":"2"}],"completed":[{"id":"2"}],"hasNext":false}
+`,
+			}, withStreamingResponse()))
+
+			t.Run("labeled and unlabeled sibling defers", runWithoutError(ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "DeferUserTitle",
+						Query: `
+						query DeferUserTitle {
+							user {
+								... @defer(label: "a") { title }
+								... @defer { id }
+							}
+						}`,
+					}
+				},
+				dataSources: tc.dataSources,
+				expectedResponse: `{"data":{"user":{}},"pending":[{"id":"1","path":["user"],"label":"a"},{"id":"2","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat"},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"id":"1"},"id":"2"}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -512,9 +604,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					}
 				},
 				dataSources: tc.dataSources,
-				expectedResponse: `{"data":{"user":{}},"hasNext":true}
-{"incremental":[{"data":{"name":"Black"},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":false}
+				expectedResponse: `{"data":{"user":{}},"pending":[{"id":"1","path":["user"]},{"id":"2","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"name":"Black"},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat"},"id":"2"}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -538,9 +630,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					}
 				},
 				dataSources: tc.dataSources,
-				expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
-{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"id":"1"},"path":["user"]}],"hasNext":false}
+				expectedResponse: `{"data":{"user":{"name":"Black"}},"pending":[{"id":"1","path":["user"]},{"id":"2","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat"},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"id":"1"},"id":"2"}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -564,8 +656,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					}
 				},
 				dataSources: tc.dataSources,
-				expectedResponse: `{"data":{"user":{"name":"Black"}},"hasNext":true}
-{"incremental":[{"data":{"info":{"email":"black@sabbat","phone":"123"}},"path":["user"]}],"hasNext":false}
+				expectedResponse: `{"data":{"user":{"name":"Black"}},"pending":[{"id":"1","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"info":{"email":"black@sabbat","phone":"123"}},"id":"1"}],"completed":[{"id":"1"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -592,8 +684,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					}
 				},
 				dataSources: tc.dataSources,
-				expectedResponse: `{"data":{"user":{"name":"Black","info":{"email":"black@sabbat"}}},"hasNext":true}
-{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]},{"data":{"phone":"123"},"path":["user","info"]}],"hasNext":false}
+				expectedResponse: `{"data":{"user":{"name":"Black","info":{"email":"black@sabbat"}}},"pending":[{"id":"1","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat"},"id":"1"},{"data":{"phone":"123"},"id":"1","subPath":["info"]}],"completed":[{"id":"1"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -617,8 +709,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					}
 				},
 				dataSources: tc.dataSources,
-				expectedResponse: `{"data":{"user":{"name":"Black","info":{}}},"hasNext":true}
-{"incremental":[{"data":{"email":"black@sabbat","phone":"123"},"path":["user","info"]}],"hasNext":false}
+				expectedResponse: `{"data":{"user":{"name":"Black","info":{}}},"pending":[{"id":"1","path":["user","info"]}],"hasNext":true}
+{"incremental":[{"data":{"email":"black@sabbat","phone":"123"},"id":"1"}],"completed":[{"id":"1"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -646,14 +738,14 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					}
 				},
 				dataSources: tc.dataSources,
-				expectedResponse: `{"data":{},"hasNext":true}
-{"incremental":[{"data":{"user":{}},"path":[]}],"hasNext":true}
-{"incremental":[{"data":{"id":"1"},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"name":"Black"},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"info":{}},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"email":"black@sabbat"},"path":["user","info"]}],"hasNext":true}
-{"incremental":[{"data":{"phone":"123"},"path":["user","info"]}],"hasNext":false}
+				expectedResponse: `{"data":{},"pending":[{"id":"1","path":[]},{"id":"2","path":["user"]},{"id":"3","path":["user"]},{"id":"4","path":["user"]},{"id":"5","path":["user"]},{"id":"6","path":["user","info"]},{"id":"7","path":["user","info"]}],"hasNext":true}
+{"incremental":[{"data":{"user":{}},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"id":"1"},"id":"2"}],"completed":[{"id":"2"}],"hasNext":true}
+{"incremental":[{"data":{"name":"Black"},"id":"3"}],"completed":[{"id":"3"}],"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat"},"id":"4"}],"completed":[{"id":"4"}],"hasNext":true}
+{"incremental":[{"data":{"info":{}},"id":"5"}],"completed":[{"id":"5"}],"hasNext":true}
+{"incremental":[{"data":{"email":"black@sabbat"},"id":"6"}],"completed":[{"id":"6"}],"hasNext":true}
+{"incremental":[{"data":{"phone":"123"},"id":"7"}],"completed":[{"id":"7"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -691,14 +783,14 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					}
 				},
 				dataSources: tc.dataSources,
-				expectedResponse: `{"data":{},"hasNext":true}
-{"incremental":[{"data":{"user":{}},"path":[]}],"hasNext":true}
-{"incremental":[{"data":{"id":"1"},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"name":"Black"},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"title":"Sabbat"},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"info":{}},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"email":"black@sabbat"},"path":["user","info"]}],"hasNext":true}
-{"incremental":[{"data":{"phone":"123"},"path":["user","info"]}],"hasNext":false}
+				expectedResponse: `{"data":{},"pending":[{"id":"1","path":[]},{"id":"2","path":["user"]},{"id":"3","path":["user"]},{"id":"4","path":["user"]},{"id":"5","path":["user"]},{"id":"6","path":["user","info"]},{"id":"7","path":["user","info"]}],"hasNext":true}
+{"incremental":[{"data":{"user":{}},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"id":"1"},"id":"2"}],"completed":[{"id":"2"}],"hasNext":true}
+{"incremental":[{"data":{"name":"Black"},"id":"3"}],"completed":[{"id":"3"}],"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat"},"id":"4"}],"completed":[{"id":"4"}],"hasNext":true}
+{"incremental":[{"data":{"info":{}},"id":"5"}],"completed":[{"id":"5"}],"hasNext":true}
+{"incremental":[{"data":{"email":"black@sabbat"},"id":"6"}],"completed":[{"id":"6"}],"hasNext":true}
+{"incremental":[{"data":{"phone":"123"},"id":"7"}],"completed":[{"id":"7"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 		})
@@ -1116,8 +1208,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}
 			},
 			dataSources: dataSources,
-			expectedResponse: `{"data":{"user":{"name":"Alice"}},"hasNext":true}
-{"incremental":[{"data":{"account":{"type":"premium"}},"path":["user"]}],"hasNext":false}
+			expectedResponse: `{"data":{"user":{"name":"Alice"}},"pending":[{"id":"1","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"account":{"type":"premium"}},"id":"1"}],"completed":[{"id":"1"}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
 
@@ -1138,8 +1230,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}
 			},
 			dataSources: dataSources,
-			expectedResponse: `{"data":{"user":{"name":"Alice"}},"hasNext":true}
-{"incremental":[{"data":{"notifications":["msg1","msg2"]},"path":["user"]}],"hasNext":false}
+			expectedResponse: `{"data":{"user":{"name":"Alice"}},"pending":[{"id":"1","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"notifications":["msg1","msg2"]},"id":"1"}],"completed":[{"id":"1"}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
 
@@ -1161,8 +1253,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}
 			},
 			dataSources: dataSources,
-			expectedResponse: `{"data":{"user":{}},"hasNext":true}
-{"incremental":[{"data":{"name":"Alice","account":{"type":"premium"},"notifications":["msg1","msg2"]},"path":["user"]}],"hasNext":false}
+			expectedResponse: `{"data":{"user":{}},"pending":[{"id":"1","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"name":"Alice","account":{"type":"premium"},"notifications":["msg1","msg2"]},"id":"1"}],"completed":[{"id":"1"}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
 
@@ -1205,9 +1297,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}
 			},
 			dataSources: dataSources,
-			expectedResponse: `{"data":{"user":{"name":"Alice"}},"hasNext":true}
-{"incremental":[{"data":{"account":{"type":"premium"}},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"notifications":["msg1","msg2"]},"path":["user"]}],"hasNext":false}
+			expectedResponse: `{"data":{"user":{"name":"Alice"}},"pending":[{"id":"1","path":["user"]},{"id":"2","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"account":{"type":"premium"}},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"notifications":["msg1","msg2"]},"id":"2"}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
 
@@ -1231,9 +1323,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}
 			},
 			dataSources: dataSources,
-			expectedResponse: `{"data":{"user":{"name":"Alice"}},"hasNext":true}
-{"incremental":[{"data":{"account":{"type":"premium"}},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"notifications":["msg1","msg2"]},"path":["user"]}],"hasNext":false}
+			expectedResponse: `{"data":{"user":{"name":"Alice"}},"pending":[{"id":"1","path":["user"]},{"id":"2","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"account":{"type":"premium"}},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"notifications":["msg1","msg2"]},"id":"2"}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
 
@@ -1258,9 +1350,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}
 			},
 			dataSources: dataSources,
-			expectedResponse: `{"data":{"user":{"name":"Alice","billing":{"plan":"pro"}}},"hasNext":true}
-{"incremental":[{"data":{"account":{"type":"premium"}},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"notifications":["msg1","msg2"]},"path":["user"]}],"hasNext":false}
+			expectedResponse: `{"data":{"user":{"name":"Alice","billing":{"plan":"pro"}}},"pending":[{"id":"1","path":["user"]},{"id":"2","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"account":{"type":"premium"}},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"notifications":["msg1","msg2"]},"id":"2"}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
 
@@ -1287,10 +1379,10 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}
 			},
 			dataSources: dataSources,
-			expectedResponse: `{"data":{"user":{}},"hasNext":true}
-{"incremental":[{"data":{"name":"Alice","billing":{"plan":"pro"}},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"account":{"type":"premium"}},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"notifications":["msg1","msg2"]},"path":["user"]}],"hasNext":false}
+			expectedResponse: `{"data":{"user":{}},"pending":[{"id":"1","path":["user"]},{"id":"2","path":["user"]},{"id":"3","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"name":"Alice","billing":{"plan":"pro"}},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"account":{"type":"premium"}},"id":"2"}],"completed":[{"id":"2"}],"hasNext":true}
+{"incremental":[{"data":{"notifications":["msg1","msg2"]},"id":"3"}],"completed":[{"id":"3"}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
 
@@ -1310,8 +1402,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}
 			},
 			dataSources: dataSources,
-			expectedResponse: `{"data":{"user":{}},"hasNext":true}
-{"incremental":[{"data":{"name":"Alice"},"path":["user"]}],"hasNext":false}
+			expectedResponse: `{"data":{"user":{}},"pending":[{"id":"1","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"name":"Alice"},"id":"1"}],"completed":[{"id":"1"}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
 
@@ -1329,8 +1421,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}
 			},
 			dataSources: dataSources,
-			expectedResponse: `{"data":{"user":{}},"hasNext":true}
-{"incremental":[{"data":{"account":{"type":"premium"}},"path":["user"]}],"hasNext":false}
+			expectedResponse: `{"data":{"user":{}},"pending":[{"id":"1","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"account":{"type":"premium"}},"id":"1"}],"completed":[{"id":"1"}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
 
@@ -1348,8 +1440,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}
 			},
 			dataSources: dataSources,
-			expectedResponse: `{"data":{"user":{}},"hasNext":true}
-{"incremental":[{"data":{"notifications":["msg1","msg2"]},"path":["user"]}],"hasNext":false}
+			expectedResponse: `{"data":{"user":{}},"pending":[{"id":"1","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"notifications":["msg1","msg2"]},"id":"1"}],"completed":[{"id":"1"}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
 
@@ -1373,8 +1465,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}
 			},
 			dataSources: dataSources,
-			expectedResponse: `{"data":{"user":{}},"hasNext":true}
-{"incremental":[{"data":{"name":"Alice","billing":{"plan":"pro"},"settings":{"region":"us-east"},"account":{"type":"premium"},"notifications":["msg1","msg2"]},"path":["user"]}],"hasNext":false}
+			expectedResponse: `{"data":{"user":{}},"pending":[{"id":"1","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"name":"Alice","billing":{"plan":"pro"},"settings":{"region":"us-east"},"account":{"type":"premium"},"notifications":["msg1","msg2"]},"id":"1"}],"completed":[{"id":"1"}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
 
@@ -1399,8 +1491,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}
 			},
 			dataSources: dataSources,
-			expectedResponse: `{"data":{"user":{"name":"Alice"}},"hasNext":true}
-{"incremental":[{"data":{"billing":{"plan":"pro"},"account":{"type":"premium"}},"path":["user"]}],"hasNext":false}
+			expectedResponse: `{"data":{"user":{"name":"Alice"}},"pending":[{"id":"1","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"billing":{"plan":"pro"},"account":{"type":"premium"}},"id":"1"}],"completed":[{"id":"1"}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
 
@@ -1420,9 +1512,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}
 			},
 			dataSources: dataSources,
-			expectedResponse: `{"data":{"user":{"name":"Alice"}},"hasNext":true}
-{"incremental":[{"data":{"billing":{"plan":"pro"}},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"account":{"type":"premium"}},"path":["user"]}],"hasNext":false}
+			expectedResponse: `{"data":{"user":{"name":"Alice"}},"pending":[{"id":"1","path":["user"]},{"id":"2","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"billing":{"plan":"pro"}},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"account":{"type":"premium"}},"id":"2"}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
 
@@ -1444,8 +1536,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}
 			},
 			dataSources: dataSources,
-			expectedResponse: `{"data":{"user":{"name":"Alice"}},"hasNext":true}
-{"incremental":[{"data":{"settings":{"language":"en"},"notifications":["msg1","msg2"]},"path":["user"]}],"hasNext":false}
+			expectedResponse: `{"data":{"user":{"name":"Alice"}},"pending":[{"id":"1","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"settings":{"language":"en"},"notifications":["msg1","msg2"]},"id":"1"}],"completed":[{"id":"1"}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
 
@@ -1465,9 +1557,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}
 			},
 			dataSources: dataSources,
-			expectedResponse: `{"data":{"user":{"name":"Alice"}},"hasNext":true}
-{"incremental":[{"data":{"settings":{"language":"en"}},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"notifications":["msg1","msg2"]},"path":["user"]}],"hasNext":false}
+			expectedResponse: `{"data":{"user":{"name":"Alice"}},"pending":[{"id":"1","path":["user"]},{"id":"2","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"settings":{"language":"en"}},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"notifications":["msg1","msg2"]},"id":"2"}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
 
@@ -1493,9 +1585,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}
 			},
 			dataSources: dataSources,
-			expectedResponse: `{"data":{"user":{"name":"Alice"}},"hasNext":true}
-{"incremental":[{"data":{"billing":{"plan":"pro"},"settings":{"region":"us-east","language":"en"}},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"account":{"type":"premium"},"notifications":["msg1","msg2"]},"path":["user"]}],"hasNext":false}
+			expectedResponse: `{"data":{"user":{"name":"Alice"}},"pending":[{"id":"1","path":["user"]},{"id":"2","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"billing":{"plan":"pro"},"settings":{"region":"us-east","language":"en"}},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"account":{"type":"premium"},"notifications":["msg1","msg2"]},"id":"2"}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
 
@@ -1517,9 +1609,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}
 			},
 			dataSources: dataSources,
-			expectedResponse: `{"data":{"user":{"name":"Alice","billing":{"plan":"pro"},"settings":{"region":"us-east","language":"en"}}},"hasNext":true}
-{"incremental":[{"data":{"account":{"type":"premium"}},"path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"notifications":["msg1","msg2"]},"path":["user"]}],"hasNext":false}
+			expectedResponse: `{"data":{"user":{"name":"Alice","billing":{"plan":"pro"},"settings":{"region":"us-east","language":"en"}}},"pending":[{"id":"1","path":["user"]},{"id":"2","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"account":{"type":"premium"}},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"notifications":["msg1","msg2"]},"id":"2"}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
 	})
@@ -1642,8 +1734,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				return graphql.Request{Query: `{ product { ... @defer { name } } }`}
 			},
 			dataSources: dataSources,
-			expectedResponse: `{"data":{"product":{}},"hasNext":true}
-{"incremental":[{"data":null,"path":["product"],"errors":[{"message":"Cannot return null for non-nullable field 'Query.product.name'.","path":["product","name"]}]}],"hasNext":false}
+			expectedResponse: `{"data":{"product":{}},"pending":[{"id":"1","path":["product"]}],"hasNext":true}
+{"completed":[{"id":"1","errors":[{"message":"Cannot return null for non-nullable field 'Query.product.name'.","path":["product","name"]}]}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
 
@@ -1653,8 +1745,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				return graphql.Request{Query: `{ product { ... @defer { nameWithError } } }`}
 			},
 			dataSources: dataSources,
-			expectedResponse: `{"data":{"product":{}},"hasNext":true}
-{"incremental":[{"data":{"nameWithError":null},"path":["product"],"errors":[{"message":"Failed to fetch from Subgraph 'id-1'."}]}],"hasNext":false}
+			expectedResponse: `{"data":{"product":{}},"pending":[{"id":"1","path":["product"]}],"hasNext":true}
+{"incremental":[{"data":{"nameWithError":null},"id":"1","errors":[{"message":"Failed to fetch from Subgraph 'id-1'."}]}],"completed":[{"id":"1"}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
 
@@ -1664,8 +1756,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				return graphql.Request{Query: `{ product { ... @defer { price } } }`}
 			},
 			dataSources: dataSources,
-			expectedResponse: `{"data":{"product":{}},"hasNext":true}
-{"incremental":[{"data":null,"path":["product"],"errors":[{"message":"Cannot return null for non-nullable field 'Query.product.price'.","path":["product","price"]}]}],"hasNext":false}
+			expectedResponse: `{"data":{"product":{}},"pending":[{"id":"1","path":["product"]}],"hasNext":true}
+{"completed":[{"id":"1","errors":[{"message":"Cannot return null for non-nullable field 'Query.product.price'.","path":["product","price"]}]}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
 
@@ -1675,8 +1767,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				return graphql.Request{Query: `{ product { ... @defer { name } ... @defer { price } } }`}
 			},
 			dataSources: dataSources,
-			expectedResponse: `{"data":{"product":{}},"hasNext":true}
-{"incremental":[{"data":null,"path":["product"],"errors":[{"message":"Cannot return null for non-nullable field 'Query.product.name'.","path":["product","name"]}]}],"hasNext":false}
+			expectedResponse: `{"data":{"product":{}},"pending":[{"id":"1","path":["product"]},{"id":"2","path":["product"]}],"hasNext":true}
+{"completed":[{"id":"1","errors":[{"message":"Cannot return null for non-nullable field 'Query.product.name'.","path":["product","name"]}]}],"hasNext":true}
+{"completed":[{"id":"2","errors":[{"message":"Cannot return null for non-nullable field 'Query.product.price'.","path":["product","price"]}]}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
 
@@ -1686,8 +1779,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				return graphql.Request{Query: `{ product { ... @defer { price } ... @defer { name } } }`}
 			},
 			dataSources: dataSources,
-			expectedResponse: `{"data":{"product":{}},"hasNext":true}
-{"incremental":[{"data":null,"path":["product"],"errors":[{"message":"Cannot return null for non-nullable field 'Query.product.price'.","path":["product","price"]}]}],"hasNext":false}
+			expectedResponse: `{"data":{"product":{}},"pending":[{"id":"1","path":["product"]},{"id":"2","path":["product"]}],"hasNext":true}
+{"completed":[{"id":"1","errors":[{"message":"Cannot return null for non-nullable field 'Query.product.price'.","path":["product","price"]}]}],"hasNext":true}
+{"completed":[{"id":"2","errors":[{"message":"Cannot return null for non-nullable field 'Query.product.name'.","path":["product","name"]}]}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
 
@@ -1697,8 +1791,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				return graphql.Request{Query: `{ product { ... @defer { nameWithError } ... @defer { price } } }`}
 			},
 			dataSources: dataSources,
-			expectedResponse: `{"data":{"product":{}},"hasNext":true}
-{"incremental":[{"data":{"nameWithError":null},"path":["product"],"errors":[{"message":"Failed to fetch from Subgraph 'id-1'."}]}],"hasNext":false}
+			expectedResponse: `{"data":{"product":{}},"pending":[{"id":"1","path":["product"]},{"id":"2","path":["product"]}],"hasNext":true}
+{"incremental":[{"data":{"nameWithError":null},"id":"1","errors":[{"message":"Failed to fetch from Subgraph 'id-1'."}]}],"completed":[{"id":"1"}],"hasNext":true}
+{"completed":[{"id":"2","errors":[{"message":"Cannot return null for non-nullable field 'Query.product.price'.","path":["product","price"]}]}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
 
@@ -1894,8 +1989,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `{ items { ... @defer { name } } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{"items":[{},{}]},"hasNext":true}
-{"incremental":[{"data":{"name":"ItemOne"},"path":["items",0]},{"data":{"name":"ItemTwo"},"path":["items",1]}],"hasNext":false}
+				expectedResponse: `{"data":{"items":[{},{}]},"pending":[{"id":"1","path":["items"]}],"hasNext":true}
+{"incremental":[{"data":{"name":"ItemOne"},"id":"1","subPath":[0]},{"data":{"name":"ItemTwo"},"id":"1","subPath":[1]}],"completed":[{"id":"1"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -1905,8 +2000,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `{ items { ... @defer { title } } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{"items":[{},{}]},"hasNext":true}
-{"incremental":[{"data":{"title":"TitleOne"},"path":["items",0]},{"data":{"title":"TitleTwo"},"path":["items",1]}],"hasNext":false}
+				expectedResponse: `{"data":{"items":[{},{}]},"pending":[{"id":"1","path":["items"]}],"hasNext":true}
+{"incremental":[{"data":{"title":"TitleOne"},"id":"1","subPath":[0]},{"data":{"title":"TitleTwo"},"id":"1","subPath":[1]}],"completed":[{"id":"1"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -1916,8 +2011,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `{ items { subItems { ... @defer { description } } } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{"items":[{"subItems":[{},{}]},{"subItems":[{}]}]},"hasNext":true}
-{"incremental":[{"data":{"description":"Desc1"},"path":["items",0,"subItems",0]},{"data":{"description":"Desc2"},"path":["items",0,"subItems",1]},{"data":{"description":"Desc3"},"path":["items",1,"subItems",0]}],"hasNext":false}
+				expectedResponse: `{"data":{"items":[{"subItems":[{},{}]},{"subItems":[{}]}]},"pending":[{"id":"1","path":["items"]}],"hasNext":true}
+{"incremental":[{"data":{"description":"Desc1"},"id":"1","subPath":[0,"subItems",0]},{"data":{"description":"Desc2"},"id":"1","subPath":[0,"subItems",1]},{"data":{"description":"Desc3"},"id":"1","subPath":[1,"subItems",0]}],"completed":[{"id":"1"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -1927,10 +2022,10 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `{ ... @defer { items { id ... @defer { subItems { id ... @defer { description } } } } } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{},"hasNext":true}
-{"incremental":[{"data":{"items":[{"id":"1"},{"id":"2"}]},"path":[]}],"hasNext":true}
-{"incremental":[{"data":{"subItems":[{"id":"s1"},{"id":"s2"}]},"path":["items",0]},{"data":{"subItems":[{"id":"s3"}]},"path":["items",1]}],"hasNext":true}
-{"incremental":[{"data":{"description":"Desc1"},"path":["items",0,"subItems",0]},{"data":{"description":"Desc2"},"path":["items",0,"subItems",1]},{"data":{"description":"Desc3"},"path":["items",1,"subItems",0]}],"hasNext":false}
+				expectedResponse: `{"data":{},"pending":[{"id":"1","path":[]},{"id":"2","path":["items"]},{"id":"3","path":["items"]}],"hasNext":true}
+{"incremental":[{"data":{"items":[{"id":"1"},{"id":"2"}]},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"subItems":[{"id":"s1"},{"id":"s2"}]},"id":"2","subPath":[0]},{"data":{"subItems":[{"id":"s3"}]},"id":"2","subPath":[1]}],"completed":[{"id":"2"}],"hasNext":true}
+{"incremental":[{"data":{"description":"Desc1"},"id":"3","subPath":[0,"subItems",0]},{"data":{"description":"Desc2"},"id":"3","subPath":[0,"subItems",1]},{"data":{"description":"Desc3"},"id":"3","subPath":[1,"subItems",0]}],"completed":[{"id":"3"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 		})
@@ -1942,8 +2037,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `{ items { ... @defer { id } } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{"items":[{},{}]},"hasNext":true}
-{"incremental":[{"data":{"id":"1"},"path":["items",0]},{"data":{"id":"2"},"path":["items",1]}],"hasNext":false}
+				expectedResponse: `{"data":{"items":[{},{}]},"pending":[{"id":"1","path":["items"]}],"hasNext":true}
+{"incremental":[{"data":{"id":"1"},"id":"1","subPath":[0]},{"data":{"id":"2"},"id":"1","subPath":[1]}],"completed":[{"id":"1"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -1953,8 +2048,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `{ items { ... @defer { id name } } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{"items":[{},{}]},"hasNext":true}
-{"incremental":[{"data":{"id":"1","name":"ItemOne"},"path":["items",0]},{"data":{"id":"2","name":"ItemTwo"},"path":["items",1]}],"hasNext":false}
+				expectedResponse: `{"data":{"items":[{},{}]},"pending":[{"id":"1","path":["items"]}],"hasNext":true}
+{"incremental":[{"data":{"id":"1","name":"ItemOne"},"id":"1","subPath":[0]},{"data":{"id":"2","name":"ItemTwo"},"id":"1","subPath":[1]}],"completed":[{"id":"1"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -1964,9 +2059,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `{ items { ... @defer { id } ... @defer { name } } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{"items":[{},{}]},"hasNext":true}
-{"incremental":[{"data":{"id":"1"},"path":["items",0]},{"data":{"id":"2"},"path":["items",1]}],"hasNext":true}
-{"incremental":[{"data":{"name":"ItemOne"},"path":["items",0]},{"data":{"name":"ItemTwo"},"path":["items",1]}],"hasNext":false}
+				expectedResponse: `{"data":{"items":[{},{}]},"pending":[{"id":"1","path":["items"]},{"id":"2","path":["items"]}],"hasNext":true}
+{"incremental":[{"data":{"id":"1"},"id":"1","subPath":[0]},{"data":{"id":"2"},"id":"1","subPath":[1]}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"name":"ItemOne"},"id":"2","subPath":[0]},{"data":{"name":"ItemTwo"},"id":"2","subPath":[1]}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -1976,9 +2071,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `{ items { ... @defer { id } ... @defer { title } } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{"items":[{},{}]},"hasNext":true}
-{"incremental":[{"data":{"id":"1"},"path":["items",0]},{"data":{"id":"2"},"path":["items",1]}],"hasNext":true}
-{"incremental":[{"data":{"title":"TitleOne"},"path":["items",0]},{"data":{"title":"TitleTwo"},"path":["items",1]}],"hasNext":false}
+				expectedResponse: `{"data":{"items":[{},{}]},"pending":[{"id":"1","path":["items"]},{"id":"2","path":["items"]}],"hasNext":true}
+{"incremental":[{"data":{"id":"1"},"id":"1","subPath":[0]},{"data":{"id":"2"},"id":"1","subPath":[1]}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"title":"TitleOne"},"id":"2","subPath":[0]},{"data":{"title":"TitleTwo"},"id":"2","subPath":[1]}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -1988,9 +2083,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `{ items { id ... @defer { subItems { id } } ... @defer { subItems { description } } } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{"items":[{"id":"1"},{"id":"2"}]},"hasNext":true}
-{"incremental":[{"data":{"subItems":[{"id":"s1"},{"id":"s2"}]},"path":["items",0]},{"data":{"subItems":[{"id":"s3"}]},"path":["items",1]}],"hasNext":true}
-{"incremental":[{"data":{"description":"Desc1"},"path":["items",0,"subItems",0]},{"data":{"description":"Desc2"},"path":["items",0,"subItems",1]},{"data":{"description":"Desc3"},"path":["items",1,"subItems",0]}],"hasNext":false}
+				expectedResponse: `{"data":{"items":[{"id":"1"},{"id":"2"}]},"pending":[{"id":"1","path":["items"]},{"id":"2","path":["items"]}],"hasNext":true}
+{"incremental":[{"data":{"subItems":[{"id":"s1"},{"id":"s2"}]},"id":"1","subPath":[0]},{"data":{"subItems":[{"id":"s3"}]},"id":"1","subPath":[1]}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"description":"Desc1"},"id":"2","subPath":[0,"subItems",0]},{"data":{"description":"Desc2"},"id":"2","subPath":[0,"subItems",1]},{"data":{"description":"Desc3"},"id":"2","subPath":[1,"subItems",0]}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 		})
@@ -2002,9 +2097,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `{ ... @defer { items { subItems { id } } } ... @defer { items { subItems { description } } } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{},"hasNext":true}
-{"incremental":[{"data":{"items":[{"subItems":[{"id":"s1"},{"id":"s2"}]},{"subItems":[{"id":"s3"}]}]},"path":[]}],"hasNext":true}
-{"incremental":[{"data":{"description":"Desc1"},"path":["items",0,"subItems",0]},{"data":{"description":"Desc2"},"path":["items",0,"subItems",1]},{"data":{"description":"Desc3"},"path":["items",1,"subItems",0]}],"hasNext":false}
+				expectedResponse: `{"data":{},"pending":[{"id":"1","path":[]},{"id":"2","path":["items"]}],"hasNext":true}
+{"incremental":[{"data":{"items":[{"subItems":[{"id":"s1"},{"id":"s2"}]},{"subItems":[{"id":"s3"}]}]},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"description":"Desc1"},"id":"2","subPath":[0,"subItems",0]},{"data":{"description":"Desc2"},"id":"2","subPath":[0,"subItems",1]},{"data":{"description":"Desc3"},"id":"2","subPath":[1,"subItems",0]}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 		})
@@ -2016,9 +2111,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `{ ... @defer { items { id ... @defer { name } } } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{},"hasNext":true}
-{"incremental":[{"data":{"items":[{"id":"1"},{"id":"2"}]},"path":[]}],"hasNext":true}
-{"incremental":[{"data":{"name":"ItemOne"},"path":["items",0]},{"data":{"name":"ItemTwo"},"path":["items",1]}],"hasNext":false}
+				expectedResponse: `{"data":{},"pending":[{"id":"1","path":[]},{"id":"2","path":["items"]}],"hasNext":true}
+{"incremental":[{"data":{"items":[{"id":"1"},{"id":"2"}]},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"name":"ItemOne"},"id":"2","subPath":[0]},{"data":{"name":"ItemTwo"},"id":"2","subPath":[1]}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -2028,9 +2123,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `{ ... @defer { items { id ... @defer { title } } } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{},"hasNext":true}
-{"incremental":[{"data":{"items":[{"id":"1"},{"id":"2"}]},"path":[]}],"hasNext":true}
-{"incremental":[{"data":{"title":"TitleOne"},"path":["items",0]},{"data":{"title":"TitleTwo"},"path":["items",1]}],"hasNext":false}
+				expectedResponse: `{"data":{},"pending":[{"id":"1","path":[]},{"id":"2","path":["items"]}],"hasNext":true}
+{"incremental":[{"data":{"items":[{"id":"1"},{"id":"2"}]},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"title":"TitleOne"},"id":"2","subPath":[0]},{"data":{"title":"TitleTwo"},"id":"2","subPath":[1]}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -2040,9 +2135,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `{ ... @defer { items { id subItems { id ... @defer { description } } } } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{},"hasNext":true}
-{"incremental":[{"data":{"items":[{"id":"1","subItems":[{"id":"s1"},{"id":"s2"}]},{"id":"2","subItems":[{"id":"s3"}]}]},"path":[]}],"hasNext":true}
-{"incremental":[{"data":{"description":"Desc1"},"path":["items",0,"subItems",0]},{"data":{"description":"Desc2"},"path":["items",0,"subItems",1]},{"data":{"description":"Desc3"},"path":["items",1,"subItems",0]}],"hasNext":false}
+				expectedResponse: `{"data":{},"pending":[{"id":"1","path":[]},{"id":"2","path":["items"]}],"hasNext":true}
+{"incremental":[{"data":{"items":[{"id":"1","subItems":[{"id":"s1"},{"id":"s2"}]},{"id":"2","subItems":[{"id":"s3"}]}]},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"description":"Desc1"},"id":"2","subPath":[0,"subItems",0]},{"data":{"description":"Desc2"},"id":"2","subPath":[0,"subItems",1]},{"data":{"description":"Desc3"},"id":"2","subPath":[1,"subItems",0]}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -2052,10 +2147,10 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `{ ... @defer { items { id ... @defer { subItems { id ... @defer { description } } } } } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{},"hasNext":true}
-{"incremental":[{"data":{"items":[{"id":"1"},{"id":"2"}]},"path":[]}],"hasNext":true}
-{"incremental":[{"data":{"subItems":[{"id":"s1"},{"id":"s2"}]},"path":["items",0]},{"data":{"subItems":[{"id":"s3"}]},"path":["items",1]}],"hasNext":true}
-{"incremental":[{"data":{"description":"Desc1"},"path":["items",0,"subItems",0]},{"data":{"description":"Desc2"},"path":["items",0,"subItems",1]},{"data":{"description":"Desc3"},"path":["items",1,"subItems",0]}],"hasNext":false}
+				expectedResponse: `{"data":{},"pending":[{"id":"1","path":[]},{"id":"2","path":["items"]},{"id":"3","path":["items"]}],"hasNext":true}
+{"incremental":[{"data":{"items":[{"id":"1"},{"id":"2"}]},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"subItems":[{"id":"s1"},{"id":"s2"}]},"id":"2","subPath":[0]},{"data":{"subItems":[{"id":"s3"}]},"id":"2","subPath":[1]}],"completed":[{"id":"2"}],"hasNext":true}
+{"incremental":[{"data":{"description":"Desc1"},"id":"3","subPath":[0,"subItems",0]},{"data":{"description":"Desc2"},"id":"3","subPath":[0,"subItems",1]},{"data":{"description":"Desc3"},"id":"3","subPath":[1,"subItems",0]}],"completed":[{"id":"3"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -2065,10 +2160,10 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `{ ... @defer { items { id ... @defer { title subItems { id ... @defer { description } } } } } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{},"hasNext":true}
-{"incremental":[{"data":{"items":[{"id":"1"},{"id":"2"}]},"path":[]}],"hasNext":true}
-{"incremental":[{"data":{"title":"TitleOne","subItems":[{"id":"s1"},{"id":"s2"}]},"path":["items",0]},{"data":{"title":"TitleTwo","subItems":[{"id":"s3"}]},"path":["items",1]}],"hasNext":true}
-{"incremental":[{"data":{"description":"Desc1"},"path":["items",0,"subItems",0]},{"data":{"description":"Desc2"},"path":["items",0,"subItems",1]},{"data":{"description":"Desc3"},"path":["items",1,"subItems",0]}],"hasNext":false}
+				expectedResponse: `{"data":{},"pending":[{"id":"1","path":[]},{"id":"2","path":["items"]},{"id":"3","path":["items"]}],"hasNext":true}
+{"incremental":[{"data":{"items":[{"id":"1"},{"id":"2"}]},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"title":"TitleOne","subItems":[{"id":"s1"},{"id":"s2"}]},"id":"2","subPath":[0]},{"data":{"title":"TitleTwo","subItems":[{"id":"s3"}]},"id":"2","subPath":[1]}],"completed":[{"id":"2"}],"hasNext":true}
+{"incremental":[{"data":{"description":"Desc1"},"id":"3","subPath":[0,"subItems",0]},{"data":{"description":"Desc2"},"id":"3","subPath":[0,"subItems",1]},{"data":{"description":"Desc3"},"id":"3","subPath":[1,"subItems",0]}],"completed":[{"id":"3"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 		})
@@ -2199,8 +2294,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `fragment SkuFields on Product { sku } { products { ...SkuFields @defer } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{"products":[{},{}]},"hasNext":true}
-{"incremental":[{"data":{"sku":"sku-1"},"path":["products",0]},{"data":{"sku":"sku-2"},"path":["products",1]}],"hasNext":false}
+				expectedResponse: `{"data":{"products":[{},{}]},"pending":[{"id":"1","path":["products"]}],"hasNext":true}
+{"incremental":[{"data":{"sku":"sku-1"},"id":"1","subPath":[0]},{"data":{"sku":"sku-2"},"id":"1","subPath":[1]}],"completed":[{"id":"1"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -2210,8 +2305,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `fragment NameFields on Product { name } { products { ...NameFields @defer } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{"products":[{},{}]},"hasNext":true}
-{"incremental":[{"data":{"name":"Product One"},"path":["products",0]},{"data":{"name":"Product Two"},"path":["products",1]}],"hasNext":false}
+				expectedResponse: `{"data":{"products":[{},{}]},"pending":[{"id":"1","path":["products"]}],"hasNext":true}
+{"incremental":[{"data":{"name":"Product One"},"id":"1","subPath":[0]},{"data":{"name":"Product Two"},"id":"1","subPath":[1]}],"completed":[{"id":"1"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -2221,8 +2316,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `fragment DetailFields on Product { name price } { products { id ...DetailFields @defer } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{"products":[{"id":"1"},{"id":"2"}]},"hasNext":true}
-{"incremental":[{"data":{"name":"Product One","price":9.99},"path":["products",0]},{"data":{"name":"Product Two","price":19.99},"path":["products",1]}],"hasNext":false}
+				expectedResponse: `{"data":{"products":[{"id":"1"},{"id":"2"}]},"pending":[{"id":"1","path":["products"]}],"hasNext":true}
+{"incremental":[{"data":{"name":"Product One","price":9.99},"id":"1","subPath":[0]},{"data":{"name":"Product Two","price":19.99},"id":"1","subPath":[1]}],"completed":[{"id":"1"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -2232,9 +2327,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `fragment SkuFrag on Product { sku } fragment NameFrag on Product { name } { products { ...SkuFrag @defer ...NameFrag @defer } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{"products":[{},{}]},"hasNext":true}
-{"incremental":[{"data":{"sku":"sku-1"},"path":["products",0]},{"data":{"sku":"sku-2"},"path":["products",1]}],"hasNext":true}
-{"incremental":[{"data":{"name":"Product One"},"path":["products",0]},{"data":{"name":"Product Two"},"path":["products",1]}],"hasNext":false}
+				expectedResponse: `{"data":{"products":[{},{}]},"pending":[{"id":"1","path":["products"]},{"id":"2","path":["products"]}],"hasNext":true}
+{"incremental":[{"data":{"sku":"sku-1"},"id":"1","subPath":[0]},{"data":{"sku":"sku-2"},"id":"1","subPath":[1]}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"name":"Product One"},"id":"2","subPath":[0]},{"data":{"name":"Product Two"},"id":"2","subPath":[1]}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 		})
@@ -2246,8 +2341,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `fragment ProductFrag on Product { id ... @defer { sku } } { products { ...ProductFrag } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{"products":[{"id":"1"},{"id":"2"}]},"hasNext":true}
-{"incremental":[{"data":{"sku":"sku-1"},"path":["products",0]},{"data":{"sku":"sku-2"},"path":["products",1]}],"hasNext":false}
+				expectedResponse: `{"data":{"products":[{"id":"1"},{"id":"2"}]},"pending":[{"id":"2","path":["products"]}],"hasNext":true}
+{"incremental":[{"data":{"sku":"sku-1"},"id":"2","subPath":[0]},{"data":{"sku":"sku-2"},"id":"2","subPath":[1]}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -2257,8 +2352,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `fragment ProductFrag on Product { id ... @defer { name } } { products { ...ProductFrag } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{"products":[{"id":"1"},{"id":"2"}]},"hasNext":true}
-{"incremental":[{"data":{"name":"Product One"},"path":["products",0]},{"data":{"name":"Product Two"},"path":["products",1]}],"hasNext":false}
+				expectedResponse: `{"data":{"products":[{"id":"1"},{"id":"2"}]},"pending":[{"id":"2","path":["products"]}],"hasNext":true}
+{"incremental":[{"data":{"name":"Product One"},"id":"2","subPath":[0]},{"data":{"name":"Product Two"},"id":"2","subPath":[1]}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -2268,9 +2363,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `fragment ProductFrag on Product { id ... @defer { sku } ... @defer { name } } { products { ...ProductFrag } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{"products":[{"id":"1"},{"id":"2"}]},"hasNext":true}
-{"incremental":[{"data":{"sku":"sku-1"},"path":["products",0]},{"data":{"sku":"sku-2"},"path":["products",1]}],"hasNext":true}
-{"incremental":[{"data":{"name":"Product One"},"path":["products",0]},{"data":{"name":"Product Two"},"path":["products",1]}],"hasNext":false}
+				expectedResponse: `{"data":{"products":[{"id":"1"},{"id":"2"}]},"pending":[{"id":"3","path":["products"]},{"id":"4","path":["products"]}],"hasNext":true}
+{"incremental":[{"data":{"sku":"sku-1"},"id":"3","subPath":[0]},{"data":{"sku":"sku-2"},"id":"3","subPath":[1]}],"completed":[{"id":"3"}],"hasNext":true}
+{"incremental":[{"data":{"name":"Product One"},"id":"4","subPath":[0]},{"data":{"name":"Product Two"},"id":"4","subPath":[1]}],"completed":[{"id":"4"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 		})
@@ -2282,8 +2377,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `fragment SkuIdFrag on Product { id sku } { products { ...SkuIdFrag @defer } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{"products":[{},{}]},"hasNext":true}
-{"incremental":[{"data":{"id":"1","sku":"sku-1"},"path":["products",0]},{"data":{"id":"2","sku":"sku-2"},"path":["products",1]}],"hasNext":false}
+				expectedResponse: `{"data":{"products":[{},{}]},"pending":[{"id":"1","path":["products"]}],"hasNext":true}
+{"incremental":[{"data":{"id":"1","sku":"sku-1"},"id":"1","subPath":[0]},{"data":{"id":"2","sku":"sku-2"},"id":"1","subPath":[1]}],"completed":[{"id":"1"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -2293,9 +2388,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `fragment SkuWithName on Product { sku ... @defer { name } } { products { id ...SkuWithName @defer } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{"products":[{"id":"1"},{"id":"2"}]},"hasNext":true}
-{"incremental":[{"data":{"sku":"sku-1"},"path":["products",0]},{"data":{"sku":"sku-2"},"path":["products",1]}],"hasNext":true}
-{"incremental":[{"data":{"name":"Product One"},"path":["products",0]},{"data":{"name":"Product Two"},"path":["products",1]}],"hasNext":false}
+				expectedResponse: `{"data":{"products":[{"id":"1"},{"id":"2"}]},"pending":[{"id":"2","path":["products"]},{"id":"3","path":["products"]}],"hasNext":true}
+{"incremental":[{"data":{"sku":"sku-1"},"id":"2","subPath":[0]},{"data":{"sku":"sku-2"},"id":"2","subPath":[1]}],"completed":[{"id":"2"}],"hasNext":true}
+{"incremental":[{"data":{"name":"Product One"},"id":"3","subPath":[0]},{"data":{"name":"Product Two"},"id":"3","subPath":[1]}],"completed":[{"id":"3"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 		})

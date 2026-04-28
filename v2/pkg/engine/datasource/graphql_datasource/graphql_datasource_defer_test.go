@@ -98,6 +98,14 @@ func TestGraphQLDataSourceDefer(t *testing.T) {
 					"User",
 					&plan.DeferResponsePlan{
 						Response: &resolve.GraphQLDeferResponse{
+							DeferDescriptors: map[int]resolve.DeferDescriptor{
+								1: {
+									ID:       1,
+									ParentID: 0,
+									Label:    "",
+									Path:     []string{"user"},
+								},
+							},
 							Response: &resolve.GraphQLResponse{
 								Fetches: resolve.Sequence(
 									resolve.Single(&resolve.SingleFetch{
@@ -182,6 +190,14 @@ func TestGraphQLDataSourceDefer(t *testing.T) {
 					"User",
 					&plan.DeferResponsePlan{
 						Response: &resolve.GraphQLDeferResponse{
+							DeferDescriptors: map[int]resolve.DeferDescriptor{
+								1: {
+									ID:       1,
+									ParentID: 0,
+									Label:    "",
+									Path:     []string{"user"},
+								},
+							},
 							Response: &resolve.GraphQLResponse{
 								Fetches: resolve.Sequence(
 									resolve.Single(&resolve.SingleFetch{
@@ -394,6 +410,14 @@ func TestGraphQLDataSourceDefer(t *testing.T) {
 					"User",
 					&plan.DeferResponsePlan{
 						Response: &resolve.GraphQLDeferResponse{
+							DeferDescriptors: map[int]resolve.DeferDescriptor{
+								1: {
+									ID:       1,
+									ParentID: 0,
+									Label:    "",
+									Path:     []string{"user"},
+								},
+							},
 							Response: &resolve.GraphQLResponse{
 								Fetches: resolve.Sequence(
 									resolve.Single(&resolve.SingleFetch{
@@ -545,6 +569,14 @@ func TestGraphQLDataSourceDefer(t *testing.T) {
 					"User",
 					&plan.DeferResponsePlan{
 						Response: &resolve.GraphQLDeferResponse{
+							DeferDescriptors: map[int]resolve.DeferDescriptor{
+								1: {
+									ID:       1,
+									ParentID: 0,
+									Label:    "",
+									Path:     []string{"user"},
+								},
+							},
 							Response: &resolve.GraphQLResponse{
 								Fetches: resolve.Sequence(
 									resolve.Single(&resolve.SingleFetch{

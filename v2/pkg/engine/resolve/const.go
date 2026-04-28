@@ -33,6 +33,11 @@ var (
 	literalAuthorization      = []byte("authorization")
 	literalIncremental        = []byte("incremental")
 	literalHasNext            = []byte("hasNext")
+	literalLabel              = []byte("label")
+	literalPending            = []byte("pending")
+	literalCompleted          = []byte("completed")
+	literalId                 = []byte("id")
+	literalSubPath            = []byte("subPath")
 
 	emptyArray  = []byte("[]")
 	emptyObject = []byte("{}")

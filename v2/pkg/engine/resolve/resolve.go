@@ -463,6 +463,7 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 
 		t.resolvable.deferMode = true
 		t.resolvable.deferID = 0
+		t.resolvable.deferDescriptors = response.DeferDescriptors
 
 		// render initial response
 		err = t.resolvable.Resolve(ctx.ctx, response.Response.Data, response.Response.Fetches, writer)
@@ -482,6 +483,11 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 		// fetch deferred responses
 
 		for i, deferGroup := range response.Defers {
+			// Reset per-iteration error state. Errors collected during one
+			// deferred fragment must NOT leak into the next iteration's
+			// completed.errors envelope.
+			t.resolvable.errors = nil
+
 			if err := t.loader.ResolveFetchNode(deferGroup.Fetches); err != nil {
 				return nil, err
 			}
@@ -500,9 +506,9 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 				return nil, err
 			}
 
-			if t.resolvable.hasErrors() {
-				return resolveInfo, nil
-			}
+			// Defer-internal errors (recoverable or non-recoverable) are
+			// scoped to this defer's envelope and do NOT terminate the
+			// response. Continue to the next defer regardless.
 		}
 
 		writer.Complete()
