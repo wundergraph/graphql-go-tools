@@ -9,7 +9,8 @@ on:
       - 'README.md'
       - 'release-please-config.json'
 jobs:
-  build_test:
+  ci:
+    name: CI Success
     timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
