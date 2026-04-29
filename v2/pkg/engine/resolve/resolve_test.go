@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/astjson"
+	"github.com/wundergraph/go-arena"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
@@ -67,6 +68,74 @@ func fakeDataSourceWithInputCheck(t TestingTB, input []byte, data []byte) *_fake
 		input: input,
 		data:  data,
 	}
+}
+
+type nativeValueDataSource struct {
+	loadCalled        atomic.Int32
+	loadValueCalled   atomic.Int32
+	cleanupCalled     atomic.Int32
+	loadWithFilesCall atomic.Int32
+}
+
+func (d *nativeValueDataSource) Load(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
+	d.loadCalled.Add(1)
+	return []byte(`{"errors":[{"message":"legacy path used"}]}`), nil
+}
+
+func (d *nativeValueDataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) ([]byte, error) {
+	d.loadWithFilesCall.Add(1)
+	return d.Load(ctx, headers, input)
+}
+
+func (d *nativeValueDataSource) LoadValue(ctx context.Context, headers http.Header, input []byte) (*astjson.Value, func(), error) {
+	d.loadValueCalled.Add(1)
+	root := astjson.ObjectValue(nil)
+	data := astjson.ObjectValue(nil)
+	data.Set(nil, "field", astjson.StringValue(nil, "value"))
+	root.Set(nil, "data", data)
+	return root, func() {
+		d.cleanupCalled.Add(1)
+	}, nil
+}
+
+func (d *nativeValueDataSource) LoadWithFilesValue(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (*astjson.Value, func(), error) {
+	return d.LoadValue(ctx, headers, input)
+}
+
+type nativeMergeResult struct {
+	root *astjson.Value
+}
+
+func (r *nativeMergeResult) MergeInto(a arena.Arena, items []*astjson.Value, postProcessing PostProcessingConfiguration, batchStats [][]*astjson.Value) (*astjson.Value, error) {
+	data := astjson.ObjectValue(a)
+	data.Set(a, "field", astjson.StringValue(a, "merge-value"))
+	if len(items) > 0 {
+		_, _, err := astjson.MergeValuesWithPath(a, items[0], data, postProcessing.MergePath...)
+		return nil, err
+	}
+	return data, nil
+}
+
+func (r *nativeMergeResult) MarshalTo(dst []byte) []byte {
+	return r.root.MarshalTo(dst)
+}
+
+type nativeMergeDataSource struct {
+	nativeValueDataSource
+
+	loadResultCalled atomic.Int32
+}
+
+func (d *nativeMergeDataSource) LoadResult(ctx context.Context, headers http.Header, input []byte) (NativeMergeResult, func(), error) {
+	d.loadResultCalled.Add(1)
+	root := astjson.MustParseBytes([]byte(`{"data":{"field":"merge-value"}}`))
+	return &nativeMergeResult{root: root}, func() {
+		d.cleanupCalled.Add(1)
+	}, nil
+}
+
+func (d *nativeMergeDataSource) LoadWithFilesResult(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (NativeMergeResult, func(), error) {
+	return d.LoadResult(ctx, headers, input)
 }
 
 type blockingDataSource struct {
@@ -5007,6 +5076,74 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 			},
 		}, resolveCtx, `{"data":null}`
 	}))
+}
+
+func TestResolver_ArenaResolveGraphQLResponse_UsesNativeValueDataSourceAndCallsCleanup(t *testing.T) {
+	ds := &nativeValueDataSource{}
+	response, _ := gcTestResponse(ds)
+
+	resolver := newResolver(context.Background())
+	resolveCtx := NewContext(context.Background())
+	buf := &bytes.Buffer{}
+
+	_, err := resolver.ArenaResolveGraphQLResponse(resolveCtx, response, buf)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"data":{"field":"value"}}`, buf.String())
+	assert.Equal(t, int32(0), ds.loadCalled.Load())
+	assert.Equal(t, int32(0), ds.loadWithFilesCall.Load())
+	assert.Equal(t, int32(1), ds.loadValueCalled.Load())
+	assert.Equal(t, int32(1), ds.cleanupCalled.Load())
+}
+
+func TestResolver_ArenaResolveGraphQLResponse_PrefersNativeMergeDataSourceAndCallsCleanup(t *testing.T) {
+	ds := &nativeMergeDataSource{}
+	response, _ := gcTestResponse(ds)
+
+	resolver := newResolver(context.Background())
+	resolveCtx := NewContext(context.Background())
+	buf := &bytes.Buffer{}
+
+	_, err := resolver.ArenaResolveGraphQLResponse(resolveCtx, response, buf)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"data":{"field":"merge-value"}}`, buf.String())
+	assert.Equal(t, int32(0), ds.loadCalled.Load())
+	assert.Equal(t, int32(0), ds.loadWithFilesCall.Load())
+	assert.Equal(t, int32(0), ds.loadValueCalled.Load())
+	assert.Equal(t, int32(1), ds.loadResultCalled.Load())
+	assert.Equal(t, int32(1), ds.cleanupCalled.Load())
+}
+
+func BenchmarkResolver_ArenaResolveGraphQLResponse_NativeBoundary(b *testing.B) {
+	benchmarks := []struct {
+		name string
+		ds   DataSource
+	}{
+		{
+			name: "native_value",
+			ds:   &nativeValueDataSource{},
+		},
+		{
+			name: "native_merge",
+			ds:   &nativeMergeDataSource{},
+		},
+	}
+
+	for _, bench := range benchmarks {
+		b.Run(bench.name, func(b *testing.B) {
+			response, _ := gcTestResponse(bench.ds)
+			resolver := newResolver(context.Background())
+			b.ReportAllocs()
+
+			for i := 0; i < b.N; i++ {
+				resolveCtx := NewContext(context.Background())
+				buf := &bytes.Buffer{}
+				_, err := resolver.ArenaResolveGraphQLResponse(resolveCtx, response, buf)
+				if err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
 }
 
 func TestResolver_ArenaResolveGraphQLResponse_RequestDeduplication(t *testing.T) {
