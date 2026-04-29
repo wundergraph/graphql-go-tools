@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"iter"
+	"slices"
 
 	"github.com/kingledion/go-tools/tree"
 	"github.com/phf/go-queue/queue"
@@ -37,7 +38,28 @@ type NodeSuggestion struct {
 	treeNodeId                uint
 	possibleTypeNames         []string
 
+	deferInfo       *DeferInfo
+	deferParentPath bool
+	deferIDs        []string
+
 	requiresKey *SourceConnection
+}
+
+type DeferInfo struct {
+	ID       string
+	Label    string
+	ParentID string
+}
+
+func (d *DeferInfo) Equals(o *DeferInfo) bool {
+	if d == nil && o == nil {
+		return true
+	}
+	if d == nil || o == nil {
+		return false
+	}
+
+	return d.ID == o.ID && d.Label == o.Label && d.ParentID == o.ParentID
 }
 
 func (n *NodeSuggestion) treeNodeID() uint {
@@ -135,6 +157,100 @@ func NewNodeSuggestionsWithSize(size int) *NodeSuggestions {
 		pathSuggestions: make(map[string][]*NodeSuggestion),
 		responseTree:    *responseTree,
 		providedFields:  make(map[DSHash]map[string]struct{}),
+	}
+}
+
+func (f *NodeSuggestions) ProcessDefer(fieldRequirementsConfigs map[fieldIndexKey][]FederationFieldConfiguration) {
+	for i := range f.items {
+		if !f.items[i].Selected {
+			continue
+		}
+
+		if f.items[i].deferInfo == nil {
+			continue
+		}
+
+		f.propagateDeferParentsUpToRootNode(i, fieldRequirementsConfigs)
+	}
+}
+
+func (f *NodeSuggestions) propagateDeferParentsUpToRootNode(i int, fieldRequirementsConfigs map[fieldIndexKey][]FederationFieldConfiguration) {
+	// if the item is a root node and requires a key we are already able to jump from here,
+	// so we skip propagating defer id
+
+	hasKeyDependency := false
+	hasRequiresKey := f.items[i].requiresKey != nil
+
+	// when the deffered field is on the entity and the parent field is on the same datasource
+	// we won't have hasRequiresKey set.
+	// but in case this field has requires directive it will be resolved by entity call,
+	// and it will have requires key configuration
+	if !hasRequiresKey && fieldRequirementsConfigs != nil {
+		requirements, ok := fieldRequirementsConfigs[fieldIndexKey{fieldRef: f.items[i].FieldRef, dsHash: f.items[i].DataSourceHash}]
+		if ok {
+			for _, r := range requirements {
+				if r.FieldName == "" {
+					hasKeyDependency = true
+				}
+			}
+		}
+	}
+
+	if f.items[i].IsRootNode && hasRequiresKey || hasKeyDependency {
+		return
+	}
+
+	parentIndexesToAddDeferID := make([]int, 0, 2)
+	current := i
+	for {
+		treeNode := f.treeNode(current)
+		parentNodeIndexes := treeNode.GetParent().GetData()
+
+		parentIdToUpdate := -1
+		for _, parentIdx := range parentNodeIndexes {
+			if f.items[parentIdx].DataSourceHash != f.items[current].DataSourceHash {
+				continue
+			}
+
+			if f.items[parentIdx].deferInfo != nil && f.items[parentIdx].deferInfo.ID == f.items[i].deferInfo.ID {
+				// if parent item is in the same defer -
+				// we should not mark it as a defer parent,
+				// because defer parents are planned twice - in a deffered planner and regular
+				break
+			}
+
+			if slices.Contains(f.items[parentIdx].deferIDs, f.items[i].deferInfo.ID) {
+				// no need to update already contains this defer id
+				break
+			} else {
+				parentIdToUpdate = parentIdx
+			}
+		}
+
+		if parentIdToUpdate == -1 {
+			// could happen if we haven't set it
+			// because it already contains this defer id
+			break
+		}
+
+		parentIndexesToAddDeferID = append(parentIndexesToAddDeferID, parentIdToUpdate)
+
+		// if we have found a root node, and it requires a key - we have found the root node from which we could branch out.
+		// if the node is a root node, but it doesn't require a key, we need to go up to the root query node,
+		// because it is an entity node within the query started from the root query node
+		if f.items[parentIdToUpdate].IsRootNode && f.items[parentIdToUpdate].requiresKey != nil {
+			break
+		}
+
+		current = parentIdToUpdate
+	}
+
+	for _, parentIdx := range parentIndexesToAddDeferID {
+		f.items[parentIdx].deferParentPath = true
+
+		if !slices.Contains(f.items[parentIdx].deferIDs, f.items[i].deferInfo.ID) {
+			f.items[parentIdx].deferIDs = append(f.items[parentIdx].deferIDs, f.items[i].deferInfo.ID)
+		}
 	}
 }
 

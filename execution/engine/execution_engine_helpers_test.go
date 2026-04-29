@@ -59,6 +59,9 @@ type conditionalTestCase struct {
 
 	// responses map an expected body to the output that should be sent
 	responses map[string]sendResponse
+
+	reportUnused bool
+	reportUsed   bool
 }
 
 type sendResponse struct {
@@ -70,6 +73,17 @@ func createConditionalTestRoundTripper(t *testing.T, testCase conditionalTestCas
 	t.Helper()
 
 	require.True(t, len(testCase.responses) > 0, "no responses defined")
+
+	used := make(map[string]bool)
+	if testCase.reportUnused {
+		t.Cleanup(func() {
+			for key := range testCase.responses {
+				if !used[key] {
+					t.Logf("UNUSED MOCK [%s]: %s", testCase.expectedHost, key)
+				}
+			}
+		})
+	}
 
 	return func(req *http.Request) *http.Response {
 		t.Helper()
@@ -83,8 +97,27 @@ func createConditionalTestRoundTripper(t *testing.T, testCase conditionalTestCas
 		require.NoError(t, err)
 		defer req.Body.Close()
 
-		require.Containsf(t, testCase.responses, string(gotBody), "received unexpected body: %v", string(gotBody))
+		if testCase.reportUsed {
+			t.Logf("Requested MOCK [%s]: %s", testCase.expectedHost, string(gotBody))
+		}
+
+		if !assert.Containsf(t, testCase.responses, string(gotBody), "received unexpected body: %v", string(gotBody)) {
+			return &http.Response{
+				StatusCode: 400,
+				Body:       io.NopCloser(bytes.NewBuffer([]byte("received unexpected body"))),
+			}
+		}
+
 		response := testCase.responses[string(gotBody)]
+
+		if testCase.reportUnused {
+			used[string(gotBody)] = true
+		}
+
+		if testCase.reportUsed {
+			t.Logf("Send MOCK Response:\n %s", response.body)
+		}
+
 		return &http.Response{
 			StatusCode: response.statusCode,
 			Body:       io.NopCloser(bytes.NewBuffer([]byte(response.body))),

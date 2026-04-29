@@ -37,7 +37,8 @@ type Resolvable struct {
 	astjsonArena arena.Arena
 	parsers      []*astjson.Parser
 
-	print              bool
+	enableRender       bool
+	enableDeferRender  bool
 	out                io.Writer
 	printErr           error
 	path               []fastjsonext.PathElement
@@ -53,6 +54,8 @@ type Resolvable struct {
 	wroteErrors         bool
 	wroteData           bool
 	skipValueCompletion bool
+	deferMode           bool
+	deferID             string
 
 	typeNames [][]byte
 
@@ -65,6 +68,9 @@ type Resolvable struct {
 	// actualListSizes maps the JSON path to the list size in the final response.
 	// Used to compute the actual cost of the operation.
 	actualListSizes map[string]int
+
+	incrementalItemWritten bool
+	deferItemDataNull      bool
 }
 
 type ResolvableOptions struct {
@@ -96,7 +102,7 @@ func (r *Resolvable) Reset() {
 	r.errors = nil
 	r.valueCompletion = nil
 	r.depth = 0
-	r.print = false
+	r.enableRender = false
 	r.out = nil
 	r.printErr = nil
 	r.path = r.path[:0]
@@ -114,6 +120,11 @@ func (r *Resolvable) Reset() {
 	for k := range r.actualListSizes {
 		delete(r.actualListSizes, k)
 	}
+	r.deferMode = false
+	r.deferID = ""
+	r.enableDeferRender = false
+	r.incrementalItemWritten = false
+	r.deferItemDataNull = false
 }
 
 func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.OperationType) (err error) {
@@ -176,7 +187,7 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 
 func (r *Resolvable) ResolveNode(node Node, data *astjson.Value, out io.Writer) error {
 	r.out = out
-	r.print = false
+	r.enableRender = false
 	r.printErr = nil
 	r.authorizationError = nil
 	// don't init errors! It will heavily increase memory usage
@@ -187,7 +198,7 @@ func (r *Resolvable) ResolveNode(node Node, data *astjson.Value, out io.Writer) 
 		return fmt.Errorf("error resolving node")
 	}
 
-	r.print = true
+	r.enableRender = true
 	hasErrors = r.walkNode(node, data)
 	if hasErrors {
 		return fmt.Errorf("error resolving node: %w", r.printErr)
@@ -197,7 +208,7 @@ func (r *Resolvable) ResolveNode(node Node, data *astjson.Value, out io.Writer) 
 
 func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *FetchTreeNode, out io.Writer) error {
 	r.out = out
-	r.print = false
+	r.enableRender = false
 	r.printErr = nil
 	r.authorizationError = nil
 
@@ -242,8 +253,146 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 		r.printBytes(comma)
 		r.printErr = r.printExtensions(ctx, fetchTree)
 	}
+
+	if r.deferMode && !r.hasErrors() {
+		r.printHasNext(true)
+	}
+
 	r.printBytes(rBrace)
+
 	return r.printErr
+}
+
+func (r *Resolvable) ResolveDefer(rootData *Object, out io.Writer, hasNext bool) error {
+	r.out = out
+	r.printErr = nil
+	r.authorizationError = nil
+
+	// This method acts as a generator for the incremental response
+	// It will print the incremental response envelope and then use walkObject to find and render the deferred fields
+
+	// First pass: validate and check for authorization errors
+	r.enableRender = false
+	r.deferMode = true
+	r.enableDeferRender = false
+	r.incrementalItemWritten = false
+	r.deferItemDataNull = false
+
+	_ = r.walkObject(rootData, r.data)
+	if r.authorizationError != nil {
+		return r.authorizationError
+	}
+
+	// Second pass: render the incremental response
+	r.enableRender = true
+	r.incrementalItemWritten = false
+	r.enableDeferRender = false // reset: first pass may have left it true on early return
+
+	r.printBytes(lBrace)
+	r.printBytes(quote)
+	r.printBytes(literalIncremental)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(lBrack)
+
+	_ = r.walkObject(rootData, r.data)
+
+	r.printBytes(rBrack)
+
+	r.printHasNext(hasNext && !r.hasErrors())
+
+	r.printBytes(rBrace)
+
+	return r.printErr
+}
+
+func (r *Resolvable) renderPath() {
+	r.printBytes(lBrack)
+	for i, p := range r.path {
+		if i > 0 {
+			r.printBytes(comma)
+		}
+		if p.Name != "" {
+			r.printBytes(quote)
+			r.printBytes(unsafebytes.StringToBytes(p.Name))
+			r.printBytes(quote)
+		} else {
+			r.printBytes(unsafebytes.StringToBytes(strconv.Itoa(p.Idx)))
+		}
+	}
+	r.printBytes(rBrack)
+}
+
+func (r *Resolvable) printHasNext(hasNext bool) {
+	if r.printErr != nil {
+		return
+	}
+	r.printBytes(comma)
+	r.printBytes(quote)
+	r.printBytes(literalHasNext)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	if hasNext {
+		r.printBytes(literalTrue)
+	} else {
+		r.printBytes(literalFalse)
+	}
+}
+
+func (r *Resolvable) printDeferEnvelopeOpen() {
+	if !r.render() {
+		return
+	}
+
+	// Render Incremental Item Envelope: {"data":{...},"path":[...]}
+	r.printBytes(lBrace)
+	r.printBytes(quote)
+	r.printBytes(literalData)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(lBrace)
+}
+
+func (r *Resolvable) printDeferPathAndErrors() {
+	r.printBytes(quote)
+	r.printBytes(literalPath)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.renderPath()
+	if r.hasErrors() {
+		r.printBytes(comma)
+		r.printBytes(quote)
+		r.printBytes(literalErrors)
+		r.printBytes(quote)
+		r.printBytes(colon)
+		r.printNode(r.errors)
+	}
+}
+
+func (r *Resolvable) printDeferEnvelopeClose() {
+	if !r.render() {
+		return
+	}
+
+	r.printBytes(rBrace)
+	r.printBytes(comma)
+	r.printDeferPathAndErrors()
+	r.printBytes(rBrace)
+}
+
+func (r *Resolvable) printDeferEnvelopeNullData() {
+	if !r.render() {
+		return
+	}
+	r.printBytes(lBrace)
+	r.printBytes(quote)
+	r.printBytes(literalData)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(null)
+	r.printBytes(comma)
+	r.printDeferPathAndErrors()
+	r.printBytes(rBrace)
 }
 
 // ensureErrorsInitialized is used to lazily init r.errors if needed
@@ -264,6 +413,14 @@ func (r *Resolvable) err() bool {
 	return true
 }
 
+func (r *Resolvable) render() bool {
+	if !r.deferMode {
+		return r.enableRender
+	}
+
+	return r.enableRender && r.enableDeferRender
+}
+
 func (r *Resolvable) printErrors() {
 	r.printBytes(quote)
 	r.printBytes(literalErrors)
@@ -280,9 +437,9 @@ func (r *Resolvable) printData(root *Object) {
 	r.printBytes(quote)
 	r.printBytes(colon)
 	r.printBytes(lBrace)
-	r.print = true
+	r.enableRender = true
 	_ = r.walkObject(root, r.data)
-	r.print = false
+	r.enableRender = false
 	r.printBytes(rBrace)
 	r.wroteData = true
 }
@@ -609,7 +766,7 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 		// when we have a typename field present in a json object, we need to check if the type is valid
 
 		if _, ok := obj.PossibleTypes[string(typeName)]; !ok {
-			if !r.print {
+			if !r.render() {
 				// during pre-walk we need to add an error when the typename do not match a possible type
 				if r.options.ApolloCompatibilityValueCompletionInExtensions {
 					r.addValueCompletion(fmt.Sprintf("Invalid __typename found for object at %s.", r.pathLastElementDescription(obj.TypeName)), errorcodes.InvalidGraphql)
@@ -634,27 +791,195 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 		}
 	}
 
-	if r.print && !isRoot {
+	if r.render() && !isRoot {
 		r.printBytes(lBrace)
 	}
-	addComma := false
 
 	r.typeNames = append(r.typeNames, typeName)
 	defer func() {
 		r.typeNames = r.typeNames[:len(r.typeNames)-1]
 	}()
+
+	if r.deferMode {
+		deferFields, seekFiels := r.collectDeferFields(obj)
+
+		if len(deferFields) > 0 {
+			startedRender := false
+
+			if !r.enableDeferRender {
+				r.enableDeferRender = true
+				startedRender = true
+
+				if r.enableRender && r.incrementalItemWritten {
+					r.printBytes(comma)
+				}
+
+				if r.deferID != "" {
+					if r.deferItemDataNull {
+						// Pre-walk detected null propagating through non-nullable chain;
+						// render {"data":null,"path":[...],"errors":[...]} without walking fields.
+						r.printDeferEnvelopeNullData()
+						r.incrementalItemWritten = true
+						r.enableDeferRender = false
+						return true
+					}
+					r.printDeferEnvelopeOpen()
+				}
+			}
+
+			// render initial batch of fields
+			hasErrors := r.walkFields(obj, value, parent, walkFieldsFilter{deferFields: deferFields, seek: false, enabled: true})
+
+			if startedRender {
+				if r.deferID != "" {
+					if !r.enableRender && hasErrors {
+						// Pre-walk: null propagated through non-nullable chain; signal render pass.
+						r.deferItemDataNull = true
+					}
+					r.printDeferEnvelopeClose()
+					r.incrementalItemWritten = true
+				}
+				r.enableDeferRender = false
+			}
+
+			if hasErrors {
+				return true
+			}
+		}
+
+		if r.deferID != "" && len(seekFiels) > 0 {
+			// seek for additional nested defer fields
+			if r.walkFields(obj, value, parent, walkFieldsFilter{seekFields: seekFiels, seek: true, enabled: true}) {
+				return true
+			}
+		}
+
+	} else {
+		if r.walkFields(obj, value, parent, walkFieldsFilter{}) {
+			return true
+		}
+	}
+
+	if r.render() && !isRoot {
+		r.printBytes(rBrace)
+	}
+	return false
+}
+
+func (r *Resolvable) collectDeferFields(obj *Object) (deferFields map[int]struct{}, seekFields map[int]struct{}) {
+	deferFields = make(map[int]struct{})
+	seekFields = make(map[int]struct{})
+
 	for i := range obj.Fields {
-		if obj.Fields[i].ParentOnTypeNames != nil {
-			if r.skipFieldOnParentTypeNames(obj.Fields[i]) {
+		if r.shoulSkipObjectFieldByTypenames(obj.Fields[i]) {
+			continue
+		}
+
+		if r.deferID == "" {
+			// we are rendering the initial response
+
+			// skip all fields with defer
+			if obj.Fields[i].Defer != nil {
+				continue
+			}
+
+			// collect object fields without defer
+			deferFields[i] = struct{}{}
+		}
+
+		// we are rendering defer response
+
+		// collect fields without defer into seek fields
+		if obj.Fields[i].Defer == nil {
+			if !r.fieldNodeKindAllowsSeek(obj.Fields[i]) {
+				continue
+			}
+
+			seekFields[i] = struct{}{}
+			continue
+		}
+
+		// allow to seek fields with other defer ids
+		if obj.Fields[i].Defer.DeferID != r.deferID {
+			// but only if their id is smaller than current,
+			// which means this nodes already was fetched,
+			// as defers ordered by id
+
+			fieldDeferId, _ := strconv.Atoi(obj.Fields[i].Defer.DeferID)
+			currentDeferIDInt, _ := strconv.Atoi(r.deferID)
+
+			// TODO: it is a temporary solution,
+			// because defer could be parallel
+			if currentDeferIDInt < fieldDeferId {
+				continue
+			}
+
+			if !r.fieldNodeKindAllowsSeek(obj.Fields[i]) {
+				continue
+			}
+
+			seekFields[i] = struct{}{}
+			continue
+		}
+
+		// store fields with matching defer id
+		deferFields[i] = struct{}{}
+	}
+
+	return
+}
+
+func (r *Resolvable) fieldNodeKindAllowsSeek(field *Field) bool {
+	kind := field.Value.NodeKind()
+	if kind != NodeKindObject {
+		if kind != NodeKindArray {
+			// skip scalar fields
+			return false
+		}
+
+		// skip array if it's item do not have an object kind
+		if field.Value.(*Array).Item.NodeKind() != NodeKindObject {
+			// we could have a nested array,
+			// but we do not care for now
+			return false
+		}
+	}
+
+	return true
+}
+
+type walkFieldsFilter struct {
+	deferFields map[int]struct{}
+	seekFields  map[int]struct{}
+	seek        bool
+	enabled     bool
+}
+
+func (r *Resolvable) walkFields(obj *Object, value *astjson.Value, parent *astjson.Value, filter walkFieldsFilter) (hasErrors bool) {
+	addComma := false
+
+	for i := range obj.Fields {
+		if filter.enabled {
+			// if mode is seek
+			if filter.seek {
+				// skip all fields to which we should not go into
+				if _, ok := filter.seekFields[i]; !ok {
+					continue
+				}
+			} else {
+				// if mode is render
+				// skip all fields that we should not render
+				if _, ok := filter.deferFields[i]; !ok {
+					continue
+				}
+			}
+		} else {
+			if r.shoulSkipObjectFieldByTypenames(obj.Fields[i]) {
 				continue
 			}
 		}
-		if obj.Fields[i].OnTypeNames != nil {
-			if r.skipFieldOnTypeNames(obj.Fields[i]) {
-				continue
-			}
-		}
-		if !r.print {
+
+		if !r.render() {
 			skip := r.authorizeField(value, obj.Fields[i])
 			if skip {
 				if obj.Fields[i].Value.NodeNullable() {
@@ -665,20 +990,21 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 					if field != nil {
 						astjson.SetNull(r.astjsonArena, value, path...)
 					}
+
+					continue
 				} else if obj.Nullable && len(obj.Path) > 0 {
 					// if the field value is not nullable, but the object is nullable
 					// we can just set the whole object to null
 					astjson.SetNull(r.astjsonArena, parent, obj.Path...)
 					return false
-				} else {
-					// if the field value is not nullable and the object is not nullable
-					// we return true to indicate an error
-					return true
 				}
-				continue
+
+				// if the field value is not nullable and the object is not nullable
+				// we return true to indicate an error
+				return true
 			}
 		}
-		if r.print {
+		if r.render() {
 			if addComma {
 				r.printBytes(comma)
 			}
@@ -690,6 +1016,17 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 		r.currentFieldInfo = obj.Fields[i].Info
 		err := r.walkNode(obj.Fields[i].Value, value)
 		if err {
+			if r.render() {
+				// Field key already written; complete with null to produce valid JSON.
+				r.printBytes(null)
+				if obj.Nullable {
+					// Nullable parent: absorb the error, render null, continue to next field.
+					addComma = true
+					continue
+				}
+				// Non-nullable parent: propagate error; caller closes the envelope.
+				return err
+			}
 			if obj.Nullable {
 				if len(obj.Path) > 0 {
 					astjson.SetNull(r.astjsonArena, parent, obj.Path...)
@@ -700,9 +1037,19 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 		}
 		addComma = true
 	}
-	if r.print && !isRoot {
-		r.printBytes(rBrace)
+
+	return false
+}
+
+func (r *Resolvable) shoulSkipObjectFieldByTypenames(field *Field) bool {
+	if field.ParentOnTypeNames != nil && r.skipFieldOnParentTypeNames(field) {
+		return true
 	}
+
+	if field.OnTypeNames != nil && r.skipFieldOnTypeNames(field) {
+		return true
+	}
+
 	return false
 }
 
@@ -846,12 +1193,12 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 		r.addError("Array cannot represent non-array value.", arr.Path)
 		return r.err()
 	}
-	if r.print {
+	if r.render() {
 		r.printBytes(lBrack)
 	}
 	values := value.GetArray()
 
-	if !r.print {
+	if !r.render() {
 		pathKey := r.currentFieldPath()
 		r.actualListSizes[pathKey] += len(values)
 	}
@@ -859,7 +1206,7 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 	hasPrintedValue := false
 	for i, arrayValue := range values {
 		skip := false
-		if r.print && arr.SkipItem != nil {
+		if r.render() && arr.SkipItem != nil {
 			skip = arr.SkipItem(r.ctx, arrayValue)
 		}
 
@@ -867,7 +1214,7 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 			continue
 		}
 
-		if r.print && i != 0 && hasPrintedValue {
+		if r.render() && i != 0 && hasPrintedValue {
 			r.printBytes(comma)
 		}
 
@@ -888,7 +1235,7 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 			return err
 		}
 	}
-	if r.print {
+	if r.render() {
 		r.printBytes(rBrack)
 	}
 	return false
@@ -906,14 +1253,14 @@ func (r *Resolvable) currentFieldPath() string {
 }
 
 func (r *Resolvable) walkNull() bool {
-	if r.print {
+	if r.render() {
 		r.printBytes(null)
 	}
 	return false
 }
 
 func (r *Resolvable) walkStaticString(str *StaticString) bool {
-	if r.print {
+	if r.render() {
 		r.printBytes(quote)
 		r.printBytes([]byte(str.Value))
 		r.printBytes(quote)
@@ -936,7 +1283,7 @@ func (r *Resolvable) walkString(s *String, value *astjson.Value) bool {
 		r.addError(fmt.Sprintf("String cannot represent non-string value: \"%s\"", string(r.marshalBuf)), s.Path)
 		return r.err()
 	}
-	if r.print {
+	if r.render() {
 		if s.IsTypeName {
 			content := value.GetStringBytes()
 			for i := range r.renameTypeNames {
@@ -982,7 +1329,7 @@ func (r *Resolvable) walkBoolean(b *Boolean, value *astjson.Value) bool {
 		r.addError(fmt.Sprintf("Bool cannot represent non-boolean value: \"%s\"", string(r.marshalBuf)), b.Path)
 		return r.err()
 	}
-	if r.print {
+	if r.render() {
 		r.renderScalarFieldValue(value, b.Nullable)
 	}
 	return false
@@ -1003,7 +1350,7 @@ func (r *Resolvable) walkInteger(i *Integer, value *astjson.Value) bool {
 		r.addError(fmt.Sprintf("Int cannot represent non-integer value: \"%s\"", string(r.marshalBuf)), i.Path)
 		return r.err()
 	}
-	if r.print {
+	if r.render() {
 		r.renderScalarFieldValue(value, i.Nullable)
 	}
 	return false
@@ -1019,14 +1366,14 @@ func (r *Resolvable) walkFloat(f *Float, value *astjson.Value) bool {
 		r.addNonNullableFieldError(f.Path, parent)
 		return r.err()
 	}
-	if !r.print {
+	if !r.render() {
 		if value.Type() != astjson.TypeNumber {
 			r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
 			r.addError(fmt.Sprintf("Float cannot represent non-float value: \"%s\"", string(r.marshalBuf)), f.Path)
 			return r.err()
 		}
 	}
-	if r.print {
+	if r.render() {
 		if r.options.ApolloCompatibilityTruncateFloatValues {
 			floatValue := value.GetFloat64()
 			if floatValue == float64(int64(floatValue)) {
@@ -1049,7 +1396,7 @@ func (r *Resolvable) walkBigInt(b *BigInt, value *astjson.Value) bool {
 		r.addNonNullableFieldError(b.Path, parent)
 		return r.err()
 	}
-	if r.print {
+	if r.render() {
 		r.renderScalarFieldValue(value, b.Nullable)
 	}
 	return false
@@ -1065,14 +1412,14 @@ func (r *Resolvable) walkScalar(s *Scalar, value *astjson.Value) bool {
 		r.addNonNullableFieldError(s.Path, parent)
 		return r.err()
 	}
-	if r.print {
+	if r.render() {
 		r.renderScalarFieldValue(value, s.Nullable)
 	}
 	return false
 }
 
 func (r *Resolvable) walkEmptyObject(_ *EmptyObject) bool {
-	if r.print {
+	if r.render() {
 		r.printBytes(lBrace)
 		r.printBytes(rBrace)
 	}
@@ -1080,7 +1427,7 @@ func (r *Resolvable) walkEmptyObject(_ *EmptyObject) bool {
 }
 
 func (r *Resolvable) walkEmptyArray(_ *EmptyArray) bool {
-	if r.print {
+	if r.render() {
 		r.printBytes(lBrack)
 		r.printBytes(rBrack)
 	}
@@ -1103,7 +1450,7 @@ func (r *Resolvable) walkCustom(c *CustomNode, value *astjson.Value) bool {
 		r.addError(err.Error(), c.Path)
 		return r.err()
 	}
-	if r.print {
+	if r.render() {
 		r.renderScalarFieldBytes(resolved, c.Nullable)
 	}
 	return false
@@ -1188,7 +1535,7 @@ func (r *Resolvable) walkEnum(e *Enum, value *astjson.Value) bool {
 		 * To avoid appending an error twice, the appending only happens on the first walk
 		 * and not the second walk (which prints the data).
 		 */
-		if !r.print {
+		if !r.render() {
 			if r.options.ApolloCompatibilityValueCompletionInExtensions {
 				r.renderInaccessibleEnumValueError(e)
 			} else {
@@ -1206,7 +1553,7 @@ func (r *Resolvable) walkEnum(e *Enum, value *astjson.Value) bool {
 		 * To avoid appending an error/value completion twice, the appending only happens on the first walk
 		 * and not the second walk (which prints the data).
 		 */
-		if !r.print {
+		if !r.render() {
 			r.renderInaccessibleEnumValueError(e)
 		}
 		// Inaccessible enum values are always converted to null
@@ -1215,7 +1562,7 @@ func (r *Resolvable) walkEnum(e *Enum, value *astjson.Value) bool {
 		}
 		return r.err()
 	}
-	if r.print {
+	if r.render() {
 		r.renderEnumValue(value, e.Nullable)
 	}
 	return false

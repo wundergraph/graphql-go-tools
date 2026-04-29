@@ -4147,6 +4147,279 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				}`,
 			shouldRewrite: true,
 		},
+		{
+			name:       "union selection with deferred __typename - preserves defer directive on __typename after rewrite",
+			fieldName:  "accounts",
+			definition: definition,
+			upstreamDefinition: `
+				type User {
+					id: ID!
+					name: String!
+					isUser: Boolean!
+				}
+
+				type Admin {
+					id: ID!
+				}
+
+				union Account = User | Admin
+
+				type Query {
+					accounts: [Account!]!
+				}
+			`,
+			dsBuilder: dsb().
+				RootNode("Query", "iface").
+				RootNode("User", "id", "name", "isUser").
+				RootNode("Admin", "id").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+				}),
+			operation: `
+				query {
+					accounts {
+						__typename @__defer_internal(id: "defer-1")
+						... on Node {
+							name
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					accounts {
+						__typename @__defer_internal(id: "defer-1")
+						... on Admin {
+							name
+						}
+						... on User {
+							name
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name:       "interface selection with deferred __typename - preserves defer directive when shared field is copied into fragments",
+			definition: definition,
+			upstreamDefinition: `
+				interface Node {
+					id: ID!
+					name: String!
+				}
+
+				type User implements Node {
+					id: ID!
+					name: String!
+					isUser: Boolean!
+				}
+
+				type Admin implements Node {
+					id: ID!
+				}
+
+				type Query {
+					iface: Node!
+				}
+			`,
+			dsBuilder: dsb().
+				RootNode("Query", "iface").
+				RootNode("User", "id", "isUser").
+				RootNode("Admin", "id").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+				}),
+			operation: `
+				query {
+					iface {
+						__typename @__defer_internal(id: "defer-1")
+						name
+						... on User {
+							isUser
+						}
+						... on Admin {
+							id
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					iface {
+						... on Admin {
+							__typename @__defer_internal(id: "defer-1")
+							name
+							id
+						}
+						... on User {
+							__typename @__defer_internal(id: "defer-1")
+							name
+							isUser
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name: "interface field with defer directive - fallback __typename inherits defer directive when all fragments are removed",
+			definition: `
+				interface Node {
+					id: ID!
+					name: String!
+				}
+
+				type User implements Node {
+					id: ID!
+					name: String!
+					isUser: Boolean!
+				}
+
+				type Admin implements Node {
+					id: ID!
+					name: String!
+				}
+
+				type Moderator implements Node {
+					id: ID!
+					name: String!
+					isModerator: Boolean!
+				}
+
+				type Query {
+					iface: Node!
+				}
+			`,
+			upstreamDefinition: `
+				interface Node {
+					id: ID!
+					name: String!
+				}
+
+				type User implements Node {
+					id: ID!
+					name: String!
+					isUser: Boolean!
+				}
+
+				type Admin implements Node {
+					id: ID!
+					name: String!
+				}
+
+				type Query {
+					iface: Node!
+				}
+			`,
+			dsBuilder: dsb().
+				RootNode("Query", "iface").
+				RootNode("User", "id", "name", "isUser").
+				RootNode("Admin", "id").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+				}),
+			operation: `
+				query {
+					iface @__defer_internal(id: "defer-1") {
+						... on Moderator {
+							isModerator
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					iface @__defer_internal(id: "defer-1") {
+						__typename @__defer_internal(id: "defer-1")
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name: "interface object field with defer directive - added __typename inherits defer directive from field",
+			definition: `
+				type User implements Account {
+					id: ID!
+					name: String!
+				}
+
+				type Admin implements Account {
+					id: ID!
+					name: String!
+					login: String!
+				}
+
+				interface Account {
+					id: ID!
+					name: String!
+				}
+
+				type Query {
+					user: Account!
+				}`,
+			upstreamDefinition: `
+				type Account @key(fields: "id") @interfaceObject {
+					id: ID!
+					name: String!
+				}
+
+				type Query {
+					user: Account!
+				}`,
+			dsBuilder: dsb().
+				RootNode("Query", "user").
+				RootNode("Account", "id", "name").
+				WithMetadata(func(m *FederationMetaData) {
+					m.InterfaceObjects = []EntityInterfaceConfiguration{
+						{
+							InterfaceTypeName: "Account",
+							ConcreteTypeNames: []string{"Admin", "User"},
+						},
+					}
+					m.Keys = []FederationFieldConfiguration{
+						{
+							TypeName:     "Account",
+							SelectionSet: "id",
+						},
+					}
+				}),
+			fieldName: "user",
+			operation: `
+				query {
+					user @__defer_internal(id: "defer-1") {
+						... on Admin {
+							id
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					user @__defer_internal(id: "defer-1") {
+						__typename @__defer_internal(id: "defer-1")
+						... on Admin {
+							id
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
 	}
 
 	for _, testCase := range testCases {

@@ -194,3 +194,16 @@ func (d *Document) ImportVariableValueArgument(argName, variableName ByteSlice) 
 
 	return
 }
+
+func (d *Document) AddStringArgument(name, value string) int {
+	strValueRef := d.AddStringValue(StringValue{
+		Content: d.Input.AppendInputString(value),
+	})
+
+	arg := Argument{
+		Name:  d.Input.AppendInputString(name),
+		Value: Value{Kind: ValueKindString, Ref: strValueRef},
+	}
+
+	return d.AddArgument(arg)
+}

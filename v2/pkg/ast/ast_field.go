@@ -2,8 +2,10 @@ package ast
 
 import (
 	"bytes"
+	"strconv"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/position"
 )
 
@@ -177,4 +179,85 @@ func (d *Document) FieldTypeNode(fieldName []byte, enclosingNode Node) (node Nod
 	}
 
 	return node, true
+}
+
+func (d *Document) MergeFieldsDefer(left, right int) {
+	leftDeferDirectiveRef, leftDeferExists := d.Fields[left].Directives.HasDirectiveByNameBytes(d, literal.DEFER_INTERNAL)
+	rightDeferDirectiveRef, rightDeferExists := d.Fields[right].Directives.HasDirectiveByNameBytes(d, literal.DEFER_INTERNAL)
+
+	switch {
+	case !leftDeferExists && !rightDeferExists:
+		// do nothing
+	case leftDeferExists && !rightDeferExists:
+		d.Fields[left].Directives.RemoveDirectiveByRef(leftDeferDirectiveRef)
+		d.Fields[left].HasDirectives = len(d.Fields[left].Directives.Refs) > 0
+	case !leftDeferExists:
+		// do nothing, as we are merging right into left
+		// and left do not have the defer,
+		// so right will be discarded
+	default:
+		// both have the defer; defer with smaller id wins
+		leftDeferIdValue, _ := d.DirectiveArgumentValueByName(leftDeferDirectiveRef, []byte("id"))
+		rightDeferIdValue, _ := d.DirectiveArgumentValueByName(rightDeferDirectiveRef, []byte("id"))
+
+		leftId, _ := strconv.Atoi(d.StringValueContentString(leftDeferIdValue.Ref))
+		rightId, _ := strconv.Atoi(d.StringValueContentString(rightDeferIdValue.Ref))
+
+		// TODO: need to handle parent id too
+
+		switch {
+		case leftId == rightId:
+			// do nothing, they are equal
+		case leftId < rightId:
+			// left wins, right discarded
+		case leftId > rightId:
+			d.Fields[left].Directives.RemoveDirectiveByRef(leftDeferDirectiveRef)
+			// append a right defer to the left
+			// no need to import as a right will be discarded
+			d.Fields[left].Directives.Refs = append(d.Fields[left].Directives.Refs, rightDeferDirectiveRef)
+		}
+	}
+}
+
+// AddDeferInternalDirectiveToField attaches @__defer_internal(id: id, label: label, parentID: parentID) to the given field.
+func (d *Document) AddDeferInternalDirectiveToField(fieldRef int, id, label, parentID string) {
+	if id == "" {
+		return
+	}
+
+	var argRefs []int
+
+	argRefs = append(argRefs, d.AddStringArgument("id", id))
+
+	if label != "" {
+		argRefs = append(argRefs, d.AddStringArgument("label", label))
+	}
+	if parentID != "" {
+		argRefs = append(argRefs, d.AddStringArgument("parentDeferId", parentID))
+	}
+
+	directiveRef := d.AddDirective(Directive{
+		Name:         d.Input.AppendInputBytes(literal.DEFER_INTERNAL),
+		HasArguments: len(argRefs) > 0,
+		Arguments: ArgumentList{
+			Refs: argRefs,
+		},
+	})
+
+	d.AddDirectiveToNode(directiveRef, Node{
+		Kind: NodeKindField,
+		Ref:  fieldRef,
+	})
+}
+
+func (d *Document) FieldInternalDeferID(fieldRef int) (id string, exists bool) {
+	directiveRef, exists := d.Fields[fieldRef].Directives.HasDirectiveByNameBytes(d, literal.DEFER_INTERNAL)
+	if !exists {
+		return "", false
+	}
+	idValue, exists := d.DirectiveArgumentValueByName(directiveRef, []byte("id"))
+	if !exists {
+		return "", false
+	}
+	return d.StringValueContentString(idValue.Ref), true
 }

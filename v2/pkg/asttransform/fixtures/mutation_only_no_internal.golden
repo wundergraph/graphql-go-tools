@@ -1,29 +1,10 @@
 schema {
-    query: Query
     mutation: Mutation
-    subscription: Subscription
+    query: Query
 }
 
 type Mutation {
     m: String!
-    __typename: String!
-}
-
-type Subscription {
-    s: String!
-}
-
-type Query {
-    hello(name: String): Hello!
-    __schema: __Schema!
-    __type(name: String!): __Type
-    __typename: String!
-}
-
-type Hello {
-    hello: String!
-    object: String!
-    adminInformation: String!
     __typename: String!
 }
 
@@ -254,9 +235,8 @@ enum __TypeKind {
     NON_NULL
 }
 
-directive @__defer_internal(
-    id: String!
-    parentDeferId: String
-    "A unique identifier for the results."
-    label: String
-) repeatable on FIELD
+type Query {
+    __schema: __Schema!
+    __type(name: String!): __Type
+    __typename: String!
+}

@@ -31,6 +31,8 @@ var (
 	literalValueCompletion    = []byte("valueCompletion")
 	literalRateLimit          = []byte("rateLimit")
 	literalAuthorization      = []byte("authorization")
+	literalIncremental        = []byte("incremental")
+	literalHasNext            = []byte("hasNext")
 
 	emptyArray  = []byte("[]")
 	emptyObject = []byte("{}")

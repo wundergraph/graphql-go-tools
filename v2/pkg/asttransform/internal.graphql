@@ -1,0 +1,6 @@
+directive @__defer_internal(
+    id: String!
+    parentDeferId: String
+    "A unique identifier for the results."
+    label: String
+) repeatable on FIELD

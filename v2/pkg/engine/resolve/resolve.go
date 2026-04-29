@@ -436,6 +436,81 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 	return resp, err
 }
 
+func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDeferResponse, writer DeferResponseWriter) (*GraphQLResolveInfo, error) {
+	resolveInfo := &GraphQLResolveInfo{}
+
+	start := time.Now()
+	<-r.maxConcurrency
+	resolveInfo.ResolveAcquireWaitTime = time.Since(start)
+	defer func() {
+		r.maxConcurrency <- struct{}{}
+	}()
+
+	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, nil)
+
+	err := t.resolvable.Init(ctx, nil, response.Response.Info.OperationType)
+	if err != nil {
+		return nil, err
+	}
+
+	if !ctx.ExecutionOptions.SkipLoader {
+		t.loader.Init(ctx, response.Response.Info, t.resolvable)
+
+		// fetch initial response
+		if err := t.loader.ResolveFetchNode(response.Response.Fetches); err != nil {
+			return nil, err
+		}
+
+		t.resolvable.deferMode = true
+		t.resolvable.deferID = ""
+
+		// render initial response
+		err = t.resolvable.Resolve(ctx.ctx, response.Response.Data, response.Response.Fetches, writer)
+		if err != nil {
+			return nil, err
+		}
+
+		err = writer.Flush()
+		if err != nil {
+			return nil, err
+		}
+
+		if t.resolvable.hasErrors() {
+			return resolveInfo, nil
+		}
+
+		// fetch deferred responses
+
+		for i, deferGroup := range response.Defers {
+			if err := t.loader.ResolveFetchNode(deferGroup.Fetches); err != nil {
+				return nil, err
+			}
+
+			t.resolvable.deferID = deferGroup.DeferID
+
+			err = t.resolvable.ResolveDefer(response.Response.Data, writer, i < len(response.Defers)-1)
+			if err != nil {
+				return nil, err
+			}
+
+			// flush after each deferred response
+
+			err = writer.Flush()
+			if err != nil {
+				return nil, err
+			}
+
+			if t.resolvable.hasErrors() {
+				return resolveInfo, nil
+			}
+		}
+
+		writer.Complete()
+	}
+
+	return resolveInfo, err
+}
+
 type trigger struct {
 	id            uint64
 	cancel        context.CancelFunc
