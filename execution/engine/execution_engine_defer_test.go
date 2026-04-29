@@ -2341,8 +2341,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `fragment ProductFrag on Product { id ... @defer { sku } } { products { ...ProductFrag } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{"products":[{"id":"1"},{"id":"2"}]},"pending":[{"id":"2","path":["products"]}],"hasNext":true}
-{"incremental":[{"data":{"sku":"sku-1"},"id":"2","subPath":[0]},{"data":{"sku":"sku-2"},"id":"2","subPath":[1]}],"completed":[{"id":"2"}],"hasNext":false}
+				expectedResponse: `{"data":{"products":[{"id":"1"},{"id":"2"}]},"pending":[{"id":"1","path":["products"]}],"hasNext":true}
+{"incremental":[{"data":{"sku":"sku-1"},"id":"1","subPath":[0]},{"data":{"sku":"sku-2"},"id":"1","subPath":[1]}],"completed":[{"id":"1"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -2352,8 +2352,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `fragment ProductFrag on Product { id ... @defer { name } } { products { ...ProductFrag } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{"products":[{"id":"1"},{"id":"2"}]},"pending":[{"id":"2","path":["products"]}],"hasNext":true}
-{"incremental":[{"data":{"name":"Product One"},"id":"2","subPath":[0]},{"data":{"name":"Product Two"},"id":"2","subPath":[1]}],"completed":[{"id":"2"}],"hasNext":false}
+				expectedResponse: `{"data":{"products":[{"id":"1"},{"id":"2"}]},"pending":[{"id":"1","path":["products"]}],"hasNext":true}
+{"incremental":[{"data":{"name":"Product One"},"id":"1","subPath":[0]},{"data":{"name":"Product Two"},"id":"1","subPath":[1]}],"completed":[{"id":"1"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 
@@ -2363,9 +2363,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `fragment ProductFrag on Product { id ... @defer { sku } ... @defer { name } } { products { ...ProductFrag } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{"products":[{"id":"1"},{"id":"2"}]},"pending":[{"id":"3","path":["products"]},{"id":"4","path":["products"]}],"hasNext":true}
-{"incremental":[{"data":{"sku":"sku-1"},"id":"3","subPath":[0]},{"data":{"sku":"sku-2"},"id":"3","subPath":[1]}],"completed":[{"id":"3"}],"hasNext":true}
-{"incremental":[{"data":{"name":"Product One"},"id":"4","subPath":[0]},{"data":{"name":"Product Two"},"id":"4","subPath":[1]}],"completed":[{"id":"4"}],"hasNext":false}
+				expectedResponse: `{"data":{"products":[{"id":"1"},{"id":"2"}]},"pending":[{"id":"1","path":["products"]},{"id":"2","path":["products"]}],"hasNext":true}
+{"incremental":[{"data":{"sku":"sku-1"},"id":"1","subPath":[0]},{"data":{"sku":"sku-2"},"id":"1","subPath":[1]}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"name":"Product One"},"id":"2","subPath":[0]},{"data":{"name":"Product Two"},"id":"2","subPath":[1]}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 		})
@@ -2388,9 +2388,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `fragment SkuWithName on Product { sku ... @defer { name } } { products { id ...SkuWithName @defer } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{"products":[{"id":"1"},{"id":"2"}]},"pending":[{"id":"2","path":["products"]},{"id":"3","path":["products"]}],"hasNext":true}
-{"incremental":[{"data":{"sku":"sku-1"},"id":"2","subPath":[0]},{"data":{"sku":"sku-2"},"id":"2","subPath":[1]}],"completed":[{"id":"2"}],"hasNext":true}
-{"incremental":[{"data":{"name":"Product One"},"id":"3","subPath":[0]},{"data":{"name":"Product Two"},"id":"3","subPath":[1]}],"completed":[{"id":"3"}],"hasNext":false}
+				expectedResponse: `{"data":{"products":[{"id":"1"},{"id":"2"}]},"pending":[{"id":"1","path":["products"]},{"id":"2","path":["products"]}],"hasNext":true}
+{"incremental":[{"data":{"sku":"sku-1"},"id":"1","subPath":[0]},{"data":{"sku":"sku-2"},"id":"1","subPath":[1]}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"name":"Product One"},"id":"2","subPath":[0]},{"data":{"name":"Product Two"},"id":"2","subPath":[1]}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
 		})

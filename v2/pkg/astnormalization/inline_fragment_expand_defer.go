@@ -37,6 +37,12 @@ func (f *inlineFragmentExpandDeferVisitor) EnterDocument(operation, _ *ast.Docum
 }
 
 func (f *inlineFragmentExpandDeferVisitor) EnterInlineFragment(ref int) {
+	// expand defer only on operation fields
+	// this rule runs after fragments was inlined, but before they removed
+	if len(f.Walker.Ancestors) > 0 && f.Walker.Ancestors[0].Kind == ast.NodeKindFragmentDefinition {
+		return
+	}
+
 	if !f.operation.InlineFragmentHasDirectives(ref) {
 		return
 	}
@@ -110,6 +116,10 @@ func (f *inlineFragmentExpandDeferVisitor) LeaveInlineFragment(ref int) {
 }
 
 func (f *inlineFragmentExpandDeferVisitor) EnterSelectionSet(ref int) {
+	if len(f.Walker.Ancestors) > 0 && f.Walker.Ancestors[0].Kind == ast.NodeKindFragmentDefinition {
+		return
+	}
+
 	// if there are no active defers, nothing to do
 	if len(f.defers) == 0 {
 		return
