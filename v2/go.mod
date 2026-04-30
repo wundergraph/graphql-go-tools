@@ -3,6 +3,7 @@ module github.com/wundergraph/graphql-go-tools/v2
 go 1.25
 
 require (
+	connectrpc.com/connect v1.19.2
 	github.com/99designs/gqlgen v0.17.76
 	github.com/bufbuild/protocompile v0.14.1
 	github.com/buger/jsonparser v1.1.1

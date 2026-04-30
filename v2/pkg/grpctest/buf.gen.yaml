@@ -1,0 +1,30 @@
+version: v2
+# product.proto declares `option go_package = "cosmo/pkg/proto/productv1;productv1"`,
+# which is the import path used by the cosmo demo subgraphs. For the
+# graphql-go-tools test harness we live at a different module path, so we
+# remap the import via the M= option for every code generator.
+plugins:
+  # Generate the message structs and gRPC server/client.
+  # These outputs are kept in sync with the existing protoc-based pipeline:
+  # `productv1/product.pb.go` and `productv1/product_grpc.pb.go`.
+  - local: protoc-gen-go
+    out: productv1
+    opt:
+      - paths=source_relative
+      - Mproduct.proto=github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/productv1
+  - local: protoc-gen-go-grpc
+    out: productv1
+    opt:
+      - paths=source_relative
+      - Mproduct.proto=github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/productv1
+  # Generate ConnectRPC handlers/clients alongside the gRPC code so that the
+  # mock service can serve both transports from the same Go package.
+  - local: protoc-gen-connect-go
+    out: productv1
+    opt:
+      - paths=source_relative
+      - Mproduct.proto=github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/productv1
+inputs:
+  - directory: .
+    paths:
+      - product.proto
