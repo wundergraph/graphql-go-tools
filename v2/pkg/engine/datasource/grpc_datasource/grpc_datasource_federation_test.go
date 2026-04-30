@@ -1965,7 +1965,7 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_AbstractTypes(t *testing
 			}
 
 			// Create the datasource
-			ds, err := NewDataSource(conn, DataSourceConfig{
+			ds, err := NewDataSourceGRPC(conn, DataSourceConfig{
 				Operation:         &queryDoc,
 				Definition:        &schemaDoc,
 				SubgraphName:      "Products",

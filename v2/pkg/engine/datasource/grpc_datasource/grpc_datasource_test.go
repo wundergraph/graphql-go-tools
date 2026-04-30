@@ -337,7 +337,7 @@ func Test_DataSource_Load_WithRecursiveInputType(t *testing.T) {
 		t.Fatalf("failed to compile proto: %v", err)
 	}
 
-	ds, err := NewDataSource(conn, DataSourceConfig{
+	ds, err := NewDataSourceGRPC(conn, DataSourceConfig{
 		Operation:    &queryDoc,
 		Definition:   &schemaDoc,
 		SubgraphName: "Products",
