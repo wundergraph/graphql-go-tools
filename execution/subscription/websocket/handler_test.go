@@ -279,10 +279,9 @@ func setupExecutorPoolV2(t *testing.T, ctx context.Context, chatServerURL string
 	engineConf := engine.NewConfiguration(chatSchema)
 	engineConf.SetWebsocketBeforeStartHook(onBeforeStartHook)
 
-	subscriptionClient := graphql_datasource.NewGraphQLSubscriptionClient(
-		httpclient.DefaultNetHttpClient,
-		httpclient.DefaultNetHttpClient,
-		ctx,
+	subscriptionClient := graphql_datasource.NewGraphQLSubscriptionClient(ctx,
+		graphql_datasource.WithUpgradeClient(httpclient.DefaultNetHttpClient),
+		graphql_datasource.WithStreamingClient(httpclient.DefaultNetHttpClient),
 	)
 
 	factory, err := graphql_datasource.NewFactory(ctx, httpclient.DefaultNetHttpClient, subscriptionClient)

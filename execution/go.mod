@@ -14,12 +14,12 @@ require (
 	github.com/sebdah/goldie/v2 v2.7.1
 	github.com/stretchr/testify v1.11.1
 	github.com/vektah/gqlparser/v2 v2.5.30
-	github.com/wundergraph/astjson v0.0.0-20250106123708-be463c97e083
+	github.com/wundergraph/astjson v1.0.0
 	github.com/wundergraph/cosmo/composition-go v0.0.0-20241020204711-78f240a77c99
 	github.com/wundergraph/cosmo/router v0.0.0-20251013094319-c611abf26b17
 	github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.231
 	go.uber.org/atomic v1.11.0
-	google.golang.org/grpc v1.68.1
+	google.golang.org/grpc v1.71.0
 	google.golang.org/protobuf v1.36.9
 )
 
@@ -29,6 +29,7 @@ require (
 	github.com/bufbuild/protocompile v0.14.1 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/coder/websocket v1.8.14 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dlclark/regexp2 v1.11.0 // indirect
@@ -65,6 +66,7 @@ require (
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/urfave/cli/v2 v2.27.7 // indirect
+	github.com/wundergraph/go-arena v1.1.0 // indirect
 	github.com/xrash/smetrics v0.0.0-20250705151800-55b8f293f342 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
