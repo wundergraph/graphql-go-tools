@@ -1,7 +1,7 @@
 go 1.25
 
 use (
-	examples/federation
+	examples
 	execution
 	v2
 )
