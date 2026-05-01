@@ -3,80 +3,51 @@ package gateway
 import (
 	"context"
 	"net/http"
-	"sync"
 
+	"github.com/gobwas/ws"
 	log "github.com/jensneuse/abstractlogger"
+	"google.golang.org/protobuf/encoding/protojson"
+
+	nodev1 "github.com/wundergraph/cosmo/router/gen/proto/wg/cosmo/node/v1"
 
 	"github.com/wundergraph/graphql-go-tools/execution/engine"
-	"github.com/wundergraph/graphql-go-tools/execution/graphql"
+	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/gateway/httphandler"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
-type DataSourceObserver interface {
-	UpdateDataSources(subgraphsConfigs []engine.SubgraphConfiguration)
-}
-
-type DataSourceSubject interface {
-	Register(observer DataSourceObserver)
-}
-
-type HandlerFactory interface {
-	Make(schema *graphql.Schema, engine *engine.ExecutionEngine) http.Handler
-}
-
-type HandlerFactoryFn func(schema *graphql.Schema, engine *engine.ExecutionEngine) http.Handler
-
-func (h HandlerFactoryFn) Make(schema *graphql.Schema, engine *engine.ExecutionEngine) http.Handler {
-	return h(schema, engine)
-}
-
 func NewGateway(
-	gqlHandlerFactory HandlerFactory,
+	config []byte,
 	httpClient *http.Client,
 	logger log.Logger,
+	enableART bool,
 ) *Gateway {
 	return &Gateway{
-		gqlHandlerFactory: gqlHandlerFactory,
+		configFileContent: config,
 		httpClient:        httpClient,
 		logger:            logger,
-
-		mu:        &sync.Mutex{},
-		readyCh:   make(chan struct{}),
-		readyOnce: &sync.Once{},
+		enableART:         enableART,
 	}
 }
 
 type Gateway struct {
-	gqlHandlerFactory HandlerFactory
+	configFileContent []byte
 	httpClient        *http.Client
 	logger            log.Logger
-
-	gqlHandler http.Handler
-	mu         *sync.Mutex
-
-	readyCh   chan struct{}
-	readyOnce *sync.Once
+	enableART         bool
 }
 
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	g.mu.Lock()
-	handler := g.gqlHandler
-	g.mu.Unlock()
+	var rc nodev1.RouterConfig
+	if err := protojson.Unmarshal(g.configFileContent, &rc); err != nil {
+		g.logger.Fatal("can't unmarshal composed config: %v", log.Error(err))
+	}
 
-	handler.ServeHTTP(w, r)
-}
-
-func (g *Gateway) Ready() {
-	<-g.readyCh
-}
-
-func (g *Gateway) UpdateDataSources(subgraphsConfigs []engine.SubgraphConfiguration) {
 	ctx := context.Background()
-	engineConfigFactory := engine.NewFederationEngineConfigFactory(ctx, subgraphsConfigs, engine.WithFederationHttpClient(g.httpClient))
+	engineConfigFactory := engine.NewFederationEngineConfigFactory(ctx, engine.WithFederationHttpClient(g.httpClient))
 
-	engineConfig, err := engineConfigFactory.BuildEngineConfiguration()
+	engineConfig, err := engineConfigFactory.BuildEngineConfiguration(&rc)
 	if err != nil {
-		g.logger.Error("get engine config: %v", log.Error(err))
+		g.logger.Fatal("can't build engine configuration: %v", log.Error(err))
 		return
 	}
 
@@ -84,13 +55,15 @@ func (g *Gateway) UpdateDataSources(subgraphsConfigs []engine.SubgraphConfigurat
 		MaxConcurrency: 1024,
 	})
 	if err != nil {
-		g.logger.Error("create engine: %v", log.Error(err))
+		g.logger.Fatal("can't create an engine: %v", log.Error(err))
 		return
 	}
 
-	g.mu.Lock()
-	g.gqlHandler = g.gqlHandlerFactory.Make(engineConfig.Schema(), executionEngine)
-	g.mu.Unlock()
+	upgrader := &ws.HTTPUpgrader{
+		Header: http.Header{},
+	}
 
-	g.readyOnce.Do(func() { close(g.readyCh) })
+	handler := httphandler.NewGraphqlHTTPHandler(engineConfig.Schema(), executionEngine, upgrader, g.logger, g.enableART)
+
+	handler.ServeHTTP(w, r)
 }

@@ -1,6 +1,7 @@
 package federationtesting
 
 import (
+	_ "embed"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -43,6 +44,16 @@ func LoadTestingSubgraphSDL(upstream Upstream) ([]byte, error) {
 	}
 
 	absolutePath := filepath.Join(strings.Split(wd, "pkg")[0], federationTestingDirectoryRelativePath, string(upstream), "graph", "schema.graphqls")
+	return os.ReadFile(absolutePath)
+}
+
+func LoadTestingFederationConfig() ([]byte, error) {
+	wd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+
+	absolutePath := filepath.Join(strings.Split(wd, "pkg")[0], federationTestingDirectoryRelativePath, "config.json")
 	return os.ReadFile(absolutePath)
 }
 

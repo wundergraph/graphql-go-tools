@@ -10,7 +10,6 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/jensneuse/abstractlogger"
 	"github.com/sebdah/goldie/v2"
@@ -25,18 +24,19 @@ func addGateway(enableART bool) func(setup *federationtesting.FederationSetup) *
 	return func(setup *federationtesting.FederationSetup) *httptest.Server {
 		httpClient := http.DefaultClient
 
-		poller := gateway.NewDatasource([]gateway.ServiceConfig{
-			{Name: "accounts", URL: setup.AccountsUpstreamServer.URL},
-			{Name: "products", URL: setup.ProductsUpstreamServer.URL, WS: strings.ReplaceAll(setup.ProductsUpstreamServer.URL, "http:", "ws:")},
-			{Name: "reviews", URL: setup.ReviewsUpstreamServer.URL},
-		}, httpClient)
+		cfg, err := federationtesting.LoadTestingFederationConfig()
+		if err != nil {
+			panic(err)
+		}
 
-		gtw := gateway.Handler(abstractlogger.NoopLogger, poller, httpClient, enableART)
+		cfg = bytes.ReplaceAll(cfg, []byte("http://accounts-url-placeholder"), []byte(setup.AccountsUpstreamServer.URL))
+		cfg = bytes.ReplaceAll(cfg, []byte("http://products-url-placeholder"), []byte(setup.ProductsUpstreamServer.URL))
+		cfg = bytes.ReplaceAll(cfg, []byte("http://reviews-url-placeholder"), []byte(setup.ReviewsUpstreamServer.URL))
 
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-		defer cancel()
+		// {Name: "products", URL: setup.ProductsUpstreamServer.URL, WS: strings.ReplaceAll(setup.ProductsUpstreamServer.URL, "http:", "ws:")},
 
-		poller.Run(ctx)
+		gtw := gateway.NewGateway(cfg, httpClient, abstractlogger.NoopLogger, enableART)
+
 		return httptest.NewServer(gtw)
 	}
 }

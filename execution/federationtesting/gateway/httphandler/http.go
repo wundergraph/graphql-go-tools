@@ -1,5 +1,5 @@
-// Package http handles GraphQL HTTP Requests including WebSocket Upgrades.
-package http
+// Package httphandler handles GraphQL HTTP Requests including WebSocket Upgrades.
+package httphandler
 
 import (
 	"bytes"
