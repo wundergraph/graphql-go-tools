@@ -1,10 +1,10 @@
-module github.com/wundergraph/graphql-go-tools/examples
+module github.com/wundergraph/graphql-go-tools/examples/engine
 
 go 1.25
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0
-	github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.231
+	github.com/wundergraph/graphql-go-tools/v2 v2.1.0
 )
 
 require (
@@ -26,5 +26,3 @@ require (
 	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/sys v0.37.0 // indirect
 )
-
-replace github.com/wundergraph/graphql-go-tools/v2 => ../v2
