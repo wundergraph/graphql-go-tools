@@ -24,16 +24,11 @@ func addGateway(enableART bool) func(setup *federationtesting.FederationSetup) *
 	return func(setup *federationtesting.FederationSetup) *httptest.Server {
 		httpClient := http.DefaultClient
 
-		cfg, err := federationtesting.LoadTestingFederationConfig()
-		if err != nil {
-			panic(err)
-		}
+		cfg := bytes.Clone(federationtesting.RouterConfigJson)
 
 		cfg = bytes.ReplaceAll(cfg, []byte("http://accounts-url-placeholder"), []byte(setup.AccountsUpstreamServer.URL))
 		cfg = bytes.ReplaceAll(cfg, []byte("http://products-url-placeholder"), []byte(setup.ProductsUpstreamServer.URL))
 		cfg = bytes.ReplaceAll(cfg, []byte("http://reviews-url-placeholder"), []byte(setup.ReviewsUpstreamServer.URL))
-
-		// {Name: "products", URL: setup.ProductsUpstreamServer.URL, WS: strings.ReplaceAll(setup.ProductsUpstreamServer.URL, "http:", "ws:")},
 
 		gtw := gateway.NewGateway(cfg, httpClient, abstractlogger.NoopLogger, enableART)
 

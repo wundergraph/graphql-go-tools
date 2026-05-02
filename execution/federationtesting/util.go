@@ -3,9 +3,6 @@ package federationtesting
 import (
 	_ "embed"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
-	"strings"
 
 	accounts "github.com/wundergraph/graphql-go-tools/execution/federationtesting/accounts/graph"
 	products "github.com/wundergraph/graphql-go-tools/execution/federationtesting/products/graph"
@@ -13,8 +10,6 @@ import (
 )
 
 const (
-	federationTestingDirectoryRelativePath = "../federationtesting"
-
 	QueryReviewsOfMe = `query ReviewsOfMe {
   me {
     reviews {
@@ -29,33 +24,16 @@ const (
 }`
 )
 
-type Upstream string
-
-const (
-	UpstreamAccounts Upstream = "accounts"
-	UpstreamProducts Upstream = "products"
-	UpstreamReviews  Upstream = "reviews"
+var (
+	//go:embed config.json
+	RouterConfigJson []byte
+	//go:embed accounts/graph/schema.graphqls
+	AccountSDL []byte
+	//go:embed products/graph/schema.graphqls
+	ProductsSDL []byte
+	//go:embed reviews/graph/schema.graphqls
+	ReviewsSDL []byte
 )
-
-func LoadTestingSubgraphSDL(upstream Upstream) ([]byte, error) {
-	wd, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-
-	absolutePath := filepath.Join(strings.Split(wd, "pkg")[0], federationTestingDirectoryRelativePath, string(upstream), "graph", "schema.graphqls")
-	return os.ReadFile(absolutePath)
-}
-
-func LoadTestingFederationConfig() ([]byte, error) {
-	wd, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-
-	absolutePath := filepath.Join(strings.Split(wd, "pkg")[0], federationTestingDirectoryRelativePath, "config.json")
-	return os.ReadFile(absolutePath)
-}
 
 func NewFederationSetup(addGateway ...func(s *FederationSetup) *httptest.Server) *FederationSetup {
 	accountUpstreamServer := httptest.NewServer(accounts.GraphQLEndpointHandler(accounts.TestOptions))
