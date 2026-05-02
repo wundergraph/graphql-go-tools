@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/gobwas/ws"
@@ -20,11 +21,10 @@ func NewGateway(
 	httpClient *http.Client,
 	logger log.Logger,
 	enableART bool,
-) *Gateway {
+) (*Gateway, error) {
 	var rc nodev1.RouterConfig
 	if err := protojson.Unmarshal(configFileContent, &rc); err != nil {
-		logger.Fatal("can't unmarshal composed config: %v", log.Error(err))
-		return nil
+		return nil, fmt.Errorf("can't unmarshal composed config: %w", err)
 	}
 
 	ctx := context.Background()
@@ -32,16 +32,14 @@ func NewGateway(
 
 	engineConfig, err := engineConfigFactory.BuildEngineConfiguration(&rc)
 	if err != nil {
-		logger.Fatal("can't build engine configuration: %v", log.Error(err))
-		return nil
+		return nil, fmt.Errorf("can't build engine configuration: %w", err)
 	}
 
 	executionEngine, err := engine.NewExecutionEngine(ctx, logger, engineConfig, resolve.ResolverOptions{
 		MaxConcurrency: 1024,
 	})
 	if err != nil {
-		logger.Fatal("can't create an engine: %v", log.Error(err))
-		return nil
+		return nil, fmt.Errorf("can't create an engine: %w", err)
 	}
 
 	upgrader := &ws.HTTPUpgrader{
@@ -50,7 +48,7 @@ func NewGateway(
 
 	handler := httphandler.NewGraphqlHTTPHandler(engineConfig.Schema(), executionEngine, upgrader, logger, enableART)
 
-	return &Gateway{handler}
+	return &Gateway{handler}, nil
 }
 
 type Gateway struct {

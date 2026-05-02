@@ -35,7 +35,7 @@ var (
 	ReviewsSDL []byte
 )
 
-func NewFederationSetup(addGateway ...func(s *FederationSetup) *httptest.Server) *FederationSetup {
+func NewFederationSetup(addGateway ...func(s *FederationSetup) (*httptest.Server, error)) (*FederationSetup, error) {
 	accountUpstreamServer := httptest.NewServer(accounts.GraphQLEndpointHandler(accounts.TestOptions))
 	productsUpstreamServer := httptest.NewServer(products.GraphQLEndpointHandler(products.TestOptions))
 	reviewsUpstreamServer := httptest.NewServer(reviews.GraphQLEndpointHandler(reviews.TestOptions))
@@ -47,10 +47,15 @@ func NewFederationSetup(addGateway ...func(s *FederationSetup) *httptest.Server)
 	}
 
 	if len(addGateway) > 0 {
-		setup.GatewayServer = addGateway[0](setup)
+		gw, err := addGateway[0](setup)
+		if err != nil {
+			return nil, err
+		}
+
+		setup.GatewayServer = gw
 	}
 
-	return setup
+	return setup, nil
 }
 
 type FederationSetup struct {

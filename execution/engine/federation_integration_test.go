@@ -20,8 +20,8 @@ import (
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/gateway"
 )
 
-func addGateway(enableART bool) func(setup *federationtesting.FederationSetup) *httptest.Server {
-	return func(setup *federationtesting.FederationSetup) *httptest.Server {
+func addGateway(enableART bool) func(setup *federationtesting.FederationSetup) (*httptest.Server, error) {
+	return func(setup *federationtesting.FederationSetup) (*httptest.Server, error) {
 		httpClient := http.DefaultClient
 
 		cfg := bytes.Clone(federationtesting.RouterConfigJson)
@@ -30,9 +30,12 @@ func addGateway(enableART bool) func(setup *federationtesting.FederationSetup) *
 		cfg = bytes.ReplaceAll(cfg, []byte("http://products-url-placeholder"), []byte(setup.ProductsUpstreamServer.URL))
 		cfg = bytes.ReplaceAll(cfg, []byte("http://reviews-url-placeholder"), []byte(setup.ReviewsUpstreamServer.URL))
 
-		gtw := gateway.NewGateway(cfg, httpClient, abstractlogger.NoopLogger, enableART)
+		gtw, err := gateway.NewGateway(cfg, httpClient, abstractlogger.NoopLogger, enableART)
+		if err != nil {
+			return nil, err
+		}
 
-		return httptest.NewServer(gtw)
+		return httptest.NewServer(gtw), nil
 	}
 }
 
@@ -44,7 +47,8 @@ func TestFederationIntegrationTestWithArt(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	setup := federationtesting.NewFederationSetup(addGateway(true))
+	setup, err := federationtesting.NewFederationSetup(addGateway(true))
+	require.NoError(t, err)
 	defer setup.Close()
 
 	gqlClient := NewGraphqlClient(http.DefaultClient)
@@ -73,7 +77,8 @@ func TestFederationIntegrationTest(t *testing.T) {
 	t.Parallel()
 
 	// Shared setup for all read-only tests (minimizes open ports)
-	setup := federationtesting.NewFederationSetup(addGateway(false))
+	setup, err := federationtesting.NewFederationSetup(addGateway(false))
+	require.NoError(t, err)
 	t.Cleanup(setup.Close)
 	gqlClient := NewGraphqlClient(http.DefaultClient)
 
@@ -96,7 +101,8 @@ func TestFederationIntegrationTest(t *testing.T) {
 	// Mutation test needs its own setup because AddReview modifies the reviews resolver state
 	t.Run("mutation operation with variables", func(t *testing.T) {
 		t.Parallel()
-		mutSetup := federationtesting.NewFederationSetup(addGateway(false))
+		mutSetup, err := federationtesting.NewFederationSetup(addGateway(false))
+		require.NoError(t, err)
 		t.Cleanup(mutSetup.Close)
 		mutClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
