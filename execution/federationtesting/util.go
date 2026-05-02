@@ -36,16 +36,7 @@ var (
 )
 
 func NewFederationSetup(addGateway ...func(s *FederationSetup) (*httptest.Server, error)) (*FederationSetup, error) {
-	accountUpstreamServer := httptest.NewServer(accounts.GraphQLEndpointHandler(accounts.TestOptions))
-	productsUpstreamServer := httptest.NewServer(products.GraphQLEndpointHandler(products.TestOptions))
-	reviewsUpstreamServer := httptest.NewServer(reviews.GraphQLEndpointHandler(reviews.TestOptions))
-
-	setup := &FederationSetup{
-		AccountsUpstreamServer: accountUpstreamServer,
-		ProductsUpstreamServer: productsUpstreamServer,
-		ReviewsUpstreamServer:  reviewsUpstreamServer,
-	}
-
+	setup := &FederationSetup{}
 	if len(addGateway) > 0 {
 		gw, err := addGateway[0](setup)
 		if err != nil {
@@ -54,6 +45,10 @@ func NewFederationSetup(addGateway ...func(s *FederationSetup) (*httptest.Server
 
 		setup.GatewayServer = gw
 	}
+
+	setup.AccountsUpstreamServer = httptest.NewServer(accounts.GraphQLEndpointHandler(accounts.TestOptions))
+	setup.ProductsUpstreamServer = httptest.NewServer(products.GraphQLEndpointHandler(products.TestOptions))
+	setup.ReviewsUpstreamServer = httptest.NewServer(reviews.GraphQLEndpointHandler(reviews.TestOptions))
 
 	return setup, nil
 }
