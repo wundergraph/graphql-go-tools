@@ -1,3 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
 echo "Composing subgraphs"
 
 npx -y wgc@latest router compose -i graph.yaml -o config.json

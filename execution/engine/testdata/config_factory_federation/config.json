@@ -225,5 +225,5 @@
       "routingUrl": "http://review.service"
     }
   ],
-  "compatibilityVersion": "1:0.58.0"
+  "compatibilityVersion": "1:0.58.2"
 }

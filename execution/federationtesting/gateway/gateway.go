@@ -16,54 +16,43 @@ import (
 )
 
 func NewGateway(
-	config []byte,
+	configFileContent []byte,
 	httpClient *http.Client,
 	logger log.Logger,
 	enableART bool,
 ) *Gateway {
-	return &Gateway{
-		configFileContent: config,
-		httpClient:        httpClient,
-		logger:            logger,
-		enableART:         enableART,
-	}
-}
-
-type Gateway struct {
-	configFileContent []byte
-	httpClient        *http.Client
-	logger            log.Logger
-	enableART         bool
-}
-
-func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var rc nodev1.RouterConfig
-	if err := protojson.Unmarshal(g.configFileContent, &rc); err != nil {
-		g.logger.Fatal("can't unmarshal composed config: %v", log.Error(err))
+	if err := protojson.Unmarshal(configFileContent, &rc); err != nil {
+		logger.Fatal("can't unmarshal composed config: %v", log.Error(err))
+		return nil
 	}
 
 	ctx := context.Background()
-	engineConfigFactory := engine.NewFederationEngineConfigFactory(ctx, engine.WithFederationHttpClient(g.httpClient))
+	engineConfigFactory := engine.NewFederationEngineConfigFactory(ctx, engine.WithFederationHttpClient(httpClient))
 
 	engineConfig, err := engineConfigFactory.BuildEngineConfiguration(&rc)
 	if err != nil {
-		g.logger.Fatal("can't build engine configuration: %v", log.Error(err))
-		return
+		logger.Fatal("can't build engine configuration: %v", log.Error(err))
+		return nil
 	}
 
-	executionEngine, err := engine.NewExecutionEngine(ctx, g.logger, engineConfig, resolve.ResolverOptions{
+	executionEngine, err := engine.NewExecutionEngine(ctx, logger, engineConfig, resolve.ResolverOptions{
 		MaxConcurrency: 1024,
 	})
 	if err != nil {
-		g.logger.Fatal("can't create an engine: %v", log.Error(err))
-		return
+		logger.Fatal("can't create an engine: %v", log.Error(err))
+		return nil
 	}
 
 	upgrader := &ws.HTTPUpgrader{
 		Header: http.Header{},
 	}
 
-	handler := httphandler.NewGraphqlHTTPHandler(engineConfig.Schema(), executionEngine, upgrader, g.logger, g.enableART)
+	handler := httphandler.NewGraphqlHTTPHandler(engineConfig.Schema(), executionEngine, upgrader, logger, enableART)
 
-	handler.ServeHTTP(w, r)
+	return &Gateway{handler}
+}
+
+type Gateway struct {
+	http.Handler
 }
