@@ -360,3 +360,14 @@ func (d *Document) AddValue(value Value) (ref int) {
 	d.Values = append(d.Values, value)
 	return len(d.Values) - 1
 }
+
+func (d *Document) GetBooleanValue(value Value) (out, valid bool) {
+	switch value.Kind {
+	case ValueKindBoolean:
+		return bool(d.BooleanValue(value.Ref)), true
+	case ValueKindVariable:
+		return d.GetVariableBooleanValue(d.VariableValueNameString(value.Ref))
+	default:
+		return false, false
+	}
+}
