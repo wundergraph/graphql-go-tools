@@ -17,10 +17,6 @@ var (
 	internalDefinition []byte
 )
 
-type Options struct {
-	InternalDefer bool
-}
-
 func MergeDefinitionWithBaseSchema(definition *ast.Document) error {
 	return MergeDefinitionWithBaseSchemaWithInternal(definition, true)
 }
