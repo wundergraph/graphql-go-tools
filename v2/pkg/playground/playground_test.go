@@ -24,10 +24,8 @@ func TestNew(t *testing.T) {
 
 		playground := New(config)
 
-		assert.Equal(t, playground.data.CssURL, "playground/playground.css")
-		assert.Equal(t, playground.data.JsURL, "playground/playground.js")
-		assert.Equal(t, playground.data.FavIconURL, "playground/favicon.png")
-		assert.Equal(t, playground.data.LogoURL, "playground/logo.png")
+		assert.Equal(t, "/graphql", playground.data.EndpointURL)
+		assert.Equal(t, "/graphqlws", playground.data.SubscriptionEndpointURL)
 	})
 }
 

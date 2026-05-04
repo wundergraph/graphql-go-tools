@@ -3,7 +3,6 @@ package playground
 
 import (
 	"embed"
-	"fmt"
 	"html/template"
 	"net/http"
 	"path"
@@ -11,18 +10,9 @@ import (
 )
 
 const (
-	playgroundTemplate = "playgroundTemplate"
-
-	contentTypeHeader         = "Content-Type"
-	contentTypeImagePNG       = "image/png"
-	contentTypeTextHTML       = "text/html"
-	contentTypeTextCSS        = "text/css"
-	contentTypeTextJavascript = "text/javascript"
-
-	cssFile     = "playground.css"
-	jsFile      = "playground.js"
-	faviconFile = "favicon.png"
-	logoFile    = "logo.png"
+	playgroundTemplate  = "playgroundTemplate"
+	contentTypeHeader   = "Content-Type"
+	contentTypeTextHTML = "text/html"
 )
 
 //go:embed files/*
@@ -41,10 +31,6 @@ type Config struct {
 }
 
 type playgroundTemplateData struct {
-	CssURL                  string
-	JsURL                   string
-	FavIconURL              string
-	LogoURL                 string
 	EndpointURL             string
 	SubscriptionEndpointURL string
 }
@@ -76,68 +62,29 @@ func (h *Handlers) add(path string, handler http.HandlerFunc) {
 
 // Playground manages the configuration of all HTTP handlers responsible for serving the GraphQL Playground
 type Playground struct {
-	cfg   Config
-	files []fileConfig
-	data  playgroundTemplateData
+	cfg  Config
+	data playgroundTemplateData
 }
 
 // New creates a Playground for given Config
 func New(config Config) *Playground {
-	prepareURL := func(file string) string {
-		return strings.TrimPrefix(path.Join(config.PlaygroundPath, file), "/")
-	}
-
 	data := playgroundTemplateData{
-		CssURL:                  prepareURL(cssFile),
-		JsURL:                   prepareURL(jsFile),
-		FavIconURL:              prepareURL(faviconFile),
-		LogoURL:                 prepareURL(logoFile),
 		EndpointURL:             config.GraphqlEndpointPath,
 		SubscriptionEndpointURL: config.GraphQLSubscriptionEndpointPath,
 	}
 
-	files := []fileConfig{
-		{
-			name:        cssFile,
-			url:         path.Join(config.PathPrefix, config.PlaygroundPath, cssFile),
-			contentType: contentTypeTextCSS,
-		},
-		{
-			name:        jsFile,
-			url:         path.Join(config.PathPrefix, config.PlaygroundPath, jsFile),
-			contentType: contentTypeTextJavascript,
-		},
-		{
-			name:        faviconFile,
-			url:         path.Join(config.PathPrefix, config.PlaygroundPath, faviconFile),
-			contentType: contentTypeImagePNG,
-		},
-		{
-			name:        logoFile,
-			url:         path.Join(config.PathPrefix, config.PlaygroundPath, logoFile),
-			contentType: contentTypeImagePNG,
-		},
-	}
-
 	return &Playground{
-		cfg:   config,
-		files: files,
-		data:  data,
+		cfg:  config,
+		data: data,
 	}
 }
 
 // Handlers configures and returns all Handlers for the Playground
 func (p *Playground) Handlers() (handlers Handlers, err error) {
-	handlers = make(Handlers, 0, len(p.files)+1)
+	handlers = make(Handlers, 0, 1)
 
 	if err = p.configurePlaygroundHandler(&handlers); err != nil {
 		return
-	}
-
-	for _, file := range p.files {
-		if err = p.configureFileHandler(&handlers, file); err != nil {
-			return
-		}
 	}
 
 	return
@@ -166,20 +113,6 @@ func (p *Playground) configurePlaygroundHandler(handlers *Handlers) (err error) 
 			writer.WriteHeader(http.StatusInternalServerError)
 			_, _ = writer.Write([]byte(err.Error()))
 		}
-	})
-
-	return nil
-}
-
-func (p *Playground) configureFileHandler(handlers *Handlers, file fileConfig) error {
-	data, err := files.ReadFile(fmt.Sprintf("files/%s", file.name))
-	if err != nil {
-		return err
-	}
-
-	handlers.add(file.url, func(writer http.ResponseWriter, request *http.Request) {
-		writer.Header().Add(contentTypeHeader, file.contentType)
-		_, _ = writer.Write(data)
 	})
 
 	return nil
