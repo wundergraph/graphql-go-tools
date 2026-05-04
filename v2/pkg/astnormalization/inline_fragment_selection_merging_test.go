@@ -350,7 +350,7 @@ func TestMergeInlineFragmentFieldSelections(t *testing.T) {
 		})
 
 		t.Run("with internal defer", func(t *testing.T) {
-			runWithOptions(t, mergeInlineFragmentSelections, testDefinition, `
+			run(t, mergeInlineFragmentSelections, testDefinition, `
 					query pet {
 						pet {
 							... on Dog {
@@ -415,7 +415,7 @@ func TestMergeInlineFragmentFieldSelections(t *testing.T) {
 								meowVolume @__defer_internal(id: 6)
 							}
 						}
-					}`, runOptions{indent: true})
+					}`, withIndent())
 		})
 
 	})

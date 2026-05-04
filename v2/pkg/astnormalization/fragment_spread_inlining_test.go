@@ -628,7 +628,7 @@ func TestInlineFragments(t *testing.T) {
 				}`)
 	})
 	t.Run("non intersecting interfaces shouldn't merge", func(t *testing.T) {
-		runWithOptions(t, fragmentSpreadInline, testDefinition, `
+		run(t, fragmentSpreadInline, testDefinition, `
 				{
 					dog {
 						...nonIntersectingInterfaces
@@ -652,7 +652,7 @@ func TestInlineFragments(t *testing.T) {
 				}
 				fragment sentientFragment on Sentient {
 					name
-				}`, runOptions{indent: true})
+				}`, withIndent())
 	})
 	t.Run("implicitly intersecting interfaces should merge", func(t *testing.T) {
 		run(t, fragmentSpreadInline, `

@@ -1381,22 +1381,22 @@ var runWithVariables = func(t *testing.T, normalizeFunc registerNormalizeFunc, d
 }
 
 type runOptions struct {
-	indent            bool
-	withInternalDefer bool
+	indent bool
 }
 
-var runWithOptions = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, operation, expectedOutput string, options runOptions) {
-	t.Helper()
-	run(t, normalizeFunc, definition, operation, expectedOutput, options)
+func withIndent() func(options *runOptions) {
+	return func(options *runOptions) {
+		options.indent = true
+	}
 }
 
-var run = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, operation, expectedOutput string, options ...runOptions) {
+var run = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, operation, expectedOutput string, options ...func(options *runOptions)) {
 	t.Helper()
 
 	var opts runOptions
 
-	if len(options) > 0 {
-		opts = options[0]
+	for _, opt := range options {
+		opt(&opts)
 	}
 
 	definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)

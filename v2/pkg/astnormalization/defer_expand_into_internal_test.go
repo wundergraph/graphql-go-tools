@@ -238,7 +238,7 @@ func TestDeferExpandIntoInternal(t *testing.T) {
 					}`)
 	})
 	t.Run("with interface type", func(t *testing.T) {
-		runWithOptions(t, deferExpandIntoInternal, testDefinition, `
+		run(t, deferExpandIntoInternal, testDefinition, `
 					query pet {
 						pet {
 							... on Dog @defer {
@@ -295,6 +295,6 @@ func TestDeferExpandIntoInternal(t *testing.T) {
 								meowVolume @__defer_internal(id: 5)
 							}
 						}
-					}`, runOptions{indent: true})
+					}`, withIndent())
 	})
 }

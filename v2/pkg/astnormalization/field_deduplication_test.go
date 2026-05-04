@@ -76,6 +76,6 @@ func TestDeDuplicateFields(t *testing.T) {
 								nickname @__defer_internal(id: 4)
 							}
 						}
-					}`, runOptions{indent: true})
+					}`, withIndent())
 	})
 }
