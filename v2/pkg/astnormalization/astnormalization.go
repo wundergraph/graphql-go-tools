@@ -256,7 +256,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	}
 
 	inlineDefer := astvisitor.NewWalkerWithID(8, "Inline defer")
-	o.inlineDeferVisitor = deferExpandIntoInternalWithDisabled(&inlineDefer, o.options.enableDefer)
+	o.inlineDeferVisitor = deferExpandIntoInternalWithDisabled(&inlineDefer, !o.options.enableDefer)
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
 		name:   "inlineDefer",
 		walker: &inlineDefer,

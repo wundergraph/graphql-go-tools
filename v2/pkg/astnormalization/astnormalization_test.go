@@ -512,7 +512,8 @@ func TestNormalizeOperation(t *testing.T) {
 	})
 
 	t.Run("defer", func(t *testing.T) {
-		run(t, testDefinition, `
+		t.Run("defer - no conditions, typename placeholder needed", func(t *testing.T) {
+			run(t, testDefinition, `
 			query pet {
 				pet {
 					... on Dog @defer {
@@ -577,7 +578,75 @@ func TestNormalizeOperation(t *testing.T) {
 					}
 				}
 			}`, ``, ``)
+		})
+
+		t.Run("defer - with conditions", func(t *testing.T) {
+			run(t, testDefinition, `
+			query pet($dogExtraString: Boolean!, $catExtra: Boolean!, $catNoExtra: Boolean!) {
+				pet {
+					... on Dog @defer(if: true) {
+						name
+						nickname
+						... @defer {
+							barkVolume
+						}
+					}
+					... on Dog {
+						... @defer(if: false) {
+							extra {
+								noString
+							}
+						}
+						... @defer(if: $dogExtraString) {
+							extra {
+								string
+								noString
+							}
+						}
+					}
+					... on Cat {
+						name
+						extra {
+							bool
+						}
+					}
+					... on Cat @defer(if: $catExtra) {
+						name
+						meowVolume
+						extra {
+							bool
+						}
+					}
+					... on Cat @defer(if: $catNoExtra) {
+						name
+						nickname
+					}
+				}
+			}`, `
+			query pet {
+				pet {
+					... on Dog {
+						name @__defer_internal(id: 1)
+						nickname @__defer_internal(id: 1)
+						barkVolume @__defer_internal(id: 2, parentDeferId: 1)
+						extra {
+							noString
+							string
+						}
+					}
+					... on Cat {
+						name
+						extra {
+							bool
+						}
+						meowVolume @__defer_internal(id: 3)
+						nickname
+					}
+				}
+			}`, `{"dogExtraString": false, "catExtra": true, "catNoExtra": false}`, `{}`)
+		})
 	})
+
 }
 
 func TestOperationNormalizer_NormalizeOperation(t *testing.T) {
