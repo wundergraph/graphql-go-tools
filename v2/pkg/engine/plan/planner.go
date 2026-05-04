@@ -24,6 +24,7 @@ type Planner struct {
 	planningPathBuilder  *PathBuilder
 
 	prepareOperationWalker *astvisitor.Walker
+	deferInfoCollector     *deferInfoCollector
 }
 
 // NewPlanner creates a new Planner from the Configuration.
@@ -56,6 +57,7 @@ func NewPlanner(config Configuration) (*Planner, error) {
 	// prepare operation walker handles internal normalization for planner
 	prepareOperationWalker := astvisitor.NewWalkerWithID(48, "PrepareOperationWalker")
 	astnormalization.InlineFragmentAddOnType(&prepareOperationWalker)
+	deferInfoCollector := registerDeferInfoCollector(&prepareOperationWalker)
 
 	// planning
 
@@ -69,6 +71,7 @@ func NewPlanner(config Configuration) (*Planner, error) {
 		planningWalker:         &planningWalker,
 		planningVisitor:        planningVisitor,
 		prepareOperationWalker: &prepareOperationWalker,
+		deferInfoCollector:     deferInfoCollector,
 	}
 
 	return p, nil
@@ -104,6 +107,8 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	if report.HasErrors() {
 		return
 	}
+
+	p.planningVisitor.deferDescriptors = p.deferInfoCollector.descriptors
 
 	// assign hash to each datasource
 	for i := range p.config.DataSources {

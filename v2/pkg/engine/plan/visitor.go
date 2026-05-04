@@ -53,6 +53,7 @@ type Visitor struct {
 	exportedVariables            map[string]struct{}
 	disableResolveFieldPositions bool
 	includeQueryPlans            bool
+	deferDescriptors             map[int]resolve.DeferDescriptor
 	indirectInterfaceFields      map[int]indirectInterfaceField
 	pathCache                    map[astvisitor.VisitorKind]map[int]string
 
@@ -1022,7 +1023,8 @@ func (v *Visitor) EnterOperationDefinition(opRef int) {
 
 		v.plan = &DeferResponsePlan{
 			Response: &resolve.GraphQLDeferResponse{
-				Response: v.response,
+				Response:         v.response,
+				DeferDescriptors: v.deferDescriptors,
 			},
 		}
 	default:

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -56,6 +57,7 @@ type Resolvable struct {
 	skipValueCompletion bool
 	deferMode           bool
 	deferID             int
+	deferDescriptors    map[int]DeferDescriptor
 
 	typeNames [][]byte
 
@@ -122,6 +124,7 @@ func (r *Resolvable) Reset() {
 	}
 	r.deferMode = false
 	r.deferID = 0
+	r.deferDescriptors = nil
 	r.enableDeferRender = false
 	r.incrementalItemWritten = false
 	r.deferItemDataNull = false
@@ -255,6 +258,7 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 	}
 
 	if r.deferMode && !r.hasErrors() {
+		r.printPendingEntries(r.deferDescriptors)
 		r.printHasNext(true)
 	}
 
@@ -268,10 +272,9 @@ func (r *Resolvable) ResolveDefer(rootData *Object, out io.Writer, hasNext bool)
 	r.printErr = nil
 	r.authorizationError = nil
 
-	// This method acts as a generator for the incremental response
-	// It will print the incremental response envelope and then use walkObject to find and render the deferred fields
-
-	// First pass: validate and check for authorization errors
+	// First pass (pre-walk): validate, collect errors, decide whether the
+	// fragment root survived null-propagation. r.deferItemDataNull is set
+	// inside walkObject when null propagated through a non-nullable chain.
 	r.enableRender = false
 	r.deferMode = true
 	r.enableDeferRender = false
@@ -283,23 +286,58 @@ func (r *Resolvable) ResolveDefer(rootData *Object, out io.Writer, hasNext bool)
 		return r.authorizationError
 	}
 
-	// Second pass: render the incremental response
-	r.enableRender = true
-	r.incrementalItemWritten = false
-	r.enableDeferRender = false // reset: first pass may have left it true on early return
+	shouldSkipIncremental := r.deferItemDataNull
 
+	// Open the per-defer envelope.
 	r.printBytes(lBrace)
+
+	if !shouldSkipIncremental {
+		// Second pass: render incremental data.
+		r.printBytes(quote)
+		r.printBytes(literalIncremental)
+		r.printBytes(quote)
+		r.printBytes(colon)
+		r.printBytes(lBrack)
+
+		r.enableRender = true
+		r.incrementalItemWritten = false
+		r.enableDeferRender = false
+
+		_ = r.walkObject(rootData, r.data)
+
+		r.printBytes(rBrack)
+		r.printBytes(comma)
+	}
+
+	// Always emit completed for this defer id.
 	r.printBytes(quote)
-	r.printBytes(literalIncremental)
+	r.printBytes(literalCompleted)
 	r.printBytes(quote)
 	r.printBytes(colon)
 	r.printBytes(lBrack)
-
-	_ = r.walkObject(rootData, r.data)
-
+	r.printBytes(lBrace)
+	// "id":"<n>"
+	r.printBytes(quote)
+	r.printBytes(literalId)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(quote)
+	r.printBytes([]byte(strconv.Itoa(r.deferID)))
+	r.printBytes(quote)
+	if shouldSkipIncremental && r.hasErrors() {
+		r.printBytes(comma)
+		r.printBytes(quote)
+		r.printBytes(literalErrors)
+		r.printBytes(quote)
+		r.printBytes(colon)
+		r.printNode(r.errors)
+	}
+	r.printBytes(rBrace)
 	r.printBytes(rBrack)
 
-	r.printHasNext(hasNext && !r.hasErrors())
+	// hasNext is independent of internal defer errors — they're scoped
+	// to this defer's `completed.errors` and do not terminate the response.
+	r.printHasNext(hasNext)
 
 	r.printBytes(rBrace)
 
@@ -319,6 +357,70 @@ func (r *Resolvable) renderPath() {
 		} else {
 			r.printBytes(unsafebytes.StringToBytes(strconv.Itoa(p.Idx)))
 		}
+	}
+	r.printBytes(rBrack)
+}
+
+// printPendingEntries writes `,"pending":[...]` listing every descriptor in
+// the map, sorted by id ascending. Writes nothing if the map is empty/nil.
+func (r *Resolvable) printPendingEntries(descriptors map[int]DeferDescriptor) {
+	if len(descriptors) == 0 {
+		return
+	}
+	ids := make([]int, 0, len(descriptors))
+	for id := range descriptors {
+		ids = append(ids, id)
+	}
+	sort.Ints(ids)
+	r.printBytes(comma)
+	r.printBytes(quote)
+	r.printBytes(literalPending)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(lBrack)
+	for i, id := range ids {
+		if i > 0 {
+			r.printBytes(comma)
+		}
+		d := descriptors[id]
+		r.printBytes(lBrace)
+		// "id":"<n>"
+		r.printBytes(quote)
+		r.printBytes(literalId)
+		r.printBytes(quote)
+		r.printBytes(colon)
+		r.printBytes(quote)
+		r.printBytes([]byte(strconv.Itoa(d.ID)))
+		r.printBytes(quote)
+		// "path":[...]
+		r.printBytes(comma)
+		r.printBytes(quote)
+		r.printBytes(literalPath)
+		r.printBytes(quote)
+		r.printBytes(colon)
+		r.printPathArray(d.Path)
+		// "label":"<l>"  — only if non-empty
+		if d.Label != "" {
+			r.printBytes(comma)
+			r.printBytes(quote)
+			r.printBytes(literalLabel)
+			r.printBytes(quote)
+			r.printBytes(colon)
+			r.printBytes(strconv.AppendQuote(nil, d.Label))
+		}
+		r.printBytes(rBrace)
+	}
+	r.printBytes(rBrack)
+}
+
+// printPathArray writes a precomputed []string path as a JSON string array.
+func (r *Resolvable) printPathArray(path []string) {
+	r.printBytes(lBrack)
+	for i, segment := range path {
+		if i > 0 {
+			r.printBytes(comma)
+		}
+		r.printBytes(strconv.AppendQuote(nil, segment))
 	}
 	r.printBytes(rBrack)
 }
@@ -353,12 +455,17 @@ func (r *Resolvable) printDeferEnvelopeOpen() {
 	r.printBytes(lBrace)
 }
 
-func (r *Resolvable) printDeferPathAndErrors() {
+// printDeferIdAndErrors writes "id":"<n>" optionally followed by
+// ,"errors":[...] when recoverable errors are pending on this incremental item.
+func (r *Resolvable) printDeferIdAndErrors() {
 	r.printBytes(quote)
-	r.printBytes(literalPath)
+	r.printBytes(literalId)
 	r.printBytes(quote)
 	r.printBytes(colon)
-	r.renderPath()
+	r.printBytes(quote)
+	r.printBytes([]byte(strconv.Itoa(r.deferID)))
+	r.printBytes(quote)
+	r.printDeferSubPathIfAny()
 	if r.hasErrors() {
 		r.printBytes(comma)
 		r.printBytes(quote)
@@ -369,6 +476,57 @@ func (r *Resolvable) printDeferPathAndErrors() {
 	}
 }
 
+// printDeferSubPathIfAny writes ,"subPath":[...] when the resolver's runtime
+// path goes deeper than the current defer's descriptor path.
+//
+// Rule: subPath = runtime_path − descriptor.path. Walk r.path; track a
+// cursor into descriptor.Path. When a runtime segment's name matches the
+// cursor's named segment, advance the cursor and skip the segment (it's
+// "consumed" by the descriptor prefix). Every other segment — unmatched
+// names AND list indices — flows into subPath. Emit nothing when subPath
+// is empty.
+func (r *Resolvable) printDeferSubPathIfAny() {
+	descriptor := r.deferDescriptors[r.deferID]
+	descPath := descriptor.Path
+	descIdx := 0
+
+	suffixStart := -1
+	for i, p := range r.path {
+		if descIdx < len(descPath) && p.Name != "" && p.Name == descPath[descIdx] {
+			descIdx++
+			continue
+		}
+		suffixStart = i
+		break
+	}
+	if suffixStart < 0 {
+		return
+	}
+
+	r.printBytes(comma)
+	r.printBytes(quote)
+	r.printBytes(literalSubPath)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(lBrack)
+	first := true
+	for i := suffixStart; i < len(r.path); i++ {
+		if !first {
+			r.printBytes(comma)
+		}
+		first = false
+		p := r.path[i]
+		if p.Name != "" {
+			r.printBytes(quote)
+			r.printBytes(unsafebytes.StringToBytes(p.Name))
+			r.printBytes(quote)
+		} else {
+			r.printBytes(unsafebytes.StringToBytes(strconv.Itoa(p.Idx)))
+		}
+	}
+	r.printBytes(rBrack)
+}
+
 func (r *Resolvable) printDeferEnvelopeClose() {
 	if !r.render() {
 		return
@@ -376,22 +534,7 @@ func (r *Resolvable) printDeferEnvelopeClose() {
 
 	r.printBytes(rBrace)
 	r.printBytes(comma)
-	r.printDeferPathAndErrors()
-	r.printBytes(rBrace)
-}
-
-func (r *Resolvable) printDeferEnvelopeNullData() {
-	if !r.render() {
-		return
-	}
-	r.printBytes(lBrace)
-	r.printBytes(quote)
-	r.printBytes(literalData)
-	r.printBytes(quote)
-	r.printBytes(colon)
-	r.printBytes(null)
-	r.printBytes(comma)
-	r.printDeferPathAndErrors()
+	r.printDeferIdAndErrors()
 	r.printBytes(rBrace)
 }
 
@@ -815,14 +958,6 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 				}
 
 				if r.deferID != 0 {
-					if r.deferItemDataNull {
-						// Pre-walk detected null propagating through non-nullable chain;
-						// render {"data":null,"path":[...],"errors":[...]} without walking fields.
-						r.printDeferEnvelopeNullData()
-						r.incrementalItemWritten = true
-						r.enableDeferRender = false
-						return true
-					}
 					r.printDeferEnvelopeOpen()
 				}
 			}

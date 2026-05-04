@@ -263,3 +263,27 @@ func (d *Document) FieldInternalDeferID(fieldRef int) (id int, exists bool) {
 	}
 	return int(d.IntValueAsInt(idValue.Ref)), true
 }
+
+// FieldDeferInfo checks if the given field ref has @__defer_internal directive and
+// returns its id, label, parentID
+func (d *Document) FieldDeferInfo(fieldRef int) (id int, label string, parentID int, exists bool) {
+	directiveRef, ok := d.Fields[fieldRef].Directives.HasDirectiveByNameBytes(d, literal.DEFER_INTERNAL)
+	if !ok {
+		return 0, "", 0, false
+	}
+	idValue, ok := d.DirectiveArgumentValueByName(directiveRef, []byte("id"))
+	if !ok || idValue.Kind != ValueKindInteger {
+		return 0, "", 0, false
+	}
+	id = int(d.IntValueAsInt(idValue.Ref))
+	if id == 0 {
+		return 0, "", 0, false
+	}
+	if labelValue, ok := d.DirectiveArgumentValueByName(directiveRef, []byte("label")); ok && labelValue.Kind == ValueKindString {
+		label = d.StringValueContentString(labelValue.Ref)
+	}
+	if parentValue, ok := d.DirectiveArgumentValueByName(directiveRef, []byte("parentDeferId")); ok && parentValue.Kind == ValueKindInteger {
+		parentID = int(d.IntValueAsInt(parentValue.Ref))
+	}
+	return id, label, parentID, true
+}

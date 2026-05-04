@@ -61,6 +61,22 @@ func (g *GraphQLResponse) SingleFlightAllowed() bool {
 type GraphQLDeferResponse struct {
 	Response *GraphQLResponse
 	Defers   []*DeferFetchGroup
+
+	// DeferDescriptors lists every @defer fragment in the operation, keyed by ID.
+	// Used to render `pending` entries in the initial response and to look up the
+	// path / label of a defer at envelope-render time.
+	DeferDescriptors map[int]DeferDescriptor
+}
+
+// DeferDescriptor describes a single @defer fragment for the incremental-delivery
+// envelope. Path is the response path of the fragment (where it was mounted in
+// the operation); Label is the user-supplied label (empty when none); ParentID
+// is the id of the enclosing @defer (0 for top-level).
+type DeferDescriptor struct {
+	ID       int
+	ParentID int
+	Label    string
+	Path     []string
 }
 
 func (r *GraphQLDeferResponse) QueryPlanString() string {
