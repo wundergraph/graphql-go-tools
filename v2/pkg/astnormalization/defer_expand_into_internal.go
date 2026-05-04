@@ -6,10 +6,10 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 )
 
-// inlineFragmentExpandDefer registers a visitor that
+// deferExpandIntoInternal registers a visitor that
 // applies the defer directive to every nested field
-func inlineFragmentExpandDefer(walker *astvisitor.Walker) {
-	visitor := inlineFragmentExpandDeferVisitor{
+func deferExpandIntoInternal(walker *astvisitor.Walker) {
+	visitor := deferExpandIntoInternalVisitor{
 		Walker: walker,
 	}
 	walker.RegisterEnterDocumentVisitor(&visitor)
@@ -17,12 +17,14 @@ func inlineFragmentExpandDefer(walker *astvisitor.Walker) {
 	walker.RegisterEnterSelectionSetVisitor(&visitor)
 }
 
-type inlineFragmentExpandDeferVisitor struct {
+type deferExpandIntoInternalVisitor struct {
 	*astvisitor.Walker
 
 	operation      *ast.Document
 	defers         []deferInfo
 	currentDeferId int
+
+	ignore bool // external control flag if we should ignore defer
 }
 
 type deferInfo struct {
@@ -32,11 +34,11 @@ type deferInfo struct {
 	fragmentRef   int
 }
 
-func (f *inlineFragmentExpandDeferVisitor) EnterDocument(operation, _ *ast.Document) {
+func (f *deferExpandIntoInternalVisitor) EnterDocument(operation, _ *ast.Document) {
 	f.operation = operation
 }
 
-func (f *inlineFragmentExpandDeferVisitor) EnterInlineFragment(ref int) {
+func (f *deferExpandIntoInternalVisitor) EnterInlineFragment(ref int) {
 	if !f.operation.InlineFragmentHasDirectives(ref) {
 		return
 	}
@@ -51,7 +53,8 @@ func (f *inlineFragmentExpandDeferVisitor) EnterInlineFragment(ref int) {
 	enabled := true
 	ifValue, hasIf := f.operation.DirectiveArgumentValueByName(directiveRef, literal.IF)
 	if hasIf {
-		enabled = bool(f.operation.BooleanValue(ifValue.Ref))
+		isEnabled, valid := f.operation.GetBooleanValue(ifValue)
+		enabled = valid && isEnabled
 	}
 
 	// remove defer directive from the inline fragment
@@ -61,7 +64,7 @@ func (f *inlineFragmentExpandDeferVisitor) EnterInlineFragment(ref int) {
 		Ref:  ref,
 	}, directiveRef)
 
-	if !enabled {
+	if !enabled || f.ignore {
 		return
 	}
 
@@ -99,7 +102,7 @@ func (f *inlineFragmentExpandDeferVisitor) EnterInlineFragment(ref int) {
 	f.defers = append(f.defers, deferInfo)
 }
 
-func (f *inlineFragmentExpandDeferVisitor) LeaveInlineFragment(ref int) {
+func (f *deferExpandIntoInternalVisitor) LeaveInlineFragment(ref int) {
 	if len(f.defers) == 0 {
 		return
 	}
@@ -109,7 +112,7 @@ func (f *inlineFragmentExpandDeferVisitor) LeaveInlineFragment(ref int) {
 	}
 }
 
-func (f *inlineFragmentExpandDeferVisitor) EnterSelectionSet(ref int) {
+func (f *deferExpandIntoInternalVisitor) EnterSelectionSet(ref int) {
 	// if there are no active defers, nothing to do
 	if len(f.defers) == 0 {
 		return
@@ -127,7 +130,7 @@ func (f *inlineFragmentExpandDeferVisitor) EnterSelectionSet(ref int) {
 	}
 }
 
-func (f *inlineFragmentExpandDeferVisitor) addInternalDeferDirective(fieldRef int) {
+func (f *deferExpandIntoInternalVisitor) addInternalDeferDirective(fieldRef int) {
 	deferInfo := f.defers[len(f.defers)-1]
 	f.operation.AddDeferInternalDirectiveToField(fieldRef, deferInfo.id, deferInfo.label, deferInfo.parentDeferId)
 }
