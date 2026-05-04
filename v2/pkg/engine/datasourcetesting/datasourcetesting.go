@@ -250,7 +250,11 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 		}
 
 		if opts.withPrintPlan {
-			t.Log("\n", actualPlan.(*plan.SynchronousResponsePlan).Response.Fetches.QueryPlan().PrettyPrint())
+			switch p := actualPlan.(type) {
+			case *plan.SynchronousResponsePlan:
+				t.Log("\n", p.Response.Fetches.QueryPlan().PrettyPrint())
+			default:
+			}
 		}
 
 		formatterConfig := map[reflect.Type]interface{}{
