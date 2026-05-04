@@ -7,6 +7,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 )
 
 // nodeSelectionVisitor walks through the operation multiple times to rewrite it
@@ -306,9 +307,9 @@ func (c *nodeSelectionVisitor) wrappingFieldDeferID() int {
 }
 
 func (c *nodeSelectionVisitor) LeaveField(ref int) {
-	// "___typename" is an internal typename placeholder
+	// "__internal_typename" is an internal typename placeholder
 	// added by astnormalization.directiveIncludeSkip or astnormalization.deferEnsureTypename normalization rule
-	if bytes.Equal(c.operation.FieldAliasOrNameBytes(ref), []byte("___typename")) {
+	if bytes.Equal(c.operation.FieldAliasOrNameBytes(ref), literal.INTERNAL_TYPENAME) {
 		// we should skip such typename as it was added as a placeholder to keep query valid
 		// when normalizaion removed all other selections from the selection set
 		c.addSkipFieldRefs(ref)

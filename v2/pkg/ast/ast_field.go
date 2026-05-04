@@ -180,6 +180,12 @@ func (d *Document) FieldTypeNode(fieldName []byte, enclosingNode Node) (node Nod
 	return node, true
 }
 
+// MergeFieldsDefer reconciles @__defer_internal directives when right is merged into left
+// (right is discarded by the caller). Rules:
+//   - if either side is not deferred, the merged field is not deferred — a non-deferred path
+//     means the field must be delivered in the initial response
+//   - if both sides defer, the smaller id wins, since lower ids correspond to earlier/outer
+//     defer scopes that subsume later ones
 func (d *Document) MergeFieldsDefer(left, right int) {
 	leftDeferDirectiveRef, leftDeferExists := d.Fields[left].Directives.HasDirectiveByNameBytes(d, literal.DEFER_INTERNAL)
 	rightDeferDirectiveRef, rightDeferExists := d.Fields[right].Directives.HasDirectiveByNameBytes(d, literal.DEFER_INTERNAL)

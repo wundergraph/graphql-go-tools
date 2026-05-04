@@ -53,9 +53,9 @@ func TestDirectiveIncludeVisitor(t *testing.T) {
 					}
 				}`, `
 				{
-					dog {___typename: __typename}
-					notInclude: dog {___typename: __typename}
-					skip: dog {___typename: __typename}
+					dog {__internal_typename: __typename}
+					notInclude: dog {__internal_typename: __typename}
+					skip: dog {__internal_typename: __typename}
 				}`)
 	})
 	t.Run("include variables true", func(t *testing.T) {
@@ -95,10 +95,10 @@ func TestDirectiveIncludeVisitor(t *testing.T) {
 				}`, `
 				query($no: Boolean!){
 					dog {
-						___typename: __typename
+						__internal_typename: __typename
 					}
 					withAlias: dog {
-						___typename: __typename
+						__internal_typename: __typename
 					}
 				}`, `{"no":false}`)
 	})
@@ -116,7 +116,7 @@ func TestDirectiveIncludeVisitor(t *testing.T) {
 				}`, `
 				query($yes: Boolean! $no: Boolean!){
 					dog {
-						___typename: __typename
+						__internal_typename: __typename
 					}
 					withAlias: dog {
 						name
@@ -137,10 +137,10 @@ func TestDirectiveIncludeVisitor(t *testing.T) {
 				}`, `
 				query($yes: Boolean!) {
 					dog {
-						___typename: __typename
+						__internal_typename: __typename
 					}
 					withAlias: dog {
-						___typename: __typename
+						__internal_typename: __typename
 					}
 				}`, `{"yes":true}`)
 	})
@@ -181,7 +181,7 @@ func TestDirectiveIncludeVisitor(t *testing.T) {
 				}`, `
 				query($yes: Boolean!, $no: Boolean!) {
 					dog {
-						___typename: __typename
+						__internal_typename: __typename
 					}
 					withAlias: dog {
 						name
@@ -202,10 +202,10 @@ func TestDirectiveIncludeVisitor(t *testing.T) {
 				}`, `
 				query($yes: Boolean!, $no: Boolean!) {
 					dog {
-						___typename: __typename
+						__internal_typename: __typename
 					}
 					withAlias: dog {
-						___typename: __typename
+						__internal_typename: __typename
 					}
 				}`, `{"yes":true,"no":false}`)
 	})
@@ -246,7 +246,7 @@ func TestDirectiveIncludeVisitor(t *testing.T) {
 				}`, `
 				query($yes: Boolean = true, $no: Boolean = false) {
 					dog {
-						___typename: __typename
+						__internal_typename: __typename
 					}
 					withAlias: dog {
 						name
@@ -272,7 +272,7 @@ func TestDirectiveIncludeVisitor(t *testing.T) {
 						}
 					}
 					withAlias: dog {
-						___typename: __typename
+						__internal_typename: __typename
 					}
 				}`, `{}`)
 	})
@@ -290,7 +290,7 @@ func TestDirectiveIncludeVisitor(t *testing.T) {
 				}`, `
 				query($yes: Boolean = false, $no: Boolean = true) {
 					dog {
-						___typename: __typename
+						__internal_typename: __typename
 					}
 					withAlias: dog {
 						name
@@ -316,7 +316,7 @@ func TestDirectiveIncludeVisitor(t *testing.T) {
 						}
 					}
 					withAlias: dog {
-						___typename: __typename
+						__internal_typename: __typename
 					}
 				}`, `{"yes":true,"no":false}`)
 	})

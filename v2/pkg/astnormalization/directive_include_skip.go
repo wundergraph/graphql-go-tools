@@ -160,7 +160,7 @@ func addInternalTypeNamePlaceholder(operation *ast.Document, selectionSetRef int
 		// So planner could ignore this field during creation of the response shape
 		Alias: ast.Alias{
 			IsDefined: true,
-			Name:      operation.Input.AppendInputString("___typename"),
+			Name:      operation.Input.AppendInputBytes(literal.INTERNAL_TYPENAME),
 		},
 	})
 	selectionRef := operation.AddSelectionToDocument(ast.Selection{
