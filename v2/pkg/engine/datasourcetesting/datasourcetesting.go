@@ -211,7 +211,7 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 		}
 
 		if opts.withDefer {
-			normalizationOptions = append(normalizationOptions, astnormalization.WithInlineDefer())
+			normalizationOptions = append(normalizationOptions, astnormalization.WithEnableDefer())
 		}
 
 		norm := astnormalization.NewWithOpts(normalizationOptions...)

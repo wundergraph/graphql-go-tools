@@ -9,12 +9,19 @@ import (
 // deferExpandIntoInternal registers a visitor that
 // applies the defer directive to every nested field
 func deferExpandIntoInternal(walker *astvisitor.Walker) {
+	deferExpandIntoInternalWithDisabled(walker, false)
+}
+
+func deferExpandIntoInternalWithDisabled(walker *astvisitor.Walker, disabled bool) *deferExpandIntoInternalVisitor {
 	visitor := deferExpandIntoInternalVisitor{
-		Walker: walker,
+		Walker:  walker,
+		disable: disabled,
 	}
 	walker.RegisterEnterDocumentVisitor(&visitor)
 	walker.RegisterInlineFragmentVisitor(&visitor)
 	walker.RegisterEnterSelectionSetVisitor(&visitor)
+
+	return &visitor
 }
 
 type deferExpandIntoInternalVisitor struct {
@@ -24,7 +31,8 @@ type deferExpandIntoInternalVisitor struct {
 	defers         []deferInfo
 	currentDeferId int
 
-	ignore bool // external control flag if we should ignore defer
+	ignore  bool // external control flag if we should ignore defer per operation
+	disable bool // external control flag if we should ignore defer globally
 }
 
 type deferInfo struct {
@@ -64,7 +72,7 @@ func (f *deferExpandIntoInternalVisitor) EnterInlineFragment(ref int) {
 		Ref:  ref,
 	}, directiveRef)
 
-	if !enabled || f.ignore {
+	if !enabled || f.disable || f.ignore {
 		return
 	}
 

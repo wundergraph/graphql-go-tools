@@ -17,6 +17,10 @@ func TestDeferExpandIntoInternal(t *testing.T) {
 		walker.RegisterEnterSelectionSetVisitor(&visitor)
 	}
 
+	deferExpandIntoInternalWithDisable := func(walker *astvisitor.Walker) {
+		deferExpandIntoInternalWithDisabled(walker, true)
+	}
+
 	t.Run("simple - enabled by default", func(t *testing.T) {
 		run(t, deferExpandIntoInternal, testDefinition, `
 					query dog {
@@ -145,6 +149,24 @@ func TestDeferExpandIntoInternal(t *testing.T) {
 	})
 	t.Run("simple - enabled via variable but ignored", func(t *testing.T) {
 		runWithVariables(t, deferExpandIntoInternalWithIgnore, testDefinition, `
+					query dog($defer: Boolean!) {
+						dog {
+							... @defer(if: $defer) {
+								name
+							}
+						}
+					}`,
+			`
+					query dog($defer: Boolean!) {
+						dog {
+							... {
+								name
+							}
+						}
+					}`, `{"defer": true}`)
+	})
+	t.Run("simple - enabled via variable but disabled", func(t *testing.T) {
+		runWithVariables(t, deferExpandIntoInternalWithDisable, testDefinition, `
 					query dog($defer: Boolean!) {
 						dog {
 							... @defer(if: $defer) {

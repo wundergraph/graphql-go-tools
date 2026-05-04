@@ -153,7 +153,7 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 			astnormalization.WithRemoveFragmentDefinitions(),
 			astnormalization.WithRemoveUnusedVariables(),
 			astnormalization.WithInlineFragmentSpreads(),
-			astnormalization.WithInlineDefer(),
+			astnormalization.WithEnableDefer(),
 		)
 		if err != nil {
 			return err

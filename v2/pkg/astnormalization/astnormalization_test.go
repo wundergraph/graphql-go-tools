@@ -41,7 +41,7 @@ func TestNormalizeOperation(t *testing.T) {
 			WithRemoveFragmentDefinitions(),
 			WithRemoveUnusedVariables(),
 			WithNormalizeDefinition(),
-			WithInlineDefer(),
+			WithEnableDefer(),
 		)
 		normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
 
