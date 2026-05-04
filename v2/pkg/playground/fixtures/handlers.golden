@@ -1,6 +1,0 @@
-(playground.Handlers) (len=1 cap=1) {
- (playground.HandlerConfig) {
-  Path: (string) (len=11) "/playground",
-  Handler: (http.HandlerFunc) <nil>
- }
-}

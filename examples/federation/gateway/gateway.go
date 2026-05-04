@@ -42,9 +42,9 @@ func NewGateway(
 		return nil, fmt.Errorf("can't create an engine: %w", err)
 	}
 
-	upgrader := &ws.HTTPUpgrader{
-		Header: http.Header{},
-	}
+	upgrader := &ws.DefaultHTTPUpgrader
+	upgrader.Header = http.Header{}
+	upgrader.Header.Add("Sec-Websocket-Protocol", "graphql-ws")
 
 	handler := httphandler.NewGraphqlHTTPHandler(engineConfig.Schema(), executionEngine, upgrader, logger, enableART)
 

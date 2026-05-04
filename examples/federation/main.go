@@ -7,12 +7,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gobwas/ws"
 	log "github.com/jensneuse/abstractlogger"
 	"go.uber.org/zap"
 
 	"github.com/wundergraph/graphql-go-tools/examples/federation/gateway"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/playground"
+	"github.com/wundergraph/graphql-go-tools/execution/playground"
 )
 
 // It's just a simple example of graphql federation gateway server, it's NOT a production ready code.
@@ -31,10 +30,6 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	upgrader := &ws.DefaultHTTPUpgrader
-	upgrader.Header = http.Header{}
-	upgrader.Header.Add("Sec-Websocket-Protocol", "graphql-ws")
 
 	graphqlEndpoint := "/query"
 	playgroundURLPrefix := "/playground"
