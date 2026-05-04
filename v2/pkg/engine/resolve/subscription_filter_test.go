@@ -1,7 +1,6 @@
 package resolve
 
 import (
-	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -31,9 +30,8 @@ func TestSubscriptionFilter(t *testing.T) {
 		c := &Context{
 			Variables: astjson.MustParseBytes([]byte(`{"var":true}`)),
 		}
-		buf := &bytes.Buffer{}
 		data := []byte(`{"event":true}`)
-		skip, err := filter.SkipEvent(c, data, buf)
+		skip, err := filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, false, skip)
 	})
@@ -58,9 +56,8 @@ func TestSubscriptionFilter(t *testing.T) {
 		c := &Context{
 			Variables: astjson.MustParseBytes([]byte(`{"var":"false"}`)),
 		}
-		buf := &bytes.Buffer{}
 		data := []byte(`{"event":true}`)
-		skip, err := filter.SkipEvent(c, data, buf)
+		skip, err := filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, true, skip)
 	})
@@ -85,18 +82,16 @@ func TestSubscriptionFilter(t *testing.T) {
 		c := &Context{
 			Variables: astjson.MustParseBytes([]byte(`{"var":"true"}`)),
 		}
-		buf := &bytes.Buffer{}
 		data := []byte(`{"event":true}`)
-		skip, err := filter.SkipEvent(c, data, buf)
+		skip, err := filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, true, skip)
 
 		c = &Context{
 			Variables: astjson.MustParseBytes([]byte(`{"var":true}`)),
 		}
-		buf = &bytes.Buffer{}
 		data = []byte(`{"event":"true"}`)
-		skip, err = filter.SkipEvent(c, data, buf)
+		skip, err = filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, true, skip)
 	})
@@ -121,9 +116,8 @@ func TestSubscriptionFilter(t *testing.T) {
 		c := &Context{
 			Variables: astjson.MustParseBytes([]byte(`{"var":1.13}`)),
 		}
-		buf := &bytes.Buffer{}
 		data := []byte(`{"event":1.13}`)
-		skip, err := filter.SkipEvent(c, data, buf)
+		skip, err := filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, false, skip)
 	})
@@ -148,18 +142,16 @@ func TestSubscriptionFilter(t *testing.T) {
 		c := &Context{
 			Variables: astjson.MustParseBytes([]byte(`{"var":"1.13"}`)),
 		}
-		buf := &bytes.Buffer{}
 		data := []byte(`{"event":1.13}`)
-		skip, err := filter.SkipEvent(c, data, buf)
+		skip, err := filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, true, skip)
 
 		c = &Context{
 			Variables: astjson.MustParseBytes([]byte(`{"var":1.13}`)),
 		}
-		buf = &bytes.Buffer{}
 		data = []byte(`{"event":"1.13"}`)
-		skip, err = filter.SkipEvent(c, data, buf)
+		skip, err = filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, true, skip)
 	})
@@ -184,9 +176,8 @@ func TestSubscriptionFilter(t *testing.T) {
 		c := &Context{
 			Variables: astjson.MustParseBytes([]byte(`{"var":49}`)),
 		}
-		buf := &bytes.Buffer{}
 		data := []byte(`{"event":49}`)
-		skip, err := filter.SkipEvent(c, data, buf)
+		skip, err := filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, false, skip)
 	})
@@ -211,18 +202,16 @@ func TestSubscriptionFilter(t *testing.T) {
 		c := &Context{
 			Variables: astjson.MustParseBytes([]byte(`{"var":"49"}`)),
 		}
-		buf := &bytes.Buffer{}
 		data := []byte(`{"event":49}`)
-		skip, err := filter.SkipEvent(c, data, buf)
+		skip, err := filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, true, skip)
 
 		c = &Context{
 			Variables: astjson.MustParseBytes([]byte(`{"var":49}`)),
 		}
-		buf = &bytes.Buffer{}
 		data = []byte(`{"event":"49"}`)
-		skip, err = filter.SkipEvent(c, data, buf)
+		skip, err = filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, true, skip)
 	})
@@ -247,9 +236,8 @@ func TestSubscriptionFilter(t *testing.T) {
 		c := &Context{
 			Variables: astjson.MustParseBytes([]byte(`{"var":"9.77"}`)),
 		}
-		buf := &bytes.Buffer{}
 		data := []byte(`{"event":8.01}`)
-		skip, err := filter.SkipEvent(c, data, buf)
+		skip, err := filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, true, skip)
 	})
@@ -274,9 +262,8 @@ func TestSubscriptionFilter(t *testing.T) {
 		c := &Context{
 			Variables: astjson.MustParseBytes([]byte(`{"var":123}`)),
 		}
-		buf := &bytes.Buffer{}
 		data := []byte(`{"event":321}`)
-		skip, err := filter.SkipEvent(c, data, buf)
+		skip, err := filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, true, skip)
 	})
@@ -301,9 +288,8 @@ func TestSubscriptionFilter(t *testing.T) {
 		c := &Context{
 			Variables: astjson.MustParseBytes([]byte(`{"var":true}`)),
 		}
-		buf := &bytes.Buffer{}
 		data := []byte(`{"event":true}`)
-		skip, err := filter.SkipEvent(c, data, buf)
+		skip, err := filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, false, skip)
 	})
@@ -328,9 +314,8 @@ func TestSubscriptionFilter(t *testing.T) {
 		c := &Context{
 			Variables: astjson.MustParseBytes([]byte(`{"var":["a","b"]}`)),
 		}
-		buf := &bytes.Buffer{}
 		data := []byte(`{"event":"c"}`)
-		skip, err := filter.SkipEvent(c, data, buf)
+		skip, err := filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, true, skip)
 	})
@@ -355,9 +340,8 @@ func TestSubscriptionFilter(t *testing.T) {
 		c := &Context{
 			Variables: astjson.MustParseBytes([]byte(`{"var":[1,"2"]}`)),
 		}
-		buf := &bytes.Buffer{}
 		data := []byte(`{"event":2}`)
-		skip, err := filter.SkipEvent(c, data, buf)
+		skip, err := filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, true, skip)
 	})
@@ -382,9 +366,8 @@ func TestSubscriptionFilter(t *testing.T) {
 		c := &Context{
 			Variables: astjson.MustParseBytes([]byte(`{"var":["a","b","c"]}`)),
 		}
-		buf := &bytes.Buffer{}
 		data := []byte(`{"event":"c"}`)
-		skip, err := filter.SkipEvent(c, data, buf)
+		skip, err := filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, false, skip)
 	})
@@ -411,9 +394,8 @@ func TestSubscriptionFilter(t *testing.T) {
 		c := &Context{
 			Variables: astjson.MustParseBytes([]byte(`{"var":"b"}`)),
 		}
-		buf := &bytes.Buffer{}
 		data := []byte(`{"event":"b"}`)
-		skip, err := filter.SkipEvent(c, data, buf)
+		skip, err := filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, true, skip)
 	})
@@ -440,9 +422,8 @@ func TestSubscriptionFilter(t *testing.T) {
 		c := &Context{
 			Variables: astjson.MustParseBytes([]byte(`{"var":"b"}`)),
 		}
-		buf := &bytes.Buffer{}
 		data := []byte(`{"event":"c"}`)
-		skip, err := filter.SkipEvent(c, data, buf)
+		skip, err := filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, false, skip)
 	})
@@ -488,9 +469,8 @@ func TestSubscriptionFilter(t *testing.T) {
 		c := &Context{
 			Variables: astjson.MustParseBytes([]byte(`{"first":"b","second":"c"}`)),
 		}
-		buf := &bytes.Buffer{}
 		data := []byte(`{"eventX":"b","eventY":"c"}`)
-		skip, err := filter.SkipEvent(c, data, buf)
+		skip, err := filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, false, skip)
 	})
@@ -530,9 +510,8 @@ func TestSubscriptionFilter(t *testing.T) {
 			},
 		}
 		c := &Context{}
-		buf := &bytes.Buffer{}
 		data := []byte(`{"eventX":"b","eventY":"c"}`)
-		skip, err := filter.SkipEvent(c, data, buf)
+		skip, err := filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, false, skip)
 	})
@@ -557,9 +536,8 @@ func TestSubscriptionFilter(t *testing.T) {
 			},
 		}
 		c := &Context{}
-		buf := &bytes.Buffer{}
 		data := []byte(`{"eventX":true,"eventY":"c"}`)
-		skip, err := filter.SkipEvent(c, data, buf)
+		skip, err := filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, false, skip)
 	})
@@ -586,9 +564,8 @@ func TestSubscriptionFilter(t *testing.T) {
 		c := &Context{
 			Variables: astjson.MustParseBytes([]byte(`{"id":1}`)),
 		}
-		buf := &bytes.Buffer{}
 		data := []byte(`{"eventX":1,"eventY":"c"}`)
-		skip, err := filter.SkipEvent(c, data, buf)
+		skip, err := filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, true, skip)
 	})
@@ -613,9 +590,8 @@ func TestSubscriptionFilter(t *testing.T) {
 			},
 		}
 		c := &Context{}
-		buf := &bytes.Buffer{}
 		data := []byte(`{"eventX":null,"eventY":"c"}`)
-		skip, err := filter.SkipEvent(c, data, buf)
+		skip, err := filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, false, skip)
 	})
@@ -661,9 +637,8 @@ func TestSubscriptionFilter(t *testing.T) {
 		c := &Context{
 			Variables: astjson.MustParseBytes([]byte(`{"first":"d","second":"c"}`)),
 		}
-		buf := &bytes.Buffer{}
 		data := []byte(`{"eventX":"b","eventY":"c"}`)
-		skip, err := filter.SkipEvent(c, data, buf)
+		skip, err := filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, true, skip)
 	})
@@ -709,9 +684,8 @@ func TestSubscriptionFilter(t *testing.T) {
 		c := &Context{
 			Variables: astjson.MustParseBytes([]byte(`{"first":"b","unused":"c"}`)),
 		}
-		buf := &bytes.Buffer{}
 		data := []byte(`{"eventX":"b","eventY":"c"}`)
-		skip, err := filter.SkipEvent(c, data, buf)
+		skip, err := filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, true, skip)
 	})
@@ -757,9 +731,8 @@ func TestSubscriptionFilter(t *testing.T) {
 		c := &Context{
 			Variables: astjson.MustParseBytes([]byte(`{"first":"b","second":"c"}`)),
 		}
-		buf := &bytes.Buffer{}
 		data := []byte(`{"eventX":"b","eventY":"c"}`)
-		skip, err := filter.SkipEvent(c, data, buf)
+		skip, err := filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, false, skip)
 	})
@@ -805,9 +778,8 @@ func TestSubscriptionFilter(t *testing.T) {
 		c := &Context{
 			Variables: astjson.MustParseBytes([]byte(`{"first":"b","unused":"c"}`)),
 		}
-		buf := &bytes.Buffer{}
 		data := []byte(`{"eventX":"b","eventY":"c"}`)
-		skip, err := filter.SkipEvent(c, data, buf)
+		skip, err := filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, false, skip)
 	})
@@ -853,9 +825,8 @@ func TestSubscriptionFilter(t *testing.T) {
 		c := &Context{
 			Variables: astjson.MustParseBytes([]byte(`{"third":"b","second":"c","fourth":1}`)),
 		}
-		buf := &bytes.Buffer{}
 		data := []byte(`{"eventX":"b","eventY":"c","fourth":1}`)
-		skip, err := filter.SkipEvent(c, data, buf)
+		skip, err := filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, false, skip)
 	})
@@ -901,9 +872,8 @@ func TestSubscriptionFilter(t *testing.T) {
 		c := &Context{
 			Variables: astjson.MustParseBytes([]byte(`{"third":"b","second":"c"}`)),
 		}
-		buf := &bytes.Buffer{}
 		data := []byte(`{"eventX":"b","eventY":"c"}`)
-		skip, err := filter.SkipEvent(c, data, buf)
+		skip, err := filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, false, skip)
 	})
@@ -956,9 +926,8 @@ func TestSubscriptionFilter(t *testing.T) {
 		c := &Context{
 			Variables: astjson.MustParseBytes([]byte(`{"third":"b","second":"c","fourth":1}`)),
 		}
-		buf := &bytes.Buffer{}
 		data := []byte(`{"eventX":"b","eventY":"c1","fourth":1}`)
-		skip, err := filter.SkipEvent(c, data, buf)
+		skip, err := filter.SkipEvent(c, data)
 		assert.NoError(t, err)
 		assert.Equal(t, false, skip)
 	})

@@ -2,6 +2,7 @@ package resolve
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"sync"
@@ -15,7 +16,6 @@ import (
 type FakeErrorWriter struct{}
 
 func (f *FakeErrorWriter) WriteError(ctx *Context, err error, res *GraphQLResponse, w io.Writer) {
-
 }
 
 type FakeSubscriptionWriter struct {
@@ -23,7 +23,6 @@ type FakeSubscriptionWriter struct {
 	buf                    []byte
 	writtenMessages        []string
 	completed              bool
-	closed                 bool
 	messageCountOnComplete int
 }
 
@@ -59,11 +58,7 @@ func (f *FakeSubscriptionWriter) Heartbeat() error {
 	return nil
 }
 
-func (f *FakeSubscriptionWriter) Close(SubscriptionCloseKind) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.closed = true
-	f.messageCountOnComplete = len(f.writtenMessages)
+func (f *FakeSubscriptionWriter) Error([]byte) {
 }
 
 type FakeSource struct {
@@ -80,9 +75,28 @@ func (f *FakeSource) Start(ctx *Context, headers http.Header, input []byte, upda
 			}
 		}
 		updater.Complete()
+		updater.Done()
 	}()
 	return nil
 }
+
+type FailingHeartbeatWriter struct{}
+
+func (f *FailingHeartbeatWriter) Write(p []byte) (n int, err error) {
+	return len(p), nil
+}
+
+func (f *FailingHeartbeatWriter) Flush() error {
+	return nil
+}
+
+func (f *FailingHeartbeatWriter) Complete() {}
+
+func (f *FailingHeartbeatWriter) Heartbeat() error {
+	return errors.New("heartbeat failed")
+}
+
+func (f *FailingHeartbeatWriter) Error([]byte) {}
 
 type TestReporter struct {
 	triggers      atomic.Int64
@@ -90,7 +104,6 @@ type TestReporter struct {
 }
 
 func (t *TestReporter) SubscriptionUpdateSent() {
-
 }
 
 func (t *TestReporter) SubscriptionCountInc(count int) {
@@ -110,7 +123,6 @@ func (t *TestReporter) TriggerCountDec(count int) {
 }
 
 func TestEventLoop(t *testing.T) {
-
 	resolverCtx, stopEventLoop := context.WithCancel(context.Background())
 	t.Cleanup(stopEventLoop)
 
@@ -187,5 +199,58 @@ func TestEventLoop(t *testing.T) {
 		require.Equal(t, int64(0), subscriptionCount)
 		return true
 	}, time.Second, time.Millisecond*10)
+}
 
+func TestResolver_HeartbeatError_DoesNotDeadlockOnUnsubscribe(t *testing.T) {
+	resolverCtx, cancelResolver := context.WithCancel(context.Background())
+	defer cancelResolver()
+
+	resolver := New(resolverCtx, ResolverOptions{
+		MaxConcurrency:                1,
+		AsyncErrorWriter:              &FakeErrorWriter{},
+		SubscriptionHeartbeatInterval: time.Hour, // Long interval to prevent background heartbeat loop from competing
+	})
+
+	subCtx := NewContext(context.Background())
+	subID := SubscriptionIdentifier{
+		ConnectionID:   1,
+		SubscriptionID: 1,
+	}
+	triggerID := uint64(42)
+	s := &subscriptionState{
+		triggerID: triggerID,
+		ctx:       subCtx,
+		writer:    &FailingHeartbeatWriter{},
+		id:        subID,
+		heartbeat: true,
+		completed: make(chan struct{}),
+	}
+
+	resolver.mu.Lock()
+	resolver.triggers[triggerID] = &trigger{
+		id:            triggerID,
+		cancel:        func() {},
+		subscriptions: map[SubscriptionIdentifier]*subscriptionState{subID: s},
+	}
+	resolver.subscriptionsByID[subID] = s
+	resolver.subscriptionsByConnection[subID.ConnectionID] = map[SubscriptionIdentifier]*subscriptionState{subID: s}
+	resolver.mu.Unlock()
+
+	done := make(chan struct{})
+	go func() {
+		resolver.heartbeatTriggerSubscriptions(triggerID)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("heartbeatTriggerSubscriptions deadlocked after heartbeat error")
+	}
+
+	select {
+	case <-s.completed:
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("subscription was not closed after heartbeat failure")
+	}
 }
