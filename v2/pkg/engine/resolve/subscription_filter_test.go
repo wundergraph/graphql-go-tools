@@ -1112,9 +1112,7 @@ func TestSubscriptionFieldFilterBypassIfValuesNull(t *testing.T) {
 			c := &Context{
 				Variables: astjson.MustParseBytes([]byte(tt.variables)),
 			}
-			buf := &bytes.Buffer{}
-
-			skip, err := filter.SkipEvent(c, []byte(tt.data), buf)
+			skip, err := filter.SkipEvent(c, []byte(tt.data))
 
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expectedSkip, skip)
