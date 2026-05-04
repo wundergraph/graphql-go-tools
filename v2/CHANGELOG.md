@@ -5,6 +5,7 @@
 
 ### Features
 
+* add `BypassIfValuesNull` flag to subscription field filters so null or absent templated `IN` values can match
 * support costs on arguments of directives ([#1465](https://github.com/wundergraph/graphql-go-tools/issues/1465)) ([2eca1ab](https://github.com/wundergraph/graphql-go-tools/commit/2eca1ab9932395d9b3181d28e8e6c2c03818f68b))
 
 
