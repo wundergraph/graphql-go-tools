@@ -40,11 +40,7 @@ func (l *DirectiveList) HasDirectiveByNameBytes(document *Document, directiveNam
 func (l *DirectiveList) RemoveDirectiveByName(document *Document, name string) {
 	for i := range l.Refs {
 		if document.DirectiveNameString(l.Refs[i]) == name {
-			if i < len(l.Refs)-1 {
-				l.Refs = append(l.Refs[:i], l.Refs[i+1:]...)
-			} else {
-				l.Refs = l.Refs[:i]
-			}
+			l.Refs = append(l.Refs[:i], l.Refs[i+1:]...)
 			return
 		}
 	}
@@ -53,11 +49,7 @@ func (l *DirectiveList) RemoveDirectiveByName(document *Document, name string) {
 func (l *DirectiveList) RemoveDirectiveByRef(directiveRef int) {
 	for i := range l.Refs {
 		if l.Refs[i] == directiveRef {
-			if i < len(l.Refs)-1 {
-				l.Refs = append(l.Refs[:i], l.Refs[i+1:]...)
-			} else {
-				l.Refs = l.Refs[:i]
-			}
+			l.Refs = append(l.Refs[:i], l.Refs[i+1:]...)
 			return
 		}
 	}
