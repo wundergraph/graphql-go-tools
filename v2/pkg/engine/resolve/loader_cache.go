@@ -1518,11 +1518,13 @@ func (l *Loader) applyEntityFetchL2Results(info *FetchInfo, res *result, state l
 		// Extract the entity key from the schema-shape value BEFORE
 		// denormalization. cacheConfig.KeyFields are schema names; once
 		// aliases are reapplied, an `id` key field would no longer match a
-		// `userId: id` aliased field and the entitySourceRecord would be
-		// silently dropped, leaving EntitySource / EntityDataSource lookups
-		// to fall back to defaults for cached alias reads.
+		// `userId: id` aliased field. Without this, the entitySourceRecord
+		// is silently dropped (causing EntitySource / EntityDataSource lookups
+		// to fall back to defaults) and shadow-mode field hashes lose their
+		// entity-key correlation. Computed once for both the analytics and
+		// shadow-mode branches below.
 		var preDenormKeyJSON []byte
-		if state.analyticsEnabled && len(res.cacheConfig.KeyFields) > 0 && len(res.l1CacheKeys[i].Keys) > 0 {
+		if (state.analyticsEnabled || state.shadowMode) && len(res.cacheConfig.KeyFields) > 0 && len(res.l1CacheKeys[i].Keys) > 0 {
 			preDenormKeyJSON = buildEntityKeyJSON(res.l1CacheKeys[i].FromCache, res.cacheConfig.KeyFields)
 		}
 
@@ -1557,7 +1559,11 @@ func (l *Loader) applyEntityFetchL2Results(info *FetchInfo, res *result, state l
 			if len(res.l2CacheKeys[i].Keys) > 0 {
 				remaining = state.remainingTTLs[res.l2CacheKeys[i].Keys[0]]
 			}
-			l.saveShadowCachedValue(res, i, res.l1CacheKeys[i].FromCache, res.l1CacheKeys[i].Keys[0], remaining)
+			// preDenormKeyJSON was extracted from the schema-shape FromCache
+			// before denormalization above; FromCache is now alias-denormalized
+			// so re-extracting the key in compareShadowValues would miss
+			// aliased @key fields. Persist it on the shadow entry instead.
+			l.saveShadowCachedValue(res, i, res.l1CacheKeys[i].FromCache, res.l1CacheKeys[i].Keys[0], string(preDenormKeyJSON), remaining)
 			if state.tracingCache {
 				res.cacheTraceShadowHit = true
 			}
@@ -2485,13 +2491,18 @@ func (l *Loader) applyL2CacheKeyInterceptor(key string, res *result) string {
 }
 
 // saveShadowCachedValue saves a cached L2 value for later staleness comparison in shadow mode.
-func (l *Loader) saveShadowCachedValue(res *result, index int, cachedValue *astjson.Value, cacheKey string, remainingTTL time.Duration) {
+// keyRaw must be the entity key JSON extracted from the schema-shape value BEFORE
+// alias denormalization — by the time compareShadowValues runs, cachedValue may
+// have been denormalized in place, so re-extracting the key from it would miss
+// aliased @key fields and lose entity-key correlation on shadow field hashes.
+func (l *Loader) saveShadowCachedValue(res *result, index int, cachedValue *astjson.Value, cacheKey, keyRaw string, remainingTTL time.Duration) {
 	if res.shadowCachedValues == nil {
 		res.shadowCachedValues = make(map[int]shadowCacheEntry, len(res.l1CacheKeys))
 	}
 	res.shadowCachedValues[index] = shadowCacheEntry{
 		cachedValue:  cachedValue,
 		cacheKey:     cacheKey,
+		keyRaw:       keyRaw,
 		remainingTTL: remainingTTL,
 	}
 }
@@ -2558,18 +2569,17 @@ func (l *Loader) compareShadowValues(res *result, info *FetchInfo) {
 		// Fresh field hashes are already recorded during resolution (FieldSourceSubgraph).
 		// Here we record cached field hashes so the consumer can diff per-field.
 		if info.ProvidesData != nil {
-			// Build entity key for correlation with resolution-time hashes
-			var keyRaw string
-			if len(res.cacheConfig.KeyFields) > 0 {
-				if keyJSON := buildEntityKeyJSON(entry.cachedValue, res.cacheConfig.KeyFields); len(keyJSON) > 0 {
-					keyRaw = string(keyJSON)
-				}
-			}
+			// Use the pre-denormalization keyRaw captured when the shadow
+			// entry was saved. cachedValue may already be alias-denormalized
+			// here, so re-extracting via buildEntityKeyJSON would miss
+			// aliased @key fields and lose entity-key correlation on the
+			// FieldSourceShadowCached hashes.
+			//
 			// Recurse to mirror the fresh-side per-leaf emission so nested
 			// value-type scalars (e.g. User.address.street) line up by
 			// (entityType, fieldName, FieldPath) instead of being collapsed
 			// into a single whole-subobject hash.
-			l.hashShadowCachedLeaves(cachedProvides, info.ProvidesData, entityType, keyRaw, dataSource, nil)
+			l.hashShadowCachedLeaves(cachedProvides, info.ProvidesData, entityType, entry.keyRaw, dataSource, nil)
 		}
 	}
 }

@@ -221,6 +221,7 @@ type result struct {
 type shadowCacheEntry struct {
 	cachedValue  *astjson.Value // saved from L2 cache hit
 	cacheKey     string         // for correlation
+	keyRaw       string         // entity key JSON extracted from the schema-shape value BEFORE alias denormalization (so aliased @key fields still match cacheConfig.KeyFields)
 	remainingTTL time.Duration  // remaining TTL from L2 CacheEntry (0 = unknown)
 }
 
