@@ -314,6 +314,58 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 	require.Equal(t, "Test Product", resp.Data.ComplexFilterType[0].Name)
 }
 
+// Test_DataSource_Load_WithRecursiveInputType sends a nested recursive ConditionsInput through the
+// full execution pipeline to verify that no stack overflow occurs during plan building, input
+// serialization, and gRPC invocation.
+func Test_DataSource_Load_WithRecursiveInputType(t *testing.T) {
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
+
+	query := `query ConditionalSearchQuery($conditions: ConditionsInput!) { conditionalSearch(conditions: $conditions) { id name matchedConditions } }`
+	// 3 leaf conditions: two direct leaves in "and", one nested leaf inside "or"
+	variables := `{"variables":{"conditions":{"and":[{"key":"k1","value":"v1"},{"key":"k2","value":"v2"},{"or":[{"key":"k3","value":"v3"}]}]}}}`
+
+	schemaDoc := grpctest.MustGraphQLSchema(t)
+
+	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
+	if report.HasErrors() {
+		t.Fatalf("failed to parse query: %s", report.Error())
+	}
+
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), nil)
+	if err != nil {
+		t.Fatalf("failed to compile proto: %v", err)
+	}
+
+	ds, err := NewDataSource(conn, DataSourceConfig{
+		Operation:    &queryDoc,
+		Definition:   &schemaDoc,
+		SubgraphName: "Products",
+		Compiler:     compiler,
+		Mapping:      testMapping(),
+	})
+	require.NoError(t, err)
+
+	output, err := ds.Load(context.Background(), nil, []byte(fmt.Sprintf(`{"query":%q,"body":%s}`, query, variables)))
+	require.NoError(t, err)
+
+	type response struct {
+		Data struct {
+			ConditionalSearch []struct {
+				Id                string `json:"id"`
+				Name              string `json:"name"`
+				MatchedConditions int    `json:"matchedConditions"`
+			} `json:"conditionalSearch"`
+		} `json:"data"`
+	}
+
+	var resp response
+	err = json.Unmarshal(output, &resp)
+	require.NoError(t, err)
+	require.Len(t, resp.Data.ConditionalSearch, 1)
+	require.Equal(t, 3, resp.Data.ConditionalSearch[0].MatchedConditions)
+}
+
 func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 	conn, cleanup := setupTestGRPCServer(t)
 	t.Cleanup(cleanup)
@@ -559,8 +611,7 @@ func TestMarshalResponseJSON(t *testing.T) {
 	responseMessageDesc := responseMsg.Desc
 	responseMessage := dynamicpb.NewMessage(responseMessageDesc)
 	responseMessage.Mutable(responseMessageDesc.Fields().ByName("result")).List().Append(protoref.ValueOfMessage(productMessage))
-
-	jsonBuilder := newJSONBuilder(nil, nil, gjson.Result{})
+	jsonBuilder := newJSONBuilder(nil, testMapping(), gjson.Result{})
 	responseJSON, err := jsonBuilder.marshalResponseJSON(&response, responseMessage)
 	require.NoError(t, err)
 	require.Equal(t, `{"_entities":[{"__typename":"Product","id":"123","name_different":"test","price_different":123.45}]}`, responseJSON.String())

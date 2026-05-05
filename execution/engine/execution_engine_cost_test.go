@@ -14,9 +14,10 @@ func TestExecutionEngine_Cost(t *testing.T) {
 
 	t.Run("common on star wars scheme", func(t *testing.T) {
 		rootNodes := []plan.TypeField{
-			{TypeName: "Query", FieldNames: []string{"hero", "droid"}},
+			{TypeName: "Query", FieldNames: []string{"hero", "droid", "search"}},
 			{TypeName: "Human", FieldNames: []string{"name", "height", "friends"}},
 			{TypeName: "Droid", FieldNames: []string{"name", "primaryFunction", "friends"}},
+			{TypeName: "Starship", FieldNames: []string{"name", "length"}},
 		}
 		childNodes := []plan.TypeField{
 			{TypeName: "Character", FieldNames: []string{"name", "friends"}},
@@ -59,7 +60,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Droid", FieldName: "name"}: {HasWeight: true, Weight: 17},
 								},
 							}},
@@ -79,7 +80,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					},
 				},
 				expectedResponse:      `{"data":{"droid":{"name":"R2D2","primaryFunction":"no"}}}`,
-				expectedEstimatedCost: 18, // Query.droid (1) + droid.name (17)
+				expectedEstimatedCost: intPtr(18), // Query.droid (1) + droid.name (17)
 			},
 			computeCosts(),
 		))
@@ -110,7 +111,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Query", FieldName: "droid"}: {
 										ArgumentWeights: map[string]int{"id": 3},
 										HasWeight:       false,
@@ -134,7 +135,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					},
 				},
 				expectedResponse:      `{"data":{"droid":{"name":"R2D2","primaryFunction":"no"}}}`,
-				expectedEstimatedCost: 21, // Query.droid (1) + Query.droid.id (3) + droid.name (17)
+				expectedEstimatedCost: intPtr(21), // Query.droid (1) + Query.droid.id (3) + droid.name (17)
 			},
 			computeCosts(),
 		))
@@ -165,7 +166,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Query", FieldName: "droid"}: {
 										HasWeight:       true,
 										Weight:          -10,                      // Negative field weight
@@ -196,7 +197,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				expectedResponse: `{"data":{"droid":{"name":"R2D2","primaryFunction":"no"}}}`,
 				// All weights are negative.
 				// But cost should be floored to 0 (never negative)
-				expectedEstimatedCost: 0,
+				expectedEstimatedCost: intPtr(0),
 			},
 			computeCosts(),
 		))
@@ -224,7 +225,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							}),
 						),
 						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: &plan.DataSourceCostConfig{
-							Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+							Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 								{TypeName: "Query", FieldName: "hero"}:   {HasWeight: true, Weight: 2},
 								{TypeName: "Human", FieldName: "height"}: {HasWeight: true, Weight: 3},
 								{TypeName: "Human", FieldName: "name"}:   {HasWeight: true, Weight: 7},
@@ -238,7 +239,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					),
 				},
 				expectedResponse:      `{"data":{"hero":{"name":"Luke Skywalker","height":"12"}}}`,
-				expectedEstimatedCost: 22, // Query.hero (2) + Human.height (3) + Droid.name (17=max(7, 17))
+				expectedEstimatedCost: intPtr(22), // Query.hero (2) + Human.height (3) + Droid.name (17=max(7, 17))
 			},
 			computeCosts(),
 		))
@@ -263,7 +264,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							}),
 						),
 						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: &plan.DataSourceCostConfig{
-							Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+							Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 								{TypeName: "Human", FieldName: "name"}: {HasWeight: true, Weight: 7},
 								{TypeName: "Droid", FieldName: "name"}: {HasWeight: true, Weight: 17},
 							},
@@ -276,7 +277,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					),
 				},
 				expectedResponse:      `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
-				expectedEstimatedCost: 30, // Query.Human (13) + Droid.name (17=max(7, 17))
+				expectedEstimatedCost: intPtr(30), // Query.Human (13) + Droid.name (17=max(7, 17))
 			},
 			computeCosts(),
 		))
@@ -312,7 +313,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Human", FieldName: "height"}: {HasWeight: true, Weight: 1},
 									{TypeName: "Human", FieldName: "name"}:   {HasWeight: true, Weight: 2},
 									{TypeName: "Droid", FieldName: "name"}:   {HasWeight: true, Weight: 2},
@@ -327,7 +328,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					),
 				},
 				expectedResponse:      `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
-				expectedEstimatedCost: 127, // Query.hero(max(7,5))+10*(Human(max(7,5))+Human.name(2)+Human.height(1)+Droid.name(2))
+				expectedEstimatedCost: intPtr(127), // Query.hero(max(7,5))+10*(Human(max(7,5))+Human.name(2)+Human.height(1)+Droid.name(2))
 			},
 			computeCosts(),
 		))
@@ -363,7 +364,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Human", FieldName: "height"}: {HasWeight: true, Weight: 1},
 									{TypeName: "Human", FieldName: "name"}:   {HasWeight: true, Weight: 2},
 									{TypeName: "Droid", FieldName: "name"}:   {HasWeight: true, Weight: 2},
@@ -382,7 +383,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					),
 				},
 				expectedResponse:      `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
-				expectedEstimatedCost: 247, // Query.hero(max(7,5))+ 20 * (7+2+2+1)
+				expectedEstimatedCost: intPtr(247), // Query.hero(max(7,5))+ 20 * (7+2+2+1)
 				// We pick maximum on every path independently. This is to reveal the upper boundary.
 				// Query.hero: picked maximum weight (Human=7) out of two types (Human, Droid)
 				// Query.hero.friends: the max possible weight (7) is for implementing class Human
@@ -423,7 +424,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Human", FieldName: "friends"}: {HasWeight: true, Weight: 3},
 									{TypeName: "Droid", FieldName: "friends"}: {HasWeight: true, Weight: 4},
 									{TypeName: "Human", FieldName: "height"}:  {HasWeight: true, Weight: 1},
@@ -444,7 +445,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					),
 				},
 				expectedResponse:      `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
-				expectedEstimatedCost: 187, // Query.hero(max(7,5))+ 20 * (4+2+2+1)
+				expectedEstimatedCost: intPtr(187), // Query.hero(max(7,5))+ 20 * (4+2+2+1)
 			},
 			computeCosts(),
 		))
@@ -485,7 +486,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					),
 				},
 				expectedResponse:      `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
-				expectedEstimatedCost: 11, // Query.hero(max(1,1))+ 10 * 1
+				expectedEstimatedCost: intPtr(11), // Query.hero(max(1,1))+ 10 * 1
 			},
 			computeCosts(),
 		))
@@ -525,7 +526,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Human", FieldName: "height"}: {HasWeight: true, Weight: 1},
 									{TypeName: "Human", FieldName: "name"}:   {HasWeight: true, Weight: 2},
 									{TypeName: "Droid", FieldName: "name"}:   {HasWeight: true, Weight: 2},
@@ -541,9 +542,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				expectedResponse: `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
 				// Estimated with default list size 10: hero(7) + 10 * (7 + 2 + 2 + 1) = 127
-				expectedEstimatedCost: 127,
+				expectedEstimatedCost: intPtr(127),
 				// Actual uses real list size 2: hero(7) + 2 * (7 + 2 + 2 + 1) = 31
-				expectedActualCost: 31,
+				expectedActualCost: intPtr(31),
 			},
 			computeCosts(),
 		))
@@ -577,7 +578,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Human", FieldName: "name"}: {HasWeight: true, Weight: 2},
 									{TypeName: "Droid", FieldName: "name"}: {HasWeight: true, Weight: 2},
 								},
@@ -592,11 +593,11 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				expectedResponse: `{"data":{"hero":{"friends":[]}}}`,
 				// Estimated with default list size 10: hero(7) + 10 * (7 + 2 + 2) = 117
-				expectedEstimatedCost: 117,
+				expectedEstimatedCost: intPtr(117),
 				// Actual with empty list: hero(7) + 1 * (7 + 2 + 2) = 18
 				// We consider empty lists as lists containing one item to account for the
 				// resolver work.
-				expectedActualCost: 18,
+				expectedActualCost: intPtr(18),
 			},
 			computeCosts(),
 		))
@@ -630,7 +631,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Query", FieldName: "hero"}: {HasWeight: true, Weight: 2},
 									{TypeName: "Human", FieldName: "name"}: {HasWeight: true, Weight: 3},
 									{TypeName: "Droid", FieldName: "name"}: {HasWeight: true, Weight: 5},
@@ -656,7 +657,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				//   Character type: max(Human=2, Droid=3) = 3
 				//   name: max(Human.name=3, Droid.name=5) = 5
 				// Total: 2 + 5 + 6 * (3 + 5)
-				expectedEstimatedCost: 55,
+				expectedEstimatedCost: intPtr(55),
 			},
 			computeCosts(),
 		))
@@ -690,7 +691,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Query", FieldName: "hero"}:   {HasWeight: true, Weight: 2},
 									{TypeName: "Human", FieldName: "name"}:   {HasWeight: true, Weight: 3},
 									{TypeName: "Human", FieldName: "height"}: {HasWeight: true, Weight: 7},
@@ -707,10 +708,171 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				expectedResponse: `{"data":{"hero":{"name":"Luke","height":"1.72"}}}`,
 				// Total: 2 + 3 + 7
-				expectedEstimatedCost: 12,
+				expectedEstimatedCost: intPtr(12),
 			},
 			computeCosts(),
 		))
+
+		t.Run("cost on argument of directive", func(t *testing.T) {
+			t.Run("directive with default non-null argument on a field adds to cost", runWithoutError(
+				// search(name: String!): SearchResult @approx
+				ExecutionEngineTestCase{
+					schema: graphql.StarwarsSchema(t),
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{
+								search(name: "Luke") {
+									... on Human { name }
+								}
+							}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost:     "example.com",
+									expectedPath:     "/",
+									expectedBody:     "",
+									sendResponseBody: `{"data":{"search":{"__typename":"Human","name":"Luke"}}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+										{TypeName: "Query", FieldName: "search"}: {
+											HasWeight:                true,
+											Weight:                   3,
+											ArgumentWeights:          map[string]int{"name": 2},
+											DirectiveArgumentWeights: map[string]int{"approx.tolerance": -5},
+										},
+										{TypeName: "Human", FieldName: "name"}: {HasWeight: true, Weight: 5},
+									},
+								},
+							},
+							customConfig,
+						),
+					},
+					fields: []plan.FieldConfiguration{
+						{
+							TypeName: "Query", FieldName: "search",
+							Arguments: []plan.ArgumentConfiguration{
+								{
+									Name:         "name",
+									SourceType:   plan.FieldArgumentSource,
+									RenderConfig: plan.RenderArgumentAsGraphQLValue,
+								},
+							},
+						},
+					},
+					expectedResponse: `{"data":{"search":{"name":"Luke"}}}`,
+					// Query.search(3) + name arg(2) + Human.name(5) + @approx.tolerance(-5) = 5
+					expectedEstimatedCost: intPtr(5),
+					expectedActualCost:    intPtr(5),
+				},
+				computeCosts(),
+			))
+
+			t.Run("querying interface accounts for directive costs on implementations", runWithoutError(
+				// type Droid implements Character { name: String! @approx }
+				ExecutionEngineTestCase{
+					schema: graphql.StarwarsSchema(t),
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{
+								hero { name }
+							}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost:     "example.com",
+									expectedPath:     "/",
+									expectedBody:     "",
+									sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke Skywalker"}}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+										{TypeName: "Human", FieldName: "name"}: {HasWeight: true, Weight: 5},
+										{TypeName: "Droid", FieldName: "name"}: {DirectiveArgumentWeights: map[string]int{"approx.tolerance": -5}},
+									},
+								},
+							},
+							customConfig,
+						),
+					},
+					fields:           []plan.FieldConfiguration{},
+					expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+					// Query.hero(1) + Human.name(5) + @approx.tolerance(-5) = 1
+					expectedEstimatedCost: intPtr(1),
+					expectedActualCost:    intPtr(1),
+				},
+				computeCosts(),
+			))
+
+			t.Run("field with directive of null-value arg does not affect cost", runWithoutError(
+				// droid(id: ID!): Droid @approx(tolerance: null)
+				ExecutionEngineTestCase{
+					schema: graphql.StarwarsSchema(t),
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{
+								droid(id: "R2D2") {
+									primaryFunction
+								}
+							}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: `{"data":{"droid":{"primaryFunction":"no"}}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+										{TypeName: "Droid", FieldName: "primaryFunction"}: {HasWeight: true, Weight: 17},
+									},
+								}},
+							customConfig,
+						),
+					},
+					fields: []plan.FieldConfiguration{
+						{
+							TypeName: "Query", FieldName: "droid",
+							Arguments: []plan.ArgumentConfiguration{
+								{
+									Name:         "id",
+									SourceType:   plan.FieldArgumentSource,
+									RenderConfig: plan.RenderArgumentAsGraphQLValue,
+								},
+							},
+						},
+					},
+					expectedResponse: `{"data":{"droid":{"primaryFunction":"no"}}}`,
+					// Query.droid (1) + droid.primaryFunction (17); @approx.tolerance is null
+					expectedEstimatedCost: intPtr(18),
+					expectedActualCost:    intPtr(18),
+				},
+				computeCosts(),
+			))
+		})
 
 	})
 
@@ -744,7 +906,6 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			{TypeName: "Post", FieldNames: []string{"id", "title", "body"}},
 			{TypeName: "Comment", FieldNames: []string{"id", "text"}},
 		}
-		childNodes := []plan.TypeField{}
 		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
 			Fetch: &graphql_datasource.FetchConfiguration{
 				URL:    "https://example.com/",
@@ -789,10 +950,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							}),
 						),
 						&plan.DataSourceMetadata{
-							RootNodes:  rootNodes,
-							ChildNodes: childNodes,
+							RootNodes: rootNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "User", FieldName: "name"}:    {HasWeight: true, Weight: 2},
 									{TypeName: "User", FieldName: "email"}:   {HasWeight: true, Weight: 3},
 									{TypeName: "Post", FieldName: "title"}:   {HasWeight: true, Weight: 4},
@@ -822,7 +982,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				// TODO: this is not correct, we should pick a maximum sum among types implementing union.
 				//  9 should be used instead of 15
 				// Total: 5 * (3 + 15)
-				expectedEstimatedCost: 90,
+				expectedEstimatedCost: intPtr(90),
 			},
 			computeCosts(),
 		))
@@ -852,10 +1012,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							}),
 						),
 						&plan.DataSourceMetadata{
-							RootNodes:  rootNodes,
-							ChildNodes: childNodes,
+							RootNodes: rootNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "User", FieldName: "name"}:  {HasWeight: true, Weight: 2},
 									{TypeName: "Post", FieldName: "title"}: {HasWeight: true, Weight: 5},
 								},
@@ -880,7 +1039,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				// Total: 3 * (10+2+5)
 				// TODO: we might correct this by counting only members of one implementing types
 				//  of a union when fragments are used.
-				expectedEstimatedCost: 51,
+				expectedEstimatedCost: intPtr(51),
 			},
 			computeCosts(),
 		))
@@ -951,7 +1110,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -970,7 +1129,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"items":[{"id":"2"},{"id":"3"}]}}`,
-				expectedEstimatedCost: 48, // slicingArgument(12) * (Item(3)+Item.id(1))
+				expectedEstimatedCost: intPtr(48), // slicingArgument(12) * (Item(3)+Item.id(1))
 			},
 			computeCosts(),
 		))
@@ -998,7 +1157,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -1017,7 +1176,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"items":[{"id":"2"},{"id":"3"}]}}`,
-				expectedEstimatedCost: 100, // slicingArgument($limit=25) * (Item(3)+Item.id(1))
+				expectedEstimatedCost: intPtr(100), // slicingArgument($limit=25) * (Item(3)+Item.id(1))
 			},
 			computeCosts(),
 		))
@@ -1045,7 +1204,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -1064,7 +1223,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"items":[{"id":"1"},{"id":"2"}]}}`,
-				expectedEstimatedCost: 45, // Total: 15 * (2 + 1)
+				expectedEstimatedCost: intPtr(45), // Total: 15 * (2 + 1)
 			},
 			computeCosts(),
 		))
@@ -1091,7 +1250,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -1110,7 +1269,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"items":[]}}`,
-				expectedEstimatedCost: 60, // 20 * (2 + 1)
+				expectedEstimatedCost: intPtr(60), // 20 * (2 + 1)
 			},
 			computeCosts(),
 		))
@@ -1137,7 +1296,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -1156,7 +1315,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"items":[]}}`,
-				expectedEstimatedCost: 75, //  25 * (2 + 1)
+				expectedEstimatedCost: intPtr(75), //  25 * (2 + 1)
 			},
 			computeCosts(),
 		))
@@ -1248,7 +1407,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Comment", FieldName: "text"}: {HasWeight: true, Weight: 1},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -1286,7 +1445,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				//       Comment type weight: 2
 				//       text weight: 1
 				// Total: 10 * (4 + 5 * (3 + 3 * (2 + 1)))
-				expectedEstimatedCost: 640,
+				expectedEstimatedCost: intPtr(640),
 			},
 			computeCosts(),
 		))
@@ -1320,7 +1479,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Comment", FieldName: "text"}: {HasWeight: true, Weight: 1},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -1357,7 +1516,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				//       Comment type weight: 2
 				//       text weight: 1
 				// Total: 2 * (4 + 50 * (3 + 4 * (2 + 1)))
-				expectedEstimatedCost: 1508,
+				expectedEstimatedCost: intPtr(1508),
 			},
 			computeCosts(),
 		))
@@ -1392,7 +1551,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Comment", FieldName: "text"}: {HasWeight: true, Weight: 1},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -1423,10 +1582,10 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				expectedResponse: `{"data":{"users":[{"posts":[{"comments":[{"text":"hello"}]}]}]}}`,
 				// Estimated cost with slicing arguments (10, 5, 3):
 				// Total: 10 * (4 + 5 * (3 + 3 * (2 + 1))) = 640
-				expectedEstimatedCost: 640,
+				expectedEstimatedCost: intPtr(640),
 				// Actual cost with 1 item at each level:
 				// Total: 1 * (4 + 1 * (3 + 1 * (2 + 1))) = 10
-				expectedActualCost: 10,
+				expectedActualCost: intPtr(10),
 			},
 			computeCosts(),
 		))
@@ -1467,7 +1626,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Comment", FieldName: "text"}: {HasWeight: true, Weight: 1},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -1496,9 +1655,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"users":[{"posts":[{"comments":[{"text":"a"},{"text":"b"},{"text":"c"}]},{"comments":[{"text":"d"},{"text":"e"},{"text":"f"}]}]},{"posts":[{"comments":[{"text":"g"},{"text":"h"},{"text":"i"}]},{"comments":[{"text":"j"},{"text":"k"},{"text":"l"}]}]}]}}`,
-				expectedEstimatedCost: 640,
+				expectedEstimatedCost: intPtr(640),
 				// Actual cost: 2 * (4 + 2 * (3 + 3 * (2 + 1))) = 56
-				expectedActualCost: 56,
+				expectedActualCost: intPtr(56),
 			},
 			computeCosts(),
 		))
@@ -1538,7 +1697,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Comment", FieldName: "text"}: {HasWeight: true, Weight: 1},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -1568,9 +1727,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:           fieldConfig,
 				expectedResponse: `{"data":{"users":[{"posts":[{"comments":[{"text":"d"},{"text":"e"},{"text":"f"}]}]},{"posts":[{"comments":[{"text":"g"},{"text":"h"},{"text":"i"}]},{"comments":[{"text":"j"},{"text":"k"},{"text":"l"}]}]}]}}`,
 				// Estimated : 10 * (4 + 5 * (3 + 2 * (2 + 1))) = 490
-				expectedEstimatedCost: 490,
+				expectedEstimatedCost: intPtr(490),
 				// Actual cost: 2 * (4 + 1.5 * (3 + 3 * (2 + 1))) = 44
-				expectedActualCost: 44,
+				expectedActualCost: intPtr(44),
 			},
 			computeCosts(),
 		))
@@ -1602,7 +1761,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "User", FieldName: "id"}: {HasWeight: true, Weight: 1},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -1622,10 +1781,10 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:           fieldConfig,
 				expectedResponse: `{"data":{"users":[{"id":"1"},{"id":"2"},{"id":"3"}]}}`,
 				// Estimated: 10 * (4 + 1) = 50
-				expectedEstimatedCost: 50,
+				expectedEstimatedCost: intPtr(50),
 				// Actual cost: 3 users at root
 				// 3 * (4 + 1) = 15
-				expectedActualCost: 15,
+				expectedActualCost: intPtr(15),
 			},
 			computeCosts(),
 		))
@@ -1668,7 +1827,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Comment", FieldName: "text"}: {HasWeight: true, Weight: 1},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -1697,7 +1856,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"users":[{"posts":[{"comments":[{"text":"a"},{"text":"b"}]},{"comments":[{"text":"c"},{"text":"d"}]}]},{"posts":[]},{"posts":[{"comments":[]}]}]}}`,
-				expectedEstimatedCost: 640, // 10 * (4 + 5 * (3 + 3 * (2 + 1)))
+				expectedEstimatedCost: intPtr(640), // 10 * (4 + 5 * (3 + 3 * (2 + 1)))
 				// Actual cost with mixed empty/non-empty lists:
 				// Users: 3 items, multiplier 3.0
 				// Posts: 3 items, 3 parents => multiplier 1.0 (avg)
@@ -1709,7 +1868,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				// Users:    RoundToEven((4 + 7) * 3.00)  = 33
 				//
 				// Empty lists are included in the averaging:
-				expectedActualCost: 33,
+				expectedActualCost: intPtr(33),
 			},
 			computeCosts(),
 		))
@@ -1825,7 +1984,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							},
 							ChildNodes: []plan.TypeField{},
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Level5", FieldName: "value"}: {HasWeight: true, Weight: 1},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -1925,7 +2084,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					},
 				},
 				expectedResponse:      `{"data":{"level1":[{"level2":[{"level3":[{"level4":[{"level5":[{"value":"a"}]},{"level5":[{"value":"b"},{"value":"c"}]}]},{"level4":[{"level5":[{"value":"d"}]}]}]},{"level3":[{"level4":[{"level5":[{"value":"e"}]}]}]}]},{"level2":[{"level3":[{"level4":[{"level5":[{"value":"f"},{"value":"g"}]},{"level5":[{"value":"h"}]}]},{"level4":[{"level5":[{"value":"i"}]}]}]}]},{"level2":[{"level3":[{"level4":[{"level5":[{"value":"j"}]},{"level5":[{"value":"k"}]}]},{"level4":[{"level5":[{"value":"l"}]},{"level5":[{"value":"m"}]}]}]}]}]}}`,
-				expectedEstimatedCost: 211110,
+				expectedEstimatedCost: intPtr(211110),
 				// Actual cost with fractional multipliers:
 				// Level5: 13 items, 11 parents => multiplier 1.18 (13/11 = 1.181818...)
 				// Level4: 11 items,  7 parents => multiplier 1.57 (11/7 = 1.571428...)
@@ -1945,7 +2104,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				// Level1: RoundToEven((1 + 15) * 3.00) = 48
 				//
 				// The compounding rounding error: 48 vs 51 (6% underestimate)
-				expectedActualCost: 48,
+				expectedActualCost: intPtr(48),
 			},
 			computeCosts(),
 		))
@@ -2037,7 +2196,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "User", FieldName: "name"}: {HasWeight: true, Weight: 2},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -2057,9 +2216,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:           fieldConfig,
 				expectedResponse: `{"data":{"users":{"edges":[{"node":{"name":"Alice"}}],"nodes":[{"name":"Alice"}],"totalCount":1}}}`,
 				// UserConnection(1) + Int(0) + 8*(UserEdge(1)+User(1)+User.name(2)) + 8*(User(1)+User.name(2))
-				expectedEstimatedCost: 57,
+				expectedEstimatedCost: intPtr(57),
 				// UserConnection(1) + Int(0) + 1*(UserEdge(1)+User(1)+User.name(2)) + 1*(User(1)+User.name(2))
-				expectedActualCost: 8,
+				expectedActualCost: intPtr(8),
 			},
 			computeCosts(),
 		))
@@ -2087,7 +2246,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "User", FieldName: "name"}: {HasWeight: true, Weight: 2},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -2108,9 +2267,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:           fieldConfig,
 				expectedResponse: `{"data":{"users":{"edges":[{"node":{"name":"Alice"}}]}}}`,
 				// UserConnection(1) + 3*(UserEdge(1)+User(1)+User.name(2))
-				expectedEstimatedCost: 13,
+				expectedEstimatedCost: intPtr(13),
 				// UserConnection(1) + 1*(UserEdge(1)+User(1)+User.name(2))
-				expectedActualCost: 5,
+				expectedActualCost: intPtr(5),
 			},
 			computeCosts(),
 		))
@@ -2144,7 +2303,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "User", FieldName: "name"}:  {HasWeight: true, Weight: 2},
 									{TypeName: "Post", FieldName: "title"}: {HasWeight: true, Weight: 3},
 								},
@@ -2170,9 +2329,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:           fieldConfig,
 				expectedResponse: `{"data":{"users":{"edges":[{"node":{"name":"Alice","posts":[{"title":"Hello"}]}}]}}}`,
 				// UserConnection(1) + 5*(UserEdge(1)+User(1)+User.name(2)+2*(Post(1)+Post.title(3)))
-				expectedEstimatedCost: 61,
+				expectedEstimatedCost: intPtr(61),
 				// UserConnection(1) + 1*(UserEdge(1)+User(1)+User.name(2)+1*(Post(1)+Post.title(3)))
-				expectedActualCost: 9,
+				expectedActualCost: intPtr(9),
 			},
 			computeCosts(),
 		))
@@ -2205,7 +2364,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "User", FieldName: "name"}: {HasWeight: true, Weight: 2},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -2228,9 +2387,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:           fieldConfig,
 				expectedResponse: `{"data":{"users":{"edges":[{"node":{"name":"Alice"}}]}}}`,
 				// UserConnection(1) + 10*(UserEdge(1)+User(1)+User.name(2)))
-				expectedEstimatedCost: 41,
+				expectedEstimatedCost: intPtr(41),
 				// UserConnection(1) + 1*(UserEdge(1)+User(1)+User.name(2))
-				expectedActualCost: 5,
+				expectedActualCost: intPtr(5),
 			},
 			computeCosts(),
 		))
@@ -2258,7 +2417,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "User", FieldName: "name"}: {HasWeight: true, Weight: 2},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -2278,8 +2437,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:           fieldConfig,
 				expectedResponse: `{"data":{"users":{"totalCount":42}}}`,
 				// UserConnection(1) + Int(0) = 1
-				expectedEstimatedCost: 1,
-				expectedActualCost:    1,
+				expectedEstimatedCost: intPtr(1),
+				expectedActualCost:    intPtr(1),
 			},
 			computeCosts(),
 		))
@@ -2308,7 +2467,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "User", FieldName: "name"}: {HasWeight: true, Weight: 2},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -2328,9 +2487,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:           fieldConfig,
 				expectedResponse: `{"data":{"users":{"edges":[{"node":{"name":"Alice"}}]}}}`,
 				// UserConnection(1) + 7*(UserEdge(1)+User(1)+User.name(2))
-				expectedEstimatedCost: 29,
+				expectedEstimatedCost: intPtr(29),
 				// UserConnection(1) + 1*(UserEdge(1)+User(1)+User.name(2))
-				expectedActualCost: 5,
+				expectedActualCost: intPtr(5),
 			},
 			computeCosts(),
 		))
@@ -2358,7 +2517,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "User", FieldName: "name"}: {HasWeight: true, Weight: 2},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -2379,9 +2538,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				expectedResponse: `{"data":{"users":{"edges":[{"node":{"name":"Alice"}}]}}}`,
 				// No slicing arg provided, no AssumedSize -> falls back to defaultListSize(10)
 				// UserConnection(1) + 10*(UserEdge(1)+User(1)+User.name(2))
-				expectedEstimatedCost: 41,
+				expectedEstimatedCost: intPtr(41),
 				// UserConnection(1) + 1*(UserEdge(1)+User(1)+User.name(2))
-				expectedActualCost: 5,
+				expectedActualCost: intPtr(5),
 			},
 			computeCosts(),
 		))
@@ -2409,7 +2568,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							RootNodes:  rootNodes,
 							ChildNodes: childNodes,
 							CostConfig: &plan.DataSourceCostConfig{
-								Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "User", FieldName: "name"}: {HasWeight: true, Weight: 2},
 								},
 								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -2431,9 +2590,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				// edges is a sizedField -> multiplier from parent slicing arg = 5
 				// nodes is NOT a sizedField -> falls back to defaultListSize(10)
 				// UserConnection(1) + 5*(UserEdge(1)+User(1)+User.name(2)) + 10*(User(1)+User.name(2))
-				expectedEstimatedCost: 51,
+				expectedEstimatedCost: intPtr(51),
 				// UserConnection(1) + 1*(UserEdge(1)+User(1)+User.name(2)) + 1*(User(1)+User.name(2))
-				expectedActualCost: 8,
+				expectedActualCost: intPtr(8),
 			},
 			computeCosts(),
 		))
@@ -2515,7 +2674,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 								RootNodes:  rootNodes,
 								ChildNodes: childNodes,
 								CostConfig: &plan.DataSourceCostConfig{
-									Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+									Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 										{TypeName: "User", FieldName: "name"}: {HasWeight: true, Weight: 2},
 									},
 									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -2535,8 +2694,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					fields:           fields,
 					expectedResponse: `{"data":{"users":{"edges":[{"node":{"name":"Alice"}}]}}}`,
 					// max(Connection,UserConnection)(1) + 3*(UserEdge(3)+User(1)+User.name(2))
-					expectedEstimatedCost: 19,
-					expectedActualCost:    7,
+					expectedEstimatedCost: intPtr(19),
+					expectedActualCost:    intPtr(7),
 				},
 				computeCosts(),
 			))
@@ -2620,8 +2779,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					fields:           fields,
 					expectedResponse: `{"data":{"users":{"edges":[{"cursor":"abc"}]}}}`,
 					// Connection(1) + 4*(Edge(3)+String(0))
-					expectedEstimatedCost: 13,
-					expectedActualCost:    4,
+					expectedEstimatedCost: intPtr(13),
+					expectedActualCost:    intPtr(4),
 				},
 				computeCosts(),
 			))
@@ -2729,8 +2888,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					fields:           fields,
 					expectedResponse: `{"data":{"search":{"items":{"edges":[{"node":{"name":"Alice"}}]}}}}`,
 					// Paginated(max(1,1)) + ItemConnection(1) + 5*(ItemEdge(2)+Item(1)+Item.name(0))
-					expectedEstimatedCost: 17,
-					expectedActualCost:    5,
+					expectedEstimatedCost: intPtr(17),
+					expectedActualCost:    intPtr(5),
 				},
 				computeCosts(),
 			))
@@ -2856,8 +3015,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					// ListSizes only has {UserPaginated, items} and {PostPaginated, items}.
 					// If not considering implementations, multiplier for edges falls back to
 					// defaultListSize(10): 1 + 1 + 10*(3+1) = 42.
-					expectedEstimatedCost: 22,
-					expectedActualCost:    6,
+					expectedEstimatedCost: intPtr(22),
+					expectedActualCost:    intPtr(6),
 				},
 				computeCosts(),
 			))
@@ -2947,8 +3106,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					fields:           fields,
 					expectedResponse: `{"data":{"feed":{"items":[{"id":"1"},{"id":"2"}],"count":2}}}`,
 					// FeedConnection(1) + Int(0) + 3*(max(Post(3))+ID(0))
-					expectedEstimatedCost: 10,
-					expectedActualCost:    7,
+					expectedEstimatedCost: intPtr(10),
+					expectedActualCost:    intPtr(7),
 				},
 				computeCosts(),
 			))
@@ -3006,7 +3165,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 		}
 
 		costConfigWithRequireOne := &plan.DataSourceCostConfig{
-			Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+			Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 				{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
 			},
 			ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -3026,7 +3185,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 		}
 
 		costConfigWithRequireOneDisabled := &plan.DataSourceCostConfig{
-			Weights: map[plan.FieldCoordinate]*plan.FieldWeight{
+			Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 				{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
 			},
 			ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
@@ -3068,7 +3227,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"itemsNoSlicing":[{"id":"1"}]}}`,
-				expectedEstimatedCost: 15, // assumedSize(5) * (Item(2) + Item.id(1))
+				expectedEstimatedCost: intPtr(15), // assumedSize(5) * (Item(2) + Item.id(1))
 			},
 			computeCosts(),
 		))
@@ -3100,7 +3259,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"items":[{"id":"1"}]}}`,
-				expectedEstimatedCost: 12, // 4 * (Item(2) + Item.id(1))
+				expectedEstimatedCost: intPtr(12), // 4 * (Item(2) + Item.id(1))
 			},
 			computeCosts(),
 		))
@@ -3194,7 +3353,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"items":[{"id":"1"}]}}`,
-				expectedEstimatedCost: 30, // assumedSize(10) * (Item(2) + Item.id(1))
+				expectedEstimatedCost: intPtr(30), // assumedSize(10) * (Item(2) + Item.id(1))
 			},
 			computeCosts(),
 		))
@@ -3226,7 +3385,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"items":[{"id":"1"}]}}`,
-				expectedEstimatedCost: 15, // max(5,3)=5 * (Item(2) + Item.id(1))
+				expectedEstimatedCost: intPtr(15), // max(5,3)=5 * (Item(2) + Item.id(1))
 			},
 			computeCosts(),
 		))
@@ -3259,7 +3418,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"items":[{"id":"1"}]}}`,
-				expectedEstimatedCost: 21, // 7 * (Item(2) + Item.id(1))
+				expectedEstimatedCost: intPtr(21), // 7 * (Item(2) + Item.id(1))
 			},
 			computeCosts(),
 		))
@@ -3456,7 +3615,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                abstractFieldConfig,
 				expectedResponse:      `{"data":{"search":{"items":[{"id":"1"}]}}}`,
-				expectedEstimatedCost: 11, // Paginated(1) + 5 * (Item(2) + Item.id(0))
+				expectedEstimatedCost: intPtr(11), // Paginated(1) + 5 * (Item(2) + Item.id(0))
 			},
 			computeCosts(),
 		))
@@ -3523,5 +3682,644 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			computeCosts(),
 		))
 
+	})
+
+	t.Run("input object cost", func(t *testing.T) {
+		inputObjectSchema := `
+			type Query {
+				create(input: CreateInput!): User
+				update(input: UpdateInput!): User
+				nested(input: OuterInput!): Boolean
+				recursive(input: RecursiveInput!): Boolean
+				createList(input: CreateInput!): [User!] # @listSize(assumedSize: 10)
+				listed(input: ListInput!): Boolean
+
+				# inputOverride(input: CreateInput! @cost(weight: 7)): User @cost(weight: 1)
+				inputOverride(input: CreateInput!): User
+				discounted(input: DiscountedCreateInput!): Boolean
+				negNested(input: NegNestedInput!): Boolean
+				heavyDiscount(input: HeavyDiscountInput!): Boolean
+				createMany(inputs: [CreateInput!]!): Boolean
+			}
+			type User {
+				id: ID!
+				name: String!
+				email: String!
+			}
+			input CreateInput {
+				name: String!          # @cost(weight: 5)
+				email: String!         # @cost(weight: 3)
+				age: Int               # @cost(weight: 2)
+			}
+			# nullable fields for null-value test
+			input UpdateInput {
+				name: String           # @cost(weight: 6)
+				email: String          # @cost(weight: 4)
+			}
+			input OuterInput {
+				label: String!         # @cost(weight: 2)
+				inner: InnerInput!     # @cost(weight: 3)
+			}
+			input InnerInput {
+				value: Int!            # @cost(weight: 4)
+				note: String           # @cost(weight: 1)
+			}
+			input RecursiveInput {
+				i: Int!                # @cost(weight: 2)
+				rec: RecursiveInput    # @cost(weight: 3)
+			}
+			input ListInput {
+				value: Int             # @cost(weight: 7)
+				list: [OuterInput]
+				rec: RecursiveInput
+			}
+			input DiscountedCreateInput {
+				create: CreateInput!   # @cost(weight: -2) — wraps existing input type
+				discount: Int          # @cost(weight: -3)
+				priority: Int          # @cost(weight: 8)
+			}
+			input NegNestedInput {
+				label: String!         # @cost(weight: 2)
+				inner: NegInnerInput!  # @cost(weight: -1)
+			}
+			input NegInnerInput {
+				value: Int!            # @cost(weight: 5)
+				reduction: Int         # @cost(weight: -4)
+			}
+			input HeavyDiscountInput {
+				base: Int!             # @cost(weight: 2)
+				rebate: Int            # @cost(weight: -10)
+			}
+		`
+		schema, err := graphql.NewSchemaFromString(inputObjectSchema)
+		require.NoError(t, err)
+
+		rootNodes := []plan.TypeField{
+			{TypeName: "Query", FieldNames: []string{"create", "update", "nested", "recursive", "createList", "listed", "inputOverride", "discounted", "negNested", "heavyDiscount", "createMany"}},
+			{TypeName: "User", FieldNames: []string{"id", "name", "email"}},
+		}
+		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+			Fetch: &graphql_datasource.FetchConfiguration{
+				URL:    "https://example.com/",
+				Method: "GET",
+			},
+			SchemaConfiguration: mustSchemaConfig(t, nil, inputObjectSchema),
+		})
+		costConfig := &plan.DataSourceCostConfig{
+			Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+				{TypeName: "CreateInput", FieldName: "name"}:   {HasWeight: true, Weight: 5},
+				{TypeName: "CreateInput", FieldName: "email"}:  {HasWeight: true, Weight: 3},
+				{TypeName: "CreateInput", FieldName: "age"}:    {HasWeight: true, Weight: 2},
+				{TypeName: "UpdateInput", FieldName: "name"}:   {HasWeight: true, Weight: 6},
+				{TypeName: "UpdateInput", FieldName: "email"}:  {HasWeight: true, Weight: 4},
+				{TypeName: "OuterInput", FieldName: "label"}:   {HasWeight: true, Weight: 2},
+				{TypeName: "OuterInput", FieldName: "inner"}:   {HasWeight: true, Weight: 3},
+				{TypeName: "InnerInput", FieldName: "value"}:   {HasWeight: true, Weight: 4},
+				{TypeName: "InnerInput", FieldName: "note"}:    {HasWeight: true, Weight: 1},
+				{TypeName: "RecursiveInput", FieldName: "i"}:   {HasWeight: true, Weight: 2},
+				{TypeName: "RecursiveInput", FieldName: "rec"}: {HasWeight: true, Weight: 3},
+				{TypeName: "ListInput", FieldName: "value"}:    {HasWeight: true, Weight: 7},
+				{TypeName: "Query", FieldName: "inputOverride"}: {
+					HasWeight:       true,
+					Weight:          1,
+					ArgumentWeights: map[string]int{"input": 7},
+				},
+				{TypeName: "DiscountedCreateInput", FieldName: "create"}:   {HasWeight: true, Weight: -2},
+				{TypeName: "DiscountedCreateInput", FieldName: "discount"}: {HasWeight: true, Weight: -3},
+				{TypeName: "DiscountedCreateInput", FieldName: "priority"}: {HasWeight: true, Weight: 8},
+				{TypeName: "NegNestedInput", FieldName: "label"}:           {HasWeight: true, Weight: 2},
+				{TypeName: "NegNestedInput", FieldName: "inner"}:           {HasWeight: true, Weight: -1},
+				{TypeName: "NegInnerInput", FieldName: "value"}:            {HasWeight: true, Weight: 5},
+				{TypeName: "NegInnerInput", FieldName: "reduction"}:        {HasWeight: true, Weight: -4},
+				{TypeName: "HeavyDiscountInput", FieldName: "base"}:        {HasWeight: true, Weight: 2},
+				{TypeName: "HeavyDiscountInput", FieldName: "rebate"}:      {HasWeight: true, Weight: -10},
+			},
+			ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+				{TypeName: "Query", FieldName: "createList"}: {AssumedSize: 10},
+			},
+		}
+		fieldConfig := []plan.FieldConfiguration{
+			{
+				TypeName: "Query", FieldName: "create",
+				Arguments: []plan.ArgumentConfiguration{
+					{Name: "input", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+				},
+			},
+			{
+				TypeName: "Query", FieldName: "update",
+				Arguments: []plan.ArgumentConfiguration{
+					{Name: "input", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+				},
+			},
+			{
+				TypeName: "Query", FieldName: "nested",
+				Arguments: []plan.ArgumentConfiguration{
+					{Name: "input", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+				},
+			},
+			{
+				TypeName: "Query", FieldName: "recursive",
+				Arguments: []plan.ArgumentConfiguration{
+					{Name: "input", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+				},
+			},
+			{
+				TypeName: "Query", FieldName: "createList",
+				Arguments: []plan.ArgumentConfiguration{
+					{Name: "input", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+				},
+			},
+			{
+				TypeName: "Query", FieldName: "listed",
+				Arguments: []plan.ArgumentConfiguration{
+					{Name: "input", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+				},
+			},
+			{
+				TypeName: "Query", FieldName: "inputOverride",
+				Arguments: []plan.ArgumentConfiguration{
+					{Name: "input", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+				},
+			},
+			{
+				TypeName: "Query", FieldName: "discounted",
+				Arguments: []plan.ArgumentConfiguration{
+					{Name: "input", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+				},
+			},
+			{
+				TypeName: "Query", FieldName: "negNested",
+				Arguments: []plan.ArgumentConfiguration{
+					{Name: "input", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+				},
+			},
+			{
+				TypeName: "Query", FieldName: "heavyDiscount",
+				Arguments: []plan.ArgumentConfiguration{
+					{Name: "input", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+				},
+			},
+			{
+				TypeName: "Query", FieldName: "createMany",
+				Arguments: []plan.ArgumentConfiguration{
+					{Name: "inputs", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+				},
+			},
+		}
+
+		t.Run("basic input object with weighted fields inline", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ create(input: {name: "Alice", email: "a@b.com", age: 30}) { id name } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"create":{"id":"1","name":"Alice"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"create":{"id":"1","name":"Alice"}}}`,
+				expectedEstimatedCost: intPtr(11), // argsCost(name:5 + email:3 + age:2 = 10) + round((0 + 1) * 1) = 11
+				expectedActualCost:    intPtr(11),
+			},
+			computeCosts(),
+		))
+
+		t.Run("input object via variable with partial fields", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query:     `query($input: CreateInput!) { create(input: $input) { id name } }`,
+						Variables: []byte(`{"input": {"name": "Alice", "email": "a@b.com"}}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"create":{"id":"1","name":"Alice"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"create":{"id":"1","name":"Alice"}}}`,
+				expectedEstimatedCost: intPtr(9), // argsCost(name:5 + email:3 = 8, age omitted) + round((0 + 1) * 1) = 9
+				expectedActualCost:    intPtr(9),
+			},
+			computeCosts(),
+		))
+
+		t.Run("nested input objects", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ nested(input: {label: "hello", inner: {value: 42, note: "n"}}) }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"nested":true}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"nested":true}}`,
+				expectedEstimatedCost: intPtr(10), // argsCost(label:2 + inner:3 + value:4 + note:1 = 10) + round((0 + 0) * 1) = 10
+				expectedActualCost:    intPtr(10),
+			},
+			computeCosts(),
+		))
+
+		t.Run("recursive input objects", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ recursive(input: {i: 1, rec: {i: 2, rec: {i: 3}}}) }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"recursive":true}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:           fieldConfig,
+				expectedResponse: `{"data":{"recursive":true}}`,
+
+				// countedInputCoords = {A.i: 3, A.rec: 2} implies
+				// argsCost(3*2 + 2*3 = 12) = 12
+				expectedEstimatedCost: intPtr(12),
+				expectedActualCost:    intPtr(12),
+			},
+			computeCosts(),
+		))
+
+		t.Run("input object on list field argsCost not multiplied", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ createList(input: {name: "Eve", email: "e@f.com"}) { id name } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"createList":[{"id":"1","name":"Eve"},{"id":"2","name":"Eve2"}]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"createList":[{"id":"1","name":"Eve"},{"id":"2","name":"Eve2"}]}}`,
+				expectedEstimatedCost: intPtr(18), // argsCost(name:5 + email:3 = 8) + round((0 + 1) * 10) = 18
+				expectedActualCost:    intPtr(10), // argsCost(8) + round((0 + 1) * 2) = 10
+			},
+			computeCosts(),
+		))
+
+		t.Run("explicit argument weight does not override input object cost", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ inputOverride(input: {name: "Alice", email: "a@b.com", age: 30}) { id } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"inputOverride":{"id":"1"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"inputOverride":{"id":"1"}}}`,
+				expectedEstimatedCost: intPtr(18), // argsCost(input:7 + name:5 + email:3 + age:2 = 17) + round((0 + 1) * 1) = 18
+				expectedActualCost:    intPtr(18),
+			},
+			computeCosts(),
+		))
+
+		t.Run("null field values not counted", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query:     `query($input: UpdateInput!) { update(input: $input) { id } }`,
+						Variables: []byte(`{"input": {"name": "Bob", "email": null}}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"update":{"id":"1"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"update":{"id":"1"}}}`,
+				expectedEstimatedCost: intPtr(7), // argsCost(name:6) + round((0 + 1) * 1) = 7
+				expectedActualCost:    intPtr(7),
+			},
+			computeCosts(),
+		))
+
+		t.Run("all fields null via variable", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query:     `query($input: UpdateInput!) { update(input: $input) { id } }`,
+						Variables: []byte(`{"input": {"name": null, "email": null}}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"update":{"id":"1"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"update":{"id":"1"}}}`,
+				expectedEstimatedCost: intPtr(1), // argsCost(0) + round((0 + 1) * 1) = 1
+				expectedActualCost:    intPtr(1),
+			},
+			computeCosts(),
+		))
+
+		t.Run("listed field with list of input objects", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ listed(input: {
+									value: 5, 
+									list: [
+										{
+											label: "a", 
+											inner: {value: 1}
+										}, 
+										{
+											label: "b", 
+											inner: {value: 2}
+										}
+									]
+								})}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"listed":true}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"listed":true}}`,
+				expectedEstimatedCost: intPtr(25), // 7 + 5*2 + 4*2
+				expectedActualCost:    intPtr(25),
+			},
+			computeCosts(),
+		))
+		t.Run("negative input field weights reduce cost", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ discounted(input: {create: {name: "A", email: "b"}, discount: 5, priority: 1}) }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"discounted":true}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"discounted":true}}`,
+				expectedEstimatedCost: intPtr(11), // create:(name:5 + email:3) + create:-2 + discount:-3 + priority:8
+				expectedActualCost:    intPtr(11),
+			},
+			computeCosts(),
+		))
+
+		t.Run("omitting negative input field gives higher cost", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ discounted(input: {create: {name: "A", email: "b"}, priority: 1}) }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"discounted":true}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"discounted":true}}`,
+				expectedEstimatedCost: intPtr(14), // create→(name:5 + email:3) + create:-2 + priority:8 = 14 (no discount:-3)
+				expectedActualCost:    intPtr(14),
+			},
+			computeCosts(),
+		))
+
+		t.Run("negative weights in nested input object", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ negNested(input: {label: "x", inner: {value: 42, reduction: 1}}) }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"negNested":true}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"negNested":true}}`,
+				expectedEstimatedCost: intPtr(2), // label:2 + inner→(value:5 + reduction:-4) + inner:-1 = 2
+				expectedActualCost:    intPtr(2),
+			},
+			computeCosts(),
+		))
+
+		t.Run("omitting negative nested field gives higher cost", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ negNested(input: {label: "x", inner: {value: 42}}) }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"negNested":true}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"negNested":true}}`,
+				expectedEstimatedCost: intPtr(6), // label:2 + inner→(value:5) + inner:-1 = 6 (no reduction:-4)
+				expectedActualCost:    intPtr(6),
+			},
+			computeCosts(),
+		))
+
+		t.Run("negative cost clamped to zero", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ heavyDiscount(input: {base: 1, rebate: 1}) }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"heavyDiscount":true}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"heavyDiscount":true}}`,
+				expectedEstimatedCost: intPtr(0), // base:2 + rebate:-10 = -8 → floored to 0
+				expectedActualCost:    intPtr(0),
+			},
+			computeCosts(),
+		))
+
+		t.Run("list-typed input object argument", func(t *testing.T) {
+			t.Run("should count per-item field weights", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schema,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query:     `query($inputs: [CreateInput!]!) { createMany(inputs: $inputs) }`,
+							Variables: []byte(`{"inputs": [{"name": "A", "email": "a@b.com"}, {"name": "B", "email": "b@c.com", "age": 30}]}`),
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: `{"data":{"createMany":true}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{RootNodes: rootNodes, CostConfig: costConfig},
+							customConfig,
+						),
+					},
+					fields:                fieldConfig,
+					expectedResponse:      `{"data":{"createMany":true}}`,
+					expectedEstimatedCost: intPtr(18), // item1(name:5 + email:3) + item2(name:5 + email:3 + age:2) = 18
+					expectedActualCost:    intPtr(18),
+				},
+				computeCosts(),
+			))
+		})
 	})
 }

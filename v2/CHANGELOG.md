@@ -1,5 +1,45 @@
 # Changelog
 
+## [2.1.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0...v2.1.0) (2026-04-30)
+
+
+### Features
+
+* subscriptions overhaul ([#1374](https://github.com/wundergraph/graphql-go-tools/issues/1374)) ([6c0ac71](https://github.com/wundergraph/graphql-go-tools/commit/6c0ac71e071abf06fdf618d45d100769f0017acd))
+
+## [2.0.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.270...v2.0.0) (2026-04-27)
+
+
+### Features
+
+* support costs on arguments of directives ([#1465](https://github.com/wundergraph/graphql-go-tools/issues/1465)) ([2eca1ab](https://github.com/wundergraph/graphql-go-tools/commit/2eca1ab9932395d9b3181d28e8e6c2c03818f68b))
+
+
+### Bug Fixes
+
+* grpc datasource stack overflows on recursive input ([#1466](https://github.com/wundergraph/graphql-go-tools/issues/1466)) ([eba0f58](https://github.com/wundergraph/graphql-go-tools/commit/eba0f58ff241520a8b66fc206c41ff73d8f33d03))
+
+## [2.0.0-rc.270](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.269...v2.0.0-rc.270) (2026-04-09)
+
+
+### Bug Fixes
+
+* entity null fetch produces resolver error ([#1379](https://github.com/wundergraph/graphql-go-tools/issues/1379)) ([a753eb3](https://github.com/wundergraph/graphql-go-tools/commit/a753eb3320b4e969bb9d80308188751c3c15db73))
+
+## [2.0.0-rc.269](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.268...v2.0.0-rc.269) (2026-04-08)
+
+
+### Features
+
+* handle recursion for arguments containing input objects ([#1461](https://github.com/wundergraph/graphql-go-tools/issues/1461)) ([ba21793](https://github.com/wundergraph/graphql-go-tools/commit/ba21793c75bdd68a1f6bf70583cc09cbd767139b))
+
+## [2.0.0-rc.268](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.267...v2.0.0-rc.268) (2026-04-07)
+
+
+### Features
+
+* add support for fields with arguments and requires directive ([#1452](https://github.com/wundergraph/graphql-go-tools/issues/1452)) ([58469c3](https://github.com/wundergraph/graphql-go-tools/commit/58469c39c9f9b2c610bbe36febb6cd7fce319127))
+
 ## [2.0.0-rc.267](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.266...v2.0.0-rc.267) (2026-03-26)
 
 
