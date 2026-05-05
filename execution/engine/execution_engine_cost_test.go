@@ -1564,6 +1564,51 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			computeCosts(),
 		))
 
+		t.Run("required dot-path slicing argument with empty variables is invalid", runWithAndCompareError(
+			ExecutionEngineTestCase{
+				schema: schemaSlicing,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `query NestedInput($input: SInput) {
+							  search(input: $input) { id }
+							}`,
+						Variables: []byte(`{}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"search":[]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+									{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
+								},
+								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+									{TypeName: "Query", FieldName: "search"}: {
+										SlicingArguments:          []string{"input.pagination.first"},
+										RequireOneSlicingArgument: true,
+									},
+								},
+								Types: map[string]int{"Item": 3},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields: fieldConfig,
+			},
+			"external: field 'Query.search' requires exactly one slicing argument, but none was provided, locations: [], path: [search]",
+			computeCosts(),
+		))
+
 		t.Run("slicing argument not provided falls back to assumedSize", runWithoutError(
 			ExecutionEngineTestCase{
 				schema: schemaSlicing,
