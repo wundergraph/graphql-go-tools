@@ -935,7 +935,11 @@ func normalizeSnapshotPreservingAttribution(snap resolve.CacheAnalyticsSnapshot)
 		snap.L2Writes = sorted
 	}
 
-	// Sort FieldHashes for deterministic comparison
+	// Sort FieldHashes for deterministic comparison. FieldPath and DataSource
+	// are included as final tiebreakers so attribution-preserving comparisons
+	// (normalizeSnapshotPreservingAttribution) order events deterministically
+	// when two records share EntityType/FieldName/Key but differ only in
+	// subgraph attribution or value-type traversal path.
 	if snap.FieldHashes != nil {
 		sorted := make([]resolve.EntityFieldHash, len(snap.FieldHashes))
 		copy(sorted, snap.FieldHashes)
@@ -952,7 +956,13 @@ func normalizeSnapshotPreservingAttribution(snap resolve.CacheAnalyticsSnapshot)
 			if sorted[i].KeyHash != sorted[j].KeyHash {
 				return sorted[i].KeyHash < sorted[j].KeyHash
 			}
-			return sorted[i].FieldHash < sorted[j].FieldHash
+			if sorted[i].FieldHash != sorted[j].FieldHash {
+				return sorted[i].FieldHash < sorted[j].FieldHash
+			}
+			if cmp := compareStringSlice(sorted[i].FieldPath, sorted[j].FieldPath); cmp != 0 {
+				return cmp < 0
+			}
+			return sorted[i].DataSource < sorted[j].DataSource
 		})
 		snap.FieldHashes = sorted
 	}
@@ -973,7 +983,8 @@ func normalizeSnapshotPreservingAttribution(snap resolve.CacheAnalyticsSnapshot)
 		snap.ShadowComparisons = sorted
 	}
 
-	// Sort MutationEvents for deterministic comparison
+	// Sort MutationEvents for deterministic comparison. DataSource is a
+	// tiebreaker so the strict variant orders attribution-distinct events.
 	if snap.MutationEvents != nil {
 		sorted := make([]resolve.MutationEvent, len(snap.MutationEvents))
 		copy(sorted, snap.MutationEvents)
@@ -981,7 +992,10 @@ func normalizeSnapshotPreservingAttribution(snap resolve.CacheAnalyticsSnapshot)
 			if sorted[i].MutationRootField != sorted[j].MutationRootField {
 				return sorted[i].MutationRootField < sorted[j].MutationRootField
 			}
-			return sorted[i].EntityCacheKey < sorted[j].EntityCacheKey
+			if sorted[i].EntityCacheKey != sorted[j].EntityCacheKey {
+				return sorted[i].EntityCacheKey < sorted[j].EntityCacheKey
+			}
+			return sorted[i].DataSource < sorted[j].DataSource
 		})
 		snap.MutationEvents = sorted
 	}
@@ -1038,8 +1052,36 @@ func normalizeSnapshotPreservingAttribution(snap resolve.CacheAnalyticsSnapshot)
 	if len(snap.HeaderImpactEvents) == 0 {
 		snap.HeaderImpactEvents = nil
 	}
+	if len(snap.CacheOpErrors) == 0 {
+		snap.CacheOpErrors = nil
+	}
 
 	return snap
+}
+
+// compareStringSlice lexicographically compares two []string values. Returns
+// -1, 0, or +1. Used as a deterministic tiebreaker when sorting events that
+// preserve a FieldPath dimension.
+func compareStringSlice(a, b []string) int {
+	n := len(a)
+	if len(b) < n {
+		n = len(b)
+	}
+	for i := 0; i < n; i++ {
+		if a[i] != b[i] {
+			if a[i] < b[i] {
+				return -1
+			}
+			return 1
+		}
+	}
+	if len(a) < len(b) {
+		return -1
+	}
+	if len(a) > len(b) {
+		return 1
+	}
+	return 0
 }
 
 // normalizeFetchTimings sorts FetchTimings deterministically and zeros DurationMs
