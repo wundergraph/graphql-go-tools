@@ -958,7 +958,7 @@ func (l *Loader) tryL1CacheLoad(info *FetchInfo, cacheKeys []*CacheKey, res *res
 					if len(res.cacheConfig.KeyFields) > 0 {
 						keyJSON := buildEntityKeyJSON(cachedValue, res.cacheConfig.KeyFields)
 						if len(keyJSON) > 0 {
-							l.ctx.cacheAnalytics.RecordEntitySource(entityType, string(keyJSON), FieldSourceL1)
+							l.ctx.cacheAnalytics.RecordEntitySource(entityType, string(keyJSON), dataSource, FieldSourceL1)
 						}
 					}
 				}
@@ -1515,6 +1515,17 @@ func (l *Loader) applyEntityFetchL2Results(info *FetchInfo, res *result, state l
 		res.l2CacheKeys[i].fromCacheRemainingTTL = res.l1CacheKeys[i].fromCacheRemainingTTL
 		res.l2CacheKeys[i].fromCacheNeedsWriteback = res.l1CacheKeys[i].fromCacheNeedsWriteback
 
+		// Extract the entity key from the schema-shape value BEFORE
+		// denormalization. cacheConfig.KeyFields are schema names; once
+		// aliases are reapplied, an `id` key field would no longer match a
+		// `userId: id` aliased field and the entitySourceRecord would be
+		// silently dropped, leaving EntitySource / EntityDataSource lookups
+		// to fall back to defaults for cached alias reads.
+		var preDenormKeyJSON []byte
+		if state.analyticsEnabled && len(res.cacheConfig.KeyFields) > 0 && len(res.l1CacheKeys[i].Keys) > 0 {
+			preDenormKeyJSON = buildEntityKeyJSON(res.l1CacheKeys[i].FromCache, res.cacheConfig.KeyFields)
+		}
+
 		if state.hasAliases {
 			res.l1CacheKeys[i].FromCache = l.structuralCopyDenormalizedPassthrough(res.l1CacheKeys[i].FromCache, res.providesData)
 		}
@@ -1534,13 +1545,10 @@ func (l *Loader) applyEntityFetchL2Results(info *FetchInfo, res *result, state l
 				Kind: CacheKeyHit, DataSource: state.dataSource, ByteSize: byteSize,
 				CacheAgeMs: cacheAgeMs, Shadow: state.shadowMode,
 			})
-			if len(res.cacheConfig.KeyFields) > 0 {
-				keyJSON := buildEntityKeyJSON(res.l1CacheKeys[i].FromCache, res.cacheConfig.KeyFields)
-				if len(keyJSON) > 0 {
-					res.l2EntitySources = append(res.l2EntitySources, entitySourceRecord{
-						entityType: state.entityType, keyJSON: string(keyJSON), source: FieldSourceL2,
-					})
-				}
+			if len(preDenormKeyJSON) > 0 {
+				res.l2EntitySources = append(res.l2EntitySources, entitySourceRecord{
+					entityType: state.entityType, keyJSON: string(preDenormKeyJSON), source: FieldSourceL2, dataSource: state.dataSource,
+				})
 			}
 		}
 
@@ -1652,6 +1660,16 @@ func (l *Loader) applyRootFetchL2Results(info *FetchInfo, res *result, state l2C
 			continue
 		}
 
+		// Walk the schema-shape value for entitySourceRecord emission BEFORE
+		// denormalization. cacheConfig.KeyFields are schema names; once
+		// aliases are reapplied, an `id` key field would no longer match a
+		// `userId: id` aliased field and entity-source records would be
+		// silently dropped, leaving EntitySource / EntityDataSource lookups
+		// to fall back to defaults for cached alias reads.
+		if state.analyticsEnabled && len(res.cacheConfig.KeyFields) > 0 && len(ck.Keys) > 0 {
+			walkCachedResponseForSources(ck.FromCache, res.cacheConfig.KeyFields, state.entityType, state.dataSource, FieldSourceL2, &res.l2EntitySources)
+		}
+
 		if state.hasAliases {
 			if res.batchEntityKeyMode && state.batchEntityProvidesData != nil {
 				res.l2CacheKeys[i].FromCache = l.structuralCopyDenormalized(ck.FromCache, state.batchEntityProvidesData)
@@ -1672,9 +1690,6 @@ func (l *Loader) applyRootFetchL2Results(info *FetchInfo, res *result, state l2C
 				Kind: CacheKeyHit, DataSource: state.dataSource, ByteSize: byteSize,
 				CacheAgeMs: cacheAgeMs, Shadow: state.shadowMode,
 			})
-			if len(res.cacheConfig.KeyFields) > 0 {
-				walkCachedResponseForSources(res.l2CacheKeys[i].FromCache, res.cacheConfig.KeyFields, state.entityType, FieldSourceL2, &res.l2EntitySources)
-			}
 		}
 
 		if state.tracingCache {
@@ -2557,7 +2572,7 @@ func (l *Loader) compareShadowValues(res *result, info *FetchInfo) {
 					fieldBytes := fieldVal.MarshalTo(nil)
 					l.ctx.cacheAnalytics.HashFieldValue(
 						entityType, fieldName, fieldBytes,
-						keyRaw, 0, FieldSourceShadowCached,
+						keyRaw, 0, FieldSourceShadowCached, dataSource,
 					)
 				}
 			}
@@ -2724,6 +2739,7 @@ func (l *Loader) detectSingleMutationEntityImpact(
 	l.ctx.cacheAnalytics.RecordMutationEvent(MutationEvent{
 		MutationRootField: mutationFieldName,
 		EntityType:        cfg.EntityTypeName,
+		DataSource:        info.DataSourceName,
 		EntityCacheKey:    displayKey,
 		HadCachedValue:    false,
 		IsStale:           false,

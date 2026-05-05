@@ -63,11 +63,12 @@ type Resolvable struct {
 	currentFieldInfo *FieldInfo
 
 	// Entity analytics fields (set during walkObject, used during renderFieldValue)
-	currentEntityAnalytics *ObjectCacheAnalytics // resolved analytics for current entity (nil = not entity)
-	currentEntityTypeName  string                // resolved concrete entity type name
-	currentEntityKeyRaw    string                // raw key JSON (when HashKeys=false)
-	currentEntityKeyHash   uint64                // xxhash of key JSON (when HashKeys=true)
-	currentEntitySource    FieldSource           // where the entity data came from
+	currentEntityAnalytics  *ObjectCacheAnalytics // resolved analytics for current entity (nil = not entity)
+	currentEntityTypeName   string                // resolved concrete entity type name
+	currentEntityKeyRaw     string                // raw key JSON (when HashKeys=false)
+	currentEntityKeyHash    uint64                // xxhash of key JSON (when HashKeys=true)
+	currentEntitySource     FieldSource           // where the entity data came from (l1/l2/subgraph)
+	currentEntityDataSource string                // subgraph name that owns the current entity
 
 	// haltExecution is set to true when ErrorBehaviorHalt encounters an error.
 	// Once set, remaining fetches and resolution will be skipped.
@@ -121,6 +122,7 @@ func (r *Resolvable) Reset() {
 	r.currentEntityKeyRaw = ""
 	r.currentEntityKeyHash = 0
 	r.currentEntitySource = FieldSourceSubgraph
+	r.currentEntityDataSource = ""
 	r.xxh.Reset()
 	for k := range r.authorizationAllow {
 		delete(r.authorizationAllow, k)
@@ -601,7 +603,7 @@ func (r *Resolvable) renderFieldValue(value *astjson.Value, valueBytes []byte, n
 				r.ctx.cacheAnalytics.HashFieldValue(
 					r.currentEntityTypeName, r.currentFieldInfo.Name, valueBytes,
 					r.currentEntityKeyRaw, r.currentEntityKeyHash,
-					r.currentEntitySource,
+					r.currentEntitySource, r.currentEntityDataSource,
 				)
 			}
 		}
@@ -747,12 +749,14 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 			savedKeyRaw := r.currentEntityKeyRaw
 			savedKeyHash := r.currentEntityKeyHash
 			savedSource := r.currentEntitySource
+			savedDataSource := r.currentEntityDataSource
 			defer func() {
 				r.currentEntityAnalytics = savedAnalytics
 				r.currentEntityTypeName = savedTypeName
 				r.currentEntityKeyRaw = savedKeyRaw
 				r.currentEntityKeyHash = savedKeyHash
 				r.currentEntitySource = savedSource
+				r.currentEntityDataSource = savedDataSource
 			}()
 
 			r.currentEntityAnalytics = analytics
@@ -763,6 +767,14 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 
 			// Look up source from loading phase
 			r.currentEntitySource = r.ctx.cacheAnalytics.EntitySource(entityTypeName, string(keyJSON))
+			r.currentEntityDataSource = r.ctx.cacheAnalytics.EntityDataSource(entityTypeName, string(keyJSON))
+			// Fall back to the plan-time SourceName when no loader-phase record
+			// exists. This covers fresh subgraph fetches (cold path) where no
+			// L1/L2 hit ever populated the entitySources slice but the planner
+			// already knows which subgraph owns this Object node.
+			if r.currentEntityDataSource == "" {
+				r.currentEntityDataSource = obj.SourceName
+			}
 
 			// Hash or raw key (uses plan-time HashKeys directly)
 			if analytics.HashKeys {

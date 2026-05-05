@@ -107,6 +107,7 @@ type EntityFieldHash struct {
 	KeyRaw     string      // raw key JSON e.g. {"id":"1234"} (when HashKeys=false)
 	KeyHash    uint64      // xxhash of key JSON (when HashKeys=true)
 	Source     FieldSource // where the entity data came from (L1/L2/Subgraph)
+	DataSource string      // subgraph name that owns this entity (empty if not resolvable)
 }
 
 // EntityTypeInfo holds the entity type name and its instance count.
@@ -128,6 +129,7 @@ type entitySourceRecord struct {
 	entityType string
 	keyJSON    string
 	source     FieldSource
+	dataSource string // subgraph name (empty if unknown)
 }
 
 // ShadowComparisonEvent records a comparison between cached and fresh data in shadow mode.
@@ -152,6 +154,7 @@ type MutationEvent struct {
 	Timestamp         time.Time // when the mutation was observed; stamped by RecordMutationEvent if zero
 	MutationRootField string    // e.g., "updateUsername"
 	EntityType        string    // e.g., "User"
+	DataSource        string    // subgraph name that owns the mutated entity (empty when not resolvable)
 	EntityCacheKey    string    // display key e.g. {"__typename":"User","key":{"id":"1234"}}
 	HadCachedValue    bool      // true if L2 had a cached value for this entity
 	IsStale           bool      // true if cached value differs from mutation response (always false when HadCachedValue=false)
@@ -313,8 +316,9 @@ func (c *CacheAnalyticsCollector) RecordWrite(event CacheWriteEvent) {
 }
 
 // HashFieldValue computes an xxhash of the given field value bytes and records it
-// as an EntityFieldHash with entity key and source information.
-func (c *CacheAnalyticsCollector) HashFieldValue(entityType, fieldName string, valueBytes []byte, keyRaw string, keyHash uint64, source FieldSource) {
+// as an EntityFieldHash with entity key and source information. dataSource is
+// the subgraph name that owns the entity (may be empty if not resolvable).
+func (c *CacheAnalyticsCollector) HashFieldValue(entityType, fieldName string, valueBytes []byte, keyRaw string, keyHash uint64, source FieldSource, dataSource string) {
 	c.xxh.Reset()
 	_, _ = c.xxh.Write(valueBytes)
 	hash := c.xxh.Sum64()
@@ -327,6 +331,7 @@ func (c *CacheAnalyticsCollector) HashFieldValue(entityType, fieldName string, v
 		KeyRaw:     keyRaw,
 		KeyHash:    keyHash,
 		Source:     source,
+		DataSource: dataSource,
 	})
 }
 
@@ -353,12 +358,13 @@ func (c *CacheAnalyticsCollector) IncrementEntityCount(typeName string, keyJSON 
 }
 
 // RecordEntitySource records the source of data for a specific entity instance.
-// Main thread only.
-func (c *CacheAnalyticsCollector) RecordEntitySource(entityType, keyJSON string, source FieldSource) {
+// Main thread only. dataSource is the subgraph name (may be empty).
+func (c *CacheAnalyticsCollector) RecordEntitySource(entityType, keyJSON, dataSource string, source FieldSource) {
 	c.entitySources = append(c.entitySources, entitySourceRecord{
 		entityType: entityType,
 		keyJSON:    keyJSON,
 		source:     source,
+		dataSource: dataSource,
 	})
 }
 
@@ -446,6 +452,17 @@ func (c *CacheAnalyticsCollector) EntitySource(entityType, keyJSON string) Field
 		}
 	}
 	return FieldSourceSubgraph
+}
+
+// EntityDataSource returns the subgraph name that owns a given entity instance.
+// Returns "" if no record is found.
+func (c *CacheAnalyticsCollector) EntityDataSource(entityType, keyJSON string) string {
+	for i := len(c.entitySources) - 1; i >= 0; i-- {
+		if c.entitySources[i].entityType == entityType && c.entitySources[i].keyJSON == keyJSON {
+			return c.entitySources[i].dataSource
+		}
+	}
+	return ""
 }
 
 // Snapshot produces a read-only CacheAnalyticsSnapshot from the collected data.
@@ -1065,14 +1082,15 @@ func appendKeyFieldsJSON(buf []byte, value *astjson.Value, keyFields []KeyField)
 
 // walkCachedResponseForSources walks a cached JSON value to find entity instances
 // and accumulates their source records on a per-result slice (goroutine-safe).
-func walkCachedResponseForSources(value *astjson.Value, keyFields []KeyField, entityType string, source FieldSource, out *[]entitySourceRecord) {
+// dataSource is the subgraph name the cached response originated from (may be empty).
+func walkCachedResponseForSources(value *astjson.Value, keyFields []KeyField, entityType, dataSource string, source FieldSource, out *[]entitySourceRecord) {
 	if value == nil {
 		return
 	}
 	switch value.Type() {
 	case astjson.TypeArray:
 		for _, item := range value.GetArray() {
-			walkCachedResponseForSources(item, keyFields, entityType, source, out)
+			walkCachedResponseForSources(item, keyFields, entityType, dataSource, source, out)
 		}
 	case astjson.TypeObject:
 		keyJSON := buildEntityKeyJSON(value, keyFields)
@@ -1081,6 +1099,7 @@ func walkCachedResponseForSources(value *astjson.Value, keyFields []KeyField, en
 				entityType: entityType,
 				keyJSON:    string(keyJSON),
 				source:     source,
+				dataSource: dataSource,
 			})
 		}
 	}

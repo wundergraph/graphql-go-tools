@@ -136,8 +136,8 @@ func TestCacheAnalyticsCollector_FieldHashing(t *testing.T) {
 	t.Run("same input produces same hash", func(t *testing.T) {
 		c := NewCacheAnalyticsCollector()
 
-		c.HashFieldValue("User", "name", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceSubgraph)
-		c.HashFieldValue("User", "name", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceSubgraph)
+		c.HashFieldValue("User", "name", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceSubgraph, "")
+		c.HashFieldValue("User", "name", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceSubgraph, "")
 
 		snap := c.Snapshot()
 		assert.Equal(t, 2, len(snap.FieldHashes))
@@ -151,8 +151,8 @@ func TestCacheAnalyticsCollector_FieldHashing(t *testing.T) {
 	t.Run("different input produces different hash", func(t *testing.T) {
 		c := NewCacheAnalyticsCollector()
 
-		c.HashFieldValue("User", "name", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceSubgraph)
-		c.HashFieldValue("User", "name", []byte(`"Bob"`), `{"id":"2"}`, 0, FieldSourceSubgraph)
+		c.HashFieldValue("User", "name", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceSubgraph, "")
+		c.HashFieldValue("User", "name", []byte(`"Bob"`), `{"id":"2"}`, 0, FieldSourceSubgraph, "")
 
 		snap := c.Snapshot()
 		assert.Equal(t, 2, len(snap.FieldHashes))
@@ -162,7 +162,7 @@ func TestCacheAnalyticsCollector_FieldHashing(t *testing.T) {
 	t.Run("hashed keys mode", func(t *testing.T) {
 		c := NewCacheAnalyticsCollector()
 
-		c.HashFieldValue("User", "name", []byte(`"Alice"`), "", 12345, FieldSourceL1)
+		c.HashFieldValue("User", "name", []byte(`"Alice"`), "", 12345, FieldSourceL1, "")
 
 		snap := c.Snapshot()
 		assert.Equal(t, 1, len(snap.FieldHashes))
@@ -174,9 +174,9 @@ func TestCacheAnalyticsCollector_FieldHashing(t *testing.T) {
 	t.Run("field source tracking", func(t *testing.T) {
 		c := NewCacheAnalyticsCollector()
 
-		c.HashFieldValue("User", "name", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceSubgraph)
-		c.HashFieldValue("User", "name", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceL1)
-		c.HashFieldValue("User", "name", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceL2)
+		c.HashFieldValue("User", "name", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceSubgraph, "")
+		c.HashFieldValue("User", "name", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceL1, "")
+		c.HashFieldValue("User", "name", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceL2, "")
 
 		snap := c.Snapshot()
 		assert.Equal(t, 3, len(snap.FieldHashes))
@@ -234,9 +234,9 @@ func TestCacheAnalyticsCollector_EntityCounts(t *testing.T) {
 func TestCacheAnalyticsCollector_EntitySourceTracking(t *testing.T) {
 	c := NewCacheAnalyticsCollector()
 
-	c.RecordEntitySource("User", `{"id":"1"}`, FieldSourceSubgraph)
-	c.RecordEntitySource("User", `{"id":"2"}`, FieldSourceL1)
-	c.RecordEntitySource("Product", `{"upc":"top-1"}`, FieldSourceL2)
+	c.RecordEntitySource("User", `{"id":"1"}`, "", FieldSourceSubgraph)
+	c.RecordEntitySource("User", `{"id":"2"}`, "", FieldSourceL1)
+	c.RecordEntitySource("Product", `{"upc":"top-1"}`, "", FieldSourceL2)
 
 	assert.Equal(t, FieldSourceSubgraph, c.EntitySource("User", `{"id":"1"}`))
 	assert.Equal(t, FieldSourceL1, c.EntitySource("User", `{"id":"2"}`))
@@ -1564,7 +1564,7 @@ func TestFieldSourceShadowCached(t *testing.T) {
 	t.Run("HashFieldValue with FieldSourceShadowCached", func(t *testing.T) {
 		c := NewCacheAnalyticsCollector()
 
-		c.HashFieldValue("User", "username", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceShadowCached)
+		c.HashFieldValue("User", "username", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceShadowCached, "")
 
 		snap := c.Snapshot()
 		require.Equal(t, 1, len(snap.FieldHashes))
@@ -1577,8 +1577,8 @@ func TestFieldSourceShadowCached(t *testing.T) {
 	t.Run("can distinguish from other sources", func(t *testing.T) {
 		c := NewCacheAnalyticsCollector()
 
-		c.HashFieldValue("User", "name", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceSubgraph)
-		c.HashFieldValue("User", "name", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceShadowCached)
+		c.HashFieldValue("User", "name", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceSubgraph, "")
+		c.HashFieldValue("User", "name", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceShadowCached, "")
 
 		snap := c.Snapshot()
 		require.Equal(t, 2, len(snap.FieldHashes))
@@ -1755,7 +1755,7 @@ func BenchmarkFieldHashing(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
-		c.HashFieldValue("User", "id", value, `{"id":"1"}`, 0, FieldSourceSubgraph)
+		c.HashFieldValue("User", "id", value, `{"id":"1"}`, 0, FieldSourceSubgraph, "")
 	}
 }
 
@@ -2056,7 +2056,7 @@ func TestSnapshotSlicesAreIndependent(t *testing.T) {
 	c.RecordError(SubgraphErrorEvent{DataSource: "ds-orig"})
 	c.RecordMutationEvent(MutationEvent{EntityType: "User-orig"})
 	c.RecordCacheOperationError(CacheOperationError{DataSource: "ds-orig"})
-	c.HashFieldValue("User-orig", "name", []byte(`"a"`), "k-orig", 1, FieldSourceL1)
+	c.HashFieldValue("User-orig", "name", []byte(`"a"`), "k-orig", 1, FieldSourceL1, "")
 
 	snap := c.Snapshot()
 
@@ -2078,7 +2078,7 @@ func TestSnapshotSlicesAreIndependent(t *testing.T) {
 		c.RecordError(SubgraphErrorEvent{DataSource: "ds-new"})
 		c.RecordMutationEvent(MutationEvent{EntityType: "User-new"})
 		c.RecordCacheOperationError(CacheOperationError{DataSource: "ds-new"})
-		c.HashFieldValue("User-new", "name", []byte(`"z"`), "k-new", 2, FieldSourceL2)
+		c.HashFieldValue("User-new", "name", []byte(`"z"`), "k-new", 2, FieldSourceL2, "")
 	}
 
 	// Full-slice assertions — snapshot must still show the original events.
@@ -2175,3 +2175,88 @@ func TestCacheAnalyticsCollector_TimestampsPreservePreSet(t *testing.T) {
 	}
 }
 
+// TestCacheAnalyticsCollector_DataSourceOnHashFieldValue verifies that the
+// dataSource argument is recorded on EntityFieldHash. Without this, dashboards
+// cannot attribute a field hash to the subgraph that produced the data when
+// multiple subgraphs contribute fields to the same entity.
+func TestCacheAnalyticsCollector_DataSourceOnHashFieldValue(t *testing.T) {
+	c := NewCacheAnalyticsCollector()
+
+	// Same entity (User id=1) resolved by two subgraphs — the field-hash
+	// records must distinguish which subgraph each value came from.
+	c.HashFieldValue("User", "name", nil, []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceL2, "accounts")
+	c.HashFieldValue("User", "reviews", nil, []byte(`[]`), `{"id":"1"}`, 0, FieldSourceSubgraph, "reviews")
+
+	snap := c.Snapshot()
+	require.Equal(t, 2, len(snap.FieldHashes))
+	assert.Equal(t, "accounts", snap.FieldHashes[0].DataSource, "first hash attributes to accounts subgraph")
+	assert.Equal(t, "reviews", snap.FieldHashes[1].DataSource, "second hash attributes to reviews subgraph")
+}
+
+// TestCacheAnalyticsCollector_EntityDataSource verifies the EntityDataSource
+// reverse lookup returns the recorded subgraph and "" for unknown entities.
+// Last-write-wins on duplicate keys, mirroring EntitySource semantics.
+func TestCacheAnalyticsCollector_EntityDataSource(t *testing.T) {
+	c := NewCacheAnalyticsCollector()
+
+	// Three distinct entities owned by three subgraphs.
+	c.RecordEntitySource("User", `{"id":"1"}`, "accounts", FieldSourceSubgraph)
+	c.RecordEntitySource("Product", `{"upc":"top-1"}`, "products", FieldSourceL2)
+	c.RecordEntitySource("Review", `{"id":"r1"}`, "reviews", FieldSourceL1)
+
+	assert.Equal(t, "accounts", c.EntityDataSource("User", `{"id":"1"}`))
+	assert.Equal(t, "products", c.EntityDataSource("Product", `{"upc":"top-1"}`))
+	assert.Equal(t, "reviews", c.EntityDataSource("Review", `{"id":"r1"}`))
+	assert.Equal(t, "", c.EntityDataSource("Unknown", `{"id":"99"}`), "unknown entity returns empty string")
+
+	// Last-write-wins: a second record for the same (type, key) overrides.
+	c.RecordEntitySource("User", `{"id":"1"}`, "accounts-v2", FieldSourceL1)
+	assert.Equal(t, "accounts-v2", c.EntityDataSource("User", `{"id":"1"}`), "most recent record wins")
+}
+
+// TestCacheAnalyticsCollector_MutationEventDataSource verifies that DataSource
+// is preserved through RecordMutationEvent. Mutation analytics need to know
+// which subgraph owns the mutated entity for cross-subgraph dashboards.
+func TestCacheAnalyticsCollector_MutationEventDataSource(t *testing.T) {
+	c := NewCacheAnalyticsCollector()
+
+	c.RecordMutationEvent(MutationEvent{
+		MutationRootField: "updateUsername",
+		EntityType:        "User",
+		DataSource:        "accounts",
+		EntityCacheKey:    `{"__typename":"User","key":{"id":"1"}}`,
+		HadCachedValue:    true,
+		IsStale:           true,
+	})
+
+	snap := c.Snapshot()
+	require.Equal(t, 1, len(snap.MutationEvents))
+	assert.Equal(t, "accounts", snap.MutationEvents[0].DataSource)
+}
+
+// TestWalkCachedResponseForSources_DataSource verifies that
+// walkCachedResponseForSources propagates the dataSource argument to every
+// entity record it produces while traversing a cached JSON value. Without
+// this propagation, L2 cache hits would land in entitySources without
+// subgraph attribution and the resolvable would have to fall back to
+// obj.SourceName for every entity rendered from cache.
+func TestWalkCachedResponseForSources_DataSource(t *testing.T) {
+	a := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+	parser := &astjson.Parser{}
+
+	value, err := parser.ParseBytesWithArena(a, []byte(`[{"id":"1","name":"Alice"},{"id":"2","name":"Bob"}]`))
+	require.NoError(t, err)
+
+	keyFields := []KeyField{{Name: "id"}}
+	var sources []entitySourceRecord
+
+	walkCachedResponseForSources(value, keyFields, "User", "accounts", FieldSourceL2, &sources)
+
+	require.Equal(t, 2, len(sources))
+	for i, want := range []string{`{"id":"1"}`, `{"id":"2"}`} {
+		assert.Equal(t, "User", sources[i].entityType)
+		assert.Equal(t, want, sources[i].keyJSON)
+		assert.Equal(t, FieldSourceL2, sources[i].source)
+		assert.Equal(t, "accounts", sources[i].dataSource, "every entity record must carry the dataSource")
+	}
+}
