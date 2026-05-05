@@ -591,22 +591,39 @@ func (r *Resolvable) renderFieldValue(value *astjson.Value, valueBytes []byte, n
 	// recorded separately to disambiguate value-type fields from direct
 	// entity scalars (e.g. User.address.street vs User.email).
 	if r.ctx != nil && r.ctx.cacheAnalytics != nil && r.currentEntityAnalytics != nil && r.currentFieldInfo != nil {
+		// Detect direct entity scalars vs value-type traversal: direct scalars
+		// have ExactParentTypeName == currentEntityTypeName (or appear in
+		// ParentTypeNames for polymorphic interface cases); value-type leaves
+		// reach the field through a non-entity ancestor and don't match.
+		isOnCurrentEntity := r.currentFieldInfo.ExactParentTypeName == r.currentEntityTypeName
+		if !isOnCurrentEntity {
+			for _, pt := range r.currentFieldInfo.ParentTypeNames {
+				if pt == r.currentEntityTypeName {
+					isOnCurrentEntity = true
+					break
+				}
+			}
+		}
+
 		shouldHash := false
 		if r.currentFieldInfo.CacheAnalyticsHash {
 			shouldHash = true
-		} else {
-			// Polymorphic runtime fallback: interface field whose concrete type matches the enclosing entity.
-			isOnCurrentEntity := r.currentFieldInfo.ExactParentTypeName == r.currentEntityTypeName
-			if !isOnCurrentEntity {
-				for _, pt := range r.currentFieldInfo.ParentTypeNames {
-					if pt == r.currentEntityTypeName {
-						isOnCurrentEntity = true
-						break
-					}
-				}
-			}
-			if isOnCurrentEntity && !r.currentEntityAnalytics.IsKeyField(r.currentFieldInfo.Name) {
-				shouldHash = true
+		} else if isOnCurrentEntity && !r.currentEntityAnalytics.IsKeyField(r.currentFieldInfo.Name) {
+			// Polymorphic runtime fallback for interface fields whose concrete
+			// type matches the enclosing entity.
+			shouldHash = true
+		}
+
+		// Value-type traversal can land in a keyless entity scope (e.g.
+		// `query { user(id) { reviews { body } } }` selects no @key field on
+		// User). Without identity the hash record is uncorrelatable, so skip.
+		// Direct entity scalars are always emitted — their key may be aliased
+		// (`{}` from buildEntityKeyJSON's schema-name lookup) but the field
+		// itself still belongs to a known entity in the response.
+		if shouldHash && !isOnCurrentEntity {
+			hasEntityIdentity := (r.currentEntityKeyRaw != "" && r.currentEntityKeyRaw != "{}") || r.currentEntityKeyHash != 0
+			if !hasEntityIdentity {
+				shouldHash = false
 			}
 		}
 		if shouldHash {

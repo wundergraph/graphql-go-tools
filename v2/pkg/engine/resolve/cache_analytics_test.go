@@ -1953,7 +1953,7 @@ func TestCacheAnalyticsCollector_HeaderImpactEvents(t *testing.T) {
 		c.RecordHeaderImpactEvent(base)
 		c.RecordHeaderImpactEvent(base)
 		c.RecordHeaderImpactEvent(base)
-		snap := c.Snapshot()
+		snap := normalizeCacheAnalyticsSnapshot(c.Snapshot())
 		assert.Equal(t, []HeaderImpactEvent{base}, snap.HeaderImpactEvents)
 	})
 
@@ -1963,7 +1963,7 @@ func TestCacheAnalyticsCollector_HeaderImpactEvents(t *testing.T) {
 		other.BaseKey = "key2"
 		c.RecordHeaderImpactEvent(base)
 		c.RecordHeaderImpactEvent(other)
-		snap := c.Snapshot()
+		snap := normalizeCacheAnalyticsSnapshot(c.Snapshot())
 		assert.Equal(t, []HeaderImpactEvent{base, other}, snap.HeaderImpactEvents)
 	})
 
@@ -1973,7 +1973,7 @@ func TestCacheAnalyticsCollector_HeaderImpactEvents(t *testing.T) {
 		other.HeaderHash = 222
 		c.RecordHeaderImpactEvent(base)
 		c.RecordHeaderImpactEvent(other)
-		snap := c.Snapshot()
+		snap := normalizeCacheAnalyticsSnapshot(c.Snapshot())
 		assert.Equal(t, []HeaderImpactEvent{base, other}, snap.HeaderImpactEvents)
 	})
 
@@ -1983,7 +1983,7 @@ func TestCacheAnalyticsCollector_HeaderImpactEvents(t *testing.T) {
 		other.ResponseHash = 888
 		c.RecordHeaderImpactEvent(base)
 		c.RecordHeaderImpactEvent(other)
-		snap := c.Snapshot()
+		snap := normalizeCacheAnalyticsSnapshot(c.Snapshot())
 		assert.Equal(t, []HeaderImpactEvent{base, other}, snap.HeaderImpactEvents)
 	})
 
@@ -1993,7 +1993,7 @@ func TestCacheAnalyticsCollector_HeaderImpactEvents(t *testing.T) {
 		other.EntityType = "Product"
 		c.RecordHeaderImpactEvent(base)
 		c.RecordHeaderImpactEvent(other)
-		snap := c.Snapshot()
+		snap := normalizeCacheAnalyticsSnapshot(c.Snapshot())
 		assert.Equal(t, []HeaderImpactEvent{base, other}, snap.HeaderImpactEvents)
 	})
 
@@ -2003,14 +2003,14 @@ func TestCacheAnalyticsCollector_HeaderImpactEvents(t *testing.T) {
 		other.DataSource = "reviews"
 		c.RecordHeaderImpactEvent(base)
 		c.RecordHeaderImpactEvent(other)
-		snap := c.Snapshot()
+		snap := normalizeCacheAnalyticsSnapshot(c.Snapshot())
 		assert.Equal(t, []HeaderImpactEvent{base, other}, snap.HeaderImpactEvents)
 	})
 
 	t.Run("single event is preserved", func(t *testing.T) {
 		c := NewCacheAnalyticsCollector()
 		c.RecordHeaderImpactEvent(base)
-		snap := c.Snapshot()
+		snap := normalizeCacheAnalyticsSnapshot(c.Snapshot())
 		assert.Equal(t, []HeaderImpactEvent{base}, snap.HeaderImpactEvents)
 	})
 
@@ -2034,7 +2034,7 @@ func TestCacheAnalyticsCollector_WriteEventSource(t *testing.T) {
 		c.RecordWrite(CacheWriteEvent{CacheKey: "key2", EntityType: "Product", ByteSize: 256, DataSource: "products", CacheLevel: CacheLevelL2, TTL: 60 * time.Second, Source: CacheSourceMutation})
 		c.RecordWrite(CacheWriteEvent{CacheKey: "key3", EntityType: "Review", ByteSize: 512, DataSource: "reviews", CacheLevel: CacheLevelL2, TTL: 90 * time.Second, Source: CacheSourceSubscription})
 
-		snap := c.Snapshot()
+		snap := normalizeCacheAnalyticsSnapshot(c.Snapshot())
 		// Assert entire L2Writes slice — each event preserves its Source from the recording call
 		assert.Equal(t, []CacheWriteEvent{
 			{CacheKey: "key1", EntityType: "User", ByteSize: 128, DataSource: "accounts", CacheLevel: CacheLevelL2, TTL: 30 * time.Second, Source: CacheSourceQuery},         // Recorded with CacheSourceQuery
@@ -2061,7 +2061,7 @@ func TestCacheAnalyticsCollector_WriteEventSource(t *testing.T) {
 		}
 		c.RecordMutationEvent(event)
 
-		snap := c.Snapshot()
+		snap := normalizeCacheAnalyticsSnapshot(c.Snapshot())
 		// Assert entire MutationEvents slice — Source field preserved through record→snapshot
 		assert.Equal(t, []MutationEvent{event}, snap.MutationEvents)
 	})
@@ -2073,7 +2073,7 @@ func TestCacheAnalyticsCollector_WriteEventSource(t *testing.T) {
 		c.RecordWrite(CacheWriteEvent{CacheKey: "query-key-1", EntityType: "User", ByteSize: 128, DataSource: "accounts", CacheLevel: CacheLevelL2, TTL: 30 * time.Second, Source: CacheSourceQuery})       // Write from query resolution
 		c.RecordWrite(CacheWriteEvent{CacheKey: "mutation-key-2", EntityType: "User", ByteSize: 256, DataSource: "accounts", CacheLevel: CacheLevelL2, TTL: 30 * time.Second, Source: CacheSourceMutation}) // Write from mutation resolution
 
-		snap := c.Snapshot()
+		snap := normalizeCacheAnalyticsSnapshot(c.Snapshot())
 		// Assert entire L2Writes — different keys prevent deduplication, each retains its Source
 		assert.Equal(t, []CacheWriteEvent{
 			{CacheKey: "query-key-1", EntityType: "User", ByteSize: 128, DataSource: "accounts", CacheLevel: CacheLevelL2, TTL: 30 * time.Second, Source: CacheSourceQuery},       // Query-triggered write
@@ -2344,4 +2344,107 @@ func TestWalkCachedResponseForSources_DataSource(t *testing.T) {
 		assert.Equal(t, FieldSourceL2, sources[i].source)
 		assert.Equal(t, "accounts", sources[i].dataSource, "every entity record must carry the dataSource")
 	}
+}
+
+// TestHashShadowCachedLeaves verifies that compareShadowValues' recursive
+// per-leaf walk emits one EntityFieldHash per scalar leaf with the accumulated
+// FieldPath, mirroring the fresh-resolution emission in renderFieldValue so
+// shadow-mode comparisons line up by (entityType, fieldName, FieldPath).
+//
+// Before this fix, the shadow loop only iterated info.ProvidesData.Fields
+// at the top level and emitted one whole-subobject hash for nested objects,
+// so nested value-type leaves like User.address.street had no shadow-side
+// counterpart for staleness detection.
+func TestHashShadowCachedLeaves(t *testing.T) {
+	a := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+	parser := &astjson.Parser{}
+
+	t.Run("nested value-type leaves emit per-leaf hashes", func(t *testing.T) {
+		// User { address { street, city } } — Address is a value type under User.
+		providesData := &Object{
+			Fields: []*Field{
+				{Name: []byte("address"), Value: &Object{
+					Fields: []*Field{
+						{Name: []byte("street"), Value: &String{}},
+						{Name: []byte("city"), Value: &String{}},
+					},
+				}},
+			},
+		}
+		cached, err := parser.ParseBytesWithArena(a, []byte(`{"address":{"street":"1 Main","city":"NYC"}}`))
+		require.NoError(t, err)
+
+		ctx := NewContext(context.Background())
+		ctx.cacheAnalytics = NewCacheAnalyticsCollector()
+		l := &Loader{ctx: ctx}
+		l.hashShadowCachedLeaves(cached, providesData, "User", `{"id":"1"}`, "accounts", nil)
+
+		snap := normalizeCacheAnalyticsSnapshot(ctx.cacheAnalytics.Snapshot())
+		require.Equal(t, 2, len(snap.FieldHashes))
+		// snapshot is already deduped/ordered by collector internals;
+		// sort manually by FieldName for deterministic assertions
+		got := make(map[string]EntityFieldHash, len(snap.FieldHashes))
+		for _, fh := range snap.FieldHashes {
+			got[fh.FieldName] = fh
+		}
+		street := got["street"]
+		assert.Equal(t, "User", street.EntityType)
+		assert.Equal(t, []string{"address"}, street.FieldPath)
+		assert.Equal(t, FieldSourceShadowCached, street.Source)
+		assert.Equal(t, "accounts", street.DataSource)
+		city := got["city"]
+		assert.Equal(t, "User", city.EntityType)
+		assert.Equal(t, []string{"address"}, city.FieldPath)
+	})
+
+	t.Run("__typename is never hashed", func(t *testing.T) {
+		// __typename is a meta field; the fresh-side resolvable also skips it.
+		providesData := &Object{
+			Fields: []*Field{
+				{Name: []byte("__typename"), Value: &String{}},
+				{Name: []byte("username"), Value: &String{}},
+			},
+		}
+		cached, err := parser.ParseBytesWithArena(a, []byte(`{"__typename":"User","username":"Alice"}`))
+		require.NoError(t, err)
+
+		ctx := NewContext(context.Background())
+		ctx.cacheAnalytics = NewCacheAnalyticsCollector()
+		l := &Loader{ctx: ctx}
+		l.hashShadowCachedLeaves(cached, providesData, "User", `{"id":"1"}`, "accounts", nil)
+
+		snap := normalizeCacheAnalyticsSnapshot(ctx.cacheAnalytics.Snapshot())
+		require.Equal(t, 1, len(snap.FieldHashes))
+		assert.Equal(t, "username", snap.FieldHashes[0].FieldName, "only username is hashed; __typename is skipped")
+	})
+
+	t.Run("array of objects walks each item under the same path", func(t *testing.T) {
+		// Product { reviews: [Review { body }] } — array of objects.
+		// Each review's body should produce one hash with FieldPath ["reviews"].
+		providesData := &Object{
+			Fields: []*Field{
+				{Name: []byte("reviews"), Value: &Array{Item: &Object{
+					Fields: []*Field{
+						{Name: []byte("body"), Value: &String{}},
+					},
+				}}},
+			},
+		}
+		cached, err := parser.ParseBytesWithArena(a, []byte(`{"reviews":[{"body":"first"},{"body":"second"}]}`))
+		require.NoError(t, err)
+
+		ctx := NewContext(context.Background())
+		ctx.cacheAnalytics = NewCacheAnalyticsCollector()
+		l := &Loader{ctx: ctx}
+		l.hashShadowCachedLeaves(cached, providesData, "Product", `{"upc":"top-1"}`, "reviews", nil)
+
+		snap := normalizeCacheAnalyticsSnapshot(ctx.cacheAnalytics.Snapshot())
+		require.Equal(t, 2, len(snap.FieldHashes))
+		for _, fh := range snap.FieldHashes {
+			assert.Equal(t, "Product", fh.EntityType)
+			assert.Equal(t, "body", fh.FieldName)
+			assert.Equal(t, []string{"reviews"}, fh.FieldPath)
+			assert.Equal(t, FieldSourceShadowCached, fh.Source)
+		}
+	})
 }

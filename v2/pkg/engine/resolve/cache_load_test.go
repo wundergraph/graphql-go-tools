@@ -1318,12 +1318,47 @@ func (f *FakeLoaderCache) SetRawData(key string, value []byte, ttl time.Duration
 // Shadow Mode Integration Tests
 // =============================================================================
 
-// normalizeCacheAnalyticsSnapshot zeroes out non-deterministic fields (FetchTimings.DurationMs)
-// and normalizes empty slices to nil for consistent assert.Equal comparison.
+// normalizeCacheAnalyticsSnapshot zeroes out non-deterministic fields
+// (FetchTimings.DurationMs and every event's auto-stamped Timestamp) and
+// normalizes empty slices to nil for consistent assert.Equal comparison.
 // CacheAgeMs is deterministic when tests run inside synctest.Test (fake clock).
 func normalizeCacheAnalyticsSnapshot(snap CacheAnalyticsSnapshot) CacheAnalyticsSnapshot {
 	// Zero out non-deterministic FetchTimings (DurationMs varies between runs)
 	snap.FetchTimings = nil
+
+	// Zero auto-stamped Timestamps on every event slice. Each Record* method
+	// stamps time.Now() when the caller passes a zero value; the wall-clock
+	// nanos make literal struct equality flake without this normalization.
+	for i := range snap.L1Reads {
+		snap.L1Reads[i].Timestamp = time.Time{}
+	}
+	for i := range snap.L2Reads {
+		snap.L2Reads[i].Timestamp = time.Time{}
+	}
+	for i := range snap.L1Writes {
+		snap.L1Writes[i].Timestamp = time.Time{}
+	}
+	for i := range snap.L2Writes {
+		snap.L2Writes[i].Timestamp = time.Time{}
+	}
+	for i := range snap.ErrorEvents {
+		snap.ErrorEvents[i].Timestamp = time.Time{}
+	}
+	for i := range snap.FieldHashes {
+		snap.FieldHashes[i].Timestamp = time.Time{}
+	}
+	for i := range snap.ShadowComparisons {
+		snap.ShadowComparisons[i].Timestamp = time.Time{}
+	}
+	for i := range snap.MutationEvents {
+		snap.MutationEvents[i].Timestamp = time.Time{}
+	}
+	for i := range snap.HeaderImpactEvents {
+		snap.HeaderImpactEvents[i].Timestamp = time.Time{}
+	}
+	for i := range snap.CacheOpErrors {
+		snap.CacheOpErrors[i].Timestamp = time.Time{}
+	}
 
 	// Normalize empty slices to nil
 	if len(snap.L1Reads) == 0 {
@@ -1534,8 +1569,8 @@ func TestShadowMode_L2_AlwaysFetches(t *testing.T) {
 				{CacheKey: shadowTestKeyProduct, EntityType: "Product", IsFresh: true, CachedHash: 16331343294028781429, FreshHash: 16331343294028781429, CachedBytes: 36, FreshBytes: 36, DataSource: "products", ConfiguredTTL: 30 * time.Second, CacheAgeMs: 5000}, // Cached data matches subgraph (same hash), no staleness; entry was 5s old
 			},
 			FieldHashes: []EntityFieldHash{
-				{EntityType: "Product", FieldName: "id", FieldHash: 4016270444951293489, KeyRaw: `{"id":"prod-1"}`, Source: FieldSourceShadowCached},   // Cached "id" field from shadow comparison
-				{EntityType: "Product", FieldName: "name", FieldHash: 8385814294091472045, KeyRaw: `{"id":"prod-1"}`, Source: FieldSourceShadowCached}, // Cached "name" field from shadow comparison
+				{EntityType: "Product", FieldName: "id", FieldHash: 4016270444951293489, KeyRaw: `{"id":"prod-1"}`, Source: FieldSourceShadowCached, DataSource: "products"},   // Cached "id" field from shadow comparison
+				{EntityType: "Product", FieldName: "name", FieldHash: 8385814294091472045, KeyRaw: `{"id":"prod-1"}`, Source: FieldSourceShadowCached, DataSource: "products"}, // Cached "name" field from shadow comparison
 			},
 		}), normalizeCacheAnalyticsSnapshot(ctx2.GetCacheStats()))
 	})
@@ -1719,8 +1754,8 @@ func TestShadowMode_StalenessDetection(t *testing.T) {
 				{CacheKey: shadowTestKeyUser, EntityType: "User", IsFresh: false, CachedHash: 272931794584083561, FreshHash: 4550742678894771079, CachedBytes: 30, FreshBytes: 37, DataSource: "accounts", ConfiguredTTL: 30 * time.Second, CacheAgeMs: 5000}, // Cached "Alice" differs from fresh "AliceUpdated" (different hashes); entry was 5s old
 			},
 			FieldHashes: []EntityFieldHash{
-				{EntityType: "User", FieldName: "id", FieldHash: 13311642224980425257, KeyRaw: `{"id":"u1"}`, Source: FieldSourceShadowCached},      // Cached "id" field from "Alice" entity
-				{EntityType: "User", FieldName: "username", FieldHash: 5631231822564450273, KeyRaw: `{"id":"u1"}`, Source: FieldSourceShadowCached}, // Cached "username"="Alice" (stale value)
+				{EntityType: "User", FieldName: "id", FieldHash: 13311642224980425257, KeyRaw: `{"id":"u1"}`, Source: FieldSourceShadowCached, DataSource: "accounts"},      // Cached "id" field from "Alice" entity
+				{EntityType: "User", FieldName: "username", FieldHash: 5631231822564450273, KeyRaw: `{"id":"u1"}`, Source: FieldSourceShadowCached, DataSource: "accounts"}, // Cached "username"="Alice" (stale value)
 			},
 		}), normalizeCacheAnalyticsSnapshot(ctx2.GetCacheStats()))
 	})

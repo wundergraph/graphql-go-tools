@@ -593,18 +593,35 @@ func deduplicateShadowComparisons(events []ShadowComparisonEvent) []ShadowCompar
 }
 
 // deduplicateHeaderImpactEvents removes duplicate header impact events,
-// keeping the first occurrence for each unique event identity.
+// keeping the first occurrence for each unique event identity. Identity
+// excludes Timestamp — auto-stamping populates a different time.Now() per
+// Record* call, so two semantically identical events would otherwise look
+// distinct under whole-struct equality.
 func deduplicateHeaderImpactEvents(events []HeaderImpactEvent) []HeaderImpactEvent {
 	if len(events) == 0 {
 		return events
 	}
-	seen := make(map[HeaderImpactEvent]struct{}, len(events))
+	type dedupKey struct {
+		BaseKey      string
+		HeaderHash   uint64
+		ResponseHash uint64
+		EntityType   string
+		DataSource   string
+	}
+	seen := make(map[dedupKey]struct{}, len(events))
 	out := make([]HeaderImpactEvent, 0, len(events))
 	for _, ev := range events {
-		if _, ok := seen[ev]; ok {
+		k := dedupKey{
+			BaseKey:      ev.BaseKey,
+			HeaderHash:   ev.HeaderHash,
+			ResponseHash: ev.ResponseHash,
+			EntityType:   ev.EntityType,
+			DataSource:   ev.DataSource,
+		}
+		if _, ok := seen[k]; ok {
 			continue
 		}
-		seen[ev] = struct{}{}
+		seen[k] = struct{}{}
 		out = append(out, ev)
 	}
 	return out

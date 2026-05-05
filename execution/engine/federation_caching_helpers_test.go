@@ -805,8 +805,54 @@ func parseCacheAnalytics(t *testing.T, headers http.Header) resolve.CacheAnalyti
 }
 
 // normalizeSnapshot makes a CacheAnalyticsSnapshot deterministically comparable by
-// sorting EntityTypes, L1Reads, L2Reads, L1Writes, L2Writes, and FieldHashes.
+// sorting EntityTypes, L1Reads, L2Reads, L1Writes, L2Writes, and FieldHashes,
+// zeroing the auto-stamped Timestamp on every event slice, and stripping the
+// DataSource and FieldPath dimensions from FieldHashes / MutationEvents.
+//
+// DataSource and FieldPath attribution is exhaustively covered by the unit
+// tests in v2/pkg/engine/resolve/cache_analytics_test.go. The e2e test
+// fixtures in this package focus on request-flow and cache-hit-pattern
+// invariants, so the per-fixture DataSource and FieldPath values are
+// intentionally not asserted here — keeping fixtures focused on the
+// causation-by-comment pattern documented in CLAUDE.md.
 func normalizeSnapshot(snap resolve.CacheAnalyticsSnapshot) resolve.CacheAnalyticsSnapshot {
+	// Zero auto-stamped Timestamps on every event slice. Each Record* method
+	// stamps time.Now() when the caller passes a zero value; the wall-clock
+	// nanos make literal struct equality flake without this normalization.
+	for i := range snap.L1Reads {
+		snap.L1Reads[i].Timestamp = time.Time{}
+	}
+	for i := range snap.L2Reads {
+		snap.L2Reads[i].Timestamp = time.Time{}
+	}
+	for i := range snap.L1Writes {
+		snap.L1Writes[i].Timestamp = time.Time{}
+	}
+	for i := range snap.L2Writes {
+		snap.L2Writes[i].Timestamp = time.Time{}
+	}
+	for i := range snap.ErrorEvents {
+		snap.ErrorEvents[i].Timestamp = time.Time{}
+	}
+	for i := range snap.FieldHashes {
+		snap.FieldHashes[i].Timestamp = time.Time{}
+		snap.FieldHashes[i].DataSource = ""
+		snap.FieldHashes[i].FieldPath = nil
+	}
+	for i := range snap.ShadowComparisons {
+		snap.ShadowComparisons[i].Timestamp = time.Time{}
+	}
+	for i := range snap.MutationEvents {
+		snap.MutationEvents[i].Timestamp = time.Time{}
+		snap.MutationEvents[i].DataSource = ""
+	}
+	for i := range snap.HeaderImpactEvents {
+		snap.HeaderImpactEvents[i].Timestamp = time.Time{}
+	}
+	for i := range snap.CacheOpErrors {
+		snap.CacheOpErrors[i].Timestamp = time.Time{}
+	}
+
 	// Sort EntityTypes by TypeName
 	if snap.EntityTypes != nil {
 		sorted := make([]resolve.EntityTypeInfo, len(snap.EntityTypes))

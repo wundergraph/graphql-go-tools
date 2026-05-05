@@ -2594,6 +2594,11 @@ func (l *Loader) hashShadowCachedLeaves(
 	}
 	for _, field := range providesData.Fields {
 		fieldName := string(field.Name)
+		// Skip __typename — meta field, not part of the entity's data identity
+		// (the fresh-side resolvable also doesn't hash it).
+		if fieldName == "__typename" {
+			continue
+		}
 		fieldVal := cachedValue.Get(fieldName)
 		if fieldVal == nil {
 			continue

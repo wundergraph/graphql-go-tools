@@ -35,9 +35,11 @@ func TestFederationCaching_Analytics(t *testing.T) {
 	// Field hash constants — xxhash of the rendered scalar field values.
 	// These are deterministic because xxhash is seeded identically each time.
 	const (
-		hashProductNameTrilby uint64 = 1032923585965781586 // xxhash("Trilby")
-		hashProductNameFedora uint64 = 2432227032303632641 // xxhash("Fedora")
-		hashUserUsernameMe    uint64 = 4957449860898447395 // xxhash("Me")
+		hashProductNameTrilby   uint64 = 1032923585965781586  // xxhash("Trilby")
+		hashProductNameFedora   uint64 = 2432227032303632641  // xxhash("Fedora")
+		hashUserUsernameMe      uint64 = 4957449860898447395  // xxhash("Me")
+		hashReviewBodyTop1      uint64 = 14311423906826036091 // xxhash for Review.body on top-1 (value-type traversal under Product)
+		hashReviewBodyTop2      uint64 = 15139145638418915429 // xxhash for Review.body on top-2 (value-type traversal under Product)
 	)
 
 	// Entity key constants for field hash assertions
@@ -59,21 +61,27 @@ func TestFederationCaching_Analytics(t *testing.T) {
 
 	// Shared field hashes for the multi-upstream query (topProducts with reviews).
 	// Product.name: 2 products (Trilby, Fedora) → 2 distinct hashes
+	// Product.reviews[*].body: value-type traversal under Product (Review has no @key) → FieldPath ["reviews"]
 	// User.username: 2 reviews both by "Me" → 2 identical hashes
-	// All FieldSourceSubgraph by default (overridden in specific tests)
+	// All FieldSourceSubgraph by default (overridden in specific tests).
+	// DataSource attributes each hash to the subgraph that owned the entity at hash time.
 	multiUpstreamFieldHashes := []resolve.EntityFieldHash{
-		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameTrilby, KeyRaw: entityKeyProductTop1, Source: resolve.FieldSourceSubgraph},
-		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameFedora, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceSubgraph},
-		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceSubgraph},
-		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceSubgraph},
+		{EntityType: "Product", FieldPath: []string{"reviews"}, FieldName: "body", FieldHash: hashReviewBodyTop1, KeyRaw: entityKeyProductTop1, Source: resolve.FieldSourceSubgraph, DataSource: "products"}, // Review.body via value-type traversal under Product (top-1)
+		{EntityType: "Product", FieldPath: []string{"reviews"}, FieldName: "body", FieldHash: hashReviewBodyTop2, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceSubgraph, DataSource: "products"}, // Review.body via value-type traversal under Product (top-2)
+		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameTrilby, KeyRaw: entityKeyProductTop1, Source: resolve.FieldSourceSubgraph, DataSource: "products"},                              // Product.name from products subgraph
+		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameFedora, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceSubgraph, DataSource: "products"},                              // Product.name from products subgraph
+		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceSubgraph, DataSource: "reviews"}, // User attributed to reviews — author entry came through reviews subgraph
+		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceSubgraph, DataSource: "reviews"}, // User attributed to reviews — author entry came through reviews subgraph
 	}
 
 	// L2 hit field hashes — same data but all sourced from L2 cache
 	multiUpstreamFieldHashesL2 := []resolve.EntityFieldHash{
-		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameTrilby, KeyRaw: entityKeyProductTop1, Source: resolve.FieldSourceL2},
-		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameFedora, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceL2},
-		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceL2},
-		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceL2},
+		{EntityType: "Product", FieldPath: []string{"reviews"}, FieldName: "body", FieldHash: hashReviewBodyTop1, KeyRaw: entityKeyProductTop1, Source: resolve.FieldSourceL2, DataSource: "reviews"}, // Review.body via value-type traversal; on L2 hit Product is owned by reviews subgraph
+		{EntityType: "Product", FieldPath: []string{"reviews"}, FieldName: "body", FieldHash: hashReviewBodyTop2, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceL2, DataSource: "reviews"}, // Review.body via value-type traversal; on L2 hit Product is owned by reviews subgraph
+		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameTrilby, KeyRaw: entityKeyProductTop1, Source: resolve.FieldSourceL2, DataSource: "reviews"},                              // Product.name on L2 hit attributed to reviews (the cached entry's owner)
+		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameFedora, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceL2, DataSource: "reviews"},                              // Product.name on L2 hit attributed to reviews
+		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceL2, DataSource: "accounts"},                                  // User.username on L2 hit
+		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceL2, DataSource: "accounts"},                                  // User.username on L2 hit
 	}
 
 	multiUpstreamEntityTypes := []resolve.EntityTypeInfo{
@@ -223,8 +231,8 @@ func TestFederationCaching_Analytics(t *testing.T) {
 				{CacheKey: keyUser1234, EntityType: "User", ByteSize: byteSizeUser1234Full, DataSource: dsReviews, CacheLevel: resolve.CacheLevelL1, Source: resolve.CacheSourceQuery},
 			},
 			FieldHashes: []resolve.EntityFieldHash{
-				{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceL1},
-				{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceL1},
+				{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceL1, DataSource: dsAccounts},
+				{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceL1, DataSource: dsReviews},
 			},
 			EntityTypes: []resolve.EntityTypeInfo{
 				{TypeName: "User", Count: 2, UniqueKeys: 1},
@@ -643,8 +651,16 @@ func TestFederationCaching_ShadowMode(t *testing.T) {
 		shadowFieldHashProductReviewsTop2 uint64 = 3182276346310063647  // xxhash of Product reviews field for top-2
 	)
 
+	// xxhash for Review.body (value-type traversal under Product) per product
+	const (
+		hashReviewBodyTop1 uint64 = 14311423906826036091 // xxhash for Review.body on top-1
+		hashReviewBodyTop2 uint64 = 15139145638418915429 // xxhash for Review.body on top-2
+	)
+
 	// Field hashes when all data comes from subgraph (first request, all misses)
 	fieldHashesSubgraph := []resolve.EntityFieldHash{
+		{EntityType: "Product", FieldName: "body", FieldHash: hashReviewBodyTop1, KeyRaw: entityKeyProductTop1, Source: resolve.FieldSourceSubgraph}, // Review.body via value-type traversal under Product
+		{EntityType: "Product", FieldName: "body", FieldHash: hashReviewBodyTop2, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceSubgraph}, // Review.body via value-type traversal under Product
 		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameTrilby, KeyRaw: entityKeyProductTop1, Source: resolve.FieldSourceSubgraph},
 		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameFedora, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceSubgraph},
 		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceSubgraph},
@@ -653,6 +669,8 @@ func TestFederationCaching_ShadowMode(t *testing.T) {
 
 	// Field hashes when all data comes from L2 (second request, all hits — no shadow entities)
 	fieldHashesL2 := []resolve.EntityFieldHash{
+		{EntityType: "Product", FieldName: "body", FieldHash: hashReviewBodyTop1, KeyRaw: entityKeyProductTop1, Source: resolve.FieldSourceL2}, // Review.body via value-type traversal under Product
+		{EntityType: "Product", FieldName: "body", FieldHash: hashReviewBodyTop2, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceL2}, // Review.body via value-type traversal under Product
 		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameTrilby, KeyRaw: entityKeyProductTop1, Source: resolve.FieldSourceL2},
 		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameFedora, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceL2},
 		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceL2},
@@ -660,14 +678,21 @@ func TestFederationCaching_ShadowMode(t *testing.T) {
 	}
 
 	// Field hashes when all entities are in shadow mode (second request):
-	// L2 source hashes from resolution + ShadowCached hashes from compareShadowValues
+	// L2 source hashes from resolution + ShadowCached hashes from compareShadowValues.
+	// Shadow now recurses through ProvidesData per-leaf instead of hashing whole
+	// subobjects, so nested Review.body and Review.id show up as ShadowCached
+	// records attributed to Product (Review has no @key in this test config).
 	fieldHashesL2AllShadow := []resolve.EntityFieldHash{
+		{EntityType: "Product", FieldName: "body", FieldHash: hashReviewBodyTop1, KeyRaw: entityKeyProductTop1, Source: resolve.FieldSourceShadowCached}, // Cached Review.body recursed from compareShadowValues
+		{EntityType: "Product", FieldName: "body", FieldHash: hashReviewBodyTop1, KeyRaw: entityKeyProductTop1, Source: resolve.FieldSourceL2},           // Review.body fresh hash via value-type traversal under Product
+		{EntityType: "Product", FieldName: "body", FieldHash: hashReviewBodyTop2, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceShadowCached}, // Cached Review.body recursed from compareShadowValues
+		{EntityType: "Product", FieldName: "body", FieldHash: hashReviewBodyTop2, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceL2},           // Review.body fresh hash via value-type traversal under Product
+		{EntityType: "Product", FieldName: "id", FieldHash: 16067680390221026187, KeyRaw: entityKeyProductTop1, Source: resolve.FieldSourceShadowCached},  // Review.id (key on Review) recursed from cached value; attributed to Product
+		{EntityType: "Product", FieldName: "id", FieldHash: 16067680390221026187, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceShadowCached},  // Review.id recursed from cached value
 		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameTrilby, KeyRaw: entityKeyProductTop1, Source: resolve.FieldSourceL2},
 		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameFedora, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceL2},
-		{EntityType: "Product", FieldName: "reviews", FieldHash: shadowFieldHashProductReviewsTop1, KeyRaw: entityKeyProductTop1, Source: resolve.FieldSourceShadowCached}, // Cached Product reviews field for per-field staleness detection
-		{EntityType: "Product", FieldName: "reviews", FieldHash: shadowFieldHashProductReviewsTop2, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceShadowCached}, // Cached Product reviews field for per-field staleness detection
-		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceShadowCached},                     // Cached User username for per-field staleness detection
-		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceShadowCached},                     // Cached User username (second review)
+		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceShadowCached}, // Cached User username for per-field staleness detection
+		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceShadowCached}, // Cached User username (second review)
 		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceL2},
 		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceL2},
 	}
@@ -675,6 +700,8 @@ func TestFederationCaching_ShadowMode(t *testing.T) {
 	// Field hashes when only User is in shadow mode (mixed mode, second request):
 	// Product/root L2 source hashes + User L2 + User ShadowCached hashes
 	fieldHashesL2MixedShadow := []resolve.EntityFieldHash{
+		{EntityType: "Product", FieldName: "body", FieldHash: hashReviewBodyTop1, KeyRaw: entityKeyProductTop1, Source: resolve.FieldSourceL2}, // Review.body via value-type traversal under Product
+		{EntityType: "Product", FieldName: "body", FieldHash: hashReviewBodyTop2, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceL2}, // Review.body via value-type traversal under Product
 		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameTrilby, KeyRaw: entityKeyProductTop1, Source: resolve.FieldSourceL2},
 		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameFedora, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceL2},
 		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceShadowCached}, // Cached User username for per-field staleness detection
@@ -1881,6 +1908,8 @@ func TestFederationCaching_HeaderImpactAnalytics(t *testing.T) {
 				{CacheKey: `11945571715631340836:{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", ByteSize: 49, DataSource: "accounts", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},
 			},
 			FieldHashes: []resolve.EntityFieldHash{
+				{EntityType: "Product", FieldName: "body", FieldHash: 14311423906826036091, KeyRaw: `{"upc":"top-1"}`, Source: resolve.FieldSourceSubgraph}, // Review.body via value-type traversal under Product
+				{EntityType: "Product", FieldName: "body", FieldHash: 15139145638418915429, KeyRaw: `{"upc":"top-2"}`, Source: resolve.FieldSourceSubgraph}, // Review.body via value-type traversal under Product
 				{EntityType: "Product", FieldName: "name", FieldHash: 1032923585965781586, KeyRaw: `{"upc":"top-1"}`, Source: resolve.FieldSourceSubgraph},
 				{EntityType: "Product", FieldName: "name", FieldHash: 2432227032303632641, KeyRaw: `{"upc":"top-2"}`, Source: resolve.FieldSourceSubgraph},
 				{EntityType: "User", FieldName: "username", FieldHash: 4957449860898447395, KeyRaw: `{"id":"1234"}`, Source: resolve.FieldSourceSubgraph},
@@ -1926,6 +1955,8 @@ func TestFederationCaching_HeaderImpactAnalytics(t *testing.T) {
 				{CacheKey: `4753115417090238877:{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", ByteSize: 49, DataSource: "accounts", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},
 			},
 			FieldHashes: []resolve.EntityFieldHash{
+				{EntityType: "Product", FieldName: "body", FieldHash: 14311423906826036091, KeyRaw: `{"upc":"top-1"}`, Source: resolve.FieldSourceSubgraph}, // Review.body via value-type traversal under Product
+				{EntityType: "Product", FieldName: "body", FieldHash: 15139145638418915429, KeyRaw: `{"upc":"top-2"}`, Source: resolve.FieldSourceSubgraph}, // Review.body via value-type traversal under Product
 				{EntityType: "Product", FieldName: "name", FieldHash: 1032923585965781586, KeyRaw: `{"upc":"top-1"}`, Source: resolve.FieldSourceSubgraph},
 				{EntityType: "Product", FieldName: "name", FieldHash: 2432227032303632641, KeyRaw: `{"upc":"top-2"}`, Source: resolve.FieldSourceSubgraph},
 				{EntityType: "User", FieldName: "username", FieldHash: 4957449860898447395, KeyRaw: `{"id":"1234"}`, Source: resolve.FieldSourceSubgraph},
@@ -2018,6 +2049,8 @@ func TestFederationCaching_HeaderImpactAnalytics(t *testing.T) {
 				{CacheKey: `11945571715631340836:{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", ByteSize: 49, DataSource: "accounts", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},
 			},
 			FieldHashes: []resolve.EntityFieldHash{
+				{EntityType: "Product", FieldName: "body", FieldHash: 14311423906826036091, KeyRaw: `{"upc":"top-1"}`, Source: resolve.FieldSourceSubgraph}, // Review.body via value-type traversal under Product
+				{EntityType: "Product", FieldName: "body", FieldHash: 15139145638418915429, KeyRaw: `{"upc":"top-2"}`, Source: resolve.FieldSourceSubgraph}, // Review.body via value-type traversal under Product
 				{EntityType: "Product", FieldName: "name", FieldHash: 1032923585965781586, KeyRaw: `{"upc":"top-1"}`, Source: resolve.FieldSourceSubgraph},
 				{EntityType: "Product", FieldName: "name", FieldHash: 2432227032303632641, KeyRaw: `{"upc":"top-2"}`, Source: resolve.FieldSourceSubgraph},
 				{EntityType: "User", FieldName: "username", FieldHash: 4957449860898447395, KeyRaw: `{"id":"1234"}`, Source: resolve.FieldSourceSubgraph},
@@ -2053,6 +2086,8 @@ func TestFederationCaching_HeaderImpactAnalytics(t *testing.T) {
 			},
 			// No L2Writes, no HeaderImpactEvents: all served from cache, no fresh fetches
 			FieldHashes: []resolve.EntityFieldHash{
+				{EntityType: "Product", FieldName: "body", FieldHash: 14311423906826036091, KeyRaw: `{"upc":"top-1"}`, Source: resolve.FieldSourceL2}, // Review.body via value-type traversal under Product
+				{EntityType: "Product", FieldName: "body", FieldHash: 15139145638418915429, KeyRaw: `{"upc":"top-2"}`, Source: resolve.FieldSourceL2}, // Review.body via value-type traversal under Product
 				{EntityType: "Product", FieldName: "name", FieldHash: 1032923585965781586, KeyRaw: `{"upc":"top-1"}`, Source: resolve.FieldSourceL2},
 				{EntityType: "Product", FieldName: "name", FieldHash: 2432227032303632641, KeyRaw: `{"upc":"top-2"}`, Source: resolve.FieldSourceL2},
 				{EntityType: "User", FieldName: "username", FieldHash: 4957449860898447395, KeyRaw: `{"id":"1234"}`, Source: resolve.FieldSourceL2},
@@ -2123,6 +2158,8 @@ func TestFederationCaching_HeaderImpactAnalytics(t *testing.T) {
 				{CacheKey: `{"__typename":"User","key":{"id":"1234"}}`, EntityType: "User", ByteSize: 49, DataSource: "accounts", CacheLevel: resolve.CacheLevelL2, TTL: 30 * time.Second, Source: resolve.CacheSourceQuery},
 			},
 			FieldHashes: []resolve.EntityFieldHash{
+				{EntityType: "Product", FieldName: "body", FieldHash: 14311423906826036091, KeyRaw: `{"upc":"top-1"}`, Source: resolve.FieldSourceSubgraph}, // Review.body via value-type traversal under Product
+				{EntityType: "Product", FieldName: "body", FieldHash: 15139145638418915429, KeyRaw: `{"upc":"top-2"}`, Source: resolve.FieldSourceSubgraph}, // Review.body via value-type traversal under Product
 				{EntityType: "Product", FieldName: "name", FieldHash: 1032923585965781586, KeyRaw: `{"upc":"top-1"}`, Source: resolve.FieldSourceSubgraph},
 				{EntityType: "Product", FieldName: "name", FieldHash: 2432227032303632641, KeyRaw: `{"upc":"top-2"}`, Source: resolve.FieldSourceSubgraph},
 				{EntityType: "User", FieldName: "username", FieldHash: 4957449860898447395, KeyRaw: `{"id":"1234"}`, Source: resolve.FieldSourceSubgraph},

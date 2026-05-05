@@ -76,7 +76,7 @@ func TestCacheWriteEventSource_MutationL2Write(t *testing.T) {
 			},
 		},
 		FieldHashes: []resolve.EntityFieldHash{
-			{EntityType: "User", FieldName: "username", FieldHash: 4957449860898447395, KeyRaw: `{"id":"1234"}`}, // xxhash("Me")
+			{EntityType: "User", FieldName: "username", FieldHash: 4957449860898447395, KeyRaw: `{"id":"1234"}`, DataSource: "accounts"}, // xxhash("Me"); accounts owns User
 		},
 		EntityTypes: []resolve.EntityTypeInfo{
 			{TypeName: "User", Count: 1, UniqueKeys: 1}, // Mutation triggered resolution of 1 User entity
