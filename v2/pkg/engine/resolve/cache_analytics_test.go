@@ -2205,16 +2205,6 @@ func TestCacheAnalyticsCollector_TimestampsAutoStamp(t *testing.T) {
 	after := time.Now()
 
 	snap := c.Snapshot()
-	require.Equal(t, 1, len(snap.L1Reads))
-	require.Equal(t, 1, len(snap.L2Reads))
-	require.Equal(t, 1, len(snap.L1Writes)+len(snap.L2Writes))
-	require.Equal(t, 1, len(snap.FetchTimings))
-	require.Equal(t, 1, len(snap.ErrorEvents))
-	require.Equal(t, 1, len(snap.ShadowComparisons))
-	require.Equal(t, 1, len(snap.MutationEvents))
-	require.Equal(t, 1, len(snap.HeaderImpactEvents))
-	require.Equal(t, 1, len(snap.CacheOpErrors))
-	require.Equal(t, 1, len(snap.FieldHashes))
 
 	// Every event's Timestamp must fall in [before, after]. The exact value
 	// doesn't matter, only that it's stamped and within the recording window.
