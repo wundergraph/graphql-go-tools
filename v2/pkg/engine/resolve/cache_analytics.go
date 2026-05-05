@@ -50,6 +50,7 @@ const (
 
 // CacheKeyEvent records a single cache key lookup result.
 type CacheKeyEvent struct {
+	Timestamp  time.Time // when the lookup occurred; stamped by Record* if zero
 	CacheKey   string
 	EntityType string
 	Kind       CacheKeyEventKind
@@ -61,6 +62,7 @@ type CacheKeyEvent struct {
 
 // CacheWriteEvent records a single cache write operation.
 type CacheWriteEvent struct {
+	Timestamp   time.Time // when the write occurred; stamped by RecordWrite if zero
 	CacheKey    string
 	EntityType  string
 	ByteSize    int
@@ -74,6 +76,7 @@ type CacheWriteEvent struct {
 
 // FetchTimingEvent records the duration of a subgraph fetch or cache lookup.
 type FetchTimingEvent struct {
+	Timestamp      time.Time   // when the fetch started; stamped by RecordFetchTiming if zero
 	DataSource     string      // subgraph name
 	EntityType     string      // entity type (empty for root fetches)
 	DurationMs     int64       // time spent on this operation in milliseconds
@@ -87,15 +90,17 @@ type FetchTimingEvent struct {
 
 // SubgraphErrorEvent records a subgraph error for analytics.
 type SubgraphErrorEvent struct {
-	DataSource string // subgraph name
-	EntityType string // entity type (empty for root fetches)
-	Message    string // error message (truncated for safety)
-	Code       string // error code from errors[0].extensions.code (empty if not present)
+	Timestamp  time.Time // when the error was observed; stamped by RecordError if zero
+	DataSource string    // subgraph name
+	EntityType string    // entity type (empty for root fetches)
+	Message    string    // error message (truncated for safety)
+	Code       string    // error code from errors[0].extensions.code (empty if not present)
 }
 
 // EntityFieldHash stores an xxhash of a scalar field value on an entity type,
 // along with the entity's key data and the source of the data.
 type EntityFieldHash struct {
+	Timestamp  time.Time // when the hash was computed; stamped by HashFieldValue if zero
 	EntityType string
 	FieldName  string
 	FieldHash  uint64      // xxhash of the non-key field value
@@ -127,6 +132,7 @@ type entitySourceRecord struct {
 
 // ShadowComparisonEvent records a comparison between cached and fresh data in shadow mode.
 type ShadowComparisonEvent struct {
+	Timestamp     time.Time     // when the comparison was performed; stamped by RecordShadowComparison if zero
 	CacheKey      string        // cache key for correlation
 	EntityType    string        // entity type name
 	IsFresh       bool          // true if ProvidesData fields match between cached and fresh
@@ -143,14 +149,15 @@ type ShadowComparisonEvent struct {
 // Recorded during mutation execution by proactively comparing the mutation response
 // with the L2 cached value for the same entity.
 type MutationEvent struct {
-	MutationRootField string // e.g., "updateUsername"
-	EntityType        string // e.g., "User"
-	EntityCacheKey    string // display key e.g. {"__typename":"User","key":{"id":"1234"}}
-	HadCachedValue    bool   // true if L2 had a cached value for this entity
-	IsStale           bool   // true if cached value differs from mutation response (always false when HadCachedValue=false)
-	CachedHash        uint64 // xxhash of cached ProvidesData fields (0 when HadCachedValue=false)
-	FreshHash         uint64 // xxhash of mutation response ProvidesData fields
-	CachedBytes       int    // 0 when HadCachedValue=false
+	Timestamp         time.Time // when the mutation was observed; stamped by RecordMutationEvent if zero
+	MutationRootField string    // e.g., "updateUsername"
+	EntityType        string    // e.g., "User"
+	EntityCacheKey    string    // display key e.g. {"__typename":"User","key":{"id":"1234"}}
+	HadCachedValue    bool      // true if L2 had a cached value for this entity
+	IsStale           bool      // true if cached value differs from mutation response (always false when HadCachedValue=false)
+	CachedHash        uint64    // xxhash of cached ProvidesData fields (0 when HadCachedValue=false)
+	FreshHash         uint64    // xxhash of mutation response ProvidesData fields
+	CachedBytes       int       // 0 when HadCachedValue=false
 	FreshBytes        int
 	Source            CacheOperationSource // what triggered this event (query/mutation/subscription)
 }
@@ -159,12 +166,13 @@ type MutationEvent struct {
 // Cache errors are non-fatal (the engine falls back to subgraph fetch), but tracking them
 // in analytics allows operators to detect cache infrastructure issues.
 type CacheOperationError struct {
-	Operation  string // "get", "set", "set_negative", or "delete"
-	CacheName  string // named cache instance
-	EntityType string // entity type (empty for root fetches)
-	DataSource string // subgraph name
-	Message    string // error message (truncated for safety)
-	ItemCount  int    // number of keys involved in the failed operation
+	Timestamp  time.Time // when the error occurred; stamped by RecordCacheOperationError if zero
+	Operation  string    // "get", "set", "set_negative", or "delete"
+	CacheName  string    // named cache instance
+	EntityType string    // entity type (empty for root fetches)
+	DataSource string    // subgraph name
+	Message    string    // error message (truncated for safety)
+	ItemCount  int       // number of keys involved in the failed operation
 }
 
 // HeaderImpactEvent records a fresh fetch that wrote to L2 cache with header-prefixed keys.
@@ -172,11 +180,12 @@ type CacheOperationError struct {
 // different HeaderHash values but identical ResponseHash values, the forwarded headers
 // do not affect the subgraph response, and IncludeSubgraphHeaderPrefix can be disabled.
 type HeaderImpactEvent struct {
-	BaseKey      string // cache key WITHOUT header prefix (stable identity for grouping)
-	HeaderHash   uint64 // hash of forwarded headers for this subgraph
-	ResponseHash uint64 // xxhash of the response value bytes written to L2
-	EntityType   string // entity type (e.g., "User") or "Query" for root fields
-	DataSource   string // subgraph name
+	Timestamp    time.Time // when the header-prefixed write occurred; stamped by RecordHeaderImpactEvent if zero
+	BaseKey      string    // cache key WITHOUT header prefix (stable identity for grouping)
+	HeaderHash   uint64    // hash of forwarded headers for this subgraph
+	ResponseHash uint64    // xxhash of the response value bytes written to L2
+	EntityType   string    // entity type (e.g., "User") or "Query" for root fields
+	DataSource   string    // subgraph name
 }
 
 // CacheAnalyticsCollector accumulates cache analytics events during request execution.
@@ -265,6 +274,7 @@ func (c *CacheAnalyticsCollector) ResetForReuse() {
 // RecordL1KeyEvent records an L1 cache key lookup event. Main thread only.
 func (c *CacheAnalyticsCollector) RecordL1KeyEvent(kind CacheKeyEventKind, entityType, cacheKey, dataSource string, byteSize int) {
 	c.l1KeyEvents = append(c.l1KeyEvents, CacheKeyEvent{
+		Timestamp:  time.Now(),
 		CacheKey:   cacheKey,
 		EntityType: entityType,
 		Kind:       kind,
@@ -279,6 +289,7 @@ func (c *CacheAnalyticsCollector) RecordL1KeyEvent(kind CacheKeyEventKind, entit
 // Use MergeL2Events to merge events collected on per-result slices from goroutines.
 func (c *CacheAnalyticsCollector) RecordL2KeyEvent(kind CacheKeyEventKind, entityType, cacheKey, dataSource string, byteSize int) {
 	c.l2KeyEvents = append(c.l2KeyEvents, CacheKeyEvent{
+		Timestamp:  time.Now(),
 		CacheKey:   cacheKey,
 		EntityType: entityType,
 		Kind:       kind,
@@ -295,6 +306,9 @@ func (c *CacheAnalyticsCollector) MergeL2Events(events []CacheKeyEvent) {
 
 // RecordWrite records a cache write event. Main thread only.
 func (c *CacheAnalyticsCollector) RecordWrite(event CacheWriteEvent) {
+	if event.Timestamp.IsZero() {
+		event.Timestamp = time.Now()
+	}
 	c.writeEvents = append(c.writeEvents, event)
 }
 
@@ -306,6 +320,7 @@ func (c *CacheAnalyticsCollector) HashFieldValue(entityType, fieldName string, v
 	hash := c.xxh.Sum64()
 
 	c.fieldHashes = append(c.fieldHashes, EntityFieldHash{
+		Timestamp:  time.Now(),
 		EntityType: entityType,
 		FieldName:  fieldName,
 		FieldHash:  hash,
@@ -357,6 +372,9 @@ func (c *CacheAnalyticsCollector) MergeEntitySources(sources []entitySourceRecor
 // It is exported for external consumers such as cosmo router; this repository
 // has no production caller. If cosmo no longer uses it, internalize it in the next breaking window.
 func (c *CacheAnalyticsCollector) RecordFetchTiming(event FetchTimingEvent) {
+	if event.Timestamp.IsZero() {
+		event.Timestamp = time.Now()
+	}
 	c.fetchTimings = append(c.fetchTimings, event)
 }
 
@@ -368,6 +386,9 @@ func (c *CacheAnalyticsCollector) MergeL2FetchTimings(timings []FetchTimingEvent
 
 // RecordError records a subgraph error event. Main thread only.
 func (c *CacheAnalyticsCollector) RecordError(event SubgraphErrorEvent) {
+	if event.Timestamp.IsZero() {
+		event.Timestamp = time.Now()
+	}
 	c.errorEvents = append(c.errorEvents, event)
 }
 
@@ -380,21 +401,33 @@ func (c *CacheAnalyticsCollector) MergeL2Errors(events []SubgraphErrorEvent) {
 // RecordShadowComparison records a shadow mode comparison between cached and fresh data.
 // Main thread only.
 func (c *CacheAnalyticsCollector) RecordShadowComparison(event ShadowComparisonEvent) {
+	if event.Timestamp.IsZero() {
+		event.Timestamp = time.Now()
+	}
 	c.shadowComparisons = append(c.shadowComparisons, event)
 }
 
 // RecordMutationEvent records a mutation entity impact event. Main thread only.
 func (c *CacheAnalyticsCollector) RecordMutationEvent(event MutationEvent) {
+	if event.Timestamp.IsZero() {
+		event.Timestamp = time.Now()
+	}
 	c.mutationEvents = append(c.mutationEvents, event)
 }
 
 // RecordHeaderImpactEvent records a header impact event. Main thread only.
 func (c *CacheAnalyticsCollector) RecordHeaderImpactEvent(event HeaderImpactEvent) {
+	if event.Timestamp.IsZero() {
+		event.Timestamp = time.Now()
+	}
 	c.headerImpactEvents = append(c.headerImpactEvents, event)
 }
 
 // RecordCacheOperationError records a cache operation error. Main thread only.
 func (c *CacheAnalyticsCollector) RecordCacheOperationError(event CacheOperationError) {
+	if event.Timestamp.IsZero() {
+		event.Timestamp = time.Now()
+	}
 	c.cacheOpErrors = append(c.cacheOpErrors, event)
 }
 

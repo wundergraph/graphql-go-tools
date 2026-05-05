@@ -2088,3 +2088,90 @@ func TestSnapshotSlicesAreIndependent(t *testing.T) {
 	assert.Equal(t, origCacheOpErrors, snap.CacheOpErrors)
 	assert.Equal(t, origFieldHashes, snap.FieldHashes)
 }
+
+// TestCacheAnalyticsCollector_TimestampsAutoStamp verifies every Record* method
+// auto-stamps Timestamp = time.Now() when the caller passes a zero time.
+// Without this, downstream consumers that rely on Timestamp for ordering or
+// rate calculations would see uninitialized zero times and silently misorder.
+func TestCacheAnalyticsCollector_TimestampsAutoStamp(t *testing.T) {
+	c := NewCacheAnalyticsCollector()
+
+	before := time.Now()
+	c.RecordL1KeyEvent(CacheKeyHit, "User", `{"id":"1"}`, "accounts", 100)
+	c.RecordL2KeyEvent(CacheKeyMiss, "User", `{"id":"1"}`, "accounts", 0)
+	c.RecordWrite(CacheWriteEvent{CacheKey: "k", EntityType: "User", CacheLevel: CacheLevelL1})
+	c.RecordFetchTiming(FetchTimingEvent{DataSource: "accounts", DurationMs: 10})
+	c.RecordError(SubgraphErrorEvent{DataSource: "accounts", Message: "boom"})
+	c.RecordShadowComparison(ShadowComparisonEvent{CacheKey: "k", EntityType: "User"})
+	c.RecordMutationEvent(MutationEvent{MutationRootField: "updateUser", EntityType: "User"})
+	c.RecordHeaderImpactEvent(HeaderImpactEvent{BaseKey: "k", EntityType: "User"})
+	c.RecordCacheOperationError(CacheOperationError{Operation: "get", EntityType: "User"})
+	c.HashFieldValue("User", "name", nil, []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceSubgraph, "accounts")
+	after := time.Now()
+
+	snap := c.Snapshot()
+	require.Equal(t, 1, len(snap.L1Reads))
+	require.Equal(t, 1, len(snap.L2Reads))
+	require.Equal(t, 1, len(snap.L1Writes)+len(snap.L2Writes))
+	require.Equal(t, 1, len(snap.FetchTimings))
+	require.Equal(t, 1, len(snap.ErrorEvents))
+	require.Equal(t, 1, len(snap.ShadowComparisons))
+	require.Equal(t, 1, len(snap.MutationEvents))
+	require.Equal(t, 1, len(snap.HeaderImpactEvents))
+	require.Equal(t, 1, len(snap.CacheOpErrors))
+	require.Equal(t, 1, len(snap.FieldHashes))
+
+	// Every event's Timestamp must fall in [before, after]. The exact value
+	// doesn't matter, only that it's stamped and within the recording window.
+	timestamps := []time.Time{
+		snap.L1Reads[0].Timestamp,
+		snap.L2Reads[0].Timestamp,
+		append(snap.L1Writes, snap.L2Writes...)[0].Timestamp,
+		snap.FetchTimings[0].Timestamp,
+		snap.ErrorEvents[0].Timestamp,
+		snap.ShadowComparisons[0].Timestamp,
+		snap.MutationEvents[0].Timestamp,
+		snap.HeaderImpactEvents[0].Timestamp,
+		snap.CacheOpErrors[0].Timestamp,
+		snap.FieldHashes[0].Timestamp,
+	}
+	for i, ts := range timestamps {
+		assert.False(t, ts.IsZero(), "event %d Timestamp must be auto-stamped", i)
+		assert.False(t, ts.Before(before), "event %d Timestamp must not predate Record* call", i)
+		assert.False(t, ts.After(after), "event %d Timestamp must not be in the future", i)
+	}
+}
+
+// TestCacheAnalyticsCollector_TimestampsPreservePreSet verifies that Record*
+// methods preserve a caller-supplied Timestamp instead of overwriting it.
+// This is load-bearing for events captured at one point in time and recorded
+// later (e.g. fetch start time vs Record call time).
+func TestCacheAnalyticsCollector_TimestampsPreservePreSet(t *testing.T) {
+	c := NewCacheAnalyticsCollector()
+	preSet := time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
+
+	c.RecordWrite(CacheWriteEvent{Timestamp: preSet, CacheKey: "k", EntityType: "User"})
+	c.RecordFetchTiming(FetchTimingEvent{Timestamp: preSet, DataSource: "ds"})
+	c.RecordError(SubgraphErrorEvent{Timestamp: preSet, DataSource: "ds"})
+	c.RecordShadowComparison(ShadowComparisonEvent{Timestamp: preSet, CacheKey: "k"})
+	c.RecordMutationEvent(MutationEvent{Timestamp: preSet, EntityType: "User"})
+	c.RecordHeaderImpactEvent(HeaderImpactEvent{Timestamp: preSet, BaseKey: "k"})
+	c.RecordCacheOperationError(CacheOperationError{Timestamp: preSet, Operation: "get"})
+
+	snap := c.Snapshot()
+	// Note: writes route to L1Writes/L2Writes by CacheLevel. CacheLevel zero
+	// (unset) lands in neither, so RecordWrite snapshots through the L1+L2
+	// view. We only need to prove preservation, so look at the raw collector.
+	for _, ts := range []time.Time{
+		c.writeEvents[0].Timestamp,
+		snap.FetchTimings[0].Timestamp,
+		snap.ErrorEvents[0].Timestamp,
+		snap.ShadowComparisons[0].Timestamp,
+		snap.MutationEvents[0].Timestamp,
+		snap.HeaderImpactEvents[0].Timestamp,
+		snap.CacheOpErrors[0].Timestamp,
+	} {
+		assert.True(t, ts.Equal(preSet), "pre-set Timestamp must be preserved exactly, got %v", ts)
+	}
+}
+
