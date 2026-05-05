@@ -880,10 +880,17 @@ func (s *cachingPlannerState) entityCacheAnalytics(typeName string) *resolve.Obj
 		// Extract full key structure from @key SelectionSets
 		keys := fedConfig.Keys.FilterByTypeAndResolvability(typeName, true)
 		keyFields := extractKeyFields(keys, typeName)
-		// Get hash mode from entity cache config (default false)
+		// Get hash mode from entity cache config (default false), then OR
+		// with the planner's global ForceHashAnalyticsKeys flag. The global
+		// flag exists so router operators can guarantee that no raw entity
+		// key ever leaves the engine via analytics, regardless of what each
+		// subgraph SDL declares.
 		var hashKeys bool
 		if cacheConfig := fedConfig.EntityCacheConfig(typeName); cacheConfig != nil {
 			hashKeys = cacheConfig.HashAnalyticsKeys
+		}
+		if s.visitor.Config.ForceHashAnalyticsKeys {
+			hashKeys = true
 		}
 		result := &resolve.ObjectCacheAnalytics{
 			KeyFields: keyFields,
