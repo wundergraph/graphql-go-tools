@@ -69,6 +69,13 @@ type Resolvable struct {
 	currentEntityKeyHash    uint64                // xxhash of key JSON (when HashKeys=true)
 	currentEntitySource     FieldSource           // where the entity data came from (l1/l2/subgraph)
 	currentEntityDataSource string                // subgraph name that owns the current entity
+	// currentEntityFieldPath tracks the chain of schema field names from the
+	// nearest enclosing entity down to the current parent. Used to disambiguate
+	// value-type scalars at arbitrary nesting depth in FIELD_HASH events
+	// (e.g. User.profile.location.street → ["profile","location"]).
+	// Reset on entity boundary entry, restored on exit. Reusable scratch slice;
+	// HashFieldValue copies before storing.
+	currentEntityFieldPath []string
 
 	// haltExecution is set to true when ErrorBehaviorHalt encounters an error.
 	// Once set, remaining fetches and resolution will be skipped.
@@ -572,40 +579,45 @@ func (r *Resolvable) renderFieldValue(value *astjson.Value, valueBytes []byte, n
 		_, r.printErr = r.out.Write(valueBytes)
 	}
 
-	// Hash field value for cache analytics (two-tier check: plan-time fast path + runtime fallback)
+	// Hash field value for cache analytics. Three eligibility paths:
+	//   1. Plan-time CacheAnalyticsHash flag (set on non-key scalars on entity
+	//      types AND on scalars reachable from an entity through pure
+	//      value-type traversal — see plan/visitor.go).
+	//   2. Polymorphic interface-on-entity runtime fallback (kept for
+	//      cases the plan-time pass can't statically determine — interface
+	//      fields whose concrete __typename is an entity).
+	// The hash is always attributed to the nearest enclosing entity
+	// (currentEntityTypeName) for cache identity, with parent type name
+	// recorded separately to disambiguate value-type fields from direct
+	// entity scalars (e.g. User.address.street vs User.email).
 	if r.ctx != nil && r.ctx.cacheAnalytics != nil && r.currentEntityAnalytics != nil && r.currentFieldInfo != nil {
-		// Guard: only hash fields that belong to the current entity type.
-		// When a non-entity (Review) is nested inside an entity (User),
-		// currentEntityAnalytics is still User's — we must NOT hash Review.body.
-		isOnCurrentEntity := r.currentFieldInfo.ExactParentTypeName == r.currentEntityTypeName
-		if !isOnCurrentEntity {
-			// Check ParentTypeNames for polymorphic match (interface field on concrete entity)
-			for _, pt := range r.currentFieldInfo.ParentTypeNames {
-				if pt == r.currentEntityTypeName {
-					isOnCurrentEntity = true
-					break
+		shouldHash := false
+		if r.currentFieldInfo.CacheAnalyticsHash {
+			shouldHash = true
+		} else {
+			// Polymorphic runtime fallback: interface field whose concrete type matches the enclosing entity.
+			isOnCurrentEntity := r.currentFieldInfo.ExactParentTypeName == r.currentEntityTypeName
+			if !isOnCurrentEntity {
+				for _, pt := range r.currentFieldInfo.ParentTypeNames {
+					if pt == r.currentEntityTypeName {
+						isOnCurrentEntity = true
+						break
+					}
 				}
 			}
+			if isOnCurrentEntity && !r.currentEntityAnalytics.IsKeyField(r.currentFieldInfo.Name) {
+				shouldHash = true
+			}
 		}
-
-		if isOnCurrentEntity {
-			shouldHash := false
-			if r.currentFieldInfo.CacheAnalyticsHash {
-				// Fast path: plan-time guarantee (concrete entity, non-key field)
-				shouldHash = true
-			} else if !r.currentEntityAnalytics.IsKeyField(r.currentFieldInfo.Name) {
-				// Runtime fallback: field is NOT a key field on the resolved entity
-				// Handles: (a) polymorphic parents where plan-time couldn't determine
-				//          (b) correctly skips actual key fields (IsKeyField returns true)
-				shouldHash = true
-			}
-			if shouldHash {
-				r.ctx.cacheAnalytics.HashFieldValue(
-					r.currentEntityTypeName, r.currentFieldInfo.Name, valueBytes,
-					r.currentEntityKeyRaw, r.currentEntityKeyHash,
-					r.currentEntitySource, r.currentEntityDataSource,
-				)
-			}
+		if shouldHash {
+			r.ctx.cacheAnalytics.HashFieldValue(
+				r.currentEntityTypeName,
+				r.currentFieldInfo.Name,
+				r.currentEntityFieldPath,
+				valueBytes,
+				r.currentEntityKeyRaw, r.currentEntityKeyHash,
+				r.currentEntitySource, r.currentEntityDataSource,
+			)
 		}
 	}
 }
@@ -743,13 +755,18 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 		}
 
 		if analytics != nil {
-			// Save/restore entity context for nested entities
+			// Save/restore entity context for nested entities. The field-path
+			// is reset to nil on entry — leaves under the new entity scope
+			// attribute relative to it, not to any outer entity. The slice
+			// header is restored on exit so the outer scope's path resumes
+			// intact even if inner walking grew the underlying buffer.
 			savedAnalytics := r.currentEntityAnalytics
 			savedTypeName := r.currentEntityTypeName
 			savedKeyRaw := r.currentEntityKeyRaw
 			savedKeyHash := r.currentEntityKeyHash
 			savedSource := r.currentEntitySource
 			savedDataSource := r.currentEntityDataSource
+			savedFieldPath := r.currentEntityFieldPath
 			defer func() {
 				r.currentEntityAnalytics = savedAnalytics
 				r.currentEntityTypeName = savedTypeName
@@ -757,10 +774,12 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 				r.currentEntityKeyHash = savedKeyHash
 				r.currentEntitySource = savedSource
 				r.currentEntityDataSource = savedDataSource
+				r.currentEntityFieldPath = savedFieldPath
 			}()
 
 			r.currentEntityAnalytics = analytics
 			r.currentEntityTypeName = entityTypeName
+			r.currentEntityFieldPath = nil
 
 			// Extract key field values (uses plan-time KeyFields directly)
 			keyJSON := buildEntityKeyJSON(value, analytics.KeyFields)
@@ -842,7 +861,28 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 			r.printBytes(colon)
 		}
 		r.currentFieldInfo = obj.Fields[i].Info
+		// Push field-path before descending into a nested Object/Array while
+		// inside an entity scope. Scalar leaves stay at the parent's path
+		// (their FieldName already identifies them). Schema name = OriginalName
+		// when aliased, else Name. No-op outside entity scope (path is unused).
+		fieldPathPushed := false
+		if r.print && r.currentEntityAnalytics != nil {
+			switch obj.Fields[i].Value.NodeKind() {
+			case NodeKindObject, NodeKindArray:
+				schemaName := obj.Fields[i].OriginalName
+				if len(schemaName) == 0 {
+					schemaName = obj.Fields[i].Name
+				}
+				if len(schemaName) > 0 {
+					r.currentEntityFieldPath = append(r.currentEntityFieldPath, string(schemaName))
+					fieldPathPushed = true
+				}
+			}
+		}
 		err := r.walkNode(obj.Fields[i].Value, value)
+		if fieldPathPushed {
+			r.currentEntityFieldPath = r.currentEntityFieldPath[:len(r.currentEntityFieldPath)-1]
+		}
 		if err {
 			if obj.Nullable {
 				if len(obj.Path) > 0 {

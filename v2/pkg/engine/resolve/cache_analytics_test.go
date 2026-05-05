@@ -136,8 +136,8 @@ func TestCacheAnalyticsCollector_FieldHashing(t *testing.T) {
 	t.Run("same input produces same hash", func(t *testing.T) {
 		c := NewCacheAnalyticsCollector()
 
-		c.HashFieldValue("User", "name", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceSubgraph, "")
-		c.HashFieldValue("User", "name", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceSubgraph, "")
+		c.HashFieldValue("User", "name", nil, []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceSubgraph, "")
+		c.HashFieldValue("User", "name", nil, []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceSubgraph, "")
 
 		snap := c.Snapshot()
 		assert.Equal(t, 2, len(snap.FieldHashes))
@@ -151,8 +151,8 @@ func TestCacheAnalyticsCollector_FieldHashing(t *testing.T) {
 	t.Run("different input produces different hash", func(t *testing.T) {
 		c := NewCacheAnalyticsCollector()
 
-		c.HashFieldValue("User", "name", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceSubgraph, "")
-		c.HashFieldValue("User", "name", []byte(`"Bob"`), `{"id":"2"}`, 0, FieldSourceSubgraph, "")
+		c.HashFieldValue("User", "name", nil, []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceSubgraph, "")
+		c.HashFieldValue("User", "name", nil, []byte(`"Bob"`), `{"id":"2"}`, 0, FieldSourceSubgraph, "")
 
 		snap := c.Snapshot()
 		assert.Equal(t, 2, len(snap.FieldHashes))
@@ -162,7 +162,7 @@ func TestCacheAnalyticsCollector_FieldHashing(t *testing.T) {
 	t.Run("hashed keys mode", func(t *testing.T) {
 		c := NewCacheAnalyticsCollector()
 
-		c.HashFieldValue("User", "name", []byte(`"Alice"`), "", 12345, FieldSourceL1, "")
+		c.HashFieldValue("User", "name", nil, []byte(`"Alice"`), "", 12345, FieldSourceL1, "")
 
 		snap := c.Snapshot()
 		assert.Equal(t, 1, len(snap.FieldHashes))
@@ -174,9 +174,9 @@ func TestCacheAnalyticsCollector_FieldHashing(t *testing.T) {
 	t.Run("field source tracking", func(t *testing.T) {
 		c := NewCacheAnalyticsCollector()
 
-		c.HashFieldValue("User", "name", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceSubgraph, "")
-		c.HashFieldValue("User", "name", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceL1, "")
-		c.HashFieldValue("User", "name", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceL2, "")
+		c.HashFieldValue("User", "name", nil, []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceSubgraph, "")
+		c.HashFieldValue("User", "name", nil, []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceL1, "")
+		c.HashFieldValue("User", "name", nil, []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceL2, "")
 
 		snap := c.Snapshot()
 		assert.Equal(t, 3, len(snap.FieldHashes))
@@ -1564,7 +1564,7 @@ func TestFieldSourceShadowCached(t *testing.T) {
 	t.Run("HashFieldValue with FieldSourceShadowCached", func(t *testing.T) {
 		c := NewCacheAnalyticsCollector()
 
-		c.HashFieldValue("User", "username", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceShadowCached, "")
+		c.HashFieldValue("User", "username", nil, []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceShadowCached, "")
 
 		snap := c.Snapshot()
 		require.Equal(t, 1, len(snap.FieldHashes))
@@ -1577,8 +1577,8 @@ func TestFieldSourceShadowCached(t *testing.T) {
 	t.Run("can distinguish from other sources", func(t *testing.T) {
 		c := NewCacheAnalyticsCollector()
 
-		c.HashFieldValue("User", "name", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceSubgraph, "")
-		c.HashFieldValue("User", "name", []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceShadowCached, "")
+		c.HashFieldValue("User", "name", nil, []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceSubgraph, "")
+		c.HashFieldValue("User", "name", nil, []byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceShadowCached, "")
 
 		snap := c.Snapshot()
 		require.Equal(t, 2, len(snap.FieldHashes))
@@ -1586,6 +1586,101 @@ func TestFieldSourceShadowCached(t *testing.T) {
 		assert.Equal(t, FieldSourceShadowCached, snap.FieldHashes[1].Source)
 		// Same input, same hash regardless of source
 		assert.Equal(t, snap.FieldHashes[0].FieldHash, snap.FieldHashes[1].FieldHash, "same input = same hash")
+	})
+}
+
+// TestCacheAnalyticsCollector_FieldPath verifies the FieldPath dimension on
+// EntityFieldHash, which disambiguates value-type scalars nested at arbitrary
+// depth under an entity (e.g. User.address.street vs User.profile.name).
+// EntityType remains the cache identity in all cases; schema-aware consumers
+// resolve the parent type by walking FieldPath against the schema.
+func TestCacheAnalyticsCollector_FieldPath(t *testing.T) {
+	t.Run("direct entity scalar has nil field path", func(t *testing.T) {
+		c := NewCacheAnalyticsCollector()
+
+		// User.email — direct scalar on the entity, no value-type traversal.
+		c.HashFieldValue("User", "email", nil, []byte(`"a@b.com"`), `{"id":"1"}`, 0, FieldSourceSubgraph, "")
+
+		snap := c.Snapshot()
+		require.Equal(t, 1, len(snap.FieldHashes))
+		assert.Equal(t, "User", snap.FieldHashes[0].EntityType)
+		assert.Equal(t, "email", snap.FieldHashes[0].FieldName)
+		assert.Nil(t, snap.FieldHashes[0].FieldPath)
+	})
+
+	t.Run("value-type scalars under same entity attribute to that entity", func(t *testing.T) {
+		c := NewCacheAnalyticsCollector()
+
+		// User.address.street and .city — Address is a value type under User.
+		// Both attribute to User for cache identity (same KeyRaw).
+		c.HashFieldValue("User", "street", []string{"address"}, []byte(`"1 Main"`), `{"id":"1"}`, 0, FieldSourceSubgraph, "")
+		c.HashFieldValue("User", "city", []string{"address"}, []byte(`"NYC"`), `{"id":"1"}`, 0, FieldSourceSubgraph, "")
+
+		snap := c.Snapshot()
+		require.Equal(t, 2, len(snap.FieldHashes))
+		for i, want := range []string{"street", "city"} {
+			assert.Equal(t, "User", snap.FieldHashes[i].EntityType)
+			assert.Equal(t, want, snap.FieldHashes[i].FieldName)
+			assert.Equal(t, []string{"address"}, snap.FieldHashes[i].FieldPath)
+			assert.Equal(t, `{"id":"1"}`, snap.FieldHashes[i].KeyRaw)
+		}
+	})
+
+	t.Run("siblings on different value-type parents do not collapse", func(t *testing.T) {
+		// Same FieldName "name" reached via different value-type paths
+		// (User.profile.name vs User.address.name) — recorded as two distinct
+		// events because their FieldPath differs.
+		c := NewCacheAnalyticsCollector()
+		c.HashFieldValue("User", "name", []string{"profile"}, []byte(`"Profile-Alice"`), `{"id":"1"}`, 0, FieldSourceSubgraph, "")
+		c.HashFieldValue("User", "name", []string{"address"}, []byte(`"Home"`), `{"id":"1"}`, 0, FieldSourceSubgraph, "")
+
+		snap := c.Snapshot()
+		require.Equal(t, 2, len(snap.FieldHashes))
+		assert.Equal(t, []string{"profile"}, snap.FieldHashes[0].FieldPath)
+		assert.Equal(t, []string{"address"}, snap.FieldHashes[1].FieldPath)
+		assert.NotEqual(t, snap.FieldHashes[0].FieldHash, snap.FieldHashes[1].FieldHash)
+	})
+
+	t.Run("field path captures arbitrary nesting depth", func(t *testing.T) {
+		// User.profile.location.street is two value-type hops deep.
+		c := NewCacheAnalyticsCollector()
+		c.HashFieldValue("User", "street",
+			[]string{"profile", "location"},
+			[]byte(`"1 Main"`), `{"id":"1"}`, 0, FieldSourceSubgraph, "")
+
+		snap := c.Snapshot()
+		require.Equal(t, 1, len(snap.FieldHashes))
+		assert.Equal(t, "User", snap.FieldHashes[0].EntityType)
+		assert.Equal(t, []string{"profile", "location"}, snap.FieldHashes[0].FieldPath)
+		assert.Equal(t, "street", snap.FieldHashes[0].FieldName)
+	})
+
+	t.Run("field path is copied so caller scratch buffers can be reused", func(t *testing.T) {
+		// Many call sites will pass a reusable scratch slice. The collector
+		// must defensively copy so a subsequent push by the caller does not
+		// mutate already-recorded events.
+		c := NewCacheAnalyticsCollector()
+		scratch := []string{"profile"}
+		c.HashFieldValue("User", "name", scratch,
+			[]byte(`"Alice"`), `{"id":"1"}`, 0, FieldSourceSubgraph, "")
+		// Caller mutates the scratch slice after the call.
+		scratch[0] = "MUTATED"
+
+		snap := c.Snapshot()
+		require.Equal(t, 1, len(snap.FieldHashes))
+		assert.Equal(t, []string{"profile"}, snap.FieldHashes[0].FieldPath, "stored path must be unaffected by caller mutation")
+	})
+
+	t.Run("empty slice is canonicalized to nil for direct entity scalars", func(t *testing.T) {
+		// Pass an actual empty slice — the collector must canonicalize
+		// []string{} to nil so a "direct entity scalar" event is
+		// indistinguishable regardless of which sentinel the caller passed.
+		c := NewCacheAnalyticsCollector()
+		c.HashFieldValue("User", "email", []string{},
+			[]byte(`"a@b"`), `{"id":"1"}`, 0, FieldSourceSubgraph, "")
+		snap := c.Snapshot()
+		require.Equal(t, 1, len(snap.FieldHashes))
+		assert.Nil(t, snap.FieldHashes[0].FieldPath, "empty []string{} must be canonicalized to nil")
 	})
 }
 
@@ -1755,7 +1850,7 @@ func BenchmarkFieldHashing(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
-		c.HashFieldValue("User", "id", value, `{"id":"1"}`, 0, FieldSourceSubgraph, "")
+		c.HashFieldValue("User", "id", nil, value, `{"id":"1"}`, 0, FieldSourceSubgraph, "")
 	}
 }
 
@@ -2056,7 +2151,7 @@ func TestSnapshotSlicesAreIndependent(t *testing.T) {
 	c.RecordError(SubgraphErrorEvent{DataSource: "ds-orig"})
 	c.RecordMutationEvent(MutationEvent{EntityType: "User-orig"})
 	c.RecordCacheOperationError(CacheOperationError{DataSource: "ds-orig"})
-	c.HashFieldValue("User-orig", "name", []byte(`"a"`), "k-orig", 1, FieldSourceL1, "")
+	c.HashFieldValue("User-orig", "name", nil, []byte(`"a"`), "k-orig", 1, FieldSourceL1, "")
 
 	snap := c.Snapshot()
 
@@ -2078,7 +2173,7 @@ func TestSnapshotSlicesAreIndependent(t *testing.T) {
 		c.RecordError(SubgraphErrorEvent{DataSource: "ds-new"})
 		c.RecordMutationEvent(MutationEvent{EntityType: "User-new"})
 		c.RecordCacheOperationError(CacheOperationError{DataSource: "ds-new"})
-		c.HashFieldValue("User-new", "name", []byte(`"z"`), "k-new", 2, FieldSourceL2, "")
+		c.HashFieldValue("User-new", "name", nil, []byte(`"z"`), "k-new", 2, FieldSourceL2, "")
 	}
 
 	// Full-slice assertions — snapshot must still show the original events.

@@ -2565,17 +2565,83 @@ func (l *Loader) compareShadowValues(res *result, info *FetchInfo) {
 					keyRaw = string(keyJSON)
 				}
 			}
-			for _, field := range info.ProvidesData.Fields {
-				fieldName := string(field.Name)
-				fieldVal := cachedProvides.Get(fieldName)
-				if fieldVal != nil {
-					fieldBytes := fieldVal.MarshalTo(nil)
-					l.ctx.cacheAnalytics.HashFieldValue(
-						entityType, fieldName, fieldBytes,
-						keyRaw, 0, FieldSourceShadowCached, dataSource,
-					)
+			// Recurse to mirror the fresh-side per-leaf emission so nested
+			// value-type scalars (e.g. User.address.street) line up by
+			// (entityType, fieldName, FieldPath) instead of being collapsed
+			// into a single whole-subobject hash.
+			l.hashShadowCachedLeaves(cachedProvides, info.ProvidesData, entityType, keyRaw, dataSource, nil)
+		}
+	}
+}
+
+// hashShadowCachedLeaves walks the cached value against ProvidesData and emits
+// one HashFieldValue event per scalar leaf, accumulating fieldPath through
+// nested value types. This mirrors the fresh-resolution emission in
+// resolvable.renderFieldValue so shadow-mode comparisons can correlate
+// per-field hashes across the (entityType, fieldName, FieldPath) tuple.
+//
+// fieldPath is reused across recursive calls; entries are appended on descent
+// and trimmed on return. HashFieldValue copies the slice when storing, so the
+// reuse is safe.
+func (l *Loader) hashShadowCachedLeaves(
+	cachedValue *astjson.Value,
+	providesData *Object,
+	entityType, keyRaw, dataSource string,
+	fieldPath []string,
+) {
+	if cachedValue == nil || providesData == nil {
+		return
+	}
+	for _, field := range providesData.Fields {
+		fieldName := string(field.Name)
+		fieldVal := cachedValue.Get(fieldName)
+		if fieldVal == nil {
+			continue
+		}
+		// Schema-name (alias-stripped) component for FieldPath. ProvidesData
+		// is plan-time so OriginalName is usually empty; fall back to Name.
+		schemaName := string(field.OriginalName)
+		if schemaName == "" {
+			schemaName = fieldName
+		}
+
+		switch v := field.Value.(type) {
+		case *Object:
+			fieldPath = append(fieldPath, schemaName)
+			l.hashShadowCachedLeaves(fieldVal, v, entityType, keyRaw, dataSource, fieldPath)
+			fieldPath = fieldPath[:len(fieldPath)-1]
+		case *Array:
+			if itemObj, ok := v.Item.(*Object); ok {
+				// Array of objects: walk each element under the same path.
+				fieldPath = append(fieldPath, schemaName)
+				if items, _ := fieldVal.Array(); len(items) > 0 {
+					for _, item := range items {
+						l.hashShadowCachedLeaves(item, itemObj, entityType, keyRaw, dataSource, fieldPath)
+					}
+				}
+				fieldPath = fieldPath[:len(fieldPath)-1]
+			} else {
+				// Array of scalars: hash each item with the array's fieldName,
+				// matching the resolvable's per-item emission.
+				if items, _ := fieldVal.Array(); len(items) > 0 {
+					fieldPath = append(fieldPath, schemaName)
+					for _, item := range items {
+						bytes := item.MarshalTo(nil)
+						l.ctx.cacheAnalytics.HashFieldValue(
+							entityType, fieldName, fieldPath,
+							bytes, keyRaw, 0, FieldSourceShadowCached, dataSource,
+						)
+					}
+					fieldPath = fieldPath[:len(fieldPath)-1]
 				}
 			}
+		default:
+			// Scalar leaf: hash with the accumulated path.
+			bytes := fieldVal.MarshalTo(nil)
+			l.ctx.cacheAnalytics.HashFieldValue(
+				entityType, fieldName, fieldPath,
+				bytes, keyRaw, 0, FieldSourceShadowCached, dataSource,
+			)
 		}
 	}
 }

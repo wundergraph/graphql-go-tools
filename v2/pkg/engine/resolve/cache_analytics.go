@@ -97,16 +97,21 @@ type SubgraphErrorEvent struct {
 	Code       string    // error code from errors[0].extensions.code (empty if not present)
 }
 
-// EntityFieldHash stores an xxhash of a scalar field value on an entity type,
-// along with the entity's key data and the source of the data.
+// EntityFieldHash stores an xxhash of a scalar field value reached from inside
+// an entity scope. KeyRaw/KeyHash always refer to the enclosing entity's @key,
+// even when the field lives on a nested value type. FieldPath is the schema-name
+// chain from the entity down to (but not including) the leaf — nil for direct
+// entity scalars, e.g. User.address.street → []string{"address"}. Array indexes
+// are omitted; nested entities reset the path.
 type EntityFieldHash struct {
 	Timestamp  time.Time // when the hash was computed; stamped by HashFieldValue if zero
-	EntityType string
+	EntityType string    // enclosing entity type name (cache identity)
+	FieldPath  []string  // schema-name field path from the enclosing entity to the parent (nil for direct entity scalars)
 	FieldName  string
 	FieldHash  uint64      // xxhash of the non-key field value
 	KeyRaw     string      // raw key JSON e.g. {"id":"1234"} (when HashKeys=false)
 	KeyHash    uint64      // xxhash of key JSON (when HashKeys=true)
-	Source     FieldSource // where the entity data came from (L1/L2/Subgraph)
+	Source     FieldSource // category: where the entity data came from (L1/L2/Subgraph/ShadowCached)
 	DataSource string      // subgraph name that owns this entity (empty if not resolvable)
 }
 
@@ -316,16 +321,28 @@ func (c *CacheAnalyticsCollector) RecordWrite(event CacheWriteEvent) {
 }
 
 // HashFieldValue computes an xxhash of the given field value bytes and records it
-// as an EntityFieldHash with entity key and source information. dataSource is
-// the subgraph name that owns the entity (may be empty if not resolvable).
-func (c *CacheAnalyticsCollector) HashFieldValue(entityType, fieldName string, valueBytes []byte, keyRaw string, keyHash uint64, source FieldSource, dataSource string) {
+// as an EntityFieldHash with entity key and source information.
+//
+// entityType is the enclosing entity type name (cache identity). fieldPath is
+// the chain of schema field names from the enclosing entity down to (but not
+// including) the hashed leaf — empty for direct entity scalars. The slice is
+// copied so callers may reuse their scratch buffer. dataSource is the
+// subgraph name that owns the entity (may be empty if not resolvable).
+func (c *CacheAnalyticsCollector) HashFieldValue(entityType, fieldName string, fieldPath []string, valueBytes []byte, keyRaw string, keyHash uint64, source FieldSource, dataSource string) {
 	c.xxh.Reset()
 	_, _ = c.xxh.Write(valueBytes)
 	hash := c.xxh.Sum64()
 
+	var pathCopy []string
+	if len(fieldPath) > 0 {
+		pathCopy = make([]string, len(fieldPath))
+		copy(pathCopy, fieldPath)
+	}
+
 	c.fieldHashes = append(c.fieldHashes, EntityFieldHash{
 		Timestamp:  time.Now(),
 		EntityType: entityType,
+		FieldPath:  pathCopy,
 		FieldName:  fieldName,
 		FieldHash:  hash,
 		KeyRaw:     keyRaw,
