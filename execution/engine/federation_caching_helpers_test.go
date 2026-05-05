@@ -804,18 +804,35 @@ func parseCacheAnalytics(t *testing.T, headers http.Header) resolve.CacheAnalyti
 	return snap
 }
 
-// normalizeSnapshot makes a CacheAnalyticsSnapshot deterministically comparable by
-// sorting EntityTypes, L1Reads, L2Reads, L1Writes, L2Writes, and FieldHashes,
-// zeroing the auto-stamped Timestamp on every event slice, and stripping the
-// DataSource and FieldPath dimensions from FieldHashes / MutationEvents.
+// normalizeSnapshot makes a CacheAnalyticsSnapshot deterministically comparable
+// for tests that focus on request-flow and cache-hit-pattern invariants. It
+// sorts/zeros non-deterministic fields and STRIPS the DataSource and FieldPath
+// dimensions from FieldHashes / MutationEvents so most e2e fixtures don't need
+// per-event subgraph attribution.
 //
-// DataSource and FieldPath attribution is exhaustively covered by the unit
-// tests in v2/pkg/engine/resolve/cache_analytics_test.go. The e2e test
-// fixtures in this package focus on request-flow and cache-hit-pattern
-// invariants, so the per-fixture DataSource and FieldPath values are
-// intentionally not asserted here — keeping fixtures focused on the
-// causation-by-comment pattern documented in CLAUDE.md.
+// Attribution-focused tests (i.e. those that need to assert which subgraph
+// produced a hash) MUST use normalizeSnapshotPreservingAttribution instead.
+// Stripping DataSource here means a regression that misattributes a field hash
+// to the wrong subgraph would silently pass a normalizeSnapshot-using test.
 func normalizeSnapshot(snap resolve.CacheAnalyticsSnapshot) resolve.CacheAnalyticsSnapshot {
+	snap = normalizeSnapshotPreservingAttribution(snap)
+	for i := range snap.FieldHashes {
+		snap.FieldHashes[i].DataSource = ""
+		snap.FieldHashes[i].FieldPath = nil
+	}
+	for i := range snap.MutationEvents {
+		snap.MutationEvents[i].DataSource = ""
+	}
+	return snap
+}
+
+// normalizeSnapshotPreservingAttribution is the strict variant of
+// normalizeSnapshot for tests that assert per-event subgraph attribution.
+// It zeros non-deterministic fields (Timestamps, FetchTimings.DurationMs,
+// CacheAgeMs) and sorts events for stable comparison, but leaves
+// FieldHashes.DataSource, FieldHashes.FieldPath, and MutationEvents.DataSource
+// intact so a wrong-subgraph regression fails the assertion.
+func normalizeSnapshotPreservingAttribution(snap resolve.CacheAnalyticsSnapshot) resolve.CacheAnalyticsSnapshot {
 	// Zero auto-stamped Timestamps on every event slice. Each Record* method
 	// stamps time.Now() when the caller passes a zero value; the wall-clock
 	// nanos make literal struct equality flake without this normalization.
@@ -836,15 +853,12 @@ func normalizeSnapshot(snap resolve.CacheAnalyticsSnapshot) resolve.CacheAnalyti
 	}
 	for i := range snap.FieldHashes {
 		snap.FieldHashes[i].Timestamp = time.Time{}
-		snap.FieldHashes[i].DataSource = ""
-		snap.FieldHashes[i].FieldPath = nil
 	}
 	for i := range snap.ShadowComparisons {
 		snap.ShadowComparisons[i].Timestamp = time.Time{}
 	}
 	for i := range snap.MutationEvents {
 		snap.MutationEvents[i].Timestamp = time.Time{}
-		snap.MutationEvents[i].DataSource = ""
 	}
 	for i := range snap.HeaderImpactEvents {
 		snap.HeaderImpactEvents[i].Timestamp = time.Time{}

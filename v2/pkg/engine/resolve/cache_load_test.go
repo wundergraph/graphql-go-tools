@@ -1385,6 +1385,15 @@ func normalizeCacheAnalyticsSnapshot(snap CacheAnalyticsSnapshot) CacheAnalytics
 	if len(snap.ShadowComparisons) == 0 {
 		snap.ShadowComparisons = nil
 	}
+	if len(snap.MutationEvents) == 0 {
+		snap.MutationEvents = nil
+	}
+	if len(snap.HeaderImpactEvents) == 0 {
+		snap.HeaderImpactEvents = nil
+	}
+	if len(snap.CacheOpErrors) == 0 {
+		snap.CacheOpErrors = nil
+	}
 
 	return snap
 }

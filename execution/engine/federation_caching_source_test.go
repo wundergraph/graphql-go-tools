@@ -62,8 +62,11 @@ func TestCacheWriteEventSource_MutationL2Write(t *testing.T) {
 		queryVariables{"authorID": "1234", "upc": "top-1", "review": "Great!"}, t)
 	assert.Equal(t, `{"data":{"addReview":{"body":"Great!","authorWithoutProvides":{"username":"Me"}}}}`, string(resp))
 
-	// Assert entire snapshot — L2 write must have Source=CacheSourceMutation
-	assert.Equal(t, normalizeSnapshot(resolve.CacheAnalyticsSnapshot{
+	// Assert entire snapshot — L2 write must have Source=CacheSourceMutation,
+	// FieldHashes must attribute to the owning subgraph. Use the attribution-
+	// preserving normalizer so a regression that misattributes the subgraph
+	// name on FieldHashes / MutationEvents fails this assertion.
+	assert.Equal(t, normalizeSnapshotPreservingAttribution(resolve.CacheAnalyticsSnapshot{
 		L2Writes: []resolve.CacheWriteEvent{
 			{
 				CacheKey:   `{"__typename":"User","key":{"id":"1234"}}`,
@@ -76,12 +79,12 @@ func TestCacheWriteEventSource_MutationL2Write(t *testing.T) {
 			},
 		},
 		FieldHashes: []resolve.EntityFieldHash{
-			{EntityType: "User", FieldName: "username", FieldHash: 4957449860898447395, KeyRaw: `{"id":"1234"}`, DataSource: "accounts"}, // xxhash("Me"); accounts owns User
+			{EntityType: "User", FieldName: "username", FieldHash: 4957449860898447395, KeyRaw: `{"id":"1234"}`, DataSource: "reviews"}, // xxhash("Me"); User attribution flows through reviews (authorWithoutProvides) before accounts joins username
 		},
 		EntityTypes: []resolve.EntityTypeInfo{
 			{TypeName: "User", Count: 1, UniqueKeys: 1}, // Mutation triggered resolution of 1 User entity
 		},
-	}), normalizeSnapshot(parseCacheAnalytics(t, headers)))
+	}), normalizeSnapshotPreservingAttribution(parseCacheAnalytics(t, headers)))
 }
 
 // TestMutationCacheTTLOverride_E2E verifies end-to-end that MutationFieldCacheConfiguration.TTL

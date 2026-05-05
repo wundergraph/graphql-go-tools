@@ -35,11 +35,11 @@ func TestFederationCaching_Analytics(t *testing.T) {
 	// Field hash constants — xxhash of the rendered scalar field values.
 	// These are deterministic because xxhash is seeded identically each time.
 	const (
-		hashProductNameTrilby   uint64 = 1032923585965781586  // xxhash("Trilby")
-		hashProductNameFedora   uint64 = 2432227032303632641  // xxhash("Fedora")
-		hashUserUsernameMe      uint64 = 4957449860898447395  // xxhash("Me")
-		hashReviewBodyTop1      uint64 = 14311423906826036091 // xxhash for Review.body on top-1 (value-type traversal under Product)
-		hashReviewBodyTop2      uint64 = 15139145638418915429 // xxhash for Review.body on top-2 (value-type traversal under Product)
+		hashProductNameTrilby uint64 = 1032923585965781586  // xxhash("Trilby")
+		hashProductNameFedora uint64 = 2432227032303632641  // xxhash("Fedora")
+		hashUserUsernameMe    uint64 = 4957449860898447395  // xxhash("Me")
+		hashReviewBodyTop1    uint64 = 14311423906826036091 // xxhash for Review.body on top-1 (value-type traversal under Product)
+		hashReviewBodyTop2    uint64 = 15139145638418915429 // xxhash for Review.body on top-2 (value-type traversal under Product)
 	)
 
 	// Entity key constants for field hash assertions
@@ -70,8 +70,8 @@ func TestFederationCaching_Analytics(t *testing.T) {
 		{EntityType: "Product", FieldPath: []string{"reviews"}, FieldName: "body", FieldHash: hashReviewBodyTop2, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceSubgraph, DataSource: "products"}, // Review.body via value-type traversal under Product (top-2)
 		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameTrilby, KeyRaw: entityKeyProductTop1, Source: resolve.FieldSourceSubgraph, DataSource: "products"},                              // Product.name from products subgraph
 		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameFedora, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceSubgraph, DataSource: "products"},                              // Product.name from products subgraph
-		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceSubgraph, DataSource: "reviews"}, // User attributed to reviews — author entry came through reviews subgraph
-		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceSubgraph, DataSource: "reviews"}, // User attributed to reviews — author entry came through reviews subgraph
+		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceSubgraph, DataSource: "reviews"},                                    // User attributed to reviews — author entry came through reviews subgraph
+		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceSubgraph, DataSource: "reviews"},                                    // User attributed to reviews — author entry came through reviews subgraph
 	}
 
 	// L2 hit field hashes — same data but all sourced from L2 cache
@@ -687,8 +687,8 @@ func TestFederationCaching_ShadowMode(t *testing.T) {
 		{EntityType: "Product", FieldName: "body", FieldHash: hashReviewBodyTop1, KeyRaw: entityKeyProductTop1, Source: resolve.FieldSourceL2},           // Review.body fresh hash via value-type traversal under Product
 		{EntityType: "Product", FieldName: "body", FieldHash: hashReviewBodyTop2, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceShadowCached}, // Cached Review.body recursed from compareShadowValues
 		{EntityType: "Product", FieldName: "body", FieldHash: hashReviewBodyTop2, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceL2},           // Review.body fresh hash via value-type traversal under Product
-		{EntityType: "Product", FieldName: "id", FieldHash: 16067680390221026187, KeyRaw: entityKeyProductTop1, Source: resolve.FieldSourceShadowCached},  // Review.id (key on Review) recursed from cached value; attributed to Product
-		{EntityType: "Product", FieldName: "id", FieldHash: 16067680390221026187, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceShadowCached},  // Review.id recursed from cached value
+		{EntityType: "Product", FieldName: "id", FieldHash: 16067680390221026187, KeyRaw: entityKeyProductTop1, Source: resolve.FieldSourceShadowCached}, // Review.id (key on Review) recursed from cached value; attributed to Product
+		{EntityType: "Product", FieldName: "id", FieldHash: 16067680390221026187, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceShadowCached}, // Review.id recursed from cached value
 		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameTrilby, KeyRaw: entityKeyProductTop1, Source: resolve.FieldSourceL2},
 		{EntityType: "Product", FieldName: "name", FieldHash: hashProductNameFedora, KeyRaw: entityKeyProductTop2, Source: resolve.FieldSourceL2},
 		{EntityType: "User", FieldName: "username", FieldHash: hashUserUsernameMe, KeyRaw: entityKeyUser1234, Source: resolve.FieldSourceShadowCached}, // Cached User username for per-field staleness detection
