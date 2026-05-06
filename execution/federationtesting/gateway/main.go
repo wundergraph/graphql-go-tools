@@ -8,7 +8,7 @@ import (
 	log "github.com/jensneuse/abstractlogger"
 
 	"github.com/wundergraph/graphql-go-tools/execution/engine"
-	http2 "github.com/wundergraph/graphql-go-tools/execution/federationtesting/gateway/http"
+	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/gateway/httphandler"
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
@@ -70,7 +70,7 @@ func HandlerWithCachingAndOpts(
 	var remapVariables map[string]string
 
 	var gqlHandlerFactory HandlerFactoryFn = func(schema *graphql.Schema, engine *engine.ExecutionEngine) http.Handler {
-		return http2.NewGraphqlHTTPHandler(schema, engine, upgrader, logger, enableART, subgraphHeadersBuilder, cachingOptions, debugMode, remapVariables)
+		return httphandler.NewGraphqlHTTPHandler(schema, engine, upgrader, logger, enableART, subgraphHeadersBuilder, cachingOptions, debugMode, remapVariables)
 	}
 
 	var gatewayOpts []GatewayOption

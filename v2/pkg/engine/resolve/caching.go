@@ -155,7 +155,16 @@ func (r *RootQueryCacheKeyTemplate) EntityMergePath(postProcessing PostProcessin
 
 	entityPath := postProcessing.MergePath
 	if len(entityPath) == 0 && len(r.RootFields) == 1 {
-		entityPath = []string{r.RootFields[0].Coordinate.FieldName}
+		// Use the response key (alias if present). Falls back to the schema
+		// field name when ResponseKey isn't populated (legacy callers, some
+		// unit-test fixtures). The planner always sets ResponseKey to the
+		// alias when the field is aliased, so production code lands on the
+		// correct response-shape key — `u: user(id: $id)` → ["u"], not ["user"].
+		key := r.RootFields[0].ResponseKey
+		if key == "" {
+			key = r.RootFields[0].Coordinate.FieldName
+		}
+		entityPath = []string{key}
 	}
 
 	return entityPath
@@ -263,17 +272,26 @@ func resolveArgumentValue(ctx *Context, argumentPath []string) *astjson.Value {
 // resolves ArgumentPath to the remapped variable name (e.g., ["a"]), while
 // ctx.Variables keeps the original names. Forward lookup maps the remapped name
 // back to the original for variable access.
+//
+// The remap only applies to the FIRST path segment because RemapVariables maps
+// top-level variable names; nested input-object field names are not remapped.
+// Multi-segment paths like ["a", "ids"] with RemapVariables["a"] == "input"
+// must therefore become ["input", "ids"], not be left unchanged.
 func resolveArgumentVariablePath(ctx *Context, argumentPath []string) []string {
-	path := argumentPath
-	if ctx == nil || ctx.RemapVariables == nil {
-		return path
+	if ctx == nil || ctx.RemapVariables == nil || len(argumentPath) == 0 {
+		return argumentPath
 	}
-	if len(path) == 1 {
-		if nameToUse, hasMapping := ctx.RemapVariables[path[0]]; hasMapping && nameToUse != path[0] {
-			path = []string{nameToUse}
-		}
+	nameToUse, hasMapping := ctx.RemapVariables[argumentPath[0]]
+	if !hasMapping || nameToUse == argumentPath[0] {
+		return argumentPath
 	}
-	return path
+	if len(argumentPath) == 1 {
+		return []string{nameToUse}
+	}
+	out := make([]string, len(argumentPath))
+	out[0] = nameToUse
+	copy(out[1:], argumentPath[1:])
+	return out
 }
 
 // cloneVariablesWithBatchIndices clones ctx.Variables and replaces the batch argument

@@ -54,7 +54,8 @@ func mustConfiguration(t *testing.T, input graphql_datasource.ConfigurationInput
 func mustFactory(t testing.TB, httpClient *http.Client) plan.PlannerFactory[graphql_datasource.Configuration] {
 	t.Helper()
 
-	factory, err := graphql_datasource.NewFactory(context.Background(), httpClient, graphql_datasource.NewGraphQLSubscriptionClient(httpClient, httpClient, context.Background()))
+	factory, err := graphql_datasource.NewFactory(context.Background(), httpClient, graphql_datasource.NewGraphQLSubscriptionClient(context.Background(),
+		graphql_datasource.WithUpgradeClient(httpClient), graphql_datasource.WithStreamingClient(httpClient)))
 	require.NoError(t, err)
 
 	return factory
@@ -6103,25 +6104,13 @@ func BenchmarkExecutionEngine(b *testing.B) {
 }
 
 func newFederationEngineStaticConfig(ctx context.Context, setup *federationtesting.FederationSetup) (engine *ExecutionEngine, schema *graphql.Schema, err error) {
-	accountsSDL, err := federationtesting.LoadTestingSubgraphSDL(federationtesting.UpstreamAccounts)
-	if err != nil {
-		return
-	}
+	accountsSDL := federationtesting.AccountSDL
+	productsSDL := federationtesting.ProductsSDL
+	reviewsSDL := federationtesting.ReviewsSDL
 
-	productsSDL, err := federationtesting.LoadTestingSubgraphSDL(federationtesting.UpstreamProducts)
-	if err != nil {
-		return
-	}
-
-	reviewsSDL, err := federationtesting.LoadTestingSubgraphSDL(federationtesting.UpstreamReviews)
-	if err != nil {
-		return
-	}
-
-	subscriptionClient := graphql_datasource.NewGraphQLSubscriptionClient(
-		httpclient.DefaultNetHttpClient,
-		httpclient.DefaultNetHttpClient,
-		ctx,
+	subscriptionClient := graphql_datasource.NewGraphQLSubscriptionClient(ctx,
+		graphql_datasource.WithUpgradeClient(httpclient.DefaultNetHttpClient),
+		graphql_datasource.WithStreamingClient(httpclient.DefaultNetHttpClient),
 	)
 
 	graphqlFactory, err := graphql_datasource.NewFactory(ctx, httpclient.DefaultNetHttpClient, subscriptionClient)

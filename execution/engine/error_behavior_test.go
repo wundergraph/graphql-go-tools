@@ -83,7 +83,7 @@ func TestErrorBehavior_EndToEnd(t *testing.T) {
 		require.NoError(t, err)
 
 		httpClient := http.DefaultClient
-		subscriptionClient := graphql_datasource.NewGraphQLSubscriptionClient(httpClient, httpClient, context.Background())
+		subscriptionClient := graphql_datasource.NewGraphQLSubscriptionClient(context.Background(), graphql_datasource.WithUpgradeClient(httpClient), graphql_datasource.WithStreamingClient(httpClient))
 
 		factory, err := graphql_datasource.NewFactory(context.Background(), httpClient, subscriptionClient)
 		require.NoError(t, err)

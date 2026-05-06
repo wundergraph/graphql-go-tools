@@ -753,6 +753,16 @@ func (l *Loader) prepareCacheKeys(info *FetchInfo, cfg FetchCacheConfiguration, 
 		if len(cacheKeys) == 0 || (len(cacheKeys) > 0 && cacheKeys[0] != nil && cacheKeys[0].Item == nil) {
 			res.batchEntityKeyMode = true
 			res.batchMergePath = res.postProcessing.MergePath
+			// Capture the response key (alias if present, else schema name) so the
+			// loader can locate the assembled array in items[0]. The post-fetch
+			// response lives at items[0][batchMergePath...][batchResponseFieldKey].
+			// Falling back to FetchInfo.RootFields[0].FieldName loses aliases.
+			if rt, ok := cfg.CacheKeyTemplate.(*RootQueryCacheKeyTemplate); ok && len(rt.RootFields) > 0 {
+				res.batchResponseFieldKey = rt.RootFields[0].ResponseKey
+				if res.batchResponseFieldKey == "" {
+					res.batchResponseFieldKey = rt.RootFields[0].Coordinate.FieldName
+				}
+			}
 			if cfg.PartialBatchLoad && !cfg.ShadowMode {
 				res.batchPartialFetchEnabled = true
 			}
@@ -3397,10 +3407,17 @@ func (l *Loader) tryRequestScopedInjection(res *result, cfg FetchCacheConfigurat
 		}
 		// Widening check: does the cached (normalized, schema-named) value have all
 		// fields the current query needs? Uses the same validator as entity L1.
-		if hint.ProvidesData != nil {
-			if !l.validateItemHasRequiredData(cachedValue, hint.ProvidesData) {
-				return false
-			}
+		//
+		// Fail closed when ProvidesData is nil. Hints without ProvidesData describe
+		// fields that aren't selected by THIS fetch (planner didn't find them in the
+		// response Object), so they don't justify skipping the fetch. Without this
+		// guard, an unrelated hint can let the resolver short-circuit a fetch whose
+		// real selections were never loaded.
+		if hint.ProvidesData == nil {
+			return false
+		}
+		if !l.validateItemHasRequiredData(cachedValue, hint.ProvidesData) {
+			return false
 		}
 		// Denormalized read: structural copy onto l.jsonArena with optional
 		// denormalize transform. Materialized value is independent of the

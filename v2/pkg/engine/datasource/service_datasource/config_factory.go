@@ -14,13 +14,17 @@ const (
 
 // ServiceConfigFactory creates the datasource configuration for the __service field.
 type ServiceConfigFactory struct {
-	service *Service
+	service       *Service
+	queryTypeName string
 }
 
 // NewServiceConfigFactory creates a new ServiceConfigFactory with the given options.
+// The factory targets the default "Query" root type. Use NewServiceConfigFactoryWithSchema
+// when the schema declares a custom query root (e.g. schema { query: RootQuery }).
 func NewServiceConfigFactory(opts ServiceOptions) *ServiceConfigFactory {
 	return &ServiceConfigFactory{
-		service: NewService(opts),
+		service:       NewService(opts),
+		queryTypeName: "Query",
 	}
 }
 
@@ -51,8 +55,17 @@ func NewServiceConfigFactoryWithSchema(schema *ast.Document, opts ServiceOptions
 		return nil, fmt.Errorf("failed to extend schema with service types: %w", err)
 	}
 
+	// Capture the actual query root type name from the schema. Schemas that
+	// declare a custom root via `schema { query: RootQuery }` need the field
+	// config and datasource metadata below to target that root, not "Query".
+	queryTypeName := "Query"
+	if len(schema.Index.QueryTypeName) > 0 {
+		queryTypeName = string(schema.Index.QueryTypeName)
+	}
+
 	return &ServiceConfigFactory{
-		service: NewService(opts),
+		service:       NewService(opts),
+		queryTypeName: queryTypeName,
 	}, nil
 }
 
@@ -60,7 +73,7 @@ func NewServiceConfigFactoryWithSchema(schema *ast.Document, opts ServiceOptions
 func (f *ServiceConfigFactory) BuildFieldConfigurations() plan.FieldConfigurations {
 	return plan.FieldConfigurations{
 		{
-			TypeName:  "Query",
+			TypeName:  f.queryTypeName,
 			FieldName: "__service",
 		},
 	}
@@ -79,7 +92,7 @@ func (f *ServiceConfigFactory) buildDataSourceConfiguration() (plan.DataSourceCo
 		&plan.DataSourceMetadata{
 			RootNodes: []plan.TypeField{
 				{
-					TypeName:   "Query",
+					TypeName:   f.queryTypeName,
 					FieldNames: []string{"__service"},
 				},
 			},

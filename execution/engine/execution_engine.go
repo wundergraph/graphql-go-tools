@@ -162,7 +162,8 @@ func WithCacheStatsOutput(stats *resolve.CacheAnalyticsSnapshot) ExecutionOption
 }
 
 // WithErrorBehavior sets the error handling behavior for the request.
-// This implements the GraphQL spec proposal for onError (PR #1163).
+// Implements the GraphQL spec extension that lets clients opt out of null
+// bubbling on non-nullable fields via the request's `extensions.onError` field.
 //
 // Available behaviors:
 //   - ErrorBehaviorPropagate: Traditional null bubbling (default)
@@ -333,7 +334,7 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 
 	switch p := cachedPlan.(type) {
 	case *plan.SynchronousResponsePlan:
-		resp, err := e.resolver.ResolveGraphQLResponse(execContext.resolveContext, p.Response, writer)
+		resp, err := e.resolver.ResolveGraphQLResponse(execContext.resolveContext, p.Response, nil, writer)
 		captureStats()
 		if err != nil {
 			return err

@@ -14,22 +14,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/flags"
 )
 
-// mustRecvMessage receives a single subscription message from ch with a timeout.
-// Fails the test if the channel is closed unexpectedly or the timeout elapses.
-func mustRecvMessage(t *testing.T, ch <-chan string, timeout time.Duration) string {
-	t.Helper()
-	select {
-	case m, ok := <-ch:
-		if !ok {
-			t.Fatalf("message channel closed unexpectedly")
-		}
-		return m
-	case <-time.After(timeout):
-		t.Fatalf("timed out after %s waiting for subscription message", timeout)
-		return ""
-	}
-}
-
 func TestExecutionEngine_FederationAndSubscription_IntegrationTest(t *testing.T) {
 	t.Parallel()
 
@@ -50,7 +34,6 @@ func TestExecutionEngine_FederationAndSubscription_IntegrationTest(t *testing.T)
 		require.NoError(t, err)
 
 		t.Run("should successfully execute a federation operation", func(t *testing.T) {
-			t.Parallel()
 			gqlRequest := &graphql.Request{
 				OperationName: "",
 				Variables:     nil,
@@ -61,7 +44,8 @@ func TestExecutionEngine_FederationAndSubscription_IntegrationTest(t *testing.T)
 			require.NoError(t, err)
 			require.True(t, validationResult.Valid)
 
-			execCtx := t.Context()
+			execCtx, execCtxCancelFn := context.WithCancel(context.Background())
+			defer execCtxCancelFn()
 
 			resultWriter := graphql.NewEngineResultWriter()
 			err = engine.Execute(execCtx, gqlRequest, &resultWriter)
@@ -77,7 +61,7 @@ func TestExecutionEngine_FederationAndSubscription_IntegrationTest(t *testing.T)
 	t.Run("subscription", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFn := context.WithCancel(context.Background())
-		setup := federationtesting.NewManualFederationSetup()
+		setup := federationtesting.NewFederationSetup()
 		t.Cleanup(func() {
 			cancelFn()
 			setup.Close()
@@ -87,8 +71,6 @@ func TestExecutionEngine_FederationAndSubscription_IntegrationTest(t *testing.T)
 		require.NoError(t, err)
 
 		t.Run("should successfully execute a federation subscription", func(t *testing.T) {
-
-			t.Parallel()
 
 			query := `
 subscription UpdatedPrice {
@@ -115,7 +97,8 @@ subscription UpdatedPrice {
 			require.NoError(t, err)
 			require.True(t, validationResult.Valid)
 
-			execCtx := t.Context()
+			execCtx, execCtxCancelFn := context.WithCancel(context.Background())
+			defer execCtxCancelFn()
 
 			message := make(chan string)
 			resultWriter := graphql.NewEngineResultWriter()
@@ -127,19 +110,19 @@ subscription UpdatedPrice {
 				_ = engine.Execute(execCtx, gqlRequest, &resultWriter)
 			}()
 
-			trigger, err := setup.NextProductSubscription(ctx)
-			require.NoError(t, err)
+			assert.Eventuallyf(t, func() bool {
+				msg := `{"data":{"updatedPrice":{"name":"Boater","price":%d,"reviews":[{"body":"This is the last straw. Hat you will wear. 11/10","author":{"id":"7777","username":"User 7777"}}]}}}`
+				price := 10
 
-			trigger.Emit()
-			trigger.Emit()
+				firstMessage := <-message
+				expectedFirstMessage := fmt.Sprintf(msg, price)
+				assert.Equal(t, expectedFirstMessage, firstMessage)
 
-			msg := `{"data":{"updatedPrice":{"name":"Boater","price":%d,"reviews":[{"body":"This is the last straw. Hat you will wear. 11/10","author":{"id":"7777","username":"User 7777"}}]}}}`
-
-			firstMessage := mustRecvMessage(t, message, 5*time.Second)
-			assert.Equal(t, fmt.Sprintf(msg, 10), firstMessage)
-
-			secondMessage := mustRecvMessage(t, message, 5*time.Second)
-			assert.Equal(t, fmt.Sprintf(msg, 11), secondMessage)
+				secondMessage := <-message
+				expectedSecondMessage := fmt.Sprintf(msg, price+1)
+				assert.Equal(t, expectedSecondMessage, secondMessage)
+				return true
+			}, time.Second*20, 10*time.Millisecond, "did not receive expected messages")
 		})
 	})
 }
