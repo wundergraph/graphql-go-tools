@@ -172,6 +172,8 @@ type Loader struct {
 
 	propagateFetchReasons bool
 
+	allowCustomExtensionProperties bool
+
 	validateRequiredExternalFields bool
 
 	taintedObjs taintedObjects
@@ -566,6 +568,14 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 
 		// no data
 		return nil
+	}
+
+	if l.allowCustomExtensionProperties {
+		extensions := response.Get("extensions")
+
+		if astjson.ValueIsNonNull(extensions) && extensions.Type() == astjson.TypeObject {
+			l.resolvable.subgraphExtensions = append(l.resolvable.subgraphExtensions, extensions.GetObject())
+		}
 	}
 
 	if len(items) == 0 {

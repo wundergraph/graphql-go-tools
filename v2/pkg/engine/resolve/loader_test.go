@@ -2098,3 +2098,198 @@ func TestLoader_OptionallyOmitErrorLocations(t *testing.T) {
 		})
 	}
 }
+
+func TestLoader_AllowCustomExtensionProperties(t *testing.T) {
+	buildSingleFetch := func(ds DataSource) *FetchTreeNode {
+		return Single(&SingleFetch{
+			InputTemplate: InputTemplate{
+				Segments: []TemplateSegment{
+					{Data: []byte(`{}`), SegmentType: StaticSegmentType},
+				},
+			},
+			FetchConfiguration: FetchConfiguration{
+				DataSource: ds,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath: []string{"data"},
+				},
+			},
+		})
+	}
+
+	runFetches := func(t *testing.T, allow bool, fetches *FetchTreeNode, dataObject *Object) []*astjson.Object {
+		t.Helper()
+		ctx := NewContext(context.Background())
+		resolvable := NewResolvable(nil, ResolvableOptions{})
+		loader := &Loader{allowCustomExtensionProperties: allow}
+		err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+		assert.NoError(t, err)
+		err = loader.LoadGraphQLResponseData(ctx, &GraphQLResponse{
+			Fetches: fetches,
+			Data:    dataObject,
+		}, resolvable)
+		assert.NoError(t, err)
+		return resolvable.subgraphExtensions
+	}
+
+	singleNameDataObject := &Object{
+		Fields: []*Field{
+			{Name: []byte("name"), Value: &String{Path: []string{"name"}}},
+		},
+	}
+
+	t.Run("captures extensions when flag is enabled", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		ds := mockedDS(t, ctrl, `{}`,
+			`{"data":{"name":"u1"},"extensions":{"foo":"bar"}}`)
+
+		ext := runFetches(t, true, buildSingleFetch(ds), singleNameDataObject)
+
+		if assert.Len(t, ext, 1) {
+			assert.JSONEq(t, `{"foo":"bar"}`, string(ext[0].MarshalTo(nil)))
+		}
+	})
+
+	t.Run("does not capture extensions when flag is disabled", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		ds := mockedDS(t, ctrl, `{}`,
+			`{"data":{"name":"u1"},"extensions":{"foo":"bar"}}`)
+
+		ext := runFetches(t, false, buildSingleFetch(ds), singleNameDataObject)
+		assert.Empty(t, ext)
+	})
+
+	t.Run("ignores responses without an extensions field", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		ds := mockedDS(t, ctrl, `{}`,
+			`{"data":{"name":"u1"}}`)
+
+		ext := runFetches(t, true, buildSingleFetch(ds), singleNameDataObject)
+		assert.Empty(t, ext)
+	})
+
+	t.Run("ignores null extensions", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		ds := mockedDS(t, ctrl, `{}`,
+			`{"data":{"name":"u1"},"extensions":null}`)
+
+		ext := runFetches(t, true, buildSingleFetch(ds), singleNameDataObject)
+		assert.Empty(t, ext)
+	})
+
+	t.Run("ignores non-object extensions", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		ds := mockedDS(t, ctrl, `{}`,
+			`{"data":{"name":"u1"},"extensions":"not-an-object"}`)
+
+		ext := runFetches(t, true, buildSingleFetch(ds), singleNameDataObject)
+		assert.Empty(t, ext)
+	})
+
+	t.Run("captures empty extension objects (length still matters for printExtensions)", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		ds := mockedDS(t, ctrl, `{}`,
+			`{"data":{"name":"u1"},"extensions":{}}`)
+
+		ext := runFetches(t, true, buildSingleFetch(ds), singleNameDataObject)
+		if assert.Len(t, ext, 1) {
+			assert.JSONEq(t, `{}`, string(ext[0].MarshalTo(nil)))
+		}
+	})
+
+	t.Run("accumulates extensions across multiple subgraph fetches in fetch order", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		firstDS := mockedDS(t, ctrl, `{}`,
+			`{"data":{"a":"x"},"extensions":{"firstKey":"firstValue"}}`)
+		secondDS := mockedDS(t, ctrl, `{}`,
+			`{"data":{"b":"y"},"extensions":{"secondKey":"secondValue"}}`)
+
+		ext := runFetches(t, true, Sequence(
+			buildSingleFetch(firstDS),
+			buildSingleFetch(secondDS),
+		), &Object{
+			Fields: []*Field{
+				{Name: []byte("a"), Value: &String{Path: []string{"a"}, Nullable: true}},
+				{Name: []byte("b"), Value: &String{Path: []string{"b"}, Nullable: true}},
+			},
+		})
+
+		if assert.Len(t, ext, 2) {
+			// sequential fetch order is preserved in the slice
+			assert.JSONEq(t, `{"firstKey":"firstValue"}`, string(ext[0].MarshalTo(nil)))
+			assert.JSONEq(t, `{"secondKey":"secondValue"}`, string(ext[1].MarshalTo(nil)))
+		}
+	})
+
+	t.Run("skips fetches whose data is null even with extensions present", func(t *testing.T) {
+		// When SelectResponseDataPath resolves to null, the loader returns before
+		// the extensions branch, so the extension is intentionally not captured.
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		ds := mockedDS(t, ctrl, `{}`,
+			`{"data":null,"errors":[{"message":"boom"}],"extensions":{"foo":"bar"}}`)
+
+		ext := runFetches(t, true, buildSingleFetch(ds), singleNameDataObject)
+		assert.Empty(t, ext)
+	})
+
+	t.Run("captures duplicate extension keys across a nested sequence/parallel fetch tree", func(t *testing.T) {
+		// The fetch tree is:
+		//   Sequence(
+		//     A,                  // root sequence: first
+		//     Parallel(B, C),     // two siblings, both also produce "shared"
+		//     D,                  // root sequence: last
+		//   )
+		// All four subgraphs write the "shared" key with different values, so the
+		// loader must keep four distinct entries in subgraphExtensions. Dedup
+		// happens later in mapValidExtensions according to the algorithm.
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		aDS := mockedDS(t, ctrl, `{}`,
+			`{"data":{"a":"x"},"extensions":{"shared":"fromA","keyA":"vA"}}`)
+		bDS := mockedDS(t, ctrl, `{}`,
+			`{"data":{"b":"x"},"extensions":{"shared":"fromB","keyB":"vB"}}`)
+		cDS := mockedDS(t, ctrl, `{}`,
+			`{"data":{"c":"x"},"extensions":{"shared":"fromC","keyC":"vC"}}`)
+		dDS := mockedDS(t, ctrl, `{}`,
+			`{"data":{"d":"x"},"extensions":{"shared":"fromD","keyD":"vD"}}`)
+
+		fetches := Sequence(
+			buildSingleFetch(aDS),
+			Parallel(
+				buildSingleFetch(bDS),
+				buildSingleFetch(cDS),
+			),
+			buildSingleFetch(dDS),
+		)
+
+		dataObject := &Object{
+			Fields: []*Field{
+				{Name: []byte("a"), Value: &String{Path: []string{"a"}, Nullable: true}},
+				{Name: []byte("b"), Value: &String{Path: []string{"b"}, Nullable: true}},
+				{Name: []byte("c"), Value: &String{Path: []string{"c"}, Nullable: true}},
+				{Name: []byte("d"), Value: &String{Path: []string{"d"}, Nullable: true}},
+			},
+		}
+
+		ext := runFetches(t, true, fetches, dataObject)
+
+		if assert.Len(t, ext, 4) {
+			// Order in the slice tracks the merge order of mergeResult calls.
+			// Parallel children's HTTP fetches run concurrently, but mergeResult
+			// runs sequentially in child-index order once g.Wait returns, so the
+			// capture order is fully deterministic: A → B → C → D.
+			assert.JSONEq(t, `{"shared":"fromA","keyA":"vA"}`, string(ext[0].MarshalTo(nil)))
+			assert.JSONEq(t, `{"shared":"fromB","keyB":"vB"}`, string(ext[1].MarshalTo(nil)))
+			assert.JSONEq(t, `{"shared":"fromC","keyC":"vC"}`, string(ext[2].MarshalTo(nil)))
+			assert.JSONEq(t, `{"shared":"fromD","keyD":"vD"}`, string(ext[3].MarshalTo(nil)))
+		}
+	})
+}
