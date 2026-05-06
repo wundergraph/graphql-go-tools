@@ -1515,6 +1515,13 @@ func TestResolvable_SubgraphExtensions(t *testing.T) {
 		assert.Equal(t, `{"data":{"hello":"world"},"extensions":{"shared":"first"}}`, out)
 	})
 
+	t.Run("No extensions written when no allowed extensions match", func(t *testing.T) {
+		out := runResolve(t, ResolvableOptions{
+			AllowedSubgraphExtensions: map[string]struct{}{"not-included": {}},
+		}, `{"allowed":"yes","blocked":"no"}`)
+		assert.Equal(t, `{"data":{"hello":"world"}}`, out)
+	})
+
 	t.Run("preserves extensions already written by other producers", func(t *testing.T) {
 		// Tracing extension is written first; a subgraph that tries to write the
 		// "trace" key must be filtered out so the real trace isn't replaced.
