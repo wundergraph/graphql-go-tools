@@ -352,7 +352,13 @@ func TestTryRequestScopedInjection(t *testing.T) {
 		assert.Equal(t, `{"id":"99","currentViewer":{"id":"1","name":"Alice","email":"a@b.com"}}`, string(items[0].MarshalTo(nil)))
 	})
 
-	t.Run("nil ProvidesData allows injection for backward compat", func(t *testing.T) {
+	t.Run("nil ProvidesData blocks injection (fail-closed)", func(t *testing.T) {
+		// Hints with nil ProvidesData describe fields that aren't selected by
+		// THIS fetch. Without ProvidesData we cannot run the widening check, so
+		// injecting unconditionally would let the resolver short-circuit a
+		// fetch whose real (non-@requestScoped) selections were never loaded.
+		// tryRequestScopedInjection therefore returns false and leaves items
+		// untouched.
 		t.Parallel()
 
 		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
@@ -370,7 +376,7 @@ func TestTryRequestScopedInjection(t *testing.T) {
 					FieldName: "currentViewer",
 					FieldPath: []string{"currentViewer"},
 					L1Key:     "viewer.Personalized.currentViewer",
-					// ProvidesData intentionally nil — legacy byte-copy fast path
+					// ProvidesData intentionally nil
 				},
 			},
 		}
@@ -379,8 +385,44 @@ func TestTryRequestScopedInjection(t *testing.T) {
 		}
 
 		ok := l.tryRequestScopedInjection(&result{}, cfg, items)
-		assert.True(t, ok)
-		assert.Equal(t, `{"id":"99","currentViewer":{"id":"1"}}`, string(items[0].MarshalTo(nil)))
+		assert.False(t, ok)
+		assert.Equal(t, `{"id":"99"}`, string(items[0].MarshalTo(nil)))
+	})
+
+	t.Run("hint without ProvidesData blocks fetch skip even when L1 has the value", func(t *testing.T) {
+		// Regression for the over-application bug: if the datasource planner
+		// emits a hint for an @requestScoped field that THIS fetch doesn't
+		// actually select, populateRequestScopedFieldsProvidesData should drop
+		// the hint at plan time. As a defense-in-depth, the runtime injection
+		// path here must ALSO refuse to skip the fetch when ProvidesData is
+		// nil — even though the L1 entry exists. Otherwise the resolver would
+		// short-circuit a fetch whose real selections were never loaded.
+		t.Parallel()
+
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		l := &Loader{
+			jsonArena:       ar,
+			requestScopedL1: map[string]*astjson.Value{},
+		}
+		l.requestScopedL1["viewer.Personalized.currentViewer"] = mustParseArena(t, ar, `{"name":"Alice"}`)
+
+		cfg := FetchCacheConfiguration{
+			RequestScopedFields: []RequestScopedField{
+				{
+					FieldName: "currentViewer",
+					FieldPath: []string{"currentViewer"},
+					L1Key:     "viewer.Personalized.currentViewer",
+					// ProvidesData nil — field isn't part of THIS fetch's selection.
+				},
+			},
+		}
+		items := []*astjson.Value{
+			mustParseArena(t, ar, `{"id":"99"}`),
+		}
+
+		ok := l.tryRequestScopedInjection(&result{}, cfg, items)
+		assert.False(t, ok, "must refuse to skip the fetch when hint cannot be widening-checked")
+		assert.Equal(t, `{"id":"99"}`, string(items[0].MarshalTo(nil)), "items must not be mutated")
 	})
 
 	t.Run("partial hints returns false but does not mutate items", func(t *testing.T) {
@@ -644,7 +686,7 @@ func TestRequestScopedRoundTrip(t *testing.T) {
 			requestScopedL1: map[string]*astjson.Value{},
 		}
 
-		// Step 1: First fetch exports the value (no ProvidesData — byte-copy path)
+		// Step 1: First fetch exports the value
 		exportCfg := FetchCacheConfiguration{
 			RequestScopedFields: []RequestScopedField{
 				{
@@ -658,13 +700,16 @@ func TestRequestScopedRoundTrip(t *testing.T) {
 		}
 		l.exportRequestScopedFields(&result{}, exportCfg, exportItems)
 
-		// Step 2: Second fetch attempts injection (nil ProvidesData — byte-copy path)
+		// Step 2: Second fetch attempts injection. ProvidesData describes what
+		// the current fetch actually selects under currentViewer — required so
+		// the widening check can verify the cached value covers it.
 		injectCfg := FetchCacheConfiguration{
 			RequestScopedFields: []RequestScopedField{
 				{
-					FieldName: "currentViewer",
-					FieldPath: []string{"currentViewer"},
-					L1Key:     "viewer.Personalized.currentViewer",
+					FieldName:    "currentViewer",
+					FieldPath:    []string{"currentViewer"},
+					L1Key:        "viewer.Personalized.currentViewer",
+					ProvidesData: newViewerObj("name", "role"),
 				},
 			},
 		}
@@ -728,12 +773,15 @@ func TestExportedValuesAreIndependentCopies(t *testing.T) {
 		assert.Equal(t, `{"id":"v1","name":"Alice"}`, string(cached.MarshalTo(nil)))
 
 		// Injection using the stored value must succeed with original data.
+		// ProvidesData lists the fields the current fetch's selection covers
+		// — required for the widening check.
 		injectCfg := FetchCacheConfiguration{
 			RequestScopedFields: []RequestScopedField{
 				{
-					FieldName: "currentViewer",
-					FieldPath: []string{"currentViewer"},
-					L1Key:     "viewer.Personalized.currentViewer",
+					FieldName:    "currentViewer",
+					FieldPath:    []string{"currentViewer"},
+					L1Key:        "viewer.Personalized.currentViewer",
+					ProvidesData: newViewerObj("id", "name"),
 				},
 			},
 		}
@@ -771,9 +819,10 @@ func TestExportedValuesAreIndependentCopies(t *testing.T) {
 		injectCfg := FetchCacheConfiguration{
 			RequestScopedFields: []RequestScopedField{
 				{
-					FieldName: "currentViewer",
-					FieldPath: []string{"currentViewer"},
-					L1Key:     "viewer.Personalized.currentViewer",
+					FieldName:    "currentViewer",
+					FieldPath:    []string{"currentViewer"},
+					L1Key:        "viewer.Personalized.currentViewer",
+					ProvidesData: newViewerObj("id", "name", "role"),
 				},
 			},
 		}

@@ -158,7 +158,7 @@ func newRequestScopedExecutionEngine(
 	require.NoError(t, err)
 
 	httpClient := http.DefaultClient
-	subscriptionClient := graphql_datasource.NewGraphQLSubscriptionClient(httpClient, httpClient, ctx)
+	subscriptionClient := graphql_datasource.NewGraphQLSubscriptionClient(ctx, graphql_datasource.WithUpgradeClient(httpClient), graphql_datasource.WithStreamingClient(httpClient))
 	graphQLFactory, err := graphql_datasource.NewFactory(ctx, httpClient, subscriptionClient)
 	require.NoError(t, err)
 

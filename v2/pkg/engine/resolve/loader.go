@@ -152,6 +152,7 @@ type result struct {
 	// Batch entity key fields — set when ArgumentIsEntityKey + list argument
 	batchEntityKeyMode       bool     // Whether this fetch uses batch entity key cache lookup
 	batchMergePath           []string // Path to merge the assembled array (e.g. ["products"])
+	batchResponseFieldKey    string   // Response key (alias if present, else schema field name) where the array lives, e.g. "p" for `p: products(...)`
 	batchPartialFetchEnabled bool     // Whether partial fetch mode is enabled for this batch
 	batchCachedIndices       []int    // BatchIndex values of cache-hit entities
 	batchMissedIndices       []int    // BatchIndex values of cache-miss entities
@@ -1307,11 +1308,16 @@ func (l *Loader) populateBatchCacheKeysFromResponse(res *result, items []*astjso
 	}
 
 	// Navigate to the response array. For root fields, the response is merged into items[0]
-	// at the MergePath, then the actual array is under the root field name.
-	// E.g., for products(upcs: ...), items[0] = {"products": [entity1, entity2, ...]}
+	// at the MergePath, then the actual array is under the root field's RESPONSE key
+	// (alias if present). E.g. for `p: products(upcs: ...)` items[0] = {"p": [...]}.
+	// FetchInfo.RootFields only carries schema-side coordinates and would lose aliases,
+	// so prefer res.batchResponseFieldKey populated at prepareCacheKeys time.
 	var arrayPath []string
 	arrayPath = append(arrayPath, res.batchMergePath...)
-	if info != nil && len(info.RootFields) > 0 {
+	switch {
+	case res.batchResponseFieldKey != "":
+		arrayPath = append(arrayPath, res.batchResponseFieldKey)
+	case info != nil && len(info.RootFields) > 0:
 		arrayPath = append(arrayPath, info.RootFields[0].FieldName)
 	}
 
@@ -1365,10 +1371,15 @@ func (l *Loader) mergeBatchPartialResponse(res *result, items []*astjson.Value, 
 		return
 	}
 
-	// Navigate to the response array in the merged items
+	// Navigate to the response array in the merged items. Use the response key
+	// (alias-aware) instead of FetchInfo's schema-only field name so aliased
+	// batch root fields like `p: products(upcs: ...)` resolve correctly.
 	var arrayPath []string
 	arrayPath = append(arrayPath, res.batchMergePath...)
-	if info != nil && len(info.RootFields) > 0 {
+	switch {
+	case res.batchResponseFieldKey != "":
+		arrayPath = append(arrayPath, res.batchResponseFieldKey)
+	case info != nil && len(info.RootFields) > 0:
 		arrayPath = append(arrayPath, info.RootFields[0].FieldName)
 	}
 
@@ -1460,11 +1471,18 @@ func (l *Loader) filterBatchVariablesForPartialFetch(res *result, f *SingleFetch
 // Constructs a response with an empty array at the root field path and merges it into items.
 func (l *Loader) mergeBatchEmptyResponse(_ *FetchItem, f *SingleFetch, items []*astjson.Value) error {
 	// Build a response object that mimics what the subgraph would return:
-	// For products(upcs: []), the subgraph would return {"products": []}
-	// After SelectResponseDataPath, this becomes the responseData.
-	// We need to produce the same shape for normal merge to work.
+	// For products(upcs: []), the subgraph would return {"products": []}.
+	// For the aliased form `p: products(upcs: [])` we must produce {"p": []}
+	// to match the response shape the rest of the resolver expects, so prefer
+	// the cache template's response key over the schema-only FetchInfo coordinate.
 	var fieldName string
-	if f.Info != nil && len(f.Info.RootFields) > 0 {
+	if rt, ok := f.Caching.CacheKeyTemplate.(*RootQueryCacheKeyTemplate); ok && len(rt.RootFields) > 0 {
+		fieldName = rt.RootFields[0].ResponseKey
+		if fieldName == "" {
+			fieldName = rt.RootFields[0].Coordinate.FieldName
+		}
+	}
+	if fieldName == "" && f.Info != nil && len(f.Info.RootFields) > 0 {
 		fieldName = f.Info.RootFields[0].FieldName
 	}
 

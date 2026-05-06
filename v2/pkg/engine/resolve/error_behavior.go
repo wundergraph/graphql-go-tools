@@ -3,7 +3,9 @@ package resolve
 import "strings"
 
 // ErrorBehavior controls how errors are handled during GraphQL resolution.
-// This implements the proposed GraphQL spec change from PR #1163.
+// Implements the GraphQL spec extension that lets clients opt out of null
+// bubbling on non-nullable fields and choose between propagate/null/halt
+// semantics via the request's `extensions.onError` field.
 type ErrorBehavior int
 
 const (

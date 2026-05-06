@@ -175,6 +175,9 @@ func (g *GraphQLHTTPRequestHandler) handleWebsocket(connInitReqCtx context.Conte
 	if g.debugMode {
 		opts = append(opts, engine.WithDebugMode())
 	}
+	if len(g.remapVariables) > 0 {
+		opts = append(opts, engine.WithRemapVariables(g.remapVariables))
+	}
 
 	executorPool := subscription.NewExecutorV2Pool(g.engine, connInitReqCtx, opts...)
 	go HandleWebsocket(done, errChan, conn, executorPool, g.log)

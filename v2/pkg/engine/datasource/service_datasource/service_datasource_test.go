@@ -7,6 +7,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 )
 
 func TestNewService(t *testing.T) {
@@ -87,6 +91,38 @@ func TestServiceConfigFactory(t *testing.T) {
 		assert.NotNil(t, service)
 		assert.Len(t, service.Capabilities, 2)
 	})
+}
+
+func TestServiceConfigFactoryWithSchema_CustomQueryRoot(t *testing.T) {
+	// Regression: ExtendSchemaWithServiceTypes adds __service to whatever
+	// type the schema declares as the query root. The factory's field config
+	// and datasource metadata used to hardcode "Query", which prevented the
+	// planner from attaching the datasource when the schema used a custom
+	// root like `schema { query: RootQuery }`.
+
+	const customRootSDL = `schema { query: RootQuery }
+type RootQuery {
+	hello: String
+}`
+
+	doc, report := astparser.ParseGraphqlDocumentString(customRootSDL)
+	require.False(t, report.HasErrors(), "parse error: %s", report.Error())
+	require.NoError(t, asttransform.MergeDefinitionWithBaseSchema(&doc))
+
+	factory, err := NewServiceConfigFactoryWithSchema(&doc, ServiceOptions{DefaultErrorBehavior: "PROPAGATE"})
+	require.NoError(t, err)
+
+	fieldConfigs := factory.BuildFieldConfigurations()
+	assert.Equal(t, plan.FieldConfigurations{
+		{TypeName: "RootQuery", FieldName: "__service"},
+	}, fieldConfigs)
+
+	dsConfigs := factory.BuildDataSourceConfigurations()
+	require.Len(t, dsConfigs, 1)
+	assert.True(t, dsConfigs[0].HasRootNode("RootQuery", "__service"),
+		"datasource must register __service under the custom query root, not Query")
+	assert.False(t, dsConfigs[0].HasRootNode("Query", "__service"),
+		"datasource must NOT register against the default Query type when a custom root is configured")
 }
 
 func TestCapability_JSON(t *testing.T) {

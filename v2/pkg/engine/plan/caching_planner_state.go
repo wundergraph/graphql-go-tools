@@ -749,20 +749,26 @@ func (s *cachingPlannerState) configureFetchCaching(internal *objectFetchConfigu
 // matching sub-Object in the planner's response tree. The match is by response
 // key (field.Name), since the datasource planner already resolves aliases.
 //
-// If plannerObj is nil or no matching field is found, ProvidesData is left nil
-// (resolver falls back to raw byte storage, loses alias awareness).
+// Hints whose field cannot be located in plannerObj are dropped: the datasource
+// planner emits a hint for every @requestScoped field declared on the entity
+// type (it doesn't know which fields the current fetch's selection set includes),
+// so we filter here to keep only the hints this fetch can actually satisfy.
+// Without this filter, an unrelated hint (with nil ProvidesData) would skip the
+// runtime widening check and let the resolver short-circuit a fetch whose
+// non-@requestScoped selections were never loaded.
 func (s *cachingPlannerState) populateRequestScopedFieldsProvidesData(fields []resolve.RequestScopedField, plannerObj *resolve.Object) []resolve.RequestScopedField {
 	if len(fields) == 0 || plannerObj == nil {
 		return fields
 	}
-	out := make([]resolve.RequestScopedField, len(fields))
-	for i, f := range fields {
-		out[i] = f
+	out := make([]resolve.RequestScopedField, 0, len(fields))
+	for _, f := range fields {
 		sub := s.findObjectFieldByResponseKey(plannerObj, f.FieldName)
-		if sub != nil {
-			resolve.ComputeHasAliases(sub)
-			out[i].ProvidesData = sub
+		if sub == nil {
+			continue
 		}
+		resolve.ComputeHasAliases(sub)
+		f.ProvidesData = sub
+		out = append(out, f)
 	}
 	return out
 }

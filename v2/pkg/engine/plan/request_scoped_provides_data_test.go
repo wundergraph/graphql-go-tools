@@ -24,7 +24,12 @@ func TestPopulateRequestScopedFieldsProvidesData(t *testing.T) {
 		assert.Equal(t, fields, out)
 	})
 
-	t.Run("no matching field leaves ProvidesData nil", func(t *testing.T) {
+	t.Run("no matching field drops the hint", func(t *testing.T) {
+		// The datasource planner emits a hint for every @requestScoped field on
+		// the entity type, even if THIS fetch doesn't select that field. We drop
+		// such hints here so they can't trigger an unconditional inject (and a
+		// fetch skip) at runtime — only hints whose field is actually part of
+		// the response Object are kept.
 		t.Parallel()
 		plannerObj := &resolve.Object{
 			Fields: []*resolve.Field{
@@ -35,9 +40,7 @@ func TestPopulateRequestScopedFieldsProvidesData(t *testing.T) {
 			{FieldName: "currentViewer", FieldPath: []string{"currentViewer"}, L1Key: "k"},
 		}
 		out := caching.populateRequestScopedFieldsProvidesData(fields, plannerObj)
-		assert.Len(t, out, 1)
-		assert.Equal(t, "currentViewer", out[0].FieldName)
-		assert.Nil(t, out[0].ProvidesData)
+		assert.Empty(t, out)
 	})
 
 	t.Run("matching field by response key populates ProvidesData", func(t *testing.T) {
@@ -113,7 +116,10 @@ func TestPopulateRequestScopedFieldsProvidesData(t *testing.T) {
 		assert.Same(t, tenantObj, out[1].ProvidesData)
 	})
 
-	t.Run("scalar field value does not populate ProvidesData", func(t *testing.T) {
+	t.Run("scalar field value drops the hint", func(t *testing.T) {
+		// Scalars have no nested shape to widen-check against, so an injected
+		// scalar would skip the widening guard entirely. We drop the hint
+		// instead, matching the no-matching-field behavior above.
 		t.Parallel()
 		plannerObj := &resolve.Object{
 			Fields: []*resolve.Field{
@@ -124,8 +130,7 @@ func TestPopulateRequestScopedFieldsProvidesData(t *testing.T) {
 			{FieldName: "locale", FieldPath: []string{"locale"}, L1Key: "k"},
 		}
 		out := caching.populateRequestScopedFieldsProvidesData(fields, plannerObj)
-		assert.Len(t, out, 1)
-		assert.Nil(t, out[0].ProvidesData) // Scalar, not Object
+		assert.Empty(t, out)
 	})
 }
 
