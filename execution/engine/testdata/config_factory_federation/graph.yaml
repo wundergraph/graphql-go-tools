@@ -1,0 +1,14 @@
+version: 1
+subgraphs:
+  - name: account
+    routing_url: http://user.service
+    schema:
+      file: account_sdl.graphql
+  - name: products
+    routing_url: http://product.service
+    schema:
+      file: product_sdl.graphql
+  - name: reviews
+    routing_url: http://review.service
+    schema:
+      file: review_sdl.graphql

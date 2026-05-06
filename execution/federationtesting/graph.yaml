@@ -1,0 +1,14 @@
+version: 1
+subgraphs:
+  - name: accounts
+    routing_url: http://accounts-url-placeholder
+    schema:
+      file: accounts/graph/schema.graphqls
+  - name: products
+    routing_url: http://products-url-placeholder
+    schema:
+      file: products/graph/schema.graphqls
+  - name: reviews
+    routing_url: http://reviews-url-placeholder
+    schema:
+      file: reviews/graph/schema.graphqls

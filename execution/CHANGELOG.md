@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.12.0...execution/v1.13.0) (2026-04-30)
+
+
+### Features
+
+* subscriptions overhaul ([#1374](https://github.com/wundergraph/graphql-go-tools/issues/1374)) ([6c0ac71](https://github.com/wundergraph/graphql-go-tools/commit/6c0ac71e071abf06fdf618d45d100769f0017acd))
+
 ## [1.12.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.11.0...execution/v1.12.0) (2026-04-28)
 
 
