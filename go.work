@@ -1,6 +1,7 @@
 go 1.25
 
 use (
+	examples/engine
 	examples/federation
 	execution
 	v2

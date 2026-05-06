@@ -1,10 +1,8 @@
 package federationtesting
 
 import (
+	_ "embed"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
-	"strings"
 
 	accounts "github.com/wundergraph/graphql-go-tools/execution/federationtesting/accounts/graph"
 	products "github.com/wundergraph/graphql-go-tools/execution/federationtesting/products/graph"
@@ -12,8 +10,6 @@ import (
 )
 
 const (
-	federationTestingDirectoryRelativePath = "../federationtesting"
-
 	QueryReviewsOfMe = `query ReviewsOfMe {
   me {
     reviews {
@@ -28,25 +24,18 @@ const (
 }`
 )
 
-type Upstream string
-
-const (
-	UpstreamAccounts Upstream = "accounts"
-	UpstreamProducts Upstream = "products"
-	UpstreamReviews  Upstream = "reviews"
+var (
+	//go:embed config.json
+	RouterConfigJson []byte
+	//go:embed accounts/graph/schema.graphqls
+	AccountSDL []byte
+	//go:embed products/graph/schema.graphqls
+	ProductsSDL []byte
+	//go:embed reviews/graph/schema.graphqls
+	ReviewsSDL []byte
 )
 
-func LoadTestingSubgraphSDL(upstream Upstream) ([]byte, error) {
-	wd, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-
-	absolutePath := filepath.Join(strings.Split(wd, "pkg")[0], federationTestingDirectoryRelativePath, string(upstream), "graph", "schema.graphqls")
-	return os.ReadFile(absolutePath)
-}
-
-func NewFederationSetup(addGateway ...func(s *FederationSetup) *httptest.Server) *FederationSetup {
+func NewFederationSetup(addGateway ...func(s *FederationSetup) (*httptest.Server, error)) (*FederationSetup, error) {
 	accountUpstreamServer := httptest.NewServer(accounts.GraphQLEndpointHandler(accounts.TestOptions))
 	productsUpstreamServer := httptest.NewServer(products.GraphQLEndpointHandler(products.TestOptions))
 	reviewsUpstreamServer := httptest.NewServer(reviews.GraphQLEndpointHandler(reviews.TestOptions))
@@ -58,10 +47,15 @@ func NewFederationSetup(addGateway ...func(s *FederationSetup) *httptest.Server)
 	}
 
 	if len(addGateway) > 0 {
-		setup.GatewayServer = addGateway[0](setup)
+		gw, err := addGateway[0](setup)
+		if err != nil {
+			return nil, err
+		}
+
+		setup.GatewayServer = gw
 	}
 
-	return setup
+	return setup, nil
 }
 
 type FederationSetup struct {
