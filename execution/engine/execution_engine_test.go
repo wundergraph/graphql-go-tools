@@ -6065,20 +6065,9 @@ func BenchmarkExecutionEngine(b *testing.B) {
 }
 
 func newFederationEngineStaticConfig(ctx context.Context, setup *federationtesting.FederationSetup) (engine *ExecutionEngine, schema *graphql.Schema, err error) {
-	accountsSDL, err := federationtesting.LoadTestingSubgraphSDL(federationtesting.UpstreamAccounts)
-	if err != nil {
-		return
-	}
-
-	productsSDL, err := federationtesting.LoadTestingSubgraphSDL(federationtesting.UpstreamProducts)
-	if err != nil {
-		return
-	}
-
-	reviewsSDL, err := federationtesting.LoadTestingSubgraphSDL(federationtesting.UpstreamReviews)
-	if err != nil {
-		return
-	}
+	accountsSDL := federationtesting.AccountSDL
+	productsSDL := federationtesting.ProductsSDL
+	reviewsSDL := federationtesting.ReviewsSDL
 
 	subscriptionClient := graphql_datasource.NewGraphQLSubscriptionClient(ctx,
 		graphql_datasource.WithUpgradeClient(httpclient.DefaultNetHttpClient),

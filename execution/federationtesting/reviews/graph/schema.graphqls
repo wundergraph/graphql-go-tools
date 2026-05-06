@@ -55,14 +55,14 @@ type Video implements Iface {
 union Attachment = Question | Rating | Video
 
 type User @key(fields: "id") {
-    id: ID! @external
+    id: ID!
     username: String! @external
     reviews: [Review]
     realName: String!
 }
 
 type Product @key(fields: "upc") {
-    upc: String! @external
+    upc: String!
     reviews: [Review]
 }
 

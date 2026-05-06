@@ -1,5 +1,5 @@
-// Package http handles GraphQL HTTP Requests including WebSocket Upgrades.
-package http
+// Package httphandler handles GraphQL HTTP Requests including WebSocket Upgrades.
+package httphandler
 
 import (
 	"bytes"
@@ -37,7 +37,8 @@ func (g *GraphQLHTTPRequestHandler) handleHTTP(w http.ResponseWriter, r *http.Re
 			ExcludeInput:                           false,
 			ExcludeOutput:                          false,
 			ExcludeLoadStats:                       false,
-			EnablePredictableDebugTimings:          false,
+			EnablePredictableDebugTimings:          true,
+			Debug:                                  true,
 			IncludeTraceOutputInResponseExtensions: true,
 		}
 

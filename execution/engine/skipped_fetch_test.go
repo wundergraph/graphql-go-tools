@@ -1,17 +1,21 @@
-package federationtesting
+package engine
 
 import (
+	"bytes"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"sync/atomic"
 	"testing"
 
 	"github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/wundergraph/graphql-go-tools/execution/engine"
+	nodev1 "github.com/wundergraph/cosmo/router/gen/proto/wg/cosmo/node/v1"
+
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
@@ -21,7 +25,7 @@ func TestSkippedFetchOnNullParent(t *testing.T) {
 	usersServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = io.ReadAll(r.Body)
-		_, _ = w.Write([]byte(`{"data":{"user":null}}`))
+		_, _ = w.Write([]byte(`{"data":{"me":null}}`))
 	}))
 	t.Cleanup(usersServer.Close)
 
@@ -36,25 +40,28 @@ func TestSkippedFetchOnNullParent(t *testing.T) {
 	}))
 	t.Cleanup(reviewsServer.Close)
 
-	const usersSDL = `type Query { user(id: ID!): User } type User @key(fields: "id") { id: ID! name: String! }`
-	const reviewsSDL = `type User @key(fields: "id") { id: ID! @external reviews: [Review] } type Review { body: String! }`
-
 	ctx := t.Context()
-	factory := engine.NewFederationEngineConfigFactory(ctx, []engine.SubgraphConfiguration{
-		{Name: "users", URL: usersServer.URL, SDL: usersSDL},
-		{Name: "reviews", URL: reviewsServer.URL, SDL: reviewsSDL},
-	})
+	factory := NewFederationEngineConfigFactory(ctx)
 
-	engineConfig, err := factory.BuildEngineConfiguration()
+	cfgData, err := os.ReadFile("testdata/config_factory_federation/config.json")
 	require.NoError(t, err)
 
-	eng, err := engine.NewExecutionEngine(ctx, abstractlogger.NoopLogger, engineConfig, resolve.ResolverOptions{
+	cfgData = bytes.ReplaceAll(cfgData, []byte("http://user.service"), []byte(usersServer.URL))
+	cfgData = bytes.ReplaceAll(cfgData, []byte("http://review.service"), []byte(reviewsServer.URL))
+
+	// Build the engine configuration using the router config
+	var rc1 nodev1.RouterConfig
+	assert.NoError(t, protojson.Unmarshal(cfgData, &rc1))
+	engineConfig, err := factory.BuildEngineConfiguration(&rc1)
+	require.NoError(t, err)
+
+	eng, err := NewExecutionEngine(ctx, abstractlogger.NoopLogger, engineConfig, resolve.ResolverOptions{
 		MaxConcurrency: 1024,
 	})
 	require.NoError(t, err)
 
 	gqlRequest := &graphql.Request{
-		Query: `{ user(id: "1") { id name reviews { body } } }`,
+		Query: `{ me { id username reviews { body } } }`,
 	}
 
 	resultWriter := graphql.NewEngineResultWriter()
@@ -62,7 +69,7 @@ func TestSkippedFetchOnNullParent(t *testing.T) {
 	require.NoError(t, err)
 
 	// The user is null, so the response should reflect that without panic.
-	assert.Equal(t, `{"data":{"user":null}}`, resultWriter.String())
+	assert.Equal(t, `{"data":{"me":null}}`, resultWriter.String())
 
 	// The reviews subgraph must NOT have been called — the entity fetch was skipped
 	// because the parent user is null.
