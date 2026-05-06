@@ -299,7 +299,14 @@ func (f *FederationEngineConfigFactory) createPlannerConfiguration(routerConfig 
 			return nil, fmt.Errorf("invalid datasource kind %q", ds.Kind)
 		}
 
+		// Fall back to the datasource ID when no SubgraphConfiguration entry maps
+		// it — matches master's NewDataSourceConfiguration default (name = id) so
+		// callers using the static-RouterConfig path (subgraphsConfigs == nil)
+		// don't end up registering datasources with empty names.
 		subgraphName := dsIDToSubgraphName[ds.Id]
+		if subgraphName == "" {
+			subgraphName = ds.Id
+		}
 		dataSource, err := f.subgraphDataSourceConfiguration(engineConfig, ds, subgraphName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create data source configuration for data source %s: %w", ds.Id, err)

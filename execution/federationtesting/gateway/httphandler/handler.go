@@ -1,4 +1,4 @@
-package http
+package httphandler
 
 import (
 	"net/http"
@@ -8,6 +8,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/execution/engine"
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 const (
@@ -20,22 +21,34 @@ func NewGraphqlHTTPHandler(
 	upgrader *ws.HTTPUpgrader,
 	logger log.Logger,
 	enableART bool,
+	subgraphHeadersBuilder resolve.SubgraphHeadersBuilder,
+	cachingOptions resolve.CachingOptions,
+	debugMode bool,
+	remapVariables map[string]string,
 ) http.Handler {
 	return &GraphQLHTTPRequestHandler{
-		schema:     schema,
-		engine:     engine,
-		wsUpgrader: upgrader,
-		log:        logger,
-		enableART:  enableART,
+		schema:                 schema,
+		engine:                 engine,
+		wsUpgrader:             upgrader,
+		log:                    logger,
+		enableART:              enableART,
+		subgraphHeadersBuilder: subgraphHeadersBuilder,
+		cachingOptions:         cachingOptions,
+		debugMode:              debugMode,
+		remapVariables:         remapVariables,
 	}
 }
 
 type GraphQLHTTPRequestHandler struct {
-	log        log.Logger
-	wsUpgrader *ws.HTTPUpgrader
-	engine     *engine.ExecutionEngine
-	schema     *graphql.Schema
-	enableART  bool
+	log                    log.Logger
+	wsUpgrader             *ws.HTTPUpgrader
+	engine                 *engine.ExecutionEngine
+	schema                 *graphql.Schema
+	enableART              bool
+	subgraphHeadersBuilder resolve.SubgraphHeadersBuilder
+	cachingOptions         resolve.CachingOptions
+	debugMode              bool
+	remapVariables         map[string]string
 }
 
 func (g *GraphQLHTTPRequestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

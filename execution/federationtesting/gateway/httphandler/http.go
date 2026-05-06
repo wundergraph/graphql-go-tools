@@ -1,8 +1,9 @@
-// Package http handles GraphQL HTTP Requests including WebSocket Upgrades.
-package http
+// Package httphandler handles GraphQL HTTP Requests including WebSocket Upgrades.
+package httphandler
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/http"
 
 	log "github.com/jensneuse/abstractlogger"
@@ -37,12 +38,34 @@ func (g *GraphQLHTTPRequestHandler) handleHTTP(w http.ResponseWriter, r *http.Re
 			ExcludeInput:                           false,
 			ExcludeOutput:                          false,
 			ExcludeLoadStats:                       false,
-			EnablePredictableDebugTimings:          false,
+			EnablePredictableDebugTimings:          true,
+			Debug:                                  true,
 			IncludeTraceOutputInResponseExtensions: true,
 		}
 
 		opts = append(opts, engine.WithRequestTraceOptions(tracingOpts))
 	}
+
+	if g.subgraphHeadersBuilder != nil {
+		opts = append(opts, engine.WithSubgraphHeadersBuilder(g.subgraphHeadersBuilder))
+	}
+
+	// Add caching options if L1 or L2 cache is enabled
+	if g.cachingOptions.EnableL1Cache || g.cachingOptions.EnableL2Cache {
+		opts = append(opts, engine.WithCachingOptions(g.cachingOptions))
+	}
+
+	if g.debugMode {
+		opts = append(opts, engine.WithDebugMode())
+	}
+
+	if len(g.remapVariables) > 0 {
+		opts = append(opts, engine.WithRemapVariables(g.remapVariables))
+	}
+
+	// Capture cache stats for debugging/testing
+	var cacheStats resolve.CacheAnalyticsSnapshot
+	opts = append(opts, engine.WithCacheStatsOutput(&cacheStats))
 
 	buf := bytes.NewBuffer(make([]byte, 0, 4096))
 	resultWriter := graphql.NewEngineResultWriterFromBuffer(buf)
@@ -53,6 +76,14 @@ func (g *GraphQLHTTPRequestHandler) handleHTTP(w http.ResponseWriter, r *http.Re
 	}
 
 	w.Header().Add(httpHeaderContentType, httpContentTypeApplicationJson)
+
+	// Add full analytics snapshot as JSON header when analytics is enabled
+	if g.cachingOptions.EnableCacheAnalytics {
+		if analyticsJSON, jsonErr := json.Marshal(cacheStats); jsonErr == nil {
+			w.Header().Add("X-Cache-Analytics", string(analyticsJSON))
+		}
+	}
+
 	w.WriteHeader(http.StatusOK)
 	if _, err = w.Write(buf.Bytes()); err != nil {
 		g.log.Error("write response", log.Error(err))

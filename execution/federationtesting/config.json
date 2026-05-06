@@ -1,0 +1,602 @@
+{
+  "engineConfig": {
+    "defaultFlushInterval": "500",
+    "datasourceConfigurations": [
+      {
+        "kind": "GRAPHQL",
+        "rootNodes": [
+          {
+            "typeName": "Query",
+            "fieldNames": [
+              "me",
+              "identifiable",
+              "histories",
+              "cat",
+              "interfaceUnion",
+              "abstractList",
+              "titleName",
+              "cds",
+              "otherInterfaces",
+              "someNestedInterfaces"
+            ]
+          },
+          {
+            "typeName": "User",
+            "fieldNames": [
+              "id",
+              "username",
+              "history",
+              "realName"
+            ]
+          },
+          {
+            "typeName": "Product",
+            "fieldNames": [
+              "upc"
+            ]
+          }
+        ],
+        "childNodes": [
+          {
+            "typeName": "Cat",
+            "fieldNames": [
+              "name"
+            ]
+          },
+          {
+            "typeName": "Identifiable",
+            "fieldNames": [
+              "id"
+            ]
+          },
+          {
+            "typeName": "Info",
+            "fieldNames": [
+              "quantity"
+            ]
+          },
+          {
+            "typeName": "Purchase",
+            "fieldNames": [
+              "product",
+              "wallet",
+              "quantity"
+            ]
+          },
+          {
+            "typeName": "Store",
+            "fieldNames": [
+              "location"
+            ]
+          },
+          {
+            "typeName": "Sale",
+            "fieldNames": [
+              "product",
+              "rating",
+              "location"
+            ]
+          },
+          {
+            "typeName": "Wallet",
+            "fieldNames": [
+              "currency",
+              "amount"
+            ]
+          },
+          {
+            "typeName": "WalletType1",
+            "fieldNames": [
+              "currency",
+              "amount",
+              "specialField1"
+            ]
+          },
+          {
+            "typeName": "WalletType2",
+            "fieldNames": [
+              "currency",
+              "amount",
+              "specialField2"
+            ]
+          },
+          {
+            "typeName": "A",
+            "fieldNames": [
+              "name"
+            ]
+          },
+          {
+            "typeName": "B",
+            "fieldNames": [
+              "name"
+            ]
+          },
+          {
+            "typeName": "Namer",
+            "fieldNames": [
+              "name"
+            ]
+          },
+          {
+            "typeName": "AbstractListItem",
+            "fieldNames": [
+              "obj"
+            ]
+          },
+          {
+            "typeName": "ConcreteListItem1",
+            "fieldNames": [
+              "obj"
+            ]
+          },
+          {
+            "typeName": "ConcreteListItem2",
+            "fieldNames": [
+              "obj"
+            ]
+          },
+          {
+            "typeName": "OtherInterface",
+            "fieldNames": [
+              "name",
+              "names"
+            ]
+          },
+          {
+            "typeName": "SomeNestedInterface",
+            "fieldNames": [
+              "otherInterfaces"
+            ]
+          },
+          {
+            "typeName": "SomeNestedType1",
+            "fieldNames": [
+              "otherInterfaces"
+            ]
+          },
+          {
+            "typeName": "SomeNestedType2",
+            "fieldNames": [
+              "otherInterfaces"
+            ]
+          },
+          {
+            "typeName": "SomeInterface",
+            "fieldNames": [
+              "someObject"
+            ]
+          },
+          {
+            "typeName": "SomeType1",
+            "fieldNames": [
+              "name",
+              "age",
+              "names",
+              "someObject"
+            ]
+          },
+          {
+            "typeName": "SomeType2",
+            "fieldNames": [
+              "name",
+              "height",
+              "names",
+              "someObject"
+            ]
+          },
+          {
+            "typeName": "SomeType3",
+            "fieldNames": [
+              "someObject"
+            ]
+          },
+          {
+            "typeName": "SomeObject",
+            "fieldNames": [
+              "a",
+              "b",
+              "c"
+            ]
+          },
+          {
+            "typeName": "TitleName",
+            "fieldNames": [
+              "a",
+              "b",
+              "c",
+              "title",
+              "name"
+            ]
+          },
+          {
+            "typeName": "Title",
+            "fieldNames": [
+              "title"
+            ]
+          },
+          {
+            "typeName": "Name",
+            "fieldNames": [
+              "name"
+            ]
+          },
+          {
+            "typeName": "C",
+            "fieldNames": [
+              "name"
+            ]
+          },
+          {
+            "typeName": "D",
+            "fieldNames": [
+              "name"
+            ]
+          },
+          {
+            "typeName": "CDer",
+            "fieldNames": [
+              "name"
+            ]
+          },
+          {
+            "typeName": "CDerObj",
+            "fieldNames": [
+              "first",
+              "middle",
+              "last"
+            ]
+          }
+        ],
+        "overrideFieldPathFromAlias": true,
+        "customGraphql": {
+          "fetch": {
+            "url": {
+              "staticVariableContent": "http://accounts-url-placeholder"
+            },
+            "method": "POST",
+            "body": {},
+            "baseUrl": {},
+            "path": {}
+          },
+          "subscription": {
+            "enabled": true,
+            "url": {
+              "staticVariableContent": "http://accounts-url-placeholder"
+            },
+            "protocol": "GRAPHQL_SUBSCRIPTION_PROTOCOL_WS",
+            "websocketSubprotocol": "GRAPHQL_WEBSOCKET_SUBPROTOCOL_AUTO"
+          },
+          "federation": {
+            "enabled": true,
+            "serviceSdl": "type Query {\n    me: User\n    identifiable: Identifiable\n    histories: [History]\n    cat: Cat\n\n    # merge data test cases\n    interfaceUnion(which: Which! = A): AB\n    abstractList: [AbstractListItem]\n    titleName: TitleName\n    cds: [CD]\n    otherInterfaces: [SomeInterface]\n    someNestedInterfaces: [SomeNestedInterface]\n}\n\ntype Cat {\n    name: String!\n}\n\ninterface Identifiable {\n    id: ID!\n}\n\ntype User implements Identifiable @key(fields: \"id\")  {\n    id: ID!\n    username: String!\n    history: [History!]!\n    realName: String!\n}\n\ntype Product @key(fields: \"upc\", resolvable: false) {\n    upc: String!\n}\n\nunion History = Purchase | Sale\n\ninterface Info {\n    quantity: Int!\n}\n\ntype Purchase implements Info {\n    product: Product!\n    wallet: Wallet\n    quantity: Int!\n}\n\ninterface Store {\n    location: String!\n}\n\ntype Sale implements Store {\n    product: Product!\n    rating: Int!\n    location: String!\n}\n\ninterface Wallet {\n    currency: String!\n    amount: Float!\n}\n\ntype WalletType1 implements Wallet {\n    currency: String!\n    amount: Float!\n    specialField1: String!\n}\n\ntype WalletType2 implements Wallet {\n    currency: String!\n    amount: Float!\n    specialField2: String!\n}\n\nenum Which {\n    A\n    B\n}\n\nunion AB = A | B\n\ntype A implements Namer {\n    name: String!\n}\n\ntype B implements Namer {\n    name: String!\n}\n\ninterface Namer {\n    name: String!\n}\n\ninterface AbstractListItem {\n    obj: OtherInterface!\n}\n\ntype ConcreteListItem1 implements AbstractListItem {\n    obj: OtherInterface!\n}\n\ntype ConcreteListItem2 implements AbstractListItem {\n    obj: OtherInterface!\n}\n\ninterface OtherInterface {\n    name: String!\n    names: [String!]!\n}\n\ninterface SomeNestedInterface {\n    otherInterfaces: [SomeInterface]\n}\n\ntype SomeNestedType1 implements SomeNestedInterface {\n    otherInterfaces: [SomeInterface]\n}\n\ntype SomeNestedType2 implements SomeNestedInterface {\n    otherInterfaces: [SomeInterface]\n}\n\ninterface SomeInterface {\n    someObject: SomeObject!\n}\n\ntype SomeType1 implements OtherInterface & SomeInterface {\n    name: String!\n    age: Int!\n    names: [String!]!\n    someObject: SomeObject!\n}\n\ntype SomeType2 implements OtherInterface & SomeInterface {\n    name: String!\n    height: Float!\n    names: [String!]!\n    someObject: SomeObject!\n}\n\ntype SomeType3 implements SomeInterface {\n    someObject: SomeObject!\n}\n\ntype SomeObject {\n    a: String!\n    b: String!\n    c: String!\n}\n\ntype TitleName implements Title & Name {\n    a: String!\n    b: String!\n    c: String!\n    title: String!\n    name: String!\n}\n\ninterface Title {\n    title: String!\n}\n\ninterface Name {\n    name: String!\n}\n\nunion CD = C | D\n\ntype C implements CDer {\n    name: CDerObj\n}\n\ntype D implements CDer {\n    name: CDerObj\n}\n\ninterface CDer {\n    name: CDerObj\n}\n\ntype CDerObj {\n    first: String!\n    middle: String!\n    last: String!\n}"
+          },
+          "upstreamSchema": {
+            "key": "6f520b55de37e18b3a1354cb4ca7af798ca2b05f"
+          }
+        },
+        "requestTimeoutSeconds": "10",
+        "id": "0",
+        "keys": [
+          {
+            "typeName": "User",
+            "selectionSet": "id"
+          },
+          {
+            "typeName": "Product",
+            "selectionSet": "upc",
+            "disableEntityResolver": true
+          }
+        ]
+      },
+      {
+        "kind": "GRAPHQL",
+        "rootNodes": [
+          {
+            "typeName": "Query",
+            "fieldNames": [
+              "topProducts"
+            ]
+          },
+          {
+            "typeName": "Mutation",
+            "fieldNames": [
+              "setPrice"
+            ]
+          },
+          {
+            "typeName": "Subscription",
+            "fieldNames": [
+              "updatedPrice",
+              "updateProductPrice"
+            ]
+          },
+          {
+            "typeName": "Product",
+            "fieldNames": [
+              "upc",
+              "name",
+              "price",
+              "inStock"
+            ]
+          }
+        ],
+        "overrideFieldPathFromAlias": true,
+        "customGraphql": {
+          "fetch": {
+            "url": {
+              "staticVariableContent": "http://products-url-placeholder"
+            },
+            "method": "POST",
+            "body": {},
+            "baseUrl": {},
+            "path": {}
+          },
+          "subscription": {
+            "enabled": true,
+            "url": {
+              "staticVariableContent": "http://products-url-placeholder"
+            },
+            "protocol": "GRAPHQL_SUBSCRIPTION_PROTOCOL_WS",
+            "websocketSubprotocol": "GRAPHQL_WEBSOCKET_SUBPROTOCOL_AUTO"
+          },
+          "federation": {
+            "enabled": true,
+            "serviceSdl": "type Query {\n    topProducts(first: Int = 5): [Product]\n}\n\ntype Mutation {\n    setPrice(upc: String!, price: Int!): Product\n}\n\ntype Subscription {\n    updatedPrice: Product!\n    updateProductPrice(upc: String!): Product!\n}\n\ntype Product @key(fields: \"upc\") {\n    upc: String!\n    name: String!\n    price: Int!\n    inStock: Int!\n}\n"
+          },
+          "upstreamSchema": {
+            "key": "5632255cc1750ef3bb9a7ca53e8a75f83331ebfa"
+          }
+        },
+        "requestTimeoutSeconds": "10",
+        "id": "1",
+        "keys": [
+          {
+            "typeName": "Product",
+            "selectionSet": "upc"
+          }
+        ]
+      },
+      {
+        "kind": "GRAPHQL",
+        "rootNodes": [
+          {
+            "typeName": "Query",
+            "fieldNames": [
+              "me",
+              "cat"
+            ]
+          },
+          {
+            "typeName": "User",
+            "fieldNames": [
+              "id",
+              "reviews",
+              "realName"
+            ],
+            "externalFieldNames": [
+              "username"
+            ]
+          },
+          {
+            "typeName": "Product",
+            "fieldNames": [
+              "upc",
+              "reviews"
+            ]
+          },
+          {
+            "typeName": "Mutation",
+            "fieldNames": [
+              "addReview"
+            ]
+          }
+        ],
+        "childNodes": [
+          {
+            "typeName": "Cat",
+            "fieldNames": [
+              "name"
+            ]
+          },
+          {
+            "typeName": "Comment",
+            "fieldNames": [
+              "upc",
+              "body"
+            ]
+          },
+          {
+            "typeName": "Review",
+            "fieldNames": [
+              "body",
+              "author",
+              "product",
+              "attachments",
+              "comment"
+            ]
+          },
+          {
+            "typeName": "Iface",
+            "fieldNames": [
+              "subject"
+            ]
+          },
+          {
+            "typeName": "Question",
+            "fieldNames": [
+              "upc",
+              "body",
+              "subject"
+            ]
+          },
+          {
+            "typeName": "OtherQuestion",
+            "fieldNames": [
+              "upc",
+              "body"
+            ]
+          },
+          {
+            "typeName": "DetatchedQuestion",
+            "fieldNames": [
+              "upc",
+              "body"
+            ]
+          },
+          {
+            "typeName": "Rating",
+            "fieldNames": [
+              "upc",
+              "body",
+              "score"
+            ]
+          },
+          {
+            "typeName": "Video",
+            "fieldNames": [
+              "upc",
+              "size",
+              "subject"
+            ]
+          }
+        ],
+        "overrideFieldPathFromAlias": true,
+        "customGraphql": {
+          "fetch": {
+            "url": {
+              "staticVariableContent": "http://reviews-url-placeholder"
+            },
+            "method": "POST",
+            "body": {},
+            "baseUrl": {},
+            "path": {}
+          },
+          "subscription": {
+            "enabled": true,
+            "url": {
+              "staticVariableContent": "http://reviews-url-placeholder"
+            },
+            "protocol": "GRAPHQL_SUBSCRIPTION_PROTOCOL_WS",
+            "websocketSubprotocol": "GRAPHQL_WEBSOCKET_SUBPROTOCOL_AUTO"
+          },
+          "federation": {
+            "enabled": true,
+            "serviceSdl": "type Query {\n    me: User\n    cat: Cat\n}\n\ntype Cat {\n    name: String!\n}\n\ninterface Comment {\n    upc: String!\n    body: String!\n}\n\ntype Review {\n    body: String!\n    author: User! @provides(fields: \"username\")\n    product: Product!\n    attachments: [Attachment]\n    comment: Comment\n}\n\ninterface Iface {\n    subject: String!\n}\n\ntype Question implements Comment & Iface {\n    upc: String!\n    body: String!\n    subject: String!\n}\n\ntype OtherQuestion implements Comment {\n    upc: String!\n    body: String!\n}\n\ntype DetatchedQuestion implements Comment {\n    upc: String!\n    body: String!\n}\n\ntype Rating implements Comment {\n    upc: String!\n    body: String!\n    score: Int!\n}\n\ntype Video implements Iface {\n    upc: String!\n    size: Float!\n    subject: String!\n}\n\nunion Attachment = Question | Rating | Video\n\ntype User @key(fields: \"id\") {\n    id: ID!\n    username: String! @external\n    reviews: [Review]\n    realName: String!\n}\n\ntype Product @key(fields: \"upc\") {\n    upc: String!\n    reviews: [Review]\n}\n\ntype Mutation {\n    addReview(authorID: String! upc: String!, review: String!): Review!\n}\n"
+          },
+          "upstreamSchema": {
+            "key": "3d7329613bdf1a3de2d2d26d61f2cb11370894f6"
+          }
+        },
+        "requestTimeoutSeconds": "10",
+        "id": "2",
+        "keys": [
+          {
+            "typeName": "User",
+            "selectionSet": "id"
+          },
+          {
+            "typeName": "Product",
+            "selectionSet": "upc"
+          }
+        ],
+        "provides": [
+          {
+            "typeName": "Review",
+            "fieldName": "author",
+            "selectionSet": "username"
+          }
+        ]
+      }
+    ],
+    "fieldConfigurations": [
+      {
+        "typeName": "Query",
+        "fieldName": "interfaceUnion",
+        "argumentsConfiguration": [
+          {
+            "name": "which",
+            "sourceType": "FIELD_ARGUMENT"
+          }
+        ]
+      },
+      {
+        "typeName": "Query",
+        "fieldName": "topProducts",
+        "argumentsConfiguration": [
+          {
+            "name": "first",
+            "sourceType": "FIELD_ARGUMENT"
+          }
+        ]
+      },
+      {
+        "typeName": "Mutation",
+        "fieldName": "setPrice",
+        "argumentsConfiguration": [
+          {
+            "name": "upc",
+            "sourceType": "FIELD_ARGUMENT"
+          },
+          {
+            "name": "price",
+            "sourceType": "FIELD_ARGUMENT"
+          }
+        ]
+      },
+      {
+        "typeName": "Mutation",
+        "fieldName": "addReview",
+        "argumentsConfiguration": [
+          {
+            "name": "authorID",
+            "sourceType": "FIELD_ARGUMENT"
+          },
+          {
+            "name": "upc",
+            "sourceType": "FIELD_ARGUMENT"
+          },
+          {
+            "name": "review",
+            "sourceType": "FIELD_ARGUMENT"
+          }
+        ]
+      },
+      {
+        "typeName": "Subscription",
+        "fieldName": "updateProductPrice",
+        "argumentsConfiguration": [
+          {
+            "name": "upc",
+            "sourceType": "FIELD_ARGUMENT"
+          }
+        ]
+      }
+    ],
+    "graphqlSchema": "schema {\n  query: Query\n  mutation: Mutation\n  subscription: Subscription\n}\n\ntype Query {\n  me: User\n  identifiable: Identifiable\n  histories: [History]\n  cat: Cat\n  interfaceUnion(which: Which! = A): AB\n  abstractList: [AbstractListItem]\n  titleName: TitleName\n  cds: [CD]\n  otherInterfaces: [SomeInterface]\n  someNestedInterfaces: [SomeNestedInterface]\n  topProducts(first: Int = 5): [Product]\n}\n\ntype Cat {\n  name: String!\n}\n\ninterface Identifiable {\n  id: ID!\n}\n\ntype Product {\n  upc: String!\n  name: String!\n  price: Int!\n  inStock: Int!\n  reviews: [Review]\n}\n\nunion History = Purchase | Sale\n\ninterface Info {\n  quantity: Int!\n}\n\ninterface Store {\n  location: String!\n}\n\ninterface Wallet {\n  currency: String!\n  amount: Float!\n}\n\nenum Which {\n  A\n  B\n}\n\nunion AB = A | B\n\ninterface Namer {\n  name: String!\n}\n\ninterface AbstractListItem {\n  obj: OtherInterface!\n}\n\ninterface OtherInterface {\n  name: String!\n  names: [String!]!\n}\n\ninterface SomeNestedInterface {\n  otherInterfaces: [SomeInterface]\n}\n\ninterface SomeInterface {\n  someObject: SomeObject!\n}\n\ntype SomeObject {\n  a: String!\n  b: String!\n  c: String!\n}\n\ninterface Title {\n  title: String!\n}\n\ninterface Name {\n  name: String!\n}\n\nunion CD = C | D\n\ninterface CDer {\n  name: CDerObj\n}\n\ntype CDerObj {\n  first: String!\n  middle: String!\n  last: String!\n}\n\ntype Mutation {\n  setPrice(upc: String!, price: Int!): Product\n  addReview(authorID: String!, upc: String!, review: String!): Review!\n}\n\ntype Subscription {\n  updatedPrice: Product!\n  updateProductPrice(upc: String!): Product!\n}\n\ninterface Comment {\n  upc: String!\n  body: String!\n}\n\ntype Review {\n  body: String!\n  author: User!\n  product: Product!\n  attachments: [Attachment]\n  comment: Comment\n}\n\ninterface Iface {\n  subject: String!\n}\n\nunion Attachment = Question | Rating | Video\n\ntype User implements Identifiable {\n  id: ID!\n  username: String!\n  history: [History!]!\n  realName: String!\n  reviews: [Review]\n}\n\ntype Purchase implements Info {\n  product: Product!\n  wallet: Wallet\n  quantity: Int!\n}\n\ntype Sale implements Store {\n  product: Product!\n  rating: Int!\n  location: String!\n}\n\ntype WalletType1 implements Wallet {\n  currency: String!\n  amount: Float!\n  specialField1: String!\n}\n\ntype WalletType2 implements Wallet {\n  currency: String!\n  amount: Float!\n  specialField2: String!\n}\n\ntype A implements Namer {\n  name: String!\n}\n\ntype B implements Namer {\n  name: String!\n}\n\ntype ConcreteListItem1 implements AbstractListItem {\n  obj: OtherInterface!\n}\n\ntype ConcreteListItem2 implements AbstractListItem {\n  obj: OtherInterface!\n}\n\ntype SomeNestedType1 implements SomeNestedInterface {\n  otherInterfaces: [SomeInterface]\n}\n\ntype SomeNestedType2 implements SomeNestedInterface {\n  otherInterfaces: [SomeInterface]\n}\n\ntype SomeType1 implements OtherInterface & SomeInterface {\n  name: String!\n  age: Int!\n  names: [String!]!\n  someObject: SomeObject!\n}\n\ntype SomeType2 implements OtherInterface & SomeInterface {\n  name: String!\n  height: Float!\n  names: [String!]!\n  someObject: SomeObject!\n}\n\ntype SomeType3 implements SomeInterface {\n  someObject: SomeObject!\n}\n\ntype TitleName implements Title & Name {\n  a: String!\n  b: String!\n  c: String!\n  title: String!\n  name: String!\n}\n\ntype C implements CDer {\n  name: CDerObj\n}\n\ntype D implements CDer {\n  name: CDerObj\n}\n\ntype Question implements Comment & Iface {\n  upc: String!\n  body: String!\n  subject: String!\n}\n\ntype OtherQuestion implements Comment {\n  upc: String!\n  body: String!\n}\n\ntype DetatchedQuestion implements Comment {\n  upc: String!\n  body: String!\n}\n\ntype Rating implements Comment {\n  upc: String!\n  body: String!\n  score: Int!\n}\n\ntype Video implements Iface {\n  upc: String!\n  size: Float!\n  subject: String!\n}",
+    "stringStorage": {
+      "6f520b55de37e18b3a1354cb4ca7af798ca2b05f": "schema {\n  query: Query\n}\n\ndirective @key(fields: openfed__FieldSet!, resolvable: Boolean = true) repeatable on INTERFACE | OBJECT\n\ntype A implements Namer {\n  name: String!\n}\n\nunion AB = A | B\n\ninterface AbstractListItem {\n  obj: OtherInterface!\n}\n\ntype B implements Namer {\n  name: String!\n}\n\ntype C implements CDer {\n  name: CDerObj\n}\n\nunion CD = C | D\n\ninterface CDer {\n  name: CDerObj\n}\n\ntype CDerObj {\n  first: String!\n  last: String!\n  middle: String!\n}\n\ntype Cat {\n  name: String!\n}\n\ntype ConcreteListItem1 implements AbstractListItem {\n  obj: OtherInterface!\n}\n\ntype ConcreteListItem2 implements AbstractListItem {\n  obj: OtherInterface!\n}\n\ntype D implements CDer {\n  name: CDerObj\n}\n\nunion History = Purchase | Sale\n\ninterface Identifiable {\n  id: ID!\n}\n\ninterface Info {\n  quantity: Int!\n}\n\ninterface Name {\n  name: String!\n}\n\ninterface Namer {\n  name: String!\n}\n\ninterface OtherInterface {\n  name: String!\n  names: [String!]!\n}\n\ntype Product @key(fields: \"upc\", resolvable: false) {\n  upc: String!\n}\n\ntype Purchase implements Info {\n  product: Product!\n  quantity: Int!\n  wallet: Wallet\n}\n\ntype Query {\n  abstractList: [AbstractListItem]\n  cat: Cat\n  cds: [CD]\n  histories: [History]\n  identifiable: Identifiable\n  interfaceUnion(which: Which! = A): AB\n  me: User\n  otherInterfaces: [SomeInterface]\n  someNestedInterfaces: [SomeNestedInterface]\n  titleName: TitleName\n}\n\ntype Sale implements Store {\n  location: String!\n  product: Product!\n  rating: Int!\n}\n\ninterface SomeInterface {\n  someObject: SomeObject!\n}\n\ninterface SomeNestedInterface {\n  otherInterfaces: [SomeInterface]\n}\n\ntype SomeNestedType1 implements SomeNestedInterface {\n  otherInterfaces: [SomeInterface]\n}\n\ntype SomeNestedType2 implements SomeNestedInterface {\n  otherInterfaces: [SomeInterface]\n}\n\ntype SomeObject {\n  a: String!\n  b: String!\n  c: String!\n}\n\ntype SomeType1 implements OtherInterface & SomeInterface {\n  age: Int!\n  name: String!\n  names: [String!]!\n  someObject: SomeObject!\n}\n\ntype SomeType2 implements OtherInterface & SomeInterface {\n  height: Float!\n  name: String!\n  names: [String!]!\n  someObject: SomeObject!\n}\n\ntype SomeType3 implements SomeInterface {\n  someObject: SomeObject!\n}\n\ninterface Store {\n  location: String!\n}\n\ninterface Title {\n  title: String!\n}\n\ntype TitleName implements Name & Title {\n  a: String!\n  b: String!\n  c: String!\n  name: String!\n  title: String!\n}\n\ntype User implements Identifiable @key(fields: \"id\") {\n  history: [History!]!\n  id: ID!\n  realName: String!\n  username: String!\n}\n\ninterface Wallet {\n  amount: Float!\n  currency: String!\n}\n\ntype WalletType1 implements Wallet {\n  amount: Float!\n  currency: String!\n  specialField1: String!\n}\n\ntype WalletType2 implements Wallet {\n  amount: Float!\n  currency: String!\n  specialField2: String!\n}\n\nenum Which {\n  A\n  B\n}\n\nscalar openfed__FieldSet",
+      "5632255cc1750ef3bb9a7ca53e8a75f83331ebfa": "schema {\n  query: Query\n  mutation: Mutation\n  subscription: Subscription\n}\n\ndirective @key(fields: openfed__FieldSet!, resolvable: Boolean = true) repeatable on INTERFACE | OBJECT\n\ntype Mutation {\n  setPrice(price: Int!, upc: String!): Product\n}\n\ntype Product @key(fields: \"upc\") {\n  inStock: Int!\n  name: String!\n  price: Int!\n  upc: String!\n}\n\ntype Query {\n  topProducts(first: Int = 5): [Product]\n}\n\ntype Subscription {\n  updateProductPrice(upc: String!): Product!\n  updatedPrice: Product!\n}\n\nscalar openfed__FieldSet",
+      "3d7329613bdf1a3de2d2d26d61f2cb11370894f6": "schema {\n  query: Query\n  mutation: Mutation\n}\n\ndirective @external on FIELD_DEFINITION | OBJECT\n\ndirective @key(fields: openfed__FieldSet!, resolvable: Boolean = true) repeatable on INTERFACE | OBJECT\n\ndirective @provides(fields: openfed__FieldSet!) on FIELD_DEFINITION\n\nunion Attachment = Question | Rating | Video\n\ntype Cat {\n  name: String!\n}\n\ninterface Comment {\n  body: String!\n  upc: String!\n}\n\ntype DetatchedQuestion implements Comment {\n  body: String!\n  upc: String!\n}\n\ninterface Iface {\n  subject: String!\n}\n\ntype Mutation {\n  addReview(authorID: String!, review: String!, upc: String!): Review!\n}\n\ntype OtherQuestion implements Comment {\n  body: String!\n  upc: String!\n}\n\ntype Product @key(fields: \"upc\") {\n  reviews: [Review]\n  upc: String!\n}\n\ntype Query {\n  cat: Cat\n  me: User\n}\n\ntype Question implements Comment & Iface {\n  body: String!\n  subject: String!\n  upc: String!\n}\n\ntype Rating implements Comment {\n  body: String!\n  score: Int!\n  upc: String!\n}\n\ntype Review {\n  attachments: [Attachment]\n  author: User! @provides(fields: \"username\")\n  body: String!\n  comment: Comment\n  product: Product!\n}\n\ntype User @key(fields: \"id\") {\n  id: ID!\n  realName: String!\n  reviews: [Review]\n  username: String! @external\n}\n\ntype Video implements Iface {\n  size: Float!\n  subject: String!\n  upc: String!\n}\n\nscalar openfed__FieldSet"
+    }
+  },
+  "version": "00000000-0000-0000-0000-000000000000",
+  "subgraphs": [
+    {
+      "id": "0",
+      "name": "accounts",
+      "routingUrl": "http://accounts-url-placeholder"
+    },
+    {
+      "id": "1",
+      "name": "products",
+      "routingUrl": "http://products-url-placeholder"
+    },
+    {
+      "id": "2",
+      "name": "reviews",
+      "routingUrl": "http://reviews-url-placeholder"
+    }
+  ],
+  "compatibilityVersion": "1:0.58.2"
+}

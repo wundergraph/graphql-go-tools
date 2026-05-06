@@ -2,6 +2,7 @@ package federationtesting
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"net/http/httptest"
 	"os"
@@ -12,6 +13,17 @@ import (
 	accounts "github.com/wundergraph/graphql-go-tools/execution/federationtesting/accounts/graph"
 	products "github.com/wundergraph/graphql-go-tools/execution/federationtesting/products/graph"
 	reviews "github.com/wundergraph/graphql-go-tools/execution/federationtesting/reviews/graph"
+)
+
+var (
+	//go:embed config.json
+	RouterConfigJson []byte
+	//go:embed accounts/graph/schema.graphqls
+	AccountSDL []byte
+	//go:embed products/graph/schema.graphqls
+	ProductsSDL []byte
+	//go:embed reviews/graph/schema.graphqls
+	ReviewsSDL []byte
 )
 
 const (
