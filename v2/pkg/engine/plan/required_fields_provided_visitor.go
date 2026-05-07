@@ -47,10 +47,6 @@ type areRequiredFieldsProvidedInput struct {
 // When one of the parent nodes provides fields, which are mentioned in requires.
 // We can skip fetching these requirements, because fields are already available under the given path.
 func areRequiredFieldsProvided(input areRequiredFieldsProvidedInput) (bool, *operationreport.Report) {
-	if len(input.providedFields) == 0 {
-		return false, operationreport.NewReport()
-	}
-
 	key, report := RequiredFieldsFragment(input.typeName, input.requiredFields, false)
 	if report.HasErrors() {
 		return false, report

@@ -468,6 +468,40 @@ func TestSSETransport_Subscribe(t *testing.T) {
 		assert.Error(t, msg.Err)
 	})
 
+	t.Run("naturally completed stream is evicted from connection map", func(t *testing.T) {
+		// Regression: when a server sends `complete` and the consumer never
+		// invokes the cancel func, the connection used to leak into t.conns
+		// until transport shutdown. The readLoop now triggers removal via
+		// onClose so ConnCount returns to 0.
+		t.Parallel()
+
+		server := newSSEServer(t, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.WriteHeader(http.StatusOK)
+			flusher := w.(http.Flusher)
+			fmt.Fprintf(w, "event: next\ndata: {\"data\": {\"value\": 1}}\n\n")
+			flusher.Flush()
+			fmt.Fprintf(w, "event: complete\ndata:\n\n")
+			flusher.Flush()
+		})
+
+		tr := NewSSETransport(t.Context(), http.DefaultClient, nil)
+
+		handler, receive := collectingHandler()
+		_, err := tr.Subscribe(context.Background(), &common.Request{
+			Query: "subscription { test }",
+		}, common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodPOST}, handler)
+		require.NoError(t, err)
+
+		receive(t, time.Second)
+		msg := receive(t, time.Second)
+		assert.Equal(t, common.MessageTypeComplete, msg.Type)
+
+		assert.Eventually(t, func() bool {
+			return tr.ConnCount() == 0
+		}, time.Second, 10*time.Millisecond, "naturally completed stream must be removed from t.conns even without cancel call")
+	})
+
 	t.Run("handles data without event type", func(t *testing.T) {
 		t.Parallel()
 

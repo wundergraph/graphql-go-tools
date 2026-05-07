@@ -1,8 +1,15 @@
 type Query {
     me: User
+    user(id: ID!): User
+    userByIdAndName(id: ID!, username: String!): User
+    meInterface: Identifiable
+    meUnion: MeUnion
     identifiable: Identifiable
     histories: [History]
     cat: Cat
+
+    # L1 cache union optimization testing
+    cacheEntity(id: ID!): CacheEntity!
 
     # merge data test cases
     interfaceUnion(which: Which! = A): AB
@@ -13,6 +20,10 @@ type Query {
     someNestedInterfaces: [SomeNestedInterface]
 }
 
+type Mutation {
+    updateUsername(id: ID!, newUsername: String!): User!
+}
+
 type Cat {
     name: String!
 }
@@ -21,11 +32,30 @@ interface Identifiable {
     id: ID!
 }
 
+enum GreetingStyle {
+    FORMAL
+    CASUAL
+    SHORT
+}
+
+input GreetingFormatting {
+    uppercase: Boolean
+    prefix: String
+}
+
+input GreetingInput {
+    style: GreetingStyle!
+    formatting: GreetingFormatting
+}
+
 type User implements Identifiable @key(fields: "id")  {
     id: ID!
     username: String!
+    nickname: String!
     history: [History!]!
     realName: String!
+    greeting(style: String!): String!
+    customGreeting(input: GreetingInput!): String!
 }
 
 type Product @key(fields: "upc", resolvable: false) {
@@ -182,3 +212,28 @@ type CDerObj {
     middle: String!
     last: String!
 }
+
+# CacheEntity is a self-referential entity designed for L1 cache testing.
+# It has many scalar fields (a-f) so tests can select different field subsets
+# at each tree level, creating entity fetches with different ProvidesData.
+# The `nested` field (defined in reviews subgraph) returns the same entity,
+# enabling arbitrary-depth sequential entity fetch chains for the same key.
+type CacheEntity @key(fields: "id") {
+    id: ID!
+    a: String!
+    b: String!
+    c: String!
+    d: String!
+    e: String!
+    f: String!
+}
+
+# Admin is another entity that implements Identifiable for testing interface/union caching
+type Admin implements Identifiable @key(fields: "id") {
+    id: ID!
+    username: String!
+    role: String!
+}
+
+# Union containing entity types for testing union field caching
+union MeUnion = User | Admin

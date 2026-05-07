@@ -28,8 +28,8 @@ require (
 	github.com/tidwall/gjson v1.18.0
 	github.com/tidwall/sjson v1.2.5
 	github.com/vektah/gqlparser/v2 v2.5.30
-	github.com/wundergraph/astjson v1.1.0
-	github.com/wundergraph/go-arena v1.1.0
+	github.com/wundergraph/astjson v1.1.1-0.20260419105127-f600d161463f
+	github.com/wundergraph/go-arena v1.2.0
 	go.uber.org/goleak v1.3.0
 	golang.org/x/sync v0.17.0
 	golang.org/x/sys v0.37.0

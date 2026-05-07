@@ -647,7 +647,7 @@ func ExampleExecuteOperation() {
   switch p := preparedPlan.(type) {
   case *plan.SynchronousResponsePlan:
     out := &bytes.Buffer{}
-    err, _ := resolver.ResolveGraphQLResponse(ctx, p.Response, nil, out)
+    _, err := resolver.ResolveGraphQLResponse(ctx, p.Response, out)
     if err != nil {
       panic(err)
     }

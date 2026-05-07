@@ -7,28 +7,87 @@ package graph
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/accounts/graph/generated"
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/accounts/graph/model"
 )
 
+// UpdateUsername is the resolver for the updateUsername field.
+func (r *mutationResolver) UpdateUsername(ctx context.Context, id string, newUsername string) (*model.User, error) {
+	r.SetUsername(id, newUsername)
+	return &model.User{
+		ID:       id,
+		Username: newUsername,
+		Nickname: "nick-" + newUsername,
+		RealName: "Real " + newUsername,
+	}, nil
+}
+
 // Me is the resolver for the me field.
 func (r *queryResolver) Me(ctx context.Context) (*model.User, error) {
 	return &model.User{
 		ID:       "1234",
-		Username: "Me",
+		Username: r.GetUsername("1234"),
+		Nickname: "nick-Me",
 		History:  histories,
 		RealName: "User Usington",
 	}, nil
 }
 
-// Identifiable is the resolver for the identifiable field.
-func (r *queryResolver) Identifiable(ctx context.Context) (model.Identifiable, error) {
+// User is the resolver for the user field.
+func (r *queryResolver) User(ctx context.Context, id string) (*model.User, error) {
+	name := r.GetUsername(id)
+	return &model.User{
+		ID:       id,
+		Username: name,
+		Nickname: "nick-" + name,
+		RealName: "Real " + name,
+	}, nil
+}
+
+// UserByIDAndName is the resolver for the userByIdAndName field.
+func (r *queryResolver) UserByIDAndName(ctx context.Context, id string, username string) (*model.User, error) {
+	return &model.User{
+		ID:       id,
+		Username: username,
+		Nickname: "nick-" + username,
+	}, nil
+}
+
+// MeInterface is the resolver for the meInterface field.
+func (r *queryResolver) MeInterface(ctx context.Context) (model.Identifiable, error) {
+	username := r.GetUsername("1234")
 	return &model.User{
 		ID:       "1234",
-		Username: "Me",
+		Username: username,
+		Nickname: "nick-" + username,
 		History:  histories,
-		RealName: "User Usington",
+		RealName: "Real " + username,
+	}, nil
+}
+
+// MeUnion is the resolver for the meUnion field.
+func (r *queryResolver) MeUnion(ctx context.Context) (model.MeUnion, error) {
+	username := r.GetUsername("1234")
+	return &model.User{
+		ID:       "1234",
+		Username: username,
+		Nickname: "nick-" + username,
+		History:  histories,
+		RealName: "Real " + username,
+	}, nil
+}
+
+// Identifiable is the resolver for the identifiable field.
+func (r *queryResolver) Identifiable(ctx context.Context) (model.Identifiable, error) {
+	username := r.GetUsername("1234")
+	return &model.User{
+		ID:       "1234",
+		Username: username,
+		Nickname: "nick-" + username,
+		History:  histories,
+		RealName: "Real " + username,
 	}, nil
 }
 
@@ -41,6 +100,19 @@ func (r *queryResolver) Histories(ctx context.Context) ([]model.History, error) 
 func (r *queryResolver) Cat(ctx context.Context) (*model.Cat, error) {
 	return &model.Cat{
 		Name: "Pepper",
+	}, nil
+}
+
+// CacheEntity is the resolver for the cacheEntity field.
+func (r *queryResolver) CacheEntity(ctx context.Context, id string) (*model.CacheEntity, error) {
+	return &model.CacheEntity{
+		ID: id,
+		A:  "a-" + id,
+		B:  "b-" + id,
+		C:  "c-" + id,
+		D:  "d-" + id,
+		E:  "e-" + id,
+		F:  "f-" + id,
 	}, nil
 }
 
@@ -211,7 +283,59 @@ func (r *queryResolver) SomeNestedInterfaces(ctx context.Context) ([]model.SomeN
 	}, nil
 }
 
+// Greeting is the resolver for the greeting field.
+func (r *userResolver) Greeting(ctx context.Context, obj *model.User, style string) (string, error) {
+	name := obj.Username
+	if name == "" {
+		name = r.GetUsername(obj.ID)
+	}
+	switch style {
+	case "formal":
+		return "Good day, " + name, nil
+	case "casual":
+		return "Hey, " + name + "!", nil
+	case "short":
+		return "Hi " + name, nil
+	default:
+		return "Hello, " + name, nil
+	}
+}
+
+// CustomGreeting is the resolver for the customGreeting field.
+func (r *userResolver) CustomGreeting(ctx context.Context, obj *model.User, input model.GreetingInput) (string, error) {
+	name := obj.Username
+	if name == "" {
+		name = r.GetUsername(obj.ID)
+	}
+	var greeting string
+	switch input.Style {
+	case model.GreetingStyleFormal:
+		greeting = "Good day, " + name
+	case model.GreetingStyleCasual:
+		greeting = "Hey, " + name + "!"
+	case model.GreetingStyleShort:
+		greeting = "Hi " + name
+	}
+	if input.Formatting != nil {
+		if input.Formatting.Prefix != nil && *input.Formatting.Prefix != "" {
+			greeting = *input.Formatting.Prefix + " " + greeting
+		}
+		if input.Formatting.Uppercase != nil && *input.Formatting.Uppercase {
+			greeting = strings.ToUpper(greeting)
+		}
+	}
+	return greeting, nil
+}
+
+// Mutation returns generated.MutationResolver implementation.
+func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResolver{r} }
+
 // Query returns generated.QueryResolver implementation.
 func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 
+// User returns generated.UserResolver implementation.
+func (r *Resolver) User() generated.UserResolver { return &userResolver{r} }
+
+type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
+type userResolver struct{ *Resolver }

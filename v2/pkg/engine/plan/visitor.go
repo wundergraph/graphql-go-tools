@@ -66,10 +66,11 @@ type Visitor struct {
 
 	// fieldEnclosingTypeNames maps fieldRef to the enclosing type name.
 	fieldEnclosingTypeNames map[int]string
+	caching                 *cachingPlannerState
 }
 
 func NewVisitor(w *astvisitor.Walker) *Visitor {
-	return &Visitor{
+	visitor := &Visitor{
 		Walker:                  w,
 		fieldConfigs:            map[int]*FieldConfiguration{},
 		exportedVariables:       map[string]struct{}{},
@@ -80,6 +81,15 @@ func NewVisitor(w *astvisitor.Walker) *Visitor {
 		fieldPlanners:           map[int][]int{},
 		fieldEnclosingTypeNames: map[int]string{},
 	}
+	visitor.caching = newCachingPlannerState(visitor)
+	return visitor
+}
+
+func (v *Visitor) RequestScopedFetchAlias(fieldRef int) (string, bool) {
+	if v == nil {
+		return "", false
+	}
+	return v.caching.fetchAlias(fieldRef)
 }
 
 type indirectInterfaceField struct {
@@ -363,6 +373,18 @@ func (v *Visitor) EnterField(ref int) {
 	if !v.Config.DisableIncludeFieldDependencies {
 		v.fieldEnclosingTypeNames[ref] = strings.Clone(v.Walker.EnclosingTypeDefinition.NameString(v.Definition))
 	}
+
+	// Track field for each planner that should handle it.
+	// trackFieldForPlanner delegates the ownership check to shouldPlannerHandleField
+	// and returns early for planners that don't own this path. A reverse index
+	// (fieldRef → owning plannerIDs) is not usable here because the walker
+	// invokes planningVisitor.EnterField before AllowVisitor has fired for the
+	// individual planner visitors — so the fieldPlanners map is not yet
+	// populated at this point.
+	for plannerID := range v.planners {
+		v.caching.trackFieldForPlanner(plannerID, ref)
+	}
+
 	// check if we have to skip the field in the response
 	// it means it was requested by the planner not the user
 	if v.skipField(ref) {
@@ -371,8 +393,16 @@ func (v *Visitor) EnterField(ref int) {
 
 	fieldName := v.Operation.FieldNameBytes(ref)
 	fieldAliasOrName := v.Operation.FieldAliasOrNameBytes(ref)
+	responseFieldName := fieldAliasOrName
+	if visible, ok := v.caching.visibleResponseKey(ref); ok {
+		responseFieldName = []byte(visible)
+	}
+	fetchResponseKey := v.Operation.FieldAliasOrNameString(ref)
+	if fetchAlias, ok := v.caching.fetchAlias(ref); ok {
+		fetchResponseKey = fetchAlias
+	}
 
-	if bytes.Equal(fieldAliasOrName, []byte("__internal__typename_placeholder")) {
+	if bytes.Equal(responseFieldName, []byte("__internal__typename_placeholder")) {
 		// we should skip such typename as it was added as a placeholder to keep query valid
 		return
 	}
@@ -386,10 +416,13 @@ func (v *Visitor) EnterField(ref int) {
 	onTypeNames := v.resolveOnTypeNames(ref, fieldName)
 
 	v.currentField = &resolve.Field{
-		Name:        fieldAliasOrName,
+		Name:        responseFieldName,
 		OnTypeNames: onTypeNames,
 		Position:    v.resolveFieldPosition(ref),
 		Info:        v.resolveFieldInfo(ref, fieldDefinitionTypeRef, onTypeNames),
+	}
+	if _, ok := v.caching.visibleResponseKey(ref); ok && !bytes.Equal(responseFieldName, fieldName) {
+		v.currentField.OriginalName = fieldName
 	}
 
 	if bytes.Equal(fieldName, literal.TYPENAME) {
@@ -398,20 +431,20 @@ func (v *Visitor) EnterField(ref int) {
 
 		if isRootQueryType {
 			str := &resolve.StaticString{
-				Path:  []string{v.Operation.FieldAliasOrNameString(ref)},
+				Path:  []string{fetchResponseKey},
 				Value: string(typeName),
 			}
 			v.currentField.Value = str
 		} else {
 			str := &resolve.String{
 				Nullable:   false,
-				Path:       []string{v.Operation.FieldAliasOrNameString(ref)},
+				Path:       []string{fetchResponseKey},
 				IsTypeName: true,
 			}
 			v.currentField.Value = str
 		}
 	} else {
-		path := []string{v.Operation.FieldAliasOrNameString(ref)}
+		path := []string{fetchResponseKey}
 		v.currentField.Value = v.resolveFieldValue(ref, fieldDefinitionTypeRef, true, path)
 	}
 
@@ -492,6 +525,14 @@ func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *reso
 		_, defined := v.Definition.NodeFieldDefinitionByName(value.node, v.Operation.FieldNameBytes(ref))
 		if defined && value.node.Kind == ast.NodeKindInterfaceTypeDefinition {
 			fieldInfo.IndirectInterfaceNames = append(fieldInfo.IndirectInterfaceNames, value.interfaceName)
+		}
+	}
+
+	// Mark non-key fields on concrete entity types for cache analytics hashing;
+	// polymorphic parents fall through to the runtime fallback.
+	if v.Walker.EnclosingTypeDefinition.Kind == ast.NodeKindObjectTypeDefinition {
+		if analytics := v.caching.entityCacheAnalytics(enclosingTypeName); analytics != nil {
+			fieldInfo.CacheAnalyticsHash = !analytics.IsKeyField(fieldName)
 		}
 	}
 
@@ -632,6 +673,11 @@ func (v *Visitor) addInterfaceObjectNameToTypeNames(fieldRef int, typeName []byt
 
 func (v *Visitor) LeaveField(fieldRef int) {
 	v.debugOnLeaveNode(ast.NodeKindField, fieldRef)
+
+	// Pop fields for each planner that tracked this field
+	for plannerID := range v.planners {
+		v.caching.popFieldsForPlanner(plannerID, fieldRef)
+	}
 
 	if v.skipField(fieldRef) {
 		// we should also check skips on field leave
@@ -880,6 +926,14 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 				}
 			}
 
+			// Annotate entity types with cache analytics config (plan-time).
+			switch typeDefinitionNode.Kind {
+			case ast.NodeKindObjectTypeDefinition:
+				object.CacheAnalytics = v.caching.entityCacheAnalytics(typeName)
+			case ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
+				object.CacheAnalytics = v.caching.polymorphicEntityCacheAnalytics(object.PossibleTypes)
+			}
+
 			v.objects = append(v.objects, object)
 			v.Walker.DefferOnEnterField(func() {
 				v.currentFields = append(v.currentFields, objectFields{
@@ -1024,6 +1078,10 @@ func (v *Visitor) EnterOperationDefinition(opRef int) {
 		}
 	}
 
+	// Initialize per-planner object and field tracking structures used to build
+	// the ProvidesData tree that each subgraph fetch will populate at runtime.
+	v.caching.initializePlannerStructures()
+
 	if operationKind == ast.OperationTypeSubscription {
 		v.subscription = &resolve.GraphQLSubscription{
 			Response: v.response,
@@ -1082,6 +1140,18 @@ func (v *Visitor) resolveFieldPath(ref int) []string {
 
 func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.Operation, v.Definition = operation, definition
+	// Per-walk state is reset here rather than in NewVisitor so the same *Visitor
+	// can be reused across operations (common in tests and in the planner cache).
+	// Clear in place: the cost visitor captures this map before the walk starts.
+	clear(v.fieldPlanners)
+	v.fieldConfigs = map[int]*FieldConfiguration{}
+	v.exportedVariables = map[string]struct{}{}
+	v.skipIncludeOnFragments = map[int]skipIncludeInfo{}
+	v.indirectInterfaceFields = map[int]indirectInterfaceField{}
+	v.pathCache = map[astvisitor.VisitorKind]map[int]string{}
+	v.plannerFields = map[int][]int{}
+	v.fieldEnclosingTypeNames = map[int]string{}
+	v.caching.resetPlannerStructures()
 }
 
 func (v *Visitor) LeaveDocument(_, _ *ast.Document) {
@@ -1134,6 +1204,49 @@ func (v *Visitor) isCurrentOrParentPath(currentPath string, parentPath string) b
 
 func (v *Visitor) pathDeepness(path string) int {
 	return strings.Count(path, ".")
+}
+
+func (v *Visitor) resolveEntityOnTypeNames(plannerID, fieldRef int, fieldName ast.ByteSlice) (onTypeNames [][]byte) {
+	// If this is an entity root field, return the enclosing type name
+	if v.caching.isEntityRootField(plannerID, fieldRef) {
+		enclosingTypeName := v.Walker.EnclosingTypeDefinition.NameBytes(v.Definition)
+		if enclosingTypeName != nil {
+			return [][]byte{enclosingTypeName}
+		}
+	}
+
+	// Otherwise, use the regular resolution logic
+	onTypeNames = v.resolveOnTypeNames(fieldRef, fieldName)
+	return onTypeNames
+}
+
+func (v *Visitor) shouldPlannerHandleField(plannerID int, fieldRef int) bool {
+	if v.planners == nil || plannerID >= len(v.planners) {
+		return false
+	}
+
+	// Use the same logic as AllowVisitor to check if a planner handles a field
+	path := v.Walker.Path.DotDelimitedString()
+	if v.Walker.CurrentKind == ast.NodeKindField {
+		path = path + "." + v.Operation.FieldAliasOrNameString(fieldRef)
+	}
+
+	config := v.planners[plannerID]
+	if !config.HasPath(path) {
+		return false
+	}
+
+	enclosingTypeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
+
+	allow := config.HasPathWithFieldRef(fieldRef) || config.HasParent(path)
+	if !allow {
+		return false
+	}
+
+	shouldWalkFieldsOnPath := config.ShouldWalkFieldsOnPath(path, enclosingTypeName) ||
+		config.ShouldWalkFieldsOnPath(path, "")
+
+	return shouldWalkFieldsOnPath
 }
 
 func (v *Visitor) resolveInputTemplates(config *objectFetchConfiguration, input *string, variables *resolve.Variables) {
@@ -1306,6 +1419,8 @@ func (v *Visitor) configureSubscription(config *objectFetchConfiguration) {
 	v.subscription.Trigger.SourceName = config.sourceName
 	v.subscription.Trigger.SourceID = config.sourceID
 	v.subscription.Filter = config.filter
+
+	v.caching.configureSubscriptionEntityCachePopulation(config)
 }
 
 func (v *Visitor) configureObjectFetch(config *objectFetchConfiguration) {
@@ -1332,6 +1447,9 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 	dataSourceType := reflect.TypeOf(external.DataSource).String()
 	dataSourceType = strings.TrimPrefix(dataSourceType, "*")
 
+	// Configure caching based on FederationMetaData (opt-in per entity)
+	external.Caching = v.caching.configureFetchCaching(internal, external)
+
 	singleFetch := &resolve.SingleFetch{
 		FetchConfiguration: external,
 		FetchDependencies: resolve.FetchDependencies{
@@ -1351,7 +1469,13 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 		OperationType:  internal.operationType,
 		QueryPlan:      external.QueryPlan,
 	}
-
+	if !v.Config.DisableFetchProvidesData {
+		// Set ProvidesData from the planner's object structure
+		if providesData, ok := v.caching.plannerObjects[internal.fetchID]; ok {
+			resolve.ComputeHasAliases(providesData)
+			singleFetch.Info.ProvidesData = providesData
+		}
+	}
 	if v.Config.DisableIncludeFieldDependencies {
 		return singleFetch
 	}

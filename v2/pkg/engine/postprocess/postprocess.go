@@ -38,6 +38,7 @@ type processorOptions struct {
 	disableExtractFetches                 bool
 	disableCreateParallelNodes            bool
 	disableAddMissingNestedDependencies   bool
+	disableOptimizeL1Cache                bool
 	collectDataSourceInfo                 bool
 }
 
@@ -92,6 +93,12 @@ func DisableAddMissingNestedDependencies() ProcessorOption {
 	}
 }
 
+func DisableOptimizeL1Cache() ProcessorOption {
+	return func(o *processorOptions) {
+		o.disableOptimizeL1Cache = true
+	}
+}
+
 func NewProcessor(options ...ProcessorOption) *Processor {
 	opts := &processorOptions{}
 	for _, o := range options {
@@ -123,6 +130,11 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 			},
 			&createParallelNodes{
 				disable: opts.disableCreateParallelNodes,
+			},
+			// optimizeL1Cache must run after createConcreteSingleFetchTypes as it needs to see
+			// EntityFetch and BatchEntityFetch types, not just SingleFetch with flags
+			&optimizeL1Cache{
+				disable: opts.disableOptimizeL1Cache,
 			},
 		},
 		processResponseTree: []ResponseTreeProcessor{

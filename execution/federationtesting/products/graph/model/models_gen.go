@@ -2,6 +2,33 @@
 
 package model
 
+type ProductInterface interface {
+	IsProductInterface()
+	GetUpc() string
+	GetName() string
+	GetPrice() int
+}
+
+type ProductUpdate interface {
+	IsProductUpdate()
+}
+
+type DigitalProduct struct {
+	Upc         string `json:"upc"`
+	Name        string `json:"name"`
+	Price       int    `json:"price"`
+	DownloadURL string `json:"downloadUrl"`
+}
+
+func (DigitalProduct) IsProductUpdate() {}
+
+func (DigitalProduct) IsProductInterface()  {}
+func (this DigitalProduct) GetUpc() string  { return this.Upc }
+func (this DigitalProduct) GetName() string { return this.Name }
+func (this DigitalProduct) GetPrice() int   { return this.Price }
+
+func (DigitalProduct) IsEntity() {}
+
 type Mutation struct {
 }
 
@@ -11,6 +38,13 @@ type Product struct {
 	Price   int    `json:"price"`
 	InStock int    `json:"inStock"`
 }
+
+func (Product) IsProductUpdate() {}
+
+func (Product) IsProductInterface()  {}
+func (this Product) GetUpc() string  { return this.Upc }
+func (this Product) GetName() string { return this.Name }
+func (this Product) GetPrice() int   { return this.Price }
 
 func (Product) IsEntity() {}
 

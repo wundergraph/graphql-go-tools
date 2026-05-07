@@ -46,7 +46,7 @@ func (m *MockDataSource) Load(arg0 context.Context, arg1 http.Header, arg2 []byt
 }
 
 // Load indicates an expected call of Load.
-func (mr *MockDataSourceMockRecorder) Load(arg0, arg1, arg2 interface{}) *gomock.Call {
+func (mr *MockDataSourceMockRecorder) Load(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Load", reflect.TypeOf((*MockDataSource)(nil).Load), arg0, arg1, arg2)
 }
@@ -61,7 +61,7 @@ func (m *MockDataSource) LoadWithFiles(arg0 context.Context, arg1 http.Header, a
 }
 
 // LoadWithFiles indicates an expected call of LoadWithFiles.
-func (mr *MockDataSourceMockRecorder) LoadWithFiles(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+func (mr *MockDataSourceMockRecorder) LoadWithFiles(arg0, arg1, arg2, arg3 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadWithFiles", reflect.TypeOf((*MockDataSource)(nil).LoadWithFiles), arg0, arg1, arg2, arg3)
 }

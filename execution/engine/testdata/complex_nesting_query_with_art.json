@@ -55,7 +55,7 @@
     "trace": {
       "version": "1",
       "info": {
-        "trace_start_time": "",
+        "trace_start_time": "0",
         "trace_start_unix": 0,
         "parse_stats": {
           "duration_nanoseconds": 0,
@@ -76,10 +76,10 @@
           "duration_since_start_pretty": ""
         },
         "planner_stats": {
-          "duration_nanoseconds": 5,
-          "duration_pretty": "5ns",
-          "duration_since_start_nanoseconds": 20,
-          "duration_since_start_pretty": "20ns"
+          "duration_nanoseconds": 0,
+          "duration_pretty": "",
+          "duration_since_start_nanoseconds": 0,
+          "duration_since_start_pretty": ""
         }
       },
       "fetches": {
@@ -91,7 +91,7 @@
               "kind": "Single",
               "path": "",
               "source_id": "0",
-              "source_name": "0",
+              "source_name": "accounts",
               "trace": {
                 "raw_input_data": {},
                 "input": {
@@ -166,30 +166,30 @@
                     }
                   }
                 },
-                "duration_since_start_nanoseconds": 1,
-                "duration_since_start_pretty": "1ns",
-                "duration_load_nanoseconds": 1,
-                "duration_load_pretty": "1ns",
+                "duration_since_start_nanoseconds": 0,
+                "duration_since_start_pretty": "",
+                "duration_load_nanoseconds": 0,
+                "duration_load_pretty": "",
                 "single_flight_used": true,
                 "single_flight_shared_response": false,
                 "load_skipped": false,
                 "load_stats": {
                   "get_conn": {
-                    "duration_since_start_nanoseconds": 1,
-                    "duration_since_start_pretty": "1ns",
+                    "duration_since_start_nanoseconds": 0,
+                    "duration_since_start_pretty": "",
                     "host_port": ""
                   },
                   "got_conn": {
-                    "duration_since_start_nanoseconds": 1,
-                    "duration_since_start_pretty": "1ns",
+                    "duration_since_start_nanoseconds": 0,
+                    "duration_since_start_pretty": "",
                     "reused": false,
                     "was_idle": false,
                     "idle_time_nanoseconds": 0,
                     "idle_time_pretty": ""
                   },
                   "got_first_response_byte": {
-                    "duration_since_start_nanoseconds": 1,
-                    "duration_since_start_pretty": "1ns"
+                    "duration_since_start_nanoseconds": 0,
+                    "duration_since_start_pretty": ""
                   },
                   "dns_start": {
                     "duration_since_start_nanoseconds": 0,
@@ -201,14 +201,14 @@
                     "duration_since_start_pretty": ""
                   },
                   "connect_start": {
-                    "duration_since_start_nanoseconds": 1,
-                    "duration_since_start_pretty": "1ns",
+                    "duration_since_start_nanoseconds": 0,
+                    "duration_since_start_pretty": "",
                     "network": "",
                     "addr": ""
                   },
                   "connect_done": {
-                    "duration_since_start_nanoseconds": 1,
-                    "duration_since_start_pretty": "1ns",
+                    "duration_since_start_nanoseconds": 0,
+                    "duration_since_start_pretty": "",
                     "network": "",
                     "addr": ""
                   },
@@ -221,13 +221,26 @@
                     "duration_since_start_pretty": ""
                   },
                   "wrote_headers": {
-                    "duration_since_start_nanoseconds": 1,
-                    "duration_since_start_pretty": "1ns"
+                    "duration_since_start_nanoseconds": 0,
+                    "duration_since_start_pretty": ""
                   },
                   "wrote_request": {
-                    "duration_since_start_nanoseconds": 1,
-                    "duration_since_start_pretty": "1ns"
+                    "duration_since_start_nanoseconds": 0,
+                    "duration_since_start_pretty": ""
                   }
+                },
+                "cache_trace": {
+                  "duration_since_start_nanoseconds": 0,
+                  "duration_since_start_pretty": "",
+                  "duration_nanoseconds": 0,
+                  "duration_pretty": "",
+                  "l1_enabled": false,
+                  "l2_enabled": false,
+                  "entity_count": 0,
+                  "l1_hit": 0,
+                  "l1_miss": 0,
+                  "l2_hit": 0,
+                  "l2_miss": 0
                 }
               }
             }
@@ -241,7 +254,7 @@
                   "kind": "BatchEntity",
                   "path": "me.history.@.product",
                   "source_id": "1",
-                  "source_name": "1",
+                  "source_name": "products",
                   "trace": {
                     "raw_input_data": {
                       "upc": "top-2",
@@ -306,30 +319,30 @@
                         }
                       }
                     },
-                    "duration_since_start_nanoseconds": 1,
-                    "duration_since_start_pretty": "1ns",
-                    "duration_load_nanoseconds": 1,
-                    "duration_load_pretty": "1ns",
+                    "duration_since_start_nanoseconds": 0,
+                    "duration_since_start_pretty": "",
+                    "duration_load_nanoseconds": 0,
+                    "duration_load_pretty": "",
                     "single_flight_used": true,
                     "single_flight_shared_response": false,
                     "load_skipped": false,
                     "load_stats": {
                       "get_conn": {
-                        "duration_since_start_nanoseconds": 1,
-                        "duration_since_start_pretty": "1ns",
+                        "duration_since_start_nanoseconds": 0,
+                        "duration_since_start_pretty": "",
                         "host_port": ""
                       },
                       "got_conn": {
-                        "duration_since_start_nanoseconds": 1,
-                        "duration_since_start_pretty": "1ns",
+                        "duration_since_start_nanoseconds": 0,
+                        "duration_since_start_pretty": "",
                         "reused": false,
                         "was_idle": false,
                         "idle_time_nanoseconds": 0,
                         "idle_time_pretty": ""
                       },
                       "got_first_response_byte": {
-                        "duration_since_start_nanoseconds": 1,
-                        "duration_since_start_pretty": "1ns"
+                        "duration_since_start_nanoseconds": 0,
+                        "duration_since_start_pretty": ""
                       },
                       "dns_start": {
                         "duration_since_start_nanoseconds": 0,
@@ -341,14 +354,14 @@
                         "duration_since_start_pretty": ""
                       },
                       "connect_start": {
-                        "duration_since_start_nanoseconds": 1,
-                        "duration_since_start_pretty": "1ns",
+                        "duration_since_start_nanoseconds": 0,
+                        "duration_since_start_pretty": "",
                         "network": "",
                         "addr": ""
                       },
                       "connect_done": {
-                        "duration_since_start_nanoseconds": 1,
-                        "duration_since_start_pretty": "1ns",
+                        "duration_since_start_nanoseconds": 0,
+                        "duration_since_start_pretty": "",
                         "network": "",
                         "addr": ""
                       },
@@ -361,13 +374,26 @@
                         "duration_since_start_pretty": ""
                       },
                       "wrote_headers": {
-                        "duration_since_start_nanoseconds": 1,
-                        "duration_since_start_pretty": "1ns"
+                        "duration_since_start_nanoseconds": 0,
+                        "duration_since_start_pretty": ""
                       },
                       "wrote_request": {
-                        "duration_since_start_nanoseconds": 1,
-                        "duration_since_start_pretty": "1ns"
+                        "duration_since_start_nanoseconds": 0,
+                        "duration_since_start_pretty": ""
                       }
+                    },
+                    "cache_trace": {
+                      "duration_since_start_nanoseconds": 0,
+                      "duration_since_start_pretty": "",
+                      "duration_nanoseconds": 0,
+                      "duration_pretty": "",
+                      "l1_enabled": false,
+                      "l2_enabled": false,
+                      "entity_count": 0,
+                      "l1_hit": 0,
+                      "l1_miss": 0,
+                      "l2_hit": 0,
+                      "l2_miss": 0
                     }
                   }
                 }
@@ -378,7 +404,7 @@
                   "kind": "Entity",
                   "path": "me",
                   "source_id": "2",
-                  "source_name": "2",
+                  "source_name": "reviews",
                   "trace": {
                     "raw_input_data": {
                       "id": "1234",
@@ -492,30 +518,30 @@
                         }
                       }
                     },
-                    "duration_since_start_nanoseconds": 1,
-                    "duration_since_start_pretty": "1ns",
-                    "duration_load_nanoseconds": 1,
-                    "duration_load_pretty": "1ns",
+                    "duration_since_start_nanoseconds": 0,
+                    "duration_since_start_pretty": "",
+                    "duration_load_nanoseconds": 0,
+                    "duration_load_pretty": "",
                     "single_flight_used": true,
                     "single_flight_shared_response": false,
                     "load_skipped": false,
                     "load_stats": {
                       "get_conn": {
-                        "duration_since_start_nanoseconds": 1,
-                        "duration_since_start_pretty": "1ns",
+                        "duration_since_start_nanoseconds": 0,
+                        "duration_since_start_pretty": "",
                         "host_port": ""
                       },
                       "got_conn": {
-                        "duration_since_start_nanoseconds": 1,
-                        "duration_since_start_pretty": "1ns",
+                        "duration_since_start_nanoseconds": 0,
+                        "duration_since_start_pretty": "",
                         "reused": false,
                         "was_idle": false,
                         "idle_time_nanoseconds": 0,
                         "idle_time_pretty": ""
                       },
                       "got_first_response_byte": {
-                        "duration_since_start_nanoseconds": 1,
-                        "duration_since_start_pretty": "1ns"
+                        "duration_since_start_nanoseconds": 0,
+                        "duration_since_start_pretty": ""
                       },
                       "dns_start": {
                         "duration_since_start_nanoseconds": 0,
@@ -527,14 +553,14 @@
                         "duration_since_start_pretty": ""
                       },
                       "connect_start": {
-                        "duration_since_start_nanoseconds": 1,
-                        "duration_since_start_pretty": "1ns",
+                        "duration_since_start_nanoseconds": 0,
+                        "duration_since_start_pretty": "",
                         "network": "",
                         "addr": ""
                       },
                       "connect_done": {
-                        "duration_since_start_nanoseconds": 1,
-                        "duration_since_start_pretty": "1ns",
+                        "duration_since_start_nanoseconds": 0,
+                        "duration_since_start_pretty": "",
                         "network": "",
                         "addr": ""
                       },
@@ -547,13 +573,26 @@
                         "duration_since_start_pretty": ""
                       },
                       "wrote_headers": {
-                        "duration_since_start_nanoseconds": 1,
-                        "duration_since_start_pretty": "1ns"
+                        "duration_since_start_nanoseconds": 0,
+                        "duration_since_start_pretty": ""
                       },
                       "wrote_request": {
-                        "duration_since_start_nanoseconds": 1,
-                        "duration_since_start_pretty": "1ns"
+                        "duration_since_start_nanoseconds": 0,
+                        "duration_since_start_pretty": ""
                       }
+                    },
+                    "cache_trace": {
+                      "duration_since_start_nanoseconds": 0,
+                      "duration_since_start_pretty": "",
+                      "duration_nanoseconds": 0,
+                      "duration_pretty": "",
+                      "l1_enabled": false,
+                      "l2_enabled": false,
+                      "entity_count": 0,
+                      "l1_hit": 0,
+                      "l1_miss": 0,
+                      "l2_hit": 0,
+                      "l2_miss": 0
                     }
                   }
                 }

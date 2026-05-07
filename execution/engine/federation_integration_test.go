@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jensneuse/abstractlogger"
 	"github.com/sebdah/goldie/v2"
@@ -18,24 +19,49 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting"
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/gateway"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
-func addGateway(enableART bool) func(setup *federationtesting.FederationSetup) (*httptest.Server, error) {
-	return func(setup *federationtesting.FederationSetup) (*httptest.Server, error) {
+type gatewayOptions struct {
+	enableART   bool
+	loaderCache map[string]resolve.LoaderCache
+}
+
+func withEnableART(enableART bool) func(*gatewayOptions) {
+	return func(opts *gatewayOptions) {
+		opts.enableART = enableART
+	}
+}
+
+func withLoaderCache(loaderCache map[string]resolve.LoaderCache) func(*gatewayOptions) {
+	return func(opts *gatewayOptions) {
+		opts.loaderCache = loaderCache
+	}
+}
+
+type gatewayOptionsToFunc func(opts *gatewayOptions)
+
+func addGateway(options ...gatewayOptionsToFunc) func(setup *federationtesting.FederationSetup) *httptest.Server {
+	opts := &gatewayOptions{}
+	for _, option := range options {
+		option(opts)
+	}
+	return func(setup *federationtesting.FederationSetup) *httptest.Server {
 		httpClient := http.DefaultClient
 
-		cfg := bytes.Clone(federationtesting.RouterConfigJson)
+		poller := gateway.NewDatasource([]gateway.ServiceConfig{
+			{Name: "accounts", URL: setup.AccountsUpstreamServer.URL},
+			{Name: "products", URL: setup.ProductsUpstreamServer.URL, WS: strings.ReplaceAll(setup.ProductsUpstreamServer.URL, "http:", "ws:")},
+			{Name: "reviews", URL: setup.ReviewsUpstreamServer.URL},
+		}, httpClient)
 
-		cfg = bytes.ReplaceAll(cfg, []byte("http://accounts-url-placeholder"), []byte(setup.AccountsUpstreamServer.URL))
-		cfg = bytes.ReplaceAll(cfg, []byte("http://products-url-placeholder"), []byte(setup.ProductsUpstreamServer.URL))
-		cfg = bytes.ReplaceAll(cfg, []byte("http://reviews-url-placeholder"), []byte(setup.ReviewsUpstreamServer.URL))
+		gtw := gateway.Handler(abstractlogger.NoopLogger, poller, httpClient, opts.enableART, opts.loaderCache, nil)
 
-		gtw, err := gateway.NewGateway(cfg, httpClient, abstractlogger.NoopLogger, enableART)
-		if err != nil {
-			return nil, err
-		}
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		defer cancel()
 
-		return httptest.NewServer(gtw), nil
+		poller.Run(ctx)
+		return httptest.NewServer(gtw)
 	}
 }
 
@@ -44,12 +70,10 @@ func testQueryPath(name string) string {
 }
 
 func TestFederationIntegrationTestWithArt(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	t.Parallel()
 
-	setup, err := federationtesting.NewFederationSetup(addGateway(true))
-	require.NoError(t, err)
-	defer setup.Close()
+	setup := federationtesting.NewFederationSetup(addGateway(withEnableART(true)))
+	t.Cleanup(setup.Close)
 
 	gqlClient := NewGraphqlClient(http.DefaultClient)
 
@@ -57,15 +81,60 @@ func TestFederationIntegrationTestWithArt(t *testing.T) {
 		rex, err := regexp.Compile(`http://127.0.0.1:\d+`)
 		require.NoError(t, err)
 		resp = rex.ReplaceAllString(resp, "http://localhost/graphql")
+
+		// Normalize timing values that shift under parallel execution load
+		rexNanos, err := regexp.Compile(`"duration_since_start_nanoseconds":\s*\d+`)
+		require.NoError(t, err)
+		resp = rexNanos.ReplaceAllString(resp, `"duration_since_start_nanoseconds":0`)
+
+		rexPretty, err := regexp.Compile(`"duration_since_start_pretty":\s*"[^"]*"`)
+		require.NoError(t, err)
+		resp = rexPretty.ReplaceAllString(resp, `"duration_since_start_pretty":""`)
+
+		rexStartTime, err := regexp.Compile(`"trace_start_time":\s*"[^"]*"`)
+		require.NoError(t, err)
+		resp = rexStartTime.ReplaceAllString(resp, `"trace_start_time":"0"`)
+
+		rexEndTime, err := regexp.Compile(`"trace_start_unix":\s*"[^"]*"`)
+		require.NoError(t, err)
+		resp = rexEndTime.ReplaceAllString(resp, `"trace_start_unix":"0"`)
+
+		// Normalize remaining timing fields that can shift under load
+		rexDurationNanos, err := regexp.Compile(`"duration_nanoseconds":\s*\d+`)
+		require.NoError(t, err)
+		resp = rexDurationNanos.ReplaceAllString(resp, `"duration_nanoseconds":0`)
+
+		rexDurationPretty, err := regexp.Compile(`"duration_pretty":\s*"[^"]*"`)
+		require.NoError(t, err)
+		resp = rexDurationPretty.ReplaceAllString(resp, `"duration_pretty":""`)
+
+		rexLoadNanos, err := regexp.Compile(`"duration_load_nanoseconds":\s*\d+`)
+		require.NoError(t, err)
+		resp = rexLoadNanos.ReplaceAllString(resp, `"duration_load_nanoseconds":0`)
+
+		rexLoadPretty, err := regexp.Compile(`"duration_load_pretty":\s*"[^"]*"`)
+		require.NoError(t, err)
+		resp = rexLoadPretty.ReplaceAllString(resp, `"duration_load_pretty":""`)
+
+		rexIdleNanos, err := regexp.Compile(`"idle_time_nanoseconds":\s*\d+`)
+		require.NoError(t, err)
+		resp = rexIdleNanos.ReplaceAllString(resp, `"idle_time_nanoseconds":0`)
+
+		rexIdlePretty, err := regexp.Compile(`"idle_time_pretty":\s*"[^"]*"`)
+		require.NoError(t, err)
+		resp = rexIdlePretty.ReplaceAllString(resp, `"idle_time_pretty":""`)
+
 		return resp
 	}
 
 	t.Run("single upstream query operation with ART", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/complex_nesting.graphql"), nil, t)
 		respString := normalizeResponse(string(resp))
 
-		assert.Contains(t, respString, `{"data":{"me":{"id":"1234","username":"Me"`)
-		assert.Contains(t, respString, `"extensions":{"trace":{"version":"1","info":{"trace_start_time"`)
+		assert.Equal(t, `{"data":{"me":{"id":"1234","username":"Me","history":[{"wallet":{"currency":"USD"}},{"location":"Germany","product":{"upc":"top-2","name":"Fedora"}},{"wallet":{"currency":"USD"}}],"reviews":[{"__typename":"Review","attachments":[{"__typename":"Question","body":"How do I turn it on?","upc":"top-1"}]},{"__typename":"Review","attachments":[{"__typename":"Rating","upc":"top-2","body":"The best hat I have ever bought in my life."},{"__typename":"Video","upc":"top-2","size":13.37}]}]}},"extensions":{"trace":{"version":"1","info":{"trace_start_time":"0","trace_start_unix":0,"parse_stats":{"duration_nanoseconds":0,"duration_pretty":"","duration_since_start_nanoseconds":0,"duration_since_start_pretty":""},"normalize_stats":{"duration_nanoseconds":0,"duration_pretty":"","duration_since_start_nanoseconds":0,"duration_since_start_pretty":""},"validate_stats":{"duration_nanoseconds":0,"duration_pretty":"","duration_since_start_nanoseconds":0,"duration_since_start_pretty":""},"planner_stats":{"duration_nanoseconds":0,"duration_pretty":"","duration_since_start_nanoseconds":0,"duration_since_start_pretty":""}},"fetches":{"kind":"Sequence","children":[{"kind":"Single","fetch":{"kind":"Single","path":"","source_id":"0","source_name":"accounts","trace":{"raw_input_data":{},"input":{"body":{"query":"{me {id username history {__typename ... on Purchase {wallet {currency}} ... on Sale {location product {upc __typename}}} __typename}}"},"header":{},"method":"POST","url":"http://localhost/graphql"},"output":{"data":{"me":{"id":"1234","username":"Me","history":[{"__typename":"Purchase","wallet":{"currency":"USD"}},{"__typename":"Sale","location":"Germany","product":{"upc":"top-2","__typename":"Product"}},{"__typename":"Purchase","wallet":{"currency":"USD"}}],"__typename":"User"}},"extensions":{"trace":{"request":{"method":"POST","url":"http://localhost/graphql","headers":{"Accept":["application/json"],"Accept-Encoding":["gzip","deflate"],"Content-Type":["application/json"]}},"response":{"status_code":200,"status":"200 OK","headers":{"Content-Length":["277"],"Content-Type":["application/json"]},"body_size":277}}}},"duration_since_start_nanoseconds":0,"duration_since_start_pretty":"","duration_load_nanoseconds":0,"duration_load_pretty":"","single_flight_used":true,"single_flight_shared_response":false,"load_skipped":false,"load_stats":{"get_conn":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":"","host_port":""},"got_conn":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":"","reused":false,"was_idle":false,"idle_time_nanoseconds":0,"idle_time_pretty":""},"got_first_response_byte":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":""},"dns_start":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":"","host":""},"dns_done":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":""},"connect_start":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":"","network":"","addr":""},"connect_done":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":"","network":"","addr":""},"tls_handshake_start":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":""},"tls_handshake_done":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":""},"wrote_headers":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":""},"wrote_request":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":""}},"cache_trace":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":"","duration_nanoseconds":0,"duration_pretty":"","l1_enabled":false,"l2_enabled":false,"entity_count":0,"l1_hit":0,"l1_miss":0,"l2_hit":0,"l2_miss":0}}}},{"kind":"Parallel","children":[{"kind":"Single","fetch":{"kind":"BatchEntity","path":"me.history.@.product","source_id":"1","source_name":"products","trace":{"raw_input_data":{"upc":"top-2","__typename":"Product"},"input":{"body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename name}}}","variables":{"representations":[{"__typename":"Product","upc":"top-2"}]}},"header":{},"method":"POST","url":"http://localhost/graphql"},"output":{"data":{"_entities":[{"__typename":"Product","name":"Fedora"}]},"extensions":{"trace":{"request":{"method":"POST","url":"http://localhost/graphql","headers":{"Accept":["application/json"],"Accept-Encoding":["gzip","deflate"],"Content-Type":["application/json"]}},"response":{"status_code":200,"status":"200 OK","headers":{"Content-Length":["65"],"Content-Type":["application/json"]},"body_size":65}}}},"duration_since_start_nanoseconds":0,"duration_since_start_pretty":"","duration_load_nanoseconds":0,"duration_load_pretty":"","single_flight_used":true,"single_flight_shared_response":false,"load_skipped":false,"load_stats":{"get_conn":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":"","host_port":""},"got_conn":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":"","reused":false,"was_idle":false,"idle_time_nanoseconds":0,"idle_time_pretty":""},"got_first_response_byte":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":""},"dns_start":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":"","host":""},"dns_done":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":""},"connect_start":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":"","network":"","addr":""},"connect_done":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":"","network":"","addr":""},"tls_handshake_start":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":""},"tls_handshake_done":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":""},"wrote_headers":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":""},"wrote_request":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":""}},"cache_trace":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":"","duration_nanoseconds":0,"duration_pretty":"","l1_enabled":false,"l2_enabled":false,"entity_count":0,"l1_hit":0,"l1_miss":0,"l2_hit":0,"l2_miss":0}}}},{"kind":"Single","fetch":{"kind":"Entity","path":"me","source_id":"2","source_name":"reviews","trace":{"raw_input_data":{"id":"1234","username":"Me","history":[{"__typename":"Purchase","wallet":{"currency":"USD"}},{"__typename":"Sale","location":"Germany","product":{"upc":"top-2","__typename":"Product"}},{"__typename":"Purchase","wallet":{"currency":"USD"}}],"__typename":"User"},"input":{"body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename reviews {__typename attachments {__typename ... on Question {body upc} ... on Video {upc size} ... on Rating {upc body}}}}}}","variables":{"representations":[{"__typename":"User","id":"1234"}]}},"header":{},"method":"POST","url":"http://localhost/graphql"},"output":{"data":{"_entities":[{"__typename":"User","reviews":[{"__typename":"Review","attachments":[{"__typename":"Question","body":"How do I turn it on?","upc":"top-1"}]},{"__typename":"Review","attachments":[{"__typename":"Rating","upc":"top-2","body":"The best hat I have ever bought in my life."},{"__typename":"Video","upc":"top-2","size":13.37}]}]}]},"extensions":{"trace":{"request":{"method":"POST","url":"http://localhost/graphql","headers":{"Accept":["application/json"],"Accept-Encoding":["gzip","deflate"],"Content-Type":["application/json"]}},"response":{"status_code":200,"status":"200 OK","headers":{"Content-Length":["349"],"Content-Type":["application/json"]},"body_size":349}}}},"duration_since_start_nanoseconds":0,"duration_since_start_pretty":"","duration_load_nanoseconds":0,"duration_load_pretty":"","single_flight_used":true,"single_flight_shared_response":false,"load_skipped":false,"load_stats":{"get_conn":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":"","host_port":""},"got_conn":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":"","reused":false,"was_idle":false,"idle_time_nanoseconds":0,"idle_time_pretty":""},"got_first_response_byte":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":""},"dns_start":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":"","host":""},"dns_done":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":""},"connect_start":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":"","network":"","addr":""},"connect_done":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":"","network":"","addr":""},"tls_handshake_start":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":""},"tls_handshake_done":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":""},"wrote_headers":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":""},"wrote_request":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":""}},"cache_trace":{"duration_since_start_nanoseconds":0,"duration_since_start_pretty":"","duration_nanoseconds":0,"duration_pretty":"","l1_enabled":false,"l2_enabled":false,"entity_count":0,"l1_hit":0,"l1_miss":0,"l2_hit":0,"l2_miss":0}}}}]}]}}}}`, respString)
 
 		buf := &bytes.Buffer{}
 		_ = json.Indent(buf, []byte(respString), "", "  ")
@@ -77,8 +146,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	t.Parallel()
 
 	// Shared setup for all read-only tests (minimizes open ports)
-	setup, err := federationtesting.NewFederationSetup(addGateway(false))
-	require.NoError(t, err)
+	setup := federationtesting.NewManualFederationSetup(addGateway(withEnableART(false)))
 	t.Cleanup(setup.Close)
 	gqlClient := NewGraphqlClient(http.DefaultClient)
 
@@ -101,8 +169,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	// Mutation test needs its own setup because AddReview modifies the reviews resolver state
 	t.Run("mutation operation with variables", func(t *testing.T) {
 		t.Parallel()
-		mutSetup, err := federationtesting.NewFederationSetup(addGateway(false))
-		require.NoError(t, err)
+		mutSetup := federationtesting.NewFederationSetup(addGateway(withEnableART(false)))
 		t.Cleanup(mutSetup.Close)
 		mutClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -137,12 +204,29 @@ func TestFederationIntegrationTest(t *testing.T) {
 		t.Cleanup(cancel)
 
 		wsAddr := strings.ReplaceAll(setup.GatewayServer.URL, "http://", "ws://")
-		messages := gqlClient.Subscription(ctx, wsAddr, testQueryPath("subscriptions/subscription.query"), queryVariables{
+		messages, closeSubscription := gqlClient.Subscription(ctx, wsAddr, testQueryPath("subscriptions/subscription.query"), queryVariables{
 			"upc": "top-1",
 		}, t)
+		t.Cleanup(closeSubscription)
 
-		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-1","name":"Trilby","price":1}}}}`, string(<-messages))
-		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-1","name":"Trilby","price":2}}}}`, string(<-messages))
+		trigger, err := setup.NextProductSubscription(ctx)
+		require.NoError(t, err)
+		trigger.Emit()
+		trigger.Emit()
+
+		// Guard channel reads: a broken subscription should fail the test fast, not hang it.
+		recv := func() string {
+			select {
+			case msg := <-messages:
+				return string(msg)
+			case <-time.After(5 * time.Second):
+				t.Fatal("timed out waiting for subscription message")
+				return ""
+			}
+		}
+
+		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-1","name":"Trilby","price":1}}}}`, recv())
+		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-1","name":"Trilby","price":2}}}}`, recv())
 	})
 
 	t.Run("Multiple queries and nested fragments", func(t *testing.T) {

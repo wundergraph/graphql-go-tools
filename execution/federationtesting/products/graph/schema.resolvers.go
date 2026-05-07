@@ -31,18 +31,74 @@ func (r *queryResolver) TopProducts(ctx context.Context, first *int) ([]*model.P
 	return r.products[:end], nil
 }
 
+// Product is the resolver for the product field.
+func (r *queryResolver) Product(ctx context.Context, upc string) (*model.Product, error) {
+	return r.findProduct(upc), nil
+}
+
+// Products is the resolver for the products field.
+// Returns products in the same order as the input UPC list.
+// Unknown UPCs produce null at the corresponding position.
+func (r *queryResolver) Products(ctx context.Context, upcs []string) ([]*model.Product, error) {
+	result := make([]*model.Product, len(upcs))
+	for i, upc := range upcs {
+		result[i] = r.findProduct(upc)
+	}
+	return result, nil
+}
+
 // UpdatedPrice is the resolver for the updatedPrice field.
 func (r *subscriptionResolver) UpdatedPrice(ctx context.Context) (<-chan *model.Product, error) {
 	if len(r.products) == 0 {
 		return nil, fmt.Errorf("no products configured")
 	}
 	updatedPrice := make(chan *model.Product)
+	trigger := r.nextSubscriptionHandle()
+	if trigger == nil {
+		go func() {
+			defer close(updatedPrice)
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(r.updateInterval):
+					product := r.products[len(r.products)-1]
+					if r.randomnessEnabled {
+						if len(r.products) > 1 {
+							product = r.products[rand.Intn(len(r.products)-1)]
+						}
+						p := *product
+						p.Price = rand.Intn(r.maxPrice-r.minPrice+1) + r.minPrice
+						select {
+						case updatedPrice <- &p:
+						case <-ctx.Done():
+							return
+						}
+						continue
+					}
+
+					r.priceMu.Lock()
+					p := *product
+					p.Price = r.currentPrice
+					r.currentPrice++
+					r.priceMu.Unlock()
+					select {
+					case updatedPrice <- &p:
+					case <-ctx.Done():
+						return
+					}
+				}
+			}
+		}()
+		return updatedPrice, nil
+	}
 	go func() {
+		defer close(updatedPrice)
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(r.updateInterval):
+			case <-trigger.Events():
 				product := r.products[len(r.products)-1]
 				if r.randomnessEnabled {
 					if len(r.products) > 1 {
@@ -50,7 +106,11 @@ func (r *subscriptionResolver) UpdatedPrice(ctx context.Context) (<-chan *model.
 					}
 					p := *product
 					p.Price = rand.Intn(r.maxPrice-r.minPrice+1) + r.minPrice
-					updatedPrice <- &p
+					select {
+					case updatedPrice <- &p:
+					case <-ctx.Done():
+						return
+					}
 					continue
 				}
 
@@ -59,7 +119,11 @@ func (r *subscriptionResolver) UpdatedPrice(ctx context.Context) (<-chan *model.
 				p.Price = r.currentPrice
 				r.currentPrice++
 				r.priceMu.Unlock()
-				updatedPrice <- &p
+				select {
+				case updatedPrice <- &p:
+				case <-ctx.Done():
+					return
+				}
 			}
 		}
 	}()
@@ -69,37 +133,342 @@ func (r *subscriptionResolver) UpdatedPrice(ctx context.Context) (<-chan *model.
 // UpdateProductPrice is the resolver for the updateProductPrice field.
 func (r *subscriptionResolver) UpdateProductPrice(ctx context.Context, upc string) (<-chan *model.Product, error) {
 	updatedPrice := make(chan *model.Product)
-	var product *model.Product
-
-	for _, hat := range r.products {
-		if hat.Upc == upc {
-			product = hat
-			break
-		}
-	}
+	product := r.findProduct(upc)
 
 	if product == nil {
 		return nil, fmt.Errorf("unknown product upc: %s", upc)
 	}
 
+	trigger := r.nextSubscriptionHandle()
+	if trigger == nil {
+		go func() {
+			defer close(updatedPrice)
+			var num int
+
+			for {
+				num++
+
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(100 * time.Millisecond):
+					p := *product
+					p.Price = num
+					select {
+					case updatedPrice <- &p:
+					case <-ctx.Done():
+						return
+					}
+				}
+			}
+		}()
+
+		return updatedPrice, nil
+	}
 	go func() {
+		defer close(updatedPrice)
 		var num int
 
 		for {
-			num++
-
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(100 * time.Millisecond):
+			case <-trigger.Events():
+				num++
 				p := *product
 				p.Price = num
-				updatedPrice <- &p
+				select {
+				case updatedPrice <- &p:
+				case <-ctx.Done():
+					return
+				}
 			}
 		}
 	}()
 
 	return updatedPrice, nil
+}
+
+// UpdatedPrices is the resolver for the updatedPrices field.
+func (r *subscriptionResolver) UpdatedPrices(ctx context.Context, first *int) (<-chan []*model.Product, error) {
+	limit := 3
+	if first != nil && *first >= 0 {
+		limit = *first
+	}
+	if limit > len(r.products) {
+		limit = len(r.products)
+	}
+
+	snapshot := make([]*model.Product, limit)
+	for i := 0; i < limit; i++ {
+		h := *r.products[i]
+		snapshot[i] = &h
+	}
+
+	ch := make(chan []*model.Product)
+	trigger := r.nextSubscriptionHandle()
+	if trigger == nil {
+		go func() {
+			defer close(ch)
+			var num int
+			for {
+				num++
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(100 * time.Millisecond):
+					batch := make([]*model.Product, limit)
+					for i := 0; i < limit; i++ {
+						p := *snapshot[i]
+						p.Price = num + i
+						batch[i] = &p
+					}
+					select {
+					case ch <- batch:
+					case <-ctx.Done():
+						return
+					}
+				}
+			}
+		}()
+		return ch, nil
+	}
+	go func() {
+		defer close(ch)
+		var num int
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-trigger.Events():
+				num++
+				batch := make([]*model.Product, limit)
+				for i := 0; i < limit; i++ {
+					p := *snapshot[i]
+					p.Price = num + i
+					batch[i] = &p
+				}
+				select {
+				case ch <- batch:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+	return ch, nil
+}
+
+// UpdateProductPriceUnion is the resolver for the updateProductPriceUnion field.
+func (r *subscriptionResolver) UpdateProductPriceUnion(ctx context.Context, upc string) (<-chan model.ProductUpdate, error) {
+	product := r.findProduct(upc)
+	if product == nil {
+		return nil, fmt.Errorf("unknown product upc: %s", upc)
+	}
+
+	ch := make(chan model.ProductUpdate)
+	trigger := r.nextSubscriptionHandle()
+	if trigger == nil {
+		go func() {
+			defer close(ch)
+			var num int
+			for {
+				num++
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(100 * time.Millisecond):
+					p := *product
+					p.Price = num
+					select {
+					case ch <- &p:
+					case <-ctx.Done():
+						return
+					}
+				}
+			}
+		}()
+		return ch, nil
+	}
+	go func() {
+		defer close(ch)
+		var num int
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-trigger.Events():
+				num++
+				p := *product
+				p.Price = num
+				select {
+				case ch <- &p:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+	return ch, nil
+}
+
+// UpdateProductPriceInterface is the resolver for the updateProductPriceInterface field.
+func (r *subscriptionResolver) UpdateProductPriceInterface(ctx context.Context, upc string) (<-chan model.ProductInterface, error) {
+	product := r.findProduct(upc)
+	if product == nil {
+		return nil, fmt.Errorf("unknown product upc: %s", upc)
+	}
+
+	ch := make(chan model.ProductInterface)
+	trigger := r.nextSubscriptionHandle()
+	if trigger == nil {
+		go func() {
+			defer close(ch)
+			var num int
+			for {
+				num++
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(100 * time.Millisecond):
+					p := *product
+					p.Price = num
+					select {
+					case ch <- &p:
+					case <-ctx.Done():
+						return
+					}
+				}
+			}
+		}()
+		return ch, nil
+	}
+	go func() {
+		defer close(ch)
+		var num int
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-trigger.Events():
+				num++
+				p := *product
+				p.Price = num
+				select {
+				case ch <- &p:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+	return ch, nil
+}
+
+// UpdateDigitalProductPriceUnion is the resolver for the updateDigitalProductPriceUnion field.
+func (r *subscriptionResolver) UpdateDigitalProductPriceUnion(ctx context.Context, upc string) (<-chan model.ProductUpdate, error) {
+	dp := r.findDigitalProduct(upc)
+	if dp == nil {
+		return nil, fmt.Errorf("unknown digital product upc: %s", upc)
+	}
+
+	ch := make(chan model.ProductUpdate)
+	trigger := r.nextSubscriptionHandle()
+	if trigger == nil {
+		go func() {
+			defer close(ch)
+			var num int
+			for {
+				num++
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(100 * time.Millisecond):
+					p := *dp
+					p.Price = num
+					select {
+					case ch <- &p:
+					case <-ctx.Done():
+						return
+					}
+				}
+			}
+		}()
+		return ch, nil
+	}
+	go func() {
+		defer close(ch)
+		var num int
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-trigger.Events():
+				num++
+				p := *dp
+				p.Price = num
+				select {
+				case ch <- &p:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+	return ch, nil
+}
+
+// UpdateDigitalProductPriceInterface is the resolver for the updateDigitalProductPriceInterface field.
+func (r *subscriptionResolver) UpdateDigitalProductPriceInterface(ctx context.Context, upc string) (<-chan model.ProductInterface, error) {
+	dp := r.findDigitalProduct(upc)
+	if dp == nil {
+		return nil, fmt.Errorf("unknown digital product upc: %s", upc)
+	}
+
+	ch := make(chan model.ProductInterface)
+	trigger := r.nextSubscriptionHandle()
+	if trigger == nil {
+		go func() {
+			defer close(ch)
+			var num int
+			for {
+				num++
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(100 * time.Millisecond):
+					p := *dp
+					p.Price = num
+					select {
+					case ch <- &p:
+					case <-ctx.Done():
+						return
+					}
+				}
+			}
+		}()
+		return ch, nil
+	}
+	go func() {
+		defer close(ch)
+		var num int
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-trigger.Events():
+				num++
+				p := *dp
+				p.Price = num
+				select {
+				case ch <- &p:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+	return ch, nil
 }
 
 // Mutation returns generated.MutationResolver implementation.
@@ -114,3 +483,10 @@ func (r *Resolver) Subscription() generated.SubscriptionResolver { return &subsc
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type subscriptionResolver struct{ *Resolver }
+
+func (r *subscriptionResolver) nextSubscriptionHandle() *ManualSubscriptionHandle {
+	if r.subscriptionEvents == nil {
+		return nil
+	}
+	return r.subscriptionEvents.NewSubscription()
+}

@@ -3,16 +3,51 @@ package resolve
 import (
 	"bytes"
 	"slices"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 )
 
-type Object struct {
-	Nullable bool
-	Path     []string
-	Fields   []*Field
+// KeyField represents a field in an @key directive. Supports nested keys:
+// @key(fields: "id")           → [{Name:"id"}]
+// @key(fields: "id address { city }") → [{Name:"id"}, {Name:"address", Children:[{Name:"city"}]}]
+type KeyField struct {
+	Name     string
+	Children []KeyField // non-nil for nested object key fields
+}
 
-	PossibleTypes map[string]struct{} `json:"-"`
-	SourceName    string              `json:"-"`
-	TypeName      string              `json:"-"`
+// ObjectCacheAnalytics holds entity analytics configuration set at plan time.
+// Nil for non-entity types. For polymorphic types (interface/union), ByTypeName
+// maps concrete type names to their analytics config.
+type ObjectCacheAnalytics struct {
+	// Concrete entity type (ByTypeName == nil): use KeyFields/HashKeys directly
+	KeyFields []KeyField // full @key structure (without __typename)
+	HashKeys  bool       // true = hash entity keys, false = raw (default)
+
+	// Polymorphic type (ByTypeName != nil): resolve __typename at runtime, then look up
+	// Only populated for interface/union types where at least one implementor is an entity
+	ByTypeName map[string]*ObjectCacheAnalytics // concreteName → analytics (nil = not entity)
+}
+
+// IsKeyField returns true if fieldName is a top-level @key field.
+func (a *ObjectCacheAnalytics) IsKeyField(name string) bool {
+	for _, kf := range a.KeyFields {
+		if kf.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+type Object struct {
+	Nullable   bool
+	Path       []string
+	Fields     []*Field
+	HasAliases bool // True if any field in this object or descendants has an alias or CacheArgs (triggers cache normalization)
+
+	PossibleTypes  map[string]struct{}   `json:"-"`
+	SourceName     string                `json:"-"`
+	TypeName       string                `json:"-"`
+	CacheAnalytics *ObjectCacheAnalytics `json:"-"` // nil for non-entity types
 }
 
 func (o *Object) Copy() Node {
@@ -21,9 +56,10 @@ func (o *Object) Copy() Node {
 		fields[i] = f.Copy()
 	}
 	return &Object{
-		Nullable: o.Nullable,
-		Path:     o.Path,
-		Fields:   fields,
+		Nullable:   o.Nullable,
+		Path:       o.Path,
+		Fields:     fields,
+		HasAliases: o.HasAliases,
 	}
 }
 
@@ -86,8 +122,17 @@ func (*EmptyObject) Copy() Node {
 	return &EmptyObject{}
 }
 
+// CacheFieldArg captures one argument's variable name for cache key suffix computation.
+// At plan time, field arguments become variable references after normalization (e.g., friends(first: $a)).
+// At resolve time, we resolve the variable from ctx.Variables to compute the actual suffix.
+type CacheFieldArg struct {
+	ArgName      string // GraphQL argument name (e.g., "first")
+	VariableName string // Variable name in ctx.Variables (e.g., "a" for normalized variable $a)
+}
+
 type Field struct {
 	Name              []byte
+	OriginalName      []byte // Schema field name when Name is an alias; nil if Name IS the original
 	Value             Node
 	Position          Position
 	Defer             *DeferField
@@ -95,6 +140,7 @@ type Field struct {
 	OnTypeNames       [][]byte
 	ParentOnTypeNames []ParentOnTypeNames
 	Info              *FieldInfo
+	CacheArgs         []CacheFieldArg // nil when field has no arguments; sorted by ArgName
 }
 
 type ParentOnTypeNames struct {
@@ -104,14 +150,26 @@ type ParentOnTypeNames struct {
 
 func (f *Field) Copy() *Field {
 	return &Field{
-		Name:        f.Name,
-		Value:       f.Value.Copy(),
-		Position:    f.Position,
-		Defer:       f.Defer,
-		Stream:      f.Stream,
-		OnTypeNames: f.OnTypeNames,
-		Info:        f.Info,
+		Name:         f.Name,
+		OriginalName: f.OriginalName,
+		Value:        f.Value.Copy(),
+		Position:     f.Position,
+		Defer:        f.Defer,
+		Stream:       f.Stream,
+		OnTypeNames:  f.OnTypeNames,
+		Info:         f.Info,
+		CacheArgs:    f.CacheArgs,
 	}
+}
+
+// SchemaFieldName returns the original schema field name.
+// If OriginalName is set (field has an alias), returns OriginalName.
+// Otherwise returns Name (which IS the original name).
+func (f *Field) SchemaFieldName() string {
+	if f.OriginalName != nil {
+		return unsafebytes.BytesToString(f.OriginalName)
+	}
+	return unsafebytes.BytesToString(f.Name)
 }
 
 func (f *Field) Equals(n *Field) bool {
@@ -149,6 +207,10 @@ type FieldInfo struct {
 	// IndirectInterfaceNames is set to the interfaces name if the field is on a concrete type that implements an interface which wraps it
 	// It's plural because interfaces and be overlapping with types that implement multiple interfaces
 	IndirectInterfaceNames []string
+	// CacheAnalyticsHash is true if this field should be hashed for cache analytics.
+	// Set at plan time for non-key scalar fields on concrete entity types.
+	// At runtime, replaces both IsEntityType() and IsKeyField() checks with a single bool.
+	CacheAnalyticsHash bool
 }
 
 func (i *FieldInfo) Merge(other *FieldInfo) {
@@ -180,3 +242,36 @@ type StreamField struct {
 }
 
 type DeferField struct{}
+
+// ComputeHasAliases recursively checks whether any field in the object tree has an alias
+// or CacheArgs, and sets HasAliases on each Object accordingly.
+// HasAliases gates cache normalization: aliased fields need renaming, and fields with
+// CacheArgs need arg-suffix renaming. Both require the normalize/denormalize path.
+func ComputeHasAliases(obj *Object) bool {
+	if obj == nil {
+		return false
+	}
+	hasAliases := false
+	for _, field := range obj.Fields {
+		if field.OriginalName != nil || len(field.CacheArgs) > 0 {
+			hasAliases = true
+		}
+		if computeNodeHasAliases(field.Value) {
+			hasAliases = true
+		}
+	}
+	obj.HasAliases = hasAliases
+	return hasAliases
+}
+
+func computeNodeHasAliases(node Node) bool {
+	switch n := node.(type) {
+	case *Object:
+		return ComputeHasAliases(n)
+	case *Array:
+		if n != nil && n.Item != nil {
+			return computeNodeHasAliases(n.Item)
+		}
+	}
+	return false
+}

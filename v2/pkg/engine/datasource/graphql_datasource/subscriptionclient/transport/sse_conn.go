@@ -21,12 +21,18 @@ type sseConnection struct {
 	resp    *http.Response
 	handler common.Handler
 	closed  atomic.Bool
+	// onClose is invoked exactly once when the read loop terminates (either
+	// naturally via complete/EOF/error, or because the consumer called
+	// closeConn). Used by the transport to evict this connection from its
+	// tracking map so naturally-completed streams do not leak.
+	onClose func()
 }
 
-func newSSEConnection(resp *http.Response, handler common.Handler) *sseConnection {
+func newSSEConnection(resp *http.Response, handler common.Handler, onClose func()) *sseConnection {
 	return &sseConnection{
 		resp:    resp,
 		handler: handler,
+		onClose: onClose,
 	}
 }
 
@@ -163,6 +169,14 @@ func (c *sseConnection) cleanup() {
 	c.closed.Store(true)
 
 	c.resp.Body.Close()
+
+	// Notify the transport so naturally-completed streams (complete event,
+	// EOF, or read error) are evicted from the connection map. cancelFn-driven
+	// closure also lands here via closeConn → readLoop unwind → cleanup, and
+	// the transport's removeConn is idempotent against double-eviction.
+	if c.onClose != nil {
+		c.onClose()
+	}
 }
 
 // closeConn terminates the SSE connection.

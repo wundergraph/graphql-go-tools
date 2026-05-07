@@ -315,6 +315,14 @@ func (t *WSTransport) negotiateSubprotocol(requested common.WSSubprotocol, accep
 		}
 	}
 
+	// Legacy upstreams may accept the WebSocket upgrade without echoing
+	// Sec-WebSocket-Protocol. The previous client treated an empty response
+	// header in auto mode as graphql-ws to stay compatible with those servers
+	// (and intermediaries that strip the header). Preserve that behavior.
+	if accepted == "" && requested == common.SubprotocolAuto {
+		return protocol.NewGraphQLWS(), nil
+	}
+
 	switch common.WSSubprotocol(accepted) {
 	case common.SubprotocolGraphQLTransportWS:
 		return protocol.NewGraphQLTransportWS(), nil

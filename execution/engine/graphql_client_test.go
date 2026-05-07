@@ -8,6 +8,9 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/gobwas/ws"
@@ -19,7 +22,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/execution/subscription"
 )
 
-type queryVariables map[string]interface{}
+type queryVariables map[string]any
 
 func requestBody(t *testing.T, query string, variables queryVariables) []byte {
 	var variableJsonBytes []byte
@@ -58,8 +61,9 @@ type GraphqlClient struct {
 	httpClient *http.Client
 }
 
-func (g *GraphqlClient) Query(ctx context.Context, addr, queryFilePath string, variables queryVariables, t *testing.T) []byte {
-	reqBody := loadQuery(t, queryFilePath, variables)
+// executeQuery performs the shared POST/read/assert flow used by Query,
+// QueryWithHeaders, QueryString, and QueryStringWithHeaders.
+func (g *GraphqlClient) executeQuery(ctx context.Context, addr string, reqBody []byte, t *testing.T) ([]byte, http.Header) {
 	req, err := http.NewRequest(http.MethodPost, addr, bytes.NewBuffer(reqBody))
 	require.NoError(t, err)
 	req = req.WithContext(ctx)
@@ -69,9 +73,29 @@ func (g *GraphqlClient) Query(ctx context.Context, addr, queryFilePath string, v
 	responseBodyBytes, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Contains(t, resp.Header.Get("Content-Type"), "application/json")
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+	return responseBodyBytes, resp.Header
+}
 
-	return responseBodyBytes
+func (g *GraphqlClient) Query(ctx context.Context, addr, queryFilePath string, variables queryVariables, t *testing.T) []byte {
+	body, _ := g.executeQuery(ctx, addr, loadQuery(t, queryFilePath, variables), t)
+	return body
+}
+
+// QueryWithHeaders returns both the response body and headers for a file-based query.
+func (g *GraphqlClient) QueryWithHeaders(ctx context.Context, addr, queryFilePath string, variables queryVariables, t *testing.T) ([]byte, http.Header) {
+	return g.executeQuery(ctx, addr, loadQuery(t, queryFilePath, variables), t)
+}
+
+func (g *GraphqlClient) QueryString(ctx context.Context, addr, query string, variables queryVariables, t *testing.T) []byte {
+	body, _ := g.executeQuery(ctx, addr, requestBody(t, query, variables), t)
+	return body
+}
+
+// QueryStringWithHeaders returns both the response body and headers.
+// Useful for testing cache stats exposed via headers.
+func (g *GraphqlClient) QueryStringWithHeaders(ctx context.Context, addr, query string, variables queryVariables, t *testing.T) ([]byte, http.Header) {
+	return g.executeQuery(ctx, addr, requestBody(t, query, variables), t)
 }
 
 func (g *GraphqlClient) QueryStatusCode(ctx context.Context, addr, queryFilePath string, variables queryVariables, expectedStatusCode int, t *testing.T) []byte {
@@ -87,7 +111,7 @@ func (g *GraphqlClient) QueryStatusCode(ctx context.Context, addr, queryFilePath
 	return responseBodyBytes
 }
 
-func (g *GraphqlClient) Subscription(ctx context.Context, addr, queryFilePath string, variables queryVariables, t *testing.T) chan []byte {
+func (g *GraphqlClient) Subscription(ctx context.Context, addr, queryOrFilePath string, variables queryVariables, t *testing.T) (chan []byte, func()) {
 	messageCh := make(chan []byte)
 
 	conn, _, _, err := ws.Dial(ctx, addr)
@@ -105,31 +129,65 @@ func (g *GraphqlClient) Subscription(ctx context.Context, addr, queryFilePath st
 	serverMessage := g.readMessageFromServer(t, conn)
 	assert.Equal(t, `{"id":"","type":"connection_ack","payload":null}`, string(serverMessage))
 	// 3. send `start` message with subscription operation
+	trimmedQuery := strings.TrimSpace(queryOrFilePath)
+	var payload []byte
+	if strings.HasPrefix(trimmedQuery, "subscription") ||
+		strings.HasPrefix(trimmedQuery, "query") ||
+		strings.HasPrefix(trimmedQuery, "mutation") ||
+		strings.HasPrefix(trimmedQuery, "{") {
+		payload = requestBody(t, queryOrFilePath, variables)
+	} else {
+		payload = loadQuery(t, queryOrFilePath, variables)
+	}
 	//nolint:staticcheck
 	startSubscriptionMessage := subscription.Message{
 		Id:      "1",
 		Type:    subscription.MessageTypeStart,
-		Payload: loadQuery(t, queryFilePath, variables),
+		Payload: payload,
 	}
 
 	err = g.sendMessageToServer(conn, startSubscriptionMessage)
 	require.NoError(t, err)
 
+	var closed atomic.Bool
+	var closeOnce sync.Once
+	done := make(chan struct{})
+
+	// closeFn signals the reader goroutine to exit. `done` unblocks a pending
+	// send on messageCh that conn.Close() cannot reach; `closed` tells the
+	// read loop the resulting read error is expected.
+	closeFn := func() {
+		closeOnce.Do(func() {
+			closed.Store(true)
+			close(done)
+			_ = conn.Close()
+		})
+	}
+
 	// 4. start receiving messages from subscription
 
 	go func() {
-		defer conn.Close()
 		defer close(messageCh)
 
 		for {
 			msgBytes, _, err := wsutil.ReadServerData(conn)
-			require.NoError(t, err)
-
-			messageCh <- msgBytes
+			if err != nil {
+				if !closed.Load() {
+					t.Errorf("unexpected subscription read error: %v", err)
+				}
+				return
+			}
+			select {
+			case messageCh <- msgBytes:
+			case <-done:
+				return
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 
-	return messageCh
+	return messageCh, closeFn
 }
 
 //nolint:staticcheck

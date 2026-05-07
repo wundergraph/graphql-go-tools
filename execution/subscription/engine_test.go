@@ -18,8 +18,11 @@ import (
 )
 
 func TestExecutorEngine_StartOperation(t *testing.T) {
+	t.Parallel()
 	t.Run("execute non-subscription operation", func(t *testing.T) {
+		t.Parallel()
 		t.Run("on execution failure", func(t *testing.T) {
+			t.Parallel()
 			wg := &sync.WaitGroup{}
 			wg.Add(2)
 
@@ -94,6 +97,7 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 		})
 
 		t.Run("on execution success", func(t *testing.T) {
+			t.Parallel()
 			wg := &sync.WaitGroup{}
 			wg.Add(2)
 
@@ -168,7 +172,9 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 	})
 
 	t.Run("execute subscription operation", func(t *testing.T) {
+		t.Parallel()
 		t.Run("on execution failure", func(t *testing.T) {
+			t.Parallel()
 			if runtime.GOOS == "windows" {
 				t.Skip("this test fails on Windows due to different timings than unix, consider fixing it at some point")
 			}
@@ -230,6 +236,7 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 		})
 
 		t.Run("on execution success", func(t *testing.T) {
+			t.Parallel()
 			if runtime.GOOS == "windows" {
 				t.Skip("this test fails on Windows due to different timings than unix, consider fixing it at some point")
 			}
@@ -295,6 +302,7 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 	})
 
 	t.Run("error on duplicate id", func(t *testing.T) {
+		t.Parallel()
 		wg := &sync.WaitGroup{}
 		wg.Add(1)
 
@@ -368,6 +376,7 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 }
 
 func TestExecutorEngine_StopSubscription(t *testing.T) {
+	t.Parallel()
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
@@ -436,6 +445,7 @@ func TestExecutorEngine_StopSubscription(t *testing.T) {
 }
 
 func TestExecutorEngine_TerminateAllConnections(t *testing.T) {
+	t.Parallel()
 	wg := &sync.WaitGroup{}
 	wg.Add(3)
 

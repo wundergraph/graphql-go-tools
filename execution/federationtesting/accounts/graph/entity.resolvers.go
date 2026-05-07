@@ -6,21 +6,53 @@ package graph
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/accounts/graph/generated"
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/accounts/graph/model"
 )
 
+// FindAdminByID is the resolver for the findAdminByID field.
+func (r *entityResolver) FindAdminByID(ctx context.Context, id string) (*model.Admin, error) {
+	name := "Admin " + id
+	if id == "admin-1" {
+		name = "SuperAdmin"
+	}
+	return &model.Admin{
+		ID:       id,
+		Username: name,
+		Role:     "administrator",
+	}, nil
+}
+
+// FindCacheEntityByID is the resolver for the findCacheEntityByID field.
+// Always returns the same deterministic data for any ID.
+func (r *entityResolver) FindCacheEntityByID(ctx context.Context, id string) (*model.CacheEntity, error) {
+	return &model.CacheEntity{
+		ID: id,
+		A:  "a-" + id,
+		B:  "b-" + id,
+		C:  "c-" + id,
+		D:  "d-" + id,
+		E:  "e-" + id,
+		F:  "f-" + id,
+	}, nil
+}
+
 // FindUserByID is the resolver for the findUserByID field.
 func (r *entityResolver) FindUserByID(ctx context.Context, id string) (*model.User, error) {
-	name := "User " + id
-	if id == "1234" {
-		name = "Me"
+	// Error triggering for cache error handling tests
+	if id == "error-user" {
+		return nil, fmt.Errorf("user not found: %s", id)
 	}
+
+	name := r.GetUsername(id)
 
 	return &model.User{
 		ID:       id,
 		Username: name,
+		Nickname: "nick-" + name,
+		RealName: "Real " + name,
 		History:  histories,
 	}, nil
 }

@@ -1020,7 +1020,7 @@ func BenchmarkLoader_LoadGraphQLResponseData(b *testing.B) {
 	b.SetBytes(int64(len(expected)))
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		loader.Free()
 		resolvable.Reset()
 		err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
@@ -1495,7 +1495,6 @@ func TestRewriteErrorPaths(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			// Create FetchItem with the test response path elements
 			fetchItem := &FetchItem{
@@ -1521,8 +1520,11 @@ func TestRewriteErrorPaths(t *testing.T) {
 			for i, expectedError := range tc.expectedErrors {
 				expectedData := expectedError.MarshalTo(nil)
 				actualData := values[i].MarshalTo(nil)
-				assert.JSONEq(t, string(expectedData), string(actualData),
-					"Error %d should match expected", i)
+				assert.Equal(t,
+					compactJSONForAssert(t, string(expectedData)),
+					compactJSONForAssert(t, string(actualData)),
+					"Error %d should match expected", i,
+				)
 			}
 		})
 	}
@@ -2094,7 +2096,7 @@ func TestLoader_OptionallyOmitErrorLocations(t *testing.T) {
 			actualJSON := inputValue.MarshalTo(nil)
 
 			// Compare with expected
-			assert.JSONEq(t, tt.expectedJSON, string(actualJSON))
+			assert.Equal(t, compactJSONForAssert(t, tt.expectedJSON), compactJSONForAssert(t, string(actualJSON)))
 		})
 	}
 }

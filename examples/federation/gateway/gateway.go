@@ -28,9 +28,9 @@ func NewGateway(
 		return nil, fmt.Errorf("can't unmarshal composed config: %w", err)
 	}
 
-	engineConfigFactory := engine.NewFederationEngineConfigFactory(ctx, engine.WithFederationHttpClient(httpClient))
+	engineConfigFactory := engine.NewFederationEngineConfigFactory(ctx, nil, engine.WithFederationHttpClient(httpClient))
 
-	engineConfig, err := engineConfigFactory.BuildEngineConfiguration(&rc)
+	engineConfig, err := engineConfigFactory.BuildEngineConfigurationWithRouterConfig(&rc)
 	if err != nil {
 		return nil, fmt.Errorf("can't build engine configuration: %w", err)
 	}
@@ -46,7 +46,17 @@ func NewGateway(
 	upgrader.Header = http.Header{}
 	upgrader.Header.Add("Sec-Websocket-Protocol", "graphql-ws")
 
-	handler := httphandler.NewGraphqlHTTPHandler(engineConfig.Schema(), executionEngine, upgrader, logger, enableART)
+	handler := httphandler.NewGraphqlHTTPHandler(
+		engineConfig.Schema(),
+		executionEngine,
+		upgrader,
+		logger,
+		enableART,
+		nil, // subgraphHeadersBuilder
+		resolve.CachingOptions{},
+		false, // debugMode
+		nil,   // remapVariables
+	)
 
 	return &Gateway{handler}, nil
 }

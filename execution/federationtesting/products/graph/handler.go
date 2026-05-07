@@ -16,12 +16,11 @@ import (
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/products/graph/generated"
 )
 
-var websocketConnections atomic.Uint32
-
 type EndpointOptions struct {
-	EnableDebug            bool
-	EnableRandomness       bool
-	OverrideUpdateInterval time.Duration
+	EnableDebug                    bool
+	EnableRandomness               bool
+	OverrideUpdateInterval         time.Duration
+	EnableManualSubscriptionEvents bool
 }
 
 var TestOptions = EndpointOptions{
@@ -30,22 +29,60 @@ var TestOptions = EndpointOptions{
 	OverrideUpdateInterval: 50 * time.Millisecond,
 }
 
-func GraphQLEndpointHandler(opts EndpointOptions) http.Handler {
-	websocketConnections.Store(0)
+// Endpoint holds the GraphQL handler and its per-instance websocket connection counter.
+type Endpoint struct {
+	handler              http.Handler
+	websocketConnections atomic.Uint32
+	subscriptionEvents   *ManualSubscriptionEventSource
+}
 
+// ServeHTTP delegates to the underlying gqlgen handler.
+func (e *Endpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	e.handler.ServeHTTP(w, r)
+}
+
+// WebsocketConnectionsHandler returns an HTTP handler that reports the current
+// websocket connection count for this endpoint instance.
+func (e *Endpoint) WebsocketConnectionsHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		response := map[string]uint32{
+			"websocket_connections": e.websocketConnections.Load(),
+		}
+
+		responseBytes, err := json.Marshal(response)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte("error"))
+			return
+		}
+
+		_, _ = w.Write(responseBytes)
+	}
+}
+
+func GraphQLEndpointHandler(opts EndpointOptions) *Endpoint {
 	updateInterval := time.Second
 	if opts.OverrideUpdateInterval > 0 {
 		updateInterval = opts.OverrideUpdateInterval
 	}
 
-	resolver := &Resolver{
-		products:          newProducts(),
-		randomnessEnabled: opts.EnableRandomness,
-		minPrice:          10,
-		maxPrice:          1499,
-		currentPrice:      10,
-		updateInterval:    updateInterval,
+	var subscriptionEvents *ManualSubscriptionEventSource
+	if opts.EnableManualSubscriptionEvents {
+		subscriptionEvents = NewManualSubscriptionEventSource()
 	}
+	resolver := &Resolver{
+		products:           newProducts(),
+		extraProducts:      newExtraProducts(),
+		digitalProducts:    newDigitalProducts(),
+		randomnessEnabled:  opts.EnableRandomness,
+		minPrice:           10,
+		maxPrice:           1499,
+		currentPrice:       10,
+		updateInterval:     updateInterval,
+		subscriptionEvents: subscriptionEvents,
+	}
+
+	endpoint := &Endpoint{subscriptionEvents: subscriptionEvents}
 
 	srv := handler.New(generated.NewExecutableSchema(generated.Config{Resolvers: resolver}))
 
@@ -58,10 +95,10 @@ func GraphQLEndpointHandler(opts EndpointOptions) http.Handler {
 			},
 		},
 		InitFunc: func(ctx context.Context, ip transport.InitPayload) (context.Context, *transport.InitPayload, error) {
-			websocketConnections.Inc()
+			endpoint.websocketConnections.Inc()
 			go func(ctx context.Context) {
 				<-ctx.Done()
-				websocketConnections.Dec()
+				endpoint.websocketConnections.Dec()
 			}(ctx)
 			return ctx, nil, nil
 		},
@@ -72,20 +109,11 @@ func GraphQLEndpointHandler(opts EndpointOptions) http.Handler {
 		srv.Use(&debug.Tracer{})
 	}
 
-	return srv
+	endpoint.handler = srv
+	return endpoint
 }
 
-func WebsocketConnectionsHandler(w http.ResponseWriter, r *http.Request) {
-	response := map[string]uint32{
-		"websocket_connections": websocketConnections.Load(),
-	}
-
-	responseBytes, err := json.Marshal(response)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte("error"))
-		return
-	}
-
-	_, _ = w.Write(responseBytes)
+// SubscriptionEvents returns the manual event source for active subscriptions.
+func (e *Endpoint) SubscriptionEvents() *ManualSubscriptionEventSource {
+	return e.subscriptionEvents
 }

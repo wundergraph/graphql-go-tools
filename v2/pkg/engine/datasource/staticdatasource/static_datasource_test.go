@@ -26,6 +26,7 @@ func TestStaticDataSourcePlanning(t *testing.T) {
 							FetchConfiguration: resolve.FetchConfiguration{
 								Input:      `{"hello": "world"}`,
 								DataSource: Source{},
+								// Note: UseL1Cache is cleared to false by the test framework when WithCacheKeyTemplates() is not used
 							},
 						},
 					},

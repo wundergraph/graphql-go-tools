@@ -11,6 +11,12 @@ import (
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/reviews/graph/model"
 )
 
+// FindCacheEntityByID is the resolver for the findCacheEntityByID field.
+// Reviews subgraph only needs the ID for the entity reference — accounts owns the data.
+func (r *entityResolver) FindCacheEntityByID(ctx context.Context, id string) (*model.CacheEntity, error) {
+	return &model.CacheEntity{ID: id}, nil
+}
+
 // FindProductByUpc is the resolver for the findProductByUpc field.
 func (r *entityResolver) FindProductByUpc(ctx context.Context, upc string) (*model.Product, error) {
 	return &model.Product{

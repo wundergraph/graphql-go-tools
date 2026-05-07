@@ -225,6 +225,7 @@ func (v *requiredFieldsVisitor) EnterField(ref int) {
 
 func (v *requiredFieldsVisitor) handleRequiredField(ref int) {
 	fieldName := v.key.FieldNameBytes(ref)
+	fieldAliasOrName := v.key.FieldAliasOrNameBytes(ref)
 	isTypeName := bytes.Equal(fieldName, typeNameFieldBytes)
 
 	// we need to add alias if operation has such field and:
@@ -234,7 +235,7 @@ func (v *requiredFieldsVisitor) handleRequiredField(ref int) {
 	needAlias := v.key.FieldHasArguments(ref)
 
 	selectionSetRef := v.OperationNodes[len(v.OperationNodes)-1].Ref
-	operationHasField, operationFieldRef := v.config.operation.SelectionSetHasFieldSelectionWithExactName(selectionSetRef, fieldName)
+	operationHasField, operationFieldRef := v.config.operation.SelectionSetHasFieldSelectionWithExactName(selectionSetRef, fieldAliasOrName)
 
 	if operationHasField && !needAlias {
 		// we are skipping adding __typename field to the required fields,
@@ -309,7 +310,12 @@ func (v *requiredFieldsVisitor) addRequiredField(keyRef int, fieldName ast.ByteS
 		SelectionSet: ast.InvalidRef,
 	}
 
-	if addAlias {
+	if v.key.FieldAliasIsDefined(keyRef) {
+		field.Alias = ast.Alias{
+			IsDefined: true,
+			Name:      v.config.operation.Input.AppendInputBytes(v.key.FieldAliasBytes(keyRef)),
+		}
+	} else if addAlias {
 		aliasName := bytes.NewBuffer([]byte("__internal_"))
 		aliasName.Write(fieldName)
 		fullAliasName := aliasName.Bytes()

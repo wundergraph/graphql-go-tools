@@ -1,0 +1,11 @@
+subscription UpdatePriceKeyOnly($upc: String!) {
+    updateProductPrice(upc: $upc) {
+        upc
+        reviews {
+            body
+            authorWithoutProvides {
+                username
+            }
+        }
+    }
+}
