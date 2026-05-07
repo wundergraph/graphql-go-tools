@@ -131,6 +131,10 @@ func (v *VariablesSchemaBuilder) EnterVariableDefinition(ref int) {
 		v.schema.Required = append(v.schema.Required, varName)
 	}
 
+	if v.operationDocument.VariableDefinitions[ref].Description.IsDefined {
+		varSchema.Description = v.operationDocument.VariableDefinitionDescriptionString(ref)
+	}
+
 	// Set default value if exists
 	if v.operationDocument.VariableDefinitionHasDefaultValue(ref) {
 		defaultValue := v.operationDocument.VariableDefinitionDefaultValue(ref)

@@ -787,6 +787,42 @@ User fields fragment
 """
 fragment UserFields on User {id name}`)
 	})
+	t.Run("variable descriptions", func(t *testing.T) {
+		t.Run("single-line description", func(t *testing.T) {
+			run(t, `query GetUser("The user ID" $id: ID!) {
+	user(id: $id) {
+		id
+	}
+}`, `query GetUser("The user ID" $id: ID!){user(id: $id){id}}`)
+		})
+		t.Run("block string description", func(t *testing.T) {
+			run(t, `query GetUser("""The unique identifier""" $id: ID!) {
+	user(id: $id) {
+		id
+	}
+}`, `query GetUser("""
+The unique identifier
+""" $id: ID!){user(id: $id){id}}`)
+		})
+		t.Run("multiple variables with mixed descriptions", func(t *testing.T) {
+			run(t, `query Search("The search query" $query: String!, $limit: Int) {
+	search(query: $query, limit: $limit) {
+		id
+	}
+}`, `query Search("The search query" $query: String!, $limit: Int){search(query: $query, limit: $limit){id}}`)
+		})
+		t.Run("without description unchanged", func(t *testing.T) {
+			run(t, `query GetUser($id: ID!) {
+	user(id: $id) {
+		id
+	}
+}`, `query GetUser($id: ID!){user(id: $id){id}}`)
+		})
+		t.Run("single-line operation with variable description", func(t *testing.T) {
+			run(t, `query GetUser("The user ID" $id: ID!) { user(id: $id) { id } }`,
+				`query GetUser("The user ID" $id: ID!){user(id: $id){id}}`)
+		})
+	})
 }
 
 func TestPrintArgumentWithBeforeAfterValue(t *testing.T) {

@@ -318,3 +318,60 @@ func TestImporter_ImportVariableDefinitions(t *testing.T) {
 		[]int{0, 1},
 	))
 }
+
+func TestImportVariableDefinitionWithDescription(t *testing.T) {
+	from, report := astparser.ParseGraphqlDocumentString(`
+		query FindEmployee(
+			"The unique employee identifier"
+			$id: ID!
+		) {
+			employee(id: $id) { id }
+		}
+	`)
+	require.False(t, report.HasErrors())
+
+	to := ast.NewSmallDocument()
+
+	importer := Importer{}
+
+	// Import the variable definition from the source document
+	opDef := from.OperationDefinitions[0]
+	require.Len(t, opDef.VariableDefinitions.Refs, 1)
+
+	srcVarRef := opDef.VariableDefinitions.Refs[0]
+	importedRef := importer.ImportVariableDefinition(srcVarRef, &from, to)
+
+	// Verify the description was preserved
+	importedVar := to.VariableDefinitions[importedRef]
+	assert.True(t, importedVar.Description.IsDefined, "imported variable should have description")
+	assert.Equal(t, "The unique employee identifier", to.Input.ByteSliceString(importedVar.Description.Content))
+}
+
+// A single-line block string description like """foo""" must survive the
+// import as a block string. The importer copies the source's IsBlockString
+// flag verbatim rather than re-deriving it from the text.
+func TestImportVariableDefinitionPreservesBlockStringFlag(t *testing.T) {
+	from, report := astparser.ParseGraphqlDocumentString(`
+		query Q(
+			"""The user ID"""
+			$id: ID!
+		) {
+			user(id: $id) { id }
+		}
+	`)
+	require.False(t, report.HasErrors())
+
+	srcVarRef := from.OperationDefinitions[0].VariableDefinitions.Refs[0]
+	require.True(t, from.VariableDefinitions[srcVarRef].Description.IsBlockString,
+		"source description should be a block string")
+
+	to := ast.NewSmallDocument()
+	importer := Importer{}
+	importedRef := importer.ImportVariableDefinition(srcVarRef, &from, to)
+
+	importedVar := to.VariableDefinitions[importedRef]
+	assert.True(t, importedVar.Description.IsDefined)
+	assert.True(t, importedVar.Description.IsBlockString,
+		"block-string flag must survive the import")
+	assert.Equal(t, "The user ID", to.Input.ByteSliceString(importedVar.Description.Content))
+}
