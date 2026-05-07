@@ -7,7 +7,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 // scalarDefinitions contains the basic scalar types that need to be defined for tests
@@ -1793,6 +1795,72 @@ func TestBuildJsonSchema(t *testing.T) {
   "properties": {
     "id": {
       "type": "string"
+    }
+  },
+  "required": [
+    "id"
+  ],
+  "additionalProperties": false,
+  "nullable": false
+}`
+
+		assert.JSONEq(t, expectedJSON, string(data))
+	})
+
+	t.Run("variable inside fragment spread falls back after normalization", func(t *testing.T) {
+		schemaSDL := scalarDefinitions + `
+			schema {
+				query: Query
+			}
+
+			type Query {
+				employee(
+					"The employee ID from the HR system"
+					id: ID!
+				): Employee
+			}
+
+			type Employee {
+				id: ID!
+				name: String
+			}
+		`
+
+		operationSDL := `
+			query FindEmployee($id: ID!) {
+				...EmployeeQuery
+			}
+
+			fragment EmployeeQuery on Query {
+				employee(id: $id) {
+					id
+					name
+				}
+			}
+		`
+
+		definitionDoc, report := astparser.ParseGraphqlDocumentString(schemaSDL)
+		require.False(t, report.HasErrors(), "schema parsing failed")
+
+		operationDoc, report := astparser.ParseGraphqlDocumentString(operationSDL)
+		require.False(t, report.HasErrors(), "operation parsing failed")
+
+		normReport := &operationreport.Report{}
+		astnormalization.NormalizeNamedOperation(&operationDoc, &definitionDoc, []byte("FindEmployee"), normReport)
+		require.False(t, normReport.HasErrors(), "normalization failed: %s", normReport.Error())
+
+		schema, err := BuildJsonSchema(&operationDoc, &definitionDoc)
+		require.NoError(t, err)
+
+		data, err := json.MarshalIndent(schema, "", "  ")
+		require.NoError(t, err)
+
+		expectedJSON := `{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "The employee ID from the HR system"
     }
   },
   "required": [

@@ -574,13 +574,16 @@ func (v *VariablesSchemaBuilder) convertDefinitionValueToNative(value ast.Value)
 }
 
 // BuildJsonSchema builds a JSON schema for the variables of the given operation
-// using the default recursion depth of 1
+// using the default recursion depth of 1.
+//
+// The argument-description fallback only scans the root selection set. Normalize
+// the operation first if variables are referenced through fragments or nested fields.
 func BuildJsonSchema(operationDocument, definitionDocument *ast.Document) (*JsonSchema, error) {
 	return BuildJsonSchemaWithOptions(operationDocument, definitionDocument, 1)
 }
 
 // BuildJsonSchemaWithOptions builds a JSON schema for the variables of the given operation
-// with a custom recursion depth limit
+// with a custom recursion depth limit. See BuildJsonSchema for the normalization caveat.
 func BuildJsonSchemaWithOptions(operationDocument, definitionDocument *ast.Document, maxRecursionDepth int) (*JsonSchema, error) {
 	if len(operationDocument.OperationDefinitions) == 0 {
 		return nil, fmt.Errorf("no operations found in document")
