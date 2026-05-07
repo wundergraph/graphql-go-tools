@@ -16,6 +16,7 @@ type VariableDefinitionList struct {
 
 // VariableDefinition
 // example:
+// $devicePicSize: Int = 100 @small
 // "The device picture size" $devicePicSize: Int = 100 @small
 type VariableDefinition struct {
 	Description   Description       // optional, describes the variable (September 2025 spec)

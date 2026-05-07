@@ -201,12 +201,23 @@ func (i *Importer) ImportVariableDefinitionWithRename(ref int, from, to *ast.Doc
 	return len(to.VariableDefinitions) - 1
 }
 
+// ImportDescription copies a description from one document into another while
+// preserving the original byte content, the block-string flag, and whether the
+// description was defined. It does not go through Document.ImportDescription
+// because that helper takes a plain string and guesses the block-string flag
+// from the text, which would silently change a single-line block string like
+// """foo""" into a regular "foo" on its way across.
 func (i *Importer) ImportDescription(description ast.Description, from, to *ast.Document) ast.Description {
 	if !description.IsDefined {
 		return ast.Description{}
 	}
-	descStr := from.Input.ByteSliceString(description.Content)
-	return to.ImportDescription(descStr)
+	contentBytes := from.Input.ByteSlice(description.Content)
+	return ast.Description{
+		IsDefined:     true,
+		IsBlockString: description.IsBlockString,
+		Content:       to.Input.AppendInputBytes(contentBytes),
+		Position:      description.Position,
+	}
 }
 
 func (i *Importer) ImportVariableDefinitions(refs []int, from, to *ast.Document) []int {

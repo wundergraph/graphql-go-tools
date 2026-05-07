@@ -17,23 +17,12 @@ type VariablesSchemaBuilder struct {
 	// Track recursion depth for each type to handle recursive types
 	recursionTracker  map[string]int
 	maxRecursionDepth int
-	// walker is captured during Build so EnterArgument can resolve the
-	// argument's input value definition via Walker.ArgumentInputValueDefinition,
-	// which uses the walker-maintained TypeDefinitions stack to find the parent
-	// type — works regardless of nesting, fragment spreads, or inline fragments.
-	walker *astvisitor.Walker
-	// argDescriptions maps variable name -> argument-definition description,
-	// collected during the walk and applied as a fallback in LeaveDocument
-	// (variable-definition visits happen before the selection set is walked).
-	argDescriptions map[string]string
 }
 
 // Ensure VariablesSchemaBuilder implements the necessary astvisitor interfaces
 var (
 	_ astvisitor.EnterDocumentVisitor           = (*VariablesSchemaBuilder)(nil)
-	_ astvisitor.LeaveDocumentVisitor           = (*VariablesSchemaBuilder)(nil)
 	_ astvisitor.EnterVariableDefinitionVisitor = (*VariablesSchemaBuilder)(nil)
-	_ astvisitor.EnterArgumentVisitor           = (*VariablesSchemaBuilder)(nil)
 )
 
 // NewVariablesSchemaBuilder creates a new VariablesSchemaBuilder with default settings
@@ -142,10 +131,6 @@ func (v *VariablesSchemaBuilder) EnterVariableDefinition(ref int) {
 		v.schema.Required = append(v.schema.Required, varName)
 	}
 
-	// Set the variable's own description if defined. The fallback to the matching
-	// argument-definition description is applied in LeaveDocument once the walker
-	// has visited every argument across nested fields, fragment spreads, and
-	// inline fragments.
 	if v.operationDocument.VariableDefinitions[ref].Description.IsDefined {
 		varSchema.Description = v.operationDocument.VariableDefinitionDescriptionString(ref)
 	}
@@ -169,46 +154,6 @@ func (v *VariablesSchemaBuilder) EnterVariableDefinition(ref int) {
 	v.schema.Properties[varName] = varSchema
 }
 
-// EnterArgument records the description of the matching argument definition
-// when the argument's value is a variable. The walker visits arguments under
-// every field reachable from the operation — including those behind fragment
-// spreads, inline fragments, and arbitrarily nested selection sets — so this
-// callback collects descriptions for every variable usage in the operation.
-//
-// First-write-wins: if the same variable appears in multiple argument positions,
-// the first one with a non-empty description sets the fallback.
-func (v *VariablesSchemaBuilder) EnterArgument(ref int) {
-	argValue := v.operationDocument.ArgumentValue(ref)
-	if argValue.Kind != ast.ValueKindVariable {
-		return
-	}
-	varName := v.operationDocument.VariableValueNameString(argValue.Ref)
-	if _, alreadyHave := v.argDescriptions[varName]; alreadyHave {
-		return
-	}
-	inputValueDefRef, ok := v.walker.ArgumentInputValueDefinition(ref)
-	if !ok {
-		return
-	}
-	if !v.definitionDocument.InputValueDefinitions[inputValueDefRef].Description.IsDefined {
-		return
-	}
-	v.argDescriptions[varName] = v.definitionDocument.InputValueDefinitionDescriptionString(inputValueDefRef)
-}
-
-// LeaveDocument applies the argument-definition description fallback to any
-// variable that did not declare its own description.
-func (v *VariablesSchemaBuilder) LeaveDocument(_, _ *ast.Document) {
-	for varName, propSchema := range v.schema.Properties {
-		if propSchema.Description != "" {
-			continue
-		}
-		if desc, ok := v.argDescriptions[varName]; ok {
-			propSchema.Description = desc
-		}
-	}
-}
-
 // GetSchema returns the built schema
 func (v *VariablesSchemaBuilder) GetSchema() *JsonSchema {
 	// If we have required fields, the root schema cannot be nullable
@@ -227,14 +172,10 @@ func (v *VariablesSchemaBuilder) GetReport() *operationreport.Report {
 func (v *VariablesSchemaBuilder) Build() (*JsonSchema, error) {
 	// Create a new walker for AST traversal
 	walker := astvisitor.NewDefaultWalker()
-	v.walker = &walker
-	v.argDescriptions = make(map[string]string)
 
 	// Register this builder as a visitor
 	walker.RegisterEnterDocumentVisitor(v)
-	walker.RegisterLeaveDocumentVisitor(v)
 	walker.RegisterEnterVariableDefinitionVisitor(v)
-	walker.RegisterEnterArgumentVisitor(v)
 
 	// Walk the AST
 	walker.Walk(v.operationDocument, v.definitionDocument, v.report)
@@ -547,13 +488,13 @@ func (v *VariablesSchemaBuilder) convertDefinitionValueToNative(value ast.Value)
 }
 
 // BuildJsonSchema builds a JSON schema for the variables of the given operation
-// using the default recursion depth of 1.
+// using the default recursion depth of 1
 func BuildJsonSchema(operationDocument, definitionDocument *ast.Document) (*JsonSchema, error) {
 	return BuildJsonSchemaWithOptions(operationDocument, definitionDocument, 1)
 }
 
 // BuildJsonSchemaWithOptions builds a JSON schema for the variables of the given operation
-// with a custom recursion depth limit.
+// with a custom recursion depth limit
 func BuildJsonSchemaWithOptions(operationDocument, definitionDocument *ast.Document, maxRecursionDepth int) (*JsonSchema, error) {
 	if len(operationDocument.OperationDefinitions) == 0 {
 		return nil, fmt.Errorf("no operations found in document")

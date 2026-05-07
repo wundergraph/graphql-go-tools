@@ -1563,16 +1563,13 @@ func (p *Parser) parseVariableDefinitionList() (list ast.VariableDefinitionList)
 			if cap(list.Refs) == 0 {
 				list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
 			}
-			ref := p.parseVariableDefinitionWithDescription(&description)
+			ref := p.parseVariableDefinition(&description)
 			list.Refs = append(list.Refs, ref)
 		case keyword.DOLLAR:
 			if cap(list.Refs) == 0 {
 				list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
 			}
-			ref := p.parseVariableDefinition()
-			if cap(list.Refs) == 0 {
-				list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
-			}
+			ref := p.parseVariableDefinition(nil)
 			list.Refs = append(list.Refs, ref)
 		default:
 			p.errUnexpectedToken(p.read(), keyword.RPAREN, keyword.DOLLAR, keyword.STRING, keyword.BLOCKSTRING)
@@ -1585,11 +1582,7 @@ func (p *Parser) parseVariableDefinitionList() (list ast.VariableDefinitionList)
 	}
 }
 
-func (p *Parser) parseVariableDefinition() int {
-	return p.parseVariableDefinitionWithDescription(nil)
-}
-
-func (p *Parser) parseVariableDefinitionWithDescription(description *ast.Description) int {
+func (p *Parser) parseVariableDefinition(description *ast.Description) int {
 
 	var variableDefinition ast.VariableDefinition
 
