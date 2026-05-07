@@ -104,13 +104,15 @@ func WithFederationSubscriptionType(subscriptionType SubscriptionType) Federatio
 	}
 }
 
-// WithSubgraphEntityCachingConfigs enables entity caching for specific subgraphs and entity types.
-// Each SubgraphEntityCachingConfig specifies which entities to cache for a particular subgraph.
-// This allows fine-grained control over caching behavior per subgraph and entity type.
+// WithSubgraphEntityCachingConfigs registers per-subgraph caching configuration.
+// Each SubgraphCachingConfig specifies the caches that apply to a particular subgraph.
+// Despite the historical name, the option carries the full SubgraphCachingConfig:
+// EntityCaching, RootFieldCaching, MutationFieldCaching, SubscriptionEntityPopulation,
+// and MutationCacheInvalidation.
 //
 // Example:
 //
-//	WithSubgraphEntityCachingConfigs(SubgraphEntityCachingConfigs{
+//	WithSubgraphEntityCachingConfigs(SubgraphCachingConfigs{
 //	    {
 //	        SubgraphName: "products",
 //	        EntityCaching: plan.EntityCacheConfigurations{
@@ -188,6 +190,12 @@ func (f *FederationEngineConfigFactory) BuildEngineConfiguration() (Configuratio
 }
 
 func (f *FederationEngineConfigFactory) BuildEngineConfigurationWithRouterConfig(c *nodev1.RouterConfig) (Configuration, error) {
+	if c == nil {
+		return Configuration{}, errors.New("router config is nil")
+	}
+	if c.EngineConfig == nil {
+		return Configuration{}, errors.New("router config engine config is nil")
+	}
 	return f.buildEngineConfiguration(c)
 }
 
@@ -287,11 +295,26 @@ func (f *FederationEngineConfigFactory) createPlannerConfiguration(routerConfig 
 		})
 	}
 
-	// Create a mapping from datasource ID to subgraph name
-	// The composition library generates datasources in the same order as subgraphs are passed
+	// Create a mapping from datasource ID to subgraph name.
+	// The composition library generates datasources in the same order as
+	// subgraphsConfigs entries, indexed by stringified position.
 	dsIDToSubgraphName := make(map[string]string)
 	for i, subgraphConfig := range f.subgraphsConfigs {
 		dsIDToSubgraphName[fmt.Sprintf("%d", i)] = subgraphConfig.Name
+	}
+	// Backfill from routerConfig.Subgraphs when subgraphsConfigs is empty or
+	// partial. Without this, the static-RouterConfig path (subgraphsConfigs == nil)
+	// would name every datasource by its numeric ID, so per-subgraph cache configs
+	// keyed by real names like "products" would never match in
+	// SubgraphCachingConfigs.FindBySubgraphName.
+	for _, sg := range routerConfig.GetSubgraphs() {
+		id, name := sg.GetId(), sg.GetName()
+		if id == "" || name == "" {
+			continue
+		}
+		if _, ok := dsIDToSubgraphName[id]; !ok {
+			dsIDToSubgraphName[id] = name
+		}
 	}
 
 	for _, ds := range engineConfig.DatasourceConfigurations {
@@ -299,10 +322,10 @@ func (f *FederationEngineConfigFactory) createPlannerConfiguration(routerConfig 
 			return nil, fmt.Errorf("invalid datasource kind %q", ds.Kind)
 		}
 
-		// Fall back to the datasource ID when no SubgraphConfiguration entry maps
-		// it — matches master's NewDataSourceConfiguration default (name = id) so
-		// callers using the static-RouterConfig path (subgraphsConfigs == nil)
-		// don't end up registering datasources with empty names.
+		// Final fallback to the datasource ID when no SubgraphConfiguration entry
+		// and no routerConfig.Subgraphs entry maps it — matches master's
+		// NewDataSourceConfiguration default (name = id) so callers don't end up
+		// registering datasources with empty names.
 		subgraphName := dsIDToSubgraphName[ds.Id]
 		if subgraphName == "" {
 			subgraphName = ds.Id

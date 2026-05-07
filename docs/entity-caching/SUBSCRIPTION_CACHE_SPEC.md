@@ -1,6 +1,6 @@
 # Subscription Entity Cache — Behavioral Specification
 
-This document specifies the behavior of trigger-level entity caching for GraphQL subscriptions on the `feat/add-caching-support` branch.
+This document specifies the behavior of trigger-level entity caching for GraphQL subscriptions.
 
 It is the contract the `resolve` package must satisfy regardless of how subscription event handling is internally implemented (event-loop, direct dispatch, goroutine fanout, etc.).
 

@@ -1156,6 +1156,7 @@ Every `@requestScoped` field participates in both:
 
 Tests:
 - `v2/pkg/engine/resolve/request_scoped_test.go` — `TestExportRequestScopedFields`, `TestTryRequestScopedInjection`, `TestRequestScopedRoundTrip`
+- `execution/engine/request_scoped_widening_e2e_test.go` — `TestRequestScopedWideningExecution` (end-to-end: root export feeds entity-fetch inject and skips the entity hop)
 
 ### AC-RS-03: Field widening check prevents partial injection
 
@@ -1168,6 +1169,7 @@ validator used by entity L1 and L2.
 
 Tests:
 - `v2/pkg/engine/resolve/request_scoped_test.go` — `TestTryRequestScopedInjection / "field widening blocks injection when cached value missing required fields"`
+- `execution/engine/request_scoped_widening_e2e_test.go` — `TestRequestScopedWideningExecution` (end-to-end: scenarios cover both widening-skips-fetch and widening-blocks-on-narrow-cached-value)
 
 ### AC-RS-04: @interfaceObject type mapping
 

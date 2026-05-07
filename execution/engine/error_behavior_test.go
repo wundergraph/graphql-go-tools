@@ -31,8 +31,7 @@ func compactJSONForAssert(t testing.TB, input string) string {
 	return string(normalized)
 }
 
-// TestErrorBehavior_EndToEnd tests the onError request parameter behavior
-// as specified in GraphQL spec PR #1163.
+// TestErrorBehavior_EndToEnd tests the onError request parameter behavior.
 //
 // Error Behavior Modes:
 // - PROPAGATE (default): Null bubbles up to nearest nullable ancestor

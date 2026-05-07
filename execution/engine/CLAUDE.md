@@ -124,3 +124,15 @@ func (m *mock) HeadersForSubgraph(name string) (http.Header, uint64) {
     return h, hashHeaders(h)
 }
 ```
+
+## Convention exceptions
+
+These tests deliberately do not follow the package conventions above. They are listed here so future readers can recognize them as known exceptions, not regressions.
+
+### `request_scoped_widening_e2e_test.go`
+
+Defines top-level helpers — `requestScopedE2EServer`, `newRequestScopedExecutionEngine`, `executeRequestScopedQuery`, and the `*Spec` builders — and is in `package engine` (not `engine_test`).
+
+The file uses a different testing pattern than the rest of `execution/engine/`: a custom upstream-traffic recorder that asserts the exact request stream sent to each subgraph, plus direct `executionEngine.Execute(...)` rather than the `federationtesting` gateway + `gqlClient.QueryStringWithHeaders` flow. The recorder is the central assertion surface for these tests; inlining its ~70 LOC into every subtest would hide the assertions behind boilerplate without improving readability.
+
+The exception is scoped to this file. New caching/E2E tests in this package should still follow the inline-everything rule and use `federationtesting` + `QueryStringWithHeaders`.

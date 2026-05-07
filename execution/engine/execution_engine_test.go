@@ -178,6 +178,21 @@ func mustGraphqlDataSourceConfiguration(t *testing.T, id string, factory plan.Pl
 	return cfg
 }
 
+func mustGraphqlDataSourceConfigurationWithName(t *testing.T, id, name string, factory plan.PlannerFactory[graphql_datasource.Configuration], metadata *plan.DataSourceMetadata, customConfig graphql_datasource.Configuration) plan.DataSourceConfiguration[graphql_datasource.Configuration] {
+	t.Helper()
+
+	cfg, err := plan.NewDataSourceConfigurationWithName[graphql_datasource.Configuration](
+		id,
+		name,
+		factory,
+		metadata,
+		customConfig,
+	)
+	require.NoError(t, err)
+
+	return cfg
+}
+
 func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 	t.Parallel()
 	t.Run("no compression", func(t *testing.T) {
