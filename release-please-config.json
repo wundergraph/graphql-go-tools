@@ -29,7 +29,9 @@
     "doc.go",
     "LICENSE",
     "Makefile",
-    "README.md"
+    "README.md",
+    "go.work",
+    "go.work.sum"
   ],
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json"
 }
