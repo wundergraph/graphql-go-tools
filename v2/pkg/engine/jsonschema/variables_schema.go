@@ -17,12 +17,23 @@ type VariablesSchemaBuilder struct {
 	// Track recursion depth for each type to handle recursive types
 	recursionTracker  map[string]int
 	maxRecursionDepth int
+	// walker is captured during Build so EnterArgument can resolve the
+	// argument's input value definition via Walker.ArgumentInputValueDefinition,
+	// which uses the walker-maintained TypeDefinitions stack to find the parent
+	// type — works regardless of nesting, fragment spreads, or inline fragments.
+	walker *astvisitor.Walker
+	// argDescriptions maps variable name -> argument-definition description,
+	// collected during the walk and applied as a fallback in LeaveDocument
+	// (variable-definition visits happen before the selection set is walked).
+	argDescriptions map[string]string
 }
 
 // Ensure VariablesSchemaBuilder implements the necessary astvisitor interfaces
 var (
 	_ astvisitor.EnterDocumentVisitor           = (*VariablesSchemaBuilder)(nil)
+	_ astvisitor.LeaveDocumentVisitor           = (*VariablesSchemaBuilder)(nil)
 	_ astvisitor.EnterVariableDefinitionVisitor = (*VariablesSchemaBuilder)(nil)
+	_ astvisitor.EnterArgumentVisitor           = (*VariablesSchemaBuilder)(nil)
 )
 
 // NewVariablesSchemaBuilder creates a new VariablesSchemaBuilder with default settings
@@ -131,15 +142,12 @@ func (v *VariablesSchemaBuilder) EnterVariableDefinition(ref int) {
 		v.schema.Required = append(v.schema.Required, varName)
 	}
 
-	// Set variable description: use the variable's own description if present (AC2),
-	// otherwise fall back to the field argument description from the schema (AC3)
+	// Set the variable's own description if defined. The fallback to the matching
+	// argument-definition description is applied in LeaveDocument once the walker
+	// has visited every argument across nested fields, fragment spreads, and
+	// inline fragments.
 	if v.operationDocument.VariableDefinitions[ref].Description.IsDefined {
 		varSchema.Description = v.operationDocument.VariableDefinitionDescriptionString(ref)
-	} else {
-		// Fall back to argument description from schema definition
-		if desc := v.findArgumentDescriptionForVariable(varName); desc != "" {
-			varSchema.Description = desc
-		}
 	}
 
 	// Set default value if exists
@@ -161,83 +169,44 @@ func (v *VariablesSchemaBuilder) EnterVariableDefinition(ref int) {
 	v.schema.Properties[varName] = varSchema
 }
 
-// findArgumentDescriptionForVariable looks up the argument description from the schema definition
-// for a variable by matching it to field arguments in the operation's root selection set.
-func (v *VariablesSchemaBuilder) findArgumentDescriptionForVariable(varName string) string {
-	if len(v.operationDocument.OperationDefinitions) == 0 {
-		return ""
+// EnterArgument records the description of the matching argument definition
+// when the argument's value is a variable. The walker visits arguments under
+// every field reachable from the operation — including those behind fragment
+// spreads, inline fragments, and arbitrarily nested selection sets — so this
+// callback collects descriptions for every variable usage in the operation.
+//
+// First-write-wins: if the same variable appears in multiple argument positions,
+// the first one with a non-empty description sets the fallback.
+func (v *VariablesSchemaBuilder) EnterArgument(ref int) {
+	argValue := v.operationDocument.ArgumentValue(ref)
+	if argValue.Kind != ast.ValueKindVariable {
+		return
 	}
-
-	operationDef := v.operationDocument.OperationDefinitions[0]
-	if !operationDef.HasSelections {
-		return ""
+	varName := v.operationDocument.VariableValueNameString(argValue.Ref)
+	if _, alreadyHave := v.argDescriptions[varName]; alreadyHave {
+		return
 	}
-
-	// Determine root type name
-	var rootTypeName string
-	switch operationDef.OperationType {
-	case ast.OperationTypeQuery:
-		rootTypeName = "Query"
-	case ast.OperationTypeMutation:
-		rootTypeName = "Mutation"
-	case ast.OperationTypeSubscription:
-		rootTypeName = "Subscription"
-	default:
-		return ""
+	inputValueDefRef, ok := v.walker.ArgumentInputValueDefinition(ref)
+	if !ok {
+		return
 	}
-
-	rootType, exists := v.definitionDocument.Index.FirstNodeByNameStr(rootTypeName)
-	if !exists || rootType.Kind != ast.NodeKindObjectTypeDefinition {
-		return ""
+	if !v.definitionDocument.InputValueDefinitions[inputValueDefRef].Description.IsDefined {
+		return
 	}
+	v.argDescriptions[varName] = v.definitionDocument.InputValueDefinitionDescriptionString(inputValueDefRef)
+}
 
-	// Iterate through root fields in the operation's selection set
-	selectionSetRef := operationDef.SelectionSet
-	for _, selectionRef := range v.operationDocument.SelectionSets[selectionSetRef].SelectionRefs {
-		selection := v.operationDocument.Selections[selectionRef]
-		if selection.Kind != ast.SelectionKindField {
+// LeaveDocument applies the argument-definition description fallback to any
+// variable that did not declare its own description.
+func (v *VariablesSchemaBuilder) LeaveDocument(_, _ *ast.Document) {
+	for varName, propSchema := range v.schema.Properties {
+		if propSchema.Description != "" {
 			continue
 		}
-
-		fieldRef := selection.Ref
-		// Check if this field has arguments referencing our variable
-		if !v.operationDocument.FieldHasArguments(fieldRef) {
-			continue
-		}
-
-		for _, argRef := range v.operationDocument.Fields[fieldRef].Arguments.Refs {
-			argValue := v.operationDocument.ArgumentValue(argRef)
-			if argValue.Kind != ast.ValueKindVariable {
-				continue
-			}
-			argVarName := v.operationDocument.VariableValueNameString(argValue.Ref)
-			if argVarName != varName {
-				continue
-			}
-
-			// Found the argument that references this variable.
-			// Look up the corresponding argument definition in the schema.
-			argName := v.operationDocument.ArgumentNameString(argRef)
-			fieldName := v.operationDocument.FieldNameString(fieldRef)
-
-			// Find this field in the root type definition
-			for _, fieldDefRef := range v.definitionDocument.ObjectTypeDefinitions[rootType.Ref].FieldsDefinition.Refs {
-				if v.definitionDocument.FieldDefinitionNameString(fieldDefRef) != fieldName {
-					continue
-				}
-				// Find the argument definition
-				for _, argDefRef := range v.definitionDocument.FieldDefinitionArgumentsDefinitions(fieldDefRef) {
-					if v.definitionDocument.InputValueDefinitionNameString(argDefRef) == argName {
-						if v.definitionDocument.InputValueDefinitions[argDefRef].Description.IsDefined {
-							return v.definitionDocument.InputValueDefinitionDescriptionString(argDefRef)
-						}
-					}
-				}
-			}
+		if desc, ok := v.argDescriptions[varName]; ok {
+			propSchema.Description = desc
 		}
 	}
-
-	return ""
 }
 
 // GetSchema returns the built schema
@@ -258,10 +227,14 @@ func (v *VariablesSchemaBuilder) GetReport() *operationreport.Report {
 func (v *VariablesSchemaBuilder) Build() (*JsonSchema, error) {
 	// Create a new walker for AST traversal
 	walker := astvisitor.NewDefaultWalker()
+	v.walker = &walker
+	v.argDescriptions = make(map[string]string)
 
 	// Register this builder as a visitor
 	walker.RegisterEnterDocumentVisitor(v)
+	walker.RegisterLeaveDocumentVisitor(v)
 	walker.RegisterEnterVariableDefinitionVisitor(v)
+	walker.RegisterEnterArgumentVisitor(v)
 
 	// Walk the AST
 	walker.Walk(v.operationDocument, v.definitionDocument, v.report)
@@ -575,15 +548,12 @@ func (v *VariablesSchemaBuilder) convertDefinitionValueToNative(value ast.Value)
 
 // BuildJsonSchema builds a JSON schema for the variables of the given operation
 // using the default recursion depth of 1.
-//
-// The argument-description fallback only scans the root selection set. Normalize
-// the operation first if variables are referenced through fragments or nested fields.
 func BuildJsonSchema(operationDocument, definitionDocument *ast.Document) (*JsonSchema, error) {
 	return BuildJsonSchemaWithOptions(operationDocument, definitionDocument, 1)
 }
 
 // BuildJsonSchemaWithOptions builds a JSON schema for the variables of the given operation
-// with a custom recursion depth limit. See BuildJsonSchema for the normalization caveat.
+// with a custom recursion depth limit.
 func BuildJsonSchemaWithOptions(operationDocument, definitionDocument *ast.Document, maxRecursionDepth int) (*JsonSchema, error) {
 	if len(operationDocument.OperationDefinitions) == 0 {
 		return nil, fmt.Errorf("no operations found in document")

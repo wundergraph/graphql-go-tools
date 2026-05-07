@@ -7,9 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 // scalarDefinitions contains the basic scalar types that need to be defined for tests
@@ -1807,7 +1805,7 @@ func TestBuildJsonSchema(t *testing.T) {
 		assert.JSONEq(t, expectedJSON, string(data))
 	})
 
-	t.Run("variable inside fragment spread falls back after normalization", func(t *testing.T) {
+	t.Run("variable inside fragment spread falls back to argument description", func(t *testing.T) {
 		schemaSDL := scalarDefinitions + `
 			schema {
 				query: Query
@@ -1845,10 +1843,6 @@ func TestBuildJsonSchema(t *testing.T) {
 		operationDoc, report := astparser.ParseGraphqlDocumentString(operationSDL)
 		require.False(t, report.HasErrors(), "operation parsing failed")
 
-		normReport := &operationreport.Report{}
-		astnormalization.NormalizeNamedOperation(&operationDoc, &definitionDoc, []byte("FindEmployee"), normReport)
-		require.False(t, normReport.HasErrors(), "normalization failed: %s", normReport.Error())
-
 		schema, err := BuildJsonSchema(&operationDoc, &definitionDoc)
 		require.NoError(t, err)
 
@@ -1871,5 +1865,51 @@ func TestBuildJsonSchema(t *testing.T) {
 }`
 
 		assert.JSONEq(t, expectedJSON, string(data))
+	})
+
+	t.Run("variable inside nested field falls back to argument description", func(t *testing.T) {
+		schemaSDL := scalarDefinitions + `
+			schema {
+				query: Query
+			}
+
+			type Query {
+				employee(id: ID!): Employee
+			}
+
+			type Employee {
+				id: ID!
+				posts(
+					"Maximum number of posts to return"
+					limit: Int!
+				): [Post]
+			}
+
+			type Post {
+				id: ID!
+			}
+		`
+
+		operationSDL := `
+			query FindEmployee($id: ID!, $limit: Int!) {
+				employee(id: $id) {
+					posts(limit: $limit) {
+						id
+					}
+				}
+			}
+		`
+
+		definitionDoc, report := astparser.ParseGraphqlDocumentString(schemaSDL)
+		require.False(t, report.HasErrors(), "schema parsing failed")
+
+		operationDoc, report := astparser.ParseGraphqlDocumentString(operationSDL)
+		require.False(t, report.HasErrors(), "operation parsing failed")
+
+		schema, err := BuildJsonSchema(&operationDoc, &definitionDoc)
+		require.NoError(t, err)
+
+		assert.Equal(t, "Maximum number of posts to return", schema.Properties["limit"].Description,
+			"variable in nested field arg should pick up the arg description")
 	})
 }
