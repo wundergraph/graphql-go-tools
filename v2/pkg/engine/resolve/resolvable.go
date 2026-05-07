@@ -135,15 +135,11 @@ func (r *Resolvable) Reset() {
 	r.authorizationError = nil
 	r.astjsonArena = nil
 	r.xxh.Reset()
-	for k := range r.authorizationAllow {
-		delete(r.authorizationAllow, k)
-	}
-	for k := range r.authorizationDeny {
-		delete(r.authorizationDeny, k)
-	}
-	for k := range r.actualListSizes {
-		delete(r.actualListSizes, k)
-	}
+	r.allowedExtensions = nil
+	clear(r.subgraphExtensions)
+	clear(r.authorizationAllow)
+	clear(r.authorizationDeny)
+	clear(r.actualListSizes)
 }
 
 func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.OperationType) (err error) {
