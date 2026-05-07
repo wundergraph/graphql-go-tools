@@ -653,6 +653,9 @@ type Query {
   # Test container queries (testing field resolvers with interface and union returns)
   testContainer(id: ID!): TestContainer!
   testContainers: [TestContainer!]!
+
+  # Recursive input type query (testing stack overflow prevention)
+  conditionalSearch(conditions: ConditionsInput!): [ConditionalSearchResult!]!
 }
 
 input UserInput {
@@ -684,6 +687,19 @@ type Mutation {
   # Bulk operations for blog posts
   bulkCreateBlogPosts(blogPosts: [BlogPostInput!]): [BlogPost!]!
   bulkUpdateBlogPosts(blogPosts: [BlogPostInput!]): [BlogPost!]!
+}
+
+input ConditionsInput {
+  and: [ConditionsInput!]
+  or: [ConditionsInput!]
+  key: String
+  value: String
+}
+
+type ConditionalSearchResult {
+  id: ID!
+  name: String!
+  matchedConditions: Int!
 }
 
 union _Entity = Product | Storage | Warehouse

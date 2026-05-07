@@ -538,6 +538,12 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 
 	// Check if data needs processing.
 	if res.postProcessing.SelectResponseDataPath != nil && astjson.ValueIsNull(responseData) {
+		// First check if this is actually an entity null fetch, instead of a data null fetch.
+		// In this case we return early to avoid adding subgraph errors or merging this into items.
+		if isEmptyEntityFetch(fetchItem, response) {
+			return nil
+		}
+
 		// When:
 		// - No errors or data are present
 		// - Status code is not within the 2XX range
@@ -631,6 +637,21 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		}
 	}
 	return nil
+}
+
+// isEmptyEntityFetch returns true if fetchItem resembles an sucessful entity fetch
+// where no entity has been returned, else false.
+func isEmptyEntityFetch(fetchItem *FetchItem, response *astjson.Value) bool {
+	kind := fetchItem.Fetch.FetchKind()
+
+	if kind == FetchKindEntity || kind == FetchKindEntityBatch {
+		entitiesData := response.Get("data", "_entities")
+		if astjson.ValueIsNonNull(entitiesData) && entitiesData.Type() == astjson.TypeArray {
+			return true
+		}
+	}
+
+	return false
 }
 
 var (

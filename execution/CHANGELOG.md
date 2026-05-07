@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.13.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.12.0...execution/v1.13.0) (2026-04-30)
+
+
+### Features
+
+* subscriptions overhaul ([#1374](https://github.com/wundergraph/graphql-go-tools/issues/1374)) ([6c0ac71](https://github.com/wundergraph/graphql-go-tools/commit/6c0ac71e071abf06fdf618d45d100769f0017acd))
+
+## [1.12.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.11.0...execution/v1.12.0) (2026-04-28)
+
+
+### Features
+
+* support costs on arguments of directives ([#1465](https://github.com/wundergraph/graphql-go-tools/issues/1465)) ([2eca1ab](https://github.com/wundergraph/graphql-go-tools/commit/2eca1ab9932395d9b3181d28e8e6c2c03818f68b))
+
 ## [1.11.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.10.0...execution/v1.11.0) (2026-04-08)
 
 

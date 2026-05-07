@@ -37,9 +37,10 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupWarehouseById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupWarehouseById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Warehouse",
 						Request: RPCMessage{
 							Name: "LookupWarehouseByIdRequest",
 							Fields: []RPCField{
@@ -204,9 +205,10 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupStorageById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupStorageById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Storage",
 						Request: RPCMessage{
 							Name: "LookupStorageByIdRequest",
 							Fields: []RPCField{
@@ -352,9 +354,10 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupStorageById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupStorageById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Storage",
 						Request: RPCMessage{
 							Name: "LookupStorageByIdRequest",
 							Fields: []RPCField{
@@ -501,9 +504,10 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupStorageById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupStorageById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Storage",
 						Request: RPCMessage{
 							Name: "LookupStorageByIdRequest",
 							Fields: []RPCField{
@@ -658,9 +662,10 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupStorageById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupStorageById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Storage",
 						Request: RPCMessage{
 							Name: "LookupStorageByIdRequest",
 							Fields: []RPCField{
@@ -840,9 +845,10 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupStorageById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupStorageById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Storage",
 						Request: RPCMessage{
 							Name: "LookupStorageByIdRequest",
 							Fields: []RPCField{
@@ -1013,9 +1019,10 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupStorageById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupStorageById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Storage",
 						Request: RPCMessage{
 							Name: "LookupStorageByIdRequest",
 							Fields: []RPCField{
@@ -1162,9 +1169,10 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupStorageById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupStorageById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Storage",
 						Request: RPCMessage{
 							Name: "LookupStorageByIdRequest",
 							Fields: []RPCField{
@@ -1398,9 +1406,10 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupStorageById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupStorageById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Storage",
 						Request: RPCMessage{
 							Name: "LookupStorageByIdRequest",
 							Fields: []RPCField{
@@ -1546,9 +1555,10 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupStorageById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupStorageById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Storage",
 						Request: RPCMessage{
 							Name: "LookupStorageByIdRequest",
 							Fields: []RPCField{
@@ -1709,9 +1719,10 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupStorageById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupStorageById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Storage",
 						Request: RPCMessage{
 							Name: "LookupStorageByIdRequest",
 							Fields: []RPCField{
@@ -1878,9 +1889,10 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupStorageById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupStorageById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Storage",
 						Request: RPCMessage{
 							Name: "LookupStorageByIdRequest",
 							Fields: []RPCField{
@@ -2042,9 +2054,10 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupStorageById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupStorageById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Storage",
 						Request: RPCMessage{
 							Name: "LookupStorageByIdRequest",
 							Fields: []RPCField{
@@ -2224,9 +2237,10 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 	// storageEntityLookupCall returns the common entity lookup call shared by all tests
 	storageEntityLookupCall := func() RPCCall {
 		return RPCCall{
-			ServiceName: "Products",
-			MethodName:  "LookupStorageById",
-			Kind:        CallKindEntity,
+			ServiceName:         "Products",
+			MethodName:          "LookupStorageById",
+			Kind:                CallKindEntity,
+			RequestedEntityType: "Storage",
 			Request: RPCMessage{
 				Name: "LookupStorageByIdRequest",
 				Fields: []RPCField{
@@ -3165,9 +3179,10 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupStorageById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupStorageById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Storage",
 						Request: RPCMessage{
 							Name: "LookupStorageByIdRequest",
 							Fields: []RPCField{
@@ -3399,9 +3414,10 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupStorageById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupStorageById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Storage",
 						Request: RPCMessage{
 							Name: "LookupStorageByIdRequest",
 							Fields: []RPCField{
@@ -3655,9 +3671,10 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupStorageById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupStorageById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Storage",
 						Request: RPCMessage{
 							Name: "LookupStorageByIdRequest",
 							Fields: []RPCField{
@@ -3908,9 +3925,10 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupStorageById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupStorageById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Storage",
 						Request: RPCMessage{
 							Name: "LookupStorageByIdRequest",
 							Fields: []RPCField{
@@ -4230,9 +4248,10 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupStorageById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupStorageById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Storage",
 						Request: RPCMessage{
 							Name: "LookupStorageByIdRequest",
 							Fields: []RPCField{

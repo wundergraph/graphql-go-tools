@@ -1,0 +1,168 @@
+package protocol
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
+)
+
+// graphqlTransportWS implements the graphql-transport-ws protocol.
+// See: https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md
+type graphqlTransportWS struct{}
+
+const (
+	gtwsTypeConnectionInit = "connection_init"
+	gtwsTypeConnectionAck  = "connection_ack"
+	gtwsTypePing           = "ping"
+	gtwsTypePong           = "pong"
+	gtwsTypeSubscribe      = "subscribe"
+	gtwsTypeNext           = "next"
+	gtwsTypeError          = "error"
+	gtwsTypeComplete       = "complete"
+)
+
+type outgoingMessage struct {
+	ID      string `json:"id,omitempty"`
+	Type    string `json:"type"`
+	Payload any    `json:"payload,omitempty"`
+}
+
+type incomingMessage struct {
+	ID      string          `json:"id,omitempty"`
+	Type    string          `json:"type"`
+	Payload json.RawMessage `json:"payload,omitempty"`
+}
+
+func NewGraphQLTransportWS() *graphqlTransportWS {
+	return &graphqlTransportWS{}
+}
+
+// Init implements Protocol.
+func (p *graphqlTransportWS) Init(ctx context.Context, conn *websocket.Conn, payload map[string]any) error {
+	initMsg := outgoingMessage{
+		Type: gtwsTypeConnectionInit,
+	}
+	if payload != nil {
+		initMsg.Payload = payload
+	}
+	if err := wsjson.Write(ctx, conn, initMsg); err != nil {
+		return fmt.Errorf("write connection_init: %w", err)
+	}
+
+	for {
+		var ackMessage incomingMessage
+		if err := wsjson.Read(ctx, conn, &ackMessage); err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return ErrAckTimeout
+			}
+			return fmt.Errorf("read connection_ack: %w", err)
+		}
+
+		switch ackMessage.Type {
+		case gtwsTypeConnectionAck:
+			return nil
+		case gtwsTypePing:
+			if err := p.Pong(ctx, conn); err != nil {
+				return fmt.Errorf("pre-init pong: %w", err)
+			}
+			continue
+		case gtwsTypePong:
+			continue
+		default:
+			return fmt.Errorf("%w: got %q", ErrAckNotReceived, ackMessage.Type)
+		}
+	}
+}
+
+// Ping implements Pinger.
+func (p *graphqlTransportWS) Ping(ctx context.Context, conn *websocket.Conn) error {
+	msg := outgoingMessage{
+		Type: gtwsTypePing,
+	}
+	return wsjson.Write(ctx, conn, msg)
+}
+
+// Pong implements Pinger.
+func (p *graphqlTransportWS) Pong(ctx context.Context, conn *websocket.Conn) error {
+	msg := outgoingMessage{
+		Type: gtwsTypePong,
+	}
+	return wsjson.Write(ctx, conn, msg)
+}
+
+// Read implements Protocol.
+func (p *graphqlTransportWS) Read(ctx context.Context, conn *websocket.Conn) (*WireMessage, error) {
+	var raw incomingMessage
+	if err := wsjson.Read(ctx, conn, &raw); err != nil {
+		return nil, fmt.Errorf("read message: %w", err)
+	}
+
+	return p.decode(raw)
+}
+
+// Subscribe implements Protocol.
+func (p *graphqlTransportWS) Subscribe(ctx context.Context, conn *websocket.Conn, id string, req *common.Request) error {
+	msg := outgoingMessage{
+		ID:      id,
+		Type:    gtwsTypeSubscribe,
+		Payload: req,
+	}
+	return wsjson.Write(ctx, conn, msg)
+}
+
+// Unsubscribe implements Protocol.
+func (p *graphqlTransportWS) Unsubscribe(ctx context.Context, conn *websocket.Conn, id string) error {
+	msg := outgoingMessage{
+		ID:   id,
+		Type: gtwsTypeComplete,
+	}
+	return wsjson.Write(ctx, conn, msg)
+}
+
+func (p *graphqlTransportWS) decode(raw incomingMessage) (*WireMessage, error) {
+	msg := &WireMessage{
+		ID: raw.ID,
+	}
+
+	switch raw.Type {
+	case gtwsTypeNext:
+		msg.Type = MessageData
+		if raw.Payload != nil {
+			var resp common.ExecutionResult
+			if err := json.Unmarshal(raw.Payload, &resp); err != nil {
+				return nil, fmt.Errorf("unmarshal next payload: %w", err)
+			}
+			msg.Payload = &resp
+		}
+	case gtwsTypeError:
+		msg.Type = MessageError
+		if raw.Payload != nil {
+			msg.Payload = &common.ExecutionResult{Errors: raw.Payload}
+		}
+
+	case gtwsTypeComplete:
+		msg.Type = MessageComplete
+
+	case gtwsTypePing:
+		msg.Type = MessagePing
+
+	case gtwsTypePong:
+		msg.Type = MessagePong
+
+	default:
+		return nil, fmt.Errorf("unknown message type: %s", raw.Type)
+	}
+
+	return msg, nil
+}
+
+var (
+	_ Protocol = (*graphqlTransportWS)(nil)
+	_ Pinger   = (*graphqlTransportWS)(nil)
+)

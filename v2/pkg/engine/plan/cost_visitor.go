@@ -101,7 +101,7 @@ func (v *CostVisitor) EnterField(fieldRef int) {
 	}
 
 	isEnclosingTypeAbstract := v.Walker.EnclosingTypeDefinition.Kind.IsAbstractType()
-	// Create a skeleton node. dataSourceHashes will be filled in leaveFieldCost
+	// Partially filled node. dataSourceHashes will be filled in leaveFieldCost
 	node := CostTreeNode{
 		fieldRef:                fieldRef,
 		fieldCoords:             FieldCoordinate{typeName, fieldName},
@@ -115,7 +115,7 @@ func (v *CostVisitor) EnterField(fieldRef int) {
 		jsonPath:                jsonPath,
 	}
 
-	// Attach to parent
+	// Attach to the parent
 	if len(v.stack) > 0 {
 		parent := v.stack[len(v.stack)-1]
 		parent.children = append(parent.children, &node)
