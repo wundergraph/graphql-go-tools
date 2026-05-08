@@ -317,7 +317,7 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 			}
 
 			// Create the datasource
-			ds, err := NewDataSource(conn, DataSourceConfig{
+			ds, err := NewDataSourceGRPC(conn, DataSourceConfig{
 				Operation:         &queryDoc,
 				Definition:        &schemaDoc,
 				SubgraphName:      "Products",
@@ -617,7 +617,7 @@ func Test_DataSource_Load_WithEntity_Calls_WithCompositeTypes(t *testing.T) {
 			}
 
 			// Create the datasource
-			ds, err := NewDataSource(conn, DataSourceConfig{
+			ds, err := NewDataSourceGRPC(conn, DataSourceConfig{
 				Operation:         &queryDoc,
 				Definition:        &schemaDoc,
 				SubgraphName:      "Products",
@@ -1406,7 +1406,7 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires(t *testing.T) {
 			}
 
 			// Create the datasource
-			ds, err := NewDataSource(conn, DataSourceConfig{
+			ds, err := NewDataSourceGRPC(conn, DataSourceConfig{
 				Operation:         &queryDoc,
 				Definition:        &schemaDoc,
 				SubgraphName:      "Products",
@@ -1821,7 +1821,7 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_And_FieldResolvers(t *te
 			}
 
 			// Create the datasource
-			ds, err := NewDataSource(conn, DataSourceConfig{
+			ds, err := NewDataSourceGRPC(conn, DataSourceConfig{
 				Operation:         &queryDoc,
 				Definition:        &schemaDoc,
 				SubgraphName:      "Products",
@@ -1965,7 +1965,7 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_AbstractTypes(t *testing
 			}
 
 			// Create the datasource
-			ds, err := NewDataSource(conn, DataSourceConfig{
+			ds, err := NewDataSourceGRPC(conn, DataSourceConfig{
 				Operation:         &queryDoc,
 				Definition:        &schemaDoc,
 				SubgraphName:      "Products",
