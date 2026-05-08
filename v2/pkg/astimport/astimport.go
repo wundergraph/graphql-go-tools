@@ -162,6 +162,7 @@ func (i *Importer) ImportArguments(refs []int, from, to *ast.Document) []int {
 func (i *Importer) ImportVariableDefinition(ref int, from, to *ast.Document) int {
 
 	variableDefinition := ast.VariableDefinition{
+		Description:   i.ImportDescription(from.VariableDefinitions[ref].Description, from, to),
 		VariableValue: i.ImportValue(from.VariableDefinitions[ref].VariableValue, from, to),
 		Type:          i.ImportType(from.VariableDefinitions[ref].Type, from, to),
 		DefaultValue: ast.DefaultValue{
@@ -182,6 +183,7 @@ func (i *Importer) ImportVariableDefinition(ref int, from, to *ast.Document) int
 func (i *Importer) ImportVariableDefinitionWithRename(ref int, from, to *ast.Document, renameTo string) int {
 
 	variableDefinition := ast.VariableDefinition{
+		Description:   i.ImportDescription(from.VariableDefinitions[ref].Description, from, to),
 		VariableValue: i.ImportValue(from.VariableDefinitions[ref].VariableValue, from, to),
 		Type:          i.ImportTypeWithRename(from.VariableDefinitions[ref].Type, from, to, renameTo),
 		DefaultValue: ast.DefaultValue{
@@ -197,6 +199,25 @@ func (i *Importer) ImportVariableDefinitionWithRename(ref int, from, to *ast.Doc
 
 	to.VariableDefinitions = append(to.VariableDefinitions, variableDefinition)
 	return len(to.VariableDefinitions) - 1
+}
+
+// ImportDescription copies a description from one document into another while
+// preserving the original byte content, the block-string flag, and whether the
+// description was defined. It does not go through Document.ImportDescription
+// because that helper takes a plain string and guesses the block-string flag
+// from the text, which would silently change a single-line block string like
+// """foo""" into a regular "foo" on its way across.
+func (i *Importer) ImportDescription(description ast.Description, from, to *ast.Document) ast.Description {
+	if !description.IsDefined {
+		return ast.Description{}
+	}
+	contentBytes := from.Input.ByteSlice(description.Content)
+	return ast.Description{
+		IsDefined:     true,
+		IsBlockString: description.IsBlockString,
+		Content:       to.Input.AppendInputBytes(contentBytes),
+		Position:      description.Position,
+	}
 }
 
 func (i *Importer) ImportVariableDefinitions(refs []int, from, to *ast.Document) []int {
