@@ -178,6 +178,8 @@ type Loader struct {
 	mergeMu     sync.Mutex
 	useMergeMu  bool
 
+	erroredFetchIDs map[int]struct{}
+
 	// jsonArena is the arena for JSON allocation, supplied by the Resolver.
 	// Not thread safe — only use from the main goroutine.
 	// Don't Reset or Release; the Resolver handles this.
@@ -199,6 +201,7 @@ func (l *Loader) Free() {
 	l.ctx = nil
 	l.resolvable = nil
 	l.taintedObjs = nil
+	l.erroredFetchIDs = nil
 	l.useMergeMu = false
 }
 
@@ -207,6 +210,7 @@ func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse
 	l.ctx = ctx
 	l.info = response.Info
 	l.taintedObjs = make(taintedObjects)
+	l.erroredFetchIDs = nil
 	l.useMergeMu = fetchTreeHasNestedParallel(response.Fetches)
 	return l.resolveFetchNode(response.Fetches)
 }
@@ -352,6 +356,10 @@ func (l *Loader) preparePhase(item *FetchItem) (*preparedFetch, error) {
 	unlock := l.maybeLock()
 	defer unlock()
 
+	if l.shouldSkipErroredDependencyLocked(item) {
+		return nil, nil
+	}
+
 	items := l.selectItemsForPath(item.FetchPath)
 	res := &result{}
 	prepared := &preparedFetch{
@@ -380,6 +388,9 @@ func (l *Loader) loadPhase(ctx context.Context, prepared *preparedFetch) error {
 		return nil
 	}
 	l.executeSourceLoad(ctx, prepared.item, prepared.source, prepared.input, prepared.res, prepared.trace)
+	if prepared.res.err != nil {
+		l.recordErroredFetchID(prepared.item)
+	}
 	return nil
 }
 
@@ -658,6 +669,44 @@ func (l *Loader) maybeLock() func() {
 	}
 	l.mergeMu.Lock()
 	return l.mergeMu.Unlock
+}
+
+func (l *Loader) shouldSkipErroredDependencyLocked(item *FetchItem) bool {
+	if item == nil || item.Fetch == nil || len(l.erroredFetchIDs) == 0 {
+		return false
+	}
+	dependencies := item.Fetch.Dependencies()
+	if dependencies == nil {
+		return false
+	}
+	for _, dependencyID := range dependencies.DependsOnFetchIDs {
+		if _, ok := l.erroredFetchIDs[dependencyID]; ok {
+			l.recordErroredFetchIDLocked(item)
+			return true
+		}
+	}
+	return false
+}
+
+func (l *Loader) recordErroredFetchID(item *FetchItem) {
+	unlock := l.maybeLock()
+	defer unlock()
+
+	l.recordErroredFetchIDLocked(item)
+}
+
+func (l *Loader) recordErroredFetchIDLocked(item *FetchItem) {
+	if item == nil || item.Fetch == nil {
+		return
+	}
+	dependencies := item.Fetch.Dependencies()
+	if dependencies == nil {
+		return
+	}
+	if l.erroredFetchIDs == nil {
+		l.erroredFetchIDs = make(map[int]struct{})
+	}
+	l.erroredFetchIDs[dependencies.FetchID] = struct{}{}
 }
 
 func allChildrenAreSingle(nodes []*FetchTreeNode) bool {
