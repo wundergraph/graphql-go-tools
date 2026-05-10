@@ -177,21 +177,338 @@ Closing this gap requires runtime statistics or a richer execution model.
 
 ## Worked Examples
 
-For the baseline `user -> practice` plus independent `organisation`, both schedulers produce `Parallel(Sequence(user, practice), organisation)`.
-SP trivially dominates Level because the trees are identical.
+Each example below shows the same five pieces:
+the dependency graph drawn in ASCII,
+the two candidate trees produced by `scheduleSP` and `scheduleLevel`,
+the root-to-leaf path sets used by the dominance check,
+the dominance verdict and which tree the hybrid returns,
+and a numerical makespan comparison under at least one skewed duration vector that explains why the choice matters at runtime.
 
-For two chains joining at a final fetch, `A -> C`, `B -> D`, `C -> E`, and `D -> E`, SP produces `Sequence(Parallel(Sequence(A, C), Sequence(B, D)), E)`.
-Level produces `Sequence(Parallel(A, B), Parallel(C, D), E)`.
-Every SP path is contained in a Level path, so SP dominates and the hybrid picks SP.
+### Example 1 — the baseline (independent components)
 
-For the asymmetric leaf-side-branch shape `A -> B`, `A -> C`, `B -> D`, `C -> D`, and `C -> E`, SP does not dominate Level.
-The SP tree has a path that includes `A`, `C`, `E`, and `D`.
-No Level path contains that whole set.
-The hybrid falls back to Level.
+Federation pattern: a query selects `me { firstName lastName currentPractice { id } }` plus `organisations(...)`.
+`me` lives in the user subgraph.
+`currentPractice` is an entity hop into a third subgraph that depends on `me.id`.
+`organisations` is in a fourth subgraph that has nothing to do with the user.
 
-For the codex counterexample `A -> D`, `A -> E`, `B -> C`, `B -> E`, and `C -> D`, the two trees are incomparable.
-SP wins under some duration vectors and Level wins under others.
-The hybrid falls back to Level because SP does not dominate.
+DAG:
+
+```
+user ───▶ practice
+organisation         (no edges)
+```
+
+Candidate trees:
+
+```
+scheduleSP    : Parallel(Sequence(user, practice), organisation)
+scheduleLevel : Parallel(Sequence(user, practice), organisation)
+```
+
+Both schedulers see two weakly connected components — `{user, practice}` and `{organisation}` — and emit a `Parallel` over the components.
+The trees are identical.
+
+Path sets:
+
+```
+SP    paths : {user, practice}, {organisation}
+Level paths : {user, practice}, {organisation}
+```
+
+Every SP path is contained in some Level path (each path is contained in itself).
+`dominates(SP, Level)` returns `true`.
+The hybrid returns `scheduleSP`, which is the same shape as `scheduleLevel` here.
+
+Makespan with `user = 100ms`, `practice = 50ms`, `organisation = 200ms`:
+
+```
+runtime makespan = max(100 + 50, 200) = 200ms
+old plan makespan = max(100, 200) + 50 = 250ms
+```
+
+Why this matters: the legacy postprocessor would have emitted `Sequence(Parallel(user, organisation), practice)` and forced `practice` to wait for `organisation` even though `practice` does not need `organisation`'s data.
+The new scheduler reads the dependency graph instead of the topological levels and lets the unrelated branches run end-to-end in parallel.
+
+### Example 2 — two chains joining at a third subgraph (SP dominates)
+
+Federation pattern: two independent entity chains feed a third subgraph.
+For instance, `User → Address` and `Order → Discount` both contribute fields that a downstream `Recommendation` resolver needs.
+
+DAG:
+
+```
+A ────▶ C ─┐
+           ├─▶ E
+B ────▶ D ─┘
+```
+
+Edges: `A→C`, `B→D`, `C→E`, `D→E`.
+
+Candidate trees:
+
+```
+scheduleSP    : Sequence(
+                  Parallel(
+                    Sequence(A, C),
+                    Sequence(B, D)
+                  ),
+                  E
+                )
+
+scheduleLevel : Sequence(
+                  Parallel(A, B),
+                  Parallel(C, D),
+                  E
+                )
+```
+
+`scheduleSP` recognises that `A → C` and `B → D` are independent chains that meet at `E`.
+It runs each chain end-to-end in its own parallel branch.
+`scheduleLevel` strips the topological layers — first `{A, B}`, then `{C, D}`, then `E` — and synchronises every layer.
+
+Path sets:
+
+```
+SP    paths : {A, C, E}, {B, D, E}
+Level paths : {A, C, E}, {A, D, E}, {B, C, E}, {B, D, E}
+```
+
+Every SP path appears in the Level set as well.
+`dominates(SP, Level)` returns `true`.
+The hybrid returns the SP tree.
+
+Why dominance is the right rule here: under uniform durations both trees finish in the same time (three "ticks"), but their behaviour diverges as soon as the chain durations become skewed.
+With `A = 1ms`, `B = 100ms`, `C = 100ms`, `D = 1ms`, and `E = 10ms`:
+
+```
+SP makespan    : max(A+C, B+D) + E = max(101, 101) + 10 = 111ms
+Level makespan : max(A, B) + max(C, D) + E = 100 + 100 + 10 = 210ms
+```
+
+The SP tree carries the long `A → C` arm and the long `B → D` arm in parallel.
+The Level tree synchronises at every layer and ends up paying the maximum of each layer twice — once for the slow root and once for the slow middle node.
+The dominance check guaranteed at plan time that this was safe, so the hybrid picked the win.
+
+### Example 3 — asymmetric chain merge with a leaf side-branch (Level wins, SP regresses)
+
+Federation pattern: a root entity `A` has a chain branch `A → B → D` and a sibling branch `A → C` where `C` both feeds the join `D` and produces an extra leaf `E`.
+
+DAG:
+
+```
+        ┌───▶ B ───┐
+        │          ├─▶ D
+A ──────┼───▶ C ───┘
+        │
+        └───▶ C ─▶ E      (same C, drawn twice for clarity)
+```
+
+Edges: `A→B`, `A→C`, `B→D`, `C→D`, `C→E`.
+
+Candidate trees:
+
+```
+scheduleSP    : Sequence(
+                  A,
+                  Parallel(
+                    B,
+                    Sequence(C, E)
+                  ),
+                  D
+                )
+
+scheduleLevel : Sequence(
+                  A,
+                  Parallel(B, C),
+                  Parallel(D, E)
+                )
+```
+
+`scheduleSP` eagerly inlines `C → E` into `C`'s branch.
+That binds `E` to the parallel block, which means `D` cannot start until both `B` and `C → E` have finished.
+`scheduleLevel` keeps `D` and `E` at the same topological level after `{B, C}` and lets them run in parallel.
+
+Path sets:
+
+```
+SP    paths : {A, B, D}, {A, C, E, D}
+Level paths : {A, B, D}, {A, B, E}, {A, C, D}, {A, C, E}
+```
+
+The SP path `{A, C, E, D}` has four nodes.
+Every Level path has exactly three.
+There is no Level path that contains all four SP nodes.
+`dominates(SP, Level)` returns `false`.
+
+The dominance-only driver therefore returns `scheduleLevel`.
+
+Makespan under uniform durations, weight `1` for every node:
+
+```
+SP makespan    : 1 + max(1, 2) + 1 = 4 ticks
+Level makespan : 1 + max(1, 1) + max(1, 1) = 3 ticks
+```
+
+The hybrid avoided a one-tick regression on uniform durations.
+Under skewed durations the SP tree can lose by even more, because the chain `C → E` keeps growing while `D` sits idle behind it.
+
+This is the canonical motivation for the dominance check: `scheduleSP` is not always better.
+Picking it on a "uniform-tie" or "smaller uniform makespan" rule would silently regress this class of plans.
+The path-set test catches the regression at plan time.
+
+### Example 4 — independent leaf alongside a chain (component-awareness)
+
+Federation pattern: a root `A` produces three children — two of them (`B` and `C`) form a chain that joins inside `C`, the third (`D`) is an unrelated leaf hanging off `A`.
+
+DAG:
+
+```
+        ┌──▶ B ──▶ C
+A ──────┼──▶ C   (multi-parent join via B)
+        │
+        └──▶ D
+```
+
+Edges: `A→B`, `A→C`, `A→D`, `B→C`.
+
+Candidate trees:
+
+```
+scheduleSP    : Sequence(
+                  A,
+                  Parallel(B, D),
+                  C
+                )
+
+scheduleLevel : Sequence(
+                  A,
+                  Parallel(
+                    Sequence(B, C),
+                    D
+                  )
+                )
+```
+
+`scheduleSP` batches everything ready after `A` into a single parallel block (`B` and `D`), then runs `C` once `B` is done.
+`scheduleLevel` notices that after stripping `A`, the rest of the DAG splits into two components — `{B, C}` and `{D}` — and runs each as its own parallel arm.
+
+Path sets:
+
+```
+SP    paths : {A, B, C}, {A, D, C}
+Level paths : {A, B, C}, {A, D}
+```
+
+The SP path `{A, D, C}` is not contained in any Level path.
+Level has `{A, D}` (no `C`) and `{A, B, C}` (no `D`).
+`dominates(SP, Level)` returns `false`.
+
+The hybrid returns `scheduleLevel`.
+
+Why this matters under skew: with `A = 1ms`, `B = 1ms`, `C = 100ms`, `D = 50ms`,
+
+```
+SP makespan    : 1 + max(1, 50) + 100 = 151ms
+Level makespan : 1 + max(1 + 100, 50) = 102ms
+```
+
+The SP tree drags `C` behind whichever parallel sibling is slowest, so a slow but unrelated `D` blocks the join.
+The Level tree sees that `D` does not feed `C` and lets the `B → C` chain run end-to-end alongside `D`.
+
+This case was discovered during plan review.
+It is the reason `scheduleSP` does its own weakly-connected-component pass at every recursion level — without that step, `scheduleSP` would have produced `Sequence(Parallel(A, B, D), C)` and lost even more time.
+With the component pass, `scheduleSP` produces the shape above, which still loses to `scheduleLevel`, and the dominance check correctly falls back.
+
+### Example 5 — incomparable trees (residual gap)
+
+Federation pattern: a non-series-parallel DAG.
+There is no `Sequence`/`Parallel` tree that is universally optimal; the best choice depends on the actual durations.
+
+DAG:
+
+```
+        ┌──▶ D
+A ──────┤
+        └──▶ E ◀──┐
+                  │
+B ─▶ C ─▶ D       │  (E has parents A and B; D has parents A and C)
+        └────▶ E ─┘
+```
+
+Edges: `A→D`, `A→E`, `B→C`, `B→E`, `C→D`.
+
+Candidate trees:
+
+```
+scheduleSP    : Sequence(
+                  Parallel(A, Sequence(B, C)),
+                  Parallel(D, E)
+                )
+
+scheduleLevel : Sequence(
+                  Parallel(A, B),
+                  Parallel(
+                    Sequence(C, D),
+                    E
+                  )
+                )
+```
+
+Path sets:
+
+```
+SP    paths : {A, D}, {A, E}, {B, C, D}, {B, C, E}
+Level paths : {A, C, D}, {A, E}, {B, C, D}, {B, E}
+```
+
+SP dominance check:
+the SP path `{B, C, E}` is not contained in any Level path (Level has `{B, C, D}` without `E` and `{B, E}` without `C`).
+`dominates(SP, Level)` returns `false`.
+
+Level dominance is also false (the dominance-only driver does not check this, but for the analysis the symmetric case fails too:
+Level path `{A, C, D}` is not contained in any SP path).
+
+Neither tree dominates.
+The hybrid returns `scheduleLevel`.
+
+Why "incomparable" is real and not an artefact of the algorithm:
+under one duration vector SP is faster, under another Level is faster.
+Concrete example with `A=25, B=227, C=647, D=3, E=5`:
+
+```
+SP makespan    : max(A, B+C) + max(D, E) = max(25, 874) + max(3, 5) = 874 + 5 = 879ms
+Level makespan : max(A, B) + max(C+D, E) = max(25, 227) + max(650, 5) = 227 + 650 = 877ms
+```
+
+Level is slightly better.
+
+But under `A=100, B=1, C=1, D=1, E=1`:
+
+```
+SP makespan    : max(100, 2) + max(1, 1) = 100 + 1 = 101ms
+Level makespan : max(100, 1) + max(1+1, 1) = 100 + 2 = 102ms
+```
+
+SP is slightly better.
+
+The dominance theorem proves that no single SP tree on this DAG is universally optimal, so at plan time we have no way to choose correctly without runtime statistics.
+The hybrid takes the conservative option — `scheduleLevel`, the same shape today's algorithm would produce — and accepts that some duration distributions leave a small win on the table.
+This is the "incomparable trees" residual documented in Gap B above.
+
+### Reading the decision table
+
+The four examples cover the four interesting outcomes:
+
+```
+Example 1 : trees identical                                  → hybrid returns SP (same shape)
+Example 2 : SP path-set-dominates Level                      → hybrid returns SP (skew win)
+Example 3 : SP does not dominate, Level wins on uniform too  → hybrid returns Level (regression caught)
+Example 4 : SP does not dominate, regression only under skew → hybrid returns Level (regression caught)
+Example 5 : incomparable, neither tree universally better    → hybrid returns Level (conservative)
+```
+
+Production federation queries are dominated by Example 1 and Example 2 patterns — a single chain plus an unrelated subgraph, or two chains joining at a downstream entity.
+Examples 3, 4, and 5 are uncommon but real, and the dominance check guarantees the hybrid never regresses against the legacy level-based shape on any of them.
 
 ## References
 
