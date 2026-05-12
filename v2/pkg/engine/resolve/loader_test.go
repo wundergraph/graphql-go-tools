@@ -2228,8 +2228,8 @@ func TestLoader_AllowCustomExtensionProperties(t *testing.T) {
 	})
 
 	t.Run("captures extensions when data is null even with errors present", func(t *testing.T) {
-		// When SelectResponseDataPath resolves to null, the loader returns before
-		// the extensions branch, so the extension is intentionally not captured.
+		// Extensions are read before the SelectResponseDataPath null check, so a
+		// null `data` with errors still yields a captured extension.
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 		ds := mockedDS(t, ctrl, `{}`,
