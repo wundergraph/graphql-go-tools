@@ -501,6 +501,14 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponse)
 	}
 
+	if l.allowCustomExtensionProperties {
+		extensions := response.Get("extensions")
+
+		if astjson.ValueIsNonNull(extensions) && extensions.Type() == astjson.TypeObject {
+			l.resolvable.subgraphExtensions = append(l.resolvable.subgraphExtensions, extensions.GetObject())
+		}
+	}
+
 	var responseData *astjson.Value
 	if res.postProcessing.SelectResponseDataPath != nil {
 		responseData = response.Get(res.postProcessing.SelectResponseDataPath...)
@@ -568,14 +576,6 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 
 		// no data
 		return nil
-	}
-
-	if l.allowCustomExtensionProperties {
-		extensions := response.Get("extensions")
-
-		if astjson.ValueIsNonNull(extensions) && extensions.Type() == astjson.TypeObject {
-			l.resolvable.subgraphExtensions = append(l.resolvable.subgraphExtensions, extensions.GetObject())
-		}
 	}
 
 	if len(items) == 0 {

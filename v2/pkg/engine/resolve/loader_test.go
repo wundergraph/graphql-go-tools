@@ -2227,7 +2227,7 @@ func TestLoader_AllowCustomExtensionProperties(t *testing.T) {
 		}
 	})
 
-	t.Run("skips fetches whose data is null even with extensions present", func(t *testing.T) {
+	t.Run("captures extensions when data is null even with errors present", func(t *testing.T) {
 		// When SelectResponseDataPath resolves to null, the loader returns before
 		// the extensions branch, so the extension is intentionally not captured.
 		ctrl := gomock.NewController(t)
@@ -2236,7 +2236,8 @@ func TestLoader_AllowCustomExtensionProperties(t *testing.T) {
 			`{"data":null,"errors":[{"message":"boom"}],"extensions":{"foo":"bar"}}`)
 
 		ext := runFetches(t, true, buildSingleFetch(ds), singleNameDataObject)
-		assert.Empty(t, ext)
+		assert.Len(t, ext, 1)
+		assert.JSONEq(t, `{"foo":"bar"}`, string(ext[0].MarshalTo(nil)))
 	})
 
 	t.Run("captures duplicate extension keys across a nested sequence/parallel fetch tree", func(t *testing.T) {

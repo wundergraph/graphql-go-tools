@@ -5,6 +5,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/wundergraph/astjson"
@@ -1448,6 +1449,53 @@ func TestResolvable_SubgraphExtensions(t *testing.T) {
 		return out.String()
 	}
 
+	// runResolveWithSubgraphResponse drives the full loader → resolvable path so
+	// the test exercises the same code that runs in production when a subgraph
+	// returns an error response.
+	runResolveWithSubgraphResponse := func(t *testing.T, opts ResolvableOptions, response string) string {
+		t.Helper()
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		ds := mockedDS(t, ctrl, "{}", response)
+
+		fetchTree := Single(&SingleFetch{
+			InputTemplate: InputTemplate{
+				Segments: []TemplateSegment{
+					{Data: []byte(`{}`), SegmentType: StaticSegmentType},
+				},
+			},
+			FetchConfiguration: FetchConfiguration{
+				DataSource: ds,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
+				},
+			},
+		})
+
+		ctx := NewContext(context.Background())
+		resolvable := NewResolvable(nil, opts)
+		loader := &Loader{
+			allowCustomExtensionProperties: true,
+			subgraphErrorPropagationMode:   SubgraphErrorPropagationModePassThrough,
+			allowedSubgraphErrorFields:     map[string]struct{}{"message": {}},
+		}
+		err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+		assert.NoError(t, err)
+
+		err = loader.LoadGraphQLResponseData(ctx, &GraphQLResponse{
+			Fetches: fetchTree,
+			Data:    helloObject,
+		}, resolvable)
+		assert.NoError(t, err)
+
+		out := &bytes.Buffer{}
+		err = resolvable.Resolve(ctx.ctx, helloObject, fetchTree, out)
+		assert.NoError(t, err)
+		return out.String()
+	}
+
 	t.Run("no subgraph extensions - extensions field omitted", func(t *testing.T) {
 		out := runResolve(t, ResolvableOptions{})
 		assert.Equal(t, `{"data":{"hello":"world"}}`, out)
@@ -1552,6 +1600,14 @@ func TestResolvable_SubgraphExtensions(t *testing.T) {
 		assert.NotContains(t, s, `"trace":"replacement"`)
 		// non-conflicting subgraph key is forwarded
 		assert.Contains(t, s, `"other":"value"`)
+	})
+
+	t.Run("captures extensions when subgraph response carries errors and null data", func(t *testing.T) {
+		out := runResolveWithSubgraphResponse(t, ResolvableOptions{},
+			`{"data":null,"errors":[{"message":"boom"}],"extensions":{"foo":"bar"}}`)
+		assert.Equal(t,
+			`{"errors":[{"message":"boom"}],"data":null,"extensions":{"foo":"bar"}}`,
+			out)
 	})
 }
 
