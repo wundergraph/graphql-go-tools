@@ -52,6 +52,9 @@ type NodeSelectionResult struct {
 
 func NewNodeSelectionBuilder(config *Configuration) *NodeSelectionBuilder {
 	nodeSelectionsWalker := astvisitor.NewWalkerWithID(48, "NodeSelectionsWalker")
+	if config.ArenaMinBufferSize > 0 {
+		nodeSelectionsWalker.SetArenaMinBufferSize(config.ArenaMinBufferSize)
+	}
 	nodeSelectionVisitor := &nodeSelectionVisitor{
 		walker:                        &nodeSelectionsWalker,
 		addTypenameInNestedSelections: config.ValidateRequiredExternalFields,
@@ -64,6 +67,9 @@ func NewNodeSelectionBuilder(config *Configuration) *NodeSelectionBuilder {
 	nodeSelectionsWalker.RegisterSelectionSetVisitor(nodeSelectionVisitor)
 
 	nodeResolvableWalker := astvisitor.NewWalkerWithID(32, "NodeResolvableWalker")
+	if config.ArenaMinBufferSize > 0 {
+		nodeResolvableWalker.SetArenaMinBufferSize(config.ArenaMinBufferSize)
+	}
 	nodeResolvableVisitor := &nodesResolvableVisitor{
 		walker: &nodeResolvableWalker,
 	}

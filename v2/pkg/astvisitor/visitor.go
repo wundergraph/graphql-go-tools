@@ -98,7 +98,8 @@ type Walker struct {
 
 	OnExternalError func(err *operationreport.ExternalError)
 
-	arena arena.Arena
+	arena              arena.Arena
+	arenaMinBufferSize int
 }
 
 func NewWalkerWithID(ancestorSize int, id string) Walker {
@@ -152,6 +153,10 @@ func (w *Walker) Release() {
 	w.document = nil
 	w.definition = nil
 	walkerPool.Put(w)
+}
+
+func (w *Walker) SetArenaMinBufferSize(size int) {
+	w.arenaMinBufferSize = size
 }
 
 type (
@@ -1399,7 +1404,11 @@ func (w *Walker) Walk(document, definition *ast.Document, report *operationrepor
 		w.Report = report
 	}
 	if w.arena == nil {
-		w.arena = arena.NewMonotonicArena(arena.WithMinBufferSize(64))
+		bufSize := w.arenaMinBufferSize
+		if bufSize == 0 {
+			bufSize = 64
+		}
+		w.arena = arena.NewMonotonicArena(arena.WithMinBufferSize(bufSize))
 	} else {
 		w.arena.Reset()
 	}

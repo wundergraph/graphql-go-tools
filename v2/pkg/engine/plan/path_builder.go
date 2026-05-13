@@ -18,6 +18,9 @@ type PathBuilder struct {
 
 func NewPathBuilder(config *Configuration) *PathBuilder {
 	walker := astvisitor.NewWalkerWithID(48, "PathBuilderWalker")
+	if config.ArenaMinBufferSize > 0 {
+		walker.SetArenaMinBufferSize(config.ArenaMinBufferSize)
+	}
 	visitor := &pathBuilderVisitor{
 		walker:              &walker,
 		fieldConfigurations: config.Fields,
