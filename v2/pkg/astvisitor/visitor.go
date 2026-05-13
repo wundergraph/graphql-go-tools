@@ -154,7 +154,6 @@ func (w *Walker) Release() {
 	w.document = nil
 	w.definition = nil
 	w.arenaMinBufferSize = 0
-	w.arenaBufferSizeSet = 0
 	walkerPool.Put(w)
 }
 
