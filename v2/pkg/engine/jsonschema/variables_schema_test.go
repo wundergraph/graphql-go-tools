@@ -1568,4 +1568,65 @@ func TestBuildJsonSchema(t *testing.T) {
 		// Compare actual JSON with expected JSON
 		assert.JSONEq(t, expectedJSON, string(data), "JSON schema does not match expected structure")
 	})
+
+	t.Run("variable with description propagated to JSON schema", func(t *testing.T) {
+		schemaSDL := scalarDefinitions + `
+			schema {
+				query: Query
+			}
+
+			type Query {
+				employee(id: ID!): Employee
+			}
+
+			type Employee {
+				id: ID!
+				name: String
+			}
+		`
+
+		operationSDL := `
+			"""
+			Get an employee by their ID
+			"""
+			query FindEmployee(
+				"The unique employee identifier"
+				$id: ID!
+			) {
+				employee(id: $id) {
+					id
+					name
+				}
+			}
+		`
+
+		definitionDoc, report := astparser.ParseGraphqlDocumentString(schemaSDL)
+		require.False(t, report.HasErrors(), "schema parsing failed")
+
+		operationDoc, report := astparser.ParseGraphqlDocumentString(operationSDL)
+		require.False(t, report.HasErrors(), "operation parsing failed")
+
+		schema, err := BuildJsonSchema(&operationDoc, &definitionDoc)
+		require.NoError(t, err)
+
+		data, err := json.MarshalIndent(schema, "", "  ")
+		require.NoError(t, err)
+
+		expectedJSON := `{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "The unique employee identifier"
+    }
+  },
+  "required": [
+    "id"
+  ],
+  "additionalProperties": false,
+  "nullable": false
+}`
+
+		assert.JSONEq(t, expectedJSON, string(data))
+	})
 }

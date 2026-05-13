@@ -172,6 +172,8 @@ type Loader struct {
 
 	propagateFetchReasons bool
 
+	allowCustomExtensionProperties bool
+
 	validateRequiredExternalFields bool
 
 	taintedObjs taintedObjects
@@ -497,6 +499,14 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 			return l.renderErrorsStatusFallback(fetchItem, res, res.statusCode)
 		}
 		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponse)
+	}
+
+	if l.allowCustomExtensionProperties {
+		extensions := response.Get("extensions")
+
+		if astjson.ValueIsNonNull(extensions) && extensions.Type() == astjson.TypeObject {
+			l.resolvable.subgraphExtensions = append(l.resolvable.subgraphExtensions, extensions.GetObject())
+		}
 	}
 
 	var responseData *astjson.Value
