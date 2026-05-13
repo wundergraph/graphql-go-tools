@@ -133,6 +133,9 @@ func resolveSlicingArgIntValue(slicingArg string, arguments map[string]ArgumentI
 	arg, ok := arguments[inputArg]
 	if ok && arg.hasVariable && arg.isInputObject {
 		value := vars.Get(arg.varName)
+		if value == nil {
+			return 0, false
+		}
 		for _, key := range path[1:] {
 			value = value.Get(key)
 			if value == nil {
