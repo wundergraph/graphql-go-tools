@@ -2596,6 +2596,135 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			},
 			computeCosts(),
 		))
+
+		t.Run("sizedFields parent is non-list wrapper inside outer list", func(t *testing.T) {
+			// Regression test for ENG-9574.
+			// When a non-list wrapper field (Board.items_page: ItemsPage!) is configured as a
+			// @listSize sizedFields parent, the wrapper itself is never recorded in
+			// actualListSizes (population happens in walkArray only). The child list's
+			// averaging denominator therefore falls back to 1 instead of the number of
+			// wrapper occurrences, inflating the combined actual cost.
+			boardsSchema := `
+				type Query {
+				  boards(ids: [ID!]!, limit: Int): [Board!]! 
+					@listSize(slicingArguments: ["limit"]) 
+					@cost(weight: 10)
+				}
+				type Board @key(fields: "id") {
+				  id: ID!
+				  items_page(limit: Int!): ItemsPage! 
+					@listSize(slicingArguments: ["limit"], sizedFields: ["items"]) 
+					@cost(weight: 10)
+				}
+				type ItemsPage {
+				  items: [Item!]! 
+					@cost(weight: 10)
+				}
+				type Item @key(fields: "id") {
+				  id: ID!
+				}
+			`
+			schemaBoards, err := graphql.NewSchemaFromString(boardsSchema)
+			require.NoError(t, err)
+
+			boardsRootNodes := []plan.TypeField{
+				{TypeName: "Query", FieldNames: []string{"boards"}},
+				{TypeName: "Board", FieldNames: []string{"id", "items_page"}},
+				{TypeName: "ItemsPage", FieldNames: []string{"items"}},
+				{TypeName: "Item", FieldNames: []string{"id"}},
+			}
+			boardsCustomConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+				Fetch: &graphql_datasource.FetchConfiguration{
+					URL:    "https://example.com/",
+					Method: "GET",
+				},
+				SchemaConfiguration: mustSchemaConfig(t, nil, boardsSchema),
+			})
+			boardsFieldConfig := []plan.FieldConfiguration{
+				{
+					TypeName: "Query", FieldName: "boards", Path: []string{"boards"},
+					Arguments: []plan.ArgumentConfiguration{
+						{Name: "ids", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+						{Name: "limit", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+					},
+				},
+				{
+					TypeName: "Board", FieldName: "items_page", Path: []string{"items_page"},
+					Arguments: []plan.ArgumentConfiguration{
+						{Name: "limit", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+					},
+				},
+			}
+			boardsCostConfig := &plan.DataSourceCostConfig{
+				Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+					{TypeName: "Query", FieldName: "boards"}:     {HasWeight: true, Weight: 10},
+					{TypeName: "Board", FieldName: "items_page"}: {HasWeight: true, Weight: 10},
+					{TypeName: "ItemsPage", FieldName: "items"}:  {HasWeight: true, Weight: 10},
+				},
+				ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+					{TypeName: "Query", FieldName: "boards"}: {
+						SlicingArguments: []string{"limit"},
+					},
+					{TypeName: "Board", FieldName: "items_page"}: {
+						SlicingArguments: []string{"limit"},
+						SizedFields:      []string{"items"},
+					},
+				},
+			}
+
+			expectedResponse := `{"data":{"boards":[` +
+				`{"id":"A","items_page":{"items":[{"id":"a1"}]}},` +
+				`{"id":"B","items_page":{"items":[{"id":"b1"}]}},` +
+				`{"id":"C","items_page":{"items":[{"id":"c1"}]}},` +
+				`{"id":"D","items_page":{"items":[{"id":"d1"}]}}` +
+				`]}}`
+
+			// Correct behavior:
+			//     parentCount should resolve to the nearest list ancestor,
+			//     count (4 boards), giving items multiplier = 4/4 = 1.
+			t.Run("actual cost averages by wrapper occurrences", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schemaBoards,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{
+								boards(ids: ["A","B","C","D"], limit: 4) {
+									id
+									items_page(limit: 1) {
+										items { id }
+									}
+								}
+							}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost:     "example.com",
+									expectedPath:     "/",
+									expectedBody:     "",
+									sendResponseBody: expectedResponse,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  boardsRootNodes,
+								ChildNodes: []plan.TypeField{},
+								CostConfig: boardsCostConfig,
+							},
+							boardsCustomConfig,
+						),
+					},
+					fields:           boardsFieldConfig,
+					expectedResponse: expectedResponse,
+					// 4 * ( 10 + 1 * (10 + 1 * 10))
+					expectedEstimatedCost: intPtr(120),
+					expectedActualCost:    intPtr(120),
+				},
+				computeCosts(),
+			))
+		})
 	})
 
 	t.Run("sizedFields on abstract types", func(t *testing.T) {
