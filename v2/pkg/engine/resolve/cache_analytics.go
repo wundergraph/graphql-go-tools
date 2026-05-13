@@ -352,6 +352,65 @@ func (c *CacheAnalyticsCollector) HashFieldValue(entityType, fieldName string, f
 	})
 }
 
+// BuildRootFieldCacheHits synthesizes per-(typeName,fieldName) field-hash events
+// for a root-field cache hit (@openfed__queryCache on Query.<f> / Mutation.<f>).
+// Emits one EntityFieldHash per entry in rootFields — a single subgraph fetch
+// can pack multiple root fields under one queryCache key, and the heatmap
+// attributes the hit to every covered coordinate.
+//
+// Unlike HashFieldValue (which runs per leaf inside an entity scope during the
+// response walk), root-field caches have no enclosing entity. We synthesize a
+// field-level event here so per-(Type,Field) cache-hit telemetry — used by the
+// hub heatmap — is produced for root fields the same way it already is for
+// scalars under an entity scope. The KeyHash carries an xxhash of the rendered
+// cache key string so the router's PII guard accepts the event; FieldHash is
+// the xxhash of the cached response bytes when supplied, otherwise zero.
+//
+// The events are appended to dst and returned. Main thread only (uses the
+// collector's reusable xxhash digest). Callers append the returned slice to a
+// per-result accumulator and merge it via MergeL2FieldHashes on the main
+// thread, mirroring the L2 key-event pattern.
+//
+// Returns dst unchanged when rootFields is empty, cacheKey is empty, or the
+// cacheKey hashes to zero (defensive — the router drops zero-keyhash events).
+func (c *CacheAnalyticsCollector) BuildRootFieldCacheHits(dst []EntityFieldHash, rootFields []GraphCoordinate, cacheKey, dataSource string, source FieldSource, valueBytes []byte) []EntityFieldHash {
+	if len(rootFields) == 0 || cacheKey == "" {
+		return dst
+	}
+	c.xxh.Reset()
+	_, _ = c.xxh.WriteString(cacheKey)
+	keyHash := c.xxh.Sum64()
+	if keyHash == 0 {
+		return dst
+	}
+	var fieldHash uint64
+	if len(valueBytes) > 0 {
+		c.xxh.Reset()
+		_, _ = c.xxh.Write(valueBytes)
+		fieldHash = c.xxh.Sum64()
+	}
+	now := time.Now()
+	for i := range rootFields {
+		dst = append(dst, EntityFieldHash{
+			Timestamp:  now,
+			EntityType: rootFields[i].TypeName,
+			FieldName:  rootFields[i].FieldName,
+			FieldHash:  fieldHash,
+			KeyHash:    keyHash,
+			Source:     source,
+			DataSource: dataSource,
+		})
+	}
+	return dst
+}
+
+// MergeL2FieldHashes merges field-hash events collected on a per-result slice
+// (the same per-result accumulator pattern used by L2 key events) into the
+// collector. Must be called on the main thread.
+func (c *CacheAnalyticsCollector) MergeL2FieldHashes(events []EntityFieldHash) {
+	c.fieldHashes = append(c.fieldHashes, events...)
+}
+
 // IncrementEntityCount increments the instance count for the given entity type.
 // If keyJSON is non-empty, it is tracked for unique key counting.
 func (c *CacheAnalyticsCollector) IncrementEntityCount(typeName string, keyJSON string) {

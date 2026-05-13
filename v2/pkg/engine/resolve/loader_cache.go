@@ -684,9 +684,20 @@ func (l *Loader) prepareCacheKeys(info *FetchInfo, cfg FetchCacheConfiguration, 
 	// Check if this is an entity fetch (L1 only applies to entity fetches)
 	isEntity := cfg.isEntityFetch()
 
-	// Set analytics entity type for cache event recording
-	if l.ctx.cacheAnalyticsEnabled() && info != nil && len(info.RootFields) > 0 {
-		res.analyticsEntityType = info.RootFields[0].TypeName
+	// Set analytics entity type for cache event recording.
+	// For root-field caches that delegate to a specific entity via
+	// EntityKeyMappings (e.g. Query.employee → Employee), attribute analytics
+	// to the underlying entity rather than the operation root type. Hub /
+	// Studio per-entity dashboards group cache events by EntityType, so
+	// tagging Query.employee L2 reads as "Query" caused the per-Employee
+	// "Reads sampled" / hit-rate cards to stay at 0 even when the cache
+	// served every request.
+	if l.ctx.cacheAnalyticsEnabled() && info != nil {
+		if rt, ok := cfg.CacheKeyTemplate.(*RootQueryCacheKeyTemplate); ok && len(rt.EntityKeyMappings) > 0 {
+			res.analyticsEntityType = rt.EntityKeyMappings[0].EntityTypeName
+		} else if len(info.RootFields) > 0 {
+			res.analyticsEntityType = info.RootFields[0].TypeName
+		}
 	}
 
 	// Always generate cache keys (needed for merging cached data into response)
@@ -893,6 +904,10 @@ func (l *Loader) tryCacheLoad(ctx context.Context, info *FetchInfo, cfg FetchCac
 				l.ctx.cacheAnalytics.MergeL2Errors(res.l2ErrorEvents)
 				res.l2ErrorEvents = nil
 			}
+			if len(res.l2FieldHashes) > 0 {
+				l.ctx.cacheAnalytics.MergeL2FieldHashes(res.l2FieldHashes)
+				res.l2FieldHashes = nil
+			}
 		}
 		if err != nil || skipFetch {
 			return skipFetch, err
@@ -1014,6 +1029,12 @@ type l2CacheLookupState struct {
 	tracingCache            bool
 	shadowMode              bool
 	hasAliases              bool
+	// isRootFieldCache is true when this fetch is cached via a root-field
+	// template (@openfed__queryCache) — the apply* functions use it to emit
+	// per-(Query.<f>) synthetic field-hash events that drive the hub heatmap's
+	// cache-hit tint. Entity caches do not set this; their leaf-level field
+	// hashes are emitted from the response walk under an entity scope.
+	isRootFieldCache        bool
 	entityType              string
 	dataSource              string
 	remainingTTLs           map[string]time.Duration
@@ -1058,11 +1079,16 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 		return false, nil
 	}
 
-	// Extract entity type and data source for analytics (read-only, goroutine-safe)
+	// Extract entity type and data source for analytics (read-only, goroutine-safe).
+	// Prefer res.analyticsEntityType — it was set in prepareCacheKeys and already
+	// accounts for root-field caches that delegate to a specific entity via
+	// EntityKeyMappings. Falling back to info.RootFields[0].TypeName for
+	// defense-in-depth keeps non-root entity fetches working unchanged.
 	analyticsEnabled := l.ctx.cacheAnalyticsEnabled()
 	var entityType, dataSource string
 	if analyticsEnabled && info != nil {
-		if len(info.RootFields) > 0 {
+		entityType = res.analyticsEntityType
+		if entityType == "" && len(info.RootFields) > 0 {
 			entityType = info.RootFields[0].TypeName
 		}
 		dataSource = info.DataSourceName
@@ -1387,11 +1413,13 @@ func (l *Loader) populateFromCacheBulk(a arena.Arena, res *result, byKey map[str
 }
 
 func (l *Loader) prepareL2LookupState(info *FetchInfo, res *result, cacheEntries []*CacheEntry, analyticsEnabled, tracingCache bool, entityType, dataSource string) l2CacheLookupState {
+	_, isRootFieldCache := res.cacheConfig.CacheKeyTemplate.(*RootQueryCacheKeyTemplate)
 	state := l2CacheLookupState{
 		analyticsEnabled: analyticsEnabled,
 		tracingCache:     tracingCache,
 		shadowMode:       res.cacheConfig.ShadowMode,
 		hasAliases:       info != nil && info.ProvidesData != nil && info.ProvidesData.HasAliases,
+		isRootFieldCache: isRootFieldCache,
 		entityType:       entityType,
 		dataSource:       dataSource,
 	}
@@ -1488,6 +1516,7 @@ func (l *Loader) applyEntityFetchL2Results(info *FetchInfo, res *result, state l
 					Kind: CacheKeyHit, DataSource: state.dataSource, ByteSize: 4,
 					Shadow: state.shadowMode,
 				})
+				l.recordRootFieldL2Hit(info, res, state, res.l1CacheKeys[i].Keys[0], nil)
 			}
 			if state.tracingCache {
 				res.cacheTraceNegativeHits++
@@ -1542,9 +1571,13 @@ func (l *Loader) applyEntityFetchL2Results(info *FetchInfo, res *result, state l
 			res.l1CacheKeys[i].FromCache = l.structuralCopyDenormalizedPassthrough(res.l1CacheKeys[i].FromCache, res.providesData)
 		}
 
-		var byteSize int
-		if (state.analyticsEnabled || state.tracingCache) && len(res.l1CacheKeys[i].Keys) > 0 {
-			byteSize = len(res.l1CacheKeys[i].FromCache.MarshalTo(nil))
+		var (
+			hitBytes []byte
+			byteSize int
+		)
+		if (state.analyticsEnabled || state.tracingCache) && len(res.l1CacheKeys[i].Keys) > 0 && res.l1CacheKeys[i].FromCache != nil {
+			hitBytes = res.l1CacheKeys[i].FromCache.MarshalTo(nil)
+			byteSize = len(hitBytes)
 		}
 
 		if state.analyticsEnabled && len(res.l1CacheKeys[i].Keys) > 0 {
@@ -1562,6 +1595,14 @@ func (l *Loader) applyEntityFetchL2Results(info *FetchInfo, res *result, state l
 					entityType: state.entityType, keyJSON: string(preDenormKeyJSON), source: FieldSourceL2, dataSource: state.dataSource,
 				})
 			}
+			// Synthesize a per-(typeName,fieldName) field-hash event for root-
+			// field caches (@openfed__queryCache). Gated inside the helper on
+			// state.isRootFieldCache so entity caches — whose leaf hashes are
+			// emitted from the response walk under an entity scope — don't
+			// double-emit. Drives the hub heatmap's per-field cache-hit tint
+			// for Query.<f> / Mutation.<f>, which has no enclosing entity at
+			// the root and is therefore invisible to the response walk.
+			l.recordRootFieldL2Hit(info, res, state, res.l1CacheKeys[i].Keys[0], hitBytes)
 		}
 
 		if state.shadowMode {
@@ -1602,6 +1643,25 @@ func (l *Loader) applyEntityFetchL2Results(info *FetchInfo, res *result, state l
 	return allComplete
 }
 
+// recordRootFieldL2Hit appends per-(typeName,fieldName) field-hash events to
+// the per-result accumulator for a root-field cache hit. One event per entry
+// in info.RootFields so multi-root-field queryCache hits tint every covered
+// coordinate in the heatmap. Skips when:
+//   - analytics is off,
+//   - shadow mode (a shadow comparison is not a hit served from cache),
+//   - this isn't a root-field cache (entity caches emit per-leaf field hashes
+//     from the response walk under an entity scope — synthesizing here would
+//     double-emit), or
+//   - info.RootFields is empty.
+//
+// valueBytes is optional; when supplied it's xxhash'd into FieldHash.
+func (l *Loader) recordRootFieldL2Hit(info *FetchInfo, res *result, state l2CacheLookupState, cacheKey string, valueBytes []byte) {
+	if !state.analyticsEnabled || state.shadowMode || !state.isRootFieldCache || info == nil || len(info.RootFields) == 0 {
+		return
+	}
+	res.l2FieldHashes = l.ctx.cacheAnalytics.BuildRootFieldCacheHits(res.l2FieldHashes, info.RootFields, cacheKey, state.dataSource, FieldSourceL2, valueBytes)
+}
+
 func (l *Loader) applyRootFetchL2Results(info *FetchInfo, res *result, state l2CacheLookupState) bool {
 	allComplete := true
 
@@ -1634,6 +1694,7 @@ func (l *Loader) applyRootFetchL2Results(info *FetchInfo, res *result, state l2C
 					Kind: CacheKeyHit, DataSource: state.dataSource, ByteSize: 4,
 					Shadow: state.shadowMode,
 				})
+				l.recordRootFieldL2Hit(info, res, state, ck.Keys[0], nil)
 			}
 			if state.tracingCache {
 				res.cacheTraceNegativeHits++
@@ -1694,9 +1755,13 @@ func (l *Loader) applyRootFetchL2Results(info *FetchInfo, res *result, state l2C
 			}
 		}
 
-		var byteSize int
-		if (state.analyticsEnabled || state.tracingCache) && len(ck.Keys) > 0 {
-			byteSize = len(res.l2CacheKeys[i].FromCache.MarshalTo(nil))
+		var (
+			hitBytes []byte
+			byteSize int
+		)
+		if (state.analyticsEnabled || state.tracingCache) && len(ck.Keys) > 0 && res.l2CacheKeys[i].FromCache != nil {
+			hitBytes = res.l2CacheKeys[i].FromCache.MarshalTo(nil)
+			byteSize = len(hitBytes)
 		}
 
 		if state.analyticsEnabled && len(ck.Keys) > 0 {
@@ -1706,6 +1771,13 @@ func (l *Loader) applyRootFetchL2Results(info *FetchInfo, res *result, state l2C
 				Kind: CacheKeyHit, DataSource: state.dataSource, ByteSize: byteSize,
 				CacheAgeMs: cacheAgeMs, Shadow: state.shadowMode,
 			})
+			// Synthesize a per-(typeName,fieldName) field-hash event for every
+			// covered root field. Drives the hub heatmap's per-field cache-hit
+			// tint for @openfed__queryCache — the entity-scope response walk
+			// emits FieldHashes for leaves inside entity caches but cannot
+			// attribute hits to Query.<f> / Mutation.<f> because there is no
+			// enclosing entity at the root.
+			l.recordRootFieldL2Hit(info, res, state, ck.Keys[0], hitBytes)
 		}
 
 		if state.tracingCache {

@@ -173,6 +173,11 @@ type result struct {
 	// l2CacheOpErrors accumulates cache operation errors in goroutines, merged on main thread.
 	l2CacheOpErrors []CacheOperationError
 
+	// l2FieldHashes accumulates synthesized root-field cache-hit field-hash events
+	// (one per RootFields entry, recorded at L2 hit sites in applyRootFetchL2Results).
+	// Mirrors the per-result slice + main-thread merge pattern of l2AnalyticsEvents.
+	l2FieldHashes []EntityFieldHash
+
 	// analyticsEntityType caches the entity type name for analytics recording.
 	// Set during prepareCacheKeys, used by L2 write recording.
 	analyticsEntityType string
@@ -624,6 +629,9 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 			}
 			if len(results[i].l2CacheOpErrors) > 0 {
 				l.ctx.cacheAnalytics.MergeL2CacheOpErrors(results[i].l2CacheOpErrors)
+			}
+			if len(results[i].l2FieldHashes) > 0 {
+				l.ctx.cacheAnalytics.MergeL2FieldHashes(results[i].l2FieldHashes)
 			}
 		}
 	}

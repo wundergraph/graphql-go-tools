@@ -567,12 +567,15 @@ func TestBatchEntityCache_AnalyticsTracking(t *testing.T) {
 	out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
 	assert.Equal(t, `{"data":{"products":[{"upc":"top-1","name":"Trilby","price":11},{"upc":"top-2","name":"Fedora","price":22},{"upc":"top-3","name":"Boater","price":33}]}}`, out)
 
-	// Verify analytics: 2 L2 hits (top-1, top-3) + 1 L2 miss (top-2)
+	// Verify analytics: 2 L2 hits (top-1, top-3) + 1 L2 miss (top-2).
+	// Root-field caches that delegate via EntityKeyMappings attribute analytics
+	// to the delegated entity type ("Product"), not the operation root
+	// ("Query") — see prepareCacheKeys' analyticsEntityType selection.
 	stats := ctx.GetCacheStats()
 	require.Equal(t, 3, len(stats.L2Reads))
 	assert.Equal(t, CacheKeyEvent{
 		CacheKey:   `{"__typename":"Product","key":{"upc":"top-1"}}`,
-		EntityType: "Query",     // Root field fetch uses the root type name
+		EntityType: "Product",
 		Kind:       CacheKeyHit, // top-1 was seeded in L2 cache
 		DataSource: "products",
 		ByteSize:   len(`{"upc":"top-1","name":"Trilby","price":11}`),
@@ -580,14 +583,14 @@ func TestBatchEntityCache_AnalyticsTracking(t *testing.T) {
 	}, stats.L2Reads[0])
 	assert.Equal(t, CacheKeyEvent{
 		CacheKey:   `{"__typename":"Product","key":{"upc":"top-2"}}`,
-		EntityType: "Query",      // Root field fetch uses the root type name
+		EntityType: "Product",
 		Kind:       CacheKeyMiss, // top-2 was not in L2 cache
 		DataSource: "products",
 		ByteSize:   0,
 	}, stats.L2Reads[1])
 	assert.Equal(t, CacheKeyEvent{
 		CacheKey:   `{"__typename":"Product","key":{"upc":"top-3"}}`,
-		EntityType: "Query",     // Root field fetch uses the root type name
+		EntityType: "Product",
 		Kind:       CacheKeyHit, // top-3 was seeded in L2 cache
 		DataSource: "products",
 		ByteSize:   len(`{"upc":"top-3","name":"Boater","price":33}`),

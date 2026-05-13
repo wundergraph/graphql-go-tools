@@ -186,6 +186,109 @@ func TestCacheAnalyticsCollector_FieldHashing(t *testing.T) {
 	})
 }
 
+// TestCacheAnalyticsCollector_BuildRootFieldCacheHits verifies the synthesized
+// field-hash events for root-field cache hits (@openfed__queryCache). The
+// builder must emit one EntityFieldHash per entry in RootFields and skip the
+// emission when the cache key, root field list, or resulting key hash is empty.
+func TestCacheAnalyticsCollector_BuildRootFieldCacheHits(t *testing.T) {
+	t.Run("one event per root field with stable key hash", func(t *testing.T) {
+		c := NewCacheAnalyticsCollector()
+
+		events := c.BuildRootFieldCacheHits(
+			nil,
+			[]GraphCoordinate{
+				{TypeName: "Query", FieldName: "employee"},
+				{TypeName: "Query", FieldName: "employeeAsList"},
+			},
+			`{"__typename":"Query","field":"employee","args":{"id":1}}`,
+			"employees",
+			FieldSourceL2,
+			[]byte(`{"data":{"employee":{"id":1}}}`),
+		)
+
+		require.Equal(t, 2, len(events))
+		assert.Equal(t, "Query", events[0].EntityType)
+		assert.Equal(t, "employee", events[0].FieldName)
+		assert.Equal(t, FieldSourceL2, events[0].Source)
+		assert.Equal(t, "employees", events[0].DataSource)
+		assert.NotEqual(t, uint64(0), events[0].KeyHash, "non-empty cache key must produce a non-zero KeyHash (router PII guard)")
+		assert.NotEqual(t, uint64(0), events[0].FieldHash, "non-empty value bytes must hash into FieldHash")
+
+		assert.Equal(t, "employeeAsList", events[1].FieldName)
+		assert.Equal(t, events[0].KeyHash, events[1].KeyHash, "shared cache key must produce identical KeyHash across covered fields")
+		assert.Equal(t, events[0].FieldHash, events[1].FieldHash, "shared value bytes must produce identical FieldHash across covered fields")
+	})
+
+	t.Run("nil value bytes leaves FieldHash zero", func(t *testing.T) {
+		c := NewCacheAnalyticsCollector()
+
+		events := c.BuildRootFieldCacheHits(
+			nil,
+			[]GraphCoordinate{{TypeName: "Query", FieldName: "user"}},
+			`{"__typename":"Query","field":"user"}`,
+			"accounts",
+			FieldSourceL2,
+			nil,
+		)
+
+		require.Equal(t, 1, len(events))
+		assert.Equal(t, uint64(0), events[0].FieldHash, "nil bytes → no FieldHash")
+		assert.NotEqual(t, uint64(0), events[0].KeyHash)
+	})
+
+	t.Run("empty root fields returns dst unchanged", func(t *testing.T) {
+		c := NewCacheAnalyticsCollector()
+
+		dst := []EntityFieldHash{{EntityType: "Sentinel"}}
+		events := c.BuildRootFieldCacheHits(
+			dst,
+			nil,
+			`{"__typename":"Query","field":"x"}`,
+			"accounts",
+			FieldSourceL2,
+			nil,
+		)
+
+		require.Equal(t, 1, len(events))
+		assert.Equal(t, "Sentinel", events[0].EntityType, "dst preserved")
+	})
+
+	t.Run("empty cache key returns dst unchanged", func(t *testing.T) {
+		c := NewCacheAnalyticsCollector()
+
+		events := c.BuildRootFieldCacheHits(
+			nil,
+			[]GraphCoordinate{{TypeName: "Query", FieldName: "user"}},
+			"",
+			"accounts",
+			FieldSourceL2,
+			[]byte(`{"x":1}`),
+		)
+
+		assert.Nil(t, events, "empty cache key skips emission")
+	})
+
+	t.Run("MergeL2FieldHashes appends to the collector", func(t *testing.T) {
+		c := NewCacheAnalyticsCollector()
+
+		batch := c.BuildRootFieldCacheHits(
+			nil,
+			[]GraphCoordinate{{TypeName: "Query", FieldName: "user"}},
+			`{"__typename":"Query","field":"user"}`,
+			"accounts",
+			FieldSourceL2,
+			nil,
+		)
+		c.MergeL2FieldHashes(batch)
+
+		snap := c.Snapshot()
+		require.Equal(t, 1, len(snap.FieldHashes))
+		assert.Equal(t, "Query", snap.FieldHashes[0].EntityType)
+		assert.Equal(t, "user", snap.FieldHashes[0].FieldName)
+		assert.Equal(t, FieldSourceL2, snap.FieldHashes[0].Source)
+	})
+}
+
 // TestCacheAnalyticsCollector_EntityCounts verifies per-type entity instance
 // counting and unique key tracking. Duplicate keys should increment count
 // but not unique keys.
