@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.2.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.1.0...v2.2.0) (2026-05-12)
+
+
+### Features
+
+* add Description support for VariableDefinition (September 2025 spec) ([#1457](https://github.com/wundergraph/graphql-go-tools/issues/1457)) ([b035eea](https://github.com/wundergraph/graphql-go-tools/commit/b035eea9957414d9f7a1f0d6577d1b5a8a8ec650))
+* allow rendering custom extensions in the final JSON response ([#1489](https://github.com/wundergraph/graphql-go-tools/issues/1489)) ([e6f080e](https://github.com/wundergraph/graphql-go-tools/commit/e6f080ea6d937ef97b8cfb44370f2a479681b1cc))
+* switch from composition-go wrapper to cosmo wgc composition ([#1483](https://github.com/wundergraph/graphql-go-tools/issues/1483)) ([34d07fc](https://github.com/wundergraph/graphql-go-tools/commit/34d07fc6106dbedf6e95939595b2fb71430b47f1))
+
 ## [2.1.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0...v2.1.0) (2026-04-30)
 
 
