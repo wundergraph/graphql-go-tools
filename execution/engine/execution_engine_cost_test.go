@@ -2606,22 +2606,22 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			// wrapper occurrences, inflating the combined actual cost.
 			boardsSchema := `
 				type Query {
-				  boards(ids: [ID!]!, limit: Int): [Board!]! 
-					@listSize(slicingArguments: ["limit"]) 
-					@cost(weight: 10)
+					boards(ids: [ID!]!, limit: Int): [Board!]! 
+						@listSize(slicingArguments: ["limit"]) 
+						@cost(weight: 10)
 				}
 				type Board @key(fields: "id") {
-				  id: ID!
-				  items_page(limit: Int!): ItemsPage! 
-					@listSize(slicingArguments: ["limit"], sizedFields: ["items"]) 
-					@cost(weight: 10)
+					id: ID!
+					items_page(limit: Int!): ItemsPage! 
+						@listSize(slicingArguments: ["limit"], sizedFields: ["items"]) 
+						@cost(weight: 10)
 				}
 				type ItemsPage {
-				  items: [Item!]! 
-					@cost(weight: 10)
+					items: [Item!]! 
+						@cost(weight: 10)
 				}
 				type Item @key(fields: "id") {
-				  id: ID!
+					id: ID!
 				}
 			`
 			schemaBoards, err := graphql.NewSchemaFromString(boardsSchema)
