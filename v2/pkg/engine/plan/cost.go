@@ -606,10 +606,13 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 		totalCount, ok := actualListSizes[node.jsonPath]
 		if ok && totalCount != 0 {
 			parentCount := 1
-			if lastDot := strings.LastIndex(node.jsonPath, "."); lastDot != -1 {
-				parentPath := node.jsonPath[:lastDot]
-				if pc, found := actualListSizes[parentPath]; found && pc > 0 {
-					parentCount = pc
+			// Find the list size of nearest ancestor
+			for p := node.parent; p != nil && p.fieldCoords != costTreeRootNodeCoords; p = p.parent {
+				if p.returnsListType {
+					if pc, found := actualListSizes[p.jsonPath]; found && pc > 0 {
+						parentCount = pc
+					}
+					break
 				}
 			}
 			// We compute average to avoid double counting for nested lists
