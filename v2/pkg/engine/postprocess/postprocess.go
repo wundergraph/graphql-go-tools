@@ -38,6 +38,7 @@ type processorOptions struct {
 	disableExtractFetches                 bool
 	disableCreateParallelNodes            bool
 	disableAddMissingNestedDependencies   bool
+	buildScheduleTree                     bool
 	collectDataSourceInfo                 bool
 }
 
@@ -92,10 +93,40 @@ func DisableAddMissingNestedDependencies() ProcessorOption {
 	}
 }
 
+// WithBuildScheduleTree replaces the legacy orderSequenceByDependencies and createParallelNodes processors.
+// DisableOrderSequenceByDependencies and DisableCreateParallelNodes do not affect this opt-in scheduler.
+func WithBuildScheduleTree() ProcessorOption {
+	return func(o *processorOptions) {
+		o.buildScheduleTree = true
+	}
+}
+
 func NewProcessor(options ...ProcessorOption) *Processor {
 	opts := &processorOptions{}
 	for _, o := range options {
 		o(opts)
+	}
+	fetchProcessors := []FetchTreeProcessor{
+		// this must go first, as we need to deduplicate fetches so that subsequent processors can work correctly
+		&addMissingNestedDependencies{
+			disable: opts.disableAddMissingNestedDependencies,
+		},
+		// this must go after deduplication because it relies on the existence of a "sequence" fetch node in the root
+		&createConcreteSingleFetchTypes{
+			disable: opts.disableCreateConcreteSingleFetchTypes,
+		},
+	}
+	if opts.buildScheduleTree {
+		fetchProcessors = append(fetchProcessors, &buildScheduleTreeProcessor{})
+	} else {
+		fetchProcessors = append(fetchProcessors,
+			&orderSequenceByDependencies{
+				disable: opts.disableOrderSequenceByDependencies,
+			},
+			&createParallelNodes{
+				disable: opts.disableCreateParallelNodes,
+			},
+		)
 	}
 	return &Processor{
 		collectDataSourceInfo: opts.collectDataSourceInfo,
@@ -109,22 +140,7 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 		dedupe: &deduplicateSingleFetches{
 			disable: opts.disableDeduplicateSingleFetches,
 		},
-		processFetchTree: []FetchTreeProcessor{
-			// this must go first, as we need to deduplicate fetches so that subsequent processors can work correctly
-			&addMissingNestedDependencies{
-				disable: opts.disableAddMissingNestedDependencies,
-			},
-			// this must go after deduplication because it relies on the existence of a "sequence" fetch node in the root
-			&createConcreteSingleFetchTypes{
-				disable: opts.disableCreateConcreteSingleFetchTypes,
-			},
-			&orderSequenceByDependencies{
-				disable: opts.disableOrderSequenceByDependencies,
-			},
-			&createParallelNodes{
-				disable: opts.disableCreateParallelNodes,
-			},
-		},
+		processFetchTree: fetchProcessors,
 		processResponseTree: []ResponseTreeProcessor{
 			&mergeFields{
 				disable: opts.disableMergeFields,
