@@ -1356,6 +1356,11 @@ func normalizeCacheAnalyticsSnapshot(snap CacheAnalyticsSnapshot) CacheAnalytics
 		snap.FieldHashes[i].FieldHash = 0
 		snap.FieldHashes[i].KeyHash = 0
 	}
+	for i := range snap.FieldSelections {
+		snap.FieldSelections[i].Timestamp = time.Time{}
+		// Same KeyHash rationale as FieldHashes — zero out for literal equality.
+		snap.FieldSelections[i].KeyHash = 0
+	}
 	for i := range snap.ShadowComparisons {
 		snap.ShadowComparisons[i].Timestamp = time.Time{}
 	}
@@ -1387,6 +1392,9 @@ func normalizeCacheAnalyticsSnapshot(snap CacheAnalyticsSnapshot) CacheAnalytics
 	}
 	if len(snap.FieldHashes) == 0 {
 		snap.FieldHashes = nil
+	}
+	if len(snap.FieldSelections) == 0 {
+		snap.FieldSelections = nil
 	}
 	if len(snap.EntityTypes) == 0 {
 		snap.EntityTypes = nil

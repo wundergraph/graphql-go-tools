@@ -115,6 +115,31 @@ type EntityFieldHash struct {
 	DataSource string      // subgraph name that owns this entity (empty if not resolvable)
 }
 
+// EntityFieldSelection records that the response walker entered an Object
+// or Array accessor field inside an entity scope. The accessor itself has no
+// scalar value, so unlike EntityFieldHash there is no FieldHash — the row's
+// existence is the signal. Coverage analytics consumers use it to count an
+// accessor as observed when only its leaves (which router flattening
+// attributes to the enclosing entity) carry telemetry.
+//
+// EntityType is the enclosing entity (same attribution rule as
+// EntityFieldHash). ChildTypeName is the accessor's named return type
+// (unwrapped of NonNull/List), e.g. "Details" for `details: Details!` or
+// "Hobby" for `hobbies: [Hobby!]!`. For interface/union accessors it is the
+// abstract type name. FieldPath is the schema-name chain from the entity to
+// the accessor's parent (nil when the accessor sits directly on the entity).
+type EntityFieldSelection struct {
+	Timestamp     time.Time // when the selection was recorded; stamped by RecordFieldSelection if zero
+	EntityType    string    // enclosing entity type name
+	FieldPath     []string  // schema-name path from the entity to the accessor's parent (nil for direct entity accessors)
+	FieldName     string    // accessor field's schema name
+	ChildTypeName string    // accessor's named return type (unwrapped); abstract type name for interface/union
+	KeyRaw        string    // raw key JSON e.g. {"id":"1234"} (when HashKeys=false)
+	KeyHash       uint64    // xxhash of key JSON (when HashKeys=true)
+	Source        FieldSource
+	DataSource    string // subgraph name that owns the enclosing entity (empty if not resolvable)
+}
+
 // EntityTypeInfo holds the entity type name and its instance count.
 type EntityTypeInfo struct {
 	TypeName   string
@@ -205,6 +230,7 @@ type CacheAnalyticsCollector struct {
 	l2KeyEvents        []CacheKeyEvent
 	writeEvents        []CacheWriteEvent
 	fieldHashes        []EntityFieldHash       // flat slice (was: nested maps)
+	fieldSelections    []EntityFieldSelection  // accessor-row events; gated by CachingOptions.EmitFieldSelections
 	entityCounts       []entityCount           // simple type→count (was: map)
 	entitySources      []entitySourceRecord    // records where each entity's data came from
 	fetchTimings       []FetchTimingEvent      // main thread timings
@@ -222,8 +248,9 @@ func NewCacheAnalyticsCollector() *CacheAnalyticsCollector {
 		l1KeyEvents:   make([]CacheKeyEvent, 0, 16),
 		l2KeyEvents:   make([]CacheKeyEvent, 0, 16),
 		writeEvents:   make([]CacheWriteEvent, 0, 8),
-		fieldHashes:   make([]EntityFieldHash, 0, 32),
-		entityCounts:  make([]entityCount, 0, 4),
+		fieldHashes:     make([]EntityFieldHash, 0, 32),
+		fieldSelections: make([]EntityFieldSelection, 0, 8),
+		entityCounts:    make([]entityCount, 0, 4),
 		entitySources: make([]entitySourceRecord, 0, 16),
 		fetchTimings:  make([]FetchTimingEvent, 0, 8),
 		errorEvents:   make([]SubgraphErrorEvent, 0, 4),
@@ -266,6 +293,7 @@ func (c *CacheAnalyticsCollector) ResetForReuse() {
 	c.l2KeyEvents = c.l2KeyEvents[:0]
 	c.writeEvents = c.writeEvents[:0]
 	c.fieldHashes = c.fieldHashes[:0]
+	c.fieldSelections = c.fieldSelections[:0]
 	c.entityCounts = c.entityCounts[:0]
 	c.entitySources = c.entitySources[:0]
 	c.fetchTimings = c.fetchTimings[:0]
@@ -349,6 +377,33 @@ func (c *CacheAnalyticsCollector) HashFieldValue(entityType, fieldName string, f
 		KeyHash:    keyHash,
 		Source:     source,
 		DataSource: dataSource,
+	})
+}
+
+// RecordFieldSelection appends an EntityFieldSelection. Same attribution
+// model as HashFieldValue (entityType is the enclosing entity, fieldPath is
+// the chain from the entity to the accessor's parent), but no value bytes
+// are hashed — the accessor is a structural marker, not a value carrier.
+// childTypeName is the accessor's named return type (unwrapped); abstract
+// type name for interface/union accessors.
+//
+// The fieldPath slice is copied so callers may reuse their scratch buffer.
+func (c *CacheAnalyticsCollector) RecordFieldSelection(entityType, fieldName string, fieldPath []string, childTypeName, keyRaw string, keyHash uint64, source FieldSource, dataSource string) {
+	var pathCopy []string
+	if len(fieldPath) > 0 {
+		pathCopy = make([]string, len(fieldPath))
+		copy(pathCopy, fieldPath)
+	}
+	c.fieldSelections = append(c.fieldSelections, EntityFieldSelection{
+		Timestamp:     time.Now(),
+		EntityType:    entityType,
+		FieldPath:     pathCopy,
+		FieldName:     fieldName,
+		ChildTypeName: childTypeName,
+		KeyRaw:        keyRaw,
+		KeyHash:       keyHash,
+		Source:        source,
+		DataSource:    dataSource,
 	})
 }
 
@@ -554,6 +609,7 @@ func (c *CacheAnalyticsCollector) Snapshot() CacheAnalyticsSnapshot {
 		L1Reads:            deduplicateKeyEvents(c.l1KeyEvents),
 		L2Reads:            deduplicateKeyEvents(c.l2KeyEvents),
 		FieldHashes:        slices.Clone(c.fieldHashes),
+		FieldSelections:    slices.Clone(c.fieldSelections),
 		FetchTimings:       slices.Clone(c.fetchTimings),
 		ErrorEvents:        slices.Clone(c.errorEvents),
 		ShadowComparisons:  deduplicateShadowComparisons(c.shadowComparisons),
@@ -705,6 +761,11 @@ type CacheAnalyticsSnapshot struct {
 
 	// Field value hashes: flat slice of EntityFieldHash
 	FieldHashes []EntityFieldHash
+
+	// Field selection events: flat slice of EntityFieldSelection — one per
+	// Object/Array accessor entered inside an entity scope when
+	// CachingOptions.EmitFieldSelections is true. Empty when the flag is off.
+	FieldSelections []EntityFieldSelection
 
 	// Entity tracking: type + count inline
 	EntityTypes []EntityTypeInfo

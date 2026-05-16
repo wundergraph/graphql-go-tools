@@ -908,6 +908,39 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 					schemaName = obj.Fields[i].Name
 				}
 				if len(schemaName) > 0 {
+					// Emit accessor-row event before descending. The router
+					// flattens field_hash to scalar leaves attributed to the
+					// nearest entity and discards intermediate accessor names;
+					// this row is what downstream coverage analytics reads to
+					// count the accessor itself as observed. Same eligibility
+					// gates as HashFieldValue: accessor must be a direct field
+					// of the current entity (ExactParentTypeName check, with
+					// polymorphic ParentTypeNames fallback) and the entity must
+					// have a resolvable key (currentEntityKeyRaw or KeyHash).
+					if r.ctx != nil && r.ctx.cacheAnalytics != nil &&
+						r.ctx.ExecutionOptions.Caching.EmitFieldSelections &&
+						r.currentFieldInfo != nil {
+						isOnCurrentEntity := r.currentFieldInfo.ExactParentTypeName == r.currentEntityTypeName
+						if !isOnCurrentEntity {
+							for _, pt := range r.currentFieldInfo.ParentTypeNames {
+								if pt == r.currentEntityTypeName {
+									isOnCurrentEntity = true
+									break
+								}
+							}
+						}
+						hasEntityIdentity := (r.currentEntityKeyRaw != "" && r.currentEntityKeyRaw != "{}") || r.currentEntityKeyHash != 0
+						if isOnCurrentEntity && hasEntityIdentity {
+							r.ctx.cacheAnalytics.RecordFieldSelection(
+								r.currentEntityTypeName,
+								string(schemaName),
+								r.currentEntityFieldPath,
+								r.currentFieldInfo.NamedType,
+								r.currentEntityKeyRaw, r.currentEntityKeyHash,
+								r.currentEntitySource, r.fieldDataSource(),
+							)
+						}
+					}
 					r.currentEntityFieldPath = append(r.currentEntityFieldPath, string(schemaName))
 					fieldPathPushed = true
 				}

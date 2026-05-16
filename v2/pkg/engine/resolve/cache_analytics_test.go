@@ -186,6 +186,86 @@ func TestCacheAnalyticsCollector_FieldHashing(t *testing.T) {
 	})
 }
 
+// TestCacheAnalyticsCollector_RecordFieldSelection verifies accessor-row
+// emission for nested object accessors. Unlike HashFieldValue, no value is
+// hashed — the row's existence is the signal that the accessor was entered.
+// The collector must copy the FieldPath slice so callers may reuse their
+// scratch buffer, populate the snapshot's FieldSelections field, and survive
+// pool reuse.
+func TestCacheAnalyticsCollector_RecordFieldSelection(t *testing.T) {
+	t.Run("single direct accessor", func(t *testing.T) {
+		c := NewCacheAnalyticsCollector()
+
+		c.RecordFieldSelection("Employee", "details", nil, "Details", `{"id":"1"}`, 0, FieldSourceSubgraph, "family")
+
+		snap := c.Snapshot()
+		require.Equal(t, 1, len(snap.FieldSelections))
+		assert.Equal(t, "Employee", snap.FieldSelections[0].EntityType)
+		assert.Equal(t, "details", snap.FieldSelections[0].FieldName)
+		assert.Equal(t, "Details", snap.FieldSelections[0].ChildTypeName)
+		assert.Nil(t, snap.FieldSelections[0].FieldPath, "nil FieldPath stays nil — no allocation for direct accessors")
+		assert.Equal(t, `{"id":"1"}`, snap.FieldSelections[0].KeyRaw)
+		assert.Equal(t, uint64(0), snap.FieldSelections[0].KeyHash)
+		assert.Equal(t, FieldSourceSubgraph, snap.FieldSelections[0].Source)
+		assert.Equal(t, "family", snap.FieldSelections[0].DataSource)
+	})
+
+	t.Run("hashed key mode", func(t *testing.T) {
+		c := NewCacheAnalyticsCollector()
+
+		c.RecordFieldSelection("Employee", "details", nil, "Details", "", 12345, FieldSourceL1, "family")
+
+		snap := c.Snapshot()
+		require.Equal(t, 1, len(snap.FieldSelections))
+		assert.Equal(t, "", snap.FieldSelections[0].KeyRaw)
+		assert.Equal(t, uint64(12345), snap.FieldSelections[0].KeyHash)
+		assert.Equal(t, FieldSourceL1, snap.FieldSelections[0].Source)
+	})
+
+	t.Run("FieldPath is defensively copied", func(t *testing.T) {
+		c := NewCacheAnalyticsCollector()
+		scratch := []string{"profile", "address"}
+
+		c.RecordFieldSelection("Employee", "location", scratch, "Location", `{"id":"1"}`, 0, FieldSourceSubgraph, "family")
+		// Mutate caller's scratch — recorded event must be unaffected.
+		scratch[0] = "REPLACED"
+		scratch[1] = "OVERWRITTEN"
+
+		snap := c.Snapshot()
+		require.Equal(t, 1, len(snap.FieldSelections))
+		assert.Equal(t, []string{"profile", "address"}, snap.FieldSelections[0].FieldPath)
+	})
+
+	t.Run("multiple selections preserve order", func(t *testing.T) {
+		c := NewCacheAnalyticsCollector()
+
+		c.RecordFieldSelection("Employee", "details", nil, "Details", `{"id":"1"}`, 0, FieldSourceSubgraph, "family")
+		c.RecordFieldSelection("Employee", "hobbies", nil, "Hobby", `{"id":"1"}`, 0, FieldSourceSubgraph, "hobbies")
+		c.RecordFieldSelection("Employee", "task", nil, "Task", `{"id":"1"}`, 0, FieldSourceSubgraph, "employees")
+
+		snap := c.Snapshot()
+		require.Equal(t, 3, len(snap.FieldSelections))
+		assert.Equal(t, "details", snap.FieldSelections[0].FieldName)
+		assert.Equal(t, "Details", snap.FieldSelections[0].ChildTypeName)
+		assert.Equal(t, "hobbies", snap.FieldSelections[1].FieldName)
+		assert.Equal(t, "Hobby", snap.FieldSelections[1].ChildTypeName) // list element type, list wrapper unwrapped
+		assert.Equal(t, "task", snap.FieldSelections[2].FieldName)
+		assert.Equal(t, "Task", snap.FieldSelections[2].ChildTypeName) // abstract type for union/interface accessor
+	})
+
+	t.Run("survives pool reuse via ResetForReuse", func(t *testing.T) {
+		c := NewCacheAnalyticsCollector()
+		c.RecordFieldSelection("Employee", "details", nil, "Details", `{"id":"1"}`, 0, FieldSourceSubgraph, "family")
+		snap1 := c.Snapshot()
+		require.Equal(t, 1, len(snap1.FieldSelections))
+
+		c.ResetForReuse()
+		snap2 := c.Snapshot()
+		assert.Equal(t, 0, len(snap2.FieldSelections), "ResetForReuse must truncate FieldSelections")
+		assert.Equal(t, 1, len(snap1.FieldSelections), "earlier snapshot must remain stable (slices.Clone isolates)")
+	})
+}
+
 // TestCacheAnalyticsCollector_BuildRootFieldCacheHits verifies the synthesized
 // field-hash events for root-field cache hits (@openfed__queryCache). The
 // builder must emit one EntityFieldHash per entry in RootFields and skip the
