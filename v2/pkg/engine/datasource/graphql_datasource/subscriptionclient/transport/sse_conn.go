@@ -55,8 +55,10 @@ func (c *sseConnection) readLoop() {
 		// Parse the raw event bytes into event type and data
 		eventType, data := c.parseEventBytes(eventBytes)
 
-		// Skip empty events (e.g., keep-alive comments)
-		if eventType == "" && data == nil {
+		// Skip empty events and empty non-terminal events. Some SSE servers send
+		// keepalives as comments or as named events without data; those should
+		// not be forwarded to the GraphQL response parser.
+		if len(data) == 0 && eventType != "complete" {
 			continue
 		}
 
@@ -142,7 +144,7 @@ func (c *sseConnection) parseEvent(eventType string, data []byte) *common.Messag
 		// Unknown event type or no event type specified - treat as data
 		// This handles servers that send data without an event type
 		if len(data) == 0 {
-			return &common.Message{Type: common.MessageTypeComplete}
+			return &common.Message{Type: common.MessageTypeUnknown}
 		}
 		var resp common.ExecutionResult
 		if err := json.Unmarshal(data, &resp); err != nil {
