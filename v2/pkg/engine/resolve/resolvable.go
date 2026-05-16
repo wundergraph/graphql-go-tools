@@ -633,10 +633,27 @@ func (r *Resolvable) renderFieldValue(value *astjson.Value, valueBytes []byte, n
 				r.currentEntityFieldPath,
 				valueBytes,
 				r.currentEntityKeyRaw, r.currentEntityKeyHash,
-				r.currentEntitySource, r.currentEntityDataSource,
+				r.currentEntitySource, r.fieldDataSource(),
 			)
 		}
 	}
+}
+
+// fieldDataSource picks the subgraph attributed to the field currently being
+// rendered. Federated entities are merged from multiple subgraph fetches;
+// currentEntityDataSource is the entry-point subgraph (set once per entity
+// scope), not the subgraph that resolved any specific leaf. The planner
+// populates FieldInfo.Source.Names with the resolver(s) per field — prefer
+// that. Falls back to the entity-scope value when per-field info is missing
+// (root-field walks, edge cases), preserving prior behaviour. When
+// Source.Names has multiple entries (@shareable on >1 subgraph), the first
+// is the planner's preferred resolver; per-merge runtime disambiguation
+// isn't tracked, so this is the best static answer.
+func (r *Resolvable) fieldDataSource() string {
+	if r.currentFieldInfo != nil && len(r.currentFieldInfo.Source.Names) > 0 {
+		return r.currentFieldInfo.Source.Names[0]
+	}
+	return r.currentEntityDataSource
 }
 
 func (r *Resolvable) pushArrayPathElement(index int) {

@@ -2702,6 +2702,16 @@ func (l *Loader) hashShadowCachedLeaves(
 			schemaName = fieldName
 		}
 
+		// Prefer the planner's per-field resolver subgraph over the entity-
+		// scope dataSource arg. Mirrors the per-field attribution applied at
+		// the fresh-response emission site in resolvable.go (see
+		// fieldDataSource). Falls back to the recursion's dataSource arg
+		// (entity-scope) when planner info is missing.
+		fieldDS := dataSource
+		if field.Info != nil && len(field.Info.Source.Names) > 0 {
+			fieldDS = field.Info.Source.Names[0]
+		}
+
 		switch v := field.Value.(type) {
 		case *Object:
 			fieldPath = append(fieldPath, schemaName)
@@ -2726,7 +2736,7 @@ func (l *Loader) hashShadowCachedLeaves(
 						bytes := item.MarshalTo(nil)
 						l.ctx.cacheAnalytics.HashFieldValue(
 							entityType, fieldName, fieldPath,
-							bytes, keyRaw, 0, FieldSourceShadowCached, dataSource,
+							bytes, keyRaw, 0, FieldSourceShadowCached, fieldDS,
 						)
 					}
 					fieldPath = fieldPath[:len(fieldPath)-1]
@@ -2737,7 +2747,7 @@ func (l *Loader) hashShadowCachedLeaves(
 			bytes := fieldVal.MarshalTo(nil)
 			l.ctx.cacheAnalytics.HashFieldValue(
 				entityType, fieldName, fieldPath,
-				bytes, keyRaw, 0, FieldSourceShadowCached, dataSource,
+				bytes, keyRaw, 0, FieldSourceShadowCached, fieldDS,
 			)
 		}
 	}
