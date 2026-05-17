@@ -194,6 +194,15 @@ type CachingOptions struct {
 	// When false (default), GetCacheStats() returns an empty snapshot.
 	// The analytics collector is nil-guarded so the disabled path has zero overhead.
 	EnableCacheAnalytics bool
+	// EmitFieldSelections emits an EntityFieldSelection row whenever the
+	// response walker enters an Object/Array accessor field inside an entity
+	// scope. Coverage analytics downstream (cosmo/hub) reads these to
+	// distinguish "the accessor was selected" from "only its leaves are
+	// visible" — leaf rows attribute scalars to the nearest enclosing entity
+	// and discard intermediate accessor names. Has no effect when
+	// EnableCacheAnalytics is false.
+	// Default: false.
+	EmitFieldSelections bool
 	// L2CacheKeyInterceptor, when set, transforms L2 cache key strings before
 	// they are used for lookups, writes, and deletions. This allows library users
 	// to add custom prefixes/suffixes (e.g., tenant isolation) without modifying

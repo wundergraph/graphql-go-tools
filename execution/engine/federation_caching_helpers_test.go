@@ -804,9 +804,69 @@ func parseCacheAnalytics(t *testing.T, headers http.Header) resolve.CacheAnalyti
 	return snap
 }
 
-// normalizeSnapshot makes a CacheAnalyticsSnapshot deterministically comparable by
-// sorting EntityTypes, L1Reads, L2Reads, L1Writes, L2Writes, and FieldHashes.
+// normalizeSnapshot makes a CacheAnalyticsSnapshot deterministically comparable
+// for tests that focus on request-flow and cache-hit-pattern invariants. It
+// sorts/zeros non-deterministic fields and STRIPS the DataSource and FieldPath
+// dimensions from FieldHashes / MutationEvents so most e2e fixtures don't need
+// per-event subgraph attribution.
+//
+// Attribution-focused tests (i.e. those that need to assert which subgraph
+// produced a hash) MUST use normalizeSnapshotPreservingAttribution instead.
+// Stripping DataSource here means a regression that misattributes a field hash
+// to the wrong subgraph would silently pass a normalizeSnapshot-using test.
 func normalizeSnapshot(snap resolve.CacheAnalyticsSnapshot) resolve.CacheAnalyticsSnapshot {
+	snap = normalizeSnapshotPreservingAttribution(snap)
+	for i := range snap.FieldHashes {
+		snap.FieldHashes[i].DataSource = ""
+		snap.FieldHashes[i].FieldPath = nil
+	}
+	for i := range snap.MutationEvents {
+		snap.MutationEvents[i].DataSource = ""
+	}
+	return snap
+}
+
+// normalizeSnapshotPreservingAttribution is the strict variant of
+// normalizeSnapshot for tests that assert per-event subgraph attribution.
+// It zeros non-deterministic fields (Timestamps, FetchTimings.DurationMs,
+// CacheAgeMs) and sorts events for stable comparison, but leaves
+// FieldHashes.DataSource, FieldHashes.FieldPath, and MutationEvents.DataSource
+// intact so a wrong-subgraph regression fails the assertion.
+func normalizeSnapshotPreservingAttribution(snap resolve.CacheAnalyticsSnapshot) resolve.CacheAnalyticsSnapshot {
+	// Zero auto-stamped Timestamps on every event slice. Each Record* method
+	// stamps time.Now() when the caller passes a zero value; the wall-clock
+	// nanos make literal struct equality flake without this normalization.
+	for i := range snap.L1Reads {
+		snap.L1Reads[i].Timestamp = time.Time{}
+	}
+	for i := range snap.L2Reads {
+		snap.L2Reads[i].Timestamp = time.Time{}
+	}
+	for i := range snap.L1Writes {
+		snap.L1Writes[i].Timestamp = time.Time{}
+	}
+	for i := range snap.L2Writes {
+		snap.L2Writes[i].Timestamp = time.Time{}
+	}
+	for i := range snap.ErrorEvents {
+		snap.ErrorEvents[i].Timestamp = time.Time{}
+	}
+	for i := range snap.FieldHashes {
+		snap.FieldHashes[i].Timestamp = time.Time{}
+	}
+	for i := range snap.ShadowComparisons {
+		snap.ShadowComparisons[i].Timestamp = time.Time{}
+	}
+	for i := range snap.MutationEvents {
+		snap.MutationEvents[i].Timestamp = time.Time{}
+	}
+	for i := range snap.HeaderImpactEvents {
+		snap.HeaderImpactEvents[i].Timestamp = time.Time{}
+	}
+	for i := range snap.CacheOpErrors {
+		snap.CacheOpErrors[i].Timestamp = time.Time{}
+	}
+
 	// Sort EntityTypes by TypeName
 	if snap.EntityTypes != nil {
 		sorted := make([]resolve.EntityTypeInfo, len(snap.EntityTypes))
@@ -875,7 +935,11 @@ func normalizeSnapshot(snap resolve.CacheAnalyticsSnapshot) resolve.CacheAnalyti
 		snap.L2Writes = sorted
 	}
 
-	// Sort FieldHashes for deterministic comparison
+	// Sort FieldHashes for deterministic comparison. FieldPath and DataSource
+	// are included as final tiebreakers so attribution-preserving comparisons
+	// (normalizeSnapshotPreservingAttribution) order events deterministically
+	// when two records share EntityType/FieldName/Key but differ only in
+	// subgraph attribution or value-type traversal path.
 	if snap.FieldHashes != nil {
 		sorted := make([]resolve.EntityFieldHash, len(snap.FieldHashes))
 		copy(sorted, snap.FieldHashes)
@@ -892,7 +956,13 @@ func normalizeSnapshot(snap resolve.CacheAnalyticsSnapshot) resolve.CacheAnalyti
 			if sorted[i].KeyHash != sorted[j].KeyHash {
 				return sorted[i].KeyHash < sorted[j].KeyHash
 			}
-			return sorted[i].FieldHash < sorted[j].FieldHash
+			if sorted[i].FieldHash != sorted[j].FieldHash {
+				return sorted[i].FieldHash < sorted[j].FieldHash
+			}
+			if cmp := compareStringSlice(sorted[i].FieldPath, sorted[j].FieldPath); cmp != 0 {
+				return cmp < 0
+			}
+			return sorted[i].DataSource < sorted[j].DataSource
 		})
 		snap.FieldHashes = sorted
 	}
@@ -913,7 +983,8 @@ func normalizeSnapshot(snap resolve.CacheAnalyticsSnapshot) resolve.CacheAnalyti
 		snap.ShadowComparisons = sorted
 	}
 
-	// Sort MutationEvents for deterministic comparison
+	// Sort MutationEvents for deterministic comparison. DataSource is a
+	// tiebreaker so the strict variant orders attribution-distinct events.
 	if snap.MutationEvents != nil {
 		sorted := make([]resolve.MutationEvent, len(snap.MutationEvents))
 		copy(sorted, snap.MutationEvents)
@@ -921,7 +992,10 @@ func normalizeSnapshot(snap resolve.CacheAnalyticsSnapshot) resolve.CacheAnalyti
 			if sorted[i].MutationRootField != sorted[j].MutationRootField {
 				return sorted[i].MutationRootField < sorted[j].MutationRootField
 			}
-			return sorted[i].EntityCacheKey < sorted[j].EntityCacheKey
+			if sorted[i].EntityCacheKey != sorted[j].EntityCacheKey {
+				return sorted[i].EntityCacheKey < sorted[j].EntityCacheKey
+			}
+			return sorted[i].DataSource < sorted[j].DataSource
 		})
 		snap.MutationEvents = sorted
 	}
@@ -978,8 +1052,36 @@ func normalizeSnapshot(snap resolve.CacheAnalyticsSnapshot) resolve.CacheAnalyti
 	if len(snap.HeaderImpactEvents) == 0 {
 		snap.HeaderImpactEvents = nil
 	}
+	if len(snap.CacheOpErrors) == 0 {
+		snap.CacheOpErrors = nil
+	}
 
 	return snap
+}
+
+// compareStringSlice lexicographically compares two []string values. Returns
+// -1, 0, or +1. Used as a deterministic tiebreaker when sorting events that
+// preserve a FieldPath dimension.
+func compareStringSlice(a, b []string) int {
+	n := len(a)
+	if len(b) < n {
+		n = len(b)
+	}
+	for i := 0; i < n; i++ {
+		if a[i] != b[i] {
+			if a[i] < b[i] {
+				return -1
+			}
+			return 1
+		}
+	}
+	if len(a) < len(b) {
+		return -1
+	}
+	if len(a) > len(b) {
+		return 1
+	}
+	return 0
 }
 
 // normalizeFetchTimings sorts FetchTimings deterministically and zeros DurationMs
