@@ -76,6 +76,12 @@ type Resolvable struct {
 	// Reset on entity boundary entry, restored on exit. Reusable scratch slice;
 	// HashFieldValue copies before storing.
 	currentEntityFieldPath []string
+	// insideHashedArray suppresses per-element FIELD_HASH emission inside a
+	// list of scalars/enums. walkArray emits a single hash for the whole array
+	// up-front, then sets this flag so descended scalar leaves don't each
+	// emit their own (which would look like value transitions to the drift
+	// detector — 5 enum elements = 4 spurious "transitions" per observation).
+	insideHashedArray bool
 
 	// haltExecution is set to true when ErrorBehaviorHalt encounters an error.
 	// Once set, remaining fetches and resolution will be skipped.
@@ -590,51 +596,86 @@ func (r *Resolvable) renderFieldValue(value *astjson.Value, valueBytes []byte, n
 	// (currentEntityTypeName) for cache identity, with parent type name
 	// recorded separately to disambiguate value-type fields from direct
 	// entity scalars (e.g. User.address.street vs User.email).
-	if r.ctx != nil && r.ctx.cacheAnalytics != nil && r.currentEntityAnalytics != nil && r.currentFieldInfo != nil {
-		// Detect direct entity scalars vs value-type traversal: direct scalars
-		// have ExactParentTypeName == currentEntityTypeName (or appear in
-		// ParentTypeNames for polymorphic interface cases); value-type leaves
-		// reach the field through a non-entity ancestor and don't match.
-		isOnCurrentEntity := r.currentFieldInfo.ExactParentTypeName == r.currentEntityTypeName
-		if !isOnCurrentEntity {
-			for _, pt := range r.currentFieldInfo.ParentTypeNames {
-				if pt == r.currentEntityTypeName {
-					isOnCurrentEntity = true
-					break
-				}
+	// Skip per-element FIELD_HASH when this leaf is an item of a list-of-scalars
+	// whose enclosing array already emitted one hash for the whole array (see
+	// walkArray). Without this gate each enum/scalar element looks like a
+	// distinct value for (entity, field) and the drift detector treats list
+	// iteration as value transitions.
+	if !r.insideHashedArray {
+		r.recordEntityFieldHash(valueBytes)
+	}
+}
+
+// recordEntityFieldHash emits a FIELD_HASH event for valueBytes attributed to
+// the nearest enclosing entity, applying the standard eligibility checks
+// (CacheAnalyticsHash flag, polymorphic interface fallback, identity guard).
+// Two callers: renderFieldValue for scalar leaves, walkArray for list-of-scalar
+// whole-array hashes.
+func (r *Resolvable) recordEntityFieldHash(valueBytes []byte) {
+	if r.ctx == nil || r.ctx.cacheAnalytics == nil || r.currentEntityAnalytics == nil || r.currentFieldInfo == nil {
+		return
+	}
+	// Detect direct entity scalars vs value-type traversal: direct scalars
+	// have ExactParentTypeName == currentEntityTypeName (or appear in
+	// ParentTypeNames for polymorphic interface cases); value-type leaves
+	// reach the field through a non-entity ancestor and don't match.
+	isOnCurrentEntity := r.currentFieldInfo.ExactParentTypeName == r.currentEntityTypeName
+	if !isOnCurrentEntity {
+		for _, pt := range r.currentFieldInfo.ParentTypeNames {
+			if pt == r.currentEntityTypeName {
+				isOnCurrentEntity = true
+				break
 			}
 		}
+	}
 
-		shouldHash := false
-		if r.currentFieldInfo.CacheAnalyticsHash {
-			shouldHash = true
-		} else if isOnCurrentEntity && !r.currentEntityAnalytics.IsKeyField(r.currentFieldInfo.Name) {
-			// Polymorphic runtime fallback for interface fields whose concrete
-			// type matches the enclosing entity.
-			shouldHash = true
-		}
+	shouldHash := false
+	if r.currentFieldInfo.CacheAnalyticsHash {
+		shouldHash = true
+	} else if isOnCurrentEntity && !r.currentEntityAnalytics.IsKeyField(r.currentFieldInfo.Name) {
+		// Polymorphic runtime fallback for interface fields whose concrete
+		// type matches the enclosing entity.
+		shouldHash = true
+	}
 
-		// Value-type traversal can land in a keyless entity scope (e.g.
-		// `query { user(id) { reviews { body } } }` selects no @key field on
-		// User). Without identity the hash record is uncorrelatable, so skip.
-		// Direct entity scalars are always emitted — their key may be aliased
-		// (`{}` from buildEntityKeyJSON's schema-name lookup) but the field
-		// itself still belongs to a known entity in the response.
-		if shouldHash && !isOnCurrentEntity {
-			hasEntityIdentity := (r.currentEntityKeyRaw != "" && r.currentEntityKeyRaw != "{}") || r.currentEntityKeyHash != 0
-			if !hasEntityIdentity {
-				shouldHash = false
-			}
+	// Value-type traversal can land in a keyless entity scope (e.g.
+	// `query { user(id) { reviews { body } } }` selects no @key field on
+	// User). Without identity the hash record is uncorrelatable, so skip.
+	// Direct entity scalars are always emitted — their key may be aliased
+	// (`{}` from buildEntityKeyJSON's schema-name lookup) but the field
+	// itself still belongs to a known entity in the response.
+	if shouldHash && !isOnCurrentEntity {
+		hasEntityIdentity := (r.currentEntityKeyRaw != "" && r.currentEntityKeyRaw != "{}") || r.currentEntityKeyHash != 0
+		if !hasEntityIdentity {
+			shouldHash = false
 		}
-		if shouldHash {
-			r.ctx.cacheAnalytics.HashFieldValue(
-				r.currentEntityTypeName,
-				r.currentFieldInfo.Name,
-				r.currentEntityFieldPath,
-				valueBytes,
-				r.currentEntityKeyRaw, r.currentEntityKeyHash,
-				r.currentEntitySource, r.fieldDataSource(),
-			)
+	}
+	if !shouldHash {
+		return
+	}
+	r.ctx.cacheAnalytics.HashFieldValue(
+		r.currentEntityTypeName,
+		r.currentFieldInfo.Name,
+		r.currentEntityFieldPath,
+		valueBytes,
+		r.currentEntityKeyRaw, r.currentEntityKeyHash,
+		r.currentEntitySource, r.fieldDataSource(),
+	)
+}
+
+// arrayItemIsHashableLeaf reports whether the eventual leaf type of a nested
+// array chain is a scalar / enum (i.e., the whole list serializes to a JSON
+// string that's safe to hash as one value). Returns false for arrays whose
+// leaves are objects.
+func arrayItemIsHashableLeaf(item Node) bool {
+	for {
+		switch n := item.(type) {
+		case *Array:
+			item = n.Item
+		case *String, *Boolean, *Integer, *Float, *BigInt, *Scalar, *Enum:
+			return true
+		default:
+			return false
 		}
 	}
 }
@@ -1118,6 +1159,24 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 	if !r.print {
 		pathKey := r.currentFieldPath()
 		r.actualListSizes[pathKey] += len(values)
+	}
+
+	// Emit ONE FIELD_HASH per list-of-scalars/enums observation so the drift
+	// detector sees a single value per (entity, field, key) per request.
+	// Without this, walkEnum / walkScalar would call renderFieldValue per
+	// element and emit N hashes that downstream pairing mistakes for value
+	// transitions. Skip when already inside a hashed outer array (nested
+	// arrays — outer's bytes already cover the inner) and when the array's
+	// leaves are objects (we don't hash object trees).
+	suppressNestedHashing := false
+	if r.print && !r.insideHashedArray && arrayItemIsHashableLeaf(arr.Item) {
+		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
+		r.recordEntityFieldHash(r.marshalBuf)
+		r.insideHashedArray = true
+		suppressNestedHashing = true
+	}
+	if suppressNestedHashing {
+		defer func() { r.insideHashedArray = false }()
 	}
 
 	hasPrintedValue := false
