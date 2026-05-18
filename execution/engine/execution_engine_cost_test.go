@@ -4441,7 +4441,28 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			)(t)
 		})
 
-		t.Run("flat slicing arg with omitted variable falls back to schema default", func(t *testing.T) {
+		t.Run("flat slicing arg with omitted variables falls back to schema default", func(t *testing.T) {
+			schema, err := graphql.NewSchemaFromString(listSchema)
+			require.NoError(t, err)
+			runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schema,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `query ($limit: Int) { items1(first: $limit) { id } }`,
+						}
+					},
+					dataSources:           makeDS(t, items1Body, listSchema),
+					fields:                fieldConfig,
+					expectedResponse:      items1Body,
+					expectedEstimatedCost: intPtr(15), // first default (5) * (Item(2)+Item.id(1))
+					expectedActualCost:    intPtr(3),  // 1 * (Item(2)+Item.id(1))
+				},
+				computeCosts(),
+			)(t)
+		})
+
+		t.Run("flat slicing arg with empty variable falls back to schema default", func(t *testing.T) {
 			schema, err := graphql.NewSchemaFromString(listSchema)
 			require.NoError(t, err)
 			runWithoutError(

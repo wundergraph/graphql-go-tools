@@ -134,7 +134,7 @@ func (ls *FieldListSize) resolveSlicingArg(slicingArg string, args map[string]Ar
 		}
 		return 0, false
 	}
-	if arg.hasVariable && vars != nil {
+	if arg.hasVariable {
 		v := vars.Get(arg.varName)
 		if v == nil {
 			if hasDefault {
