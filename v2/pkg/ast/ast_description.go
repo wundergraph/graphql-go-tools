@@ -34,17 +34,24 @@ func (d *Document) PrintDescription(description Description, indent []byte, dept
 	}
 
 	content := d.Input.ByteSlice(description.Content)
-	skipWhitespace := false
-	skippedWhitespace := 0.0
-	depthToSkip := float64(depth)
-	for i := range content {
 
-		if skipWhitespace && skippedWhitespace < depthToSkip {
+	// The lexer preserves the source-level indentation on every line after the
+	// first, so before re-emitting we strip the common indent of lines 1+
+	// (per the BlockStringValue() canonicalization in the GraphQL spec). The
+	// per-line depth prefix is then added back below. This preserves any
+	// deliberate inner indentation — e.g. code blocks inside a description.
+	commonIndent := commonBlockStringIndent(splitBytesIntoLines(content))
+	if commonIndent < 0 {
+		commonIndent = 0
+	}
+
+	skipWhitespace := false
+	skippedBytes := 0
+	for i := range content {
+		if skipWhitespace && skippedBytes < commonIndent {
 			switch content[i] {
-			case runes.TAB:
-				skippedWhitespace += 1
-				continue
-			case runes.SPACE:
+			case runes.TAB, runes.SPACE:
+				skippedBytes++
 				continue
 			}
 		}
@@ -52,14 +59,13 @@ func (d *Document) PrintDescription(description Description, indent []byte, dept
 		switch content[i] {
 		case runes.LINETERMINATOR:
 			skipWhitespace = true
+			skippedBytes = 0
 		default:
 			if skipWhitespace {
 				for j := 0; j < depth; j++ {
 					_, err = writer.Write(indent)
 				}
-
 				skipWhitespace = false
-				skippedWhitespace = 0.0
 			}
 		}
 		_, err = writer.Write(content[i : i+1])
