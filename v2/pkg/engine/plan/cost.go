@@ -115,6 +115,7 @@ func (ls *FieldListSize) multiplier(args map[string]ArgumentInfo, vars *astjson.
 func (ls *FieldListSize) resolveSlicingArg(slicingArg string, args map[string]ArgumentInfo, vars *astjson.Value) (int, bool) {
 	defaultValue, hasDefault := ls.SlicingArgumentDefaults[slicingArg]
 	if strings.Contains(slicingArg, ".") {
+		// TypeNull value should not lead to the defaults being used.
 		if value := extractSlicingArgValue(slicingArg, args, vars); value != nil {
 			if value.Type() == astjson.TypeNumber {
 				return value.GetInt(), true
@@ -152,7 +153,17 @@ func extractSlicingArgValue(slicingArg string, args map[string]ArgumentInfo, var
 	inputArg := path[0]
 	arg, found := args[inputArg]
 	if found && arg.hasVariable && arg.isInputObject {
-		return vars.Get(append([]string{arg.varName}, path[1:]...)...)
+		value := vars.Get(arg.varName)
+		if value == nil || value.Type() == astjson.TypeNull {
+			return value
+		}
+		for _, key := range path[1:] {
+			value = value.Get(key)
+			if value == nil || value.Type() == astjson.TypeNull {
+				return value
+			}
+		}
+		return value
 	}
 	return nil
 }
