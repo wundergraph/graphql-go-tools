@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.15.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.14.0...execution/v1.15.0) (2026-05-15)
+
+
+### Features
+
+* support dot-path in slicingArguments ([#1485](https://github.com/wundergraph/graphql-go-tools/issues/1485)) ([2cb8d5e](https://github.com/wundergraph/graphql-go-tools/commit/2cb8d5eee1aa8ef697868cbe323ebd1160fc3319))
+
+
+### Bug Fixes
+
+* find proper parent when sizedFields parent is a non-list wrapper ([#1493](https://github.com/wundergraph/graphql-go-tools/issues/1493)) ([6b96976](https://github.com/wundergraph/graphql-go-tools/commit/6b96976de1f1e457ee1cd5ff14039776e12f2ad0)), closes [#1492](https://github.com/wundergraph/graphql-go-tools/issues/1492)
+
+## [1.14.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.13.0...execution/v1.14.0) (2026-05-13)
+
+
+### Features
+
+* switch from composition-go wrapper to cosmo wgc composition ([#1483](https://github.com/wundergraph/graphql-go-tools/issues/1483)) ([34d07fc](https://github.com/wundergraph/graphql-go-tools/commit/34d07fc6106dbedf6e95939595b2fb71430b47f1))
+
 ## [1.13.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.12.0...execution/v1.13.0) (2026-04-30)
 
 
