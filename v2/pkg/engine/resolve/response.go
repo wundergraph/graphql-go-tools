@@ -66,6 +66,10 @@ type GraphQLDeferResponse struct {
 	// Used to render `pending` entries in the initial response and to look up the
 	// path / label of a defer at envelope-render time.
 	DeferDescriptors map[int]DeferDescriptor
+
+	// DeferTree is the execution tree built from DeferDescriptors during post-processing.
+	// Nil until the buildDeferTree post-processor runs.
+	DeferTree *DeferTreeNode
 }
 
 // DeferDescriptor describes a single @defer fragment for the incremental-delivery

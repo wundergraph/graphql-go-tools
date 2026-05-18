@@ -190,6 +190,11 @@ type Loader struct {
 	// singleFlight is the SubgraphRequestSingleFlight object shared across all client requests.
 	// It's thread safe and can be used to de-duplicate subgraph requests.
 	singleFlight *SubgraphRequestSingleFlight
+
+	// mu, when non-nil, serialises resolvable.data / jsonArena access across
+	// concurrent defer-group goroutines. Nil during normal single-threaded
+	// execution — no locking overhead.
+	mu *sync.Mutex
 }
 
 func (l *Loader) Free() {
@@ -241,6 +246,7 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 	}()
 	itemsItems := make([][]*astjson.Value, len(nodes))
 	g, ctx := errgroup.WithContext(l.ctx.ctx)
+	l.lockResolvable()
 	for i := range nodes {
 		i := i
 		results[i] = &result{}
@@ -253,16 +259,19 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 			return l.loadFetch(ctx, f, item, items, res)
 		})
 	}
+	l.unlockResolvable()
 	err := g.Wait()
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	l.lockResolvable()
 	for i := range results {
 		if results[i].nestedMergeItems != nil {
 			for j := range results[i].nestedMergeItems {
 				err = l.mergeResult(nodes[i].Item, results[i].nestedMergeItems[j], itemsItems[i][j:j+1])
 				l.callOnFinished(results[i].nestedMergeItems[j])
 				if err != nil {
+					l.unlockResolvable()
 					return errors.WithStack(err)
 				}
 			}
@@ -270,10 +279,12 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 			err = l.mergeResult(nodes[i].Item, results[i], itemsItems[i])
 			l.callOnFinished(results[i])
 			if err != nil {
+				l.unlockResolvable()
 				return errors.WithStack(err)
 			}
 		}
 	}
+	l.unlockResolvable()
 	return nil
 }
 
@@ -291,7 +302,9 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 	if item == nil {
 		return nil
 	}
+	l.lockResolvable()
 	items := l.selectItemsForPath(item.FetchPath)
+	l.unlockResolvable()
 
 	switch f := item.Fetch.(type) {
 	case *SingleFetch:
@@ -300,7 +313,9 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		if err != nil {
 			return err
 		}
+		l.lockResolvable()
 		err = l.mergeResult(item, res, items)
+		l.unlockResolvable()
 		l.callOnFinished(res)
 		return err
 	case *BatchEntityFetch:
@@ -310,7 +325,9 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
+		l.lockResolvable()
 		err = l.mergeResult(item, res, items)
+		l.unlockResolvable()
 		l.callOnFinished(res)
 		return err
 	case *EntityFetch:
@@ -319,7 +336,9 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
+		l.lockResolvable()
 		err = l.mergeResult(item, res, items)
+		l.unlockResolvable()
 		l.callOnFinished(res)
 		return err
 	default:
@@ -330,6 +349,18 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 func (l *Loader) callOnFinished(res *result) {
 	if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
 		l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.subgraphErrors))
+	}
+}
+
+func (l *Loader) lockResolvable() {
+	if l.mu != nil {
+		l.mu.Lock()
+	}
+}
+
+func (l *Loader) unlockResolvable() {
+	if l.mu != nil {
+		l.mu.Unlock()
 	}
 }
 

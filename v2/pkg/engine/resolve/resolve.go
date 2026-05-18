@@ -10,11 +10,14 @@ import (
 	"io"
 	"net/http"
 	"runtime"
+	"sync"
+	syncatomic "sync/atomic"
 	"time"
 
 	"github.com/buger/jsonparser"
 	"github.com/pkg/errors"
 	"go.uber.org/atomic"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/wundergraph/go-arena"
 
@@ -480,41 +483,123 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 			return resolveInfo, nil
 		}
 
-		// fetch deferred responses
+		// fetch deferred responses using the parallel execution tree
 
-		for i, deferGroup := range response.Defers {
-			// Reset per-iteration error state. Errors collected during one
-			// deferred fragment must NOT leak into the next iteration's
-			// completed.errors envelope.
-			t.resolvable.errors = nil
-
-			if err := t.loader.ResolveFetchNode(deferGroup.Fetches); err != nil {
+		if response.DeferTree != nil {
+			renderMu := &sync.Mutex{}
+			// Use the same mutex for both the loader's merge phase and the render
+			// phase so that a concurrent merge (write) and render (read) of the
+			// shared JSON data cannot race against each other.
+			t.loader.mu = renderMu
+			remaining := int64(countDeferLeaves(response.DeferTree))
+			if err := r.resolveDeferTree(ctx, response.DeferTree, response, t, writer, renderMu, &remaining); err != nil {
 				return nil, err
 			}
-
-			t.resolvable.deferID = deferGroup.DeferID
-
-			err = t.resolvable.ResolveDefer(response.Response.Data, writer, i < len(response.Defers)-1)
-			if err != nil {
-				return nil, err
-			}
-
-			// flush after each deferred response
-
-			err = writer.Flush()
-			if err != nil {
-				return nil, err
-			}
-
-			// Defer-internal errors (recoverable or non-recoverable) are
-			// scoped to this defer's envelope and do NOT terminate the
-			// response. Continue to the next defer regardless.
 		}
 
 		writer.Complete()
 	}
 
 	return resolveInfo, err
+}
+
+// countDeferLeaves returns the number of Single (leaf) nodes in the tree.
+func countDeferLeaves(node *DeferTreeNode) int {
+	if node == nil {
+		return 0
+	}
+	switch node.Kind {
+	case DeferTreeNodeKindSingle:
+		return 1
+	default:
+		total := 0
+		for _, child := range node.ChildNodes {
+			total += countDeferLeaves(child)
+		}
+		return total
+	}
+}
+
+// resolveDeferSingle fetches and renders a single deferred fragment.
+// remaining is an atomic counter of how many leaf nodes have yet to be rendered;
+// the node that decrements it to zero writes hasNext:false (the final frame).
+//
+// renderMu serialises the render phase (clear→render→flush) so that the shared
+// Resolvable state (errors, deferID, data) is never accessed by two goroutines at
+// the same time. Network I/O via ResolveFetchNode runs before the lock, allowing
+// sibling defer fetches to overlap even when the tree node is DeferParallel.
+func (r *Resolver) resolveDeferSingle(
+	group *DeferFetchGroup,
+	response *GraphQLDeferResponse,
+	t *tools,
+	writer DeferResponseWriter,
+	renderMu *sync.Mutex,
+	remaining *int64,
+) error {
+	if err := t.loader.ResolveFetchNode(group.Fetches); err != nil {
+		return err
+	}
+
+	renderMu.Lock()
+	defer renderMu.Unlock()
+
+	// Reset per-defer error state before rendering so that errors from one defer
+	// do not leak into the next defer's completed.errors envelope.
+	t.resolvable.errors = nil
+
+	isLast := syncatomic.AddInt64(remaining, -1) == 0
+
+	t.resolvable.deferID = group.DeferID
+	if err := t.resolvable.ResolveDefer(response.Response.Data, writer, !isLast); err != nil {
+		return err
+	}
+	return writer.Flush()
+}
+
+// resolveDeferTree walks a DeferTreeNode and resolves deferred fragments:
+// - Single nodes are resolved directly.
+// - Sequence nodes are resolved one child at a time (sequential).
+// - Parallel nodes spawn concurrent goroutines; rendering is serialised by renderMu
+// so the incremental frames are written safely. Sibling fetch I/O can overlap.
+func (r *Resolver) resolveDeferTree(
+	ctx *Context,
+	node *DeferTreeNode,
+	response *GraphQLDeferResponse,
+	t *tools,
+	writer DeferResponseWriter,
+	renderMu *sync.Mutex,
+	remaining *int64,
+) error {
+	switch node.Kind {
+	case DeferTreeNodeKindSingle:
+		return r.resolveDeferSingle(node.Item, response, t, writer, renderMu, remaining)
+
+	case DeferTreeNodeKindSequence:
+		for _, child := range node.ChildNodes {
+			if err := r.resolveDeferTree(ctx, child, response, t, writer, renderMu, remaining); err != nil {
+				return err
+			}
+		}
+		return nil
+
+	case DeferTreeNodeKindParallel:
+		g, gCtx := errgroup.WithContext(ctx.ctx)
+		for _, child := range node.ChildNodes {
+			child := child
+			g.Go(func() error {
+				err := r.resolveDeferTree(ctx.clone(gCtx), child, response, t, writer, renderMu, remaining)
+				// Only propagate the error if the parent context was cancelled
+				// (client disconnected). Defer-level errors are independent —
+				// a failed sibling must not cancel its siblings.
+				if err != nil && gCtx.Err() != nil {
+					return err
+				}
+				return nil
+			})
+		}
+		return g.Wait()
+	}
+	return nil
 }
 
 type trigger struct {

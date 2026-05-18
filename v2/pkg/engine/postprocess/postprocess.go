@@ -24,6 +24,7 @@ type Processor struct {
 	fetchTreeProcessors    *FetchTreeProcessors
 	responseTreeProcessors *ResponseTreeProcessors
 	extractDeferFetches    *extractDeferFetches
+	buildDeferTree         *buildDeferTree
 }
 
 type FetchTreeProcessors struct {
@@ -69,6 +70,7 @@ type processorOptions struct {
 	disableAddMissingNestedDependencies   bool
 	collectDataSourceInfo                 bool
 	disableExtractDeferFetches            bool
+	disableBuildDeferTree                 bool
 }
 
 type ProcessorOption func(*processorOptions)
@@ -128,6 +130,12 @@ func DisableExtractDeferFetches() ProcessorOption {
 	}
 }
 
+func DisableBuildDeferTree() ProcessorOption {
+	return func(o *processorOptions) {
+		o.disableBuildDeferTree = true
+	}
+}
+
 func NewProcessor(options ...ProcessorOption) *Processor {
 	opts := &processorOptions{}
 	for _, o := range options {
@@ -169,6 +177,9 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 		extractDeferFetches: &extractDeferFetches{
 			disable: opts.disableExtractDeferFetches,
 		},
+		buildDeferTree: &buildDeferTree{
+			disable: opts.disableBuildDeferTree,
+		},
 	}
 }
 
@@ -200,6 +211,11 @@ func (p *Processor) Process(pre plan.Plan) {
 		for _, deferResp := range t.Response.Defers {
 			p.fetchTreeProcessors.organizeFetchTree(deferResp.Fetches)
 		}
+
+		// order defer fetches into parallel/sequence groups
+		p.buildDeferTree.Process(t.Response)
+		// emptily defers, as they are now ordered in a separate tree
+		t.Response.Defers = nil
 
 	case *plan.SubscriptionResponsePlan:
 		p.responseTreeProcessors.mergeFields.Process(t.Response.Response.Data)
