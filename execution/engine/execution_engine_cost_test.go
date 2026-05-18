@@ -1908,6 +1908,99 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				computeCosts(),
 			))
+
+			t.Run("explicit null at dot-path leaf must not use schema default", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schemaSlicingDefaults,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `query ExplicitNullLeaf { search(input: { pagination: { first: null }, query: "q" }) { id } }`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: `{"data":{"search":[ {"id":"2"} ]}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+										{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Query", FieldName: "search"}: {
+											AssumedSize:      5,
+											SlicingArguments: []string{"input.pagination.first"},
+										},
+									},
+									Types: map[string]int{"Item": 3},
+								},
+							},
+							customConfigDefaults,
+						),
+					},
+					fields:           fieldConfig,
+					expectedResponse: `{"data":{"search":[{"id":"2"}]}}`,
+					// AssumedSize (5) * (Item(3)+Item.id(1))
+					expectedEstimatedCost: intPtr(20),
+					// 1 * (Item(3)+Item.id(1))
+					expectedActualCost: intPtr(4),
+				},
+				computeCosts(),
+			))
+
+			t.Run("variable-nulled dot-path leaf must not use schema default", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schemaSlicingDefaults,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query:     `query VarNullLeaf($input: Search) { search(input: $input) { id } }`,
+							Variables: []byte(`{"input":{"pagination":{"first":null},"query":"q"}}`),
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: `{"data":{"search":[ {"id":"2"} ]}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+										{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Query", FieldName: "search"}: {
+											AssumedSize:      5,
+											SlicingArguments: []string{"input.pagination.first"},
+										},
+									},
+									Types: map[string]int{"Item": 3},
+								},
+							},
+							customConfigDefaults,
+						),
+					},
+					fields:           fieldConfig,
+					expectedResponse: `{"data":{"search":[{"id":"2"}]}}`,
+					// AssumedSize (5) * (Item(3)+Item.id(1))
+					expectedEstimatedCost: intPtr(20),
+					// 1 * (Item(3)+Item.id(1))
+					expectedActualCost:    intPtr(4),
+				},
+				computeCosts(),
+			))
 		})
 
 	})
@@ -4540,6 +4633,43 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					expectedEstimatedCost: intPtr(24), // Page.first default (8) * (Item(2)+Item.id(1))
 					expectedActualCost:    intPtr(3),
 				},
+				computeCosts(),
+			)(t)
+		})
+
+		t.Run("explicit null at dot-path leaf must not satisfy RequireOneSlicingArgument", func(t *testing.T) {
+			schema, err := graphql.NewSchemaFromString(listSchemaDotPathDefault)
+			require.NoError(t, err)
+			customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+				Fetch:               &graphql_datasource.FetchConfiguration{URL: "https://example.com/", Method: "GET"},
+				SchemaConfiguration: mustSchemaConfig(t, nil, listSchemaDotPathDefault),
+			})
+			runWithAndCompareError(
+				ExecutionEngineTestCase{
+					schema: schema,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{Query: `{ search(input: { first: null }) { id } }`}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: searchBody,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: searchCostConfig,
+							},
+							customConfig,
+						),
+					},
+					fields: searchFieldConfig,
+				},
+				"external: field 'Query.search' requires exactly one slicing argument, but none was provided, locations: [], path: [search]",
 				computeCosts(),
 			)(t)
 		})

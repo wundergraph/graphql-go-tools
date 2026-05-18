@@ -111,11 +111,15 @@ func (ls *FieldListSize) multiplier(args map[string]ArgumentInfo, vars *astjson.
 // resolveSlicingArg resolves the value of a slicing argument from arguments/variables.
 // It falls back to SlicingArgumentDefaults when no value is provided.
 // The slicingArg may be a simple argument name or a dot-path into an input object argument.
+// An explicitly provided [null] value in variables overrides the default value in schema.
 func (ls *FieldListSize) resolveSlicingArg(slicingArg string, args map[string]ArgumentInfo, vars *astjson.Value) (int, bool) {
 	defaultValue, hasDefault := ls.SlicingArgumentDefaults[slicingArg]
 	if strings.Contains(slicingArg, ".") {
-		if value, found := resolveSlicingArgIntValue(slicingArg, args, vars); found {
-			return value, true
+		if value := extractSlicingArgValue(slicingArg, args, vars); value != nil {
+			if value.Type() == astjson.TypeNumber {
+				return value.GetInt(), true
+			}
+			return 0, false
 		}
 		if hasDefault {
 			return defaultValue, true
@@ -138,31 +142,19 @@ func (ls *FieldListSize) resolveSlicingArg(slicingArg string, args map[string]Ar
 	return 0, false
 }
 
-// resolveSlicingArgIntValue extracts the integer value from variables using slicingArg as the path
-func resolveSlicingArgIntValue(slicingArg string, args map[string]ArgumentInfo, vars *astjson.Value) (int, bool) {
+// extractSlicingArgValue extracts a value from variables using slicingArg that contains
+// a string in the format: "<argumentName>.<inputField1>.<inputField2>..."
+func extractSlicingArgValue(slicingArg string, args map[string]ArgumentInfo, vars *astjson.Value) *astjson.Value {
 	if vars == nil {
-		return 0, false
+		return nil
 	}
 	path := strings.Split(slicingArg, ".")
 	inputArg := path[0]
-	arg, ok := args[inputArg]
-	if ok && arg.hasVariable && arg.isInputObject {
-		value := vars.Get(arg.varName)
-		if value == nil {
-			return 0, false
-		}
-		for _, key := range path[1:] {
-			value = value.Get(key)
-			if value == nil {
-				return 0, false
-			}
-		}
-		if value.Type() != astjson.TypeNumber {
-			return 0, false
-		}
-		return value.GetInt(), true
+	arg, found := args[inputArg]
+	if found && arg.hasVariable && arg.isInputObject {
+		return vars.Get(append([]string{arg.varName}, path[1:]...)...)
 	}
-	return 0, false
+	return nil
 }
 
 // DataSourceCostConfig holds all cost configurations for a data source.
