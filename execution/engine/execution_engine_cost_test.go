@@ -4441,6 +4441,29 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			)(t)
 		})
 
+		t.Run("flat slicing arg with omitted variable falls back to schema default", func(t *testing.T) {
+			schema, err := graphql.NewSchemaFromString(listSchema)
+			require.NoError(t, err)
+			runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schema,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query:     `query ($limit: Int) { items1(first: $limit) { id } }`,
+							Variables: []byte(`{}`),
+							// An absent variable is treated as omitted, schema default applies.
+						}
+					},
+					dataSources:           makeDS(t, items1Body, listSchema),
+					fields:                fieldConfig,
+					expectedResponse:      items1Body,
+					expectedEstimatedCost: intPtr(15), // first default (5) * (Item(2)+Item.id(1))
+					expectedActualCost:    intPtr(3),  // 1 * (Item(2)+Item.id(1))
+				},
+				computeCosts(),
+			)(t)
+		})
+
 		t.Run("two slicing args, both supplied by schema defaults, are not valid", func(t *testing.T) {
 			schema, err := graphql.NewSchemaFromString(listSchema)
 			require.NoError(t, err)
@@ -4553,6 +4576,26 @@ func TestExecutionEngine_Cost(t *testing.T) {
 		})
 
 		t.Run("explicit null at dot-path leaf variable must not satisfy RequireOneSlicingArgument", func(t *testing.T) {
+			schema, err := graphql.NewSchemaFromString(listSchema)
+			require.NoError(t, err)
+			runWithAndCompareError(
+				ExecutionEngineTestCase{
+					schema: schema,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query:     `query ($n: Int) { search(input: { first: $n }) { id } }`,
+							Variables: []byte(`{"n": null}`),
+						}
+					},
+					dataSources: makeDS(t, searchBody, listSchema),
+					fields:      fieldConfig,
+				},
+				"external: field 'Query.search' requires exactly one slicing argument, but none was provided, locations: [], path: [search]",
+				computeCosts(),
+			)(t)
+		})
+
+		t.Run("explicit null at dot-path variable must not satisfy RequireOneSlicingArgument", func(t *testing.T) {
 			schema, err := graphql.NewSchemaFromString(listSchema)
 			require.NoError(t, err)
 			runWithAndCompareError(

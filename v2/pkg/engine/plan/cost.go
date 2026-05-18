@@ -136,7 +136,11 @@ func (ls *FieldListSize) resolveSlicingArg(slicingArg string, args map[string]Ar
 	}
 	if arg.hasVariable && vars != nil {
 		v := vars.Get(arg.varName)
-		if v != nil && v.Type() == astjson.TypeNumber {
+		if v == nil {
+			if hasDefault {
+				return defaultValue, true
+			}
+		} else if v.Type() == astjson.TypeNumber {
 			return vars.GetInt(arg.varName), true
 		}
 	}
