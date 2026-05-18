@@ -1864,7 +1864,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				computeCosts(),
 			))
 
-			t.Run("when dot-path with partially provided input,  inner field default supplies leaf", runWithoutError(
+			t.Run("when dot-path with partially provided input, inner field default supplies leaf", runWithoutError(
 				ExecutionEngineTestCase{
 					schema: schemaSlicingDefaults,
 					operation: func(t *testing.T) graphql.Request {

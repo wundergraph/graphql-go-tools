@@ -27,7 +27,7 @@ func runTestFillDefaults(t *testing.T, sdl string, listSizes map[FieldCoordinate
 	fillListSizeDefaults(listSizes, schema)
 }
 
-func TestEnrichListSizeDefaultsFromSchema(t *testing.T) {
+func TestFillListSizeDefaultsFromSchema(t *testing.T) {
 	t.Run("extract flat slicing arg with Int default", func(t *testing.T) {
 		ls := &FieldListSize{SlicingArguments: []string{"limit"}}
 		runTestFillDefaults(t, `
