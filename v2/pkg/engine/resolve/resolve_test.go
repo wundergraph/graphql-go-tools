@@ -223,6 +223,30 @@ func (customErrResolve) Resolve(_ *Context, value []byte) ([]byte, error) {
 	return nil, errors.New("custom error")
 }
 
+func TestResolver_ConcurrencyGetters(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	r := New(ctx, ResolverOptions{
+		MaxConcurrency:   4,
+		AsyncErrorWriter: &TestErrorWriter{},
+	})
+
+	require.Equal(t, 4, r.MaxConcurrentResolves())
+	require.Equal(t, 0, r.InflightResolves())
+
+	<-r.maxConcurrency
+	<-r.maxConcurrency
+	require.Equal(t, 2, r.InflightResolves())
+	require.Equal(t, 4, r.MaxConcurrentResolves())
+
+	r.maxConcurrency <- struct{}{}
+	require.Equal(t, 1, r.InflightResolves())
+
+	r.maxConcurrency <- struct{}{}
+	require.Equal(t, 0, r.InflightResolves())
+}
+
 func TestResolver_ResolveNode(t *testing.T) {
 	testFn := func(enableSingleFlight bool, fn func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string)) func(t *testing.T) {
 		ctrl := gomock.NewController(t)
