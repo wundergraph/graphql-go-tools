@@ -12,14 +12,16 @@ type Data struct {
 }
 
 type Schema struct {
-	QueryType        FullType    `json:"queryType"`
-	MutationType     *FullType   `json:"mutationType"`
-	SubscriptionType *FullType   `json:"subscriptionType"`
-	Types            []*FullType `json:"types"`
-	Directives       []Directive `json:"directives"`
-	TypeName         string      `json:"__typename"`
-	Description      *string     `json:"description,omitempty"`
-	fullTypeMap      map[string]*FullType
+	QueryType          FullType    `json:"queryType"`
+	MutationType       *FullType   `json:"mutationType"`
+	SubscriptionType   *FullType   `json:"subscriptionType"`
+	Types              []*FullType `json:"types"`
+	Directives         []Directive `json:"directives"`
+	TypeName           string      `json:"__typename"`
+	Description        *string     `json:"description,omitempty"`
+	fullTypeMap        map[string]*FullType
+	enrichedSchemaJSON []byte
+	enrichedTypeJSON   map[string][]byte
 }
 
 func (s *Schema) AddType(t *FullType) {
@@ -44,12 +46,25 @@ func (s *Schema) TypeNames() (query, mutation, subscription string) {
 	return
 }
 
+// EnrichedSchemaJSON returns the pre-built JSON for the full __schema introspection response.
+// BuildJSON must be called first.
+func (s *Schema) EnrichedSchemaJSON() []byte {
+	return s.enrichedSchemaJSON
+}
+
+// EnrichedTypeJSON returns the pre-built JSON for a single __type introspection response.
+// BuildJSON must be called first.
+func (s *Schema) EnrichedTypeJSON(name string) []byte {
+	return s.enrichedTypeJSON[name]
+}
+
 func NewSchema() Schema {
 	return Schema{
-		Types:       make([]*FullType, 0),
-		Directives:  make([]Directive, 0),
-		TypeName:    "__Schema",
-		fullTypeMap: make(map[string]*FullType),
+		Types:            make([]*FullType, 0),
+		Directives:       make([]Directive, 0),
+		TypeName:         "__Schema",
+		fullTypeMap:      make(map[string]*FullType),
+		enrichedTypeJSON: make(map[string][]byte),
 	}
 }
 

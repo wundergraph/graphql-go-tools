@@ -1,0 +1,75 @@
+{
+  "kind": "INPUT_OBJECT",
+  "name": "ConfigInput",
+  "description": "",
+  "inputFields": [
+    {
+      "name": "key",
+      "description": "",
+      "type": {
+        "kind": "NON_NULL",
+        "name": null,
+        "ofType": {
+          "kind": "SCALAR",
+          "name": "String",
+          "ofType": null,
+          "__typename": "__Type",
+          "description": "The 'String' scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.",
+          "inputFields": [],
+          "interfaces": [],
+          "possibleTypes": []
+        },
+        "__typename": "__Type"
+      },
+      "defaultValue": null,
+      "isDeprecated": false,
+      "deprecationReason": null,
+      "__typename": "__InputValue"
+    },
+    {
+      "name": "nested",
+      "description": "",
+      "type": {
+        "kind": "INPUT_OBJECT",
+        "name": "NestedInput",
+        "ofType": null,
+        "__typename": "__Type",
+        "description": "",
+        "inputFields": [
+          {
+            "name": "value",
+            "description": "",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null,
+                "__typename": "__Type",
+                "description": "The 'Int' scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.",
+                "inputFields": [],
+                "interfaces": [],
+                "possibleTypes": []
+              },
+              "__typename": "__Type"
+            },
+            "defaultValue": null,
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "__typename": "__InputValue"
+          }
+        ],
+        "interfaces": [],
+        "possibleTypes": []
+      },
+      "defaultValue": null,
+      "isDeprecated": false,
+      "deprecationReason": null,
+      "__typename": "__InputValue"
+    }
+  ],
+  "interfaces": [],
+  "possibleTypes": [],
+  "__typename": "__Type"
+}
