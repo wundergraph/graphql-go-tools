@@ -115,34 +115,29 @@ func (ls *FieldListSize) multiplier(args map[string]ArgumentInfo, vars *astjson.
 func (ls *FieldListSize) resolveSlicingArg(slicingArg string, args map[string]ArgumentInfo, vars *astjson.Value) (int, bool) {
 	defaultValue, hasDefault := ls.SlicingArgumentDefaults[slicingArg]
 	if strings.Contains(slicingArg, ".") {
+		value := extractSlicingArgValue(slicingArg, args, vars)
+		if value == nil {
+			return defaultValue, hasDefault
+		}
+		if value.Type() == astjson.TypeNumber {
+			return value.GetInt(), true
+		}
 		// TypeNull value should not lead to the defaults being used.
-		if value := extractSlicingArgValue(slicingArg, args, vars); value != nil {
-			if value.Type() == astjson.TypeNumber {
-				return value.GetInt(), true
-			}
-			return 0, false
-		}
-		if hasDefault {
-			return defaultValue, true
-		}
 		return 0, false
 	}
 	arg, found := args[slicingArg]
 	if !found {
-		if hasDefault {
-			return defaultValue, true
-		}
+		return defaultValue, hasDefault
+	}
+	if !arg.hasVariable {
 		return 0, false
 	}
-	if arg.hasVariable {
-		v := vars.Get(arg.varName)
-		if v == nil {
-			if hasDefault {
-				return defaultValue, true
-			}
-		} else if v.Type() == astjson.TypeNumber {
-			return vars.GetInt(arg.varName), true
-		}
+	value := vars.Get(arg.varName)
+	if value == nil {
+		return defaultValue, hasDefault
+	}
+	if value.Type() == astjson.TypeNumber {
+		return value.GetInt(), true
 	}
 	return 0, false
 }
@@ -156,20 +151,17 @@ func extractSlicingArgValue(slicingArg string, args map[string]ArgumentInfo, var
 	path := strings.Split(slicingArg, ".")
 	inputArg := path[0]
 	arg, found := args[inputArg]
-	if found && arg.hasVariable && arg.isInputObject {
-		value := vars.Get(arg.varName)
+	if !found || !arg.hasVariable || !arg.isInputObject {
+		return nil
+	}
+	value := vars.Get(arg.varName)
+	for _, key := range path[1:] {
 		if value == nil || value.Type() == astjson.TypeNull {
 			return value
 		}
-		for _, key := range path[1:] {
-			value = value.Get(key)
-			if value == nil || value.Type() == astjson.TypeNull {
-				return value
-			}
-		}
-		return value
+		value = value.Get(key)
 	}
-	return nil
+	return value
 }
 
 // DataSourceCostConfig holds all cost configurations for a data source.
