@@ -107,14 +107,14 @@ func (r *Resolver) SetAsyncErrorWriter(w AsyncErrorWriter) {
 }
 
 // MaxConcurrentResolves returns the configured maximum number of concurrent
-// resolves (the size of the resolver semaphore).
+// resolves (the size of the resolver semaphore). Use only for stats.
 func (r *Resolver) MaxConcurrentResolves() int {
 	return cap(r.maxConcurrency)
 }
 
 // InflightResolves returns the number of resolves currently holding a
 // semaphore slot. The value is a snapshot and may change immediately after
-// being read.
+// being read. Use only for stats.
 func (r *Resolver) InflightResolves() int {
 	return cap(r.maxConcurrency) - len(r.maxConcurrency)
 }
