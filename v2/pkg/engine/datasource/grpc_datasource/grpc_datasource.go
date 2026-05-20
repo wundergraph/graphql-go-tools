@@ -7,6 +7,7 @@
 package grpcdatasource
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -15,9 +16,9 @@ import (
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/tidwall/gjson"
-	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/types/dynamicpb"
 
 	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/go-arena"
@@ -26,14 +27,15 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 )
 
-type resultData struct {
-	kind           CallKind
-	response       *astjson.Value
-	responsePath   ast.Path
-	entityIndexMap entityIndexMap
+type fetchData struct {
+	kind            CallKind
+	responseMessage *dynamicpb.Message
+	response        *astjson.Value
+	responsePath    ast.Path
+	entityIndexMap  entityIndexMap
+	skipped         bool
 }
 
 // Verify DataSource implements the resolve.DataSource interface
@@ -51,7 +53,10 @@ type DataSource struct {
 	definition        *ast.Document
 	disabled          bool
 
-	pool *arena.Pool
+	pool     *arena.Pool
+	program  *program
+	codecOpt grpc.CallOption
+	wireBuf  bytes.Buffer
 }
 
 type ProtoConfig struct {
@@ -78,6 +83,10 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 	if err != nil {
 		return nil, err
 	}
+	program, err := compileProgram(plan, config.Compiler.runtime)
+	if err != nil {
+		return nil, err
+	}
 
 	return &DataSource{
 		plan:              plan,
@@ -88,6 +97,8 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 		federationConfigs: config.FederationConfigs,
 		disabled:          config.Disabled,
 		pool:              arena.NewArenaPool(),
+		program:           program,
+		codecOpt:          grpc.ForceCodecV2(&connectCodec{}),
 	}, nil
 }
 
@@ -100,9 +111,6 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 // The input is expected to contain the necessary information to make
 // a gRPC call, including service name, method name, and request data.
 func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
-	// get variables from input
-	variables := gjson.Parse(unsafebytes.BytesToString(input)).Get("body.variables")
-
 	var poolItems []*arena.PoolItem
 	defer func() {
 		d.pool.ReleaseMany(poolItems)
@@ -110,6 +118,23 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 
 	item := d.acquirePoolItem(input, 0)
 	poolItems = append(poolItems, item)
+
+	// get variables from input
+	value, err := astjson.ParseBytesWithArena(item.Arena, input)
+	if err != nil {
+		return nil, err
+	}
+
+	if value.Exists("body") {
+		value = value.Get("body")
+	}
+
+	astJsonVariables := value.Get("variables")
+	if !value.Exists() {
+		return nil, fmt.Errorf("variables are required")
+	}
+
+	variables := gjson.ParseBytes(input).Get("body.variables")
 
 	builder := newJSONBuilder(item.Arena, d.mapping, variables)
 
@@ -130,62 +155,56 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 		ctx = metadata.AppendToOutgoingContext(ctx, pairs...)
 	}
 
-	graph := NewDependencyGraph(d.plan)
-
 	root := astjson.ObjectValue(nil)
 
-	representations := getRepresentations(variables)
-	if err := graph.TopologicalSortResolve(func(nodes []FetchItem) error {
-		serviceCalls, err := d.rc.CompileFetches(graph, nodes, variables)
-		if err != nil {
-			return err
-		}
+	callMap := make(map[int]fetchData)
 
-		results := make([]resultData, len(serviceCalls))
-		errGrp, errGrpCtx := errgroup.WithContext(ctx)
+	representations := getRepresentations(astJsonVariables)
+	for _, stage := range d.program.stages {
+		results := make([]fetchData, 0, len(stage.fetches))
 
-		// make gRPC calls
-		for index, serviceCall := range serviceCalls {
-			item := d.acquirePoolItem(input, index)
-			poolItems = append(poolItems, item)
+		for _, fetch := range stage.fetches {
+			buffer, skip, err := createProtoWire(item.Arena, &fetch, callMap, astJsonVariables)
+			if err != nil {
+				return nil, err
+			}
 
-			builder := newJSONBuilder(item.Arena, d.mapping, variables)
-			errGrp.Go(func() error {
-				// Invoke the gRPC method - this will populate serviceCall.Output
-				err := d.cc.Invoke(errGrpCtx, serviceCall.MethodFullName(), serviceCall.Input, serviceCall.Output)
-				if err != nil {
-					return err
+			if skip {
+				continue
+			}
+
+			responseMessage := dynamicpb.NewMessage(fetch.response.responseType.desc)
+			err = d.cc.Invoke(ctx, fetch.methodFullName, NewPreWiredInputMessage(buffer), responseMessage)
+			if err != nil {
+				return builder.writeErrorBytes(err), nil
+			}
+
+			responseJson, err := builder.marshalResponseJSON(&fetch.response.rpcMessage, responseMessage)
+			if err != nil {
+				return builder.writeErrorBytes(err), nil
+			}
+
+			fetchResult := fetchData{
+				kind:            fetch.kind,
+				response:        responseJson,
+				responseMessage: responseMessage,
+				responsePath:    fetch.responsePath,
+			}
+
+			// In case of a federated response, we need to ensure that the response is valid.
+			// The number of entities per type must match the number of lookup keys in the variables.
+			// On success we build the index map used by mergeEntities to place each response
+			// entity at the correct position in the final _entities array.
+			if fetch.kind == CallKindEntity {
+				if err := validateEntityResponse(responseJson, fetch.requestedEntityType, representations); err != nil {
+					return builder.writeErrorBytes(err), nil
 				}
 
-				response, err := builder.marshalResponseJSON(&serviceCall.RPC.Response, serviceCall.Output)
-				if err != nil {
-					return err
-				}
+				fetchResult.entityIndexMap = newEntityIndexMap(fetch.requestedEntityType, representations)
+			}
 
-				results[index] = resultData{
-					kind:         serviceCall.RPC.Kind,
-					response:     response,
-					responsePath: serviceCall.RPC.ResponsePath,
-				}
-
-				// In case of a federated response, we need to ensure that the response is valid.
-				// The number of entities per type must match the number of lookup keys in the variables.
-				// On success we build the index map used by mergeEntities to place each response
-				// entity at the correct position in the final _entities array.
-				if serviceCall.RPC.Kind == CallKindEntity {
-					if err := validateEntityResponse(response, serviceCall.RPC.RequestedEntityType, representations); err != nil {
-						return err
-					}
-
-					results[index].entityIndexMap = newEntityIndexMap(serviceCall.RPC.RequestedEntityType, representations)
-				}
-
-				return nil
-			})
-		}
-
-		if err := errGrp.Wait(); err != nil {
-			return err
+			results = append(results, fetchResult)
+			callMap[fetch.id] = fetchResult
 		}
 
 		for _, result := range results {
@@ -196,17 +215,13 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 				root, err = builder.mergeValues(root, result)
 			}
 			if err != nil {
-				return err
+				return builder.writeErrorBytes(err), nil
 			}
 		}
-
-		return nil
-	}); err != nil {
-		return builder.writeErrorBytes(err), nil
 	}
 
-	value := builder.toDataObject(root)
-	return value.MarshalTo(nil), err
+	resultValue := builder.toDataObject(root)
+	return resultValue.MarshalTo(nil), err
 }
 
 func (d *DataSource) acquirePoolItem(input []byte, index int) *arena.PoolItem {
@@ -220,6 +235,62 @@ func (d *DataSource) acquirePoolItem(input []byte, index int) *arena.PoolItem {
 	return item
 }
 
+func createProtoWire(a arena.Arena, fetch *fetchProgram, callMap map[int]fetchData, requestVariables *astjson.Value) ([]byte, bool, error) {
+	var buffer []byte
+	var err error
+
+	switch fetch.kind {
+	case CallKindStandard:
+		buffer, err = fetch.request.createProtoWire(requestVariables)
+		if err != nil {
+			return nil, false, err
+		}
+	case CallKindEntity, CallKindRequired:
+		if fetch.requestedEntityType != "" {
+			requestVariables = filterRepresentations(a, requestVariables, fetch.requestedEntityType)
+		}
+
+		buffer, err = fetch.request.createProtoWire(requestVariables)
+		if err != nil {
+			return nil, false, err
+		}
+	case CallKindResolve:
+		contextFetch, found := callMap[fetch.dependentCall.ID]
+		if !found {
+			return nil, false, fmt.Errorf("context fetch not found for dependent call %d", fetch.dependentCall.ID)
+		}
+
+		if contextFetch.responseMessage == nil || contextFetch.skipped {
+			fetchResult := fetchData{
+				kind:         fetch.kind,
+				responsePath: fetch.responsePath,
+				skipped:      true,
+			}
+
+			callMap[fetch.id] = fetchResult
+			return nil, true, nil
+		}
+
+		buffer, err = fetch.request.createProtoWireWithContext(a, requestVariables, contextFetch.responseMessage)
+		if err != nil {
+			if err == errShouldSkip {
+				fetchResult := fetchData{
+					kind:         fetch.kind,
+					responsePath: fetch.responsePath,
+					skipped:      true,
+				}
+
+				callMap[fetch.id] = fetchResult
+				return nil, true, nil
+			}
+
+			return nil, false, err
+		}
+	}
+
+	return buffer, false, nil
+}
+
 // LoadWithFiles implements resolve.DataSource interface.
 // Similar to Load, but handles file uploads if needed.
 //
@@ -230,3 +301,116 @@ func (d *DataSource) acquirePoolItem(input []byte, index int) *arena.PoolItem {
 func (d *DataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
 	panic("unimplemented")
 }
+
+// func (d *DataSource) LoadOld(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
+// 	// get variables from input
+// 	variables := gjson.Parse(unsafebytes.BytesToString(input)).Get("body.variables")
+
+// 	var poolItems []*arena.PoolItem
+// 	defer func() {
+// 		d.pool.ReleaseMany(poolItems)
+// 	}()
+
+// 	item := d.acquirePoolItem(input, 0)
+// 	poolItems = append(poolItems, item)
+
+// 	builder := newJSONBuilder(item.Arena, d.mapping, variables)
+
+// 	if d.disabled {
+// 		return builder.writeErrorBytes(fmt.Errorf("gRPC datasource needs to be enabled to be used")), nil
+// 	}
+
+// 	// convert headers to grpc metadata and attach to ctx
+// 	if len(headers) > 0 {
+// 		// assume that each header has exactly one value for default pairs size
+// 		pairs := make([]string, 0, len(headers)*2)
+// 		for headerName, headerValues := range headers {
+// 			headerName = strings.ToLower(headerName)
+// 			for _, v := range headerValues {
+// 				pairs = append(pairs, headerName, v)
+// 			}
+// 		}
+// 		ctx = metadata.AppendToOutgoingContext(ctx, pairs...)
+// 	}
+
+// 	graph := NewDependencyGraph(d.plan)
+
+// 	root := astjson.ObjectValue(nil)
+
+// 	representations := getRepresentations(variables)
+// 	if err := graph.TopologicalSortResolve(func(nodes []FetchItem) error {
+// 		// TODO: Compile fetches should be converted to a program.
+// 		// The program defines all the fetches that need to be executed in parallel for a given query.
+
+// 		serviceCalls, err := d.rc.CompileFetches(graph, nodes, variables)
+// 		if err != nil {
+// 			return err
+// 		}
+
+// 		results := make([]resultData, len(serviceCalls))
+// 		errGrp, errGrpCtx := errgroup.WithContext(ctx)
+
+// 		// make gRPC calls
+// 		for index, serviceCall := range serviceCalls {
+// 			item := d.acquirePoolItem(input, index)
+// 			poolItems = append(poolItems, item)
+
+// 			builder := newJSONBuilder(item.Arena, d.mapping, variables)
+// 			errGrp.Go(func() error {
+// 				// Invoke the gRPC method - this will populate serviceCall.Output
+// 				err := d.cc.Invoke(errGrpCtx, serviceCall.MethodFullName(), serviceCall.Input, serviceCall.Output)
+// 				if err != nil {
+// 					return err
+// 				}
+
+// 				response, err := builder.marshalResponseJSON(&serviceCall.RPC.Response, serviceCall.Output)
+// 				if err != nil {
+// 					return err
+// 				}
+
+// 				results[index] = resultData{
+// 					kind:         serviceCall.RPC.Kind,
+// 					response:     response,
+// 					responsePath: serviceCall.RPC.ResponsePath,
+// 				}
+
+// 				// In case of a federated response, we need to ensure that the response is valid.
+// 				// The number of entities per type must match the number of lookup keys in the variables.
+// 				// On success we build the index map used by mergeEntities to place each response
+// 				// entity at the correct position in the final _entities array.
+// 				if serviceCall.RPC.Kind == CallKindEntity {
+// 					if err := validateEntityResponse(response, serviceCall.RPC.RequestedEntityType, representations); err != nil {
+// 						return err
+// 					}
+
+// 					results[index].entityIndexMap = newEntityIndexMap(serviceCall.RPC.RequestedEntityType, representations)
+// 				}
+
+// 				return nil
+// 			})
+// 		}
+
+// 		if err := errGrp.Wait(); err != nil {
+// 			return err
+// 		}
+
+// 		for _, result := range results {
+// 			switch result.kind {
+// 			case CallKindResolve, CallKindRequired:
+// 				err = builder.mergeWithPath(root, result.response, result.responsePath)
+// 			default:
+// 				root, err = builder.mergeValues(root, result)
+// 			}
+// 			if err != nil {
+// 				return err
+// 			}
+// 		}
+
+// 		return nil
+// 	}); err != nil {
+// 		return builder.writeErrorBytes(err), nil
+// 	}
+
+// 	value := builder.toDataObject(root)
+// 	return value.MarshalTo(nil), err
+// }

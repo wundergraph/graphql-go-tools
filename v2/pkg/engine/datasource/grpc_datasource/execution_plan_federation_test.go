@@ -5,8 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
@@ -296,10 +294,7 @@ func TestExecutionPlan_Federation_EntityLookup(t *testing.T) {
 				t.Fatalf("failed to plan operation: %s", err)
 			}
 
-			diff := cmp.Diff(tt.expectedPlan, plan)
-			if diff != "" {
-				t.Fatalf("execution plan mismatch: %s", diff)
-			}
+			assertExecutionPlanEqual(t, tt.expectedPlan, plan)
 		})
 	}
 }
@@ -1886,10 +1881,7 @@ func TestEntityLookupWithFieldResolvers_ComplexResolverInNestedMessage(t *testin
 			t.Fatalf("failed to plan operation: %s", err)
 		}
 
-		diff := cmp.Diff(expectedPlan, plan)
-		if diff != "" {
-			t.Fatalf("execution plan mismatch: %s", diff)
-		}
+		assertExecutionPlanEqual(t, expectedPlan, plan)
 	})
 }
 
@@ -1936,10 +1928,7 @@ func runFederationTest(t *testing.T, tt struct {
 			t.Fatalf("failed to plan operation: %s", err)
 		}
 
-		diff := cmp.Diff(tt.expectedPlan, plan)
-		if diff != "" {
-			t.Fatalf("execution plan mismatch: %s", diff)
-		}
+		assertExecutionPlanEqual(t, tt.expectedPlan, plan)
 	})
 
 }

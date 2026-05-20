@@ -211,8 +211,8 @@ type EnumValue struct {
 // RPCCompiler compiles protobuf schema strings into a Document and can
 // build protobuf messages from JSON data based on the schema.
 type RPCCompiler struct {
-	doc      *Document // The compiled Document
-	Ancestor []Message
+	doc     *Document      // The compiled Document
+	runtime *runtimeSchema // The compiled runtime schema
 }
 
 // ServiceByName returns a Service by its name.
@@ -311,6 +311,13 @@ func NewProtoCompiler(schema string, mapping *GRPCMapping) (*RPCCompiler, error)
 	// Process the schema file
 	pc.processFile(schemaFile, mapping)
 
+	runtime, err := newSchemaRuntime(pc.doc)
+	if err != nil {
+		return nil, err
+	}
+
+	pc.runtime = runtime
+
 	return pc, nil
 }
 
@@ -369,48 +376,6 @@ func (s *ServiceCall) MethodFullName() string {
 
 	return builder.String()
 }
-
-// func (p *RPCCompiler) CompileFetches(graph *DependencyGraph, fetches []FetchItem, inputData gjson.Result) ([]Invocation, error) {
-// 	invocations := make([]Invocation, 0, len(fetches))
-
-// 	resultChan := make(chan Invocation, len(fetches))
-// 	errChan := make(chan error, len(fetches))
-
-// 	wg := sync.WaitGroup{}
-// 	wg.Add(len(fetches))
-
-// 	for _, node := range fetches {
-// 		go func() {
-// 			defer wg.Done()
-// 			invocation, err := p.CompileNode(graph, node, inputData)
-// 			if err != nil {
-// 				errChan <- err
-// 				return
-// 			}
-
-// 			resultChan <- invocation
-// 			node.Invocation = &invocation
-// 		}()
-// 	}
-
-// 	close(resultChan)
-// 	close(errChan)
-
-// 	var joinErr error
-// 	for err := range errChan {
-// 		joinErr = errors.Join(joinErr, err)
-// 	}
-
-// 	if joinErr != nil {
-// 		return nil, joinErr
-// 	}
-
-// 	for invocation := range resultChan {
-// 		invocations = append(invocations, invocation)
-// 	}
-
-// 	return invocations, nil
-// }
 
 func (p *RPCCompiler) CompileFetches(graph *DependencyGraph, fetches []FetchItem, inputData gjson.Result) ([]ServiceCall, error) {
 	serviceCalls := make([]ServiceCall, 0, len(fetches))
