@@ -144,10 +144,13 @@ func (p *printVisitor) indentationDepth() (depth int) {
 }
 
 func (p *printVisitor) writeIndented(data []byte) {
+	p.writeIndentedWithDepth(data, p.indentationDepth())
+}
+
+func (p *printVisitor) writeIndentedWithDepth(data []byte, depth int) {
 	if p.err != nil {
 		return
 	}
-	depth := p.indentationDepth()
 	for i := 0; i < depth; i++ {
 		_, p.err = p.out.Write(p.indent)
 	}
@@ -619,10 +622,7 @@ func (p *printVisitor) EnterInputValueDefinition(ref int) {
 		p.writeIndented(p.document.InputValueDefinitionNameBytes(ref))
 	case ast.NodeKindFieldDefinition:
 		if multilineField {
-			for i := 0; i < argDepth; i++ {
-				p.write(p.indent)
-			}
-			p.write(p.document.InputValueDefinitionNameBytes(ref))
+			p.writeIndentedWithDepth(p.document.InputValueDefinitionNameBytes(ref), argDepth)
 		} else {
 			p.write(p.document.InputValueDefinitionNameBytes(ref))
 		}
@@ -645,6 +645,9 @@ func (p *printVisitor) LeaveInputValueDefinition(ref int) {
 	multilineField := p.fieldArgsAreMultiline(parent)
 
 	if p.document.InputValueDefinitionIsLast(ref, parent) {
+		// Closing token aligns with the parent declaration; the field-arg
+		// case is one level shallower than its argument list.
+		closerDepth := 0
 		if p.indent != nil {
 			switch parent.Kind {
 			case ast.NodeKindDirectiveDefinition, ast.NodeKindInputObjectTypeDefinition, ast.NodeKindInputObjectTypeExtension:
@@ -652,15 +655,11 @@ func (p *printVisitor) LeaveInputValueDefinition(ref int) {
 			case ast.NodeKindFieldDefinition:
 				if multilineField {
 					p.write(literal.LINETERMINATOR)
-					// Closing ")" aligns with the field name (one level
-					// shallower than its argument list).
-					for i := 0; i < p.indentationDepth(); i++ {
-						p.write(p.indent)
-					}
+					closerDepth = p.indentationDepth()
 				}
 			}
 		}
-		p.write(p.inputValueDefinitionCloser)
+		p.writeIndentedWithDepth(p.inputValueDefinitionCloser, closerDepth)
 	} else {
 		if len(p.Ancestors) > 0 {
 			// check enclosing type kind

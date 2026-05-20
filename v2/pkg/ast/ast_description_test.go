@@ -13,7 +13,10 @@ import (
 func TestPrintDescription(t *testing.T) {
 	t.Run("preserves inner indentation beyond common indent", func(t *testing.T) {
 		var doc ast.Document
-		desc := doc.ImportDescription("Outer.\n    indented\n        deeper\n    back")
+		desc := doc.ImportDescription(`Outer.
+    indented
+        deeper
+    back`)
 
 		var buf bytes.Buffer
 		require.NoError(t, doc.PrintDescription(desc, []byte("  "), 1, &buf))
@@ -30,7 +33,10 @@ func TestPrintDescription(t *testing.T) {
 
 	t.Run("strips common indent contributed by source-level nesting", func(t *testing.T) {
 		var doc ast.Document
-		desc := doc.ImportDescription("Outer.\n  same\n  same\n")
+		desc := doc.ImportDescription(`Outer.
+  same
+  same
+`)
 
 		var buf bytes.Buffer
 		require.NoError(t, doc.PrintDescription(desc, []byte("  "), 1, &buf))
@@ -42,7 +48,9 @@ func TestPrintDescription(t *testing.T) {
 
 	t.Run("preserves verbatim content at depth 0", func(t *testing.T) {
 		var doc ast.Document
-		desc := doc.ImportDescription("line one\n  line two\nline three")
+		desc := doc.ImportDescription(`line one
+  line two
+line three`)
 
 		var buf bytes.Buffer
 		require.NoError(t, doc.PrintDescription(desc, []byte("  "), 0, &buf))
