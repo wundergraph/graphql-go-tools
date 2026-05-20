@@ -594,10 +594,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				expectedResponse: `{"data":{"hero":{"friends":[]}}}`,
 				// Estimated with default list size 10: hero(7) + 10 * (7 + 2 + 2) = 117
 				expectedEstimatedCost: intPtr(117),
-				// Actual with empty list: hero(7) + 1 * (7 + 2 + 2) = 18
-				// We consider empty lists as lists containing one item to account for the
-				// resolver work.
-				expectedActualCost: intPtr(18),
+				// Actual with empty list: hero(7) + 0 * (7 + 2 + 2) = 7
+				expectedActualCost: intPtr(7),
 			},
 			computeCosts(),
 		))

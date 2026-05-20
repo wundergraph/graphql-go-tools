@@ -631,12 +631,9 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 			}
 			// We compute average to avoid double counting for nested lists
 			multiplier = float64(totalCount) / float64(parentCount)
-		} else {
-			// If the list is empty, that would mean 0 cost for the field's resolver.
-			// That is not very accurate because we called the resolver of this field anyway.
-			// We will add fields and children costs by using this multiplier:
-			multiplier = 1.0
 		}
+		// If the list is empty, it means 0 cost for the field's resolver.
+		// That may be non-conservative, but it reflects the actual cost of work done.
 		return
 	}
 	if multiplier == 0 {
