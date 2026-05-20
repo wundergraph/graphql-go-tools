@@ -78,41 +78,23 @@ type FieldListSize struct {
 	// RequireOneSlicingArgument enforces a check that exactly one slicing argument must be provided.
 	// When set to false or no slicing arguments are provided, the check is skipped.
 	RequireOneSlicingArgument bool
+
+	// SlicingArgumentDefaults holds the leaf Int default value declared in
+	// the schema for each slicing argument path. Per GraphQL, an omitted
+	// slicing argument with a default here is treated as effectively provided with that value,
+	// both for `RequireOneSlicingArgument` validation and as a cost multiplier for lists.
+	SlicingArgumentDefaults map[string]int
 }
 
 // multiplier returns the multiplier based on arguments and variables.
 // It picks the maximum value among slicing arguments, otherwise it tries to use AssumedSize.
 // If neither is available, it falls back to defaultListSize.
-func (ls *FieldListSize) multiplier(arguments map[string]ArgumentInfo, vars *astjson.Value, defaultListSize int) int {
+func (ls *FieldListSize) multiplier(args map[string]ArgumentInfo, vars *astjson.Value, defaultListSize int) int {
 	multiplier := -1
-	if vars != nil {
-		for _, slicingArg := range ls.SlicingArguments {
-			// First, try arg as the dot-path:
-			if strings.Contains(slicingArg, ".") {
-				value, found := resolveSlicingArgIntValue(slicingArg, arguments, vars)
-				if found && value > 0 && value > multiplier {
-					multiplier = value
-				}
-				continue
-			}
-			// Otherwise, try the simple arg:
-			arg, ok := arguments[slicingArg]
-			if !ok || !arg.isSimple {
-				continue
-			}
-
-			var value int
-			// At this stage the argument is a variable.
-			if arg.hasVariable {
-				v := vars.Get(arg.varName)
-				if v != nil && v.Type() == astjson.TypeNumber {
-					value = vars.GetInt(arg.varName)
-				}
-			}
-
-			if value > 0 && value > multiplier {
-				multiplier = value
-			}
+	for _, slicingArg := range ls.SlicingArguments {
+		value, found := ls.resolveSlicingArg(slicingArg, args, vars)
+		if found && value > 0 && value > multiplier {
+			multiplier = value
 		}
 	}
 
@@ -126,28 +108,60 @@ func (ls *FieldListSize) multiplier(arguments map[string]ArgumentInfo, vars *ast
 	return multiplier
 }
 
-// resolveSlicingArgIntValue extracts the integer value from variables using slicingArg as the path
-func resolveSlicingArgIntValue(slicingArg string, arguments map[string]ArgumentInfo, vars *astjson.Value) (int, bool) {
-	path := strings.Split(slicingArg, ".")
-	inputArg := path[0]
-	arg, ok := arguments[inputArg]
-	if ok && arg.hasVariable && arg.isInputObject {
-		value := vars.Get(arg.varName)
+// resolveSlicingArg resolves the value of a slicing argument from arguments/variables.
+// It falls back to SlicingArgumentDefaults when no value is provided.
+// The slicingArg may be a simple argument name or a dot-path into an input object argument.
+// An explicitly provided [null] value in variables overrides the default value in schema.
+func (ls *FieldListSize) resolveSlicingArg(slicingArg string, args map[string]ArgumentInfo, vars *astjson.Value) (int, bool) {
+	defaultValue, hasDefault := ls.SlicingArgumentDefaults[slicingArg]
+	if strings.Contains(slicingArg, ".") {
+		value := extractSlicingArgValue(slicingArg, args, vars)
 		if value == nil {
-			return 0, false
+			return defaultValue, hasDefault
 		}
-		for _, key := range path[1:] {
-			value = value.Get(key)
-			if value == nil {
-				return 0, false
-			}
+		if value.Type() == astjson.TypeNumber {
+			return value.GetInt(), true
 		}
-		if value.Type() != astjson.TypeNumber {
-			return 0, false
-		}
+		// TypeNull value should not lead to the defaults being used.
+		return 0, false
+	}
+	arg, found := args[slicingArg]
+	if !found {
+		return defaultValue, hasDefault
+	}
+	if !arg.hasVariable {
+		return 0, false
+	}
+	value := vars.Get(arg.varName)
+	if value == nil {
+		return defaultValue, hasDefault
+	}
+	if value.Type() == astjson.TypeNumber {
 		return value.GetInt(), true
 	}
 	return 0, false
+}
+
+// extractSlicingArgValue extracts a value from variables using slicingArg that contains
+// a string in the format: "<argumentName>.<inputField1>.<inputField2>..."
+func extractSlicingArgValue(slicingArg string, args map[string]ArgumentInfo, vars *astjson.Value) *astjson.Value {
+	if vars == nil {
+		return nil
+	}
+	path := strings.Split(slicingArg, ".")
+	inputArg := path[0]
+	arg, found := args[inputArg]
+	if !found || !arg.hasVariable || !arg.isInputObject {
+		return nil
+	}
+	value := vars.Get(arg.varName)
+	for _, key := range path[1:] {
+		if value == nil || value.Type() == astjson.TypeNull {
+			return value
+		}
+		value = value.Get(key)
+	}
+	return value
 }
 
 // DataSourceCostConfig holds all cost configurations for a data source.
@@ -756,27 +770,9 @@ func (node *CostTreeNode) validateSliceArguments(configs map[DSHash]*DataSourceC
 		count := 0
 		// The engine has all inlined literals converted to variables at this stage.
 		// No need to check for literals.
-		if variables != nil {
-			for _, slicingArg := range listSize.SlicingArguments {
-				// First, try arg as the dot-path:
-				if strings.Contains(slicingArg, ".") {
-					_, found := resolveSlicingArgIntValue(slicingArg, node.arguments, variables)
-					if found {
-						count++
-					}
-					continue
-				}
-				// Otherwise, try the simple arg:
-				arg, ok := node.arguments[slicingArg]
-				if !ok || !arg.isSimple {
-					continue
-				}
-				if arg.hasVariable {
-					v := variables.Get(arg.varName)
-					if v != nil && v.Type() == astjson.TypeNumber {
-						count++
-					}
-				}
+		for _, slicingArg := range listSize.SlicingArguments {
+			if _, found := listSize.resolveSlicingArg(slicingArg, node.arguments, variables); found {
+				count++
 			}
 		}
 		if count != 1 {
