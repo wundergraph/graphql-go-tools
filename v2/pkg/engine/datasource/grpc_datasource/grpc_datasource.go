@@ -16,7 +16,6 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/tidwall/gjson"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/wundergraph/astjson"
@@ -44,7 +43,7 @@ var _ resolve.DataSource = (*DataSource)(nil)
 // transforms the responses back to GraphQL format.
 type DataSource struct {
 	plan              *RPCExecutionPlan
-	cc                grpc.ClientConnInterface
+	transport         RPCTransport
 	rc                *RPCCompiler
 	mapping           *GRPCMapping
 	federationConfigs plan.FederationFieldConfigurations
@@ -68,8 +67,8 @@ type DataSourceConfig struct {
 	Disabled          bool
 }
 
-// NewDataSource creates a new gRPC datasource
-func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*DataSource, error) {
+// NewDataSource creates a new datasource with the given RPCTransport.
+func NewDataSource(transport RPCTransport, config DataSourceConfig) (*DataSource, error) {
 	planner, err := NewPlanner(config.SubgraphName, config.Mapping, config.FederationConfigs)
 	if err != nil {
 		return nil, err
@@ -81,7 +80,7 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 
 	return &DataSource{
 		plan:              plan,
-		cc:                client,
+		transport:         transport,
 		rc:                config.Compiler,
 		mapping:           config.Mapping,
 		definition:        config.Definition,
@@ -152,7 +151,7 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 			builder := newJSONBuilder(item.Arena, d.mapping, variables)
 			errGrp.Go(func() error {
 				// Invoke the gRPC method - this will populate serviceCall.Output
-				err := d.cc.Invoke(errGrpCtx, serviceCall.MethodFullName(), serviceCall.Input, serviceCall.Output)
+				err := d.transport.Invoke(errGrpCtx, serviceCall.MethodFullName(), serviceCall.Input, serviceCall.Output)
 				if err != nil {
 					return err
 				}
