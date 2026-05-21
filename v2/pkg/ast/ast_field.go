@@ -202,8 +202,6 @@ func (d *Document) MergeFieldsDefer(left, right int) {
 		leftId := int(d.IntValueAsInt(leftDeferIdValue.Ref))
 		rightId := int(d.IntValueAsInt(rightDeferIdValue.Ref))
 
-		// TODO: need to handle parent id too
-
 		switch {
 		case leftId == rightId:
 			// do nothing, they are equal
@@ -250,18 +248,20 @@ func (d *Document) AddDeferInternalDirectiveToField(fieldRef int, id int, label 
 }
 
 func (d *Document) FieldInternalDeferID(fieldRef int) (id int, exists bool) {
-	directiveRef, exists := d.Fields[fieldRef].Directives.HasDirectiveByNameBytes(d, literal.DEFER_INTERNAL)
-	if !exists {
-		return 0, false
+	id, _, exists = d.FieldInternalDeferIDWithDirectiveRef(fieldRef)
+	return
+}
+
+func (d *Document) FieldInternalDeferIDWithDirectiveRef(fieldRef int) (id int, directiveRef int, exists bool) {
+	directiveRef, ok := d.Fields[fieldRef].Directives.HasDirectiveByNameBytes(d, literal.DEFER_INTERNAL)
+	if !ok {
+		return 0, 0, false
 	}
-	idValue, exists := d.DirectiveArgumentValueByName(directiveRef, []byte("id"))
-	if !exists {
-		return 0, false
+	idValue, ok := d.DirectiveArgumentValueByName(directiveRef, []byte("id"))
+	if !ok || idValue.Kind != ValueKindInteger {
+		return 0, 0, false
 	}
-	if idValue.Kind != ValueKindInteger {
-		return 0, false
-	}
-	return int(d.IntValueAsInt(idValue.Ref)), true
+	return int(d.IntValueAsInt(idValue.Ref)), directiveRef, true
 }
 
 // FieldDeferInfo checks if the given field ref has @__defer_internal directive and

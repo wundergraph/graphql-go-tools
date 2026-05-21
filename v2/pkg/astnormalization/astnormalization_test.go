@@ -563,7 +563,7 @@ func TestNormalizeOperation(t *testing.T) {
 						barkVolume @__defer_internal(id: 2, parentDeferId: 1)
 						extra @__defer_internal(id: 3) {
 							noString @__defer_internal(id: 3)
-							string @__defer_internal(id: 4)
+							string @__defer_internal(id: 4, parentDeferId: 3)
 						}
 						___typename: __typename
 					}

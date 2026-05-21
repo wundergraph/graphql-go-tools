@@ -1,10 +1,18 @@
 package astnormalization
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+)
+
+func inlineFragmentExpandDeferFunc(walker *astvisitor.Walker) {
+	inlineFragmentExpandDefer(walker)
+}
 
 func TestInlineFragmentExpandDefer(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
-		run(t, inlineFragmentExpandDefer, testDefinition, `
+		run(t, inlineFragmentExpandDeferFunc, testDefinition, `
 					query dog {
 						dog {
 							... @defer {
@@ -22,7 +30,7 @@ func TestInlineFragmentExpandDefer(t *testing.T) {
 					}`)
 	})
 	t.Run("with interface type", func(t *testing.T) {
-		runWithOptions(t, inlineFragmentExpandDefer, testDefinition, `
+		runWithOptions(t, inlineFragmentExpandDeferFunc, testDefinition, `
 					query pet {
 						pet {
 							... on Dog @defer {

@@ -8,13 +8,14 @@ import (
 
 // inlineFragmentExpandDefer registers a visitor that
 // applies the defer directive to every nested field
-func inlineFragmentExpandDefer(walker *astvisitor.Walker) {
-	visitor := inlineFragmentExpandDeferVisitor{
+func inlineFragmentExpandDefer(walker *astvisitor.Walker) *inlineFragmentExpandDeferVisitor {
+	visitor := &inlineFragmentExpandDeferVisitor{
 		Walker: walker,
 	}
-	walker.RegisterEnterDocumentVisitor(&visitor)
-	walker.RegisterInlineFragmentVisitor(&visitor)
-	walker.RegisterEnterSelectionSetVisitor(&visitor)
+	walker.RegisterEnterDocumentVisitor(visitor)
+	walker.RegisterInlineFragmentVisitor(visitor)
+	walker.RegisterEnterSelectionSetVisitor(visitor)
+	return visitor
 }
 
 type inlineFragmentExpandDeferVisitor struct {
@@ -34,6 +35,8 @@ type deferInfo struct {
 
 func (f *inlineFragmentExpandDeferVisitor) EnterDocument(operation, _ *ast.Document) {
 	f.operation = operation
+	f.currentDeferId = 0
+	f.defers = f.defers[:0]
 }
 
 func (f *inlineFragmentExpandDeferVisitor) EnterInlineFragment(ref int) {
@@ -140,4 +143,8 @@ func (f *inlineFragmentExpandDeferVisitor) EnterSelectionSet(ref int) {
 func (f *inlineFragmentExpandDeferVisitor) addInternalDeferDirective(fieldRef int) {
 	deferInfo := f.defers[len(f.defers)-1]
 	f.operation.AddDeferInternalDirectiveToField(fieldRef, deferInfo.id, deferInfo.label, deferInfo.parentDeferId)
+}
+
+func (f *inlineFragmentExpandDeferVisitor) hasDefers() bool {
+	return f.currentDeferId > 0
 }

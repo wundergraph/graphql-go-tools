@@ -98,8 +98,9 @@ func NormalizeNamedOperation(operation, definition *ast.Document, operationName 
 }
 
 type walkerStage struct {
-	name   string
-	walker *astvisitor.Walker
+	name          string
+	walker        *astvisitor.Walker
+	skipCondition func() bool // optional; stage is skipped when this returns true
 }
 
 // OperationNormalizer walks a given AST and applies all registered rules
@@ -107,6 +108,7 @@ type OperationNormalizer struct {
 	operationWalkers []walkerStage
 
 	removeOperationDefinitionsVisitor *removeOperationDefinitionsVisitor
+	inlineDeferVisitor                *inlineFragmentExpandDeferVisitor // non-nil when WithInlineDefer() is set
 
 	options              options
 	definitionNormalizer *DefinitionNormalizer
@@ -254,7 +256,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 
 	if o.options.inlineDefer {
 		inlineDefer := astvisitor.NewWalkerWithID(8, "Inline defer")
-		inlineFragmentExpandDefer(&inlineDefer)
+		o.inlineDeferVisitor = inlineFragmentExpandDefer(&inlineDefer)
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
 			name:   "inlineDefer",
 			walker: &inlineDefer,
@@ -300,6 +302,16 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		walker: &cleanup,
 	})
 
+	if o.options.inlineDefer {
+		populateParentIds := astvisitor.NewWalkerWithID(8, "PopulateDeferParentIds")
+		deferPopulateParentIds(&populateParentIds)
+		o.operationWalkers = append(o.operationWalkers, walkerStage{
+			name:          "populateDeferParentIds",
+			walker:        &populateParentIds,
+			skipCondition: func() bool { return !o.inlineDeferVisitor.hasDefers() },
+		})
+	}
+
 	if o.options.extractVariables {
 		variablesProcessing := astvisitor.NewWalkerWithID(8, "VariablesProcessing")
 		inputCoercionForList(&variablesProcessing)
@@ -329,6 +341,9 @@ func (o *OperationNormalizer) NormalizeOperation(operation, definition *ast.Docu
 	}
 
 	for i := range o.operationWalkers {
+		if sc := o.operationWalkers[i].skipCondition; sc != nil && sc() {
+			continue
+		}
 		o.operationWalkers[i].walker.Walk(operation, definition, report)
 		if report.HasErrors() {
 			return
@@ -350,6 +365,9 @@ func (o *OperationNormalizer) NormalizeNamedOperation(operation, definition *ast
 	}
 
 	for i := range o.operationWalkers {
+		if sc := o.operationWalkers[i].skipCondition; sc != nil && sc() {
+			continue
+		}
 		o.operationWalkers[i].walker.Walk(operation, definition, report)
 		if report.HasErrors() {
 			return
