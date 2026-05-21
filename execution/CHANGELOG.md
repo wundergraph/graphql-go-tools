@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.15.1](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.15.0...execution/v1.15.1) (2026-05-21)
+
+
+### Bug Fixes
+
+* handle default values for slicingArguments ([#1499](https://github.com/wundergraph/graphql-go-tools/issues/1499)) ([f3afd10](https://github.com/wundergraph/graphql-go-tools/commit/f3afd102f5304f43efd146ec68679de1b967b680))
+* multiply with 0 for empty lists in actual costs ([#1502](https://github.com/wundergraph/graphql-go-tools/issues/1502)) ([1cb6bde](https://github.com/wundergraph/graphql-go-tools/commit/1cb6bde9f169efd5be4cad7f0be5535fd07493cc))
+
 ## [1.15.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.14.0...execution/v1.15.0) (2026-05-15)
 
 
