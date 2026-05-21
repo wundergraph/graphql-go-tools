@@ -16,7 +16,6 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/tidwall/gjson"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/wundergraph/astjson"
@@ -89,12 +88,6 @@ func NewDataSource(transport RPCTransport, config DataSourceConfig) (*DataSource
 		disabled:          config.Disabled,
 		pool:              arena.NewArenaPool(),
 	}, nil
-}
-
-// NewDataSourceGRPC creates a new gRPC datasource using a gRPC ClientConnInterface.
-// This is a convenience function that wraps the connection in a grpcTransport.
-func NewDataSourceGRPC(client grpc.ClientConnInterface, config DataSourceConfig) (*DataSource, error) {
-	return NewDataSource(NewGRPCTransport(client), config)
 }
 
 // Load implements resolve.DataSource interface.

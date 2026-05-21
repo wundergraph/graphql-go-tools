@@ -360,7 +360,7 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 			return resolve.FetchConfiguration{}
 		}
 
-		dataSource, err = grpcdatasource.NewDataSourceGRPC(p.grpcClient, grpcdatasource.DataSourceConfig{
+		dataSource, err = grpcdatasource.NewDataSource(grpcdatasource.NewGRPCTransport(p.grpcClient), grpcdatasource.DataSourceConfig{
 			Operation:         &opDocument,
 			Definition:        p.config.schemaConfiguration.upstreamSchemaAst,
 			Mapping:           p.config.grpc.Mapping,
