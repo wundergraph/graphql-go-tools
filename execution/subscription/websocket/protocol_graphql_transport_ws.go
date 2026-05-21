@@ -370,6 +370,9 @@ func (p *ProtocolGraphQLTransportWSHandler) Handle(ctx context.Context, engine s
 			p.closeConnectionWithReason(
 				CompiledCloseReasonInternalServerError,
 			)
+			// Bail before startHeartbeat: an InitFunc that returns a nil ctx
+			// would otherwise crash the heartbeat goroutine on <-ctx.Done().
+			return err
 		}
 		p.startHeartbeat(ctx)
 	case GraphQLTransportWSMessageTypePing:
