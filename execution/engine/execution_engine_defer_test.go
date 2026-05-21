@@ -581,10 +581,16 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					}
 				},
 				dataSources: tc.dataSources,
-				expectedResponse: `{"data":{"user":{}},"pending":[{"id":"1","path":["user"],"label":"a"},{"id":"2","path":["user"]}],"hasNext":true}
+				expectedResponses: []string{
+					`{"data":{"user":{}},"pending":[{"id":"1","path":["user"],"label":"a"},{"id":"2","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"id":"1"},"id":"2"}],"completed":[{"id":"2"}],"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat"},"id":"1"}],"completed":[{"id":"1"}],"hasNext":false}
+`,
+					`{"data":{"user":{}},"pending":[{"id":"1","path":["user"],"label":"a"},{"id":"2","path":["user"]}],"hasNext":true}
 {"incremental":[{"data":{"title":"Sabbat"},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
 {"incremental":[{"data":{"id":"1"},"id":"2"}],"completed":[{"id":"2"}],"hasNext":false}
 `,
+				},
 			}, withStreamingResponse()))
 
 			t.Run("nested defers variation", runWithoutError(ExecutionEngineTestCase{

@@ -145,11 +145,17 @@ func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expected
 			assert.JSONEq(t, testCase.expectedJSONResponse, actualResponse)
 		}
 
-		if testCase.expectedResponse != "" {
-			if opts.streamingResponse {
-				streamingResponse := streamingBuf.String()
+		if opts.streamingResponse {
+			streamingResponse := streamingBuf.String()
+			if testCase.expectedResponse != "" {
 				assert.Equal(t, testCase.expectedResponse, streamingResponse)
-			} else {
+			}
+
+			if len(testCase.expectedResponses) > 0 {
+				assert.Contains(t, testCase.expectedResponses, streamingResponse)
+			}
+		} else {
+			if testCase.expectedResponse != "" {
 				assert.Equal(t, testCase.expectedResponse, actualResponse)
 			}
 		}
@@ -315,6 +321,7 @@ type ExecutionEngineTestCase struct {
 	indentJSON       bool
 
 	expectedResponse      string
+	expectedResponses     []string
 	expectedJSONResponse  string
 	expectedFixture       string
 	expectedEstimatedCost int
