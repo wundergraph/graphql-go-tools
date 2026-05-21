@@ -181,12 +181,28 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 		}
 	}
 
-	// Validate user-supplied and extracted variables against the operation.
+	// Remap operation variables to canonical names. This mirrors what the cosmo
+	// router does so that downstream code (planner, cost calc, resolver) always
+	// goes through VariablesView/RemapVariables when reading variables.
+	var remapVariables map[string]string
+	if normalize {
+		var remapReport operationreport.Report
+		remapVariables = astnormalization.NewVariablesMapper().NormalizeOperation(
+			operation.Document(), e.config.schema.Document(), &remapReport,
+		)
+		if remapReport.HasErrors() {
+			return remapReport
+		}
+	}
+
+	// Validate user-supplied and extracted variables against the (remapped) operation.
+	// ValidateWithRemap translates renamed names back to originals for both JSON lookup
+	// and error messages, so users still see their declared variable names in errors.
 	if len(operation.Variables) > 0 && operation.Variables[0] == '{' {
 		validator := variablesvalidation.NewVariablesValidator(variablesvalidation.VariablesValidatorOptions{
 			ApolloCompatibilityFlags: e.apolloCompatibilityFlags,
 		})
-		if err := validator.Validate(operation.Document(), e.config.schema.Document(), operation.Variables); err != nil {
+		if err := validator.ValidateWithRemap(operation.Document(), e.config.schema.Document(), operation.Variables, remapVariables); err != nil {
 			return err
 		}
 	}
@@ -195,6 +211,7 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 	execContext.setContext(ctx)
 	execContext.setVariables(operation.Variables)
 	execContext.setRequest(operation.InternalRequest())
+	execContext.resolveContext.RemapVariables = remapVariables
 
 	for i := range options {
 		options[i](execContext)
