@@ -10,7 +10,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/variables"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -195,7 +194,7 @@ func (r *Request) OperationType() (OperationType, error) {
 	return OperationTypeUnknown, nil
 }
 
-func (r *Request) ComputeEstimatedCost(calc *plan.CostCalculator, vars variables.Set) {
+func (r *Request) ComputeEstimatedCost(calc *plan.CostCalculator, vars resolve.VariablesView) {
 	if calc != nil {
 		r.estimatedCost = calc.EstimateCost(vars)
 		// Debugging of cost trees. Uncomment to debug.
@@ -209,7 +208,7 @@ func (r *Request) EstimatedCost() int {
 	return r.estimatedCost
 }
 
-func (r *Request) ComputeActualCost(calc *plan.CostCalculator, vars variables.Set, actualListSizes map[string]int) {
+func (r *Request) ComputeActualCost(calc *plan.CostCalculator, vars resolve.VariablesView, actualListSizes map[string]int) {
 	if calc != nil {
 		r.actualCost = calc.ActualCost(vars, actualListSizes)
 		// Debugging of cost trees. Uncomment to debug.

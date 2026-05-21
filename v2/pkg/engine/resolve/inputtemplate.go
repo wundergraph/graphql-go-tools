@@ -133,7 +133,7 @@ func (i *InputTemplate) renderResolvableObjectVariable(ctx context.Context, obje
 }
 
 func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegment, preparedInput InputTemplateWriter) (variableWasUndefined bool, err error) {
-	value := ctx.VariableSet().Get(segment.VariableSourcePath...)
+	value := ctx.VariablesView().Get(segment.VariableSourcePath...)
 	if value == nil {
 		_, _ = preparedInput.Write(literal.NULL)
 		return true, nil

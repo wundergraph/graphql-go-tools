@@ -32,7 +32,7 @@ import (
 	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/variables"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -90,7 +90,7 @@ type FieldListSize struct {
 // multiplier returns the multiplier based on arguments and variables.
 // It picks the maximum value among slicing arguments, otherwise it tries to use AssumedSize.
 // If neither is available, it falls back to defaultListSize.
-func (ls *FieldListSize) multiplier(args map[string]ArgumentInfo, vars variables.Set, defaultListSize int) int {
+func (ls *FieldListSize) multiplier(args map[string]ArgumentInfo, vars resolve.VariablesView, defaultListSize int) int {
 	multiplier := -1
 	for _, slicingArg := range ls.SlicingArguments {
 		value, found := ls.resolveSlicingArg(slicingArg, args, vars)
@@ -113,7 +113,7 @@ func (ls *FieldListSize) multiplier(args map[string]ArgumentInfo, vars variables
 // It falls back to SlicingArgumentDefaults when no value is provided.
 // The slicingArg may be a simple argument name or a dot-path into an input object argument.
 // An explicitly provided [null] value in variables overrides the default value in schema.
-func (ls *FieldListSize) resolveSlicingArg(slicingArg string, args map[string]ArgumentInfo, vars variables.Set) (int, bool) {
+func (ls *FieldListSize) resolveSlicingArg(slicingArg string, args map[string]ArgumentInfo, vars resolve.VariablesView) (int, bool) {
 	defaultValue, hasDefault := ls.SlicingArgumentDefaults[slicingArg]
 	if strings.Contains(slicingArg, ".") {
 		value := extractSlicingArgValue(slicingArg, args, vars)
@@ -145,7 +145,7 @@ func (ls *FieldListSize) resolveSlicingArg(slicingArg string, args map[string]Ar
 
 // extractSlicingArgValue extracts a value from variables using slicingArg that contains
 // a string in the format: "<argumentName>.<inputField1>.<inputField2>..."
-func extractSlicingArgValue(slicingArg string, args map[string]ArgumentInfo, vars variables.Set) *astjson.Value {
+func extractSlicingArgValue(slicingArg string, args map[string]ArgumentInfo, vars resolve.VariablesView) *astjson.Value {
 	path := strings.Split(slicingArg, ".")
 	inputArg := path[0]
 	arg, found := args[inputArg]
@@ -280,7 +280,7 @@ type inputObjectField struct {
 
 // inputFieldsCost computes the cost of input object fields from the variable value.
 // It handles both single objects and arrays of objects.
-func (arg *ArgumentInfo) inputFieldsCost(vars variables.Set, weights map[FieldCoordinate]*FieldCost) int {
+func (arg *ArgumentInfo) inputFieldsCost(vars resolve.VariablesView, weights map[FieldCoordinate]*FieldCost) int {
 	if !arg.hasVariable {
 		return 0
 	}
@@ -320,7 +320,7 @@ func (node *CostTreeNode) maxWeightImplementingField(config *DataSourceCostConfi
 	return maxWeight
 }
 
-func (node *CostTreeNode) maxMultiplierImplementingField(config *DataSourceCostConfig, fieldName string, arguments map[string]ArgumentInfo, vars variables.Set, defaultListSize int) *FieldListSize {
+func (node *CostTreeNode) maxMultiplierImplementingField(config *DataSourceCostConfig, fieldName string, arguments map[string]ArgumentInfo, vars resolve.VariablesView, defaultListSize int) *FieldListSize {
 	var maxMultiplier int
 	var maxListSize *FieldListSize
 	for _, implTypeName := range node.implementingTypeNames {
@@ -401,7 +401,7 @@ func (node *CostTreeNode) maxDirectiveArgumentWeightsImplementingFields(config *
 // When it is positive, then its value is used as a fallback value of list sizes for the estimated cost.
 // When it is negative, then it computes the actual cost. And it uses the actualListSizes map.
 // For actual cost, multipliers are computed as averages (totalCount/parentCount).
-func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, vars variables.Set, defaultListSize int, actualListSizes map[string]int) int {
+func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, vars resolve.VariablesView, defaultListSize int, actualListSizes map[string]int) int {
 	if node == nil {
 		return 0
 	}
@@ -456,7 +456,7 @@ func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, vars va
 // When estimating cost, it picks the highest multiplier among different data sources.
 // Also, it picks the maximum field weight of implementing types and then
 // the maximum among slicing arguments.
-func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostConfig, vars variables.Set, defaultListSize int, actualListSizes map[string]int) (fieldCost, argsCost, directivesCost int, multiplier float64) {
+func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostConfig, vars resolve.VariablesView, defaultListSize int, actualListSizes map[string]int) (fieldCost, argsCost, directivesCost int, multiplier float64) {
 	if len(node.dataSourceHashes) <= 0 {
 		// no data source is responsible for this field
 		return
@@ -723,7 +723,7 @@ func NewCostCalculator(config Configuration) *CostCalculator {
 
 // EstimateCost returns the calculated total static cost.
 // config should be static per process or instance. vars could change between requests.
-func (c *CostCalculator) EstimateCost(vars variables.Set) int {
+func (c *CostCalculator) EstimateCost(vars resolve.VariablesView) int {
 	return c.tree.cost(c.costConfigs, vars, c.defaultListSize, nil)
 }
 
@@ -732,18 +732,18 @@ const (
 )
 
 // ActualCost returns the actual cost of the operation that is based on the actual sizes of lists.
-func (c *CostCalculator) ActualCost(vars variables.Set, actualListSizes map[string]int) int {
+func (c *CostCalculator) ActualCost(vars resolve.VariablesView, actualListSizes map[string]int) int {
 	return c.tree.cost(c.costConfigs, vars, actualCostMode, actualListSizes)
 }
 
 // ValidateSliceArguments checks that all fields with slicingArguments and
 // requireOneSlicingArgument are valid against the arguments passed to those fields.
 // Violations are collected as external errors into the report.
-func (c *CostCalculator) ValidateSliceArguments(vars variables.Set, report *operationreport.Report) {
+func (c *CostCalculator) ValidateSliceArguments(vars resolve.VariablesView, report *operationreport.Report) {
 	c.tree.validateSliceArguments(c.costConfigs, vars, report)
 }
 
-func (node *CostTreeNode) validateSliceArguments(configs map[DSHash]*DataSourceCostConfig, vars variables.Set, report *operationreport.Report) {
+func (node *CostTreeNode) validateSliceArguments(configs map[DSHash]*DataSourceCostConfig, vars resolve.VariablesView, report *operationreport.Report) {
 	if node == nil {
 		return
 	}
@@ -816,7 +816,7 @@ func (node *CostTreeNode) buildASTPath() ast.Path {
 
 // DebugPrint prints the cost tree structure for debugging purposes.
 // It shows each node's field coordinate, costs, multipliers, and computed totals.
-func (c *CostCalculator) DebugPrint(vars variables.Set, actualListSizes map[string]int) string {
+func (c *CostCalculator) DebugPrint(vars resolve.VariablesView, actualListSizes map[string]int) string {
 	if c.tree == nil || len(c.tree.children) == 0 {
 		return "<empty cost tree>"
 	}
@@ -836,7 +836,7 @@ func (c *CostCalculator) DebugPrint(vars variables.Set, actualListSizes map[stri
 }
 
 // debugPrint recursively prints a node and its children with indentation.
-func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*DataSourceCostConfig, vars variables.Set, defaultListSize int, actualListSizes map[string]int, depth int) {
+func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*DataSourceCostConfig, vars resolve.VariablesView, defaultListSize int, actualListSizes map[string]int, depth int) {
 	// implementation is a bit crude and redundant, we could skip calculating nodes all over again.
 	// but it should suffice for debugging tests.
 	if node == nil {

@@ -12,7 +12,6 @@ import (
 	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/variables"
 )
 
 // Context should not ever be initialized directly, and should be initialized via the NewContext function
@@ -21,7 +20,7 @@ type Context struct {
 
 	// Variables contains the variables to be used to render values of variables for the subgraph.
 	// Resolver takes into account RemapVariables for variable names.
-	// Recommented read-only use via variables.Set returned by VariableSet().
+	// Recommented read-only use via variables.VariablesView returned by VariablesView().
 	Variables *astjson.Value
 
 	// RemapVariables contains a map from new names to old names. When variables are renamed,
@@ -325,8 +324,8 @@ func (c *Context) Free() {
 	c.ActualListSizes = nil
 }
 
-func (c *Context) VariableSet() variables.Set {
-	return variables.NewSet(c.Variables, c.RemapVariables)
+func (c *Context) VariablesView() VariablesView {
+	return NewVariablesView(c.Variables, c.RemapVariables)
 }
 
 type traceStartKey struct{}
