@@ -262,14 +262,21 @@ func NewDataSourceConfigurationWithName[T any](id string, name string, factory P
 		}
 	}
 
-	return &dataSourceConfiguration[T]{
+	dsc := &dataSourceConfiguration[T]{
 		DataSourceMetadata: metadata,
 		id:                 id,
 		name:               name,
 		factory:            factory,
 		custom:             customConfig,
 		hash:               DSHash(xxhash.Sum64([]byte(id))),
-	}, nil
+	}
+	if metadata != nil && metadata.CostConfig != nil && len(metadata.CostConfig.ListSizes) > 0 {
+		if schema, ok := dsc.UpstreamSchema(); ok && schema != nil {
+			// Backfill slicing-argument defaults from the data source's parsed upstream SDL.
+			fillListSizeDefaults(metadata.CostConfig.ListSizes, schema)
+		}
+	}
+	return dsc, nil
 }
 
 type DataSourceConfiguration[T any] interface {
