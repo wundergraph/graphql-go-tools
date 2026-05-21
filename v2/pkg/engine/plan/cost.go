@@ -153,6 +153,10 @@ func extractSlicingArgValue(slicingArg string, args map[string]ArgumentInfo, var
 		return nil
 	}
 	value := vars.Get(arg.varName)
+	// Walk nested keys manually rather than passing the full path to vars.Get:
+	// we must return an explicit TypeNull encountered mid-path;
+	// the caller can distinguish "explicit null in variables" (overrides schema default)
+	// from "missing" (uses schema default). Calling Get on a null collapses both cases.
 	for _, key := range path[1:] {
 		if value == nil || value.Type() == astjson.TypeNull {
 			return value
