@@ -316,6 +316,73 @@ func BenchmarkMinimalVisitor(b *testing.B) {
 	}
 }
 
+// BenchmarkFreshWalkerPerIteration simulates the collectPath pattern where a new
+// walker is created for each call. Compares default 64-byte arena vs 32KB arena.
+func BenchmarkFreshWalkerPerIteration(b *testing.B) {
+	definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
+	operation := unsafeparser.ParseGraphqlDocumentString(testOperation)
+
+	b.Run("new walker, default 64 byte arena", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			walker := astvisitor.NewWalker(8)
+			report := &operationreport.Report{}
+			walker.Walk(&operation, &definition, report)
+		}
+	})
+
+	b.Run("new walker, 32KB arena", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			walker := astvisitor.NewWalker(8)
+			walker.SetArenaMinBufferSize(32 * 1024)
+			report := &operationreport.Report{}
+			walker.Walk(&operation, &definition, report)
+		}
+	})
+
+	b.Run("pool walker reuse", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			walker := astvisitor.WalkerFromPool()
+			report := &operationreport.Report{}
+			walker.Walk(&operation, &definition, report)
+			walker.Release()
+		}
+	})
+}
+
+// BenchmarkLargeDocumentArenaSize benchmarks the impact of arena buffer size on
+// a large document with many selection sets, simulating the workload that causes
+// O(n^2) behavior with small arena buffers.
+func BenchmarkLargeDocumentArenaSize(b *testing.B) {
+	definition := unsafeparser.ParseGraphqlDocumentString(largeTestDefinition)
+	operation := unsafeparser.ParseGraphqlDocumentString(largeTestOperation)
+
+	b.Run("64 byte arena", func(b *testing.B) {
+		walker := astvisitor.NewWalker(48)
+		report := &operationreport.Report{}
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			report.Reset()
+			walker.Walk(&operation, &definition, report)
+		}
+	})
+
+	b.Run("32KB arena", func(b *testing.B) {
+		walker := astvisitor.NewWalker(48)
+		walker.SetArenaMinBufferSize(32 * 1024)
+		report := &operationreport.Report{}
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			report.Reset()
+			walker.Walk(&operation, &definition, report)
+		}
+	})
+}
+
 type minimalVisitor struct {
 }
 
@@ -1084,4 +1151,477 @@ type Foo {
 }
 scalar ID
 scalar String
+`
+
+func TestWalkerArenaMinBufferSize(t *testing.T) {
+	definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
+	operation := unsafeparser.ParseGraphqlDocumentString(testOperation)
+
+	t.Run("default buffer size", func(t *testing.T) {
+		walker := astvisitor.NewWalker(8)
+		report := &operationreport.Report{}
+		walker.Walk(&operation, &definition, report)
+		if report.HasErrors() {
+			t.Fatal(report.Error())
+		}
+	})
+
+	t.Run("custom buffer size", func(t *testing.T) {
+		walker := astvisitor.NewWalker(8)
+		walker.SetArenaMinBufferSize(32 * 1024)
+		report := &operationreport.Report{}
+		walker.Walk(&operation, &definition, report)
+		if report.HasErrors() {
+			t.Fatal(report.Error())
+		}
+	})
+
+	t.Run("pool walker reuse", func(t *testing.T) {
+		for i := 0; i < 10; i++ {
+			walker := astvisitor.WalkerFromPool()
+			report := &operationreport.Report{}
+			walker.Walk(&operation, &definition, report)
+			if report.HasErrors() {
+				t.Fatal(report.Error())
+			}
+			walker.Release()
+		}
+	})
+}
+
+// largeTestDefinition is a schema with unions, interfaces, and many nested types
+// to simulate the workload that causes O(n^2) arena behavior with small buffers.
+const largeTestDefinition = `
+schema { query: Query }
+type Query {
+	feed: [FeedItem!]!
+	search(term: String!): SearchResult!
+	node(id: ID!): Node
+	events: [Event!]!
+}
+interface Node {
+	id: ID!
+}
+interface Timestamped {
+	createdAt: String!
+	updatedAt: String!
+}
+interface Authored {
+	author: Actor!
+}
+union FeedItem = Post | Comment | Review | Share | Announcement
+union SearchResult = User | Post | Product | Order | Category
+union Actor = User | Bot | System
+union MediaContent = Image | Video | Document | Audio
+union NotificationTarget = User | Team | Channel
+type User implements Node & Timestamped {
+	id: ID!
+	createdAt: String!
+	updatedAt: String!
+	name: String!
+	email: String!
+	profile: Profile!
+	posts: [Post!]!
+	reviews: [Review!]!
+	followers: [Actor!]!
+	notifications: [Notification!]!
+	teams: [Team!]!
+}
+type Bot implements Node {
+	id: ID!
+	name: String!
+	owner: User!
+	capabilities: [String!]!
+}
+type System implements Node {
+	id: ID!
+	name: String!
+	version: String!
+}
+type Team implements Node {
+	id: ID!
+	name: String!
+	members: [Actor!]!
+	channels: [Channel!]!
+}
+type Channel implements Node {
+	id: ID!
+	name: String!
+	messages: [Message!]!
+	participants: [Actor!]!
+}
+type Message implements Node & Timestamped & Authored {
+	id: ID!
+	createdAt: String!
+	updatedAt: String!
+	author: Actor!
+	content: String!
+	attachments: [MediaContent!]!
+	reactions: [Reaction!]!
+	thread: [Message!]!
+}
+type Profile {
+	avatar: Image
+	bio: String!
+	location: Location!
+	social: SocialLinks!
+	media: [MediaContent!]!
+}
+type Location {
+	city: String!
+	country: String!
+	lat: Float!
+	lng: Float!
+}
+type SocialLinks {
+	twitter: String
+	github: String
+	website: String
+}
+type Post implements Node & Timestamped & Authored {
+	id: ID!
+	createdAt: String!
+	updatedAt: String!
+	author: Actor!
+	title: String!
+	body: String!
+	comments: [Comment!]!
+	tags: [Tag!]!
+	category: Category!
+	media: [MediaContent!]!
+	relatedContent: [FeedItem!]!
+}
+type Comment implements Node & Timestamped & Authored {
+	id: ID!
+	createdAt: String!
+	updatedAt: String!
+	author: Actor!
+	text: String!
+	replies: [Comment!]!
+	reactions: [Reaction!]!
+	attachments: [MediaContent!]!
+	parent: FeedItem!
+}
+type Review implements Node & Timestamped & Authored {
+	id: ID!
+	createdAt: String!
+	updatedAt: String!
+	author: Actor!
+	rating: Int!
+	text: String!
+	product: Product!
+	helpful: Int!
+	media: [MediaContent!]!
+}
+type Share implements Node & Timestamped & Authored {
+	id: ID!
+	createdAt: String!
+	updatedAt: String!
+	author: Actor!
+	content: FeedItem!
+	comment: String
+	recipients: [NotificationTarget!]!
+}
+type Announcement implements Node & Timestamped & Authored {
+	id: ID!
+	createdAt: String!
+	updatedAt: String!
+	author: Actor!
+	title: String!
+	body: String!
+	targets: [NotificationTarget!]!
+	priority: String!
+}
+type Reaction implements Node {
+	id: ID!
+	type: String!
+	user: Actor!
+}
+type Tag {
+	key: String!
+	value: String!
+}
+type Category implements Node {
+	id: ID!
+	name: String!
+	parent: Category
+	subcategories: [Category!]!
+	posts: [Post!]!
+}
+type Product implements Node & Timestamped {
+	id: ID!
+	createdAt: String!
+	updatedAt: String!
+	name: String!
+	price: Float!
+	vendor: Actor!
+	reviews: [Review!]!
+	variants: [Variant!]!
+	media: [MediaContent!]!
+}
+type Variant implements Node {
+	id: ID!
+	name: String!
+	price: Float!
+	inventory: Int!
+}
+type Order implements Node & Timestamped {
+	id: ID!
+	createdAt: String!
+	updatedAt: String!
+	items: [OrderItem!]!
+	customer: User!
+	status: String!
+}
+type OrderItem {
+	product: Product!
+	quantity: Int!
+	price: Float!
+}
+type Image implements Node {
+	id: ID!
+	url: String!
+	width: Int!
+	height: Int!
+	alt: String
+}
+type Video implements Node {
+	id: ID!
+	url: String!
+	duration: Int!
+	thumbnail: Image!
+}
+type Document implements Node {
+	id: ID!
+	url: String!
+	title: String!
+	pages: Int!
+}
+type Audio implements Node {
+	id: ID!
+	url: String!
+	duration: Int!
+	title: String!
+}
+type Notification implements Node & Timestamped {
+	id: ID!
+	createdAt: String!
+	updatedAt: String!
+	target: NotificationTarget!
+	source: Actor!
+	content: FeedItem!
+	read: Boolean!
+}
+scalar ID
+scalar String
+scalar Int
+scalar Float
+scalar Boolean
+`
+
+// largeTestOperation exercises deep nesting with unions, interfaces, and fragment spreads.
+const largeTestOperation = `
+query LargeComplexQuery {
+	feed {
+		... on Post {
+			id
+			createdAt
+			author {
+				... on User {
+					id
+					name
+					profile {
+						avatar { id url width height }
+						bio
+						location { city country lat lng }
+						media {
+							... on Image { id url width height }
+							... on Video { id url duration thumbnail { url } }
+							... on Document { id url title pages }
+							... on Audio { id url duration title }
+						}
+					}
+					followers {
+						... on User { id name email }
+						... on Bot { id name capabilities }
+						... on System { id name version }
+					}
+				}
+				... on Bot { id name owner { id name } }
+				... on System { id name version }
+			}
+			title
+			body
+			comments {
+				id
+				text
+				author {
+					... on User { id name }
+					... on Bot { id name }
+					... on System { id name }
+				}
+				replies {
+					id
+					text
+					author {
+						... on User { id name email }
+						... on Bot { id name }
+						... on System { id name }
+					}
+					reactions { id type user { ... on User { id name } ... on Bot { id name } ... on System { id } } }
+					attachments {
+						... on Image { id url width height }
+						... on Video { id url duration }
+						... on Document { id url title }
+						... on Audio { id url duration }
+					}
+				}
+				reactions { id type user { ... on User { id } ... on Bot { id } ... on System { id } } }
+			}
+			media {
+				... on Image { id url width height alt }
+				... on Video { id url duration thumbnail { id url } }
+				... on Document { id url title pages }
+				... on Audio { id url duration title }
+			}
+			relatedContent {
+				... on Post { id title author { ... on User { id name } ... on Bot { id name } ... on System { id } } }
+				... on Comment { id text author { ... on User { id name } ... on Bot { id } ... on System { id } } }
+				... on Review { id rating text author { ... on User { id name } ... on Bot { id } ... on System { id } } }
+				... on Share { id comment author { ... on User { id name } ... on Bot { id } ... on System { id } } }
+				... on Announcement { id title priority }
+			}
+			tags { key value }
+			category { id name subcategories { id name } }
+		}
+		... on Comment {
+			id
+			createdAt
+			text
+			author {
+				... on User { id name profile { bio location { city country } } }
+				... on Bot { id name }
+				... on System { id name }
+			}
+			replies {
+				id
+				text
+				author { ... on User { id name } ... on Bot { id } ... on System { id } }
+				attachments {
+					... on Image { id url }
+					... on Video { id url duration }
+					... on Document { id url }
+					... on Audio { id url }
+				}
+			}
+			parent {
+				... on Post { id title }
+				... on Comment { id text }
+				... on Review { id rating }
+				... on Share { id comment }
+				... on Announcement { id title }
+			}
+		}
+		... on Review {
+			id
+			createdAt
+			rating
+			text
+			author {
+				... on User { id name profile { avatar { url } } }
+				... on Bot { id name }
+				... on System { id }
+			}
+			product {
+				id
+				name
+				price
+				vendor { ... on User { id name } ... on Bot { id name } ... on System { id } }
+				media {
+					... on Image { id url width height }
+					... on Video { id url duration }
+					... on Document { id url title }
+					... on Audio { id url }
+				}
+			}
+			media {
+				... on Image { id url }
+				... on Video { id url duration }
+				... on Document { id url }
+				... on Audio { id url }
+			}
+		}
+		... on Share {
+			id
+			createdAt
+			author { ... on User { id name } ... on Bot { id name } ... on System { id } }
+			content {
+				... on Post { id title }
+				... on Comment { id text }
+				... on Review { id rating text }
+				... on Share { id comment }
+				... on Announcement { id title body }
+			}
+			recipients {
+				... on User { id name }
+				... on Team { id name members { ... on User { id name } ... on Bot { id } ... on System { id } } }
+				... on Channel { id name }
+			}
+		}
+		... on Announcement {
+			id
+			createdAt
+			title
+			body
+			author { ... on User { id name } ... on Bot { id name } ... on System { id } }
+			targets {
+				... on User { id name }
+				... on Team { id name }
+				... on Channel { id name participants { ... on User { id } ... on Bot { id } ... on System { id } } }
+			}
+		}
+	}
+	events {
+		... on Post { id title createdAt updatedAt }
+		... on Comment { id text createdAt updatedAt }
+		... on Review { id rating createdAt updatedAt }
+		... on Share { id createdAt updatedAt }
+		... on Announcement { id title createdAt updatedAt }
+	}
+	search(term: "graphql") {
+		... on User {
+			id
+			name
+			posts { id title comments { id text } }
+			teams { id name channels { id name } }
+			notifications { id read content { ... on Post { id title } ... on Comment { id text } ... on Review { id rating } ... on Share { id } ... on Announcement { id title } } }
+		}
+		... on Post {
+			id
+			title
+			body
+			author { ... on User { id name } ... on Bot { id name } ... on System { id } }
+			comments { id text replies { id text } }
+		}
+		... on Product {
+			id
+			name
+			price
+			vendor { ... on User { id name } ... on Bot { id } ... on System { id } }
+			reviews { id rating text author { ... on User { id name } ... on Bot { id } ... on System { id } } }
+			variants { id name price inventory }
+		}
+		... on Order {
+			id
+			status
+			items { product { id name price } quantity }
+			customer { id name email }
+		}
+		... on Category {
+			id
+			name
+			subcategories { id name posts { id title } }
+		}
+	}
+}
 `

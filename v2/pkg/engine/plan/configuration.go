@@ -59,6 +59,10 @@ type Configuration struct {
 	// When true, factories that support it will allow differing nullability
 	// (e.g. String! vs String) on fields in non-overlapping inline fragments.
 	RelaxSubgraphOperationFieldSelectionMergingNullability bool
+
+	// ArenaMinBufferSize sets the minimum buffer size in bytes for walker arena allocators.
+	// If 0, defaults to 64 bytes.
+	ArenaMinBufferSize int
 }
 
 type DebugConfiguration struct {

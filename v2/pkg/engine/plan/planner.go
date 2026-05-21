@@ -55,11 +55,17 @@ func NewPlanner(config Configuration) (*Planner, error) {
 
 	// prepare operation walker handles internal normalization for planner
 	prepareOperationWalker := astvisitor.NewWalkerWithID(48, "PrepareOperationWalker")
+	if config.ArenaMinBufferSize > 0 {
+		prepareOperationWalker.SetArenaMinBufferSize(config.ArenaMinBufferSize)
+	}
 	astnormalization.InlineFragmentAddOnType(&prepareOperationWalker)
 
 	// planning
 
 	planningWalker := astvisitor.NewWalkerWithID(48, "PlanningWalker")
+	if config.ArenaMinBufferSize > 0 {
+		planningWalker.SetArenaMinBufferSize(config.ArenaMinBufferSize)
+	}
 
 	planningVisitor := NewVisitor(&planningWalker)
 	planningVisitor.disableResolveFieldPositions = config.DisableResolveFieldPositions
