@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.2](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.15.1...execution/v1.15.2) (2026-05-21)
+
+
+### Bug Fixes
+
+* **websocket:** prevent SIGSEGV in heartbeat goroutine when InitFunc returns (nil, err) ([#1506](https://github.com/wundergraph/graphql-go-tools/issues/1506)) ([de4b69d](https://github.com/wundergraph/graphql-go-tools/commit/de4b69d91329358ed004d4619344930af8cdad1d))
+
 ## [1.15.1](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.15.0...execution/v1.15.1) (2026-05-21)
 
 
