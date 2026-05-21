@@ -410,6 +410,29 @@ func TestProtocolGraphQLTransportWSHandler_Handle(t *testing.T) {
 
 		})
 
+		t.Run("should not panic and should close with 4401 when InitFunc returns (nil, err)", func(t *testing.T) {
+			testClient := NewTestClient(false)
+			protocol := NewTestProtocolGraphQLTransportWSHandler(testClient)
+			initErr := errors.New("init failed")
+			protocol.initFunc = func(_ context.Context, _ InitPayload) (context.Context, error) {
+				// Returning (nil, err) used to crash the heartbeat goroutine
+				// with a nil-pointer dereference. Verify Handle bails out before
+				// startHeartbeat in that case.
+				return nil, initErr
+			}
+
+			ctrl := gomock.NewController(t)
+			mockEngine := NewMockEngine(ctrl)
+
+			ctx, cancelFunc := context.WithCancel(context.Background())
+			defer cancelFunc()
+
+			err := protocol.Handle(ctx, mockEngine, []byte(`{"type":"connection_init","payload":{"bad":"token"}}`))
+			assert.ErrorIs(t, err, initErr)
+			assert.False(t, protocol.heartbeatStarted)
+			assert.False(t, testClient.IsConnected())
+		})
+
 		t.Run("should not time out if connection_init message is sent before time out", func(t *testing.T) {
 			if runtime.GOOS == "windows" {
 				t.Skip("this test fails on Windows due to different timings than unix, consider fixing it at some point")
