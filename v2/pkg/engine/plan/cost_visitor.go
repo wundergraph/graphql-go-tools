@@ -36,7 +36,7 @@ type CostVisitor struct {
 func NewCostVisitor(walker *astvisitor.Walker, operation, definition *ast.Document) *CostVisitor {
 	stack := make([]*CostTreeNode, 0, 16)
 	rootNode := CostTreeNode{
-		fieldCoords: FieldCoordinate{"_none", "_root"},
+		fieldCoords: costTreeRootNodeCoords,
 	}
 	stack = append(stack, &rootNode)
 	return &CostVisitor{
@@ -47,6 +47,8 @@ func NewCostVisitor(walker *astvisitor.Walker, operation, definition *ast.Docume
 		tree:       &rootNode,
 	}
 }
+
+var costTreeRootNodeCoords = FieldCoordinate{"_none", "_root"}
 
 // EnterField creates a partial cost node when entering a field.
 // The node is filled in full in the LeaveField when fieldPlanners data is available.
