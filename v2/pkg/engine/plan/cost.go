@@ -902,10 +902,8 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*Da
 		for name, arg := range node.arguments {
 			if arg.hasVariable {
 				if vars.IsEmpty() {
-					// actual cost
 					argStrs = append(argStrs, fmt.Sprintf("%s=$%s", name, arg.varName))
 				} else {
-					// estimated cost
 					v := vars.Get(arg.varName)
 					argStrs = append(argStrs, fmt.Sprintf("%s=%s($%s)", name, v, arg.varName))
 				}
