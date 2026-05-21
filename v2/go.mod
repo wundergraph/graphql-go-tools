@@ -3,6 +3,7 @@ module github.com/wundergraph/graphql-go-tools/v2
 go 1.25
 
 require (
+	connectrpc.com/connect v1.19.2
 	github.com/99designs/gqlgen v0.17.76
 	github.com/bufbuild/protocompile v0.14.1
 	github.com/buger/jsonparser v1.1.1
@@ -31,6 +32,7 @@ require (
 	github.com/wundergraph/astjson v1.1.0
 	github.com/wundergraph/go-arena v1.1.0
 	go.uber.org/goleak v1.3.0
+	golang.org/x/net v0.46.0
 	golang.org/x/sync v0.17.0
 	golang.org/x/sys v0.37.0
 	golang.org/x/text v0.30.0
@@ -74,7 +76,6 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/mod v0.29.0 // indirect
-	golang.org/x/net v0.46.0 // indirect
 	golang.org/x/term v0.36.0 // indirect
 	golang.org/x/tools v0.38.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250115164207-1a7da9e5054f // indirect
