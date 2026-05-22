@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.3](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.15.2...execution/v1.15.3) (2026-05-21)
+
+
+### Bug Fixes
+
+* use remapped variables in cost calculation ([#1505](https://github.com/wundergraph/graphql-go-tools/issues/1505)) ([972ad0f](https://github.com/wundergraph/graphql-go-tools/commit/972ad0f7e38c9201784293a09cdefd6c50d67fc9))
+
 ## [1.15.2](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.15.1...execution/v1.15.2) (2026-05-21)
 
 
