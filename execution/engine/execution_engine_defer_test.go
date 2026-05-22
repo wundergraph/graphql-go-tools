@@ -41,7 +41,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				"id-1",
 				mustFactory(t,
 					testConditionalNetHttpClient(t, conditionalTestCase{
-						reportUnused: true,
+						reportUnused: false,
 						expectedHost: "first",
 						expectedPath: "/",
 						responses: map[string]sendResponse{
@@ -200,7 +200,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				"id-1",
 				mustFactory(t,
 					testConditionalNetHttpClient(t, conditionalTestCase{
-						reportUnused: true,
+						reportUnused: false,
+						reportUsed:   false,
 						expectedHost: "first",
 						expectedPath: "/",
 						responses: map[string]sendResponse{
@@ -294,7 +295,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				"id-2",
 				mustFactory(t,
 					testConditionalNetHttpClient(t, conditionalTestCase{
-						reportUnused: true,
+						reportUnused: false,
+						reportUsed:   false,
 						expectedHost: "second",
 						expectedPath: "/",
 						responses: map[string]sendResponse{
@@ -319,7 +321,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 							`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename info {phone}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
 								statusCode: 200,
 								body:       `{"data":{"_entities":[{"__typename":"User","info":{"phone":"123"}}]}}`,
-								latencyMS:  4,
+								latencyMS: 10,
 							},
 						},
 					}),
@@ -903,8 +905,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 
 		dataSources := []plan.DataSource{
 			mustGraphqlDataSourceConfiguration(t, "id-1", mustFactory(t, testConditionalNetHttpClient(t, conditionalTestCase{
-				reportUnused: true,
-				reportUsed:   true,
+				reportUnused: false,
+				reportUsed:   false,
 				expectedHost: "first",
 				expectedPath: "/",
 				responses: map[string]sendResponse{
@@ -998,8 +1000,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}, firstSubgraphSDL),
 			})),
 			mustGraphqlDataSourceConfiguration(t, "id-2", mustFactory(t, testConditionalNetHttpClient(t, conditionalTestCase{
-				reportUnused: true,
-				reportUsed:   true,
+				reportUnused: false,
+				reportUsed:   false,
 				expectedHost: "second",
 				expectedPath: "/",
 				responses: map[string]sendResponse{
@@ -1073,8 +1075,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}, secondSubgraphSDL),
 			})),
 			mustGraphqlDataSourceConfiguration(t, "id-3", mustFactory(t, testConditionalNetHttpClient(t, conditionalTestCase{
-				reportUnused: true,
-				reportUsed:   true,
+				reportUnused: false,
+				reportUsed:   false,
 				expectedHost: "third",
 				expectedPath: "/",
 				responses: map[string]sendResponse{
@@ -1666,7 +1668,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				"id-1",
 				mustFactory(t,
 					testConditionalNetHttpClient(t, conditionalTestCase{
-						reportUnused: true,
+						reportUnused: false,
 						expectedHost: "first",
 						expectedPath: "/",
 						responses: map[string]sendResponse{
@@ -1712,7 +1714,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				"id-2",
 				mustFactory(t,
 					testConditionalNetHttpClient(t, conditionalTestCase{
-						reportUnused: true,
+						reportUnused: false,
 						expectedHost: "second",
 						expectedPath: "/",
 						responses: map[string]sendResponse{
@@ -1849,7 +1851,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 		firstSubgraphDS := mustGraphqlDataSourceConfiguration(t,
 			"id-1",
 			mustFactory(t, testConditionalNetHttpClient(t, conditionalTestCase{
-				reportUnused: true,
+				reportUnused: false,
 				expectedHost: "first",
 				expectedPath: "/",
 				responses: map[string]sendResponse{
@@ -1930,7 +1932,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 		secondSubgraphDS := mustGraphqlDataSourceConfiguration(t,
 			"id-2",
 			mustFactory(t, testConditionalNetHttpClient(t, conditionalTestCase{
-				reportUnused: true,
+				reportUnused: false,
 				expectedHost: "second",
 				expectedPath: "/",
 				responses: map[string]sendResponse{
@@ -1969,7 +1971,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 		thirdSubgraphDS := mustGraphqlDataSourceConfiguration(t,
 			"id-3",
 			mustFactory(t, testConditionalNetHttpClient(t, conditionalTestCase{
-				reportUnused: true,
+				reportUnused: false,
 				expectedHost: "third",
 				expectedPath: "/",
 				responses: map[string]sendResponse{
@@ -2222,7 +2224,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 		firstSubgraphDS := mustGraphqlDataSourceConfiguration(t,
 			"id-1",
 			mustFactory(t, testConditionalNetHttpClient(t, conditionalTestCase{
-				reportUnused: true,
+				reportUnused: false,
 				expectedHost: "first",
 				expectedPath: "/",
 				responses: map[string]sendResponse{
@@ -2282,7 +2284,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 		secondSubgraphDS := mustGraphqlDataSourceConfiguration(t,
 			"id-2",
 			mustFactory(t, testConditionalNetHttpClient(t, conditionalTestCase{
-				reportUnused: true,
+				reportUnused: false,
 				expectedHost: "second",
 				expectedPath: "/",
 				responses: map[string]sendResponse{

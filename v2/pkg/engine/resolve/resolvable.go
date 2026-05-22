@@ -1035,8 +1035,8 @@ func (r *Resolvable) collectDeferFields(obj *Object) (deferFields map[int]struct
 
 		// allow looking into the fields with other defer ids
 		if obj.Fields[i].Defer.DeferID != r.currentDefer.ID {
-			// but only if they are parent to the current defer id
-			if obj.Fields[i].Defer.DeferID != r.currentDefer.ParentID {
+			// but only if they are ancestor to the current defer id
+			if !r.isDeferAncestor(obj.Fields[i].Defer.DeferID, r.currentDefer.ParentID) {
 				continue
 			}
 
@@ -1053,6 +1053,22 @@ func (r *Resolvable) collectDeferFields(obj *Object) (deferFields map[int]struct
 	}
 
 	return
+}
+
+func (r *Resolvable) isDeferAncestor(fieldDeferID, parentID int) bool {
+	for {
+		// top level defer can't have a parent
+		if parentID == 0 {
+			return false
+		}
+
+		if fieldDeferID == parentID {
+			return true
+		}
+
+		descriptor := r.deferDescriptors[parentID]
+		parentID = descriptor.ParentID
+	}
 }
 
 func (r *Resolvable) fieldNodeKindAllowsSeek(field *Field) bool {
