@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -67,6 +69,7 @@ type conditionalTestCase struct {
 type sendResponse struct {
 	statusCode int
 	body       string
+	latencyMS  time.Duration
 }
 
 func createConditionalTestRoundTripper(t *testing.T, testCase conditionalTestCase) testRoundTripper {
@@ -75,6 +78,7 @@ func createConditionalTestRoundTripper(t *testing.T, testCase conditionalTestCas
 	require.True(t, len(testCase.responses) > 0, "no responses defined")
 
 	used := make(map[string]bool)
+	usedMu := &sync.RWMutex{}
 	if testCase.reportUnused {
 		t.Cleanup(func() {
 			for key := range testCase.responses {
@@ -111,11 +115,17 @@ func createConditionalTestRoundTripper(t *testing.T, testCase conditionalTestCas
 		response := testCase.responses[string(gotBody)]
 
 		if testCase.reportUnused {
+			usedMu.Lock()
 			used[string(gotBody)] = true
+			usedMu.Unlock()
 		}
 
 		if testCase.reportUsed {
 			t.Logf("Send MOCK Response:\n %s", response.body)
+		}
+
+		if response.latencyMS > 0 {
+			time.Sleep(response.latencyMS * time.Millisecond)
 		}
 
 		return &http.Response{
