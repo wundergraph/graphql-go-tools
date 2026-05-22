@@ -14,9 +14,13 @@ type VariablesSchemaBuilder struct {
 	definitionDocument *ast.Document
 	schema             *JsonSchema
 	report             *operationreport.Report
-	// Track recursion depth for each type to handle recursive types
-	recursionTracker  map[string]int
-	maxRecursionDepth int
+	// recursiveTypes holds the names of input types that are self- or mutually
+	// recursive. They are emitted once under the root "$defs" and referenced via
+	// "$ref" instead of being inlined, which supports arbitrary nesting depth.
+	recursiveTypes map[string]bool
+	// defs accumulates schemas for recursive input types; attached to the root
+	// schema as "$defs".
+	defs map[string]*JsonSchema
 }
 
 // Ensure VariablesSchemaBuilder implements the necessary astvisitor interfaces
@@ -30,15 +34,20 @@ func NewVariablesSchemaBuilder(operationDocument, definitionDocument *ast.Docume
 	return NewVariablesSchemaBuilderWithOptions(operationDocument, definitionDocument, 3)
 }
 
-// NewVariablesSchemaBuilderWithOptions creates a new VariablesSchemaBuilder with custom options
+// NewVariablesSchemaBuilderWithOptions creates a new VariablesSchemaBuilder.
+//
+// Deprecated: maxRecursionDepth is accepted for backwards compatibility but is no
+// longer used. Recursive input types are represented via "$ref"/"$defs", which
+// terminates by construction and supports arbitrary nesting depth.
 func NewVariablesSchemaBuilderWithOptions(operationDocument, definitionDocument *ast.Document, maxRecursionDepth int) *VariablesSchemaBuilder {
+	_ = maxRecursionDepth // retained for API compatibility; see doc comment
 	return &VariablesSchemaBuilder{
 		operationDocument:  operationDocument,
 		definitionDocument: definitionDocument,
 		schema:             NewObjectSchema(),
 		report:             &operationreport.Report{},
-		recursionTracker:   make(map[string]int),
-		maxRecursionDepth:  maxRecursionDepth,
+		recursiveTypes:     make(map[string]bool),
+		defs:               make(map[string]*JsonSchema),
 	}
 }
 
@@ -49,7 +58,8 @@ func (v *VariablesSchemaBuilder) EnterDocument(operation, definition *ast.Docume
 	}
 
 	v.schema = NewObjectSchema()
-	v.recursionTracker = make(map[string]int) // Reset recursion tracker for each build
+	v.defs = make(map[string]*JsonSchema)             // Reset defs for each build
+	v.recursiveTypes = v.computeRecursiveInputTypes() // Identify recursive input types
 
 	// Extract descriptions from root fields
 	var descriptions []string
@@ -160,6 +170,10 @@ func (v *VariablesSchemaBuilder) GetSchema() *JsonSchema {
 	if len(v.schema.Required) > 0 {
 		v.schema.Nullable = false
 	}
+	// Attach definitions for any recursive input types referenced via "$ref"
+	if len(v.defs) > 0 {
+		v.schema.Defs = v.defs
+	}
 	return v.schema
 }
 
@@ -245,63 +259,96 @@ func (v *VariablesSchemaBuilder) processTypeByName(typeName string) *JsonSchema 
 		return NewObjectSchema()
 	}
 
-	var shouldCleanupTracker bool
-
-	// Check recursion depth for complex types that could be recursive
-	if node.Kind == ast.NodeKindEnumTypeDefinition || node.Kind == ast.NodeKindInputObjectTypeDefinition {
-		currentDepth, exists := v.recursionTracker[typeName]
-		if exists {
-			// We've seen this type before
-			currentDepth++
-			v.recursionTracker[typeName] = currentDepth
-			shouldCleanupTracker = true
-
-			// If we've hit our recursion limit, return nil to signal field removal
-			if currentDepth > v.maxRecursionDepth {
-				return nil
-			}
-		} else {
-			// First time seeing this type
-			v.recursionTracker[typeName] = 1
-			shouldCleanupTracker = true
-		}
+	// Recursive input types are emitted once under "$defs" and referenced via
+	// "$ref" so that nesting is permitted to any depth.
+	if node.Kind == ast.NodeKindInputObjectTypeDefinition && v.recursiveTypes[typeName] {
+		v.ensureDef(typeName, node)
+		return NewRefSchema(typeName)
 	}
 
 	// Process the type based on its kind
-	var schema *JsonSchema
 	switch node.Kind {
 	case ast.NodeKindEnumTypeDefinition:
-		schema = v.processEnumType(node)
+		return v.processEnumType(node)
 
 	case ast.NodeKindInputObjectTypeDefinition:
-		schema = v.processInputObjectType(node)
+		return v.processInputObjectType(node)
 
 	case ast.NodeKindScalarTypeDefinition:
-		schema = NewAnySchema()
-
+		schema := NewAnySchema()
 		// Add description if available
 		if v.definitionDocument.ScalarTypeDefinitions[node.Ref].Description.IsDefined {
 			schema.Description = v.definitionDocument.ScalarTypeDefinitionDescriptionString(node.Ref)
 		}
+		return schema
 
 	default:
 		// If we can't determine the type, default to any
-		schema = NewAnySchema()
+		return NewAnySchema()
 	}
+}
 
-	// Clean up the recursion tracker before returning
-	if shouldCleanupTracker {
-		currentDepth := v.recursionTracker[typeName]
-		if currentDepth > 1 {
-			// Decrement the depth as we're exiting the recursion
-			v.recursionTracker[typeName]--
-		} else {
-			// Remove the type from the tracker if depth is 1
-			delete(v.recursionTracker, typeName)
+// computeRecursiveInputTypes returns the set of input object type names that are
+// self- or mutually-recursive, i.e. reachable from themselves by following input
+// field type references. These are the types that must be referenced via "$ref"
+// rather than inlined.
+func (v *VariablesSchemaBuilder) computeRecursiveInputTypes() map[string]bool {
+	def := v.definitionDocument
+
+	// Build the dependency graph between input object types.
+	dependencies := make(map[string][]string, len(def.InputObjectTypeDefinitions))
+	for ref := range def.InputObjectTypeDefinitions {
+		name := def.InputObjectTypeDefinitionNameString(ref)
+		inputDef := def.InputObjectTypeDefinitions[ref]
+		if !inputDef.HasInputFieldsDefinition {
+			dependencies[name] = nil
+			continue
+		}
+		for _, fieldRef := range inputDef.InputFieldsDefinition.Refs {
+			fieldType := def.InputValueDefinitionType(fieldRef)
+			dependencies[name] = append(dependencies[name], def.ResolveTypeNameString(fieldType))
 		}
 	}
 
-	return schema
+	recursive := make(map[string]bool)
+	for start := range dependencies {
+		if reachableFromSelf(start, dependencies) {
+			recursive[start] = true
+		}
+	}
+	return recursive
+}
+
+// reachableFromSelf reports whether start can reach itself by following the given
+// type dependencies (detecting both self- and mutual recursion).
+func reachableFromSelf(start string, dependencies map[string][]string) bool {
+	visited := make(map[string]bool)
+	stack := append([]string(nil), dependencies[start]...)
+	for len(stack) > 0 {
+		current := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		if current == start {
+			return true
+		}
+		if visited[current] {
+			continue
+		}
+		visited[current] = true
+		stack = append(stack, dependencies[current]...)
+	}
+	return false
+}
+
+// ensureDef generates the schema for a recursive input type once and stores it
+// under "$defs". A placeholder is registered before the body is generated so that
+// self-references encountered during generation resolve to a "$ref" rather than
+// recursing infinitely.
+func (v *VariablesSchemaBuilder) ensureDef(typeName string, node ast.Node) {
+	if _, ok := v.defs[typeName]; ok {
+		return
+	}
+	v.defs[typeName] = NewObjectSchema() // placeholder to break the recursion
+	v.defs[typeName] = v.processInputObjectType(node)
 }
 
 // processEnumType processes an enum type definition
@@ -487,14 +534,18 @@ func (v *VariablesSchemaBuilder) convertDefinitionValueToNative(value ast.Value)
 	return nil
 }
 
-// BuildJsonSchema builds a JSON schema for the variables of the given operation
-// using the default recursion depth of 1
+// BuildJsonSchema builds a JSON schema for the variables of the given operation.
+// Recursive input types are represented via "$ref"/"$defs" and support arbitrary
+// nesting depth.
 func BuildJsonSchema(operationDocument, definitionDocument *ast.Document) (*JsonSchema, error) {
-	return BuildJsonSchemaWithOptions(operationDocument, definitionDocument, 1)
+	return BuildJsonSchemaWithOptions(operationDocument, definitionDocument, 0)
 }
 
-// BuildJsonSchemaWithOptions builds a JSON schema for the variables of the given operation
-// with a custom recursion depth limit
+// BuildJsonSchemaWithOptions builds a JSON schema for the variables of the given operation.
+//
+// Deprecated: maxRecursionDepth is accepted for backwards compatibility but is no
+// longer used. Recursive input types are represented via "$ref"/"$defs", which
+// terminates by construction and supports arbitrary nesting depth.
 func BuildJsonSchemaWithOptions(operationDocument, definitionDocument *ast.Document, maxRecursionDepth int) (*JsonSchema, error) {
 	if len(operationDocument.OperationDefinitions) == 0 {
 		return nil, fmt.Errorf("no operations found in document")

@@ -865,7 +865,7 @@ func TestBuildJsonSchema(t *testing.T) {
 		t.Logf("Default recursion depth schema: %v", string(data))
 	})
 
-	t.Run("recursive types with custom recursion depth", func(t *testing.T) {
+	t.Run("recursive types are emitted via $ref and ignore the deprecated recursion depth", func(t *testing.T) {
 		// Define schema with recursive input type
 		schemaSDL := scalarDefinitions + `
 			schema {
@@ -899,36 +899,28 @@ func TestBuildJsonSchema(t *testing.T) {
 		operationDoc, report := astparser.ParseGraphqlDocumentString(operationSDL)
 		require.False(t, report.HasErrors(), "operation parsing failed")
 
-		// Build JSON schema with custom recursion depth (3)
-		customDepth := 3
-		customSchema, err := BuildJsonSchemaWithOptions(&operationDoc, &definitionDoc, customDepth)
+		// maxRecursionDepth is deprecated and ignored: recursive types are emitted via
+		// "$ref"/"$defs", which supports arbitrary nesting depth. Passing a different
+		// depth must therefore produce an identical schema.
+		customSchema, err := BuildJsonSchemaWithOptions(&operationDoc, &definitionDoc, 3)
 		require.NoError(t, err)
 
-		// Build JSON schema with default recursion depth (1) for comparison
 		defaultSchema, err := BuildJsonSchema(&operationDoc, &definitionDoc)
 		require.NoError(t, err)
 
-		// Convert both to JSON for analysis
 		customData, err := json.Marshal(customSchema)
 		require.NoError(t, err)
 		defaultData, err := json.Marshal(defaultSchema)
 		require.NoError(t, err)
 
-		// Verify both are valid schemas
-		require.NotEmpty(t, customData, "Custom schema JSON should not be empty")
-		require.NotEmpty(t, defaultData, "Default schema JSON should not be empty")
+		assert.JSONEq(t, string(defaultData), string(customData),
+			"the deprecated recursion depth option must not affect the generated schema")
 
-		// Verify the custom schema is different (likely larger) than the default
-		assert.NotEqual(t, string(customData), string(defaultData),
-			"Custom recursion depth schema should differ from default schema")
-
-		// Simple size check - custom schema should be larger due to more recursion
-		assert.Greater(t, len(customData), len(defaultData),
-			"Custom schema should be larger than default due to deeper recursion")
-
-		// Log the schemas for debugging
-		t.Logf("Custom recursion depth schema size: %d bytes", len(customData))
-		t.Logf("Default recursion depth schema size: %d bytes", len(defaultData))
+		// The recursive type is defined once under "$defs" and referenced via "$ref".
+		require.Contains(t, customSchema.Defs, "RecursiveNode",
+			"recursive input type should be defined under $defs")
+		assert.Contains(t, string(customData), `"$ref":"#/$defs/RecursiveNode"`,
+			"recursive input type should be referenced via $ref")
 	})
 
 	t.Run("query with two nested arguments", func(t *testing.T) {
@@ -1107,11 +1099,22 @@ func TestBuildJsonSchema(t *testing.T) {
 		data, err := json.MarshalIndent(schema, "", "  ")
 		require.NoError(t, err)
 
-		// Define expected JSON schema - this may vary based on recursion depth setting
+		// Mutually recursive input types (TypeA <-> TypeB) are emitted once each
+		// under "$defs" and referenced via "$ref", so nesting is permitted to any depth.
 		expectedJSON := `{
   "type": "object",
   "properties": {
     "a": {
+      "$ref": "#/$defs/TypeA"
+    }
+  },
+  "required": [
+    "a"
+  ],
+  "additionalProperties": false,
+  "nullable": false,
+  "$defs": {
+    "TypeA": {
       "type": "object",
       "properties": {
         "id": {
@@ -1122,20 +1125,7 @@ func TestBuildJsonSchema(t *testing.T) {
           "nullable": true
         },
         "b": {
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string"
-            },
-            "description": {
-              "type": "string",
-              "nullable": true
-            }
-          },
-          "required": [
-            "id"
-          ],
-          "additionalProperties": false,
+          "$ref": "#/$defs/TypeB",
           "nullable": true
         }
       },
@@ -1143,14 +1133,30 @@ func TestBuildJsonSchema(t *testing.T) {
         "id"
       ],
       "additionalProperties": false,
-      "nullable": false
+      "nullable": true
+    },
+    "TypeB": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string",
+          "nullable": true
+        },
+        "a": {
+          "$ref": "#/$defs/TypeA",
+          "nullable": true
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "nullable": true
     }
-  },
-  "required": [
-    "a"
-  ],
-  "additionalProperties": false,
-  "nullable": false
+  }
 }`
 
 		// Compare actual JSON with expected JSON
