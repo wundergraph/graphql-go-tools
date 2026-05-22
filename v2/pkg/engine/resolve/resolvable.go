@@ -56,7 +56,7 @@ type Resolvable struct {
 	wroteData           bool
 	skipValueCompletion bool
 	deferMode           bool
-	deferID             int
+	currentDefer        *DeferDescriptor
 	deferDescriptors    map[int]DeferDescriptor
 
 	typeNames [][]byte
@@ -123,7 +123,7 @@ func (r *Resolvable) Reset() {
 		delete(r.actualListSizes, k)
 	}
 	r.deferMode = false
-	r.deferID = 0
+	r.currentDefer = nil
 	r.deferDescriptors = nil
 	r.enableDeferRender = false
 	r.incrementalItemWritten = false
@@ -322,7 +322,7 @@ func (r *Resolvable) ResolveDefer(rootData *Object, out io.Writer, hasNext bool)
 	r.printBytes(quote)
 	r.printBytes(colon)
 	r.printBytes(quote)
-	r.printBytes([]byte(strconv.Itoa(r.deferID)))
+	r.printBytes([]byte(strconv.Itoa(r.currentDefer.ID)))
 	r.printBytes(quote)
 	if shouldSkipIncremental && r.hasErrors() {
 		r.printBytes(comma)
@@ -463,7 +463,7 @@ func (r *Resolvable) printDeferIdAndErrors() {
 	r.printBytes(quote)
 	r.printBytes(colon)
 	r.printBytes(quote)
-	r.printBytes([]byte(strconv.Itoa(r.deferID)))
+	r.printBytes([]byte(strconv.Itoa(r.currentDefer.ID)))
 	r.printBytes(quote)
 	r.printDeferSubPathIfAny()
 	if r.hasErrors() {
@@ -486,8 +486,7 @@ func (r *Resolvable) printDeferIdAndErrors() {
 // names AND list indices — flows into subPath. Emit nothing when subPath
 // is empty.
 func (r *Resolvable) printDeferSubPathIfAny() {
-	descriptor := r.deferDescriptors[r.deferID]
-	descPath := descriptor.Path
+	descPath := r.currentDefer.Path
 	descIdx := 0
 
 	suffixStart := -1
@@ -957,7 +956,7 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 					r.printBytes(comma)
 				}
 
-				if r.deferID != 0 {
+				if r.currentDefer != nil {
 					r.printDeferEnvelopeOpen()
 				}
 			}
@@ -966,7 +965,7 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 			hasErrors := r.walkFields(obj, value, parent, walkFieldsFilter{deferFields: deferFields, seek: false, enabled: true})
 
 			if startedRender {
-				if r.deferID != 0 {
+				if r.currentDefer != nil {
 					if !r.enableRender && hasErrors {
 						// Pre-walk: null propagated through non-nullable chain; signal render pass.
 						r.deferItemDataNull = true
@@ -982,7 +981,7 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 			}
 		}
 
-		if r.deferID != 0 && len(seekFiels) > 0 {
+		if r.currentDefer != nil && len(seekFiels) > 0 {
 			// seek for additional nested defer fields
 			if r.walkFields(obj, value, parent, walkFieldsFilter{seekFields: seekFiels, seek: true, enabled: true}) {
 				return true
@@ -1010,7 +1009,7 @@ func (r *Resolvable) collectDeferFields(obj *Object) (deferFields map[int]struct
 			continue
 		}
 
-		if r.deferID == 0 {
+		if r.currentDefer == nil {
 			// we are rendering the initial response
 
 			// skip all fields with defer
@@ -1034,15 +1033,10 @@ func (r *Resolvable) collectDeferFields(obj *Object) (deferFields map[int]struct
 			continue
 		}
 
-		// allow to seek fields with other defer ids
-		if obj.Fields[i].Defer.DeferID != r.deferID {
-			// but only if their id is smaller than current,
-			// which means this nodes already was fetched,
-			// as defers ordered by id
-
-			// TODO: it is a temporary solution,
-			// because defer could be parallel
-			if r.deferID < obj.Fields[i].Defer.DeferID {
+		// allow looking into the fields with other defer ids
+		if obj.Fields[i].Defer.DeferID != r.currentDefer.ID {
+			// but only if they are parent to the current defer id
+			if obj.Fields[i].Defer.DeferID != r.currentDefer.ParentID {
 				continue
 			}
 

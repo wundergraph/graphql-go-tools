@@ -927,6 +927,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename account {type}}}}","variables":{"representations":[{"__typename":"User","billing":{"plan":"pro"},"settings":{"region":"us-east"},"id":"1"}]}}`: {
 						statusCode: 200,
 						body:       `{"data":{"_entities":[{"__typename":"User","account":{"type":"premium"}}]}}`,
+						latencyMS:  2,
 					},
 					`{"query":"{user {__internal_name: name}}"}`: {
 						statusCode: 200,
@@ -1009,6 +1010,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename notifications}}}","variables":{"representations":[{"__typename":"User","name":"Alice","settings":{"language":"en"},"id":"1"}]}}`: {
 						statusCode: 200,
 						body:       `{"data":{"_entities":[{"__typename":"User","notifications":["msg1","msg2"]}]}}`,
+						latencyMS:  5,
 					},
 					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename __internal_billing: billing {plan}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
 						statusCode: 200,

@@ -465,7 +465,7 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 		}
 
 		t.resolvable.deferMode = true
-		t.resolvable.deferID = 0
+		t.resolvable.currentDefer = nil
 		t.resolvable.deferDescriptors = response.DeferDescriptors
 
 		// render initial response
@@ -549,7 +549,8 @@ func (r *Resolver) resolveDeferSingle(
 
 	isLast := syncatomic.AddInt64(remaining, -1) == 0
 
-	t.resolvable.deferID = group.DeferID
+	descriptor := t.resolvable.deferDescriptors[group.DeferID]
+	t.resolvable.currentDefer = &descriptor
 	if err := t.resolvable.ResolveDefer(response.Response.Data, writer, !isLast); err != nil {
 		return err
 	}
