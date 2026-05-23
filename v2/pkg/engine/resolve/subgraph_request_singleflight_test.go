@@ -61,6 +61,9 @@ func TestSubgraphRequestSingleFlight_LeaderFollowerSizeHint(t *testing.T) {
 	}
 	if item == nil {
 		t.Fatalf("expected item, got nil")
+		// adding a `return` statement here because staticcheck reports that
+		// item could be nil in the next line even though t.Fatalf calls FailNow
+		return
 	}
 	if item.sizeHint != 0 {
 		t.Fatalf("expected empty size hint, got %d", item.sizeHint)

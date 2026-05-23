@@ -133,20 +133,10 @@ func (i *InputTemplate) renderResolvableObjectVariable(ctx context.Context, obje
 }
 
 func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegment, preparedInput InputTemplateWriter) (variableWasUndefined bool, err error) {
-	variableSourcePath := segment.VariableSourcePath
-	if len(variableSourcePath) == 1 && ctx.RemapVariables != nil {
-		nameToUse, hasMapping := ctx.RemapVariables[variableSourcePath[0]]
-		if hasMapping && nameToUse != variableSourcePath[0] {
-			variableSourcePath = []string{nameToUse}
-		}
-	}
-
-	value := ctx.Variables.Get(variableSourcePath...)
+	value := ctx.VariablesView().Get(segment.VariableSourcePath...)
 	if value == nil {
 		_, _ = preparedInput.Write(literal.NULL)
 		return true, nil
-	} else if value.Type() == astjson.TypeNull {
-		return false, segment.Renderer.RenderVariable(ctx.Context(), value, preparedInput)
 	}
 	return false, segment.Renderer.RenderVariable(ctx.Context(), value, preparedInput)
 }

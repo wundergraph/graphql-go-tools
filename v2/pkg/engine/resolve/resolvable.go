@@ -76,6 +76,9 @@ type Resolvable struct {
 	// actualListSizes maps the JSON path to the list size in the final response.
 	// Used to compute the actual cost of the operation.
 	actualListSizes map[string]int
+
+	subgraphExtensions []*astjson.Object
+	allowedExtensions  map[string]*astjson.Value
 }
 
 type ResolvableOptions struct {
@@ -83,6 +86,33 @@ type ResolvableOptions struct {
 	ApolloCompatibilityTruncateFloatValues         bool
 	ApolloCompatibilitySuppressFetchErrors         bool
 	ApolloCompatibilityReplaceInvalidVarError      bool
+	AllowedSubgraphExtensions                      map[string]struct{}
+	ExtensionForwardingAlgorithm                   ExtensionForwardingAlgorithm
+}
+
+type ExtensionForwardingAlgorithm string
+
+const (
+	ExtensionForwardingAlgorithmFirstWrite ExtensionForwardingAlgorithm = "first_write"
+	ExtensionForwardingAlgorithmLastWrite  ExtensionForwardingAlgorithm = "last_write"
+)
+
+func (a ExtensionForwardingAlgorithm) isValid() bool {
+	switch a {
+	case ExtensionForwardingAlgorithmFirstWrite, ExtensionForwardingAlgorithmLastWrite:
+		return true
+	default:
+		return false
+	}
+}
+
+func MapExtensionForwardingAlgorithm(algorithm string) ExtensionForwardingAlgorithm {
+	switch ExtensionForwardingAlgorithm(algorithm) {
+	case ExtensionForwardingAlgorithmFirstWrite, ExtensionForwardingAlgorithmLastWrite:
+		return ExtensionForwardingAlgorithm(algorithm)
+	default:
+		return ExtensionForwardingAlgorithmFirstWrite
+	}
 }
 
 func NewResolvable(a arena.Arena, options ResolvableOptions) *Resolvable {
@@ -122,15 +152,11 @@ func (r *Resolvable) Reset() {
 	r.currentEntityKeyHash = 0
 	r.currentEntitySource = FieldSourceSubgraph
 	r.xxh.Reset()
-	for k := range r.authorizationAllow {
-		delete(r.authorizationAllow, k)
-	}
-	for k := range r.authorizationDeny {
-		delete(r.authorizationDeny, k)
-	}
-	for k := range r.actualListSizes {
-		delete(r.actualListSizes, k)
-	}
+	r.allowedExtensions = nil
+	clear(r.subgraphExtensions)
+	clear(r.authorizationAllow)
+	clear(r.authorizationDeny)
+	clear(r.actualListSizes)
 }
 
 func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.OperationType) (err error) {
@@ -391,10 +417,31 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 		if writeComma {
 			r.printBytes(comma)
 		}
-		writeComma = true //nolint:all // should we add another print func, we should not forget to write a comma
+		writeComma = true
 		err := r.printValueCompletionExtension()
 		if err != nil {
 			return err
+		}
+	}
+
+	if len(r.allowedExtensions) > 0 {
+		if writeComma {
+			r.printBytes(comma)
+		}
+		writeComma = true //nolint:all // should we add another print func, we should not forget to write a comma
+
+		counter := 0
+		for key, value := range r.allowedExtensions {
+			if counter > 0 {
+				r.printBytes(comma)
+			}
+			counter++
+			r.printBytes(quote)
+			r.printBytes([]byte(key))
+			r.printBytes(quote)
+			r.printBytes(colon)
+			r.printNode(value)
+
 		}
 	}
 
@@ -455,7 +502,21 @@ func (r *Resolvable) printValueCompletionExtension() error {
 	return nil
 }
 
+func getDefaultReservedExtensions() map[string]struct{} {
+	return map[string]struct{}{
+		string(literalAuthorization):   {},
+		string(literalRateLimit):       {},
+		string(literalQueryPlan):       {},
+		string(literalTrace):           {},
+		string(literalValueCompletion): {},
+	}
+}
+
 func (r *Resolvable) hasExtensions() bool {
+	// Apply the filter first to avoid missing extensions or applying empty extensions.
+	if r.filterAllowedSubgraphExtensions(getDefaultReservedExtensions()) {
+		return true
+	}
 	if r.ctx.authorizer != nil && r.ctx.authorizer.HasResponseExtensionData(r.ctx) {
 		return true
 	}
@@ -472,6 +533,45 @@ func (r *Resolvable) hasExtensions() bool {
 		return true
 	}
 	return false
+}
+
+func (r *Resolvable) filterAllowedSubgraphExtensions(writtenExtensions map[string]struct{}) bool {
+	if len(r.subgraphExtensions) == 0 {
+		return false
+	}
+
+	r.allowedExtensions = make(map[string]*astjson.Value)
+	algorithm := r.options.ExtensionForwardingAlgorithm
+
+	if !algorithm.isValid() {
+		algorithm = ExtensionForwardingAlgorithmFirstWrite
+	}
+
+	override := algorithm == ExtensionForwardingAlgorithmLastWrite
+
+	// filter only allowed extensions. If the allowed extensions are empty, all extensions are allowed
+	for _, extension := range r.subgraphExtensions {
+		extension.Visit(func(key []byte, v *astjson.Value) {
+			keyString := string(key)
+			if len(r.options.AllowedSubgraphExtensions) > 0 {
+				if _, ok := r.options.AllowedSubgraphExtensions[keyString]; !ok {
+					return
+				}
+			}
+
+			// don't print the same extension twice
+			if _, exists := writtenExtensions[keyString]; exists {
+				return
+			}
+
+			// We either add the extension to the valid extension map or we override it when we're in last write mode
+			if _, exists := r.allowedExtensions[keyString]; !exists || (exists && override) {
+				r.allowedExtensions[string(key)] = v
+			}
+		})
+	}
+
+	return len(r.allowedExtensions) > 0
 }
 
 func (r *Resolvable) WroteErrorsWithoutData() bool {

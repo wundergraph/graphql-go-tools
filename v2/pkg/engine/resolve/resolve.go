@@ -166,6 +166,9 @@ type ResolverOptions struct {
 	// AllowedErrorExtensionFields defines which fields are allowed in the extensions field of a root subgraph error
 	AllowedErrorExtensionFields []string
 
+	// AllowCustomExtensionProperties allows custom extension properties to be propagated to the client
+	AllowCustomExtensionProperties bool
+
 	// AttachServiceNameToErrorExtensions attaches the service name to the extensions field of a root subgraph error
 	AttachServiceNameToErrorExtensions bool
 
@@ -324,6 +327,7 @@ func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{
 	return &tools{
 		resolvable: NewResolvable(a, options.ResolvableOptions),
 		loader: &Loader{
+			allowCustomExtensionProperties:               options.AllowCustomExtensionProperties,
 			propagateSubgraphErrors:                      options.PropagateSubgraphErrors,
 			propagateSubgraphStatusCodes:                 options.PropagateSubgraphStatusCodes,
 			subgraphErrorPropagationMode:                 options.SubgraphErrorPropagationMode,

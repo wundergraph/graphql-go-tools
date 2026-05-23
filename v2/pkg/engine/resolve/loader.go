@@ -284,6 +284,8 @@ type Loader struct {
 
 	propagateFetchReasons bool
 
+	allowCustomExtensionProperties bool
+
 	validateRequiredExternalFields bool
 
 	taintedObjs taintedObjects
@@ -1574,6 +1576,14 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	// Extract cache invalidation signal from subgraph response extensions.
 	// This is not restricted to mutations — any subgraph response can signal invalidation.
 	cacheInvalidation := response.Get("extensions", "cacheInvalidation")
+
+	if l.allowCustomExtensionProperties {
+		extensions := response.Get("extensions")
+
+		if astjson.ValueIsNonNull(extensions) && extensions.Type() == astjson.TypeObject {
+			l.resolvable.subgraphExtensions = append(l.resolvable.subgraphExtensions, extensions.GetObject())
+		}
+	}
 
 	var responseData *astjson.Value
 	if res.postProcessing.SelectResponseDataPath != nil {

@@ -91,6 +91,8 @@ func (p *NodeSelectionBuilder) ResetSkipFieldRefs() {
 	p.nodeSelectionsVisitor.newFieldRefs = make(map[int]struct{})
 }
 
+// SelectNodes implements Steps 1-2 of the planner pipeline.
+// It assigns all the fields and their requirements (via @key and @requires) to DataSources.
 func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, report *operationreport.Report) (out *NodeSelectionResult) {
 	dsFilter := NewDataSourceFilter(operation, definition, report, p.config.DataSources, p.nodeSelectionsVisitor.newFieldRefs)
 
@@ -105,9 +107,9 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 
 	p.nodeSelectionsVisitor.debug = p.config.Debug
 
-	// set initial suggestions and used data sources
-	p.nodeSelectionsVisitor.dataSources, p.nodeSelectionsVisitor.nodeSuggestions =
-		dsFilter.FilterDataSources(nil, nil)
+	// Step 1. Produce initial suggestions of which datasource owns which fields.
+	// We collect info from all subgraphs with the field, plus available keys per path.
+	p.nodeSelectionsVisitor.dataSources, p.nodeSelectionsVisitor.nodeSuggestions = dsFilter.FilterDataSources(nil, nil)
 	if report.HasErrors() {
 		return
 	}
@@ -117,6 +119,8 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 			p.config.Debug.PrintNodeSuggestionsFilterNotSelected)
 	}
 
+	// Step 2. For every DataSource-assigned field, check if it has @key or @requires dependencies.
+	// Add newly found dependency/required fields into the GraphQL operation.
 	p.nodeSelectionsVisitor.secondaryRun = false
 	p.nodeSelectionsWalker.Walk(operation, definition, report)
 	if report.HasErrors() {
@@ -141,9 +145,8 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 		p.nodeSelectionsVisitor.secondaryRun = true
 
 		if p.nodeSelectionsVisitor.hasNewFields {
-			// update suggestions for the new required fields
-			p.nodeSelectionsVisitor.dataSources, p.nodeSelectionsVisitor.nodeSuggestions =
-				dsFilter.FilterDataSources(p.nodeSelectionsVisitor.fieldLandedTo, p.nodeSelectionsVisitor.fieldRefDependsOn)
+			// Repeat Step 1. Update suggestions for the new required fields.
+			p.nodeSelectionsVisitor.dataSources, p.nodeSelectionsVisitor.nodeSuggestions = dsFilter.FilterDataSources(p.nodeSelectionsVisitor.fieldLandedTo, p.nodeSelectionsVisitor.fieldRefDependsOn)
 			if report.HasErrors() {
 				return
 			}
@@ -157,6 +160,7 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 			p.nodeSelectionsVisitor.nodeSuggestions.printNodesWithFilter("\nUpdated node suggestions:\n", p.config.Debug.PrintNodeSuggestionsFilterNotSelected)
 		}
 
+		// Repeat Step 2.
 		p.nodeSelectionsWalker.Walk(operation, definition, report)
 		if report.HasErrors() {
 			return
@@ -169,17 +173,14 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 
 		i++
 
-		if resolvableReport := p.isResolvable(operation, definition, p.nodeSelectionsVisitor.nodeSuggestions); resolvableReport.HasErrors() {
-			hasUnresolvedFields = true
-
+		resolvableReport := p.isResolvable(operation, definition, p.nodeSelectionsVisitor.nodeSuggestions)
+		hasUnresolvedFields = resolvableReport.HasErrors()
+		if hasUnresolvedFields {
 			if i > 100 {
 				report.AddInternalError(fmt.Errorf("could not resolve a field: %v", resolvableReport))
 				return
 			}
-
 			continue
-		} else {
-			hasUnresolvedFields = false
 		}
 
 		// if we have revisited operation more than 100 times, we have a bug

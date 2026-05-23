@@ -87,7 +87,6 @@ func IncludeQueryPlanInResponse() Opts {
 }
 
 func (p *Planner) Plan(operation, definition *ast.Document, operationName string, report *operationreport.Report, options ...Opts) (plan Plan) {
-
 	var opts _opts
 	for _, opt := range options {
 		opt(&opts)
@@ -117,12 +116,15 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	p.nodeSelectionBuilder.SetOperationName(p.planningVisitor.OperationName)
 	p.nodeSelectionBuilder.ResetSkipFieldRefs()
 
+	// Steps 1-2. Assigns all the fields to DataSources.
 	selectionsConfig := p.nodeSelectionBuilder.SelectNodes(operation, definition, report)
 	if report.HasErrors() {
 		return nil
 	}
 
-	// create planning paths
+	// Step 3. Create planning paths. We create actual raw plans where all fields are assigned to
+	// fetches with infos about dependencies. A fetch could depend on other fetches and contain
+	// required fields configurations.
 	if p.planningPathBuilder == nil {
 		p.planningPathBuilder = NewPathBuilder(&p.config)
 	}
@@ -134,11 +136,15 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		return nil
 	}
 
+	// Step 4. Create the response shape and skip fields added by the planner.
+	// Each subgraph DS planner writes its own GraphQL operation document using
+	// only the paths/fields it owns from its PlannerConfiguration.
+	// Each planner creates representation objects (_entities input templates) from field configs
+	// to be used as entity fetches.
+	// Output is tree: response-shape root with embedded fetch-configurations. Yet it is a raw plan.
 	if p.config.Debug.PlanningVisitor {
 		debugMessage("Planning Visitor\n================")
 	}
-
-	// configure planning visitor
 
 	p.planningVisitor.planners = plannersConfigurations
 	p.planningVisitor.Config = p.config
@@ -171,6 +177,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		p.planningWalker.RegisterLeaveFieldVisitor(p.costVisitor)
 	}
 
+	// Per-DS planners:
 	for key := range p.planningVisitor.planners {
 		if p.config.MinifySubgraphOperations {
 			if dataSourceWithMinify, ok := p.planningVisitor.planners[key].Planner().(SubgraphRequestMinifier); ok {
@@ -213,6 +220,8 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		p.planningVisitor.plan.SetCostCalculator(costCalc)
 	}
 
+	// Step 5. Plan is handed over to postprocess.Processor. It checks fetch dependencies and
+	// orders them into parallel or sequential groups and builds a fetch tree.
 	return p.planningVisitor.plan
 }
 
