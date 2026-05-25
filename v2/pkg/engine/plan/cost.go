@@ -405,15 +405,15 @@ func (node *CostTreeNode) maxDirectiveArgumentWeightsImplementingFields(config *
 // When it is positive, then its value is used as a fallback value of list sizes for the estimated cost.
 // When it is negative, then it computes the actual cost. And it uses the actualListSizes map.
 // For actual cost, multipliers are computed as averages (totalCount/parentCount).
-func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, vars resolve.VariablesView, defaultListSize int, actualListSizes map[string]int) int {
+func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, vars resolve.VariablesView, defaultListSize int, actualListSizes map[string]int) float64 {
 	if node == nil {
 		return 0
 	}
 
 	fieldCost, argsCost, directivesCost, multiplier := node.costsAndMultiplier(configs, vars, defaultListSize, actualListSizes)
 
-	// Sum children costs
-	var childrenCost int
+	// Sum children's costs
+	var childrenCost float64
 	for _, child := range node.children {
 		childrenCost += child.cost(configs, vars, defaultListSize, actualListSizes)
 	}
@@ -423,7 +423,7 @@ func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, vars re
 		multiplier = 1
 	}
 
-	cost := argsCost + directivesCost
+	cost := float64(argsCost + directivesCost)
 
 	// Here we do not follow IBM spec. IBM spec does not use the cost of the object itself
 	// in multiplication. It assumes that the weight of the type should be just summed up
@@ -436,7 +436,7 @@ func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, vars re
 	// "A: [Obj] @cost(weight: 5)" means that the cost of the field is 5 for each object in the list.
 	// "type Object @cost(weight: 5) { ... }" does exactly the same thing.
 	// Weight defined on a field has priority over the weight defined on a type.
-	cost += int(math.RoundToEven(float64(childrenCost+fieldCost) * multiplier))
+	cost += (childrenCost + float64(fieldCost)) * multiplier
 	if cost < 0 {
 		cost = 0
 	}
@@ -728,7 +728,7 @@ func NewCostCalculator(config Configuration) *CostCalculator {
 // EstimateCost returns the calculated total static cost.
 // config should be static per process or instance. vars could change between requests.
 func (c *CostCalculator) EstimateCost(vars resolve.VariablesView) int {
-	return c.tree.cost(c.costConfigs, vars, c.defaultListSize, nil)
+	return int(math.RoundToEven(c.tree.cost(c.costConfigs, vars, c.defaultListSize, nil)))
 }
 
 const (
@@ -737,7 +737,7 @@ const (
 
 // ActualCost returns the actual cost of the operation that is based on the actual sizes of lists.
 func (c *CostCalculator) ActualCost(vars resolve.VariablesView, actualListSizes map[string]int) int {
-	return c.tree.cost(c.costConfigs, vars, actualCostMode, actualListSizes)
+	return int(math.RoundToEven(c.tree.cost(c.costConfigs, vars, actualCostMode, actualListSizes)))
 }
 
 // ValidateSliceArguments checks that all fields with slicingArguments and
@@ -922,7 +922,7 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*Da
 	// If there is a need to present a cost tree to the user,
 	// printing should be embedded into the tree calculation process.
 	subtreeCost := node.cost(configs, vars, defaultListSize, actualListSizes)
-	fmt.Fprintf(sb, "%s  subCost=%d\n", indent, subtreeCost)
+	fmt.Fprintf(sb, "%s  subCost=%.2f\n", indent, subtreeCost)
 
 	for _, child := range node.children {
 		child.debugPrint(sb, configs, vars, defaultListSize, actualListSizes, depth+1)
