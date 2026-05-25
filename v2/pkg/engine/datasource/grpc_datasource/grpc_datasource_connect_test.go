@@ -178,6 +178,17 @@ func Test_DataSource_Load_WithMockServiceConnect_JSON(t *testing.T) {
 	output, err := ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","body":`+variables+`}`))
 	require.NoError(t, err)
 
-	require.Contains(t, string(output), `"id":"test-id-123"`)
-	require.Contains(t, string(output), `"name":"Test Product"`)
+	type response struct {
+		Data struct {
+			ComplexFilterType []struct {
+				Id   string `json:"id"`
+				Name string `json:"name"`
+			} `json:"complexFilterType"`
+		} `json:"data"`
+	}
+	var resp response
+	require.NoError(t, json.Unmarshal(output, &resp))
+	require.NotEmpty(t, resp.Data.ComplexFilterType, "response should contain at least one item; empty slice would otherwise panic on index below")
+	require.Equal(t, "test-id-123", resp.Data.ComplexFilterType[0].Id)
+	require.Equal(t, "Test Product", resp.Data.ComplexFilterType[0].Name)
 }
