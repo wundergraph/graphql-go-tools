@@ -361,14 +361,26 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 			return resolve.FetchConfiguration{}
 		}
 
-		// Pick the transport: a Connect transport wired via NewFactoryConnect
-		// takes precedence; otherwise fall back to dialing the existing gRPC
-		// client connection. Both transports share the same proto mapping and
-		// compiler — the data source pipeline above this layer is unchanged.
+		// Pick the transport from the data source configuration, not from the
+		// factory shape. The factory still has to supply a matching transport
+		// (a *Connect* transport when the config says Connect, a gRPC client
+		// when it does not); a mismatch is a configuration bug and surfaces
+		// here as a hard error rather than silently dialling the wrong
+		// protocol. Both transports share the same proto mapping and compiler
+		// — only the wire format differs.
 		var transport grpcdatasource.RPCTransport
-		if p.connectTransport != nil {
+		switch {
+		case p.config.IsConnect():
+			if p.connectTransport == nil {
+				p.stopWithError(errors.WithStack(errors.New("connect configuration requires a connect transport (use NewFactoryConnect)")))
+				return resolve.FetchConfiguration{}
+			}
 			transport = p.connectTransport
-		} else {
+		default:
+			if p.grpcClient == nil {
+				p.stopWithError(errors.WithStack(errors.New("grpc configuration requires a grpc client (use NewFactoryGRPC or NewFactoryGRPCClientProvider)")))
+				return resolve.FetchConfiguration{}
+			}
 			transport = grpcdatasource.NewGRPCTransport(p.grpcClient)
 		}
 
