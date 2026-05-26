@@ -367,9 +367,14 @@ func (p *ProtocolGraphQLTransportWSHandler) Handle(ctx context.Context, engine s
 			p.logger.Error("websocket.ProtocolGraphQLTransportWSHandler.Handle: on handling init",
 				abstractlogger.Error(err),
 			)
-			p.closeConnectionWithReason(
-				CompiledCloseReasonInternalServerError,
-			)
+			// Close with 4401 Unauthorized so the client treats the failure
+			// as terminal (per graphql-transport-ws spec). Closing with
+			// CompiledCloseReasonInternalServerError (1011) triggers Apollo's
+			// reconnect storm.
+			p.closeConnectionWithReason(NewCloseReason(4401, "Unauthorized"))
+			// Bail before startHeartbeat: an InitFunc that returns a nil ctx
+			// would otherwise crash the heartbeat goroutine on <-ctx.Done().
+			return err
 		}
 		p.startHeartbeat(ctx)
 	case GraphQLTransportWSMessageTypePing:

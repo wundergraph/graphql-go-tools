@@ -150,7 +150,7 @@ func Test_DataSource_Load_NullMetrics_NestedResolversNotInvoked(t *testing.T) {
 	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
 	require.NoError(t, err)
 
-	ds, err := NewDataSource(conn, DataSourceConfig{
+	ds, err := NewDataSource(NewGRPCTransport(conn), DataSourceConfig{
 		Operation:    &queryDoc,
 		Definition:   &schemaDoc,
 		SubgraphName: "Products",
@@ -191,7 +191,7 @@ func Test_DataSource_Load_NullCategory_FieldResolversNotInvoked(t *testing.T) {
 	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
 	require.NoError(t, err)
 
-	ds, err := NewDataSource(conn, DataSourceConfig{
+	ds, err := NewDataSource(NewGRPCTransport(conn), DataSourceConfig{
 		Operation:    &queryDoc,
 		Definition:   &schemaDoc,
 		SubgraphName: "Products",
@@ -226,7 +226,7 @@ func Test_DataSource_Load_ArgumentLessFieldResolversCalled(t *testing.T) {
 	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
 	require.NoError(t, err)
 
-	ds, err := NewDataSource(conn, DataSourceConfig{
+	ds, err := NewDataSource(NewGRPCTransport(conn), DataSourceConfig{
 		Operation:    &queryDoc,
 		Definition:   &schemaDoc,
 		SubgraphName: "Products",
@@ -267,7 +267,7 @@ func Test_DataSource_Load_NullCategory_ArgumentLessFieldResolversNotInvoked(t *t
 	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
 	require.NoError(t, err)
 
-	ds, err := NewDataSource(conn, DataSourceConfig{
+	ds, err := NewDataSource(NewGRPCTransport(conn), DataSourceConfig{
 		Operation:    &queryDoc,
 		Definition:   &schemaDoc,
 		SubgraphName: "Products",
