@@ -2811,16 +2811,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				// Ideal calculation without rounding:
 				// cost = 3 * (1 + 1.33 * (1 + 1.75 * (1 + 1.57 * (1 + 1.18 * (1 + 1)))))
 				//      = 50.806584 ~= 51
-				//
-				// Current implementation:
-				// Level5: RoundToEven((1 +  1) * 1.18) = 2
-				// Level4: RoundToEven((1 +  2) * 1.57) = 5
-				// Level3: RoundToEven((1 +  5) * 1.75) = 10 (rounds to even)
-				// Level2: RoundToEven((1 + 10) * 1.33) = 15
-				// Level1: RoundToEven((1 + 15) * 3.00) = 48
-				//
-				// The compounding rounding error: 48 vs 51 (6% underestimate)
-				expectedActualCost: intPtr(48),
+				expectedActualCost: intPtr(51),
 			},
 			computeCosts(),
 		))

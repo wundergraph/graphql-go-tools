@@ -24,9 +24,13 @@ require (
 	github.com/coder/websocket v1.8.14 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/dlclark/regexp2 v1.11.0 // indirect
+	github.com/dop251/goja v0.0.0-20230906160731-9410bcaa81d2 // indirect
+	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/gobwas/httphead v0.1.0 // indirect
 	github.com/gobwas/pool v0.2.1 // indirect
+	github.com/google/pprof v0.0.0-20230207041349-798e818bf904 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
@@ -51,7 +55,6 @@ require (
 	github.com/urfave/cli/v2 v2.27.7 // indirect
 	github.com/wundergraph/astjson v1.1.1-0.20260419105127-f600d161463f // indirect
 	github.com/wundergraph/cosmo/composition-go v0.0.0-20241020204711-78f240a77c99 // indirect
-	github.com/wundergraph/cosmo/router v0.0.0-20251013094319-c611abf26b17 // indirect
 	github.com/wundergraph/go-arena v1.2.0 // indirect
 	github.com/xrash/smetrics v0.0.0-20250705151800-55b8f293f342 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
@@ -65,6 +68,7 @@ require (
 	google.golang.org/grpc v1.71.0 // indirect
 	gopkg.in/cenkalti/backoff.v1 v1.1.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	rogchap.com/v8go v0.9.0 // indirect
 )
 
 replace github.com/wundergraph/graphql-go-tools/v2 => ../../v2
