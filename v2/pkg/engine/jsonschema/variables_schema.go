@@ -338,7 +338,12 @@ func (v *VariablesSchemaBuilder) ensureDef(typeName string, node ast.Node) {
 		return
 	}
 	v.defs[typeName] = NewObjectSchema() // placeholder to break the recursion
-	v.defs[typeName] = v.processInputObjectType(node)
+	body := v.processInputObjectType(node)
+	// The definition body is the type itself, not nullable; nullability is
+	// applied per use-site via the "$ref" (rewritten as anyOf-with-null when
+	// the referencing context is nullable).
+	body.Nullable = false
+	v.defs[typeName] = body
 }
 
 // processEnumType processes an enum type definition
