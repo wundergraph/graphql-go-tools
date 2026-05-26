@@ -6,8 +6,6 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/wundergraph/astjson"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
@@ -23,10 +21,10 @@ const (
 type OperationType ast.OperationType
 
 const (
-	OperationTypeUnknown      OperationType = OperationType(ast.OperationTypeUnknown)
-	OperationTypeQuery        OperationType = OperationType(ast.OperationTypeQuery)
-	OperationTypeMutation     OperationType = OperationType(ast.OperationTypeMutation)
-	OperationTypeSubscription OperationType = OperationType(ast.OperationTypeSubscription)
+	OperationTypeUnknown      = OperationType(ast.OperationTypeUnknown)
+	OperationTypeQuery        = OperationType(ast.OperationTypeQuery)
+	OperationTypeMutation     = OperationType(ast.OperationTypeMutation)
+	OperationTypeSubscription = OperationType(ast.OperationTypeSubscription)
 )
 
 var (
@@ -196,11 +194,11 @@ func (r *Request) OperationType() (OperationType, error) {
 	return OperationTypeUnknown, nil
 }
 
-func (r *Request) ComputeEstimatedCost(calc *plan.CostCalculator, variables *astjson.Value) {
+func (r *Request) ComputeEstimatedCost(calc *plan.CostCalculator, vars resolve.VariablesView) {
 	if calc != nil {
-		r.estimatedCost = calc.EstimateCost(variables)
+		r.estimatedCost = calc.EstimateCost(vars)
 		// Debugging of cost trees. Uncomment to debug.
-		// fmt.Println(calc.DebugPrint(variables, nil))
+		// fmt.Println(calc.DebugPrint(vars, nil))
 	} else {
 		r.estimatedCost = 0
 	}
@@ -210,11 +208,11 @@ func (r *Request) EstimatedCost() int {
 	return r.estimatedCost
 }
 
-func (r *Request) ComputeActualCost(calc *plan.CostCalculator, variables *astjson.Value, actualListSizes map[string]int) {
+func (r *Request) ComputeActualCost(calc *plan.CostCalculator, vars resolve.VariablesView, actualListSizes map[string]int) {
 	if calc != nil {
-		r.actualCost = calc.ActualCost(variables, actualListSizes)
+		r.actualCost = calc.ActualCost(vars, actualListSizes)
 		// Debugging of cost trees. Uncomment to debug.
-		// fmt.Println(calc.DebugPrint(variables, actualListSizes))
+		// fmt.Println(calc.DebugPrint(vars, actualListSizes))
 	} else {
 		r.actualCost = 0
 	}

@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.4.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.4.0...v2.4.1) (2026-05-25)
+
+
+### Bug Fixes
+
+* use float64 for intermediate cost calculations ([#1514](https://github.com/wundergraph/graphql-go-tools/issues/1514)) ([d415ae5](https://github.com/wundergraph/graphql-go-tools/commit/d415ae5b6940b26386dd1d0047910b18528a8637))
+
+## [2.4.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.3.1...v2.4.0) (2026-05-21)
+
+
+### Features
+
+* **grpc_datasource:** introduce RPCTransport abstraction with gRPC implementation ([#1490](https://github.com/wundergraph/graphql-go-tools/issues/1490)) ([faffd81](https://github.com/wundergraph/graphql-go-tools/commit/faffd819a6154943222c5c3e8cb016387e916df4))
+
+
+### Bug Fixes
+
+* use remapped variables in cost calculation ([#1505](https://github.com/wundergraph/graphql-go-tools/issues/1505)) ([972ad0f](https://github.com/wundergraph/graphql-go-tools/commit/972ad0f7e38c9201784293a09cdefd6c50d67fc9))
+
 ## [2.3.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.3.0...v2.3.1) (2026-05-20)
 
 
